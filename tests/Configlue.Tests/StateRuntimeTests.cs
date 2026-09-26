@@ -556,6 +556,46 @@ public sealed class StateRuntimeTests
     }
 
     [Test]
+    public async Task Options_ExplainsEffectiveNestedValuesAndSparseSourceContributions()
+    {
+        var user = new InMemoryStateStore<AppSettings.Fragment>(new AppSettings.Fragment
+        {
+            Database = Optional<DatabaseSettings.Fragment?>.Present(new DatabaseSettings.Fragment
+            {
+                Port = Optional<int>.Present(6432),
+            }),
+        });
+        var defaults = new InMemoryStateStore<AppSettings.Fragment>(new AppSettings.Fragment
+        {
+            Database = Optional<DatabaseSettings.Fragment?>.Present(new DatabaseSettings.Fragment
+            {
+                Host = Optional<string>.Present("default.db"),
+                Port = Optional<int>.Present(5432),
+            }),
+        });
+        var sourceSet = new StateSourceSet<AppSettings.Fragment>(
+        [
+            new("user", user, priority: 100, physicalOrigin: "user-settings.json"),
+            new("defaults", defaults, priority: 0, physicalOrigin: "defaults.json"),
+        ]);
+        var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(sourceSet);
+
+        var port = await options.ExplainAsync("Database.Port");
+        var host = await options.ExplainAsync("Database.Host");
+        var enabled = await options.ExplainAsync("Enabled");
+
+        await Assert.That(port.EffectiveValue).IsEqualTo(6432);
+        await Assert.That(port.HighestPrioritySourceId).IsEqualTo("user");
+        await Assert.That(port.Contributions.Select(item => item.SourceId)).IsEquivalentTo(["user", "defaults"]);
+        await Assert.That(port.Contributions[0].Value).IsEqualTo(6432);
+        await Assert.That(port.Contributions[0].PhysicalOrigin).IsEqualTo("user-settings.json");
+        await Assert.That(host.EffectiveValue).IsEqualTo("default.db");
+        await Assert.That(host.HighestPrioritySourceId).IsEqualTo("defaults");
+        await Assert.That((bool)enabled.EffectiveValue!).IsTrue();
+        await Assert.That(enabled.Contributions).IsEmpty();
+    }
+
+    [Test]
     public async Task MigrateSourceAsync_CopiesOnlyTheSelectedContributionAfterSchemaMigration()
     {
         var legacySchema = new StateSchemaMetadata("app-settings", 1);

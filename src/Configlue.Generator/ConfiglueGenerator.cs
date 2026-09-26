@@ -223,7 +223,18 @@ public sealed class ConfiglueGenerator : IIncrementalGenerator
             code.Append("        new(").Append(member.Id).Append(", ")
                 .Append(SymbolDisplay.FormatLiteral(member.Property.Name, true)).Append(", typeof(")
                 .Append(NonNullableTypeName(member.ChildModel ?? member.Property.Type)).Append("), global::Configlue.MergeMode.")
-                .Append(MergeModeName(member.MergeMode)).AppendLine("),");
+                .Append(MergeModeName(member.MergeMode)).Append(", static value => ((").Append(modelType).Append(")value).")
+                .Append(EscapeIdentifier(member.Property.Name)).Append(", ");
+            if (member.ChildModel is null)
+            {
+                code.Append("null");
+            }
+            else
+            {
+                code.Append("static () => ").Append(NonNullableTypeName(member.ChildModel)).Append(".ConfiglueSchema");
+            }
+
+            code.AppendLine("),");
         }
 
         code.AppendLine("    });");

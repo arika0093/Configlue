@@ -1,7 +1,13 @@
 namespace Configlue;
 
 /// <summary>Describes one generated model member.</summary>
-public readonly record struct ConfiglueMemberSchema(int Id, string Name, Type ValueType, MergeMode MergeMode);
+public readonly record struct ConfiglueMemberSchema(
+    int Id,
+    string Name,
+    Type ValueType,
+    MergeMode MergeMode,
+    Func<object, object?>? GetValue = null,
+    Func<ConfiglueModelSchema>? NestedSchemaFactory = null);
 
 /// <summary>Generated metadata for a model and its persisted schema.</summary>
 public sealed class ConfiglueModelSchema

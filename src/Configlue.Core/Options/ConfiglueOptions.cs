@@ -73,12 +73,57 @@ public sealed class ConfiglueOptions<TModel, TFragment> : IWritableOptions<TMode
     public ValueTask<StateReadResult<TModel>> ReadAsync(CancellationToken cancellationToken = default) =>
         ReadCoreAsync(null, null, cancellationToken);
 
+    /// <inheritdoc />
+    public async ValueTask<ConfiglueValueExplanation> ExplainAsync(
+        string propertyPath,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(propertyPath);
+        var path = propertyPath.Split('.', StringSplitOptions.None);
+        if (path.Any(string.IsNullOrWhiteSpace))
+        {
+            throw new ArgumentException("A property path cannot contain empty member names.", nameof(propertyPath));
+        }
+
+        var resolved = await ResolveCoreAsync(null, null, cancellationToken).ConfigureAwait(false);
+        if (resolved.Result.Status != StateReadStatus.Success)
+        {
+            throw new InvalidOperationException($"Configuration state could not be read: {resolved.Result.Status}.");
+        }
+
+        var effectiveValue = GetModelValue(
+            TModel.ConfiglueSchema,
+            resolved.Result.Value!,
+            path,
+            propertyPath);
+        var sourceContributions = new List<ConfiglueSourceContribution>();
+        foreach (var contribution in resolved.Contributions)
+        {
+            if (TryGetFragmentValue(contribution.Result.Value!, path, out var value))
+            {
+                sourceContributions.Add(new ConfiglueSourceContribution(
+                    contribution.Source.Id,
+                    contribution.Source.PhysicalOrigin,
+                    contribution.Result.Revision,
+                    value));
+            }
+        }
+
+        return new ConfiglueValueExplanation(propertyPath, effectiveValue, sourceContributions);
+    }
+
     private async ValueTask<StateReadResult<TModel>> ReadCoreAsync(
+        StateSource<TFragment>? replacementSource,
+        StateReadResult<TFragment>? replacementResult,
+        CancellationToken cancellationToken) =>
+        (await ResolveCoreAsync(replacementSource, replacementResult, cancellationToken).ConfigureAwait(false)).Result;
+
+    private async ValueTask<ResolvedState> ResolveCoreAsync(
         StateSource<TFragment>? replacementSource,
         StateReadResult<TFragment>? replacementResult,
         CancellationToken cancellationToken)
     {
-        var contributions = new List<(StateSource<TFragment> Source, StateReadResult<TFragment> Result)>();
+        var contributions = new List<ResolvedContribution>();
         var revisions = new List<StateRevision>();
         StateReadResult<TFragment> lastFailure = default;
 
@@ -111,34 +156,34 @@ public sealed class ConfiglueOptions<TModel, TFragment> : IWritableOptions<TMode
                     fragment = await MigrateAsync(fragment, sourceSchema, cancellationToken).ConfigureAwait(false);
                 }
 
-                contributions.Add((source, result with { Value = fragment }));
+                contributions.Add(new ResolvedContribution(source, result with { Value = fragment }));
                 continue;
             }
 
             lastFailure = result;
             if (!CanFallBack(source.FallbackCondition, result.Status))
             {
-                return new StateReadResult<TModel>(
+                return new ResolvedState(new StateReadResult<TModel>(
                     result.Status,
                     default,
                     result.Revision,
                     result.SourceId,
                     result.PhysicalOrigin,
                     result.Schema,
-                    new StateRevisionVector(revisions));
+                    new StateRevisionVector(revisions)), contributions, null);
             }
         }
 
         if (contributions.Count == 0 && lastFailure.Status == StateReadStatus.Unavailable)
         {
-            return new StateReadResult<TModel>(
+            return new ResolvedState(new StateReadResult<TModel>(
                 lastFailure.Status,
                 default,
                 lastFailure.Revision,
                 lastFailure.SourceId,
                 lastFailure.PhysicalOrigin,
                 lastFailure.Schema,
-                new StateRevisionVector(revisions));
+                new StateRevisionVector(revisions)), contributions, null);
         }
 
         var merged = TFragment.Empty;
@@ -149,15 +194,16 @@ public sealed class ConfiglueOptions<TModel, TFragment> : IWritableOptions<TMode
 
         var model = TModel.FromFragment(merged);
         var active = contributions.FirstOrDefault();
-        return StateReadResult<TModel>.Success(
+        var resolvedResult = StateReadResult<TModel>.Success(
             model,
-            active.Result.Revision,
+            active?.Result.Revision,
             TModel.ConfiglueSchema.ToMetadata()) with
         {
-            SourceId = active.Source?.Id,
-            PhysicalOrigin = active.Source?.PhysicalOrigin,
+            SourceId = active?.Source.Id,
+            PhysicalOrigin = active?.Source.PhysicalOrigin,
             Revisions = new StateRevisionVector(revisions),
         };
+        return new ResolvedState(resolvedResult, contributions, merged);
     }
 
     /// <inheritdoc />
@@ -553,6 +599,94 @@ public sealed class ConfiglueOptions<TModel, TFragment> : IWritableOptions<TMode
         }
     }
 
+    private static object? GetModelValue(
+        ConfiglueModelSchema schema,
+        object model,
+        IReadOnlyList<string> path,
+        string propertyPath)
+    {
+        object? current = model;
+        for (var index = 0; index < path.Count; index++)
+        {
+            var member = schema.Members.FirstOrDefault(candidate =>
+                string.Equals(candidate.Name, path[index], StringComparison.Ordinal));
+            if (string.IsNullOrEmpty(member.Name))
+            {
+                throw new ArgumentException($"Model '{schema.ModelType}' has no member named '{path[index]}'.", nameof(propertyPath));
+            }
+
+            object? value = null;
+            if (current is not null)
+            {
+                var getter = member.GetValue
+                    ?? throw new InvalidOperationException($"Generated getter metadata is missing for '{schema.ModelType}.{member.Name}'.");
+                value = getter(current);
+            }
+
+            if (index == path.Count - 1)
+            {
+                return value;
+            }
+
+            if (member.NestedSchemaFactory is null)
+            {
+                throw new ArgumentException($"Member '{schema.ModelType}.{member.Name}' is not a generated nested model.", nameof(propertyPath));
+            }
+
+            schema = member.NestedSchemaFactory();
+            current = value;
+        }
+
+        throw new ArgumentException("The property path is empty.", nameof(propertyPath));
+    }
+
+    private static bool TryGetFragmentValue(
+        IConfiglueFragment fragment,
+        IReadOnlyList<string> path,
+        out object? value)
+    {
+        IConfiglueFragment current = fragment;
+        for (var index = 0; index < path.Count; index++)
+        {
+            var found = false;
+            object? currentValue = null;
+            foreach (var member in current.EnumeratePresentMembers())
+            {
+                if (!string.Equals(member.Name, path[index], StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                currentValue = member.Value;
+                found = true;
+                break;
+            }
+
+            if (!found)
+            {
+                value = null;
+                return false;
+            }
+
+            if (index == path.Count - 1)
+            {
+                value = currentValue;
+                return true;
+            }
+
+            if (currentValue is not IConfiglueFragment nested)
+            {
+                value = null;
+                return false;
+            }
+
+            current = nested;
+        }
+
+        value = null;
+        return false;
+    }
+
     private static bool HaveSameRevisions(StateRevisionVector? left, StateRevisionVector? right)
     {
         if (ReferenceEquals(left, right))
@@ -576,6 +710,13 @@ public sealed class ConfiglueOptions<TModel, TFragment> : IWritableOptions<TMode
             _changeListeners.Remove(listener);
         }
     }
+
+    private sealed record ResolvedContribution(StateSource<TFragment> Source, StateReadResult<TFragment> Result);
+
+    private sealed record ResolvedState(
+        StateReadResult<TModel> Result,
+        IReadOnlyList<ResolvedContribution> Contributions,
+        TFragment? MergedFragment);
 
     private sealed class ChangeSubscription(ConfiglueOptions<TModel, TFragment> owner, Action<TModel> listener) : IDisposable
     {

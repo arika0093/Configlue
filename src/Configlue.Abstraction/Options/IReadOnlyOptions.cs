@@ -21,4 +21,9 @@ public interface IReadOnlyOptions<T>
 
         return result.Value!;
     }
+
+    /// <summary>Explains a model property using its resolved value and present source contributions.</summary>
+    ValueTask<ConfiglueValueExplanation> ExplainAsync(
+        string propertyPath,
+        CancellationToken cancellationToken = default);
 }
