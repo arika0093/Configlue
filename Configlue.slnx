@@ -11,4 +11,7 @@
     <Project Path="src/providers/Configlue.Provider.Xml/Configlue.Provider.Xml.csproj" />
     <Project Path="src/providers/Configlue.Provider.Yaml/Configlue.Provider.Yaml.csproj" />
   </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Configlue.Tests/Configlue.Tests.csproj" />
+  </Folder>
 </Solution>
