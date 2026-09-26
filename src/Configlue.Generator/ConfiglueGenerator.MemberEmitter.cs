@@ -183,6 +183,27 @@ public sealed partial class ConfiglueGenerator
         return property.Name;
     }
 
+    private static string? GetEnvironmentVariableName(
+        IPropertySymbol property,
+        CancellationToken cancellationToken
+    )
+    {
+        foreach (var attribute in property.GetAttributes())
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (
+                attribute.AttributeClass?.ToDisplayString()
+                    == "Configlue.ConfiglueEnvironmentAttribute"
+                && attribute.ConstructorArguments.FirstOrDefault().Value is string name
+            )
+            {
+                return name;
+            }
+        }
+
+        return null;
+    }
+
     private static int GetModelVersion(INamedTypeSymbol model, CancellationToken cancellationToken)
     {
         foreach (var attribute in model.GetAttributes())

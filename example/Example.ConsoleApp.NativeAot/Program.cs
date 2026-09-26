@@ -18,11 +18,19 @@ var settingsSource = StateSourceProjection.Project(
     projectedSchema: SampleSetting.ConfiglueSchema.ToMetadata()
 );
 
-var firstRead = await settingsSource.Reader.ReadAsync();
+await using var context = global::Configlue.Configlue.CreateContext(builder =>
+{
+    builder.Add<SampleSetting>(settings =>
+    {
+        settings.Sources(sources => sources.Add(settingsSource));
+        settings.WriteRoute = StateWriteRoute.To("settings");
+    });
+});
+var options = context.GetOptions<SampleSetting>();
+var firstRead = await options.ReadAsync();
 var current = firstRead.Status switch
 {
-    StateReadStatus.Success => firstRead.Value?.ToModel()
-        ?? throw new InvalidOperationException("The settings source returned a null value."),
+    StateReadStatus.Success => firstRead.Value!,
     StateReadStatus.NotFound => new SampleSetting(),
     _ => throw new IOException("The settings source is temporarily unavailable."),
 };
@@ -45,11 +53,10 @@ if (args.Length > 0)
         new StateWriteRequest<SampleSetting.Fragment>(SampleSetting.ToFragment(current))
     );
 
-    var updatedRead = await settingsSource.Reader.ReadAsync();
+    var updatedRead = await options.ReadAsync();
     var updated = updatedRead.Status switch
     {
-        StateReadStatus.Success => updatedRead.Value?.ToModel()
-            ?? throw new InvalidOperationException("The settings source returned a null value."),
+        StateReadStatus.Success => updatedRead.Value!,
         _ => throw new IOException("The saved settings could not be read."),
     };
     Console.WriteLine($"Saved: Hello, {updated.Name}. This is run {updated.RunCount}.");

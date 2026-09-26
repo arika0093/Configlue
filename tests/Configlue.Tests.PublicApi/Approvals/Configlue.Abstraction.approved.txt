@@ -8,6 +8,12 @@ namespace Configlue
         public int Index { get; }
         public object? Value { get; }
     }
+    [System.AttributeUsage(System.AttributeTargets.Property, Inherited=false)]
+    public sealed class ConfiglueEnvironmentAttribute : System.Attribute
+    {
+        public ConfiglueEnvironmentAttribute(string name) { }
+        public string Name { get; }
+    }
     public static class ConfiglueFragmentComparer
     {
         public static bool AreEqual<TFragment>(TFragment? left, TFragment? right)
@@ -22,8 +28,9 @@ namespace Configlue
     }
     public readonly struct ConfiglueMemberSchema : System.IEquatable<Configlue.ConfiglueMemberSchema>
     {
-        public ConfiglueMemberSchema(int Id, string Name, System.Type ValueType, Configlue.MergeMode MergeMode, System.Func<object, object?>? GetValue = null, System.Func<Configlue.ConfiglueModelSchema>? NestedSchemaFactory = null, System.Func<System.Collections.Generic.IEnumerable<object?>, object?>? CollectionValueFactory = null) { }
+        public ConfiglueMemberSchema(int Id, string Name, System.Type ValueType, Configlue.MergeMode MergeMode, System.Func<object, object?>? GetValue = null, System.Func<Configlue.ConfiglueModelSchema>? NestedSchemaFactory = null, System.Func<System.Collections.Generic.IEnumerable<object?>, object?>? CollectionValueFactory = null, string? EnvironmentVariableName = null) { }
         public System.Func<System.Collections.Generic.IEnumerable<object?>, object?>? CollectionValueFactory { get; init; }
+        public string? EnvironmentVariableName { get; init; }
         public System.Func<object, object?>? GetValue { get; init; }
         public int Id { get; init; }
         public Configlue.MergeMode MergeMode { get; init; }

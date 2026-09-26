@@ -31,6 +31,27 @@ dotnet test --solution Configlue.slnx --configuration Release
 
 ## Runtime
 
+The generated-model facade provides a one-type-argument registration for both dependency injection and non-DI use. Non-DI applications can create an owned context or initialize one process-wide default; both expose asynchronous reads and writes.
+
+```csharp
+await using var context = global::Configlue.Configlue.CreateContext(conf =>
+{
+    conf.Add<UserSettings>(settings =>
+    {
+        settings.Sources(sources => sources.Add(CreateUserSettingsSource()));
+        settings.WriteRoute = StateWriteRoute.To("user-settings");
+    });
+});
+
+var options = context.GetOptions<UserSettings>();
+var current = await options.GetValueAsync();
+await options.SaveAsync(settings => settings.Name = "new name");
+```
+
+The static convenience class has the fully qualified name `global::Configlue.Configlue` because it shares a name with the root namespace. `global::Configlue.Configlue.Initialize(...)` and `global::Configlue.Configlue.GetOptions<T>()` provide a process-wide default context; call `await global::Configlue.Configlue.ShutdownAsync()` to dispose it. A `ConfiglueContext` owns the options and watcher tasks it creates. Source, reader, writer, and resource instances supplied by the application remain caller-owned. The DI equivalent is `services.AddConfiglue(conf => conf.Add<UserSettings>(...))`; it uses the same model and source definitions, and the service provider owns the context. Set `OptionsName` in the model callback for a named instance.
+
+`ConfiglueStandardPaths.GetStandardSaveDirectory(applicationId)` returns the platform-standard per-user configuration directory plus the application identifier. The application chooses the file name. A property can map to a specific environment variable with `[ConfiglueEnvironment("ENV_NAME")]`; otherwise the environment source uses its configured prefix and double-underscore member paths.
+
 Register generated model options with a prioritized state-source set. Reads merge the present members from each source, and writes can target a source independently of read priority.
 For DI-backed registration, the `(provider, sources) => ...` overload of `AddConfiglueOptions<TModel, TFragment>` resolves provider services and adds them with `sources.Add(id, reader, priority, fallbackCondition)`. Writer and watcher interfaces implemented by the reader are detected automatically; use `WithWriter` or `WithWatcher` for separate services. The callback runs when the options singleton is created. The builder is extensible, so provider packages can add their own source-registration extension methods.
 Register `IStateSchemaMigration<TFragment>` implementations as services to migrate older fragments with the same generated shape. For renamed or removed historical fields, declare earlier model types with `[ConfigluePreviousVersion(typeof(SettingsV1))]` on the current model and pass `Settings.CreateSchemaDispatcher(...)` to `SerializedStateSource.FromResource`; this decodes by schema metadata before current-fragment conversion and preserves sparse presence.
@@ -61,7 +82,7 @@ Unchanged fields retain their existing sparse state. `Append` and `SetUnion` edi
 `HttpResourceReader` reads from `{root}/get` and can be composed with any state codec. Call `CreateWriter()` and pass the result as `writer:` to `SerializedStateSource.FromResource` only when the endpoint supports updates; HTTP requests use ETags for conditional writes and polling. The optional `Configlue.Resource.Http.AspNetCore` package maps the same protocol over user-provided resource handlers. See the [HTTP resource protocol](docs/en/reference/http-resource-protocol.md).
 `JsonSchemaGenerator.Generate` and `Write` export versioned schemas from a model's generated `ConfiglueModelSchema`; pass a source-generated `IJsonTypeInfoResolver` for trimming and NativeAOT-friendly metadata. Supported DataAnnotations are mapped to schema constraints.
 
-`Configlue.Source.Environment.EnvironmentStateSource.FromEnvironment<AppConfig, AppConfig.Fragment>("environment", "APP")` creates a read-only sparse source from process environment variables such as `APP__DATABASE__HOST`. Double underscores separate nested model members; member names are matched case-insensitively. Common scalar values use invariant parsing, and a custom parser can handle application-specific types. The reader recalculates a content revision on each read; process environment variables do not provide a watcher.
+`Configlue.Source.Environment.EnvironmentStateSource.FromEnvironment<AppConfig, AppConfig.Fragment>("environment", "APP")` creates a read-only sparse source from process environment variables such as `APP__DATABASE__HOST`. Double underscores separate nested model members; member names are matched case-insensitively. A property annotated with `[ConfiglueEnvironment("ENV_NAME")]` can instead read that mapped variable name case-insensitively, including for nested model properties. Common scalar values use invariant parsing, and a custom parser can handle application-specific types. The reader recalculates a content revision on each read; process environment variables do not provide a watcher.
 
 ```csharp
 // UserSettingsSource implements IStateReader<AppConfig.Fragment>,

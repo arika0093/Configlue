@@ -48,13 +48,16 @@ public sealed partial class ConfiglueGenerator
             .Append(modelType)
             .Append(", ")
             .Append(modelType)
-            .AppendLine(".Fragment>");
+            .Append(".Fragment>, global::Configlue.IConfiglueFacadeModel<")
+            .Append(modelType)
+            .AppendLine(">");
         code.AppendLine("{");
         AppendModelSchema(code, modelType, modelId, version, members);
         AppendFragmentSchema(code, modelType, modelId, version, members);
         AppendDeepClone(code, modelType, members);
         AppendFragment(code, modelType, members, previousModels);
         AppendModelFragmentBridge(code, modelType);
+        AppendFacadeRuntimeBridge(code, modelType);
         AppendHistoricalDispatcherFactory(code, modelType, previousModels);
         code.AppendLine("}");
         return code.ToString();
@@ -214,7 +217,15 @@ public sealed partial class ConfiglueGenerator
                     .Append(".ConfiglueSchema");
             }
 
-            code.Append(", ").Append(CollectionValueFactory(member)).AppendLine("),");
+            code.Append(", ")
+                .Append(CollectionValueFactory(member))
+                .Append(", ")
+                .Append(
+                    GetEnvironmentVariableName(member.Property, code.CancellationToken) is { } name
+                        ? SymbolDisplay.FormatLiteral(name, true)
+                        : "null"
+                )
+                .AppendLine("),");
         }
 
         code.AppendIndent(1)
@@ -328,5 +339,37 @@ public sealed partial class ConfiglueGenerator
             .Append("public static ")
             .Append(modelType)
             .AppendLine(" FromFragment(Fragment value) => value.ToModel();");
+    }
+
+    private static void AppendFacadeRuntimeBridge(IndentedStringBuilder code, string modelType)
+    {
+        code.AppendIndent(1)
+            .Append("public static global::Configlue.IWritableOptions<")
+            .Append(modelType)
+            .AppendLine("> CreateConfiglueRuntime(");
+        code.AppendLineAt(
+            2,
+            "global::Configlue.ConfiglueModelBuilder<" + modelType + "> configuration,"
+        );
+        code.AppendLineAt(2, "global::System.IServiceProvider? serviceProvider)");
+        code.AppendIndent(2)
+            .Append("=> new global::Configlue.ConfiglueOptions<")
+            .Append(modelType)
+            .Append(", ")
+            .Append(modelType)
+            .AppendLine(".Fragment>(");
+        code.AppendLineAt(
+            3,
+            "configuration.BuildSources<" + modelType + ".Fragment>(serviceProvider),"
+        );
+        code.AppendLineAt(3, "configuration.WriteRoute,");
+        code.AppendLineAt(
+            3,
+            "configuration.GetMigrations<" + modelType + ".Fragment>(serviceProvider),"
+        );
+        code.AppendLineAt(3, "configuration.GetValidators(serviceProvider),");
+        code.AppendLineAt(3, "configuration.ValidateDataAnnotations,");
+        code.AppendLineAt(3, "configuration.OnChangeDebounce,");
+        code.AppendLineAt(3, "configuration.OptionsName);");
     }
 }

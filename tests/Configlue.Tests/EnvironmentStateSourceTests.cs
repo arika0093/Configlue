@@ -7,6 +7,29 @@ namespace Configlue.Tests;
 public sealed class EnvironmentStateSourceTests
 {
     [Test]
+    public async Task EnvironmentSource_MapsExplicitPropertyAndNestedVariableNames()
+    {
+        var variables = new Dictionary<string, string?>(StringComparer.Ordinal)
+        {
+            ["APP_SETTINGS_LABEL"] = "configured-label",
+            ["DATABASE_HOST"] = "configured-db",
+        };
+        var source = EnvironmentStateSource.FromEnvironment<AppSettings, AppSettings.Fragment>(
+            "environment",
+            "APP",
+            environmentVariables: () => variables
+        );
+
+        var read = await source.Reader.ReadAsync();
+
+        (read.Status).ShouldBe(StateReadStatus.Success);
+        (read.Value!.Label.IsPresent).ShouldBeTrue();
+        (read.Value.Label.Value).ShouldBe("configured-label");
+        (read.Value.Database.IsPresent).ShouldBeTrue();
+        (read.Value.Database.Value!.Host.Value).ShouldBe("configured-db");
+    }
+
+    [Test]
     public async Task EnvironmentSource_MapsPrefixedNestedVariablesIntoSparseFragments()
     {
         var variables = new Dictionary<string, string?>(StringComparer.Ordinal)

@@ -17,6 +17,7 @@ public partial class AppSettings
     [Range(0, 100)]
     public int RetryCount { get; set; } = 3;
 
+    [ConfiglueEnvironment("APP_SETTINGS_LABEL")]
     public string? Label { get; set; } = "default";
 
     public DatabaseSettings? Database { get; set; } = new();
@@ -28,6 +29,7 @@ public partial class AppSettings
 [ConfiglueModel(2, Id = "database-settings")]
 public partial class DatabaseSettings
 {
+    [ConfiglueEnvironment("DATABASE_HOST")]
     public string Host { get; set; } = "localhost";
 
     public int Port { get; set; } = 5432;

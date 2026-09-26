@@ -6,6 +6,37 @@ namespace Configlue;
 /// <summary>Registers generated Configlue options with dependency injection.</summary>
 public static class ConfiglueServiceCollectionExtensions
 {
+    /// <summary>Registers the same model definitions used by non-DI Configlue contexts.</summary>
+    public static IServiceCollection AddConfiglue(
+        this IServiceCollection services,
+        Action<ConfiglueBuilder> configure
+    )
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(configure);
+        if (services.Any(descriptor => descriptor.ServiceType == typeof(ConfiglueContext)))
+        {
+            throw new InvalidOperationException("A Configlue context is already registered.");
+        }
+
+        var builder = new ConfiglueBuilder();
+        configure(builder);
+        builder.Seal();
+        services.AddSingleton<ConfiglueContext>(provider => builder.CreateContext(provider));
+        foreach (var registration in builder.Registrations)
+        {
+            registration.AddServiceDescriptors(services);
+        }
+
+        var visitor = new ConfiglueFacadeRegistrationVisitor(services);
+        foreach (var registration in builder.Registrations)
+        {
+            registration.Accept(visitor);
+        }
+
+        return services;
+    }
+
     /// <summary>Registers options using a dependency-injection-aware source builder.</summary>
     public static IServiceCollection AddConfiglueOptions<TModel, TFragment>(
         this IServiceCollection services,
@@ -254,6 +285,28 @@ public static class ConfiglueServiceCollectionExtensions
                         GetNamedOptionsProfiles<TModel>(provider)
                     )
             );
+        }
+    }
+
+    private sealed class ConfiglueFacadeRegistrationVisitor(IServiceCollection services)
+        : IConfiglueRegistrationVisitor
+    {
+        private readonly HashSet<Type> _registeredModels = [];
+
+        public void Visit<TModel>(ConfiglueModelRegistration<TModel> registration)
+            where TModel : IConfiglueFacadeModel<TModel>
+        {
+            if (registration.OptionsName != Options.DefaultName && typeof(TModel).IsClass)
+            {
+                services.AddSingleton(
+                    new ConfiglueNamedOptionsProfile<TModel>(registration.OptionsName)
+                );
+            }
+
+            if (_registeredModels.Add(typeof(TModel)))
+            {
+                services.AddConfiglueMicrosoftOptions<TModel>();
+            }
         }
     }
 

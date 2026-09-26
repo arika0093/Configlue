@@ -17,7 +17,7 @@ public sealed class ResourceIdentityTests
         var source = SerializedStateSource.FromResource<AppSettings.Fragment>(
             "json",
             json,
-            new Configlue.Provider.Json.JsonStateCodec<AppSettings.Fragment>()
+            new global::Configlue.Provider.Json.JsonStateCodec<AppSettings.Fragment>()
         );
         var projected = StateSourceProjection.Project(
             source,

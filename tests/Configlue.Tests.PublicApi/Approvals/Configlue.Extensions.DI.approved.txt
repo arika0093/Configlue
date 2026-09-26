@@ -9,6 +9,7 @@ namespace Configlue
     }
     public static class ConfiglueServiceCollectionExtensions
     {
+        public static Microsoft.Extensions.DependencyInjection.IServiceCollection AddConfiglue(this Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Action<Configlue.ConfiglueBuilder> configure) { }
         public static Microsoft.Extensions.DependencyInjection.IServiceCollection AddConfiglueOptions<TModel, TFragment>(this Microsoft.Extensions.DependencyInjection.IServiceCollection services, Configlue.StateSourceSet<TFragment> sourceSet, Configlue.StateWriteRoute writeRoute = default, bool validateDataAnnotations = false, System.TimeSpan? onChangeDebounce = default)
             where TModel : Configlue.IConfiglueModel<TModel, TFragment>
             where TFragment :  class, Configlue.IConfiglueFragment<TFragment> { }
