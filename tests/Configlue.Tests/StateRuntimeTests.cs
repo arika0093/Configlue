@@ -7,6 +7,12 @@ using Microsoft.Extensions.Options;
 
 namespace Configlue.Tests;
 
+[ConfiglueModel(1, Id = "replace-collection-settings")]
+public partial class ReplaceCollectionSettings
+{
+    public IReadOnlyList<string> Values { get; set; } = [];
+}
+
 public sealed class StateRuntimeTests
 {
     [Test]
@@ -1478,6 +1484,102 @@ public sealed class StateRuntimeTests
     }
 
     [Test]
+    public async Task Options_ExplainsAppendElementOriginsIncludingDuplicates()
+    {
+        var user = new InMemoryStateStore<AppSettings.Fragment>(
+            new AppSettings.Fragment
+            {
+                Plugins = Optional<IReadOnlyList<string>>.Present(["user", "shared"]),
+            }
+        );
+        var defaults = new InMemoryStateStore<AppSettings.Fragment>(
+            new AppSettings.Fragment
+            {
+                Plugins = Optional<IReadOnlyList<string>>.Present(["base", "shared"]),
+            }
+        );
+        var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(
+            new StateSourceSet<AppSettings.Fragment>([
+                new("user", user, priority: 100),
+                new("defaults", defaults, priority: 0),
+            ])
+        );
+
+        var explanation = await options.ExplainAsync("Plugins");
+        var effective = (IReadOnlyList<string>)explanation.EffectiveValue!;
+
+        effective.ShouldBe(["base", "shared", "user", "shared"]);
+        explanation.CollectionElements.Count.ShouldBe(4);
+        ShouldHaveElementSources(explanation, 0, "base", "defaults");
+        ShouldHaveElementSources(explanation, 1, "shared", "defaults");
+        ShouldHaveElementSources(explanation, 2, "user", "user");
+        ShouldHaveElementSources(explanation, 3, "shared", "user");
+    }
+
+    [Test]
+    public async Task Options_ExplainsSetUnionElementOriginsForOverlappingValues()
+    {
+        var user = new InMemoryStateStore<SetUnionSettings.Fragment>(
+            new SetUnionSettings.Fragment
+            {
+                Tags = Optional<IReadOnlyList<string>>.Present(["user", "shared"]),
+            }
+        );
+        var defaults = new InMemoryStateStore<SetUnionSettings.Fragment>(
+            new SetUnionSettings.Fragment
+            {
+                Tags = Optional<IReadOnlyList<string>>.Present(["base", "shared"]),
+            }
+        );
+        var options = new ConfiglueOptions<SetUnionSettings, SetUnionSettings.Fragment>(
+            new StateSourceSet<SetUnionSettings.Fragment>([
+                new("user", user, priority: 100),
+                new("defaults", defaults, priority: 0),
+            ])
+        );
+
+        var explanation = await options.ExplainAsync("Tags");
+        var effective = (IReadOnlyList<string>)explanation.EffectiveValue!;
+
+        effective.ShouldBe(["base", "shared", "user"]);
+        explanation.CollectionElements.Count.ShouldBe(3);
+        ShouldHaveElementSources(explanation, 0, "base", "defaults");
+        ShouldHaveElementSources(explanation, 1, "shared", "user", "defaults");
+        ShouldHaveElementSources(explanation, 2, "user", "user");
+    }
+
+    [Test]
+    public async Task Options_ExplainsOnlyTheWinningSourceForReplacementCollectionElements()
+    {
+        var user = new InMemoryStateStore<ReplaceCollectionSettings.Fragment>(
+            new ReplaceCollectionSettings.Fragment
+            {
+                Values = Optional<IReadOnlyList<string>>.Present(["user"]),
+            }
+        );
+        var defaults = new InMemoryStateStore<ReplaceCollectionSettings.Fragment>(
+            new ReplaceCollectionSettings.Fragment
+            {
+                Values = Optional<IReadOnlyList<string>>.Present(["default"]),
+            }
+        );
+        var options = new ConfiglueOptions<
+            ReplaceCollectionSettings,
+            ReplaceCollectionSettings.Fragment
+        >(
+            new StateSourceSet<ReplaceCollectionSettings.Fragment>([
+                new("user", user, priority: 100),
+                new("defaults", defaults, priority: 0),
+            ])
+        );
+
+        var explanation = await options.ExplainAsync("Values");
+
+        explanation.CollectionElements.Count.ShouldBe(1);
+        ShouldHaveElementSources(explanation, 0, "user", "user");
+    }
+
+    [Test]
     public async Task MigrateSourceAsync_CopiesOnlyTheSelectedContributionAfterSchemaMigration()
     {
         var legacySchema = new StateSchemaMetadata("app-settings", 1);
@@ -1849,6 +1951,22 @@ public sealed class StateRuntimeTests
             options.RetryCount > 10
                 ? ValidateOptionsResult.Fail("RetryCount exceeds the custom retry limit.")
                 : ValidateOptionsResult.Success;
+    }
+
+    private static void ShouldHaveElementSources(
+        ConfiglueValueExplanation explanation,
+        int index,
+        object? value,
+        params string[] sourceIds
+    )
+    {
+        var element = explanation.CollectionElements[index];
+        element.Index.ShouldBe(index);
+        element.Value.ShouldBe(value);
+        element
+            .Contributions.Select(contribution => contribution.SourceId)
+            .ToArray()
+            .ShouldBe(sourceIds);
     }
 
     private sealed class ProfileScopedRetryCountValidator : IValidateOptions<AppSettings>

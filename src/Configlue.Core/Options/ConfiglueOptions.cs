@@ -1,3 +1,4 @@
+using System.Collections;
 using System.ComponentModel.DataAnnotations;
 using Microsoft.Extensions.Options;
 
@@ -123,7 +124,8 @@ public sealed class ConfiglueOptions<TModel, TFragment>
             TModel.ConfiglueSchema,
             resolved.Result.Value!,
             path,
-            propertyPath
+            propertyPath,
+            out var member
         );
         var sourceContributions = new List<ConfiglueSourceContribution>();
         foreach (var contribution in resolved.Contributions)
@@ -141,7 +143,15 @@ public sealed class ConfiglueOptions<TModel, TFragment>
             }
         }
 
-        return new ConfiglueValueExplanation(propertyPath, effectiveValue, sourceContributions);
+        var collectionElements = IsGeneratedCollectionType(member.ValueType)
+            ? ExplainCollectionElements(member, effectiveValue, sourceContributions)
+            : [];
+        return new ConfiglueValueExplanation(
+            propertyPath,
+            effectiveValue,
+            sourceContributions,
+            collectionElements
+        );
     }
 
     private async ValueTask<StateReadResult<TModel>> ReadCoreAsync(
@@ -2455,9 +2465,11 @@ public sealed class ConfiglueOptions<TModel, TFragment>
         ConfiglueModelSchema schema,
         object model,
         IReadOnlyList<string> path,
-        string propertyPath
+        string propertyPath,
+        out ConfiglueMemberSchema leafMember
     )
     {
+        leafMember = default;
         object? current = model;
         for (var index = 0; index < path.Count; index++)
         {
@@ -2485,6 +2497,7 @@ public sealed class ConfiglueOptions<TModel, TFragment>
 
             if (index == path.Count - 1)
             {
+                leafMember = member;
                 return value;
             }
 
@@ -2502,6 +2515,139 @@ public sealed class ConfiglueOptions<TModel, TFragment>
 
         throw new ArgumentException("The property path is empty.", nameof(propertyPath));
     }
+
+    private static bool IsGeneratedCollectionType(Type valueType)
+    {
+        if (valueType.IsArray)
+        {
+            return true;
+        }
+
+        if (!valueType.IsGenericType)
+        {
+            return false;
+        }
+
+        var definition = valueType.GetGenericTypeDefinition();
+        return definition == typeof(IEnumerable<>)
+            || definition == typeof(IReadOnlyCollection<>)
+            || definition == typeof(IReadOnlyList<>)
+            || definition == typeof(List<>)
+            || definition == typeof(HashSet<>)
+            || definition == typeof(ISet<>)
+            || definition == typeof(IReadOnlySet<>);
+    }
+
+    private static IReadOnlyList<ConfiglueCollectionElementExplanation> ExplainCollectionElements(
+        ConfiglueMemberSchema member,
+        object? effectiveValue,
+        IReadOnlyList<ConfiglueSourceContribution> sourceContributions
+    )
+    {
+        var effectiveElements = GetCollectionElements(effectiveValue);
+        var elementContributions = Enumerable
+            .Range(0, effectiveElements.Length)
+            .Select(static _ => new List<ConfiglueSourceContribution>())
+            .ToArray();
+
+        if (member.MergeMode == MergeMode.Append && effectiveValue is IList)
+        {
+            var expectedElementCount = sourceContributions.Sum(contribution =>
+                GetCollectionElements(contribution.Value).Length
+            );
+            if (expectedElementCount == effectiveElements.Length)
+            {
+                var elementIndex = 0;
+                foreach (var contribution in sourceContributions.Reverse())
+                {
+                    foreach (var _ in GetCollectionElements(contribution.Value))
+                    {
+                        AddElementContribution(
+                            elementContributions,
+                            elementIndex,
+                            effectiveElements[elementIndex],
+                            contribution
+                        );
+                        elementIndex++;
+                    }
+                }
+            }
+            else
+            {
+                AddMatchingElementContributions(
+                    effectiveElements,
+                    sourceContributions,
+                    elementContributions
+                );
+            }
+        }
+        else
+        {
+            var eligibleSources =
+                member.MergeMode == MergeMode.Replace
+                    ? sourceContributions.Take(1)
+                    : sourceContributions;
+            AddMatchingElementContributions(
+                effectiveElements,
+                eligibleSources,
+                elementContributions
+            );
+        }
+
+        return Array.AsReadOnly(
+            effectiveElements
+                .Select(
+                    (value, index) =>
+                        new ConfiglueCollectionElementExplanation(
+                            index,
+                            value,
+                            elementContributions[index]
+                        )
+                )
+                .ToArray()
+        );
+    }
+
+    private static object?[] GetCollectionElements(object? value) =>
+        value is IEnumerable elements && value is not string
+            ? elements.Cast<object?>().ToArray()
+            : [];
+
+    private static void AddMatchingElementContributions(
+        IReadOnlyList<object?> effectiveElements,
+        IEnumerable<ConfiglueSourceContribution> sourceContributions,
+        IReadOnlyList<List<ConfiglueSourceContribution>> elementContributions
+    )
+    {
+        foreach (var (element, index) in effectiveElements.Select((value, index) => (value, index)))
+        {
+            foreach (
+                var sourceContribution in sourceContributions.Where(source =>
+                    GetCollectionElements(source.Value)
+                        .Any(sourceElement => Equals(sourceElement, element))
+                )
+            )
+            {
+                AddElementContribution(elementContributions, index, element, sourceContribution);
+            }
+        }
+    }
+
+    private static void AddElementContribution(
+        IReadOnlyList<List<ConfiglueSourceContribution>> elementContributions,
+        int elementIndex,
+        object? element,
+        ConfiglueSourceContribution source
+    ) =>
+        elementContributions[elementIndex]
+            .Add(
+                new ConfiglueSourceContribution(
+                    source.SourceId,
+                    source.PhysicalOrigin,
+                    source.Revision,
+                    element
+                )
+            );
 
     private static bool TryGetFragmentValue(
         IConfiglueFragment fragment,
