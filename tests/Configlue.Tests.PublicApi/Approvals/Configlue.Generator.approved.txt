@@ -1,0 +1,10 @@
+[assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/arika0093/Configlue")]
+namespace Configlue.Generator
+{
+    [Microsoft.CodeAnalysis.Generator("C#", new string[0])]
+    public sealed class ConfiglueGenerator : Microsoft.CodeAnalysis.IIncrementalGenerator
+    {
+        public ConfiglueGenerator() { }
+        public void Initialize(Microsoft.CodeAnalysis.IncrementalGeneratorInitializationContext context) { }
+    }
+}

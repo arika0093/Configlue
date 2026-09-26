@@ -1,0 +1,78 @@
+[assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/arika0093/Configlue")]
+namespace Configlue.Provider.Json
+{
+    public sealed class JsonSchemaDocument : System.IEquatable<Configlue.Provider.Json.JsonSchemaDocument>
+    {
+        public JsonSchemaDocument(Configlue.ConfiglueModelSchema Model, string FileName, System.Text.Json.Nodes.JsonNode Schema) { }
+        public string FileName { get; init; }
+        public Configlue.ConfiglueModelSchema Model { get; init; }
+        public System.Text.Json.Nodes.JsonNode Schema { get; init; }
+    }
+    public sealed class JsonSchemaGenerationDiagnostic : System.IEquatable<Configlue.Provider.Json.JsonSchemaGenerationDiagnostic>
+    {
+        public JsonSchemaGenerationDiagnostic(string Code, string Message, System.Type? ModelType = null, string? ModelId = null, int? Version = default, string? OutputPath = null) { }
+        public string Code { get; init; }
+        public string Message { get; init; }
+        public string? ModelId { get; init; }
+        public System.Type? ModelType { get; init; }
+        public string? OutputPath { get; init; }
+        public int? Version { get; init; }
+    }
+    public sealed class JsonSchemaGenerationResult
+    {
+        public System.Collections.Generic.IReadOnlyList<Configlue.Provider.Json.JsonSchemaGenerationDiagnostic> Diagnostics { get; }
+        public System.Collections.Generic.IReadOnlyList<Configlue.Provider.Json.JsonSchemaDocument> Documents { get; }
+        public bool Succeeded { get; }
+        public System.Collections.Generic.IReadOnlyList<string> WrittenFiles { get; }
+    }
+    public static class JsonSchemaGenerator
+    {
+        public static Configlue.Provider.Json.JsonSchemaGenerationResult Generate(System.Collections.Generic.IEnumerable<Configlue.ConfiglueModelSchema> models, System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver resolver, string? schemaBaseUri = null) { }
+        public static Configlue.Provider.Json.JsonSchemaGenerationResult Generate<TModel, TFragment>(System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver resolver, string? schemaBaseUri = null)
+            where TModel : Configlue.IConfiglueModel<TModel, TFragment>
+            where TFragment :  class, Configlue.IConfiglueFragment<TFragment> { }
+        public static Configlue.Provider.Json.JsonSchemaGenerationResult Write(System.Collections.Generic.IEnumerable<Configlue.ConfiglueModelSchema> models, string outputDirectory, System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver resolver, string? schemaBaseUri = null) { }
+        public static Configlue.Provider.Json.JsonSchemaGenerationResult Write<TModel, TFragment>(string outputDirectory, System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver resolver, string? schemaBaseUri = null)
+            where TModel : Configlue.IConfiglueModel<TModel, TFragment>
+            where TFragment :  class, Configlue.IConfiglueFragment<TFragment> { }
+    }
+    [System.AttributeUsage(System.AttributeTargets.Property | System.AttributeTargets.Field, Inherited=true)]
+    public sealed class JsonSchemaOneOfAttribute : System.Attribute
+    {
+        public JsonSchemaOneOfAttribute(params System.Type[] types) { }
+        public System.Type[] Types { get; }
+    }
+    [System.AttributeUsage(System.AttributeTargets.Property | System.AttributeTargets.Field, Inherited=true)]
+    public sealed class JsonSchemaOverrideAttribute : System.Attribute
+    {
+        public JsonSchemaOverrideAttribute(string schema) { }
+        public string Schema { get; }
+    }
+    public sealed class JsonSectionResource : Configlue.IResourceBatchParticipant, Configlue.IResourceIdentity, Configlue.IResourceReader, Configlue.IResourceWriter, Configlue.IStateWatcher
+    {
+        public JsonSectionResource(Configlue.IResourceReader resource, string sectionPath, System.Text.Json.JsonSerializerOptions? serializerOptions = null, Configlue.ResourceId? resourceId = default) { }
+        public JsonSectionResource(Configlue.IResourceReader reader, Configlue.IResourceWriter? writer, string sectionPath, Configlue.IStateWatcher? watcher = null, System.Text.Json.JsonSerializerOptions? serializerOptions = null, Configlue.ResourceId? resourceId = default) { }
+        public Configlue.IResourceBatchWriter? BatchWriter { get; }
+        public bool CanWrite { get; }
+        public Configlue.ResourceId ResourceId { get; }
+        public Configlue.ResourceWriteMutation CreateMutation(Configlue.ResourceWriteRequest request) { }
+        public System.Threading.Tasks.ValueTask<Configlue.ResourceReadResult> ReadAsync(System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask WaitForChangeAsync(string? observedRevision, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Configlue.StateWriteResult> WriteAsync(Configlue.ResourceWriteRequest request, System.Threading.CancellationToken cancellationToken = default) { }
+    }
+    public sealed class JsonStateCodec : Configlue.IStateCodec, Configlue.IStateSchemaMetadataReader
+    {
+        public JsonStateCodec(System.Text.Json.JsonSerializerOptions? options = null) { }
+        public object? Deserialize(System.Type type, in System.Buffers.ReadOnlySequence<byte> source, in Configlue.StateCodecContext context) { }
+        public Configlue.StateSchemaMetadata? ReadSchemaMetadata(in System.Buffers.ReadOnlySequence<byte> source) { }
+        public void Serialize(System.Type type, object? value, System.Buffers.IBufferWriter<byte> destination, in Configlue.StateCodecContext context) { }
+    }
+    public sealed class JsonStateCodec<T> : Configlue.IStateCodec<T>, Configlue.IStateSchemaMetadataReader
+    {
+        public JsonStateCodec(System.Text.Json.JsonSerializerOptions? options = null) { }
+        public JsonStateCodec(System.Text.Json.Serialization.Metadata.JsonTypeInfo<T> typeInfo) { }
+        public T? Deserialize(in System.Buffers.ReadOnlySequence<byte> source, in Configlue.StateCodecContext context) { }
+        public Configlue.StateSchemaMetadata? ReadSchemaMetadata(in System.Buffers.ReadOnlySequence<byte> source) { }
+        public void Serialize(T? value, System.Buffers.IBufferWriter<byte> destination, in Configlue.StateCodecContext context) { }
+    }
+}

@@ -1,0 +1,16 @@
+[assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/arika0093/Configlue")]
+namespace Configlue.Resource.Zip
+{
+    public sealed class ZipEntryResource : Configlue.IResourceBatchParticipant, Configlue.IResourceIdentity, Configlue.IResourceReader, Configlue.IResourceWriter, Configlue.IStateWatcher
+    {
+        public ZipEntryResource(Configlue.IResourceReader archiveReader, string entryName, Configlue.IStateWatcher? archiveWatcher = null, Configlue.ResourceId? resourceId = default) { }
+        public ZipEntryResource(Configlue.IResourceReader archiveReader, Configlue.IResourceBatchWriter? archiveWriter, string entryName, Configlue.IStateWatcher? archiveWatcher = null, Configlue.ResourceId? resourceId = default) { }
+        public Configlue.IResourceBatchWriter? BatchWriter { get; }
+        public string EntryName { get; }
+        public Configlue.ResourceId ResourceId { get; }
+        public Configlue.ResourceWriteMutation CreateMutation(Configlue.ResourceWriteRequest request) { }
+        public System.Threading.Tasks.ValueTask<Configlue.ResourceReadResult> ReadAsync(System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask WaitForChangeAsync(string? observedRevision, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Configlue.StateWriteResult> WriteAsync(Configlue.ResourceWriteRequest request, System.Threading.CancellationToken cancellationToken = default) { }
+    }
+}

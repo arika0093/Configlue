@@ -1,0 +1,16 @@
+[assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/arika0093/Configlue")]
+namespace Configlue.Source.Environment
+{
+    public sealed class EnvironmentStateReader<TFragment> : Configlue.IStateReader<TFragment>
+        where TFragment :  class, Configlue.IConfiglueFragment<TFragment>
+    {
+        public EnvironmentStateReader(Configlue.ConfiglueModelSchema schema, string prefix, System.Func<System.Collections.Generic.IEnumerable<System.Collections.Generic.KeyValuePair<string, string?>>>? environmentVariables = null, System.Func<string, System.Type, object?>? valueParser = null) { }
+        public System.Threading.Tasks.ValueTask<Configlue.StateReadResult<TFragment>> ReadAsync(System.Threading.CancellationToken cancellationToken = default) { }
+    }
+    public static class EnvironmentStateSource
+    {
+        public static Configlue.StateSource<TFragment> FromEnvironment<TModel, TFragment>(string id, string prefix, int priority = 0, Configlue.StateFallbackCondition fallbackCondition = 1, System.Func<System.Collections.Generic.IEnumerable<System.Collections.Generic.KeyValuePair<string, string?>>>? environmentVariables = null, System.Func<string, System.Type, object?>? valueParser = null)
+            where TModel : Configlue.IConfiglueModel<TModel, TFragment>
+            where TFragment :  class, Configlue.IConfiglueFragment<TFragment> { }
+    }
+}

@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <PackageReference Include="PublicApiGenerator" Version="11.5.4" />
+    <PackageReference
+      Include="Microsoft.CodeAnalysis.CSharp"
+      Version="4.11.0"
+      PrivateAssets="all"
+    />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/Configlue.Abstraction/Configlue.Abstraction.csproj" />
+    <ProjectReference Include="../../src/Configlue.Core/Configlue.Core.csproj" />
+    <ProjectReference Include="../../src/Configlue/Configlue.csproj" />
+    <ProjectReference Include="../../src/Configlue.Provider.Json/Configlue.Provider.Json.csproj" />
+    <ProjectReference Include="../../src/Configlue.Provider.Xml/Configlue.Provider.Xml.csproj" />
+    <ProjectReference Include="../../src/Configlue.Provider.Yaml/Configlue.Provider.Yaml.csproj" />
+    <ProjectReference Include="../../src/Configlue.Source.Environment/Configlue.Source.Environment.csproj" />
+    <ProjectReference Include="../../src/Configlue.Resource.Zip/Configlue.Resource.Zip.csproj" />
+    <ProjectReference Include="../../src/Configlue.Testing/Configlue.Testing.csproj" />
+    <ProjectReference Include="../../src/Configlue.Generator/Configlue.Generator.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Approvals/**/*.approved.txt" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

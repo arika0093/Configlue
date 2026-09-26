@@ -1,0 +1,50 @@
+[assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/arika0093/Configlue")]
+namespace Configlue
+{
+    public static class ConfiglueProfiledOptionsServiceCollectionExtensions
+    {
+        public static Microsoft.Extensions.DependencyInjection.IServiceCollection AddConfiglueProfiledOptions<TModel, TFragment>(this Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Func<System.IServiceProvider, string, Configlue.StateSourceSet<TFragment>> profileSourceSetFactory, System.Func<System.IServiceProvider, Configlue.StateSource<Configlue.ConfiglueProfileCatalog>> catalogSourceFactory, string defaultProfileName = "default", Configlue.StateWriteRoute writeRoute = default, bool validateDataAnnotations = false, System.TimeSpan? onChangeDebounce = default)
+            where TModel : Configlue.IConfiglueModel<TModel, TFragment>
+            where TFragment :  class, Configlue.IConfiglueFragment<TFragment> { }
+    }
+    public static class ConfiglueServiceCollectionExtensions
+    {
+        public static Microsoft.Extensions.DependencyInjection.IServiceCollection AddConfiglueOptions<TModel, TFragment>(this Microsoft.Extensions.DependencyInjection.IServiceCollection services, Configlue.StateSourceSet<TFragment> sourceSet, Configlue.StateWriteRoute writeRoute = default, bool validateDataAnnotations = false, System.TimeSpan? onChangeDebounce = default)
+            where TModel : Configlue.IConfiglueModel<TModel, TFragment>
+            where TFragment :  class, Configlue.IConfiglueFragment<TFragment> { }
+        public static Microsoft.Extensions.DependencyInjection.IServiceCollection AddConfiglueOptions<TModel, TFragment>(this Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Action<System.IServiceProvider, Configlue.StateSourceSetBuilder<TFragment>> configureSources, Configlue.StateWriteRoute writeRoute = default, bool validateDataAnnotations = false, System.TimeSpan? onChangeDebounce = default)
+            where TModel : Configlue.IConfiglueModel<TModel, TFragment>
+            where TFragment :  class, Configlue.IConfiglueFragment<TFragment> { }
+        public static Microsoft.Extensions.DependencyInjection.IServiceCollection AddConfiglueOptions<TModel, TFragment>(this Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Func<System.IServiceProvider, Configlue.StateSourceSet<TFragment>> sourceSetFactory, Configlue.StateWriteRoute writeRoute = default, bool validateDataAnnotations = false, System.TimeSpan? onChangeDebounce = default)
+            where TModel : Configlue.IConfiglueModel<TModel, TFragment>
+            where TFragment :  class, Configlue.IConfiglueFragment<TFragment> { }
+        public static Microsoft.Extensions.DependencyInjection.IServiceCollection AddConfiglueOptions<TModel, TFragment>(this Microsoft.Extensions.DependencyInjection.IServiceCollection services, object serviceKey, Configlue.StateSourceSet<TFragment> sourceSet, Configlue.StateWriteRoute writeRoute = default, bool validateDataAnnotations = false, System.TimeSpan? onChangeDebounce = default)
+            where TModel : Configlue.IConfiglueModel<TModel, TFragment>
+            where TFragment :  class, Configlue.IConfiglueFragment<TFragment> { }
+        public static Microsoft.Extensions.DependencyInjection.IServiceCollection AddConfiglueOptions<TModel, TFragment>(this Microsoft.Extensions.DependencyInjection.IServiceCollection services, object serviceKey, System.Action<System.IServiceProvider, Configlue.StateSourceSetBuilder<TFragment>> configureSources, Configlue.StateWriteRoute writeRoute = default, bool validateDataAnnotations = false, System.TimeSpan? onChangeDebounce = default)
+            where TModel : Configlue.IConfiglueModel<TModel, TFragment>
+            where TFragment :  class, Configlue.IConfiglueFragment<TFragment> { }
+        public static Microsoft.Extensions.DependencyInjection.IServiceCollection AddConfiglueOptions<TModel, TFragment>(this Microsoft.Extensions.DependencyInjection.IServiceCollection services, object serviceKey, System.Func<System.IServiceProvider, Configlue.StateSourceSet<TFragment>> sourceSetFactory, Configlue.StateWriteRoute writeRoute = default, bool validateDataAnnotations = false, System.TimeSpan? onChangeDebounce = default)
+            where TModel : Configlue.IConfiglueModel<TModel, TFragment>
+            where TFragment :  class, Configlue.IConfiglueFragment<TFragment> { }
+        public static Microsoft.Extensions.DependencyInjection.IServiceCollection AddConfiglueOptionsRegistry<TModel, TFragment>(this Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Func<System.IServiceProvider, string, Configlue.StateSourceSet<TFragment>> sourceSetFactory, Configlue.StateWriteRoute writeRoute = default, bool validateDataAnnotations = false, System.TimeSpan? onChangeDebounce = default)
+            where TModel : Configlue.IConfiglueModel<TModel, TFragment>
+            where TFragment :  class, Configlue.IConfiglueFragment<TFragment> { }
+        public static Microsoft.Extensions.DependencyInjection.IServiceCollection AddConfiglueValidator<TModel>(this Microsoft.Extensions.DependencyInjection.IServiceCollection services, Microsoft.Extensions.Options.IValidateOptions<TModel> validator)
+            where TModel :  class { }
+    }
+    public sealed class StateSourceBuilder<T>
+    {
+        public Configlue.StateSourceBuilder<T> WithWatcher(Configlue.IStateWatcher watcher) { }
+        public Configlue.StateSourceBuilder<T> WithWriter(Configlue.IStateWriter<T> writer) { }
+        public Configlue.StateSourceBuilder<T> WithoutWatcher() { }
+        public Configlue.StateSourceBuilder<T> WithoutWriter() { }
+    }
+    public sealed class StateSourceSetBuilder<T>
+    {
+        public StateSourceSetBuilder() { }
+        public Configlue.StateSourceSetBuilder<T> Add(Configlue.StateSource<T> source) { }
+        public Configlue.StateSourceBuilder<T> Add(string id, Configlue.IStateReader<T> reader, int priority = 0, Configlue.StateFallbackCondition fallbackCondition = 1, string? physicalOrigin = null, Configlue.ResourceId? resourceId = default) { }
+        public Configlue.StateSourceSet<T> Build() { }
+    }
+}
