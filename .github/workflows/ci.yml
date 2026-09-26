@@ -24,3 +24,9 @@ jobs:
       - run: dotnet restore Configlue.slnx
       - run: dotnet build Configlue.slnx --no-restore --configuration Release
       - run: dotnet test --solution Configlue.slnx --no-build --configuration Release
+      - name: Pack NuGet packages
+        run: dotnet pack Configlue.slnx --no-build --no-restore --configuration Release --output artifacts
+      - name: Verify package contents
+        if: matrix.os == 'ubuntu-latest'
+        shell: pwsh
+        run: ./eng/VerifyPackages.ps1 -PackageDirectory artifacts
