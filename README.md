@@ -40,6 +40,7 @@ Configure sessions compare the full source revision vector immediately before sa
 
 Edits made through `BeginConfigureAsync` or the updater overloads use generated semantic diffs and update only the selected source contribution. Unchanged fields retain their existing sparse state. `Append` and `SetUnion` edits are rebased onto that source's collection segment; edits that require removing values owned by another source fail with `StateConflictException`.
 `JsonSectionResource` exposes a nested JSON path such as `App:Settings` as a separate resource and preserves its sibling values on writes.
+`XmlSectionResource` and `YamlSectionResource` provide the same nested-section view for XML elements and YAML mappings, including sibling preservation and whole-resource revision checks.
 
 ```csharp
 services.AddConfiglueOptions<AppConfig, AppConfig.Fragment>(
