@@ -8,3 +8,9 @@ dotnet run --project example/Example.ConsoleApp -- --set-name Ada
 ```
 
 The settings file is written beside the executable. The sample uses `IWritableOptions<T>` to read and save the generated model through the JSON state codec.
+
+`Example.ConsoleApp.NativeAot` uses source-generated `System.Text.Json` metadata and projects the persisted model into Configlue's sparse fragment. Publish it for Linux with:
+
+```sh
+dotnet publish example/Example.ConsoleApp.NativeAot --configuration Release --runtime linux-x64 --self-contained true
+```

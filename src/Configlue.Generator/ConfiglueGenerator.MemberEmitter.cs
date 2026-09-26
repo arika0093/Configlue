@@ -117,6 +117,11 @@ public sealed partial class ConfiglueGenerator
         return NonNullableTypeName(member.ChildModel) + ".Fragment?";
     }
 
+    private static string FragmentRuntimeValueType(MemberModel member) =>
+        member.ChildModel is null
+            ? member.Property.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)
+            : NonNullableTypeName(member.ChildModel) + ".Fragment";
+
     private static string TypeName(ITypeSymbol type) => type.ToDisplayString(TypeFormat);
 
     private static string NonNullableTypeName(ITypeSymbol type) =>

@@ -1,4 +1,5 @@
 using System.Buffers;
+using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
 
@@ -67,7 +68,14 @@ public sealed class JsonStateCodec<T> : IStateCodec<T>, IStateSchemaMetadataRead
     private readonly JsonSerializerOptions _options;
     private readonly JsonTypeInfo<T>? _typeInfo;
 
-    /// <summary>Creates a codec that uses the supplied options.</summary>
+    /// <summary>Creates a reflection-based codec that uses the supplied options.</summary>
+    /// <remarks>For trimming and NativeAOT, use the constructor that accepts <see cref="JsonTypeInfo{T}"/>.</remarks>
+    [RequiresUnreferencedCode(
+        "Reflection-based JSON serialization may require types that trimming removes. Use the JsonTypeInfo constructor for trim-safe serialization."
+    )]
+    [RequiresDynamicCode(
+        "Reflection-based JSON serialization may require runtime code generation. Use the JsonTypeInfo constructor for NativeAOT."
+    )]
     public JsonStateCodec(JsonSerializerOptions? options = null)
     {
         _options = options is null
@@ -84,6 +92,16 @@ public sealed class JsonStateCodec<T> : IStateCodec<T>, IStateSchemaMetadataRead
     }
 
     /// <inheritdoc />
+    [UnconditionalSuppressMessage(
+        "Trimming",
+        "IL2026",
+        Justification = "The options-based constructor carries this requirement. The JsonTypeInfo constructor sets _typeInfo and never enters the reflection fallback."
+    )]
+    [UnconditionalSuppressMessage(
+        "Aot",
+        "IL3050",
+        Justification = "The options-based constructor carries this requirement. The JsonTypeInfo constructor sets _typeInfo and never enters the reflection fallback."
+    )]
     public T? Deserialize(in ReadOnlySequence<byte> source, in StateCodecContext context)
     {
         var payload = JsonStateCodecOperations.GetPayload(in source, out _);
@@ -94,6 +112,16 @@ public sealed class JsonStateCodec<T> : IStateCodec<T>, IStateSchemaMetadataRead
     }
 
     /// <inheritdoc />
+    [UnconditionalSuppressMessage(
+        "Trimming",
+        "IL2026",
+        Justification = "The options-based constructor carries this requirement. The JsonTypeInfo constructor sets _typeInfo and never enters the reflection fallback."
+    )]
+    [UnconditionalSuppressMessage(
+        "Aot",
+        "IL3050",
+        Justification = "The options-based constructor carries this requirement. The JsonTypeInfo constructor sets _typeInfo and never enters the reflection fallback."
+    )]
     public void Serialize(T? value, IBufferWriter<byte> destination, in StateCodecContext context)
     {
         ArgumentNullException.ThrowIfNull(destination);

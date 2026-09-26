@@ -85,3 +85,16 @@ jobs:
           --retry-failed-tests 3
           --timeout 5m
           --progress off
+
+      - name: Publish NativeAOT console example
+        run: >
+          dotnet publish example/Example.ConsoleApp.NativeAot/Example.ConsoleApp.NativeAot.csproj
+          --configuration Release
+          --framework net10.0
+          --runtime linux-x64
+          --self-contained true
+
+      - name: Run NativeAOT console example
+        run: >
+          example/Example.ConsoleApp.NativeAot/bin/Release/net10.0/linux-x64/publish/Example.ConsoleApp.NativeAot
+          --set-name NativeAOT

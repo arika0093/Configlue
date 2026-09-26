@@ -69,10 +69,22 @@ namespace Configlue.Provider.Json
     }
     public sealed class JsonStateCodec<T> : Configlue.IStateCodec<T>, Configlue.IStateSchemaMetadataReader
     {
+        [System.Diagnostics.CodeAnalysis.RequiresDynamicCode("Reflection-based JSON serialization may require runtime code generation. Use the " +
+            "JsonTypeInfo constructor for NativeAOT.")]
+        [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Reflection-based JSON serialization may require types that trimming removes. Use " +
+            "the JsonTypeInfo constructor for trim-safe serialization.")]
         public JsonStateCodec(System.Text.Json.JsonSerializerOptions? options = null) { }
         public JsonStateCodec(System.Text.Json.Serialization.Metadata.JsonTypeInfo<T> typeInfo) { }
+        [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Aot", "IL3050", Justification="The options-based constructor carries this requirement. The JsonTypeInfo construc" +
+            "tor sets _typeInfo and never enters the reflection fallback.")]
+        [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2026", Justification="The options-based constructor carries this requirement. The JsonTypeInfo construc" +
+            "tor sets _typeInfo and never enters the reflection fallback.")]
         public T? Deserialize(in System.Buffers.ReadOnlySequence<byte> source, in Configlue.StateCodecContext context) { }
         public Configlue.StateSchemaMetadata? ReadSchemaMetadata(in System.Buffers.ReadOnlySequence<byte> source) { }
+        [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Aot", "IL3050", Justification="The options-based constructor carries this requirement. The JsonTypeInfo construc" +
+            "tor sets _typeInfo and never enters the reflection fallback.")]
+        [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2026", Justification="The options-based constructor carries this requirement. The JsonTypeInfo construc" +
+            "tor sets _typeInfo and never enters the reflection fallback.")]
         public void Serialize(T? value, System.Buffers.IBufferWriter<byte> destination, in Configlue.StateCodecContext context) { }
     }
 }

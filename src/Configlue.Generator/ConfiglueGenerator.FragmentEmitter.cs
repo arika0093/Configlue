@@ -491,9 +491,13 @@ public sealed partial class ConfiglueGenerator
                     .Append(property)
                     .Append(" = global::Configlue.Optional<")
                     .Append(FragmentValueType(member))
-                    .Append(">.Present(global::System.Text.Json.JsonSerializer.Deserialize<")
+                    .Append(
+                        ">.Present(global::System.Text.Json.JsonSerializer.Deserialize(ref reader, (global::System.Text.Json.Serialization.Metadata.JsonTypeInfo<"
+                    )
                     .Append(FragmentValueType(member))
-                    .AppendLine(">(ref reader, options));");
+                    .Append(">)options.GetTypeInfo(typeof(")
+                    .Append(FragmentRuntimeValueType(member))
+                    .AppendLine("))));");
                 first = false;
             }
 
@@ -549,7 +553,11 @@ public sealed partial class ConfiglueGenerator
                 .Append(FragmentValueType(member))
                 .Append(">(writer, value.")
                 .Append(property)
-                .AppendLine(".Value!, options);");
+                .Append(".Value!, (global::System.Text.Json.Serialization.Metadata.JsonTypeInfo<")
+                .Append(FragmentValueType(member))
+                .Append(">)options.GetTypeInfo(typeof(")
+                .Append(FragmentRuntimeValueType(member))
+                .AppendLine(")));");
             code.AppendLineAt(4, "}");
         }
 

@@ -24,5 +24,6 @@
   <Folder Name="/example/">
     <File Path="example/Directory.Build.props" />
     <Project Path="example/Example.ConsoleApp/Example.ConsoleApp.csproj" />
+    <Project Path="example/Example.ConsoleApp.NativeAot/Example.ConsoleApp.NativeAot.csproj" />
   </Folder>
 </Solution>
