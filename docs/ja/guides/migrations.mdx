@@ -7,6 +7,46 @@ description: 保存済みフラグメントを更新し、安全にソース間�
 
 `IStateSchemaMigration<TFragment>` を実装して依存性注入に登録すると、読み取り時に古いフラグメントを変換できます。マイグレーションチェーンはモデルフラグメント単位で適用されます。
 
+古いバージョンの生成フラグメント形状が異なる場合は、現在のモデルに過去のモデル型を宣言し、型付きデコーダーテーブルを作成します。
+
+```csharp
+[ConfiglueModel(1, Id = "app-settings")]
+public partial class SettingsV1
+{
+    public string? OldName { get; set; }
+    public int RetryCount { get; set; }
+}
+
+[ConfiglueModel(2, Id = "app-settings")]
+[ConfigluePreviousVersion(typeof(SettingsV1))]
+public partial class Settings
+{
+    public string? Name { get; set; }
+    public int RetryCount { get; set; }
+}
+
+var history = Settings.CreateSchemaDispatcher(
+    new JsonStateCodec<SettingsV1.Fragment>(),
+    migrateV1: static old =>
+    {
+        var builder = Settings.Fragment.FromPrevious(old).ToBuilder();
+        if (old.OldName.IsPresent)
+        {
+            builder.Name = old.OldName;
+        }
+
+        return builder.Build();
+    });
+
+var source = SerializedStateSource.FromResource<Settings.Fragment>(
+    "settings",
+    resource,
+    new JsonStateCodec<Settings.Fragment>(),
+    schemaDispatcher: history);
+```
+
+`FromPrevious` は名前と型が互換なメンバーを移し、未指定・null の指定・既定値の指定を保ちます。名前変更などには独自のマイグレーションを渡します。リーダーはリソースまたはペイロードのスキーマメタデータを使い、デコード前に過去のコーデックを選択します。メタデータがない場合は現在の形状として扱います。同じ ID で未登録のバージョン（将来バージョンを含む）は明示的にエラーになります。ディスパッチャーは型付きコーデックを使います。トリミングや NativeAOT への対応は、登録するコーデックのメタデータに依存します。
+
 保存先を移すには `IWritableOptions<TModel>.MigrateSourceAsync(sourceId, targetId)` でひとつのソースの寄与を別の書き込み可能なソースへ移します。複数のソースを選択して一つ以上の宛先へ投影する場合は `MigrateSourcesToTargetsAsync(sourceIds, targetProjections)` を使います。各宛先はリビジョン確認と書き込み後の検証を受け、後続の書き込みが失敗して再実行する場合、完了済みの宛先はスキップされます。
 
 複数宛先への書き込みは原子的ではありません。ソースを任意で退役させる場合、すべての宛先を検証した後、実効モデルが変わらないときだけ現在のオプションインスタンスから取り除かれます。元の保存データは削除されないため、次回起動に向けてソース登録を更新してください。

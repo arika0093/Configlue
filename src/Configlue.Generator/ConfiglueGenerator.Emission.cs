@@ -14,6 +14,7 @@ public sealed partial class ConfiglueGenerator
     private static string BuildSource(
         INamedTypeSymbol model,
         ImmutableArray<MemberModel> members,
+        ImmutableArray<PreviousModelInfo> previousModels,
         CancellationToken cancellationToken
     )
     {
@@ -52,10 +53,119 @@ public sealed partial class ConfiglueGenerator
         AppendModelSchema(code, modelType, modelId, version, members);
         AppendFragmentSchema(code, modelType, modelId, version, members);
         AppendDeepClone(code, modelType, members);
-        AppendFragment(code, modelType, members);
+        AppendFragment(code, modelType, members, previousModels);
         AppendModelFragmentBridge(code, modelType);
+        AppendHistoricalDispatcherFactory(code, modelType, previousModels);
         code.AppendLine("}");
         return code.ToString();
+    }
+
+    private static void AppendHistoricalDispatcherFactory(
+        IndentedStringBuilder code,
+        string modelType,
+        ImmutableArray<PreviousModelInfo> previousModels
+    )
+    {
+        if (previousModels.IsEmpty)
+        {
+            return;
+        }
+
+        var parameters = new List<string>();
+        var parameterDocs = new List<string>();
+        foreach (var previousModel in previousModels.Select(static previous => previous.Model))
+        {
+            var version = GetModelVersion(previousModel, code.CancellationToken);
+            var previousType = NonNullableTypeName(previousModel) + ".Fragment";
+            var codecName = "previousV" + version + "Codec";
+            parameters.Add(
+                "        global::Configlue.IStateCodec<" + previousType + "> " + codecName
+            );
+            parameterDocs.Add(
+                "/// <param name=\""
+                    + codecName
+                    + "\">The codec for historical schema version "
+                    + version
+                    + ".</param>"
+            );
+        }
+
+        foreach (var previousModel in previousModels.Select(static previous => previous.Model))
+        {
+            var version = GetModelVersion(previousModel, code.CancellationToken);
+            var previousType = NonNullableTypeName(previousModel) + ".Fragment";
+            var migrationName = "migrateV" + version;
+            parameters.Add(
+                "        global::System.Func<"
+                    + previousType
+                    + ", "
+                    + modelType
+                    + ".Fragment>? "
+                    + migrationName
+                    + " = null"
+            );
+            parameterDocs.Add(
+                "/// <param name=\""
+                    + migrationName
+                    + "\">An optional custom migration from schema version "
+                    + version
+                    + "; compatible same-name members are transferred by default.</param>"
+            );
+        }
+
+        code.AppendLineAt(
+            1,
+            "/// <summary>Creates a closed, version-aware decoder table for the declared historical fragment types.</summary>"
+        );
+        foreach (var parameterDoc in parameterDocs)
+        {
+            code.AppendLineAt(1, parameterDoc);
+        }
+        var accessibility = previousModels.Any(static previous =>
+            previous.Model.DeclaredAccessibility != Accessibility.Public
+        )
+            ? "internal"
+            : "public";
+        code.AppendIndent(1)
+            .Append(accessibility)
+            .Append(" static global::Configlue.StateSchemaDispatcher<")
+            .Append(modelType)
+            .AppendLine(".Fragment> CreateSchemaDispatcher(");
+        for (var index = 0; index < parameters.Count; index++)
+        {
+            code.Append(parameters[index]);
+            if (index < parameters.Count - 1)
+            {
+                code.AppendLine(",");
+            }
+        }
+
+        code.AppendLineAt(1, ")");
+        code.AppendLineAt(1, "{");
+        code.AppendIndent(2)
+            .Append("var dispatcher = new global::Configlue.StateSchemaDispatcher<")
+            .Append(modelType)
+            .AppendLine(".Fragment>(ConfiglueSchema.ToMetadata());");
+        foreach (var previousModel in previousModels.Select(static previous => previous.Model))
+        {
+            var version = GetModelVersion(previousModel, code.CancellationToken);
+            var previousType = NonNullableTypeName(previousModel);
+            code.AppendIndent(2)
+                .Append("dispatcher.Add<")
+                .Append(previousType)
+                .Append(".Fragment>(")
+                .Append(previousType)
+                .Append(".FragmentSchema.ToMetadata(), previousV")
+                .Append(version)
+                .Append("Codec, migrateV")
+                .Append(version)
+                .Append(" ?? (static value => ")
+                .Append(modelType)
+                .AppendLine(".Fragment.FromPrevious(value)));");
+        }
+
+        code.AppendLineAt(2, "return dispatcher;");
+        code.AppendLineAt(1, "}");
     }
 
     private static void AppendModelSchema(

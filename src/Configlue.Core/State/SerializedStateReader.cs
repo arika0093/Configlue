@@ -8,12 +8,14 @@ public sealed class SerializedStateReader<T> : IStateReader<T>
     private readonly IResourceReader _resource;
     private readonly object _codec;
     private readonly StateCodecContext _context;
+    private readonly StateSchemaDispatcher<T>? _schemaDispatcher;
 
     /// <summary>Creates a serialized state reader.</summary>
     public SerializedStateReader(
         IResourceReader resource,
         object codec,
-        StateCodecContext context = default
+        StateCodecContext context = default,
+        StateSchemaDispatcher<T>? schemaDispatcher = null
     )
     {
         ArgumentNullException.ThrowIfNull(resource);
@@ -29,6 +31,7 @@ public sealed class SerializedStateReader<T> : IStateReader<T>
         _resource = resource;
         _codec = codec;
         _context = context;
+        _schemaDispatcher = schemaDispatcher;
     }
 
     /// <inheritdoc />
@@ -54,18 +57,32 @@ public sealed class SerializedStateReader<T> : IStateReader<T>
                 _codec is IStateSchemaMetadataReader metadataReader
                     ? metadataReader.ReadSchemaMetadata(in bytes)
                     : null
-            );
+            )
+            ?? _context.Schema;
         var context = schema is { } metadata
             ? new StateCodecContext(metadata, _context.Services)
             : _context;
-        var value = _codec switch
+        var schemaDispatcher = _schemaDispatcher;
+        T? value = default;
+        if (
+            schema is { } sourceSchema
+            && schemaDispatcher is not null
+            && schemaDispatcher.TryDeserialize(sourceSchema, in bytes, _context.Services, out value)
+        )
         {
-            IStateCodec<T> typed => typed.Deserialize(in bytes, in context),
-            IStateCodec untyped => (T?)untyped.Deserialize(typeof(T), in bytes, in context),
-            _ => throw new InvalidOperationException(
-                "The codec does not implement a supported state codec interface."
-            ),
-        };
+            schema = schemaDispatcher.TargetSchema;
+        }
+        else
+        {
+            value = _codec switch
+            {
+                IStateCodec<T> typed => typed.Deserialize(in bytes, in context),
+                IStateCodec untyped => (T?)untyped.Deserialize(typeof(T), in bytes, in context),
+                _ => throw new InvalidOperationException(
+                    "The codec does not implement a supported state codec interface."
+                ),
+            };
+        }
 
         return StateReadResult<T>.Success(value, result.Revision, schema);
     }

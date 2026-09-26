@@ -14,7 +14,8 @@ public sealed partial class ConfiglueGenerator
     private static void AppendFragment(
         IndentedStringBuilder code,
         string modelType,
-        ImmutableArray<MemberModel> members
+        ImmutableArray<MemberModel> members,
+        ImmutableArray<PreviousModelInfo> previousModels
     )
     {
         code.AppendLineAt(
@@ -72,9 +73,61 @@ public sealed partial class ConfiglueGenerator
         AppendFragmentClone(code, members);
         AppendPatchSupport(code, members);
         AppendJsonConverter(code, members);
+        AppendPreviousMappings(code, members, previousModels);
         code.AppendLineAt(1, "}");
         AppendBuilder(code, members);
         AppendPatch(code, modelType, members);
+    }
+
+    private static void AppendPreviousMappings(
+        IndentedStringBuilder code,
+        ImmutableArray<MemberModel> members,
+        ImmutableArray<PreviousModelInfo> previousModels
+    )
+    {
+        foreach (var previousModel in previousModels)
+        {
+            var previousMembers = previousModel.Members.ToDictionary(
+                static member => member.Property.Name,
+                StringComparer.Ordinal
+            );
+            code.AppendLineAt(
+                2,
+                "/// <summary>Transfers compatible members from a declared previous schema version.</summary>"
+            );
+            code.AppendIndent(2)
+                .Append("public static Fragment FromPrevious(")
+                .Append(NonNullableTypeName(previousModel.Model))
+                .AppendLine(".Fragment value)");
+            code.AppendLineAt(2, "{");
+            code.AppendLineAt(3, "global::System.ArgumentNullException.ThrowIfNull(value);");
+            code.AppendLineAt(3, "return new Fragment");
+            code.AppendLineAt(3, "{");
+            foreach (var property in members.Select(static member => member.Property))
+            {
+                if (
+                    !previousMembers.TryGetValue(property.Name, out var previousMember)
+                    || !SymbolEqualityComparer.Default.Equals(
+                        previousMember.Property.Type,
+                        property.Type
+                    )
+                )
+                {
+                    continue;
+                }
+
+                var name = EscapeIdentifier(property.Name);
+                code.AppendIndent(4)
+                    .Append(name)
+                    .Append(" = value.")
+                    .Append(EscapeIdentifier(previousMember.Property.Name))
+                    .AppendLine(",");
+            }
+
+            code.AppendLineAt(3, "};");
+            code.AppendLineAt(2, "}");
+            code.AppendLine();
+        }
     }
 
     private static void AppendFragmentDescriptor(

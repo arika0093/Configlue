@@ -87,12 +87,12 @@ namespace Configlue
     }
     public sealed class SerializedStateReader<T> : Configlue.IStateReader<T>
     {
-        public SerializedStateReader(Configlue.IResourceReader resource, object codec, Configlue.StateCodecContext context = default) { }
+        public SerializedStateReader(Configlue.IResourceReader resource, object codec, Configlue.StateCodecContext context = default, Configlue.StateSchemaDispatcher<T>? schemaDispatcher = null) { }
         public System.Threading.Tasks.ValueTask<Configlue.StateReadResult<T>> ReadAsync(System.Threading.CancellationToken cancellationToken = default) { }
     }
     public static class SerializedStateSource
     {
-        public static Configlue.StateSource<T> FromResource<T>(string id, Configlue.IResourceReader resource, object codec, int priority = 0, Configlue.StateFallbackCondition fallbackCondition = 1, Configlue.IResourceWriter? writer = null, Configlue.IStateWatcher? watcher = null, string? physicalOrigin = null, Configlue.StateCodecContext context = default, Configlue.ResourceId? resourceId = default) { }
+        public static Configlue.StateSource<T> FromResource<T>(string id, Configlue.IResourceReader resource, object codec, int priority = 0, Configlue.StateFallbackCondition fallbackCondition = 1, Configlue.IResourceWriter? writer = null, Configlue.IStateWatcher? watcher = null, string? physicalOrigin = null, Configlue.StateCodecContext context = default, Configlue.ResourceId? resourceId = default, Configlue.StateSchemaDispatcher<T>? schemaDispatcher = null) { }
     }
     public sealed class SerializedStateWriter<T> : Configlue.IStateWriteBatchParticipant<T>, Configlue.IStateWriter<T>
     {

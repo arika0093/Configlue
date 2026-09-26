@@ -54,6 +54,12 @@ namespace Configlue
         public Configlue.IConfiglueFragment CreateEmptyFragment() { }
         public Configlue.StateSchemaMetadata ToMetadata() { }
     }
+    [System.AttributeUsage(System.AttributeTargets.Class | System.AttributeTargets.Struct, AllowMultiple=true, Inherited=false)]
+    public sealed class ConfigluePreviousVersionAttribute : System.Attribute
+    {
+        public ConfigluePreviousVersionAttribute(System.Type modelType) { }
+        public System.Type ModelType { get; }
+    }
     public sealed class ConfiglueProfileCatalog
     {
         public ConfiglueProfileCatalog() { }
@@ -366,6 +372,13 @@ namespace Configlue
         public System.Collections.Generic.IReadOnlyDictionary<string, string?> Revisions { get; }
         public bool TryGetNestedRevisions(string sourceId, out Configlue.StateRevisionVector? revisions) { }
         public bool TryGetRevision(string sourceId, out string? revision) { }
+    }
+    public sealed class StateSchemaDispatcher<T>
+    {
+        public StateSchemaDispatcher(Configlue.StateSchemaMetadata targetSchema) { }
+        public Configlue.StateSchemaMetadata TargetSchema { get; }
+        public Configlue.StateSchemaDispatcher<T> Add<THistorical>(Configlue.StateSchemaMetadata sourceSchema, Configlue.IStateCodec<THistorical> codec, System.Func<THistorical, T> migrate) { }
+        public bool TryDeserialize(Configlue.StateSchemaMetadata sourceSchema, in System.Buffers.ReadOnlySequence<byte> source, System.IServiceProvider? services, out T? value) { }
     }
     public readonly struct StateSchemaMetadata : System.IEquatable<Configlue.StateSchemaMetadata>
     {

@@ -17,7 +17,8 @@ public static class SerializedStateSource
         IStateWatcher? watcher = null,
         string? physicalOrigin = null,
         StateCodecContext context = default,
-        ResourceId? resourceId = null
+        ResourceId? resourceId = null,
+        StateSchemaDispatcher<T>? schemaDispatcher = null
     )
     {
         ArgumentNullException.ThrowIfNull(resource);
@@ -27,7 +28,7 @@ public static class SerializedStateSource
         var resourceWatcher = watcher ?? resource as IStateWatcher;
         return new StateSource<T>(
             id,
-            new SerializedStateReader<T>(resource, codec, context),
+            new SerializedStateReader<T>(resource, codec, context, schemaDispatcher),
             priority,
             fallbackCondition,
             resourceWriter is null

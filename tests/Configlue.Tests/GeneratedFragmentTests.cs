@@ -40,6 +40,40 @@ public partial class SetUnionSettings
     public IReadOnlyList<string> Tags { get; set; } = [];
 }
 
+[ConfiglueModel(1, Id = "historical-settings")]
+public partial class HistoricalSettingsV1
+{
+    public int RetryCount { get; set; } = 3;
+
+    public string? NullableLabel { get; set; } = "legacy-default";
+
+    public string? OldName { get; set; } = "legacy-name";
+}
+
+[ConfiglueModel(2, Id = "historical-settings")]
+public partial class HistoricalSettingsV2
+{
+    public int RetryCount { get; set; } = 4;
+
+    public string? NullableLabel { get; set; } = "v2-default";
+
+    public string? NewName { get; set; } = "v2-name";
+}
+
+[ConfiglueModel(3, Id = "historical-settings")]
+[ConfigluePreviousVersion(typeof(HistoricalSettingsV1))]
+[ConfigluePreviousVersion(typeof(HistoricalSettingsV2))]
+public partial class HistoricalSettings
+{
+    public int RetryCount { get; set; } = 5;
+
+    public string? NullableLabel { get; set; } = "current-default";
+
+    public string? NewName { get; set; } = "current-name";
+
+    public bool Enabled { get; set; } = true;
+}
+
 public sealed class GeneratedFragmentTests
 {
     [Test]
@@ -164,6 +198,134 @@ public sealed class GeneratedFragmentTests
         (decodedFragment.Label.Value).ShouldBeNull();
         (decodedFragment.RetryCount.IsPresent).ShouldBeFalse();
         (schema).ShouldBe(new StateSchemaMetadata("app-settings", 2));
+    }
+
+    [Test]
+    public async Task GeneratedHistoricalMapper_PreservesPresenceForCompatibleMembers()
+    {
+        var previous = new HistoricalSettingsV1.Fragment
+        {
+            RetryCount = Optional<int>.Present(0),
+            NullableLabel = Optional<string?>.Present(null),
+        };
+
+        var migrated = HistoricalSettings.Fragment.FromPrevious(previous);
+
+        (migrated.RetryCount.IsPresent).ShouldBeTrue();
+        (migrated.RetryCount.Value).ShouldBe(0);
+        (migrated.NullableLabel.IsPresent).ShouldBeTrue();
+        (migrated.NullableLabel.Value).ShouldBeNull();
+        (migrated.NewName.IsPresent).ShouldBeFalse();
+        (migrated.ToModel().Enabled).ShouldBeTrue();
+    }
+
+    [Test]
+    public async Task SerializedSource_DispatchesHistoricalFragmentBeforeOptionsMaterialize()
+    {
+        var (fragment, model) = await ReadHistoricalSettingsAsync(
+            new JsonStateCodec<HistoricalSettingsV1.Fragment>(),
+            new JsonStateCodec<HistoricalSettings.Fragment>()
+        );
+
+        (fragment.RetryCount.IsPresent).ShouldBeTrue();
+        (fragment.RetryCount.Value).ShouldBe(0);
+        (fragment.NullableLabel.IsPresent).ShouldBeTrue();
+        (fragment.NullableLabel.Value).ShouldBeNull();
+        (fragment.NewName.IsPresent).ShouldBeTrue();
+        (fragment.NewName.Value).ShouldBe("renamed");
+        (model.RetryCount).ShouldBe(0);
+        (model.NullableLabel).ShouldBeNull();
+        (model.NewName).ShouldBe("renamed");
+        (model.Enabled).ShouldBeTrue();
+    }
+
+    [Test]
+    public async Task XmlCodec_DispatchesHistoricalGeneratedFragment()
+    {
+        var (_, model) = await ReadHistoricalSettingsAsync(
+            new XmlStateCodec<HistoricalSettingsV1.Fragment>(),
+            new XmlStateCodec<HistoricalSettings.Fragment>()
+        );
+
+        (model.RetryCount).ShouldBe(0);
+        (model.NullableLabel).ShouldBeNull();
+        (model.NewName).ShouldBe("renamed");
+    }
+
+    [Test]
+    public async Task SerializedSource_DispatchesEachDeclaredHistoricalVersion()
+    {
+        var resource = new InMemoryResource();
+        var oldCodec = new JsonStateCodec<HistoricalSettingsV2.Fragment>();
+        var writer = new SerializedStateWriter<HistoricalSettingsV2.Fragment>(resource, oldCodec);
+        await writer.WriteAsync(
+            new StateWriteRequest<HistoricalSettingsV2.Fragment>(
+                new HistoricalSettingsV2.Fragment
+                {
+                    RetryCount = Optional<int>.Present(8),
+                    NullableLabel = Optional<string?>.Present("from-v2"),
+                    NewName = Optional<string?>.Present("name-v2"),
+                }
+            )
+        );
+        var dispatcher = HistoricalSettings.CreateSchemaDispatcher(
+            new JsonStateCodec<HistoricalSettingsV1.Fragment>(),
+            oldCodec
+        );
+        var source = SerializedStateSource.FromResource<HistoricalSettings.Fragment>(
+            "legacy-v2",
+            resource,
+            new JsonStateCodec<HistoricalSettings.Fragment>(),
+            schemaDispatcher: dispatcher
+        );
+
+        var result = await source.Reader.ReadAsync();
+
+        (result.Status).ShouldBe(StateReadStatus.Success);
+        (result.Schema).ShouldBe(HistoricalSettings.ConfiglueSchema.ToMetadata());
+        (result.Value!.RetryCount.Value).ShouldBe(8);
+        (result.Value.NullableLabel.Value).ShouldBe("from-v2");
+        (result.Value.NewName.Value).ShouldBe("name-v2");
+    }
+
+    [Test]
+    public async Task YamlCodec_DispatchesHistoricalGeneratedFragment()
+    {
+        var (_, model) = await ReadHistoricalSettingsAsync(
+            new YamlStateCodec<HistoricalSettingsV1.Fragment>(),
+            new YamlStateCodec<HistoricalSettings.Fragment>()
+        );
+
+        (model.RetryCount).ShouldBe(0);
+        (model.NullableLabel).ShouldBeNull();
+        (model.NewName).ShouldBe("renamed");
+    }
+
+    [Test]
+    public async Task SerializedSource_RejectsUnknownHistoricalVersionForConfiguredModel()
+    {
+        var futureSchema = new StateSchemaMetadata("historical-settings", 4);
+        var resource = new InMemoryResource();
+        var writer = new SerializedStateWriter<HistoricalSettingsV1.Fragment>(
+            resource,
+            new JsonStateCodec<HistoricalSettingsV1.Fragment>(),
+            new StateCodecContext(futureSchema)
+        );
+        await writer.WriteAsync(new StateWriteRequest<HistoricalSettingsV1.Fragment>(new()));
+        var dispatcher = HistoricalSettings.CreateSchemaDispatcher(
+            new JsonStateCodec<HistoricalSettingsV1.Fragment>(),
+            new JsonStateCodec<HistoricalSettingsV2.Fragment>()
+        );
+        var source = SerializedStateSource.FromResource<HistoricalSettings.Fragment>(
+            "legacy",
+            resource,
+            new JsonStateCodec<HistoricalSettings.Fragment>(),
+            schemaDispatcher: dispatcher
+        );
+
+        await Should.ThrowAsync<InvalidOperationException>(async () =>
+            await source.Reader.ReadAsync()
+        );
     }
 
     [Test]
@@ -311,5 +473,64 @@ public sealed class GeneratedFragmentTests
         (yaml.ReadSchemaMetadata(in yamlSequence)).ShouldBe(
             AppSettings.ConfiglueSchema.ToMetadata()
         );
+    }
+
+    private static async Task<(
+        HistoricalSettings.Fragment Fragment,
+        HistoricalSettings Model
+    )> ReadHistoricalSettingsAsync<TLegacyCodec, TCurrentCodec>(
+        TLegacyCodec oldCodec,
+        TCurrentCodec currentCodec
+    )
+        where TLegacyCodec : IStateCodec<HistoricalSettingsV1.Fragment>
+        where TCurrentCodec : IStateCodec<HistoricalSettings.Fragment>
+    {
+        var resource = new InMemoryResource();
+        var oldWriter = new SerializedStateWriter<HistoricalSettingsV1.Fragment>(
+            resource,
+            oldCodec
+        );
+        await oldWriter.WriteAsync(
+            new StateWriteRequest<HistoricalSettingsV1.Fragment>(
+                new HistoricalSettingsV1.Fragment
+                {
+                    RetryCount = Optional<int>.Present(0),
+                    NullableLabel = Optional<string?>.Present(null),
+                    OldName = Optional<string?>.Present("renamed"),
+                }
+            )
+        );
+
+        var dispatcher = HistoricalSettings.CreateSchemaDispatcher(
+            oldCodec,
+            new JsonStateCodec<HistoricalSettingsV2.Fragment>(),
+            static previous =>
+            {
+                var builder = HistoricalSettings.Fragment.FromPrevious(previous).ToBuilder();
+                if (previous.OldName.IsPresent)
+                {
+                    builder.NewName = previous.OldName;
+                }
+
+                return builder.Build();
+            }
+        );
+        var source = SerializedStateSource.FromResource<HistoricalSettings.Fragment>(
+            "legacy",
+            resource,
+            currentCodec,
+            schemaDispatcher: dispatcher
+        );
+
+        var fragmentResult = await source.Reader.ReadAsync();
+        (fragmentResult.Status).ShouldBe(StateReadStatus.Success);
+        (fragmentResult.Schema).ShouldBe(HistoricalSettings.ConfiglueSchema.ToMetadata());
+        var options = new ConfiglueOptions<HistoricalSettings, HistoricalSettings.Fragment>(
+            new StateSourceSet<HistoricalSettings.Fragment>([source])
+        );
+        var modelResult = await options.ReadAsync();
+        (modelResult.Status).ShouldBe(StateReadStatus.Success);
+        (modelResult.Schema).ShouldBe(HistoricalSettings.ConfiglueSchema.ToMetadata());
+        return (fragmentResult.Value!, modelResult.Value!);
     }
 }

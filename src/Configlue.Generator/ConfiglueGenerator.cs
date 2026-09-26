@@ -13,6 +13,8 @@ namespace Configlue.Generator;
 public sealed partial class ConfiglueGenerator : IIncrementalGenerator
 {
     private const string ModelAttributeName = "Configlue.ConfiglueModelAttribute";
+    private const string PreviousVersionAttributeName =
+        "Configlue.ConfigluePreviousVersionAttribute";
     private const string MergeAttributeName = "Configlue.ConfiglueMergeAttribute";
     private static readonly SymbolDisplayFormat TypeFormat =
         SymbolDisplayFormat.FullyQualifiedFormat.WithMiscellaneousOptions(
@@ -56,6 +58,14 @@ public sealed partial class ConfiglueGenerator : IIncrementalGenerator
         "CFG005",
         "Unsupported merge mode",
         "Merge mode '{0}' is not supported for member '{1}'",
+        "Configlue",
+        DiagnosticSeverity.Error,
+        true
+    );
+    private static readonly DiagnosticDescriptor InvalidPreviousVersion = new(
+        "CFG006",
+        "Invalid Configlue previous version",
+        "Previous model '{0}' must declare a distinct lower version with the same schema ID as model '{1}'",
         "Configlue",
         DiagnosticSeverity.Error,
         true
@@ -149,6 +159,15 @@ public sealed partial class ConfiglueGenerator : IIncrementalGenerator
 
         var members = GetMembers(model, cancellationToken).ToImmutableArray();
         var diagnostics = ImmutableArray.CreateBuilder<GeneratorDiagnosticInfo>();
+        var modelId = GetModelId(model, cancellationToken);
+        var modelVersion = GetModelVersion(model, cancellationToken);
+        var previousModels = GetPreviousModels(
+            model,
+            modelId,
+            modelVersion,
+            cancellationToken,
+            diagnostics
+        );
         foreach (var member in members)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -196,7 +215,7 @@ public sealed partial class ConfiglueGenerator : IIncrementalGenerator
             return new GenerationResult(null, null, diagnostics.ToImmutable());
         }
 
-        var source = BuildSource(model, members, cancellationToken);
+        var source = BuildSource(model, members, previousModels, cancellationToken);
         var fullyQualifiedName = model.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
         var fileName =
             Sanitize(fullyQualifiedName, cancellationToken)
@@ -319,6 +338,75 @@ public sealed partial class ConfiglueGenerator : IIncrementalGenerator
         }
     }
 
+    private static ImmutableArray<PreviousModelInfo> GetPreviousModels(
+        INamedTypeSymbol model,
+        string modelId,
+        int modelVersion,
+        CancellationToken cancellationToken,
+        ImmutableArray<GeneratorDiagnosticInfo>.Builder diagnostics
+    )
+    {
+        var previousModels = ImmutableArray.CreateBuilder<PreviousModelInfo>();
+        var seenVersions = new HashSet<int>();
+        foreach (var attribute in model.GetAttributes())
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (attribute.AttributeClass?.ToDisplayString() != PreviousVersionAttributeName)
+            {
+                continue;
+            }
+
+            var previousModel =
+                attribute.ConstructorArguments.FirstOrDefault().Value as INamedTypeSymbol;
+            var valid =
+                previousModel is not null
+                && previousModel.ContainingType is null
+                && previousModel.Arity == 0
+                && (
+                    previousModel.TypeKind == TypeKind.Class
+                    || previousModel.TypeKind == TypeKind.Struct
+                )
+                && HasConfiglueModelAttribute(previousModel, cancellationToken);
+            var previousVersion = previousModel is null
+                ? 1
+                : GetModelVersion(previousModel, cancellationToken);
+            if (
+                !valid
+                || previousModel is null
+                || previousVersion < 1
+                || previousVersion >= modelVersion
+                || !string.Equals(
+                    GetModelId(previousModel, cancellationToken),
+                    modelId,
+                    StringComparison.Ordinal
+                )
+                || !seenVersions.Add(previousVersion)
+            )
+            {
+                diagnostics.Add(
+                    GeneratorDiagnosticInfo.Create(
+                        InvalidPreviousVersion,
+                        attribute
+                            .ApplicationSyntaxReference?.GetSyntax(cancellationToken)
+                            .GetLocation(),
+                        previousModel?.Name ?? "<unknown>",
+                        model.Name
+                    )
+                );
+                continue;
+            }
+
+            previousModels.Add(
+                new PreviousModelInfo(
+                    previousModel,
+                    GetMembers(previousModel, cancellationToken).ToImmutableArray()
+                )
+            );
+        }
+
+        return previousModels.ToImmutable();
+    }
+
     private static bool IsConfiglueModel(ITypeSymbol type, CancellationToken cancellationToken)
     {
         if (type is not INamedTypeSymbol { TypeKind: TypeKind.Class } named)
@@ -326,7 +414,15 @@ public sealed partial class ConfiglueGenerator : IIncrementalGenerator
             return false;
         }
 
-        foreach (var attribute in named.GetAttributes())
+        return HasConfiglueModelAttribute(named, cancellationToken);
+    }
+
+    private static bool HasConfiglueModelAttribute(
+        INamedTypeSymbol model,
+        CancellationToken cancellationToken
+    )
+    {
+        foreach (var attribute in model.GetAttributes())
         {
             cancellationToken.ThrowIfCancellationRequested();
             if (attribute.AttributeClass?.ToDisplayString() == ModelAttributeName)
@@ -380,6 +476,15 @@ public sealed partial class ConfiglueGenerator : IIncrementalGenerator
         public INamedTypeSymbol? ChildModel { get; } = childModel;
         public int MergeMode { get; } = mergeMode;
         public CollectionInfo Collection { get; } = collection;
+    }
+
+    private sealed class PreviousModelInfo(
+        INamedTypeSymbol model,
+        ImmutableArray<MemberModel> members
+    )
+    {
+        public INamedTypeSymbol Model { get; } = model;
+        public ImmutableArray<MemberModel> Members { get; } = members;
     }
 
     private sealed class CollectionInfo(
