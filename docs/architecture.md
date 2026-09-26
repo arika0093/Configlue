@@ -14,6 +14,6 @@ Logical schema and physical storage topology are independent. Multiple sources c
 
 ## Implementation status
 
-The foundation is in place: backend-neutral read/write/watch contracts, prioritized source resolution, revision-aware file resources, generated sparse fragments with merge and patch operations, JSON/XML/YAML codecs, and DI registrations for asynchronous read, change subscriptions, and save. The options runtime merges fragments on reads, watches participating sources, and saves a complete fragment to an independently selected source.
+The foundation is in place: backend-neutral read/write/watch contracts, prioritized source resolution, revision-aware file resources, generated sparse fragments with merge and patch operations, JSON/XML/YAML codecs, and DI registrations for asynchronous read, change subscriptions, save, and revision-checked edit sessions. The options runtime merges fragments on reads, watches participating sources, and saves a complete fragment to an independently selected source.
 
-Edit sessions, validation, schema and storage migrations, named configuration profiles, and provider-specific watcher and backup policies still need implementation. The current API is an architectural foundation rather than a feature-complete replacement for Configuration.Writable.
+Source-local patch editing, validation, schema and storage migrations, named configuration profiles, and provider-specific watcher and backup policies still need implementation. The current API is an architectural foundation rather than a feature-complete replacement for Configuration.Writable.

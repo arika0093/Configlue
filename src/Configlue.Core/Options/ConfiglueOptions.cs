@@ -112,6 +112,33 @@ public sealed class ConfiglueOptions<TModel, TFragment> : IWritableOptions<TMode
     }
 
     /// <inheritdoc />
+    public async ValueTask<ConfigureSession<TModel>> BeginConfigureAsync(CancellationToken cancellationToken = default)
+    {
+        var resolved = await ReadAsync(cancellationToken).ConfigureAwait(false);
+        if (resolved.Status != StateReadStatus.Success)
+        {
+            throw new InvalidOperationException($"Configuration state could not be read: {resolved.Status}.");
+        }
+
+        var source = SelectWriteSource();
+        string? expectedRevision;
+        if (resolved.Revisions is null || !resolved.Revisions.TryGetRevision(source.Id, out expectedRevision))
+        {
+            var current = await source.Reader.ReadAsync(cancellationToken).ConfigureAwait(false);
+            if (current.Status == StateReadStatus.Unavailable)
+            {
+                throw new InvalidOperationException($"Cannot safely begin editing because source '{source.Id}' is unavailable.");
+            }
+
+            expectedRevision = current.Revision;
+        }
+
+        var draft = resolved.Value!.DeepClone();
+        return new ConfigureSession<TModel>(draft,
+            (value, token) => WriteToSourceAsync(source, TModel.ToFragment(value), expectedRevision, token));
+    }
+
+    /// <inheritdoc />
     public async ValueTask<StateWriteResult> SaveAsync(TModel value, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -122,10 +149,7 @@ public sealed class ConfiglueOptions<TModel, TFragment> : IWritableOptions<TMode
             throw new InvalidOperationException($"Cannot safely write configuration because source '{source.Id}' is unavailable.");
         }
 
-        var fragment = TModel.ToFragment(value);
-        return await source.Writer!.WriteAsync(
-            new StateWriteRequest<TFragment>(fragment, current.Revision, CheckRevision: true),
-            cancellationToken).ConfigureAwait(false);
+        return await WriteToSourceAsync(source, TModel.ToFragment(value), current.Revision, cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -182,6 +206,15 @@ public sealed class ConfiglueOptions<TModel, TFragment> : IWritableOptions<TMode
 
         return source;
     }
+
+    private static ValueTask<StateWriteResult> WriteToSourceAsync(
+        StateSource<TFragment> source,
+        TFragment fragment,
+        string? expectedRevision,
+        CancellationToken cancellationToken) =>
+        source.Writer!.WriteAsync(
+            new StateWriteRequest<TFragment>(fragment, expectedRevision, CheckRevision: true),
+            cancellationToken);
 
     private async Task WatchChangesAsync(CancellationToken cancellationToken)
     {

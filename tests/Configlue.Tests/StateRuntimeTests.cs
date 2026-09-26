@@ -155,4 +155,42 @@ public sealed class StateRuntimeTests
         await Assert.That(updated).IsEqualTo(8);
         await Assert.That(reset).IsEqualTo(3);
     }
+
+    [Test]
+    public async Task ConfigureSession_SavesDraftAndRejectsAStaleRevision()
+    {
+        var store = new InMemoryStateStore<AppSettings.Fragment>(new AppSettings.Fragment
+        {
+            RetryCount = Optional<int>.Present(3),
+        });
+        var sourceSet = new StateSourceSet<AppSettings.Fragment>(
+        [
+            new("user", store, writer: store),
+        ]);
+        var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(sourceSet);
+        using var session = await options.BeginConfigureAsync();
+        session.Value.RetryCount = 6;
+        var save = await session.SaveAsync();
+        var saved = await store.ReadAsync();
+
+        await Assert.That(session.IsCommitted).IsTrue();
+        await Assert.That(save.Revision).IsEqualTo("2");
+        await Assert.That(saved.Value!.RetryCount.Value).IsEqualTo(6);
+
+        using var stale = await options.BeginConfigureAsync();
+        stale.Value.RetryCount = 7;
+        store.Set(new AppSettings.Fragment { RetryCount = Optional<int>.Present(8) });
+        var conflicted = false;
+        try
+        {
+            await stale.SaveAsync();
+        }
+        catch (StateConflictException)
+        {
+            conflicted = true;
+        }
+
+        await Assert.That(conflicted).IsTrue();
+        await Assert.That(stale.IsCommitted).IsFalse();
+    }
 }

@@ -42,4 +42,10 @@ using var changeSubscription = serviceProvider
 await serviceProvider
     .GetRequiredService<IWritableOptions<AppConfig>>()
     .SaveAsync(updatedConfig);
+
+using var edit = await serviceProvider
+    .GetRequiredService<IWritableOptions<AppConfig>>()
+    .BeginConfigureAsync();
+edit.Value.SomeSetting = newValue;
+await edit.SaveAsync();
 ```
