@@ -238,6 +238,54 @@ public sealed class StateRuntimeTests
     }
 
     [Test]
+    public async Task OptionsSnapshot_CachesDefaultAndNamedProfilesWithinScope()
+    {
+        var defaultStore = new InMemoryStateStore<AppSettings.Fragment>(
+            new AppSettings.Fragment { RetryCount = Optional<int>.Present(17) }
+        );
+        var namedStore = new InMemoryStateStore<AppSettings.Fragment>(
+            new AppSettings.Fragment { RetryCount = Optional<int>.Present(8) }
+        );
+        var services = new ServiceCollection();
+        services.AddConfiglueOptions<AppSettings, AppSettings.Fragment>(
+            new StateSourceSet<AppSettings.Fragment>([
+                new("default", defaultStore, writer: defaultStore),
+            ])
+        );
+        services.AddConfiglueOptions<AppSettings, AppSettings.Fragment>(
+            "custom",
+            new StateSourceSet<AppSettings.Fragment>([
+                new("custom", namedStore, writer: namedStore),
+            ])
+        );
+        using var serviceProvider = services.BuildServiceProvider();
+
+        using var firstScope = serviceProvider.CreateScope();
+        var snapshot = firstScope.ServiceProvider.GetRequiredService<
+            IOptionsSnapshot<AppSettings>
+        >();
+        (snapshot.Value.RetryCount).ShouldBe(17);
+        (snapshot.Get("custom").RetryCount).ShouldBe(8);
+
+        await serviceProvider
+            .GetRequiredService<IWritableOptions<AppSettings>>()
+            .SaveAsync(settings => settings.RetryCount = 23);
+        await serviceProvider
+            .GetRequiredKeyedService<IWritableOptions<AppSettings>>("custom")
+            .SaveAsync(settings => settings.RetryCount = 19);
+
+        (snapshot.Value.RetryCount).ShouldBe(17);
+        (snapshot.Get("custom").RetryCount).ShouldBe(8);
+
+        using var secondScope = serviceProvider.CreateScope();
+        var updatedSnapshot = secondScope.ServiceProvider.GetRequiredService<
+            IOptionsSnapshot<AppSettings>
+        >();
+        (updatedSnapshot.Value.RetryCount).ShouldBe(23);
+        (updatedSnapshot.Get("custom").RetryCount).ShouldBe(19);
+    }
+
+    [Test]
     public async Task OptionsMonitor_ResolvesNamedProfilesAndPublishesTheirChanges()
     {
         var defaults = new InMemoryStateStore<AppSettings.Fragment>(
