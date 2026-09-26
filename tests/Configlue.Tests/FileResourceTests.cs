@@ -15,8 +15,18 @@ public sealed class FileResourceTests
         {
             var missing = await resource.ReadAsync();
             var firstContent = Encoding.UTF8.GetBytes("{\"value\":1}");
-            var firstWrite = await resource.WriteAsync(new ResourceWriteRequest(firstContent));
+            var firstWrite = await resource.WriteAsync(new ResourceWriteRequest(firstContent, CheckRevision: true));
             var current = await resource.ReadAsync();
+            var missingRevisionConflict = false;
+            try
+            {
+                await resource.WriteAsync(new ResourceWriteRequest(Encoding.UTF8.GetBytes("ignored"), CheckRevision: true));
+            }
+            catch (StateConflictException)
+            {
+                missingRevisionConflict = true;
+            }
+
             var conflict = false;
             try
             {
@@ -35,6 +45,7 @@ public sealed class FileResourceTests
             await Assert.That(missing.Status).IsEqualTo(StateReadStatus.NotFound);
             await Assert.That(current.Status).IsEqualTo(StateReadStatus.Success);
             await Assert.That(current.Revision).IsEqualTo(firstWrite.Revision);
+            await Assert.That(missingRevisionConflict).IsTrue();
             await Assert.That(conflict).IsTrue();
             await Assert.That(secondWrite.Revision).IsNotEqualTo(firstWrite.Revision);
             await Assert.That(Encoding.UTF8.GetString(backup)).IsEqualTo("{\"value\":1}");

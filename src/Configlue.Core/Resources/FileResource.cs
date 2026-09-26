@@ -79,7 +79,8 @@ public sealed class FileResource : IResourceReader, IResourceWriter, IStateWatch
             await using var interprocessLock = await AcquireInterprocessLockAsync(cancellationToken).ConfigureAwait(false);
             var previousContent = await TryReadForWriteAsync(cancellationToken).ConfigureAwait(false);
             var currentRevision = previousContent is null ? null : GetRevision(previousContent);
-            if (request.ExpectedRevision is not null && !string.Equals(request.ExpectedRevision, currentRevision, StringComparison.Ordinal))
+            if ((request.CheckRevision || request.ExpectedRevision is not null) &&
+                !string.Equals(request.ExpectedRevision, currentRevision, StringComparison.Ordinal))
             {
                 throw new StateConflictException($"The file resource '{_path}' changed after it was read.");
             }

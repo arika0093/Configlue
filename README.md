@@ -21,3 +21,21 @@ Requires the .NET 10 SDK.
 dotnet build Configlue.slnx
 dotnet test --solution Configlue.slnx --configuration Release
 ```
+
+## Runtime
+
+Register generated model options with a prioritized state-source set. Reads merge the present members from each source, and writes can target a source independently of read priority.
+
+```csharp
+services.AddConfiglueOptions<AppConfig, AppConfig.Fragment>(
+    sourceSet,
+    StateWriteRoute.To("user-settings"));
+
+var config = await serviceProvider
+    .GetRequiredService<IReadOnlyOptions<AppConfig>>()
+    .GetValueAsync();
+
+await serviceProvider
+    .GetRequiredService<IWritableOptions<AppConfig>>()
+    .SaveAsync(updatedConfig);
+```

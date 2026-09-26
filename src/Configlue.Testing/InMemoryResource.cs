@@ -33,7 +33,8 @@ public sealed class InMemoryResource : IResourceReader, IResourceWriter, IStateW
         string revision;
         lock (_gate)
         {
-            if (request.ExpectedRevision is not null && !string.Equals(request.ExpectedRevision, _revision, StringComparison.Ordinal))
+            if ((request.CheckRevision || request.ExpectedRevision is not null) &&
+                !string.Equals(request.ExpectedRevision, _revision, StringComparison.Ordinal))
             {
                 throw new StateConflictException("The in-memory resource changed after it was read.");
             }

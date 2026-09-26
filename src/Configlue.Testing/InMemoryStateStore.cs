@@ -42,7 +42,8 @@ public sealed class InMemoryStateStore<T> : IStateReader<T>, IStateWriter<T>, IS
         string revision;
         lock (_gate)
         {
-            if (request.ExpectedRevision is not null && !string.Equals(request.ExpectedRevision, _revision, StringComparison.Ordinal))
+            if ((request.CheckRevision || request.ExpectedRevision is not null) &&
+                !string.Equals(request.ExpectedRevision, _revision, StringComparison.Ordinal))
             {
                 throw new StateConflictException("The in-memory state changed after it was read.");
             }

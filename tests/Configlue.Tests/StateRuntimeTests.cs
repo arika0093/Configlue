@@ -1,4 +1,5 @@
 using Configlue.Testing;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Configlue.Tests;
 
@@ -33,5 +34,88 @@ public sealed class StateRuntimeTests
         await Assert.That(recovered.Value).IsEqualTo("remote");
         await Assert.That(recovered.SourceId).IsEqualTo("remote");
         await Assert.That(runtime.Reader.ActiveSource!.Id).IsEqualTo("remote");
+    }
+
+    [Test]
+    public async Task DependencyInjection_ResolvesMergedOptionsAndSavesToConfiguredSource()
+    {
+        var defaults = new InMemoryStateStore<AppSettings.Fragment>(new AppSettings.Fragment
+        {
+            RetryCount = Optional<int>.Present(4),
+            Database = Optional<DatabaseSettings.Fragment?>.Present(new DatabaseSettings.Fragment
+            {
+                Host = Optional<string>.Present("defaults.local"),
+            }),
+            Plugins = Optional<IReadOnlyList<string>>.Present(["base"]),
+        });
+        var user = new InMemoryStateStore<AppSettings.Fragment>(new AppSettings.Fragment
+        {
+            Enabled = Optional<bool>.Present(false),
+            Database = Optional<DatabaseSettings.Fragment?>.Present(new DatabaseSettings.Fragment
+            {
+                Port = Optional<int>.Present(6432),
+            }),
+            Plugins = Optional<IReadOnlyList<string>>.Present(["user"]),
+        });
+        var sources = new StateSourceSet<AppSettings.Fragment>(
+        [
+            new("user", user, priority: 100, writer: user),
+            new("defaults", defaults, priority: 0),
+        ]);
+        var services = new ServiceCollection();
+        services.AddConfiglueOptions<AppSettings, AppSettings.Fragment>(
+            _ => sources,
+            StateWriteRoute.To("user"));
+        using var serviceProvider = services.BuildServiceProvider();
+        var readOnly = serviceProvider.GetRequiredService<IReadOnlyOptions<AppSettings>>();
+        var writable = serviceProvider.GetRequiredService<IWritableOptions<AppSettings>>();
+
+        await Assert.That(ReferenceEquals(readOnly, writable)).IsTrue();
+        var resolved = await readOnly.ReadAsync();
+        var currentValue = await readOnly.GetValueAsync();
+        var saveResult = await writable.SaveAsync(new AppSettings
+        {
+            Enabled = true,
+            RetryCount = 10,
+            Label = "saved",
+            Database = new DatabaseSettings { Host = "saved.local", Port = 7443 },
+            Plugins = ["saved-plugin"],
+        });
+        var written = await user.ReadAsync();
+
+        await Assert.That(resolved.Status).IsEqualTo(StateReadStatus.Success);
+        await Assert.That(resolved.SourceId).IsEqualTo("user");
+        await Assert.That(resolved.Revisions!.Revisions.Count).IsEqualTo(2);
+        await Assert.That(resolved.Value!.Enabled).IsFalse();
+        await Assert.That(currentValue.RetryCount).IsEqualTo(4);
+        await Assert.That(resolved.Value.RetryCount).IsEqualTo(4);
+        await Assert.That(resolved.Value.Database!.Host).IsEqualTo("defaults.local");
+        await Assert.That(resolved.Value.Database.Port).IsEqualTo(6432);
+        await Assert.That(resolved.Value.Plugins).IsEquivalentTo(["base", "user"]);
+        await Assert.That(saveResult.Revision).IsEqualTo("2");
+        await Assert.That(written.Value!.RetryCount.Value).IsEqualTo(10);
+        await Assert.That(written.Value.Database!.Value!.Host.Value).IsEqualTo("saved.local");
+        await Assert.That(written.Value.Plugins.Value).IsEquivalentTo(["saved-plugin"]);
+    }
+
+    [Test]
+    public async Task Options_ReturnsModelDefaultsWhenEverySourceIsMissing()
+    {
+        var missing = new InMemoryStateStore<AppSettings.Fragment>();
+        var sourceSet = new StateSourceSet<AppSettings.Fragment>(
+        [
+            new("optional", missing, writer: missing),
+        ]);
+        var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(sourceSet);
+
+        var result = await options.ReadAsync();
+        var saved = await options.SaveAsync(new AppSettings { RetryCount = 7 });
+
+        await Assert.That(result.Status).IsEqualTo(StateReadStatus.Success);
+        await Assert.That(result.Value!.Enabled).IsTrue();
+        await Assert.That(result.Value.RetryCount).IsEqualTo(3);
+        await Assert.That(result.Value.Database!.Host).IsEqualTo("localhost");
+        await Assert.That(result.Value.Plugins).IsEmpty();
+        await Assert.That(saved.Revision).IsEqualTo("1");
     }
 }

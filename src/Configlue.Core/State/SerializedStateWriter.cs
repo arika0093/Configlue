@@ -46,7 +46,7 @@ public sealed class SerializedStateWriter<T> : IStateWriter<T>
 
         var schema = context.Schema;
         return _resource.WriteAsync(
-            new ResourceWriteRequest(destination.WrittenMemory, request.ExpectedRevision, schema),
+            new ResourceWriteRequest(destination.WrittenMemory, request.ExpectedRevision, schema, request.CheckRevision),
             cancellationToken);
     }
 }

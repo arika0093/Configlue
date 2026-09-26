@@ -195,12 +195,14 @@ public sealed class ConfiglueGenerator : IIncrementalGenerator
         }
 
         code.Append(generatedType).Append(name).Append(" : global::Configlue.IConfiglueDeepCloneable<")
-            .Append(modelType).AppendLine(">");
+            .Append(modelType).Append(">, global::Configlue.IConfiglueModel<").Append(modelType).Append(", ")
+            .Append(modelType).AppendLine(".Fragment>");
         code.AppendLine("{");
         AppendModelSchema(code, modelType, modelId, version, members);
         AppendFragmentSchema(code, modelType, modelId, version, members);
         AppendDeepClone(code, modelType, members);
         AppendFragment(code, modelType, members);
+        AppendModelFragmentBridge(code, modelType);
         code.AppendLine("}");
         return code.ToString();
     }
@@ -265,11 +267,17 @@ public sealed class ConfiglueGenerator : IIncrementalGenerator
         code.AppendLine("    };");
     }
 
+    private static void AppendModelFragmentBridge(StringBuilder code, string modelType)
+    {
+        code.Append("    public static Fragment ToFragment(").Append(modelType).AppendLine(" value) => Fragment.From(value);");
+        code.Append("    public static ").Append(modelType).AppendLine(" FromFragment(Fragment value) => value.ToModel();");
+    }
+
     private static void AppendFragment(StringBuilder code, string modelType, ImmutableArray<MemberModel> members)
     {
         code.AppendLine("    /// <summary>A sparse, presence-aware representation of this model.</summary>");
         code.AppendLine("    [global::System.Text.Json.Serialization.JsonConverter(typeof(FragmentJsonConverter))]");
-        code.AppendLine("    public sealed class Fragment : global::Configlue.IConfiglueFragment");
+        code.AppendLine("    public sealed class Fragment : global::Configlue.IConfiglueFragment<Fragment>");
         code.AppendLine("    {");
         foreach (var member in members)
         {
