@@ -1,5 +1,7 @@
 using System.Collections.Immutable;
+using System.Collections.Generic;
 using System.Text;
+using System.Threading;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -8,7 +10,7 @@ using Microsoft.CodeAnalysis.Text;
 namespace Configlue.Generator;
 
 [Generator(LanguageNames.CSharp)]
-public sealed class ConfiglueGenerator : IIncrementalGenerator
+public sealed partial class ConfiglueGenerator : IIncrementalGenerator
 {
     private const string ModelAttributeName = "Configlue.ConfiglueModelAttribute";
     private const string MergeAttributeName = "Configlue.ConfiglueMergeAttribute";
@@ -29,94 +31,136 @@ public sealed class ConfiglueGenerator : IIncrementalGenerator
 
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
-        var models = context.SyntaxProvider.ForAttributeWithMetadataName(
+        var generated = context.SyntaxProvider.ForAttributeWithMetadataName(
             ModelAttributeName,
             static (node, _) => node is TypeDeclarationSyntax,
-            static (attributeContext, _) => (INamedTypeSymbol)attributeContext.TargetSymbol);
+            static (attributeContext, cancellationToken) =>
+                Generate((INamedTypeSymbol)attributeContext.TargetSymbol, cancellationToken))
+            .WithComparer(EqualityComparer<GenerationResult>.Default);
 
-        context.RegisterSourceOutput(models, static (productionContext, model) => Generate(productionContext, model));
+        context.RegisterSourceOutput(generated, static (productionContext, result) => Emit(productionContext, result));
     }
 
-    private static void Generate(SourceProductionContext context, INamedTypeSymbol model)
+    private static void Emit(SourceProductionContext context, GenerationResult result)
     {
+        context.CancellationToken.ThrowIfCancellationRequested();
+        foreach (var diagnostic in result.Diagnostics)
+        {
+            context.CancellationToken.ThrowIfCancellationRequested();
+            var location = diagnostic.Location.IsSource
+                ? Location.Create(diagnostic.Location.FilePath!, diagnostic.Location.Span, diagnostic.Location.LineSpan)
+                : Location.None;
+            var roslynDiagnostic = diagnostic.Argument2 is null
+                ? Diagnostic.Create(diagnostic.Descriptor, location, diagnostic.Argument1)
+                : Diagnostic.Create(diagnostic.Descriptor, location, diagnostic.Argument1, diagnostic.Argument2);
+            context.ReportDiagnostic(roslynDiagnostic);
+        }
+
+        if (result.HintName is not null && result.Source is not null)
+        {
+            context.AddSource(result.HintName, SourceText.From(result.Source, Encoding.UTF8));
+        }
+    }
+
+    private static GenerationResult Generate(INamedTypeSymbol model, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
         var location = model.Locations.FirstOrDefault();
         var declaration = model.DeclaringSyntaxReferences
-            .Select(static reference => reference.GetSyntax())
+            .Select(reference => reference.GetSyntax(cancellationToken))
             .OfType<TypeDeclarationSyntax>()
             .FirstOrDefault();
 
         if (declaration is null || !declaration.Modifiers.Any(SyntaxKind.PartialKeyword))
         {
-            context.ReportDiagnostic(Diagnostic.Create(MustBePartial, location, model.Name));
-            return;
+            return Failure(MustBePartial, location, model.Name);
         }
 
         if (model.ContainingType is not null || model.Arity != 0 || (model.TypeKind != TypeKind.Class && model.TypeKind != TypeKind.Struct))
         {
-            context.ReportDiagnostic(Diagnostic.Create(UnsupportedModel, location, model.Name));
-            return;
+            return Failure(UnsupportedModel, location, model.Name);
         }
 
         if (model.IsAbstract)
         {
-            context.ReportDiagnostic(Diagnostic.Create(UnsupportedModel, location, model.Name));
-            return;
+            return Failure(UnsupportedModel, location, model.Name);
         }
 
-        if (model.TypeKind == TypeKind.Class && !model.InstanceConstructors.Any(static constructor =>
-                constructor.DeclaredAccessibility == Accessibility.Public && constructor.Parameters.Length == 0))
+        if (model.TypeKind == TypeKind.Class && !HasPublicParameterlessConstructor(model, cancellationToken))
         {
-            context.ReportDiagnostic(Diagnostic.Create(MissingConstructor, location, model.Name));
-            return;
+            return Failure(MissingConstructor, location, model.Name);
         }
 
-        var members = GetMembers(model).ToImmutableArray();
-        var hasErrors = false;
+        var members = GetMembers(model, cancellationToken).ToImmutableArray();
+        var diagnostics = ImmutableArray.CreateBuilder<GeneratorDiagnosticInfo>();
         foreach (var member in members)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             if (member.Property.IsRequired)
             {
-                context.ReportDiagnostic(Diagnostic.Create(UnsupportedRequired, member.Property.Locations.FirstOrDefault(), member.Property.Name));
-                hasErrors = true;
+                diagnostics.Add(GeneratorDiagnosticInfo.Create(UnsupportedRequired, member.Property.Locations.FirstOrDefault(), member.Property.Name));
             }
 
             if (member.MergeMode == 1 && member.ChildModel is null)
             {
-                context.ReportDiagnostic(Diagnostic.Create(UnsupportedMerge, member.Property.Locations.FirstOrDefault(), "Deep", member.Property.Name));
-                hasErrors = true;
+                diagnostics.Add(GeneratorDiagnosticInfo.Create(UnsupportedMerge, member.Property.Locations.FirstOrDefault(), "Deep", member.Property.Name));
             }
 
             if ((member.MergeMode == 2 || member.MergeMode == 3) && member.Collection.Kind == CollectionKind.Unsupported)
             {
-                context.ReportDiagnostic(Diagnostic.Create(UnsupportedMerge, member.Property.Locations.FirstOrDefault(),
+                diagnostics.Add(GeneratorDiagnosticInfo.Create(UnsupportedMerge, member.Property.Locations.FirstOrDefault(),
                     member.MergeMode == 2 ? "Append" : "SetUnion", member.Property.Name));
-                hasErrors = true;
             }
         }
 
-        if (hasErrors)
+        if (diagnostics.Count > 0)
         {
-            return;
+            return new GenerationResult(null, null, diagnostics.ToImmutable());
         }
 
-        var source = BuildSource(model, members);
-        var fileName = Sanitize(model.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)) + ".Configlue.g.cs";
-        context.AddSource(fileName, SourceText.From(source, Encoding.UTF8));
+        var source = BuildSource(model, members, cancellationToken);
+        var fullyQualifiedName = model.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+        var fileName = Sanitize(fullyQualifiedName, cancellationToken) + "_" +
+            GetStableTypeHash(fullyQualifiedName, cancellationToken) + ".Configlue.g.cs";
+        return new GenerationResult(fileName, source, ImmutableArray<GeneratorDiagnosticInfo>.Empty);
     }
 
-    private static IEnumerable<MemberModel> GetMembers(INamedTypeSymbol model)
+    private static GenerationResult Failure(DiagnosticDescriptor descriptor, Location? location, string? argument1)
+    {
+        return new GenerationResult(null, null, ImmutableArray.Create(
+            GeneratorDiagnosticInfo.Create(descriptor, location, argument1)));
+    }
+
+    private static bool HasPublicParameterlessConstructor(INamedTypeSymbol model, CancellationToken cancellationToken)
+    {
+        foreach (var constructor in model.InstanceConstructors)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (constructor.DeclaredAccessibility == Accessibility.Public && constructor.Parameters.Length == 0)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static IEnumerable<MemberModel> GetMembers(INamedTypeSymbol model, CancellationToken cancellationToken)
     {
         var hierarchy = new Stack<INamedTypeSymbol>();
         for (var current = model; current is not null && current.SpecialType != SpecialType.System_Object; current = current.BaseType)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             hierarchy.Push(current);
         }
 
         var properties = new Dictionary<string, IPropertySymbol>(StringComparer.Ordinal);
         while (hierarchy.Count > 0)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             foreach (var property in hierarchy.Pop().GetMembers().OfType<IPropertySymbol>())
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 if (property.IsStatic || property.IsIndexer || property.DeclaredAccessibility != Accessibility.Public ||
                     property.GetMethod?.DeclaredAccessibility != Accessibility.Public ||
                     property.SetMethod?.DeclaredAccessibility != Accessibility.Public)
@@ -131,10 +175,19 @@ public sealed class ConfiglueGenerator : IIncrementalGenerator
         var index = 0;
         foreach (var property in properties.Values.OrderBy(static property => property.Name, StringComparer.Ordinal))
         {
-            var child = IsConfiglueModel(property.Type) ? (INamedTypeSymbol)property.Type : null;
+            cancellationToken.ThrowIfCancellationRequested();
+            var child = IsConfiglueModel(property.Type, cancellationToken) ? (INamedTypeSymbol)property.Type : null;
             var mode = child is not null ? 1 : 0;
-            var merge = property.GetAttributes().FirstOrDefault(static attribute =>
-                attribute.AttributeClass?.ToDisplayString() == MergeAttributeName);
+            AttributeData? merge = null;
+            foreach (var attribute in property.GetAttributes())
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (attribute.AttributeClass?.ToDisplayString() == MergeAttributeName)
+                {
+                    merge = attribute;
+                    break;
+                }
+            }
             if (merge?.ConstructorArguments.FirstOrDefault().Value is int requestedMode)
             {
                 mode = requestedMode;
@@ -144,9 +197,24 @@ public sealed class ConfiglueGenerator : IIncrementalGenerator
         }
     }
 
-    private static bool IsConfiglueModel(ITypeSymbol type) =>
-        type is INamedTypeSymbol { TypeKind: TypeKind.Class } named && named.GetAttributes().Any(static attribute =>
-            attribute.AttributeClass?.ToDisplayString() == ModelAttributeName);
+    private static bool IsConfiglueModel(ITypeSymbol type, CancellationToken cancellationToken)
+    {
+        if (type is not INamedTypeSymbol { TypeKind: TypeKind.Class } named)
+        {
+            return false;
+        }
+
+        foreach (var attribute in named.GetAttributes())
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (attribute.AttributeClass?.ToDisplayString() == ModelAttributeName)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     private static CollectionInfo GetCollectionInfo(ITypeSymbol type)
     {
@@ -177,664 +245,6 @@ public sealed class ConfiglueGenerator : IIncrementalGenerator
         return new CollectionInfo(kind, elementType, named);
     }
 
-    private static string BuildSource(INamedTypeSymbol model, ImmutableArray<MemberModel> members)
-    {
-        var modelType = NonNullableTypeName(model);
-        var generatedType = model.TypeKind == TypeKind.Struct
-            ? model.IsRecord ? "partial record struct " : "partial struct "
-            : model.IsRecord ? "partial record class " : "partial class ";
-        var name = EscapeIdentifier(model.Name);
-        var modelId = GetModelId(model);
-        var version = GetModelVersion(model);
-        var code = new StringBuilder();
-        code.AppendLine("// <auto-generated />");
-        code.AppendLine("#nullable enable");
-        if (!model.ContainingNamespace.IsGlobalNamespace)
-        {
-            code.Append("namespace ").Append(model.ContainingNamespace.ToDisplayString()).AppendLine(";");
-        }
-
-        code.Append(generatedType).Append(name).Append(" : global::Configlue.IConfiglueDeepCloneable<")
-            .Append(modelType).Append(">, global::Configlue.IConfiglueModel<").Append(modelType).Append(", ")
-            .Append(modelType).AppendLine(".Fragment>");
-        code.AppendLine("{");
-        AppendModelSchema(code, modelType, modelId, version, members);
-        AppendFragmentSchema(code, modelType, modelId, version, members);
-        AppendDeepClone(code, modelType, members);
-        AppendFragment(code, modelType, members);
-        AppendModelFragmentBridge(code, modelType);
-        code.AppendLine("}");
-        return code.ToString();
-    }
-
-    private static void AppendModelSchema(
-        StringBuilder code,
-        string modelType,
-        string modelId,
-        int version,
-        ImmutableArray<MemberModel> members)
-    {
-        code.Append("    public static global::Configlue.ConfiglueModelSchema ConfiglueSchema { get; } = new(typeof(")
-            .Append(modelType).Append("), ").Append(SymbolDisplay.FormatLiteral(modelId, true)).Append(", ").Append(version)
-            .AppendLine(", new global::Configlue.ConfiglueMemberSchema[]");
-        code.AppendLine("    {");
-        foreach (var member in members)
-        {
-            code.Append("        new(").Append(member.Id).Append(", ")
-                .Append(SymbolDisplay.FormatLiteral(member.Property.Name, true)).Append(", typeof(")
-                .Append(NonNullableTypeName(member.ChildModel ?? member.Property.Type)).Append("), global::Configlue.MergeMode.")
-                .Append(MergeModeName(member.MergeMode)).Append(", static value => ((").Append(modelType).Append(")value).")
-                .Append(EscapeIdentifier(member.Property.Name)).Append(", ");
-            if (member.ChildModel is null)
-            {
-                code.Append("null");
-            }
-            else
-            {
-                code.Append("static () => ").Append(NonNullableTypeName(member.ChildModel)).Append(".ConfiglueSchema");
-            }
-
-            code.Append(", ").Append(CollectionValueFactory(member)).AppendLine("),");
-        }
-
-        code.Append("    }, static () => ").Append(modelType).AppendLine(".Fragment.Empty);");
-    }
-
-    private static string CollectionValueFactory(MemberModel member)
-    {
-        if (member.MergeMode is not (2 or 3))
-        {
-            return "null";
-        }
-
-        var elementType = TypeName(member.Collection.ElementType);
-        var values = $"global::System.Linq.Enumerable.Cast<{elementType}>(values)";
-        return member.Collection.Kind switch
-        {
-            CollectionKind.Array => $"static values => global::System.Linq.Enumerable.ToArray({values})",
-            CollectionKind.List => $"static values => new global::System.Collections.Generic.List<{elementType}>({values})",
-            CollectionKind.Set => $"static values => new global::System.Collections.Generic.HashSet<{elementType}>({values})",
-            _ => "null",
-        };
-    }
-
-    private static void AppendFragmentSchema(
-        StringBuilder code,
-        string modelType,
-        string modelId,
-        int version,
-        ImmutableArray<MemberModel> members)
-    {
-        code.Append("    public static global::Configlue.ConfiglueModelSchema FragmentSchema { get; } = new(typeof(")
-            .Append(modelType).Append("), ").Append(SymbolDisplay.FormatLiteral(modelId, true)).Append(", ").Append(version)
-            .AppendLine(", new global::Configlue.ConfiglueMemberSchema[]");
-        code.AppendLine("    {");
-        foreach (var member in members)
-        {
-            var valueType = member.ChildModel is null
-                ? NonNullableTypeName(member.Property.Type)
-                : NonNullableTypeName(member.ChildModel) + ".Fragment";
-            code.Append("        new(").Append(member.Id).Append(", ")
-                .Append(SymbolDisplay.FormatLiteral(member.Property.Name, true)).Append(", typeof(")
-                .Append(valueType).Append("), global::Configlue.MergeMode.")
-                .Append(MergeModeName(member.MergeMode)).AppendLine("),");
-        }
-
-        code.AppendLine("    });");
-    }
-
-    private static void AppendDeepClone(StringBuilder code, string modelType, ImmutableArray<MemberModel> members)
-    {
-        code.Append("    public ").Append(modelType).AppendLine(" DeepClone() => new()");
-        code.AppendLine("    {");
-        foreach (var member in members)
-        {
-            code.Append("        ").Append(EscapeIdentifier(member.Property.Name)).Append(" = ")
-                .Append(CloneModelExpression(member, "this." + EscapeIdentifier(member.Property.Name))).AppendLine(",");
-        }
-
-        code.AppendLine("    };");
-    }
-
-    private static void AppendModelFragmentBridge(StringBuilder code, string modelType)
-    {
-        code.Append("    public static Fragment ToFragment(").Append(modelType).AppendLine(" value) => Fragment.From(value);");
-        code.Append("    public static Fragment Diff(").Append(modelType).Append(" before, ").Append(modelType).AppendLine(" after) => Fragment.Diff(before, after);");
-        code.Append("    public static ").Append(modelType).AppendLine(" FromFragment(Fragment value) => value.ToModel();");
-    }
-
-    private static void AppendFragment(StringBuilder code, string modelType, ImmutableArray<MemberModel> members)
-    {
-        code.AppendLine("    /// <summary>A sparse, presence-aware representation of this model.</summary>");
-        code.AppendLine("    [global::System.Text.Json.Serialization.JsonConverter(typeof(FragmentJsonConverter))]");
-        code.AppendLine("    public sealed class Fragment : global::Configlue.IConfiglueFragment<Fragment>");
-        code.AppendLine("    {");
-        foreach (var member in members)
-        {
-            code.AppendLine("        [global::System.Text.Json.Serialization.JsonIgnore(Condition = global::System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]");
-            code.Append("        public global::Configlue.Optional<").Append(FragmentValueType(member)).Append("> ")
-                .Append(EscapeIdentifier(member.Property.Name)).AppendLine(" { get; init; }");
-        }
-
-        code.AppendLine();
-        code.AppendLine("        /// <summary>Whether this fragment has no present members.</summary>");
-        code.Append("        public bool IsEmpty => ").Append(members.Length == 0 ? "true" : string.Join(" && ", members.Select(member =>
-            "!" + EscapeIdentifier(member.Property.Name) + ".IsPresent"))).AppendLine(";");
-        code.AppendLine();
-        AppendFragmentDescriptor(code, modelType, members);
-        AppendFromModel(code, modelType, members);
-        AppendToModel(code, modelType, members);
-        AppendMerge(code, members);
-        AppendApplyChanges(code, members);
-        AppendDiff(code, modelType, members);
-        AppendFragmentClone(code, members);
-        AppendPatchSupport(code, members);
-        AppendJsonConverter(code, members);
-        code.AppendLine("    }");
-        AppendBuilder(code, members);
-        AppendPatch(code, modelType, members);
-    }
-
-    private static void AppendFragmentDescriptor(StringBuilder code, string modelType, ImmutableArray<MemberModel> members)
-    {
-        code.AppendLine("        public static Fragment Empty => new();");
-        code.Append("        public global::Configlue.ConfiglueModelSchema Schema => ").Append(modelType).AppendLine(".FragmentSchema;");
-        code.AppendLine("        public global::System.Collections.Generic.IEnumerable<global::Configlue.ConfiglueFragmentMember> EnumeratePresentMembers()");
-        code.AppendLine("        {");
-        foreach (var member in members)
-        {
-            var name = EscapeIdentifier(member.Property.Name);
-            code.Append("            if (").Append(name).Append(".IsPresent) yield return new(").Append(member.Id).Append(", ")
-                .Append(SymbolDisplay.FormatLiteral(member.Property.Name, true)).Append(", ").Append(name).AppendLine(".Value);");
-        }
-
-        code.AppendLine("        }");
-        code.AppendLine("        public global::Configlue.IConfiglueFragment WithMember(int memberId, object? value)");
-        code.AppendLine("        {");
-        code.AppendLine("            var builder = ToBuilder();");
-        code.AppendLine("            switch (memberId)");
-        code.AppendLine("            {");
-        foreach (var member in members)
-        {
-            var name = EscapeIdentifier(member.Property.Name);
-            code.Append("                case ").Append(member.Id).Append(": builder.").Append(name).Append(" = global::Configlue.Optional<")
-                .Append(FragmentValueType(member)).Append(">.Present((").Append(FragmentValueType(member)).AppendLine(")value!); break;");
-        }
-
-        code.AppendLine("                default: throw new global::System.ArgumentOutOfRangeException(nameof(memberId));");
-        code.AppendLine("            }");
-        code.AppendLine("            return builder.Build();");
-        code.AppendLine("        }");
-        code.AppendLine();
-    }
-
-    private static void AppendFromModel(StringBuilder code, string modelType, ImmutableArray<MemberModel> members)
-    {
-        code.Append("        public static Fragment From(").Append(modelType).AppendLine(" value)");
-        code.AppendLine("        {");
-        code.AppendLine("            global::System.ArgumentNullException.ThrowIfNull(value);");
-        code.AppendLine("            return new Fragment");
-        code.AppendLine("            {");
-        foreach (var member in members)
-        {
-            var access = "value." + EscapeIdentifier(member.Property.Name);
-            var value = member.ChildModel is null
-                ? access
-                : $"({access} is null ? null : {NonNullableTypeName(member.ChildModel)}.Fragment.From({access}))";
-            code.Append("                ").Append(EscapeIdentifier(member.Property.Name)).Append(" = global::Configlue.Optional<")
-                .Append(FragmentValueType(member)).Append(">.Present(").Append(value).AppendLine("),");
-        }
-
-        code.AppendLine("            };");
-        code.AppendLine("        }");
-        code.AppendLine();
-    }
-
-    private static void AppendToModel(StringBuilder code, string modelType, ImmutableArray<MemberModel> members)
-    {
-        code.Append("        public ").Append(modelType).AppendLine(" ToModel()");
-        code.AppendLine("        {");
-        code.Append("            var defaults = new ").Append(modelType).AppendLine("();");
-        code.Append("            return new ").Append(modelType).AppendLine();
-        code.AppendLine("            {");
-        foreach (var member in members)
-        {
-            var name = EscapeIdentifier(member.Property.Name);
-            var value = member.ChildModel is null
-                ? name + ".Value!"
-                : name + ".Value?.ToModel()!";
-            code.Append("                ").Append(name).Append(" = ").Append(name).Append(".IsPresent ? ")
-                .Append(value).Append(" : defaults.").Append(name).AppendLine(",");
-        }
-
-        code.AppendLine("            };");
-        code.AppendLine("        }");
-        code.AppendLine();
-    }
-
-    private static void AppendMerge(StringBuilder code, ImmutableArray<MemberModel> members)
-    {
-        code.AppendLine("        /// <summary>Merges a higher-priority fragment over this fragment.</summary>");
-        code.AppendLine("        public Fragment Merge(Fragment higherPriority)");
-        code.AppendLine("        {");
-        code.AppendLine("            global::System.ArgumentNullException.ThrowIfNull(higherPriority);");
-        code.AppendLine("            return new Fragment");
-        code.AppendLine("            {");
-        foreach (var member in members)
-        {
-            var name = EscapeIdentifier(member.Property.Name);
-            var lower = "this." + name;
-            var higher = "higherPriority." + name;
-            string expression;
-            if (member.MergeMode == 1 && member.ChildModel is not null)
-            {
-                expression = $"{higher}.IsPresent ? global::Configlue.Optional<{FragmentValueType(member)}>.Present(({lower}.IsPresent && (object?){lower}.Value is not null && (object?){higher}.Value is not null) ? {lower}.Value!.Merge({higher}.Value!) : {higher}.Value) : {lower}";
-            }
-            else if (member.MergeMode is 2 or 3)
-            {
-                var merged = BuildCollectionMerge(member, lower + ".Value!", higher + ".Value!");
-                expression = $"{higher}.IsPresent ? ({lower}.IsPresent && (object?){lower}.Value is not null && (object?){higher}.Value is not null ? global::Configlue.Optional<{FragmentValueType(member)}>.Present({merged}) : {higher}) : {lower}";
-            }
-            else
-            {
-                expression = $"{higher}.IsPresent ? {higher} : {lower}";
-            }
-
-            code.Append("                ").Append(name).Append(" = ").Append(expression).AppendLine(",");
-        }
-
-        code.AppendLine("            };");
-        code.AppendLine("        }");
-        code.AppendLine();
-    }
-
-    private static void AppendApplyChanges(StringBuilder code, ImmutableArray<MemberModel> members)
-    {
-        code.AppendLine("        /// <summary>Applies a sparse semantic diff to this source-local contribution.</summary>");
-        code.AppendLine("        public Fragment ApplyChanges(Fragment changes)");
-        code.AppendLine("        {");
-        code.AppendLine("            global::System.ArgumentNullException.ThrowIfNull(changes);");
-        code.AppendLine("            return new Fragment");
-        code.AppendLine("            {");
-        foreach (var member in members)
-        {
-            var name = EscapeIdentifier(member.Property.Name);
-            var type = FragmentValueType(member);
-            var expression = member.ChildModel is null
-                ? $"changes.{name}.IsPresent ? changes.{name} : this.{name}"
-                : $"changes.{name}.IsPresent ? global::Configlue.Optional<{type}>.Present((this.{name}.IsPresent && (object?)this.{name}.Value is not null && (object?)changes.{name}.Value is not null) ? this.{name}.Value!.ApplyChanges(changes.{name}.Value!) : changes.{name}.Value) : this.{name}";
-            code.Append("                ").Append(name).Append(" = ").Append(expression).AppendLine(",");
-        }
-
-        code.AppendLine("            };");
-        code.AppendLine("        }");
-        code.AppendLine();
-    }
-
-    private static void AppendDiff(StringBuilder code, string modelType, ImmutableArray<MemberModel> members)
-    {
-        foreach (var member in members.Where(static member => member.ChildModel is not null))
-        {
-            var type = NonNullableTypeName(member.ChildModel!);
-            var name = EscapeIdentifier(member.Property.Name);
-            code.Append("        private static global::Configlue.Optional<").Append(FragmentValueType(member)).Append("> __Diff_")
-                .Append(name).Append('(').Append(type).Append("? before, ").Append(type).AppendLine("? after)");
-            code.AppendLine("        {");
-            code.AppendLine("            if (global::System.Object.ReferenceEquals(before, after)) return default;");
-            code.Append("            if (before is null || after is null) return global::Configlue.Optional<")
-                .Append(FragmentValueType(member)).Append(">.Present(after is null ? null : ").Append(type).AppendLine(".Fragment.From(after));");
-            code.Append("            var difference = ").Append(type).AppendLine(".Fragment.Diff(before, after);");
-            code.Append("            return difference.IsEmpty ? default : global::Configlue.Optional<").Append(FragmentValueType(member))
-                .AppendLine(">.Present(difference); ");
-            code.AppendLine("        }");
-        }
-
-        code.AppendLine("        /// <summary>Creates a sparse semantic diff between two ordinary model values.</summary>");
-        code.Append("        public static Fragment Diff(").Append(modelType).Append(" before, ").Append(modelType).AppendLine(" after)");
-        code.AppendLine("        {");
-        code.AppendLine("            global::System.ArgumentNullException.ThrowIfNull(before);");
-        code.AppendLine("            global::System.ArgumentNullException.ThrowIfNull(after);");
-        code.AppendLine("            return new Fragment");
-        code.AppendLine("            {");
-        foreach (var member in members)
-        {
-            var name = EscapeIdentifier(member.Property.Name);
-            var before = "before." + name;
-            var after = "after." + name;
-            var valueType = FragmentValueType(member);
-            var condition = member.ChildModel is null
-                ? $"global::Configlue.ConfiglueValueComparer.AreEqual({before}, {after}) ? default : global::Configlue.Optional<{valueType}>.Present({after})"
-                : $"__Diff_{name}({before}, {after})";
-            code.Append("                ").Append(name).Append(" = ").Append(condition).AppendLine(",");
-        }
-
-        code.AppendLine("            };");
-        code.AppendLine("        }");
-        code.AppendLine();
-    }
-
-    private static void AppendFragmentClone(StringBuilder code, ImmutableArray<MemberModel> members)
-    {
-        code.AppendLine("        /// <summary>Copies the fragment and its generated nested values.</summary>");
-        code.AppendLine("        public Fragment DeepClone() => new()");
-        code.AppendLine("        {");
-        foreach (var member in members)
-        {
-            var name = EscapeIdentifier(member.Property.Name);
-            var type = FragmentValueType(member);
-            var expression = CloneFragmentExpression(member, "this." + name + ".Value");
-            code.Append("            ").Append(name).Append(" = this.").Append(name).Append(".IsPresent ? global::Configlue.Optional<")
-                .Append(type).Append(">.Present(").Append(expression).Append(" ) : default,").AppendLine();
-        }
-
-        code.AppendLine("        };");
-        code.AppendLine();
-    }
-
-    private static void AppendPatchSupport(StringBuilder code, ImmutableArray<MemberModel> members)
-    {
-        code.AppendLine("        /// <summary>Applies source-local set and unset operations to this fragment.</summary>");
-        code.AppendLine("        public Fragment Apply(Patch patch)");
-        code.AppendLine("        {");
-        code.AppendLine("            global::System.ArgumentNullException.ThrowIfNull(patch);");
-        code.AppendLine("            return new Fragment");
-        code.AppendLine("            {");
-        foreach (var member in members)
-        {
-            var name = EscapeIdentifier(member.Property.Name);
-            code.Append("                ").Append(name).Append(" = patch.").Append(name).Append(".Apply(this.").Append(name).AppendLine("),");
-        }
-
-        code.AppendLine("            };");
-        code.AppendLine("        }");
-        code.AppendLine();
-        code.AppendLine("        /// <summary>Creates a mutable builder initialized from this fragment.</summary>");
-        code.AppendLine("        public FragmentBuilder ToBuilder() => new(this);");
-        code.AppendLine();
-        code.AppendLine("        /// <summary>Creates a source-local set patch from all present members.</summary>");
-        code.AppendLine("        public Patch ToPatch() => new(this);");
-    }
-
-    private static void AppendJsonConverter(StringBuilder code, ImmutableArray<MemberModel> members)
-    {
-        code.AppendLine("        /// <summary>Reads and writes sparse fragment properties without materializing absent values.</summary>");
-        code.AppendLine("        public sealed class FragmentJsonConverter : global::System.Text.Json.Serialization.JsonConverter<Fragment>");
-        code.AppendLine("        {");
-        code.AppendLine("            public override Fragment Read(ref global::System.Text.Json.Utf8JsonReader reader, global::System.Type typeToConvert, global::System.Text.Json.JsonSerializerOptions options)");
-        code.AppendLine("            {");
-        code.AppendLine("                if (reader.TokenType != global::System.Text.Json.JsonTokenType.StartObject) throw new global::System.Text.Json.JsonException(\"A fragment must be a JSON object.\");");
-        code.AppendLine("                var builder = new FragmentBuilder();");
-        code.AppendLine("                while (reader.Read())");
-        code.AppendLine("                {");
-        code.AppendLine("                    if (reader.TokenType == global::System.Text.Json.JsonTokenType.EndObject) return builder.Build();");
-        code.AppendLine("                    if (reader.TokenType != global::System.Text.Json.JsonTokenType.PropertyName) throw new global::System.Text.Json.JsonException(\"Expected a fragment property name.\");");
-        code.AppendLine("                    var propertyName = reader.GetString();");
-        code.AppendLine("                    if (!reader.Read()) throw new global::System.Text.Json.JsonException(\"Unexpected end of fragment.\");");
-        if (members.Length > 0)
-        {
-            var first = true;
-            foreach (var member in members)
-            {
-                var property = EscapeIdentifier(member.Property.Name);
-                var wireName = GetJsonPropertyName(member.Property, out var explicitName);
-                code.Append(first ? "                    if (" : "                    else if (")
-                    .Append("Matches(propertyName, ").Append(SymbolDisplay.FormatLiteral(wireName, true)).Append(", ")
-                    .Append(explicitName ? "false" : "true").AppendLine(", options))");
-                code.Append("                        builder.").Append(property).Append(" = global::Configlue.Optional<").Append(FragmentValueType(member))
-                    .Append(">.Present(global::System.Text.Json.JsonSerializer.Deserialize<").Append(FragmentValueType(member))
-                    .AppendLine(">(ref reader, options));");
-                first = false;
-            }
-
-            code.AppendLine("                    else reader.Skip();");
-        }
-        else
-        {
-            code.AppendLine("                    else reader.Skip();");
-        }
-
-        code.AppendLine("                }");
-        code.AppendLine("                throw new global::System.Text.Json.JsonException(\"Unexpected end of fragment.\");");
-        code.AppendLine("            }");
-        code.AppendLine();
-        code.AppendLine("            public override void Write(global::System.Text.Json.Utf8JsonWriter writer, Fragment value, global::System.Text.Json.JsonSerializerOptions options)");
-        code.AppendLine("            {");
-        code.AppendLine("                writer.WriteStartObject();");
-        foreach (var member in members)
-        {
-            var property = EscapeIdentifier(member.Property.Name);
-            var wireName = GetJsonPropertyName(member.Property, out var explicitName);
-            code.Append("                if (value.").Append(property).AppendLine(".IsPresent)");
-            code.AppendLine("                {");
-            if (explicitName)
-            {
-                code.Append("                    writer.WritePropertyName(").Append(SymbolDisplay.FormatLiteral(wireName, true)).AppendLine(");");
-            }
-            else
-            {
-                code.Append("                    writer.WritePropertyName(options.PropertyNamingPolicy?.ConvertName(")
-                    .Append(SymbolDisplay.FormatLiteral(wireName, true)).Append(") ?? ")
-                    .Append(SymbolDisplay.FormatLiteral(wireName, true)).AppendLine(");");
-            }
-
-            code.Append("                    global::System.Text.Json.JsonSerializer.Serialize<").Append(FragmentValueType(member)).Append(">(writer, value.")
-                .Append(property).AppendLine(".Value!, options);");
-            code.AppendLine("                }");
-        }
-
-        code.AppendLine("                writer.WriteEndObject();");
-        code.AppendLine("            }");
-        code.AppendLine();
-        code.AppendLine("            private static bool Matches(string? actual, string propertyName, bool useNamingPolicy, global::System.Text.Json.JsonSerializerOptions options)");
-        code.AppendLine("            {");
-        code.AppendLine("                if (actual is null) return false;");
-        code.AppendLine("                var expected = useNamingPolicy ? options.PropertyNamingPolicy?.ConvertName(propertyName) ?? propertyName : propertyName;");
-        code.AppendLine("                return global::System.String.Equals(actual, expected, options.PropertyNameCaseInsensitive ? global::System.StringComparison.OrdinalIgnoreCase : global::System.StringComparison.Ordinal);");
-        code.AppendLine("            }");
-        code.AppendLine("        }");
-    }
-
-    private static void AppendBuilder(StringBuilder code, ImmutableArray<MemberModel> members)
-    {
-        code.AppendLine("    /// <summary>A mutable builder for a generated fragment.</summary>");
-        code.AppendLine("    public sealed class FragmentBuilder");
-        code.AppendLine("    {");
-        foreach (var member in members)
-        {
-            code.Append("        public global::Configlue.Optional<").Append(FragmentValueType(member)).Append("> ")
-                .Append(EscapeIdentifier(member.Property.Name)).AppendLine(" { get; set; }");
-        }
-
-        code.AppendLine("        public FragmentBuilder() { }");
-        code.AppendLine("        internal FragmentBuilder(Fragment fragment)");
-        code.AppendLine("        {");
-        foreach (var member in members)
-        {
-            var name = EscapeIdentifier(member.Property.Name);
-            code.Append("            ").Append(name).Append(" = fragment.").Append(name).AppendLine(";");
-        }
-
-        code.AppendLine("        }");
-        code.AppendLine("        public Fragment Build() => new()");
-        code.AppendLine("        {");
-        foreach (var member in members)
-        {
-            var name = EscapeIdentifier(member.Property.Name);
-            code.Append("            ").Append(name).Append(" = ").Append(name).AppendLine(",");
-        }
-
-        code.AppendLine("        };");
-        code.AppendLine("    }");
-    }
-
-    private static void AppendPatch(StringBuilder code, string modelType, ImmutableArray<MemberModel> members)
-    {
-        code.AppendLine("    /// <summary>A source-local set/unset patch for generated fragment members.</summary>");
-        code.AppendLine("    public sealed class Patch : global::Configlue.IConfigluePatch");
-        code.AppendLine("    {");
-        code.Append("        public global::Configlue.ConfiglueModelSchema Schema => ").Append(modelType).AppendLine(".ConfiglueSchema;");
-        foreach (var member in members)
-        {
-            code.Append("        public global::Configlue.FragmentOperation<").Append(FragmentValueType(member)).Append("> ")
-                .Append(EscapeIdentifier(member.Property.Name)).AppendLine(" { get; set; }");
-        }
-
-        code.AppendLine("        public Patch() { }");
-        code.AppendLine("        internal Patch(Fragment fragment)");
-        code.AppendLine("        {");
-        foreach (var member in members)
-        {
-            var name = EscapeIdentifier(member.Property.Name);
-            code.Append("            ").Append(name).Append(" = fragment.").Append(name).Append(".IsPresent ? global::Configlue.FragmentOperation<")
-                .Append(FragmentValueType(member)).Append(">.Set(fragment.").Append(name).AppendLine(".Value) : default;");
-        }
-
-        code.AppendLine("        }");
-        code.AppendLine("        public bool IsEmpty => ");
-        code.Append("            ").Append(members.Length == 0 ? "true" : string.Join(" && ", members.Select(member =>
-            EscapeIdentifier(member.Property.Name) + ".Kind == global::Configlue.FragmentOperationKind.Unchanged"))).AppendLine(";");
-        code.AppendLine("        public global::Configlue.IConfiglueFragment Apply(global::Configlue.IConfiglueFragment fragment)");
-        code.AppendLine("        {");
-        code.AppendLine("            if (fragment is not Fragment typed) throw new global::System.ArgumentException(\"The patch can only be applied to its generated fragment type.\", nameof(fragment));");
-        code.AppendLine("            return typed.Apply(this);");
-        code.AppendLine("        }");
-        code.AppendLine("    }");
-    }
-
-    private static string CloneModelExpression(MemberModel member, string access)
-    {
-        if (member.ChildModel is not null)
-        {
-            return $"{access} is null ? null! : {access}.DeepClone()";
-        }
-
-        if (member.Collection.Kind == CollectionKind.Unsupported)
-        {
-            return access;
-        }
-
-        var elementModel = IsConfiglueModel(member.Collection.ElementType);
-        var enumerated = access;
-        if (elementModel)
-        {
-            var elementType = TypeName(member.Collection.ElementType);
-            enumerated = $"global::System.Linq.Enumerable.Select({access}, static item => item is null ? null : (({elementType})item).DeepClone())";
-        }
-
-        return member.Collection.Kind switch
-        {
-            CollectionKind.Array => $"global::System.Linq.Enumerable.ToArray({enumerated})",
-            CollectionKind.List => $"new global::System.Collections.Generic.List<{TypeName(member.Collection.ElementType)}>({enumerated})",
-            CollectionKind.Set => $"new global::System.Collections.Generic.HashSet<{TypeName(member.Collection.ElementType)}>({enumerated})",
-            _ => access,
-        };
-    }
-
-    private static string CloneFragmentExpression(MemberModel member, string access)
-    {
-        if (member.ChildModel is not null)
-        {
-            return $"{access}?.DeepClone()";
-        }
-
-        var elementModel = member.Collection.Kind != CollectionKind.Unsupported && IsConfiglueModel(member.Collection.ElementType);
-        if (member.Collection.Kind == CollectionKind.Unsupported)
-        {
-            return access;
-        }
-
-        var enumerated = access;
-        if (elementModel)
-        {
-            var elementType = TypeName(member.Collection.ElementType);
-            enumerated = $"global::System.Linq.Enumerable.Select({access}!, static item => item is null ? null : (({elementType})item).DeepClone())";
-        }
-
-        var cloned = member.Collection.Kind switch
-        {
-            CollectionKind.Array => $"global::System.Linq.Enumerable.ToArray({enumerated})",
-            CollectionKind.List => $"new global::System.Collections.Generic.List<{TypeName(member.Collection.ElementType)}>({enumerated})",
-            CollectionKind.Set => $"new global::System.Collections.Generic.HashSet<{TypeName(member.Collection.ElementType)}>({enumerated})",
-            _ => access,
-        };
-        return $"(object?){access} is null ? default : {cloned}";
-    }
-
-    private static string BuildCollectionMerge(MemberModel member, string lower, string higher)
-    {
-        var elementType = TypeName(member.Collection.ElementType);
-        var combined = $"global::System.Linq.Enumerable.Concat({lower}, {higher})";
-        if (member.MergeMode == 3)
-        {
-            combined = $"global::System.Linq.Enumerable.Distinct({combined})";
-        }
-
-        return member.Collection.Kind switch
-        {
-            CollectionKind.List => $"new global::System.Collections.Generic.List<{elementType}>({combined})",
-            CollectionKind.Set => $"new global::System.Collections.Generic.HashSet<{elementType}>({combined})",
-            _ => $"global::System.Linq.Enumerable.ToArray({combined})",
-        };
-    }
-
-    private static string FragmentValueType(MemberModel member)
-    {
-        if (member.ChildModel is null)
-        {
-            return TypeName(member.Property.Type);
-        }
-
-        return NonNullableTypeName(member.ChildModel) + ".Fragment?";
-    }
-
-    private static string TypeName(ITypeSymbol type) => type.ToDisplayString(TypeFormat);
-
-    private static string NonNullableTypeName(ITypeSymbol type) =>
-        type.WithNullableAnnotation(NullableAnnotation.NotAnnotated).ToDisplayString(TypeFormat);
-
-    private static string MergeModeName(int mode) => mode switch
-    {
-        1 => "Deep",
-        2 => "Append",
-        3 => "SetUnion",
-        _ => "Replace",
-    };
-
-    private static string GetModelId(INamedTypeSymbol model)
-    {
-        var attribute = model.GetAttributes().FirstOrDefault(static attribute => attribute.AttributeClass?.ToDisplayString() == ModelAttributeName);
-        var id = attribute?.NamedArguments.FirstOrDefault(static pair => pair.Key == "Id").Value.Value as string;
-        return id ?? model.ToDisplayString();
-    }
-
-    private static string GetJsonPropertyName(IPropertySymbol property, out bool isExplicit)
-    {
-        var attribute = property.GetAttributes().FirstOrDefault(static attribute =>
-            attribute.AttributeClass?.ToDisplayString() == "System.Text.Json.Serialization.JsonPropertyNameAttribute");
-        if (attribute?.ConstructorArguments.FirstOrDefault().Value is string configuredName)
-        {
-            isExplicit = true;
-            return configuredName;
-        }
-
-        isExplicit = false;
-        return property.Name;
-    }
-
-    private static int GetModelVersion(INamedTypeSymbol model)
-    {
-        var attribute = model.GetAttributes().FirstOrDefault(static attribute => attribute.AttributeClass?.ToDisplayString() == ModelAttributeName);
-        return attribute?.ConstructorArguments.FirstOrDefault().Value is int version ? version : 1;
-    }
-
-    private static string EscapeIdentifier(string identifier) =>
-        SyntaxFacts.GetKeywordKind(identifier) != SyntaxKind.None || SyntaxFacts.GetContextualKeywordKind(identifier) != SyntaxKind.None
-            ? "@" + identifier
-            : identifier;
-
-    private static string Sanitize(string identifier) => string.Concat(identifier.Select(static character =>
-        char.IsLetterOrDigit(character) ? character : '_'));
-
     private sealed class MemberModel(int id, IPropertySymbol property, INamedTypeSymbol? childModel, int mergeMode, CollectionInfo collection)
     {
         public int Id { get; } = id;
@@ -858,5 +268,141 @@ public sealed class ConfiglueGenerator : IIncrementalGenerator
         Array,
         List,
         Set,
+    }
+
+    private sealed class GenerationResult : IEquatable<GenerationResult>
+    {
+        public GenerationResult(string? hintName, string? source, ImmutableArray<GeneratorDiagnosticInfo> diagnostics)
+        {
+            HintName = hintName;
+            Source = source;
+            Diagnostics = diagnostics;
+        }
+
+        public string? HintName { get; }
+        public string? Source { get; }
+        public ImmutableArray<GeneratorDiagnosticInfo> Diagnostics { get; }
+
+        public bool Equals(GenerationResult? other)
+        {
+            if (ReferenceEquals(this, other))
+            {
+                return true;
+            }
+
+            if (other is null || !string.Equals(HintName, other.HintName, StringComparison.Ordinal) ||
+                !string.Equals(Source, other.Source, StringComparison.Ordinal) || Diagnostics.Length != other.Diagnostics.Length)
+            {
+                return false;
+            }
+
+            for (var index = 0; index < Diagnostics.Length; index++)
+            {
+                if (!Diagnostics[index].Equals(other.Diagnostics[index]))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public override bool Equals(object? obj) => obj is GenerationResult other && Equals(other);
+
+        public override int GetHashCode()
+        {
+            var hash = unchecked((HintName is null ? 0 : StringComparer.Ordinal.GetHashCode(HintName)) * 31 +
+                (Source is null ? 0 : StringComparer.Ordinal.GetHashCode(Source)));
+            foreach (var diagnostic in Diagnostics)
+            {
+                hash = unchecked(hash * 31 + diagnostic.GetHashCode());
+            }
+
+            return hash;
+        }
+    }
+
+    private readonly struct GeneratorDiagnosticInfo : IEquatable<GeneratorDiagnosticInfo>
+    {
+        private GeneratorDiagnosticInfo(DiagnosticDescriptor descriptor, GeneratorLocationInfo location, string? argument1, string? argument2)
+        {
+            Descriptor = descriptor;
+            Location = location;
+            Argument1 = argument1;
+            Argument2 = argument2;
+        }
+
+        public DiagnosticDescriptor Descriptor { get; }
+        public GeneratorLocationInfo Location { get; }
+        public string? Argument1 { get; }
+        public string? Argument2 { get; }
+
+        public static GeneratorDiagnosticInfo Create(DiagnosticDescriptor descriptor, Location? location, string? argument1, string? argument2 = null)
+        {
+            return new GeneratorDiagnosticInfo(descriptor, GeneratorLocationInfo.Create(location), argument1, argument2);
+        }
+
+        public bool Equals(GeneratorDiagnosticInfo other)
+        {
+            return string.Equals(Descriptor.Id, other.Descriptor.Id, StringComparison.Ordinal) &&
+                Location.Equals(other.Location) &&
+                string.Equals(Argument1, other.Argument1, StringComparison.Ordinal) &&
+                string.Equals(Argument2, other.Argument2, StringComparison.Ordinal);
+        }
+
+        public override bool Equals(object? obj) => obj is GeneratorDiagnosticInfo other && Equals(other);
+
+        public override int GetHashCode()
+        {
+            var hash = StringComparer.Ordinal.GetHashCode(Descriptor.Id);
+            hash = unchecked(hash * 31 + Location.GetHashCode());
+            hash = unchecked(hash * 31 + (Argument1 is null ? 0 : StringComparer.Ordinal.GetHashCode(Argument1)));
+            return unchecked(hash * 31 + (Argument2 is null ? 0 : StringComparer.Ordinal.GetHashCode(Argument2)));
+        }
+    }
+
+    private readonly struct GeneratorLocationInfo : IEquatable<GeneratorLocationInfo>
+    {
+        public GeneratorLocationInfo(bool isSource, string? filePath, TextSpan span, LinePositionSpan lineSpan)
+        {
+            IsSource = isSource;
+            FilePath = filePath;
+            Span = span;
+            LineSpan = lineSpan;
+        }
+
+        public bool IsSource { get; }
+        public string? FilePath { get; }
+        public TextSpan Span { get; }
+        public LinePositionSpan LineSpan { get; }
+
+        public static GeneratorLocationInfo Create(Location? location)
+        {
+            if (location is not { IsInSource: true })
+            {
+                return new GeneratorLocationInfo(false, null, default, default);
+            }
+
+            var lineSpan = location.GetLineSpan();
+            return new GeneratorLocationInfo(true, location.SourceTree?.FilePath ?? lineSpan.Path ?? string.Empty,
+                location.SourceSpan, lineSpan.Span);
+        }
+
+        public bool Equals(GeneratorLocationInfo other)
+        {
+            return IsSource == other.IsSource &&
+                string.Equals(FilePath, other.FilePath, StringComparison.Ordinal) &&
+                Span.Equals(other.Span) && LineSpan.Equals(other.LineSpan);
+        }
+
+        public override bool Equals(object? obj) => obj is GeneratorLocationInfo other && Equals(other);
+
+        public override int GetHashCode()
+        {
+            var hash = IsSource ? 1 : 0;
+            hash = unchecked(hash * 31 + (FilePath is null ? 0 : StringComparer.Ordinal.GetHashCode(FilePath)));
+            hash = unchecked(hash * 31 + Span.GetHashCode());
+            return unchecked(hash * 31 + LineSpan.GetHashCode());
+        }
     }
 }
