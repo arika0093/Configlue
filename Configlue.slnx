@@ -1,0 +1,14 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Configlue.Abstraction/Configlue.Abstraction.csproj" />
+    <Project Path="src/Configlue.Core/Configlue.Core.csproj" />
+    <Project Path="src/Configlue.Generator/Configlue.Generator.csproj" />
+    <Project Path="src/Configlue.Testing/Configlue.Testing.csproj" />
+    <Project Path="src/Configlue/Configlue.csproj" />
+  </Folder>
+  <Folder Name="/src/providers/">
+    <Project Path="src/providers/Configlue.Provider.Json/Configlue.Provider.Json.csproj" />
+    <Project Path="src/providers/Configlue.Provider.Xml/Configlue.Provider.Xml.csproj" />
+    <Project Path="src/providers/Configlue.Provider.Yaml/Configlue.Provider.Yaml.csproj" />
+  </Folder>
+</Solution>

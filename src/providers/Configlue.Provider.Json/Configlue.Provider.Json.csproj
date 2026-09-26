@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>Configlue.Provider.Json</AssemblyName>
+    <RootNamespace>Configlue.Provider.Json</RootNamespace>
+    <IsPackable>true</IsPackable>
+    <PackageDescription>JSON codec for Configlue resources.</PackageDescription>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../Configlue.Abstraction/Configlue.Abstraction.csproj" />
+  </ItemGroup>
+</Project>

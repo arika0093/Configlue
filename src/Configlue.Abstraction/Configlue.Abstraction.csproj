@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>Configlue.Abstraction</AssemblyName>
+    <RootNamespace>Configlue</RootNamespace>
+    <IsPackable>true</IsPackable>
+    <PackageDescription>Backend-neutral contracts for Configlue.</PackageDescription>
+  </PropertyGroup>
+</Project>

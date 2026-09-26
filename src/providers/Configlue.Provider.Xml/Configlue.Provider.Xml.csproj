@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>Configlue.Provider.Xml</AssemblyName>
+    <RootNamespace>Configlue.Provider.Xml</RootNamespace>
+    <IsPackable>true</IsPackable>
+    <PackageDescription>XML codec for Configlue resources.</PackageDescription>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../Configlue.Abstraction/Configlue.Abstraction.csproj" />
+  </ItemGroup>
+</Project>

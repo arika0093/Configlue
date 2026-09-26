@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>Configlue</AssemblyName>
+    <RootNamespace>Configlue</RootNamespace>
+    <IsPackable>true</IsPackable>
+    <PackageDescription>Source-generated, writable configuration from layered state sources.</PackageDescription>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Configlue.Core/Configlue.Core.csproj" />
+    <ProjectReference Include="../Configlue.Generator/Configlue.Generator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+</Project>
