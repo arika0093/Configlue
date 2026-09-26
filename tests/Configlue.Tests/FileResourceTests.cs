@@ -60,4 +60,43 @@ public sealed class FileResourceTests
             }
         }
     }
+
+    [Test]
+    public async Task FileResource_RotatesBackupsAndRestoresTheLatestFromConfiguredDirectory()
+    {
+        var directory = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "Configlue.Tests", Guid.NewGuid().ToString("N"));
+        var backupDirectory = System.IO.Path.Combine(directory, "backups");
+        var path = System.IO.Path.Combine(directory, "settings.json");
+        using var resource = new FileResource(path, new FileResourceOptions
+        {
+            BackupDirectory = backupDirectory,
+            BackupMaxCount = 2,
+        });
+
+        try
+        {
+            for (var value = 0; value < 4; value++)
+            {
+                await resource.WriteAsync(new ResourceWriteRequest(Encoding.UTF8.GetBytes($"{{\"value\":{value}}}")));
+            }
+
+            var latestBackup = await File.ReadAllTextAsync(System.IO.Path.Combine(backupDirectory, "settings.json.bak"));
+            var olderBackup = await File.ReadAllTextAsync(System.IO.Path.Combine(backupDirectory, "settings.json.bak.1"));
+            var restored = await resource.RestoreLatestBackupAsync();
+            var current = await resource.ReadAsync();
+
+            await Assert.That(latestBackup).IsEqualTo("{\"value\":2}");
+            await Assert.That(olderBackup).IsEqualTo("{\"value\":1}");
+            await Assert.That(restored.Revision).IsEqualTo(current.Revision);
+            await Assert.That(Encoding.UTF8.GetString(current.Content.Span)).IsEqualTo("{\"value\":2}");
+        }
+        finally
+        {
+            resource.Dispose();
+            if (Directory.Exists(directory))
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+        }
+    }
 }

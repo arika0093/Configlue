@@ -12,6 +12,7 @@ public sealed class FileResource : IResourceReader, IResourceWriter, IStateWatch
     private readonly string _path;
     private readonly string _directory;
     private readonly string _fileName;
+    private readonly string _backupDirectory;
     private readonly FileResourceOptions _options;
     private readonly object _watchGate = new();
     private FileSystemWatcher? _fileWatcher;
@@ -26,6 +27,14 @@ public sealed class FileResource : IResourceReader, IResourceWriter, IStateWatch
         _directory = System.IO.Path.GetDirectoryName(_path)!;
         _fileName = System.IO.Path.GetFileName(_path);
         _options = options ?? new FileResourceOptions();
+        _backupDirectory = _options.BackupDirectory is null
+            ? _directory
+            : System.IO.Path.GetFullPath(_options.BackupDirectory);
+        if (_options.BackupMaxCount < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(options), "BackupMaxCount cannot be negative.");
+        }
+
         if (_options.RetryCount < 0)
         {
             throw new ArgumentOutOfRangeException(nameof(options), "RetryCount cannot be negative.");
@@ -86,12 +95,34 @@ public sealed class FileResource : IResourceReader, IResourceWriter, IStateWatch
             }
 
             cancellationToken.ThrowIfCancellationRequested();
-            if (_options.CreateBackup && previousContent is not null)
+            if (_options.CreateBackup && _options.BackupMaxCount > 0 && previousContent is not null)
             {
-                await WriteAtomicAsync(_path + _options.BackupExtension, previousContent, cancellationToken).ConfigureAwait(false);
+                await CreateBackupAsync(previousContent, cancellationToken).ConfigureAwait(false);
             }
 
             var content = request.Content.ToArray();
+            await WriteAtomicAsync(_path, content, cancellationToken).ConfigureAwait(false);
+            return new StateWriteResult(GetRevision(content));
+        }
+        finally
+        {
+            processLock.Release();
+        }
+    }
+
+    /// <summary>Restores the latest backup without creating another backup generation.</summary>
+    /// <exception cref="FileNotFoundException">No latest backup exists.</exception>
+    public async ValueTask<StateWriteResult> RestoreLatestBackupAsync(CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        Directory.CreateDirectory(_directory);
+        var processLock = ProcessLocks.GetOrAdd(_path, static _ => new SemaphoreSlim(1, 1));
+        await processLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await using var interprocessLock = await AcquireInterprocessLockAsync(cancellationToken).ConfigureAwait(false);
+            var backupPath = GetBackupPath(0);
+            var content = await File.ReadAllBytesAsync(backupPath, cancellationToken).ConfigureAwait(false);
             await WriteAtomicAsync(_path, content, cancellationToken).ConfigureAwait(false);
             return new StateWriteResult(GetRevision(content));
         }
@@ -183,6 +214,43 @@ public sealed class FileResource : IResourceReader, IResourceWriter, IStateWatch
         {
             return null;
         }
+    }
+
+    private async ValueTask CreateBackupAsync(byte[] previousContent, CancellationToken cancellationToken)
+    {
+        Directory.CreateDirectory(_backupDirectory);
+        for (var index = _options.BackupMaxCount - 1; index > 0; index--)
+        {
+            var previousBackupPath = GetBackupPath(index - 1);
+            byte[]? olderContent;
+            try
+            {
+                olderContent = await File.ReadAllBytesAsync(previousBackupPath, cancellationToken).ConfigureAwait(false);
+            }
+            catch (FileNotFoundException)
+            {
+                continue;
+            }
+            catch (DirectoryNotFoundException)
+            {
+                continue;
+            }
+
+            await WriteAtomicAsync(GetBackupPath(index), olderContent, cancellationToken).ConfigureAwait(false);
+        }
+
+        await WriteAtomicAsync(GetBackupPath(0), previousContent, cancellationToken).ConfigureAwait(false);
+    }
+
+    private string GetBackupPath(int index)
+    {
+        var backupName = _fileName + _options.BackupExtension;
+        if (index > 0)
+        {
+            backupName += "." + index.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        }
+
+        return System.IO.Path.Combine(_backupDirectory, backupName);
     }
 
     private async ValueTask WriteAtomicAsync(string destinationPath, byte[] content, CancellationToken cancellationToken)
