@@ -4,7 +4,7 @@ using System.Security.Cryptography;
 namespace Configlue;
 
 /// <summary>A local file resource with atomic replacement, revision checks, backups, and change notifications.</summary>
-public sealed class FileResource : IResourceReader, IResourceWriter, IStateWatcher, IResourceIdentity, IDisposable
+public sealed class FileResource : IResourceReader, IResourceWriter, IStateWatcher, IResourceIdentity, IResourceBatchWriter, IDisposable
 {
     private static readonly ConcurrentDictionary<string, SemaphoreSlim> ProcessLocks = new(
         OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
@@ -79,11 +79,18 @@ public sealed class FileResource : IResourceReader, IResourceWriter, IStateWatch
     }
 
     /// <inheritdoc />
-    public async ValueTask<StateWriteResult> WriteAsync(
+    public ValueTask<StateWriteResult> WriteAsync(
         ResourceWriteRequest request,
+        CancellationToken cancellationToken = default) =>
+        WriteBatchAsync([ResourceWriteMutation.Replace(request)], cancellationToken);
+
+    /// <inheritdoc />
+    public async ValueTask<StateWriteResult> WriteBatchAsync(
+        IReadOnlyList<ResourceWriteMutation> mutations,
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        ResourceWriteMutation.ValidateBatch(mutations);
         Directory.CreateDirectory(_directory);
 
         var processLock = ProcessLocks.GetOrAdd(_path, static _ => new SemaphoreSlim(1, 1));
@@ -93,19 +100,20 @@ public sealed class FileResource : IResourceReader, IResourceWriter, IStateWatch
             await using var interprocessLock = await AcquireInterprocessLockAsync(cancellationToken).ConfigureAwait(false);
             var previousContent = await TryReadForWriteAsync(cancellationToken).ConfigureAwait(false);
             var currentRevision = previousContent is null ? null : GetRevision(previousContent);
-            if ((request.CheckRevision || request.ExpectedRevision is not null) &&
-                !string.Equals(request.ExpectedRevision, currentRevision, StringComparison.Ordinal))
+            var expectedRevision = mutations[0].ExpectedRevision;
+            var checkRevision = mutations.Any(static mutation => mutation.CheckRevision || mutation.ExpectedRevision is not null);
+            if (checkRevision && !string.Equals(expectedRevision, currentRevision, StringComparison.Ordinal))
             {
                 throw new StateConflictException($"The file resource '{_path}' changed after it was read.");
             }
 
+            var content = ApplyMutations(mutations, previousContent, currentRevision);
             cancellationToken.ThrowIfCancellationRequested();
             if (_options.CreateBackup && _options.BackupMaxCount > 0 && previousContent is not null)
             {
                 await CreateBackupAsync(previousContent, cancellationToken).ConfigureAwait(false);
             }
 
-            var content = request.Content.ToArray();
             await WriteAtomicAsync(_path, content, cancellationToken).ConfigureAwait(false);
             return new StateWriteResult(GetRevision(content));
         }
@@ -113,6 +121,23 @@ public sealed class FileResource : IResourceReader, IResourceWriter, IStateWatch
         {
             processLock.Release();
         }
+    }
+
+    private static byte[] ApplyMutations(
+        IReadOnlyList<ResourceWriteMutation> mutations,
+        byte[]? previousContent,
+        string? revision)
+    {
+        var current = previousContent is null
+            ? ResourceReadResult.NotFound(revision)
+            : ResourceReadResult.Success(previousContent, revision);
+        foreach (var mutation in mutations)
+        {
+            var content = mutation.Apply(current).ToArray();
+            current = ResourceReadResult.Success(content, revision);
+        }
+
+        return current.Content.ToArray();
     }
 
     /// <summary>Restores the latest backup without creating another backup generation.</summary>

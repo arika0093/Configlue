@@ -99,7 +99,7 @@ public static class StateSourceProjection
 
     private sealed class ProjectedWriter<TSource, TTarget>(
         IStateWriter<TSource> source,
-        Func<TTarget, TSource> toSource) : IStateWriter<TTarget>
+        Func<TTarget, TSource> toSource) : IStateWriter<TTarget>, IStateWriteBatchParticipant<TTarget>
     {
         public ValueTask<StateWriteResult> WriteAsync(
             StateWriteRequest<TTarget> request,
@@ -110,5 +110,26 @@ public static class StateSourceProjection
                     request.ExpectedRevision,
                     request.CheckRevision),
                 cancellationToken);
+
+        public bool TryCreateBatchWrite(
+            StateWriteRequest<TTarget> request,
+            out ResourceId resourceId,
+            out IResourceBatchWriter? batchWriter,
+            out ResourceWriteMutation? mutation)
+        {
+            if (source is IStateWriteBatchParticipant<TSource> participant)
+            {
+                return participant.TryCreateBatchWrite(
+                    new StateWriteRequest<TSource>(toSource(request.Value), request.ExpectedRevision, request.CheckRevision),
+                    out resourceId,
+                    out batchWriter,
+                    out mutation);
+            }
+
+            resourceId = default;
+            batchWriter = null;
+            mutation = null;
+            return false;
+        }
     }
 }

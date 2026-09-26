@@ -4,12 +4,13 @@ using YamlDotNet.RepresentationModel;
 namespace Configlue.Provider.Yaml;
 
 /// <summary>Exposes a nested YAML mapping as a resource while preserving sibling nodes.</summary>
-public sealed class YamlSectionResource : IResourceReader, IResourceWriter, IStateWatcher, IResourceIdentity
+public sealed class YamlSectionResource : IResourceReader, IResourceWriter, IStateWatcher, IResourceIdentity, IResourceBatchParticipant
 {
     private readonly IResourceReader _reader;
     private readonly IResourceWriter? _writer;
     private readonly IStateWatcher? _watcher;
     private readonly string[] _path;
+    private readonly string _batchScope;
 
     /// <summary>Creates a YAML section resource over a resource with inferred write and watch capabilities.</summary>
     public YamlSectionResource(IResourceReader resource, string sectionPath)
@@ -38,6 +39,8 @@ public sealed class YamlSectionResource : IResourceReader, IResourceWriter, ISta
         {
             throw new ArgumentException("The section path must contain at least one mapping key.", nameof(sectionPath));
         }
+
+        _batchScope = "yaml/" + string.Join("/", _path.Select(Uri.EscapeDataString));
     }
 
     /// <summary>Whether a physical writer was supplied.</summary>
@@ -45,6 +48,9 @@ public sealed class YamlSectionResource : IResourceReader, IResourceWriter, ISta
 
     /// <inheritdoc />
     public ResourceId ResourceId { get; }
+
+    /// <inheritdoc />
+    public IResourceBatchWriter? BatchWriter => _writer as IResourceBatchWriter;
 
     /// <inheritdoc />
     public async ValueTask<ResourceReadResult> ReadAsync(CancellationToken cancellationToken = default)
@@ -81,6 +87,29 @@ public sealed class YamlSectionResource : IResourceReader, IResourceWriter, ISta
         cancellationToken.ThrowIfCancellationRequested();
         var writer = _writer ?? throw new NotSupportedException("This YAML section resource is read-only.");
         var current = await _reader.ReadAsync(cancellationToken).ConfigureAwait(false);
+        var updated = CreateMutation(request).Apply(current);
+        var expectedRevision = request.ExpectedRevision ?? current.Revision;
+        var checkRevision = request.CheckRevision || request.ExpectedRevision is not null || current.Revision is not null;
+        return await writer.WriteAsync(
+            new ResourceWriteRequest(updated, expectedRevision, request.Schema, checkRevision),
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public ResourceWriteMutation CreateMutation(ResourceWriteRequest request)
+    {
+        var content = request.Content.ToArray();
+        return new ResourceWriteMutation(
+            request.ExpectedRevision,
+            request.CheckRevision,
+            request.Schema,
+            current => ApplyToResource(current, content),
+            _batchScope,
+            canCompose: true);
+    }
+
+    private ReadOnlyMemory<byte> ApplyToResource(ResourceReadResult current, ReadOnlyMemory<byte> sectionContent)
+    {
         YamlNode root;
         if (current.Status == StateReadStatus.Success)
         {
@@ -121,14 +150,9 @@ public sealed class YamlSectionResource : IResourceReader, IResourceWriter, ISta
             }
         }
 
-        var updatedSection = LoadRoot(request.Content.Span);
+        var updatedSection = LoadRoot(sectionContent.Span);
         Set(container, _path[^1], updatedSection);
-        var updated = SerializeNode(rootMapping);
-        var expectedRevision = request.ExpectedRevision ?? current.Revision;
-        var checkRevision = request.CheckRevision || request.ExpectedRevision is not null || current.Revision is not null;
-        return await writer.WriteAsync(
-            new ResourceWriteRequest(updated, expectedRevision, request.Schema, checkRevision),
-            cancellationToken).ConfigureAwait(false);
+        return SerializeNode(rootMapping);
     }
 
     /// <inheritdoc />

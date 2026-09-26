@@ -3,7 +3,7 @@ using System.Buffers;
 namespace Configlue;
 
 /// <summary>Writes a typed state value by composing a codec and a resource.</summary>
-public sealed class SerializedStateWriter<T> : IStateWriter<T>
+public sealed class SerializedStateWriter<T> : IStateWriter<T>, IStateWriteBatchParticipant<T>
 {
     private readonly IResourceWriter _resource;
     private readonly object _codec;
@@ -30,6 +30,41 @@ public sealed class SerializedStateWriter<T> : IStateWriter<T>
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        return _resource.WriteAsync(CreateResourceRequest(request), cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public bool TryCreateBatchWrite(
+        StateWriteRequest<T> request,
+        out ResourceId resourceId,
+        out IResourceBatchWriter? batchWriter,
+        out ResourceWriteMutation? mutation)
+    {
+        var resourceRequest = CreateResourceRequest(request);
+        if (_resource is IResourceBatchParticipant participant && participant.BatchWriter is { } participantWriter)
+        {
+            resourceId = participant.ResourceId;
+            batchWriter = participantWriter;
+            mutation = participant.CreateMutation(resourceRequest);
+            return true;
+        }
+
+        if (_resource is IResourceBatchWriter writer)
+        {
+            resourceId = writer.ResourceId;
+            batchWriter = writer;
+            mutation = ResourceWriteMutation.Replace(resourceRequest);
+            return true;
+        }
+
+        resourceId = default;
+        batchWriter = null;
+        mutation = null;
+        return false;
+    }
+
+    private ResourceWriteRequest CreateResourceRequest(StateWriteRequest<T> request)
+    {
         var destination = new ArrayBufferWriter<byte>();
         var context = _context;
         switch (_codec)
@@ -45,8 +80,6 @@ public sealed class SerializedStateWriter<T> : IStateWriter<T>
         }
 
         var schema = context.Schema ?? (request.Value is IConfiglueFragment fragment ? fragment.Schema.ToMetadata() : null);
-        return _resource.WriteAsync(
-            new ResourceWriteRequest(destination.WrittenMemory, request.ExpectedRevision, schema, request.CheckRevision),
-            cancellationToken);
+        return new ResourceWriteRequest(destination.WrittenMemory, request.ExpectedRevision, schema, request.CheckRevision);
     }
 }

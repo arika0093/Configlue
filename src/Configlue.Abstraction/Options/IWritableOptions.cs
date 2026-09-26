@@ -33,4 +33,9 @@ public interface IWritableOptions<T> : IReadOnlyOptions<T>
         IEnumerable<string> sourceIds,
         IReadOnlyDictionary<string, Func<IConfiglueFragment, IConfiglueFragment>> targetProjections,
         CancellationToken cancellationToken = default);
+
+    /// <summary>Applies explicit source-local patches and groups compatible writes by physical resource identity.</summary>
+    ValueTask<StateMultiWriteResult> ApplyPatchesAsync(
+        IEnumerable<StateSourcePatch> patches,
+        CancellationToken cancellationToken = default);
 }

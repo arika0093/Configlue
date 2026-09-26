@@ -16,7 +16,8 @@ public static class SerializedStateSource
         IResourceWriter? writer = null,
         IStateWatcher? watcher = null,
         string? physicalOrigin = null,
-        StateCodecContext context = default)
+        StateCodecContext context = default,
+        ResourceId? resourceId = null)
     {
         ArgumentNullException.ThrowIfNull(resource);
         ArgumentNullException.ThrowIfNull(codec);
@@ -31,6 +32,6 @@ public static class SerializedStateSource
             resourceWriter is null ? null : new SerializedStateWriter<T>(resourceWriter, codec, context),
             resourceWatcher,
             physicalOrigin,
-            (resourceWriter as IResourceIdentity ?? resource as IResourceIdentity)?.ResourceId);
+            resourceId ?? (resourceWriter as IResourceIdentity ?? resource as IResourceIdentity)?.ResourceId);
     }
 }

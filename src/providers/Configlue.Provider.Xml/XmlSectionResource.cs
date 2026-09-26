@@ -5,12 +5,13 @@ using System.Xml.Linq;
 namespace Configlue.Provider.Xml;
 
 /// <summary>Exposes a nested XML element as a resource while preserving sibling elements.</summary>
-public sealed class XmlSectionResource : IResourceReader, IResourceWriter, IStateWatcher, IResourceIdentity
+public sealed class XmlSectionResource : IResourceReader, IResourceWriter, IStateWatcher, IResourceIdentity, IResourceBatchParticipant
 {
     private readonly IResourceReader _reader;
     private readonly IResourceWriter? _writer;
     private readonly IStateWatcher? _watcher;
     private readonly string[] _path;
+    private readonly string _batchScope;
 
     /// <summary>Creates an XML section resource over a resource with inferred write and watch capabilities.</summary>
     public XmlSectionResource(IResourceReader resource, string sectionPath)
@@ -34,6 +35,7 @@ public sealed class XmlSectionResource : IResourceReader, IResourceWriter, IStat
         ResourceId = resourceId ?? (writer as IResourceIdentity ?? reader as IResourceIdentity)?.ResourceId
             ?? new ResourceId($"section:{Guid.NewGuid():N}");
         _path = ParsePath(sectionPath);
+        _batchScope = "xml/" + string.Join("/", _path.Select(Uri.EscapeDataString));
     }
 
     /// <summary>Whether a physical writer was supplied.</summary>
@@ -41,6 +43,9 @@ public sealed class XmlSectionResource : IResourceReader, IResourceWriter, IStat
 
     /// <inheritdoc />
     public ResourceId ResourceId { get; }
+
+    /// <inheritdoc />
+    public IResourceBatchWriter? BatchWriter => _writer as IResourceBatchWriter;
 
     /// <inheritdoc />
     public async ValueTask<ResourceReadResult> ReadAsync(CancellationToken cancellationToken = default)
@@ -84,6 +89,29 @@ public sealed class XmlSectionResource : IResourceReader, IResourceWriter, IStat
         cancellationToken.ThrowIfCancellationRequested();
         var writer = _writer ?? throw new NotSupportedException("This XML section resource is read-only.");
         var current = await _reader.ReadAsync(cancellationToken).ConfigureAwait(false);
+        var updated = CreateMutation(request).Apply(current);
+        var expectedRevision = request.ExpectedRevision ?? current.Revision;
+        var checkRevision = request.CheckRevision || request.ExpectedRevision is not null || current.Revision is not null;
+        return await writer.WriteAsync(
+            new ResourceWriteRequest(updated, expectedRevision, request.Schema, checkRevision),
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public ResourceWriteMutation CreateMutation(ResourceWriteRequest request)
+    {
+        var content = request.Content.ToArray();
+        return new ResourceWriteMutation(
+            request.ExpectedRevision,
+            request.CheckRevision,
+            request.Schema,
+            current => ApplyToResource(current, content),
+            _batchScope,
+            canCompose: true);
+    }
+
+    private ReadOnlyMemory<byte> ApplyToResource(ResourceReadResult current, ReadOnlyMemory<byte> sectionContent)
+    {
         XDocument document;
         if (current.Status == StateReadStatus.Success)
         {
@@ -121,7 +149,7 @@ public sealed class XmlSectionResource : IResourceReader, IResourceWriter, IStat
             }
         }
 
-        var updatedSection = XElement.Parse(Encoding.UTF8.GetString(request.Content.Span), LoadOptions.PreserveWhitespace);
+        var updatedSection = XElement.Parse(Encoding.UTF8.GetString(sectionContent.Span), LoadOptions.PreserveWhitespace);
         var existing = container.Elements().Where(element => element.Name.LocalName == _path[^1]).Take(2).ToArray();
         if (existing.Length > 1)
         {
@@ -138,12 +166,7 @@ public sealed class XmlSectionResource : IResourceReader, IResourceWriter, IStat
             existing[0].Add(updatedSection);
         }
 
-        var updated = Encoding.UTF8.GetBytes(document.ToString(SaveOptions.DisableFormatting));
-        var expectedRevision = request.ExpectedRevision ?? current.Revision;
-        var checkRevision = request.CheckRevision || request.ExpectedRevision is not null || current.Revision is not null;
-        return await writer.WriteAsync(
-            new ResourceWriteRequest(updated, expectedRevision, request.Schema, checkRevision),
-            cancellationToken).ConfigureAwait(false);
+        return Encoding.UTF8.GetBytes(document.ToString(SaveOptions.DisableFormatting));
     }
 
     /// <inheritdoc />

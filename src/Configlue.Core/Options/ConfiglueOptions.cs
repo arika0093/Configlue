@@ -71,7 +71,7 @@ public sealed class ConfiglueOptions<TModel, TFragment> : IWritableOptions<TMode
 
     /// <inheritdoc />
     public ValueTask<StateReadResult<TModel>> ReadAsync(CancellationToken cancellationToken = default) =>
-        ReadCoreAsync(null, null, cancellationToken);
+        ReadCoreAsync(null, cancellationToken);
 
     /// <inheritdoc />
     public async ValueTask<ConfiglueValueExplanation> ExplainAsync(
@@ -85,7 +85,7 @@ public sealed class ConfiglueOptions<TModel, TFragment> : IWritableOptions<TMode
             throw new ArgumentException("A property path cannot contain empty member names.", nameof(propertyPath));
         }
 
-        var resolved = await ResolveCoreAsync(null, null, cancellationToken).ConfigureAwait(false);
+        var resolved = await ResolveCoreAsync(null, cancellationToken).ConfigureAwait(false);
         if (resolved.Result.Status != StateReadStatus.Success)
         {
             throw new InvalidOperationException($"Configuration state could not be read: {resolved.Result.Status}.");
@@ -113,14 +113,12 @@ public sealed class ConfiglueOptions<TModel, TFragment> : IWritableOptions<TMode
     }
 
     private async ValueTask<StateReadResult<TModel>> ReadCoreAsync(
-        StateSource<TFragment>? replacementSource,
-        StateReadResult<TFragment>? replacementResult,
+        IReadOnlyDictionary<string, StateReadResult<TFragment>>? replacements,
         CancellationToken cancellationToken) =>
-        (await ResolveCoreAsync(replacementSource, replacementResult, cancellationToken).ConfigureAwait(false)).Result;
+        (await ResolveCoreAsync(replacements, cancellationToken).ConfigureAwait(false)).Result;
 
     private async ValueTask<ResolvedState> ResolveCoreAsync(
-        StateSource<TFragment>? replacementSource,
-        StateReadResult<TFragment>? replacementResult,
+        IReadOnlyDictionary<string, StateReadResult<TFragment>>? replacements,
         CancellationToken cancellationToken)
     {
         var contributions = new List<ResolvedContribution>();
@@ -131,8 +129,7 @@ public sealed class ConfiglueOptions<TModel, TFragment> : IWritableOptions<TMode
         {
             cancellationToken.ThrowIfCancellationRequested();
             StateReadResult<TFragment> sourceResult;
-            if (replacementSource is not null && replacementResult is { } replacement &&
-                string.Equals(replacementSource.Id, source.Id, StringComparison.Ordinal))
+            if (replacements is not null && replacements.TryGetValue(source.Id, out var replacement))
             {
                 sourceResult = replacement;
             }
@@ -209,7 +206,7 @@ public sealed class ConfiglueOptions<TModel, TFragment> : IWritableOptions<TMode
     /// <inheritdoc />
     public async ValueTask<ConfigureSession<TModel>> BeginConfigureAsync(CancellationToken cancellationToken = default)
     {
-        var resolvedState = await ResolveCoreAsync(null, null, cancellationToken).ConfigureAwait(false);
+        var resolvedState = await ResolveCoreAsync(null, cancellationToken).ConfigureAwait(false);
         var resolved = resolvedState.Result;
         if (resolved.Status != StateReadStatus.Success)
         {
@@ -326,7 +323,9 @@ public sealed class ConfiglueOptions<TModel, TFragment> : IWritableOptions<TMode
             patchedFragment,
             current.Revision,
             modelSchema.ToMetadata());
-        var proposed = await ReadCoreAsync(source, proposedResult, cancellationToken).ConfigureAwait(false);
+        var proposed = await ReadCoreAsync(
+            new Dictionary<string, StateReadResult<TFragment>>(StringComparer.Ordinal) { [source.Id] = proposedResult },
+            cancellationToken).ConfigureAwait(false);
         if (proposed.Status != StateReadStatus.Success)
         {
             throw new InvalidOperationException($"The patched configuration could not be resolved: {proposed.Status}.");
@@ -336,6 +335,234 @@ public sealed class ConfiglueOptions<TModel, TFragment> : IWritableOptions<TMode
         return await source.Writer!.WriteAsync(
             new StateWriteRequest<TFragment>(patchedFragment, current.Revision, CheckRevision: true),
             cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async ValueTask<StateMultiWriteResult> ApplyPatchesAsync(
+        IEnumerable<StateSourcePatch> patches,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(patches);
+        cancellationToken.ThrowIfCancellationRequested();
+        var patchRequests = patches.ToArray();
+        if (patchRequests.Length == 0)
+        {
+            throw new ArgumentException("At least one source patch is required.", nameof(patches));
+        }
+
+        if (patchRequests.Any(static patch => patch is null))
+        {
+            throw new ArgumentException("A patch batch cannot contain null entries.", nameof(patches));
+        }
+
+        if (patchRequests.Select(static patch => patch.SourceId).Distinct(StringComparer.Ordinal).Count() != patchRequests.Length)
+        {
+            throw new ArgumentException("A source can only appear once in a patch batch.", nameof(patches));
+        }
+
+        var modelSchema = TModel.ConfiglueSchema;
+        foreach (var request in patchRequests)
+        {
+            if (request.Patch.Schema.ModelType != typeof(TModel) ||
+                request.Patch.Schema.Id != modelSchema.Id ||
+                request.Patch.Schema.Version != modelSchema.Version)
+            {
+                throw new ArgumentException(
+                    $"The patch schema '{request.Patch.Schema.Id}' does not match '{modelSchema.Id}'.",
+                    nameof(patches));
+            }
+        }
+
+        var baseline = await ResolveCoreAsync(null, cancellationToken).ConfigureAwait(false);
+        if (baseline.Result.Status != StateReadStatus.Success)
+        {
+            throw new InvalidOperationException($"Configuration state could not be read: {baseline.Result.Status}.");
+        }
+
+        var replacements = new Dictionary<string, StateReadResult<TFragment>>(StringComparer.Ordinal);
+        var noOpResults = new Dictionary<string, StateSourceWriteResult>(StringComparer.Ordinal);
+        var writePlans = new List<(
+            StateSource<TFragment> Source,
+            IStateWriter<TFragment> Writer,
+            StateWriteRequest<TFragment> Request,
+            ResourceId? ResourceId,
+            IResourceBatchWriter? BatchWriter,
+            ResourceWriteMutation? Mutation)>();
+
+        foreach (var patchRequest in patchRequests)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var source = FindSource(patchRequest.SourceId);
+            var current = (await source.Reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+                .FromSource(source.Id, source.PhysicalOrigin);
+            if (current.Status == StateReadStatus.Unavailable)
+            {
+                throw new InvalidOperationException($"Cannot safely patch configuration because source '{source.Id}' is unavailable.");
+            }
+
+            if (baseline.Result.Revisions is null ||
+                !baseline.Result.Revisions.TryGetRevision(source.Id, out var baselineRevision) ||
+                !string.Equals(current.Revision, baselineRevision, StringComparison.Ordinal))
+            {
+                throw new StateConflictException($"State source '{source.Id}' changed while the patch batch was being prepared.");
+            }
+
+            if (patchRequest.Patch.IsEmpty)
+            {
+                noOpResults.Add(source.Id, new StateSourceWriteResult(source.Id, source.ResourceId, current.Revision));
+                continue;
+            }
+
+            var sourceFragment = current.Status switch
+            {
+                StateReadStatus.NotFound => TFragment.Empty,
+                StateReadStatus.Success => current.Value
+                    ?? throw new InvalidOperationException($"State source '{source.Id}' returned a null configuration fragment."),
+                _ => throw new InvalidOperationException($"Source '{source.Id}' could not be patched: {current.Status}."),
+            };
+            if (current.Schema is { } schema)
+            {
+                sourceFragment = await MigrateAsync(sourceFragment, schema, cancellationToken).ConfigureAwait(false);
+            }
+
+            if (patchRequest.Patch.Apply(sourceFragment) is not TFragment patchedFragment)
+            {
+                throw new InvalidOperationException($"The patch for source '{source.Id}' returned an incompatible fragment.");
+            }
+
+            if (source.Writer is null)
+            {
+                throw new InvalidOperationException($"State source '{source.Id}' does not support writes.");
+            }
+
+            var request = new StateWriteRequest<TFragment>(
+                patchedFragment,
+                current.Revision,
+                CheckRevision: true);
+            var sourceResourceId = source.ResourceId;
+            IResourceBatchWriter? batchWriter = null;
+            ResourceWriteMutation? mutation = null;
+            if (source.Writer is IStateWriteBatchParticipant<TFragment> participant &&
+                participant.TryCreateBatchWrite(request, out var participantResourceId, out batchWriter, out mutation))
+            {
+                if (sourceResourceId is { } declaredResourceId && declaredResourceId != participantResourceId)
+                {
+                    throw new InvalidOperationException(
+                        $"State source '{source.Id}' declares resource '{declaredResourceId}' but its writer targets '{participantResourceId}'.");
+                }
+
+                if (batchWriter is IResourceIdentity batchIdentity && batchIdentity.ResourceId != participantResourceId)
+                {
+                    throw new InvalidOperationException(
+                        $"State source '{source.Id}' prepares a mutation for '{participantResourceId}' but its batch writer targets '{batchIdentity.ResourceId}'.");
+                }
+
+                sourceResourceId = participantResourceId;
+            }
+
+            var proposed = StateReadResult<TFragment>.Success(patchedFragment, current.Revision, modelSchema.ToMetadata());
+            replacements.Add(source.Id, proposed);
+            writePlans.Add((source, source.Writer, request, sourceResourceId, batchWriter, mutation));
+        }
+
+        if (replacements.Count > 0)
+        {
+            var proposed = await ResolveCoreAsync(replacements, cancellationToken).ConfigureAwait(false);
+            if (proposed.Result.Status != StateReadStatus.Success)
+            {
+                throw new InvalidOperationException($"Patched configuration could not be resolved: {proposed.Result.Status}.");
+            }
+
+            if (!HaveSameRevisions(baseline.Result.Revisions, proposed.Result.Revisions))
+            {
+                throw new StateConflictException("A state source changed while the patch batch was being resolved.");
+            }
+
+            Validate(proposed.Result.Value!);
+        }
+
+        var resourceGroups = new Dictionary<ResourceId, List<(
+            StateSource<TFragment> Source,
+            IStateWriter<TFragment> Writer,
+            StateWriteRequest<TFragment> Request,
+            ResourceId? ResourceId,
+            IResourceBatchWriter? BatchWriter,
+            ResourceWriteMutation? Mutation)>>();
+        var independentWrites = new List<List<(
+            StateSource<TFragment> Source,
+            IStateWriter<TFragment> Writer,
+            StateWriteRequest<TFragment> Request,
+            ResourceId? ResourceId,
+            IResourceBatchWriter? BatchWriter,
+            ResourceWriteMutation? Mutation)>>();
+        foreach (var plan in writePlans)
+        {
+            if (plan.ResourceId is not { } resourceId)
+            {
+                independentWrites.Add([plan]);
+                continue;
+            }
+
+            if (!resourceGroups.TryGetValue(resourceId, out var group))
+            {
+                group = [];
+                resourceGroups.Add(resourceId, group);
+            }
+
+            group.Add(plan);
+        }
+
+        var writeGroups = resourceGroups.Values.Concat(independentWrites).ToArray();
+        foreach (var group in writeGroups.Where(static group => group.Count > 1))
+        {
+            if (group.Any(static plan => plan.BatchWriter is null || plan.Mutation is null))
+            {
+                var sourceIds = string.Join("', '", group.Select(static plan => plan.Source.Id));
+                throw new NotSupportedException(
+                    $"Sources '{sourceIds}' share one ResourceId but their writers cannot batch physical mutations.");
+            }
+
+            ResourceWriteMutation.ValidateBatch(group.Select(static plan => plan.Mutation!).ToArray());
+        }
+
+        if (writePlans.Count > 0)
+        {
+            var latest = await ReadAsync(cancellationToken).ConfigureAwait(false);
+            if (latest.Status != StateReadStatus.Success || !HaveSameRevisions(baseline.Result.Revisions, latest.Revisions))
+            {
+                throw new StateConflictException("A state source changed before the patch batch could be written.");
+            }
+        }
+
+        var results = new Dictionary<string, StateSourceWriteResult>(noOpResults, StringComparer.Ordinal);
+        var physicalWriteCount = 0;
+        foreach (var group in writeGroups)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (group.Count == 1)
+            {
+                var plan = group[0];
+                var write = await plan.Writer.WriteAsync(plan.Request, cancellationToken).ConfigureAwait(false);
+                results.Add(plan.Source.Id, new StateSourceWriteResult(plan.Source.Id, plan.ResourceId, write.Revision));
+                physicalWriteCount++;
+                continue;
+            }
+
+            var batchWriter = group[0].BatchWriter!;
+            var batchResult = await batchWriter.WriteBatchAsync(
+                group.Select(static plan => plan.Mutation!).ToArray(),
+                cancellationToken).ConfigureAwait(false);
+            foreach (var plan in group)
+            {
+                results.Add(plan.Source.Id, new StateSourceWriteResult(plan.Source.Id, plan.ResourceId, batchResult.Revision));
+            }
+
+            physicalWriteCount++;
+        }
+
+        return new StateMultiWriteResult(
+            patchRequests.Select(patch => results[patch.SourceId]),
+            physicalWriteCount);
     }
 
     /// <inheritdoc />
@@ -766,8 +993,10 @@ public sealed class ConfiglueOptions<TModel, TFragment> : IWritableOptions<TMode
             baselineContributions);
         var updated = sourceFragment.ApplyChanges(changes);
         var proposed = await ReadCoreAsync(
-            source,
-            StateReadResult<TFragment>.Success(updated, current.Revision, TModel.ConfiglueSchema.ToMetadata()),
+            new Dictionary<string, StateReadResult<TFragment>>(StringComparer.Ordinal)
+            {
+                [source.Id] = StateReadResult<TFragment>.Success(updated, current.Revision, TModel.ConfiglueSchema.ToMetadata()),
+            },
             cancellationToken).ConfigureAwait(false);
         if (proposed.Status != StateReadStatus.Success)
         {

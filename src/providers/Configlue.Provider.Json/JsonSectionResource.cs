@@ -5,13 +5,14 @@ using System.Text.Json.Nodes;
 namespace Configlue.Provider.Json;
 
 /// <summary>Exposes a nested JSON object as an independently revisioned resource view.</summary>
-public sealed class JsonSectionResource : IResourceReader, IResourceWriter, IStateWatcher, IResourceIdentity
+public sealed class JsonSectionResource : IResourceReader, IResourceWriter, IStateWatcher, IResourceIdentity, IResourceBatchParticipant
 {
     private readonly IResourceReader _reader;
     private readonly IResourceWriter? _writer;
     private readonly IStateWatcher? _watcher;
     private readonly string[] _path;
     private readonly JsonSerializerOptions _serializerOptions;
+    private readonly string _batchScope;
 
     /// <summary>Creates a section resource over an existing JSON resource.</summary>
     /// <param name="resource">The physical resource containing the JSON document.</param>
@@ -50,6 +51,8 @@ public sealed class JsonSectionResource : IResourceReader, IResourceWriter, ISta
             throw new ArgumentException("The section path must contain at least one property name.", nameof(sectionPath));
         }
 
+        _batchScope = "json/" + string.Join("/", _path.Select(Uri.EscapeDataString));
+
         _serializerOptions = serializerOptions is null
             ? new JsonSerializerOptions { WriteIndented = true }
             : new JsonSerializerOptions(serializerOptions);
@@ -60,6 +63,9 @@ public sealed class JsonSectionResource : IResourceReader, IResourceWriter, ISta
 
     /// <inheritdoc />
     public ResourceId ResourceId { get; }
+
+    /// <inheritdoc />
+    public IResourceBatchWriter? BatchWriter => _writer as IResourceBatchWriter;
 
     /// <inheritdoc />
     public async ValueTask<ResourceReadResult> ReadAsync(CancellationToken cancellationToken = default)
@@ -96,6 +102,29 @@ public sealed class JsonSectionResource : IResourceReader, IResourceWriter, ISta
         cancellationToken.ThrowIfCancellationRequested();
         var writer = _writer ?? throw new NotSupportedException("This JSON section resource is read-only.");
         var current = await _reader.ReadAsync(cancellationToken).ConfigureAwait(false);
+        var updatedDocument = CreateMutation(request).Apply(current);
+        var expectedRevision = request.ExpectedRevision ?? current.Revision;
+        var checkRevision = request.CheckRevision || request.ExpectedRevision is not null || current.Revision is not null;
+        return await writer.WriteAsync(
+            new ResourceWriteRequest(updatedDocument, expectedRevision, request.Schema, checkRevision),
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public ResourceWriteMutation CreateMutation(ResourceWriteRequest request)
+    {
+        var content = request.Content.ToArray();
+        return new ResourceWriteMutation(
+            request.ExpectedRevision,
+            request.CheckRevision,
+            request.Schema,
+            current => ApplyToResource(current, content),
+            _batchScope,
+            canCompose: true);
+    }
+
+    private ReadOnlyMemory<byte> ApplyToResource(ResourceReadResult current, ReadOnlyMemory<byte> sectionContent)
+    {
         JsonObject root;
         if (current.Status == StateReadStatus.Success)
         {
@@ -129,13 +158,8 @@ public sealed class JsonSectionResource : IResourceReader, IResourceWriter, ISta
             container = (JsonObject)child!;
         }
 
-        container[_path[^1]] = JsonNode.Parse(request.Content.Span);
-        var updatedDocument = Encoding.UTF8.GetBytes(root.ToJsonString(_serializerOptions));
-        var expectedRevision = request.ExpectedRevision ?? current.Revision;
-        var checkRevision = request.CheckRevision || request.ExpectedRevision is not null || current.Revision is not null;
-        return await writer.WriteAsync(
-            new ResourceWriteRequest(updatedDocument, expectedRevision, CheckRevision: checkRevision),
-            cancellationToken).ConfigureAwait(false);
+        container[_path[^1]] = JsonNode.Parse(sectionContent.Span);
+        return Encoding.UTF8.GetBytes(root.ToJsonString(_serializerOptions));
     }
 
     /// <inheritdoc />
