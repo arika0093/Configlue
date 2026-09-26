@@ -267,6 +267,45 @@ public sealed class StateRuntimeTests
         await Assert.That(validStored.Value!.RetryCount.Value).IsEqualTo(4);
     }
 
+    [Test]
+    public async Task ApplyPatchAsync_ChangesOnlyTheTargetContributionAndUnsetRevealsLowerValues()
+    {
+        var defaults = new InMemoryStateStore<AppSettings.Fragment>(new AppSettings.Fragment
+        {
+            RetryCount = Optional<int>.Present(3),
+            Label = Optional<string?>.Present("default label"),
+        });
+        var user = new InMemoryStateStore<AppSettings.Fragment>(new AppSettings.Fragment
+        {
+            Enabled = Optional<bool>.Present(false),
+            RetryCount = Optional<int>.Present(9),
+            Label = Optional<string?>.Present("old label"),
+        });
+        var sourceSet = new StateSourceSet<AppSettings.Fragment>(
+        [
+            new("user", user, priority: 100, writer: user),
+            new("defaults", defaults, priority: 0),
+        ]);
+        var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(sourceSet);
+        var patch = new AppSettings.Patch
+        {
+            RetryCount = FragmentOperation<int>.Unset,
+            Label = FragmentOperation<string?>.Set("patched label"),
+        };
+
+        var write = await options.ApplyPatchAsync(patch);
+        var stored = await user.ReadAsync();
+        var resolved = await options.ReadAsync();
+
+        await Assert.That(write.Revision).IsEqualTo("2");
+        await Assert.That(stored.Value!.Enabled.IsPresent).IsTrue();
+        await Assert.That(stored.Value.RetryCount.IsPresent).IsFalse();
+        await Assert.That(stored.Value.Label.Value).IsEqualTo("patched label");
+        await Assert.That(resolved.Value!.Enabled).IsFalse();
+        await Assert.That(resolved.Value.RetryCount).IsEqualTo(3);
+        await Assert.That(resolved.Value.Label).IsEqualTo("patched label");
+    }
+
     private sealed class FixedStateReader<T>(StateReadResult<T> result) : IStateReader<T>
     {
         public ValueTask<StateReadResult<T>> ReadAsync(CancellationToken cancellationToken = default)

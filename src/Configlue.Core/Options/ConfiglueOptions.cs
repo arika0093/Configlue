@@ -83,7 +83,13 @@ public sealed class ConfiglueOptions<TModel, TFragment> : IWritableOptions<TMode
     }
 
     /// <inheritdoc />
-    public async ValueTask<StateReadResult<TModel>> ReadAsync(CancellationToken cancellationToken = default)
+    public ValueTask<StateReadResult<TModel>> ReadAsync(CancellationToken cancellationToken = default) =>
+        ReadCoreAsync(null, null, cancellationToken);
+
+    private async ValueTask<StateReadResult<TModel>> ReadCoreAsync(
+        StateSource<TFragment>? replacementSource,
+        StateReadResult<TFragment>? replacementResult,
+        CancellationToken cancellationToken)
     {
         var contributions = new List<(StateSource<TFragment> Source, StateReadResult<TFragment> Result)>();
         var revisions = new List<StateRevision>();
@@ -92,8 +98,18 @@ public sealed class ConfiglueOptions<TModel, TFragment> : IWritableOptions<TMode
         foreach (var source in _sourceSet.Sources)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var result = (await source.Reader.ReadAsync(cancellationToken).ConfigureAwait(false))
-                .FromSource(source.Id, source.PhysicalOrigin);
+            StateReadResult<TFragment> sourceResult;
+            if (replacementSource is not null && replacementResult is { } replacement &&
+                string.Equals(replacementSource.Id, source.Id, StringComparison.Ordinal))
+            {
+                sourceResult = replacement;
+            }
+            else
+            {
+                sourceResult = await source.Reader.ReadAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            var result = sourceResult.FromSource(source.Id, source.PhysicalOrigin);
             revisions.Add(new StateRevision(source.Id, result.Revision));
             if (result.Status == StateReadStatus.Success)
             {
@@ -196,6 +212,58 @@ public sealed class ConfiglueOptions<TModel, TFragment> : IWritableOptions<TMode
         }
 
         return await WriteToSourceAsync(source, value, current.Revision, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async ValueTask<StateWriteResult> ApplyPatchAsync(IConfigluePatch patch, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(patch);
+        cancellationToken.ThrowIfCancellationRequested();
+        var modelSchema = TModel.ConfiglueSchema;
+        if (patch.Schema.ModelType != typeof(TModel) || patch.Schema.Id != modelSchema.Id || patch.Schema.Version != modelSchema.Version)
+        {
+            throw new ArgumentException($"The patch schema '{patch.Schema.Id}' does not match '{modelSchema.Id}'.", nameof(patch));
+        }
+
+        var source = SelectWriteSource();
+        var current = await source.Reader.ReadAsync(cancellationToken).ConfigureAwait(false);
+        if (current.Status == StateReadStatus.Unavailable)
+        {
+            throw new InvalidOperationException($"Cannot safely patch configuration because source '{source.Id}' is unavailable.");
+        }
+
+        if (patch.IsEmpty)
+        {
+            return new StateWriteResult(current.Revision);
+        }
+
+        var sourceFragment = current.Status == StateReadStatus.Success
+            ? current.Value ?? throw new InvalidOperationException($"State source '{source.Id}' returned a null configuration fragment.")
+            : TFragment.Empty;
+        if (current.Schema is { } schema)
+        {
+            sourceFragment = await MigrateAsync(sourceFragment, schema, cancellationToken).ConfigureAwait(false);
+        }
+
+        if (patch.Apply(sourceFragment) is not TFragment patchedFragment)
+        {
+            throw new InvalidOperationException("The patch returned an incompatible configuration fragment.");
+        }
+
+        var proposedResult = StateReadResult<TFragment>.Success(
+            patchedFragment,
+            current.Revision,
+            modelSchema.ToMetadata());
+        var proposed = await ReadCoreAsync(source, proposedResult, cancellationToken).ConfigureAwait(false);
+        if (proposed.Status != StateReadStatus.Success)
+        {
+            throw new InvalidOperationException($"The patched configuration could not be resolved: {proposed.Status}.");
+        }
+
+        Validate(proposed.Value!);
+        return await source.Writer!.WriteAsync(
+            new StateWriteRequest<TFragment>(patchedFragment, current.Revision, CheckRevision: true),
+            cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc />

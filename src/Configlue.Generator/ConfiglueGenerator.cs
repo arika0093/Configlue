@@ -301,7 +301,7 @@ public sealed class ConfiglueGenerator : IIncrementalGenerator
         AppendJsonConverter(code, members);
         code.AppendLine("    }");
         AppendBuilder(code, members);
-        AppendPatch(code, members);
+        AppendPatch(code, modelType, members);
     }
 
     private static void AppendFragmentDescriptor(StringBuilder code, string modelType, ImmutableArray<MemberModel> members)
@@ -613,11 +613,12 @@ public sealed class ConfiglueGenerator : IIncrementalGenerator
         code.AppendLine("    }");
     }
 
-    private static void AppendPatch(StringBuilder code, ImmutableArray<MemberModel> members)
+    private static void AppendPatch(StringBuilder code, string modelType, ImmutableArray<MemberModel> members)
     {
         code.AppendLine("    /// <summary>A source-local set/unset patch for generated fragment members.</summary>");
-        code.AppendLine("    public sealed class Patch");
+        code.AppendLine("    public sealed class Patch : global::Configlue.IConfigluePatch");
         code.AppendLine("    {");
+        code.Append("        public global::Configlue.ConfiglueModelSchema Schema => ").Append(modelType).AppendLine(".ConfiglueSchema;");
         foreach (var member in members)
         {
             code.Append("        public global::Configlue.FragmentOperation<").Append(FragmentValueType(member)).Append("> ")
@@ -638,6 +639,11 @@ public sealed class ConfiglueGenerator : IIncrementalGenerator
         code.AppendLine("        public bool IsEmpty => ");
         code.Append("            ").Append(members.Length == 0 ? "true" : string.Join(" && ", members.Select(member =>
             EscapeIdentifier(member.Property.Name) + ".Kind == global::Configlue.FragmentOperationKind.Unchanged"))).AppendLine(";");
+        code.AppendLine("        public global::Configlue.IConfiglueFragment Apply(global::Configlue.IConfiglueFragment fragment)");
+        code.AppendLine("        {");
+        code.AppendLine("            if (fragment is not Fragment typed) throw new global::System.ArgumentException(\"The patch can only be applied to its generated fragment type.\", nameof(fragment));");
+        code.AppendLine("            return typed.Apply(this);");
+        code.AppendLine("        }");
         code.AppendLine("    }");
     }
 
