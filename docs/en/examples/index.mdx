@@ -1,0 +1,17 @@
+---
+title: Examples
+description: Explore small applications that demonstrate Configlue's main workflows.
+---
+
+The repository's [`example/` directory](https://github.com/arika0093/Configlue/tree/main/example) contains runnable projects. Run the commands from the repository root.
+
+| Example | What it shows | Run |
+| --- | --- | --- |
+| `Example.ConsoleApp` | A generated model with a JSON file resource and DI registration. | `dotnet run --project example/Example.ConsoleApp` |
+| `Example.SimpleApp` | The same file-backed flow constructed without a DI container. | `dotnet run --project example/Example.SimpleApp` |
+| `Example.ConsoleApp.NativeAot` | Source-generated JSON metadata and a model-to-fragment projection for NativeAOT. | `dotnet publish example/Example.ConsoleApp.NativeAot --configuration Release --runtime linux-x64 --self-contained true` |
+| `Example.ConsoleApp.Yaml` | A generated model persisted as YAML. | `dotnet run --project example/Example.ConsoleApp.Yaml` |
+| `Example.WorkerService` | Configlue registered with the Generic Host and updated by a background worker. | `dotnet run --project example/Example.WorkerService` |
+| `Example.MultiSource` | HTTP policy plus explicit, local, and global file layers with separate write routing. | `dotnet run --project example/Example.MultiSource` |
+
+For the console sample, pass `-- --set-name Ada` to update the stored name. The multi-source sample reads `CONFIGLUE_POLICY_URL` when set; otherwise it uses its JSON file layers. See [`example/README.md`](https://github.com/arika0093/Configlue/blob/main/example/README.md) for run instructions and additional details.

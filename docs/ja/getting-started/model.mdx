@@ -1,0 +1,40 @@
+---
+title: 生成モデル
+description: モデルを定義し、生成されるフラグメントとパッチを理解します。
+---
+
+`partial` クラスに `[ConfiglueModel]` を付けます。ソースジェネレーターはプロパティと属性を使い、設定スキーマと補助型をコンパイル時に生成します。
+
+```csharp
+using System.ComponentModel.DataAnnotations;
+using Configlue;
+
+[ConfiglueModel(2, Id = "service-settings")]
+public partial class ServiceSettings
+{
+    [Range(1, 60)]
+    public int TimeoutSeconds { get; set; } = 10;
+
+    public DatabaseSettings? Database { get; set; } = new();
+
+    [ConfiglueMerge(MergeMode.Append)]
+    public IReadOnlyList<string> Plugins { get; set; } = [];
+}
+
+[ConfiglueModel(1, Id = "database-settings")]
+public partial class DatabaseSettings
+{
+    public string Host { get; set; } = "localhost";
+    public int Port { get; set; } = 5432;
+}
+```
+
+各モデルには次の型が生成されます。
+
+- `ServiceSettings.Fragment` は、ソースに存在したメンバーを記録します。
+- `ServiceSettings.Patch` は、選択したメンバーの設定と解除を表します。
+- プロバイダーやマイグレーションが使うスキーマメタデータ。
+
+入れ子のモデルも個別に生成されるため、あるソースが `Database.Host` だけを提供し、別のソースが `Database.Port` を提供できます。`[ConfiglueMerge]` で `Append` や `SetUnion` などのコレクション動作を選べます。指定がなければ、存在する値で下位のコレクションを置き換えます。
+
+対応する DataAnnotations は保存時の検証や JSON Schema にも反映できます。[書き込みと検証](/ja/guides/writes-and-routing/)と[JSON Schema](/ja/guides/json-schema/)を参照してください。

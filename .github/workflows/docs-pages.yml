@@ -6,12 +6,16 @@ on:
     paths:
       - 'docs-site/**'
       - 'docs/**'
+      - 'example/**'
+      - 'src/**'
       - 'README.md'
       - '.github/workflows/docs-pages.yml'
   pull_request:
     paths:
       - 'docs-site/**'
       - 'docs/**'
+      - 'example/**'
+      - 'src/**'
       - 'README.md'
       - '.github/workflows/docs-pages.yml'
   workflow_dispatch:
@@ -22,6 +26,10 @@ permissions:
 concurrency:
   group: pages
   cancel-in-progress: false
+
+env:
+  CONFIGLUE_DOCS_SITE: https://arika0093.github.io
+  ASTRO_TELEMETRY_DISABLED: '1'
 
 jobs:
   build:
@@ -46,17 +54,21 @@ jobs:
         run: npm ci
 
       - name: Configure GitHub Pages
-        if: github.event_name != 'pull_request'
+        if: github.ref == 'refs/heads/main'
         id: pages
         uses: actions/configure-pages@v6
 
       - name: Set Pages base path
-        if: github.event_name != 'pull_request'
+        if: github.ref == 'refs/heads/main'
         run: echo "CONFIGLUE_DOCS_BASE=${{ steps.pages.outputs.base_path }}" >> "$GITHUB_ENV"
 
       - name: Build documentation
         working-directory: docs-site
         run: npm run build
+
+      - name: Prefix root-relative links for project Pages
+        working-directory: docs-site
+        run: node scripts/prefix-base-paths.mjs dist "$CONFIGLUE_DOCS_BASE"
 
       - name: Upload Pages artifact
         if: github.event_name != 'pull_request'

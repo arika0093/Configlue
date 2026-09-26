@@ -1,0 +1,19 @@
+---
+title: プロファイル
+description: 名前付きオプション、実行時プロファイル、永続化されるアクティブプロファイルを使います。
+---
+
+固定されたプロファイルにはキー付き登録を使います。名前をキーにして対応するオプションサービスを解決します。
+
+```csharp
+services.AddConfiglueOptions<AppSettings, AppSettings.Fragment>(
+    "work", workSourceSet);
+
+var work = provider.GetRequiredKeyedService<IReadOnlyOptions<AppSettings>>("work");
+```
+
+実行中にプロファイルを追加する場合は `AddConfiglueOptionsRegistry<TModel, TFragment>` を登録し、`IConfiglueOptionsRegistry<TModel>` の `TryAdd`、`Get`、`TryRemove` を使います。
+
+再起動後もプロファイル名とアクティブなプロファイルを維持するには `AddConfiglueProfiledOptions<TModel, TFragment>` を登録します。各プロファイル用のソースセットファクトリーと、`ConfiglueProfileCatalog` 用の書き込み可能な独立ソースを渡します。プロファイル値とカタログは別のバックエンドに保存できます。
+
+最初の非同期操作でカタログが復元され、存在しなければ既定プロファイルが作られます。プロファイルを削除するとカタログと実行時構成からは外れますが、保存済みデータは残ります。

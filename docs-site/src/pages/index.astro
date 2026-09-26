@@ -1,0 +1,70 @@
+---
+// Pick a language before the first paint, then replace the root URL so the
+// browser does not keep a redirect entry in its history.
+const rawBase = import.meta.env.BASE_URL ?? '/';
+const base = rawBase.endsWith('/') ? rawBase : `${rawBase}/`;
+const fallbackUrl = `${base}en/`;
+const enUrl = `${base}en/`;
+const jaUrl = `${base}ja/`;
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Configlue</title>
+    <meta name="robots" content="noindex" />
+    <link rel="alternate" hreflang="en" href={enUrl} />
+    <link rel="alternate" hreflang="ja" href={jaUrl} />
+    <link rel="alternate" hreflang="x-default" href={enUrl} />
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        background: Canvas;
+        color-scheme: light dark;
+      }
+      .visually-hidden {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip: rect(0 0 0 0);
+        white-space: nowrap;
+      }
+    </style>
+    <script is:inline define:vars={{ base, fallbackUrl }}>
+      (() => {
+        try {
+          const languages = (navigator.languages?.length
+            ? navigator.languages
+            : [navigator.language || 'en']).slice(0, 8);
+          let locale = 'en';
+          for (const language of languages) {
+            const primary = String(language || '').toLowerCase().replace(/_/g, '-').split('-')[0];
+            if (primary === 'ja') {
+              locale = 'ja';
+              break;
+            }
+            if (primary === 'en') {
+              locale = 'en';
+              break;
+            }
+          }
+          const normalizedBase = base.endsWith('/') ? base : `${base}/`;
+          window.location.replace(normalizedBase + locale + window.location.search + window.location.hash);
+        } catch {
+          window.location.replace(fallbackUrl);
+        }
+      })();
+    </script>
+    <noscript><meta http-equiv="refresh" content="0;url=en/" /></noscript>
+  </head>
+  <body>
+    <noscript><p><a href="en/">English</a> / <a href="ja/">日本語</a></p></noscript>
+    <p class="visually-hidden" aria-hidden="true">
+      <a href="en/">English</a> / <a href="ja/">日本語</a>
+    </p>
+  </body>
+</html>

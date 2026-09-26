@@ -1,0 +1,38 @@
+---
+title: 組み込みプロバイダー
+description: 設定の保存方法に合うリソースとコーデックを選びます。
+---
+
+プロバイダーパッケージは `Configlue` ランタイムから独立しています。`SerializedStateSource.FromResource<TFragment>` でコーデックとリソースを組み合わせます。
+
+## JSON
+
+`Configlue.Provider.Json` を追加して `JsonStateCodec` を使います。`JsonSectionResource` は `App:Settings` や `App__Settings` のような入れ子のパスを公開し、書き込み時に兄弟の値を保ちます。
+
+```csharp
+var section = new JsonSectionResource(file, "App:Settings");
+var source = SerializedStateSource.FromResource<AppSettings.Fragment>(
+    "app-settings", section, new JsonStateCodec(), priority: 50);
+```
+
+このパッケージには JSON Schema の出力機能もあります。[JSON Schema ガイド](/ja/guides/json-schema/)を参照してください。
+
+## XML と YAML
+
+`Configlue.Provider.Xml` または `Configlue.Provider.Yaml` を追加し、`XmlStateCodec` または `YamlStateCodec` を対応するセクションリソースと組み合わせます。`XmlSectionResource` は要素パス、`YamlSectionResource` はマッピングのパスを受け取ります。どちらも兄弟セクションを保ち、物理リソース全体のリビジョンを確認します。
+
+## 環境変数
+
+`Configlue.Source.Environment` の `EnvironmentStateSource.FromEnvironment<TModel, TModel.Fragment>("environment", "APP")` で読み取り専用ソースを作成します。`APP__DATABASE__HOST` のような名前は入れ子のメンバーに対応し、名前の大文字小文字は区別されません。一般的なスカラー値は組み込みパーサーで処理され、必要なら独自パーサーを渡せます。プロセス環境変数には変更監視機能がありません。
+
+## ZIP エントリー
+
+`Configlue.Resource.Zip` の `ZipEntryResource` は、アーカイブ内の一エントリーをリソースとして公開します。アーカイブ全体の ID とリビジョンを維持し、未変更のエントリーを残しながら、競合しない更新を一度の書き込みにまとめられます。
+
+## HTTP リソース
+
+`Configlue.Resource.Http` を追加すると、`{root}/get` からの読み取り、`{root}/update` への書き込み、変更のポーリングを利用できます。`HttpResourceReader` をコーデックと `SerializedStateSource.FromResource<TFragment>` で組み合わせ、エンドポイントが更新を受け付ける場合だけ `CreateWriter()` の戻り値を `writer:` に渡します。認証は呼び出し側が所有する `HttpClient` に設定します。
+
+リビジョンと条件付き書き込みには ETag を使います。404 は `NotFound`、タイムアウトや通信エラー、408、429、サーバーエラーは `Unavailable` になります。認証エラーなどのその他のクライアントエラーは例外として通知されます。[HTTP リソースプロトコル](../reference/http-resource-protocol.md)でエンドポイントの仕様を確認できます。
+
+独自ストレージは `IResourceReader` と、必要に応じて `IResourceWriter`、`IResourceBatchWriter`、`IStateWatcher` を実装できます。HTTP ソースの例は[サンプル一覧](/ja/examples/)を参照してください。

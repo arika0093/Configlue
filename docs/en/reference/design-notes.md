@@ -1,3 +1,8 @@
+---
+title: Architecture design notes
+description: Project boundaries, current implementation status, and known limitations.
+---
+
 # Architecture
 
 Configlue follows the source and fragment designs captured in [Configuration.Writable issue #113](https://github.com/arika0093/Configuration.Writable/issues/113) and [issue #118](https://github.com/arika0093/Configuration.Writable/issues/118).

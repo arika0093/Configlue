@@ -1,3 +1,8 @@
+---
+title: HTTP resource protocol
+description: HTTP endpoints, revisions, writes, and polling used by Configlue HTTP resources.
+---
+
 # HTTP resource protocol
 
 The Configlue HTTP resource transports serialized resource bytes. It does not impose a codec or a model type; compose it with JSON, YAML, XML, or a custom state codec through SerializedStateSource.FromResource.
