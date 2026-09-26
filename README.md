@@ -11,7 +11,7 @@ The repository is being rebuilt around backend-neutral state and sparse generate
 - `Configlue.Core`: state resolution, persistence, and dependency injection runtime.
 - `Configlue.Generator`: generated sparse model support.
 - `Configlue.Testing`: in-memory resources and test doubles.
-- `Configlue.Provider.*`: JSON, XML, and YAML codecs.
+- `Configlue.Provider.*`: JSON, XML, and YAML codecs, plus ZIP entry resources.
 
 ## Build
 
@@ -47,6 +47,7 @@ Edits made through `BeginConfigureAsync` or the updater overloads use generated 
 Unchanged fields retain their existing sparse state. `Append` and `SetUnion` edits are rebased onto each target source's collection segment; edits that require changing values owned by another source or are hidden by a higher-priority source fail with `StateConflictException`.
 `JsonSectionResource` exposes a nested JSON path such as `App:Settings` as a separate resource and preserves its sibling values on writes.
 `XmlSectionResource` and `YamlSectionResource` provide the same nested-section view for XML elements and YAML mappings, including sibling preservation and whole-resource revision checks.
+`ZipEntryResource` exposes one archive entry as a logical resource while retaining the archive's physical identity and revision. Disjoint entry updates can share one batched archive write, and untouched entries remain intact.
 
 ```csharp
 services.AddConfiglueOptions<AppConfig, AppConfig.Fragment>(

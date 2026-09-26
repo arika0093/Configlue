@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>Configlue.Provider.Zip</AssemblyName>
+    <RootNamespace>Configlue.Provider.Zip</RootNamespace>
+    <IsPackable>true</IsPackable>
+    <PackageDescription>ZIP archive entry resources for Configlue.</PackageDescription>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../Configlue.Abstraction/Configlue.Abstraction.csproj" />
+  </ItemGroup>
+</Project>

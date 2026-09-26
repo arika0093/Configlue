@@ -15,6 +15,7 @@
     <ProjectReference Include="../../src/providers/Configlue.Provider.Json/Configlue.Provider.Json.csproj" />
     <ProjectReference Include="../../src/providers/Configlue.Provider.Xml/Configlue.Provider.Xml.csproj" />
     <ProjectReference Include="../../src/providers/Configlue.Provider.Yaml/Configlue.Provider.Yaml.csproj" />
+    <ProjectReference Include="../../src/providers/Configlue.Provider.Zip/Configlue.Provider.Zip.csproj" />
     <ProjectReference Include="../../src/Configlue.Testing/Configlue.Testing.csproj" />
   </ItemGroup>
 </Project>
