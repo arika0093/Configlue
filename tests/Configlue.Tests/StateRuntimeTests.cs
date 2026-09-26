@@ -196,6 +196,36 @@ public sealed class StateRuntimeTests
     }
 
     [Test]
+    public async Task SaveAsync_UpdatesACloneSynchronouslyOrAsynchronously()
+    {
+        var store = new InMemoryStateStore<AppSettings.Fragment>(new AppSettings.Fragment
+        {
+            RetryCount = Optional<int>.Present(3),
+            Plugins = Optional<IReadOnlyList<string>>.Present(["existing"]),
+        });
+        var sources = new StateSourceSet<AppSettings.Fragment>([new("user", store, writer: store)]);
+        var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(sources);
+
+        await options.SaveAsync(settings =>
+        {
+            settings.RetryCount++;
+            settings.Plugins = [.. settings.Plugins, "sync"];
+        });
+        await options.SaveAsync(async settings =>
+        {
+            await Task.Yield();
+            settings.RetryCount++;
+            settings.Plugins = [.. settings.Plugins, "async"];
+        });
+
+        var saved = await store.ReadAsync();
+        var resolved = await options.ReadAsync();
+        await Assert.That(saved.Value!.RetryCount.Value).IsEqualTo(5);
+        await Assert.That(saved.Value.Plugins.Value).IsEquivalentTo(["existing", "sync", "async"]);
+        await Assert.That(resolved.Value!.RetryCount).IsEqualTo(5);
+    }
+
+    [Test]
     public async Task Options_MigratesEachSourceFragmentBeforeMerging()
     {
         var oldSchema = new StateSchemaMetadata("app-settings", 1);

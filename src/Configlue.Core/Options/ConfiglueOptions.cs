@@ -215,6 +215,28 @@ public sealed class ConfiglueOptions<TModel, TFragment> : IWritableOptions<TMode
     }
 
     /// <inheritdoc />
+    public async ValueTask<StateWriteResult> SaveAsync(Action<TModel> update, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(update);
+        using var session = await BeginConfigureAsync(cancellationToken).ConfigureAwait(false);
+        var value = session.Value;
+        update(value);
+        session.Value = value;
+        return await session.SaveAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async ValueTask<StateWriteResult> SaveAsync(Func<TModel, Task> update, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(update);
+        using var session = await BeginConfigureAsync(cancellationToken).ConfigureAwait(false);
+        var value = session.Value;
+        await update(value).ConfigureAwait(false);
+        session.Value = value;
+        return await session.SaveAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
     public async ValueTask<StateWriteResult> ApplyPatchAsync(IConfigluePatch patch, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(patch);

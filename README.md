@@ -52,4 +52,9 @@ using var edit = await serviceProvider
     .BeginConfigureAsync();
 edit.Value.SomeSetting = newValue;
 await edit.SaveAsync();
+
+// Update a deep clone of the current value without opening a session explicitly.
+await serviceProvider
+    .GetRequiredService<IWritableOptions<AppConfig>>()
+    .SaveAsync(settings => settings.SomeSetting = newValue);
 ```
