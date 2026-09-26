@@ -1,4 +1,5 @@
 using Configlue.Testing;
+using Configlue.Provider.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
@@ -559,6 +560,32 @@ public sealed class StateRuntimeTests
         await Assert.That(copied.Value!.RetryCount.Value).IsEqualTo(9);
         await Assert.That(copied.Value.Label.Value).IsEqualTo("migrated");
         await Assert.That(copied.Value.Label.Value).IsNotEqualTo("environment-value");
+    }
+
+    [Test]
+    public async Task SerializedStateSource_ComposesResourceCodecWriterAndWatcherCapabilities()
+    {
+        var resource = new InMemoryResource();
+        var source = SerializedStateSource.FromResource<AppSettings.Fragment>(
+            "serialized",
+            resource,
+            new JsonStateCodec<AppSettings.Fragment>(),
+            physicalOrigin: "memory://settings");
+        var sourceSet = new StateSourceSet<AppSettings.Fragment>([source]);
+        var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(sourceSet);
+
+        await options.ApplyPatchAsync(new AppSettings.Patch
+        {
+            RetryCount = FragmentOperation<int>.Set(12),
+        });
+        var resolved = await options.ReadAsync();
+        var storedResource = await resource.ReadAsync();
+
+        await Assert.That(source.Writer).IsNotNull();
+        await Assert.That(source.Watcher).IsNotNull();
+        await Assert.That(resolved.Value!.RetryCount).IsEqualTo(12);
+        await Assert.That(resolved.PhysicalOrigin).IsEqualTo("memory://settings");
+        await Assert.That(storedResource.Schema).IsEqualTo(AppSettings.ConfiglueSchema.ToMetadata());
     }
 
     private sealed class FixedStateReader<T>(StateReadResult<T> result) : IStateReader<T>

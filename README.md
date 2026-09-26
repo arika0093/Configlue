@@ -32,6 +32,7 @@ Named profiles can use keyed DI registrations, for example `AddConfiglueOptions<
 For profiles created during runtime, register `AddConfiglueOptionsRegistry<TModel, TModel.Fragment>(...)`, then use `IConfiglueOptionsRegistry<TModel>.TryAdd`, `Get`, and `TryRemove`.
 File resources keep one atomic `.bak` generation by default; `FileResourceOptions` can retain more generations in a chosen directory, and `RestoreLatestBackupAsync` restores the newest one explicitly.
 Use `StateSourceProjection.Project` to map a source-specific fragment into a nested model fragment; provide a reverse projection to enable writes to that source.
+Use `SerializedStateSource.FromResource<T>` to compose a resource and a codec into a typed source with automatic writer and watcher detection.
 Change notifications are debounced by 300ms by default; pass `onChangeDebounce: TimeSpan.Zero` to a registration to disable it.
 `IWritableOptions<T>.MigrateSourceAsync(sourceId, targetId)` copies one source contribution, applies its schema migration chain, and writes it to a selected destination.
 Configure sessions compare the full source revision vector immediately before saving and fail with `StateConflictException` if any participating source changed.
