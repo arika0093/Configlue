@@ -40,11 +40,14 @@ public interface IWritableOptions<T> : IReadOnlyOptions<T>
     /// <summary>
     /// Migrates selected source contributions into projected targets. Implementations verify each write and
     /// skip targets already holding the requested fragment, so a partially completed operation can be retried.
+    /// When <paramref name="retireSources"/> is true, selected sources are removed from this options instance
+    /// after all targets verify and only if the effective model remains unchanged.
     /// </summary>
     ValueTask<StateStorageMigrationResult> MigrateSourcesToTargetsAsync(
         IEnumerable<string> sourceIds,
         IReadOnlyDictionary<string, Func<IConfiglueFragment, IConfiglueFragment>> targetProjections,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        bool retireSources = false);
 
     /// <summary>Applies explicit source-local patches and groups compatible writes by physical resource identity.</summary>
     ValueTask<StateMultiWriteResult> ApplyPatchesAsync(

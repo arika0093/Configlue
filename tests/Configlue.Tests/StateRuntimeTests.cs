@@ -1234,7 +1234,7 @@ public sealed class StateRuntimeTests
         var secondTarget = new InMemoryStateStore<AppSettings.Fragment>();
         var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(new StateSourceSet<AppSettings.Fragment>(
         [
-            new("source", source, priority: 100),
+            new("source", source, priority: 100, writer: source),
             new("first-target", firstTarget, priority: 0, writer: firstTarget),
             new("second-target", secondTarget, priority: -1, writer: new FailOnceStateWriter<AppSettings.Fragment>(secondTarget)),
         ]));
@@ -1247,7 +1247,7 @@ public sealed class StateRuntimeTests
         var failed = false;
         try
         {
-            await writableOptions.MigrateSourcesToTargetsAsync(["source"], targets);
+            await writableOptions.MigrateSourcesToTargetsAsync(["source"], targets, retireSources: true);
         }
         catch (IOException)
         {
@@ -1255,11 +1255,66 @@ public sealed class StateRuntimeTests
         }
 
         await Assert.That(failed).IsTrue();
-        var resumed = await writableOptions.MigrateSourcesToTargetsAsync(["source"], targets);
+        var afterFailure = await options.ReadAsync();
+        await Assert.That(afterFailure.Revisions!.TryGetRevision("source", out _)).IsTrue();
+        await Assert.That(afterFailure.Value!.RetryCount).IsEqualTo(22);
+
+        var resumed = await writableOptions.MigrateSourcesToTargetsAsync(["source"], targets, retireSources: true);
 
         await Assert.That(resumed.Targets[0].WasAlreadyCurrent).IsTrue();
         await Assert.That(resumed.Targets[1].WasAlreadyCurrent).IsFalse();
+        await Assert.That(resumed.SourcesRetired).IsTrue();
+        await Assert.That(resumed.RetiredSourceIds).IsEquivalentTo(["source"]);
         await Assert.That((await secondTarget.ReadAsync()).Value!.RetryCount.Value).IsEqualTo(22);
+
+        var repeated = await writableOptions.MigrateSourcesToTargetsAsync(["source"], targets, retireSources: true);
+        await Assert.That(repeated.Targets.All(static target => target.WasAlreadyCurrent)).IsTrue();
+        await Assert.That(repeated.SourcesRetired).IsTrue();
+        await Assert.That((await options.ReadAsync()).Value!.RetryCount).IsEqualTo(22);
+        await Assert.That((await options.ReadAsync()).Revisions!.TryGetRevision("source", out _)).IsFalse();
+
+        await options.SaveAsync(settings => settings.RetryCount = 23);
+        await Assert.That((await source.ReadAsync()).Value!.RetryCount.Value).IsEqualTo(22);
+        await Assert.That((await firstTarget.ReadAsync()).Value!.RetryCount.Value).IsEqualTo(23);
+        await Assert.That((await options.ReadAsync()).Value!.RetryCount).IsEqualTo(23);
+    }
+
+    [Test]
+    public async Task MigrateSourcesToTargetsAsync_RefusesRetirementThatWouldChangeEffectiveModel()
+    {
+        var source = new InMemoryStateStore<AppSettings.Fragment>(new AppSettings.Fragment
+        {
+            RetryCount = Optional<int>.Present(22),
+        });
+        var target = new InMemoryStateStore<AppSettings.Fragment>();
+        var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(new StateSourceSet<AppSettings.Fragment>(
+        [
+            new("source", source, priority: 100),
+            new("target", target, priority: 0, writer: target),
+        ]));
+        IWritableOptions<AppSettings> writableOptions = options;
+        var projections = new Dictionary<string, Func<IConfiglueFragment, IConfiglueFragment>>(StringComparer.Ordinal)
+        {
+            ["target"] = static _ => new AppSettings.Fragment
+            {
+                RetryCount = Optional<int>.Present(25),
+            },
+        };
+        var rejected = false;
+        try
+        {
+            await writableOptions.MigrateSourcesToTargetsAsync(["source"], projections, retireSources: true);
+        }
+        catch (StateConflictException)
+        {
+            rejected = true;
+        }
+
+        var resolved = await options.ReadAsync();
+        await Assert.That(rejected).IsTrue();
+        await Assert.That(resolved.Revisions!.TryGetRevision("source", out _)).IsTrue();
+        await Assert.That(resolved.Value!.RetryCount).IsEqualTo(22);
+        await Assert.That((await target.ReadAsync()).Value!.RetryCount.Value).IsEqualTo(25);
     }
 
     [Test]

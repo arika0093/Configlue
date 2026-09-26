@@ -11,6 +11,10 @@ public sealed class ConfiglueOptions<TModel, TFragment> : IWritableOptions<TMode
     where TFragment : class, IConfiglueFragment<TFragment>
 {
     private readonly StateSourceSet<TFragment> _sourceSet;
+    private readonly object _sourceGate = new();
+    private readonly HashSet<string> _retiredSourceIds = new(StringComparer.Ordinal);
+    private StateSource<TFragment>[] _activeSources;
+    private TaskCompletionSource _sourceTopologyChanged = NewTopologySignal();
     private readonly StateWriteRoute _writeRoute;
     private readonly StateSchemaMigrationChain<TFragment> _migrationChain;
     private readonly IConfiglueValidator<TModel>[] _validators;
@@ -33,6 +37,7 @@ public sealed class ConfiglueOptions<TModel, TFragment> : IWritableOptions<TMode
     {
         ArgumentNullException.ThrowIfNull(sourceSet);
         _sourceSet = sourceSet;
+        _activeSources = sourceSet.Sources.ToArray();
         _writeRoute = writeRoute;
         _validators = validators?.ToArray() ?? [];
         _validateDataAnnotations = validateDataAnnotations;
@@ -125,7 +130,7 @@ public sealed class ConfiglueOptions<TModel, TFragment> : IWritableOptions<TMode
         var revisions = new List<StateRevision>();
         StateReadResult<TFragment> lastFailure = default;
 
-        foreach (var source in _sourceSet.Sources)
+        foreach (var source in GetActiveSources())
         {
             cancellationToken.ThrowIfCancellationRequested();
             StateReadResult<TFragment> sourceResult;
@@ -407,6 +412,11 @@ public sealed class ConfiglueOptions<TModel, TFragment> : IWritableOptions<TMode
         }
 
         Validate(proposed.Value!);
+        if (!IsSourceActive(source.Id))
+        {
+            throw new StateConflictException($"State source '{source.Id}' was retired while the patch was being prepared.");
+        }
+
         return await source.Writer!.WriteAsync(
             new StateWriteRequest<TFragment>(patchedFragment, current.Revision, CheckRevision: true),
             cancellationToken).ConfigureAwait(false);
@@ -483,6 +493,11 @@ public sealed class ConfiglueOptions<TModel, TFragment> : IWritableOptions<TMode
         {
             cancellationToken.ThrowIfCancellationRequested();
             var source = FindSource(patchRequest.SourceId);
+            if (!IsSourceActive(source.Id))
+            {
+                throw new InvalidOperationException($"State source '{source.Id}' has been retired from this options instance.");
+            }
+
             var current = (await source.Reader.ReadAsync(cancellationToken).ConfigureAwait(false))
                 .FromSource(source.Id, source.PhysicalOrigin);
             if (current.Status == StateReadStatus.Unavailable)
@@ -678,6 +693,11 @@ public sealed class ConfiglueOptions<TModel, TFragment> : IWritableOptions<TMode
             throw new InvalidOperationException($"State source '{target.Id}' does not support writes.");
         }
 
+        if (!IsSourceActive(target.Id))
+        {
+            throw new InvalidOperationException($"State source '{target.Id}' has been retired from this options instance.");
+        }
+
         var sourceResult = await source.Reader.ReadAsync(cancellationToken).ConfigureAwait(false);
         if (sourceResult.Status != StateReadStatus.Success)
         {
@@ -723,7 +743,8 @@ public sealed class ConfiglueOptions<TModel, TFragment> : IWritableOptions<TMode
     public async ValueTask<StateStorageMigrationResult> MigrateSourcesToTargetsAsync(
         IEnumerable<string> sourceIds,
         IReadOnlyDictionary<string, Func<TFragment, TFragment>> targetProjections,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        bool retireSources = false)
     {
         ArgumentNullException.ThrowIfNull(sourceIds);
         ArgumentNullException.ThrowIfNull(targetProjections);
@@ -754,6 +775,18 @@ public sealed class ConfiglueOptions<TModel, TFragment> : IWritableOptions<TMode
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(target.Key);
             ArgumentNullException.ThrowIfNull(target.Value);
+        }
+
+        object? resolvedBeforeMigration = null;
+        if (retireSources)
+        {
+            var before = await ResolveCoreAsync(null, cancellationToken).ConfigureAwait(false);
+            if (before.Result.Status != StateReadStatus.Success)
+            {
+                throw new InvalidOperationException($"Configuration state could not be read before source retirement: {before.Result.Status}.");
+            }
+
+            resolvedBeforeMigration = before.Result.Value;
         }
 
         var selectedIds = requestedSourceIds.ToHashSet(StringComparer.Ordinal);
@@ -850,6 +883,11 @@ public sealed class ConfiglueOptions<TModel, TFragment> : IWritableOptions<TMode
         foreach (var (targetId, project) in targetProjections)
         {
             var target = FindSource(targetId);
+            if (!IsSourceActive(target.Id))
+            {
+                throw new InvalidOperationException($"State source '{target.Id}' has been retired from this options instance.");
+            }
+
             if (target.Writer is null)
             {
                 throw new InvalidOperationException($"State source '{target.Id}' does not support writes.");
@@ -947,17 +985,127 @@ public sealed class ConfiglueOptions<TModel, TFragment> : IWritableOptions<TMode
             targetResults.Add(new StateStorageMigrationTargetResult(target.Id, current.Revision, write.Revision, WasAlreadyCurrent: false));
         }
 
+        string[] retiredSourceIds = [];
+        if (retireSources)
+        {
+            await VerifySourceSnapshotsAsync().ConfigureAwait(false);
+            await VerifyRetirementPreservesResolvedModelAsync(
+                resolvedBeforeMigration!,
+                sourceContributions,
+                targetPlans,
+                targetResults,
+                cancellationToken).ConfigureAwait(false);
+            await VerifySourceSnapshotsAsync().ConfigureAwait(false);
+            retiredSourceIds = sourceContributions.Select(static contribution => contribution.Source.Id).ToArray();
+            RetireSourcesFromOptions(retiredSourceIds);
+        }
+
         return new StateStorageMigrationResult(
             sourceContributions.Select(static contribution => contribution.Source.Id),
             new StateRevisionVector(sourceRevisions),
-            targetResults);
+            targetResults,
+            retiredSourceIds);
+    }
+
+    private async ValueTask VerifyRetirementPreservesResolvedModelAsync(
+        object baselineModel,
+        IReadOnlyList<(StateSource<TFragment> Source, StateReadResult<TFragment> Result, TFragment Fragment)> sourceContributions,
+        IReadOnlyList<(StateSource<TFragment> Target, IStateWriter<TFragment> Writer, TFragment Desired)> targetPlans,
+        IReadOnlyList<StateStorageMigrationTargetResult> targetResults,
+        CancellationToken cancellationToken)
+    {
+        var currentSchema = TModel.ConfiglueSchema.ToMetadata();
+        var replacements = new Dictionary<string, StateReadResult<TFragment>>(StringComparer.Ordinal);
+        foreach (var (source, result, _) in sourceContributions)
+        {
+            replacements.Add(source.Id, StateReadResult<TFragment>.Success(
+                TFragment.Empty,
+                result.Revision,
+                currentSchema).FromSource(source.Id, source.PhysicalOrigin));
+        }
+
+        foreach (var (target, _, desired) in targetPlans)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var outcome = targetResults.First(result => string.Equals(result.TargetId, target.Id, StringComparison.Ordinal));
+            var current = (await target.Reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+                .FromSource(target.Id, target.PhysicalOrigin);
+            if (current.Status == StateReadStatus.Unavailable ||
+                !string.Equals(current.Revision, outcome.TargetRevision, StringComparison.Ordinal))
+            {
+                throw new StateConflictException($"Target source '{target.Id}' changed before source retirement.");
+            }
+
+            var currentFragment = current.Status switch
+            {
+                StateReadStatus.NotFound when desired.IsEmpty => TFragment.Empty,
+                StateReadStatus.Success => current.Value
+                    ?? throw new InvalidOperationException($"State source '{target.Id}' returned a null configuration fragment."),
+                _ => throw new StateConflictException($"Target source '{target.Id}' is not available for source retirement."),
+            };
+            if (current.Schema is { } schema)
+            {
+                currentFragment = await MigrateAsync(currentFragment, schema, cancellationToken).ConfigureAwait(false);
+            }
+
+            if ((current.Schema is { } actualSchema && actualSchema != currentSchema) ||
+                !ConfiglueFragmentComparer.AreEqual(currentFragment, desired))
+            {
+                throw new StateConflictException($"Target source '{target.Id}' no longer contains the verified migration result.");
+            }
+
+            replacements.Add(target.Id, StateReadResult<TFragment>.Success(
+                desired,
+                current.Revision,
+                currentSchema).FromSource(target.Id, target.PhysicalOrigin));
+        }
+
+        var proposed = await ResolveCoreAsync(replacements, cancellationToken).ConfigureAwait(false);
+        if (proposed.Result.Status != StateReadStatus.Success ||
+            baselineModel is not TModel before ||
+            !TModel.Diff(before, proposed.Result.Value!).IsEmpty)
+        {
+            throw new StateConflictException("The migrated targets cannot replace the selected sources without changing the effective configuration.");
+        }
+
+        Validate(proposed.Result.Value!);
+        foreach (var (target, _, desired) in targetPlans)
+        {
+            var outcome = targetResults.First(result => string.Equals(result.TargetId, target.Id, StringComparison.Ordinal));
+            var latest = (await target.Reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+                .FromSource(target.Id, target.PhysicalOrigin);
+            if (!string.Equals(latest.Revision, outcome.TargetRevision, StringComparison.Ordinal))
+            {
+                throw new StateConflictException($"Target source '{target.Id}' changed while source retirement was being verified.");
+            }
+
+            if (latest.Status == StateReadStatus.NotFound && desired.IsEmpty)
+            {
+                continue;
+            }
+
+            if (latest.Status != StateReadStatus.Success || latest.Value is null)
+            {
+                throw new StateConflictException($"Target source '{target.Id}' is not available for source retirement.");
+            }
+
+            var latestFragment = latest.Schema is { } latestSchema
+                ? await MigrateAsync(latest.Value, latestSchema, cancellationToken).ConfigureAwait(false)
+                : latest.Value;
+            if ((latest.Schema is { } actualSchema && actualSchema != currentSchema) ||
+                !ConfiglueFragmentComparer.AreEqual(latestFragment, desired))
+            {
+                throw new StateConflictException($"Target source '{target.Id}' no longer contains the verified migration result.");
+            }
+        }
     }
 
     /// <inheritdoc />
     public ValueTask<StateStorageMigrationResult> MigrateSourcesToTargetsAsync(
         IEnumerable<string> sourceIds,
         IReadOnlyDictionary<string, Func<IConfiglueFragment, IConfiglueFragment>> targetProjections,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        bool retireSources = false)
     {
         ArgumentNullException.ThrowIfNull(targetProjections);
         foreach (var target in targetProjections)
@@ -972,7 +1120,7 @@ public sealed class ConfiglueOptions<TModel, TFragment> : IWritableOptions<TMode
                 ? projected
                 : throw new InvalidOperationException($"The migration projection for target '{pair.Key}' returned an incompatible fragment.")),
             StringComparer.Ordinal);
-        return MigrateSourcesToTargetsAsync(sourceIds, typedProjections, cancellationToken);
+        return MigrateSourcesToTargetsAsync(sourceIds, typedProjections, cancellationToken, retireSources);
     }
 
     /// <inheritdoc />
@@ -1011,12 +1159,19 @@ public sealed class ConfiglueOptions<TModel, TFragment> : IWritableOptions<TMode
 
     private StateSource<TFragment> SelectWriteSource()
     {
+        var activeSources = GetActiveSources();
         var source = _writeRoute.SourceId is { } id
-            ? _sourceSet.Sources.FirstOrDefault(candidate => string.Equals(candidate.Id, id, StringComparison.Ordinal))
-            : _sourceSet.Sources.FirstOrDefault(static candidate => candidate.Writer is not null);
+            ? activeSources.FirstOrDefault(candidate => string.Equals(candidate.Id, id, StringComparison.Ordinal))
+            : activeSources.FirstOrDefault(static candidate => candidate.Writer is not null);
 
         if (source is null)
         {
+            if (_writeRoute.SourceId is { } retiredId &&
+                _sourceSet.Sources.Any(candidate => string.Equals(candidate.Id, retiredId, StringComparison.Ordinal)))
+            {
+                throw new InvalidOperationException($"State source '{retiredId}' has been retired from this options instance.");
+            }
+
             throw new InvalidOperationException(_writeRoute.SourceId is { } sourceId
                 ? $"State source '{sourceId}' is not registered."
                 : "No writable state source is registered.");
@@ -1033,6 +1188,46 @@ public sealed class ConfiglueOptions<TModel, TFragment> : IWritableOptions<TMode
     private StateSource<TFragment> FindSource(string sourceId) =>
         _sourceSet.Sources.FirstOrDefault(candidate => string.Equals(candidate.Id, sourceId, StringComparison.Ordinal))
         ?? throw new InvalidOperationException($"State source '{sourceId}' is not registered.");
+
+    private StateSource<TFragment>[] GetActiveSources()
+    {
+        lock (_sourceGate)
+        {
+            return _activeSources;
+        }
+    }
+
+    private bool IsSourceActive(string sourceId)
+    {
+        lock (_sourceGate)
+        {
+            return !_retiredSourceIds.Contains(sourceId);
+        }
+    }
+
+    private void RetireSourcesFromOptions(IEnumerable<string> sourceIds)
+    {
+        TaskCompletionSource? topologyChanged = null;
+        lock (_sourceGate)
+        {
+            var changed = false;
+            foreach (var sourceId in sourceIds)
+            {
+                changed |= _retiredSourceIds.Add(sourceId);
+            }
+
+            if (changed)
+            {
+                _activeSources = _sourceSet.Sources
+                    .Where(source => !_retiredSourceIds.Contains(source.Id))
+                    .ToArray();
+                topologyChanged = _sourceTopologyChanged;
+                _sourceTopologyChanged = NewTopologySignal();
+            }
+        }
+
+        topologyChanged?.TrySetResult();
+    }
 
     private void ValidateWritePlan(StateWritePlan writePlan)
     {
@@ -1060,7 +1255,13 @@ public sealed class ConfiglueOptions<TModel, TFragment> : IWritableOptions<TMode
                 }
             }
 
-            if (FindSource(sourceId).Writer is null)
+            var source = FindSource(sourceId);
+            if (!IsSourceActive(source.Id))
+            {
+                throw new InvalidOperationException($"State source '{source.Id}' has been retired from this options instance.");
+            }
+
+            if (source.Writer is null)
             {
                 throw new InvalidOperationException($"State source '{sourceId}' does not support writes.");
             }
@@ -1195,6 +1396,11 @@ public sealed class ConfiglueOptions<TModel, TFragment> : IWritableOptions<TMode
         string? expectedRevision,
         CancellationToken cancellationToken)
     {
+        if (!IsSourceActive(source.Id))
+        {
+            throw new StateConflictException($"State source '{source.Id}' was retired before the write began.");
+        }
+
         Validate(value);
         return source.Writer!.WriteAsync(
             new StateWriteRequest<TFragment>(TModel.ToFragment(value), expectedRevision, CheckRevision: true),
@@ -1307,7 +1513,7 @@ public sealed class ConfiglueOptions<TModel, TFragment> : IWritableOptions<TMode
 
                 var desired = desiredValues.Cast<object?>().ToList();
                 var valuesBySource = GetCollectionContributions(path, contributions);
-                var sourceOrder = _sourceSet.Sources.Reverse().ToArray();
+                var sourceOrder = GetActiveSources().Reverse().ToArray();
                 var targetIndex = Array.FindIndex(sourceOrder, candidate =>
                     string.Equals(candidate.Id, targetSourceId, StringComparison.Ordinal));
                 if (targetIndex < 0)
@@ -1531,7 +1737,22 @@ public sealed class ConfiglueOptions<TModel, TFragment> : IWritableOptions<TMode
     {
         using var waitCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         var waitTasks = new List<Task>();
-        foreach (var source in _sourceSet.Sources)
+        StateSource<TFragment>[] activeSources;
+        Task topologyChanged;
+        lock (_sourceGate)
+        {
+            activeSources = _activeSources;
+            topologyChanged = _sourceTopologyChanged.Task;
+        }
+
+        if (revisions is null ||
+            revisions.Revisions.Keys.Any(revisionSourceId =>
+                !activeSources.Any(source => string.Equals(source.Id, revisionSourceId, StringComparison.Ordinal))))
+        {
+            return;
+        }
+
+        foreach (var source in activeSources)
         {
             if (source.Watcher is not null && revisions is not null &&
                 revisions.TryGetRevision(source.Id, out var revision))
@@ -1540,11 +1761,7 @@ public sealed class ConfiglueOptions<TModel, TFragment> : IWritableOptions<TMode
             }
         }
 
-        if (waitTasks.Count == 0)
-        {
-            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken).ConfigureAwait(false);
-            return;
-        }
+        waitTasks.Add(topologyChanged.WaitAsync(waitCancellation.Token));
 
         try
         {
@@ -1695,6 +1912,9 @@ public sealed class ConfiglueOptions<TModel, TFragment> : IWritableOptions<TMode
         return left.Revisions.All(pair => right.TryGetRevision(pair.Key, out var revision) &&
             string.Equals(pair.Value, revision, StringComparison.Ordinal));
     }
+
+    private static TaskCompletionSource NewTopologySignal() =>
+        new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     private void RemoveChangeListener(Action<TModel> listener)
     {
