@@ -18,6 +18,7 @@
   <Folder Name="/src/Resources/">
     <Project Path="src/Configlue.Resource.Zip/Configlue.Resource.Zip.csproj" />
     <Project Path="src/Configlue.Resource.Http/Configlue.Resource.Http.csproj" />
+    <Project Path="src/Configlue.Resource.Http.AspNetCore/Configlue.Resource.Http.AspNetCore.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Configlue.Tests/Configlue.Tests.csproj" />

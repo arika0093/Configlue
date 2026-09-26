@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>Configlue.Resource.Http.AspNetCore</AssemblyName>
+    <RootNamespace>Configlue.Resource.Http.AspNetCore</RootNamespace>
+    <IsPackable>true</IsPackable>
+    <PackageDescription>ASP.NET Core HTTP endpoints for Configlue resources.</PackageDescription>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="../Configlue.Resource.Http/Configlue.Resource.Http.csproj" />
+  </ItemGroup>
+</Project>

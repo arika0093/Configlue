@@ -8,6 +8,9 @@
     />
   </ItemGroup>
   <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="../../src/Configlue.Abstraction/Configlue.Abstraction.csproj" />
     <ProjectReference Include="../../src/Configlue.Core/Configlue.Core.csproj" />
     <ProjectReference Include="../../src/Configlue.Extensions.DI/Configlue.Extensions.DI.csproj" />
@@ -17,6 +20,7 @@
     <ProjectReference Include="../../src/Configlue.Source.Environment/Configlue.Source.Environment.csproj" />
     <ProjectReference Include="../../src/Configlue.Resource.Zip/Configlue.Resource.Zip.csproj" />
     <ProjectReference Include="../../src/Configlue.Resource.Http/Configlue.Resource.Http.csproj" />
+    <ProjectReference Include="../../src/Configlue.Resource.Http.AspNetCore/Configlue.Resource.Http.AspNetCore.csproj" />
     <ProjectReference Include="../../src/Configlue.Testing/Configlue.Testing.csproj" />
     <ProjectReference Include="../../src/Configlue.Generator/Configlue.Generator.csproj" />
   </ItemGroup>
