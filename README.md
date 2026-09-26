@@ -42,7 +42,9 @@ Change notifications are debounced by 300ms by default; pass `onChangeDebounce: 
 Configure sessions compare the full source revision vector immediately before saving and fail with `StateConflictException` if any participating source changed.
 `IReadOnlyOptions<T>.ExplainAsync("Database.Host")` returns the effective value and the present source contributions from highest to lowest priority.
 
-Edits made through `BeginConfigureAsync` or the updater overloads use generated semantic diffs and update only the selected source contribution. Unchanged fields retain their existing sparse state. `Append` and `SetUnion` edits are rebased onto that source's collection segment; edits that require changing values owned by another source or are hidden by a higher-priority source fail with `StateConflictException`.
+Edits made through `BeginConfigureAsync` or the updater overloads use generated semantic diffs and update only the selected source contribution. Pass a `StateWritePlan` to route changed property paths to other writable sources; the most specific path wins, and nested model changes can be split across source fragments. Plans validate paths and targets before editing, then verify the fully resolved model and all source revisions before writing. The returned `StateWriteResult.MultiWriteResult` reports per-source revisions and physical write count. Writes across different resources are not atomic.
+
+Unchanged fields retain their existing sparse state. `Append` and `SetUnion` edits are rebased onto each target source's collection segment; edits that require changing values owned by another source or are hidden by a higher-priority source fail with `StateConflictException`.
 `JsonSectionResource` exposes a nested JSON path such as `App:Settings` as a separate resource and preserves its sibling values on writes.
 `XmlSectionResource` and `YamlSectionResource` provide the same nested-section view for XML elements and YAML mappings, including sibling preservation and whole-resource revision checks.
 
@@ -68,6 +70,19 @@ using var edit = await serviceProvider
     .BeginConfigureAsync();
 edit.Value.SomeSetting = newValue;
 await edit.SaveAsync();
+
+// Route selected model paths to different writable sources for one edit.
+var writePlan = new StateWritePlan(new Dictionary<string, string>
+{
+    ["Database"] = "database-settings",
+    ["Database.Password"] = "secrets",
+});
+using var routedEdit = await serviceProvider
+    .GetRequiredService<IWritableOptions<AppConfig>>()
+    .BeginConfigureAsync(writePlan);
+routedEdit.Value.Database!.Password = "updated";
+var writeResult = await routedEdit.SaveAsync();
+var sourceWrites = writeResult.MultiWriteResult;
 
 // Update a deep clone of the current value without opening a session explicitly.
 await serviceProvider

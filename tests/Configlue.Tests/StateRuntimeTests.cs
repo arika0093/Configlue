@@ -613,6 +613,98 @@ public sealed class StateRuntimeTests
     }
 
     [Test]
+    public async Task ConfigureSession_RoutesNestedChangesToTheMostSpecificSources()
+    {
+        var user = new InMemoryStateStore<AppSettings.Fragment>(new AppSettings.Fragment());
+        var database = new InMemoryStateStore<AppSettings.Fragment>(new AppSettings.Fragment
+        {
+            Database = Optional<DatabaseSettings.Fragment?>.Present(new DatabaseSettings.Fragment
+            {
+                Port = Optional<int>.Present(6432),
+            }),
+        });
+        var defaults = new InMemoryStateStore<AppSettings.Fragment>(new AppSettings.Fragment
+        {
+            RetryCount = Optional<int>.Present(3),
+            Database = Optional<DatabaseSettings.Fragment?>.Present(new DatabaseSettings.Fragment
+            {
+                Host = Optional<string>.Present("defaults.db"),
+                Port = Optional<int>.Present(5432),
+            }),
+        });
+        var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(new StateSourceSet<AppSettings.Fragment>(
+        [
+            new("user", user, priority: 100, writer: user),
+            new("database", database, priority: 50, writer: database),
+            new("defaults", defaults),
+        ]));
+        var writePlan = new StateWritePlan(new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["Database"] = "database",
+            ["Database.Port"] = "user",
+        });
+
+        using var session = await options.BeginConfigureAsync(writePlan);
+        session.Value.RetryCount = 7;
+        session.Value.Database!.Host = "session.db";
+        session.Value.Database.Port = 7443;
+        var result = await session.SaveAsync();
+
+        var userFragment = (await user.ReadAsync()).Value!;
+        var databaseFragment = (await database.ReadAsync()).Value!;
+        var resolved = (await options.ReadAsync()).Value!;
+        await Assert.That(userFragment.RetryCount.Value).IsEqualTo(7);
+        await Assert.That(userFragment.Database.Value!.Host.IsPresent).IsFalse();
+        await Assert.That(userFragment.Database.Value.Port.Value).IsEqualTo(7443);
+        await Assert.That(databaseFragment.Database.Value!.Host.Value).IsEqualTo("session.db");
+        await Assert.That(databaseFragment.Database.Value.Port.Value).IsEqualTo(6432);
+        await Assert.That(resolved.RetryCount).IsEqualTo(7);
+        await Assert.That(resolved.Database!.Host).IsEqualTo("session.db");
+        await Assert.That(resolved.Database.Port).IsEqualTo(7443);
+        await Assert.That(result.MultiWriteResult).IsNotNull();
+        await Assert.That(result.MultiWriteResult!.PhysicalWriteCount).IsEqualTo(2);
+        await Assert.That(result.MultiWriteResult.Sources.Select(static source => source.SourceId))
+            .IsEquivalentTo(["user", "database"]);
+    }
+
+    [Test]
+    public async Task ConfigureSession_PathPlanRejectsEditsHiddenByAHigherPrioritySource()
+    {
+        var policy = new InMemoryStateStore<AppSettings.Fragment>(new AppSettings.Fragment
+        {
+            Enabled = Optional<bool>.Present(true),
+        });
+        var user = new InMemoryStateStore<AppSettings.Fragment>(new AppSettings.Fragment());
+        var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(new StateSourceSet<AppSettings.Fragment>(
+        [
+            new("policy", policy, priority: 100),
+            new("user", user, priority: 0, writer: user),
+        ]));
+        var userBefore = await user.ReadAsync();
+        var writePlan = new StateWritePlan(new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["Enabled"] = "user",
+        });
+
+        using var session = await options.BeginConfigureAsync(writePlan);
+        session.Value.Enabled = false;
+        var rejected = false;
+        try
+        {
+            await session.SaveAsync();
+        }
+        catch (StateConflictException)
+        {
+            rejected = true;
+        }
+
+        var userAfter = await user.ReadAsync();
+        await Assert.That(rejected).IsTrue();
+        await Assert.That(userAfter.Value!.Enabled.IsPresent).IsFalse();
+        await Assert.That(userAfter.Revision).IsEqualTo(userBefore.Revision);
+    }
+
+    [Test]
     public async Task ConfigureSession_DoesNotWriteWhenTheModelWasNotChanged()
     {
         var store = new InMemoryStateStore<AppSettings.Fragment>(new AppSettings.Fragment

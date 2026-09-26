@@ -204,7 +204,21 @@ public sealed class ConfiglueOptions<TModel, TFragment> : IWritableOptions<TMode
     }
 
     /// <inheritdoc />
-    public async ValueTask<ConfigureSession<TModel>> BeginConfigureAsync(CancellationToken cancellationToken = default)
+    public ValueTask<ConfigureSession<TModel>> BeginConfigureAsync(CancellationToken cancellationToken = default) =>
+        BeginConfigureCoreAsync(null, cancellationToken);
+
+    /// <inheritdoc />
+    public ValueTask<ConfigureSession<TModel>> BeginConfigureAsync(
+        StateWritePlan writePlan,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(writePlan);
+        return BeginConfigureCoreAsync(writePlan, cancellationToken);
+    }
+
+    private async ValueTask<ConfigureSession<TModel>> BeginConfigureCoreAsync(
+        StateWritePlan? writePlan,
+        CancellationToken cancellationToken)
     {
         var resolvedState = await ResolveCoreAsync(null, cancellationToken).ConfigureAwait(false);
         var resolved = resolvedState.Result;
@@ -214,6 +228,11 @@ public sealed class ConfiglueOptions<TModel, TFragment> : IWritableOptions<TMode
         }
 
         var source = SelectWriteSource();
+        if (writePlan is not null)
+        {
+            ValidateWritePlan(writePlan);
+        }
+
         string? expectedRevision;
         if (resolved.Revisions is null || !resolved.Revisions.TryGetRevision(source.Id, out expectedRevision))
         {
@@ -237,12 +256,25 @@ public sealed class ConfiglueOptions<TModel, TFragment> : IWritableOptions<TMode
                 throw new StateConflictException("A state source changed after the configuration edit began.");
             }
 
-            return await WriteChangesToSourceAsync(
+            if (writePlan is null || writePlan.PropertyRoutes.Count == 0)
+            {
+                return await WriteChangesToSourceAsync(
+                    source,
+                    baseline,
+                    value,
+                    expectedRevision,
+                    resolvedState.Contributions,
+                    token).ConfigureAwait(false);
+            }
+
+            return await WriteChangesToSourcesAsync(
                 source,
                 baseline,
                 value,
                 expectedRevision,
+                expectedRevisions,
                 resolvedState.Contributions,
+                writePlan,
                 token).ConfigureAwait(false);
         });
     }
@@ -262,6 +294,19 @@ public sealed class ConfiglueOptions<TModel, TFragment> : IWritableOptions<TMode
     }
 
     /// <inheritdoc />
+    public async ValueTask<StateWriteResult> SaveAsync(
+        TModel value,
+        StateWritePlan writePlan,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        ArgumentNullException.ThrowIfNull(writePlan);
+        using var session = await BeginConfigureAsync(writePlan, cancellationToken).ConfigureAwait(false);
+        session.Value = value;
+        return await session.SaveAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
     public async ValueTask<StateWriteResult> SaveAsync(Action<TModel> update, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(update);
@@ -273,10 +318,40 @@ public sealed class ConfiglueOptions<TModel, TFragment> : IWritableOptions<TMode
     }
 
     /// <inheritdoc />
+    public async ValueTask<StateWriteResult> SaveAsync(
+        Action<TModel> update,
+        StateWritePlan writePlan,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(update);
+        ArgumentNullException.ThrowIfNull(writePlan);
+        using var session = await BeginConfigureAsync(writePlan, cancellationToken).ConfigureAwait(false);
+        var value = session.Value;
+        update(value);
+        session.Value = value;
+        return await session.SaveAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
     public async ValueTask<StateWriteResult> SaveAsync(Func<TModel, Task> update, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(update);
         using var session = await BeginConfigureAsync(cancellationToken).ConfigureAwait(false);
+        var value = session.Value;
+        await update(value).ConfigureAwait(false);
+        session.Value = value;
+        return await session.SaveAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async ValueTask<StateWriteResult> SaveAsync(
+        Func<TModel, Task> update,
+        StateWritePlan writePlan,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(update);
+        ArgumentNullException.ThrowIfNull(writePlan);
+        using var session = await BeginConfigureAsync(writePlan, cancellationToken).ConfigureAwait(false);
         var value = session.Value;
         await update(value).ConfigureAwait(false);
         session.Value = value;
@@ -338,26 +413,35 @@ public sealed class ConfiglueOptions<TModel, TFragment> : IWritableOptions<TMode
     }
 
     /// <inheritdoc />
-    public async ValueTask<StateMultiWriteResult> ApplyPatchesAsync(
+    public ValueTask<StateMultiWriteResult> ApplyPatchesAsync(
         IEnumerable<StateSourcePatch> patches,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(patches);
         cancellationToken.ThrowIfCancellationRequested();
-        var patchRequests = patches.ToArray();
+        return ApplyPatchesCoreAsync(patches.ToArray(), null, null, cancellationToken);
+    }
+
+    private async ValueTask<StateMultiWriteResult> ApplyPatchesCoreAsync(
+        StateSourcePatch[] patchRequests,
+        StateRevisionVector? expectedBaselineRevisions,
+        object? expectedResolvedModel,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
         if (patchRequests.Length == 0)
         {
-            throw new ArgumentException("At least one source patch is required.", nameof(patches));
+            throw new ArgumentException("At least one source patch is required.", nameof(patchRequests));
         }
 
         if (patchRequests.Any(static patch => patch is null))
         {
-            throw new ArgumentException("A patch batch cannot contain null entries.", nameof(patches));
+            throw new ArgumentException("A patch batch cannot contain null entries.", nameof(patchRequests));
         }
 
         if (patchRequests.Select(static patch => patch.SourceId).Distinct(StringComparer.Ordinal).Count() != patchRequests.Length)
         {
-            throw new ArgumentException("A source can only appear once in a patch batch.", nameof(patches));
+            throw new ArgumentException("A source can only appear once in a patch batch.", nameof(patchRequests));
         }
 
         var modelSchema = TModel.ConfiglueSchema;
@@ -369,7 +453,7 @@ public sealed class ConfiglueOptions<TModel, TFragment> : IWritableOptions<TMode
             {
                 throw new ArgumentException(
                     $"The patch schema '{request.Patch.Schema.Id}' does not match '{modelSchema.Id}'.",
-                    nameof(patches));
+                    nameof(patchRequests));
             }
         }
 
@@ -377,6 +461,12 @@ public sealed class ConfiglueOptions<TModel, TFragment> : IWritableOptions<TMode
         if (baseline.Result.Status != StateReadStatus.Success)
         {
             throw new InvalidOperationException($"Configuration state could not be read: {baseline.Result.Status}.");
+        }
+
+        if (expectedBaselineRevisions is not null &&
+            !HaveSameRevisions(expectedBaselineRevisions, baseline.Result.Revisions))
+        {
+            throw new StateConflictException("A state source changed after the configuration edit began.");
         }
 
         var replacements = new Dictionary<string, StateReadResult<TFragment>>(StringComparer.Ordinal);
@@ -471,6 +561,12 @@ public sealed class ConfiglueOptions<TModel, TFragment> : IWritableOptions<TMode
             if (proposed.Result.Status != StateReadStatus.Success)
             {
                 throw new InvalidOperationException($"Patched configuration could not be resolved: {proposed.Result.Status}.");
+            }
+
+            if (expectedResolvedModel is TModel expectedModel &&
+                !TModel.Diff(proposed.Result.Value!, expectedModel).IsEmpty)
+            {
+                throw new StateConflictException("The configured source routes cannot realize the requested edit.");
             }
 
             if (!HaveSameRevisions(baseline.Result.Revisions, proposed.Result.Revisions))
@@ -937,6 +1033,161 @@ public sealed class ConfiglueOptions<TModel, TFragment> : IWritableOptions<TMode
     private StateSource<TFragment> FindSource(string sourceId) =>
         _sourceSet.Sources.FirstOrDefault(candidate => string.Equals(candidate.Id, sourceId, StringComparison.Ordinal))
         ?? throw new InvalidOperationException($"State source '{sourceId}' is not registered.");
+
+    private void ValidateWritePlan(StateWritePlan writePlan)
+    {
+        foreach (var (propertyPath, sourceId) in writePlan.PropertyRoutes)
+        {
+            var path = propertyPath.Split('.', StringSplitOptions.None);
+            var schema = TModel.ConfiglueSchema;
+            for (var index = 0; index < path.Length; index++)
+            {
+                var member = schema.Members.FirstOrDefault(candidate =>
+                    string.Equals(candidate.Name, path[index], StringComparison.Ordinal));
+                if (string.IsNullOrEmpty(member.Name))
+                {
+                    throw new ArgumentException(
+                        $"Write plan path '{propertyPath}' refers to unknown member '{path[index]}' in '{schema.Id}'.",
+                        nameof(writePlan));
+                }
+
+                if (index < path.Length - 1)
+                {
+                    schema = member.NestedSchemaFactory?.Invoke()
+                        ?? throw new ArgumentException(
+                            $"Write plan path '{propertyPath}' continues through non-nested member '{member.Name}'.",
+                            nameof(writePlan));
+                }
+            }
+
+            if (FindSource(sourceId).Writer is null)
+            {
+                throw new InvalidOperationException($"State source '{sourceId}' does not support writes.");
+            }
+        }
+    }
+
+    private async ValueTask<StateWriteResult> WriteChangesToSourcesAsync(
+        StateSource<TFragment> fallbackSource,
+        TModel before,
+        TModel after,
+        string? expectedFallbackRevision,
+        StateRevisionVector? expectedBaselineRevisions,
+        IReadOnlyList<ResolvedContribution> baselineContributions,
+        StateWritePlan writePlan,
+        CancellationToken cancellationToken)
+    {
+        Validate(after);
+        var changes = TModel.Diff(before, after);
+        if (changes.IsEmpty)
+        {
+            return new StateWriteResult(expectedFallbackRevision);
+        }
+
+        var routedChanges = PartitionRoutedChanges(
+            TModel.ConfiglueSchema,
+            changes,
+            after!,
+            [],
+            fallbackSource.Id,
+            writePlan);
+        var patches = new List<StateSourcePatch>(routedChanges.Count);
+        foreach (var (sourceId, sourceChanges) in routedChanges)
+        {
+            var plannedChanges = (TFragment)PlanMergeAwareChanges(
+                TModel.ConfiglueSchema,
+                sourceChanges,
+                after!,
+                [],
+                sourceId,
+                baselineContributions);
+            if (!plannedChanges.IsEmpty)
+            {
+                patches.Add(new StateSourcePatch(sourceId, new FragmentChangesPatch(plannedChanges)));
+            }
+        }
+
+        if (patches.Count == 0)
+        {
+            return new StateWriteResult(expectedFallbackRevision);
+        }
+
+        var result = await ApplyPatchesCoreAsync(patches.ToArray(), expectedBaselineRevisions, after, cancellationToken)
+            .ConfigureAwait(false);
+        var fallbackResult = result.Sources.FirstOrDefault(source =>
+            string.Equals(source.SourceId, fallbackSource.Id, StringComparison.Ordinal));
+        var revision = fallbackResult.SourceId is not null
+            ? fallbackResult.Revision
+            : result.Sources[0].Revision;
+        return new StateWriteResult(revision) { MultiWriteResult = result };
+    }
+
+    private static Dictionary<string, IConfiglueFragment> PartitionRoutedChanges(
+        ConfiglueModelSchema schema,
+        IConfiglueFragment changes,
+        object afterModel,
+        List<string> path,
+        string fallbackSourceId,
+        StateWritePlan writePlan)
+    {
+        var routed = new Dictionary<string, IConfiglueFragment>(StringComparer.Ordinal);
+        foreach (var change in changes.EnumeratePresentMembers())
+        {
+            var member = schema.Members.FirstOrDefault(candidate => candidate.Id == change.Id);
+            if (string.IsNullOrEmpty(member.Name))
+            {
+                throw new InvalidOperationException($"Generated schema '{schema.Id}' has no member with id {change.Id}.");
+            }
+
+            path.Add(member.Name);
+            try
+            {
+                var propertyPath = string.Join('.', path);
+                var afterValue = member.GetValue?.Invoke(afterModel);
+                if (member.NestedSchemaFactory is not null &&
+                    change.Value is IConfiglueFragment nestedChanges &&
+                    afterValue is not null)
+                {
+                    var nestedRouted = PartitionRoutedChanges(
+                        member.NestedSchemaFactory(),
+                        nestedChanges,
+                        afterValue,
+                        path,
+                        fallbackSourceId,
+                        writePlan);
+                    foreach (var (sourceId, nestedFragment) in nestedRouted)
+                    {
+                        var sourceFragment = routed.TryGetValue(sourceId, out var current)
+                            ? current
+                            : schema.CreateEmptyFragment();
+                        routed[sourceId] = sourceFragment.WithMember(member.Id, nestedFragment);
+                    }
+
+                    continue;
+                }
+
+                if (member.NestedSchemaFactory is not null &&
+                    afterValue is null &&
+                    writePlan.HasRouteBelow(propertyPath))
+                {
+                    throw new StateConflictException(
+                        $"The edit replaces nested member '{propertyPath}' with null, so its more specific source routes cannot be applied.");
+                }
+
+                var targetSourceId = writePlan.ResolveSourceId(propertyPath, fallbackSourceId);
+                var targetFragment = routed.TryGetValue(targetSourceId, out var existing)
+                    ? existing
+                    : schema.CreateEmptyFragment();
+                routed[targetSourceId] = targetFragment.WithMember(member.Id, change.Value);
+            }
+            finally
+            {
+                path.RemoveAt(path.Count - 1);
+            }
+        }
+
+        return routed;
+    }
 
     private ValueTask<StateWriteResult> WriteToSourceAsync(
         StateSource<TFragment> source,
@@ -1450,6 +1701,23 @@ public sealed class ConfiglueOptions<TModel, TFragment> : IWritableOptions<TMode
         lock (_changeGate)
         {
             _changeListeners.Remove(listener);
+        }
+    }
+
+    private sealed class FragmentChangesPatch(TFragment changes) : IConfigluePatch
+    {
+        public ConfiglueModelSchema Schema => TModel.ConfiglueSchema;
+
+        public bool IsEmpty => changes.IsEmpty;
+
+        public IConfiglueFragment Apply(IConfiglueFragment fragment)
+        {
+            if (fragment is not TFragment sourceFragment)
+            {
+                throw new ArgumentException("The patch received an incompatible fragment.", nameof(fragment));
+            }
+
+            return sourceFragment.ApplyChanges(changes);
         }
     }
 

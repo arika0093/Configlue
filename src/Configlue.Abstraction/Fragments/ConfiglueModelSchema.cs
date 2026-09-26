@@ -13,12 +13,15 @@ public readonly record struct ConfiglueMemberSchema(
 /// <summary>Generated metadata for a model and its persisted schema.</summary>
 public sealed class ConfiglueModelSchema
 {
+    private readonly Func<IConfiglueFragment>? _emptyFragmentFactory;
+
     /// <summary>Creates immutable model metadata.</summary>
     public ConfiglueModelSchema(
         Type modelType,
         string id,
         int version,
-        IEnumerable<ConfiglueMemberSchema> members)
+        IEnumerable<ConfiglueMemberSchema> members,
+        Func<IConfiglueFragment>? emptyFragmentFactory = null)
     {
         ArgumentNullException.ThrowIfNull(modelType);
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
@@ -32,6 +35,7 @@ public sealed class ConfiglueModelSchema
         Id = id;
         Version = version;
         Members = Array.AsReadOnly(members.ToArray());
+        _emptyFragmentFactory = emptyFragmentFactory;
     }
 
     /// <summary>The CLR model type.</summary>
@@ -45,6 +49,10 @@ public sealed class ConfiglueModelSchema
 
     /// <summary>The members in generated stable order.</summary>
     public IReadOnlyList<ConfiglueMemberSchema> Members { get; }
+
+    /// <summary>Creates an empty generated fragment for this model schema.</summary>
+    public IConfiglueFragment CreateEmptyFragment() => _emptyFragmentFactory?.Invoke()
+        ?? throw new InvalidOperationException($"Schema '{Id}' does not provide an empty fragment factory.");
 
     /// <summary>Returns the schema metadata to store alongside a snapshot.</summary>
     public StateSchemaMetadata ToMetadata() => new(Id, Version);

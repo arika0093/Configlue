@@ -237,7 +237,7 @@ public sealed class ConfiglueGenerator : IIncrementalGenerator
             code.Append(", ").Append(CollectionValueFactory(member)).AppendLine("),");
         }
 
-        code.AppendLine("    });");
+        code.Append("    }, static () => ").Append(modelType).AppendLine(".Fragment.Empty);");
     }
 
     private static string CollectionValueFactory(MemberModel member)
