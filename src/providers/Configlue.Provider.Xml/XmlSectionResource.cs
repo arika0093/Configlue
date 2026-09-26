@@ -5,7 +5,7 @@ using System.Xml.Linq;
 namespace Configlue.Provider.Xml;
 
 /// <summary>Exposes a nested XML element as a resource while preserving sibling elements.</summary>
-public sealed class XmlSectionResource : IResourceReader, IResourceWriter, IStateWatcher
+public sealed class XmlSectionResource : IResourceReader, IResourceWriter, IStateWatcher, IResourceIdentity
 {
     private readonly IResourceReader _reader;
     private readonly IResourceWriter? _writer;
@@ -23,18 +23,24 @@ public sealed class XmlSectionResource : IResourceReader, IResourceWriter, IStat
         IResourceReader reader,
         IResourceWriter? writer,
         string sectionPath,
-        IStateWatcher? watcher = null)
+        IStateWatcher? watcher = null,
+        ResourceId? resourceId = null)
     {
         ArgumentNullException.ThrowIfNull(reader);
         ArgumentException.ThrowIfNullOrWhiteSpace(sectionPath);
         _reader = reader;
         _writer = writer;
         _watcher = watcher;
+        ResourceId = resourceId ?? (writer as IResourceIdentity ?? reader as IResourceIdentity)?.ResourceId
+            ?? new ResourceId($"section:{Guid.NewGuid():N}");
         _path = ParsePath(sectionPath);
     }
 
     /// <summary>Whether a physical writer was supplied.</summary>
     public bool CanWrite => _writer is not null;
+
+    /// <inheritdoc />
+    public ResourceId ResourceId { get; }
 
     /// <inheritdoc />
     public async ValueTask<ResourceReadResult> ReadAsync(CancellationToken cancellationToken = default)

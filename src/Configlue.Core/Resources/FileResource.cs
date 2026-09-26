@@ -4,7 +4,7 @@ using System.Security.Cryptography;
 namespace Configlue;
 
 /// <summary>A local file resource with atomic replacement, revision checks, backups, and change notifications.</summary>
-public sealed class FileResource : IResourceReader, IResourceWriter, IStateWatcher, IDisposable
+public sealed class FileResource : IResourceReader, IResourceWriter, IStateWatcher, IResourceIdentity, IDisposable
 {
     private static readonly ConcurrentDictionary<string, SemaphoreSlim> ProcessLocks = new(
         OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
@@ -24,6 +24,8 @@ public sealed class FileResource : IResourceReader, IResourceWriter, IStateWatch
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
         _path = System.IO.Path.GetFullPath(path);
+        var identityPath = OperatingSystem.IsWindows() ? _path.ToUpperInvariant() : _path;
+        ResourceId = new ResourceId($"file:{identityPath}");
         _directory = System.IO.Path.GetDirectoryName(_path)!;
         _fileName = System.IO.Path.GetFileName(_path);
         _options = options ?? new FileResourceOptions();
@@ -50,6 +52,9 @@ public sealed class FileResource : IResourceReader, IResourceWriter, IStateWatch
 
     /// <summary>The normalized file path.</summary>
     public string Path => _path;
+
+    /// <inheritdoc />
+    public ResourceId ResourceId { get; }
 
     /// <inheritdoc />
     public async ValueTask<ResourceReadResult> ReadAsync(CancellationToken cancellationToken = default)

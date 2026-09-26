@@ -4,7 +4,7 @@ using YamlDotNet.RepresentationModel;
 namespace Configlue.Provider.Yaml;
 
 /// <summary>Exposes a nested YAML mapping as a resource while preserving sibling nodes.</summary>
-public sealed class YamlSectionResource : IResourceReader, IResourceWriter, IStateWatcher
+public sealed class YamlSectionResource : IResourceReader, IResourceWriter, IStateWatcher, IResourceIdentity
 {
     private readonly IResourceReader _reader;
     private readonly IResourceWriter? _writer;
@@ -22,13 +22,16 @@ public sealed class YamlSectionResource : IResourceReader, IResourceWriter, ISta
         IResourceReader reader,
         IResourceWriter? writer,
         string sectionPath,
-        IStateWatcher? watcher = null)
+        IStateWatcher? watcher = null,
+        ResourceId? resourceId = null)
     {
         ArgumentNullException.ThrowIfNull(reader);
         ArgumentException.ThrowIfNullOrWhiteSpace(sectionPath);
         _reader = reader;
         _writer = writer;
         _watcher = watcher;
+        ResourceId = resourceId ?? (writer as IResourceIdentity ?? reader as IResourceIdentity)?.ResourceId
+            ?? new ResourceId($"section:{Guid.NewGuid():N}");
         _path = sectionPath.Replace("__", ":", StringComparison.Ordinal)
             .Split(':', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         if (_path.Length == 0)
@@ -39,6 +42,9 @@ public sealed class YamlSectionResource : IResourceReader, IResourceWriter, ISta
 
     /// <summary>Whether a physical writer was supplied.</summary>
     public bool CanWrite => _writer is not null;
+
+    /// <inheritdoc />
+    public ResourceId ResourceId { get; }
 
     /// <inheritdoc />
     public async ValueTask<ResourceReadResult> ReadAsync(CancellationToken cancellationToken = default)

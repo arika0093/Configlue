@@ -3,13 +3,19 @@ using System.Security.Cryptography;
 namespace Configlue.Testing;
 
 /// <summary>An in-memory resource with conditional writes and change notifications.</summary>
-public sealed class InMemoryResource : IResourceReader, IResourceWriter, IStateWatcher
+public sealed class InMemoryResource : IResourceReader, IResourceWriter, IStateWatcher, IResourceIdentity
 {
     private readonly object _gate = new();
     private byte[]? _content;
     private string? _revision;
     private StateSchemaMetadata? _schema;
     private TaskCompletionSource _changed = NewSignal();
+
+    /// <summary>Creates a resource with a unique identity.</summary>
+    public InMemoryResource() => ResourceId = new ResourceId($"memory:{Guid.NewGuid():N}");
+
+    /// <inheritdoc />
+    public ResourceId ResourceId { get; }
 
     /// <inheritdoc />
     public ValueTask<ResourceReadResult> ReadAsync(CancellationToken cancellationToken = default)

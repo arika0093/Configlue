@@ -44,7 +44,8 @@ public static class StateSourceProjection
             source.FallbackCondition,
             writer,
             source.Watcher,
-            source.PhysicalOrigin);
+            source.PhysicalOrigin,
+            source.ResourceId);
     }
 
     private sealed class ProjectedReader<TSource, TTarget>(

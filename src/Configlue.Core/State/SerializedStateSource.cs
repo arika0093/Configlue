@@ -30,6 +30,7 @@ public static class SerializedStateSource
             fallbackCondition,
             resourceWriter is null ? null : new SerializedStateWriter<T>(resourceWriter, codec, context),
             resourceWatcher,
-            physicalOrigin);
+            physicalOrigin,
+            (resourceWriter as IResourceIdentity ?? resource as IResourceIdentity)?.ResourceId);
     }
 }

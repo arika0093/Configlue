@@ -11,6 +11,7 @@ Configlue follows the source and fragment designs captured in [Configuration.Wri
 - Resolution, migration, projection, and write planning operate on fragments; application code edits ordinary model values.
 
 Logical schema and physical storage topology are independent. Multiple sources can contribute to one model subtree, and multiple bindings can share one resource.
+Each logical source may expose a `ResourceId` for that physical resource. Section views and projected sources preserve this identity so later write coordination can group logical updates that share storage.
 
 ## Implementation status
 

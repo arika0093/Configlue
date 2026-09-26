@@ -11,7 +11,8 @@ public sealed class StateSource<T>
         StateFallbackCondition fallbackCondition = StateFallbackCondition.NotFound,
         IStateWriter<T>? writer = null,
         IStateWatcher? watcher = null,
-        string? physicalOrigin = null)
+        string? physicalOrigin = null,
+        ResourceId? resourceId = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
         ArgumentNullException.ThrowIfNull(reader);
@@ -27,6 +28,7 @@ public sealed class StateSource<T>
         Writer = writer;
         Watcher = watcher;
         PhysicalOrigin = physicalOrigin;
+        ResourceId = resourceId ?? (reader as IResourceIdentity ?? writer as IResourceIdentity)?.ResourceId;
     }
 
     /// <summary>The stable logical identifier of the source.</summary>
@@ -49,4 +51,7 @@ public sealed class StateSource<T>
 
     /// <summary>The physical endpoint currently backing the logical source.</summary>
     public string? PhysicalOrigin { get; }
+
+    /// <summary>The optional identity of the physical resource backing this logical source.</summary>
+    public ResourceId? ResourceId { get; }
 }
