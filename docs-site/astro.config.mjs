@@ -38,7 +38,6 @@ export default defineConfig({
         ja: { label: '日本語', lang: 'ja' },
       },
       components: {
-        Hero: './src/components/HomeHero.astro',
         PageTitle: './src/components/PageTitle.astro',
         ThemeProvider: 'starlight-theme-nova/components/ThemeProvider.astro',
         ThemeSelect: 'starlight-theme-nova/components/ThemeSelect.astro',
@@ -52,44 +51,6 @@ export default defineConfig({
         './src/styles/custom.css',
       ],
       plugins: [starlightThemeNova(), starlightGithubAlerts()],
-      sidebar: [
-        {
-          label: 'Getting started',
-          translations: { ja: 'はじめに' },
-          items: ['getting-started/quick-start', 'getting-started/model'],
-        },
-        {
-          label: 'Examples',
-          translations: { ja: 'サンプル' },
-          items: ['examples'],
-        },
-        {
-          label: 'Core concepts',
-          translations: { ja: '基本概念' },
-          items: [
-            'concepts/sources-and-priority',
-            'concepts/sparse-fragments',
-            'concepts/resources-and-codecs',
-          ],
-        },
-        {
-          label: 'Guides',
-          translations: { ja: 'ガイド' },
-          items: [
-            'guides/dependency-injection',
-            'guides/writes-and-routing',
-            'guides/providers',
-            'guides/profiles',
-            'guides/migrations',
-            'guides/json-schema',
-          ],
-        },
-        {
-          label: 'Reference',
-          translations: { ja: 'リファレンス' },
-          items: ['reference/packages', 'reference/architecture', 'reference/design-notes'],
-        },
-      ],
     }),
     mdx(),
   ],

@@ -5,48 +5,13 @@ template: splash
 hero:
   tagline: "$ Configuration that stays composable."
   actions:
-    - text: Get started
-      link: /en/getting-started/quick-start/
-      icon: right-arrow
-      variant: primary
-    - text: Explore examples
-      link: /en/examples/
-      icon: external
-      variant: secondary
     - text: View on GitHub
       link: https://github.com/arika0093/Configlue
       icon: external
       variant: minimal
 ---
 
-import { Card, CardGrid } from '@astrojs/starlight/components';
-
 Configlue is a .NET library for reading, resolving, editing, and persisting typed configuration from independent sources. Each source contributes only the fields it owns, so values can be layered without replacing an entire settings object.
-
-## Build configuration from sources
-
-<CardGrid stagger>
-  <Card title="Learn the model" icon="puzzle">
-    See how generated sparse fragments distinguish missing values from `null`, `false`, and model defaults.
-
-    [Generated models →](/en/getting-started/model/)
-  </Card>
-  <Card title="Combine providers" icon="setting">
-    Compose JSON, XML, YAML, environment variables, files, and custom resources behind one model.
-
-    [Provider guide →](/en/guides/providers/)
-  </Card>
-  <Card title="Write with intent" icon="document">
-    Route edits to selected sources, preserve unrelated contributions, and detect stale revisions.
-
-    [Writes and routing →](/en/guides/writes-and-routing/)
-  </Card>
-  <Card title="Start from an example" icon="rocket">
-    Run a console app, a hosted worker, a YAML sample, or a multi-source configuration example.
-
-    [Browse examples →](/en/examples/)
-  </Card>
-</CardGrid>
 
 ## What Configlue provides
 
@@ -55,5 +20,3 @@ Configlue is a .NET library for reading, resolving, editing, and persisting type
 - Separate resource, codec, and source contracts.
 - Read-only, writable, and watched sources that can be combined as needed.
 - Dependency injection, named profiles, validation, migration, and property-level explanations.
-
-Start with the [quick start](/en/getting-started/quick-start/) or browse the [core concepts](/en/concepts/sources-and-priority/).

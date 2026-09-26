@@ -5,48 +5,13 @@ template: splash
 hero:
   tagline: "$ 設定の出どころを保ったまま組み合わせる。"
   actions:
-    - text: はじめる
-      link: /ja/getting-started/quick-start/
-      icon: right-arrow
-      variant: primary
-    - text: サンプルを見る
-      link: /ja/examples/
-      icon: external
-      variant: secondary
     - text: GitHub
       link: https://github.com/arika0093/Configlue
       icon: external
       variant: minimal
 ---
 
-import { Card, CardGrid } from '@astrojs/starlight/components';
-
 Configlue は、独立したソースから型付き設定を読み込み、解決し、編集して保存する .NET ライブラリです。各ソースは自分が持つ項目だけを提供するため、設定オブジェクト全体を置き換えずに値を重ねられます。
-
-## ソースを組み合わせて設定を作る
-
-<CardGrid stagger>
-  <Card title="モデルを知る" icon="puzzle">
-    生成される疎なフラグメントが、未設定と `null`、`false`、モデルの既定値をどう区別するかを説明します。
-
-    [生成モデル →](/ja/getting-started/model/)
-  </Card>
-  <Card title="プロバイダーを組み合わせる" icon="setting">
-    JSON、XML、YAML、環境変数、ファイル、独自リソースをひとつのモデルにまとめます。
-
-    [プロバイダーガイド →](/ja/guides/providers/)
-  </Card>
-  <Card title="意図したソースに書き込む" icon="document">
-    更新先を選び、他ソースの値を保ち、古いリビジョンへの上書きを検出します。
-
-    [書き込みとルーティング →](/ja/guides/writes-and-routing/)
-  </Card>
-  <Card title="サンプルから始める" icon="rocket">
-    コンソールアプリ、バックグラウンドワーカー、YAML、複数ソースの例を実行できます。
-
-    [サンプル一覧 →](/ja/examples/)
-  </Card>
-</CardGrid>
 
 ## Configlue の機能
 
@@ -55,5 +20,3 @@ Configlue は、独立したソースから型付き設定を読み込み、解�
 - リソース、コーデック、ソースを分離した契約。
 - 読み取り専用、書き込み可能、変更監視を組み合わせられるソース。
 - 依存性注入、名前付きプロファイル、検証、マイグレーション、プロパティ単位の説明。
-
-[クイックスタート](/ja/getting-started/quick-start/)から始めるか、[基本概念](/ja/concepts/sources-and-priority/)を読んでください。
