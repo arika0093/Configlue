@@ -8,6 +8,7 @@ $expectedPackageIds = @(
     'Configlue',
     'Configlue.Abstraction',
     'Configlue.Core',
+    'Configlue.Extensions.DI',
     'Configlue.Generator',
     'Configlue.Testing',
     'Configlue.Provider.Json',
@@ -26,6 +27,7 @@ if ($packageFiles.Count -ne $expectedPackageIds.Count) {
 
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 $foundPackageIds = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+$configlueDependencies = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
 foreach ($packageFile in $packageFiles) {
     $archive = [System.IO.Compression.ZipFile]::OpenRead($packageFile.FullName)
     try {
@@ -58,15 +60,32 @@ foreach ($packageFile in $packageFiles) {
             throw "Package ID '$packageId' appears more than once in '$resolvedDirectory'."
         }
 
-        $assemblyPath = if ($packageId -eq 'Configlue.Generator') {
-            'analyzers/dotnet/cs/Configlue.Generator.dll'
+        if ($packageId -eq 'Configlue') {
+            $dependencyNodes = $nuspec.SelectNodes("/*[local-name()='package']/*[local-name()='metadata']/*[local-name()='dependencies']//*[local-name()='dependency']")
+            foreach ($dependencyNode in $dependencyNodes) {
+                [void] $configlueDependencies.Add($dependencyNode.GetAttribute('id'))
+            }
+        }
+
+        if ($packageId -ne 'Configlue') {
+            $assemblyPath = if ($packageId -eq 'Configlue.Generator') {
+                'analyzers/dotnet/cs/Configlue.Generator.dll'
+            }
+            else {
+                "lib/net10.0/$packageId.dll"
+            }
+            $assembly = $archive.GetEntry($assemblyPath)
+            if ($null -eq $assembly -or $assembly.Length -eq 0) {
+                throw "Package '$packageId' is missing '$assemblyPath'."
+            }
         }
         else {
-            "lib/net10.0/$packageId.dll"
-        }
-        $assembly = $archive.GetEntry($assemblyPath)
-        if ($null -eq $assembly -or $assembly.Length -eq 0) {
-            throw "Package '$packageId' is missing '$assemblyPath'."
+            $libAssemblies = @($archive.Entries | Where-Object {
+                $_.FullName -match '^lib/.+\.dll$'
+            })
+            if ($libAssemblies.Count -gt 0) {
+                throw "Meta-package 'Configlue' must not contain implementation assemblies."
+            }
         }
 
         if ($packageId -in @('Configlue', 'Configlue.Generator')) {
@@ -89,6 +108,14 @@ if ($missingPackageIds.Count -gt 0) {
 $unexpectedPackageIds = @($foundPackageIds | Where-Object { $_ -notin $expectedPackageIds })
 if ($unexpectedPackageIds.Count -gt 0) {
     throw "Unexpected NuGet package IDs: $($unexpectedPackageIds -join ', ')."
+}
+
+$requiredMetaDependencies = @('Configlue.Core', 'Configlue.Extensions.DI')
+$missingMetaDependencies = @(
+    $requiredMetaDependencies | Where-Object { -not $configlueDependencies.Contains($_) }
+)
+if ($missingMetaDependencies.Count -gt 0) {
+    throw "The Configlue meta-package is missing dependencies: $($missingMetaDependencies -join ', ')."
 }
 
 Write-Host "Verified $($foundPackageIds.Count) NuGet packages and generator analyzer contents."

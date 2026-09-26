@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>Configlue.Extensions.DI</AssemblyName>
+    <RootNamespace>Configlue</RootNamespace>
+    <IsPackable>true</IsPackable>
+    <PackageDescription>Dependency injection and Microsoft options integration for Configlue.</PackageDescription>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Configlue.Abstraction/Configlue.Abstraction.csproj" />
+    <ProjectReference Include="../Configlue.Core/Configlue.Core.csproj" />
+    <PackageReference
+      Include="Microsoft.Extensions.DependencyInjection.Abstractions"
+      Version="10.0.0"
+    />
+  </ItemGroup>
+</Project>

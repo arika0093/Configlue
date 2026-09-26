@@ -3,7 +3,8 @@
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.0" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="../../src/Configlue/Configlue.csproj" />
+    <ProjectReference Include="../../src/Configlue.Core/Configlue.Core.csproj" />
+    <ProjectReference Include="../../src/Configlue.Extensions.DI/Configlue.Extensions.DI.csproj" />
     <ProjectReference
       Include="../../src/Configlue.Generator/Configlue.Generator.csproj"
       OutputItemType="Analyzer"

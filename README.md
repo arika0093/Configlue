@@ -8,9 +8,10 @@ Browse the [Configlue documentation site](https://arika0093.github.io/Configlue/
 
 ## Projects
 
-- `Configlue`: user-facing package with the runtime, dependency injection, and source generator.
+- `Configlue`: user-facing meta-package that brings in Core, dependency injection, and the source-generator analyzer.
 - `Configlue.Abstraction`: provider, codec, resource, and generated-model contracts.
-- `Configlue.Core`: state resolution, persistence, and dependency injection runtime.
+- `Configlue.Core`: state resolution and persistence runtime.
+- `Configlue.Extensions.DI`: dependency-injection registration and Microsoft options adapters.
 - `Configlue.Generator`: generated sparse model support.
 - `Configlue.Testing`: in-memory resources and test doubles.
 - `Configlue.Provider.*`: JSON, XML, and YAML codecs with their section resources.

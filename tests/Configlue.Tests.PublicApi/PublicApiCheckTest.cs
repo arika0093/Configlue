@@ -71,7 +71,7 @@ public sealed class PublicApiCheckTest
     public void Core() => PublicApiCheck.CheckAssembly(typeof(ConfiglueOptions<,>).Assembly);
 
     [Test]
-    public void Facade() =>
+    public void DependencyInjection() =>
         PublicApiCheck.CheckAssembly(typeof(ConfiglueServiceCollectionExtensions).Assembly);
 
     [Test]
