@@ -255,6 +255,43 @@ public sealed class StateRuntimeTests
     }
 
     [Test]
+    public async Task ConfigureSession_RejectsChangesToAnyParticipatingSource()
+    {
+        var user = new InMemoryStateStore<AppSettings.Fragment>(new AppSettings.Fragment
+        {
+            Enabled = Optional<bool>.Present(true),
+        });
+        var defaults = new InMemoryStateStore<AppSettings.Fragment>(new AppSettings.Fragment
+        {
+            RetryCount = Optional<int>.Present(3),
+        });
+        var sources = new StateSourceSet<AppSettings.Fragment>(
+        [
+            new("user", user, priority: 100, writer: user),
+            new("defaults", defaults, priority: 0),
+        ]);
+        var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(sources);
+        using var session = await options.BeginConfigureAsync();
+        session.Value.Enabled = false;
+        defaults.Set(new AppSettings.Fragment { RetryCount = Optional<int>.Present(8) });
+
+        var conflicted = false;
+        try
+        {
+            await session.SaveAsync();
+        }
+        catch (StateConflictException)
+        {
+            conflicted = true;
+        }
+
+        var storedUser = await user.ReadAsync();
+        await Assert.That(conflicted).IsTrue();
+        await Assert.That(storedUser.Value!.Enabled.Value).IsTrue();
+        await Assert.That(storedUser.Revision).IsEqualTo("1");
+    }
+
+    [Test]
     public async Task Options_MigratesEachSourceFragmentBeforeMerging()
     {
         var oldSchema = new StateSchemaMetadata("app-settings", 1);

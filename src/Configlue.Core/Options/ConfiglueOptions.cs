@@ -204,8 +204,17 @@ public sealed class ConfiglueOptions<TModel, TFragment> : IWritableOptions<TMode
         }
 
         var draft = resolved.Value!.DeepClone();
-        return new ConfigureSession<TModel>(draft,
-            (value, token) => WriteToSourceAsync(source, value, expectedRevision, token));
+        var expectedRevisions = resolved.Revisions;
+        return new ConfigureSession<TModel>(draft, async (value, token) =>
+        {
+            var latest = await ReadAsync(token).ConfigureAwait(false);
+            if (latest.Status != StateReadStatus.Success || !HaveSameRevisions(expectedRevisions, latest.Revisions))
+            {
+                throw new StateConflictException("A state source changed after the configuration edit began.");
+            }
+
+            return await WriteToSourceAsync(source, value, expectedRevision, token).ConfigureAwait(false);
+        });
     }
 
     /// <inheritdoc />

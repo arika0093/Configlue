@@ -34,6 +34,7 @@ File resources keep one atomic `.bak` generation by default; `FileResourceOption
 Use `StateSourceProjection.Project` to map a source-specific fragment into a nested model fragment; provide a reverse projection to enable writes to that source.
 Change notifications are debounced by 300ms by default; pass `onChangeDebounce: TimeSpan.Zero` to a registration to disable it.
 `IWritableOptions<T>.MigrateSourceAsync(sourceId, targetId)` copies one source contribution, applies its schema migration chain, and writes it to a selected destination.
+Configure sessions compare the full source revision vector immediately before saving and fail with `StateConflictException` if any participating source changed.
 
 ```csharp
 services.AddConfiglueOptions<AppConfig, AppConfig.Fragment>(
