@@ -628,6 +628,110 @@ public sealed class StateRuntimeTests
     }
 
     [Test]
+    public async Task Options_CompositeReaderPreservesNestedIdentityAndPhysicalOrigin()
+    {
+        var primary = new OpaqueRevisionStateStore<AppSettings.Fragment>(
+            StateReadStatus.Unavailable,
+            physicalOrigin: "primary://settings"
+        );
+        var fallback = new OpaqueRevisionStateStore<AppSettings.Fragment>(
+            StateReadStatus.Success,
+            new AppSettings.Fragment { RetryCount = Optional<int>.Present(4) },
+            "fallback://settings"
+        );
+        var primaryRuntime = new CompositeStateRuntime<AppSettings.Fragment>(
+            new StateSourceSet<AppSettings.Fragment>([
+                new("database", primary, watcher: primary, physicalOrigin: "primary://settings"),
+            ])
+        );
+        var runtime = new CompositeStateRuntime<AppSettings.Fragment>(
+            new StateSourceSet<AppSettings.Fragment>([
+                new(
+                    "remote",
+                    primaryRuntime.Reader,
+                    priority: 100,
+                    fallbackCondition: StateFallbackCondition.Unavailable,
+                    watcher: primaryRuntime.Watcher,
+                    physicalOrigin: "logical://remote"
+                ),
+                new(
+                    "local",
+                    fallback,
+                    priority: 0,
+                    watcher: fallback,
+                    physicalOrigin: "fallback://settings"
+                ),
+            ])
+        );
+        await using var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(
+            new StateSourceSet<AppSettings.Fragment>([
+                new(
+                    "composite",
+                    runtime.Reader,
+                    writer: runtime.Writer,
+                    watcher: runtime.Watcher,
+                    physicalOrigin: "logical://settings"
+                ),
+            ]),
+            onChangeDebounce: TimeSpan.Zero
+        );
+
+        var initial = await options.ReadAsync();
+        var initialExplanation = await options.ExplainAsync("RetryCount");
+        using var staleSession = await options.BeginConfigureAsync();
+        staleSession.Value.RetryCount = 8;
+        var changed = new TaskCompletionSource<int>(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        using var subscription = options.OnChange(value => changed.TrySetResult(value.RetryCount));
+
+        (initial.Value!.RetryCount).ShouldBe(4);
+        (initial.Revision).ShouldBe("opaque");
+        (initial.PhysicalOrigin).ShouldBe("fallback://settings");
+        (initialExplanation.Contributions.Single().PhysicalOrigin).ShouldBe("fallback://settings");
+        initial.Revisions!.NestedRevisions.Count.ShouldBe(1);
+        var initialNested = initial.Revisions.NestedRevisions["composite"];
+        (initialNested.TryGetRevision("remote", out _)).ShouldBeTrue();
+        (initialNested.TryGetRevision("local", out _)).ShouldBeTrue();
+        initialNested.NestedRevisions.Count.ShouldBe(1);
+        (initialNested.NestedRevisions["remote"].TryGetRevision("database", out _)).ShouldBeTrue();
+        await primary.WatchStarted.WaitAsync(TimeSpan.FromSeconds(5));
+
+        primary.SetSuccess(
+            new AppSettings.Fragment { RetryCount = Optional<int>.Present(9) },
+            "primary://settings"
+        );
+
+        (await changed.Task.WaitAsync(TimeSpan.FromSeconds(5))).ShouldBe(9);
+        var conflictThrown = false;
+        try
+        {
+            await staleSession.SaveAsync();
+        }
+        catch (StateConflictException)
+        {
+            conflictThrown = true;
+        }
+
+        conflictThrown.ShouldBeTrue();
+        var recovered = await options.ReadAsync();
+        var recoveredExplanation = await options.ExplainAsync("RetryCount");
+
+        (recovered.Revision).ShouldBe("opaque");
+        (recovered.PhysicalOrigin).ShouldBe("primary://settings");
+        (recoveredExplanation.Contributions.Single().SourceId).ShouldBe("composite");
+        (recoveredExplanation.Contributions.Single().PhysicalOrigin).ShouldBe("primary://settings");
+        recovered.Revisions!.NestedRevisions.Count.ShouldBe(1);
+        var recoveredNested = recovered.Revisions.NestedRevisions["composite"];
+        (recoveredNested.TryGetRevision("remote", out _)).ShouldBeTrue();
+        (recoveredNested.TryGetRevision("local", out _)).ShouldBeFalse();
+        recoveredNested.NestedRevisions.Count.ShouldBe(1);
+        (
+            recoveredNested.NestedRevisions["remote"].TryGetRevision("database", out _)
+        ).ShouldBeTrue();
+    }
+
+    [Test]
     public async Task Options_DebouncesRapidSourceChangesAndReportsTheLatestValue()
     {
         var store = new InMemoryStateStore<AppSettings.Fragment>(
@@ -1854,6 +1958,81 @@ public sealed class StateRuntimeTests
             cancellationToken.ThrowIfCancellationRequested();
             return ValueTask.FromResult(result);
         }
+    }
+
+    private sealed class OpaqueRevisionStateStore<T> : IStateReader<T>, IStateWatcher
+    {
+        private const string Revision = "opaque";
+        private readonly object _gate = new();
+        private StateReadResult<T> _result;
+        private TaskCompletionSource _changed = NewSignal();
+        private readonly TaskCompletionSource _watchStarted = NewSignal();
+
+        public OpaqueRevisionStateStore(
+            StateReadStatus status,
+            T? value = default,
+            string? physicalOrigin = null
+        ) =>
+            _result = new StateReadResult<T>(
+                status,
+                value,
+                Revision,
+                PhysicalOrigin: physicalOrigin
+            );
+
+        public Task WatchStarted => _watchStarted.Task;
+
+        public ValueTask<StateReadResult<T>> ReadAsync(
+            CancellationToken cancellationToken = default
+        )
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            lock (_gate)
+            {
+                return ValueTask.FromResult(_result);
+            }
+        }
+
+        public async ValueTask WaitForChangeAsync(
+            string? observedRevision,
+            CancellationToken cancellationToken = default
+        )
+        {
+            Task waitTask;
+            lock (_gate)
+            {
+                if (!string.Equals(observedRevision, Revision, StringComparison.Ordinal))
+                {
+                    return;
+                }
+
+                _watchStarted.TrySetResult();
+                waitTask = _changed.Task;
+            }
+
+            await waitTask.WaitAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        public void SetSuccess(T value, string? physicalOrigin)
+        {
+            TaskCompletionSource changed;
+            lock (_gate)
+            {
+                _result = new StateReadResult<T>(
+                    StateReadStatus.Success,
+                    value,
+                    Revision,
+                    PhysicalOrigin: physicalOrigin
+                );
+                changed = _changed;
+                _changed = NewSignal();
+            }
+
+            changed.TrySetResult();
+        }
+
+        private static TaskCompletionSource NewSignal() =>
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
     }
 
     private sealed class PendingStateWatcher : IStateWatcher

@@ -135,7 +135,7 @@ public sealed class ConfiglueOptions<TModel, TFragment>
                 sourceContributions.Add(
                     new ConfiglueSourceContribution(
                         contribution.Source.Id,
-                        contribution.Source.PhysicalOrigin,
+                        contribution.Result.PhysicalOrigin,
                         contribution.Result.Revision,
                         value
                     )
@@ -166,6 +166,7 @@ public sealed class ConfiglueOptions<TModel, TFragment>
     {
         var contributions = new List<ResolvedContribution>();
         var revisions = new List<StateRevision>();
+        var nestedRevisions = new List<KeyValuePair<string, StateRevisionVector>>();
         StateReadResult<TFragment> lastFailure = default;
 
         foreach (var source in GetActiveSources())
@@ -188,6 +189,13 @@ public sealed class ConfiglueOptions<TModel, TFragment>
 
             var result = sourceResult.FromSource(source.Id, source.PhysicalOrigin);
             revisions.Add(new StateRevision(source.Id, result.Revision));
+            if (sourceResult.Revisions is { } nestedVector)
+            {
+                nestedRevisions.Add(
+                    new KeyValuePair<string, StateRevisionVector>(source.Id, nestedVector)
+                );
+            }
+
             if (result.Status == StateReadStatus.Success)
             {
                 if (result.Value is null)
@@ -221,7 +229,7 @@ public sealed class ConfiglueOptions<TModel, TFragment>
                         result.SourceId,
                         result.PhysicalOrigin,
                         result.Schema,
-                        new StateRevisionVector(revisions)
+                        new StateRevisionVector(revisions, nestedRevisions)
                     ),
                     contributions,
                     null
@@ -239,7 +247,7 @@ public sealed class ConfiglueOptions<TModel, TFragment>
                     lastFailure.SourceId,
                     lastFailure.PhysicalOrigin,
                     lastFailure.Schema,
-                    new StateRevisionVector(revisions)
+                    new StateRevisionVector(revisions, nestedRevisions)
                 ),
                 contributions,
                 null
@@ -261,8 +269,8 @@ public sealed class ConfiglueOptions<TModel, TFragment>
         ) with
         {
             SourceId = active?.Source.Id,
-            PhysicalOrigin = active?.Source.PhysicalOrigin,
-            Revisions = new StateRevisionVector(revisions),
+            PhysicalOrigin = active?.Result.PhysicalOrigin,
+            Revisions = new StateRevisionVector(revisions, nestedRevisions),
         };
         return new ResolvedState(resolvedResult, contributions, merged);
     }
@@ -2710,9 +2718,14 @@ public sealed class ConfiglueOptions<TModel, TFragment>
         }
 
         return left.Revisions.All(pair =>
-            right.TryGetRevision(pair.Key, out var revision)
-            && string.Equals(pair.Value, revision, StringComparison.Ordinal)
-        );
+                right.TryGetRevision(pair.Key, out var revision)
+                && string.Equals(pair.Value, revision, StringComparison.Ordinal)
+            )
+            && left.NestedRevisions.Count == right.NestedRevisions.Count
+            && left.NestedRevisions.All(pair =>
+                right.TryGetNestedRevisions(pair.Key, out var nested)
+                && HaveSameRevisions(pair.Value, nested)
+            );
     }
 
     private static TaskCompletionSource NewTopologySignal() =>

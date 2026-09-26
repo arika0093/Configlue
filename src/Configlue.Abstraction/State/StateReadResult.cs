@@ -26,11 +26,14 @@ public readonly record struct StateReadResult<T>(
     public static StateReadResult<T> Unavailable(string? revision = null) =>
         new(StateReadStatus.Unavailable, default, revision);
 
-    /// <summary>Returns this result associated with its logical source and physical origin.</summary>
+    /// <summary>
+    /// Returns this result associated with its logical source. An existing physical origin is preserved;
+    /// <paramref name="physicalOrigin"/> is used when the result does not already identify one.
+    /// </summary>
     public StateReadResult<T> FromSource(string sourceId, string? physicalOrigin = null) =>
         this with
         {
             SourceId = sourceId,
-            PhysicalOrigin = physicalOrigin,
+            PhysicalOrigin = PhysicalOrigin ?? physicalOrigin,
         };
 }

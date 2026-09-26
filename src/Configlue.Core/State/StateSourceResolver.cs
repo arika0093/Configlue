@@ -23,22 +23,30 @@ public sealed class StateSourceResolver<T> : IStateReader<T>
     {
         StateReadResult<T> lastResult = default;
         var revisions = new List<StateRevision>();
+        var nestedRevisions = new List<KeyValuePair<string, StateRevisionVector>>();
         foreach (var source in _sourceSet.Sources)
         {
             cancellationToken.ThrowIfCancellationRequested();
             var result = await source.Reader.ReadAsync(cancellationToken).ConfigureAwait(false);
             result = result.FromSource(source.Id, source.PhysicalOrigin);
             revisions.Add(new StateRevision(source.Id, result.Revision));
+            if (result.Revisions is { } nestedVector)
+            {
+                nestedRevisions.Add(
+                    new KeyValuePair<string, StateRevisionVector>(source.Id, nestedVector)
+                );
+            }
+
             if (result.Status == StateReadStatus.Success)
             {
-                var revisionVector = new StateRevisionVector(revisions);
+                var revisionVector = new StateRevisionVector(revisions, nestedRevisions);
                 Volatile.Write(ref _resolution, new Resolution(source, revisionVector));
                 return result with { Revisions = revisionVector };
             }
 
             if (!CanFallBack(source.FallbackCondition, result.Status))
             {
-                var revisionVector = new StateRevisionVector(revisions);
+                var revisionVector = new StateRevisionVector(revisions, nestedRevisions);
                 Volatile.Write(ref _resolution, new Resolution(null, revisionVector));
                 return result with { Revisions = revisionVector };
             }
@@ -46,7 +54,7 @@ public sealed class StateSourceResolver<T> : IStateReader<T>
             lastResult = result;
         }
 
-        var finalVector = new StateRevisionVector(revisions);
+        var finalVector = new StateRevisionVector(revisions, nestedRevisions);
         Volatile.Write(ref _resolution, new Resolution(null, finalVector));
         return lastResult with { Revisions = finalVector };
     }
