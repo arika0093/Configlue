@@ -515,6 +515,12 @@ public sealed class ConfiglueOptions<TModel, TFragment> : IWritableOptions<TMode
             throw new InvalidOperationException($"The edited configuration could not be resolved: {proposed.Status}.");
         }
 
+        if (!TModel.Diff(proposed.Value!, after).IsEmpty)
+        {
+            throw new StateConflictException(
+                $"State source '{source.Id}' cannot realize the requested edit while preserving higher-priority contributions.");
+        }
+
         Validate(proposed.Value!);
         return await source.Writer!.WriteAsync(
             new StateWriteRequest<TFragment>(updated, current.Revision, CheckRevision: true),

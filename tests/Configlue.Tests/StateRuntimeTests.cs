@@ -423,6 +423,36 @@ public sealed class StateRuntimeTests
     }
 
     [Test]
+    public async Task ConfigureSession_RejectsAWriteHiddenByHigherPriorityReadOnlySource()
+    {
+        var policy = new InMemoryStateStore<AppSettings.Fragment>(new AppSettings.Fragment
+        {
+            Enabled = Optional<bool>.Present(true),
+        });
+        var user = new InMemoryStateStore<AppSettings.Fragment>();
+        var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(new StateSourceSet<AppSettings.Fragment>(
+        [
+            new("policy", policy, priority: 100),
+            new("user", user, priority: 0, writer: user),
+        ]));
+
+        using var session = await options.BeginConfigureAsync();
+        session.Value.Enabled = false;
+        var rejected = false;
+        try
+        {
+            await session.SaveAsync();
+        }
+        catch (StateConflictException)
+        {
+            rejected = true;
+        }
+
+        await Assert.That(rejected).IsTrue();
+        await Assert.That((await user.ReadAsync()).Status).IsEqualTo(StateReadStatus.NotFound);
+    }
+
+    [Test]
     public async Task Options_MigratesEachSourceFragmentBeforeMerging()
     {
         var oldSchema = new StateSchemaMetadata("app-settings", 1);
