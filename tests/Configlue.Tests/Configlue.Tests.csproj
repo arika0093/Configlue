@@ -12,11 +12,11 @@
   <ItemGroup>
     <ProjectReference Include="../../src/Configlue/Configlue.csproj" />
     <ProjectReference Include="../../src/Configlue.Generator/Configlue.Generator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
-    <ProjectReference Include="../../src/providers/Configlue.Provider.Json/Configlue.Provider.Json.csproj" />
-    <ProjectReference Include="../../src/providers/Configlue.Provider.Xml/Configlue.Provider.Xml.csproj" />
-    <ProjectReference Include="../../src/providers/Configlue.Provider.Yaml/Configlue.Provider.Yaml.csproj" />
-    <ProjectReference Include="../../src/providers/Configlue.Provider.Environment/Configlue.Provider.Environment.csproj" />
-    <ProjectReference Include="../../src/providers/Configlue.Provider.Zip/Configlue.Provider.Zip.csproj" />
+    <ProjectReference Include="../../src/Configlue.Provider.Json/Configlue.Provider.Json.csproj" />
+    <ProjectReference Include="../../src/Configlue.Provider.Xml/Configlue.Provider.Xml.csproj" />
+    <ProjectReference Include="../../src/Configlue.Provider.Yaml/Configlue.Provider.Yaml.csproj" />
+    <ProjectReference Include="../../src/Configlue.Source.Environment/Configlue.Source.Environment.csproj" />
+    <ProjectReference Include="../../src/Configlue.Resource.Zip/Configlue.Resource.Zip.csproj" />
     <ProjectReference Include="../../src/Configlue.Testing/Configlue.Testing.csproj" />
   </ItemGroup>
 </Project>

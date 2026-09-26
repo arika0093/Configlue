@@ -6,7 +6,7 @@
     <PackageDescription>YAML codec for Configlue resources.</PackageDescription>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="../../Configlue.Abstraction/Configlue.Abstraction.csproj" />
+    <ProjectReference Include="../Configlue.Abstraction/Configlue.Abstraction.csproj" />
     <PackageReference Include="YamlDotNet" Version="16.3.0" />
   </ItemGroup>
 </Project>

@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>Configlue.Source.Environment</AssemblyName>
+    <RootNamespace>Configlue.Source.Environment</RootNamespace>
+    <IsPackable>true</IsPackable>
+    <PackageDescription>Environment variable source for Configlue state.</PackageDescription>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Configlue.Abstraction/Configlue.Abstraction.csproj" />
+  </ItemGroup>
+</Project>

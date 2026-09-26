@@ -1,5 +1,5 @@
 using Configlue;
-using Configlue.Provider.Environment;
+using Configlue.Source.Environment;
 using Configlue.Testing;
 
 namespace Configlue.Tests;

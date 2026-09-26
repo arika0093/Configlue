@@ -1,6 +1,6 @@
 using Configlue;
 
-namespace Configlue.Provider.Environment;
+namespace Configlue.Source.Environment;
 
 /// <summary>Creates read-only state sources from prefixed process environment variables.</summary>
 public static class EnvironmentStateSource

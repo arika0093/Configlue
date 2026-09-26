@@ -1,7 +1,7 @@
 using System.Buffers;
 using System.IO.Compression;
 using Configlue.Provider.Json;
-using Configlue.Provider.Zip;
+using Configlue.Resource.Zip;
 using Configlue.Testing;
 
 namespace Configlue.Tests;

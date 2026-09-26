@@ -4,7 +4,7 @@ using System.Security.Cryptography;
 using System.Text;
 using Configlue;
 
-namespace Configlue.Provider.Environment;
+namespace Configlue.Source.Environment;
 
 /// <summary>Reads prefixed environment variables into a generated sparse model fragment.</summary>
 /// <typeparam name="TFragment">The generated fragment type.</typeparam>

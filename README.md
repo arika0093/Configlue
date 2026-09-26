@@ -11,7 +11,9 @@ The repository is being rebuilt around backend-neutral state and sparse generate
 - `Configlue.Core`: state resolution, persistence, and dependency injection runtime.
 - `Configlue.Generator`: generated sparse model support.
 - `Configlue.Testing`: in-memory resources and test doubles.
-- `Configlue.Provider.*`: JSON, XML, and YAML codecs, an environment-variable source, plus ZIP entry resources.
+- `Configlue.Provider.*`: JSON, XML, and YAML codecs with their section resources.
+- `Configlue.Source.Environment`: a read-only source backed by process environment variables.
+- `Configlue.Resource.Zip`: a resource view over one entry in a ZIP archive.
 
 ## Build
 
@@ -52,7 +54,7 @@ Unchanged fields retain their existing sparse state. `Append` and `SetUnion` edi
 `ZipEntryResource` exposes one archive entry as a logical resource while retaining the archive's physical identity and revision. Disjoint entry updates can share one batched archive write, and untouched entries remain intact.
 `JsonSchemaGenerator.Generate` and `Write` export versioned schemas from a model's generated `ConfiglueModelSchema`; pass a source-generated `IJsonTypeInfoResolver` for trimming and NativeAOT-friendly metadata. Supported DataAnnotations are mapped to schema constraints.
 
-`Configlue.Provider.Environment.EnvironmentStateSource.FromEnvironment<AppConfig, AppConfig.Fragment>("environment", "APP")` creates a read-only sparse source from process environment variables such as `APP__DATABASE__HOST`. Double underscores separate nested model members; member names are matched case-insensitively. Common scalar values use invariant parsing, and a custom parser can handle application-specific types. The reader recalculates a content revision on each read; process environment variables do not provide a watcher.
+`Configlue.Source.Environment.EnvironmentStateSource.FromEnvironment<AppConfig, AppConfig.Fragment>("environment", "APP")` creates a read-only sparse source from process environment variables such as `APP__DATABASE__HOST`. Double underscores separate nested model members; member names are matched case-insensitively. Common scalar values use invariant parsing, and a custom parser can handle application-specific types. The reader recalculates a content revision on each read; process environment variables do not provide a watcher.
 
 ```csharp
 // UserSettingsSource implements IStateReader<AppConfig.Fragment>,

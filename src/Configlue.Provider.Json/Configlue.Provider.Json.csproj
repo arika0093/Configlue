@@ -6,6 +6,6 @@
     <PackageDescription>JSON codec and schema export for Configlue resources.</PackageDescription>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="../../Configlue.Abstraction/Configlue.Abstraction.csproj" />
+    <ProjectReference Include="../Configlue.Abstraction/Configlue.Abstraction.csproj" />
   </ItemGroup>
 </Project>

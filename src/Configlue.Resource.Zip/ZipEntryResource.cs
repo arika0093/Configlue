@@ -1,6 +1,6 @@
 using System.IO.Compression;
 
-namespace Configlue.Provider.Zip;
+namespace Configlue.Resource.Zip;
 
 /// <summary>A logical resource view over one entry in a shared ZIP archive resource.</summary>
 public sealed class ZipEntryResource : IResourceReader, IResourceWriter, IStateWatcher, IResourceIdentity, IResourceBatchParticipant

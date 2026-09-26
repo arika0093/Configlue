@@ -6,12 +6,16 @@
     <Project Path="src/Configlue.Testing/Configlue.Testing.csproj" />
     <Project Path="src/Configlue/Configlue.csproj" />
   </Folder>
-  <Folder Name="/src/providers/">
-    <Project Path="src/providers/Configlue.Provider.Json/Configlue.Provider.Json.csproj" />
-    <Project Path="src/providers/Configlue.Provider.Xml/Configlue.Provider.Xml.csproj" />
-    <Project Path="src/providers/Configlue.Provider.Yaml/Configlue.Provider.Yaml.csproj" />
-    <Project Path="src/providers/Configlue.Provider.Environment/Configlue.Provider.Environment.csproj" />
-    <Project Path="src/providers/Configlue.Provider.Zip/Configlue.Provider.Zip.csproj" />
+  <Folder Name="/src/Providers/">
+    <Project Path="src/Configlue.Provider.Json/Configlue.Provider.Json.csproj" />
+    <Project Path="src/Configlue.Provider.Xml/Configlue.Provider.Xml.csproj" />
+    <Project Path="src/Configlue.Provider.Yaml/Configlue.Provider.Yaml.csproj" />
+  </Folder>
+  <Folder Name="/src/Sources/">
+    <Project Path="src/Configlue.Source.Environment/Configlue.Source.Environment.csproj" />
+  </Folder>
+  <Folder Name="/src/Resources/">
+    <Project Path="src/Configlue.Resource.Zip/Configlue.Resource.Zip.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Configlue.Tests/Configlue.Tests.csproj" />
