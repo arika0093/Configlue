@@ -403,6 +403,63 @@ public sealed class StateRuntimeTests
         await Assert.That(removedAgain).IsFalse();
     }
 
+    [Test]
+    public async Task SourceProjection_MapsNestedSourceContractsAndRoutesWritesBack()
+    {
+        var remoteDatabase = new InMemoryStateStore<DatabaseSettings.Fragment>(new DatabaseSettings.Fragment
+        {
+            Host = Optional<string>.Present("remote.db"),
+        });
+        var defaults = new InMemoryStateStore<AppSettings.Fragment>(new AppSettings.Fragment
+        {
+            RetryCount = Optional<int>.Present(3),
+            Database = Optional<DatabaseSettings.Fragment?>.Present(new DatabaseSettings.Fragment
+            {
+                Host = Optional<string>.Present("default.db"),
+                Port = Optional<int>.Present(5432),
+            }),
+        });
+        var databaseSource = new StateSource<DatabaseSettings.Fragment>(
+            "remote-database", remoteDatabase, priority: 100, writer: remoteDatabase, physicalOrigin: "database-row");
+        var projectedSource = StateSourceProjection.Project<DatabaseSettings.Fragment, AppSettings.Fragment>(
+            databaseSource,
+            fragment => new AppSettings.Fragment
+            {
+                Database = Optional<DatabaseSettings.Fragment?>.Present(fragment),
+            },
+            root => root.Database.IsPresent ? root.Database.Value! : DatabaseSettings.Fragment.Empty,
+            AppSettings.ConfiglueSchema.ToMetadata());
+        var sourceSet = new StateSourceSet<AppSettings.Fragment>(
+        [
+            projectedSource,
+            new("defaults", defaults, priority: 0),
+        ]);
+        var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(
+            sourceSet,
+            StateWriteRoute.To("remote-database"));
+
+        var resolved = await options.ReadAsync();
+        await options.ApplyPatchAsync(new AppSettings.Patch
+        {
+            Database = FragmentOperation<DatabaseSettings.Fragment?>.Set(new DatabaseSettings.Fragment
+            {
+                Host = Optional<string>.Present("saved.db"),
+                Port = Optional<int>.Present(7443),
+            }),
+        });
+        var savedSourceValue = await remoteDatabase.ReadAsync();
+        var resolvedAfterWrite = await options.ReadAsync();
+
+        await Assert.That(resolved.Value!.RetryCount).IsEqualTo(3);
+        await Assert.That(resolved.Value.Database!.Host).IsEqualTo("remote.db");
+        await Assert.That(resolved.Value.Database.Port).IsEqualTo(5432);
+        await Assert.That(resolved.PhysicalOrigin).IsEqualTo("database-row");
+        await Assert.That(savedSourceValue.Value!.Host.Value).IsEqualTo("saved.db");
+        await Assert.That(savedSourceValue.Value.Port.Value).IsEqualTo(7443);
+        await Assert.That(savedSourceValue.Value.Host.IsPresent).IsTrue();
+        await Assert.That(resolvedAfterWrite.Value!.RetryCount).IsEqualTo(3);
+    }
+
     private sealed class FixedStateReader<T>(StateReadResult<T> result) : IStateReader<T>
     {
         public ValueTask<StateReadResult<T>> ReadAsync(CancellationToken cancellationToken = default)

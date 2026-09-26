@@ -31,6 +31,7 @@ Generated `TModel.Patch` values can be sent through `IWritableOptions<TModel>.Ap
 Named profiles can use keyed DI registrations, for example `AddConfiglueOptions<TModel, TModel.Fragment>("profile", sourceSet)` and `GetRequiredKeyedService<IReadOnlyOptions<TModel>>("profile")`.
 For profiles created during runtime, register `AddConfiglueOptionsRegistry<TModel, TModel.Fragment>(...)`, then use `IConfiglueOptionsRegistry<TModel>.TryAdd`, `Get`, and `TryRemove`.
 File resources keep one atomic `.bak` generation by default; `FileResourceOptions` can retain more generations in a chosen directory, and `RestoreLatestBackupAsync` restores the newest one explicitly.
+Use `StateSourceProjection.Project` to map a source-specific fragment into a nested model fragment; provide a reverse projection to enable writes to that source.
 
 ```csharp
 services.AddConfiglueOptions<AppConfig, AppConfig.Fragment>(
