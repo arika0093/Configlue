@@ -16,6 +16,12 @@ dotnet run --project example/Example.SimpleApp
 dotnet run --project example/Example.SimpleApp -- --set-name Ada
 ```
 
+`Example.WorkerService` registers Configlue with the Generic Host and runs a background worker. The worker reads the settings, increments `RunCount`, and saves them every five seconds. Press Ctrl+C to stop it:
+
+```sh
+dotnet run --project example/Example.WorkerService
+```
+
 `Example.ConsoleApp.NativeAot` uses source-generated `System.Text.Json` metadata and projects the persisted model into Configlue's sparse fragment. Publish it for Linux with:
 
 ```sh
