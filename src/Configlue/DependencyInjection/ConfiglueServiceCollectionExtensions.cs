@@ -6,6 +6,30 @@ namespace Configlue;
 /// <summary>Registers generated Configlue options with dependency injection.</summary>
 public static class ConfiglueServiceCollectionExtensions
 {
+    /// <summary>Registers options using a dependency-injection-aware source builder.</summary>
+    public static IServiceCollection AddConfiglueOptions<TModel, TFragment>(
+        this IServiceCollection services,
+        Action<IServiceProvider, StateSourceSetBuilder<TFragment>> configureSources,
+        StateWriteRoute writeRoute = default,
+        bool validateDataAnnotations = false,
+        TimeSpan? onChangeDebounce = null)
+        where TModel : IConfiglueModel<TModel, TFragment>
+        where TFragment : class, IConfiglueFragment<TFragment>
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(configureSources);
+        return services.AddConfiglueOptions<TModel, TFragment>(
+            provider =>
+            {
+                var sources = new StateSourceSetBuilder<TFragment>();
+                configureSources(provider, sources);
+                return sources.Build();
+            },
+            writeRoute,
+            validateDataAnnotations,
+            onChangeDebounce);
+    }
+
     /// <summary>Registers options backed by a state-source set created from the service provider.</summary>
     public static IServiceCollection AddConfiglueOptions<TModel, TFragment>(
         this IServiceCollection services,
@@ -47,6 +71,32 @@ public static class ConfiglueServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(sourceSet);
         return services.AddConfiglueOptions<TModel, TFragment>(
             _ => sourceSet, writeRoute, validateDataAnnotations, onChangeDebounce);
+    }
+
+    /// <summary>Registers a named profile using a dependency-injection-aware source builder.</summary>
+    public static IServiceCollection AddConfiglueOptions<TModel, TFragment>(
+        this IServiceCollection services,
+        object serviceKey,
+        Action<IServiceProvider, StateSourceSetBuilder<TFragment>> configureSources,
+        StateWriteRoute writeRoute = default,
+        bool validateDataAnnotations = false,
+        TimeSpan? onChangeDebounce = null)
+        where TModel : IConfiglueModel<TModel, TFragment>
+        where TFragment : class, IConfiglueFragment<TFragment>
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(configureSources);
+        return services.AddConfiglueOptions<TModel, TFragment>(
+            serviceKey,
+            provider =>
+            {
+                var sources = new StateSourceSetBuilder<TFragment>();
+                configureSources(provider, sources);
+                return sources.Build();
+            },
+            writeRoute,
+            validateDataAnnotations,
+            onChangeDebounce);
     }
 
     /// <summary>Registers a named configuration profile as keyed dependency-injection services.</summary>

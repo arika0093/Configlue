@@ -25,6 +25,7 @@ dotnet test --solution Configlue.slnx --configuration Release
 ## Runtime
 
 Register generated model options with a prioritized state-source set. Reads merge the present members from each source, and writes can target a source independently of read priority.
+For DI-backed registration, the `(provider, sources) => ...` overload of `AddConfiglueOptions<TModel, TFragment>` resolves provider services and adds them with `sources.Add(id, reader, priority, fallbackCondition)`. Writer and watcher interfaces implemented by the reader are detected automatically; use `WithWriter` or `WithWatcher` for separate services. The callback runs when the options singleton is created. The builder is extensible, so provider packages can add their own source-registration extension methods.
 Register `IStateSchemaMigration<TFragment>` implementations as services to migrate older source fragments while reading them.
 Use `AddConfiglueValidator<T>(IValidateOptions<T>)` for a Microsoft options validator, or pass `validateDataAnnotations: true` when registering options.
 Class-model registrations also provide `IOptions<T>`, scoped `IOptionsSnapshot<T>`, and `IOptionsMonitor<T>` adapters. Their synchronous `Value` and `Get` calls read Configlue state synchronously; use `ReadAsync` or `GetValueAsync` in asynchronous application flows. String-keyed profiles and runtime registry profiles resolve by options name.
@@ -53,8 +54,19 @@ Unchanged fields retain their existing sparse state. `Append` and `SetUnion` edi
 `Configlue.Provider.Environment.EnvironmentStateSource.FromEnvironment<AppConfig, AppConfig.Fragment>("environment", "APP")` creates a read-only sparse source from process environment variables such as `APP__DATABASE__HOST`. Double underscores separate nested model members; member names are matched case-insensitively. Common scalar values use invariant parsing, and a custom parser can handle application-specific types. The reader recalculates a content revision on each read; process environment variables do not provide a watcher.
 
 ```csharp
+// UserSettingsSource implements IStateReader<AppConfig.Fragment>,
+// IStateWriter<AppConfig.Fragment>, and IStateWatcher.
+services.AddSingleton<UserSettingsSource>();
 services.AddConfiglueOptions<AppConfig, AppConfig.Fragment>(
-    sourceSet,
+    (provider, sources) =>
+    {
+        sources.Add(
+            "user-settings",
+            provider.GetRequiredService<UserSettingsSource>(),
+            priority: 100,
+            fallbackCondition: StateFallbackCondition.NotFound,
+            physicalOrigin: "user-settings.json");
+    },
     StateWriteRoute.To("user-settings"));
 
 var config = await serviceProvider
