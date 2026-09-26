@@ -21,6 +21,7 @@ public sealed class ConfiglueOptions<TModel, TFragment>
     private readonly StateWriteRoute _writeRoute;
     private readonly StateSchemaMigrationChain<TFragment> _migrationChain;
     private readonly IConfiglueValidator<TModel>[] _validators;
+    private readonly string _optionsName;
     private readonly bool _validateDataAnnotations;
     private readonly TimeSpan _onChangeDebounce;
     private readonly object _changeGate = new();
@@ -36,7 +37,8 @@ public sealed class ConfiglueOptions<TModel, TFragment>
         IEnumerable<IStateSchemaMigration<TFragment>>? migrations = null,
         IEnumerable<IConfiglueValidator<TModel>>? validators = null,
         bool validateDataAnnotations = false,
-        TimeSpan? onChangeDebounce = null
+        TimeSpan? onChangeDebounce = null,
+        string? optionsName = null
     )
     {
         ArgumentNullException.ThrowIfNull(sourceSet);
@@ -44,6 +46,7 @@ public sealed class ConfiglueOptions<TModel, TFragment>
         _activeSources = sourceSet.Sources.ToArray();
         _writeRoute = writeRoute;
         _validators = validators?.ToArray() ?? [];
+        _optionsName = optionsName ?? Options.DefaultName;
         _validateDataAnnotations = validateDataAnnotations;
         _onChangeDebounce = onChangeDebounce ?? TimeSpan.FromMilliseconds(300);
         if (_onChangeDebounce < TimeSpan.Zero)
@@ -2262,7 +2265,7 @@ public sealed class ConfiglueOptions<TModel, TFragment>
         var failures = new List<string>();
         foreach (var validator in _validators)
         {
-            failures.AddRange(validator.Validate(value));
+            failures.AddRange(validator.Validate(_optionsName, value));
         }
 
         if (_validateDataAnnotations)
@@ -2283,7 +2286,7 @@ public sealed class ConfiglueOptions<TModel, TFragment>
 
         if (failures.Count > 0)
         {
-            throw new OptionsValidationException(Options.DefaultName, typeof(TModel), failures);
+            throw new OptionsValidationException(_optionsName, typeof(TModel), failures);
         }
     }
 

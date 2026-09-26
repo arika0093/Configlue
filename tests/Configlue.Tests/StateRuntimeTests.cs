@@ -1123,6 +1123,74 @@ public sealed class StateRuntimeTests
     }
 
     [Test]
+    public async Task NamedAndRuntimeProfiles_PassTheirNamesToMicrosoftValidators()
+    {
+        var defaultStore = new InMemoryStateStore<AppSettings.Fragment>(
+            new AppSettings.Fragment { RetryCount = Optional<int>.Present(3) }
+        );
+        var keyedStore = new InMemoryStateStore<AppSettings.Fragment>(
+            new AppSettings.Fragment { RetryCount = Optional<int>.Present(3) }
+        );
+        var runtimeStores = new Dictionary<string, InMemoryStateStore<AppSettings.Fragment>>(
+            StringComparer.Ordinal
+        );
+        var services = new ServiceCollection();
+        services.AddConfiglueValidator(new ProfileScopedRetryCountValidator());
+        services.AddConfiglueOptions<AppSettings, AppSettings.Fragment>(
+            new StateSourceSet<AppSettings.Fragment>([
+                new("default", defaultStore, writer: defaultStore),
+            ])
+        );
+        services.AddConfiglueOptions<AppSettings, AppSettings.Fragment>(
+            "custom",
+            new StateSourceSet<AppSettings.Fragment>([
+                new("custom", keyedStore, writer: keyedStore),
+            ])
+        );
+        services.AddConfiglueOptionsRegistry<AppSettings, AppSettings.Fragment>(
+            (_, profileName) =>
+            {
+                var store = new InMemoryStateStore<AppSettings.Fragment>(
+                    new AppSettings.Fragment { RetryCount = Optional<int>.Present(3) }
+                );
+                runtimeStores.Add(profileName, store);
+                return new StateSourceSet<AppSettings.Fragment>([
+                    new(profileName, store, writer: store),
+                ]);
+            }
+        );
+        using var serviceProvider = services.BuildServiceProvider();
+
+        var defaultOptions = serviceProvider.GetRequiredService<IWritableOptions<AppSettings>>();
+        await defaultOptions.SaveAsync(new AppSettings { RetryCount = 12 });
+        ((await defaultStore.ReadAsync()).Value!.RetryCount.Value).ShouldBe(12);
+
+        var keyedOptions = serviceProvider.GetRequiredKeyedService<IWritableOptions<AppSettings>>(
+            "custom"
+        );
+        var keyedBefore = await keyedStore.ReadAsync();
+        var keyedFailure = await SaveInvalidAndCaptureAsync(keyedOptions);
+        var keyedAfter = await keyedStore.ReadAsync();
+
+        (keyedFailure.OptionsName).ShouldBe("custom");
+        (keyedFailure.Failures).ShouldContain("RetryCount is too high for this profile.");
+        (keyedAfter.Revision).ShouldBe(keyedBefore.Revision);
+        (keyedAfter.Value!.RetryCount.Value).ShouldBe(3);
+
+        var registry = serviceProvider.GetRequiredService<IConfiglueOptionsRegistry<AppSettings>>();
+        (registry.TryAdd("runtime")).ShouldBeTrue();
+        var runtimeOptions = registry.Get("runtime");
+        var runtimeBefore = await runtimeStores["runtime"].ReadAsync();
+        var runtimeFailure = await SaveInvalidAndCaptureAsync(runtimeOptions);
+        var runtimeAfter = await runtimeStores["runtime"].ReadAsync();
+
+        (runtimeFailure.OptionsName).ShouldBe("runtime");
+        (runtimeFailure.Failures).ShouldContain("RetryCount is too high for this profile.");
+        (runtimeAfter.Revision).ShouldBe(runtimeBefore.Revision);
+        (runtimeAfter.Value!.RetryCount.Value).ShouldBe(3);
+    }
+
+    [Test]
     public async Task ApplyPatchAsync_ChangesOnlyTheTargetContributionAndUnsetRevealsLowerValues()
     {
         var defaults = new InMemoryStateStore<AppSettings.Fragment>(
@@ -1781,5 +1849,31 @@ public sealed class StateRuntimeTests
             options.RetryCount > 10
                 ? ValidateOptionsResult.Fail("RetryCount exceeds the custom retry limit.")
                 : ValidateOptionsResult.Success;
+    }
+
+    private sealed class ProfileScopedRetryCountValidator : IValidateOptions<AppSettings>
+    {
+        public ValidateOptionsResult Validate(string? name, AppSettings options) =>
+            name is "custom" or "runtime" && options.RetryCount > 10
+                ? ValidateOptionsResult.Fail("RetryCount is too high for this profile.")
+                : ValidateOptionsResult.Success;
+    }
+
+    private static async Task<OptionsValidationException> SaveInvalidAndCaptureAsync(
+        IWritableOptions<AppSettings> options
+    )
+    {
+        try
+        {
+            await options.SaveAsync(new AppSettings { RetryCount = 12 });
+        }
+        catch (OptionsValidationException exception)
+        {
+            return exception;
+        }
+
+        throw new InvalidOperationException(
+            "The profile-specific validator did not reject the value."
+        );
     }
 }

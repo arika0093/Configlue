@@ -130,14 +130,15 @@ public static class ConfiglueServiceCollectionExtensions
 
         services.AddKeyedSingleton<ConfiglueOptions<TModel, TFragment>>(
             serviceKey,
-            (provider, _) =>
+            (provider, key) =>
                 new ConfiglueOptions<TModel, TFragment>(
                     sourceSetFactory(provider),
                     writeRoute,
                     provider.GetServices<IStateSchemaMigration<TFragment>>(),
                     provider.GetServices<IConfiglueValidator<TModel>>(),
                     validateDataAnnotations,
-                    onChangeDebounce
+                    onChangeDebounce,
+                    optionsName: key as string ?? Options.DefaultName
                 )
         );
         services.AddKeyedSingleton<IReadOnlyOptions<TModel>>(
@@ -203,7 +204,8 @@ public static class ConfiglueServiceCollectionExtensions
                     provider.GetServices<IStateSchemaMigration<TFragment>>(),
                     provider.GetServices<IConfiglueValidator<TModel>>(),
                     validateDataAnnotations,
-                    onChangeDebounce
+                    onChangeDebounce,
+                    optionsName: profileName
                 )
             )
         );
@@ -293,9 +295,11 @@ public static class ConfiglueServiceCollectionExtensions
         : IConfiglueValidator<TModel>
         where TModel : class
     {
-        public IReadOnlyList<string> Validate(TModel value)
+        public IReadOnlyList<string> Validate(TModel value) => Validate(Options.DefaultName, value);
+
+        public IReadOnlyList<string> Validate(string? name, TModel value)
         {
-            var result = validator.Validate(Options.DefaultName, value);
+            var result = validator.Validate(name ?? Options.DefaultName, value);
             return result.Failed ? result.Failures?.ToArray() ?? [] : [];
         }
     }
