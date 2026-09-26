@@ -9,7 +9,6 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../../src/Configlue/Configlue.csproj" />
-    <ProjectReference Include="../../src/Configlue.Provider.Json/Configlue.Provider.Json.csproj" />
     <ProjectReference
       Include="../../src/Configlue.Generator/Configlue.Generator.csproj"
       OutputItemType="Analyzer"

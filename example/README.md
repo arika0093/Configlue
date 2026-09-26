@@ -14,3 +14,10 @@ The settings file is written beside the executable. The sample uses `IWritableOp
 ```sh
 dotnet publish example/Example.ConsoleApp.NativeAot --configuration Release --runtime linux-x64 --self-contained true
 ```
+
+`Example.ConsoleApp.Yaml` persists the same kind of generated model as YAML, using camel-case member names:
+
+```sh
+dotnet run --project example/Example.ConsoleApp.Yaml
+dotnet run --project example/Example.ConsoleApp.Yaml -- --set-name Ada
+```

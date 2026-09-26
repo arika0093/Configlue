@@ -3,4 +3,7 @@
     <OutputType>Exe</OutputType>
     <PublishAot>true</PublishAot>
   </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/Configlue.Provider.Json/Configlue.Provider.Json.csproj" />
+  </ItemGroup>
 </Project>
