@@ -22,6 +22,15 @@ dotnet run --project example/Example.SimpleApp -- --set-name Ada
 dotnet run --project example/Example.WorkerService
 ```
 
+`Example.MultiSource` combines a high-priority HTTP policy source with writable explicit settings and read-only local and global JSON files. Missing or unavailable HTTP policy falls through to the file layers. Save a name into the explicit file with:
+
+```sh
+dotnet run --project example/Example.MultiSource
+dotnet run --project example/Example.MultiSource -- --set-name Ada
+```
+
+Set `CONFIGLUE_POLICY_URL` to an HTTP endpoint whose JSON body contains a `Policy` property to add the remote policy source. `example/Example.MultiSource/policy.json` is a small fixture for serving locally.
+
 `Example.ConsoleApp.NativeAot` uses source-generated `System.Text.Json` metadata and projects the persisted model into Configlue's sparse fragment. Publish it for Linux with:
 
 ```sh

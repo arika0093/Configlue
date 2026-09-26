@@ -1,0 +1,10 @@
+{
+  "$configlue": {
+    "id": "example.multi-source-settings",
+    "version": 1
+  },
+  "$value": {
+    "Name": "Local setting",
+    "Policy": "Local policy"
+  }
+}

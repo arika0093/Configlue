@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/Configlue.Provider.Json/Configlue.Provider.Json.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Update="globalsettings.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="localsettings.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="policy.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

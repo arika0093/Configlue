@@ -1,0 +1,11 @@
+{
+  "$configlue": {
+    "id": "example.multi-source-settings",
+    "version": 1
+  },
+  "$value": {
+    "Name": "Global default",
+    "Policy": "Global policy",
+    "Region": "Global region"
+  }
+}
