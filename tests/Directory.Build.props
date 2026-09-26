@@ -11,6 +11,18 @@
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(ConfiglueNativeAot)' == 'true'">
+    <PublishAot>true</PublishAot>
+    <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
+    <EnableAotAnalyzer>false</EnableAotAnalyzer>
+    <EnableTrimAnalyzer>false</EnableTrimAnalyzer>
+    <EnableSingleFileAnalyzer>false</EnableSingleFileAnalyzer>
+    <IlcTreatWarningsAsErrors>false</IlcTreatWarningsAsErrors>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(ConfiglueNativeAot)' == 'true'">
+    <!-- The native binary runs only JsonAot tests; the test harness has reflection-based cases. -->
+    <NoWarn>$(NoWarn);IL2026;IL2070;IL2104;IL3000;IL3050;IL3053</NoWarn>
+  </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="TUnit" Version="1.66.27" />
     <PackageReference Include="Shouldly" Version="4.3.0" />
