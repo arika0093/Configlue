@@ -24,4 +24,13 @@ public interface IWritableOptions<T> : IReadOnlyOptions<T>
         string sourceId,
         string targetId,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Migrates selected source contributions into projected targets. Implementations verify each write and
+    /// skip targets already holding the requested fragment, so a partially completed operation can be retried.
+    /// </summary>
+    ValueTask<StateStorageMigrationResult> MigrateSourcesToTargetsAsync(
+        IEnumerable<string> sourceIds,
+        IReadOnlyDictionary<string, Func<IConfiglueFragment, IConfiglueFragment>> targetProjections,
+        CancellationToken cancellationToken = default);
 }

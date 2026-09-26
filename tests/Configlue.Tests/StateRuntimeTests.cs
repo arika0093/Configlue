@@ -888,6 +888,109 @@ public sealed class StateRuntimeTests
     }
 
     [Test]
+    public async Task MigrateSourcesToTargetsAsync_MergesSelectedSourcesAndSkipsCompletedTargetsOnRetry()
+    {
+        var environment = new InMemoryStateStore<AppSettings.Fragment>(new AppSettings.Fragment
+        {
+            Label = Optional<string?>.Present("environment-value"),
+        });
+        var user = new InMemoryStateStore<AppSettings.Fragment>(new AppSettings.Fragment
+        {
+            Database = Optional<DatabaseSettings.Fragment?>.Present(new DatabaseSettings.Fragment
+            {
+                Port = Optional<int>.Present(6432),
+            }),
+            Plugins = Optional<IReadOnlyList<string>>.Present(["user-plugin"]),
+        });
+        var legacy = new InMemoryStateStore<AppSettings.Fragment>(new AppSettings.Fragment
+        {
+            RetryCount = Optional<int>.Present(12),
+            Database = Optional<DatabaseSettings.Fragment?>.Present(new DatabaseSettings.Fragment
+            {
+                Host = Optional<string>.Present("legacy.db"),
+            }),
+        });
+        var primaryTarget = new InMemoryStateStore<AppSettings.Fragment>();
+        var retryTarget = new InMemoryStateStore<AppSettings.Fragment>();
+        var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(new StateSourceSet<AppSettings.Fragment>(
+        [
+            new("environment", environment, priority: 200),
+            new("user", user, priority: 100),
+            new("legacy", legacy, priority: 50),
+            new("primary", primaryTarget, priority: 0, writer: primaryTarget),
+            new("retry-only", retryTarget, priority: -1, writer: retryTarget),
+        ]));
+        var targets = new Dictionary<string, Func<IConfiglueFragment, IConfiglueFragment>>(StringComparer.Ordinal)
+        {
+            ["primary"] = static fragment => fragment,
+            ["retry-only"] = static fragment => new AppSettings.Fragment
+            {
+                RetryCount = ((AppSettings.Fragment)fragment).RetryCount,
+            },
+        };
+        IWritableOptions<AppSettings> writableOptions = options;
+
+        var firstRun = await writableOptions.MigrateSourcesToTargetsAsync(["legacy", "user"], targets);
+        var primary = await primaryTarget.ReadAsync();
+        var retryOnly = await retryTarget.ReadAsync();
+
+        await Assert.That(primary.Value!.RetryCount.Value).IsEqualTo(12);
+        await Assert.That(primary.Value.Database.Value!.Host.Value).IsEqualTo("legacy.db");
+        await Assert.That(primary.Value.Database.Value.Port.Value).IsEqualTo(6432);
+        await Assert.That(primary.Value.Label.IsPresent).IsFalse();
+        await Assert.That(primary.Value.Plugins.Value).IsEquivalentTo(["user-plugin"]);
+        await Assert.That(retryOnly.Value!.RetryCount.Value).IsEqualTo(12);
+        await Assert.That(retryOnly.Value.Database.IsPresent).IsFalse();
+        await Assert.That(firstRun.Targets.All(static result => !result.WasAlreadyCurrent)).IsTrue();
+
+        var secondRun = await writableOptions.MigrateSourcesToTargetsAsync(["legacy", "user"], targets);
+
+        await Assert.That(secondRun.Targets.All(static result => result.WasAlreadyCurrent)).IsTrue();
+        await Assert.That(secondRun.Targets.Count).IsEqualTo(2);
+        await Assert.That(secondRun.Targets.All(static result => result.TargetRevision == "1")).IsTrue();
+        await Assert.That(secondRun.SourceIds).IsEquivalentTo(["user", "legacy"]);
+    }
+
+    [Test]
+    public async Task MigrateSourcesToTargetsAsync_ResumesAfterALaterTargetFails()
+    {
+        var source = new InMemoryStateStore<AppSettings.Fragment>(new AppSettings.Fragment
+        {
+            RetryCount = Optional<int>.Present(22),
+        });
+        var firstTarget = new InMemoryStateStore<AppSettings.Fragment>();
+        var secondTarget = new InMemoryStateStore<AppSettings.Fragment>();
+        var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(new StateSourceSet<AppSettings.Fragment>(
+        [
+            new("source", source, priority: 100),
+            new("first-target", firstTarget, priority: 0, writer: firstTarget),
+            new("second-target", secondTarget, priority: -1, writer: new FailOnceStateWriter<AppSettings.Fragment>(secondTarget)),
+        ]));
+        var targets = new Dictionary<string, Func<IConfiglueFragment, IConfiglueFragment>>(StringComparer.Ordinal)
+        {
+            ["first-target"] = static fragment => fragment,
+            ["second-target"] = static fragment => fragment,
+        };
+        IWritableOptions<AppSettings> writableOptions = options;
+        var failed = false;
+        try
+        {
+            await writableOptions.MigrateSourcesToTargetsAsync(["source"], targets);
+        }
+        catch (IOException)
+        {
+            failed = true;
+        }
+
+        await Assert.That(failed).IsTrue();
+        var resumed = await writableOptions.MigrateSourcesToTargetsAsync(["source"], targets);
+
+        await Assert.That(resumed.Targets[0].WasAlreadyCurrent).IsTrue();
+        await Assert.That(resumed.Targets[1].WasAlreadyCurrent).IsFalse();
+        await Assert.That((await secondTarget.ReadAsync()).Value!.RetryCount.Value).IsEqualTo(22);
+    }
+
+    [Test]
     public async Task SerializedStateSource_ComposesResourceCodecWriterAndWatcherCapabilities()
     {
         var resource = new InMemoryResource();
@@ -919,6 +1022,23 @@ public sealed class StateRuntimeTests
         {
             cancellationToken.ThrowIfCancellationRequested();
             return ValueTask.FromResult(result);
+        }
+    }
+
+    private sealed class FailOnceStateWriter<T>(IStateWriter<T> inner) : IStateWriter<T>
+    {
+        private int _shouldFail = 1;
+
+        public ValueTask<StateWriteResult> WriteAsync(
+            StateWriteRequest<T> request,
+            CancellationToken cancellationToken = default)
+        {
+            if (Interlocked.Exchange(ref _shouldFail, 0) == 1)
+            {
+                throw new IOException("Simulated transient target failure.");
+            }
+
+            return inner.WriteAsync(request, cancellationToken);
         }
     }
 
