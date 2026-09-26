@@ -293,6 +293,67 @@ public sealed class StateRuntimeTests
     }
 
     [Test]
+    public async Task ConfigureSession_WritesOnlySemanticChangesToTheSelectedContribution()
+    {
+        var defaults = new InMemoryStateStore<AppSettings.Fragment>(new AppSettings.Fragment
+        {
+            RetryCount = Optional<int>.Present(3),
+            Database = Optional<DatabaseSettings.Fragment?>.Present(new DatabaseSettings.Fragment
+            {
+                Host = Optional<string>.Present("defaults.db"),
+                Port = Optional<int>.Present(5432),
+            }),
+        });
+        var user = new InMemoryStateStore<AppSettings.Fragment>(new AppSettings.Fragment
+        {
+            Label = Optional<string?>.Present("user label"),
+            Database = Optional<DatabaseSettings.Fragment?>.Present(new DatabaseSettings.Fragment
+            {
+                Port = Optional<int>.Present(6432),
+            }),
+        });
+        var sources = new StateSourceSet<AppSettings.Fragment>(
+        [
+            new("user", user, priority: 100, writer: user),
+            new("defaults", defaults),
+        ]);
+        var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(sources);
+
+        using var session = await options.BeginConfigureAsync();
+        session.Value.RetryCount = 7;
+        session.Value.Database!.Port = 7443;
+        await session.SaveAsync();
+
+        var storedUser = (await user.ReadAsync()).Value!;
+        var resolved = (await options.ReadAsync()).Value!;
+        await Assert.That(storedUser.RetryCount.IsPresent).IsTrue();
+        await Assert.That(storedUser.RetryCount.Value).IsEqualTo(7);
+        await Assert.That(storedUser.Label.Value).IsEqualTo("user label");
+        await Assert.That(storedUser.Database.Value!.Host.IsPresent).IsFalse();
+        await Assert.That(storedUser.Database.Value.Port.Value).IsEqualTo(7443);
+        await Assert.That(resolved.Database!.Host).IsEqualTo("defaults.db");
+        await Assert.That(resolved.Database.Port).IsEqualTo(7443);
+    }
+
+    [Test]
+    public async Task ConfigureSession_DoesNotWriteWhenTheModelWasNotChanged()
+    {
+        var store = new InMemoryStateStore<AppSettings.Fragment>(new AppSettings.Fragment
+        {
+            RetryCount = Optional<int>.Present(3),
+        });
+        var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(
+            new StateSourceSet<AppSettings.Fragment>([new("user", store, writer: store)]));
+
+        using var session = await options.BeginConfigureAsync();
+        var result = await session.SaveAsync();
+
+        await Assert.That(session.IsCommitted).IsTrue();
+        await Assert.That(result.Revision).IsEqualTo("1");
+        await Assert.That((await store.ReadAsync()).Revision).IsEqualTo("1");
+    }
+
+    [Test]
     public async Task Options_MigratesEachSourceFragmentBeforeMerging()
     {
         var oldSchema = new StateSchemaMetadata("app-settings", 1);

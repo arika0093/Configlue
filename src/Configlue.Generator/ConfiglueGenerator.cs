@@ -281,6 +281,7 @@ public sealed class ConfiglueGenerator : IIncrementalGenerator
     private static void AppendModelFragmentBridge(StringBuilder code, string modelType)
     {
         code.Append("    public static Fragment ToFragment(").Append(modelType).AppendLine(" value) => Fragment.From(value);");
+        code.Append("    public static Fragment Diff(").Append(modelType).Append(" before, ").Append(modelType).AppendLine(" after) => Fragment.Diff(before, after);");
         code.Append("    public static ").Append(modelType).AppendLine(" FromFragment(Fragment value) => value.ToModel();");
     }
 
@@ -306,6 +307,7 @@ public sealed class ConfiglueGenerator : IIncrementalGenerator
         AppendFromModel(code, modelType, members);
         AppendToModel(code, modelType, members);
         AppendMerge(code, members);
+        AppendApplyChanges(code, members);
         AppendDiff(code, modelType, members);
         AppendFragmentClone(code, members);
         AppendPatchSupport(code, members);
@@ -420,6 +422,29 @@ public sealed class ConfiglueGenerator : IIncrementalGenerator
                 expression = $"{higher}.IsPresent ? {higher} : {lower}";
             }
 
+            code.Append("                ").Append(name).Append(" = ").Append(expression).AppendLine(",");
+        }
+
+        code.AppendLine("            };");
+        code.AppendLine("        }");
+        code.AppendLine();
+    }
+
+    private static void AppendApplyChanges(StringBuilder code, ImmutableArray<MemberModel> members)
+    {
+        code.AppendLine("        /// <summary>Applies a sparse semantic diff to this source-local contribution.</summary>");
+        code.AppendLine("        public Fragment ApplyChanges(Fragment changes)");
+        code.AppendLine("        {");
+        code.AppendLine("            global::System.ArgumentNullException.ThrowIfNull(changes);");
+        code.AppendLine("            return new Fragment");
+        code.AppendLine("            {");
+        foreach (var member in members)
+        {
+            var name = EscapeIdentifier(member.Property.Name);
+            var type = FragmentValueType(member);
+            var expression = member.ChildModel is null
+                ? $"changes.{name}.IsPresent ? changes.{name} : this.{name}"
+                : $"changes.{name}.IsPresent ? global::Configlue.Optional<{type}>.Present((this.{name}.IsPresent && (object?)this.{name}.Value is not null && (object?)changes.{name}.Value is not null) ? this.{name}.Value!.ApplyChanges(changes.{name}.Value!) : changes.{name}.Value) : this.{name}";
             code.Append("                ").Append(name).Append(" = ").Append(expression).AppendLine(",");
         }
 

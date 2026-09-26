@@ -229,6 +229,7 @@ public sealed class ConfiglueOptions<TModel, TFragment> : IWritableOptions<TMode
         }
 
         var draft = resolved.Value!.DeepClone();
+        var baseline = resolved.Value.DeepClone();
         var expectedRevisions = resolved.Revisions;
         return new ConfigureSession<TModel>(draft, async (value, token) =>
         {
@@ -238,7 +239,7 @@ public sealed class ConfiglueOptions<TModel, TFragment> : IWritableOptions<TMode
                 throw new StateConflictException("A state source changed after the configuration edit began.");
             }
 
-            return await WriteToSourceAsync(source, value, expectedRevision, token).ConfigureAwait(false);
+            return await WriteChangesToSourceAsync(source, baseline, value, expectedRevision, token).ConfigureAwait(false);
         });
     }
 
@@ -454,6 +455,55 @@ public sealed class ConfiglueOptions<TModel, TFragment> : IWritableOptions<TMode
         return source.Writer!.WriteAsync(
             new StateWriteRequest<TFragment>(TModel.ToFragment(value), expectedRevision, CheckRevision: true),
             cancellationToken);
+    }
+
+    private async ValueTask<StateWriteResult> WriteChangesToSourceAsync(
+        StateSource<TFragment> source,
+        TModel before,
+        TModel after,
+        string? expectedRevision,
+        CancellationToken cancellationToken)
+    {
+        Validate(after);
+        var changes = TModel.Diff(before, after);
+        if (changes.IsEmpty)
+        {
+            return new StateWriteResult(expectedRevision);
+        }
+
+        var current = await source.Reader.ReadAsync(cancellationToken).ConfigureAwait(false);
+        if (!string.Equals(current.Revision, expectedRevision, StringComparison.Ordinal))
+        {
+            throw new StateConflictException($"State source '{source.Id}' changed after the configuration edit began.");
+        }
+
+        if (current.Status == StateReadStatus.Unavailable)
+        {
+            throw new InvalidOperationException($"Cannot safely update configuration because source '{source.Id}' is unavailable.");
+        }
+
+        var sourceFragment = current.Status == StateReadStatus.Success
+            ? current.Value ?? throw new InvalidOperationException($"State source '{source.Id}' returned a null configuration fragment.")
+            : TFragment.Empty;
+        if (current.Schema is { } schema)
+        {
+            sourceFragment = await MigrateAsync(sourceFragment, schema, cancellationToken).ConfigureAwait(false);
+        }
+
+        var updated = sourceFragment.ApplyChanges(changes);
+        var proposed = await ReadCoreAsync(
+            source,
+            StateReadResult<TFragment>.Success(updated, current.Revision, TModel.ConfiglueSchema.ToMetadata()),
+            cancellationToken).ConfigureAwait(false);
+        if (proposed.Status != StateReadStatus.Success)
+        {
+            throw new InvalidOperationException($"The edited configuration could not be resolved: {proposed.Status}.");
+        }
+
+        Validate(proposed.Value!);
+        return await source.Writer!.WriteAsync(
+            new StateWriteRequest<TFragment>(updated, current.Revision, CheckRevision: true),
+            cancellationToken).ConfigureAwait(false);
     }
 
     private void Validate(TModel value)

@@ -37,6 +37,8 @@ Change notifications are debounced by 300ms by default; pass `onChangeDebounce: 
 `IWritableOptions<T>.MigrateSourceAsync(sourceId, targetId)` copies one source contribution, applies its schema migration chain, and writes it to a selected destination.
 Configure sessions compare the full source revision vector immediately before saving and fail with `StateConflictException` if any participating source changed.
 `IReadOnlyOptions<T>.ExplainAsync("Database.Host")` returns the effective value and the present source contributions from highest to lowest priority.
+
+Edits made through `BeginConfigureAsync` or the updater overloads use generated semantic diffs and update only the selected source contribution. Unchanged fields retain their existing sparse state.
 `JsonSectionResource` exposes a nested JSON path such as `App:Settings` as a separate resource and preserves its sibling values on writes.
 
 ```csharp

@@ -13,6 +13,9 @@ public interface IConfiglueModel<TSelf, TFragment> : IConfiglueDeepCloneable<TSe
     /// <summary>Creates a complete fragment from a model value.</summary>
     static abstract TFragment ToFragment(TSelf value);
 
+    /// <summary>Creates a sparse semantic difference between two model values.</summary>
+    static abstract TFragment Diff(TSelf before, TSelf after);
+
     /// <summary>Creates a model value from a merged fragment.</summary>
     static abstract TSelf FromFragment(TFragment value);
 }
