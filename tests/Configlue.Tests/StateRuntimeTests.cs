@@ -158,6 +158,35 @@ public sealed class StateRuntimeTests
     }
 
     [Test]
+    public async Task Options_DebouncesRapidSourceChangesAndReportsTheLatestValue()
+    {
+        var store = new InMemoryStateStore<AppSettings.Fragment>(new AppSettings.Fragment
+        {
+            RetryCount = Optional<int>.Present(3),
+        });
+        var sourceSet = new StateSourceSet<AppSettings.Fragment>([new("user", store, watcher: store)]);
+        await using var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(
+            sourceSet,
+            onChangeDebounce: TimeSpan.FromMilliseconds(150));
+        var notifications = new System.Collections.Concurrent.ConcurrentQueue<int>();
+        var latest = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var subscription = options.OnChange(value =>
+        {
+            notifications.Enqueue(value.RetryCount);
+            latest.TrySetResult(value.RetryCount);
+        });
+
+        store.Set(new AppSettings.Fragment { RetryCount = Optional<int>.Present(4) });
+        await Task.Delay(TimeSpan.FromMilliseconds(30));
+        store.Set(new AppSettings.Fragment { RetryCount = Optional<int>.Present(5) });
+        var notifiedValue = await latest.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await Task.Delay(TimeSpan.FromMilliseconds(200));
+
+        await Assert.That(notifiedValue).IsEqualTo(5);
+        await Assert.That(notifications.ToArray()).IsEquivalentTo([5]);
+    }
+
+    [Test]
     public async Task ConfigureSession_SavesDraftAndRejectsAStaleRevision()
     {
         var store = new InMemoryStateStore<AppSettings.Fragment>(new AppSettings.Fragment

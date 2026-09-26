@@ -32,6 +32,7 @@ Named profiles can use keyed DI registrations, for example `AddConfiglueOptions<
 For profiles created during runtime, register `AddConfiglueOptionsRegistry<TModel, TModel.Fragment>(...)`, then use `IConfiglueOptionsRegistry<TModel>.TryAdd`, `Get`, and `TryRemove`.
 File resources keep one atomic `.bak` generation by default; `FileResourceOptions` can retain more generations in a chosen directory, and `RestoreLatestBackupAsync` restores the newest one explicitly.
 Use `StateSourceProjection.Project` to map a source-specific fragment into a nested model fragment; provide a reverse projection to enable writes to that source.
+Change notifications are debounced by 300ms by default; pass `onChangeDebounce: TimeSpan.Zero` to a registration to disable it.
 
 ```csharp
 services.AddConfiglueOptions<AppConfig, AppConfig.Fragment>(

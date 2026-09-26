@@ -15,6 +15,7 @@ public sealed class ConfiglueOptions<TModel, TFragment> : IWritableOptions<TMode
     private readonly IStateSchemaMigration<TFragment>[] _migrations;
     private readonly IConfiglueValidator<TModel>[] _validators;
     private readonly bool _validateDataAnnotations;
+    private readonly TimeSpan _onChangeDebounce;
     private readonly object _changeGate = new();
     private readonly List<Action<TModel>> _changeListeners = [];
     private CancellationTokenSource? _watchCancellation;
@@ -27,13 +28,20 @@ public sealed class ConfiglueOptions<TModel, TFragment> : IWritableOptions<TMode
         StateWriteRoute writeRoute = default,
         IEnumerable<IStateSchemaMigration<TFragment>>? migrations = null,
         IEnumerable<IConfiglueValidator<TModel>>? validators = null,
-        bool validateDataAnnotations = false)
+        bool validateDataAnnotations = false,
+        TimeSpan? onChangeDebounce = null)
     {
         ArgumentNullException.ThrowIfNull(sourceSet);
         _sourceSet = sourceSet;
         _writeRoute = writeRoute;
         _validators = validators?.ToArray() ?? [];
         _validateDataAnnotations = validateDataAnnotations;
+        _onChangeDebounce = onChangeDebounce ?? TimeSpan.FromMilliseconds(300);
+        if (_onChangeDebounce < TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(nameof(onChangeDebounce), "Change debounce cannot be negative.");
+        }
+
         if (_validators.Any(static validator => validator is null))
         {
             throw new ArgumentException("Validators cannot contain null values.", nameof(validators));
@@ -432,6 +440,11 @@ public sealed class ConfiglueOptions<TModel, TFragment> : IWritableOptions<TMode
                 }
 
                 await WaitForAnyChangeAsync(previous.Revisions, cancellationToken).ConfigureAwait(false);
+                if (_onChangeDebounce > TimeSpan.Zero)
+                {
+                    await Task.Delay(_onChangeDebounce, cancellationToken).ConfigureAwait(false);
+                }
+
                 var current = await ReadAsync(cancellationToken).ConfigureAwait(false);
                 if (current.Status == StateReadStatus.Success && !HaveSameRevisions(previous.Revisions, current.Revisions))
                 {
