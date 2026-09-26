@@ -35,6 +35,10 @@ var config = await serviceProvider
     .GetRequiredService<IReadOnlyOptions<AppConfig>>()
     .GetValueAsync();
 
+using var changeSubscription = serviceProvider
+    .GetRequiredService<IReadOnlyOptions<AppConfig>>()
+    .OnChange(updated => Console.WriteLine(updated));
+
 await serviceProvider
     .GetRequiredService<IWritableOptions<AppConfig>>()
     .SaveAsync(updatedConfig);

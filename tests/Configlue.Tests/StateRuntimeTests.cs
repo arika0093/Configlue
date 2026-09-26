@@ -118,4 +118,41 @@ public sealed class StateRuntimeTests
         await Assert.That(result.Value.Plugins).IsEmpty();
         await Assert.That(saved.Revision).IsEqualTo("1");
     }
+
+    [Test]
+    public async Task Options_NotifiesSubscribersWhenAWatchedSourceChanges()
+    {
+        var user = new InMemoryStateStore<AppSettings.Fragment>();
+        var defaults = new InMemoryStateStore<AppSettings.Fragment>(new AppSettings.Fragment
+        {
+            RetryCount = Optional<int>.Present(3),
+        });
+        var sourceSet = new StateSourceSet<AppSettings.Fragment>(
+        [
+            new("user", user, priority: 100, watcher: user),
+            new("defaults", defaults, priority: 0, watcher: defaults),
+        ]);
+        await using var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(sourceSet);
+        var changedValue = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var resetValue = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var subscription = options.OnChange(value =>
+        {
+            if (value.RetryCount == 8)
+            {
+                changedValue.TrySetResult(value.RetryCount);
+            }
+            else if (value.RetryCount == 3)
+            {
+                resetValue.TrySetResult(value.RetryCount);
+            }
+        });
+
+        defaults.Set(new AppSettings.Fragment { RetryCount = Optional<int>.Present(8) });
+        var updated = await changedValue.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        defaults.SetNotFound();
+        var reset = await resetValue.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        await Assert.That(updated).IsEqualTo(8);
+        await Assert.That(reset).IsEqualTo(3);
+    }
 }

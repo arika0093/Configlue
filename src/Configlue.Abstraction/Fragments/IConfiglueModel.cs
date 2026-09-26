@@ -3,7 +3,7 @@ namespace Configlue;
 /// <summary>The static generated contract used by Configlue's typed runtime.</summary>
 /// <typeparam name="TSelf">The configuration model.</typeparam>
 /// <typeparam name="TFragment">The model's generated sparse fragment.</typeparam>
-public interface IConfiglueModel<TSelf, TFragment>
+public interface IConfiglueModel<TSelf, TFragment> : IConfiglueDeepCloneable<TSelf>
     where TSelf : IConfiglueModel<TSelf, TFragment>
     where TFragment : class, IConfiglueFragment<TFragment>
 {

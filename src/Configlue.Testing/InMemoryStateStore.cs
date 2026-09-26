@@ -66,6 +66,7 @@ public sealed class InMemoryStateStore<T> : IStateReader<T>, IStateWriter<T>, IS
         {
             _status = StateReadStatus.Unavailable;
             _value = default;
+            _revision = (++_revisionNumber).ToString(System.Globalization.CultureInfo.InvariantCulture);
         });
     }
 
@@ -76,6 +77,7 @@ public sealed class InMemoryStateStore<T> : IStateReader<T>, IStateWriter<T>, IS
         {
             _status = StateReadStatus.NotFound;
             _value = default;
+            _revision = (++_revisionNumber).ToString(System.Globalization.CultureInfo.InvariantCulture);
         });
     }
 

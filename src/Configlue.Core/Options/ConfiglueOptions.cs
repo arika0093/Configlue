@@ -3,12 +3,17 @@ namespace Configlue;
 /// <summary>Resolves and saves a generated configuration model over a set of state sources.</summary>
 /// <typeparam name="TModel">The generated configuration model.</typeparam>
 /// <typeparam name="TFragment">The model's generated sparse fragment.</typeparam>
-public sealed class ConfiglueOptions<TModel, TFragment> : IWritableOptions<TModel>
+public sealed class ConfiglueOptions<TModel, TFragment> : IWritableOptions<TModel>, IDisposable, IAsyncDisposable
     where TModel : IConfiglueModel<TModel, TFragment>
     where TFragment : class, IConfiglueFragment<TFragment>
 {
     private readonly StateSourceSet<TFragment> _sourceSet;
     private readonly StateWriteRoute _writeRoute;
+    private readonly object _changeGate = new();
+    private readonly List<Action<TModel>> _changeListeners = [];
+    private CancellationTokenSource? _watchCancellation;
+    private Task? _watchTask;
+    private bool _disposed;
 
     /// <summary>Creates options backed by the supplied state sources.</summary>
     public ConfiglueOptions(StateSourceSet<TFragment> sourceSet, StateWriteRoute writeRoute = default)
@@ -16,6 +21,25 @@ public sealed class ConfiglueOptions<TModel, TFragment> : IWritableOptions<TMode
         ArgumentNullException.ThrowIfNull(sourceSet);
         _sourceSet = sourceSet;
         _writeRoute = writeRoute;
+    }
+
+    /// <inheritdoc />
+    public IDisposable OnChange(Action<TModel> listener)
+    {
+        ArgumentNullException.ThrowIfNull(listener);
+        lock (_changeGate)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            _changeListeners.Add(listener);
+            if (_watchTask is null || _watchTask.IsCompleted)
+            {
+                _watchCancellation?.Dispose();
+                _watchCancellation = new CancellationTokenSource();
+                _watchTask = WatchChangesAsync(_watchCancellation.Token);
+            }
+        }
+
+        return new ChangeSubscription(this, listener);
     }
 
     /// <inheritdoc />
@@ -104,6 +128,40 @@ public sealed class ConfiglueOptions<TModel, TFragment> : IWritableOptions<TMode
             cancellationToken).ConfigureAwait(false);
     }
 
+    /// <inheritdoc />
+    public void Dispose()
+    {
+        lock (_changeGate)
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            _disposed = true;
+            _changeListeners.Clear();
+            _watchCancellation?.Cancel();
+        }
+    }
+
+    /// <inheritdoc />
+    public async ValueTask DisposeAsync()
+    {
+        Dispose();
+        Task? watchTask;
+        lock (_changeGate)
+        {
+            watchTask = _watchTask;
+        }
+
+        if (watchTask is not null)
+        {
+            await watchTask.ConfigureAwait(false);
+        }
+
+        _watchCancellation?.Dispose();
+    }
+
     private StateSource<TFragment> SelectWriteSource()
     {
         var source = _writeRoute.SourceId is { } id
@@ -123,6 +181,148 @@ public sealed class ConfiglueOptions<TModel, TFragment> : IWritableOptions<TMode
         }
 
         return source;
+    }
+
+    private async Task WatchChangesAsync(CancellationToken cancellationToken)
+    {
+        StateReadResult<TModel> previous = default;
+        var hasPrevious = false;
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            try
+            {
+                if (!hasPrevious)
+                {
+                    previous = await ReadAsync(cancellationToken).ConfigureAwait(false);
+                    hasPrevious = true;
+                }
+
+                await WaitForAnyChangeAsync(previous.Revisions, cancellationToken).ConfigureAwait(false);
+                var current = await ReadAsync(cancellationToken).ConfigureAwait(false);
+                if (current.Status == StateReadStatus.Success && !HaveSameRevisions(previous.Revisions, current.Revisions))
+                {
+                    NotifyListeners(current.Value!);
+                }
+                else if (current.Status != StateReadStatus.Success)
+                {
+                    await Task.Delay(TimeSpan.FromMilliseconds(250), cancellationToken).ConfigureAwait(false);
+                }
+
+                previous = current;
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                return;
+            }
+            catch (Exception exception)
+            {
+                System.Diagnostics.Trace.TraceError("Configlue failed while watching configuration changes: {0}", exception);
+                try
+                {
+                    await Task.Delay(TimeSpan.FromMilliseconds(250), cancellationToken).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    return;
+                }
+            }
+        }
+    }
+
+    private async Task WaitForAnyChangeAsync(StateRevisionVector? revisions, CancellationToken cancellationToken)
+    {
+        using var waitCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var waitTasks = new List<Task>();
+        foreach (var source in _sourceSet.Sources)
+        {
+            if (source.Watcher is not null && revisions is not null &&
+                revisions.TryGetRevision(source.Id, out var revision))
+            {
+                waitTasks.Add(source.Watcher.WaitForChangeAsync(revision, waitCancellation.Token).AsTask());
+            }
+        }
+
+        if (waitTasks.Count == 0)
+        {
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        try
+        {
+            var completed = await Task.WhenAny(waitTasks).ConfigureAwait(false);
+            await completed.ConfigureAwait(false);
+        }
+        finally
+        {
+            waitCancellation.Cancel();
+        }
+
+        try
+        {
+            await Task.WhenAll(waitTasks).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            // The remaining source waits are canceled after the first source reports a change.
+        }
+    }
+
+    private void NotifyListeners(TModel value)
+    {
+        Action<TModel>[] listeners;
+        lock (_changeGate)
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            listeners = _changeListeners.ToArray();
+        }
+
+        foreach (var listener in listeners)
+        {
+            try
+            {
+                listener(value.DeepClone());
+            }
+            catch (Exception exception)
+            {
+                System.Diagnostics.Trace.TraceError("Configlue change listener failed: {0}", exception);
+            }
+        }
+    }
+
+    private static bool HaveSameRevisions(StateRevisionVector? left, StateRevisionVector? right)
+    {
+        if (ReferenceEquals(left, right))
+        {
+            return true;
+        }
+
+        if (left is null || right is null || left.Revisions.Count != right.Revisions.Count)
+        {
+            return false;
+        }
+
+        return left.Revisions.All(pair => right.TryGetRevision(pair.Key, out var revision) &&
+            string.Equals(pair.Value, revision, StringComparison.Ordinal));
+    }
+
+    private void RemoveChangeListener(Action<TModel> listener)
+    {
+        lock (_changeGate)
+        {
+            _changeListeners.Remove(listener);
+        }
+    }
+
+    private sealed class ChangeSubscription(ConfiglueOptions<TModel, TFragment> owner, Action<TModel> listener) : IDisposable
+    {
+        private ConfiglueOptions<TModel, TFragment>? _owner = owner;
+
+        public void Dispose() => Interlocked.Exchange(ref _owner, null)?.RemoveChangeListener(listener);
     }
 
     private static bool CanFallBack(StateFallbackCondition condition, StateReadStatus status) =>
