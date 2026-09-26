@@ -63,6 +63,15 @@ namespace Configlue
         public System.Threading.Tasks.ValueTask RemoveProfileAsync(string profileName, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask SetActiveProfileAsync(string profileName, System.Threading.CancellationToken cancellationToken = default) { }
     }
+    public sealed class FallbackStateSource<T> : Configlue.IStateReader<T>, Configlue.IStateWatcher, Configlue.IStateWriter<T>
+    {
+        public FallbackStateSource(Configlue.StateSourceSet<T> candidates, string? writeSourceId = null) { }
+        public Configlue.StateSource<T>? SelectedSource { get; }
+        public Configlue.StateSource<T> CreateSource(string id, int priority = 0, Configlue.StateFallbackCondition fallbackCondition = 1, string? physicalOrigin = null) { }
+        public System.Threading.Tasks.ValueTask<Configlue.StateReadResult<T>> ReadAsync(System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask WaitForChangeAsync(string? observedRevision, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Configlue.StateWriteResult> WriteAsync(Configlue.StateWriteRequest<T> request, System.Threading.CancellationToken cancellationToken = default) { }
+    }
     public sealed class FileResource : Configlue.IResourceBatchWriter, Configlue.IResourceIdentity, Configlue.IResourceReader, Configlue.IResourceWriter, Configlue.IStateWatcher, System.IDisposable
     {
         public FileResource(string path, Configlue.FileResourceOptions? options = null) { }

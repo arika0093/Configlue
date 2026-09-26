@@ -16,6 +16,177 @@ public partial class ReplaceCollectionSettings
 public sealed class StateRuntimeTests
 {
     [Test]
+    public async Task FallbackStateSource_UsesOneRepresentationAndWritesToTheSelectedCandidate()
+    {
+        var canonical = new InMemoryStateStore<string>();
+        var legacy = new InMemoryStateStore<string>("legacy");
+        var fallback = new FallbackStateSource<string>(
+            new StateSourceSet<string>([
+                new(
+                    "canonical",
+                    canonical,
+                    priority: 100,
+                    fallbackCondition: StateFallbackCondition.NotFoundOrUnavailable,
+                    writer: canonical,
+                    watcher: canonical,
+                    physicalOrigin: "settings.json"
+                ),
+                new(
+                    "legacy",
+                    legacy,
+                    priority: 0,
+                    writer: legacy,
+                    watcher: legacy,
+                    physicalOrigin: "settings.yaml"
+                ),
+            ])
+        );
+        var source = fallback.CreateSource("settings");
+
+        var resolved = await source.Reader.ReadAsync();
+        await source.Writer!.WriteAsync(
+            new StateWriteRequest<string>(resolved.Value!, resolved.Revision, CheckRevision: true)
+        );
+        var legacyAfterWrite = await legacy.ReadAsync();
+        var canonicalAfterWrite = await canonical.ReadAsync();
+
+        (resolved.Status).ShouldBe(StateReadStatus.Success);
+        (resolved.Value).ShouldBe("legacy");
+        (resolved.SourceId).ShouldBe("legacy");
+        (resolved.PhysicalOrigin).ShouldBe("settings.yaml");
+        (resolved.Revisions!.Revisions.Count).ShouldBe(2);
+        (resolved.Revisions.NestedRevisions.Count).ShouldBe(0);
+        (fallback.SelectedSource!.Id).ShouldBe("legacy");
+        (legacyAfterWrite.Value).ShouldBe("legacy");
+        (canonicalAfterWrite.Status).ShouldBe(StateReadStatus.NotFound);
+    }
+
+    [Test]
+    public async Task FallbackStateSource_CanWriteToExplicitCanonicalCandidateWithoutLosingFallbackFields()
+    {
+        var canonical = new InMemoryStateStore<AppSettings.Fragment>();
+        var legacy = new InMemoryStateStore<AppSettings.Fragment>(
+            new AppSettings.Fragment
+            {
+                RetryCount = Optional<int>.Present(11),
+                Label = Optional<string?>.Present("legacy"),
+            }
+        );
+        var fallback = new FallbackStateSource<AppSettings.Fragment>(
+            new StateSourceSet<AppSettings.Fragment>([
+                new(
+                    "canonical",
+                    canonical,
+                    priority: 100,
+                    fallbackCondition: StateFallbackCondition.NotFoundOrUnavailable,
+                    writer: canonical,
+                    watcher: canonical,
+                    physicalOrigin: "settings.json"
+                ),
+                new(
+                    "legacy",
+                    legacy,
+                    priority: 0,
+                    writer: legacy,
+                    watcher: legacy,
+                    physicalOrigin: "settings.yaml"
+                ),
+            ]),
+            writeSourceId: "canonical"
+        );
+        await using var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(
+            new StateSourceSet<AppSettings.Fragment>([fallback.CreateSource("settings")]),
+            onChangeDebounce: TimeSpan.Zero
+        );
+
+        var initial = await options.ReadAsync();
+        await options.SaveAsync(settings => settings.Label = "canonical");
+        var canonicalAfterWrite = await canonical.ReadAsync();
+        var legacyAfterWrite = await legacy.ReadAsync();
+        var resolvedAfterWrite = await options.ReadAsync();
+
+        (initial.Value!.RetryCount).ShouldBe(11);
+        (initial.Value.Label).ShouldBe("legacy");
+        (canonicalAfterWrite.Value!.RetryCount.Value).ShouldBe(11);
+        (canonicalAfterWrite.Value.Label.Value).ShouldBe("canonical");
+        (legacyAfterWrite.Value!.RetryCount.Value).ShouldBe(11);
+        (legacyAfterWrite.Value.Label.Value).ShouldBe("legacy");
+        (resolvedAfterWrite.SourceId).ShouldBe("settings");
+        (resolvedAfterWrite.Value!.RetryCount).ShouldBe(11);
+        (resolvedAfterWrite.Value.Label).ShouldBe("canonical");
+        (fallback.SelectedSource!.Id).ShouldBe("canonical");
+    }
+
+    [Test]
+    public async Task FallbackStateSource_WatchesForFailbackButIgnoresLowerPriorityChangesAfterSelection()
+    {
+        var canonical = new InMemoryStateStore<string>();
+        var legacy = new InMemoryStateStore<string>("legacy");
+        var fallback = new FallbackStateSource<string>(
+            new StateSourceSet<string>([
+                new(
+                    "canonical",
+                    canonical,
+                    priority: 100,
+                    fallbackCondition: StateFallbackCondition.NotFoundOrUnavailable,
+                    writer: canonical,
+                    watcher: canonical
+                ),
+                new("legacy", legacy, priority: 0, writer: legacy, watcher: legacy),
+            ])
+        );
+
+        var initial = await fallback.ReadAsync();
+        var failbackWait = fallback.WaitForChangeAsync(initial.Revision).AsTask();
+        canonical.Set("canonical");
+        await failbackWait.WaitAsync(TimeSpan.FromSeconds(5));
+        var recovered = await fallback.ReadAsync();
+        using var cancellation = new CancellationTokenSource();
+        var lowerPriorityWait = fallback
+            .WaitForChangeAsync(recovered.Revision, cancellation.Token)
+            .AsTask();
+        legacy.Set("stale legacy");
+        await Task.Delay(TimeSpan.FromMilliseconds(50));
+        var lowerPriorityChangeWasIgnored = !lowerPriorityWait.IsCompleted;
+        await cancellation.CancelAsync();
+        await Should.ThrowAsync<OperationCanceledException>(async () => await lowerPriorityWait);
+
+        (initial.SourceId).ShouldBe("legacy");
+        (recovered.SourceId).ShouldBe("canonical");
+        (fallback.SelectedSource!.Id).ShouldBe("canonical");
+        (lowerPriorityChangeWasIgnored).ShouldBeTrue();
+    }
+
+    [Test]
+    public async Task FallbackStateSource_RejectsWriteWhenSelectedRepresentationChangedAfterRead()
+    {
+        var canonical = new InMemoryStateStore<string>();
+        var legacy = new InMemoryStateStore<string>("legacy");
+        var fallback = new FallbackStateSource<string>(
+            new StateSourceSet<string>([
+                new(
+                    "canonical",
+                    canonical,
+                    priority: 100,
+                    fallbackCondition: StateFallbackCondition.NotFoundOrUnavailable,
+                    writer: canonical
+                ),
+                new("legacy", legacy, priority: 0, writer: legacy),
+            ])
+        );
+        var initial = await fallback.ReadAsync();
+        legacy.Set("changed");
+
+        await Should.ThrowAsync<StateConflictException>(async () =>
+            await fallback.WriteAsync(
+                new StateWriteRequest<string>("stale write", initial.Revision, CheckRevision: true)
+            )
+        );
+
+        ((await legacy.ReadAsync()).Value).ShouldBe("changed");
+    }
+
+    [Test]
     public async Task Resolver_FallsBackByPolicyAndWatchesHigherPrioritySourceForFailback()
     {
         var primary = new InMemoryStateStore<string>();
