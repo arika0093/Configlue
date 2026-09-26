@@ -141,11 +141,21 @@ internal sealed class ConfiglueMicrosoftOptionsMonitor<TModel> : IOptionsMonitor
         private readonly ConfiglueMicrosoftOptionsResolver<TModel> _resolver;
         private readonly Action<TModel, string?> _listener;
         private readonly object _gate = new();
-        private readonly Dictionary<string, IDisposable?> _subscriptions = new(
+        private readonly Dictionary<string, ProfileSubscription> _subscriptions = new(
+            StringComparer.Ordinal
+        );
+        private readonly Dictionary<string, object> _profileOperationTokens = new(
             StringComparer.Ordinal
         );
         private readonly IConfiglueOptionsRegistry<TModel>? _registry;
         private bool _disposed;
+
+        private sealed class ProfileSubscription(IReadOnlyOptions<TModel> options)
+        {
+            public IReadOnlyOptions<TModel> Options { get; } = options;
+
+            public IDisposable? ChangeSubscription { get; set; }
+        }
 
         public ChangeSubscription(
             ConfiglueMicrosoftOptionsResolver<TModel> resolver,
@@ -189,7 +199,7 @@ internal sealed class ConfiglueMicrosoftOptionsMonitor<TModel> : IOptionsMonitor
                         && options is not null
                     )
                     {
-                        Subscribe(name, options);
+                        Subscribe(name, options, registryProfile: true);
                     }
                 }
             }
@@ -206,8 +216,12 @@ internal sealed class ConfiglueMicrosoftOptionsMonitor<TModel> : IOptionsMonitor
                 }
 
                 _disposed = true;
-                subscriptions = _subscriptions.Values.OfType<IDisposable>().ToArray();
+                subscriptions = _subscriptions
+                    .Values.Select(entry => entry.ChangeSubscription)
+                    .OfType<IDisposable>()
+                    .ToArray();
                 _subscriptions.Clear();
+                _profileOperationTokens.Clear();
             }
 
             if (_registry is not null)
@@ -226,45 +240,191 @@ internal sealed class ConfiglueMicrosoftOptionsMonitor<TModel> : IOptionsMonitor
         {
             if (name != Options.DefaultName)
             {
-                Subscribe(name, options);
+                Subscribe(name, options, registryProfile: true);
             }
         }
 
         private void OnProfileRemoved(string name)
         {
+            var operationToken = BeginProfileOperation(name);
+            if (operationToken is null)
+            {
+                return;
+            }
+
+            if (TryGetRegisteredProfile(name, out var current) && current is not null)
+            {
+                BindProfile(name, current, operationToken);
+                return;
+            }
+
             IDisposable? subscription = null;
             lock (_gate)
             {
+                if (!IsCurrentProfileOperation(name, operationToken))
+                {
+                    return;
+                }
+
+                _profileOperationTokens.Remove(name);
                 if (_subscriptions.Remove(name, out var removed))
                 {
-                    subscription = removed;
+                    subscription = removed.ChangeSubscription;
                 }
             }
 
             subscription?.Dispose();
         }
 
-        private void Subscribe(string name, IReadOnlyOptions<TModel> options)
+        private void Subscribe(
+            string name,
+            IReadOnlyOptions<TModel> options,
+            bool registryProfile = false
+        )
         {
+            var operationToken = BeginProfileOperation(name);
+            if (operationToken is null)
+            {
+                return;
+            }
+
+            if (registryProfile)
+            {
+                if (!TryGetRegisteredProfile(name, out var current) || current is null)
+                {
+                    CancelProfileOperation(name, operationToken);
+                    return;
+                }
+
+                options = current;
+            }
+
+            BindProfile(name, options, operationToken);
+        }
+
+        private void BindProfile(
+            string name,
+            IReadOnlyOptions<TModel> options,
+            object operationToken
+        )
+        {
+            ProfileSubscription entry;
+            IDisposable? previousSubscription = null;
             lock (_gate)
             {
-                if (_disposed || !_subscriptions.TryAdd(name, null))
+                if (!IsCurrentProfileOperation(name, operationToken))
                 {
                     return;
                 }
+
+                if (_subscriptions.TryGetValue(name, out var existing))
+                {
+                    if (ReferenceEquals(existing.Options, options))
+                    {
+                        _profileOperationTokens.Remove(name);
+                        return;
+                    }
+
+                    _subscriptions.Remove(name);
+                    previousSubscription = existing.ChangeSubscription;
+                }
+
+                entry = new ProfileSubscription(options);
+                _subscriptions.Add(name, entry);
+                _profileOperationTokens.Remove(name);
             }
 
-            var subscription = options.OnChange(value => _listener(value, name));
+            previousSubscription?.Dispose();
+            IDisposable subscription;
+            try
+            {
+                subscription = options.OnChange(value => _listener(value, name));
+            }
+            catch
+            {
+                lock (_gate)
+                {
+                    if (
+                        _subscriptions.TryGetValue(name, out var current)
+                        && ReferenceEquals(current, entry)
+                    )
+                    {
+                        _subscriptions.Remove(name);
+                    }
+                }
+
+                throw;
+            }
+
+            var disposeSubscription = false;
             lock (_gate)
             {
-                if (_disposed || !_subscriptions.ContainsKey(name))
+                if (
+                    _disposed
+                    || !_subscriptions.TryGetValue(name, out var current)
+                    || !ReferenceEquals(current, entry)
+                )
                 {
-                    subscription.Dispose();
+                    disposeSubscription = true;
                 }
                 else
                 {
-                    _subscriptions[name] = subscription;
+                    entry.ChangeSubscription = subscription;
                 }
+            }
+
+            if (disposeSubscription)
+            {
+                subscription.Dispose();
+            }
+        }
+
+        private object? BeginProfileOperation(string name)
+        {
+            lock (_gate)
+            {
+                if (_disposed)
+                {
+                    return null;
+                }
+
+                var operationToken = new object();
+                _profileOperationTokens[name] = operationToken;
+                return operationToken;
+            }
+        }
+
+        private void CancelProfileOperation(string name, object operationToken)
+        {
+            lock (_gate)
+            {
+                if (IsCurrentProfileOperation(name, operationToken))
+                {
+                    _profileOperationTokens.Remove(name);
+                }
+            }
+        }
+
+        private bool IsCurrentProfileOperation(string name, object operationToken) =>
+            !_disposed
+            && _profileOperationTokens.TryGetValue(name, out var current)
+            && ReferenceEquals(current, operationToken);
+
+        private bool TryGetRegisteredProfile(string name, out IWritableOptions<TModel>? options)
+        {
+            options = null;
+            if (_registry is null)
+            {
+                return false;
+            }
+
+            try
+            {
+                return _registry.TryGet(name, out options);
+            }
+            catch (ObjectDisposedException)
+            {
+                return false;
             }
         }
     }

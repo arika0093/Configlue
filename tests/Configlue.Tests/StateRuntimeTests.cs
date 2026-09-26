@@ -328,6 +328,77 @@ public sealed class StateRuntimeTests
     }
 
     [Test]
+    public async Task OptionsMonitor_RemainsSubscribedWhenProfileIsReAddedDuringRemoval()
+    {
+        var stores = new Dictionary<string, InMemoryStateStore<AppSettings.Fragment>>(
+            StringComparer.Ordinal
+        );
+        var services = new ServiceCollection();
+        services.AddConfiglueOptionsRegistry<AppSettings, AppSettings.Fragment>(
+            (_, profileName) =>
+            {
+                var store = new InMemoryStateStore<AppSettings.Fragment>(
+                    new AppSettings.Fragment { RetryCount = Optional<int>.Present(4) }
+                );
+                stores[profileName] = store;
+                return new StateSourceSet<AppSettings.Fragment>([
+                    new(profileName, store, writer: store, watcher: store),
+                ]);
+            },
+            onChangeDebounce: TimeSpan.Zero
+        );
+        using var serviceProvider = services.BuildServiceProvider();
+        var registry = serviceProvider.GetRequiredService<IConfiglueOptionsRegistry<AppSettings>>();
+        (registry.TryAdd("runtime")).ShouldBeTrue();
+
+        var removalEntered = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        var continueRemoval = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        // Pause before the monitor's removal handler so the replacement is added first.
+        registry.ProfileRemoved += name =>
+        {
+            if (name == "runtime")
+            {
+                removalEntered.TrySetResult();
+                continueRemoval.Task.GetAwaiter().GetResult();
+            }
+        };
+
+        var monitor = serviceProvider.GetRequiredService<IOptionsMonitor<AppSettings>>();
+        var replacementChanged = new TaskCompletionSource<int>(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        using var subscription = monitor.OnChange(
+            (value, name) =>
+            {
+                if (name == "runtime" && value.RetryCount == 18)
+                {
+                    replacementChanged.TrySetResult(value.RetryCount);
+                }
+            }
+        );
+
+        var removal = Task.Run(() => registry.TryRemove("runtime"));
+        try
+        {
+            await removalEntered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            (registry.TryAdd("runtime")).ShouldBeTrue();
+        }
+        finally
+        {
+            continueRemoval.TrySetResult();
+        }
+
+        (await removal).ShouldBeTrue();
+        stores["runtime"].Set(new AppSettings.Fragment { RetryCount = Optional<int>.Present(18) });
+
+        (await replacementChanged.Task.WaitAsync(TimeSpan.FromSeconds(5))).ShouldBe(18);
+    }
+
+    [Test]
     public async Task ApplyPatchesAsync_GroupsSiblingJsonSectionsIntoOnePhysicalWrite()
     {
         var resource = new InMemoryResource();
