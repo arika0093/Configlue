@@ -363,6 +363,46 @@ public sealed class StateRuntimeTests
         await Assert.That(secondaryValue.RetryCount).IsEqualTo(8);
     }
 
+    [Test]
+    public async Task DependencyInjection_ManagesDynamicProfilesThroughRegistry()
+    {
+        var services = new ServiceCollection();
+        var factoryCalls = 0;
+        services.AddConfiglueOptionsRegistry<AppSettings, AppSettings.Fragment>((_, profileName) =>
+        {
+            Interlocked.Increment(ref factoryCalls);
+            var store = new InMemoryStateStore<AppSettings.Fragment>(new AppSettings.Fragment
+            {
+                RetryCount = Optional<int>.Present(profileName == "primary" ? 5 : 8),
+            });
+            return new StateSourceSet<AppSettings.Fragment>([new("profile", store)]);
+        });
+        using var serviceProvider = services.BuildServiceProvider();
+        var registry = serviceProvider.GetRequiredService<IConfiglueOptionsRegistry<AppSettings>>();
+        var added = new List<string>();
+        var removed = new List<string>();
+        registry.ProfileAdded += (name, _) => added.Add(name);
+        registry.ProfileRemoved += name => removed.Add(name);
+
+        var addResults = new bool[16];
+        Parallel.For(0, addResults.Length, index => addResults[index] = registry.TryAdd("primary"));
+        registry.TryAdd("secondary");
+        var primary = await registry.Get("primary").GetValueAsync();
+        var secondary = await registry.Get("secondary").GetValueAsync();
+        var removedPrimary = registry.TryRemove("primary");
+        var removedAgain = registry.TryRemove("primary");
+
+        await Assert.That(addResults.Count(static result => result)).IsEqualTo(1);
+        await Assert.That(factoryCalls).IsEqualTo(2);
+        await Assert.That(primary.RetryCount).IsEqualTo(5);
+        await Assert.That(secondary.RetryCount).IsEqualTo(8);
+        await Assert.That(registry.ProfileNames).IsEquivalentTo(["secondary"]);
+        await Assert.That(added).IsEquivalentTo(["primary", "secondary"]);
+        await Assert.That(removed).IsEquivalentTo(["primary"]);
+        await Assert.That(removedPrimary).IsTrue();
+        await Assert.That(removedAgain).IsFalse();
+    }
+
     private sealed class FixedStateReader<T>(StateReadResult<T> result) : IStateReader<T>
     {
         public ValueTask<StateReadResult<T>> ReadAsync(CancellationToken cancellationToken = default)

@@ -93,6 +93,28 @@ public static class ConfiglueServiceCollectionExtensions
             validateDataAnnotations);
     }
 
+    /// <summary>Registers a runtime-managed registry that can add and remove named profiles.</summary>
+    public static IServiceCollection AddConfiglueOptionsRegistry<TModel, TFragment>(
+        this IServiceCollection services,
+        Func<IServiceProvider, string, StateSourceSet<TFragment>> sourceSetFactory,
+        StateWriteRoute writeRoute = default,
+        bool validateDataAnnotations = false)
+        where TModel : IConfiglueModel<TModel, TFragment>
+        where TFragment : class, IConfiglueFragment<TFragment>
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(sourceSetFactory);
+
+        services.AddSingleton<IConfiglueOptionsRegistry<TModel>>(provider =>
+            new ConfiglueOptionsRegistry<TModel, TFragment>(profileName => new ConfiglueOptions<TModel, TFragment>(
+                sourceSetFactory(provider, profileName),
+                writeRoute,
+                provider.GetServices<IStateSchemaMigration<TFragment>>(),
+                provider.GetServices<IConfiglueValidator<TModel>>(),
+                validateDataAnnotations)));
+        return services;
+    }
+
     /// <summary>Registers a standard Microsoft options validator for Configlue saves.</summary>
     public static IServiceCollection AddConfiglueValidator<TModel>(
         this IServiceCollection services,
