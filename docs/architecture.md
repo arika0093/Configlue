@@ -14,4 +14,6 @@ Logical schema and physical storage topology are independent. Multiple sources c
 
 ## Implementation status
 
-The repository currently contains the project and packaging skeleton. Runtime contracts and generated fragment support are being implemented in separate changes.
+The foundation is in place: backend-neutral read/write/watch contracts, prioritized source resolution, revision-aware file resources, generated sparse fragments with merge and patch operations, and JSON/XML/YAML codecs. The test project covers these pieces with in-memory and file-backed resources.
+
+The public options and editing API, validation, schema and storage migrations, named configuration profiles, and provider-specific watcher and backup policies still need implementation. The current API is an architectural foundation rather than a feature-complete replacement for Configuration.Writable.

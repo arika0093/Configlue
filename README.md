@@ -19,4 +19,5 @@ Requires the .NET 10 SDK.
 
 ```sh
 dotnet build Configlue.slnx
+dotnet test --solution Configlue.slnx --configuration Release
 ```

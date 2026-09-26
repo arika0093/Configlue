@@ -198,6 +198,7 @@ public sealed class ConfiglueGenerator : IIncrementalGenerator
             .Append(modelType).AppendLine(">");
         code.AppendLine("{");
         AppendModelSchema(code, modelType, modelId, version, members);
+        AppendFragmentSchema(code, modelType, modelId, version, members);
         AppendDeepClone(code, modelType, members);
         AppendFragment(code, modelType, members);
         code.AppendLine("}");
@@ -219,7 +220,32 @@ public sealed class ConfiglueGenerator : IIncrementalGenerator
         {
             code.Append("        new(").Append(member.Id).Append(", ")
                 .Append(SymbolDisplay.FormatLiteral(member.Property.Name, true)).Append(", typeof(")
-                .Append(NonNullableTypeName(member.Property.Type)).Append("), global::Configlue.MergeMode.")
+                .Append(NonNullableTypeName(member.ChildModel ?? member.Property.Type)).Append("), global::Configlue.MergeMode.")
+                .Append(MergeModeName(member.MergeMode)).AppendLine("),");
+        }
+
+        code.AppendLine("    });");
+    }
+
+    private static void AppendFragmentSchema(
+        StringBuilder code,
+        string modelType,
+        string modelId,
+        int version,
+        ImmutableArray<MemberModel> members)
+    {
+        code.Append("    public static global::Configlue.ConfiglueModelSchema FragmentSchema { get; } = new(typeof(")
+            .Append(modelType).Append("), ").Append(SymbolDisplay.FormatLiteral(modelId, true)).Append(", ").Append(version)
+            .AppendLine(", new global::Configlue.ConfiglueMemberSchema[]");
+        code.AppendLine("    {");
+        foreach (var member in members)
+        {
+            var valueType = member.ChildModel is null
+                ? NonNullableTypeName(member.Property.Type)
+                : NonNullableTypeName(member.ChildModel) + ".Fragment";
+            code.Append("        new(").Append(member.Id).Append(", ")
+                .Append(SymbolDisplay.FormatLiteral(member.Property.Name, true)).Append(", typeof(")
+                .Append(valueType).Append("), global::Configlue.MergeMode.")
                 .Append(MergeModeName(member.MergeMode)).AppendLine("),");
         }
 
@@ -243,7 +269,7 @@ public sealed class ConfiglueGenerator : IIncrementalGenerator
     {
         code.AppendLine("    /// <summary>A sparse, presence-aware representation of this model.</summary>");
         code.AppendLine("    [global::System.Text.Json.Serialization.JsonConverter(typeof(FragmentJsonConverter))]");
-        code.AppendLine("    public sealed class Fragment");
+        code.AppendLine("    public sealed class Fragment : global::Configlue.IConfiglueFragment");
         code.AppendLine("    {");
         foreach (var member in members)
         {
@@ -257,6 +283,7 @@ public sealed class ConfiglueGenerator : IIncrementalGenerator
         code.Append("        public bool IsEmpty => ").Append(members.Length == 0 ? "true" : string.Join(" && ", members.Select(member =>
             "!" + EscapeIdentifier(member.Property.Name) + ".IsPresent"))).AppendLine(";");
         code.AppendLine();
+        AppendFragmentDescriptor(code, modelType, members);
         AppendFromModel(code, modelType, members);
         AppendToModel(code, modelType, members);
         AppendMerge(code, members);
@@ -267,6 +294,39 @@ public sealed class ConfiglueGenerator : IIncrementalGenerator
         code.AppendLine("    }");
         AppendBuilder(code, members);
         AppendPatch(code, members);
+    }
+
+    private static void AppendFragmentDescriptor(StringBuilder code, string modelType, ImmutableArray<MemberModel> members)
+    {
+        code.AppendLine("        public static Fragment Empty => new();");
+        code.Append("        public global::Configlue.ConfiglueModelSchema Schema => ").Append(modelType).AppendLine(".FragmentSchema;");
+        code.AppendLine("        public global::System.Collections.Generic.IEnumerable<global::Configlue.ConfiglueFragmentMember> EnumeratePresentMembers()");
+        code.AppendLine("        {");
+        foreach (var member in members)
+        {
+            var name = EscapeIdentifier(member.Property.Name);
+            code.Append("            if (").Append(name).Append(".IsPresent) yield return new(").Append(member.Id).Append(", ")
+                .Append(SymbolDisplay.FormatLiteral(member.Property.Name, true)).Append(", ").Append(name).AppendLine(".Value);");
+        }
+
+        code.AppendLine("        }");
+        code.AppendLine("        public global::Configlue.IConfiglueFragment WithMember(int memberId, object? value)");
+        code.AppendLine("        {");
+        code.AppendLine("            var builder = ToBuilder();");
+        code.AppendLine("            switch (memberId)");
+        code.AppendLine("            {");
+        foreach (var member in members)
+        {
+            var name = EscapeIdentifier(member.Property.Name);
+            code.Append("                case ").Append(member.Id).Append(": builder.").Append(name).Append(" = global::Configlue.Optional<")
+                .Append(FragmentValueType(member)).Append(">.Present((").Append(FragmentValueType(member)).AppendLine(")value!); break;");
+        }
+
+        code.AppendLine("                default: throw new global::System.ArgumentOutOfRangeException(nameof(memberId));");
+        code.AppendLine("            }");
+        code.AppendLine("            return builder.Build();");
+        code.AppendLine("        }");
+        code.AppendLine();
     }
 
     private static void AppendFromModel(StringBuilder code, string modelType, ImmutableArray<MemberModel> members)

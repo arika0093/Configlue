@@ -1,5 +1,7 @@
 using Configlue;
 using Configlue.Provider.Json;
+using Configlue.Provider.Xml;
+using Configlue.Provider.Yaml;
 using System.Buffers;
 using System.Text;
 
@@ -133,5 +135,109 @@ public sealed class GeneratedFragmentTests
         await Assert.That(decodedFragment.Label.Value).IsNull();
         await Assert.That(decodedFragment.RetryCount.IsPresent).IsFalse();
         await Assert.That(schema).IsEqualTo(new StateSchemaMetadata("app-settings", 2));
+    }
+
+    [Test]
+    public async Task XmlCodec_RoundTripsSparseNestedValuesAndSchemaMetadata()
+    {
+        var codec = new XmlStateCodec<AppSettings.Fragment>();
+        var fragment = new AppSettings.Fragment
+        {
+            Enabled = Optional<bool>.Present(false),
+            Label = Optional<string?>.Present(null),
+            Database = Optional<DatabaseSettings.Fragment?>.Present(new DatabaseSettings.Fragment
+            {
+                Host = Optional<string>.Present("db.local"),
+            }),
+            Plugins = Optional<IReadOnlyList<string>>.Present(["admin"]),
+        };
+        var buffer = new ArrayBufferWriter<byte>();
+        var context = new StateCodecContext(new StateSchemaMetadata("app-settings", 2));
+
+        codec.Serialize(fragment, buffer, in context);
+        var sequence = new ReadOnlySequence<byte>(buffer.WrittenMemory);
+        var decoded = codec.Deserialize(in sequence, default)!;
+
+        await Assert.That(decoded.Enabled.IsPresent).IsTrue();
+        await Assert.That(decoded.Enabled.Value).IsFalse();
+        await Assert.That(decoded.RetryCount.IsPresent).IsFalse();
+        await Assert.That(decoded.Label.IsPresent).IsTrue();
+        await Assert.That(decoded.Label.Value).IsNull();
+        await Assert.That(decoded.Database.IsPresent).IsTrue();
+        await Assert.That(decoded.Database.Value!.Host.Value).IsEqualTo("db.local");
+        await Assert.That(decoded.Database.Value!.Port.IsPresent).IsFalse();
+        await Assert.That(decoded.Plugins.Value).IsEquivalentTo(["admin"]);
+        await Assert.That(codec.ReadSchemaMetadata(in sequence)).IsEqualTo(new StateSchemaMetadata("app-settings", 2));
+    }
+
+    [Test]
+    public async Task YamlCodec_RoundTripsSparseNestedValuesAndSchemaMetadata()
+    {
+        var codec = new YamlStateCodec<AppSettings.Fragment>();
+        var fragment = new AppSettings.Fragment
+        {
+            Enabled = Optional<bool>.Present(false),
+            Label = Optional<string?>.Present(null),
+            Database = Optional<DatabaseSettings.Fragment?>.Present(new DatabaseSettings.Fragment
+            {
+                Host = Optional<string>.Present("db.local"),
+            }),
+            Plugins = Optional<IReadOnlyList<string>>.Present(["admin"]),
+        };
+        var buffer = new ArrayBufferWriter<byte>();
+        var context = new StateCodecContext(new StateSchemaMetadata("app-settings", 2));
+
+        codec.Serialize(fragment, buffer, in context);
+        var sequence = new ReadOnlySequence<byte>(buffer.WrittenMemory);
+        var decoded = codec.Deserialize(in sequence, default)!;
+
+        await Assert.That(decoded.Enabled.IsPresent).IsTrue();
+        await Assert.That(decoded.Enabled.Value).IsFalse();
+        await Assert.That(decoded.RetryCount.IsPresent).IsFalse();
+        await Assert.That(decoded.Label.IsPresent).IsTrue();
+        await Assert.That(decoded.Label.Value).IsNull();
+        await Assert.That(decoded.Database.IsPresent).IsTrue();
+        await Assert.That(decoded.Database.Value!.Host.Value).IsEqualTo("db.local");
+        await Assert.That(decoded.Database.Value!.Port.IsPresent).IsFalse();
+        await Assert.That(decoded.Plugins.Value).IsEquivalentTo(["admin"]);
+        await Assert.That(codec.ReadSchemaMetadata(in sequence)).IsEqualTo(new StateSchemaMetadata("app-settings", 2));
+    }
+
+    [Test]
+    public async Task XmlAndYamlCodecs_RoundTripOrdinaryModelsWithSchemaMetadata()
+    {
+        var model = new AppSettings
+        {
+            Enabled = false,
+            RetryCount = 0,
+            Label = null,
+            Database = new DatabaseSettings { Host = "db.local", Port = 6432 },
+            Plugins = ["admin", "metrics"],
+        };
+        var context = new StateCodecContext(AppSettings.ConfiglueSchema.ToMetadata());
+        var xml = new XmlStateCodec<AppSettings>();
+        var xmlBuffer = new ArrayBufferWriter<byte>();
+        xml.Serialize(model, xmlBuffer, in context);
+        var xmlSequence = new ReadOnlySequence<byte>(xmlBuffer.WrittenMemory);
+        var xmlModel = xml.Deserialize(in xmlSequence, default)!;
+
+        var yaml = new YamlStateCodec<AppSettings>();
+        var yamlBuffer = new ArrayBufferWriter<byte>();
+        yaml.Serialize(model, yamlBuffer, in context);
+        var yamlSequence = new ReadOnlySequence<byte>(yamlBuffer.WrittenMemory);
+        var yamlModel = yaml.Deserialize(in yamlSequence, default)!;
+
+        await Assert.That(xmlModel.Enabled).IsFalse();
+        await Assert.That(xmlModel.RetryCount).IsEqualTo(0);
+        await Assert.That(xmlModel.Label).IsNull();
+        await Assert.That(xmlModel.Database!.Port).IsEqualTo(6432);
+        await Assert.That(xmlModel.Plugins).IsEquivalentTo(["admin", "metrics"]);
+        await Assert.That(yamlModel.Enabled).IsFalse();
+        await Assert.That(yamlModel.RetryCount).IsEqualTo(0);
+        await Assert.That(yamlModel.Label).IsNull();
+        await Assert.That(yamlModel.Database!.Port).IsEqualTo(6432);
+        await Assert.That(yamlModel.Plugins).IsEquivalentTo(["admin", "metrics"]);
+        await Assert.That(xml.ReadSchemaMetadata(in xmlSequence)).IsEqualTo(AppSettings.ConfiglueSchema.ToMetadata());
+        await Assert.That(yaml.ReadSchemaMetadata(in yamlSequence)).IsEqualTo(AppSettings.ConfiglueSchema.ToMetadata());
     }
 }
