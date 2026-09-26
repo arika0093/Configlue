@@ -1,0 +1,12 @@
+---
+title: Schema and storage migrations
+description: Upgrade persisted fragments and move source contributions safely.
+---
+
+Set a stable model ID and schema version in `[ConfiglueModel]`. The JSON codec stores this metadata beside the serialized fragment, and codecs can expose metadata through `IStateSchemaMetadataReader`.
+
+Implement `IStateSchemaMigration<TFragment>` and register it with dependency injection to transform an older fragment during reads. Migration chains are scoped to the model fragment and let a source evolve its stored representation without changing the resolved application model all at once.
+
+For a storage move, call `IWritableOptions<TModel>.MigrateSourceAsync(sourceId, targetId)` to copy one source contribution to another writable source. Use `MigrateSourcesToTargetsAsync(sourceIds, targetProjections)` to merge selected contributions and project them into one or more targets. Each target is revision-checked and verified; completed targets are skipped on retry if a later destination fails.
+
+Multi-target writes are not atomic. Optional source retirement changes only the current options instance and is allowed after every target verifies and the effective model remains unchanged. It does not delete the original backing data, and the application's source registration must be updated for future starts.

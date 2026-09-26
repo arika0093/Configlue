@@ -1,0 +1,31 @@
+---
+title: Profiles
+description: Register named options, create runtime profiles, or persist an active profile.
+---
+
+Use keyed registrations for a fixed set of profiles. Resolve the corresponding keyed options service by its name:
+
+```csharp
+services.AddConfiglueOptions<AppSettings, AppSettings.Fragment>(
+    "work", workSourceSet);
+
+var work = provider.GetRequiredKeyedService<IReadOnlyOptions<AppSettings>>("work");
+```
+
+For profiles created while the application is running, register `AddConfiglueOptionsRegistry<TModel, TFragment>` and use `IConfiglueOptionsRegistry<TModel>.TryAdd`, `Get`, and `TryRemove`.
+
+When names and the active profile must survive a restart, register `AddConfiglueProfiledOptions<TModel, TFragment>`. Supply a factory for each profile's source set and a separate writable source for `ConfiglueProfileCatalog`. The catalog backend can be different from the backend that stores each profile's values.
+
+```csharp
+services.AddConfiglueProfiledOptions<AppSettings, AppSettings.Fragment>(
+    (provider, profileName) => CreateProfileSources(provider, profileName),
+    provider => CreateCatalogSource(provider));
+
+var profiles = provider.GetRequiredService<IConfiglueProfiledOptions<AppSettings>>();
+await profiles.GetProfileNamesAsync();
+await profiles.CreateProfileAsync("Work", copyFrom: "default");
+await profiles.SetActiveProfileAsync("Work");
+var settings = await profiles.GetActiveValueAsync();
+```
+
+The first asynchronous operation restores the catalog or creates the default profile. Removing a profile removes it from the catalog and runtime, but retains its backing data.

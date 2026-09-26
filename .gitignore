@@ -3,6 +3,9 @@ obj/
 artifacts/
 TestResults/
 publish/
+docs-site/.astro/
+docs-site/node_modules/
+docs-site/dist/
 .vs/
 .idea/
 *.user

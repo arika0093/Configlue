@@ -1,0 +1,18 @@
+---
+title: Resources, codecs, and sources
+description: Keep storage, serialization, and resolution as separate concerns.
+---
+
+Configlue separates three layers:
+
+| Layer | Responsibility | Examples |
+| --- | --- | --- |
+| Resource | Reads and writes bytes at a physical endpoint | `FileResource`, `JsonSectionResource`, `ZipEntryResource` |
+| Codec | Converts bytes to and from typed fragments | `JsonStateCodec`, `XmlStateCodec`, `YamlStateCodec` |
+| State source | Gives a fragment a logical ID, priority, fallback behavior, and optional I/O capabilities | `StateSource<TFragment>` |
+
+`SerializedStateSource.FromResource<T>` composes a resource with a codec. It automatically detects writer and watcher capabilities exposed by the resource. Custom backends can implement the reader, writer, watcher, or resource interfaces directly.
+
+Section resources expose part of a larger document as a logical resource. JSON, XML, and YAML section views preserve sibling values when written. `ZipEntryResource` does the same for one archive entry. When multiple section views share a physical resource, their `ResourceId` allows compatible disjoint writes to be grouped.
+
+This separation lets an application change formats or storage backends without changing its model resolution and editing code.

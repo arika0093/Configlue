@@ -1,0 +1,27 @@
+---
+title: Dependency injection
+description: Register sources with the DI-aware source-set builder.
+---
+
+`AddConfiglueOptions<TModel, TFragment>` registers one resolved options instance as both `IReadOnlyOptions<TModel>` and `IWritableOptions<TModel>`. Its source callback runs when the options singleton is created, so provider services can be resolved there.
+
+```csharp
+services.AddSingleton<UserSettingsStore>();
+services.AddSingleton<DefaultsStore>();
+
+services.AddConfiglueOptions<AppSettings, AppSettings.Fragment>(
+    (provider, sources) =>
+    {
+        var user = provider.GetRequiredService<UserSettingsStore>();
+        var defaults = provider.GetRequiredService<DefaultsStore>();
+
+        sources.Add("user", user, priority: 100);
+        sources.Add("defaults", defaults, priority: 0);
+    },
+    writeRoute: StateWriteRoute.To("user"),
+    validateDataAnnotations: true);
+```
+
+`sources.Add` detects writer and watcher interfaces implemented by the reader. Call `.WithWriter(...)` or `.WithWatcher(...)` on the returned builder when those capabilities are provided by separate services. Use `.WithoutWriter()` or `.WithoutWatcher()` to disable detected capabilities.
+
+Resolve `IReadOnlyOptions<TModel>` for reads and `IWritableOptions<TModel>` for edits. Registration also provides the Microsoft `IOptions<T>`, `IOptionsSnapshot<T>`, and `IOptionsMonitor<T>` adapters for class models. Their synchronous getters perform a synchronous Configlue read; prefer Configlue's async methods in asynchronous application flows.

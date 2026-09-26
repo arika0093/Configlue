@@ -1,0 +1,40 @@
+---
+title: Writes and routing
+description: Save semantic edits to one or more selected sources.
+---
+
+Choose a default destination with `StateWriteRoute.To("source-id")`. `SaveAsync` accepts a value or an update callback; the callback edits a deep clone of the current model.
+
+```csharp
+await writable.SaveAsync(settings => settings.Database!.Host = "db.internal");
+
+using var edit = await writable.BeginConfigureAsync();
+edit.Value.TimeoutSeconds = 20;
+var result = await edit.SaveAsync();
+```
+
+An edit session captures the source revision vector when it begins. The save checks that vector before writing, so concurrent changes fail with `StateConflictException` instead of silently overwriting a newer configuration.
+
+## Route changed paths
+
+Pass a `StateWritePlan` to route paths to different writable sources. The most specific matching path is used, so `Database.Password` overrides a broader `Database` route.
+
+```csharp
+var plan = new StateWritePlan(new Dictionary<string, string>
+{
+    ["Database"] = "database-settings",
+    ["Database.Password"] = "secrets",
+});
+
+await writable.SaveAsync(
+    settings => settings.Database!.Password = "updated",
+    plan);
+```
+
+Plans validate paths and destinations before editing. Configlue applies the semantic diff to each source and verifies the resulting model and source revisions before writing. Writes to different physical resources are not atomic.
+
+## Apply generated patches
+
+Use a generated `Model.Patch` when the caller already knows which members to set or unset. `ApplyPatchAsync` applies it to the configured write source. `ApplyPatchesAsync` accepts explicit source-local patches and groups compatible disjoint section updates that share a resource identity into one physical write. Overlapping scopes are rejected during planning.
+
+Append and set-union edits are rebased onto each target source's collection contribution. Edits that would remove values owned by another source, or that are hidden by a higher-priority source, fail with `StateConflictException`.

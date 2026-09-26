@@ -1,0 +1,19 @@
+---
+title: Packages and projects
+description: Find the NuGet package for each Configlue capability.
+---
+
+| Package | Project | Purpose |
+| --- | --- | --- |
+| `Configlue` | `src/Configlue` | User-facing package with runtime registration and the source generator. |
+| `Configlue.Abstraction` | `src/Configlue.Abstraction` | Model, state, resource, codec, and options contracts. |
+| `Configlue.Core` | `src/Configlue.Core` | Source resolution, options runtime, serialized source composition, and file resources. |
+| `Configlue.Generator` | `src/Configlue.Generator` | Compile-time generation of sparse fragments and patches. |
+| `Configlue.Testing` | `src/Configlue.Testing` | In-memory resources and state stores for application tests. |
+| `Configlue.Provider.Json` | `src/Configlue.Provider.Json` | JSON codec, JSON sections, and JSON Schema export. |
+| `Configlue.Provider.Xml` | `src/Configlue.Provider.Xml` | XML codec and section resources. |
+| `Configlue.Provider.Yaml` | `src/Configlue.Provider.Yaml` | YAML codec and section resources. |
+| `Configlue.Source.Environment` | `src/Configlue.Source.Environment` | Read-only source from process environment variables. |
+| `Configlue.Resource.Zip` | `src/Configlue.Resource.Zip` | Resource view over a ZIP archive entry. |
+
+The package references and versions in the project files are the source of truth. Install optional provider packages directly when you need them.

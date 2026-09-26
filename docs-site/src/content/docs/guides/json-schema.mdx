@@ -1,0 +1,23 @@
+---
+title: Export JSON Schema
+description: Generate versioned JSON Schema from generated model metadata.
+---
+
+`JsonSchemaGenerator` exports schemas from a model's generated `ConfiglueModelSchema`. Supply JSON type metadata for the model, preferably from a source-generated context:
+
+```csharp
+using System.Text.Json.Serialization;
+
+[JsonSerializable(typeof(AppSettings))]
+internal partial class AppJsonContext : JsonSerializerContext { }
+
+var schema = JsonSchemaGenerator.Generate<AppSettings, AppSettings.Fragment>(
+    AppJsonContext.Default);
+var written = JsonSchemaGenerator.Write<AppSettings, AppSettings.Fragment>(
+    "schemas",
+    AppJsonContext.Default);
+```
+
+Supported DataAnnotations map to schema constraints. Use schema override and one-of attributes for cases that need explicit schema structure. For trimming and NativeAOT friendly metadata, pass a source-generated `IJsonTypeInfoResolver` to the generator.
+
+Generated schemas include the model ID and version. They describe the model's resolved values; persisted fragments also preserve which members each source contributed.

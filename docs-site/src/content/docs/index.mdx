@@ -1,0 +1,44 @@
+---
+title: Configlue
+description: Typed configuration assembled from independent state sources.
+template: splash
+hero:
+  tagline: Configuration that keeps its sources separate.
+  actions:
+    - text: Get started
+      link: getting-started/quick-start/
+      icon: right-arrow
+      variant: primary
+    - text: View on GitHub
+      link: https://github.com/arika0093/Configlue
+      icon: external
+      variant: minimal
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+Configlue is a .NET library for reading, resolving, editing, and persisting typed configuration from independent sources. A source contributes only the fields it owns, so values can be layered without replacing an entire settings object.
+
+## Build configuration from sources
+
+<CardGrid>
+  <Card title="Learn the model" icon="puzzle">
+    See how generated sparse fragments distinguish a missing value from `null`, `false`, or a default value.
+  </Card>
+  <Card title="Combine providers" icon="setting">
+    Compose JSON, XML, YAML, environment variables, files, and custom resources behind one model.
+  </Card>
+  <Card title="Write with intent" icon="document">
+    Route edits to selected sources, preserve unrelated contributions, and detect stale revisions.
+  </Card>
+</CardGrid>
+
+## What Configlue provides
+
+- Source-generated model fragments and patches, with semantic merge and diff operations.
+- Priority-based resolution across independent sources.
+- Separate resource, codec, and source contracts.
+- Read-only, writable, and watched sources that can be combined as needed.
+- Dependency injection, named profiles, validation, migration, and property-level explanations.
+
+Start with the [quick start](getting-started/quick-start/) or browse the [core concepts](concepts/sources-and-priority/).

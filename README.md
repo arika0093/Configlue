@@ -4,6 +4,8 @@ Configlue is a source-generator-first library for reading, resolving, editing, a
 
 The repository is being rebuilt around backend-neutral state and sparse generated fragments. See [the architecture notes](docs/architecture.md) for the design direction and current implementation status.
 
+Browse the [Configlue documentation site](https://arika0093.github.io/Configlue/) for setup guides, provider information, and API concepts.
+
 ## Projects
 
 - `Configlue`: user-facing package with the runtime, dependency injection, and source generator.
