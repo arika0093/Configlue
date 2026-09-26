@@ -16,7 +16,10 @@ public static class ConfiglueServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(sourceSetFactory);
 
-        services.AddSingleton(provider => new ConfiglueOptions<TModel, TFragment>(sourceSetFactory(provider), writeRoute));
+        services.AddSingleton(provider => new ConfiglueOptions<TModel, TFragment>(
+            sourceSetFactory(provider),
+            writeRoute,
+            provider.GetServices<IStateSchemaMigration<TFragment>>()));
         services.AddSingleton<IReadOnlyOptions<TModel>>(provider =>
             provider.GetRequiredService<ConfiglueOptions<TModel, TFragment>>());
         services.AddSingleton<IWritableOptions<TModel>>(provider =>

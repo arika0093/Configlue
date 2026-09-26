@@ -2,6 +2,7 @@ using Configlue;
 using Configlue.Provider.Json;
 using Configlue.Provider.Xml;
 using Configlue.Provider.Yaml;
+using Configlue.Testing;
 using System.Buffers;
 using System.Text;
 
@@ -135,6 +136,30 @@ public sealed class GeneratedFragmentTests
         await Assert.That(decodedFragment.Label.Value).IsNull();
         await Assert.That(decodedFragment.RetryCount.IsPresent).IsFalse();
         await Assert.That(schema).IsEqualTo(new StateSchemaMetadata("app-settings", 2));
+    }
+
+    [Test]
+    public async Task JsonCodec_UsesGeneratedFragmentSchemaWhenContextIsOmitted()
+    {
+        var codec = new JsonStateCodec<AppSettings.Fragment>();
+        var buffer = new ArrayBufferWriter<byte>();
+        codec.Serialize(new AppSettings.Fragment { Enabled = Optional<bool>.Present(false) }, buffer, default);
+        var sequence = new ReadOnlySequence<byte>(buffer.WrittenMemory);
+
+        await Assert.That(codec.ReadSchemaMetadata(in sequence)).IsEqualTo(AppSettings.ConfiglueSchema.ToMetadata());
+    }
+
+    [Test]
+    public async Task SerializedWriter_PersistsGeneratedSchemaBesideFragmentResources()
+    {
+        var resource = new InMemoryResource();
+        var writer = new SerializedStateWriter<AppSettings.Fragment>(resource, new JsonStateCodec<AppSettings.Fragment>());
+        var fragment = new AppSettings.Fragment { RetryCount = Optional<int>.Present(9) };
+
+        await writer.WriteAsync(new StateWriteRequest<AppSettings.Fragment>(fragment));
+        var stored = await resource.ReadAsync();
+
+        await Assert.That(stored.Schema).IsEqualTo(AppSettings.ConfiglueSchema.ToMetadata());
     }
 
     [Test]

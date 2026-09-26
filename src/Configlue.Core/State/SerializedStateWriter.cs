@@ -44,7 +44,7 @@ public sealed class SerializedStateWriter<T> : IStateWriter<T>
                 throw new InvalidOperationException("The codec does not implement a supported state codec interface.");
         }
 
-        var schema = context.Schema;
+        var schema = context.Schema ?? (request.Value is IConfiglueFragment fragment ? fragment.Schema.ToMetadata() : null);
         return _resource.WriteAsync(
             new ResourceWriteRequest(destination.WrittenMemory, request.ExpectedRevision, schema, request.CheckRevision),
             cancellationToken);

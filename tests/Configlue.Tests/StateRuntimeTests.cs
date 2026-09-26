@@ -193,4 +193,51 @@ public sealed class StateRuntimeTests
         await Assert.That(conflicted).IsTrue();
         await Assert.That(stale.IsCommitted).IsFalse();
     }
+
+    [Test]
+    public async Task Options_MigratesEachSourceFragmentBeforeMerging()
+    {
+        var oldSchema = new StateSchemaMetadata("app-settings", 1);
+        var reader = new FixedStateReader<AppSettings.Fragment>(StateReadResult<AppSettings.Fragment>.Success(
+            new AppSettings.Fragment { RetryCount = Optional<int>.Present(9) },
+            "revision-1",
+            oldSchema));
+        var sourceSet = new StateSourceSet<AppSettings.Fragment>([new("legacy", reader)]);
+        var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(
+            sourceSet,
+            migrations: [new AppSettingsV1ToV2Migration()]);
+
+        var result = await options.ReadAsync();
+
+        await Assert.That(result.Status).IsEqualTo(StateReadStatus.Success);
+        await Assert.That(result.Value!.RetryCount).IsEqualTo(9);
+        await Assert.That(result.Value.Label).IsEqualTo("migrated");
+        await Assert.That(result.Schema).IsEqualTo(AppSettings.ConfiglueSchema.ToMetadata());
+    }
+
+    private sealed class FixedStateReader<T>(StateReadResult<T> result) : IStateReader<T>
+    {
+        public ValueTask<StateReadResult<T>> ReadAsync(CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return ValueTask.FromResult(result);
+        }
+    }
+
+    private sealed class AppSettingsV1ToV2Migration : IStateSchemaMigration<AppSettings.Fragment>
+    {
+        public StateSchemaMetadata SourceSchema => new("app-settings", 1);
+
+        public StateSchemaMetadata TargetSchema => new("app-settings", 2);
+
+        public ValueTask<AppSettings.Fragment> MigrateAsync(
+            AppSettings.Fragment value,
+            CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var builder = value.ToBuilder();
+            builder.Label = Optional<string?>.Present("migrated");
+            return ValueTask.FromResult(builder.Build());
+        }
+    }
 }

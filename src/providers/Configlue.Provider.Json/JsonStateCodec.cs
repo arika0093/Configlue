@@ -36,7 +36,11 @@ public sealed class JsonStateCodec : IStateCodec, IStateSchemaMetadataReader
             writer.Flush();
         }
 
-        JsonStateCodecOperations.WritePayload(raw.WrittenMemory, destination, context);
+        var schema = context.Schema ?? (value is IConfiglueFragment fragment ? fragment.Schema.ToMetadata() : null);
+        var effectiveContext = schema is { } metadata
+            ? new StateCodecContext(metadata, context.Services)
+            : context;
+        JsonStateCodecOperations.WritePayload(raw.WrittenMemory, destination, in effectiveContext);
     }
 
     /// <inheritdoc />
@@ -93,7 +97,11 @@ public sealed class JsonStateCodec<T> : IStateCodec<T>, IStateSchemaMetadataRead
             writer.Flush();
         }
 
-        JsonStateCodecOperations.WritePayload(raw.WrittenMemory, destination, context);
+        var schema = context.Schema ?? (value is IConfiglueFragment fragment ? fragment.Schema.ToMetadata() : null);
+        var effectiveContext = schema is { } metadata
+            ? new StateCodecContext(metadata, context.Services)
+            : context;
+        JsonStateCodecOperations.WritePayload(raw.WrittenMemory, destination, in effectiveContext);
     }
 
     /// <inheritdoc />

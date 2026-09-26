@@ -9,6 +9,7 @@ public sealed class ConfiglueOptions<TModel, TFragment> : IWritableOptions<TMode
 {
     private readonly StateSourceSet<TFragment> _sourceSet;
     private readonly StateWriteRoute _writeRoute;
+    private readonly IStateSchemaMigration<TFragment>[] _migrations;
     private readonly object _changeGate = new();
     private readonly List<Action<TModel>> _changeListeners = [];
     private CancellationTokenSource? _watchCancellation;
@@ -16,11 +17,36 @@ public sealed class ConfiglueOptions<TModel, TFragment> : IWritableOptions<TMode
     private bool _disposed;
 
     /// <summary>Creates options backed by the supplied state sources.</summary>
-    public ConfiglueOptions(StateSourceSet<TFragment> sourceSet, StateWriteRoute writeRoute = default)
+    public ConfiglueOptions(
+        StateSourceSet<TFragment> sourceSet,
+        StateWriteRoute writeRoute = default,
+        IEnumerable<IStateSchemaMigration<TFragment>>? migrations = null)
     {
         ArgumentNullException.ThrowIfNull(sourceSet);
         _sourceSet = sourceSet;
         _writeRoute = writeRoute;
+        _migrations = migrations?.ToArray() ?? [];
+        if (_migrations.Any(static migration => migration is null))
+        {
+            throw new ArgumentException("Schema migrations cannot contain null values.", nameof(migrations));
+        }
+
+        var duplicateSourceSchema = _migrations.GroupBy(static migration => migration.SourceSchema)
+            .FirstOrDefault(static group => group.Count() > 1);
+        if (duplicateSourceSchema is not null)
+        {
+            throw new ArgumentException($"More than one schema migration starts at '{duplicateSourceSchema.Key}'.", nameof(migrations));
+        }
+
+        foreach (var migration in _migrations)
+        {
+            if (migration.SourceSchema.Version < StateSchemaMetadata.InitialVersion ||
+                migration.TargetSchema.Version < migration.SourceSchema.Version ||
+                migration.TargetSchema == migration.SourceSchema)
+            {
+                throw new ArgumentException("Schema migrations must advance to a distinct, non-older schema.", nameof(migrations));
+            }
+        }
     }
 
     /// <inheritdoc />
@@ -62,7 +88,13 @@ public sealed class ConfiglueOptions<TModel, TFragment> : IWritableOptions<TMode
                     throw new InvalidOperationException($"State source '{source.Id}' returned a null configuration fragment.");
                 }
 
-                contributions.Add((source, result));
+                var fragment = result.Value;
+                if (result.Schema is { } sourceSchema)
+                {
+                    fragment = await MigrateAsync(fragment, sourceSchema, cancellationToken).ConfigureAwait(false);
+                }
+
+                contributions.Add((source, result with { Value = fragment }));
                 continue;
             }
 
@@ -215,6 +247,47 @@ public sealed class ConfiglueOptions<TModel, TFragment> : IWritableOptions<TMode
         source.Writer!.WriteAsync(
             new StateWriteRequest<TFragment>(fragment, expectedRevision, CheckRevision: true),
             cancellationToken);
+
+    private async ValueTask<TFragment> MigrateAsync(
+        TFragment value,
+        StateSchemaMetadata sourceSchema,
+        CancellationToken cancellationToken)
+    {
+        var targetSchema = TModel.ConfiglueSchema.ToMetadata();
+        if (sourceSchema == targetSchema)
+        {
+            return value;
+        }
+
+        var currentSchema = sourceSchema;
+        var currentValue = value;
+        var visited = new HashSet<StateSchemaMetadata>();
+        while (currentSchema != targetSchema)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!visited.Add(currentSchema))
+            {
+                throw new InvalidOperationException($"Schema migration cycle detected at '{currentSchema}'.");
+            }
+
+            var migration = _migrations.FirstOrDefault(candidate => candidate.SourceSchema == currentSchema);
+            if (migration is null || migration.TargetSchema.Version > targetSchema.Version)
+            {
+                throw new InvalidOperationException(
+                    $"No schema migration path exists from '{sourceSchema}' to '{targetSchema}'.");
+            }
+
+            currentValue = await migration.MigrateAsync(currentValue, cancellationToken).ConfigureAwait(false);
+            if (currentValue is null)
+            {
+                throw new InvalidOperationException($"Schema migration from '{migration.SourceSchema}' returned a null fragment.");
+            }
+
+            currentSchema = migration.TargetSchema;
+        }
+
+        return currentValue;
+    }
 
     private async Task WatchChangesAsync(CancellationToken cancellationToken)
     {
