@@ -297,6 +297,61 @@ public sealed class ConfiglueOptions<TModel, TFragment> : IWritableOptions<TMode
     }
 
     /// <inheritdoc />
+    public async ValueTask<StateSourceMigrationResult> MigrateSourceAsync(
+        string sourceId,
+        string targetId,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sourceId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(targetId);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var source = FindSource(sourceId);
+        var target = FindSource(targetId);
+        if (target.Writer is null)
+        {
+            throw new InvalidOperationException($"State source '{target.Id}' does not support writes.");
+        }
+
+        var sourceResult = await source.Reader.ReadAsync(cancellationToken).ConfigureAwait(false);
+        if (sourceResult.Status != StateReadStatus.Success)
+        {
+            throw new InvalidOperationException($"Source '{source.Id}' could not be migrated: {sourceResult.Status}.");
+        }
+
+        var sourceFragment = sourceResult.Value
+            ?? throw new InvalidOperationException($"State source '{source.Id}' returned a null configuration fragment.");
+        if (sourceResult.Schema is { } schema)
+        {
+            sourceFragment = await MigrateAsync(sourceFragment, schema, cancellationToken).ConfigureAwait(false);
+        }
+
+        var currentSchema = TModel.ConfiglueSchema.ToMetadata();
+        if (ReferenceEquals(source, target) && (sourceResult.Schema is null || sourceResult.Schema == currentSchema))
+        {
+            return new StateSourceMigrationResult(source.Id, target.Id, sourceResult.Revision, sourceResult.Revision);
+        }
+
+        var targetResult = ReferenceEquals(source, target)
+            ? sourceResult
+            : await target.Reader.ReadAsync(cancellationToken).ConfigureAwait(false);
+        if (targetResult.Status == StateReadStatus.Unavailable)
+        {
+            throw new InvalidOperationException($"Target source '{target.Id}' is unavailable.");
+        }
+
+        if (targetResult.Status == StateReadStatus.Success && targetResult.Value is null)
+        {
+            throw new InvalidOperationException($"State source '{target.Id}' returned a null configuration fragment.");
+        }
+
+        var write = await target.Writer.WriteAsync(
+            new StateWriteRequest<TFragment>(sourceFragment, targetResult.Revision, CheckRevision: true),
+            cancellationToken).ConfigureAwait(false);
+        return new StateSourceMigrationResult(source.Id, target.Id, sourceResult.Revision, write.Revision);
+    }
+
+    /// <inheritdoc />
     public void Dispose()
     {
         lock (_changeGate)
@@ -350,6 +405,10 @@ public sealed class ConfiglueOptions<TModel, TFragment> : IWritableOptions<TMode
 
         return source;
     }
+
+    private StateSource<TFragment> FindSource(string sourceId) =>
+        _sourceSet.Sources.FirstOrDefault(candidate => string.Equals(candidate.Id, sourceId, StringComparison.Ordinal))
+        ?? throw new InvalidOperationException($"State source '{sourceId}' is not registered.");
 
     private ValueTask<StateWriteResult> WriteToSourceAsync(
         StateSource<TFragment> source,

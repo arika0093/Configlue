@@ -18,4 +18,10 @@ public interface IWritableOptions<T> : IReadOnlyOptions<T>
 
     /// <summary>Applies a generated set/unset patch to the configured write source's fragment.</summary>
     ValueTask<StateWriteResult> ApplyPatchAsync(IConfigluePatch patch, CancellationToken cancellationToken = default);
+
+    /// <summary>Migrates one source's contribution into another writable source without merging unrelated sources.</summary>
+    ValueTask<StateSourceMigrationResult> MigrateSourceAsync(
+        string sourceId,
+        string targetId,
+        CancellationToken cancellationToken = default);
 }

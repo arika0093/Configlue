@@ -489,6 +489,41 @@ public sealed class StateRuntimeTests
         await Assert.That(resolvedAfterWrite.Value!.RetryCount).IsEqualTo(3);
     }
 
+    [Test]
+    public async Task MigrateSourceAsync_CopiesOnlyTheSelectedContributionAfterSchemaMigration()
+    {
+        var legacySchema = new StateSchemaMetadata("app-settings", 1);
+        var environment = new FixedStateReader<AppSettings.Fragment>(StateReadResult<AppSettings.Fragment>.Success(
+            new AppSettings.Fragment { Label = Optional<string?>.Present("environment-value") },
+            "environment-revision",
+            AppSettings.ConfiglueSchema.ToMetadata()));
+        var legacy = new FixedStateReader<AppSettings.Fragment>(StateReadResult<AppSettings.Fragment>.Success(
+            new AppSettings.Fragment { RetryCount = Optional<int>.Present(9) },
+            "legacy-revision",
+            legacySchema));
+        var target = new InMemoryStateStore<AppSettings.Fragment>();
+        var sources = new StateSourceSet<AppSettings.Fragment>(
+        [
+            new("environment", environment, priority: 100),
+            new("legacy", legacy, priority: 50),
+            new("current", target, priority: 0, writer: target),
+        ]);
+        var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(
+            sources,
+            migrations: [new AppSettingsV1ToV2Migration()]);
+
+        var migration = await options.MigrateSourceAsync("legacy", "current");
+        var copied = await target.ReadAsync();
+
+        await Assert.That(migration.SourceId).IsEqualTo("legacy");
+        await Assert.That(migration.TargetId).IsEqualTo("current");
+        await Assert.That(migration.SourceRevision).IsEqualTo("legacy-revision");
+        await Assert.That(migration.TargetRevision).IsEqualTo("1");
+        await Assert.That(copied.Value!.RetryCount.Value).IsEqualTo(9);
+        await Assert.That(copied.Value.Label.Value).IsEqualTo("migrated");
+        await Assert.That(copied.Value.Label.Value).IsNotEqualTo("environment-value");
+    }
+
     private sealed class FixedStateReader<T>(StateReadResult<T> result) : IStateReader<T>
     {
         public ValueTask<StateReadResult<T>> ReadAsync(CancellationToken cancellationToken = default)
