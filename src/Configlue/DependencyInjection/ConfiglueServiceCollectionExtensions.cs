@@ -44,6 +44,55 @@ public static class ConfiglueServiceCollectionExtensions
         return services.AddConfiglueOptions<TModel, TFragment>(_ => sourceSet, writeRoute, validateDataAnnotations);
     }
 
+    /// <summary>Registers a named configuration profile as keyed dependency-injection services.</summary>
+    public static IServiceCollection AddConfiglueOptions<TModel, TFragment>(
+        this IServiceCollection services,
+        object serviceKey,
+        Func<IServiceProvider, StateSourceSet<TFragment>> sourceSetFactory,
+        StateWriteRoute writeRoute = default,
+        bool validateDataAnnotations = false)
+        where TModel : IConfiglueModel<TModel, TFragment>
+        where TFragment : class, IConfiglueFragment<TFragment>
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(serviceKey);
+        ArgumentNullException.ThrowIfNull(sourceSetFactory);
+
+        services.AddKeyedSingleton<ConfiglueOptions<TModel, TFragment>>(
+            serviceKey,
+            (provider, _) => new ConfiglueOptions<TModel, TFragment>(
+                sourceSetFactory(provider),
+                writeRoute,
+                provider.GetServices<IStateSchemaMigration<TFragment>>(),
+                provider.GetServices<IConfiglueValidator<TModel>>(),
+                validateDataAnnotations));
+        services.AddKeyedSingleton<IReadOnlyOptions<TModel>>(
+            serviceKey,
+            (provider, key) => provider.GetRequiredKeyedService<ConfiglueOptions<TModel, TFragment>>(key));
+        services.AddKeyedSingleton<IWritableOptions<TModel>>(
+            serviceKey,
+            (provider, key) => provider.GetRequiredKeyedService<ConfiglueOptions<TModel, TFragment>>(key));
+        return services;
+    }
+
+    /// <summary>Registers a named profile backed by an already-created state-source set.</summary>
+    public static IServiceCollection AddConfiglueOptions<TModel, TFragment>(
+        this IServiceCollection services,
+        object serviceKey,
+        StateSourceSet<TFragment> sourceSet,
+        StateWriteRoute writeRoute = default,
+        bool validateDataAnnotations = false)
+        where TModel : IConfiglueModel<TModel, TFragment>
+        where TFragment : class, IConfiglueFragment<TFragment>
+    {
+        ArgumentNullException.ThrowIfNull(sourceSet);
+        return services.AddConfiglueOptions<TModel, TFragment>(
+            serviceKey,
+            _ => sourceSet,
+            writeRoute,
+            validateDataAnnotations);
+    }
+
     /// <summary>Registers a standard Microsoft options validator for Configlue saves.</summary>
     public static IServiceCollection AddConfiglueValidator<TModel>(
         this IServiceCollection services,

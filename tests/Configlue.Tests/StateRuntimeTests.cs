@@ -306,6 +306,33 @@ public sealed class StateRuntimeTests
         await Assert.That(resolved.Value.Label).IsEqualTo("patched label");
     }
 
+    [Test]
+    public async Task DependencyInjection_ResolvesNamedProfilesByServiceKey()
+    {
+        var primaryStore = new InMemoryStateStore<AppSettings.Fragment>(new AppSettings.Fragment
+        {
+            RetryCount = Optional<int>.Present(5),
+        });
+        var secondaryStore = new InMemoryStateStore<AppSettings.Fragment>(new AppSettings.Fragment
+        {
+            RetryCount = Optional<int>.Present(8),
+        });
+        var primarySources = new StateSourceSet<AppSettings.Fragment>([new("profile", primaryStore)]);
+        var secondarySources = new StateSourceSet<AppSettings.Fragment>([new("profile", secondaryStore)]);
+        var services = new ServiceCollection();
+        services.AddConfiglueOptions<AppSettings, AppSettings.Fragment>("primary", primarySources);
+        services.AddConfiglueOptions<AppSettings, AppSettings.Fragment>("secondary", secondarySources);
+        using var serviceProvider = services.BuildServiceProvider();
+        var primary = serviceProvider.GetRequiredKeyedService<IReadOnlyOptions<AppSettings>>("primary");
+        var secondary = serviceProvider.GetRequiredKeyedService<IReadOnlyOptions<AppSettings>>("secondary");
+
+        var primaryValue = await primary.GetValueAsync();
+        var secondaryValue = await secondary.GetValueAsync();
+
+        await Assert.That(primaryValue.RetryCount).IsEqualTo(5);
+        await Assert.That(secondaryValue.RetryCount).IsEqualTo(8);
+    }
+
     private sealed class FixedStateReader<T>(StateReadResult<T> result) : IStateReader<T>
     {
         public ValueTask<StateReadResult<T>> ReadAsync(CancellationToken cancellationToken = default)

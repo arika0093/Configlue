@@ -28,6 +28,7 @@ Register generated model options with a prioritized state-source set. Reads merg
 Register `IStateSchemaMigration<TFragment>` implementations as services to migrate older source fragments while reading them.
 Use `AddConfiglueValidator<T>(IValidateOptions<T>)` for a Microsoft options validator, or pass `validateDataAnnotations: true` when registering options.
 Generated `TModel.Patch` values can be sent through `IWritableOptions<TModel>.ApplyPatchAsync`; `Unset` removes only the write source's contribution and exposes lower-priority values again.
+Named profiles can use keyed DI registrations, for example `AddConfiglueOptions<TModel, TModel.Fragment>("profile", sourceSet)` and `GetRequiredKeyedService<IReadOnlyOptions<TModel>>("profile")`.
 
 ```csharp
 services.AddConfiglueOptions<AppConfig, AppConfig.Fragment>(
