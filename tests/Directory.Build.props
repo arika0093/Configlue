@@ -8,5 +8,15 @@
     <MSBuildTreatAllWarningsAsErrors>true</MSBuildTreatAllWarningsAsErrors>
     <RestoreTreatWarningsAsErrors>true</RestoreTreatWarningsAsErrors>
     <AnalysisLevel>latest</AnalysisLevel>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
   </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="TUnit" Version="1.66.27" />
+    <PackageReference Include="Shouldly" Version="4.3.0" />
+    <PackageReference Include="Microsoft.Testing.Extensions.Retry" Version="2.4.1" />
+  </ItemGroup>
+  <ItemGroup>
+    <Using Include="Shouldly" />
+  </ItemGroup>
 </Project>

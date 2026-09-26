@@ -62,13 +62,9 @@ public sealed class FormatSectionResourceTests
         var retryCount = sectionValue
             .Elements("member")
             .Single(element => (string?)element.Attribute("name") == "RetryCount");
-        await Assert.That((string?)retryCount.Element("int")).IsEqualTo("9");
-        await Assert
-            .That(root.Element("App")!.Element("Other")!.Element("Value")!.Value)
-            .IsEqualTo("keep-nested");
-        await Assert
-            .That(root.Element("OtherSection")!.Element("Value")!.Value)
-            .IsEqualTo("keep-root");
+        ((string?)retryCount.Element("int")).ShouldBe("9");
+        (root.Element("App")!.Element("Other")!.Element("Value")!.Value).ShouldBe("keep-nested");
+        (root.Element("OtherSection")!.Element("Value")!.Value).ShouldBe("keep-root");
     }
 
     [Test]
@@ -118,13 +114,13 @@ public sealed class FormatSectionResourceTests
         var app = GetMapping(updatedRoot, "App");
         var settings = GetMapping(app, "Settings");
         var values = GetMapping(settings, "$value");
-        await Assert.That(((YamlScalarNode)GetNode(values, "RetryCount")).Value).IsEqualTo("9");
-        await Assert
-            .That(((YamlScalarNode)GetNode(GetMapping(app, "Other"), "Value")).Value)
-            .IsEqualTo("keep-nested");
-        await Assert
-            .That(((YamlScalarNode)GetNode(GetMapping(updatedRoot, "OtherSection"), "Value")).Value)
-            .IsEqualTo("keep-root");
+        (((YamlScalarNode)GetNode(values, "RetryCount")).Value).ShouldBe("9");
+        (((YamlScalarNode)GetNode(GetMapping(app, "Other"), "Value")).Value).ShouldBe(
+            "keep-nested"
+        );
+        (
+            ((YamlScalarNode)GetNode(GetMapping(updatedRoot, "OtherSection"), "Value")).Value
+        ).ShouldBe("keep-root");
     }
 
     private static byte[] Serialize<T>(IStateCodec<T> codec, T value)

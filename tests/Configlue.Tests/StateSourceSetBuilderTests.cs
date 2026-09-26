@@ -39,19 +39,17 @@ public sealed class StateSourceSetBuilderTests
         var readOnly = sourceSet.Sources[2];
         var suppressed = sourceSet.Sources[3];
 
-        await Assert.That(ReferenceEquals(automatic.Writer, autoDetected)).IsTrue();
-        await Assert.That(ReferenceEquals(automatic.Watcher, autoDetected)).IsTrue();
-        await Assert.That(ReferenceEquals(custom.Writer, writerOverride)).IsTrue();
-        await Assert.That(ReferenceEquals(custom.Watcher, watcherOverride)).IsTrue();
-        await Assert
-            .That(custom.FallbackCondition)
-            .IsEqualTo(StateFallbackCondition.NotFoundOrUnavailable);
-        await Assert.That(custom.PhysicalOrigin).IsEqualTo("settings.json");
-        await Assert.That(custom.ResourceId).IsEqualTo(new ResourceId("file:settings.json"));
-        await Assert.That(readOnly.Writer).IsNull();
-        await Assert.That(readOnly.Watcher).IsNull();
-        await Assert.That(suppressed.Writer).IsNull();
-        await Assert.That(suppressed.Watcher).IsNull();
+        (ReferenceEquals(automatic.Writer, autoDetected)).ShouldBeTrue();
+        (ReferenceEquals(automatic.Watcher, autoDetected)).ShouldBeTrue();
+        (ReferenceEquals(custom.Writer, writerOverride)).ShouldBeTrue();
+        (ReferenceEquals(custom.Watcher, watcherOverride)).ShouldBeTrue();
+        (custom.FallbackCondition).ShouldBe(StateFallbackCondition.NotFoundOrUnavailable);
+        (custom.PhysicalOrigin).ShouldBe("settings.json");
+        (custom.ResourceId).ShouldBe(new ResourceId("file:settings.json"));
+        (readOnly.Writer).ShouldBeNull();
+        (readOnly.Watcher).ShouldBeNull();
+        (suppressed.Writer).ShouldBeNull();
+        (suppressed.Watcher).ShouldBeNull();
     }
 
     [Test]
@@ -102,11 +100,11 @@ public sealed class StateSourceSetBuilderTests
         var savedUserState = await user.ReadAsync();
         var changedRetryCount = await changed.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
-        await Assert.That(initial.SourceId).IsEqualTo("defaults");
-        await Assert.That(initial.Value!.RetryCount).IsEqualTo(4);
-        await Assert.That(savedUserState.Value!.RetryCount.Value).IsEqualTo(9);
-        await Assert.That(changedRetryCount).IsEqualTo(9);
-        await Assert.That(configureCount).IsEqualTo(1);
+        (initial.SourceId).ShouldBe("defaults");
+        (initial.Value!.RetryCount).ShouldBe(4);
+        (savedUserState.Value!.RetryCount.Value).ShouldBe(9);
+        (changedRetryCount).ShouldBe(9);
+        (configureCount).ShouldBe(1);
     }
 
     [Test]
@@ -134,7 +132,7 @@ public sealed class StateSourceSetBuilderTests
         );
         var value = await options.GetValueAsync();
 
-        await Assert.That(value.RetryCount).IsEqualTo(12);
+        (value.RetryCount).ShouldBe(12);
     }
 
     private sealed class ReaderOnly<T>(T value) : IStateReader<T>

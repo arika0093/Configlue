@@ -25,15 +25,17 @@ public sealed class ProfiledOptionsTests
                 >();
                 var initialNames = await profiles.GetProfileNamesAsync();
 
-                await Assert.That(profiles.DefaultProfileName).IsEqualTo("default");
-                await Assert.That(initialNames).IsEquivalentTo(["default"]);
-                await Assert.That(await profiles.GetActiveProfileNameAsync()).IsEqualTo("default");
+                (profiles.DefaultProfileName).ShouldBe("default");
+                ((initialNames))
+                    .OrderBy(static item => item)
+                    .ShouldBe((new[] { "default" }).OrderBy(static item => item));
+                (await profiles.GetActiveProfileNameAsync()).ShouldBe("default");
 
                 var defaultProfile = await profiles.GetActiveProfileAsync();
                 await defaultProfile.SaveAsync(new AppSettings { RetryCount = 4, Label = "Light" });
                 await profiles.CreateProfileAsync("Work", copyFrom: "default");
                 await profiles.SetActiveProfileAsync("Work");
-                await Assert.That((await profiles.GetActiveValueAsync()).Label).IsEqualTo("Light");
+                ((await profiles.GetActiveValueAsync()).Label).ShouldBe("Light");
 
                 var workProfile = await profiles.GetActiveProfileAsync();
                 await workProfile.SaveAsync(new AppSettings { RetryCount = 9, Label = "Dark" });
@@ -41,8 +43,8 @@ public sealed class ProfiledOptionsTests
                     await profiles.GetProfileAsync("default")
                 ).GetValueAsync();
 
-                await Assert.That(defaultValue.Label).IsEqualTo("Light");
-                await Assert.That((await profiles.GetActiveValueAsync()).Label).IsEqualTo("Dark");
+                (defaultValue.Label).ShouldBe("Light");
+                ((await profiles.GetActiveValueAsync()).Label).ShouldBe("Dark");
             }
 
             using (var restartedProvider = CreateServiceProvider(filePath))
@@ -52,17 +54,17 @@ public sealed class ProfiledOptionsTests
                 >();
                 var restoredNames = await profiles.GetProfileNamesAsync();
 
-                await Assert.That(restoredNames).IsEquivalentTo(["default", "Work"]);
-                await Assert.That(await profiles.GetActiveProfileNameAsync()).IsEqualTo("Work");
-                await Assert.That((await profiles.GetActiveValueAsync()).Label).IsEqualTo("Dark");
-                await Assert
-                    .That(
-                        restartedProvider
-                            .GetRequiredService<IOptionsMonitor<AppSettings>>()
-                            .Get("Work")
-                            .Label
-                    )
-                    .IsEqualTo("Dark");
+                ((restoredNames))
+                    .OrderBy(static item => item)
+                    .ShouldBe((new[] { "default", "Work" }).OrderBy(static item => item));
+                (await profiles.GetActiveProfileNameAsync()).ShouldBe("Work");
+                ((await profiles.GetActiveValueAsync()).Label).ShouldBe("Dark");
+                (
+                    restartedProvider
+                        .GetRequiredService<IOptionsMonitor<AppSettings>>()
+                        .Get("Work")
+                        .Label
+                ).ShouldBe("Dark");
 
                 var activeChanged = new TaskCompletionSource<string>(
                     TaskCreationOptions.RunContinuationsAsynchronously
@@ -71,20 +73,18 @@ public sealed class ProfiledOptionsTests
                     activeChanged.TrySetResult(profileName);
                 await profiles.RemoveProfileAsync("Work");
 
-                await Assert
-                    .That(await activeChanged.Task.WaitAsync(TimeSpan.FromSeconds(5)))
-                    .IsEqualTo("default");
-                await Assert
-                    .That(await profiles.GetProfileNamesAsync())
-                    .IsEquivalentTo(["default"]);
-                await Assert.That(await profiles.GetActiveProfileNameAsync()).IsEqualTo("default");
-                await Assert.That((await profiles.GetActiveValueAsync()).Label).IsEqualTo("Light");
+                (await activeChanged.Task.WaitAsync(TimeSpan.FromSeconds(5))).ShouldBe("default");
+                ((await profiles.GetProfileNamesAsync()))
+                    .OrderBy(static item => item)
+                    .ShouldBe((new[] { "default" }).OrderBy(static item => item));
+                (await profiles.GetActiveProfileNameAsync()).ShouldBe("default");
+                ((await profiles.GetActiveValueAsync()).Label).ShouldBe("Light");
             }
 
             var document = await File.ReadAllTextAsync(filePath);
-            await Assert.That(document).Contains("ProfileCatalog");
-            await Assert.That(document).Contains("default");
-            await Assert.That(document).Contains("Work");
+            (document).ShouldContain("ProfileCatalog");
+            (document).ShouldContain("default");
+            (document).ShouldContain("Work");
         }
         finally
         {
@@ -146,10 +146,10 @@ public sealed class ProfiledOptionsTests
             duplicateProfileRejected = true;
         }
 
-        await Assert.That(invalidNameRejected).IsTrue();
-        await Assert.That(defaultRemovalRejected).IsTrue();
-        await Assert.That(unknownProfileRejected).IsTrue();
-        await Assert.That(duplicateProfileRejected).IsTrue();
+        (invalidNameRejected).ShouldBeTrue();
+        (defaultRemovalRejected).ShouldBeTrue();
+        (unknownProfileRejected).ShouldBeTrue();
+        (duplicateProfileRejected).ShouldBeTrue();
     }
 
     [Test]
@@ -171,7 +171,7 @@ public sealed class ProfiledOptionsTests
             TryCreateProfileAsync(second, "Second")
         );
 
-        await Assert.That(added.Count(static succeeded => succeeded)).IsEqualTo(1);
+        (added.Count(static succeeded => succeeded)).ShouldBe(1);
         if (!added[0])
         {
             await first.CreateProfileAsync("First");
@@ -186,7 +186,9 @@ public sealed class ProfiledOptionsTests
         var restoredNames = await restartedProvider
             .GetRequiredService<IConfiglueProfiledOptions<AppSettings>>()
             .GetProfileNamesAsync();
-        await Assert.That(restoredNames).IsEquivalentTo(["default", "First", "Second"]);
+        ((restoredNames))
+            .OrderBy(static item => item)
+            .ShouldBe((new[] { "default", "First", "Second" }).OrderBy(static item => item));
     }
 
     private static async Task<bool> TryCreateProfileAsync(

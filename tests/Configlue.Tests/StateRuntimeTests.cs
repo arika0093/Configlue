@@ -44,13 +44,13 @@ public sealed class StateRuntimeTests
         await failbackWait;
         var recovered = await runtime.Reader.ReadAsync();
 
-        await Assert.That(resolved.Value).IsEqualTo("local");
-        await Assert.That(resolved.SourceId).IsEqualTo("local");
-        await Assert.That(resolved.Revisions!.Revisions.Count).IsEqualTo(2);
-        await Assert.That(localAfterWrite.Value).IsEqualTo("edited locally");
-        await Assert.That(recovered.Value).IsEqualTo("remote");
-        await Assert.That(recovered.SourceId).IsEqualTo("remote");
-        await Assert.That(runtime.Reader.ActiveSource!.Id).IsEqualTo("remote");
+        (resolved.Value).ShouldBe("local");
+        (resolved.SourceId).ShouldBe("local");
+        (resolved.Revisions!.Revisions.Count).ShouldBe(2);
+        (localAfterWrite.Value).ShouldBe("edited locally");
+        (recovered.Value).ShouldBe("remote");
+        (recovered.SourceId).ShouldBe("remote");
+        (runtime.Reader.ActiveSource!.Id).ShouldBe("remote");
     }
 
     [Test]
@@ -92,7 +92,7 @@ public sealed class StateRuntimeTests
         var readOnly = serviceProvider.GetRequiredService<IReadOnlyOptions<AppSettings>>();
         var writable = serviceProvider.GetRequiredService<IWritableOptions<AppSettings>>();
 
-        await Assert.That(ReferenceEquals(readOnly, writable)).IsTrue();
+        (ReferenceEquals(readOnly, writable)).ShouldBeTrue();
         var resolved = await readOnly.ReadAsync();
         var currentValue = await readOnly.GetValueAsync();
         var saveResult = await writable.SaveAsync(
@@ -107,19 +107,23 @@ public sealed class StateRuntimeTests
         );
         var written = await user.ReadAsync();
 
-        await Assert.That(resolved.Status).IsEqualTo(StateReadStatus.Success);
-        await Assert.That(resolved.SourceId).IsEqualTo("user");
-        await Assert.That(resolved.Revisions!.Revisions.Count).IsEqualTo(2);
-        await Assert.That(resolved.Value!.Enabled).IsFalse();
-        await Assert.That(currentValue.RetryCount).IsEqualTo(4);
-        await Assert.That(resolved.Value.RetryCount).IsEqualTo(4);
-        await Assert.That(resolved.Value.Database!.Host).IsEqualTo("defaults.local");
-        await Assert.That(resolved.Value.Database.Port).IsEqualTo(6432);
-        await Assert.That(resolved.Value.Plugins).IsEquivalentTo(["base", "user"]);
-        await Assert.That(saveResult.Revision).IsEqualTo("2");
-        await Assert.That(written.Value!.RetryCount.Value).IsEqualTo(10);
-        await Assert.That(written.Value.Database!.Value!.Host.Value).IsEqualTo("saved.local");
-        await Assert.That(written.Value.Plugins.Value).IsEquivalentTo(["saved-plugin"]);
+        (resolved.Status).ShouldBe(StateReadStatus.Success);
+        (resolved.SourceId).ShouldBe("user");
+        (resolved.Revisions!.Revisions.Count).ShouldBe(2);
+        (resolved.Value!.Enabled).ShouldBeFalse();
+        (currentValue.RetryCount).ShouldBe(4);
+        (resolved.Value.RetryCount).ShouldBe(4);
+        (resolved.Value.Database!.Host).ShouldBe("defaults.local");
+        (resolved.Value.Database.Port).ShouldBe(6432);
+        ((resolved.Value.Plugins))
+            .OrderBy(static item => item)
+            .ShouldBe((new[] { "base", "user" }).OrderBy(static item => item));
+        (saveResult.Revision).ShouldBe("2");
+        (written.Value!.RetryCount.Value).ShouldBe(10);
+        (written.Value.Database!.Value!.Host.Value).ShouldBe("saved.local");
+        ((written.Value.Plugins.Value!))
+            .OrderBy(static item => item)
+            .ShouldBe((new[] { "saved-plugin" }).OrderBy(static item => item));
     }
 
     [Test]
@@ -141,10 +145,10 @@ public sealed class StateRuntimeTests
         var firstSnapshot = snapshot.Value;
         var secondSnapshot = snapshot.Get(Options.DefaultName);
 
-        await Assert.That(options.Value.RetryCount).IsEqualTo(17);
-        await Assert.That(monitor.CurrentValue.RetryCount).IsEqualTo(17);
-        await Assert.That(ReferenceEquals(firstSnapshot, secondSnapshot)).IsTrue();
-        await Assert.That(firstSnapshot.RetryCount).IsEqualTo(17);
+        (options.Value.RetryCount).ShouldBe(17);
+        (monitor.CurrentValue.RetryCount).ShouldBe(17);
+        (ReferenceEquals(firstSnapshot, secondSnapshot)).ShouldBeTrue();
+        (firstSnapshot.RetryCount).ShouldBe(17);
     }
 
     [Test]
@@ -189,12 +193,10 @@ public sealed class StateRuntimeTests
             .GetRequiredKeyedService<IReadOnlyOptions<AppSettings>>("custom")
             .OnChange(value => directChanged.TrySetResult(value.RetryCount));
 
-        await Assert.That(monitor.Get("custom").RetryCount).IsEqualTo(8);
+        (monitor.Get("custom").RetryCount).ShouldBe(8);
         custom.Set(new AppSettings.Fragment { RetryCount = Optional<int>.Present(12) });
-        await Assert
-            .That(await directChanged.Task.WaitAsync(TimeSpan.FromSeconds(5)))
-            .IsEqualTo(12);
-        await Assert.That(await changed.Task.WaitAsync(TimeSpan.FromSeconds(5))).IsEqualTo(12);
+        (await directChanged.Task.WaitAsync(TimeSpan.FromSeconds(5))).ShouldBe(12);
+        (await changed.Task.WaitAsync(TimeSpan.FromSeconds(5))).ShouldBe(12);
     }
 
     [Test]
@@ -233,10 +235,10 @@ public sealed class StateRuntimeTests
             }
         );
 
-        await Assert.That(registry.TryAdd("runtime")).IsTrue();
-        await Assert.That(monitor.Get("runtime").RetryCount).IsEqualTo(4);
+        (registry.TryAdd("runtime")).ShouldBeTrue();
+        (monitor.Get("runtime").RetryCount).ShouldBe(4);
         stores["runtime"].Set(new AppSettings.Fragment { RetryCount = Optional<int>.Present(14) });
-        await Assert.That(await changed.Task.WaitAsync(TimeSpan.FromSeconds(5))).IsEqualTo(14);
+        (await changed.Task.WaitAsync(TimeSpan.FromSeconds(5))).ShouldBe(14);
     }
 
     [Test]
@@ -276,15 +278,13 @@ public sealed class StateRuntimeTests
         var second = await secondSource.Reader.ReadAsync();
         var stored = await resource.ReadAsync();
 
-        await Assert.That(result.Sources.Count).IsEqualTo(2);
-        await Assert.That(result.PhysicalWriteCount).IsEqualTo(1);
-        await Assert.That(resource.WriteCount).IsEqualTo(1);
-        await Assert
-            .That(result.Sources.Select(static item => item.Revision).Distinct().Count())
-            .IsEqualTo(1);
-        await Assert.That(first.Value!.RetryCount.Value).IsEqualTo(7);
-        await Assert.That(second.Value!.Label.Value).IsEqualTo("second section");
-        await Assert.That(stored.Status).IsEqualTo(StateReadStatus.Success);
+        (result.Sources.Count).ShouldBe(2);
+        (result.PhysicalWriteCount).ShouldBe(1);
+        (resource.WriteCount).ShouldBe(1);
+        (result.Sources.Select(static item => item.Revision).Distinct().Count()).ShouldBe(1);
+        (first.Value!.RetryCount.Value).ShouldBe(7);
+        (second.Value!.Label.Value).ShouldBe("second section");
+        (stored.Status).ShouldBe(StateReadStatus.Success);
     }
 
     [Test]
@@ -323,10 +323,10 @@ public sealed class StateRuntimeTests
             var firstState = await first.Reader.ReadAsync();
             var secondState = await second.Reader.ReadAsync();
 
-            await Assert.That(result.PhysicalWriteCount).IsEqualTo(1);
-            await Assert.That(firstState.Value!.RetryCount.Value).IsEqualTo(5);
-            await Assert.That(secondState.Value!.Label.Value).IsEqualTo("file batch");
-            await Assert.That(firstState.Revision).IsEqualTo(secondState.Revision);
+            (result.PhysicalWriteCount).ShouldBe(1);
+            (firstState.Value!.RetryCount.Value).ShouldBe(5);
+            (secondState.Value!.Label.Value).ShouldBe("file batch");
+            (firstState.Revision).ShouldBe(secondState.Revision);
         }
         finally
         {
@@ -377,8 +377,8 @@ public sealed class StateRuntimeTests
             failed = true;
         }
 
-        await Assert.That(failed).IsTrue();
-        await Assert.That(resource.WriteCount).IsEqualTo(0);
+        (failed).ShouldBeTrue();
+        (resource.WriteCount).ShouldBe(0);
 
         var json = new JsonSectionResource(resource, "App:Json");
         var xml = new XmlSectionResource(resource, "App:Xml");
@@ -411,8 +411,8 @@ public sealed class StateRuntimeTests
             domainConflict = true;
         }
 
-        await Assert.That(domainConflict).IsTrue();
-        await Assert.That(resource.WriteCount).IsEqualTo(0);
+        (domainConflict).ShouldBeTrue();
+        (resource.WriteCount).ShouldBe(0);
     }
 
     [Test]
@@ -470,18 +470,14 @@ public sealed class StateRuntimeTests
             ),
         ]);
 
-        await Assert.That(xmlResult.PhysicalWriteCount).IsEqualTo(1);
-        await Assert.That(xmlResource.WriteCount).IsEqualTo(1);
-        await Assert.That((await xmlFirst.Reader.ReadAsync()).Value!.RetryCount.Value).IsEqualTo(6);
-        await Assert.That((await xmlSecond.Reader.ReadAsync()).Value!.Label.Value).IsEqualTo("xml");
-        await Assert.That(yamlResult.PhysicalWriteCount).IsEqualTo(1);
-        await Assert.That(yamlResource.WriteCount).IsEqualTo(1);
-        await Assert
-            .That((await yamlFirst.Reader.ReadAsync()).Value!.RetryCount.Value)
-            .IsEqualTo(8);
-        await Assert
-            .That((await yamlSecond.Reader.ReadAsync()).Value!.Label.Value)
-            .IsEqualTo("yaml");
+        (xmlResult.PhysicalWriteCount).ShouldBe(1);
+        (xmlResource.WriteCount).ShouldBe(1);
+        ((await xmlFirst.Reader.ReadAsync()).Value!.RetryCount.Value).ShouldBe(6);
+        ((await xmlSecond.Reader.ReadAsync()).Value!.Label.Value).ShouldBe("xml");
+        (yamlResult.PhysicalWriteCount).ShouldBe(1);
+        (yamlResource.WriteCount).ShouldBe(1);
+        ((await yamlFirst.Reader.ReadAsync()).Value!.RetryCount.Value).ShouldBe(8);
+        ((await yamlSecond.Reader.ReadAsync()).Value!.Label.Value).ShouldBe("yaml");
     }
 
     [Test]
@@ -496,12 +492,12 @@ public sealed class StateRuntimeTests
         var result = await options.ReadAsync();
         var saved = await options.SaveAsync(new AppSettings { RetryCount = 7 });
 
-        await Assert.That(result.Status).IsEqualTo(StateReadStatus.Success);
-        await Assert.That(result.Value!.Enabled).IsTrue();
-        await Assert.That(result.Value.RetryCount).IsEqualTo(3);
-        await Assert.That(result.Value.Database!.Host).IsEqualTo("localhost");
-        await Assert.That(result.Value.Plugins).IsEmpty();
-        await Assert.That(saved.Revision).IsEqualTo("1");
+        (result.Status).ShouldBe(StateReadStatus.Success);
+        (result.Value!.Enabled).ShouldBeTrue();
+        (result.Value.RetryCount).ShouldBe(3);
+        (result.Value.Database!.Host).ShouldBe("localhost");
+        (result.Value.Plugins).ShouldBeEmpty();
+        (saved.Revision).ShouldBe("1");
     }
 
     [Test]
@@ -541,8 +537,8 @@ public sealed class StateRuntimeTests
         defaults.SetNotFound();
         var reset = await resetValue.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
-        await Assert.That(updated).IsEqualTo(8);
-        await Assert.That(reset).IsEqualTo(3);
+        (updated).ShouldBe(8);
+        (reset).ShouldBe(3);
     }
 
     [Test]
@@ -574,8 +570,10 @@ public sealed class StateRuntimeTests
         var notifiedValue = await latest.Task.WaitAsync(TimeSpan.FromSeconds(5));
         await Task.Delay(TimeSpan.FromMilliseconds(200));
 
-        await Assert.That(notifiedValue).IsEqualTo(5);
-        await Assert.That(notifications.ToArray()).IsEquivalentTo([5]);
+        (notifiedValue).ShouldBe(5);
+        ((notifications.ToArray()))
+            .OrderBy(static item => item)
+            .ShouldBe((new[] { 5 }).OrderBy(static item => item));
     }
 
     [Test]
@@ -593,9 +591,9 @@ public sealed class StateRuntimeTests
         var save = await session.SaveAsync();
         var saved = await store.ReadAsync();
 
-        await Assert.That(session.IsCommitted).IsTrue();
-        await Assert.That(save.Revision).IsEqualTo("2");
-        await Assert.That(saved.Value!.RetryCount.Value).IsEqualTo(6);
+        (session.IsCommitted).ShouldBeTrue();
+        (save.Revision).ShouldBe("2");
+        (saved.Value!.RetryCount.Value).ShouldBe(6);
 
         using var stale = await options.BeginConfigureAsync();
         stale.Value.RetryCount = 7;
@@ -610,8 +608,8 @@ public sealed class StateRuntimeTests
             conflicted = true;
         }
 
-        await Assert.That(conflicted).IsTrue();
-        await Assert.That(stale.IsCommitted).IsFalse();
+        (conflicted).ShouldBeTrue();
+        (stale.IsCommitted).ShouldBeFalse();
     }
 
     [Test]
@@ -641,9 +639,11 @@ public sealed class StateRuntimeTests
 
         var saved = await store.ReadAsync();
         var resolved = await options.ReadAsync();
-        await Assert.That(saved.Value!.RetryCount.Value).IsEqualTo(5);
-        await Assert.That(saved.Value.Plugins.Value).IsEquivalentTo(["existing", "sync", "async"]);
-        await Assert.That(resolved.Value!.RetryCount).IsEqualTo(5);
+        (saved.Value!.RetryCount.Value).ShouldBe(5);
+        ((saved.Value.Plugins.Value!))
+            .OrderBy(static item => item)
+            .ShouldBe((new[] { "existing", "sync", "async" }).OrderBy(static item => item));
+        (resolved.Value!.RetryCount).ShouldBe(5);
     }
 
     [Test]
@@ -675,9 +675,9 @@ public sealed class StateRuntimeTests
         }
 
         var storedUser = await user.ReadAsync();
-        await Assert.That(conflicted).IsTrue();
-        await Assert.That(storedUser.Value!.Enabled.Value).IsTrue();
-        await Assert.That(storedUser.Revision).IsEqualTo("1");
+        (conflicted).ShouldBeTrue();
+        (storedUser.Value!.Enabled.Value).ShouldBeTrue();
+        (storedUser.Revision).ShouldBe("1");
     }
 
     [Test]
@@ -718,13 +718,13 @@ public sealed class StateRuntimeTests
 
         var storedUser = (await user.ReadAsync()).Value!;
         var resolved = (await options.ReadAsync()).Value!;
-        await Assert.That(storedUser.RetryCount.IsPresent).IsTrue();
-        await Assert.That(storedUser.RetryCount.Value).IsEqualTo(7);
-        await Assert.That(storedUser.Label.Value).IsEqualTo("user label");
-        await Assert.That(storedUser.Database.Value!.Host.IsPresent).IsFalse();
-        await Assert.That(storedUser.Database.Value.Port.Value).IsEqualTo(7443);
-        await Assert.That(resolved.Database!.Host).IsEqualTo("defaults.db");
-        await Assert.That(resolved.Database.Port).IsEqualTo(7443);
+        (storedUser.RetryCount.IsPresent).ShouldBeTrue();
+        (storedUser.RetryCount.Value).ShouldBe(7);
+        (storedUser.Label.Value).ShouldBe("user label");
+        (storedUser.Database.Value!.Host.IsPresent).ShouldBeFalse();
+        (storedUser.Database.Value.Port.Value).ShouldBe(7443);
+        (resolved.Database!.Host).ShouldBe("defaults.db");
+        (resolved.Database.Port).ShouldBe(7443);
     }
 
     [Test]
@@ -776,19 +776,19 @@ public sealed class StateRuntimeTests
         var userFragment = (await user.ReadAsync()).Value!;
         var databaseFragment = (await database.ReadAsync()).Value!;
         var resolved = (await options.ReadAsync()).Value!;
-        await Assert.That(userFragment.RetryCount.Value).IsEqualTo(7);
-        await Assert.That(userFragment.Database.Value!.Host.IsPresent).IsFalse();
-        await Assert.That(userFragment.Database.Value.Port.Value).IsEqualTo(7443);
-        await Assert.That(databaseFragment.Database.Value!.Host.Value).IsEqualTo("session.db");
-        await Assert.That(databaseFragment.Database.Value.Port.Value).IsEqualTo(6432);
-        await Assert.That(resolved.RetryCount).IsEqualTo(7);
-        await Assert.That(resolved.Database!.Host).IsEqualTo("session.db");
-        await Assert.That(resolved.Database.Port).IsEqualTo(7443);
-        await Assert.That(result.MultiWriteResult).IsNotNull();
-        await Assert.That(result.MultiWriteResult!.PhysicalWriteCount).IsEqualTo(2);
-        await Assert
-            .That(result.MultiWriteResult.Sources.Select(static source => source.SourceId))
-            .IsEquivalentTo(["user", "database"]);
+        (userFragment.RetryCount.Value).ShouldBe(7);
+        (userFragment.Database.Value!.Host.IsPresent).ShouldBeFalse();
+        (userFragment.Database.Value.Port.Value).ShouldBe(7443);
+        (databaseFragment.Database.Value!.Host.Value).ShouldBe("session.db");
+        (databaseFragment.Database.Value.Port.Value).ShouldBe(6432);
+        (resolved.RetryCount).ShouldBe(7);
+        (resolved.Database!.Host).ShouldBe("session.db");
+        (resolved.Database.Port).ShouldBe(7443);
+        (result.MultiWriteResult).ShouldNotBeNull();
+        (result.MultiWriteResult!.PhysicalWriteCount).ShouldBe(2);
+        ((result.MultiWriteResult.Sources.Select(static source => source.SourceId)))
+            .OrderBy(static item => item)
+            .ShouldBe((new[] { "user", "database" }).OrderBy(static item => item));
     }
 
     [Test]
@@ -822,9 +822,9 @@ public sealed class StateRuntimeTests
         }
 
         var userAfter = await user.ReadAsync();
-        await Assert.That(rejected).IsTrue();
-        await Assert.That(userAfter.Value!.Enabled.IsPresent).IsFalse();
-        await Assert.That(userAfter.Revision).IsEqualTo(userBefore.Revision);
+        (rejected).ShouldBeTrue();
+        (userAfter.Value!.Enabled.IsPresent).ShouldBeFalse();
+        (userAfter.Revision).ShouldBe(userBefore.Revision);
     }
 
     [Test]
@@ -840,9 +840,9 @@ public sealed class StateRuntimeTests
         using var session = await options.BeginConfigureAsync();
         var result = await session.SaveAsync();
 
-        await Assert.That(session.IsCommitted).IsTrue();
-        await Assert.That(result.Revision).IsEqualTo("1");
-        await Assert.That((await store.ReadAsync()).Revision).IsEqualTo("1");
+        (session.IsCommitted).ShouldBeTrue();
+        (result.Revision).ShouldBe("1");
+        ((await store.ReadAsync()).Revision).ShouldBe("1");
     }
 
     [Test]
@@ -867,8 +867,12 @@ public sealed class StateRuntimeTests
 
         var storedUser = (await user.ReadAsync()).Value!;
         var resolved = (await options.ReadAsync()).Value!;
-        await Assert.That(storedUser.Plugins.Value).IsEquivalentTo(["user", "session"]);
-        await Assert.That(resolved.Plugins).IsEquivalentTo(["base", "user", "session"]);
+        ((storedUser.Plugins.Value!))
+            .OrderBy(static item => item)
+            .ShouldBe((new[] { "user", "session" }).OrderBy(static item => item));
+        ((resolved.Plugins))
+            .OrderBy(static item => item)
+            .ShouldBe((new[] { "base", "user", "session" }).OrderBy(static item => item));
     }
 
     [Test]
@@ -899,8 +903,12 @@ public sealed class StateRuntimeTests
 
         var storedUser = (await user.ReadAsync()).Value!;
         var resolved = (await options.ReadAsync()).Value!;
-        await Assert.That(storedUser.Tags.Value).IsEquivalentTo(["user", "session"]);
-        await Assert.That(resolved.Tags).IsEquivalentTo(["base", "shared", "user", "session"]);
+        ((storedUser.Tags.Value!))
+            .OrderBy(static item => item)
+            .ShouldBe((new[] { "user", "session" }).OrderBy(static item => item));
+        ((resolved.Tags))
+            .OrderBy(static item => item)
+            .ShouldBe((new[] { "base", "shared", "user", "session" }).OrderBy(static item => item));
 
         using var removeLower = await options.BeginConfigureAsync();
         removeLower.Value.Tags = removeLower
@@ -916,8 +924,8 @@ public sealed class StateRuntimeTests
             rejected = true;
         }
 
-        await Assert.That(rejected).IsTrue();
-        await Assert.That((await user.ReadAsync()).Revision).IsEqualTo("2");
+        (rejected).ShouldBeTrue();
+        ((await user.ReadAsync()).Revision).ShouldBe("2");
     }
 
     [Test]
@@ -946,8 +954,8 @@ public sealed class StateRuntimeTests
             rejected = true;
         }
 
-        await Assert.That(rejected).IsTrue();
-        await Assert.That((await user.ReadAsync()).Status).IsEqualTo(StateReadStatus.NotFound);
+        (rejected).ShouldBeTrue();
+        ((await user.ReadAsync()).Status).ShouldBe(StateReadStatus.NotFound);
     }
 
     [Test]
@@ -969,10 +977,10 @@ public sealed class StateRuntimeTests
 
         var result = await options.ReadAsync();
 
-        await Assert.That(result.Status).IsEqualTo(StateReadStatus.Success);
-        await Assert.That(result.Value!.RetryCount).IsEqualTo(9);
-        await Assert.That(result.Value.Label).IsEqualTo("migrated");
-        await Assert.That(result.Schema).IsEqualTo(AppSettings.ConfiglueSchema.ToMetadata());
+        (result.Status).ShouldBe(StateReadStatus.Success);
+        (result.Value!.RetryCount).ShouldBe(9);
+        (result.Value.Label).ShouldBe("migrated");
+        (result.Schema).ShouldBe(AppSettings.ConfiglueSchema.ToMetadata());
     }
 
     [Test]
@@ -1004,17 +1012,15 @@ public sealed class StateRuntimeTests
         }
 
         var stored = await store.ReadAsync();
-        await Assert.That(validationFailure).IsNotNull();
-        await Assert.That(validationFailure!.Failures.Count()).IsEqualTo(2);
-        await Assert
-            .That(
-                validationFailure.Failures.Any(failure =>
-                    failure.Contains("custom retry limit", StringComparison.Ordinal)
-                )
+        (validationFailure).ShouldNotBeNull();
+        (validationFailure!.Failures.Count()).ShouldBe(2);
+        (
+            validationFailure.Failures.Any(failure =>
+                failure.Contains("custom retry limit", StringComparison.Ordinal)
             )
-            .IsTrue();
-        await Assert.That(stored.Value!.RetryCount.Value).IsEqualTo(3);
-        await Assert.That(stored.Revision).IsEqualTo("1");
+        ).ShouldBeTrue();
+        (stored.Value!.RetryCount.Value).ShouldBe(3);
+        (stored.Revision).ShouldBe("1");
 
         using var edit = await writable.BeginConfigureAsync();
         edit.Value.RetryCount = 101;
@@ -1031,9 +1037,9 @@ public sealed class StateRuntimeTests
         edit.Value.RetryCount = 4;
         await edit.SaveAsync();
         var validStored = await store.ReadAsync();
-        await Assert.That(editWasRejected).IsTrue();
-        await Assert.That(edit.IsCommitted).IsTrue();
-        await Assert.That(validStored.Value!.RetryCount.Value).IsEqualTo(4);
+        (editWasRejected).ShouldBeTrue();
+        (edit.IsCommitted).ShouldBeTrue();
+        (validStored.Value!.RetryCount.Value).ShouldBe(4);
     }
 
     [Test]
@@ -1069,13 +1075,13 @@ public sealed class StateRuntimeTests
         var stored = await user.ReadAsync();
         var resolved = await options.ReadAsync();
 
-        await Assert.That(write.Revision).IsEqualTo("2");
-        await Assert.That(stored.Value!.Enabled.IsPresent).IsTrue();
-        await Assert.That(stored.Value.RetryCount.IsPresent).IsFalse();
-        await Assert.That(stored.Value.Label.Value).IsEqualTo("patched label");
-        await Assert.That(resolved.Value!.Enabled).IsFalse();
-        await Assert.That(resolved.Value.RetryCount).IsEqualTo(3);
-        await Assert.That(resolved.Value.Label).IsEqualTo("patched label");
+        (write.Revision).ShouldBe("2");
+        (stored.Value!.Enabled.IsPresent).ShouldBeTrue();
+        (stored.Value.RetryCount.IsPresent).ShouldBeFalse();
+        (stored.Value.Label.Value).ShouldBe("patched label");
+        (resolved.Value!.Enabled).ShouldBeFalse();
+        (resolved.Value.RetryCount).ShouldBe(3);
+        (resolved.Value.Label).ShouldBe("patched label");
     }
 
     [Test]
@@ -1110,8 +1116,8 @@ public sealed class StateRuntimeTests
         var primaryValue = await primary.GetValueAsync();
         var secondaryValue = await secondary.GetValueAsync();
 
-        await Assert.That(primaryValue.RetryCount).IsEqualTo(5);
-        await Assert.That(secondaryValue.RetryCount).IsEqualTo(8);
+        (primaryValue.RetryCount).ShouldBe(5);
+        (secondaryValue.RetryCount).ShouldBe(8);
     }
 
     [Test]
@@ -1147,15 +1153,21 @@ public sealed class StateRuntimeTests
         var removedPrimary = registry.TryRemove("primary");
         var removedAgain = registry.TryRemove("primary");
 
-        await Assert.That(addResults.Count(static result => result)).IsEqualTo(1);
-        await Assert.That(factoryCalls).IsEqualTo(2);
-        await Assert.That(primary.RetryCount).IsEqualTo(5);
-        await Assert.That(secondary.RetryCount).IsEqualTo(8);
-        await Assert.That(registry.ProfileNames).IsEquivalentTo(["secondary"]);
-        await Assert.That(added).IsEquivalentTo(["primary", "secondary"]);
-        await Assert.That(removed).IsEquivalentTo(["primary"]);
-        await Assert.That(removedPrimary).IsTrue();
-        await Assert.That(removedAgain).IsFalse();
+        (addResults.Count(static result => result)).ShouldBe(1);
+        (factoryCalls).ShouldBe(2);
+        (primary.RetryCount).ShouldBe(5);
+        (secondary.RetryCount).ShouldBe(8);
+        ((registry.ProfileNames))
+            .OrderBy(static item => item)
+            .ShouldBe((new[] { "secondary" }).OrderBy(static item => item));
+        ((added))
+            .OrderBy(static item => item)
+            .ShouldBe((new[] { "primary", "secondary" }).OrderBy(static item => item));
+        ((removed))
+            .OrderBy(static item => item)
+            .ShouldBe((new[] { "primary" }).OrderBy(static item => item));
+        (removedPrimary).ShouldBeTrue();
+        (removedAgain).ShouldBeFalse();
     }
 
     [Test]
@@ -1222,14 +1234,14 @@ public sealed class StateRuntimeTests
         var savedSourceValue = await remoteDatabase.ReadAsync();
         var resolvedAfterWrite = await options.ReadAsync();
 
-        await Assert.That(resolved.Value!.RetryCount).IsEqualTo(3);
-        await Assert.That(resolved.Value.Database!.Host).IsEqualTo("remote.db");
-        await Assert.That(resolved.Value.Database.Port).IsEqualTo(5432);
-        await Assert.That(resolved.PhysicalOrigin).IsEqualTo("database-row");
-        await Assert.That(savedSourceValue.Value!.Host.Value).IsEqualTo("saved.db");
-        await Assert.That(savedSourceValue.Value.Port.Value).IsEqualTo(7443);
-        await Assert.That(savedSourceValue.Value.Host.IsPresent).IsTrue();
-        await Assert.That(resolvedAfterWrite.Value!.RetryCount).IsEqualTo(3);
+        (resolved.Value!.RetryCount).ShouldBe(3);
+        (resolved.Value.Database!.Host).ShouldBe("remote.db");
+        (resolved.Value.Database.Port).ShouldBe(5432);
+        (resolved.PhysicalOrigin).ShouldBe("database-row");
+        (savedSourceValue.Value!.Host.Value).ShouldBe("saved.db");
+        (savedSourceValue.Value.Port.Value).ShouldBe(7443);
+        (savedSourceValue.Value.Host.IsPresent).ShouldBeTrue();
+        (resolvedAfterWrite.Value!.RetryCount).ShouldBe(3);
     }
 
     [Test]
@@ -1266,9 +1278,9 @@ public sealed class StateRuntimeTests
 
         var resolved = await options.ReadAsync();
 
-        await Assert.That(resolved.Value!.Database!.Host).IsEqualTo("legacy.db");
-        await Assert.That(resolved.Value.Database.Port).IsEqualTo(7400);
-        await Assert.That(resolved.Schema).IsEqualTo(AppSettings.ConfiglueSchema.ToMetadata());
+        (resolved.Value!.Database!.Host).ShouldBe("legacy.db");
+        (resolved.Value.Database.Port).ShouldBe(7400);
+        (resolved.Schema).ShouldBe(AppSettings.ConfiglueSchema.ToMetadata());
     }
 
     [Test]
@@ -1304,17 +1316,17 @@ public sealed class StateRuntimeTests
         var host = await options.ExplainAsync("Database.Host");
         var enabled = await options.ExplainAsync("Enabled");
 
-        await Assert.That(port.EffectiveValue).IsEqualTo(6432);
-        await Assert.That(port.HighestPrioritySourceId).IsEqualTo("user");
-        await Assert
-            .That(port.Contributions.Select(item => item.SourceId))
-            .IsEquivalentTo(["user", "defaults"]);
-        await Assert.That(port.Contributions[0].Value).IsEqualTo(6432);
-        await Assert.That(port.Contributions[0].PhysicalOrigin).IsEqualTo("user-settings.json");
-        await Assert.That(host.EffectiveValue).IsEqualTo("default.db");
-        await Assert.That(host.HighestPrioritySourceId).IsEqualTo("defaults");
-        await Assert.That((bool)enabled.EffectiveValue!).IsTrue();
-        await Assert.That(enabled.Contributions).IsEmpty();
+        (port.EffectiveValue).ShouldBe(6432);
+        (port.HighestPrioritySourceId).ShouldBe("user");
+        ((port.Contributions.Select(item => item.SourceId)))
+            .OrderBy(static item => item)
+            .ShouldBe((new[] { "user", "defaults" }).OrderBy(static item => item));
+        (port.Contributions[0].Value).ShouldBe(6432);
+        (port.Contributions[0].PhysicalOrigin).ShouldBe("user-settings.json");
+        (host.EffectiveValue).ShouldBe("default.db");
+        (host.HighestPrioritySourceId).ShouldBe("defaults");
+        ((bool)enabled.EffectiveValue!).ShouldBeTrue();
+        (enabled.Contributions).ShouldBeEmpty();
     }
 
     [Test]
@@ -1349,13 +1361,13 @@ public sealed class StateRuntimeTests
         var migration = await options.MigrateSourceAsync("legacy", "current");
         var copied = await target.ReadAsync();
 
-        await Assert.That(migration.SourceId).IsEqualTo("legacy");
-        await Assert.That(migration.TargetId).IsEqualTo("current");
-        await Assert.That(migration.SourceRevision).IsEqualTo("legacy-revision");
-        await Assert.That(migration.TargetRevision).IsEqualTo("1");
-        await Assert.That(copied.Value!.RetryCount.Value).IsEqualTo(9);
-        await Assert.That(copied.Value.Label.Value).IsEqualTo("migrated");
-        await Assert.That(copied.Value.Label.Value).IsNotEqualTo("environment-value");
+        (migration.SourceId).ShouldBe("legacy");
+        (migration.TargetId).ShouldBe("current");
+        (migration.SourceRevision).ShouldBe("legacy-revision");
+        (migration.TargetRevision).ShouldBe("1");
+        (copied.Value!.RetryCount.Value).ShouldBe(9);
+        (copied.Value.Label.Value).ShouldBe("migrated");
+        (copied.Value.Label.Value).ShouldNotBe("environment-value");
     }
 
     [Test]
@@ -1412,30 +1424,28 @@ public sealed class StateRuntimeTests
         var primary = await primaryTarget.ReadAsync();
         var retryOnly = await retryTarget.ReadAsync();
 
-        await Assert.That(primary.Value!.RetryCount.Value).IsEqualTo(12);
-        await Assert.That(primary.Value.Database.Value!.Host.Value).IsEqualTo("legacy.db");
-        await Assert.That(primary.Value.Database.Value.Port.Value).IsEqualTo(6432);
-        await Assert.That(primary.Value.Label.IsPresent).IsFalse();
-        await Assert.That(primary.Value.Plugins.Value).IsEquivalentTo(["user-plugin"]);
-        await Assert.That(retryOnly.Value!.RetryCount.Value).IsEqualTo(12);
-        await Assert.That(retryOnly.Value.Database.IsPresent).IsFalse();
-        await Assert
-            .That(firstRun.Targets.All(static result => !result.WasAlreadyCurrent))
-            .IsTrue();
+        (primary.Value!.RetryCount.Value).ShouldBe(12);
+        (primary.Value.Database.Value!.Host.Value).ShouldBe("legacy.db");
+        (primary.Value.Database.Value.Port.Value).ShouldBe(6432);
+        (primary.Value.Label.IsPresent).ShouldBeFalse();
+        ((primary.Value.Plugins.Value!))
+            .OrderBy(static item => item)
+            .ShouldBe((new[] { "user-plugin" }).OrderBy(static item => item));
+        (retryOnly.Value!.RetryCount.Value).ShouldBe(12);
+        (retryOnly.Value.Database.IsPresent).ShouldBeFalse();
+        (firstRun.Targets.All(static result => !result.WasAlreadyCurrent)).ShouldBeTrue();
 
         var secondRun = await writableOptions.MigrateSourcesToTargetsAsync(
             ["legacy", "user"],
             targets
         );
 
-        await Assert
-            .That(secondRun.Targets.All(static result => result.WasAlreadyCurrent))
-            .IsTrue();
-        await Assert.That(secondRun.Targets.Count).IsEqualTo(2);
-        await Assert
-            .That(secondRun.Targets.All(static result => result.TargetRevision == "1"))
-            .IsTrue();
-        await Assert.That(secondRun.SourceIds).IsEquivalentTo(["user", "legacy"]);
+        (secondRun.Targets.All(static result => result.WasAlreadyCurrent)).ShouldBeTrue();
+        (secondRun.Targets.Count).ShouldBe(2);
+        (secondRun.Targets.All(static result => result.TargetRevision == "1")).ShouldBeTrue();
+        ((secondRun.SourceIds))
+            .OrderBy(static item => item)
+            .ShouldBe((new[] { "user", "legacy" }).OrderBy(static item => item));
     }
 
     [Test]
@@ -1480,10 +1490,10 @@ public sealed class StateRuntimeTests
             failed = true;
         }
 
-        await Assert.That(failed).IsTrue();
+        (failed).ShouldBeTrue();
         var afterFailure = await options.ReadAsync();
-        await Assert.That(afterFailure.Revisions!.TryGetRevision("source", out _)).IsTrue();
-        await Assert.That(afterFailure.Value!.RetryCount).IsEqualTo(22);
+        (afterFailure.Revisions!.TryGetRevision("source", out _)).ShouldBeTrue();
+        (afterFailure.Value!.RetryCount).ShouldBe(22);
 
         var resumed = await writableOptions.MigrateSourcesToTargetsAsync(
             ["source"],
@@ -1491,28 +1501,28 @@ public sealed class StateRuntimeTests
             retireSources: true
         );
 
-        await Assert.That(resumed.Targets[0].WasAlreadyCurrent).IsTrue();
-        await Assert.That(resumed.Targets[1].WasAlreadyCurrent).IsFalse();
-        await Assert.That(resumed.SourcesRetired).IsTrue();
-        await Assert.That(resumed.RetiredSourceIds).IsEquivalentTo(["source"]);
-        await Assert.That((await secondTarget.ReadAsync()).Value!.RetryCount.Value).IsEqualTo(22);
+        (resumed.Targets[0].WasAlreadyCurrent).ShouldBeTrue();
+        (resumed.Targets[1].WasAlreadyCurrent).ShouldBeFalse();
+        (resumed.SourcesRetired).ShouldBeTrue();
+        ((resumed.RetiredSourceIds))
+            .OrderBy(static item => item)
+            .ShouldBe((new[] { "source" }).OrderBy(static item => item));
+        ((await secondTarget.ReadAsync()).Value!.RetryCount.Value).ShouldBe(22);
 
         var repeated = await writableOptions.MigrateSourcesToTargetsAsync(
             ["source"],
             targets,
             retireSources: true
         );
-        await Assert.That(repeated.Targets.All(static target => target.WasAlreadyCurrent)).IsTrue();
-        await Assert.That(repeated.SourcesRetired).IsTrue();
-        await Assert.That((await options.ReadAsync()).Value!.RetryCount).IsEqualTo(22);
-        await Assert
-            .That((await options.ReadAsync()).Revisions!.TryGetRevision("source", out _))
-            .IsFalse();
+        (repeated.Targets.All(static target => target.WasAlreadyCurrent)).ShouldBeTrue();
+        (repeated.SourcesRetired).ShouldBeTrue();
+        ((await options.ReadAsync()).Value!.RetryCount).ShouldBe(22);
+        ((await options.ReadAsync()).Revisions!.TryGetRevision("source", out _)).ShouldBeFalse();
 
         await options.SaveAsync(settings => settings.RetryCount = 23);
-        await Assert.That((await source.ReadAsync()).Value!.RetryCount.Value).IsEqualTo(22);
-        await Assert.That((await firstTarget.ReadAsync()).Value!.RetryCount.Value).IsEqualTo(23);
-        await Assert.That((await options.ReadAsync()).Value!.RetryCount).IsEqualTo(23);
+        ((await source.ReadAsync()).Value!.RetryCount.Value).ShouldBe(22);
+        ((await firstTarget.ReadAsync()).Value!.RetryCount.Value).ShouldBe(23);
+        ((await options.ReadAsync()).Value!.RetryCount).ShouldBe(23);
     }
 
     [Test]
@@ -1553,10 +1563,10 @@ public sealed class StateRuntimeTests
         }
 
         var resolved = await options.ReadAsync();
-        await Assert.That(rejected).IsTrue();
-        await Assert.That(resolved.Revisions!.TryGetRevision("source", out _)).IsTrue();
-        await Assert.That(resolved.Value!.RetryCount).IsEqualTo(22);
-        await Assert.That((await target.ReadAsync()).Value!.RetryCount.Value).IsEqualTo(25);
+        (rejected).ShouldBeTrue();
+        (resolved.Revisions!.TryGetRevision("source", out _)).ShouldBeTrue();
+        (resolved.Value!.RetryCount).ShouldBe(22);
+        ((await target.ReadAsync()).Value!.RetryCount.Value).ShouldBe(25);
     }
 
     [Test]
@@ -1578,13 +1588,11 @@ public sealed class StateRuntimeTests
         var resolved = await options.ReadAsync();
         var storedResource = await resource.ReadAsync();
 
-        await Assert.That(source.Writer).IsNotNull();
-        await Assert.That(source.Watcher).IsNotNull();
-        await Assert.That(resolved.Value!.RetryCount).IsEqualTo(12);
-        await Assert.That(resolved.PhysicalOrigin).IsEqualTo("memory://settings");
-        await Assert
-            .That(storedResource.Schema)
-            .IsEqualTo(AppSettings.ConfiglueSchema.ToMetadata());
+        (source.Writer).ShouldNotBeNull();
+        (source.Watcher).ShouldNotBeNull();
+        (resolved.Value!.RetryCount).ShouldBe(12);
+        (resolved.PhysicalOrigin).ShouldBe("memory://settings");
+        (storedResource.Schema).ShouldBe(AppSettings.ConfiglueSchema.ToMetadata());
     }
 
     private sealed class FixedStateReader<T>(StateReadResult<T> result) : IStateReader<T>

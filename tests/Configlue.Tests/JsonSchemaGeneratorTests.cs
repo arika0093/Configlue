@@ -86,53 +86,45 @@ public sealed class JsonSchemaGeneratorTests
             "https://example.test/schemas/"
         );
 
-        await Assert.That(result.Succeeded).IsTrue();
-        await Assert.That(result.Documents.Count).IsEqualTo(1);
+        (result.Succeeded).ShouldBeTrue();
+        (result.Documents.Count).ShouldBe(1);
         var document = result.Documents[0];
-        await Assert.That(document.FileName).IsEqualTo("schema-settings.v2.json");
-        await Assert.That(document.Schema["$id"]!.GetValue<string>()).IsEqualTo(document.FileName);
+        (document.FileName).ShouldBe("schema-settings.v2.json");
+        (document.Schema["$id"]!.GetValue<string>()).ShouldBe(document.FileName);
 
         var properties = document.Schema["properties"]!;
-        await Assert.That(properties["$version"]!["type"]!.GetValue<string>()).IsEqualTo("integer");
-        await Assert.That(properties["$schema"]!["type"]!.GetValue<string>()).IsEqualTo("string");
-        await Assert
-            .That(properties["MaxConnections"]!["minimum"]!.GetValue<decimal>())
-            .IsEqualTo(1m);
-        await Assert
-            .That(properties["MaxConnections"]!["maximum"]!.GetValue<decimal>())
-            .IsEqualTo(1000m);
-        await Assert.That(properties["Name"]!["minLength"]!.GetValue<int>()).IsEqualTo(3);
-        await Assert.That(properties["Email"]!["format"]!.GetValue<string>()).IsEqualTo("email");
-        await Assert
-            .That(properties["PublishedDate"]!["format"]!.GetValue<string>())
-            .IsEqualTo("date");
-        await Assert
-            .That(properties["PublishedDate"]!["title"]!.GetValue<string>())
-            .IsEqualTo("Published date");
-        await Assert
-            .That(properties["PublishedDate"]!["description"]!.GetValue<string>())
-            .IsEqualTo("Date shown to users.");
-        await Assert
-            .That(
+        (properties["$version"]!["type"]!.GetValue<string>()).ShouldBe("integer");
+        (properties["$schema"]!["type"]!.GetValue<string>()).ShouldBe("string");
+        (properties["MaxConnections"]!["minimum"]!.GetValue<decimal>()).ShouldBe(1m);
+        (properties["MaxConnections"]!["maximum"]!.GetValue<decimal>()).ShouldBe(1000m);
+        (properties["Name"]!["minLength"]!.GetValue<int>()).ShouldBe(3);
+        (properties["Email"]!["format"]!.GetValue<string>()).ShouldBe("email");
+        (properties["PublishedDate"]!["format"]!.GetValue<string>()).ShouldBe("date");
+        (properties["PublishedDate"]!["title"]!.GetValue<string>()).ShouldBe("Published date");
+        (properties["PublishedDate"]!["description"]!.GetValue<string>()).ShouldBe(
+            "Date shown to users."
+        );
+        (
+            (
                 properties["AllowedState"]!["enum"]!
                     .AsArray()
                     .Select(static item => item!.GetValue<string>())
             )
-            .IsEquivalentTo(["red", "green"]);
-        await Assert
-            .That(
+        )
+            .OrderBy(static item => item)
+            .ShouldBe((new[] { "red", "green" }).OrderBy(static item => item));
+        (
+            (
                 properties["CurrentState"]!["not"]!["enum"]!
                     .AsArray()
                     .Select(static item => item!.GetValue<string>())
             )
-            .IsEquivalentTo(["retired", "legacy"]);
-        await Assert
-            .That(
-                document.Schema["required"]!
-                    .AsArray()
-                    .Select(static item => item!.GetValue<string>())
-            )
-            .IsEquivalentTo(["Name", "Email"]);
+        )
+            .OrderBy(static item => item)
+            .ShouldBe((new[] { "retired", "legacy" }).OrderBy(static item => item));
+        ((document.Schema["required"]!.AsArray().Select(static item => item!.GetValue<string>())))
+            .OrderBy(static item => item)
+            .ShouldBe((new[] { "Name", "Email" }).OrderBy(static item => item));
     }
 
     [Test]
@@ -143,16 +135,14 @@ public sealed class JsonSchemaGeneratorTests
             OneOfSchemaSettings.Fragment
         >(SchemaJsonContext.Default);
 
-        await Assert.That(result.Succeeded).IsTrue();
+        (result.Succeeded).ShouldBeTrue();
         var alternatives = result.Documents[0].Schema["properties"]!["FlexibleValue"]![
             "oneOf"
         ]!.AsArray();
-        await Assert
-            .That(
-                alternatives[0]!["type"]!.AsArray().Select(static item => item!.GetValue<string>())
-            )
-            .IsEquivalentTo(["string", "null"]);
-        await Assert.That(alternatives[1]!["type"]!.GetValue<string>()).IsEqualTo("number");
+        ((alternatives[0]!["type"]!.AsArray().Select(static item => item!.GetValue<string>())))
+            .OrderBy(static item => item)
+            .ShouldBe((new[] { "string", "null" }).OrderBy(static item => item));
+        (alternatives[1]!["type"]!.GetValue<string>()).ShouldBe("number");
     }
 
     [Test]
@@ -163,10 +153,10 @@ public sealed class JsonSchemaGeneratorTests
             InvalidOverrideSettings.Fragment
         >(SchemaJsonContext.Default);
 
-        await Assert.That(result.Succeeded).IsFalse();
-        await Assert.That(result.Documents).IsEmpty();
-        await Assert.That(result.Diagnostics.Count).IsEqualTo(1);
-        await Assert.That(result.Diagnostics[0].Code).IsEqualTo("CWSC004");
+        (result.Succeeded).ShouldBeFalse();
+        (result.Documents).ShouldBeEmpty();
+        (result.Diagnostics.Count).ShouldBe(1);
+        (result.Diagnostics[0].Code).ShouldBe("CWSC004");
     }
 
     [Test]
@@ -177,11 +167,11 @@ public sealed class JsonSchemaGeneratorTests
             new MissingTypeInfoResolver()
         );
 
-        await Assert.That(result.Succeeded).IsFalse();
-        await Assert.That(result.Documents).IsEmpty();
-        await Assert.That(result.Diagnostics.Count).IsEqualTo(1);
-        await Assert.That(result.Diagnostics[0].Code).IsEqualTo("CWSC002");
-        await Assert.That(result.Diagnostics[0].ModelId).IsEqualTo("schema-settings");
+        (result.Succeeded).ShouldBeFalse();
+        (result.Documents).ShouldBeEmpty();
+        (result.Diagnostics.Count).ShouldBe(1);
+        (result.Diagnostics[0].Code).ShouldBe("CWSC002");
+        (result.Diagnostics[0].ModelId).ShouldBe("schema-settings");
     }
 
     [Test]
@@ -195,12 +185,10 @@ public sealed class JsonSchemaGeneratorTests
 
         var result = JsonSchemaGenerator.Generate(models, SchemaJsonContext.Default);
 
-        await Assert.That(result.Succeeded).IsFalse();
-        await Assert.That(result.Documents).IsEmpty();
-        await Assert.That(result.Diagnostics.Count).IsEqualTo(2);
-        await Assert
-            .That(result.Diagnostics.All(static diagnostic => diagnostic.Code == "CWSC011"))
-            .IsTrue();
+        (result.Succeeded).ShouldBeFalse();
+        (result.Documents).ShouldBeEmpty();
+        (result.Diagnostics.Count).ShouldBe(2);
+        (result.Diagnostics.All(static diagnostic => diagnostic.Code == "CWSC011")).ShouldBeTrue();
     }
 
     [Test]
@@ -209,9 +197,9 @@ public sealed class JsonSchemaGeneratorTests
         var model = new ConfiglueModelSchema(typeof(SchemaSettings), "../outside", 1, []);
         var result = JsonSchemaGenerator.Generate([model], SchemaJsonContext.Default);
 
-        await Assert.That(result.Succeeded).IsFalse();
-        await Assert.That(result.Diagnostics.Count).IsEqualTo(1);
-        await Assert.That(result.Diagnostics[0].Code).IsEqualTo("CWSC009");
+        (result.Succeeded).ShouldBeFalse();
+        (result.Diagnostics.Count).ShouldBe(1);
+        (result.Diagnostics[0].Code).ShouldBe("CWSC009");
     }
 
     [Test]
@@ -228,12 +216,10 @@ public sealed class JsonSchemaGeneratorTests
                 SchemaJsonContext.Default
             );
 
-            await Assert.That(result.Succeeded).IsTrue();
-            await Assert.That(result.WrittenFiles.Count).IsEqualTo(1);
+            (result.Succeeded).ShouldBeTrue();
+            (result.WrittenFiles.Count).ShouldBe(1);
             var schema = JsonNode.Parse(await File.ReadAllTextAsync(result.WrittenFiles[0]));
-            await Assert
-                .That(schema!["$id"]!.GetValue<string>())
-                .IsEqualTo("schema-settings.v2.json");
+            (schema!["$id"]!.GetValue<string>()).ShouldBe("schema-settings.v2.json");
         }
         finally
         {
@@ -253,10 +239,10 @@ public sealed class JsonSchemaGeneratorTests
             SchemaJsonContext.Default
         );
 
-        await Assert.That(result.Succeeded).IsFalse();
-        await Assert.That(result.Diagnostics.Count).IsEqualTo(1);
-        await Assert.That(result.Diagnostics[0].Code).IsEqualTo("CWSC005");
-        await Assert.That(result.WrittenFiles).IsEmpty();
+        (result.Succeeded).ShouldBeFalse();
+        (result.Diagnostics.Count).ShouldBe(1);
+        (result.Diagnostics[0].Code).ShouldBe("CWSC005");
+        (result.WrittenFiles).ShouldBeEmpty();
     }
 
     private sealed class MissingTypeInfoResolver : IJsonTypeInfoResolver

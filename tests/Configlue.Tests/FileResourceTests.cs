@@ -54,16 +54,14 @@ public sealed class FileResourceTests
             var backup = await File.ReadAllBytesAsync(path + ".bak");
             var saved = await resource.ReadAsync();
 
-            await Assert.That(missing.Status).IsEqualTo(StateReadStatus.NotFound);
-            await Assert.That(current.Status).IsEqualTo(StateReadStatus.Success);
-            await Assert.That(current.Revision).IsEqualTo(firstWrite.Revision);
-            await Assert.That(missingRevisionConflict).IsTrue();
-            await Assert.That(conflict).IsTrue();
-            await Assert.That(secondWrite.Revision).IsNotEqualTo(firstWrite.Revision);
-            await Assert.That(Encoding.UTF8.GetString(backup)).IsEqualTo("{\"value\":1}");
-            await Assert
-                .That(Encoding.UTF8.GetString(saved.Content.Span))
-                .IsEqualTo("{\"value\":2}");
+            (missing.Status).ShouldBe(StateReadStatus.NotFound);
+            (current.Status).ShouldBe(StateReadStatus.Success);
+            (current.Revision).ShouldBe(firstWrite.Revision);
+            (missingRevisionConflict).ShouldBeTrue();
+            (conflict).ShouldBeTrue();
+            (secondWrite.Revision).ShouldNotBe(firstWrite.Revision);
+            (Encoding.UTF8.GetString(backup)).ShouldBe("{\"value\":1}");
+            (Encoding.UTF8.GetString(saved.Content.Span)).ShouldBe("{\"value\":2}");
         }
         finally
         {
@@ -108,12 +106,10 @@ public sealed class FileResourceTests
             var restored = await resource.RestoreLatestBackupAsync();
             var current = await resource.ReadAsync();
 
-            await Assert.That(latestBackup).IsEqualTo("{\"value\":2}");
-            await Assert.That(olderBackup).IsEqualTo("{\"value\":1}");
-            await Assert.That(restored.Revision).IsEqualTo(current.Revision);
-            await Assert
-                .That(Encoding.UTF8.GetString(current.Content.Span))
-                .IsEqualTo("{\"value\":2}");
+            (latestBackup).ShouldBe("{\"value\":2}");
+            (olderBackup).ShouldBe("{\"value\":1}");
+            (restored.Revision).ShouldBe(current.Revision);
+            (Encoding.UTF8.GetString(current.Content.Span)).ShouldBe("{\"value\":2}");
         }
         finally
         {

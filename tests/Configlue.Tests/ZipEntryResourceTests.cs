@@ -66,23 +66,27 @@ public sealed class ZipEntryResourceTests
         session.Value.RetryCount = 12;
         var result = await session.SaveAsync();
 
-        await Assert.That(archive.WriteCount).IsEqualTo(2);
-        await Assert.That(result.MultiWriteResult).IsNotNull();
-        await Assert.That(result.MultiWriteResult!.PhysicalWriteCount).IsEqualTo(1);
+        (archive.WriteCount).ShouldBe(2);
+        (result.MultiWriteResult).ShouldNotBeNull();
+        (result.MultiWriteResult!.PhysicalWriteCount).ShouldBe(1);
         var resolved = (await options.ReadAsync()).Value!;
-        await Assert.That(resolved.Label).IsEqualTo("after");
-        await Assert.That(resolved.RetryCount).IsEqualTo(12);
+        (resolved.Label).ShouldBe("after");
+        (resolved.RetryCount).ShouldBe(12);
 
         var stored = await archive.ReadAsync();
         using var stream = new MemoryStream(stored.Content.ToArray(), writable: false);
         using var zip = new ZipArchive(stream, ZipArchiveMode.Read);
-        await Assert
-            .That(zip.Entries.Select(static entry => entry.FullName))
-            .IsEquivalentTo(["settings.json", "user.json", "assets/keep.bin"]);
+        ((zip.Entries.Select(static entry => entry.FullName)))
+            .OrderBy(static item => item)
+            .ShouldBe(
+                (new[] { "settings.json", "user.json", "assets/keep.bin" }).OrderBy(static item =>
+                    item
+                )
+            );
         using var untouched = zip.GetEntry("assets/keep.bin")!.Open();
         using var copied = new MemoryStream();
         await untouched.CopyToAsync(copied);
-        await Assert.That(copied.ToArray().SequenceEqual(untouchedBytes)).IsTrue();
+        (copied.ToArray().SequenceEqual(untouchedBytes)).ShouldBeTrue();
     }
 
     [Test]
@@ -92,14 +96,14 @@ public sealed class ZipEntryResourceTests
         var entry = new ZipEntryResource(archive, "new/settings.json");
         var before = await entry.ReadAsync();
 
-        await Assert.That(before.Status).IsEqualTo(StateReadStatus.NotFound);
+        (before.Status).ShouldBe(StateReadStatus.NotFound);
         await entry.WriteAsync(
             new ResourceWriteRequest(new byte[] { 6, 7 }, before.Revision, CheckRevision: true)
         );
 
         var after = await entry.ReadAsync();
-        await Assert.That(after.Status).IsEqualTo(StateReadStatus.Success);
-        await Assert.That(after.Content.ToArray().SequenceEqual(new byte[] { 6, 7 })).IsTrue();
+        (after.Status).ShouldBe(StateReadStatus.Success);
+        (after.Content.ToArray().SequenceEqual(new byte[] { 6, 7 })).ShouldBeTrue();
     }
 
     [Test]
@@ -114,7 +118,7 @@ public sealed class ZipEntryResourceTests
         var firstRead = await firstEntry.ReadAsync();
         var secondRead = await secondEntry.ReadAsync();
 
-        await Assert.That(firstRead.Revision).IsEqualTo(secondRead.Revision);
+        (firstRead.Revision).ShouldBe(secondRead.Revision);
         await firstEntry.WriteAsync(
             new ResourceWriteRequest(new byte[] { 2 }, firstRead.Revision, CheckRevision: true)
         );
@@ -131,7 +135,7 @@ public sealed class ZipEntryResourceTests
             staleWriteRejected = true;
         }
 
-        await Assert.That(staleWriteRejected).IsTrue();
+        (staleWriteRejected).ShouldBeTrue();
     }
 
     [Test]
@@ -160,7 +164,7 @@ public sealed class ZipEntryResourceTests
                 rejected = true;
             }
 
-            await Assert.That(rejected).IsTrue();
+            (rejected).ShouldBeTrue();
         }
     }
 

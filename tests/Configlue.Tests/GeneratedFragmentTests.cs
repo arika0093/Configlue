@@ -53,14 +53,14 @@ public sealed class GeneratedFragmentTests
 
         var value = fragment.ToModel();
 
-        await Assert.That(fragment.Enabled.IsPresent).IsTrue();
-        await Assert.That(fragment.Enabled.Value).IsFalse();
-        await Assert.That(fragment.RetryCount.IsPresent).IsFalse();
-        await Assert.That(fragment.Label.IsPresent).IsTrue();
-        await Assert.That(fragment.Label.Value).IsNull();
-        await Assert.That(value.Enabled).IsFalse();
-        await Assert.That(value.RetryCount).IsEqualTo(3);
-        await Assert.That(value.Database!.Host).IsEqualTo("localhost");
+        (fragment.Enabled.IsPresent).ShouldBeTrue();
+        (fragment.Enabled.Value).ShouldBeFalse();
+        (fragment.RetryCount.IsPresent).ShouldBeFalse();
+        (fragment.Label.IsPresent).ShouldBeTrue();
+        (fragment.Label.Value).ShouldBeNull();
+        (value.Enabled).ShouldBeFalse();
+        (value.RetryCount).ShouldBe(3);
+        (value.Database!.Host).ShouldBe("localhost");
     }
 
     [Test]
@@ -88,10 +88,12 @@ public sealed class GeneratedFragmentTests
 
         var merged = lower.Merge(higher).ToModel();
 
-        await Assert.That(merged.Enabled).IsFalse();
-        await Assert.That(merged.Database!.Host).IsEqualTo("db.local");
-        await Assert.That(merged.Database.Port).IsEqualTo(6432);
-        await Assert.That(merged.Plugins).IsEquivalentTo(["base", "custom"]);
+        (merged.Enabled).ShouldBeFalse();
+        (merged.Database!.Host).ShouldBe("db.local");
+        (merged.Database.Port).ShouldBe(6432);
+        ((merged.Plugins))
+            .OrderBy(static item => item)
+            .ShouldBe((new[] { "base", "custom" }).OrderBy(static item => item));
     }
 
     [Test]
@@ -121,17 +123,17 @@ public sealed class GeneratedFragmentTests
                 }
             );
 
-        await Assert.That(diff.Enabled.Value).IsFalse();
-        await Assert.That(diff.RetryCount.IsPresent).IsFalse();
-        await Assert.That(diff.Label.IsPresent).IsTrue();
-        await Assert.That(diff.Label.Value).IsNull();
-        await Assert.That(patched.Enabled.Value).IsFalse();
-        await Assert.That(patched.RetryCount.IsPresent).IsFalse();
-        await Assert
-            .That(new AppSettings.Fragment { Enabled = Optional<bool>.Present(false) }.IsEmpty)
-            .IsFalse();
-        await Assert.That(AppSettings.ConfiglueSchema.Version).IsEqualTo(2);
-        await Assert.That(AppSettings.ConfiglueSchema.Id).IsEqualTo("app-settings");
+        (diff.Enabled.Value).ShouldBeFalse();
+        (diff.RetryCount.IsPresent).ShouldBeFalse();
+        (diff.Label.IsPresent).ShouldBeTrue();
+        (diff.Label.Value).ShouldBeNull();
+        (patched.Enabled.Value).ShouldBeFalse();
+        (patched.RetryCount.IsPresent).ShouldBeFalse();
+        (
+            new AppSettings.Fragment { Enabled = Optional<bool>.Present(false) }.IsEmpty
+        ).ShouldBeFalse();
+        (AppSettings.ConfiglueSchema.Version).ShouldBe(2);
+        (AppSettings.ConfiglueSchema.Id).ShouldBe("app-settings");
     }
 
     [Test]
@@ -153,15 +155,15 @@ public sealed class GeneratedFragmentTests
         var decodedFragment = decoded!;
         var schema = codec.ReadSchemaMetadata(in sequence);
 
-        await Assert.That(encoded).Contains("\"$configlue\"");
-        await Assert.That(encoded).Contains("\"Label\":null");
-        await Assert.That(encoded).DoesNotContain("RetryCount");
-        await Assert.That(decodedFragment.Enabled.IsPresent).IsTrue();
-        await Assert.That(decodedFragment.Enabled.Value).IsFalse();
-        await Assert.That(decodedFragment.Label.IsPresent).IsTrue();
-        await Assert.That(decodedFragment.Label.Value).IsNull();
-        await Assert.That(decodedFragment.RetryCount.IsPresent).IsFalse();
-        await Assert.That(schema).IsEqualTo(new StateSchemaMetadata("app-settings", 2));
+        (encoded).ShouldContain("\"$configlue\"");
+        (encoded).ShouldContain("\"Label\":null");
+        (encoded).ShouldNotContain("RetryCount");
+        (decodedFragment.Enabled.IsPresent).ShouldBeTrue();
+        (decodedFragment.Enabled.Value).ShouldBeFalse();
+        (decodedFragment.Label.IsPresent).ShouldBeTrue();
+        (decodedFragment.Label.Value).ShouldBeNull();
+        (decodedFragment.RetryCount.IsPresent).ShouldBeFalse();
+        (schema).ShouldBe(new StateSchemaMetadata("app-settings", 2));
     }
 
     [Test]
@@ -176,9 +178,7 @@ public sealed class GeneratedFragmentTests
         );
         var sequence = new ReadOnlySequence<byte>(buffer.WrittenMemory);
 
-        await Assert
-            .That(codec.ReadSchemaMetadata(in sequence))
-            .IsEqualTo(AppSettings.ConfiglueSchema.ToMetadata());
+        (codec.ReadSchemaMetadata(in sequence)).ShouldBe(AppSettings.ConfiglueSchema.ToMetadata());
     }
 
     [Test]
@@ -194,7 +194,7 @@ public sealed class GeneratedFragmentTests
         await writer.WriteAsync(new StateWriteRequest<AppSettings.Fragment>(fragment));
         var stored = await resource.ReadAsync();
 
-        await Assert.That(stored.Schema).IsEqualTo(AppSettings.ConfiglueSchema.ToMetadata());
+        (stored.Schema).ShouldBe(AppSettings.ConfiglueSchema.ToMetadata());
     }
 
     [Test]
@@ -217,18 +217,20 @@ public sealed class GeneratedFragmentTests
         var sequence = new ReadOnlySequence<byte>(buffer.WrittenMemory);
         var decoded = codec.Deserialize(in sequence, default)!;
 
-        await Assert.That(decoded.Enabled.IsPresent).IsTrue();
-        await Assert.That(decoded.Enabled.Value).IsFalse();
-        await Assert.That(decoded.RetryCount.IsPresent).IsFalse();
-        await Assert.That(decoded.Label.IsPresent).IsTrue();
-        await Assert.That(decoded.Label.Value).IsNull();
-        await Assert.That(decoded.Database.IsPresent).IsTrue();
-        await Assert.That(decoded.Database.Value!.Host.Value).IsEqualTo("db.local");
-        await Assert.That(decoded.Database.Value!.Port.IsPresent).IsFalse();
-        await Assert.That(decoded.Plugins.Value).IsEquivalentTo(["admin"]);
-        await Assert
-            .That(codec.ReadSchemaMetadata(in sequence))
-            .IsEqualTo(new StateSchemaMetadata("app-settings", 2));
+        (decoded.Enabled.IsPresent).ShouldBeTrue();
+        (decoded.Enabled.Value).ShouldBeFalse();
+        (decoded.RetryCount.IsPresent).ShouldBeFalse();
+        (decoded.Label.IsPresent).ShouldBeTrue();
+        (decoded.Label.Value).ShouldBeNull();
+        (decoded.Database.IsPresent).ShouldBeTrue();
+        (decoded.Database.Value!.Host.Value).ShouldBe("db.local");
+        (decoded.Database.Value!.Port.IsPresent).ShouldBeFalse();
+        ((decoded.Plugins.Value!))
+            .OrderBy(static item => item)
+            .ShouldBe((new[] { "admin" }).OrderBy(static item => item));
+        (codec.ReadSchemaMetadata(in sequence)).ShouldBe(
+            new StateSchemaMetadata("app-settings", 2)
+        );
     }
 
     [Test]
@@ -251,18 +253,20 @@ public sealed class GeneratedFragmentTests
         var sequence = new ReadOnlySequence<byte>(buffer.WrittenMemory);
         var decoded = codec.Deserialize(in sequence, default)!;
 
-        await Assert.That(decoded.Enabled.IsPresent).IsTrue();
-        await Assert.That(decoded.Enabled.Value).IsFalse();
-        await Assert.That(decoded.RetryCount.IsPresent).IsFalse();
-        await Assert.That(decoded.Label.IsPresent).IsTrue();
-        await Assert.That(decoded.Label.Value).IsNull();
-        await Assert.That(decoded.Database.IsPresent).IsTrue();
-        await Assert.That(decoded.Database.Value!.Host.Value).IsEqualTo("db.local");
-        await Assert.That(decoded.Database.Value!.Port.IsPresent).IsFalse();
-        await Assert.That(decoded.Plugins.Value).IsEquivalentTo(["admin"]);
-        await Assert
-            .That(codec.ReadSchemaMetadata(in sequence))
-            .IsEqualTo(new StateSchemaMetadata("app-settings", 2));
+        (decoded.Enabled.IsPresent).ShouldBeTrue();
+        (decoded.Enabled.Value).ShouldBeFalse();
+        (decoded.RetryCount.IsPresent).ShouldBeFalse();
+        (decoded.Label.IsPresent).ShouldBeTrue();
+        (decoded.Label.Value).ShouldBeNull();
+        (decoded.Database.IsPresent).ShouldBeTrue();
+        (decoded.Database.Value!.Host.Value).ShouldBe("db.local");
+        (decoded.Database.Value!.Port.IsPresent).ShouldBeFalse();
+        ((decoded.Plugins.Value!))
+            .OrderBy(static item => item)
+            .ShouldBe((new[] { "admin" }).OrderBy(static item => item));
+        (codec.ReadSchemaMetadata(in sequence)).ShouldBe(
+            new StateSchemaMetadata("app-settings", 2)
+        );
     }
 
     [Test]
@@ -289,21 +293,23 @@ public sealed class GeneratedFragmentTests
         var yamlSequence = new ReadOnlySequence<byte>(yamlBuffer.WrittenMemory);
         var yamlModel = yaml.Deserialize(in yamlSequence, default)!;
 
-        await Assert.That(xmlModel.Enabled).IsFalse();
-        await Assert.That(xmlModel.RetryCount).IsEqualTo(0);
-        await Assert.That(xmlModel.Label).IsNull();
-        await Assert.That(xmlModel.Database!.Port).IsEqualTo(6432);
-        await Assert.That(xmlModel.Plugins).IsEquivalentTo(["admin", "metrics"]);
-        await Assert.That(yamlModel.Enabled).IsFalse();
-        await Assert.That(yamlModel.RetryCount).IsEqualTo(0);
-        await Assert.That(yamlModel.Label).IsNull();
-        await Assert.That(yamlModel.Database!.Port).IsEqualTo(6432);
-        await Assert.That(yamlModel.Plugins).IsEquivalentTo(["admin", "metrics"]);
-        await Assert
-            .That(xml.ReadSchemaMetadata(in xmlSequence))
-            .IsEqualTo(AppSettings.ConfiglueSchema.ToMetadata());
-        await Assert
-            .That(yaml.ReadSchemaMetadata(in yamlSequence))
-            .IsEqualTo(AppSettings.ConfiglueSchema.ToMetadata());
+        (xmlModel.Enabled).ShouldBeFalse();
+        (xmlModel.RetryCount).ShouldBe(0);
+        (xmlModel.Label).ShouldBeNull();
+        (xmlModel.Database!.Port).ShouldBe(6432);
+        ((xmlModel.Plugins))
+            .OrderBy(static item => item)
+            .ShouldBe((new[] { "admin", "metrics" }).OrderBy(static item => item));
+        (yamlModel.Enabled).ShouldBeFalse();
+        (yamlModel.RetryCount).ShouldBe(0);
+        (yamlModel.Label).ShouldBeNull();
+        (yamlModel.Database!.Port).ShouldBe(6432);
+        ((yamlModel.Plugins))
+            .OrderBy(static item => item)
+            .ShouldBe((new[] { "admin", "metrics" }).OrderBy(static item => item));
+        (xml.ReadSchemaMetadata(in xmlSequence)).ShouldBe(AppSettings.ConfiglueSchema.ToMetadata());
+        (yaml.ReadSchemaMetadata(in yamlSequence)).ShouldBe(
+            AppSettings.ConfiglueSchema.ToMetadata()
+        );
     }
 }

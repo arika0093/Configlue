@@ -50,22 +50,20 @@ public sealed class JsonSectionResourceTests
             using var document = JsonDocument.Parse(await File.ReadAllBytesAsync(path));
             var root = document.RootElement;
 
-            await Assert.That(before.Value!.RetryCount).IsEqualTo(4);
-            await Assert
-                .That(
-                    root.GetProperty("App")
-                        .GetProperty("Settings")
-                        .GetProperty("$value")
-                        .GetProperty("RetryCount")
-                        .GetInt32()
-                )
-                .IsEqualTo(9);
-            await Assert
-                .That(root.GetProperty("App").GetProperty("Other").GetProperty("Value").GetString())
-                .IsEqualTo("keep-nested");
-            await Assert
-                .That(root.GetProperty("OtherSection").GetProperty("Value").GetString())
-                .IsEqualTo("keep-root");
+            (before.Value!.RetryCount).ShouldBe(4);
+            (
+                root.GetProperty("App")
+                    .GetProperty("Settings")
+                    .GetProperty("$value")
+                    .GetProperty("RetryCount")
+                    .GetInt32()
+            ).ShouldBe(9);
+            (
+                root.GetProperty("App").GetProperty("Other").GetProperty("Value").GetString()
+            ).ShouldBe("keep-nested");
+            (root.GetProperty("OtherSection").GetProperty("Value").GetString()).ShouldBe(
+                "keep-root"
+            );
         }
         finally
         {
@@ -113,11 +111,11 @@ public sealed class JsonSectionResourceTests
             }
 
             var final = await File.ReadAllTextAsync(path);
-            await Assert.That(initialSectionWrite.Revision).IsNotNull();
-            await Assert.That(sectionRead.Status).IsEqualTo(StateReadStatus.Success);
-            await Assert.That(conflict).IsTrue();
-            await Assert.That(final).Contains("\"changed\":true");
-            await Assert.That(final).Contains("\"value\":1");
+            (initialSectionWrite.Revision).ShouldNotBeNull();
+            (sectionRead.Status).ShouldBe(StateReadStatus.Success);
+            (conflict).ShouldBeTrue();
+            (final).ShouldContain("\"changed\":true");
+            (final).ShouldContain("\"value\":1");
         }
         finally
         {

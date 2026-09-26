@@ -25,11 +25,11 @@ public sealed class ResourceIdentityTests
             static fragment => fragment
         );
 
-        await Assert.That(json.ResourceId).IsEqualTo(resource.ResourceId);
-        await Assert.That(xml.ResourceId).IsEqualTo(resource.ResourceId);
-        await Assert.That(yaml.ResourceId).IsEqualTo(resource.ResourceId);
-        await Assert.That(source.ResourceId).IsEqualTo(resource.ResourceId);
-        await Assert.That(projected.ResourceId).IsEqualTo(resource.ResourceId);
+        (json.ResourceId).ShouldBe(resource.ResourceId);
+        (xml.ResourceId).ShouldBe(resource.ResourceId);
+        (yaml.ResourceId).ShouldBe(resource.ResourceId);
+        (source.ResourceId).ShouldBe(resource.ResourceId);
+        (projected.ResourceId).ShouldBe(resource.ResourceId);
     }
 
     [Test]
@@ -41,7 +41,7 @@ public sealed class ResourceIdentityTests
             Path.Combine(Path.GetDirectoryName(path)!, ".", Path.GetFileName(path))
         );
 
-        await Assert.That(first.ResourceId).IsEqualTo(second.ResourceId);
-        await Assert.That(first.ResourceId.Value).StartsWith("file:");
+        (first.ResourceId).ShouldBe(second.ResourceId);
+        (first.ResourceId.Value).ShouldStartWith("file:");
     }
 }

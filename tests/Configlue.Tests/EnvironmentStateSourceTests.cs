@@ -26,20 +26,20 @@ public sealed class EnvironmentStateSourceTests
         var read = await source.Reader.ReadAsync();
         var fragment = read.Value!;
 
-        await Assert.That(read.Status).IsEqualTo(StateReadStatus.Success);
-        await Assert.That(read.Schema).IsEqualTo(AppSettings.ConfiglueSchema.ToMetadata());
-        await Assert.That(fragment.Enabled.IsPresent).IsTrue();
-        await Assert.That(fragment.Enabled.Value).IsFalse();
-        await Assert.That(fragment.RetryCount.IsPresent).IsTrue();
-        await Assert.That(fragment.RetryCount.Value).IsEqualTo(0);
-        await Assert.That(fragment.Label.IsPresent).IsFalse();
-        await Assert.That(fragment.Database.IsPresent).IsTrue();
-        await Assert.That(fragment.Database.Value!.Host.IsPresent).IsTrue();
-        await Assert.That(fragment.Database.Value.Host.Value).IsEqualTo("db.example.test");
-        await Assert.That(fragment.Database.Value.Port.IsPresent).IsFalse();
-        await Assert.That(source.Writer).IsNull();
-        await Assert.That(source.Watcher).IsNull();
-        await Assert.That(source.PhysicalOrigin).IsEqualTo("environment:APP");
+        (read.Status).ShouldBe(StateReadStatus.Success);
+        (read.Schema).ShouldBe(AppSettings.ConfiglueSchema.ToMetadata());
+        (fragment.Enabled.IsPresent).ShouldBeTrue();
+        (fragment.Enabled.Value).ShouldBeFalse();
+        (fragment.RetryCount.IsPresent).ShouldBeTrue();
+        (fragment.RetryCount.Value).ShouldBe(0);
+        (fragment.Label.IsPresent).ShouldBeFalse();
+        (fragment.Database.IsPresent).ShouldBeTrue();
+        (fragment.Database.Value!.Host.IsPresent).ShouldBeTrue();
+        (fragment.Database.Value.Host.Value).ShouldBe("db.example.test");
+        (fragment.Database.Value.Port.IsPresent).ShouldBeFalse();
+        (source.Writer).ShouldBeNull();
+        (source.Watcher).ShouldBeNull();
+        (source.PhysicalOrigin).ShouldBe("environment:APP");
 
         var defaults = new InMemoryStateStore<AppSettings.Fragment>(
             new AppSettings.Fragment
@@ -65,11 +65,11 @@ public sealed class EnvironmentStateSourceTests
 
         var resolved = await options.ReadAsync();
 
-        await Assert.That(resolved.Value!.Enabled).IsFalse();
-        await Assert.That(resolved.Value.RetryCount).IsEqualTo(0);
-        await Assert.That(resolved.Value.Label).IsEqualTo("default-label");
-        await Assert.That(resolved.Value.Database!.Host).IsEqualTo("db.example.test");
-        await Assert.That(resolved.Value.Database.Port).IsEqualTo(5432);
+        (resolved.Value!.Enabled).ShouldBeFalse();
+        (resolved.Value.RetryCount).ShouldBe(0);
+        (resolved.Value.Label).ShouldBe("default-label");
+        (resolved.Value.Database!.Host).ShouldBe("db.example.test");
+        (resolved.Value.Database.Port).ShouldBe(5432);
     }
 
     [Test]
@@ -91,10 +91,10 @@ public sealed class EnvironmentStateSourceTests
         variables["APP__UNKNOWN"] = "changed";
         var third = await source.Reader.ReadAsync();
 
-        await Assert.That(first.Status).IsEqualTo(StateReadStatus.NotFound);
-        await Assert.That(first.Revision).IsEqualTo(second.Revision);
-        await Assert.That(first.Revision).IsNotEqualTo(third.Revision);
-        await Assert.That(first.Revision!.Length).IsEqualTo(64);
+        (first.Status).ShouldBe(StateReadStatus.NotFound);
+        (first.Revision).ShouldBe(second.Revision);
+        (first.Revision).ShouldNotBe(third.Revision);
+        (first.Revision!.Length).ShouldBe(64);
     }
 
     [Test]
@@ -116,6 +116,6 @@ public sealed class EnvironmentStateSourceTests
 
         var read = await source.Reader.ReadAsync();
 
-        await Assert.That(read.Value!.RetryCount.Value).IsEqualTo(int.MaxValue);
+        (read.Value!.RetryCount.Value).ShouldBe(int.MaxValue);
     }
 }
