@@ -54,6 +54,86 @@ public sealed class StateRuntimeTests
     }
 
     [Test]
+    public async Task CompositeWatcher_CancelsPendingWaitWhenLaterWatcherThrowsSynchronously()
+    {
+        var pendingWatcher = new PendingStateWatcher();
+        var throwingWatcher = new SynchronousThrowingStateWatcher();
+        var sources = new StateSourceSet<string>([
+            new(
+                "pending",
+                new FixedStateReader<string>(StateReadResult<string>.Unavailable("primary")),
+                priority: 100,
+                fallbackCondition: StateFallbackCondition.Unavailable,
+                watcher: pendingWatcher
+            ),
+            new(
+                "throwing",
+                new FixedStateReader<string>(
+                    StateReadResult<string>.Success("fallback", "fallback")
+                ),
+                priority: 0,
+                watcher: throwingWatcher
+            ),
+        ]);
+        var runtime = new CompositeStateRuntime<string>(sources);
+        await runtime.Reader.ReadAsync();
+
+        var threw = false;
+        try
+        {
+            await runtime.Watcher.WaitForChangeAsync("fallback");
+        }
+        catch (InvalidOperationException)
+        {
+            threw = true;
+        }
+
+        (threw).ShouldBeTrue();
+        (
+            await pendingWatcher.CancellationObserved.WaitAsync(TimeSpan.FromSeconds(5))
+        ).ShouldBeTrue();
+    }
+
+    [Test]
+    public async Task OptionsWatcher_CancelsPendingWaitWhenLaterWatcherThrowsSynchronously()
+    {
+        var pendingWatcher = new PendingStateWatcher();
+        var throwingWatcher = new SynchronousThrowingStateWatcher();
+        var sources = new StateSourceSet<AppSettings.Fragment>([
+            new(
+                "pending",
+                new FixedStateReader<AppSettings.Fragment>(
+                    StateReadResult<AppSettings.Fragment>.Unavailable("primary")
+                ),
+                priority: 100,
+                fallbackCondition: StateFallbackCondition.Unavailable,
+                watcher: pendingWatcher
+            ),
+            new(
+                "throwing",
+                new FixedStateReader<AppSettings.Fragment>(
+                    StateReadResult<AppSettings.Fragment>.Success(
+                        new AppSettings.Fragment { RetryCount = Optional<int>.Present(3) },
+                        "fallback"
+                    )
+                ),
+                priority: 0,
+                watcher: throwingWatcher
+            ),
+        ]);
+        await using var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(
+            sources,
+            onChangeDebounce: TimeSpan.Zero
+        );
+        using var subscription = options.OnChange(static _ => { });
+
+        await pendingWatcher.Started.WaitAsync(TimeSpan.FromSeconds(5));
+        (
+            await pendingWatcher.CancellationObserved.WaitAsync(TimeSpan.FromSeconds(5))
+        ).ShouldBeTrue();
+    }
+
+    [Test]
     public async Task DependencyInjection_ResolvesMergedOptionsAndSavesToConfiguredSource()
     {
         var defaults = new InMemoryStateStore<AppSettings.Fragment>(
@@ -1604,6 +1684,41 @@ public sealed class StateRuntimeTests
             cancellationToken.ThrowIfCancellationRequested();
             return ValueTask.FromResult(result);
         }
+    }
+
+    private sealed class PendingStateWatcher : IStateWatcher
+    {
+        private readonly TaskCompletionSource<bool> _started = new(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        private readonly TaskCompletionSource<bool> _cancellationObserved = new(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+
+        public Task<bool> Started => _started.Task;
+
+        public Task<bool> CancellationObserved => _cancellationObserved.Task;
+
+        public ValueTask WaitForChangeAsync(
+            string? observedRevision,
+            CancellationToken cancellationToken = default
+        )
+        {
+            _started.TrySetResult(true);
+            _ = cancellationToken.Register(
+                static state => ((TaskCompletionSource<bool>)state!).TrySetResult(true),
+                _cancellationObserved
+            );
+            return new ValueTask(Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken));
+        }
+    }
+
+    private sealed class SynchronousThrowingStateWatcher : IStateWatcher
+    {
+        public ValueTask WaitForChangeAsync(
+            string? observedRevision,
+            CancellationToken cancellationToken = default
+        ) => throw new InvalidOperationException("Simulated synchronous watcher startup failure.");
     }
 
     private sealed class FailOnceStateWriter<T>(IStateWriter<T> inner) : IStateWriter<T>

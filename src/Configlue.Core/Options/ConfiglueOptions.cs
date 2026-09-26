@@ -2385,24 +2385,22 @@ public sealed class ConfiglueOptions<TModel, TFragment>
             return;
         }
 
-        foreach (var source in activeSources)
-        {
-            if (
-                source.Watcher is not null
-                && revisions is not null
-                && revisions.TryGetRevision(source.Id, out var revision)
-            )
-            {
-                waitTasks.Add(
-                    source.Watcher.WaitForChangeAsync(revision, waitCancellation.Token).AsTask()
-                );
-            }
-        }
-
-        waitTasks.Add(topologyChanged.WaitAsync(waitCancellation.Token));
-
         try
         {
+            foreach (var source in activeSources)
+            {
+                if (
+                    source.Watcher is not null
+                    && revisions.TryGetRevision(source.Id, out var revision)
+                )
+                {
+                    waitTasks.Add(
+                        source.Watcher.WaitForChangeAsync(revision, waitCancellation.Token).AsTask()
+                    );
+                }
+            }
+
+            waitTasks.Add(topologyChanged.WaitAsync(waitCancellation.Token));
             var completed = await Task.WhenAny(waitTasks).ConfigureAwait(false);
             await completed.ConfigureAwait(false);
         }

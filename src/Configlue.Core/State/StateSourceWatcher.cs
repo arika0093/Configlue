@@ -21,27 +21,37 @@ public sealed class StateSourceWatcher<T> : IStateWatcher
         using var watchCancellation = CancellationTokenSource.CreateLinkedTokenSource(
             cancellationToken
         );
-        var watchers = _resolver
-            .GetSourcesForWatch(observedRevision)
-            .Where(static target => target.Source.Watcher is not null)
-            .Select(target =>
-                target
-                    .Source.Watcher!.WaitForChangeAsync(
-                        target.ObservedRevision,
-                        watchCancellation.Token
-                    )
-                    .AsTask()
-            )
-            .ToArray();
-
-        if (watchers.Length == 0)
+        var watchers = new List<Task>();
+        try
         {
-            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken).ConfigureAwait(false);
-            return;
-        }
+            foreach (
+                var target in _resolver
+                    .GetSourcesForWatch(observedRevision)
+                    .Where(static target => target.Source.Watcher is not null)
+            )
+            {
+                watchers.Add(
+                    target
+                        .Source.Watcher!.WaitForChangeAsync(
+                            target.ObservedRevision,
+                            watchCancellation.Token
+                        )
+                        .AsTask()
+                );
+            }
 
-        var finished = await Task.WhenAny(watchers).ConfigureAwait(false);
-        await watchCancellation.CancelAsync().ConfigureAwait(false);
-        await finished.ConfigureAwait(false);
+            if (watchers.Count == 0)
+            {
+                await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken).ConfigureAwait(false);
+                return;
+            }
+
+            var finished = await Task.WhenAny(watchers).ConfigureAwait(false);
+            await finished.ConfigureAwait(false);
+        }
+        finally
+        {
+            await watchCancellation.CancelAsync().ConfigureAwait(false);
+        }
     }
 }
