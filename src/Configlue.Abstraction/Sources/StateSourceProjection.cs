@@ -18,12 +18,22 @@ public static class StateSourceProjection
         StateSource<TSource> source,
         Func<TSource, TTarget> toTarget,
         Func<TTarget, TSource>? toSource = null,
-        StateSchemaMetadata? projectedSchema = null)
+        StateSchemaMetadata? projectedSchema = null,
+        IEnumerable<IStateSchemaMigration<TSource>>? sourceMigrations = null,
+        StateSchemaMetadata? sourceSchema = null)
     {
         ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(toTarget);
 
-        var reader = new ProjectedReader<TSource, TTarget>(source.Reader, toTarget, projectedSchema);
+        if (sourceMigrations is not null && sourceSchema is null)
+        {
+            throw new ArgumentException("A target source schema is required when source migrations are supplied.", nameof(sourceSchema));
+        }
+
+        var migrationChain = sourceSchema is { } targetSourceSchema
+            ? new StateSchemaMigrationChain<TSource>(targetSourceSchema, sourceMigrations)
+            : null;
+        var reader = new ProjectedReader<TSource, TTarget>(source.Reader, toTarget, projectedSchema, migrationChain);
         IStateWriter<TTarget>? writer = source.Writer is not null && toSource is not null
             ? new ProjectedWriter<TSource, TTarget>(source.Writer, toSource)
             : null;
@@ -40,7 +50,8 @@ public static class StateSourceProjection
     private sealed class ProjectedReader<TSource, TTarget>(
         IStateReader<TSource> source,
         Func<TSource, TTarget> toTarget,
-        StateSchemaMetadata? projectedSchema) : IStateReader<TTarget>
+        StateSchemaMetadata? projectedSchema,
+        StateSchemaMigrationChain<TSource>? migrationChain) : IStateReader<TTarget>
     {
         public async ValueTask<StateReadResult<TTarget>> ReadAsync(CancellationToken cancellationToken = default)
         {
@@ -62,7 +73,13 @@ public static class StateSourceProjection
                 throw new InvalidOperationException("A successful projected source returned a null value.");
             }
 
-            var projected = toTarget(result.Value);
+            var sourceValue = result.Value;
+            if (result.Schema is { } sourceSchema && migrationChain is not null)
+            {
+                sourceValue = await migrationChain.MigrateAsync(sourceValue, sourceSchema, cancellationToken).ConfigureAwait(false);
+            }
+
+            var projected = toTarget(sourceValue);
             if (projected is null)
             {
                 throw new InvalidOperationException("The source projection returned a null value.");

@@ -528,6 +528,34 @@ public sealed class StateRuntimeTests
     }
 
     [Test]
+    public async Task SourceProjection_MigratesItsContractBeforeProjectingIntoTheRootModel()
+    {
+        var sourceSchema = new StateSchemaMetadata("database-settings", 1);
+        var legacy = new FixedStateReader<DatabaseSettings.Fragment>(StateReadResult<DatabaseSettings.Fragment>.Success(
+            new DatabaseSettings.Fragment { Host = Optional<string>.Present("legacy.db") },
+            "legacy-database-revision",
+            sourceSchema));
+        var source = new StateSource<DatabaseSettings.Fragment>("legacy-database", legacy, priority: 100);
+        var projected = StateSourceProjection.Project<DatabaseSettings.Fragment, AppSettings.Fragment>(
+            source,
+            fragment => new AppSettings.Fragment
+            {
+                Database = Optional<DatabaseSettings.Fragment?>.Present(fragment),
+            },
+            projectedSchema: AppSettings.ConfiglueSchema.ToMetadata(),
+            sourceMigrations: [new DatabaseV1ToV2Migration()],
+            sourceSchema: DatabaseSettings.ConfiglueSchema.ToMetadata());
+        var sources = new StateSourceSet<AppSettings.Fragment>([projected]);
+        var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(sources);
+
+        var resolved = await options.ReadAsync();
+
+        await Assert.That(resolved.Value!.Database!.Host).IsEqualTo("legacy.db");
+        await Assert.That(resolved.Value.Database.Port).IsEqualTo(7400);
+        await Assert.That(resolved.Schema).IsEqualTo(AppSettings.ConfiglueSchema.ToMetadata());
+    }
+
+    [Test]
     public async Task MigrateSourceAsync_CopiesOnlyTheSelectedContributionAfterSchemaMigration()
     {
         var legacySchema = new StateSchemaMetadata("app-settings", 1);
@@ -610,6 +638,23 @@ public sealed class StateRuntimeTests
             cancellationToken.ThrowIfCancellationRequested();
             var builder = value.ToBuilder();
             builder.Label = Optional<string?>.Present("migrated");
+            return ValueTask.FromResult(builder.Build());
+        }
+    }
+
+    private sealed class DatabaseV1ToV2Migration : IStateSchemaMigration<DatabaseSettings.Fragment>
+    {
+        public StateSchemaMetadata SourceSchema => new("database-settings", 1);
+
+        public StateSchemaMetadata TargetSchema => DatabaseSettings.ConfiglueSchema.ToMetadata();
+
+        public ValueTask<DatabaseSettings.Fragment> MigrateAsync(
+            DatabaseSettings.Fragment value,
+            CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var builder = value.ToBuilder();
+            builder.Port = Optional<int>.Present(7400);
             return ValueTask.FromResult(builder.Build());
         }
     }

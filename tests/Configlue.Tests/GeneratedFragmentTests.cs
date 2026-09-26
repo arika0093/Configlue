@@ -25,7 +25,7 @@ public partial class AppSettings
     public IReadOnlyList<string> Plugins { get; set; } = [];
 }
 
-[ConfiglueModel]
+[ConfiglueModel(2, Id = "database-settings")]
 public partial class DatabaseSettings
 {
     public string Host { get; set; } = "localhost";
