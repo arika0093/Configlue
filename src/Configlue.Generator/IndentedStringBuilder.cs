@@ -10,7 +10,8 @@ internal sealed class IndentedStringBuilder
     private readonly StringBuilder _builder = new();
     private readonly CancellationToken _cancellationToken;
 
-    public IndentedStringBuilder(CancellationToken cancellationToken) => _cancellationToken = cancellationToken;
+    public IndentedStringBuilder(CancellationToken cancellationToken) =>
+        _cancellationToken = cancellationToken;
 
     public CancellationToken CancellationToken => _cancellationToken;
 

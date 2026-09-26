@@ -4,5 +4,6 @@ namespace Configlue;
 public sealed class StateConflictException : Exception
 {
     /// <summary>Creates a state conflict exception.</summary>
-    public StateConflictException(string message) : base(message) { }
+    public StateConflictException(string message)
+        : base(message) { }
 }

@@ -1,5 +1,5 @@
-using System.Collections.Immutable;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Text;
 using System.Threading;
 using Microsoft.CodeAnalysis;
@@ -14,31 +14,68 @@ public sealed partial class ConfiglueGenerator : IIncrementalGenerator
 {
     private const string ModelAttributeName = "Configlue.ConfiglueModelAttribute";
     private const string MergeAttributeName = "Configlue.ConfiglueMergeAttribute";
-    private static readonly SymbolDisplayFormat TypeFormat = SymbolDisplayFormat.FullyQualifiedFormat.WithMiscellaneousOptions(
-        SymbolDisplayFormat.FullyQualifiedFormat.MiscellaneousOptions |
-        SymbolDisplayMiscellaneousOptions.IncludeNullableReferenceTypeModifier);
+    private static readonly SymbolDisplayFormat TypeFormat =
+        SymbolDisplayFormat.FullyQualifiedFormat.WithMiscellaneousOptions(
+            SymbolDisplayFormat.FullyQualifiedFormat.MiscellaneousOptions
+                | SymbolDisplayMiscellaneousOptions.IncludeNullableReferenceTypeModifier
+        );
 
     private static readonly DiagnosticDescriptor MustBePartial = new(
-        "CFG001", "Configlue model must be partial", "Model '{0}' must be declared partial", "Configlue", DiagnosticSeverity.Error, true);
+        "CFG001",
+        "Configlue model must be partial",
+        "Model '{0}' must be declared partial",
+        "Configlue",
+        DiagnosticSeverity.Error,
+        true
+    );
     private static readonly DiagnosticDescriptor UnsupportedModel = new(
-        "CFG002", "Unsupported Configlue model", "Model '{0}' must be a top-level, non-generic class or struct", "Configlue", DiagnosticSeverity.Error, true);
+        "CFG002",
+        "Unsupported Configlue model",
+        "Model '{0}' must be a top-level, non-generic class or struct",
+        "Configlue",
+        DiagnosticSeverity.Error,
+        true
+    );
     private static readonly DiagnosticDescriptor MissingConstructor = new(
-        "CFG003", "Model needs a public parameterless constructor", "Class model '{0}' must have a public parameterless constructor", "Configlue", DiagnosticSeverity.Error, true);
+        "CFG003",
+        "Model needs a public parameterless constructor",
+        "Class model '{0}' must have a public parameterless constructor",
+        "Configlue",
+        DiagnosticSeverity.Error,
+        true
+    );
     private static readonly DiagnosticDescriptor UnsupportedRequired = new(
-        "CFG004", "Required model members are unsupported", "Required member '{0}' cannot be omitted from a sparse fragment", "Configlue", DiagnosticSeverity.Error, true);
+        "CFG004",
+        "Required model members are unsupported",
+        "Required member '{0}' cannot be omitted from a sparse fragment",
+        "Configlue",
+        DiagnosticSeverity.Error,
+        true
+    );
     private static readonly DiagnosticDescriptor UnsupportedMerge = new(
-        "CFG005", "Unsupported merge mode", "Merge mode '{0}' is not supported for member '{1}'", "Configlue", DiagnosticSeverity.Error, true);
+        "CFG005",
+        "Unsupported merge mode",
+        "Merge mode '{0}' is not supported for member '{1}'",
+        "Configlue",
+        DiagnosticSeverity.Error,
+        true
+    );
 
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
-        var generated = context.SyntaxProvider.ForAttributeWithMetadataName(
-            ModelAttributeName,
-            static (node, _) => node is TypeDeclarationSyntax,
-            static (attributeContext, cancellationToken) =>
-                Generate((INamedTypeSymbol)attributeContext.TargetSymbol, cancellationToken))
+        var generated = context
+            .SyntaxProvider.ForAttributeWithMetadataName(
+                ModelAttributeName,
+                static (node, _) => node is TypeDeclarationSyntax,
+                static (attributeContext, cancellationToken) =>
+                    Generate((INamedTypeSymbol)attributeContext.TargetSymbol, cancellationToken)
+            )
             .WithComparer(EqualityComparer<GenerationResult>.Default);
 
-        context.RegisterSourceOutput(generated, static (productionContext, result) => Emit(productionContext, result));
+        context.RegisterSourceOutput(
+            generated,
+            static (productionContext, result) => Emit(productionContext, result)
+        );
     }
 
     private static void Emit(SourceProductionContext context, GenerationResult result)
@@ -48,11 +85,20 @@ public sealed partial class ConfiglueGenerator : IIncrementalGenerator
         {
             context.CancellationToken.ThrowIfCancellationRequested();
             var location = diagnostic.Location.IsSource
-                ? Location.Create(diagnostic.Location.FilePath!, diagnostic.Location.Span, diagnostic.Location.LineSpan)
+                ? Location.Create(
+                    diagnostic.Location.FilePath!,
+                    diagnostic.Location.Span,
+                    diagnostic.Location.LineSpan
+                )
                 : Location.None;
             var roslynDiagnostic = diagnostic.Argument2 is null
                 ? Diagnostic.Create(diagnostic.Descriptor, location, diagnostic.Argument1)
-                : Diagnostic.Create(diagnostic.Descriptor, location, diagnostic.Argument1, diagnostic.Argument2);
+                : Diagnostic.Create(
+                    diagnostic.Descriptor,
+                    location,
+                    diagnostic.Argument1,
+                    diagnostic.Argument2
+                );
             context.ReportDiagnostic(roslynDiagnostic);
         }
 
@@ -62,12 +108,15 @@ public sealed partial class ConfiglueGenerator : IIncrementalGenerator
         }
     }
 
-    private static GenerationResult Generate(INamedTypeSymbol model, CancellationToken cancellationToken)
+    private static GenerationResult Generate(
+        INamedTypeSymbol model,
+        CancellationToken cancellationToken
+    )
     {
         cancellationToken.ThrowIfCancellationRequested();
         var location = model.Locations.FirstOrDefault();
-        var declaration = model.DeclaringSyntaxReferences
-            .Select(reference => reference.GetSyntax(cancellationToken))
+        var declaration = model
+            .DeclaringSyntaxReferences.Select(reference => reference.GetSyntax(cancellationToken))
             .OfType<TypeDeclarationSyntax>()
             .FirstOrDefault();
 
@@ -76,7 +125,11 @@ public sealed partial class ConfiglueGenerator : IIncrementalGenerator
             return Failure(MustBePartial, location, model.Name);
         }
 
-        if (model.ContainingType is not null || model.Arity != 0 || (model.TypeKind != TypeKind.Class && model.TypeKind != TypeKind.Struct))
+        if (
+            model.ContainingType is not null
+            || model.Arity != 0
+            || (model.TypeKind != TypeKind.Class && model.TypeKind != TypeKind.Struct)
+        )
         {
             return Failure(UnsupportedModel, location, model.Name);
         }
@@ -86,7 +139,10 @@ public sealed partial class ConfiglueGenerator : IIncrementalGenerator
             return Failure(UnsupportedModel, location, model.Name);
         }
 
-        if (model.TypeKind == TypeKind.Class && !HasPublicParameterlessConstructor(model, cancellationToken))
+        if (
+            model.TypeKind == TypeKind.Class
+            && !HasPublicParameterlessConstructor(model, cancellationToken)
+        )
         {
             return Failure(MissingConstructor, location, model.Name);
         }
@@ -98,18 +154,40 @@ public sealed partial class ConfiglueGenerator : IIncrementalGenerator
             cancellationToken.ThrowIfCancellationRequested();
             if (member.Property.IsRequired)
             {
-                diagnostics.Add(GeneratorDiagnosticInfo.Create(UnsupportedRequired, member.Property.Locations.FirstOrDefault(), member.Property.Name));
+                diagnostics.Add(
+                    GeneratorDiagnosticInfo.Create(
+                        UnsupportedRequired,
+                        member.Property.Locations.FirstOrDefault(),
+                        member.Property.Name
+                    )
+                );
             }
 
             if (member.MergeMode == 1 && member.ChildModel is null)
             {
-                diagnostics.Add(GeneratorDiagnosticInfo.Create(UnsupportedMerge, member.Property.Locations.FirstOrDefault(), "Deep", member.Property.Name));
+                diagnostics.Add(
+                    GeneratorDiagnosticInfo.Create(
+                        UnsupportedMerge,
+                        member.Property.Locations.FirstOrDefault(),
+                        "Deep",
+                        member.Property.Name
+                    )
+                );
             }
 
-            if ((member.MergeMode == 2 || member.MergeMode == 3) && member.Collection.Kind == CollectionKind.Unsupported)
+            if (
+                (member.MergeMode == 2 || member.MergeMode == 3)
+                && member.Collection.Kind == CollectionKind.Unsupported
+            )
             {
-                diagnostics.Add(GeneratorDiagnosticInfo.Create(UnsupportedMerge, member.Property.Locations.FirstOrDefault(),
-                    member.MergeMode == 2 ? "Append" : "SetUnion", member.Property.Name));
+                diagnostics.Add(
+                    GeneratorDiagnosticInfo.Create(
+                        UnsupportedMerge,
+                        member.Property.Locations.FirstOrDefault(),
+                        member.MergeMode == 2 ? "Append" : "SetUnion",
+                        member.Property.Name
+                    )
+                );
             }
         }
 
@@ -120,23 +198,43 @@ public sealed partial class ConfiglueGenerator : IIncrementalGenerator
 
         var source = BuildSource(model, members, cancellationToken);
         var fullyQualifiedName = model.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-        var fileName = Sanitize(fullyQualifiedName, cancellationToken) + "_" +
-            GetStableTypeHash(fullyQualifiedName, cancellationToken) + ".Configlue.g.cs";
-        return new GenerationResult(fileName, source, ImmutableArray<GeneratorDiagnosticInfo>.Empty);
+        var fileName =
+            Sanitize(fullyQualifiedName, cancellationToken)
+            + "_"
+            + GetStableTypeHash(fullyQualifiedName, cancellationToken)
+            + ".Configlue.g.cs";
+        return new GenerationResult(
+            fileName,
+            source,
+            ImmutableArray<GeneratorDiagnosticInfo>.Empty
+        );
     }
 
-    private static GenerationResult Failure(DiagnosticDescriptor descriptor, Location? location, string? argument1)
+    private static GenerationResult Failure(
+        DiagnosticDescriptor descriptor,
+        Location? location,
+        string? argument1
+    )
     {
-        return new GenerationResult(null, null, ImmutableArray.Create(
-            GeneratorDiagnosticInfo.Create(descriptor, location, argument1)));
+        return new GenerationResult(
+            null,
+            null,
+            ImmutableArray.Create(GeneratorDiagnosticInfo.Create(descriptor, location, argument1))
+        );
     }
 
-    private static bool HasPublicParameterlessConstructor(INamedTypeSymbol model, CancellationToken cancellationToken)
+    private static bool HasPublicParameterlessConstructor(
+        INamedTypeSymbol model,
+        CancellationToken cancellationToken
+    )
     {
         foreach (var constructor in model.InstanceConstructors)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (constructor.DeclaredAccessibility == Accessibility.Public && constructor.Parameters.Length == 0)
+            if (
+                constructor.DeclaredAccessibility == Accessibility.Public
+                && constructor.Parameters.Length == 0
+            )
             {
                 return true;
             }
@@ -145,10 +243,17 @@ public sealed partial class ConfiglueGenerator : IIncrementalGenerator
         return false;
     }
 
-    private static IEnumerable<MemberModel> GetMembers(INamedTypeSymbol model, CancellationToken cancellationToken)
+    private static IEnumerable<MemberModel> GetMembers(
+        INamedTypeSymbol model,
+        CancellationToken cancellationToken
+    )
     {
         var hierarchy = new Stack<INamedTypeSymbol>();
-        for (var current = model; current is not null && current.SpecialType != SpecialType.System_Object; current = current.BaseType)
+        for (
+            var current = model;
+            current is not null && current.SpecialType != SpecialType.System_Object;
+            current = current.BaseType
+        )
         {
             cancellationToken.ThrowIfCancellationRequested();
             hierarchy.Push(current);
@@ -161,9 +266,13 @@ public sealed partial class ConfiglueGenerator : IIncrementalGenerator
             foreach (var property in hierarchy.Pop().GetMembers().OfType<IPropertySymbol>())
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                if (property.IsStatic || property.IsIndexer || property.DeclaredAccessibility != Accessibility.Public ||
-                    property.GetMethod?.DeclaredAccessibility != Accessibility.Public ||
-                    property.SetMethod?.DeclaredAccessibility != Accessibility.Public)
+                if (
+                    property.IsStatic
+                    || property.IsIndexer
+                    || property.DeclaredAccessibility != Accessibility.Public
+                    || property.GetMethod?.DeclaredAccessibility != Accessibility.Public
+                    || property.SetMethod?.DeclaredAccessibility != Accessibility.Public
+                )
                 {
                     continue;
                 }
@@ -173,10 +282,17 @@ public sealed partial class ConfiglueGenerator : IIncrementalGenerator
         }
 
         var index = 0;
-        foreach (var property in properties.Values.OrderBy(static property => property.Name, StringComparer.Ordinal))
+        foreach (
+            var property in properties.Values.OrderBy(
+                static property => property.Name,
+                StringComparer.Ordinal
+            )
+        )
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var child = IsConfiglueModel(property.Type, cancellationToken) ? (INamedTypeSymbol)property.Type : null;
+            var child = IsConfiglueModel(property.Type, cancellationToken)
+                ? (INamedTypeSymbol)property.Type
+                : null;
             var mode = child is not null ? 1 : 0;
             AttributeData? merge = null;
             foreach (var attribute in property.GetAttributes())
@@ -193,7 +309,13 @@ public sealed partial class ConfiglueGenerator : IIncrementalGenerator
                 mode = requestedMode;
             }
 
-            yield return new MemberModel(index++, property, child, mode, GetCollectionInfo(property.Type));
+            yield return new MemberModel(
+                index++,
+                property,
+                child,
+                mode,
+                GetCollectionInfo(property.Type)
+            );
         }
     }
 
@@ -233,19 +355,25 @@ public sealed partial class ConfiglueGenerator : IIncrementalGenerator
         var kind = definition switch
         {
             "System.Collections.Generic.List<T>" => CollectionKind.List,
-            "System.Collections.Generic.IEnumerable<T>" or
-            "System.Collections.Generic.IReadOnlyCollection<T>" or
-            "System.Collections.Generic.IReadOnlyList<T>" => CollectionKind.Array,
-            "System.Collections.Generic.HashSet<T>" or
-            "System.Collections.Generic.ISet<T>" or
-            "System.Collections.Generic.IReadOnlySet<T>" => CollectionKind.Set,
+            "System.Collections.Generic.IEnumerable<T>"
+            or "System.Collections.Generic.IReadOnlyCollection<T>"
+            or "System.Collections.Generic.IReadOnlyList<T>" => CollectionKind.Array,
+            "System.Collections.Generic.HashSet<T>"
+            or "System.Collections.Generic.ISet<T>"
+            or "System.Collections.Generic.IReadOnlySet<T>" => CollectionKind.Set,
             _ => CollectionKind.Unsupported,
         };
 
         return new CollectionInfo(kind, elementType, named);
     }
 
-    private sealed class MemberModel(int id, IPropertySymbol property, INamedTypeSymbol? childModel, int mergeMode, CollectionInfo collection)
+    private sealed class MemberModel(
+        int id,
+        IPropertySymbol property,
+        INamedTypeSymbol? childModel,
+        int mergeMode,
+        CollectionInfo collection
+    )
     {
         public int Id { get; } = id;
         public IPropertySymbol Property { get; } = property;
@@ -254,12 +382,17 @@ public sealed partial class ConfiglueGenerator : IIncrementalGenerator
         public CollectionInfo Collection { get; } = collection;
     }
 
-    private sealed class CollectionInfo(CollectionKind kind, ITypeSymbol elementType, INamedTypeSymbol? namedType)
+    private sealed class CollectionInfo(
+        CollectionKind kind,
+        ITypeSymbol elementType,
+        INamedTypeSymbol? namedType
+    )
     {
         public CollectionKind Kind { get; } = kind;
         public ITypeSymbol ElementType { get; } = elementType;
         public INamedTypeSymbol? NamedType { get; } = namedType;
-        public static CollectionInfo Unsupported { get; } = new(CollectionKind.Unsupported, null!, null);
+        public static CollectionInfo Unsupported { get; } =
+            new(CollectionKind.Unsupported, null!, null);
     }
 
     private enum CollectionKind
@@ -272,7 +405,11 @@ public sealed partial class ConfiglueGenerator : IIncrementalGenerator
 
     private sealed class GenerationResult : IEquatable<GenerationResult>
     {
-        public GenerationResult(string? hintName, string? source, ImmutableArray<GeneratorDiagnosticInfo> diagnostics)
+        public GenerationResult(
+            string? hintName,
+            string? source,
+            ImmutableArray<GeneratorDiagnosticInfo> diagnostics
+        )
         {
             HintName = hintName;
             Source = source;
@@ -290,8 +427,12 @@ public sealed partial class ConfiglueGenerator : IIncrementalGenerator
                 return true;
             }
 
-            if (other is null || !string.Equals(HintName, other.HintName, StringComparison.Ordinal) ||
-                !string.Equals(Source, other.Source, StringComparison.Ordinal) || Diagnostics.Length != other.Diagnostics.Length)
+            if (
+                other is null
+                || !string.Equals(HintName, other.HintName, StringComparison.Ordinal)
+                || !string.Equals(Source, other.Source, StringComparison.Ordinal)
+                || Diagnostics.Length != other.Diagnostics.Length
+            )
             {
                 return false;
             }
@@ -311,8 +452,10 @@ public sealed partial class ConfiglueGenerator : IIncrementalGenerator
 
         public override int GetHashCode()
         {
-            var hash = unchecked((HintName is null ? 0 : StringComparer.Ordinal.GetHashCode(HintName)) * 31 +
-                (Source is null ? 0 : StringComparer.Ordinal.GetHashCode(Source)));
+            var hash = unchecked(
+                (HintName is null ? 0 : StringComparer.Ordinal.GetHashCode(HintName)) * 31
+                + (Source is null ? 0 : StringComparer.Ordinal.GetHashCode(Source))
+            );
             foreach (var diagnostic in Diagnostics)
             {
                 hash = unchecked(hash * 31 + diagnostic.GetHashCode());
@@ -324,7 +467,12 @@ public sealed partial class ConfiglueGenerator : IIncrementalGenerator
 
     private readonly struct GeneratorDiagnosticInfo : IEquatable<GeneratorDiagnosticInfo>
     {
-        private GeneratorDiagnosticInfo(DiagnosticDescriptor descriptor, GeneratorLocationInfo location, string? argument1, string? argument2)
+        private GeneratorDiagnosticInfo(
+            DiagnosticDescriptor descriptor,
+            GeneratorLocationInfo location,
+            string? argument1,
+            string? argument2
+        )
         {
             Descriptor = descriptor;
             Location = location;
@@ -337,33 +485,53 @@ public sealed partial class ConfiglueGenerator : IIncrementalGenerator
         public string? Argument1 { get; }
         public string? Argument2 { get; }
 
-        public static GeneratorDiagnosticInfo Create(DiagnosticDescriptor descriptor, Location? location, string? argument1, string? argument2 = null)
+        public static GeneratorDiagnosticInfo Create(
+            DiagnosticDescriptor descriptor,
+            Location? location,
+            string? argument1,
+            string? argument2 = null
+        )
         {
-            return new GeneratorDiagnosticInfo(descriptor, GeneratorLocationInfo.Create(location), argument1, argument2);
+            return new GeneratorDiagnosticInfo(
+                descriptor,
+                GeneratorLocationInfo.Create(location),
+                argument1,
+                argument2
+            );
         }
 
         public bool Equals(GeneratorDiagnosticInfo other)
         {
-            return string.Equals(Descriptor.Id, other.Descriptor.Id, StringComparison.Ordinal) &&
-                Location.Equals(other.Location) &&
-                string.Equals(Argument1, other.Argument1, StringComparison.Ordinal) &&
-                string.Equals(Argument2, other.Argument2, StringComparison.Ordinal);
+            return string.Equals(Descriptor.Id, other.Descriptor.Id, StringComparison.Ordinal)
+                && Location.Equals(other.Location)
+                && string.Equals(Argument1, other.Argument1, StringComparison.Ordinal)
+                && string.Equals(Argument2, other.Argument2, StringComparison.Ordinal);
         }
 
-        public override bool Equals(object? obj) => obj is GeneratorDiagnosticInfo other && Equals(other);
+        public override bool Equals(object? obj) =>
+            obj is GeneratorDiagnosticInfo other && Equals(other);
 
         public override int GetHashCode()
         {
             var hash = StringComparer.Ordinal.GetHashCode(Descriptor.Id);
             hash = unchecked(hash * 31 + Location.GetHashCode());
-            hash = unchecked(hash * 31 + (Argument1 is null ? 0 : StringComparer.Ordinal.GetHashCode(Argument1)));
-            return unchecked(hash * 31 + (Argument2 is null ? 0 : StringComparer.Ordinal.GetHashCode(Argument2)));
+            hash = unchecked(
+                hash * 31 + (Argument1 is null ? 0 : StringComparer.Ordinal.GetHashCode(Argument1))
+            );
+            return unchecked(
+                hash * 31 + (Argument2 is null ? 0 : StringComparer.Ordinal.GetHashCode(Argument2))
+            );
         }
     }
 
     private readonly struct GeneratorLocationInfo : IEquatable<GeneratorLocationInfo>
     {
-        public GeneratorLocationInfo(bool isSource, string? filePath, TextSpan span, LinePositionSpan lineSpan)
+        public GeneratorLocationInfo(
+            bool isSource,
+            string? filePath,
+            TextSpan span,
+            LinePositionSpan lineSpan
+        )
         {
             IsSource = isSource;
             FilePath = filePath;
@@ -384,23 +552,31 @@ public sealed partial class ConfiglueGenerator : IIncrementalGenerator
             }
 
             var lineSpan = location.GetLineSpan();
-            return new GeneratorLocationInfo(true, location.SourceTree?.FilePath ?? lineSpan.Path ?? string.Empty,
-                location.SourceSpan, lineSpan.Span);
+            return new GeneratorLocationInfo(
+                true,
+                location.SourceTree?.FilePath ?? lineSpan.Path ?? string.Empty,
+                location.SourceSpan,
+                lineSpan.Span
+            );
         }
 
         public bool Equals(GeneratorLocationInfo other)
         {
-            return IsSource == other.IsSource &&
-                string.Equals(FilePath, other.FilePath, StringComparison.Ordinal) &&
-                Span.Equals(other.Span) && LineSpan.Equals(other.LineSpan);
+            return IsSource == other.IsSource
+                && string.Equals(FilePath, other.FilePath, StringComparison.Ordinal)
+                && Span.Equals(other.Span)
+                && LineSpan.Equals(other.LineSpan);
         }
 
-        public override bool Equals(object? obj) => obj is GeneratorLocationInfo other && Equals(other);
+        public override bool Equals(object? obj) =>
+            obj is GeneratorLocationInfo other && Equals(other);
 
         public override int GetHashCode()
         {
             var hash = IsSource ? 1 : 0;
-            hash = unchecked(hash * 31 + (FilePath is null ? 0 : StringComparer.Ordinal.GetHashCode(FilePath)));
+            hash = unchecked(
+                hash * 31 + (FilePath is null ? 0 : StringComparer.Ordinal.GetHashCode(FilePath))
+            );
             hash = unchecked(hash * 31 + Span.GetHashCode());
             return unchecked(hash * 31 + LineSpan.GetHashCode());
         }

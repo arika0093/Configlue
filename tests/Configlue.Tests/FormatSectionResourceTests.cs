@@ -14,45 +14,71 @@ public sealed class FormatSectionResourceTests
     public async Task XmlSectionResource_UpdatesNestedGeneratedFragmentAndPreservesSiblings()
     {
         var codec = new XmlStateCodec<AppSettings.Fragment>();
-        var fragmentBytes = Serialize(codec, new AppSettings.Fragment
-        {
-            RetryCount = Optional<int>.Present(4),
-        });
+        var fragmentBytes = Serialize(
+            codec,
+            new AppSettings.Fragment { RetryCount = Optional<int>.Present(4) }
+        );
         var document = new XDocument(
-            new XElement("configuration",
-                new XElement("App",
-                    new XElement("Settings", XElement.Parse(Encoding.UTF8.GetString(fragmentBytes))),
-                    new XElement("Other", new XElement("Value", "keep-nested"))),
-                new XElement("OtherSection", new XElement("Value", "keep-root"))));
+            new XElement(
+                "configuration",
+                new XElement(
+                    "App",
+                    new XElement(
+                        "Settings",
+                        XElement.Parse(Encoding.UTF8.GetString(fragmentBytes))
+                    ),
+                    new XElement("Other", new XElement("Value", "keep-nested"))
+                ),
+                new XElement("OtherSection", new XElement("Value", "keep-root"))
+            )
+        );
         var resource = new InMemoryResource();
-        await resource.WriteAsync(new ResourceWriteRequest(Encoding.UTF8.GetBytes(document.ToString(SaveOptions.DisableFormatting))));
+        await resource.WriteAsync(
+            new ResourceWriteRequest(
+                Encoding.UTF8.GetBytes(document.ToString(SaveOptions.DisableFormatting))
+            )
+        );
         var section = new XmlSectionResource(resource, "App__Settings");
-        var source = SerializedStateSource.FromResource<AppSettings.Fragment>("settings", section, codec);
-        var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(new StateSourceSet<AppSettings.Fragment>([source]));
+        var source = SerializedStateSource.FromResource<AppSettings.Fragment>(
+            "settings",
+            section,
+            codec
+        );
+        var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(
+            new StateSourceSet<AppSettings.Fragment>([source])
+        );
 
-        await options.ApplyPatchAsync(new AppSettings.Patch
-        {
-            RetryCount = FragmentOperation<int>.Set(9),
-        });
+        await options.ApplyPatchAsync(
+            new AppSettings.Patch { RetryCount = FragmentOperation<int>.Set(9) }
+        );
 
-        var updated = XDocument.Parse(Encoding.UTF8.GetString((await resource.ReadAsync()).Content.Span));
+        var updated = XDocument.Parse(
+            Encoding.UTF8.GetString((await resource.ReadAsync()).Content.Span)
+        );
         var root = updated.Root!;
-        var sectionValue = root.Element("App")?.Element("Settings")?.Element("configlue")
+        var sectionValue =
+            root.Element("App")?.Element("Settings")?.Element("configlue")
             ?? throw new InvalidOperationException(updated.ToString(SaveOptions.None));
-        var retryCount = sectionValue.Elements("member").Single(element => (string?)element.Attribute("name") == "RetryCount");
+        var retryCount = sectionValue
+            .Elements("member")
+            .Single(element => (string?)element.Attribute("name") == "RetryCount");
         await Assert.That((string?)retryCount.Element("int")).IsEqualTo("9");
-        await Assert.That(root.Element("App")!.Element("Other")!.Element("Value")!.Value).IsEqualTo("keep-nested");
-        await Assert.That(root.Element("OtherSection")!.Element("Value")!.Value).IsEqualTo("keep-root");
+        await Assert
+            .That(root.Element("App")!.Element("Other")!.Element("Value")!.Value)
+            .IsEqualTo("keep-nested");
+        await Assert
+            .That(root.Element("OtherSection")!.Element("Value")!.Value)
+            .IsEqualTo("keep-root");
     }
 
     [Test]
     public async Task YamlSectionResource_UpdatesNestedGeneratedFragmentAndPreservesSiblings()
     {
         var codec = new YamlStateCodec<AppSettings.Fragment>();
-        var fragmentBytes = Serialize(codec, new AppSettings.Fragment
-        {
-            RetryCount = Optional<int>.Present(4),
-        });
+        var fragmentBytes = Serialize(
+            codec,
+            new AppSettings.Fragment { RetryCount = Optional<int>.Present(4) }
+        );
         var sectionNode = LoadYaml(fragmentBytes);
         var document = new YamlMappingNode
         {
@@ -61,29 +87,44 @@ public sealed class FormatSectionResourceTests
                 new YamlMappingNode
                 {
                     { "Settings", sectionNode },
-                    { "Other", new YamlMappingNode { { "Value", "keep-nested" } } },
+                    {
+                        "Other",
+                        new YamlMappingNode { { "Value", "keep-nested" } }
+                    },
                 }
             },
-            { "OtherSection", new YamlMappingNode { { "Value", "keep-root" } } },
+            {
+                "OtherSection",
+                new YamlMappingNode { { "Value", "keep-root" } }
+            },
         };
         var resource = new InMemoryResource();
         await resource.WriteAsync(new ResourceWriteRequest(SerializeYaml(document)));
         var section = new YamlSectionResource(resource, "App:Settings");
-        var source = SerializedStateSource.FromResource<AppSettings.Fragment>("settings", section, codec);
-        var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(new StateSourceSet<AppSettings.Fragment>([source]));
+        var source = SerializedStateSource.FromResource<AppSettings.Fragment>(
+            "settings",
+            section,
+            codec
+        );
+        var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(
+            new StateSourceSet<AppSettings.Fragment>([source])
+        );
 
-        await options.ApplyPatchAsync(new AppSettings.Patch
-        {
-            RetryCount = FragmentOperation<int>.Set(9),
-        });
+        await options.ApplyPatchAsync(
+            new AppSettings.Patch { RetryCount = FragmentOperation<int>.Set(9) }
+        );
 
         var updatedRoot = LoadYaml((await resource.ReadAsync()).Content.Span);
         var app = GetMapping(updatedRoot, "App");
         var settings = GetMapping(app, "Settings");
         var values = GetMapping(settings, "$value");
         await Assert.That(((YamlScalarNode)GetNode(values, "RetryCount")).Value).IsEqualTo("9");
-        await Assert.That(((YamlScalarNode)GetNode(GetMapping(app, "Other"), "Value")).Value).IsEqualTo("keep-nested");
-        await Assert.That(((YamlScalarNode)GetNode(GetMapping(updatedRoot, "OtherSection"), "Value")).Value).IsEqualTo("keep-root");
+        await Assert
+            .That(((YamlScalarNode)GetNode(GetMapping(app, "Other"), "Value")).Value)
+            .IsEqualTo("keep-nested");
+        await Assert
+            .That(((YamlScalarNode)GetNode(GetMapping(updatedRoot, "OtherSection"), "Value")).Value)
+            .IsEqualTo("keep-root");
     }
 
     private static byte[] Serialize<T>(IStateCodec<T> codec, T value)
@@ -111,7 +152,8 @@ public sealed class FormatSectionResourceTests
     }
 
     private static YamlMappingNode GetMapping(YamlNode node, string key) =>
-        GetNode(node, key) as YamlMappingNode ?? throw new InvalidOperationException($"YAML node '{key}' is not a mapping.");
+        GetNode(node, key) as YamlMappingNode
+        ?? throw new InvalidOperationException($"YAML node '{key}' is not a mapping.");
 
     private static YamlNode GetNode(YamlNode node, string key)
     {
@@ -120,6 +162,8 @@ public sealed class FormatSectionResourceTests
             throw new InvalidOperationException("Expected a YAML mapping.");
         }
 
-        return mapping.Children.First(pair => pair.Key is YamlScalarNode scalar && scalar.Value == key).Value;
+        return mapping
+            .Children.First(pair => pair.Key is YamlScalarNode scalar && scalar.Value == key)
+            .Value;
     }
 }

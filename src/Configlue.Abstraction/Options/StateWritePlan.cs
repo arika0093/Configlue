@@ -23,12 +23,18 @@ public sealed class StateWritePlan
             ArgumentException.ThrowIfNullOrWhiteSpace(route.Value);
             if (route.Key.Split('.', StringSplitOptions.None).Any(string.IsNullOrWhiteSpace))
             {
-                throw new ArgumentException($"Property path '{route.Key}' contains an empty member name.", nameof(propertyRoutes));
+                throw new ArgumentException(
+                    $"Property path '{route.Key}' contains an empty member name.",
+                    nameof(propertyRoutes)
+                );
             }
 
             if (!routes.TryAdd(route.Key, route.Value))
             {
-                throw new ArgumentException($"Property path '{route.Key}' is routed more than once.", nameof(propertyRoutes));
+                throw new ArgumentException(
+                    $"Property path '{route.Key}' is routed more than once.",
+                    nameof(propertyRoutes)
+                );
             }
         }
 
@@ -37,7 +43,8 @@ public sealed class StateWritePlan
     }
 
     /// <summary>Creates a plan with no overrides; all changed paths use the configured write source.</summary>
-    public static StateWritePlan Empty { get; } = new(new Dictionary<string, string>(StringComparer.Ordinal));
+    public static StateWritePlan Empty { get; } =
+        new(new Dictionary<string, string>(StringComparer.Ordinal));
 
     /// <summary>Configured model property paths and their target logical source IDs.</summary>
     public IReadOnlyDictionary<string, string> PropertyRoutes { get; }
@@ -48,8 +55,10 @@ public sealed class StateWritePlan
         ArgumentException.ThrowIfNullOrWhiteSpace(propertyPath);
         ArgumentException.ThrowIfNullOrWhiteSpace(fallbackSourceId);
         var route = _routes
-            .Where(candidate => string.Equals(propertyPath, candidate.Key, StringComparison.Ordinal) ||
-                propertyPath.StartsWith(candidate.Key + ".", StringComparison.Ordinal))
+            .Where(candidate =>
+                string.Equals(propertyPath, candidate.Key, StringComparison.Ordinal)
+                || propertyPath.StartsWith(candidate.Key + ".", StringComparison.Ordinal)
+            )
             .OrderByDescending(static candidate => candidate.Key.Length)
             .FirstOrDefault();
         return route.Key is null ? fallbackSourceId : route.Value;

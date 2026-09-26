@@ -13,14 +13,23 @@ namespace Configlue.Provider.Xml;
 public sealed class XmlStateCodec : IStateCodec, IStateSchemaMetadataReader
 {
     /// <inheritdoc />
-    public object? Deserialize(Type type, in ReadOnlySequence<byte> source, in StateCodecContext context)
+    public object? Deserialize(
+        Type type,
+        in ReadOnlySequence<byte> source,
+        in StateCodecContext context
+    )
     {
         ArgumentNullException.ThrowIfNull(type);
         return XmlStateCodecOperations.Deserialize(type, source.ToArray());
     }
 
     /// <inheritdoc />
-    public void Serialize(Type type, object? value, IBufferWriter<byte> destination, in StateCodecContext context)
+    public void Serialize(
+        Type type,
+        object? value,
+        IBufferWriter<byte> destination,
+        in StateCodecContext context
+    )
     {
         ArgumentNullException.ThrowIfNull(type);
         ArgumentNullException.ThrowIfNull(destination);
@@ -82,9 +91,17 @@ internal static class XmlStateCodecOperations
             {
                 WriteFragment(writer, fragment, schema ?? fragment.Schema.ToMetadata(), RootName);
             }
-            else if (value is not null && TryCreateGeneratedFragment(type, value, out var generatedFragment))
+            else if (
+                value is not null
+                && TryCreateGeneratedFragment(type, value, out var generatedFragment)
+            )
             {
-                WriteFragment(writer, generatedFragment, schema ?? generatedFragment.Schema.ToMetadata(), RootName);
+                WriteFragment(
+                    writer,
+                    generatedFragment,
+                    schema ?? generatedFragment.Schema.ToMetadata(),
+                    RootName
+                );
             }
             else if (schema is { } metadata)
             {
@@ -115,10 +132,15 @@ internal static class XmlStateCodecOperations
             return ReadFragment(root, type);
         }
 
-        if (root.Name.LocalName == RootName && TryGetGeneratedFragmentType(type) is { } generatedFragmentType)
+        if (
+            root.Name.LocalName == RootName
+            && TryGetGeneratedFragmentType(type) is { } generatedFragmentType
+        )
         {
             var fragment = ReadFragment(root, generatedFragmentType);
-            return generatedFragmentType.GetMethod("ToModel", Type.EmptyTypes)!.Invoke(fragment, null);
+            return generatedFragmentType
+                .GetMethod("ToModel", Type.EmptyTypes)!
+                .Invoke(fragment, null);
         }
 
         var valueElement = root.Name.LocalName == RootName ? root.Element("value") : root;
@@ -133,10 +155,17 @@ internal static class XmlStateCodecOperations
     public static StateSchemaMetadata? ReadSchemaMetadata(byte[] content)
     {
         var root = LoadDocument(content).Root;
-        if (root is null || root.Name.LocalName != RootName ||
-            !int.TryParse((string?)root.Attribute("version"), System.Globalization.NumberStyles.None,
-                System.Globalization.CultureInfo.InvariantCulture, out var version) ||
-            version < StateSchemaMetadata.InitialVersion)
+        if (
+            root is null
+            || root.Name.LocalName != RootName
+            || !int.TryParse(
+                (string?)root.Attribute("version"),
+                System.Globalization.NumberStyles.None,
+                System.Globalization.CultureInfo.InvariantCulture,
+                out var version
+            )
+            || version < StateSchemaMetadata.InitialVersion
+        )
         {
             return null;
         }
@@ -144,7 +173,12 @@ internal static class XmlStateCodecOperations
         return new StateSchemaMetadata((string?)root.Attribute("id"), version);
     }
 
-    private static void WriteFragment(XmlWriter writer, IConfiglueFragment fragment, StateSchemaMetadata schema, string elementName)
+    private static void WriteFragment(
+        XmlWriter writer,
+        IConfiglueFragment fragment,
+        StateSchemaMetadata schema,
+        string elementName
+    )
     {
         writer.WriteStartElement(elementName);
         WriteSchemaAttributes(writer, schema);
@@ -152,7 +186,10 @@ internal static class XmlStateCodecOperations
         {
             var member = fragment.Schema.Members.First(item => item.Id == present.Id);
             writer.WriteStartElement(MemberName);
-            writer.WriteAttributeString("id", present.Id.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            writer.WriteAttributeString(
+                "id",
+                present.Id.ToString(System.Globalization.CultureInfo.InvariantCulture)
+            );
             writer.WriteAttributeString("name", present.Name);
             if (present.Value is null)
             {
@@ -204,17 +241,29 @@ internal static class XmlStateCodecOperations
 
     private static IConfiglueFragment ReadFragment(XElement element, Type fragmentType)
     {
-        var emptyProperty = fragmentType.GetProperty("Empty", BindingFlags.Public | BindingFlags.Static)
-            ?? throw new InvalidOperationException($"Generated fragment '{fragmentType}' has no Empty value.");
-        var fragment = (IConfiglueFragment?)emptyProperty.GetValue(null)
-            ?? throw new InvalidOperationException($"Generated fragment '{fragmentType}' returned a null Empty value.");
+        var emptyProperty =
+            fragmentType.GetProperty("Empty", BindingFlags.Public | BindingFlags.Static)
+            ?? throw new InvalidOperationException(
+                $"Generated fragment '{fragmentType}' has no Empty value."
+            );
+        var fragment =
+            (IConfiglueFragment?)emptyProperty.GetValue(null)
+            ?? throw new InvalidOperationException(
+                $"Generated fragment '{fragmentType}' returned a null Empty value."
+            );
         var seenIds = new HashSet<int>();
 
         foreach (var memberElement in element.Elements(MemberName))
         {
             var idText = (string?)memberElement.Attribute("id");
-            if (!int.TryParse(idText, System.Globalization.NumberStyles.None,
-                    System.Globalization.CultureInfo.InvariantCulture, out var id))
+            if (
+                !int.TryParse(
+                    idText,
+                    System.Globalization.NumberStyles.None,
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    out var id
+                )
+            )
             {
                 throw new XmlException("A Configlue XML member must have a numeric id.");
             }
@@ -237,12 +286,17 @@ internal static class XmlStateCodecOperations
             }
             else
             {
-                var valueElement = memberElement.Elements().FirstOrDefault()
+                var valueElement =
+                    memberElement.Elements().FirstOrDefault()
                     ?? throw new XmlException($"Member '{member.Name}' has no value element.");
                 value = ReadValue(valueElement, member.ValueType);
             }
 
-            if (value is null && member.ValueType.IsValueType && Nullable.GetUnderlyingType(member.ValueType) is null)
+            if (
+                value is null
+                && member.ValueType.IsValueType
+                && Nullable.GetUnderlyingType(member.ValueType) is null
+            )
             {
                 throw new XmlException($"Non-nullable member '{member.Name}' cannot be null.");
             }
@@ -265,11 +319,24 @@ internal static class XmlStateCodecOperations
             return ReadFragment(element, valueType);
         }
 
-        if (TryGetEnumerableElementType(valueType, out var elementType) && element.Name.LocalName == SequenceName)
+        if (
+            TryGetEnumerableElementType(valueType, out var elementType)
+            && element.Name.LocalName == SequenceName
+        )
         {
-            var items = element.Elements(ItemName).Select(item => IsNil(item)
-                ? null
-                : item.Elements().FirstOrDefault() is { } inner ? ReadValue(inner, elementType) : null).ToArray();
+            var items = element
+                .Elements(ItemName)
+                .Select(item =>
+                {
+                    if (IsNil(item))
+                    {
+                        return null;
+                    }
+
+                    var inner = item.Elements().FirstOrDefault();
+                    return inner is null ? null : ReadValue(inner, elementType);
+                })
+                .ToArray();
             if (valueType.IsArray)
             {
                 var array = Array.CreateInstance(elementType, items.Length);
@@ -281,14 +348,30 @@ internal static class XmlStateCodecOperations
                 return array;
             }
 
-            var collectionType = valueType.IsInterface
-                ? valueType.GetInterfaces().Append(valueType).Any(candidate => candidate.IsGenericType &&
-                    (candidate.GetGenericTypeDefinition() == typeof(ISet<>) || candidate.GetGenericTypeDefinition() == typeof(IReadOnlySet<>)))
+            Type collectionType;
+            if (valueType.IsInterface)
+            {
+                var isSet = valueType
+                    .GetInterfaces()
+                    .Append(valueType)
+                    .Any(candidate =>
+                        candidate.IsGenericType
+                        && (
+                            candidate.GetGenericTypeDefinition() == typeof(ISet<>)
+                            || candidate.GetGenericTypeDefinition() == typeof(IReadOnlySet<>)
+                        )
+                    );
+                collectionType = isSet
                     ? typeof(HashSet<>).MakeGenericType(elementType)
-                    : typeof(List<>).MakeGenericType(elementType)
-                : valueType;
+                    : typeof(List<>).MakeGenericType(elementType);
+            }
+            else
+            {
+                collectionType = valueType;
+            }
             var collection = Activator.CreateInstance(collectionType);
-            var add = collectionType.GetMethod("Add", [elementType])
+            var add =
+                collectionType.GetMethod("Add", [elementType])
                 ?? throw new XmlException($"Collection type '{collectionType}' has no Add method.");
             foreach (var item in items)
             {
@@ -308,11 +391,18 @@ internal static class XmlStateCodecOperations
             writer.WriteAttributeString("id", schema.ModelId);
         }
 
-        writer.WriteAttributeString("version", schema.Version.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        writer.WriteAttributeString(
+            "version",
+            schema.Version.ToString(System.Globalization.CultureInfo.InvariantCulture)
+        );
     }
 
     private static bool IsNil(XElement element) =>
-        string.Equals((string?)element.Attribute(XName.Get("nil", XsiNamespace)), "true", StringComparison.OrdinalIgnoreCase);
+        string.Equals(
+            (string?)element.Attribute(XName.Get("nil", XsiNamespace)),
+            "true",
+            StringComparison.OrdinalIgnoreCase
+        );
 
     private static bool TryGetEnumerableElementType(Type type, out Type elementType)
     {
@@ -324,8 +414,12 @@ internal static class XmlStateCodecOperations
 
         var enumerable = type.IsArray
             ? null
-            : type.GetInterfaces().Append(type).FirstOrDefault(candidate => candidate.IsGenericType &&
-                candidate.GetGenericTypeDefinition() == typeof(IEnumerable<>));
+            : type.GetInterfaces()
+                .Append(type)
+                .FirstOrDefault(candidate =>
+                    candidate.IsGenericType
+                    && candidate.GetGenericTypeDefinition() == typeof(IEnumerable<>)
+                );
         if (type.IsArray)
         {
             elementType = type.GetElementType()!;
@@ -345,19 +439,32 @@ internal static class XmlStateCodecOperations
     private static XDocument LoadDocument(byte[] content)
     {
         using var memory = new MemoryStream(content, writable: false);
-        using var reader = XmlReader.Create(memory, new XmlReaderSettings { DtdProcessing = DtdProcessing.Prohibit, XmlResolver = null });
+        using var reader = XmlReader.Create(
+            memory,
+            new XmlReaderSettings { DtdProcessing = DtdProcessing.Prohibit, XmlResolver = null }
+        );
         return XDocument.Load(reader, LoadOptions.None);
     }
 
-    private static XmlSerializer GetSerializer(Type type) => Serializers.GetOrAdd(type, static type => new XmlSerializer(type));
+    private static XmlSerializer GetSerializer(Type type) =>
+        Serializers.GetOrAdd(type, static type => new XmlSerializer(type));
 
-    private static bool TryCreateGeneratedFragment(Type modelType, object value, out IConfiglueFragment fragment)
+    private static bool TryCreateGeneratedFragment(
+        Type modelType,
+        object value,
+        out IConfiglueFragment fragment
+    )
     {
         var fragmentType = TryGetGeneratedFragmentType(modelType);
         if (fragmentType is not null)
         {
-            var fromModel = fragmentType.GetMethods(BindingFlags.Public | BindingFlags.Static)
-                .FirstOrDefault(method => method.Name == "From" && method.GetParameters() is [{ ParameterType: var parameterType }] && parameterType == modelType);
+            var fromModel = fragmentType
+                .GetMethods(BindingFlags.Public | BindingFlags.Static)
+                .FirstOrDefault(method =>
+                    method.Name == "From"
+                    && method.GetParameters() is [{ ParameterType: var parameterType }]
+                    && parameterType == modelType
+                );
             if (fromModel?.Invoke(null, [value]) is IConfiglueFragment generated)
             {
                 fragment = generated;
@@ -372,8 +479,10 @@ internal static class XmlStateCodecOperations
     private static Type? TryGetGeneratedFragmentType(Type modelType)
     {
         var fragmentType = modelType.GetNestedType("Fragment", BindingFlags.Public);
-        return fragmentType is not null && typeof(IConfiglueFragment).IsAssignableFrom(fragmentType) &&
-               fragmentType.GetMethod("ToModel", Type.EmptyTypes) is not null
+        return
+            fragmentType is not null
+            && typeof(IConfiglueFragment).IsAssignableFrom(fragmentType)
+            && fragmentType.GetMethod("ToModel", Type.EmptyTypes) is not null
             ? fragmentType
             : null;
     }

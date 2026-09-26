@@ -12,11 +12,17 @@ public sealed class JsonStateCodec : IStateCodec, IStateSchemaMetadataReader
     /// <summary>Creates a codec with the supplied System.Text.Json options.</summary>
     public JsonStateCodec(JsonSerializerOptions? options = null)
     {
-        _options = options is null ? new JsonSerializerOptions() : new JsonSerializerOptions(options);
+        _options = options is null
+            ? new JsonSerializerOptions()
+            : new JsonSerializerOptions(options);
     }
 
     /// <inheritdoc />
-    public object? Deserialize(Type type, in ReadOnlySequence<byte> source, in StateCodecContext context)
+    public object? Deserialize(
+        Type type,
+        in ReadOnlySequence<byte> source,
+        in StateCodecContext context
+    )
     {
         ArgumentNullException.ThrowIfNull(type);
         var payload = JsonStateCodecOperations.GetPayload(in source, out _);
@@ -25,7 +31,12 @@ public sealed class JsonStateCodec : IStateCodec, IStateSchemaMetadataReader
     }
 
     /// <inheritdoc />
-    public void Serialize(Type type, object? value, IBufferWriter<byte> destination, in StateCodecContext context)
+    public void Serialize(
+        Type type,
+        object? value,
+        IBufferWriter<byte> destination,
+        in StateCodecContext context
+    )
     {
         ArgumentNullException.ThrowIfNull(type);
         ArgumentNullException.ThrowIfNull(destination);
@@ -36,7 +47,9 @@ public sealed class JsonStateCodec : IStateCodec, IStateSchemaMetadataReader
             writer.Flush();
         }
 
-        var schema = context.Schema ?? (value is IConfiglueFragment fragment ? fragment.Schema.ToMetadata() : null);
+        var schema =
+            context.Schema
+            ?? (value is IConfiglueFragment fragment ? fragment.Schema.ToMetadata() : null);
         var effectiveContext = schema is { } metadata
             ? new StateCodecContext(metadata, context.Services)
             : context;
@@ -57,7 +70,9 @@ public sealed class JsonStateCodec<T> : IStateCodec<T>, IStateSchemaMetadataRead
     /// <summary>Creates a codec that uses the supplied options.</summary>
     public JsonStateCodec(JsonSerializerOptions? options = null)
     {
-        _options = options is null ? new JsonSerializerOptions() : new JsonSerializerOptions(options);
+        _options = options is null
+            ? new JsonSerializerOptions()
+            : new JsonSerializerOptions(options);
     }
 
     /// <summary>Creates a codec that uses source-generated or otherwise preconfigured type metadata.</summary>
@@ -97,7 +112,9 @@ public sealed class JsonStateCodec<T> : IStateCodec<T>, IStateSchemaMetadataRead
             writer.Flush();
         }
 
-        var schema = context.Schema ?? (value is IConfiglueFragment fragment ? fragment.Schema.ToMetadata() : null);
+        var schema =
+            context.Schema
+            ?? (value is IConfiglueFragment fragment ? fragment.Schema.ToMetadata() : null);
         var effectiveContext = schema is { } metadata
             ? new StateCodecContext(metadata, context.Services)
             : context;
@@ -114,12 +131,20 @@ internal static class JsonStateCodecOperations
     private const string MetadataProperty = "$configlue";
     private const string PayloadProperty = "$value";
 
-    public static ReadOnlySequence<byte> GetPayload(in ReadOnlySequence<byte> source, out byte[]? ownedPayload)
+    public static ReadOnlySequence<byte> GetPayload(
+        in ReadOnlySequence<byte> source,
+        out byte[]? ownedPayload
+    )
     {
         ownedPayload = null;
         var probe = new Utf8JsonReader(source);
-        if (!probe.Read() || probe.TokenType != JsonTokenType.StartObject ||
-            !probe.Read() || probe.TokenType != JsonTokenType.PropertyName || !probe.ValueTextEquals(MetadataProperty))
+        if (
+            !probe.Read()
+            || probe.TokenType != JsonTokenType.StartObject
+            || !probe.Read()
+            || probe.TokenType != JsonTokenType.PropertyName
+            || !probe.ValueTextEquals(MetadataProperty)
+        )
         {
             return source;
         }
@@ -127,7 +152,9 @@ internal static class JsonStateCodecOperations
         using var document = JsonDocument.Parse(source);
         if (!document.RootElement.TryGetProperty(PayloadProperty, out var payload))
         {
-            throw new JsonException($"A '{MetadataProperty}' metadata envelope must contain a '{PayloadProperty}' value.");
+            throw new JsonException(
+                $"A '{MetadataProperty}' metadata envelope must contain a '{PayloadProperty}' value."
+            );
         }
 
         ownedPayload = System.Text.Encoding.UTF8.GetBytes(payload.GetRawText());
@@ -147,23 +174,31 @@ internal static class JsonStateCodecOperations
             return null;
         }
 
-        if (metadata.ValueKind != JsonValueKind.Object ||
-            !metadata.TryGetProperty("version", out var versionElement) ||
-            !versionElement.TryGetInt32(out var version) || version < StateSchemaMetadata.InitialVersion)
+        if (
+            metadata.ValueKind != JsonValueKind.Object
+            || !metadata.TryGetProperty("version", out var versionElement)
+            || !versionElement.TryGetInt32(out var version)
+            || version < StateSchemaMetadata.InitialVersion
+        )
         {
-            throw new JsonException($"The '{MetadataProperty}' metadata must contain a positive integer version.");
+            throw new JsonException(
+                $"The '{MetadataProperty}' metadata must contain a positive integer version."
+            );
         }
 
-        var id = metadata.TryGetProperty("id", out var idElement) && idElement.ValueKind == JsonValueKind.String
-            ? idElement.GetString()
-            : null;
+        var id =
+            metadata.TryGetProperty("id", out var idElement)
+            && idElement.ValueKind == JsonValueKind.String
+                ? idElement.GetString()
+                : null;
         return new StateSchemaMetadata(id, version);
     }
 
     public static void WritePayload(
         ReadOnlyMemory<byte> serializedValue,
         IBufferWriter<byte> destination,
-        in StateCodecContext context)
+        in StateCodecContext context
+    )
     {
         if (context.Schema is not { } schema)
         {
@@ -174,7 +209,10 @@ internal static class JsonStateCodecOperations
 
         if (schema.Version < StateSchemaMetadata.InitialVersion)
         {
-            throw new ArgumentOutOfRangeException(nameof(context), "Schema versions must be positive.");
+            throw new ArgumentOutOfRangeException(
+                nameof(context),
+                "Schema versions must be positive."
+            );
         }
 
         using var document = JsonDocument.Parse(serializedValue);

@@ -15,7 +15,8 @@ public static class EnvironmentStateSource
         int priority = 0,
         StateFallbackCondition fallbackCondition = StateFallbackCondition.NotFound,
         Func<IEnumerable<KeyValuePair<string, string?>>>? environmentVariables = null,
-        Func<string, Type, object?>? valueParser = null)
+        Func<string, Type, object?>? valueParser = null
+    )
         where TModel : IConfiglueModel<TModel, TFragment>
         where TFragment : class, IConfiglueFragment<TFragment>
     {
@@ -23,12 +24,14 @@ public static class EnvironmentStateSource
             TModel.ConfiglueSchema,
             prefix,
             environmentVariables,
-            valueParser);
+            valueParser
+        );
         return new StateSource<TFragment>(
             id,
             reader,
             priority,
             fallbackCondition,
-            physicalOrigin: $"environment:{EnvironmentStateReader<TFragment>.NormalizePrefix(prefix)}");
+            physicalOrigin: $"environment:{EnvironmentStateReader<TFragment>.NormalizePrefix(prefix)}"
+        );
     }
 }

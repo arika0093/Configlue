@@ -4,13 +4,17 @@ namespace Configlue;
 public readonly record struct StateSourceWriteResult(
     string SourceId,
     ResourceId? ResourceId,
-    string? Revision);
+    string? Revision
+);
 
 /// <summary>The per-source results and physical write count of a multi-source patch operation.</summary>
 public sealed class StateMultiWriteResult
 {
     /// <summary>Creates a multi-source write result.</summary>
-    public StateMultiWriteResult(IEnumerable<StateSourceWriteResult> sources, int physicalWriteCount)
+    public StateMultiWriteResult(
+        IEnumerable<StateSourceWriteResult> sources,
+        int physicalWriteCount
+    )
     {
         ArgumentNullException.ThrowIfNull(sources);
         if (physicalWriteCount < 0)
@@ -19,15 +23,26 @@ public sealed class StateMultiWriteResult
         }
 
         var sourceResults = sources.ToArray();
-        if (sourceResults.Any(static result => string.IsNullOrWhiteSpace(result.SourceId)) ||
-            sourceResults.Select(static result => result.SourceId).Distinct(StringComparer.Ordinal).Count() != sourceResults.Length)
+        if (
+            sourceResults.Any(static result => string.IsNullOrWhiteSpace(result.SourceId))
+            || sourceResults
+                .Select(static result => result.SourceId)
+                .Distinct(StringComparer.Ordinal)
+                .Count() != sourceResults.Length
+        )
         {
-            throw new ArgumentException("Source write results must have unique, non-empty source IDs.", nameof(sources));
+            throw new ArgumentException(
+                "Source write results must have unique, non-empty source IDs.",
+                nameof(sources)
+            );
         }
 
         if (physicalWriteCount > sourceResults.Length)
         {
-            throw new ArgumentOutOfRangeException(nameof(physicalWriteCount), "Physical writes cannot exceed logical source writes.");
+            throw new ArgumentOutOfRangeException(
+                nameof(physicalWriteCount),
+                "Physical writes cannot exceed logical source writes."
+            );
         }
 
         Sources = Array.AsReadOnly(sourceResults);

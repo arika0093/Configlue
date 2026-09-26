@@ -6,5 +6,6 @@ public interface IStateWatcher
     /// <summary>Waits until the source may have changed. The caller must read again for the new value.</summary>
     ValueTask WaitForChangeAsync(
         string? observedRevision,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default
+    );
 }

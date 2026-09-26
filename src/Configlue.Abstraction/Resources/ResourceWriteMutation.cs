@@ -12,12 +12,16 @@ public sealed class ResourceWriteMutation
         StateSchemaMetadata? schema,
         Func<ResourceReadResult, ReadOnlyMemory<byte>> apply,
         string? scope = null,
-        bool canCompose = false)
+        bool canCompose = false
+    )
     {
         ArgumentNullException.ThrowIfNull(apply);
         if (canCompose && string.IsNullOrWhiteSpace(scope))
         {
-            throw new ArgumentException("A composable resource mutation must declare its content scope.", nameof(scope));
+            throw new ArgumentException(
+                "A composable resource mutation must declare its content scope.",
+                nameof(scope)
+            );
         }
 
         ExpectedRevision = expectedRevision;
@@ -55,7 +59,8 @@ public sealed class ResourceWriteMutation
             request.CheckRevision,
             request.Schema,
             _ => content,
-            canCompose: false);
+            canCompose: false
+        );
     }
 
     /// <summary>Validates that a set of mutations can be applied in one physical write.</summary>
@@ -69,13 +74,26 @@ public sealed class ResourceWriteMutation
 
         if (mutations.Any(static mutation => mutation is null))
         {
-            throw new ArgumentException("A mutation batch cannot contain null values.", nameof(mutations));
+            throw new ArgumentException(
+                "A mutation batch cannot contain null values.",
+                nameof(mutations)
+            );
         }
 
         var expectedRevision = mutations[0].ExpectedRevision;
-        if (mutations.Any(mutation => !string.Equals(mutation.ExpectedRevision, expectedRevision, StringComparison.Ordinal)))
+        if (
+            mutations.Any(mutation =>
+                !string.Equals(
+                    mutation.ExpectedRevision,
+                    expectedRevision,
+                    StringComparison.Ordinal
+                )
+            )
+        )
         {
-            throw new StateConflictException("Mutations for one resource were prepared from different revisions.");
+            throw new StateConflictException(
+                "Mutations for one resource were prepared from different revisions."
+            );
         }
 
         if (mutations.Count == 1)
@@ -85,13 +103,27 @@ public sealed class ResourceWriteMutation
 
         if (mutations.Any(static mutation => !mutation.CanCompose || mutation.Scope is null))
         {
-            throw new NotSupportedException("Full-resource replacements cannot be combined with other resource mutations.");
+            throw new NotSupportedException(
+                "Full-resource replacements cannot be combined with other resource mutations."
+            );
         }
 
         var mutationDomain = mutations[0].Scope!.Split('/')[0];
-        if (mutations.Skip(1).Any(mutation => !string.Equals(mutation.Scope!.Split('/')[0], mutationDomain, StringComparison.Ordinal)))
+        if (
+            mutations
+                .Skip(1)
+                .Any(mutation =>
+                    !string.Equals(
+                        mutation.Scope!.Split('/')[0],
+                        mutationDomain,
+                        StringComparison.Ordinal
+                    )
+                )
+        )
         {
-            throw new NotSupportedException("Resource mutations from different provider domains cannot be combined.");
+            throw new NotSupportedException(
+                "Resource mutations from different provider domains cannot be combined."
+            );
         }
 
         for (var leftIndex = 0; leftIndex < mutations.Count; leftIndex++)
@@ -100,11 +132,15 @@ public sealed class ResourceWriteMutation
             for (var rightIndex = leftIndex + 1; rightIndex < mutations.Count; rightIndex++)
             {
                 var right = mutations[rightIndex].Scope!;
-                if (string.Equals(left, right, StringComparison.Ordinal) ||
-                    right.StartsWith(left + "/", StringComparison.Ordinal) ||
-                    left.StartsWith(right + "/", StringComparison.Ordinal))
+                if (
+                    string.Equals(left, right, StringComparison.Ordinal)
+                    || right.StartsWith(left + "/", StringComparison.Ordinal)
+                    || left.StartsWith(right + "/", StringComparison.Ordinal)
+                )
                 {
-                    throw new StateConflictException($"Resource mutation scopes '{left}' and '{right}' overlap.");
+                    throw new StateConflictException(
+                        $"Resource mutation scopes '{left}' and '{right}' overlap."
+                    );
                 }
             }
         }

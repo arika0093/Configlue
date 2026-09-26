@@ -9,7 +9,8 @@ public sealed class StateSchemaMigrationChain<T>
     /// <summary>Creates a migration chain that ends at <paramref name="targetSchema"/>.</summary>
     public StateSchemaMigrationChain(
         StateSchemaMetadata targetSchema,
-        IEnumerable<IStateSchemaMigration<T>>? migrations = null)
+        IEnumerable<IStateSchemaMigration<T>>? migrations = null
+    )
     {
         if (targetSchema.Version < StateSchemaMetadata.InitialVersion)
         {
@@ -22,19 +23,30 @@ public sealed class StateSchemaMigrationChain<T>
         {
             if (migration is null)
             {
-                throw new ArgumentException("Schema migrations cannot contain null values.", nameof(migrations));
+                throw new ArgumentException(
+                    "Schema migrations cannot contain null values.",
+                    nameof(migrations)
+                );
             }
 
-            if (migration.SourceSchema.Version < StateSchemaMetadata.InitialVersion ||
-                migration.TargetSchema.Version < migration.SourceSchema.Version ||
-                migration.TargetSchema == migration.SourceSchema)
+            if (
+                migration.SourceSchema.Version < StateSchemaMetadata.InitialVersion
+                || migration.TargetSchema.Version < migration.SourceSchema.Version
+                || migration.TargetSchema == migration.SourceSchema
+            )
             {
-                throw new ArgumentException("Schema migrations must advance to a distinct, non-older schema.", nameof(migrations));
+                throw new ArgumentException(
+                    "Schema migrations must advance to a distinct, non-older schema.",
+                    nameof(migrations)
+                );
             }
 
             if (!_migrations.TryAdd(migration.SourceSchema, migration))
             {
-                throw new ArgumentException($"More than one schema migration starts at '{migration.SourceSchema}'.", nameof(migrations));
+                throw new ArgumentException(
+                    $"More than one schema migration starts at '{migration.SourceSchema}'.",
+                    nameof(migrations)
+                );
             }
         }
     }
@@ -46,7 +58,8 @@ public sealed class StateSchemaMigrationChain<T>
     public async ValueTask<T> MigrateAsync(
         T value,
         StateSchemaMetadata sourceSchema,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default
+    )
     {
         if (sourceSchema.Version < StateSchemaMetadata.InitialVersion)
         {
@@ -66,20 +79,29 @@ public sealed class StateSchemaMigrationChain<T>
             cancellationToken.ThrowIfCancellationRequested();
             if (!visited.Add(currentSchema))
             {
-                throw new InvalidOperationException($"Schema migration cycle detected at '{currentSchema}'.");
+                throw new InvalidOperationException(
+                    $"Schema migration cycle detected at '{currentSchema}'."
+                );
             }
 
-            if (!_migrations.TryGetValue(currentSchema, out var migration) ||
-                migration.TargetSchema.Version > TargetSchema.Version)
+            if (
+                !_migrations.TryGetValue(currentSchema, out var migration)
+                || migration.TargetSchema.Version > TargetSchema.Version
+            )
             {
                 throw new InvalidOperationException(
-                    $"No schema migration path exists from '{sourceSchema}' to '{TargetSchema}'.");
+                    $"No schema migration path exists from '{sourceSchema}' to '{TargetSchema}'."
+                );
             }
 
-            currentValue = await migration.MigrateAsync(currentValue, cancellationToken).ConfigureAwait(false);
+            currentValue = await migration
+                .MigrateAsync(currentValue, cancellationToken)
+                .ConfigureAwait(false);
             if (currentValue is null)
             {
-                throw new InvalidOperationException($"Schema migration from '{migration.SourceSchema}' returned a null value.");
+                throw new InvalidOperationException(
+                    $"Schema migration from '{migration.SourceSchema}' returned a null value."
+                );
             }
 
             currentSchema = migration.TargetSchema;

@@ -8,5 +8,6 @@ public interface IStateWriteBatchParticipant<T>
         StateWriteRequest<T> request,
         out ResourceId resourceId,
         out IResourceBatchWriter? batchWriter,
-        out ResourceWriteMutation? mutation);
+        out ResourceWriteMutation? mutation
+    );
 }

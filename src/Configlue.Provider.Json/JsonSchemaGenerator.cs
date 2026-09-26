@@ -171,7 +171,8 @@ public static class JsonSchemaGenerator
     /// <summary>Generates a schema for one source-generated Configlue model.</summary>
     public static JsonSchemaGenerationResult Generate<TModel, TFragment>(
         IJsonTypeInfoResolver resolver,
-        string? schemaBaseUri = null)
+        string? schemaBaseUri = null
+    )
         where TModel : IConfiglueModel<TModel, TFragment>
         where TFragment : class, IConfiglueFragment<TFragment> =>
         Generate([TModel.ConfiglueSchema], resolver, schemaBaseUri);
@@ -266,7 +267,8 @@ public static class JsonSchemaGenerator
     public static JsonSchemaGenerationResult Write<TModel, TFragment>(
         string outputDirectory,
         IJsonTypeInfoResolver resolver,
-        string? schemaBaseUri = null)
+        string? schemaBaseUri = null
+    )
         where TModel : IConfiglueModel<TModel, TFragment>
         where TFragment : class, IConfiglueFragment<TFragment> =>
         Write([TModel.ConfiglueSchema], outputDirectory, resolver, schemaBaseUri);

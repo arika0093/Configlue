@@ -35,22 +35,27 @@ public sealed class InMemoryStateStore<T> : IStateReader<T>, IStateWriter<T>, IS
     /// <inheritdoc />
     public ValueTask<StateWriteResult> WriteAsync(
         StateWriteRequest<T> request,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default
+    )
     {
         cancellationToken.ThrowIfCancellationRequested();
         TaskCompletionSource changed;
         string revision;
         lock (_gate)
         {
-            if ((request.CheckRevision || request.ExpectedRevision is not null) &&
-                !string.Equals(request.ExpectedRevision, _revision, StringComparison.Ordinal))
+            if (
+                (request.CheckRevision || request.ExpectedRevision is not null)
+                && !string.Equals(request.ExpectedRevision, _revision, StringComparison.Ordinal)
+            )
             {
                 throw new StateConflictException("The in-memory state changed after it was read.");
             }
 
             _value = request.Value;
             _status = StateReadStatus.Success;
-            _revision = revision = (++_revisionNumber).ToString(System.Globalization.CultureInfo.InvariantCulture);
+            _revision = revision = (++_revisionNumber).ToString(
+                System.Globalization.CultureInfo.InvariantCulture
+            );
             changed = _changed;
             _changed = NewSignal();
         }
@@ -66,7 +71,9 @@ public sealed class InMemoryStateStore<T> : IStateReader<T>, IStateWriter<T>, IS
         {
             _status = StateReadStatus.Unavailable;
             _value = default;
-            _revision = (++_revisionNumber).ToString(System.Globalization.CultureInfo.InvariantCulture);
+            _revision = (++_revisionNumber).ToString(
+                System.Globalization.CultureInfo.InvariantCulture
+            );
         });
     }
 
@@ -77,7 +84,9 @@ public sealed class InMemoryStateStore<T> : IStateReader<T>, IStateWriter<T>, IS
         {
             _status = StateReadStatus.NotFound;
             _value = default;
-            _revision = (++_revisionNumber).ToString(System.Globalization.CultureInfo.InvariantCulture);
+            _revision = (++_revisionNumber).ToString(
+                System.Globalization.CultureInfo.InvariantCulture
+            );
         });
     }
 
@@ -88,12 +97,17 @@ public sealed class InMemoryStateStore<T> : IStateReader<T>, IStateWriter<T>, IS
         {
             _value = value;
             _status = StateReadStatus.Success;
-            _revision = (++_revisionNumber).ToString(System.Globalization.CultureInfo.InvariantCulture);
+            _revision = (++_revisionNumber).ToString(
+                System.Globalization.CultureInfo.InvariantCulture
+            );
         });
     }
 
     /// <inheritdoc />
-    public async ValueTask WaitForChangeAsync(string? observedRevision, CancellationToken cancellationToken = default)
+    public async ValueTask WaitForChangeAsync(
+        string? observedRevision,
+        CancellationToken cancellationToken = default
+    )
     {
         Task waitTask;
         lock (_gate)
@@ -122,5 +136,6 @@ public sealed class InMemoryStateStore<T> : IStateReader<T>, IStateWriter<T>, IS
         changed.TrySetResult();
     }
 
-    private static TaskCompletionSource NewSignal() => new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private static TaskCompletionSource NewSignal() =>
+        new(TaskCreationOptions.RunContinuationsAsynchronously);
 }

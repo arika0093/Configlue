@@ -13,7 +13,11 @@ namespace Configlue.Generator;
 
 public sealed partial class ConfiglueGenerator
 {
-    private static string CloneModelExpression(MemberModel member, string access, CancellationToken cancellationToken)
+    private static string CloneModelExpression(
+        MemberModel member,
+        string access,
+        CancellationToken cancellationToken
+    )
     {
         if (member.ChildModel is not null)
         {
@@ -30,26 +34,35 @@ public sealed partial class ConfiglueGenerator
         if (elementModel)
         {
             var elementType = TypeName(member.Collection.ElementType);
-            enumerated = $"global::System.Linq.Enumerable.Select({access}, static item => item is null ? null : (({elementType})item).DeepClone())";
+            enumerated =
+                $"global::System.Linq.Enumerable.Select({access}, static item => item is null ? null : (({elementType})item).DeepClone())";
         }
 
         return member.Collection.Kind switch
         {
             CollectionKind.Array => $"global::System.Linq.Enumerable.ToArray({enumerated})",
-            CollectionKind.List => $"new global::System.Collections.Generic.List<{TypeName(member.Collection.ElementType)}>({enumerated})",
-            CollectionKind.Set => $"new global::System.Collections.Generic.HashSet<{TypeName(member.Collection.ElementType)}>({enumerated})",
+            CollectionKind.List =>
+                $"new global::System.Collections.Generic.List<{TypeName(member.Collection.ElementType)}>({enumerated})",
+            CollectionKind.Set =>
+                $"new global::System.Collections.Generic.HashSet<{TypeName(member.Collection.ElementType)}>({enumerated})",
             _ => access,
         };
     }
 
-    private static string CloneFragmentExpression(MemberModel member, string access, CancellationToken cancellationToken)
+    private static string CloneFragmentExpression(
+        MemberModel member,
+        string access,
+        CancellationToken cancellationToken
+    )
     {
         if (member.ChildModel is not null)
         {
             return $"{access}?.DeepClone()";
         }
 
-        var elementModel = member.Collection.Kind != CollectionKind.Unsupported && IsConfiglueModel(member.Collection.ElementType, cancellationToken);
+        var elementModel =
+            member.Collection.Kind != CollectionKind.Unsupported
+            && IsConfiglueModel(member.Collection.ElementType, cancellationToken);
         if (member.Collection.Kind == CollectionKind.Unsupported)
         {
             return access;
@@ -59,14 +72,17 @@ public sealed partial class ConfiglueGenerator
         if (elementModel)
         {
             var elementType = TypeName(member.Collection.ElementType);
-            enumerated = $"global::System.Linq.Enumerable.Select({access}!, static item => item is null ? null : (({elementType})item).DeepClone())";
+            enumerated =
+                $"global::System.Linq.Enumerable.Select({access}!, static item => item is null ? null : (({elementType})item).DeepClone())";
         }
 
         var cloned = member.Collection.Kind switch
         {
             CollectionKind.Array => $"global::System.Linq.Enumerable.ToArray({enumerated})",
-            CollectionKind.List => $"new global::System.Collections.Generic.List<{TypeName(member.Collection.ElementType)}>({enumerated})",
-            CollectionKind.Set => $"new global::System.Collections.Generic.HashSet<{TypeName(member.Collection.ElementType)}>({enumerated})",
+            CollectionKind.List =>
+                $"new global::System.Collections.Generic.List<{TypeName(member.Collection.ElementType)}>({enumerated})",
+            CollectionKind.Set =>
+                $"new global::System.Collections.Generic.HashSet<{TypeName(member.Collection.ElementType)}>({enumerated})",
             _ => access,
         };
         return $"(object?){access} is null ? default : {cloned}";
@@ -83,8 +99,10 @@ public sealed partial class ConfiglueGenerator
 
         return member.Collection.Kind switch
         {
-            CollectionKind.List => $"new global::System.Collections.Generic.List<{elementType}>({combined})",
-            CollectionKind.Set => $"new global::System.Collections.Generic.HashSet<{elementType}>({combined})",
+            CollectionKind.List =>
+                $"new global::System.Collections.Generic.List<{elementType}>({combined})",
+            CollectionKind.Set =>
+                $"new global::System.Collections.Generic.HashSet<{elementType}>({combined})",
             _ => $"global::System.Linq.Enumerable.ToArray({combined})",
         };
     }
@@ -104,13 +122,14 @@ public sealed partial class ConfiglueGenerator
     private static string NonNullableTypeName(ITypeSymbol type) =>
         type.WithNullableAnnotation(NullableAnnotation.NotAnnotated).ToDisplayString(TypeFormat);
 
-    private static string MergeModeName(int mode) => mode switch
-    {
-        1 => "Deep",
-        2 => "Append",
-        3 => "SetUnion",
-        _ => "Replace",
-    };
+    private static string MergeModeName(int mode) =>
+        mode switch
+        {
+            1 => "Deep",
+            2 => "Append",
+            3 => "SetUnion",
+            _ => "Replace",
+        };
 
     private static string GetModelId(INamedTypeSymbol model, CancellationToken cancellationToken)
     {
@@ -138,13 +157,17 @@ public sealed partial class ConfiglueGenerator
     private static string GetJsonPropertyName(
         IPropertySymbol property,
         CancellationToken cancellationToken,
-        out bool isExplicit)
+        out bool isExplicit
+    )
     {
         foreach (var attribute in property.GetAttributes())
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (attribute.AttributeClass?.ToDisplayString() == "System.Text.Json.Serialization.JsonPropertyNameAttribute" &&
-                attribute.ConstructorArguments.FirstOrDefault().Value is string configuredName)
+            if (
+                attribute.AttributeClass?.ToDisplayString()
+                    == "System.Text.Json.Serialization.JsonPropertyNameAttribute"
+                && attribute.ConstructorArguments.FirstOrDefault().Value is string configuredName
+            )
             {
                 isExplicit = true;
                 return configuredName;
@@ -162,7 +185,9 @@ public sealed partial class ConfiglueGenerator
             cancellationToken.ThrowIfCancellationRequested();
             if (attribute.AttributeClass?.ToDisplayString() == ModelAttributeName)
             {
-                return attribute.ConstructorArguments.FirstOrDefault().Value is int version ? version : 1;
+                return attribute.ConstructorArguments.FirstOrDefault().Value is int version
+                    ? version
+                    : 1;
             }
         }
 
@@ -170,7 +195,8 @@ public sealed partial class ConfiglueGenerator
     }
 
     private static string EscapeIdentifier(string identifier) =>
-        SyntaxFacts.GetKeywordKind(identifier) != SyntaxKind.None || SyntaxFacts.GetContextualKeywordKind(identifier) != SyntaxKind.None
+        SyntaxFacts.GetKeywordKind(identifier) != SyntaxKind.None
+        || SyntaxFacts.GetContextualKeywordKind(identifier) != SyntaxKind.None
             ? "@" + identifier
             : identifier;
 
@@ -203,7 +229,8 @@ public sealed partial class ConfiglueGenerator
     private static string JoinMemberExpressions(
         ImmutableArray<MemberModel> members,
         Func<MemberModel, string> selector,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken
+    )
     {
         var expressions = new List<string>(members.Length);
         foreach (var member in members)
@@ -214,5 +241,4 @@ public sealed partial class ConfiglueGenerator
 
         return string.Join(" && ", expressions);
     }
-
 }

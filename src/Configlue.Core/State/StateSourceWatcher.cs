@@ -15,12 +15,23 @@ public sealed class StateSourceWatcher<T> : IStateWatcher
     /// <inheritdoc />
     public async ValueTask WaitForChangeAsync(
         string? observedRevision,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default
+    )
     {
-        using var watchCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        var watchers = _resolver.GetSourcesForWatch(observedRevision)
+        using var watchCancellation = CancellationTokenSource.CreateLinkedTokenSource(
+            cancellationToken
+        );
+        var watchers = _resolver
+            .GetSourcesForWatch(observedRevision)
             .Where(static target => target.Source.Watcher is not null)
-            .Select(target => target.Source.Watcher!.WaitForChangeAsync(target.ObservedRevision, watchCancellation.Token).AsTask())
+            .Select(target =>
+                target
+                    .Source.Watcher!.WaitForChangeAsync(
+                        target.ObservedRevision,
+                        watchCancellation.Token
+                    )
+                    .AsTask()
+            )
             .ToArray();
 
         if (watchers.Length == 0)
@@ -30,7 +41,7 @@ public sealed class StateSourceWatcher<T> : IStateWatcher
         }
 
         var finished = await Task.WhenAny(watchers).ConfigureAwait(false);
-        watchCancellation.Cancel();
+        await watchCancellation.CancelAsync().ConfigureAwait(false);
         await finished.ConfigureAwait(false);
     }
 }

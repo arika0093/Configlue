@@ -20,21 +20,24 @@ public sealed class ConfiglueProfiledOptions<TModel, TFragment> : IConfiglueProf
     private readonly string _defaultProfileName;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private ConfiglueProfileCatalog? _catalog;
-    private string? _catalogRevision;
     private bool _initialized;
 
     /// <summary>Creates a profile manager backed by the supplied catalog source.</summary>
     public ConfiglueProfiledOptions(
         IConfiglueOptionsRegistry<TModel> registry,
         StateSource<ConfiglueProfileCatalog> catalogSource,
-        string defaultProfileName = "default")
+        string defaultProfileName = "default"
+    )
     {
         ArgumentNullException.ThrowIfNull(registry);
         ArgumentNullException.ThrowIfNull(catalogSource);
         ValidateProfileName(defaultProfileName);
         if (catalogSource.Writer is null)
         {
-            throw new ArgumentException("The profile catalog source must support writes.", nameof(catalogSource));
+            throw new ArgumentException(
+                "The profile catalog source must support writes.",
+                nameof(catalogSource)
+            );
         }
 
         _registry = registry;
@@ -49,7 +52,9 @@ public sealed class ConfiglueProfiledOptions<TModel, TFragment> : IConfiglueProf
     public string DefaultProfileName => _defaultProfileName;
 
     /// <inheritdoc />
-    public async ValueTask<IReadOnlyCollection<string>> GetProfileNamesAsync(CancellationToken cancellationToken = default)
+    public async ValueTask<IReadOnlyCollection<string>> GetProfileNamesAsync(
+        CancellationToken cancellationToken = default
+    )
     {
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
@@ -64,7 +69,9 @@ public sealed class ConfiglueProfiledOptions<TModel, TFragment> : IConfiglueProf
     }
 
     /// <inheritdoc />
-    public async ValueTask<string> GetActiveProfileNameAsync(CancellationToken cancellationToken = default)
+    public async ValueTask<string> GetActiveProfileNameAsync(
+        CancellationToken cancellationToken = default
+    )
     {
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
@@ -81,7 +88,8 @@ public sealed class ConfiglueProfiledOptions<TModel, TFragment> : IConfiglueProf
     /// <inheritdoc />
     public async ValueTask<IWritableOptions<TModel>> GetProfileAsync(
         string profileName,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default
+    )
     {
         ValidateProfileName(profileName);
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -98,7 +106,9 @@ public sealed class ConfiglueProfiledOptions<TModel, TFragment> : IConfiglueProf
     }
 
     /// <inheritdoc />
-    public async ValueTask<IWritableOptions<TModel>> GetActiveProfileAsync(CancellationToken cancellationToken = default)
+    public async ValueTask<IWritableOptions<TModel>> GetActiveProfileAsync(
+        CancellationToken cancellationToken = default
+    )
     {
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
@@ -113,7 +123,9 @@ public sealed class ConfiglueProfiledOptions<TModel, TFragment> : IConfiglueProf
     }
 
     /// <inheritdoc />
-    public async ValueTask<TModel> GetActiveValueAsync(CancellationToken cancellationToken = default)
+    public async ValueTask<TModel> GetActiveValueAsync(
+        CancellationToken cancellationToken = default
+    )
     {
         var activeProfile = await GetActiveProfileAsync(cancellationToken).ConfigureAwait(false);
         return await activeProfile.GetValueAsync(cancellationToken).ConfigureAwait(false);
@@ -123,7 +135,8 @@ public sealed class ConfiglueProfiledOptions<TModel, TFragment> : IConfiglueProf
     public async ValueTask CreateProfileAsync(
         string profileName,
         string? copyFrom = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default
+    )
     {
         ValidateProfileName(profileName);
         if (copyFrom is not null)
@@ -146,7 +159,10 @@ public sealed class ConfiglueProfiledOptions<TModel, TFragment> : IConfiglueProf
             if (copyFrom is not null)
             {
                 EnsureProfileExists(copyFrom);
-                sourceValue = await _registry.Get(copyFrom).GetValueAsync(cancellationToken).ConfigureAwait(false);
+                sourceValue = await _registry
+                    .Get(copyFrom)
+                    .GetValueAsync(cancellationToken)
+                    .ConfigureAwait(false);
                 hasSourceValue = true;
             }
 
@@ -161,12 +177,17 @@ public sealed class ConfiglueProfiledOptions<TModel, TFragment> : IConfiglueProf
             await PersistCatalogAsync(updated, cancellationToken).ConfigureAwait(false);
             if (!_registry.TryAdd(profileName) && !_registry.TryGet(profileName, out _))
             {
-                throw new InvalidOperationException($"The profile '{profileName}' is already registered at runtime.");
+                throw new InvalidOperationException(
+                    $"The profile '{profileName}' is already registered at runtime."
+                );
             }
 
             if (hasSourceValue)
             {
-                await _registry.Get(profileName).SaveAsync(sourceValue, cancellationToken).ConfigureAwait(false);
+                await _registry
+                    .Get(profileName)
+                    .SaveAsync(sourceValue, cancellationToken)
+                    .ConfigureAwait(false);
             }
         }
         finally
@@ -181,7 +202,10 @@ public sealed class ConfiglueProfiledOptions<TModel, TFragment> : IConfiglueProf
     }
 
     /// <inheritdoc />
-    public async ValueTask RemoveProfileAsync(string profileName, CancellationToken cancellationToken = default)
+    public async ValueTask RemoveProfileAsync(
+        string profileName,
+        CancellationToken cancellationToken = default
+    )
     {
         ValidateProfileName(profileName);
         string? activeProfileChanged = null;
@@ -196,7 +220,9 @@ public sealed class ConfiglueProfiledOptions<TModel, TFragment> : IConfiglueProf
             }
 
             var updated = Clone(_catalog!);
-            updated.ProfileNames.RemoveAll(name => string.Equals(name, profileName, StringComparison.Ordinal));
+            updated.ProfileNames.RemoveAll(name =>
+                string.Equals(name, profileName, StringComparison.Ordinal)
+            );
             if (string.Equals(updated.ActiveProfileName, profileName, StringComparison.Ordinal))
             {
                 updated.ActiveProfileName = updated.ProfileNames[0];
@@ -218,7 +244,10 @@ public sealed class ConfiglueProfiledOptions<TModel, TFragment> : IConfiglueProf
     }
 
     /// <inheritdoc />
-    public async ValueTask SetActiveProfileAsync(string profileName, CancellationToken cancellationToken = default)
+    public async ValueTask SetActiveProfileAsync(
+        string profileName,
+        CancellationToken cancellationToken = default
+    )
     {
         ValidateProfileName(profileName);
         string? activeProfileChanged = null;
@@ -257,14 +286,18 @@ public sealed class ConfiglueProfiledOptions<TModel, TFragment> : IConfiglueProf
 
         for (var attempt = 0; attempt < 5; attempt++)
         {
-            var result = await _catalogSource.Reader.ReadAsync(cancellationToken).ConfigureAwait(false);
+            var result = await _catalogSource
+                .Reader.ReadAsync(cancellationToken)
+                .ConfigureAwait(false);
             ConfiglueProfileCatalog catalog;
             bool needsWrite;
             if (result.Status == StateReadStatus.Success)
             {
                 if (result.Value is null)
                 {
-                    throw new InvalidDataException("The profile catalog source returned a null catalog.");
+                    throw new InvalidDataException(
+                        "The profile catalog source returned a null catalog."
+                    );
                 }
 
                 catalog = Normalize(result.Value, out needsWrite);
@@ -276,18 +309,25 @@ public sealed class ConfiglueProfiledOptions<TModel, TFragment> : IConfiglueProf
             }
             else
             {
-                throw new InvalidOperationException($"The profile catalog could not be read: {result.Status}.");
+                throw new InvalidOperationException(
+                    $"The profile catalog could not be read: {result.Status}."
+                );
             }
 
-            var revision = result.Revision;
             if (needsWrite)
             {
                 try
                 {
-                    var write = await _catalogSource.Writer!.WriteAsync(
-                        new StateWriteRequest<ConfiglueProfileCatalog>(catalog, revision, CheckRevision: true),
-                        cancellationToken).ConfigureAwait(false);
-                    revision = await GetWrittenRevisionAsync(write, cancellationToken).ConfigureAwait(false);
+                    await _catalogSource
+                        .Writer!.WriteAsync(
+                            new StateWriteRequest<ConfiglueProfileCatalog>(
+                                catalog,
+                                result.Revision,
+                                CheckRevision: true
+                            ),
+                            cancellationToken
+                        )
+                        .ConfigureAwait(false);
                 }
                 catch (StateConflictException) when (attempt < 4)
                 {
@@ -296,44 +336,59 @@ public sealed class ConfiglueProfiledOptions<TModel, TFragment> : IConfiglueProf
             }
 
             _catalog = catalog;
-            _catalogRevision = revision;
             await SynchronizeRegistryAsync(catalog).ConfigureAwait(false);
             _initialized = true;
             return;
         }
 
-        throw new StateConflictException("The profile catalog changed repeatedly during initialization.");
+        throw new StateConflictException(
+            "The profile catalog changed repeatedly during initialization."
+        );
     }
 
-    private async Task PersistCatalogAsync(ConfiglueProfileCatalog catalog, CancellationToken cancellationToken)
+    private async Task PersistCatalogAsync(
+        ConfiglueProfileCatalog catalog,
+        CancellationToken cancellationToken
+    )
     {
         for (var attempt = 0; attempt < 3; attempt++)
         {
             var expectedCatalog = _catalog!;
-            var current = await _catalogSource.Reader.ReadAsync(cancellationToken).ConfigureAwait(false);
+            var current = await _catalogSource
+                .Reader.ReadAsync(cancellationToken)
+                .ConfigureAwait(false);
             if (current.Status != StateReadStatus.Success || current.Value is null)
             {
                 await RefreshCatalogAfterConflictAsync(cancellationToken).ConfigureAwait(false);
-                throw new StateConflictException("The profile catalog changed before it could be updated.");
+                throw new StateConflictException(
+                    "The profile catalog changed before it could be updated."
+                );
             }
 
             var currentCatalog = Normalize(current.Value, out _);
             if (!CatalogEquals(currentCatalog, expectedCatalog))
             {
                 await RefreshCatalogAfterConflictAsync(cancellationToken).ConfigureAwait(false);
-                throw new StateConflictException("The profile catalog was updated by another process.");
+                throw new StateConflictException(
+                    "The profile catalog was updated by another process."
+                );
             }
 
             // Profile values can share the catalog's physical resource and advance its resource revision.
             // Refresh the token while the logical catalog still matches before attempting a conditional write.
-            _catalogRevision = current.Revision;
             try
             {
-                var write = await _catalogSource.Writer!.WriteAsync(
-                    new StateWriteRequest<ConfiglueProfileCatalog>(catalog, current.Revision, CheckRevision: true),
-                    cancellationToken).ConfigureAwait(false);
+                await _catalogSource
+                    .Writer!.WriteAsync(
+                        new StateWriteRequest<ConfiglueProfileCatalog>(
+                            catalog,
+                            current.Revision,
+                            CheckRevision: true
+                        ),
+                        cancellationToken
+                    )
+                    .ConfigureAwait(false);
                 _catalog = catalog;
-                _catalogRevision = await GetWrittenRevisionAsync(write, cancellationToken).ConfigureAwait(false);
                 return;
             }
             catch (StateConflictException)
@@ -348,26 +403,15 @@ public sealed class ConfiglueProfiledOptions<TModel, TFragment> : IConfiglueProf
             }
         }
 
-        throw new StateConflictException("The profile catalog changed repeatedly while it was being updated.");
+        throw new StateConflictException(
+            "The profile catalog changed repeatedly while it was being updated."
+        );
     }
 
     private async Task RefreshCatalogAfterConflictAsync(CancellationToken cancellationToken)
     {
         _initialized = false;
         await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
-    }
-
-    private async Task<string?> GetWrittenRevisionAsync(
-        StateWriteResult write,
-        CancellationToken cancellationToken)
-    {
-        if (write.Revision is not null)
-        {
-            return write.Revision;
-        }
-
-        var current = await _catalogSource.Reader.ReadAsync(cancellationToken).ConfigureAwait(false);
-        return current.Status == StateReadStatus.Success ? current.Revision : null;
     }
 
     private async Task SynchronizeRegistryAsync(ConfiglueProfileCatalog catalog)
@@ -381,12 +425,11 @@ public sealed class ConfiglueProfiledOptions<TModel, TFragment> : IConfiglueProf
             }
         }
 
-        foreach (var registeredName in _registry.ProfileNames)
+        foreach (
+            var registeredName in _registry.ProfileNames.Where(name => !expected.Contains(name))
+        )
         {
-            if (!expected.Contains(registeredName))
-            {
-                _registry.TryRemove(registeredName);
-            }
+            _registry.TryRemove(registeredName);
         }
     }
 
@@ -410,14 +453,22 @@ public sealed class ConfiglueProfiledOptions<TModel, TFragment> : IConfiglueProf
         }
 
         var activeProfileName = source.ActiveProfileName;
-        if (string.IsNullOrWhiteSpace(activeProfileName) || !names.Contains(activeProfileName, StringComparer.Ordinal))
+        if (
+            string.IsNullOrWhiteSpace(activeProfileName)
+            || !names.Contains(activeProfileName, StringComparer.Ordinal)
+        )
         {
             activeProfileName = _defaultProfileName;
         }
 
-        changed = originalNames is null ||
-            !originalNames.SequenceEqual(names, StringComparer.Ordinal) ||
-            !string.Equals(source.ActiveProfileName, activeProfileName, StringComparison.Ordinal);
+        changed =
+            originalNames is null
+            || !originalNames.SequenceEqual(names, StringComparer.Ordinal)
+            || !string.Equals(
+                source.ActiveProfileName,
+                activeProfileName,
+                StringComparison.Ordinal
+            );
         return new ConfiglueProfileCatalog
         {
             ProfileNames = names,
@@ -425,11 +476,8 @@ public sealed class ConfiglueProfiledOptions<TModel, TFragment> : IConfiglueProf
         };
     }
 
-    private ConfiglueProfileCatalog CreateDefaultCatalog() => new()
-    {
-        ProfileNames = [_defaultProfileName],
-        ActiveProfileName = _defaultProfileName,
-    };
+    private ConfiglueProfileCatalog CreateDefaultCatalog() =>
+        new() { ProfileNames = [_defaultProfileName], ActiveProfileName = _defaultProfileName };
 
     private void EnsureProfileExists(string profileName)
     {
@@ -439,24 +487,33 @@ public sealed class ConfiglueProfiledOptions<TModel, TFragment> : IConfiglueProf
         }
     }
 
-    private static ConfiglueProfileCatalog Clone(ConfiglueProfileCatalog source) => new()
-    {
-        ProfileNames = source.ProfileNames.ToList(),
-        ActiveProfileName = source.ActiveProfileName,
-    };
+    private static ConfiglueProfileCatalog Clone(ConfiglueProfileCatalog source) =>
+        new()
+        {
+            ProfileNames = source.ProfileNames.ToList(),
+            ActiveProfileName = source.ActiveProfileName,
+        };
 
-    private static bool CatalogEquals(ConfiglueProfileCatalog left, ConfiglueProfileCatalog right) =>
-        left.ProfileNames.SequenceEqual(right.ProfileNames, StringComparer.Ordinal) &&
-        string.Equals(left.ActiveProfileName, right.ActiveProfileName, StringComparison.Ordinal);
+    private static bool CatalogEquals(
+        ConfiglueProfileCatalog left,
+        ConfiglueProfileCatalog right
+    ) =>
+        left.ProfileNames.SequenceEqual(right.ProfileNames, StringComparer.Ordinal)
+        && string.Equals(left.ActiveProfileName, right.ActiveProfileName, StringComparison.Ordinal);
 
     private static void ValidateProfileName(string profileName)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(profileName);
-        if (profileName.Contains(':') ||
-            profileName.Contains("__", StringComparison.Ordinal) ||
-            ReservedNames.Contains(profileName))
+        if (
+            profileName.Contains(':')
+            || profileName.Contains("__", StringComparison.Ordinal)
+            || ReservedNames.Contains(profileName)
+        )
         {
-            throw new ArgumentException($"'{profileName}' is not a valid profile name.", nameof(profileName));
+            throw new ArgumentException(
+                $"'{profileName}' is not a valid profile name.",
+                nameof(profileName)
+            );
         }
     }
 
@@ -468,7 +525,7 @@ public sealed class ConfiglueProfiledOptions<TModel, TFragment> : IConfiglueProf
             return;
         }
 
-        foreach (Action<string> handler in handlers.GetInvocationList())
+        foreach (var handler in handlers.GetInvocationList().Cast<Action<string>>())
         {
             try
             {

@@ -17,7 +17,9 @@ public sealed class StateSourceResolver<T> : IStateReader<T>
     public StateSource<T>? ActiveSource => Volatile.Read(ref _resolution)?.ActiveSource;
 
     /// <inheritdoc />
-    public async ValueTask<StateReadResult<T>> ReadAsync(CancellationToken cancellationToken = default)
+    public async ValueTask<StateReadResult<T>> ReadAsync(
+        CancellationToken cancellationToken = default
+    )
     {
         StateReadResult<T> lastResult = default;
         var revisions = new List<StateRevision>();
@@ -53,20 +55,27 @@ public sealed class StateSourceResolver<T> : IStateReader<T>
     {
         var resolution = Volatile.Read(ref _resolution);
         var active = resolution?.ActiveSource;
-        return _sourceSet.Sources
-            .Where(source => resolution is null ||
-                resolution.Revisions.TryGetRevision(source.Id, out _) && (active is null || source.Priority >= active.Priority))
+        return _sourceSet
+            .Sources.Where(source =>
+                resolution is null
+                || resolution.Revisions.TryGetRevision(source.Id, out _)
+                    && (active is null || source.Priority >= active.Priority)
+            )
             .Select(source =>
-        {
-            string? revision = null;
-            var hasRevision = resolution is not null && resolution.Revisions.TryGetRevision(source.Id, out revision);
-            if (resolution is null && source.Id == _sourceSet.Sources[0].Id)
             {
-                revision = fallbackRevision;
-            }
+                string? revision = null;
+                if (resolution is not null)
+                {
+                    resolution.Revisions.TryGetRevision(source.Id, out revision);
+                }
+                if (resolution is null && source.Id == _sourceSet.Sources[0].Id)
+                {
+                    revision = fallbackRevision;
+                }
 
-            return new StateSourceWatchTarget<T>(source, revision);
-        }).ToArray();
+                return new StateSourceWatchTarget<T>(source, revision);
+            })
+            .ToArray();
     }
 
     private sealed record Resolution(StateSource<T>? ActiveSource, StateRevisionVector Revisions);
@@ -80,4 +89,7 @@ public sealed class StateSourceResolver<T> : IStateReader<T>
         };
 }
 
-internal readonly record struct StateSourceWatchTarget<T>(StateSource<T> Source, string? ObservedRevision);
+internal readonly record struct StateSourceWatchTarget<T>(
+    StateSource<T> Source,
+    string? ObservedRevision
+);

@@ -4,7 +4,12 @@ using YamlDotNet.RepresentationModel;
 namespace Configlue.Provider.Yaml;
 
 /// <summary>Exposes a nested YAML mapping as a resource while preserving sibling nodes.</summary>
-public sealed class YamlSectionResource : IResourceReader, IResourceWriter, IStateWatcher, IResourceIdentity, IResourceBatchParticipant
+public sealed class YamlSectionResource
+    : IResourceReader,
+        IResourceWriter,
+        IStateWatcher,
+        IResourceIdentity,
+        IResourceBatchParticipant
 {
     private readonly IResourceReader _reader;
     private readonly IResourceWriter? _writer;
@@ -14,9 +19,7 @@ public sealed class YamlSectionResource : IResourceReader, IResourceWriter, ISta
 
     /// <summary>Creates a YAML section resource over a resource with inferred write and watch capabilities.</summary>
     public YamlSectionResource(IResourceReader resource, string sectionPath)
-        : this(resource, resource as IResourceWriter, sectionPath, resource as IStateWatcher)
-    {
-    }
+        : this(resource, resource as IResourceWriter, sectionPath, resource as IStateWatcher) { }
 
     /// <summary>Creates a YAML section resource with separate read, write, and watch capabilities.</summary>
     public YamlSectionResource(
@@ -24,20 +27,27 @@ public sealed class YamlSectionResource : IResourceReader, IResourceWriter, ISta
         IResourceWriter? writer,
         string sectionPath,
         IStateWatcher? watcher = null,
-        ResourceId? resourceId = null)
+        ResourceId? resourceId = null
+    )
     {
         ArgumentNullException.ThrowIfNull(reader);
         ArgumentException.ThrowIfNullOrWhiteSpace(sectionPath);
         _reader = reader;
         _writer = writer;
         _watcher = watcher;
-        ResourceId = resourceId ?? (writer as IResourceIdentity ?? reader as IResourceIdentity)?.ResourceId
+        ResourceId =
+            resourceId
+            ?? (writer as IResourceIdentity ?? reader as IResourceIdentity)?.ResourceId
             ?? new ResourceId($"section:{Guid.NewGuid():N}");
-        _path = sectionPath.Replace("__", ":", StringComparison.Ordinal)
+        _path = sectionPath
+            .Replace("__", ":", StringComparison.Ordinal)
             .Split(':', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         if (_path.Length == 0)
         {
-            throw new ArgumentException("The section path must contain at least one mapping key.", nameof(sectionPath));
+            throw new ArgumentException(
+                "The section path must contain at least one mapping key.",
+                nameof(sectionPath)
+            );
         }
 
         _batchScope = "yaml/" + string.Join("/", _path.Select(Uri.EscapeDataString));
@@ -53,7 +63,9 @@ public sealed class YamlSectionResource : IResourceReader, IResourceWriter, ISta
     public IResourceBatchWriter? BatchWriter => _writer as IResourceBatchWriter;
 
     /// <inheritdoc />
-    public async ValueTask<ResourceReadResult> ReadAsync(CancellationToken cancellationToken = default)
+    public async ValueTask<ResourceReadResult> ReadAsync(
+        CancellationToken cancellationToken = default
+    )
     {
         var resource = await _reader.ReadAsync(cancellationToken).ConfigureAwait(false);
         if (resource.Status != StateReadStatus.Success)
@@ -67,7 +79,8 @@ public sealed class YamlSectionResource : IResourceReader, IResourceWriter, ISta
             if (current is not YamlMappingNode mapping)
             {
                 throw new YamlDotNet.Core.YamlException(
-                    $"Section path '{string.Join(':', _path)}' crosses a non-mapping value at '{name}'.");
+                    $"Section path '{string.Join(':', _path)}' crosses a non-mapping value at '{name}'."
+                );
             }
 
             if (!TryGet(mapping, name, out current!))
@@ -82,17 +95,25 @@ public sealed class YamlSectionResource : IResourceReader, IResourceWriter, ISta
     /// <inheritdoc />
     public async ValueTask<StateWriteResult> WriteAsync(
         ResourceWriteRequest request,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default
+    )
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var writer = _writer ?? throw new NotSupportedException("This YAML section resource is read-only.");
+        var writer =
+            _writer ?? throw new NotSupportedException("This YAML section resource is read-only.");
         var current = await _reader.ReadAsync(cancellationToken).ConfigureAwait(false);
         var updated = CreateMutation(request).Apply(current);
         var expectedRevision = request.ExpectedRevision ?? current.Revision;
-        var checkRevision = request.CheckRevision || request.ExpectedRevision is not null || current.Revision is not null;
-        return await writer.WriteAsync(
-            new ResourceWriteRequest(updated, expectedRevision, request.Schema, checkRevision),
-            cancellationToken).ConfigureAwait(false);
+        var checkRevision =
+            request.CheckRevision
+            || request.ExpectedRevision is not null
+            || current.Revision is not null;
+        return await writer
+            .WriteAsync(
+                new ResourceWriteRequest(updated, expectedRevision, request.Schema, checkRevision),
+                cancellationToken
+            )
+            .ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -105,10 +126,14 @@ public sealed class YamlSectionResource : IResourceReader, IResourceWriter, ISta
             request.Schema,
             current => ApplyToResource(current, content),
             _batchScope,
-            canCompose: true);
+            canCompose: true
+        );
     }
 
-    private ReadOnlyMemory<byte> ApplyToResource(ResourceReadResult current, ReadOnlyMemory<byte> sectionContent)
+    private ReadOnlyMemory<byte> ApplyToResource(
+        ResourceReadResult current,
+        ReadOnlyMemory<byte> sectionContent
+    )
     {
         YamlNode root;
         if (current.Status == StateReadStatus.Success)
@@ -126,7 +151,9 @@ public sealed class YamlSectionResource : IResourceReader, IResourceWriter, ISta
 
         if (root is not YamlMappingNode rootMapping)
         {
-            throw new YamlDotNet.Core.YamlException("A YAML section resource must be contained in a root mapping.");
+            throw new YamlDotNet.Core.YamlException(
+                "A YAML section resource must be contained in a root mapping."
+            );
         }
 
         var container = rootMapping;
@@ -146,7 +173,8 @@ public sealed class YamlSectionResource : IResourceReader, IResourceWriter, ISta
             else
             {
                 throw new YamlDotNet.Core.YamlException(
-                    $"Section path '{string.Join(':', _path)}' crosses a non-mapping value at '{name}'.");
+                    $"Section path '{string.Join(':', _path)}' crosses a non-mapping value at '{name}'."
+                );
             }
         }
 
@@ -156,11 +184,16 @@ public sealed class YamlSectionResource : IResourceReader, IResourceWriter, ISta
     }
 
     /// <inheritdoc />
-    public async ValueTask WaitForChangeAsync(string? observedRevision, CancellationToken cancellationToken = default)
+    public async ValueTask WaitForChangeAsync(
+        string? observedRevision,
+        CancellationToken cancellationToken = default
+    )
     {
         if (_watcher is not null)
         {
-            await _watcher.WaitForChangeAsync(observedRevision, cancellationToken).ConfigureAwait(false);
+            await _watcher
+                .WaitForChangeAsync(observedRevision, cancellationToken)
+                .ConfigureAwait(false);
             return;
         }
 
@@ -173,7 +206,8 @@ public sealed class YamlSectionResource : IResourceReader, IResourceWriter, ISta
                 return;
             }
 
-            await Task.Delay(TimeSpan.FromMilliseconds(250), cancellationToken).ConfigureAwait(false);
+            await Task.Delay(TimeSpan.FromMilliseconds(250), cancellationToken)
+                .ConfigureAwait(false);
         }
     }
 
@@ -181,7 +215,10 @@ public sealed class YamlSectionResource : IResourceReader, IResourceWriter, ISta
     {
         foreach (var pair in mapping.Children)
         {
-            if (pair.Key is YamlScalarNode scalar && string.Equals(scalar.Value, name, StringComparison.Ordinal))
+            if (
+                pair.Key is YamlScalarNode scalar
+                && string.Equals(scalar.Value, name, StringComparison.Ordinal)
+            )
             {
                 value = pair.Value;
                 return true;
@@ -195,7 +232,9 @@ public sealed class YamlSectionResource : IResourceReader, IResourceWriter, ISta
     private static void Set(YamlMappingNode mapping, string name, YamlNode value)
     {
         var key = mapping.Children.Keys.FirstOrDefault(candidate =>
-            candidate is YamlScalarNode scalar && string.Equals(scalar.Value, name, StringComparison.Ordinal));
+            candidate is YamlScalarNode scalar
+            && string.Equals(scalar.Value, name, StringComparison.Ordinal)
+        );
         if (key is null)
         {
             mapping.Add(new YamlScalarNode(name), value);
@@ -213,7 +252,9 @@ public sealed class YamlSectionResource : IResourceReader, IResourceWriter, ISta
         stream.Load(reader);
         if (stream.Documents.Count != 1)
         {
-            throw new YamlDotNet.Core.YamlException("A Configlue YAML resource must contain exactly one document.");
+            throw new YamlDotNet.Core.YamlException(
+                "A Configlue YAML resource must contain exactly one document."
+            );
         }
 
         return stream.Documents[0].RootNode;

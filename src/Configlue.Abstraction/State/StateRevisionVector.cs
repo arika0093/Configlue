@@ -20,7 +20,10 @@ public sealed class StateRevisionVector
             ArgumentException.ThrowIfNullOrWhiteSpace(item.SourceId);
             if (!values.TryAdd(item.SourceId, item.Revision))
             {
-                throw new ArgumentException($"Source '{item.SourceId}' occurs more than once in the revision vector.", nameof(revisions));
+                throw new ArgumentException(
+                    $"Source '{item.SourceId}' occurs more than once in the revision vector.",
+                    nameof(revisions)
+                );
             }
         }
 
@@ -31,5 +34,6 @@ public sealed class StateRevisionVector
     public IReadOnlyDictionary<string, string?> Revisions => _revisions;
 
     /// <summary>Gets whether a source participated in the resolution and its revision, which may be null.</summary>
-    public bool TryGetRevision(string sourceId, out string? revision) => _revisions.TryGetValue(sourceId, out revision);
+    public bool TryGetRevision(string sourceId, out string? revision) =>
+        _revisions.TryGetValue(sourceId, out revision);
 }

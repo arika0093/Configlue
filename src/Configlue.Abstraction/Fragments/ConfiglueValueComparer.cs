@@ -13,7 +13,12 @@ public static class ConfiglueValueComparer
             return true;
         }
 
-        if (left is not IEnumerable leftItems || right is not IEnumerable rightItems || left is string || right is string)
+        if (
+            left is not IEnumerable leftItems
+            || right is not IEnumerable rightItems
+            || left is string
+            || right is string
+        )
         {
             return false;
         }

@@ -11,7 +11,9 @@ public sealed class ConfiglueOptionsRegistry<TModel, TFragment> : IConfiglueOpti
 {
     private readonly Func<string, ConfiglueOptions<TModel, TFragment>> _factory;
     private readonly object _gate = new();
-    private readonly Dictionary<string, ConfiglueOptions<TModel, TFragment>> _profiles = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, ConfiglueOptions<TModel, TFragment>> _profiles = new(
+        StringComparer.Ordinal
+    );
     private bool _disposed;
 
     /// <summary>Creates a registry using a factory that builds a profile from its name.</summary>
@@ -48,7 +50,9 @@ public sealed class ConfiglueOptionsRegistry<TModel, TFragment> : IConfiglueOpti
             ThrowIfDisposed();
             return _profiles.TryGetValue(profileName, out var options)
                 ? options
-                : throw new KeyNotFoundException($"Configlue profile '{profileName}' is not registered.");
+                : throw new KeyNotFoundException(
+                    $"Configlue profile '{profileName}' is not registered."
+                );
         }
     }
 
@@ -83,7 +87,9 @@ public sealed class ConfiglueOptionsRegistry<TModel, TFragment> : IConfiglueOpti
                 return false;
             }
 
-            options = _factory(profileName) ?? throw new InvalidOperationException("The profile factory returned null.");
+            options =
+                _factory(profileName)
+                ?? throw new InvalidOperationException("The profile factory returned null.");
             _profiles.Add(profileName, options);
         }
 
@@ -159,7 +165,11 @@ public sealed class ConfiglueOptionsRegistry<TModel, TFragment> : IConfiglueOpti
             return;
         }
 
-        foreach (Action<string, IWritableOptions<TModel>> handler in handlers.GetInvocationList())
+        foreach (
+            var handler in handlers
+                .GetInvocationList()
+                .Cast<Action<string, IWritableOptions<TModel>>>()
+        )
         {
             try
             {
@@ -180,7 +190,7 @@ public sealed class ConfiglueOptionsRegistry<TModel, TFragment> : IConfiglueOpti
             return;
         }
 
-        foreach (Action<string> handler in handlers.GetInvocationList())
+        foreach (var handler in handlers.GetInvocationList().Cast<Action<string>>())
         {
             try
             {
@@ -193,7 +203,8 @@ public sealed class ConfiglueOptionsRegistry<TModel, TFragment> : IConfiglueOpti
         }
     }
 
-    private static void ValidateName(string profileName) => ArgumentException.ThrowIfNullOrWhiteSpace(profileName);
+    private static void ValidateName(string profileName) =>
+        ArgumentException.ThrowIfNullOrWhiteSpace(profileName);
 
     private void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(_disposed, this);
 }

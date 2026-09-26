@@ -10,13 +10,20 @@ public sealed class SerializedStateWriter<T> : IStateWriter<T>, IStateWriteBatch
     private readonly StateCodecContext _context;
 
     /// <summary>Creates a serialized state writer.</summary>
-    public SerializedStateWriter(IResourceWriter resource, object codec, StateCodecContext context = default)
+    public SerializedStateWriter(
+        IResourceWriter resource,
+        object codec,
+        StateCodecContext context = default
+    )
     {
         ArgumentNullException.ThrowIfNull(resource);
         ArgumentNullException.ThrowIfNull(codec);
         if (codec is not IStateCodec<T> && codec is not IStateCodec)
         {
-            throw new ArgumentException("The codec must implement IStateCodec or IStateCodec<T>.", nameof(codec));
+            throw new ArgumentException(
+                "The codec must implement IStateCodec or IStateCodec<T>.",
+                nameof(codec)
+            );
         }
 
         _resource = resource;
@@ -27,7 +34,8 @@ public sealed class SerializedStateWriter<T> : IStateWriter<T>, IStateWriteBatch
     /// <inheritdoc />
     public ValueTask<StateWriteResult> WriteAsync(
         StateWriteRequest<T> request,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default
+    )
     {
         cancellationToken.ThrowIfCancellationRequested();
         return _resource.WriteAsync(CreateResourceRequest(request), cancellationToken);
@@ -38,10 +46,14 @@ public sealed class SerializedStateWriter<T> : IStateWriter<T>, IStateWriteBatch
         StateWriteRequest<T> request,
         out ResourceId resourceId,
         out IResourceBatchWriter? batchWriter,
-        out ResourceWriteMutation? mutation)
+        out ResourceWriteMutation? mutation
+    )
     {
         var resourceRequest = CreateResourceRequest(request);
-        if (_resource is IResourceBatchParticipant participant && participant.BatchWriter is { } participantWriter)
+        if (
+            _resource is IResourceBatchParticipant participant
+            && participant.BatchWriter is { } participantWriter
+        )
         {
             resourceId = participant.ResourceId;
             batchWriter = participantWriter;
@@ -76,10 +88,19 @@ public sealed class SerializedStateWriter<T> : IStateWriter<T>, IStateWriteBatch
                 untyped.Serialize(typeof(T), request.Value, destination, in context);
                 break;
             default:
-                throw new InvalidOperationException("The codec does not implement a supported state codec interface.");
+                throw new InvalidOperationException(
+                    "The codec does not implement a supported state codec interface."
+                );
         }
 
-        var schema = context.Schema ?? (request.Value is IConfiglueFragment fragment ? fragment.Schema.ToMetadata() : null);
-        return new ResourceWriteRequest(destination.WrittenMemory, request.ExpectedRevision, schema, request.CheckRevision);
+        var schema =
+            context.Schema
+            ?? (request.Value is IConfiglueFragment fragment ? fragment.Schema.ToMetadata() : null);
+        return new ResourceWriteRequest(
+            destination.WrittenMemory,
+            request.ExpectedRevision,
+            schema,
+            request.CheckRevision
+        );
     }
 }

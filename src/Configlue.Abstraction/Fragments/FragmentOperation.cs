@@ -28,9 +28,10 @@ public readonly struct FragmentOperation<T>
     public FragmentOperationKind Kind { get; }
 
     /// <summary>The value for a set operation.</summary>
-    public T? Value => Kind == FragmentOperationKind.Set
-        ? _value
-        : throw new InvalidOperationException("This fragment operation does not set a value.");
+    public T? Value =>
+        Kind == FragmentOperationKind.Set
+            ? _value
+            : throw new InvalidOperationException("This fragment operation does not set a value.");
 
     /// <summary>Leaves the source member unchanged.</summary>
     public static FragmentOperation<T> Unchanged => default;
@@ -42,11 +43,12 @@ public readonly struct FragmentOperation<T>
     public static FragmentOperation<T> Unset => new(FragmentOperationKind.Unset, default);
 
     /// <summary>Applies this operation to a current source member.</summary>
-    public Optional<T> Apply(Optional<T> current) => Kind switch
-    {
-        FragmentOperationKind.Unchanged => current,
-        FragmentOperationKind.Set => Optional<T>.Present(_value),
-        FragmentOperationKind.Unset => Optional<T>.Missing,
-        _ => throw new InvalidOperationException($"Unknown fragment operation '{Kind}'."),
-    };
+    public Optional<T> Apply(Optional<T> current) =>
+        Kind switch
+        {
+            FragmentOperationKind.Unchanged => current,
+            FragmentOperationKind.Set => Optional<T>.Present(_value),
+            FragmentOperationKind.Unset => Optional<T>.Missing,
+            _ => throw new InvalidOperationException($"Unknown fragment operation '{Kind}'."),
+        };
 }

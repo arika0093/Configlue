@@ -12,7 +12,8 @@ public sealed class StateSource<T>
         IStateWriter<T>? writer = null,
         IStateWatcher? watcher = null,
         string? physicalOrigin = null,
-        ResourceId? resourceId = null)
+        ResourceId? resourceId = null
+    )
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
         ArgumentNullException.ThrowIfNull(reader);
@@ -28,7 +29,8 @@ public sealed class StateSource<T>
         Writer = writer;
         Watcher = watcher;
         PhysicalOrigin = physicalOrigin;
-        ResourceId = resourceId ?? (reader as IResourceIdentity ?? writer as IResourceIdentity)?.ResourceId;
+        ResourceId =
+            resourceId ?? (reader as IResourceIdentity ?? writer as IResourceIdentity)?.ResourceId;
     }
 
     /// <summary>The stable logical identifier of the source.</summary>

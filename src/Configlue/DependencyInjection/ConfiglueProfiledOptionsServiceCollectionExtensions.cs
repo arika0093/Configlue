@@ -13,7 +13,8 @@ public static class ConfiglueProfiledOptionsServiceCollectionExtensions
         string defaultProfileName = "default",
         StateWriteRoute writeRoute = default,
         bool validateDataAnnotations = false,
-        TimeSpan? onChangeDebounce = null)
+        TimeSpan? onChangeDebounce = null
+    )
         where TModel : IConfiglueModel<TModel, TFragment>
         where TFragment : class, IConfiglueFragment<TFragment>
     {
@@ -21,24 +22,32 @@ public static class ConfiglueProfiledOptionsServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(profileSourceSetFactory);
         ArgumentNullException.ThrowIfNull(catalogSourceFactory);
         ArgumentException.ThrowIfNullOrWhiteSpace(defaultProfileName);
-        if (defaultProfileName.Contains(':') ||
-            defaultProfileName.Contains("__", StringComparison.Ordinal) ||
-            defaultProfileName == nameof(ConfiglueProfileCatalog.ActiveProfileName) ||
-            defaultProfileName == nameof(ConfiglueProfileCatalog.ProfileNames))
+        if (
+            defaultProfileName.Contains(':')
+            || defaultProfileName.Contains("__", StringComparison.Ordinal)
+            || defaultProfileName == nameof(ConfiglueProfileCatalog.ActiveProfileName)
+            || defaultProfileName == nameof(ConfiglueProfileCatalog.ProfileNames)
+        )
         {
-            throw new ArgumentException($"'{defaultProfileName}' is not a valid profile name.", nameof(defaultProfileName));
+            throw new ArgumentException(
+                $"'{defaultProfileName}' is not a valid profile name.",
+                nameof(defaultProfileName)
+            );
         }
 
         services.AddConfiglueOptionsRegistry<TModel, TFragment>(
             profileSourceSetFactory,
             writeRoute,
             validateDataAnnotations,
-            onChangeDebounce);
-        services.AddSingleton<IConfiglueProfiledOptions<TModel>>(provider =>
-            new ConfiglueProfiledOptions<TModel, TFragment>(
+            onChangeDebounce
+        );
+        services.AddSingleton<IConfiglueProfiledOptions<TModel>>(
+            provider => new ConfiglueProfiledOptions<TModel, TFragment>(
                 provider.GetRequiredService<IConfiglueOptionsRegistry<TModel>>(),
                 catalogSourceFactory(provider),
-                defaultProfileName));
+                defaultProfileName
+            )
+        );
         return services;
     }
 }

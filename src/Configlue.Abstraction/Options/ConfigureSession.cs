@@ -21,11 +21,15 @@ public sealed class ConfigureSession<T> : IDisposable
     public bool IsCommitted => Volatile.Read(ref _state) == 2;
 
     /// <summary>Saves the edited value using the revision captured when the session began.</summary>
-    public async ValueTask<StateWriteResult> SaveAsync(CancellationToken cancellationToken = default)
+    public async ValueTask<StateWriteResult> SaveAsync(
+        CancellationToken cancellationToken = default
+    )
     {
         if (Interlocked.CompareExchange(ref _state, 1, 0) != 0)
         {
-            throw new InvalidOperationException("This configure session is already saving, committed, or disposed.");
+            throw new InvalidOperationException(
+                "This configure session is already saving, committed, or disposed."
+            );
         }
 
         try

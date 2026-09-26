@@ -5,7 +5,8 @@ public readonly record struct StateStorageMigrationTargetResult(
     string TargetId,
     string? PreviousRevision,
     string? TargetRevision,
-    bool WasAlreadyCurrent);
+    bool WasAlreadyCurrent
+);
 
 /// <summary>The per-source revisions and per-target outcomes of a storage migration run.</summary>
 public sealed class StateStorageMigrationResult
@@ -15,38 +16,62 @@ public sealed class StateStorageMigrationResult
         IEnumerable<string> sourceIds,
         StateRevisionVector sourceRevisions,
         IEnumerable<StateStorageMigrationTargetResult> targets,
-        IEnumerable<string>? retiredSourceIds = null)
+        IEnumerable<string>? retiredSourceIds = null
+    )
     {
         ArgumentNullException.ThrowIfNull(sourceIds);
         ArgumentNullException.ThrowIfNull(sourceRevisions);
         ArgumentNullException.ThrowIfNull(targets);
         var sourceIdArray = sourceIds.ToArray();
-        if (sourceIdArray.Any(string.IsNullOrWhiteSpace) ||
-            sourceIdArray.Distinct(StringComparer.Ordinal).Count() != sourceIdArray.Length)
+        if (
+            sourceIdArray.Any(string.IsNullOrWhiteSpace)
+            || sourceIdArray.Distinct(StringComparer.Ordinal).Count() != sourceIdArray.Length
+        )
         {
-            throw new ArgumentException("Source IDs must be non-empty and unique.", nameof(sourceIds));
+            throw new ArgumentException(
+                "Source IDs must be non-empty and unique.",
+                nameof(sourceIds)
+            );
         }
 
-        if (sourceRevisions.Revisions.Count != sourceIdArray.Length ||
-            sourceIdArray.Any(sourceId => !sourceRevisions.TryGetRevision(sourceId, out _)))
+        if (
+            sourceRevisions.Revisions.Count != sourceIdArray.Length
+            || sourceIdArray.Any(sourceId => !sourceRevisions.TryGetRevision(sourceId, out _))
+        )
         {
-            throw new ArgumentException("The revision vector must contain exactly the selected sources.", nameof(sourceRevisions));
+            throw new ArgumentException(
+                "The revision vector must contain exactly the selected sources.",
+                nameof(sourceRevisions)
+            );
         }
 
         var targetArray = targets.ToArray();
-        if (targetArray.Length == 0 ||
-            targetArray.Any(static target => string.IsNullOrWhiteSpace(target.TargetId)) ||
-            targetArray.Select(static target => target.TargetId).Distinct(StringComparer.Ordinal).Count() != targetArray.Length)
+        if (
+            targetArray.Length == 0
+            || targetArray.Any(static target => string.IsNullOrWhiteSpace(target.TargetId))
+            || targetArray
+                .Select(static target => target.TargetId)
+                .Distinct(StringComparer.Ordinal)
+                .Count() != targetArray.Length
+        )
         {
-            throw new ArgumentException("At least one target is required and target IDs must be non-empty and unique.", nameof(targets));
+            throw new ArgumentException(
+                "At least one target is required and target IDs must be non-empty and unique.",
+                nameof(targets)
+            );
         }
 
         var retiredIds = retiredSourceIds?.ToArray() ?? [];
-        if (retiredIds.Any(string.IsNullOrWhiteSpace) ||
-            retiredIds.Distinct(StringComparer.Ordinal).Count() != retiredIds.Length ||
-            retiredIds.Any(sourceId => !sourceIdArray.Contains(sourceId, StringComparer.Ordinal)))
+        if (
+            retiredIds.Any(string.IsNullOrWhiteSpace)
+            || retiredIds.Distinct(StringComparer.Ordinal).Count() != retiredIds.Length
+            || retiredIds.Any(sourceId => !sourceIdArray.Contains(sourceId, StringComparer.Ordinal))
+        )
         {
-            throw new ArgumentException("Retired source IDs must be unique members of the selected sources.", nameof(retiredSourceIds));
+            throw new ArgumentException(
+                "Retired source IDs must be unique members of the selected sources.",
+                nameof(retiredSourceIds)
+            );
         }
 
         SourceIds = Array.AsReadOnly(sourceIdArray);

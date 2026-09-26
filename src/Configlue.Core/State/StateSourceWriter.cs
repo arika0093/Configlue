@@ -17,22 +17,29 @@ public sealed class StateSourceWriter<T> : IStateWriter<T>
     /// <inheritdoc />
     public ValueTask<StateWriteResult> WriteAsync(
         StateWriteRequest<T> request,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default
+    )
     {
         var source = _route.SourceId is { } id
-            ? _sourceSet.Sources.FirstOrDefault(candidate => string.Equals(candidate.Id, id, StringComparison.Ordinal))
+            ? _sourceSet.Sources.FirstOrDefault(candidate =>
+                string.Equals(candidate.Id, id, StringComparison.Ordinal)
+            )
             : _sourceSet.Sources.FirstOrDefault(static candidate => candidate.Writer is not null);
 
         if (source is null)
         {
-            throw new InvalidOperationException(_route.SourceId is { } sourceId
-                ? $"State source '{sourceId}' is not registered."
-                : "No writable state source is registered.");
+            throw new InvalidOperationException(
+                _route.SourceId is { } sourceId
+                    ? $"State source '{sourceId}' is not registered."
+                    : "No writable state source is registered."
+            );
         }
 
         if (source.Writer is null)
         {
-            throw new InvalidOperationException($"State source '{source.Id}' does not support writes.");
+            throw new InvalidOperationException(
+                $"State source '{source.Id}' does not support writes."
+            );
         }
 
         return source.Writer.WriteAsync(request, cancellationToken);

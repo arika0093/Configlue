@@ -5,4 +5,5 @@ public readonly record struct StateSourceMigrationResult(
     string SourceId,
     string TargetId,
     string? SourceRevision,
-    string? TargetRevision);
+    string? TargetRevision
+);

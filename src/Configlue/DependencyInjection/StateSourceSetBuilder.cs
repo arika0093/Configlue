@@ -14,7 +14,8 @@ public sealed class StateSourceSetBuilder<T>
         int priority = 0,
         StateFallbackCondition fallbackCondition = StateFallbackCondition.NotFound,
         string? physicalOrigin = null,
-        ResourceId? resourceId = null)
+        ResourceId? resourceId = null
+    )
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
         ArgumentNullException.ThrowIfNull(reader);
@@ -29,7 +30,8 @@ public sealed class StateSourceSetBuilder<T>
             reader as IStateWriter<T>,
             reader as IStateWatcher,
             physicalOrigin,
-            resourceId);
+            resourceId
+        );
         _sourceFactories.Add(sourceBuilder.Build);
         return sourceBuilder;
     }
@@ -44,13 +46,17 @@ public sealed class StateSourceSetBuilder<T>
     }
 
     /// <summary>Builds an immutable source set in priority order.</summary>
-    public StateSourceSet<T> Build() => new(_sourceFactories.Select(static createSource => createSource()));
+    public StateSourceSet<T> Build() =>
+        new(_sourceFactories.Select(static createSource => createSource()));
 
     private void AddId(string id)
     {
         if (!_sourceIds.Add(id))
         {
-            throw new ArgumentException($"Source id '{id}' is registered more than once.", nameof(id));
+            throw new ArgumentException(
+                $"Source id '{id}' is registered more than once.",
+                nameof(id)
+            );
         }
     }
 
@@ -84,7 +90,8 @@ public sealed class StateSourceBuilder<T>
         IStateWriter<T>? writer,
         IStateWatcher? watcher,
         string? physicalOrigin,
-        ResourceId? resourceId)
+        ResourceId? resourceId
+    )
     {
         _id = id;
         _reader = reader;
@@ -126,13 +133,15 @@ public sealed class StateSourceBuilder<T>
         return this;
     }
 
-    internal StateSource<T> Build() => new(
-        _id,
-        _reader,
-        _priority,
-        _fallbackCondition,
-        _writer,
-        _watcher,
-        _physicalOrigin,
-        _resourceId);
+    internal StateSource<T> Build() =>
+        new(
+            _id,
+            _reader,
+            _priority,
+            _fallbackCondition,
+            _writer,
+            _watcher,
+            _physicalOrigin,
+            _resourceId
+        );
 }

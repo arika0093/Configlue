@@ -5,7 +5,8 @@ public readonly record struct ConfiglueSourceContribution(
     string SourceId,
     string? PhysicalOrigin,
     string? Revision,
-    object? Value);
+    object? Value
+);
 
 /// <summary>Explains the resolved value and the source contributions for one model path.</summary>
 public sealed class ConfiglueValueExplanation
@@ -14,7 +15,8 @@ public sealed class ConfiglueValueExplanation
     public ConfiglueValueExplanation(
         string propertyPath,
         object? effectiveValue,
-        IEnumerable<ConfiglueSourceContribution> contributions)
+        IEnumerable<ConfiglueSourceContribution> contributions
+    )
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(propertyPath);
         ArgumentNullException.ThrowIfNull(contributions);
@@ -33,5 +35,6 @@ public sealed class ConfiglueValueExplanation
     public IReadOnlyList<ConfiglueSourceContribution> Contributions { get; }
 
     /// <summary>The highest-priority source that contributes this member, if any.</summary>
-    public string? HighestPrioritySourceId => Contributions.Count == 0 ? null : Contributions[0].SourceId;
+    public string? HighestPrioritySourceId =>
+        Contributions.Count == 0 ? null : Contributions[0].SourceId;
 }

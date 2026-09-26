@@ -5,4 +5,5 @@ public readonly record struct ResourceWriteRequest(
     ReadOnlyMemory<byte> Content,
     string? ExpectedRevision = null,
     StateSchemaMetadata? Schema = null,
-    bool CheckRevision = false);
+    bool CheckRevision = false
+);

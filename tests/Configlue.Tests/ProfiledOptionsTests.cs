@@ -9,14 +9,20 @@ public sealed class ProfiledOptionsTests
     [Test]
     public async Task ProfileCatalog_PersistsProfilesValuesAndActiveSelectionAcrossServiceProviders()
     {
-        var directory = Path.Combine(Path.GetTempPath(), "Configlue.Tests", Guid.NewGuid().ToString("N"));
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "Configlue.Tests",
+            Guid.NewGuid().ToString("N")
+        );
         var filePath = Path.Combine(directory, "profiles.json");
         Directory.CreateDirectory(directory);
         try
         {
             using (var firstProvider = CreateServiceProvider(filePath))
             {
-                var profiles = firstProvider.GetRequiredService<IConfiglueProfiledOptions<AppSettings>>();
+                var profiles = firstProvider.GetRequiredService<
+                    IConfiglueProfiledOptions<AppSettings>
+                >();
                 var initialNames = await profiles.GetProfileNamesAsync();
 
                 await Assert.That(profiles.DefaultProfileName).IsEqualTo("default");
@@ -31,7 +37,9 @@ public sealed class ProfiledOptionsTests
 
                 var workProfile = await profiles.GetActiveProfileAsync();
                 await workProfile.SaveAsync(new AppSettings { RetryCount = 9, Label = "Dark" });
-                var defaultValue = await (await profiles.GetProfileAsync("default")).GetValueAsync();
+                var defaultValue = await (
+                    await profiles.GetProfileAsync("default")
+                ).GetValueAsync();
 
                 await Assert.That(defaultValue.Label).IsEqualTo("Light");
                 await Assert.That((await profiles.GetActiveValueAsync()).Label).IsEqualTo("Dark");
@@ -39,21 +47,36 @@ public sealed class ProfiledOptionsTests
 
             using (var restartedProvider = CreateServiceProvider(filePath))
             {
-                var profiles = restartedProvider.GetRequiredService<IConfiglueProfiledOptions<AppSettings>>();
+                var profiles = restartedProvider.GetRequiredService<
+                    IConfiglueProfiledOptions<AppSettings>
+                >();
                 var restoredNames = await profiles.GetProfileNamesAsync();
 
                 await Assert.That(restoredNames).IsEquivalentTo(["default", "Work"]);
                 await Assert.That(await profiles.GetActiveProfileNameAsync()).IsEqualTo("Work");
                 await Assert.That((await profiles.GetActiveValueAsync()).Label).IsEqualTo("Dark");
-                await Assert.That(restartedProvider.GetRequiredService<IOptionsMonitor<AppSettings>>().Get("Work").Label)
+                await Assert
+                    .That(
+                        restartedProvider
+                            .GetRequiredService<IOptionsMonitor<AppSettings>>()
+                            .Get("Work")
+                            .Label
+                    )
                     .IsEqualTo("Dark");
 
-                var activeChanged = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
-                profiles.ActiveProfileChanged += profileName => activeChanged.TrySetResult(profileName);
+                var activeChanged = new TaskCompletionSource<string>(
+                    TaskCreationOptions.RunContinuationsAsynchronously
+                );
+                profiles.ActiveProfileChanged += profileName =>
+                    activeChanged.TrySetResult(profileName);
                 await profiles.RemoveProfileAsync("Work");
 
-                await Assert.That(await activeChanged.Task.WaitAsync(TimeSpan.FromSeconds(5))).IsEqualTo("default");
-                await Assert.That(await profiles.GetProfileNamesAsync()).IsEquivalentTo(["default"]);
+                await Assert
+                    .That(await activeChanged.Task.WaitAsync(TimeSpan.FromSeconds(5)))
+                    .IsEqualTo("default");
+                await Assert
+                    .That(await profiles.GetProfileNamesAsync())
+                    .IsEquivalentTo(["default"]);
                 await Assert.That(await profiles.GetActiveProfileNameAsync()).IsEqualTo("default");
                 await Assert.That((await profiles.GetActiveValueAsync()).Label).IsEqualTo("Light");
             }
@@ -76,7 +99,9 @@ public sealed class ProfiledOptionsTests
     public async Task ProfileCatalog_ValidatesNamesAndProtectsDefaultProfile()
     {
         using var directory = new TemporaryDirectory();
-        using var serviceProvider = CreateServiceProvider(Path.Combine(directory.FullPath, "profiles.json"));
+        using var serviceProvider = CreateServiceProvider(
+            Path.Combine(directory.FullPath, "profiles.json")
+        );
         var profiles = serviceProvider.GetRequiredService<IConfiglueProfiledOptions<AppSettings>>();
         await profiles.GetProfileNamesAsync();
 
@@ -136,11 +161,15 @@ public sealed class ProfiledOptionsTests
         using var secondProvider = CreateServiceProvider(filePath);
         var first = firstProvider.GetRequiredService<IConfiglueProfiledOptions<AppSettings>>();
         var second = secondProvider.GetRequiredService<IConfiglueProfiledOptions<AppSettings>>();
-        await Task.WhenAll(first.GetProfileNamesAsync().AsTask(), second.GetProfileNamesAsync().AsTask());
+        await Task.WhenAll(
+            first.GetProfileNamesAsync().AsTask(),
+            second.GetProfileNamesAsync().AsTask()
+        );
 
         var added = await Task.WhenAll(
             TryCreateProfileAsync(first, "First"),
-            TryCreateProfileAsync(second, "Second"));
+            TryCreateProfileAsync(second, "Second")
+        );
 
         await Assert.That(added.Count(static succeeded => succeeded)).IsEqualTo(1);
         if (!added[0])
@@ -162,7 +191,8 @@ public sealed class ProfiledOptionsTests
 
     private static async Task<bool> TryCreateProfileAsync(
         IConfiglueProfiledOptions<AppSettings> profiles,
-        string profileName)
+        string profileName
+    )
     {
         try
         {
@@ -180,7 +210,8 @@ public sealed class ProfiledOptionsTests
         var services = new ServiceCollection();
         services.AddSingleton<FileResource>(_ => new FileResource(
             filePath,
-            new FileResourceOptions { CreateBackup = false }));
+            new FileResourceOptions { CreateBackup = false }
+        ));
         services.AddConfiglueProfiledOptions<AppSettings, AppSettings.Fragment>(
             (provider, profileName) =>
             {
@@ -189,7 +220,8 @@ public sealed class ProfiledOptionsTests
                 var source = SerializedStateSource.FromResource<AppSettings.Fragment>(
                     profileName,
                     section,
-                    new JsonStateCodec());
+                    new JsonStateCodec()
+                );
                 return new StateSourceSet<AppSettings.Fragment>([source]);
             },
             provider =>
@@ -199,9 +231,11 @@ public sealed class ProfiledOptionsTests
                 return SerializedStateSource.FromResource<ConfiglueProfileCatalog>(
                     "profile-catalog",
                     section,
-                    new JsonStateCodec());
+                    new JsonStateCodec()
+                );
             },
-            onChangeDebounce: TimeSpan.Zero);
+            onChangeDebounce: TimeSpan.Zero
+        );
         return services.BuildServiceProvider();
     }
 
@@ -209,7 +243,11 @@ public sealed class ProfiledOptionsTests
     {
         public TemporaryDirectory()
         {
-            FullPath = Path.Combine(Path.GetTempPath(), "Configlue.Tests", Guid.NewGuid().ToString("N"));
+            FullPath = Path.Combine(
+                Path.GetTempPath(),
+                "Configlue.Tests",
+                Guid.NewGuid().ToString("N")
+            );
             Directory.CreateDirectory(FullPath);
         }
 

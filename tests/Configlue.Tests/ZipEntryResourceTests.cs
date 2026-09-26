@@ -14,30 +14,52 @@ public sealed class ZipEntryResourceTests
         var codec = new JsonStateCodec<AppSettings.Fragment>();
         var archive = new InMemoryResource();
         var untouchedBytes = new byte[] { 1, 4, 9, 16 };
-        await archive.WriteAsync(new ResourceWriteRequest(CreateArchive(
-            ("settings.json", Encode(codec, new AppSettings.Fragment
-            {
-                RetryCount = Optional<int>.Present(3),
-            })),
-            ("user.json", Encode(codec, new AppSettings.Fragment
-            {
-                Label = Optional<string?>.Present("before"),
-            })),
-            ("assets/keep.bin", untouchedBytes))));
+        await archive.WriteAsync(
+            new ResourceWriteRequest(
+                CreateArchive(
+                    (
+                        "settings.json",
+                        Encode(
+                            codec,
+                            new AppSettings.Fragment { RetryCount = Optional<int>.Present(3) }
+                        )
+                    ),
+                    (
+                        "user.json",
+                        Encode(
+                            codec,
+                            new AppSettings.Fragment { Label = Optional<string?>.Present("before") }
+                        )
+                    ),
+                    ("assets/keep.bin", untouchedBytes)
+                )
+            )
+        );
 
         var settings = new ZipEntryResource(archive, "settings.json");
         var user = new ZipEntryResource(archive, "user.json");
-        var sources = new StateSourceSet<AppSettings.Fragment>(
-        [
-            SerializedStateSource.FromResource<AppSettings.Fragment>("user", user, codec, priority: 100),
-            SerializedStateSource.FromResource<AppSettings.Fragment>("settings", settings, codec, priority: 50),
+        var sources = new StateSourceSet<AppSettings.Fragment>([
+            SerializedStateSource.FromResource<AppSettings.Fragment>(
+                "user",
+                user,
+                codec,
+                priority: 100
+            ),
+            SerializedStateSource.FromResource<AppSettings.Fragment>(
+                "settings",
+                settings,
+                codec,
+                priority: 50
+            ),
         ]);
         var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(sources);
-        var plan = new StateWritePlan(new Dictionary<string, string>(StringComparer.Ordinal)
-        {
-            ["Label"] = "user",
-            ["RetryCount"] = "settings",
-        });
+        var plan = new StateWritePlan(
+            new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["Label"] = "user",
+                ["RetryCount"] = "settings",
+            }
+        );
 
         using var session = await options.BeginConfigureAsync(plan);
         session.Value.Label = "after";
@@ -54,7 +76,8 @@ public sealed class ZipEntryResourceTests
         var stored = await archive.ReadAsync();
         using var stream = new MemoryStream(stored.Content.ToArray(), writable: false);
         using var zip = new ZipArchive(stream, ZipArchiveMode.Read);
-        await Assert.That(zip.Entries.Select(static entry => entry.FullName))
+        await Assert
+            .That(zip.Entries.Select(static entry => entry.FullName))
             .IsEquivalentTo(["settings.json", "user.json", "assets/keep.bin"]);
         using var untouched = zip.GetEntry("assets/keep.bin")!.Open();
         using var copied = new MemoryStream();
@@ -70,7 +93,9 @@ public sealed class ZipEntryResourceTests
         var before = await entry.ReadAsync();
 
         await Assert.That(before.Status).IsEqualTo(StateReadStatus.NotFound);
-        await entry.WriteAsync(new ResourceWriteRequest(new byte[] { 6, 7 }, before.Revision, CheckRevision: true));
+        await entry.WriteAsync(
+            new ResourceWriteRequest(new byte[] { 6, 7 }, before.Revision, CheckRevision: true)
+        );
 
         var after = await entry.ReadAsync();
         await Assert.That(after.Status).IsEqualTo(StateReadStatus.Success);
@@ -81,19 +106,25 @@ public sealed class ZipEntryResourceTests
     public async Task EntryViewsUseArchiveRevisionForConditionalWrites()
     {
         var archive = new InMemoryResource();
-        await archive.WriteAsync(new ResourceWriteRequest(CreateArchive(("a.json", new byte[] { 1 }))));
+        await archive.WriteAsync(
+            new ResourceWriteRequest(CreateArchive(("a.json", new byte[] { 1 })))
+        );
         var firstEntry = new ZipEntryResource(archive, archive, "a.json");
         var secondEntry = new ZipEntryResource(archive, archive, "b.json");
         var firstRead = await firstEntry.ReadAsync();
         var secondRead = await secondEntry.ReadAsync();
 
         await Assert.That(firstRead.Revision).IsEqualTo(secondRead.Revision);
-        await firstEntry.WriteAsync(new ResourceWriteRequest(new byte[] { 2 }, firstRead.Revision, CheckRevision: true));
+        await firstEntry.WriteAsync(
+            new ResourceWriteRequest(new byte[] { 2 }, firstRead.Revision, CheckRevision: true)
+        );
 
         var staleWriteRejected = false;
         try
         {
-            await secondEntry.WriteAsync(new ResourceWriteRequest(new byte[] { 3 }, secondRead.Revision, CheckRevision: true));
+            await secondEntry.WriteAsync(
+                new ResourceWriteRequest(new byte[] { 3 }, secondRead.Revision, CheckRevision: true)
+            );
         }
         catch (StateConflictException)
         {
@@ -107,7 +138,17 @@ public sealed class ZipEntryResourceTests
     public async Task EntryPathsRejectRootedAndTraversingNames()
     {
         var archive = new InMemoryResource();
-        foreach (var invalidName in new[] { "../outside", "folder/../outside", "/rooted", "C:\\rooted", "folder//entry", "folder/./entry" })
+        foreach (
+            var invalidName in new[]
+            {
+                "../outside",
+                "folder/../outside",
+                "/rooted",
+                "C:\\rooted",
+                "folder//entry",
+                "folder/./entry",
+            }
+        )
         {
             var rejected = false;
             try
@@ -123,7 +164,10 @@ public sealed class ZipEntryResourceTests
         }
     }
 
-    private static byte[] Encode(JsonStateCodec<AppSettings.Fragment> codec, AppSettings.Fragment fragment)
+    private static byte[] Encode(
+        JsonStateCodec<AppSettings.Fragment> codec,
+        AppSettings.Fragment fragment
+    )
     {
         var destination = new ArrayBufferWriter<byte>();
         var context = default(StateCodecContext);

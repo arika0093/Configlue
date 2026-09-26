@@ -9,7 +9,12 @@ public interface IStateCodec
     object? Deserialize(Type type, in ReadOnlySequence<byte> source, in StateCodecContext context);
 
     /// <summary>Serializes a value into the destination buffer.</summary>
-    void Serialize(Type type, object? value, IBufferWriter<byte> destination, in StateCodecContext context);
+    void Serialize(
+        Type type,
+        object? value,
+        IBufferWriter<byte> destination,
+        in StateCodecContext context
+    );
 }
 
 /// <summary>A typed serialization fast path for a state codec.</summary>

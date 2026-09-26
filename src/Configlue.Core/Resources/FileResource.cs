@@ -4,10 +4,11 @@ using System.Security.Cryptography;
 namespace Configlue;
 
 /// <summary>A local file resource with atomic replacement, revision checks, backups, and change notifications.</summary>
-public sealed class FileResource : IResourceReader, IResourceWriter, IStateWatcher, IResourceIdentity, IResourceBatchWriter, IDisposable
+public sealed class FileResource : IResourceReader, IStateWatcher, IResourceBatchWriter, IDisposable
 {
     private static readonly ConcurrentDictionary<string, SemaphoreSlim> ProcessLocks = new(
-        OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
+        OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal
+    );
 
     private readonly string _path;
     private readonly string _directory;
@@ -34,17 +35,26 @@ public sealed class FileResource : IResourceReader, IResourceWriter, IStateWatch
             : System.IO.Path.GetFullPath(_options.BackupDirectory);
         if (_options.BackupMaxCount < 0)
         {
-            throw new ArgumentOutOfRangeException(nameof(options), "BackupMaxCount cannot be negative.");
+            throw new ArgumentOutOfRangeException(
+                nameof(options),
+                "BackupMaxCount cannot be negative."
+            );
         }
 
         if (_options.RetryCount < 0)
         {
-            throw new ArgumentOutOfRangeException(nameof(options), "RetryCount cannot be negative.");
+            throw new ArgumentOutOfRangeException(
+                nameof(options),
+                "RetryCount cannot be negative."
+            );
         }
 
         if (_options.RetryDelay < TimeSpan.Zero)
         {
-            throw new ArgumentOutOfRangeException(nameof(options), "RetryDelay cannot be negative.");
+            throw new ArgumentOutOfRangeException(
+                nameof(options),
+                "RetryDelay cannot be negative."
+            );
         }
 
         ArgumentException.ThrowIfNullOrWhiteSpace(_options.BackupExtension);
@@ -57,11 +67,14 @@ public sealed class FileResource : IResourceReader, IResourceWriter, IStateWatch
     public ResourceId ResourceId { get; }
 
     /// <inheritdoc />
-    public async ValueTask<ResourceReadResult> ReadAsync(CancellationToken cancellationToken = default)
+    public async ValueTask<ResourceReadResult> ReadAsync(
+        CancellationToken cancellationToken = default
+    )
     {
         try
         {
-            var content = await File.ReadAllBytesAsync(_path, cancellationToken).ConfigureAwait(false);
+            var content = await File.ReadAllBytesAsync(_path, cancellationToken)
+                .ConfigureAwait(false);
             return ResourceReadResult.Success(content, GetRevision(content));
         }
         catch (FileNotFoundException)
@@ -81,13 +94,14 @@ public sealed class FileResource : IResourceReader, IResourceWriter, IStateWatch
     /// <inheritdoc />
     public ValueTask<StateWriteResult> WriteAsync(
         ResourceWriteRequest request,
-        CancellationToken cancellationToken = default) =>
-        WriteBatchAsync([ResourceWriteMutation.Replace(request)], cancellationToken);
+        CancellationToken cancellationToken = default
+    ) => WriteBatchAsync([ResourceWriteMutation.Replace(request)], cancellationToken);
 
     /// <inheritdoc />
     public async ValueTask<StateWriteResult> WriteBatchAsync(
         IReadOnlyList<ResourceWriteMutation> mutations,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default
+    )
     {
         cancellationToken.ThrowIfCancellationRequested();
         ResourceWriteMutation.ValidateBatch(mutations);
@@ -97,14 +111,23 @@ public sealed class FileResource : IResourceReader, IResourceWriter, IStateWatch
         await processLock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            await using var interprocessLock = await AcquireInterprocessLockAsync(cancellationToken).ConfigureAwait(false);
-            var previousContent = await TryReadForWriteAsync(cancellationToken).ConfigureAwait(false);
+            await using var interprocessLock = await AcquireInterprocessLockAsync(cancellationToken)
+                .ConfigureAwait(false);
+            var previousContent = await TryReadForWriteAsync(cancellationToken)
+                .ConfigureAwait(false);
             var currentRevision = previousContent is null ? null : GetRevision(previousContent);
             var expectedRevision = mutations[0].ExpectedRevision;
-            var checkRevision = mutations.Any(static mutation => mutation.CheckRevision || mutation.ExpectedRevision is not null);
-            if (checkRevision && !string.Equals(expectedRevision, currentRevision, StringComparison.Ordinal))
+            var checkRevision = mutations.Any(static mutation =>
+                mutation.CheckRevision || mutation.ExpectedRevision is not null
+            );
+            if (
+                checkRevision
+                && !string.Equals(expectedRevision, currentRevision, StringComparison.Ordinal)
+            )
             {
-                throw new StateConflictException($"The file resource '{_path}' changed after it was read.");
+                throw new StateConflictException(
+                    $"The file resource '{_path}' changed after it was read."
+                );
             }
 
             var content = ApplyMutations(mutations, previousContent, currentRevision);
@@ -126,7 +149,8 @@ public sealed class FileResource : IResourceReader, IResourceWriter, IStateWatch
     private static byte[] ApplyMutations(
         IReadOnlyList<ResourceWriteMutation> mutations,
         byte[]? previousContent,
-        string? revision)
+        string? revision
+    )
     {
         var current = previousContent is null
             ? ResourceReadResult.NotFound(revision)
@@ -142,7 +166,9 @@ public sealed class FileResource : IResourceReader, IResourceWriter, IStateWatch
 
     /// <summary>Restores the latest backup without creating another backup generation.</summary>
     /// <exception cref="FileNotFoundException">No latest backup exists.</exception>
-    public async ValueTask<StateWriteResult> RestoreLatestBackupAsync(CancellationToken cancellationToken = default)
+    public async ValueTask<StateWriteResult> RestoreLatestBackupAsync(
+        CancellationToken cancellationToken = default
+    )
     {
         cancellationToken.ThrowIfCancellationRequested();
         Directory.CreateDirectory(_directory);
@@ -150,9 +176,11 @@ public sealed class FileResource : IResourceReader, IResourceWriter, IStateWatch
         await processLock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            await using var interprocessLock = await AcquireInterprocessLockAsync(cancellationToken).ConfigureAwait(false);
+            await using var interprocessLock = await AcquireInterprocessLockAsync(cancellationToken)
+                .ConfigureAwait(false);
             var backupPath = GetBackupPath(0);
-            var content = await File.ReadAllBytesAsync(backupPath, cancellationToken).ConfigureAwait(false);
+            var content = await File.ReadAllBytesAsync(backupPath, cancellationToken)
+                .ConfigureAwait(false);
             await WriteAtomicAsync(_path, content, cancellationToken).ConfigureAwait(false);
             return new StateWriteResult(GetRevision(content));
         }
@@ -165,10 +193,17 @@ public sealed class FileResource : IResourceReader, IResourceWriter, IStateWatch
     /// <inheritdoc />
     public async ValueTask WaitForChangeAsync(
         string? observedRevision,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default
+    )
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        if (!string.Equals(await GetCurrentRevisionAsync(cancellationToken).ConfigureAwait(false), observedRevision, StringComparison.Ordinal))
+        if (
+            !string.Equals(
+                await GetCurrentRevisionAsync(cancellationToken).ConfigureAwait(false),
+                observedRevision,
+                StringComparison.Ordinal
+            )
+        )
         {
             return;
         }
@@ -181,14 +216,21 @@ public sealed class FileResource : IResourceReader, IResourceWriter, IStateWatch
             waitTask = _changed.Task;
         }
 
-        if (!string.Equals(await GetCurrentRevisionAsync(cancellationToken).ConfigureAwait(false), observedRevision, StringComparison.Ordinal))
+        if (
+            !string.Equals(
+                await GetCurrentRevisionAsync(cancellationToken).ConfigureAwait(false),
+                observedRevision,
+                StringComparison.Ordinal
+            )
+        )
         {
             return;
         }
 
         if (_fileWatcher is null)
         {
-            await PollUntilChangedAsync(observedRevision, waitTask, cancellationToken).ConfigureAwait(false);
+            await PollUntilChangedAsync(observedRevision, waitTask, cancellationToken)
+                .ConfigureAwait(false);
             return;
         }
 
@@ -212,19 +254,29 @@ public sealed class FileResource : IResourceReader, IResourceWriter, IStateWatch
         }
     }
 
-    private async ValueTask<FileStream> AcquireInterprocessLockAsync(CancellationToken cancellationToken)
+    private async ValueTask<FileStream> AcquireInterprocessLockAsync(
+        CancellationToken cancellationToken
+    )
     {
         var lockPath = System.IO.Path.Combine(_directory, "." + _fileName + ".configlue.lock");
-        for (var attempt = 0; ; attempt++)
+        var attempt = 0;
+        while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();
             try
             {
-                return new FileStream(lockPath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None,
-                    bufferSize: 1, FileOptions.Asynchronous | FileOptions.WriteThrough);
+                return new FileStream(
+                    lockPath,
+                    FileMode.OpenOrCreate,
+                    FileAccess.ReadWrite,
+                    FileShare.None,
+                    bufferSize: 1,
+                    FileOptions.Asynchronous | FileOptions.WriteThrough
+                );
             }
             catch (IOException) when (attempt < _options.RetryCount)
             {
+                attempt++;
                 await Task.Delay(_options.RetryDelay, cancellationToken).ConfigureAwait(false);
             }
         }
@@ -246,7 +298,10 @@ public sealed class FileResource : IResourceReader, IResourceWriter, IStateWatch
         }
     }
 
-    private async ValueTask CreateBackupAsync(byte[] previousContent, CancellationToken cancellationToken)
+    private async ValueTask CreateBackupAsync(
+        byte[] previousContent,
+        CancellationToken cancellationToken
+    )
     {
         Directory.CreateDirectory(_backupDirectory);
         for (var index = _options.BackupMaxCount - 1; index > 0; index--)
@@ -255,7 +310,8 @@ public sealed class FileResource : IResourceReader, IResourceWriter, IStateWatch
             byte[]? olderContent;
             try
             {
-                olderContent = await File.ReadAllBytesAsync(previousBackupPath, cancellationToken).ConfigureAwait(false);
+                olderContent = await File.ReadAllBytesAsync(previousBackupPath, cancellationToken)
+                    .ConfigureAwait(false);
             }
             catch (FileNotFoundException)
             {
@@ -266,10 +322,12 @@ public sealed class FileResource : IResourceReader, IResourceWriter, IStateWatch
                 continue;
             }
 
-            await WriteAtomicAsync(GetBackupPath(index), olderContent, cancellationToken).ConfigureAwait(false);
+            await WriteAtomicAsync(GetBackupPath(index), olderContent, cancellationToken)
+                .ConfigureAwait(false);
         }
 
-        await WriteAtomicAsync(GetBackupPath(0), previousContent, cancellationToken).ConfigureAwait(false);
+        await WriteAtomicAsync(GetBackupPath(0), previousContent, cancellationToken)
+            .ConfigureAwait(false);
     }
 
     private string GetBackupPath(int index)
@@ -283,20 +341,33 @@ public sealed class FileResource : IResourceReader, IResourceWriter, IStateWatch
         return System.IO.Path.Combine(_backupDirectory, backupName);
     }
 
-    private async ValueTask WriteAtomicAsync(string destinationPath, byte[] content, CancellationToken cancellationToken)
+    private async ValueTask WriteAtomicAsync(
+        string destinationPath,
+        byte[] content,
+        CancellationToken cancellationToken
+    )
     {
         var temporaryPath = destinationPath + "." + Guid.NewGuid().ToString("N") + ".tmp";
         try
         {
-            await using (var stream = new FileStream(temporaryPath, FileMode.CreateNew, FileAccess.Write, FileShare.None,
-                             bufferSize: 81920, FileOptions.Asynchronous | FileOptions.WriteThrough))
+            await using (
+                var stream = new FileStream(
+                    temporaryPath,
+                    FileMode.CreateNew,
+                    FileAccess.Write,
+                    FileShare.None,
+                    bufferSize: 81920,
+                    FileOptions.Asynchronous | FileOptions.WriteThrough
+                )
+            )
             {
                 await stream.WriteAsync(content, cancellationToken).ConfigureAwait(false);
                 await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
                 stream.Flush(flushToDisk: true);
             }
 
-            for (var attempt = 0; ; attempt++)
+            var attempt = 0;
+            while (true)
             {
                 try
                 {
@@ -305,6 +376,7 @@ public sealed class FileResource : IResourceReader, IResourceWriter, IStateWatch
                 }
                 catch (IOException) when (attempt < _options.RetryCount)
                 {
+                    attempt++;
                     await Task.Delay(_options.RetryDelay, cancellationToken).ConfigureAwait(false);
                 }
             }
@@ -334,7 +406,11 @@ public sealed class FileResource : IResourceReader, IResourceWriter, IStateWatch
 
             var watcher = new FileSystemWatcher(_directory, _fileName)
             {
-                NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite | NotifyFilters.Size | NotifyFilters.CreationTime,
+                NotifyFilter =
+                    NotifyFilters.FileName
+                    | NotifyFilters.LastWrite
+                    | NotifyFilters.Size
+                    | NotifyFilters.CreationTime,
                 IncludeSubdirectories = false,
                 EnableRaisingEvents = true,
             };
@@ -347,17 +423,29 @@ public sealed class FileResource : IResourceReader, IResourceWriter, IStateWatch
         }
     }
 
-    private async Task PollUntilChangedAsync(string? observedRevision, Task signal, CancellationToken cancellationToken)
+    private async Task PollUntilChangedAsync(
+        string? observedRevision,
+        Task signal,
+        CancellationToken cancellationToken
+    )
     {
         while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (signal.IsCompleted || !string.Equals(await GetCurrentRevisionAsync(cancellationToken).ConfigureAwait(false), observedRevision, StringComparison.Ordinal))
+            if (
+                signal.IsCompleted
+                || !string.Equals(
+                    await GetCurrentRevisionAsync(cancellationToken).ConfigureAwait(false),
+                    observedRevision,
+                    StringComparison.Ordinal
+                )
+            )
             {
                 return;
             }
 
-            await Task.Delay(TimeSpan.FromMilliseconds(250), cancellationToken).ConfigureAwait(false);
+            await Task.Delay(TimeSpan.FromMilliseconds(250), cancellationToken)
+                .ConfigureAwait(false);
         }
     }
 
@@ -365,7 +453,8 @@ public sealed class FileResource : IResourceReader, IResourceWriter, IStateWatch
     {
         try
         {
-            var content = await File.ReadAllBytesAsync(_path, cancellationToken).ConfigureAwait(false);
+            var content = await File.ReadAllBytesAsync(_path, cancellationToken)
+                .ConfigureAwait(false);
             return GetRevision(content);
         }
         catch (FileNotFoundException)
@@ -403,7 +492,9 @@ public sealed class FileResource : IResourceReader, IResourceWriter, IStateWatch
         }
     }
 
-    private static string GetRevision(ReadOnlySpan<byte> content) => Convert.ToHexString(SHA256.HashData(content));
+    private static string GetRevision(ReadOnlySpan<byte> content) =>
+        Convert.ToHexString(SHA256.HashData(content));
 
-    private static TaskCompletionSource NewChangeSignal() => new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private static TaskCompletionSource NewChangeSignal() =>
+        new(TaskCreationOptions.RunContinuationsAsynchronously);
 }

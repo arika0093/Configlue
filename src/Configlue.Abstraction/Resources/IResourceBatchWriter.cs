@@ -6,7 +6,8 @@ public interface IResourceBatchWriter : IResourceWriter, IResourceIdentity
     /// <summary>Applies the mutations in order and persists the resulting resource once.</summary>
     ValueTask<StateWriteResult> WriteBatchAsync(
         IReadOnlyList<ResourceWriteMutation> mutations,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default
+    );
 }
 
 /// <summary>Prepares a logical resource view update for its underlying batch-capable physical resource.</summary>

@@ -6,5 +6,6 @@ public interface IResourceWriter
     /// <summary>Writes the resource, optionally requiring the backend revision to match.</summary>
     ValueTask<StateWriteResult> WriteAsync(
         ResourceWriteRequest request,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default
+    );
 }

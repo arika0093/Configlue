@@ -23,7 +23,10 @@ internal static class JsonSchemaGeneration
     {
         if (!IsValidModelId(modelId))
         {
-            throw new ArgumentException($"Model ID '{modelId}' cannot be used as a schema file name.", nameof(modelId));
+            throw new ArgumentException(
+                $"Model ID '{modelId}' cannot be used as a schema file name.",
+                nameof(modelId)
+            );
         }
     }
 }

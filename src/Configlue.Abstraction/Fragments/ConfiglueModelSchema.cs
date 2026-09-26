@@ -8,7 +8,8 @@ public readonly record struct ConfiglueMemberSchema(
     MergeMode MergeMode,
     Func<object, object?>? GetValue = null,
     Func<ConfiglueModelSchema>? NestedSchemaFactory = null,
-    Func<IEnumerable<object?>, object?>? CollectionValueFactory = null);
+    Func<IEnumerable<object?>, object?>? CollectionValueFactory = null
+);
 
 /// <summary>Generated metadata for a model and its persisted schema.</summary>
 public sealed class ConfiglueModelSchema
@@ -21,7 +22,8 @@ public sealed class ConfiglueModelSchema
         string id,
         int version,
         IEnumerable<ConfiglueMemberSchema> members,
-        Func<IConfiglueFragment>? emptyFragmentFactory = null)
+        Func<IConfiglueFragment>? emptyFragmentFactory = null
+    )
     {
         ArgumentNullException.ThrowIfNull(modelType);
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
@@ -51,8 +53,11 @@ public sealed class ConfiglueModelSchema
     public IReadOnlyList<ConfiglueMemberSchema> Members { get; }
 
     /// <summary>Creates an empty generated fragment for this model schema.</summary>
-    public IConfiglueFragment CreateEmptyFragment() => _emptyFragmentFactory?.Invoke()
-        ?? throw new InvalidOperationException($"Schema '{Id}' does not provide an empty fragment factory.");
+    public IConfiglueFragment CreateEmptyFragment() =>
+        _emptyFragmentFactory?.Invoke()
+        ?? throw new InvalidOperationException(
+            $"Schema '{Id}' does not provide an empty fragment factory."
+        );
 
     /// <summary>Returns the schema metadata to store alongside a snapshot.</summary>
     public StateSchemaMetadata ToMetadata() => new(Id, Version);

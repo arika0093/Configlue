@@ -3,7 +3,7 @@ using System.Security.Cryptography;
 namespace Configlue.Testing;
 
 /// <summary>An in-memory resource with conditional writes and change notifications.</summary>
-public sealed class InMemoryResource : IResourceReader, IResourceWriter, IStateWatcher, IResourceIdentity, IResourceBatchWriter
+public sealed class InMemoryResource : IResourceReader, IStateWatcher, IResourceBatchWriter
 {
     private readonly object _gate = new();
     private byte[]? _content;
@@ -27,22 +27,25 @@ public sealed class InMemoryResource : IResourceReader, IResourceWriter, IStateW
         cancellationToken.ThrowIfCancellationRequested();
         lock (_gate)
         {
-            return ValueTask.FromResult(_content is null
-                ? ResourceReadResult.NotFound()
-                : ResourceReadResult.Success(_content.ToArray(), _revision, _schema));
+            return ValueTask.FromResult(
+                _content is null
+                    ? ResourceReadResult.NotFound()
+                    : ResourceReadResult.Success(_content.ToArray(), _revision, _schema)
+            );
         }
     }
 
     /// <inheritdoc />
     public ValueTask<StateWriteResult> WriteAsync(
         ResourceWriteRequest request,
-        CancellationToken cancellationToken = default) =>
-        WriteBatchAsync([ResourceWriteMutation.Replace(request)], cancellationToken);
+        CancellationToken cancellationToken = default
+    ) => WriteBatchAsync([ResourceWriteMutation.Replace(request)], cancellationToken);
 
     /// <inheritdoc />
     public ValueTask<StateWriteResult> WriteBatchAsync(
         IReadOnlyList<ResourceWriteMutation> mutations,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default
+    )
     {
         cancellationToken.ThrowIfCancellationRequested();
         ResourceWriteMutation.ValidateBatch(mutations);
@@ -51,10 +54,17 @@ public sealed class InMemoryResource : IResourceReader, IResourceWriter, IStateW
         lock (_gate)
         {
             var expectedRevision = mutations[0].ExpectedRevision;
-            var checkRevision = mutations.Any(static mutation => mutation.CheckRevision || mutation.ExpectedRevision is not null);
-            if (checkRevision && !string.Equals(expectedRevision, _revision, StringComparison.Ordinal))
+            var checkRevision = mutations.Any(static mutation =>
+                mutation.CheckRevision || mutation.ExpectedRevision is not null
+            );
+            if (
+                checkRevision
+                && !string.Equals(expectedRevision, _revision, StringComparison.Ordinal)
+            )
             {
-                throw new StateConflictException("The in-memory resource changed after it was read.");
+                throw new StateConflictException(
+                    "The in-memory resource changed after it was read."
+                );
             }
 
             var current = _content is null
@@ -69,9 +79,10 @@ public sealed class InMemoryResource : IResourceReader, IResourceWriter, IStateW
 
             _content = current.Content.ToArray();
             _revision = revision = GetRevision(_content);
-            _schema = mutations.Select(static mutation => mutation.Schema).Distinct().Count() == 1
-                ? mutations[0].Schema
-                : null;
+            _schema =
+                mutations.Select(static mutation => mutation.Schema).Distinct().Count() == 1
+                    ? mutations[0].Schema
+                    : null;
             Interlocked.Increment(ref _writeCount);
             changed = _changed;
             _changed = NewSignal();
@@ -84,7 +95,8 @@ public sealed class InMemoryResource : IResourceReader, IResourceWriter, IStateW
     /// <inheritdoc />
     public async ValueTask WaitForChangeAsync(
         string? observedRevision,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default
+    )
     {
         Task waitTask;
         lock (_gate)
@@ -100,7 +112,9 @@ public sealed class InMemoryResource : IResourceReader, IResourceWriter, IStateW
         await waitTask.WaitAsync(cancellationToken).ConfigureAwait(false);
     }
 
-    private static string GetRevision(ReadOnlySpan<byte> content) => Convert.ToHexString(SHA256.HashData(content));
+    private static string GetRevision(ReadOnlySpan<byte> content) =>
+        Convert.ToHexString(SHA256.HashData(content));
 
-    private static TaskCompletionSource NewSignal() => new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private static TaskCompletionSource NewSignal() =>
+        new(TaskCreationOptions.RunContinuationsAsynchronously);
 }

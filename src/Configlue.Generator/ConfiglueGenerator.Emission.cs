@@ -14,12 +14,19 @@ public sealed partial class ConfiglueGenerator
     private static string BuildSource(
         INamedTypeSymbol model,
         ImmutableArray<MemberModel> members,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken
+    )
     {
         var modelType = NonNullableTypeName(model);
-        var generatedType = model.TypeKind == TypeKind.Struct
-            ? model.IsRecord ? "partial record struct " : "partial struct "
-            : model.IsRecord ? "partial record class " : "partial class ";
+        string generatedType;
+        if (model.TypeKind == TypeKind.Struct)
+        {
+            generatedType = model.IsRecord ? "partial record struct " : "partial struct ";
+        }
+        else
+        {
+            generatedType = model.IsRecord ? "partial record class " : "partial class ";
+        }
         var name = EscapeIdentifier(model.Name);
         var modelId = GetModelId(model, cancellationToken);
         var version = GetModelVersion(model, cancellationToken);
@@ -28,11 +35,19 @@ public sealed partial class ConfiglueGenerator
         code.AppendLine("#nullable enable");
         if (!model.ContainingNamespace.IsGlobalNamespace)
         {
-            code.Append("namespace ").Append(model.ContainingNamespace.ToDisplayString()).AppendLine(";");
-}
-        code.Append(generatedType).Append(name).Append(" : global::Configlue.IConfiglueDeepCloneable<")
-            .Append(modelType).Append(">, global::Configlue.IConfiglueModel<").Append(modelType).Append(", ")
-            .Append(modelType).AppendLine(".Fragment>");
+            code.Append("namespace ")
+                .Append(model.ContainingNamespace.ToDisplayString())
+                .AppendLine(";");
+        }
+        code.Append(generatedType)
+            .Append(name)
+            .Append(" : global::Configlue.IConfiglueDeepCloneable<")
+            .Append(modelType)
+            .Append(">, global::Configlue.IConfiglueModel<")
+            .Append(modelType)
+            .Append(", ")
+            .Append(modelType)
+            .AppendLine(".Fragment>");
         code.AppendLine("{");
         AppendModelSchema(code, modelType, modelId, version, members);
         AppendFragmentSchema(code, modelType, modelId, version, members);
@@ -48,32 +63,54 @@ public sealed partial class ConfiglueGenerator
         string modelType,
         string modelId,
         int version,
-        ImmutableArray<MemberModel> members)
+        ImmutableArray<MemberModel> members
+    )
     {
-        code.AppendIndent(1).Append("public static global::Configlue.ConfiglueModelSchema ConfiglueSchema { get; } = new(typeof(")
-            .Append(modelType).Append("), ").Append(SymbolDisplay.FormatLiteral(modelId, true)).Append(", ").Append(version)
+        code.AppendIndent(1)
+            .Append(
+                "public static global::Configlue.ConfiglueModelSchema ConfiglueSchema { get; } = new(typeof("
+            )
+            .Append(modelType)
+            .Append("), ")
+            .Append(SymbolDisplay.FormatLiteral(modelId, true))
+            .Append(", ")
+            .Append(version)
             .AppendLine(", new global::Configlue.ConfiglueMemberSchema[]");
         code.AppendLineAt(1, "{");
         foreach (var member in members)
         {
-            code.AppendIndent(2).Append("new(").Append(member.Id).Append(", ")
-                .Append(SymbolDisplay.FormatLiteral(member.Property.Name, true)).Append(", typeof(")
-                .Append(NonNullableTypeName(member.ChildModel ?? member.Property.Type)).Append("), global::Configlue.MergeMode.")
-                .Append(MergeModeName(member.MergeMode)).Append(", static value => ((").Append(modelType).Append(")value).")
-                .Append(EscapeIdentifier(member.Property.Name)).Append(", ");
+            code.AppendIndent(2)
+                .Append("new(")
+                .Append(member.Id)
+                .Append(", ")
+                .Append(SymbolDisplay.FormatLiteral(member.Property.Name, true))
+                .Append(", typeof(")
+                .Append(NonNullableTypeName(member.ChildModel ?? member.Property.Type))
+                .Append("), global::Configlue.MergeMode.")
+                .Append(MergeModeName(member.MergeMode))
+                .Append(", static value => ((")
+                .Append(modelType)
+                .Append(")value).")
+                .Append(EscapeIdentifier(member.Property.Name))
+                .Append(", ");
             if (member.ChildModel is null)
             {
                 code.Append("null");
             }
             else
             {
-                code.Append("static () => ").Append(NonNullableTypeName(member.ChildModel)).Append(".ConfiglueSchema");
+                code.Append("static () => ")
+                    .Append(NonNullableTypeName(member.ChildModel))
+                    .Append(".ConfiglueSchema");
             }
 
             code.Append(", ").Append(CollectionValueFactory(member)).AppendLine("),");
         }
 
-        code.AppendIndent(1).Append("}, static () => ").Append(modelType).AppendLine(".Fragment.Empty);");
+        code.AppendIndent(1)
+            .Append("}, static () => ")
+            .Append(modelType)
+            .AppendLine(".Fragment.Empty);");
     }
 
     private static string CollectionValueFactory(MemberModel member)
@@ -87,9 +124,12 @@ public sealed partial class ConfiglueGenerator
         var values = $"global::System.Linq.Enumerable.Cast<{elementType}>(values)";
         return member.Collection.Kind switch
         {
-            CollectionKind.Array => $"static values => global::System.Linq.Enumerable.ToArray({values})",
-            CollectionKind.List => $"static values => new global::System.Collections.Generic.List<{elementType}>({values})",
-            CollectionKind.Set => $"static values => new global::System.Collections.Generic.HashSet<{elementType}>({values})",
+            CollectionKind.Array =>
+                $"static values => global::System.Linq.Enumerable.ToArray({values})",
+            CollectionKind.List =>
+                $"static values => new global::System.Collections.Generic.List<{elementType}>({values})",
+            CollectionKind.Set =>
+                $"static values => new global::System.Collections.Generic.HashSet<{elementType}>({values})",
             _ => "null",
         };
     }
@@ -99,10 +139,18 @@ public sealed partial class ConfiglueGenerator
         string modelType,
         string modelId,
         int version,
-        ImmutableArray<MemberModel> members)
+        ImmutableArray<MemberModel> members
+    )
     {
-        code.AppendIndent(1).Append("public static global::Configlue.ConfiglueModelSchema FragmentSchema { get; } = new(typeof(")
-            .Append(modelType).Append("), ").Append(SymbolDisplay.FormatLiteral(modelId, true)).Append(", ").Append(version)
+        code.AppendIndent(1)
+            .Append(
+                "public static global::Configlue.ConfiglueModelSchema FragmentSchema { get; } = new(typeof("
+            )
+            .Append(modelType)
+            .Append("), ")
+            .Append(SymbolDisplay.FormatLiteral(modelId, true))
+            .Append(", ")
+            .Append(version)
             .AppendLine(", new global::Configlue.ConfiglueMemberSchema[]");
         code.AppendLineAt(1, "{");
         foreach (var member in members)
@@ -110,23 +158,45 @@ public sealed partial class ConfiglueGenerator
             var valueType = member.ChildModel is null
                 ? NonNullableTypeName(member.Property.Type)
                 : NonNullableTypeName(member.ChildModel) + ".Fragment";
-            code.AppendIndent(2).Append("new(").Append(member.Id).Append(", ")
-                .Append(SymbolDisplay.FormatLiteral(member.Property.Name, true)).Append(", typeof(")
-                .Append(valueType).Append("), global::Configlue.MergeMode.")
-                .Append(MergeModeName(member.MergeMode)).AppendLine("),");
+            code.AppendIndent(2)
+                .Append("new(")
+                .Append(member.Id)
+                .Append(", ")
+                .Append(SymbolDisplay.FormatLiteral(member.Property.Name, true))
+                .Append(", typeof(")
+                .Append(valueType)
+                .Append("), global::Configlue.MergeMode.")
+                .Append(MergeModeName(member.MergeMode))
+                .AppendLine("),");
         }
 
         code.AppendLineAt(1, "});");
     }
 
-    private static void AppendDeepClone(IndentedStringBuilder code, string modelType, ImmutableArray<MemberModel> members)
+    private static void AppendDeepClone(
+        IndentedStringBuilder code,
+        string modelType,
+        ImmutableArray<MemberModel> members
+    )
     {
-        code.AppendIndent(1).Append("public ").Append(modelType).AppendLine(" DeepClone() => new()");
+        code.AppendIndent(1)
+            .Append("public ")
+            .Append(modelType)
+            .AppendLine(" DeepClone() => new()");
         code.AppendLineAt(1, "{");
         foreach (var member in members)
         {
-            code.AppendIndent(2).Append(EscapeIdentifier(member.Property.Name)).Append(" = ")
-                .Append(CloneModelExpression(member, "this." + EscapeIdentifier(member.Property.Name), code.CancellationToken)).AppendLine(",");
+            code.AppendIndent(2)
+                .Append(EscapeIdentifier(member.Property.Name))
+                .Append(" = ")
+                .Append(
+                    CloneModelExpression(
+                        member,
+                        "this." + EscapeIdentifier(member.Property.Name),
+                        code.CancellationToken
+                    )
+                )
+                .AppendLine(",");
         }
 
         code.AppendLineAt(1, "};");
@@ -134,9 +204,19 @@ public sealed partial class ConfiglueGenerator
 
     private static void AppendModelFragmentBridge(IndentedStringBuilder code, string modelType)
     {
-        code.AppendIndent(1).Append("public static Fragment ToFragment(").Append(modelType).AppendLine(" value) => Fragment.From(value);");
-        code.AppendIndent(1).Append("public static Fragment Diff(").Append(modelType).Append(" before, ").Append(modelType).AppendLine(" after) => Fragment.Diff(before, after);");
-        code.AppendIndent(1).Append("public static ").Append(modelType).AppendLine(" FromFragment(Fragment value) => value.ToModel();");
+        code.AppendIndent(1)
+            .Append("public static Fragment ToFragment(")
+            .Append(modelType)
+            .AppendLine(" value) => Fragment.From(value);");
+        code.AppendIndent(1)
+            .Append("public static Fragment Diff(")
+            .Append(modelType)
+            .Append(" before, ")
+            .Append(modelType)
+            .AppendLine(" after) => Fragment.Diff(before, after);");
+        code.AppendIndent(1)
+            .Append("public static ")
+            .Append(modelType)
+            .AppendLine(" FromFragment(Fragment value) => value.ToModel();");
     }
-
 }

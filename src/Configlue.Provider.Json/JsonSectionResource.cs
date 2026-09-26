@@ -5,7 +5,12 @@ using System.Text.Json.Nodes;
 namespace Configlue.Provider.Json;
 
 /// <summary>Exposes a nested JSON object as an independently revisioned resource view.</summary>
-public sealed class JsonSectionResource : IResourceReader, IResourceWriter, IStateWatcher, IResourceIdentity, IResourceBatchParticipant
+public sealed class JsonSectionResource
+    : IResourceReader,
+        IResourceWriter,
+        IStateWatcher,
+        IResourceIdentity,
+        IResourceBatchParticipant
 {
     private readonly IResourceReader _reader;
     private readonly IResourceWriter? _writer;
@@ -18,14 +23,21 @@ public sealed class JsonSectionResource : IResourceReader, IResourceWriter, ISta
     /// <param name="resource">The physical resource containing the JSON document.</param>
     /// <param name="sectionPath">A colon- or double-underscore-separated path to the section.</param>
     /// <param name="serializerOptions">Options used to format the updated document.</param>
+    /// <param name="resourceId">An optional stable identity for the physical resource.</param>
     public JsonSectionResource(
         IResourceReader resource,
         string sectionPath,
         JsonSerializerOptions? serializerOptions = null,
-        ResourceId? resourceId = null)
-        : this(resource, resource as IResourceWriter, sectionPath, resource as IStateWatcher, serializerOptions, resourceId)
-    {
-    }
+        ResourceId? resourceId = null
+    )
+        : this(
+            resource,
+            resource as IResourceWriter,
+            sectionPath,
+            resource as IStateWatcher,
+            serializerOptions,
+            resourceId
+        ) { }
 
     /// <summary>Creates a section resource with separate read, write, and watch capabilities.</summary>
     public JsonSectionResource(
@@ -34,7 +46,8 @@ public sealed class JsonSectionResource : IResourceReader, IResourceWriter, ISta
         string sectionPath,
         IStateWatcher? watcher = null,
         JsonSerializerOptions? serializerOptions = null,
-        ResourceId? resourceId = null)
+        ResourceId? resourceId = null
+    )
     {
         ArgumentNullException.ThrowIfNull(reader);
         ArgumentException.ThrowIfNullOrWhiteSpace(sectionPath);
@@ -42,13 +55,19 @@ public sealed class JsonSectionResource : IResourceReader, IResourceWriter, ISta
         _reader = reader;
         _writer = writer;
         _watcher = watcher;
-        ResourceId = resourceId ?? (writer as IResourceIdentity ?? reader as IResourceIdentity)?.ResourceId
+        ResourceId =
+            resourceId
+            ?? (writer as IResourceIdentity ?? reader as IResourceIdentity)?.ResourceId
             ?? new ResourceId($"section:{Guid.NewGuid():N}");
-        _path = sectionPath.Replace("__", ":", StringComparison.Ordinal)
+        _path = sectionPath
+            .Replace("__", ":", StringComparison.Ordinal)
             .Split(':', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         if (_path.Length == 0)
         {
-            throw new ArgumentException("The section path must contain at least one property name.", nameof(sectionPath));
+            throw new ArgumentException(
+                "The section path must contain at least one property name.",
+                nameof(sectionPath)
+            );
         }
 
         _batchScope = "json/" + string.Join("/", _path.Select(Uri.EscapeDataString));
@@ -68,7 +87,9 @@ public sealed class JsonSectionResource : IResourceReader, IResourceWriter, ISta
     public IResourceBatchWriter? BatchWriter => _writer as IResourceBatchWriter;
 
     /// <inheritdoc />
-    public async ValueTask<ResourceReadResult> ReadAsync(CancellationToken cancellationToken = default)
+    public async ValueTask<ResourceReadResult> ReadAsync(
+        CancellationToken cancellationToken = default
+    )
     {
         var resource = await _reader.ReadAsync(cancellationToken).ConfigureAwait(false);
         if (resource.Status != StateReadStatus.Success)
@@ -82,7 +103,9 @@ public sealed class JsonSectionResource : IResourceReader, IResourceWriter, ISta
         {
             if (current.ValueKind != JsonValueKind.Object)
             {
-                throw new JsonException($"Section path '{string.Join(':', _path)}' crosses a non-object value at '{name}'.");
+                throw new JsonException(
+                    $"Section path '{string.Join(':', _path)}' crosses a non-object value at '{name}'."
+                );
             }
 
             if (!current.TryGetProperty(name, out current))
@@ -91,23 +114,39 @@ public sealed class JsonSectionResource : IResourceReader, IResourceWriter, ISta
             }
         }
 
-        return ResourceReadResult.Success(Encoding.UTF8.GetBytes(current.GetRawText()), resource.Revision);
+        return ResourceReadResult.Success(
+            Encoding.UTF8.GetBytes(current.GetRawText()),
+            resource.Revision
+        );
     }
 
     /// <inheritdoc />
     public async ValueTask<StateWriteResult> WriteAsync(
         ResourceWriteRequest request,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default
+    )
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var writer = _writer ?? throw new NotSupportedException("This JSON section resource is read-only.");
+        var writer =
+            _writer ?? throw new NotSupportedException("This JSON section resource is read-only.");
         var current = await _reader.ReadAsync(cancellationToken).ConfigureAwait(false);
         var updatedDocument = CreateMutation(request).Apply(current);
         var expectedRevision = request.ExpectedRevision ?? current.Revision;
-        var checkRevision = request.CheckRevision || request.ExpectedRevision is not null || current.Revision is not null;
-        return await writer.WriteAsync(
-            new ResourceWriteRequest(updatedDocument, expectedRevision, request.Schema, checkRevision),
-            cancellationToken).ConfigureAwait(false);
+        var checkRevision =
+            request.CheckRevision
+            || request.ExpectedRevision is not null
+            || current.Revision is not null;
+        return await writer
+            .WriteAsync(
+                new ResourceWriteRequest(
+                    updatedDocument,
+                    expectedRevision,
+                    request.Schema,
+                    checkRevision
+                ),
+                cancellationToken
+            )
+            .ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -120,17 +159,24 @@ public sealed class JsonSectionResource : IResourceReader, IResourceWriter, ISta
             request.Schema,
             current => ApplyToResource(current, content),
             _batchScope,
-            canCompose: true);
+            canCompose: true
+        );
     }
 
-    private ReadOnlyMemory<byte> ApplyToResource(ResourceReadResult current, ReadOnlyMemory<byte> sectionContent)
+    private ReadOnlyMemory<byte> ApplyToResource(
+        ResourceReadResult current,
+        ReadOnlyMemory<byte> sectionContent
+    )
     {
         JsonObject root;
         if (current.Status == StateReadStatus.Success)
         {
             var parsedRoot = JsonNode.Parse(current.Content.Span);
-            root = parsedRoot as JsonObject
-                ?? throw new JsonException("A JSON section resource must be contained in a root object.");
+            root =
+                parsedRoot as JsonObject
+                ?? throw new JsonException(
+                    "A JSON section resource must be contained in a root object."
+                );
         }
         else if (current.Status == StateReadStatus.NotFound)
         {
@@ -152,10 +198,12 @@ public sealed class JsonSectionResource : IResourceReader, IResourceWriter, ISta
             }
             else if (child is not JsonObject)
             {
-                throw new JsonException($"Section path '{string.Join(':', _path)}' crosses a non-object value at '{name}'.");
+                throw new JsonException(
+                    $"Section path '{string.Join(':', _path)}' crosses a non-object value at '{name}'."
+                );
             }
 
-            container = (JsonObject)child!;
+            container = (JsonObject)child;
         }
 
         container[_path[^1]] = JsonNode.Parse(sectionContent.Span);
@@ -163,11 +211,16 @@ public sealed class JsonSectionResource : IResourceReader, IResourceWriter, ISta
     }
 
     /// <inheritdoc />
-    public async ValueTask WaitForChangeAsync(string? observedRevision, CancellationToken cancellationToken = default)
+    public async ValueTask WaitForChangeAsync(
+        string? observedRevision,
+        CancellationToken cancellationToken = default
+    )
     {
         if (_watcher is not null)
         {
-            await _watcher.WaitForChangeAsync(observedRevision, cancellationToken).ConfigureAwait(false);
+            await _watcher
+                .WaitForChangeAsync(observedRevision, cancellationToken)
+                .ConfigureAwait(false);
             return;
         }
 
@@ -180,7 +233,8 @@ public sealed class JsonSectionResource : IResourceReader, IResourceWriter, ISta
                 return;
             }
 
-            await Task.Delay(TimeSpan.FromMilliseconds(250), cancellationToken).ConfigureAwait(false);
+            await Task.Delay(TimeSpan.FromMilliseconds(250), cancellationToken)
+                .ConfigureAwait(false);
         }
     }
 }

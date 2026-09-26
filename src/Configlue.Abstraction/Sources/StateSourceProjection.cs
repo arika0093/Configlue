@@ -14,29 +14,41 @@ public static class StateSourceProjection
     /// <param name="toTarget">Projects a source value into the target logical state.</param>
     /// <param name="toSource">Maps writes back to the source-specific state. Omit it to expose a read-only source.</param>
     /// <param name="projectedSchema">Optional schema metadata for the projected target value.</param>
+    /// <param name="sourceMigrations">Optional migrations to apply to the source value before projection.</param>
+    /// <param name="sourceSchema">The target schema for source migrations.</param>
     public static StateSource<TTarget> Project<TSource, TTarget>(
         StateSource<TSource> source,
         Func<TSource, TTarget> toTarget,
         Func<TTarget, TSource>? toSource = null,
         StateSchemaMetadata? projectedSchema = null,
         IEnumerable<IStateSchemaMigration<TSource>>? sourceMigrations = null,
-        StateSchemaMetadata? sourceSchema = null)
+        StateSchemaMetadata? sourceSchema = null
+    )
     {
         ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(toTarget);
 
         if (sourceMigrations is not null && sourceSchema is null)
         {
-            throw new ArgumentException("A target source schema is required when source migrations are supplied.", nameof(sourceSchema));
+            throw new ArgumentException(
+                "A target source schema is required when source migrations are supplied.",
+                nameof(sourceSchema)
+            );
         }
 
         var migrationChain = sourceSchema is { } targetSourceSchema
             ? new StateSchemaMigrationChain<TSource>(targetSourceSchema, sourceMigrations)
             : null;
-        var reader = new ProjectedReader<TSource, TTarget>(source.Reader, toTarget, projectedSchema, migrationChain);
-        IStateWriter<TTarget>? writer = source.Writer is not null && toSource is not null
-            ? new ProjectedWriter<TSource, TTarget>(source.Writer, toSource)
-            : null;
+        var reader = new ProjectedReader<TSource, TTarget>(
+            source.Reader,
+            toTarget,
+            projectedSchema,
+            migrationChain
+        );
+        IStateWriter<TTarget>? writer =
+            source.Writer is not null && toSource is not null
+                ? new ProjectedWriter<TSource, TTarget>(source.Writer, toSource)
+                : null;
         return new StateSource<TTarget>(
             source.Id,
             reader,
@@ -45,16 +57,20 @@ public static class StateSourceProjection
             writer,
             source.Watcher,
             source.PhysicalOrigin,
-            source.ResourceId);
+            source.ResourceId
+        );
     }
 
     private sealed class ProjectedReader<TSource, TTarget>(
         IStateReader<TSource> source,
         Func<TSource, TTarget> toTarget,
         StateSchemaMetadata? projectedSchema,
-        StateSchemaMigrationChain<TSource>? migrationChain) : IStateReader<TTarget>
+        StateSchemaMigrationChain<TSource>? migrationChain
+    ) : IStateReader<TTarget>
     {
-        public async ValueTask<StateReadResult<TTarget>> ReadAsync(CancellationToken cancellationToken = default)
+        public async ValueTask<StateReadResult<TTarget>> ReadAsync(
+            CancellationToken cancellationToken = default
+        )
         {
             var result = await source.ReadAsync(cancellationToken).ConfigureAwait(false);
             if (result.Status != StateReadStatus.Success)
@@ -66,18 +82,23 @@ public static class StateSourceProjection
                     result.SourceId,
                     result.PhysicalOrigin,
                     projectedSchema,
-                    result.Revisions);
+                    result.Revisions
+                );
             }
 
             if (result.Value is null)
             {
-                throw new InvalidOperationException("A successful projected source returned a null value.");
+                throw new InvalidOperationException(
+                    "A successful projected source returned a null value."
+                );
             }
 
             var sourceValue = result.Value;
             if (result.Schema is { } sourceSchema && migrationChain is not null)
             {
-                sourceValue = await migrationChain.MigrateAsync(sourceValue, sourceSchema, cancellationToken).ConfigureAwait(false);
+                sourceValue = await migrationChain
+                    .MigrateAsync(sourceValue, sourceSchema, cancellationToken)
+                    .ConfigureAwait(false);
             }
 
             var projected = toTarget(sourceValue);
@@ -93,37 +114,48 @@ public static class StateSourceProjection
                 result.SourceId,
                 result.PhysicalOrigin,
                 projectedSchema,
-                result.Revisions);
+                result.Revisions
+            );
         }
     }
 
     private sealed class ProjectedWriter<TSource, TTarget>(
         IStateWriter<TSource> source,
-        Func<TTarget, TSource> toSource) : IStateWriter<TTarget>, IStateWriteBatchParticipant<TTarget>
+        Func<TTarget, TSource> toSource
+    ) : IStateWriter<TTarget>, IStateWriteBatchParticipant<TTarget>
     {
         public ValueTask<StateWriteResult> WriteAsync(
             StateWriteRequest<TTarget> request,
-            CancellationToken cancellationToken = default) =>
+            CancellationToken cancellationToken = default
+        ) =>
             source.WriteAsync(
                 new StateWriteRequest<TSource>(
                     toSource(request.Value),
                     request.ExpectedRevision,
-                    request.CheckRevision),
-                cancellationToken);
+                    request.CheckRevision
+                ),
+                cancellationToken
+            );
 
         public bool TryCreateBatchWrite(
             StateWriteRequest<TTarget> request,
             out ResourceId resourceId,
             out IResourceBatchWriter? batchWriter,
-            out ResourceWriteMutation? mutation)
+            out ResourceWriteMutation? mutation
+        )
         {
             if (source is IStateWriteBatchParticipant<TSource> participant)
             {
                 return participant.TryCreateBatchWrite(
-                    new StateWriteRequest<TSource>(toSource(request.Value), request.ExpectedRevision, request.CheckRevision),
+                    new StateWriteRequest<TSource>(
+                        toSource(request.Value),
+                        request.ExpectedRevision,
+                        request.CheckRevision
+                    ),
                     out resourceId,
                     out batchWriter,
-                    out mutation);
+                    out mutation
+                );
             }
 
             resourceId = default;

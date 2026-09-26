@@ -1,11 +1,11 @@
+using System.Buffers;
+using System.ComponentModel.DataAnnotations;
+using System.Text;
 using Configlue;
 using Configlue.Provider.Json;
 using Configlue.Provider.Xml;
 using Configlue.Provider.Yaml;
 using Configlue.Testing;
-using System.Buffers;
-using System.ComponentModel.DataAnnotations;
-using System.Text;
 
 namespace Configlue.Tests;
 
@@ -68,20 +68,21 @@ public sealed class GeneratedFragmentTests
     {
         var lower = new AppSettings.Fragment
         {
-            Database = Optional<DatabaseSettings.Fragment?>.Present(new DatabaseSettings.Fragment
-            {
-                Host = Optional<string>.Present("db.local"),
-                Port = Optional<int>.Present(5432),
-            }),
+            Database = Optional<DatabaseSettings.Fragment?>.Present(
+                new DatabaseSettings.Fragment
+                {
+                    Host = Optional<string>.Present("db.local"),
+                    Port = Optional<int>.Present(5432),
+                }
+            ),
             Plugins = Optional<IReadOnlyList<string>>.Present(["base"]),
         };
         var higher = new AppSettings.Fragment
         {
             Enabled = Optional<bool>.Present(false),
-            Database = Optional<DatabaseSettings.Fragment?>.Present(new DatabaseSettings.Fragment
-            {
-                Port = Optional<int>.Present(6432),
-            }),
+            Database = Optional<DatabaseSettings.Fragment?>.Present(
+                new DatabaseSettings.Fragment { Port = Optional<int>.Present(6432) }
+            ),
             Plugins = Optional<IReadOnlyList<string>>.Present(["custom"]),
         };
 
@@ -96,15 +97,29 @@ public sealed class GeneratedFragmentTests
     [Test]
     public async Task SemanticDiffAndPatch_DistinguishSetFromUnset()
     {
-        var before = new AppSettings { Enabled = true, RetryCount = 3, Label = "old" };
-        var after = new AppSettings { Enabled = false, RetryCount = 3, Label = null };
+        var before = new AppSettings
+        {
+            Enabled = true,
+            RetryCount = 3,
+            Label = "old",
+        };
+        var after = new AppSettings
+        {
+            Enabled = false,
+            RetryCount = 3,
+            Label = null,
+        };
 
         var diff = AppSettings.Fragment.Diff(before, after);
-        var patched = AppSettings.Fragment.From(before).Apply(new AppSettings.Patch
-        {
-            Enabled = FragmentOperation<bool>.Set(false),
-            RetryCount = FragmentOperation<int>.Unset,
-        });
+        var patched = AppSettings
+            .Fragment.From(before)
+            .Apply(
+                new AppSettings.Patch
+                {
+                    Enabled = FragmentOperation<bool>.Set(false),
+                    RetryCount = FragmentOperation<int>.Unset,
+                }
+            );
 
         await Assert.That(diff.Enabled.Value).IsFalse();
         await Assert.That(diff.RetryCount.IsPresent).IsFalse();
@@ -112,7 +127,9 @@ public sealed class GeneratedFragmentTests
         await Assert.That(diff.Label.Value).IsNull();
         await Assert.That(patched.Enabled.Value).IsFalse();
         await Assert.That(patched.RetryCount.IsPresent).IsFalse();
-        await Assert.That(new AppSettings.Fragment { Enabled = Optional<bool>.Present(false) }.IsEmpty).IsFalse();
+        await Assert
+            .That(new AppSettings.Fragment { Enabled = Optional<bool>.Present(false) }.IsEmpty)
+            .IsFalse();
         await Assert.That(AppSettings.ConfiglueSchema.Version).IsEqualTo(2);
         await Assert.That(AppSettings.ConfiglueSchema.Id).IsEqualTo("app-settings");
     }
@@ -152,17 +169,26 @@ public sealed class GeneratedFragmentTests
     {
         var codec = new JsonStateCodec<AppSettings.Fragment>();
         var buffer = new ArrayBufferWriter<byte>();
-        codec.Serialize(new AppSettings.Fragment { Enabled = Optional<bool>.Present(false) }, buffer, default);
+        codec.Serialize(
+            new AppSettings.Fragment { Enabled = Optional<bool>.Present(false) },
+            buffer,
+            default
+        );
         var sequence = new ReadOnlySequence<byte>(buffer.WrittenMemory);
 
-        await Assert.That(codec.ReadSchemaMetadata(in sequence)).IsEqualTo(AppSettings.ConfiglueSchema.ToMetadata());
+        await Assert
+            .That(codec.ReadSchemaMetadata(in sequence))
+            .IsEqualTo(AppSettings.ConfiglueSchema.ToMetadata());
     }
 
     [Test]
     public async Task SerializedWriter_PersistsGeneratedSchemaBesideFragmentResources()
     {
         var resource = new InMemoryResource();
-        var writer = new SerializedStateWriter<AppSettings.Fragment>(resource, new JsonStateCodec<AppSettings.Fragment>());
+        var writer = new SerializedStateWriter<AppSettings.Fragment>(
+            resource,
+            new JsonStateCodec<AppSettings.Fragment>()
+        );
         var fragment = new AppSettings.Fragment { RetryCount = Optional<int>.Present(9) };
 
         await writer.WriteAsync(new StateWriteRequest<AppSettings.Fragment>(fragment));
@@ -179,10 +205,9 @@ public sealed class GeneratedFragmentTests
         {
             Enabled = Optional<bool>.Present(false),
             Label = Optional<string?>.Present(null),
-            Database = Optional<DatabaseSettings.Fragment?>.Present(new DatabaseSettings.Fragment
-            {
-                Host = Optional<string>.Present("db.local"),
-            }),
+            Database = Optional<DatabaseSettings.Fragment?>.Present(
+                new DatabaseSettings.Fragment { Host = Optional<string>.Present("db.local") }
+            ),
             Plugins = Optional<IReadOnlyList<string>>.Present(["admin"]),
         };
         var buffer = new ArrayBufferWriter<byte>();
@@ -201,7 +226,9 @@ public sealed class GeneratedFragmentTests
         await Assert.That(decoded.Database.Value!.Host.Value).IsEqualTo("db.local");
         await Assert.That(decoded.Database.Value!.Port.IsPresent).IsFalse();
         await Assert.That(decoded.Plugins.Value).IsEquivalentTo(["admin"]);
-        await Assert.That(codec.ReadSchemaMetadata(in sequence)).IsEqualTo(new StateSchemaMetadata("app-settings", 2));
+        await Assert
+            .That(codec.ReadSchemaMetadata(in sequence))
+            .IsEqualTo(new StateSchemaMetadata("app-settings", 2));
     }
 
     [Test]
@@ -212,10 +239,9 @@ public sealed class GeneratedFragmentTests
         {
             Enabled = Optional<bool>.Present(false),
             Label = Optional<string?>.Present(null),
-            Database = Optional<DatabaseSettings.Fragment?>.Present(new DatabaseSettings.Fragment
-            {
-                Host = Optional<string>.Present("db.local"),
-            }),
+            Database = Optional<DatabaseSettings.Fragment?>.Present(
+                new DatabaseSettings.Fragment { Host = Optional<string>.Present("db.local") }
+            ),
             Plugins = Optional<IReadOnlyList<string>>.Present(["admin"]),
         };
         var buffer = new ArrayBufferWriter<byte>();
@@ -234,7 +260,9 @@ public sealed class GeneratedFragmentTests
         await Assert.That(decoded.Database.Value!.Host.Value).IsEqualTo("db.local");
         await Assert.That(decoded.Database.Value!.Port.IsPresent).IsFalse();
         await Assert.That(decoded.Plugins.Value).IsEquivalentTo(["admin"]);
-        await Assert.That(codec.ReadSchemaMetadata(in sequence)).IsEqualTo(new StateSchemaMetadata("app-settings", 2));
+        await Assert
+            .That(codec.ReadSchemaMetadata(in sequence))
+            .IsEqualTo(new StateSchemaMetadata("app-settings", 2));
     }
 
     [Test]
@@ -271,7 +299,11 @@ public sealed class GeneratedFragmentTests
         await Assert.That(yamlModel.Label).IsNull();
         await Assert.That(yamlModel.Database!.Port).IsEqualTo(6432);
         await Assert.That(yamlModel.Plugins).IsEquivalentTo(["admin", "metrics"]);
-        await Assert.That(xml.ReadSchemaMetadata(in xmlSequence)).IsEqualTo(AppSettings.ConfiglueSchema.ToMetadata());
-        await Assert.That(yaml.ReadSchemaMetadata(in yamlSequence)).IsEqualTo(AppSettings.ConfiglueSchema.ToMetadata());
+        await Assert
+            .That(xml.ReadSchemaMetadata(in xmlSequence))
+            .IsEqualTo(AppSettings.ConfiglueSchema.ToMetadata());
+        await Assert
+            .That(yaml.ReadSchemaMetadata(in yamlSequence))
+            .IsEqualTo(AppSettings.ConfiglueSchema.ToMetadata());
     }
 }

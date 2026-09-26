@@ -10,13 +10,20 @@ public sealed class SerializedStateReader<T> : IStateReader<T>
     private readonly StateCodecContext _context;
 
     /// <summary>Creates a serialized state reader.</summary>
-    public SerializedStateReader(IResourceReader resource, object codec, StateCodecContext context = default)
+    public SerializedStateReader(
+        IResourceReader resource,
+        object codec,
+        StateCodecContext context = default
+    )
     {
         ArgumentNullException.ThrowIfNull(resource);
         ArgumentNullException.ThrowIfNull(codec);
         if (codec is not IStateCodec<T> && codec is not IStateCodec)
         {
-            throw new ArgumentException("The codec must implement IStateCodec or IStateCodec<T>.", nameof(codec));
+            throw new ArgumentException(
+                "The codec must implement IStateCodec or IStateCodec<T>.",
+                nameof(codec)
+            );
         }
 
         _resource = resource;
@@ -25,24 +32,39 @@ public sealed class SerializedStateReader<T> : IStateReader<T>
     }
 
     /// <inheritdoc />
-    public async ValueTask<StateReadResult<T>> ReadAsync(CancellationToken cancellationToken = default)
+    public async ValueTask<StateReadResult<T>> ReadAsync(
+        CancellationToken cancellationToken = default
+    )
     {
         var result = await _resource.ReadAsync(cancellationToken).ConfigureAwait(false);
         if (result.Status != StateReadStatus.Success)
         {
-            return new StateReadResult<T>(result.Status, default, result.Revision, Schema: result.Schema);
+            return new StateReadResult<T>(
+                result.Status,
+                default,
+                result.Revision,
+                Schema: result.Schema
+            );
         }
 
         var bytes = new ReadOnlySequence<byte>(result.Content);
-        var schema = result.Schema ?? (_codec is IStateSchemaMetadataReader metadataReader
-            ? metadataReader.ReadSchemaMetadata(in bytes)
-            : null);
-        var context = schema is { } metadata ? new StateCodecContext(metadata, _context.Services) : _context;
+        var schema =
+            result.Schema
+            ?? (
+                _codec is IStateSchemaMetadataReader metadataReader
+                    ? metadataReader.ReadSchemaMetadata(in bytes)
+                    : null
+            );
+        var context = schema is { } metadata
+            ? new StateCodecContext(metadata, _context.Services)
+            : _context;
         var value = _codec switch
         {
             IStateCodec<T> typed => typed.Deserialize(in bytes, in context),
             IStateCodec untyped => (T?)untyped.Deserialize(typeof(T), in bytes, in context),
-            _ => throw new InvalidOperationException("The codec does not implement a supported state codec interface."),
+            _ => throw new InvalidOperationException(
+                "The codec does not implement a supported state codec interface."
+            ),
         };
 
         return StateReadResult<T>.Success(value, result.Revision, schema);

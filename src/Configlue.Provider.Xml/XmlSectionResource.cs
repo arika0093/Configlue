@@ -5,7 +5,12 @@ using System.Xml.Linq;
 namespace Configlue.Provider.Xml;
 
 /// <summary>Exposes a nested XML element as a resource while preserving sibling elements.</summary>
-public sealed class XmlSectionResource : IResourceReader, IResourceWriter, IStateWatcher, IResourceIdentity, IResourceBatchParticipant
+public sealed class XmlSectionResource
+    : IResourceReader,
+        IResourceWriter,
+        IStateWatcher,
+        IResourceIdentity,
+        IResourceBatchParticipant
 {
     private readonly IResourceReader _reader;
     private readonly IResourceWriter? _writer;
@@ -15,9 +20,7 @@ public sealed class XmlSectionResource : IResourceReader, IResourceWriter, IStat
 
     /// <summary>Creates an XML section resource over a resource with inferred write and watch capabilities.</summary>
     public XmlSectionResource(IResourceReader resource, string sectionPath)
-        : this(resource, resource as IResourceWriter, sectionPath, resource as IStateWatcher)
-    {
-    }
+        : this(resource, resource as IResourceWriter, sectionPath, resource as IStateWatcher) { }
 
     /// <summary>Creates an XML section resource with separate read, write, and watch capabilities.</summary>
     public XmlSectionResource(
@@ -25,14 +28,17 @@ public sealed class XmlSectionResource : IResourceReader, IResourceWriter, IStat
         IResourceWriter? writer,
         string sectionPath,
         IStateWatcher? watcher = null,
-        ResourceId? resourceId = null)
+        ResourceId? resourceId = null
+    )
     {
         ArgumentNullException.ThrowIfNull(reader);
         ArgumentException.ThrowIfNullOrWhiteSpace(sectionPath);
         _reader = reader;
         _writer = writer;
         _watcher = watcher;
-        ResourceId = resourceId ?? (writer as IResourceIdentity ?? reader as IResourceIdentity)?.ResourceId
+        ResourceId =
+            resourceId
+            ?? (writer as IResourceIdentity ?? reader as IResourceIdentity)?.ResourceId
             ?? new ResourceId($"section:{Guid.NewGuid():N}");
         _path = ParsePath(sectionPath);
         _batchScope = "xml/" + string.Join("/", _path.Select(Uri.EscapeDataString));
@@ -48,7 +54,9 @@ public sealed class XmlSectionResource : IResourceReader, IResourceWriter, IStat
     public IResourceBatchWriter? BatchWriter => _writer as IResourceBatchWriter;
 
     /// <inheritdoc />
-    public async ValueTask<ResourceReadResult> ReadAsync(CancellationToken cancellationToken = default)
+    public async ValueTask<ResourceReadResult> ReadAsync(
+        CancellationToken cancellationToken = default
+    )
     {
         var resource = await _reader.ReadAsync(cancellationToken).ConfigureAwait(false);
         if (resource.Status != StateReadStatus.Success)
@@ -57,10 +65,15 @@ public sealed class XmlSectionResource : IResourceReader, IResourceWriter, IStat
         }
 
         var document = LoadDocument(resource.Content.Span);
-        var current = document.Root ?? throw new XmlException("The XML resource has no root element.");
+        var current =
+            document.Root ?? throw new XmlException("The XML resource has no root element.");
         foreach (var name in _path)
         {
-            var matches = current.Elements().Where(element => element.Name.LocalName == name).Take(2).ToArray();
+            var matches = current
+                .Elements()
+                .Where(element => element.Name.LocalName == name)
+                .Take(2)
+                .ToArray();
             if (matches.Length == 0)
             {
                 return ResourceReadResult.NotFound(resource.Revision);
@@ -68,33 +81,45 @@ public sealed class XmlSectionResource : IResourceReader, IResourceWriter, IStat
 
             if (matches.Length > 1)
             {
-                throw new XmlException($"Section path '{string.Join(':', _path)}' is ambiguous at '{name}'.");
+                throw new XmlException(
+                    $"Section path '{string.Join(':', _path)}' is ambiguous at '{name}'."
+                );
             }
 
             current = matches[0];
         }
 
         var payload = current.Elements().Take(2).ToArray();
-        var value = payload.Length == 1 && payload[0].Name.LocalName == "configlue"
-            ? payload[0]
-            : current;
-        return ResourceReadResult.Success(Encoding.UTF8.GetBytes(value.ToString(SaveOptions.DisableFormatting)), resource.Revision);
+        var value =
+            payload.Length == 1 && payload[0].Name.LocalName == "configlue" ? payload[0] : current;
+        return ResourceReadResult.Success(
+            Encoding.UTF8.GetBytes(value.ToString(SaveOptions.DisableFormatting)),
+            resource.Revision
+        );
     }
 
     /// <inheritdoc />
     public async ValueTask<StateWriteResult> WriteAsync(
         ResourceWriteRequest request,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default
+    )
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var writer = _writer ?? throw new NotSupportedException("This XML section resource is read-only.");
+        var writer =
+            _writer ?? throw new NotSupportedException("This XML section resource is read-only.");
         var current = await _reader.ReadAsync(cancellationToken).ConfigureAwait(false);
         var updated = CreateMutation(request).Apply(current);
         var expectedRevision = request.ExpectedRevision ?? current.Revision;
-        var checkRevision = request.CheckRevision || request.ExpectedRevision is not null || current.Revision is not null;
-        return await writer.WriteAsync(
-            new ResourceWriteRequest(updated, expectedRevision, request.Schema, checkRevision),
-            cancellationToken).ConfigureAwait(false);
+        var checkRevision =
+            request.CheckRevision
+            || request.ExpectedRevision is not null
+            || current.Revision is not null;
+        return await writer
+            .WriteAsync(
+                new ResourceWriteRequest(updated, expectedRevision, request.Schema, checkRevision),
+                cancellationToken
+            )
+            .ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -107,10 +132,14 @@ public sealed class XmlSectionResource : IResourceReader, IResourceWriter, IStat
             request.Schema,
             current => ApplyToResource(current, content),
             _batchScope,
-            canCompose: true);
+            canCompose: true
+        );
     }
 
-    private ReadOnlyMemory<byte> ApplyToResource(ResourceReadResult current, ReadOnlyMemory<byte> sectionContent)
+    private ReadOnlyMemory<byte> ApplyToResource(
+        ResourceReadResult current,
+        ReadOnlyMemory<byte> sectionContent
+    )
     {
         XDocument document;
         if (current.Status == StateReadStatus.Success)
@@ -131,10 +160,16 @@ public sealed class XmlSectionResource : IResourceReader, IResourceWriter, IStat
         for (var index = 0; index < _path.Length - 1; index++)
         {
             var name = _path[index];
-            var matches = container.Elements().Where(element => element.Name.LocalName == name).Take(2).ToArray();
+            var matches = container
+                .Elements()
+                .Where(element => element.Name.LocalName == name)
+                .Take(2)
+                .ToArray();
             if (matches.Length > 1)
             {
-                throw new XmlException($"Section path '{string.Join(':', _path)}' is ambiguous at '{name}'.");
+                throw new XmlException(
+                    $"Section path '{string.Join(':', _path)}' is ambiguous at '{name}'."
+                );
             }
 
             if (matches.Length == 0)
@@ -149,11 +184,20 @@ public sealed class XmlSectionResource : IResourceReader, IResourceWriter, IStat
             }
         }
 
-        var updatedSection = XElement.Parse(Encoding.UTF8.GetString(sectionContent.Span), LoadOptions.PreserveWhitespace);
-        var existing = container.Elements().Where(element => element.Name.LocalName == _path[^1]).Take(2).ToArray();
+        var updatedSection = XElement.Parse(
+            Encoding.UTF8.GetString(sectionContent.Span),
+            LoadOptions.PreserveWhitespace
+        );
+        var existing = container
+            .Elements()
+            .Where(element => element.Name.LocalName == _path[^1])
+            .Take(2)
+            .ToArray();
         if (existing.Length > 1)
         {
-            throw new XmlException($"Section path '{string.Join(':', _path)}' is ambiguous at '{_path[^1]}'.");
+            throw new XmlException(
+                $"Section path '{string.Join(':', _path)}' is ambiguous at '{_path[^1]}'."
+            );
         }
 
         if (existing.Length == 0)
@@ -170,11 +214,16 @@ public sealed class XmlSectionResource : IResourceReader, IResourceWriter, IStat
     }
 
     /// <inheritdoc />
-    public async ValueTask WaitForChangeAsync(string? observedRevision, CancellationToken cancellationToken = default)
+    public async ValueTask WaitForChangeAsync(
+        string? observedRevision,
+        CancellationToken cancellationToken = default
+    )
     {
         if (_watcher is not null)
         {
-            await _watcher.WaitForChangeAsync(observedRevision, cancellationToken).ConfigureAwait(false);
+            await _watcher
+                .WaitForChangeAsync(observedRevision, cancellationToken)
+                .ConfigureAwait(false);
             return;
         }
 
@@ -187,23 +236,31 @@ public sealed class XmlSectionResource : IResourceReader, IResourceWriter, IStat
                 return;
             }
 
-            await Task.Delay(TimeSpan.FromMilliseconds(250), cancellationToken).ConfigureAwait(false);
+            await Task.Delay(TimeSpan.FromMilliseconds(250), cancellationToken)
+                .ConfigureAwait(false);
         }
     }
 
     private static string[] ParsePath(string sectionPath)
     {
-        var path = sectionPath.Replace("__", ":", StringComparison.Ordinal)
+        var path = sectionPath
+            .Replace("__", ":", StringComparison.Ordinal)
             .Split(':', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         return path.Length == 0
-            ? throw new ArgumentException("The section path must contain at least one element name.", nameof(sectionPath))
+            ? throw new ArgumentException(
+                "The section path must contain at least one element name.",
+                nameof(sectionPath)
+            )
             : path;
     }
 
     private static XDocument LoadDocument(ReadOnlySpan<byte> content)
     {
         using var memory = new MemoryStream(content.ToArray(), writable: false);
-        using var reader = XmlReader.Create(memory, new XmlReaderSettings { DtdProcessing = DtdProcessing.Prohibit, XmlResolver = null });
+        using var reader = XmlReader.Create(
+            memory,
+            new XmlReaderSettings { DtdProcessing = DtdProcessing.Prohibit, XmlResolver = null }
+        );
         return XDocument.Load(reader, LoadOptions.PreserveWhitespace);
     }
 }

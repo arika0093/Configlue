@@ -3,7 +3,12 @@ using System.IO.Compression;
 namespace Configlue.Resource.Zip;
 
 /// <summary>A logical resource view over one entry in a shared ZIP archive resource.</summary>
-public sealed class ZipEntryResource : IResourceReader, IResourceWriter, IStateWatcher, IResourceIdentity, IResourceBatchParticipant
+public sealed class ZipEntryResource
+    : IResourceReader,
+        IResourceWriter,
+        IStateWatcher,
+        IResourceIdentity,
+        IResourceBatchParticipant
 {
     private readonly IResourceReader _archiveReader;
     private readonly IResourceBatchWriter? _archiveWriter;
@@ -16,10 +21,15 @@ public sealed class ZipEntryResource : IResourceReader, IResourceWriter, IStateW
         IResourceReader archiveReader,
         string entryName,
         IStateWatcher? archiveWatcher = null,
-        ResourceId? resourceId = null)
-        : this(archiveReader, archiveReader as IResourceBatchWriter, entryName, archiveWatcher, resourceId)
-    {
-    }
+        ResourceId? resourceId = null
+    )
+        : this(
+            archiveReader,
+            archiveReader as IResourceBatchWriter,
+            entryName,
+            archiveWatcher,
+            resourceId
+        ) { }
 
     /// <summary>Creates an entry view with separate reader and optional batch writer capabilities.</summary>
     public ZipEntryResource(
@@ -27,14 +37,19 @@ public sealed class ZipEntryResource : IResourceReader, IResourceWriter, IStateW
         IResourceBatchWriter? archiveWriter,
         string entryName,
         IStateWatcher? archiveWatcher = null,
-        ResourceId? resourceId = null)
+        ResourceId? resourceId = null
+    )
     {
         ArgumentNullException.ThrowIfNull(archiveReader);
         _archiveReader = archiveReader;
         _archiveWriter = archiveWriter;
-        _archiveWatcher = archiveWatcher ?? archiveReader as IStateWatcher ?? archiveWriter as IStateWatcher;
+        _archiveWatcher =
+            archiveWatcher ?? archiveReader as IStateWatcher ?? archiveWriter as IStateWatcher;
         _entryName = NormalizeEntryName(entryName);
-        _resourceId = resourceId ?? archiveWriter?.ResourceId ?? (archiveReader as IResourceIdentity)?.ResourceId
+        _resourceId =
+            resourceId
+            ?? archiveWriter?.ResourceId
+            ?? (archiveReader as IResourceIdentity)?.ResourceId
             ?? new ResourceId($"zip:{Guid.NewGuid():N}");
     }
 
@@ -48,7 +63,9 @@ public sealed class ZipEntryResource : IResourceReader, IResourceWriter, IStateW
     public string EntryName => _entryName;
 
     /// <inheritdoc />
-    public async ValueTask<ResourceReadResult> ReadAsync(CancellationToken cancellationToken = default)
+    public async ValueTask<ResourceReadResult> ReadAsync(
+        CancellationToken cancellationToken = default
+    )
     {
         var archiveResult = await _archiveReader.ReadAsync(cancellationToken).ConfigureAwait(false);
         if (archiveResult.Status != StateReadStatus.Success)
@@ -66,7 +83,9 @@ public sealed class ZipEntryResource : IResourceReader, IResourceWriter, IStateW
             return ResourceReadResult.NotFound(archiveResult.Revision);
         }
 
-        await using var entryStream = entry.Open();
+        await using var entryStream = await entry
+            .OpenAsync(cancellationToken)
+            .ConfigureAwait(false);
         using var destination = new MemoryStream();
         await entryStream.CopyToAsync(destination, cancellationToken).ConfigureAwait(false);
         return ResourceReadResult.Success(destination.ToArray(), archiveResult.Revision);
@@ -75,9 +94,12 @@ public sealed class ZipEntryResource : IResourceReader, IResourceWriter, IStateW
     /// <inheritdoc />
     public ValueTask<StateWriteResult> WriteAsync(
         ResourceWriteRequest request,
-        CancellationToken cancellationToken = default) =>
-        (_archiveWriter ?? throw new NotSupportedException("The ZIP archive resource is read-only."))
-            .WriteBatchAsync([CreateMutation(request)], cancellationToken);
+        CancellationToken cancellationToken = default
+    ) =>
+        (
+            _archiveWriter
+            ?? throw new NotSupportedException("The ZIP archive resource is read-only.")
+        ).WriteBatchAsync([CreateMutation(request)], cancellationToken);
 
     /// <inheritdoc />
     public ResourceWriteMutation CreateMutation(ResourceWriteRequest request)
@@ -89,17 +111,21 @@ public sealed class ZipEntryResource : IResourceReader, IResourceWriter, IStateW
             request.Schema,
             current => ReplaceEntry(current, _entryName, content),
             scope: "zip/" + _entryName,
-            canCompose: true);
+            canCompose: true
+        );
     }
 
     /// <inheritdoc />
     public async ValueTask WaitForChangeAsync(
         string? observedRevision,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default
+    )
     {
         if (_archiveWatcher is not null)
         {
-            await _archiveWatcher.WaitForChangeAsync(observedRevision, cancellationToken).ConfigureAwait(false);
+            await _archiveWatcher
+                .WaitForChangeAsync(observedRevision, cancellationToken)
+                .ConfigureAwait(false);
             return;
         }
 
@@ -112,11 +138,16 @@ public sealed class ZipEntryResource : IResourceReader, IResourceWriter, IStateW
                 return;
             }
 
-            await Task.Delay(TimeSpan.FromMilliseconds(250), cancellationToken).ConfigureAwait(false);
+            await Task.Delay(TimeSpan.FromMilliseconds(250), cancellationToken)
+                .ConfigureAwait(false);
         }
     }
 
-    private static ReadOnlyMemory<byte> ReplaceEntry(ResourceReadResult current, string entryName, byte[] content)
+    private static ReadOnlyMemory<byte> ReplaceEntry(
+        ResourceReadResult current,
+        string entryName,
+        byte[] content
+    )
     {
         if (current.Status == StateReadStatus.Unavailable)
         {
@@ -130,14 +161,21 @@ public sealed class ZipEntryResource : IResourceReader, IResourceWriter, IStateW
             archiveContent.Position = 0;
         }
 
-        var mode = current.Status == StateReadStatus.Success ? ZipArchiveMode.Update : ZipArchiveMode.Create;
+        var mode =
+            current.Status == StateReadStatus.Success
+                ? ZipArchiveMode.Update
+                : ZipArchiveMode.Create;
         using (var archive = new ZipArchive(archiveContent, mode, leaveOpen: true))
         {
             if (mode == ZipArchiveMode.Update)
             {
-                foreach (var existingEntry in archive.Entries
-                    .Where(entry => string.Equals(entry.FullName, entryName, StringComparison.Ordinal))
-                    .ToArray())
+                foreach (
+                    var existingEntry in archive
+                        .Entries.Where(entry =>
+                            string.Equals(entry.FullName, entryName, StringComparison.Ordinal)
+                        )
+                        .ToArray()
+                )
                 {
                     existingEntry.Delete();
                 }
@@ -156,12 +194,17 @@ public sealed class ZipEntryResource : IResourceReader, IResourceWriter, IStateW
         ArgumentException.ThrowIfNullOrWhiteSpace(entryName);
         var normalized = entryName.Replace('\\', '/');
         var segments = normalized.Split('/', StringSplitOptions.None);
-        if (normalized.StartsWith("/", StringComparison.Ordinal) ||
-            normalized.Contains('\0') ||
-            (normalized.Length > 1 && normalized[1] == ':') ||
-            segments.Any(static segment => segment.Length == 0 || segment is "." or ".."))
+        if (
+            normalized.StartsWith("/", StringComparison.Ordinal)
+            || normalized.Contains('\0')
+            || (normalized.Length > 1 && normalized[1] == ':')
+            || segments.Any(static segment => segment.Length == 0 || segment is "." or "..")
+        )
         {
-            throw new ArgumentException("ZIP entry names must be relative paths without empty, '.' or '..' segments.", nameof(entryName));
+            throw new ArgumentException(
+                "ZIP entry names must be relative paths without empty, '.' or '..' segments.",
+                nameof(entryName)
+            );
         }
 
         return normalized;

@@ -20,7 +20,8 @@ public sealed class EnvironmentStateSourceTests
             "environment",
             "APP",
             priority: 100,
-            environmentVariables: () => variables);
+            environmentVariables: () => variables
+        );
 
         var read = await source.Reader.ReadAsync();
         var fragment = read.Value!;
@@ -40,22 +41,27 @@ public sealed class EnvironmentStateSourceTests
         await Assert.That(source.Watcher).IsNull();
         await Assert.That(source.PhysicalOrigin).IsEqualTo("environment:APP");
 
-        var defaults = new InMemoryStateStore<AppSettings.Fragment>(new AppSettings.Fragment
-        {
-            Enabled = Optional<bool>.Present(true),
-            RetryCount = Optional<int>.Present(5),
-            Label = Optional<string?>.Present("default-label"),
-            Database = Optional<DatabaseSettings.Fragment?>.Present(new DatabaseSettings.Fragment
+        var defaults = new InMemoryStateStore<AppSettings.Fragment>(
+            new AppSettings.Fragment
             {
-                Host = Optional<string>.Present("default-db"),
-                Port = Optional<int>.Present(5432),
-            }),
-        });
-        var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(new StateSourceSet<AppSettings.Fragment>(
-        [
-            source,
-            new StateSource<AppSettings.Fragment>("defaults", defaults, priority: 0),
-        ]));
+                Enabled = Optional<bool>.Present(true),
+                RetryCount = Optional<int>.Present(5),
+                Label = Optional<string?>.Present("default-label"),
+                Database = Optional<DatabaseSettings.Fragment?>.Present(
+                    new DatabaseSettings.Fragment
+                    {
+                        Host = Optional<string>.Present("default-db"),
+                        Port = Optional<int>.Present(5432),
+                    }
+                ),
+            }
+        );
+        var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(
+            new StateSourceSet<AppSettings.Fragment>([
+                source,
+                new StateSource<AppSettings.Fragment>("defaults", defaults, priority: 0),
+            ])
+        );
 
         var resolved = await options.ReadAsync();
 
@@ -77,7 +83,8 @@ public sealed class EnvironmentStateSourceTests
         var source = EnvironmentStateSource.FromEnvironment<AppSettings, AppSettings.Fragment>(
             "environment",
             "APP",
-            environmentVariables: () => variables);
+            environmentVariables: () => variables
+        );
 
         var first = await source.Reader.ReadAsync();
         var second = await source.Reader.ReadAsync();
@@ -102,7 +109,10 @@ public sealed class EnvironmentStateSourceTests
             "APP",
             environmentVariables: () => variables,
             valueParser: (value, targetType) =>
-                targetType == typeof(int) && value == "unlimited" ? int.MaxValue : throw new FormatException());
+                targetType == typeof(int) && value == "unlimited"
+                    ? int.MaxValue
+                    : throw new FormatException()
+        );
 
         var read = await source.Reader.ReadAsync();
 

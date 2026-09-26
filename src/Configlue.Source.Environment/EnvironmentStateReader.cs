@@ -21,7 +21,8 @@ public sealed class EnvironmentStateReader<TFragment> : IStateReader<TFragment>
         ConfiglueModelSchema schema,
         string prefix,
         Func<IEnumerable<KeyValuePair<string, string?>>>? environmentVariables = null,
-        Func<string, Type, object?>? valueParser = null)
+        Func<string, Type, object?>? valueParser = null
+    )
     {
         ArgumentNullException.ThrowIfNull(schema);
         _schema = schema;
@@ -31,7 +32,9 @@ public sealed class EnvironmentStateReader<TFragment> : IStateReader<TFragment>
     }
 
     /// <inheritdoc />
-    public ValueTask<StateReadResult<TFragment>> ReadAsync(CancellationToken cancellationToken = default)
+    public ValueTask<StateReadResult<TFragment>> ReadAsync(
+        CancellationToken cancellationToken = default
+    )
     {
         cancellationToken.ThrowIfCancellationRequested();
         var values = new SortedDictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -51,7 +54,9 @@ public sealed class EnvironmentStateReader<TFragment> : IStateReader<TFragment>
 
             if (!values.TryAdd(path, pair.Value ?? string.Empty))
             {
-                throw new InvalidOperationException($"More than one environment variable maps to '{_prefix}{path}'.");
+                throw new InvalidOperationException(
+                    $"More than one environment variable maps to '{_prefix}{path}'."
+                );
             }
         }
 
@@ -69,17 +74,33 @@ public sealed class EnvironmentStateReader<TFragment> : IStateReader<TFragment>
             var path = pair.Key.Split(["__"], StringSplitOptions.None);
             if (path.Any(string.IsNullOrWhiteSpace))
             {
-                throw new FormatException($"Environment variable '{_prefix}{pair.Key}' contains an empty path segment.");
+                throw new FormatException(
+                    $"Environment variable '{_prefix}{pair.Key}' contains an empty path segment."
+                );
             }
 
-            var applied = SetValue(fragment, _schema, path, 0, pair.Value, _prefix + pair.Key, cancellationToken);
+            var applied = SetValue(
+                fragment,
+                _schema,
+                path,
+                0,
+                pair.Value,
+                _prefix + pair.Key,
+                cancellationToken
+            );
             fragment = applied.Fragment;
             matchedAny |= applied.Matched;
         }
 
-        return ValueTask.FromResult(matchedAny
-            ? StateReadResult<TFragment>.Success((TFragment)fragment, revision, _schema.ToMetadata())
-            : StateReadResult<TFragment>.NotFound(revision));
+        return ValueTask.FromResult(
+            matchedAny
+                ? StateReadResult<TFragment>.Success(
+                    (TFragment)fragment,
+                    revision,
+                    _schema.ToMetadata()
+                )
+                : StateReadResult<TFragment>.NotFound(revision)
+        );
     }
 
     internal static string NormalizePrefix(string prefix)
@@ -88,7 +109,10 @@ public sealed class EnvironmentStateReader<TFragment> : IStateReader<TFragment>
         var normalized = prefix.TrimEnd('_');
         if (normalized.Length == 0 || normalized.Contains(':', StringComparison.Ordinal))
         {
-            throw new ArgumentException("The environment prefix must contain a name and cannot contain ':'.", nameof(prefix));
+            throw new ArgumentException(
+                "The environment prefix must contain a name and cannot contain ':'.",
+                nameof(prefix)
+            );
         }
 
         return normalized;
@@ -101,7 +125,8 @@ public sealed class EnvironmentStateReader<TFragment> : IStateReader<TFragment>
         int pathIndex,
         string value,
         string environmentKey,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken
+    )
     {
         cancellationToken.ThrowIfCancellationRequested();
         ConfiglueMemberSchema member = default;
@@ -114,7 +139,8 @@ public sealed class EnvironmentStateReader<TFragment> : IStateReader<TFragment>
                 if (found)
                 {
                     throw new FormatException(
-                        $"Environment path segment '{path[pathIndex]}' is ambiguous in schema '{schema.Id}'.");
+                        $"Environment path segment '{path[pathIndex]}' is ambiguous in schema '{schema.Id}'."
+                    );
                 }
 
                 member = candidate;
@@ -132,7 +158,8 @@ public sealed class EnvironmentStateReader<TFragment> : IStateReader<TFragment>
             if (member.NestedSchemaFactory is not null)
             {
                 throw new FormatException(
-                    $"Environment variable '{environmentKey}' names a nested model. Use additional '__' segments to set its members.");
+                    $"Environment variable '{environmentKey}' names a nested model. Use additional '__' segments to set its members."
+                );
             }
 
             var parsed = ParseValue(value, member.ValueType, member.Name, environmentKey);
@@ -142,11 +169,13 @@ public sealed class EnvironmentStateReader<TFragment> : IStateReader<TFragment>
         if (member.NestedSchemaFactory is null)
         {
             throw new FormatException(
-                $"Environment variable '{environmentKey}' continues past non-nested member '{member.Name}'.");
+                $"Environment variable '{environmentKey}' continues past non-nested member '{member.Name}'."
+            );
         }
 
         var nestedSchema = member.NestedSchemaFactory();
-        var nestedFragment = FindPresentMember(fragment, member.Id) as IConfiglueFragment
+        var nestedFragment =
+            FindPresentMember(fragment, member.Id) as IConfiglueFragment
             ?? nestedSchema.CreateEmptyFragment();
         var nestedResult = SetValue(
             nestedFragment,
@@ -155,13 +184,19 @@ public sealed class EnvironmentStateReader<TFragment> : IStateReader<TFragment>
             pathIndex + 1,
             value,
             environmentKey,
-            cancellationToken);
+            cancellationToken
+        );
         return nestedResult.Matched
             ? new AppliedFragment(fragment.WithMember(member.Id, nestedResult.Fragment), true)
             : new AppliedFragment(fragment, false);
     }
 
-    private object? ParseValue(string value, Type targetType, string memberName, string environmentKey)
+    private object? ParseValue(
+        string value,
+        Type targetType,
+        string memberName,
+        string environmentKey
+    )
     {
         object? parsed;
         try
@@ -172,7 +207,8 @@ public sealed class EnvironmentStateReader<TFragment> : IStateReader<TFragment>
         {
             throw new FormatException(
                 $"Environment variable '{environmentKey}' is not a valid value for member '{memberName}' of type '{targetType}'.",
-                exception);
+                exception
+            );
         }
 
         var valueType = Nullable.GetUnderlyingType(targetType) ?? targetType;
@@ -180,7 +216,9 @@ public sealed class EnvironmentStateReader<TFragment> : IStateReader<TFragment>
         {
             if (targetType.IsValueType && Nullable.GetUnderlyingType(targetType) is null)
             {
-                throw new FormatException($"The parser returned null for non-nullable member '{memberName}'.");
+                throw new FormatException(
+                    $"The parser returned null for non-nullable member '{memberName}'."
+                );
             }
 
             return null;
@@ -189,7 +227,8 @@ public sealed class EnvironmentStateReader<TFragment> : IStateReader<TFragment>
         if (!valueType.IsInstanceOfType(parsed))
         {
             throw new FormatException(
-                $"The parser returned '{parsed.GetType()}' for member '{memberName}', which requires '{targetType}'.");
+                $"The parser returned '{parsed.GetType()}' for member '{memberName}', which requires '{targetType}'."
+            );
         }
 
         return parsed;
@@ -208,15 +247,23 @@ public sealed class EnvironmentStateReader<TFragment> : IStateReader<TFragment>
         return null;
     }
 
-    private static string CreateRevision(SortedDictionary<string, string> values, CancellationToken cancellationToken)
+    private static string CreateRevision(
+        SortedDictionary<string, string> values,
+        CancellationToken cancellationToken
+    )
     {
         var builder = new StringBuilder();
         foreach (var pair in values)
         {
             cancellationToken.ThrowIfCancellationRequested();
             var key = pair.Key.ToUpperInvariant();
-            builder.Append(key.Length.ToString(CultureInfo.InvariantCulture)).Append(':').Append(key)
-                .Append(pair.Value.Length.ToString(CultureInfo.InvariantCulture)).Append(':').Append(pair.Value);
+            builder
+                .Append(key.Length.ToString(CultureInfo.InvariantCulture))
+                .Append(':')
+                .Append(key)
+                .Append(pair.Value.Length.ToString(CultureInfo.InvariantCulture))
+                .Append(':')
+                .Append(pair.Value);
         }
 
         cancellationToken.ThrowIfCancellationRequested();
@@ -232,32 +279,55 @@ public sealed class EnvironmentStateReader<TFragment> : IStateReader<TFragment>
             return null;
         }
 
-        if (valueType == typeof(string)) return value;
-        if (valueType == typeof(bool)) return bool.Parse(value);
+        if (valueType == typeof(string))
+            return value;
+        if (valueType == typeof(bool))
+            return bool.Parse(value);
         if (valueType == typeof(char))
         {
             return value.Length == 1
                 ? value[0]
-                : throw new FormatException("A character environment value must contain exactly one character.");
+                : throw new FormatException(
+                    "A character environment value must contain exactly one character."
+                );
         }
 
-        if (valueType.IsEnum) return Enum.Parse(valueType, value, ignoreCase: true);
-        if (valueType == typeof(Guid)) return Guid.Parse(value);
-        if (valueType == typeof(DateTime)) return DateTime.Parse(value, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind);
-        if (valueType == typeof(DateTimeOffset)) return DateTimeOffset.Parse(value, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind);
-        if (valueType == typeof(DateOnly)) return DateOnly.Parse(value, CultureInfo.InvariantCulture);
-        if (valueType == typeof(TimeOnly)) return TimeOnly.Parse(value, CultureInfo.InvariantCulture);
-        if (valueType == typeof(TimeSpan)) return TimeSpan.Parse(value, CultureInfo.InvariantCulture);
-        if (valueType == typeof(Uri)) return new Uri(value, UriKind.RelativeOrAbsolute);
-        if (valueType == typeof(Version)) return Version.Parse(value);
-        if (valueType == typeof(byte[])) return Convert.FromBase64String(value);
+        if (valueType.IsEnum)
+            return Enum.Parse(valueType, value, ignoreCase: true);
+        if (valueType == typeof(Guid))
+            return Guid.Parse(value);
+        if (valueType == typeof(DateTime))
+            return DateTime.Parse(
+                value,
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.RoundtripKind
+            );
+        if (valueType == typeof(DateTimeOffset))
+            return DateTimeOffset.Parse(
+                value,
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.RoundtripKind
+            );
+        if (valueType == typeof(DateOnly))
+            return DateOnly.Parse(value, CultureInfo.InvariantCulture);
+        if (valueType == typeof(TimeOnly))
+            return TimeOnly.Parse(value, CultureInfo.InvariantCulture);
+        if (valueType == typeof(TimeSpan))
+            return TimeSpan.Parse(value, CultureInfo.InvariantCulture);
+        if (valueType == typeof(Uri))
+            return new Uri(value, UriKind.RelativeOrAbsolute);
+        if (valueType == typeof(Version))
+            return Version.Parse(value);
+        if (valueType == typeof(byte[]))
+            return Convert.FromBase64String(value);
         if (typeof(IConvertible).IsAssignableFrom(valueType))
         {
             return Convert.ChangeType(value, valueType, CultureInfo.InvariantCulture);
         }
 
         throw new NotSupportedException(
-            $"Type '{targetType}' has no built-in environment conversion. Supply a value parser for this type.");
+            $"Type '{targetType}' has no built-in environment conversion. Supply a value parser for this type."
+        );
     }
 
     private static IEnumerable<KeyValuePair<string, string?>> ReadProcessEnvironmentVariables()

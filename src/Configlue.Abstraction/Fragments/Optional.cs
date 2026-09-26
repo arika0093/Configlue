@@ -15,9 +15,10 @@ public readonly struct Optional<T> : IEquatable<Optional<T>>
     public bool IsPresent { get; }
 
     /// <summary>The member value. Throws when the member is missing.</summary>
-    public T? Value => IsPresent
-        ? _value
-        : throw new InvalidOperationException("A missing optional value has no value.");
+    public T? Value =>
+        IsPresent
+            ? _value
+            : throw new InvalidOperationException("A missing optional value has no value.");
 
     /// <summary>A missing member.</summary>
     public static Optional<T> Missing => default;
@@ -36,7 +37,8 @@ public readonly struct Optional<T> : IEquatable<Optional<T>>
 
     /// <inheritdoc />
     public bool Equals(Optional<T> other) =>
-        IsPresent == other.IsPresent && (!IsPresent || EqualityComparer<T?>.Default.Equals(_value, other._value));
+        IsPresent == other.IsPresent
+        && (!IsPresent || EqualityComparer<T?>.Default.Equals(_value, other._value));
 
     /// <inheritdoc />
     public override bool Equals(object? obj) => obj is Optional<T> other && Equals(other);

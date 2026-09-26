@@ -16,7 +16,9 @@ public interface IReadOnlyOptions<T>
         var result = await ReadAsync(cancellationToken).ConfigureAwait(false);
         if (result.Status != StateReadStatus.Success)
         {
-            throw new InvalidOperationException($"Configuration state could not be read: {result.Status}.");
+            throw new InvalidOperationException(
+                $"Configuration state could not be read: {result.Status}."
+            );
         }
 
         return result.Value!;
@@ -25,5 +27,6 @@ public interface IReadOnlyOptions<T>
     /// <summary>Explains a model property using its resolved value and present source contributions.</summary>
     ValueTask<ConfiglueValueExplanation> ExplainAsync(
         string propertyPath,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default
+    );
 }
