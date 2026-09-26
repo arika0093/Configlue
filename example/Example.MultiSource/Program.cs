@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Configlue;
 using Configlue.Provider.Json;
+using Configlue.Resource.Http;
 using Example.MultiSource;
 
 string? requestedName = null;
@@ -64,14 +65,15 @@ var sources = new List<StateSource<SampleSetting.Fragment>>
 if (policyUri is not null)
 {
     // The remote fragment can contain only Policy; the file sources provide other members.
-    var remotePolicy = new HttpJsonResource(httpClient, policyUri);
-    var reader = new SerializedStateReader<SampleSetting.Fragment>(remotePolicy, codec);
+    var remotePolicy = new HttpResourceReader(httpClient, policyUri);
     sources.Add(
-        new StateSource<SampleSetting.Fragment>(
+        SerializedStateSource.FromResource<SampleSetting.Fragment>(
             "http-policy",
-            reader,
+            remotePolicy,
+            codec,
             priority: 400,
             fallbackCondition: StateFallbackCondition.NotFoundOrUnavailable,
+            watcher: remotePolicy,
             physicalOrigin: policyUri.ToString()
         )
     );

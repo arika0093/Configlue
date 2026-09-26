@@ -29,4 +29,10 @@ Install `Configlue.Source.Environment` and create a read-only source with `Envir
 
 Install `Configlue.Resource.Zip` to use `ZipEntryResource` as a resource view over one archive entry. The archive's identity and revision are retained, untouched entries remain intact, and disjoint entry updates can share one batched archive write.
 
+## HTTP resources
+
+Install `Configlue.Resource.Http` to read bytes from `{root}/get`, write bytes to `{root}/update`, and poll for changes. Compose `HttpResourceReader` with a codec using `SerializedStateSource.FromResource<TFragment>`; call `CreateWriter()` and pass it as `writer:` only when the endpoint accepts updates. Configure authentication on the caller-owned `HttpClient`.
+
+The resource uses ETags for revisions and conditional writes. A 404 becomes `NotFound`; timeouts, transport failures, 408, 429, and server errors become `Unavailable`; authorization and other client errors are surfaced. See the [HTTP resource protocol](https://github.com/arika0093/Configlue/blob/main/docs/http-resource-protocol.md) for the wire contract and schema headers.
+
 For custom storage, implement `IResourceReader` and optionally `IResourceWriter`, `IResourceBatchWriter`, and `IStateWatcher`; then compose it with a codec or create a `StateSource<TFragment>` directly.

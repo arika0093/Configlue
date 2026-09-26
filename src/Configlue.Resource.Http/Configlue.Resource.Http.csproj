@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>Configlue.Resource.Http</AssemblyName>
+    <RootNamespace>Configlue.Resource.Http</RootNamespace>
+    <IsPackable>true</IsPackable>
+    <PackageDescription>HTTP resources for Configlue state sources.</PackageDescription>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Configlue.Abstraction/Configlue.Abstraction.csproj" />
+  </ItemGroup>
+</Project>

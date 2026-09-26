@@ -7,6 +7,7 @@ using Configlue.Generator;
 using Configlue.Provider.Json;
 using Configlue.Provider.Xml;
 using Configlue.Provider.Yaml;
+using Configlue.Resource.Http;
 using Configlue.Resource.Zip;
 using Configlue.Source.Environment;
 using Configlue.Testing;
@@ -91,6 +92,9 @@ public sealed class PublicApiCheckTest
 
     [Test]
     public void Zip() => PublicApiCheck.Check<ZipEntryResource>();
+
+    [Test]
+    public void Http() => PublicApiCheck.Check<HttpResourceReader>();
 
     [Test]
     public void Testing() => PublicApiCheck.Check<InMemoryResource>();

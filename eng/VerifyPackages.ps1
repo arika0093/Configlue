@@ -14,7 +14,8 @@ $expectedPackageIds = @(
     'Configlue.Provider.Xml',
     'Configlue.Provider.Yaml',
     'Configlue.Source.Environment',
-    'Configlue.Resource.Zip'
+    'Configlue.Resource.Zip',
+    'Configlue.Resource.Http'
 )
 
 $resolvedDirectory = Resolve-Path -LiteralPath $PackageDirectory

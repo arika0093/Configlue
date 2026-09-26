@@ -4,6 +4,7 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../../src/Configlue.Provider.Json/Configlue.Provider.Json.csproj" />
+    <ProjectReference Include="../../src/Configlue.Resource.Http/Configlue.Resource.Http.csproj" />
   </ItemGroup>
   <ItemGroup>
     <None Update="globalsettings.json" CopyToOutputDirectory="PreserveNewest" />

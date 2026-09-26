@@ -16,6 +16,7 @@ Browse the [Configlue documentation site](https://arika0093.github.io/Configlue/
 - `Configlue.Provider.*`: JSON, XML, and YAML codecs with their section resources.
 - `Configlue.Source.Environment`: a read-only source backed by process environment variables.
 - `Configlue.Resource.Zip`: a resource view over one entry in a ZIP archive.
+- `Configlue.Resource.Http`: HTTP read/write resources with ETag revisions and polling change detection.
 
 ## Build
 
@@ -54,6 +55,7 @@ Unchanged fields retain their existing sparse state. `Append` and `SetUnion` edi
 `JsonSectionResource` exposes a nested JSON path such as `App:Settings` as a separate resource and preserves its sibling values on writes.
 `XmlSectionResource` and `YamlSectionResource` provide the same nested-section view for XML elements and YAML mappings, including sibling preservation and whole-resource revision checks.
 `ZipEntryResource` exposes one archive entry as a logical resource while retaining the archive's physical identity and revision. Disjoint entry updates can share one batched archive write, and untouched entries remain intact.
+`HttpResourceReader` reads from `{root}/get` and can be composed with any state codec. Call `CreateWriter()` and pass the result as `writer:` to `SerializedStateSource.FromResource` only when the endpoint supports updates; HTTP requests use ETags for conditional writes and polling. See the [HTTP resource protocol](https://github.com/arika0093/Configlue/blob/main/docs/http-resource-protocol.md).
 `JsonSchemaGenerator.Generate` and `Write` export versioned schemas from a model's generated `ConfiglueModelSchema`; pass a source-generated `IJsonTypeInfoResolver` for trimming and NativeAOT-friendly metadata. Supported DataAnnotations are mapped to schema constraints.
 
 `Configlue.Source.Environment.EnvironmentStateSource.FromEnvironment<AppConfig, AppConfig.Fragment>("environment", "APP")` creates a read-only sparse source from process environment variables such as `APP__DATABASE__HOST`. Double underscores separate nested model members; member names are matched case-insensitively. Common scalar values use invariant parsing, and a custom parser can handle application-specific types. The reader recalculates a content revision on each read; process environment variables do not provide a watcher.
