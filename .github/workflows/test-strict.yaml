@@ -1,0 +1,56 @@
+name: Strict tests
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore .NET tools
+        if: matrix.os == 'ubuntu-latest'
+        run: dotnet tool restore
+
+      - name: Check C# formatting
+        if: matrix.os == 'ubuntu-latest'
+        run: dotnet csharpier check .
+
+      - name: Restore dependencies
+        run: dotnet restore Configlue.slnx
+
+      - name: Build
+        run: dotnet build Configlue.slnx --no-restore --configuration Release
+
+      - name: Run tests
+        run: >
+          dotnet test --solution Configlue.slnx --no-build --no-restore
+          --configuration Release -- --retry-failed-tests 3 --timeout 5m
+          --report-trx --no-progress
+
+      - name: Pack NuGet packages
+        run: >
+          dotnet pack Configlue.slnx --no-build --no-restore
+          --configuration Release --output artifacts
+
+      - name: Verify package contents
+        if: matrix.os == 'ubuntu-latest'
+        shell: pwsh
+        run: ./eng/VerifyPackages.ps1 -PackageDirectory artifacts
