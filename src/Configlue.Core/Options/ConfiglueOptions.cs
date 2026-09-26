@@ -1,3 +1,6 @@
+using System.ComponentModel.DataAnnotations;
+using Microsoft.Extensions.Options;
+
 namespace Configlue;
 
 /// <summary>Resolves and saves a generated configuration model over a set of state sources.</summary>
@@ -10,6 +13,8 @@ public sealed class ConfiglueOptions<TModel, TFragment> : IWritableOptions<TMode
     private readonly StateSourceSet<TFragment> _sourceSet;
     private readonly StateWriteRoute _writeRoute;
     private readonly IStateSchemaMigration<TFragment>[] _migrations;
+    private readonly IConfiglueValidator<TModel>[] _validators;
+    private readonly bool _validateDataAnnotations;
     private readonly object _changeGate = new();
     private readonly List<Action<TModel>> _changeListeners = [];
     private CancellationTokenSource? _watchCancellation;
@@ -20,11 +25,20 @@ public sealed class ConfiglueOptions<TModel, TFragment> : IWritableOptions<TMode
     public ConfiglueOptions(
         StateSourceSet<TFragment> sourceSet,
         StateWriteRoute writeRoute = default,
-        IEnumerable<IStateSchemaMigration<TFragment>>? migrations = null)
+        IEnumerable<IStateSchemaMigration<TFragment>>? migrations = null,
+        IEnumerable<IConfiglueValidator<TModel>>? validators = null,
+        bool validateDataAnnotations = false)
     {
         ArgumentNullException.ThrowIfNull(sourceSet);
         _sourceSet = sourceSet;
         _writeRoute = writeRoute;
+        _validators = validators?.ToArray() ?? [];
+        _validateDataAnnotations = validateDataAnnotations;
+        if (_validators.Any(static validator => validator is null))
+        {
+            throw new ArgumentException("Validators cannot contain null values.", nameof(validators));
+        }
+
         _migrations = migrations?.ToArray() ?? [];
         if (_migrations.Any(static migration => migration is null))
         {
@@ -167,7 +181,7 @@ public sealed class ConfiglueOptions<TModel, TFragment> : IWritableOptions<TMode
 
         var draft = resolved.Value!.DeepClone();
         return new ConfigureSession<TModel>(draft,
-            (value, token) => WriteToSourceAsync(source, TModel.ToFragment(value), expectedRevision, token));
+            (value, token) => WriteToSourceAsync(source, value, expectedRevision, token));
     }
 
     /// <inheritdoc />
@@ -181,7 +195,7 @@ public sealed class ConfiglueOptions<TModel, TFragment> : IWritableOptions<TMode
             throw new InvalidOperationException($"Cannot safely write configuration because source '{source.Id}' is unavailable.");
         }
 
-        return await WriteToSourceAsync(source, TModel.ToFragment(value), current.Revision, cancellationToken).ConfigureAwait(false);
+        return await WriteToSourceAsync(source, value, current.Revision, cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -239,14 +253,38 @@ public sealed class ConfiglueOptions<TModel, TFragment> : IWritableOptions<TMode
         return source;
     }
 
-    private static ValueTask<StateWriteResult> WriteToSourceAsync(
+    private ValueTask<StateWriteResult> WriteToSourceAsync(
         StateSource<TFragment> source,
-        TFragment fragment,
+        TModel value,
         string? expectedRevision,
-        CancellationToken cancellationToken) =>
-        source.Writer!.WriteAsync(
-            new StateWriteRequest<TFragment>(fragment, expectedRevision, CheckRevision: true),
+        CancellationToken cancellationToken)
+    {
+        Validate(value);
+        return source.Writer!.WriteAsync(
+            new StateWriteRequest<TFragment>(TModel.ToFragment(value), expectedRevision, CheckRevision: true),
             cancellationToken);
+    }
+
+    private void Validate(TModel value)
+    {
+        var failures = new List<string>();
+        foreach (var validator in _validators)
+        {
+            failures.AddRange(validator.Validate(value));
+        }
+
+        if (_validateDataAnnotations)
+        {
+            var validationResults = new List<ValidationResult>();
+            Validator.TryValidateObject(value!, new ValidationContext(value!), validationResults, validateAllProperties: true);
+            failures.AddRange(validationResults.Select(result => result.ErrorMessage ?? "Configuration validation failed."));
+        }
+
+        if (failures.Count > 0)
+        {
+            throw new OptionsValidationException(Options.DefaultName, typeof(TModel), failures);
+        }
+    }
 
     private async ValueTask<TFragment> MigrateAsync(
         TFragment value,

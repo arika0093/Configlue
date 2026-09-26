@@ -4,6 +4,7 @@ using Configlue.Provider.Xml;
 using Configlue.Provider.Yaml;
 using Configlue.Testing;
 using System.Buffers;
+using System.ComponentModel.DataAnnotations;
 using System.Text;
 
 namespace Configlue.Tests;
@@ -13,6 +14,7 @@ public partial class AppSettings
 {
     public bool Enabled { get; set; } = true;
 
+    [Range(0, 100)]
     public int RetryCount { get; set; } = 3;
 
     public string? Label { get; set; } = "default";

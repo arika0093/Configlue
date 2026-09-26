@@ -26,6 +26,7 @@ dotnet test --solution Configlue.slnx --configuration Release
 
 Register generated model options with a prioritized state-source set. Reads merge the present members from each source, and writes can target a source independently of read priority.
 Register `IStateSchemaMigration<TFragment>` implementations as services to migrate older source fragments while reading them.
+Use `AddConfiglueValidator<T>(IValidateOptions<T>)` for a Microsoft options validator, or pass `validateDataAnnotations: true` when registering options.
 
 ```csharp
 services.AddConfiglueOptions<AppConfig, AppConfig.Fragment>(

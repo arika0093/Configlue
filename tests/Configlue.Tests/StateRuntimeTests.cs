@@ -1,5 +1,6 @@
 using Configlue.Testing;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace Configlue.Tests;
 
@@ -215,6 +216,57 @@ public sealed class StateRuntimeTests
         await Assert.That(result.Schema).IsEqualTo(AppSettings.ConfiglueSchema.ToMetadata());
     }
 
+    [Test]
+    public async Task Options_ValidatesBeforeSavingAndLeavesTheStoredRevisionUntouched()
+    {
+        var store = new InMemoryStateStore<AppSettings.Fragment>(new AppSettings.Fragment
+        {
+            RetryCount = Optional<int>.Present(3),
+        });
+        var sourceSet = new StateSourceSet<AppSettings.Fragment>([new("user", store, writer: store)]);
+        var services = new ServiceCollection();
+        services.AddConfiglueValidator<AppSettings>(new RetryCountValidator());
+        services.AddConfiglueOptions<AppSettings, AppSettings.Fragment>(sourceSet, validateDataAnnotations: true);
+        using var serviceProvider = services.BuildServiceProvider();
+        var writable = serviceProvider.GetRequiredService<IWritableOptions<AppSettings>>();
+        OptionsValidationException? validationFailure = null;
+
+        try
+        {
+            await writable.SaveAsync(new AppSettings { RetryCount = 101 });
+        }
+        catch (OptionsValidationException exception)
+        {
+            validationFailure = exception;
+        }
+
+        var stored = await store.ReadAsync();
+        await Assert.That(validationFailure).IsNotNull();
+        await Assert.That(validationFailure!.Failures.Count()).IsEqualTo(2);
+        await Assert.That(validationFailure.Failures.Any(failure => failure.Contains("custom retry limit", StringComparison.Ordinal))).IsTrue();
+        await Assert.That(stored.Value!.RetryCount.Value).IsEqualTo(3);
+        await Assert.That(stored.Revision).IsEqualTo("1");
+
+        using var edit = await writable.BeginConfigureAsync();
+        edit.Value.RetryCount = 101;
+        var editWasRejected = false;
+        try
+        {
+            await edit.SaveAsync();
+        }
+        catch (OptionsValidationException)
+        {
+            editWasRejected = true;
+        }
+
+        edit.Value.RetryCount = 4;
+        await edit.SaveAsync();
+        var validStored = await store.ReadAsync();
+        await Assert.That(editWasRejected).IsTrue();
+        await Assert.That(edit.IsCommitted).IsTrue();
+        await Assert.That(validStored.Value!.RetryCount.Value).IsEqualTo(4);
+    }
+
     private sealed class FixedStateReader<T>(StateReadResult<T> result) : IStateReader<T>
     {
         public ValueTask<StateReadResult<T>> ReadAsync(CancellationToken cancellationToken = default)
@@ -239,5 +291,13 @@ public sealed class StateRuntimeTests
             builder.Label = Optional<string?>.Present("migrated");
             return ValueTask.FromResult(builder.Build());
         }
+    }
+
+    private sealed class RetryCountValidator : IValidateOptions<AppSettings>
+    {
+        public ValidateOptionsResult Validate(string? name, AppSettings options) =>
+            options.RetryCount > 10
+                ? ValidateOptionsResult.Fail("RetryCount exceeds the custom retry limit.")
+                : ValidateOptionsResult.Success;
     }
 }

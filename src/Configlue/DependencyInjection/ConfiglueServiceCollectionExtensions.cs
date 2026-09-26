@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace Configlue;
 
@@ -9,7 +10,8 @@ public static class ConfiglueServiceCollectionExtensions
     public static IServiceCollection AddConfiglueOptions<TModel, TFragment>(
         this IServiceCollection services,
         Func<IServiceProvider, StateSourceSet<TFragment>> sourceSetFactory,
-        StateWriteRoute writeRoute = default)
+        StateWriteRoute writeRoute = default,
+        bool validateDataAnnotations = false)
         where TModel : IConfiglueModel<TModel, TFragment>
         where TFragment : class, IConfiglueFragment<TFragment>
     {
@@ -19,7 +21,9 @@ public static class ConfiglueServiceCollectionExtensions
         services.AddSingleton(provider => new ConfiglueOptions<TModel, TFragment>(
             sourceSetFactory(provider),
             writeRoute,
-            provider.GetServices<IStateSchemaMigration<TFragment>>()));
+            provider.GetServices<IStateSchemaMigration<TFragment>>(),
+            provider.GetServices<IConfiglueValidator<TModel>>(),
+            validateDataAnnotations));
         services.AddSingleton<IReadOnlyOptions<TModel>>(provider =>
             provider.GetRequiredService<ConfiglueOptions<TModel, TFragment>>());
         services.AddSingleton<IWritableOptions<TModel>>(provider =>
@@ -31,11 +35,34 @@ public static class ConfiglueServiceCollectionExtensions
     public static IServiceCollection AddConfiglueOptions<TModel, TFragment>(
         this IServiceCollection services,
         StateSourceSet<TFragment> sourceSet,
-        StateWriteRoute writeRoute = default)
+        StateWriteRoute writeRoute = default,
+        bool validateDataAnnotations = false)
         where TModel : IConfiglueModel<TModel, TFragment>
         where TFragment : class, IConfiglueFragment<TFragment>
     {
         ArgumentNullException.ThrowIfNull(sourceSet);
-        return services.AddConfiglueOptions<TModel, TFragment>(_ => sourceSet, writeRoute);
+        return services.AddConfiglueOptions<TModel, TFragment>(_ => sourceSet, writeRoute, validateDataAnnotations);
+    }
+
+    /// <summary>Registers a standard Microsoft options validator for Configlue saves.</summary>
+    public static IServiceCollection AddConfiglueValidator<TModel>(
+        this IServiceCollection services,
+        IValidateOptions<TModel> validator)
+        where TModel : class
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(validator);
+        services.AddSingleton<IConfiglueValidator<TModel>>(new ValidateOptionsAdapter<TModel>(validator));
+        return services;
+    }
+
+    private sealed class ValidateOptionsAdapter<TModel>(IValidateOptions<TModel> validator) : IConfiglueValidator<TModel>
+        where TModel : class
+    {
+        public IReadOnlyList<string> Validate(TModel value)
+        {
+            var result = validator.Validate(Options.DefaultName, value);
+            return result.Failed ? result.Failures?.ToArray() ?? [] : [];
+        }
     }
 }
