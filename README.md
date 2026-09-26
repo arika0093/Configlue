@@ -33,6 +33,7 @@ Generated `TModel.Patch` values can be sent through `IWritableOptions<TModel>.Ap
 Use `IWritableOptions<TModel>.ApplyPatchesAsync` with `StateSourcePatch` entries for an explicit source-local multi-write. Disjoint section updates sharing a `ResourceId` are persisted with one physical write by the built-in resources; overlapping scopes are rejected. The result reports each source revision and physical write count, and writes across different resources are not atomic.
 Named profiles can use keyed DI registrations, for example `AddConfiglueOptions<TModel, TModel.Fragment>("profile", sourceSet)` and `GetRequiredKeyedService<IReadOnlyOptions<TModel>>("profile")`.
 For profiles created during runtime, register `AddConfiglueOptionsRegistry<TModel, TModel.Fragment>(...)`, then use `IConfiglueOptionsRegistry<TModel>.TryAdd`, `Get`, and `TryRemove`.
+Use `AddConfiglueProfiledOptions<TModel, TFragment>(profileSourceSetFactory, catalogSourceFactory)` when profile names and the active profile must survive restarts. The catalog is stored through a normal writable `StateSource<ConfiglueProfileCatalog>`, so its provider can be chosen independently. `IConfiglueProfiledOptions<TModel>` lazily restores or creates the default profile on its first async operation, can copy a profile with `CreateProfileAsync`, and persists active-profile changes. Removing a profile removes it from the catalog and runtime; its backing state is retained.
 File resources keep one atomic `.bak` generation by default; `FileResourceOptions` can retain more generations in a chosen directory, and `RestoreLatestBackupAsync` restores the newest one explicitly.
 Use `StateSourceProjection.Project` to migrate and map a source-specific fragment into a nested model fragment; provide a reverse projection to enable writes to that source.
 Use `SerializedStateSource.FromResource<T>` to compose a resource and a codec into a typed source with automatic writer and watcher detection.
@@ -104,4 +105,25 @@ var sourceWrites = writeResult.MultiWriteResult;
 await serviceProvider
     .GetRequiredService<IWritableOptions<AppConfig>>()
     .SaveAsync(settings => settings.SomeSetting = newValue);
+```
+
+Persistent named profiles use a separate writable source for their catalog. The profile source factory receives each profile name, which lets an application store profile values in separate files, sections, or other resources.
+
+```csharp
+// ProfileCatalogStore implements IStateReader<ConfiglueProfileCatalog> and
+// IStateWriter<ConfiglueProfileCatalog> for the application's chosen backend.
+services.AddSingleton<ProfileCatalogStore>();
+services.AddConfiglueProfiledOptions<AppConfig, AppConfig.Fragment>(
+    (provider, profileName) => CreateProfileSources(provider, profileName),
+    provider =>
+    {
+        var catalogStore = provider.GetRequiredService<ProfileCatalogStore>();
+        return new StateSource<ConfiglueProfileCatalog>("profile-catalog", catalogStore, writer: catalogStore);
+    });
+
+var profiles = serviceProvider.GetRequiredService<IConfiglueProfiledOptions<AppConfig>>();
+await profiles.GetProfileNamesAsync(); // Restores persisted profiles or creates "default".
+await profiles.CreateProfileAsync("Work", copyFrom: "default");
+await profiles.SetActiveProfileAsync("Work");
+var activeConfig = await profiles.GetActiveValueAsync();
 ```
