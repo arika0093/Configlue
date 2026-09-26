@@ -7,7 +7,8 @@ public readonly record struct StateReadResult<T>(
     string? Revision = null,
     string? SourceId = null,
     string? PhysicalOrigin = null,
-    StateSchemaMetadata? Schema = null)
+    StateSchemaMetadata? Schema = null,
+    StateRevisionVector? Revisions = null)
 {
     /// <summary>Creates a successful result.</summary>
     public static StateReadResult<T> Success(

@@ -18,9 +18,9 @@ public sealed class StateSourceWatcher<T> : IStateWatcher
         CancellationToken cancellationToken = default)
     {
         using var watchCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        var watchers = _resolver.GetSourcesForWatch()
-            .Where(static source => source.Watcher is not null)
-            .Select(source => source.Watcher!.WaitForChangeAsync(observedRevision, watchCancellation.Token).AsTask())
+        var watchers = _resolver.GetSourcesForWatch(observedRevision)
+            .Where(static target => target.Source.Watcher is not null)
+            .Select(target => target.Source.Watcher!.WaitForChangeAsync(target.ObservedRevision, watchCancellation.Token).AsTask())
             .ToArray();
 
         if (watchers.Length == 0)
