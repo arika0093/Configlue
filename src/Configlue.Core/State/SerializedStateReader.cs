@@ -33,8 +33,11 @@ public sealed class SerializedStateReader<T> : IStateReader<T>
             return new StateReadResult<T>(result.Status, default, result.Revision, Schema: result.Schema);
         }
 
-        var context = result.Schema is { } schema ? new StateCodecContext(schema, _context.Services) : _context;
         var bytes = new ReadOnlySequence<byte>(result.Content);
+        var schema = result.Schema ?? (_codec is IStateSchemaMetadataReader metadataReader
+            ? metadataReader.ReadSchemaMetadata(in bytes)
+            : null);
+        var context = schema is { } metadata ? new StateCodecContext(metadata, _context.Services) : _context;
         var value = _codec switch
         {
             IStateCodec<T> typed => typed.Deserialize(in bytes, in context),
@@ -42,6 +45,6 @@ public sealed class SerializedStateReader<T> : IStateReader<T>
             _ => throw new InvalidOperationException("The codec does not implement a supported state codec interface."),
         };
 
-        return StateReadResult<T>.Success(value, result.Revision, result.Schema);
+        return StateReadResult<T>.Success(value, result.Revision, schema);
     }
 }

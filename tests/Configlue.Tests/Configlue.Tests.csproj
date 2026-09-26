@@ -11,5 +11,6 @@
   <ItemGroup>
     <ProjectReference Include="../../src/Configlue/Configlue.csproj" />
     <ProjectReference Include="../../src/Configlue.Generator/Configlue.Generator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../../src/providers/Configlue.Provider.Json/Configlue.Provider.Json.csproj" />
   </ItemGroup>
 </Project>

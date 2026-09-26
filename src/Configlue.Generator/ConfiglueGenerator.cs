@@ -242,6 +242,7 @@ public sealed class ConfiglueGenerator : IIncrementalGenerator
     private static void AppendFragment(StringBuilder code, string modelType, ImmutableArray<MemberModel> members)
     {
         code.AppendLine("    /// <summary>A sparse, presence-aware representation of this model.</summary>");
+        code.AppendLine("    [global::System.Text.Json.Serialization.JsonConverter(typeof(FragmentJsonConverter))]");
         code.AppendLine("    public sealed class Fragment");
         code.AppendLine("    {");
         foreach (var member in members)
@@ -262,6 +263,7 @@ public sealed class ConfiglueGenerator : IIncrementalGenerator
         AppendDiff(code, modelType, members);
         AppendFragmentClone(code, members);
         AppendPatchSupport(code, members);
+        AppendJsonConverter(code, members);
         code.AppendLine("    }");
         AppendBuilder(code, members);
         AppendPatch(code, members);
@@ -431,6 +433,85 @@ public sealed class ConfiglueGenerator : IIncrementalGenerator
         code.AppendLine("        public Patch ToPatch() => new(this);");
     }
 
+    private static void AppendJsonConverter(StringBuilder code, ImmutableArray<MemberModel> members)
+    {
+        code.AppendLine("        /// <summary>Reads and writes sparse fragment properties without materializing absent values.</summary>");
+        code.AppendLine("        public sealed class FragmentJsonConverter : global::System.Text.Json.Serialization.JsonConverter<Fragment>");
+        code.AppendLine("        {");
+        code.AppendLine("            public override Fragment Read(ref global::System.Text.Json.Utf8JsonReader reader, global::System.Type typeToConvert, global::System.Text.Json.JsonSerializerOptions options)");
+        code.AppendLine("            {");
+        code.AppendLine("                if (reader.TokenType != global::System.Text.Json.JsonTokenType.StartObject) throw new global::System.Text.Json.JsonException(\"A fragment must be a JSON object.\");");
+        code.AppendLine("                var builder = new FragmentBuilder();");
+        code.AppendLine("                while (reader.Read())");
+        code.AppendLine("                {");
+        code.AppendLine("                    if (reader.TokenType == global::System.Text.Json.JsonTokenType.EndObject) return builder.Build();");
+        code.AppendLine("                    if (reader.TokenType != global::System.Text.Json.JsonTokenType.PropertyName) throw new global::System.Text.Json.JsonException(\"Expected a fragment property name.\");");
+        code.AppendLine("                    var propertyName = reader.GetString();");
+        code.AppendLine("                    if (!reader.Read()) throw new global::System.Text.Json.JsonException(\"Unexpected end of fragment.\");");
+        if (members.Length > 0)
+        {
+            var first = true;
+            foreach (var member in members)
+            {
+                var property = EscapeIdentifier(member.Property.Name);
+                var wireName = GetJsonPropertyName(member.Property, out var explicitName);
+                code.Append(first ? "                    if (" : "                    else if (")
+                    .Append("Matches(propertyName, ").Append(SymbolDisplay.FormatLiteral(wireName, true)).Append(", ")
+                    .Append(explicitName ? "false" : "true").AppendLine(", options))");
+                code.Append("                        builder.").Append(property).Append(" = global::Configlue.Optional<").Append(FragmentValueType(member))
+                    .Append(">.Present(global::System.Text.Json.JsonSerializer.Deserialize<").Append(FragmentValueType(member))
+                    .AppendLine(">(ref reader, options));");
+                first = false;
+            }
+
+            code.AppendLine("                    else reader.Skip();");
+        }
+        else
+        {
+            code.AppendLine("                    else reader.Skip();");
+        }
+
+        code.AppendLine("                }");
+        code.AppendLine("                throw new global::System.Text.Json.JsonException(\"Unexpected end of fragment.\");");
+        code.AppendLine("            }");
+        code.AppendLine();
+        code.AppendLine("            public override void Write(global::System.Text.Json.Utf8JsonWriter writer, Fragment value, global::System.Text.Json.JsonSerializerOptions options)");
+        code.AppendLine("            {");
+        code.AppendLine("                writer.WriteStartObject();");
+        foreach (var member in members)
+        {
+            var property = EscapeIdentifier(member.Property.Name);
+            var wireName = GetJsonPropertyName(member.Property, out var explicitName);
+            code.Append("                if (value.").Append(property).AppendLine(".IsPresent)");
+            code.AppendLine("                {");
+            if (explicitName)
+            {
+                code.Append("                    writer.WritePropertyName(").Append(SymbolDisplay.FormatLiteral(wireName, true)).AppendLine(");");
+            }
+            else
+            {
+                code.Append("                    writer.WritePropertyName(options.PropertyNamingPolicy?.ConvertName(")
+                    .Append(SymbolDisplay.FormatLiteral(wireName, true)).Append(") ?? ")
+                    .Append(SymbolDisplay.FormatLiteral(wireName, true)).AppendLine(");");
+            }
+
+            code.Append("                    global::System.Text.Json.JsonSerializer.Serialize<").Append(FragmentValueType(member)).Append(">(writer, value.")
+                .Append(property).AppendLine(".Value!, options);");
+            code.AppendLine("                }");
+        }
+
+        code.AppendLine("                writer.WriteEndObject();");
+        code.AppendLine("            }");
+        code.AppendLine();
+        code.AppendLine("            private static bool Matches(string? actual, string propertyName, bool useNamingPolicy, global::System.Text.Json.JsonSerializerOptions options)");
+        code.AppendLine("            {");
+        code.AppendLine("                if (actual is null) return false;");
+        code.AppendLine("                var expected = useNamingPolicy ? options.PropertyNamingPolicy?.ConvertName(propertyName) ?? propertyName : propertyName;");
+        code.AppendLine("                return global::System.String.Equals(actual, expected, options.PropertyNameCaseInsensitive ? global::System.StringComparison.OrdinalIgnoreCase : global::System.StringComparison.Ordinal);");
+        code.AppendLine("            }");
+        code.AppendLine("        }");
+    }
+
     private static void AppendBuilder(StringBuilder code, ImmutableArray<MemberModel> members)
     {
         code.AppendLine("    /// <summary>A mutable builder for a generated fragment.</summary>");
@@ -596,6 +677,20 @@ public sealed class ConfiglueGenerator : IIncrementalGenerator
         var attribute = model.GetAttributes().FirstOrDefault(static attribute => attribute.AttributeClass?.ToDisplayString() == ModelAttributeName);
         var id = attribute?.NamedArguments.FirstOrDefault(static pair => pair.Key == "Id").Value.Value as string;
         return id ?? model.ToDisplayString();
+    }
+
+    private static string GetJsonPropertyName(IPropertySymbol property, out bool isExplicit)
+    {
+        var attribute = property.GetAttributes().FirstOrDefault(static attribute =>
+            attribute.AttributeClass?.ToDisplayString() == "System.Text.Json.Serialization.JsonPropertyNameAttribute");
+        if (attribute?.ConstructorArguments.FirstOrDefault().Value is string configuredName)
+        {
+            isExplicit = true;
+            return configuredName;
+        }
+
+        isExplicit = false;
+        return property.Name;
     }
 
     private static int GetModelVersion(INamedTypeSymbol model)
