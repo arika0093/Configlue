@@ -354,6 +354,75 @@ public sealed class StateRuntimeTests
     }
 
     [Test]
+    public async Task ConfigureSession_RebasesAppendEditsOntoTheSelectedSourceSegment()
+    {
+        var defaults = new InMemoryStateStore<AppSettings.Fragment>(new AppSettings.Fragment
+        {
+            Plugins = Optional<IReadOnlyList<string>>.Present(["base"]),
+        });
+        var user = new InMemoryStateStore<AppSettings.Fragment>(new AppSettings.Fragment
+        {
+            Plugins = Optional<IReadOnlyList<string>>.Present(["user"]),
+        });
+        var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(new StateSourceSet<AppSettings.Fragment>(
+        [
+            new("user", user, priority: 100, writer: user),
+            new("defaults", defaults),
+        ]));
+
+        using var session = await options.BeginConfigureAsync();
+        session.Value.Plugins = [.. session.Value.Plugins, "session"];
+        await session.SaveAsync();
+
+        var storedUser = (await user.ReadAsync()).Value!;
+        var resolved = (await options.ReadAsync()).Value!;
+        await Assert.That(storedUser.Plugins.Value).IsEquivalentTo(["user", "session"]);
+        await Assert.That(resolved.Plugins).IsEquivalentTo(["base", "user", "session"]);
+    }
+
+    [Test]
+    public async Task ConfigureSession_RebasesSetUnionEditsAndRejectsRemovingOtherSourceValues()
+    {
+        var defaults = new InMemoryStateStore<SetUnionSettings.Fragment>(new SetUnionSettings.Fragment
+        {
+            Tags = Optional<IReadOnlyList<string>>.Present(["base", "shared"]),
+        });
+        var user = new InMemoryStateStore<SetUnionSettings.Fragment>(new SetUnionSettings.Fragment
+        {
+            Tags = Optional<IReadOnlyList<string>>.Present(["user", "shared"]),
+        });
+        var options = new ConfiglueOptions<SetUnionSettings, SetUnionSettings.Fragment>(new StateSourceSet<SetUnionSettings.Fragment>(
+        [
+            new("user", user, priority: 100, writer: user),
+            new("defaults", defaults),
+        ]));
+
+        using var session = await options.BeginConfigureAsync();
+        session.Value.Tags = [.. session.Value.Tags, "session"];
+        await session.SaveAsync();
+
+        var storedUser = (await user.ReadAsync()).Value!;
+        var resolved = (await options.ReadAsync()).Value!;
+        await Assert.That(storedUser.Tags.Value).IsEquivalentTo(["user", "session"]);
+        await Assert.That(resolved.Tags).IsEquivalentTo(["base", "shared", "user", "session"]);
+
+        using var removeLower = await options.BeginConfigureAsync();
+        removeLower.Value.Tags = removeLower.Value.Tags.Where(static tag => tag != "base").ToArray();
+        var rejected = false;
+        try
+        {
+            await removeLower.SaveAsync();
+        }
+        catch (StateConflictException)
+        {
+            rejected = true;
+        }
+
+        await Assert.That(rejected).IsTrue();
+        await Assert.That((await user.ReadAsync()).Revision).IsEqualTo("2");
+    }
+
+    [Test]
     public async Task Options_MigratesEachSourceFragmentBeforeMerging()
     {
         var oldSchema = new StateSchemaMetadata("app-settings", 1);

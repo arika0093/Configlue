@@ -234,10 +234,28 @@ public sealed class ConfiglueGenerator : IIncrementalGenerator
                 code.Append("static () => ").Append(NonNullableTypeName(member.ChildModel)).Append(".ConfiglueSchema");
             }
 
-            code.AppendLine("),");
+            code.Append(", ").Append(CollectionValueFactory(member)).AppendLine("),");
         }
 
         code.AppendLine("    });");
+    }
+
+    private static string CollectionValueFactory(MemberModel member)
+    {
+        if (member.MergeMode is not (2 or 3))
+        {
+            return "null";
+        }
+
+        var elementType = TypeName(member.Collection.ElementType);
+        var values = $"global::System.Linq.Enumerable.Cast<{elementType}>(values)";
+        return member.Collection.Kind switch
+        {
+            CollectionKind.Array => $"static values => global::System.Linq.Enumerable.ToArray({values})",
+            CollectionKind.List => $"static values => new global::System.Collections.Generic.List<{elementType}>({values})",
+            CollectionKind.Set => $"static values => new global::System.Collections.Generic.HashSet<{elementType}>({values})",
+            _ => "null",
+        };
     }
 
     private static void AppendFragmentSchema(

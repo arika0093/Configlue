@@ -7,7 +7,8 @@ public readonly record struct ConfiglueMemberSchema(
     Type ValueType,
     MergeMode MergeMode,
     Func<object, object?>? GetValue = null,
-    Func<ConfiglueModelSchema>? NestedSchemaFactory = null);
+    Func<ConfiglueModelSchema>? NestedSchemaFactory = null,
+    Func<IEnumerable<object?>, object?>? CollectionValueFactory = null);
 
 /// <summary>Generated metadata for a model and its persisted schema.</summary>
 public sealed class ConfiglueModelSchema

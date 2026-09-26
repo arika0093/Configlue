@@ -209,7 +209,8 @@ public sealed class ConfiglueOptions<TModel, TFragment> : IWritableOptions<TMode
     /// <inheritdoc />
     public async ValueTask<ConfigureSession<TModel>> BeginConfigureAsync(CancellationToken cancellationToken = default)
     {
-        var resolved = await ReadAsync(cancellationToken).ConfigureAwait(false);
+        var resolvedState = await ResolveCoreAsync(null, null, cancellationToken).ConfigureAwait(false);
+        var resolved = resolvedState.Result;
         if (resolved.Status != StateReadStatus.Success)
         {
             throw new InvalidOperationException($"Configuration state could not be read: {resolved.Status}.");
@@ -239,7 +240,13 @@ public sealed class ConfiglueOptions<TModel, TFragment> : IWritableOptions<TMode
                 throw new StateConflictException("A state source changed after the configuration edit began.");
             }
 
-            return await WriteChangesToSourceAsync(source, baseline, value, expectedRevision, token).ConfigureAwait(false);
+            return await WriteChangesToSourceAsync(
+                source,
+                baseline,
+                value,
+                expectedRevision,
+                resolvedState.Contributions,
+                token).ConfigureAwait(false);
         });
     }
 
@@ -462,6 +469,7 @@ public sealed class ConfiglueOptions<TModel, TFragment> : IWritableOptions<TMode
         TModel before,
         TModel after,
         string? expectedRevision,
+        IReadOnlyList<ResolvedContribution> baselineContributions,
         CancellationToken cancellationToken)
     {
         Validate(after);
@@ -490,6 +498,13 @@ public sealed class ConfiglueOptions<TModel, TFragment> : IWritableOptions<TMode
             sourceFragment = await MigrateAsync(sourceFragment, schema, cancellationToken).ConfigureAwait(false);
         }
 
+        changes = (TFragment)PlanMergeAwareChanges(
+            TModel.ConfiglueSchema,
+            changes,
+            after!,
+            [],
+            source.Id,
+            baselineContributions);
         var updated = sourceFragment.ApplyChanges(changes);
         var proposed = await ReadCoreAsync(
             source,
@@ -504,6 +519,189 @@ public sealed class ConfiglueOptions<TModel, TFragment> : IWritableOptions<TMode
         return await source.Writer!.WriteAsync(
             new StateWriteRequest<TFragment>(updated, current.Revision, CheckRevision: true),
             cancellationToken).ConfigureAwait(false);
+    }
+
+    private IConfiglueFragment PlanMergeAwareChanges(
+        ConfiglueModelSchema schema,
+        IConfiglueFragment changes,
+        object? afterModel,
+        List<string> path,
+        string targetSourceId,
+        IReadOnlyList<ResolvedContribution> contributions)
+    {
+        foreach (var change in changes.EnumeratePresentMembers().ToArray())
+        {
+            var member = schema.Members.FirstOrDefault(candidate => candidate.Id == change.Id);
+            if (string.IsNullOrEmpty(member.Name))
+            {
+                throw new InvalidOperationException($"Generated schema '{schema.Id}' has no member with id {change.Id}.");
+            }
+
+            path.Add(member.Name);
+            try
+            {
+                var afterValue = afterModel is null ? null : member.GetValue?.Invoke(afterModel);
+                if (member.NestedSchemaFactory is not null && change.Value is IConfiglueFragment nestedChanges && afterValue is not null)
+                {
+                    changes = changes.WithMember(
+                        member.Id,
+                        PlanMergeAwareChanges(
+                            member.NestedSchemaFactory(),
+                            nestedChanges,
+                            afterValue,
+                            path,
+                            targetSourceId,
+                            contributions));
+                    continue;
+                }
+
+                if (member.CollectionValueFactory is null || afterValue is not System.Collections.IEnumerable desiredValues || afterValue is string)
+                {
+                    continue;
+                }
+
+                var desired = desiredValues.Cast<object?>().ToList();
+                var valuesBySource = GetCollectionContributions(path, contributions);
+                var sourceOrder = _sourceSet.Sources.Reverse().ToArray();
+                var targetIndex = Array.FindIndex(sourceOrder, candidate =>
+                    string.Equals(candidate.Id, targetSourceId, StringComparison.Ordinal));
+                if (targetIndex < 0)
+                {
+                    throw new InvalidOperationException($"State source '{targetSourceId}' is not registered.");
+                }
+
+                var targetValues = member.MergeMode switch
+                {
+                    MergeMode.Append => PlanAppendContribution(sourceOrder, targetIndex, valuesBySource, desired, member.Name),
+                    MergeMode.SetUnion => PlanSetUnionContribution(sourceOrder, targetIndex, valuesBySource, desired, member),
+                    _ => desired,
+                };
+                changes = changes.WithMember(member.Id, member.CollectionValueFactory(targetValues));
+            }
+            finally
+            {
+                path.RemoveAt(path.Count - 1);
+            }
+        }
+
+        return changes;
+    }
+
+    private static Dictionary<string, List<object?>> GetCollectionContributions(
+        IReadOnlyList<string> path,
+        IReadOnlyList<ResolvedContribution> contributions)
+    {
+        var valuesBySource = new Dictionary<string, List<object?>>(StringComparer.Ordinal);
+        foreach (var contribution in contributions)
+        {
+            if (!TryGetFragmentValue(contribution.Result.Value!, path, out var value) ||
+                value is not System.Collections.IEnumerable values || value is string)
+            {
+                continue;
+            }
+
+            valuesBySource[contribution.Source.Id] = values.Cast<object?>().ToList();
+        }
+
+        return valuesBySource;
+    }
+
+    private static List<object?> PlanAppendContribution(
+        IReadOnlyList<StateSource<TFragment>> sourceOrder,
+        int targetIndex,
+        IReadOnlyDictionary<string, List<object?>> valuesBySource,
+        IReadOnlyList<object?> desired,
+        string memberName)
+    {
+        var prefix = new List<object?>();
+        for (var index = 0; index < targetIndex; index++)
+        {
+            if (valuesBySource.TryGetValue(sourceOrder[index].Id, out var values))
+            {
+                prefix.AddRange(values);
+            }
+        }
+
+        var suffix = new List<object?>();
+        for (var index = targetIndex + 1; index < sourceOrder.Count; index++)
+        {
+            if (valuesBySource.TryGetValue(sourceOrder[index].Id, out var values))
+            {
+                suffix.AddRange(values);
+            }
+        }
+
+        if (desired.Count < prefix.Count + suffix.Count ||
+            !desired.Take(prefix.Count).SequenceEqual(prefix) ||
+            !desired.Skip(desired.Count - suffix.Count).SequenceEqual(suffix))
+        {
+            throw new StateConflictException(
+                $"The edit to append-merged member '{memberName}' cannot be represented by source '{sourceOrder[targetIndex].Id}' while preserving other source contributions.");
+        }
+
+        return desired.Skip(prefix.Count).Take(desired.Count - prefix.Count - suffix.Count).ToList();
+    }
+
+    private static List<object?> PlanSetUnionContribution(
+        IReadOnlyList<StateSource<TFragment>> sourceOrder,
+        int targetIndex,
+        IReadOnlyDictionary<string, List<object?>> valuesBySource,
+        IReadOnlyList<object?> desired,
+        ConfiglueMemberSchema member)
+    {
+        var otherValues = new List<object?>();
+        for (var index = 0; index < sourceOrder.Count; index++)
+        {
+            if (index == targetIndex || !valuesBySource.TryGetValue(sourceOrder[index].Id, out var values))
+            {
+                continue;
+            }
+
+            foreach (var value in values)
+            {
+                if (!otherValues.Contains(value))
+                {
+                    otherValues.Add(value);
+                }
+            }
+        }
+
+        if (otherValues.Any(value => !desired.Contains(value)))
+        {
+            throw new StateConflictException(
+                $"The edit to set-union member '{member.Name}' removes a value contributed by another source.");
+        }
+
+        var targetValues = desired.Where(value => !otherValues.Contains(value)).ToList();
+        var merged = new List<object?>();
+        for (var index = 0; index < sourceOrder.Count; index++)
+        {
+            var values = index == targetIndex
+                ? targetValues
+                : valuesBySource.TryGetValue(sourceOrder[index].Id, out var sourceValues) ? sourceValues : [];
+            foreach (var value in values)
+            {
+                if (!merged.Contains(value))
+                {
+                    merged.Add(value);
+                }
+            }
+        }
+
+        var isSet = member.ValueType.IsGenericType &&
+            (member.ValueType.GetGenericTypeDefinition() == typeof(ISet<>) ||
+             member.ValueType.GetGenericTypeDefinition() == typeof(IReadOnlySet<>) ||
+             member.ValueType.GetGenericTypeDefinition() == typeof(HashSet<>));
+        var matchesDesired = isSet
+            ? merged.Count == desired.Distinct().Count() && merged.All(desired.Contains)
+            : merged.SequenceEqual(desired);
+        if (!matchesDesired)
+        {
+            throw new StateConflictException(
+                $"The edit to set-union member '{member.Name}' cannot be represented by source '{sourceOrder[targetIndex].Id}' while preserving other source contributions.");
+        }
+
+        return targetValues;
     }
 
     private void Validate(TModel value)

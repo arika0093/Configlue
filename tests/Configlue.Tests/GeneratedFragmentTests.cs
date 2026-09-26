@@ -33,6 +33,13 @@ public partial class DatabaseSettings
     public int Port { get; set; } = 5432;
 }
 
+[ConfiglueModel(1, Id = "set-union-settings")]
+public partial class SetUnionSettings
+{
+    [ConfiglueMerge(MergeMode.SetUnion)]
+    public IReadOnlyList<string> Tags { get; set; } = [];
+}
+
 public sealed class GeneratedFragmentTests
 {
     [Test]
