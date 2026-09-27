@@ -35,7 +35,7 @@ namespace Configlue.Resource.Http
         public Configlue.StateCodecContext CodecContext { get; init; }
         public required string EndPoint { get; init; }
         public Configlue.StateFallbackCondition FallbackCondition { get; init; }
-        public required string Id { get; init; }
+        public string? Id { get; init; }
         public int Priority { get; init; }
         public Configlue.ResourceId? ResourceId { get; init; }
         public Configlue.Resource.Http.HttpResourceOptions? ResourceOptions { get; init; }

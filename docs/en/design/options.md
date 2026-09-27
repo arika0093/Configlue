@@ -15,6 +15,8 @@ Options is the facade apps see. Regular reads and writes stay small; source admi
 
 Before saving, the full source revision vector is compared; if any participating source changed, the save stops with `StateConflictException`. Edits shadowed by read-only values stop here too.
 
+File and HTTP source registrations generate stable opaque IDs from their normalized resource descriptors when `Id` is omitted. Set an explicit `Id` only when an integration needs continuity for migration or an external provenance reference.
+
 ## Named worlds
 
 - Dynamic options: `model.EnableDynamicOptions = true` grows and shrinks named instances at runtime. `GetOptionsRegistry<T>()` with `TryAdd`/`TryRemoveAsync` is the entry point — for multi-document setups like per-tenant settings.

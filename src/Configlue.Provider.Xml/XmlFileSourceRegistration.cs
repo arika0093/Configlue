@@ -3,8 +3,8 @@ namespace Configlue.Provider.Xml;
 /// <summary>Options for registering an XML file source through the one-arity facade.</summary>
 public sealed class XmlFileSourceOptions
 {
-    /// <summary>The stable logical source ID used for provenance and write routing.</summary>
-    public required string Id { get; init; }
+    /// <summary>An optional stable logical source ID used for provenance and explicit routing.</summary>
+    public string? Id { get; init; }
 
     /// <summary>The XML file path.</summary>
     public required string Path { get; init; }
@@ -43,7 +43,6 @@ public static class XmlFileSourceRegistration
     {
         ArgumentNullException.ThrowIfNull(sources);
         ArgumentNullException.ThrowIfNull(options);
-        ArgumentException.ThrowIfNullOrWhiteSpace(options.Id);
         ArgumentException.ThrowIfNullOrWhiteSpace(options.Path);
         if (options.SectionPath is not null && string.IsNullOrWhiteSpace(options.SectionPath))
         {
@@ -87,16 +86,31 @@ public static class XmlFileSourceRegistration
             var stateWriter = sourceWriter is null
                 ? null
                 : new SerializedStateWriter<TFragment>(sourceWriter, codec);
-            return new StateSource<TFragment>(
-                options.Id,
-                stateReader,
-                options.Priority,
-                options.FallbackCondition,
-                stateWriter,
-                watcher,
-                file.Path,
-                options.ResourceId ?? (file as IResourceIdentity)?.ResourceId
-            );
+            var physicalResourceId = options.ResourceId ?? (file as IResourceIdentity)?.ResourceId;
+            var logicalDescriptor = options.SectionPath is null
+                ? "xml-root"
+                : $"xml:{options.SectionPath}";
+            return options.Id is { } id
+                ? new StateSource<TFragment>(
+                    id,
+                    stateReader,
+                    options.Priority,
+                    options.FallbackCondition,
+                    stateWriter,
+                    watcher,
+                    file.Path,
+                    physicalResourceId
+                )
+                : new StateSource<TFragment>(
+                    stateReader,
+                    options.Priority,
+                    options.FallbackCondition,
+                    stateWriter,
+                    watcher,
+                    file.Path,
+                    physicalResourceId,
+                    logicalDescriptor
+                );
         }
     }
 }

@@ -7,6 +7,30 @@ public sealed class StateSourceSetBuilder<T>
     private readonly List<Func<StateSource<T>>> _sourceFactories = [];
     private readonly HashSet<string> _sourceIds = new(StringComparer.Ordinal);
 
+    /// <summary>Adds a source with an automatically generated opaque identity.</summary>
+    public StateSourceBuilder<T> Add(
+        IStateReader<T> reader,
+        int priority = 0,
+        StateFallbackCondition fallbackCondition = StateFallbackCondition.NotFound,
+        string? physicalOrigin = null,
+        ResourceId? resourceId = null,
+        string? logicalDescriptor = null
+    )
+    {
+        ArgumentNullException.ThrowIfNull(reader);
+        var source = new StateSource<T>(
+            reader,
+            priority,
+            fallbackCondition,
+            reader as IStateWriter<T>,
+            reader as IStateWatcher,
+            physicalOrigin,
+            resourceId ?? (reader as IResourceIdentity)?.ResourceId,
+            logicalDescriptor
+        );
+        return Add(source.Id, reader, priority, fallbackCondition, physicalOrigin, resourceId);
+    }
+
     /// <summary>Adds a source and detects writer and watcher support on its reader.</summary>
     public StateSourceBuilder<T> Add(
         string id,

@@ -3,6 +3,38 @@ namespace Configlue;
 /// <summary>A logical source and its optional read, write, and watch capabilities.</summary>
 public sealed class StateSource<T>
 {
+    /// <summary>Creates a source with an automatically generated opaque logical identity.</summary>
+    /// <remarks>
+    /// When a resource identity or physical origin is available, the identity is stable for the same
+    /// source descriptor. Supply <paramref name="logicalDescriptor"/> to distinguish multiple logical
+    /// views over the same resource. Sources without a locator receive a registration-scoped identity.
+    /// </remarks>
+    public StateSource(
+        IStateReader<T> reader,
+        int priority = 0,
+        StateFallbackCondition fallbackCondition = StateFallbackCondition.NotFound,
+        IStateWriter<T>? writer = null,
+        IStateWatcher? watcher = null,
+        string? physicalOrigin = null,
+        ResourceId? resourceId = null,
+        string? logicalDescriptor = null
+    )
+        : this(
+            StateSourceIdentity.Create(
+                reader,
+                physicalOrigin,
+                resourceId ?? (reader as IResourceIdentity)?.ResourceId,
+                logicalDescriptor
+            ),
+            reader,
+            priority,
+            fallbackCondition,
+            writer,
+            watcher,
+            physicalOrigin,
+            resourceId
+        ) { }
+
     /// <summary>Creates a source with at least a reader.</summary>
     public StateSource(
         string id,
