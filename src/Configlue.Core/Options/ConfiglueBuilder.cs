@@ -80,8 +80,9 @@ public sealed class ConfiglueModelBuilder<TModel>
     private readonly ConfiglueSourceSetBuilder _sources = new();
     private readonly List<IConfiglueValidator<TModel>> _validators = [];
     private readonly List<object> _migrations = [];
-    private readonly List<Action<string, ConfiglueSourceSetBuilder>> _namedSourceConfigurations =
-    [];
+    private readonly List<
+        Action<string, IServiceProvider?, ConfiglueSourceSetBuilder>
+    > _sourceConfigurations = [];
     private string _optionsName = string.Empty;
     private StateSource<ConfiglueProfileCatalog>? _profileCatalogSource;
     private string _defaultProfileName = "default";
@@ -224,12 +225,33 @@ public sealed class ConfiglueModelBuilder<TModel>
         configure(_sources);
     }
 
+    /// <summary>Adds sources using the service provider available when this model's runtime is created.</summary>
+    /// <remarks>The callback is recorded during model registration and invoked only after registrations have been added to the service collection. The provider is null in non-DI contexts.</remarks>
+    public void Sources(Action<IServiceProvider?, ConfiglueSourceSetBuilder> configure)
+    {
+        EnsureMutable();
+        ArgumentNullException.ThrowIfNull(configure);
+        _sourceConfigurations.Add(
+            (_, serviceProvider, sources) => configure(serviceProvider, sources)
+        );
+    }
+
     /// <summary>Adds sources whose definitions depend on this named options instance.</summary>
     public void SourcesForOptions(Action<string, ConfiglueSourceSetBuilder> configure)
     {
         EnsureMutable();
         ArgumentNullException.ThrowIfNull(configure);
-        _namedSourceConfigurations.Add(configure);
+        _sourceConfigurations.Add((optionsName, _, sources) => configure(optionsName, sources));
+    }
+
+    /// <summary>Adds sources using the service provider and named options instance available at runtime creation.</summary>
+    public void SourcesForOptions(
+        Action<string, IServiceProvider?, ConfiglueSourceSetBuilder> configure
+    )
+    {
+        EnsureMutable();
+        ArgumentNullException.ThrowIfNull(configure);
+        _sourceConfigurations.Add(configure);
     }
 
     /// <summary>Enables a persisted profile catalog backed by a writable state source.</summary>
@@ -292,15 +314,15 @@ public sealed class ConfiglueModelBuilder<TModel>
         where TFragment : class, IConfiglueFragment<TFragment>
     {
         ArgumentNullException.ThrowIfNull(ownResource);
-        if (_namedSourceConfigurations.Count == 0)
+        if (_sourceConfigurations.Count == 0)
         {
             return _sources.Build<TFragment>(modelSchema, serviceProvider, ownResource);
         }
         var sources = new ConfiglueSourceSetBuilder();
         sources.CopyFrom(_sources);
-        foreach (var configure in _namedSourceConfigurations)
+        foreach (var configure in _sourceConfigurations)
         {
-            configure(OptionsName, sources);
+            configure(OptionsName, serviceProvider, sources);
         }
         return sources.Build<TFragment>(modelSchema, serviceProvider, ownResource);
     }
@@ -381,7 +403,7 @@ public sealed class ConfiglueModelBuilder<TModel>
         clone._cloneStrategy = _cloneStrategy;
         clone._validators.AddRange(_validators);
         clone._migrations.AddRange(_migrations);
-        clone._namedSourceConfigurations.AddRange(_namedSourceConfigurations);
+        clone._sourceConfigurations.AddRange(_sourceConfigurations);
         clone._profileCatalogSource = _profileCatalogSource;
         clone._defaultProfileName = _defaultProfileName;
         return clone;
