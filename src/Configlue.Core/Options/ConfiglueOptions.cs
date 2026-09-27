@@ -601,35 +601,35 @@ public sealed class ConfiglueOptions<TModel, TFragment>
                 var hasRevisionChanges = !HaveSameRevisions(expectedRevisions, latest.Revisions);
                 var saveBaseline = baseline;
                 var saveValue = value;
-                var saveContributions = resolvedState.Contributions;
-                var saveRevisions = expectedRevisions;
-                var saveExpectedRevision = expectedRevision;
+                var saveContributions = latestState.Contributions;
+                var saveRevisions = latest.Revisions;
+                string? saveExpectedRevision = null;
+                if (
+                    saveRevisions is null
+                    || !saveRevisions.TryGetRevision(source.Id, out saveExpectedRevision)
+                )
+                {
+                    var current = await source.Reader.ReadAsync(token).ConfigureAwait(false);
+                    if (current.Status == StateReadStatus.Unavailable)
+                    {
+                        throw new InvalidOperationException(
+                            $"Cannot safely begin editing because source '{source.Id}' is unavailable."
+                        );
+                    }
+
+                    saveExpectedRevision = current.Revision;
+                }
+
                 if (hasRevisionChanges)
                 {
                     saveBaseline = latest.Value!;
                     saveValue = RebaseConfigurationEdit(baseline, value, saveBaseline);
-                    saveContributions = latestState.Contributions;
-                    saveRevisions = latest.Revisions;
-                    if (
-                        saveRevisions is null
-                        || !saveRevisions.TryGetRevision(source.Id, out saveExpectedRevision)
-                    )
-                    {
-                        var current = await source.Reader.ReadAsync(token).ConfigureAwait(false);
-                        if (current.Status == StateReadStatus.Unavailable)
-                        {
-                            throw new InvalidOperationException(
-                                $"Cannot safely begin editing because source '{source.Id}' is unavailable."
-                            );
-                        }
-
-                        saveExpectedRevision = current.Revision;
-                    }
                 }
 
+                StateWriteResult writeResult;
                 if (effectiveWritePlan.PropertyRoutes.Count == 0)
                 {
-                    return await WriteChangesToSourceAsync(
+                    writeResult = await WriteChangesToSourceAsync(
                             source,
                             saveBaseline,
                             saveValue,
@@ -640,18 +640,25 @@ public sealed class ConfiglueOptions<TModel, TFragment>
                         )
                         .ConfigureAwait(false);
                 }
+                else
+                {
+                    writeResult = await WriteChangesToSourcesAsync(
+                            source,
+                            saveBaseline,
+                            saveValue,
+                            saveExpectedRevision,
+                            saveRevisions,
+                            saveContributions,
+                            effectiveWritePlan,
+                            token
+                        )
+                        .ConfigureAwait(false);
+                }
 
-                return await WriteChangesToSourcesAsync(
-                        source,
-                        saveBaseline,
-                        saveValue,
-                        saveExpectedRevision,
-                        saveRevisions,
-                        saveContributions,
-                        effectiveWritePlan,
-                        token
-                    )
-                    .ConfigureAwait(false);
+                baseline = value;
+                expectedRevisions = latest.Revisions;
+                expectedRevision = saveExpectedRevision;
+                return writeResult;
             },
             CloneModel,
             baseline,

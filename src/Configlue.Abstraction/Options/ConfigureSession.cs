@@ -1,6 +1,6 @@
 namespace Configlue;
 
-/// <summary>A staged configuration edit that can be saved once.</summary>
+/// <summary>A staged configuration edit that can be saved multiple times.</summary>
 /// <typeparam name="T">The configuration model type.</typeparam>
 public sealed class ConfigureSession<T> : IDisposable
 {
@@ -11,6 +11,7 @@ public sealed class ConfigureSession<T> : IDisposable
     private readonly bool _hasLoadedValue;
     private readonly bool _hasDefaultValue;
     private int _state;
+    private int _isCommitted;
 
     /// <summary>Creates a configure session around a staged value and its save operation.</summary>
     /// <remarks>The initial value is the loaded baseline. Default resets require the baseline overload.</remarks>
@@ -55,7 +56,7 @@ public sealed class ConfigureSession<T> : IDisposable
     public T CurrentValue => Value;
 
     /// <summary>Whether the session has been saved successfully.</summary>
-    public bool IsCommitted => Volatile.Read(ref _state) == 2;
+    public bool IsCommitted => Volatile.Read(ref _isCommitted) != 0;
 
     /// <summary>Updates the editable model value.</summary>
     public void Update(Action<T> updater)
@@ -99,7 +100,7 @@ public sealed class ConfigureSession<T> : IDisposable
         reset(Value, _clone(_defaultValue));
     }
 
-    /// <summary>Saves the edited value using the revision captured when the session began.</summary>
+    /// <summary>Saves the edited value against the latest resolved source state.</summary>
     public async ValueTask<StateWriteResult> SaveAsync(
         CancellationToken cancellationToken = default
     )
@@ -107,14 +108,15 @@ public sealed class ConfigureSession<T> : IDisposable
         if (Interlocked.CompareExchange(ref _state, 1, 0) != 0)
         {
             throw new InvalidOperationException(
-                "This configure session is already saving, committed, or disposed."
+                "This configure session is already saving or disposed."
             );
         }
 
         try
         {
             var result = await _save(_clone(Value), cancellationToken).ConfigureAwait(false);
-            Volatile.Write(ref _state, 2);
+            Volatile.Write(ref _isCommitted, 1);
+            Volatile.Write(ref _state, 0);
             return result;
         }
         catch
@@ -132,7 +134,7 @@ public sealed class ConfigureSession<T> : IDisposable
         if (Volatile.Read(ref _state) != 0)
         {
             throw new InvalidOperationException(
-                "This configure session is already saving, committed, or disposed."
+                "This configure session is already saving or disposed."
             );
         }
     }
