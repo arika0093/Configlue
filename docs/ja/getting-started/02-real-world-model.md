@@ -99,11 +99,13 @@ await options.SaveAsync(settings =>
 
 ```json
 {
-  "$version": 1,
-  "Name": "ExampleApp",
-  "Server": { "Host": "localhost", "Port": 9000 },
-  "Database": { "Host": "db.internal", "Port": 5432 },
-  "EnabledFeatures": ["audit-log"]
+  "$configlue": { "id": "tutorial.settings", "version": 1 },
+  "$value": {
+    "Name": "ExampleApp",
+    "Server": { "Host": "localhost", "Port": 9000 },
+    "Database": { "Host": "db.internal", "Port": 5432 },
+    "EnabledFeatures": ["audit-log"]
+  }
 }
 ```
 

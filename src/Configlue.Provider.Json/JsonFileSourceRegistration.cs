@@ -30,6 +30,9 @@ public sealed class JsonFileSourceOptions
     /// <summary>JSON serialization and property naming options.</summary>
     public JsonSerializerOptions? SerializerOptions { get; init; }
 
+    /// <summary>Optional absolute or relative directory URI used for the versioned instance <c>$schema</c> reference.</summary>
+    public string? SchemaReferenceBaseUri { get; init; }
+
     /// <summary>Backup and retry settings for the helper-created file resource.</summary>
     public FileResourceOptions? ResourceOptions { get; init; }
 
@@ -54,6 +57,13 @@ public static class JsonFileSourceRegistration
         {
             throw new ArgumentException("A section path cannot be empty.", nameof(options));
         }
+        if (options.SectionPath is not null && options.SchemaReferenceBaseUri is not null)
+        {
+            throw new ArgumentException(
+                "A root schema reference cannot be added to a section source.",
+                nameof(options)
+            );
+        }
 
         sources.Add(new JsonFileSourceDefinition(options));
     }
@@ -68,6 +78,14 @@ public static class JsonFileSourceRegistration
         )
             where TFragment : class, IConfiglueFragment<TFragment>
         {
+            if (options.SchemaReferenceBaseUri is { } schemaReferenceBaseUri)
+            {
+                _ = StateSchemaReference.CreateUri(
+                    schemaReferenceBaseUri,
+                    modelSchema.ToMetadata()
+                );
+            }
+
             var file = new FileResource(options.Path, options.ResourceOptions, options.ResourceId);
             ownResource(file);
 
@@ -92,7 +110,11 @@ public static class JsonFileSourceRegistration
             var stateReader = new SerializedStateReader<TFragment>(resource, codec);
             var stateWriter = sourceWriter is null
                 ? null
-                : new SerializedStateWriter<TFragment>(sourceWriter, codec);
+                : new SerializedStateWriter<TFragment>(
+                    sourceWriter,
+                    codec,
+                    new StateCodecContext(null, null, options.SchemaReferenceBaseUri)
+                );
             return new StateSource<TFragment>(
                 options.Id,
                 stateReader,

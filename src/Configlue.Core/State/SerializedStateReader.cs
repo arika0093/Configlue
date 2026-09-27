@@ -184,7 +184,7 @@ public sealed class SerializedStateReader<T> : IStateReader<T>
             )
             ?? _context.Schema;
         var context = schema is { } metadata
-            ? new StateCodecContext(metadata, _context.Services)
+            ? new StateCodecContext(metadata, _context.Services, _context.SchemaReferenceBaseUri)
             : _context;
         var schemaDispatcher = _schemaDispatcher;
         T? value = default;

@@ -55,7 +55,7 @@ public sealed class JsonStateCodec
             context.Schema
             ?? (value is IConfiglueFragment fragment ? fragment.Schema.ToMetadata() : null);
         var effectiveContext = schema is { } metadata
-            ? new StateCodecContext(metadata, context.Services)
+            ? new StateCodecContext(metadata, context.Services, context.SchemaReferenceBaseUri)
             : context;
         JsonStateCodecOperations.WritePayload(raw.WrittenMemory, destination, in effectiveContext);
     }
@@ -153,7 +153,7 @@ public sealed class JsonStateCodec<T>
             context.Schema
             ?? (value is IConfiglueFragment fragment ? fragment.Schema.ToMetadata() : null);
         var effectiveContext = schema is { } metadata
-            ? new StateCodecContext(metadata, context.Services)
+            ? new StateCodecContext(metadata, context.Services, context.SchemaReferenceBaseUri)
             : context;
         JsonStateCodecOperations.WritePayload(raw.WrittenMemory, destination, in effectiveContext);
     }
@@ -178,13 +178,39 @@ internal static class JsonStateCodecOperations
     {
         ownedPayload = null;
         var probe = new Utf8JsonReader(source);
-        if (
-            !probe.Read()
-            || probe.TokenType != JsonTokenType.StartObject
-            || !probe.Read()
-            || probe.TokenType != JsonTokenType.PropertyName
-            || !probe.ValueTextEquals(MetadataProperty)
-        )
+        if (!probe.Read() || probe.TokenType != JsonTokenType.StartObject)
+        {
+            return source;
+        }
+
+        var hasMetadataEnvelope = false;
+        while (probe.Read())
+        {
+            if (probe.TokenType == JsonTokenType.EndObject)
+            {
+                break;
+            }
+
+            if (probe.TokenType != JsonTokenType.PropertyName)
+            {
+                return source;
+            }
+
+            if (probe.ValueTextEquals(MetadataProperty))
+            {
+                hasMetadataEnvelope = true;
+                break;
+            }
+
+            if (!probe.Read())
+            {
+                return source;
+            }
+
+            probe.Skip();
+        }
+
+        if (!hasMetadataEnvelope)
         {
             return source;
         }
@@ -258,6 +284,21 @@ internal static class JsonStateCodecOperations
         using var document = JsonDocument.Parse(serializedValue);
         using var writer = new Utf8JsonWriter(destination);
         writer.WriteStartObject();
+        if (context.SchemaReferenceBaseUri is { } schemaReferenceBaseUri)
+        {
+            if (context.Schema is not { } referencedSchema)
+            {
+                throw new InvalidOperationException(
+                    "A schema reference base URI requires schema metadata."
+                );
+            }
+
+            writer.WriteString(
+                "$schema",
+                StateSchemaReference.CreateUri(schemaReferenceBaseUri, referencedSchema)
+            );
+        }
+
         writer.WritePropertyName(MetadataProperty);
         writer.WriteStartObject();
         if (schema.ModelId is not null)

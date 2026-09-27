@@ -20,6 +20,7 @@ namespace Configlue.Provider.Yaml
         public Configlue.ResourceId? ResourceId { get; init; }
         public Configlue.FileResourceOptions? ResourceOptions { get; init; }
         public string? SectionPath { get; init; }
+        public string? SchemaReferenceBaseUri { get; init; }
         public SharpYaml.YamlSerializerOptions? SerializerOptions { get; init; }
         public bool WatchChanges { get; init; }
     }

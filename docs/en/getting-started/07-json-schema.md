@@ -47,20 +47,33 @@ Console.WriteLine($"Wrote: {string.Join(", ", result.WrittenFiles)}");
 </TabItem>
 </Tabs>
 
-`Write` creates files in a local output directory. Publish that directory to GitHub Pages or another host separately. Passing an absolute `schemaBaseUri`, such as `https://example.com/schemas/`, sets each generated document's `$id` to the base URI plus its versioned file name and permits an optional `$schema` member in configuration. It does not change the output directory. Output is versioned, so re-export when the model `Version` rises. Supported DataAnnotations map to schema constraints.
+`Write` creates files in a local output directory. Publish that directory to GitHub Pages or another host separately. Passing an absolute `schemaBaseUri`, such as `https://example.com/schemas/`, sets each generated document's `$id` to the base URI plus its versioned file name and includes an optional root `$schema` property in the generated configuration schema. It does not change the output directory. Output is versioned, so re-export when the model `Version` rises. Supported DataAnnotations map to schema constraints. The exported schema describes Configlue's persisted envelope: `$configlue` carries the model ID and version, and `$value` carries the sparse settings fragment.
 
 ## Use it in editors and CI
 
-Point at it with `$schema` at the top of JSON files:
+To add a versioned reference when a JSON file source writes settings, configure its `SchemaReferenceBaseUri`. The writer appends the model-specific versioned schema filename. For example:
+
+```csharp
+sources.FromJsonFile(new()
+{
+    Id = "settings",
+    Path = "settings.json",
+    SchemaReferenceBaseUri = "./schemas/"
+});
+```
+
+The saved file then has the schema reference at the root, alongside the same envelope the generated schema describes:
 
 ```json
 {
-  "$schema": "./schemas/appsettings.schema.json",
-  "$version": 1,
-  "Server": { "Host": "localhost", "Port": 8080 }
+  "$schema": "./schemas/tutorial.settings.v1.json",
+  "$configlue": { "id": "tutorial.settings", "version": 1 },
+  "$value": {
+    "Server": { "Host": "localhost", "Port": 8080 }
+  }
 }
 ```
 
-Editors like VS Code gain completion and hover docs; CI can validate against the schema. Fewer "typo discovered at runtime" incidents.
+For YAML writers, `SchemaReferenceBaseUri` adds a `yaml-language-server` schema directive comment at the top of the file. A file source using `SectionPath` cannot add a root reference because its schema would describe the wrong document shape. `Write` remains a local file writer; publish generated schemas separately. Editors like VS Code gain completion and hover docs; CI can validate against the schema.
 
 Next: [STEP 8: Version and migrate](./08-migration.md). Decide how model changes treat old files.
