@@ -559,13 +559,9 @@ public sealed class FileResourceTests
             name = "." + name;
         }
 
-        name += "_" + DateTime.UtcNow.Ticks.ToString(
-            System.Globalization.CultureInfo.InvariantCulture
-        );
-        return System.IO.Path.Combine(
-            directory,
-            name + System.IO.Path.GetExtension(path) + ".bak"
-        );
+        name +=
+            "_" + DateTime.UtcNow.Ticks.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        return System.IO.Path.Combine(directory, name + System.IO.Path.GetExtension(path) + ".bak");
     }
 
     private static byte[] SerializeFragment(
