@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using Configlue.Extensions.MSOptions;
 using Configlue.Provider.Json;
 using Configlue.Testing;
 using Microsoft.Extensions.DependencyInjection;

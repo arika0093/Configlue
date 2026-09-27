@@ -39,6 +39,8 @@ builder.Services.AddConfiglue(conf => conf.Add<UserSettings>(model =>
 The service provider owns the context. Inject `IReadOnlyOptions<T>` / `IWritableOptions<T>`. To use `IOptions<T>` / `IOptionsSnapshot<T>` / `IOptionsMonitor<T>` for a class model, install `Configlue.Extensions.MSOptions` and opt in after registering the model:
 
 ```csharp
+using Configlue.Extensions.MSOptions;
+
 services.AddConfiglueMicrosoftOptions<UserSettings>();
 ```
 

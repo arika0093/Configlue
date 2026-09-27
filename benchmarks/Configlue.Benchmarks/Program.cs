@@ -2,6 +2,7 @@ using System.Threading.Tasks.Sources;
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Running;
 using Configlue;
+using Configlue.Extensions.MSOptions;
 using Configlue.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
