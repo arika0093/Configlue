@@ -74,7 +74,7 @@ await options.SaveAsync(patch => patch.Server!.Port = 9000);
 - 環境変数で上書きされていない項目だけを保存する。
 - 恒久的な上書き運用なら、環境変数を正としてファイル側を持たない。
 
-`ExplainAsync("Server.Port")` を見れば、どの層が値を握っているか分かります。保存の前に確認する癖を付けると、競合の理由がすぐ読めます。
+`(await options.GetDetailsAsync()).Server.Port` を見れば、どの層が値を握っているか分かります。保存の前に確認する癖を付けると、競合の理由がすぐ読めます。
 
 ## テストでは差し替え可能に
 

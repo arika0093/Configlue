@@ -42,8 +42,8 @@ var options = new FileResourceOptions
 
 ## Provenance and diagnostics
 
-* `IConfiglueOptions<T>.ExplainAsync("Database.Host")` returns the effective value and the present source contributions from highest to lowest priority. Use it in settings UIs and troubleshooting.
-* `IConfiglueOptions<T>.GetDiagnostics()` returns an immutable snapshot of the configured source topology for that options runtime, including source ID, priority, fallback policy, read/write/watch capabilities, physical origin, resource identity, and retired status. It also reports the default and property-path write routes; `GetWriteSourceId("Database.Endpoint")` resolves a registration-level route. Per-operation write plans are specific to that operation and are not included. Use `ReadAsync` for the latest read result and revisions, `ExplainAsync(path)` for effective values and their contributing sources, and write results for completed writes.
+* `await options.GetDetailsAsync()` returns a typed snapshot with effective values and per-source contributions from highest to lowest priority. Use it in settings UIs and troubleshooting.
+* `IConfiglueOptions<T>.GetDiagnostics()` returns an immutable snapshot of the configured source topology for that options runtime, including source ID, priority, fallback policy, read/write/watch capabilities, physical origin, resource identity, and retired status. It also reports the default and property-path write routes; `GetWriteSourceId("Database.Endpoint")` resolves a registration-level route. Per-operation write plans are specific to that operation and are not included. Use `ReadAsync` for the latest read result and revisions, `GetDetailsAsync()` for effective values and their contributing sources, and write results for completed writes.
 
 ```csharp
 var diagnostics = options.GetDiagnostics();

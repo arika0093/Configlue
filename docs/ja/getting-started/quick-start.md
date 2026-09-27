@@ -83,11 +83,11 @@ await options.SaveAsync(patch =>
 ## 4. 値の出どころを見る
 
 ```csharp
-var explanation = await options.ExplainAsync("Name");
-Console.WriteLine(explanation);
+var details = await options.GetDetailsAsync();
+Console.WriteLine(details.Name);
 ```
 
-説明には実効値と、優先度順の各ソース寄与が並びます。
+詳細には実効値と、優先度順の各ソース寄与が編集可否つきで並びます。
 
 ## 次のステップ
 

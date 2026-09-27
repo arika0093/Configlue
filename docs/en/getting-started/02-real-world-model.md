@@ -116,13 +116,13 @@ The saved `settings.json` looks like this:
 
 ## Ask where a value came from
 
-More fields means more "where did this come from?". Trace it with `ExplainAsync`:
+More fields means more "where did this come from?". Trace it with `GetDetailsAsync`:
 
 ```csharp
-var explanation = await options.ExplainAsync("Database.Host");
-Console.WriteLine(explanation);
+var details = await options.GetDetailsAsync();
+Console.WriteLine(details.Database.Host);
 ```
 
-It lists the effective value and each source contribution from highest to lowest priority. Trivial with one source — powerful once STEP 3 splits them.
+It exposes the effective value with per-source contributions from highest to lowest priority, plus editability. Trivial with one source — powerful once STEP 3 splits them.
 
 Next: [STEP 3: Split shared and local](./03-global-local.md). Divide files and learn priority and write destinations.
