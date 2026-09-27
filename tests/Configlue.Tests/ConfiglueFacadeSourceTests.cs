@@ -290,6 +290,89 @@ public sealed class ConfiglueFacadeSourceTests
     }
 
     [Test]
+    public async Task RemovingDynamicOptionsStopsAndDisposesItsHelperCreatedFileWatcherOnce()
+    {
+        using var directory = new TemporaryDirectory();
+        await using var context = Configlue.CreateContext(builder =>
+        {
+            builder.Add<AppSettings>(model =>
+            {
+                model.EnableDynamicOptions = true;
+                model.SourcesForOptions(
+                    (name, sources) =>
+                        sources.FromJsonFile(
+                            new JsonFileSourceOptions
+                            {
+                                Id = $"dynamic-{name}",
+                                Path = Path.Combine(directory.FullPath, $"{name}.json"),
+                                ReadOnly = true,
+                                WatchChanges = true,
+                            }
+                        )
+                );
+            });
+        });
+        var registry = context.GetOptionsRegistry<AppSettings>();
+        registry.TryAdd("late").ShouldBeTrue();
+        var resource = ((ConfiglueFacadeOptionsRegistry<AppSettings>)registry)
+            .GetOwnedResourcesForTests("late")
+            .OfType<FileResource>()
+            .Single();
+        var handle = registry.Get("late");
+        using var subscription = handle.OnChange(static _ => { });
+
+        await WaitUntilAsync(() => resource.HasActiveWatcherForTests);
+        (await registry.TryRemoveAsync("late")).ShouldBeTrue();
+
+        (resource.IsDisposedForTests).ShouldBeTrue();
+        (resource.HasActiveWatcherForTests).ShouldBeFalse();
+        (resource.DisposeCallCountForTests).ShouldBe(1);
+        await Should.ThrowAsync<ObjectDisposedException>(async () => await handle.GetValueAsync());
+    }
+
+    [Test]
+    public async Task DynamicSourceFactoryFailureDisposesResourcesCreatedEarlierInItsRuntime()
+    {
+        var resource = new DisposableProbe();
+        await using var context = Configlue.CreateContext(builder =>
+        {
+            builder.Add<AppSettings>(model =>
+            {
+                model.EnableDynamicOptions = true;
+                model.SourcesForOptions(
+                    (name, sources) =>
+                    {
+                        if (name != "failure")
+                        {
+                            var store = new InMemoryStateStore<AppSettings.Fragment>();
+                            sources.Add<AppSettings.Fragment>(
+                                _ => new StateSource<AppSettings.Fragment>(
+                                    "ordinary",
+                                    store,
+                                    writer: store,
+                                    watcher: store
+                                )
+                            );
+                            return;
+                        }
+
+                        sources.Add(new DisposableProbeSourceDefinition(resource));
+                        sources.Add<AppSettings.Fragment>(_ =>
+                            throw new InvalidOperationException("source factory failed")
+                        );
+                    }
+                );
+            });
+        });
+        var registry = context.GetOptionsRegistry<AppSettings>();
+
+        Should.Throw<InvalidOperationException>(() => registry.TryAdd("failure"));
+
+        (resource.DisposeCallCount).ShouldBe(1);
+        registry.TryGet("failure", out _).ShouldBeFalse();
+    }
+
+    [Test]
     public async Task CommonSourcePresetWorksInDependencyInjection()
     {
         using var directory = new TemporaryDirectory();
@@ -530,6 +613,29 @@ public sealed class ConfiglueFacadeSourceTests
             {
                 Directory.Delete(FullPath, recursive: true);
             }
+        }
+    }
+
+    private sealed class DisposableProbe : IDisposable
+    {
+        public int DisposeCallCount { get; private set; }
+
+        public void Dispose() => DisposeCallCount++;
+    }
+
+    private sealed class DisposableProbeSourceDefinition(DisposableProbe resource)
+        : IConfiglueSourceDefinition
+    {
+        public StateSource<TFragment> Create<TFragment>(
+            ConfiglueModelSchema modelSchema,
+            IServiceProvider? serviceProvider,
+            Action<IDisposable> ownResource
+        )
+            where TFragment : class, IConfiglueFragment<TFragment>
+        {
+            ownResource(resource);
+            var store = new InMemoryStateStore<TFragment>();
+            return new StateSource<TFragment>("owned-probe", store, writer: store, watcher: store);
         }
     }
 

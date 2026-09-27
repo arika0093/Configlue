@@ -92,6 +92,19 @@ internal sealed class ConfiglueFacadeOptionsRegistry<TModel>
         }
     }
 
+    internal IReadOnlyList<IDisposable> GetOwnedResourcesForTests(string profileName)
+    {
+        lock (_gate)
+        {
+            ThrowIfDisposed();
+            return _entries.TryGetValue(profileName, out var entry)
+                ? Array.AsReadOnly(entry.Resources.ToArray())
+                : throw new KeyNotFoundException(
+                    $"Configlue options '{profileName}' is not registered dynamically."
+                );
+        }
+    }
+
     public bool TryAdd(string profileName)
     {
         ValidateName(profileName);
