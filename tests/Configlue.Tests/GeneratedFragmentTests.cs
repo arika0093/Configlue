@@ -502,8 +502,12 @@ public sealed class GeneratedFragmentTests
     public async Task YamlCodec_DispatchesHistoricalGeneratedFragment()
     {
         var (_, model) = await ReadHistoricalSettingsAsync(
-            new YamlStateCodec<HistoricalSettingsV1.Fragment>(),
-            new YamlStateCodec<HistoricalSettings.Fragment>()
+            new YamlStateCodec<HistoricalSettingsV1.Fragment>(
+                modelSchema: HistoricalSettingsV1.FragmentSchema
+            ),
+            new YamlStateCodec<HistoricalSettings.Fragment>(
+                modelSchema: HistoricalSettings.FragmentSchema
+            )
         );
 
         (model.RetryCount).ShouldBe(0);
@@ -608,7 +612,10 @@ public sealed class GeneratedFragmentTests
     [Test]
     public async Task YamlCodec_RoundTripsSparseNestedValuesAndSchemaMetadata()
     {
-        var codec = new YamlStateCodec<AppSettings.Fragment>();
+        var codec = new YamlStateCodec<AppSettings.Fragment>(
+            modelSchema: AppSettings.FragmentSchema,
+            serializerOptions: AppSettingsYamlContext.Default.Options
+        );
         var fragment = new AppSettings.Fragment
         {
             Enabled = Optional<bool>.Present(false),

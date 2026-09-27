@@ -831,7 +831,9 @@ public sealed class StateRuntimeTests
         ]);
 
         var yamlResource = new InMemoryResource();
-        var yamlCodec = new YamlStateCodec<AppSettings.Fragment>();
+        var yamlCodec = new YamlStateCodec<AppSettings.Fragment>(
+            modelSchema: AppSettings.FragmentSchema
+        );
         var yamlFirst = SerializedStateSource.FromResource<AppSettings.Fragment>(
             "yaml-first",
             new YamlSectionResource(yamlResource, "App:First"),

@@ -5,5 +5,6 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../../src/Configlue.Provider.Json/Configlue.Provider.Json.csproj" />
+    <ProjectReference Include="../../src/Configlue.Provider.Yaml/Configlue.Provider.Yaml.csproj" />
   </ItemGroup>
 </Project>

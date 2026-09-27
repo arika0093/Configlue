@@ -1,5 +1,5 @@
 using System.Text;
-using YamlDotNet.RepresentationModel;
+using SharpYaml.Model;
 
 namespace Configlue.Provider.Yaml;
 
@@ -84,7 +84,7 @@ public sealed class YamlSectionResource
         {
             return ExtractSection(resource);
         }
-        catch (YamlDotNet.Core.YamlException exception)
+        catch (SharpYaml.YamlException exception)
         {
             exception.Data["Configlue.ObservedResourceRevision"] = resource.Revision;
             throw;
@@ -123,7 +123,7 @@ public sealed class YamlSectionResource
                     {
                         section = ExtractSection(candidate);
                     }
-                    catch (YamlDotNet.Core.YamlException)
+                    catch (SharpYaml.YamlException)
                     {
                         return false;
                     }
@@ -151,9 +151,9 @@ public sealed class YamlSectionResource
         var current = LoadRoot(resource.Content.Span);
         foreach (var name in _path)
         {
-            if (current is not YamlMappingNode mapping)
+            if (current is not YamlMapping mapping)
             {
-                throw new YamlDotNet.Core.YamlException(
+                throw new SharpYaml.YamlException(
                     $"Section path '{string.Join(':', _path)}' crosses a non-mapping value at '{name}'."
                 );
             }
@@ -210,23 +210,23 @@ public sealed class YamlSectionResource
         ReadOnlyMemory<byte> sectionContent
     )
     {
-        YamlNode root;
+        YamlElement root;
         if (current.Status == StateReadStatus.Success)
         {
             root = LoadRoot(current.Content.Span);
         }
         else if (current.Status == StateReadStatus.NotFound)
         {
-            root = new YamlMappingNode();
+            root = new YamlMapping();
         }
         else
         {
             throw new IOException("The YAML resource is unavailable and cannot be updated safely.");
         }
 
-        if (root is not YamlMappingNode rootMapping)
+        if (root is not YamlMapping rootMapping)
         {
-            throw new YamlDotNet.Core.YamlException(
+            throw new SharpYaml.YamlException(
                 "A YAML section resource must be contained in a root mapping."
             );
         }
@@ -237,24 +237,24 @@ public sealed class YamlSectionResource
             var name = _path[index];
             if (!TryGet(container, name, out var child))
             {
-                var created = new YamlMappingNode();
-                container.Add(new YamlScalarNode(name), created);
+                var created = new YamlMapping();
+                container[name] = created;
                 container = created;
             }
-            else if (child is YamlMappingNode nested)
+            else if (child is YamlMapping nested)
             {
                 container = nested;
             }
             else
             {
-                throw new YamlDotNet.Core.YamlException(
+                throw new SharpYaml.YamlException(
                     $"Section path '{string.Join(':', _path)}' crosses a non-mapping value at '{name}'."
                 );
             }
         }
 
         var updatedSection = LoadRoot(sectionContent.Span);
-        Set(container, _path[^1], updatedSection);
+        container[_path[^1]] = updatedSection;
         return SerializeNode(rootMapping);
     }
 
@@ -286,68 +286,76 @@ public sealed class YamlSectionResource
         }
     }
 
-    private static bool TryGet(YamlMappingNode mapping, string name, out YamlNode value)
-    {
-        foreach (var pair in mapping.Children)
-        {
-            if (
-                pair.Key is YamlScalarNode scalar
-                && string.Equals(scalar.Value, name, StringComparison.Ordinal)
-            )
-            {
-                value = pair.Value;
-                return true;
-            }
-        }
-
-        value = null!;
-        return false;
-    }
-
-    private static void Set(YamlMappingNode mapping, string name, YamlNode value)
-    {
-        var key = mapping.Children.Keys.FirstOrDefault(candidate =>
-            candidate is YamlScalarNode scalar
-            && string.Equals(scalar.Value, name, StringComparison.Ordinal)
-        );
-        if (key is null)
-        {
-            mapping.Add(new YamlScalarNode(name), value);
-        }
-        else
-        {
-            mapping.Children[key] = value;
-        }
-    }
-
-    private YamlNode LoadRoot(ReadOnlySpan<byte> content)
+    private YamlElement LoadRoot(ReadOnlySpan<byte> content)
     {
         var text = _textEncoding is null
             ? StrictUtf8.GetString(content)
             : DecodeWithEncoding(content, _textEncoding);
         if (string.IsNullOrWhiteSpace(text))
         {
-            return new YamlMappingNode();
+            return new YamlMapping();
         }
 
         using var reader = new StringReader(text);
-        var stream = new YamlStream();
-        stream.Load(reader);
-        if (stream.Documents.Count != 1)
+        var stream = YamlStream.Load(reader, null);
+        if (stream.Count != 1)
         {
-            throw new YamlDotNet.Core.YamlException(
+            throw new SharpYaml.YamlException(
                 "A Configlue YAML resource must contain exactly one document."
             );
         }
 
-        return stream.Documents[0].RootNode;
+        var root =
+            stream[0].Contents
+            ?? throw new SharpYaml.YamlException("A YAML document cannot be empty.");
+        ValidateUniqueKeys(root);
+        return root;
     }
 
-    private ReadOnlyMemory<byte> SerializeNode(YamlNode node)
+    private static void ValidateUniqueKeys(YamlElement? element)
     {
-        var stream = new YamlStream(new YamlDocument(node));
+        if (element is null)
+        {
+            return;
+        }
+
+        if (element is YamlMapping mapping)
+        {
+            var keys = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var pair in mapping)
+            {
+                if (pair.Key is YamlValue scalar && !keys.Add(scalar.Value))
+                {
+                    throw new SharpYaml.YamlException(
+                        $"Duplicate YAML mapping key '{scalar.Value}' is ambiguous for section updates."
+                    );
+                }
+
+                ValidateUniqueKeys(pair.Value);
+            }
+
+            return;
+        }
+
+        if (element is YamlSequence sequence)
+        {
+            foreach (var child in sequence)
+            {
+                ValidateUniqueKeys(child);
+            }
+        }
+    }
+
+    private static bool TryGet(YamlMapping mapping, string name, out YamlElement value) =>
+        mapping.TryGetValue(name, out value!);
+
+    private ReadOnlyMemory<byte> SerializeNode(YamlElement node)
+    {
+        var stream = new YamlStream(null);
+        var document = new YamlDocument { Contents = node };
+        stream.Add(document);
         using var writer = new StringWriter(System.Globalization.CultureInfo.InvariantCulture);
-        stream.Save(writer);
+        stream.WriteTo(writer, false);
         return (_textEncoding ?? Encoding.UTF8).GetBytes(writer.ToString());
     }
 

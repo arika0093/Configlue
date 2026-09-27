@@ -1,11 +1,10 @@
 using System.Buffers;
 using System.Globalization;
 using System.Text;
+using System.Text.Json;
 using Configlue;
-using YamlDotNet.Core;
-using YamlDotNet.RepresentationModel;
-using YamlDotNet.Serialization;
-using YamlDotNet.Serialization.NamingConventions;
+using SharpYaml;
+using SharpYaml.Serialization;
 
 namespace Configlue.Provider.Yaml;
 
@@ -22,25 +21,39 @@ public sealed class ConfigurationWritableYamlStateCodec<T>
         IStateSchemaMetadataReader
 {
     private readonly YamlStateCodec<T> _inner;
-    private readonly INamingConvention _namingConvention;
+    private readonly JsonNamingPolicy _namingPolicy;
+    private readonly YamlSerializerOptions _serializerOptions;
     private readonly Encoding _encoding;
     private readonly string? _modelId;
     private readonly string _versionProperty;
     private readonly string[] _fallbackProperties;
 
-    /// <summary>Creates a legacy YAML decoder using the supplied YamlDotNet naming convention.</summary>
+    /// <summary>Creates a legacy YAML decoder using the supplied property naming policy.</summary>
     public ConfigurationWritableYamlStateCodec(
-        INamingConvention? namingConvention = null,
+        JsonNamingPolicy? namingPolicy = null,
         string? modelId = null,
         string versionProperty = "$version",
         IEnumerable<string>? fallbackVersionProperties = null,
-        Encoding? encoding = null
+        Encoding? encoding = null,
+        ConfiglueModelSchema? modelSchema = null,
+        YamlSerializerOptions? serializerOptions = null
     )
     {
         // C.W's VYaml formatters use lower-camel member names by default.
-        _namingConvention = namingConvention ?? CamelCaseNamingConvention.Instance;
+        _namingPolicy = namingPolicy ?? JsonNamingPolicy.CamelCase;
+        var options = serializerOptions ?? YamlSerializerOptions.Default;
+        _serializerOptions = options.TypeInfoResolver is YamlSerializerContext context
+            ? context.CreateOptions(ConfigureOptions)
+            : ConfigureOptions(options);
+
+        YamlSerializerOptions ConfigureOptions(YamlSerializerOptions source) =>
+            source with
+            {
+                PropertyNamingPolicy = _namingPolicy,
+                DuplicateKeyHandling = YamlDuplicateKeyHandling.Error,
+            };
         _encoding = encoding ?? new UTF8Encoding(false, true);
-        _inner = new YamlStateCodec<T>(_namingConvention);
+        _inner = new YamlStateCodec<T>(_namingPolicy, modelSchema, serializerOptions);
         _modelId = ValidateModelId(modelId);
         _versionProperty = ValidateVersionProperty(versionProperty, nameof(versionProperty));
         _fallbackProperties = ValidateFallbacks(fallbackVersionProperties);
@@ -84,13 +97,11 @@ public sealed class ConfigurationWritableYamlStateCodec<T>
             return new ReadOnlySequence<byte>("{}"u8.ToArray());
         }
 
-        var stream = new YamlStream();
-        using (var reader = new StringReader(content))
-        {
-            stream.Load(reader);
-        }
-
-        if (stream.Documents.Count != 1 || stream.Documents[0].RootNode is not YamlMappingNode root)
+        var rootValue = YamlSerializer.Deserialize<Dictionary<string, object?>>(
+            content,
+            _serializerOptions
+        );
+        if (rootValue is not IDictionary<string, object?> root)
         {
             schema = null;
             return source;
@@ -111,12 +122,18 @@ public sealed class ConfigurationWritableYamlStateCodec<T>
 
         if (versionKey is not null)
         {
-            var node = root.Children[versionKey];
-            if (node is YamlScalarNode scalar)
+            var node = root[versionKey];
+            if (
+                node is string
+                || (
+                    node is not IDictionary<string, object?>
+                    && node is not System.Collections.IEnumerable
+                )
+            )
             {
                 if (
                     !int.TryParse(
-                        scalar.Value,
+                        Convert.ToString(node, CultureInfo.InvariantCulture),
                         NumberStyles.Integer,
                         CultureInfo.InvariantCulture,
                         out var version
@@ -138,7 +155,7 @@ public sealed class ConfigurationWritableYamlStateCodec<T>
                 schema = new StateSchemaMetadata(_modelId, StateSchemaMetadata.InitialVersion);
             }
 
-            root.Children.Remove(versionKey);
+            root.Remove(versionKey);
         }
         else
         {
@@ -153,42 +170,30 @@ public sealed class ConfigurationWritableYamlStateCodec<T>
         }
         if (schemaKey is not null)
         {
-            root.Children.Remove(schemaKey);
+            root.Remove(schemaKey);
         }
 
-        return Serialize(stream);
+        return Serialize(root);
     }
 
-    private YamlNode? FindKey(YamlMappingNode root, string propertyName)
+    private string? FindKey(IDictionary<string, object?> root, string propertyName)
     {
-        var convertedName = _namingConvention.Apply(propertyName);
-        foreach (var key in root.Children.Keys)
-        {
-            if (
-                key is YamlScalarNode scalar
-                && (
-                    string.Equals(scalar.Value, propertyName, StringComparison.Ordinal)
-                    || string.Equals(scalar.Value, convertedName, StringComparison.Ordinal)
-                    || string.Equals(
-                        scalar.Value,
-                        char.ToLowerInvariant(propertyName[0]) + propertyName[1..],
-                        StringComparison.Ordinal
-                    )
-                )
+        var convertedName = _namingPolicy.ConvertName(propertyName);
+        return root.Keys.FirstOrDefault(key =>
+            string.Equals(key, propertyName, StringComparison.Ordinal)
+            || string.Equals(key, convertedName, StringComparison.Ordinal)
+            || string.Equals(
+                key,
+                char.ToLowerInvariant(propertyName[0]) + propertyName[1..],
+                StringComparison.Ordinal
             )
-            {
-                return key;
-            }
-        }
-
-        return null;
+        );
     }
 
-    private static ReadOnlySequence<byte> Serialize(YamlStream stream)
+    private ReadOnlySequence<byte> Serialize(object value)
     {
-        using var writer = new StringWriter(CultureInfo.InvariantCulture);
-        stream.Save(writer);
-        return new ReadOnlySequence<byte>(Encoding.UTF8.GetBytes(writer.ToString()));
+        var yaml = YamlSerializer.Serialize(value, value.GetType(), _serializerOptions);
+        return new ReadOnlySequence<byte>(Encoding.UTF8.GetBytes(yaml));
     }
 
     private string Decode(byte[] bytes)

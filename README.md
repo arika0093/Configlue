@@ -228,6 +228,28 @@ If a source revision changes while a configure session is open, Configlue re-res
 `JsonSectionResource` exposes a nested JSON path such as `App:Settings` as a separate resource and preserves its sibling values on writes.
 `XmlSectionResource` and `YamlSectionResource` provide the same nested-section view for XML elements and YAML mappings, including sibling preservation and whole-resource revision checks.
 Section edits require standard JSON or UTF-8 YAML. JSON comments/trailing-comma JSONC are not supported, and section writes reserialize the document: comment, whitespace, quoting, and scalar-style preservation is not guaranteed. YAML input with invalid UTF-8 now fails instead of being replacement-decoded and rewritten as UTF-8.
+The YAML provider uses SharpYaml. Set `PropertyNamingPolicy` on `YamlFileSourceOptions` or pass a `JsonNamingPolicy` to `YamlStateCodec` when the stored names use a convention such as camel case. SharpYaml reflection is enabled by default; for trimming or NativeAOT, provide generated serializer metadata through `SerializerOptions`. Facade YAML registration supplies the generated Configlue model schema automatically. When constructing a Fragment codec directly, also pass `modelSchema: AppSettings.FragmentSchema` so the codec can resolve nested Fragment metadata without reflection.
+
+```csharp
+using SharpYaml.Serialization;
+
+[YamlSerializable(typeof(AppSettings))]
+[YamlSerializable(typeof(AppSettings.Fragment))]
+[YamlSerializable(typeof(DatabaseSettings.Fragment))]
+[YamlSerializable(typeof(Dictionary<string, object?>))]
+[YamlSerializable(typeof(IReadOnlyList<string>))]
+[YamlSerializable(typeof(List<string>))]
+[YamlSerializable(typeof(int))]
+[YamlSerializable(typeof(string))]
+internal partial class AppSettingsYamlContext : YamlSerializerContext
+{
+}
+
+var codec = new YamlStateCodec<AppSettings.Fragment>(
+    modelSchema: AppSettings.FragmentSchema,
+    serializerOptions: AppSettingsYamlContext.Default.Options);
+```
+
 `ZipEntryResource` exposes one archive entry as a logical resource while retaining the archive's physical identity and revision. Disjoint entry updates can share one batched archive write, and untouched entries remain intact.
 `HttpResourceReader` reads from `{root}/get` and can be composed with any state codec. Call `CreateWriter()` and pass the result as `writer:` to `SerializedStateSource.FromResource` only when the endpoint supports updates; HTTP requests use ETags for conditional writes and polling. The optional `Configlue.Resource.Http.AspNetCore` package maps the same protocol over user-provided resource handlers. See the [HTTP resource protocol](docs/en/reference/http-resource-protocol.md).
 

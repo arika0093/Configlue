@@ -5,8 +5,7 @@ using Configlue.Provider.Json;
 using Configlue.Provider.Xml;
 using Configlue.Provider.Yaml;
 using Configlue.Testing;
-using YamlDotNet.Core;
-using YamlDotNet.RepresentationModel;
+using SharpYaml;
 
 namespace Configlue.Tests;
 
@@ -211,7 +210,9 @@ public sealed class FormatSectionResourceTests
         try
         {
             var path = System.IO.Path.Combine(directory, "settings.yaml");
-            var codec = new YamlStateCodec<AppSettings.Fragment>();
+            var codec = new YamlStateCodec<AppSettings.Fragment>(
+                modelSchema: AppSettings.FragmentSchema
+            );
             var backup =
                 "App:"
                 + Environment.NewLine
@@ -335,28 +336,27 @@ public sealed class FormatSectionResourceTests
     [Test]
     public async Task YamlSectionResource_UpdatesNestedGeneratedFragmentAndPreservesSiblings()
     {
-        var codec = new YamlStateCodec<AppSettings.Fragment>();
+        var codec = new YamlStateCodec<AppSettings.Fragment>(
+            modelSchema: AppSettings.FragmentSchema
+        );
         var fragmentBytes = Serialize(
             codec,
             new AppSettings.Fragment { RetryCount = Optional<int>.Present(4) }
         );
         var sectionNode = LoadYaml(fragmentBytes);
-        var document = new YamlMappingNode
+        var document = new Dictionary<string, object?>(StringComparer.Ordinal)
         {
+            ["App"] = new Dictionary<string, object?>(StringComparer.Ordinal)
             {
-                "App",
-                new YamlMappingNode
+                ["Settings"] = sectionNode,
+                ["Other"] = new Dictionary<string, object?>(StringComparer.Ordinal)
                 {
-                    { "Settings", sectionNode },
-                    {
-                        "Other",
-                        new YamlMappingNode { { "Value", "keep-nested" } }
-                    },
-                }
+                    ["Value"] = "keep-nested",
+                },
             },
+            ["OtherSection"] = new Dictionary<string, object?>(StringComparer.Ordinal)
             {
-                "OtherSection",
-                new YamlMappingNode { { "Value", "keep-root" } }
+                ["Value"] = "keep-root",
             },
         };
         var resource = new InMemoryResource();
@@ -385,13 +385,9 @@ public sealed class FormatSectionResourceTests
         var app = GetMapping(updatedRoot, "App");
         var settings = GetMapping(app, "Settings");
         var values = GetMapping(settings, "$value");
-        (((YamlScalarNode)GetNode(values, "RetryCount")).Value).ShouldBe("9");
-        (((YamlScalarNode)GetNode(GetMapping(app, "Other"), "Value")).Value).ShouldBe(
-            "keep-nested"
-        );
-        (
-            ((YamlScalarNode)GetNode(GetMapping(updatedRoot, "OtherSection"), "Value")).Value
-        ).ShouldBe("keep-root");
+        GetNode(values, "RetryCount").ShouldBe(9);
+        GetNode(GetMapping(app, "Other"), "Value").ShouldBe("keep-nested");
+        GetNode(GetMapping(updatedRoot, "OtherSection"), "Value").ShouldBe("keep-root");
     }
 
     [Test]
@@ -402,7 +398,7 @@ public sealed class FormatSectionResourceTests
         var source = SerializedStateSource.FromResource<AppSettings.Fragment>(
             "settings",
             section,
-            new YamlStateCodec<AppSettings.Fragment>()
+            new YamlStateCodec<AppSettings.Fragment>(modelSchema: AppSettings.FragmentSchema)
         );
         await using var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([source])
@@ -414,7 +410,7 @@ public sealed class FormatSectionResourceTests
 
         var updatedRoot = LoadYaml((await resource.ReadAsync()).Content.Span);
         var values = GetMapping(GetMapping(GetMapping(updatedRoot, "App"), "Settings"), "$value");
-        (((YamlScalarNode)GetNode(values, "RetryCount")).Value).ShouldBe("7");
+        GetNode(values, "RetryCount").ShouldBe(7);
     }
 
     [Test]
@@ -427,19 +423,32 @@ public sealed class FormatSectionResourceTests
         var source = SerializedStateSource.FromResource<AppSettings.Fragment>(
             "settings",
             section,
-            new YamlStateCodec<AppSettings.Fragment>()
+            new YamlStateCodec<AppSettings.Fragment>(modelSchema: AppSettings.FragmentSchema)
         );
         await using var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([source])
         );
 
-        await Should.ThrowAsync<YamlException>(async () =>
+        await Should.ThrowAsync<SharpYaml.YamlException>(async () =>
             await options.ApplyPatchAsync(
                 new AppSettings.Patch { RetryCount = FragmentOperation<int>.Set(7) }
             )
         );
 
         Encoding.UTF8.GetString((await resource.ReadAsync()).Content.Span).ShouldBe(malformed);
+    }
+
+    [Test]
+    public async Task YamlSectionResource_RejectsDuplicateMappingKeysWithoutWriting()
+    {
+        const string duplicate = "App:\n  Settings:\n    RetryCount: 3\n    RetryCount: 4\n";
+        var resource = new InMemoryResource();
+        await resource.WriteAsync(new ResourceWriteRequest(Encoding.UTF8.GetBytes(duplicate)));
+        var section = new YamlSectionResource(resource, "App:Settings");
+
+        await Should.ThrowAsync<SharpYaml.YamlException>(async () => await section.ReadAsync());
+
+        Encoding.UTF8.GetString((await resource.ReadAsync()).Content.Span).ShouldBe(duplicate);
     }
 
     private static byte[] Serialize<T>(IStateCodec<T> codec, T value)
@@ -450,35 +459,23 @@ public sealed class FormatSectionResourceTests
         return output.WrittenSpan.ToArray();
     }
 
-    private static YamlNode LoadYaml(ReadOnlySpan<byte> content)
-    {
-        using var reader = new StringReader(Encoding.UTF8.GetString(content));
-        var stream = new YamlStream();
-        stream.Load(reader);
-        return stream.Documents.Single().RootNode;
-    }
+    private static object? LoadYaml(ReadOnlySpan<byte> content) =>
+        YamlSerializer.Deserialize<object>(Encoding.UTF8.GetString(content));
 
-    private static byte[] SerializeYaml(YamlNode node)
-    {
-        var stream = new YamlStream(new YamlDocument(node));
-        using var writer = new StringWriter(System.Globalization.CultureInfo.InvariantCulture);
-        stream.Save(writer);
-        return Encoding.UTF8.GetBytes(writer.ToString());
-    }
+    private static byte[] SerializeYaml(object? node) =>
+        Encoding.UTF8.GetBytes(YamlSerializer.Serialize(node, typeof(object)));
 
-    private static YamlMappingNode GetMapping(YamlNode node, string key) =>
-        GetNode(node, key) as YamlMappingNode
+    private static IDictionary<string, object?> GetMapping(object? node, string key) =>
+        GetNode(node, key) as IDictionary<string, object?>
         ?? throw new InvalidOperationException($"YAML node '{key}' is not a mapping.");
 
-    private static YamlNode GetNode(YamlNode node, string key)
+    private static object? GetNode(object? node, string key)
     {
-        if (node is not YamlMappingNode mapping)
+        if (node is not IDictionary<string, object?> mapping)
         {
             throw new InvalidOperationException("Expected a YAML mapping.");
         }
 
-        return mapping
-            .Children.First(pair => pair.Key is YamlScalarNode scalar && scalar.Value == key)
-            .Value;
+        return mapping[key];
     }
 }

@@ -11,7 +11,6 @@ using Configlue.Resource.Http;
 using Configlue.Source.Common;
 using Configlue.Testing;
 using Microsoft.Extensions.DependencyInjection;
-using YamlDotNet.RepresentationModel;
 
 namespace Configlue.Tests;
 
@@ -118,12 +117,7 @@ public sealed class ConfiglueFacadeSourceTests
 
         await context.GetOptions<AppSettings>().SaveAsync(settings => settings.Label = "updated");
 
-        var stream = new YamlStream();
-        using (var reader = new StringReader(await File.ReadAllTextAsync(path)))
-        {
-            stream.Load(reader);
-        }
-        var yaml = stream.Documents.Single().RootNode.ToString();
+        var yaml = await File.ReadAllTextAsync(path);
         (yaml).ShouldContain("keep");
         (yaml).ShouldContain("updated");
     }

@@ -1,6 +1,10 @@
+using System.Buffers;
 using Configlue;
 using Configlue.Provider.Json;
+using Configlue.Provider.Yaml;
 using Example.ConsoleApp.NativeAot;
+
+VerifyYamlNativeAotCodec();
 
 var settingsPath = Path.Combine(AppContext.BaseDirectory, "settings.json");
 using var resource = new FileResource(settingsPath);
@@ -64,3 +68,23 @@ if (args.Length > 0)
 
 Console.WriteLine($"Settings file: {settingsPath}");
 return 0;
+
+static void VerifyYamlNativeAotCodec()
+{
+    var codec = new YamlStateCodec<SampleSetting.Fragment>(
+        modelSchema: SampleSetting.FragmentSchema,
+        serializerOptions: SampleSettingYamlContext.Default.Options
+    );
+    var fragment = SampleSetting.Fragment.From(
+        new SampleSetting { Name = "NativeAOT YAML", RunCount = 7 }
+    );
+    var buffer = new ArrayBufferWriter<byte>();
+    var context = new StateCodecContext(SampleSetting.ConfiglueSchema.ToMetadata());
+    codec.Serialize(fragment, buffer, in context);
+    var sequence = new ReadOnlySequence<byte>(buffer.WrittenMemory);
+    var decoded = codec.Deserialize(in sequence, default);
+    if (decoded?.Name.Value != "NativeAOT YAML" || decoded.RunCount.Value != 7)
+    {
+        throw new InvalidOperationException("The SharpYaml NativeAOT round trip failed.");
+    }
+}

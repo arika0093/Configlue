@@ -1,8 +1,8 @@
+using System.Text.Json;
 using Configlue;
 using Configlue.Provider.Yaml;
 using Example.ConsoleApp.Yaml;
 using Microsoft.Extensions.DependencyInjection;
-using YamlDotNet.Serialization.NamingConventions;
 
 var settingsPath = Path.Combine(AppContext.BaseDirectory, "settings.yaml");
 using var resource = new FileResource(settingsPath);
@@ -10,7 +10,10 @@ using var resource = new FileResource(settingsPath);
 var source = SerializedStateSource.FromResource<SampleSetting.Fragment>(
     "settings",
     resource,
-    new YamlStateCodec<SampleSetting.Fragment>(CamelCaseNamingConvention.Instance),
+    new YamlStateCodec<SampleSetting.Fragment>(
+        JsonNamingPolicy.CamelCase,
+        SampleSetting.FragmentSchema
+    ),
     physicalOrigin: settingsPath
 );
 var services = new ServiceCollection();

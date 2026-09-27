@@ -4,7 +4,6 @@ using System.Text.Json;
 using Configlue.Provider.Json;
 using Configlue.Provider.Yaml;
 using Configlue.Testing;
-using YamlDotNet.Core;
 
 namespace Configlue.Tests;
 
@@ -109,7 +108,8 @@ public sealed class LegacySettingsAdoptionTests
             "Version: 1\nretryCount: 0\nnullableLabel: null\n$schema: legacy.yaml\n"
         );
         var codec = new ConfigurationWritableYamlStateCodec<HistoricalSettingsV1.Fragment>(
-            modelId: "historical-settings"
+            modelId: "historical-settings",
+            modelSchema: HistoricalSettingsV1.FragmentSchema
         );
         var sequence = new ReadOnlySequence<byte>(content);
         var fragment = codec.Deserialize(in sequence, default)!;
@@ -130,7 +130,8 @@ public sealed class LegacySettingsAdoptionTests
     public async Task LegacyYamlCodecAcceptsEmptyInputAndBomDetectedEncodings()
     {
         var codec = new ConfigurationWritableYamlStateCodec<AppSettings.Fragment>(
-            modelId: "app-settings"
+            modelId: "app-settings",
+            modelSchema: AppSettings.FragmentSchema
         );
         foreach (var content in new[] { Array.Empty<byte>(), Encoding.UTF8.GetBytes("  \r\n") })
         {
@@ -158,7 +159,8 @@ public sealed class LegacySettingsAdoptionTests
         var content = Encoding.UTF8.GetBytes("$version:\n  nested: value\nretryCount: 0\n");
         var sequence = new ReadOnlySequence<byte>(content);
         var codec = new ConfigurationWritableYamlStateCodec<AppSettings.Fragment>(
-            modelId: "app-settings"
+            modelId: "app-settings",
+            modelSchema: AppSettings.FragmentSchema
         );
 
         (codec.ReadSchemaMetadata(in sequence)).ShouldBe(
@@ -170,17 +172,14 @@ public sealed class LegacySettingsAdoptionTests
     }
 
     [Test]
-    public async Task LegacyYamlCodecUsesExplicitNamingConvention()
+    public async Task LegacyYamlCodecUsesExplicitNamingPolicy()
     {
         var content = Encoding.UTF8.GetBytes("retry_count: 6\nnullable_label: value\n");
         var sequence = new ReadOnlySequence<byte>(content);
         var codec = new ConfigurationWritableYamlStateCodec<HistoricalSettingsV1.Fragment>(
-            namingConvention: YamlDotNet
-                .Serialization
-                .NamingConventions
-                .UnderscoredNamingConvention
-                .Instance,
-            modelId: "historical-settings"
+            namingPolicy: JsonNamingPolicy.SnakeCaseLower,
+            modelId: "historical-settings",
+            modelSchema: HistoricalSettingsV1.FragmentSchema
         );
 
         (codec.ReadSchemaMetadata(in sequence)).ShouldBe(
@@ -209,7 +208,8 @@ public sealed class LegacySettingsAdoptionTests
         );
         var codec = new ConfigurationWritableYamlStateCodec<AppSettings.Fragment>(
             modelId: "app-settings",
-            encoding: encoding
+            encoding: encoding,
+            modelSchema: AppSettings.FragmentSchema
         );
         var source = SerializedStateSource.FromResource<AppSettings.Fragment>(
             "legacy-yaml",
@@ -238,7 +238,9 @@ public sealed class LegacySettingsAdoptionTests
 
         var sectionResult = await section.ReadAsync();
         (sectionResult.Status).ShouldBe(StateReadStatus.Success);
-        var codec = new YamlStateCodec<AppSettings.Fragment>();
+        var codec = new YamlStateCodec<AppSettings.Fragment>(
+            modelSchema: AppSettings.FragmentSchema
+        );
         var content = new ReadOnlySequence<byte>(sectionResult.Content);
         var fragment = codec.Deserialize(in content, default)!;
         (fragment.RetryCount.IsPresent).ShouldBeTrue();
@@ -342,13 +344,19 @@ public sealed class LegacySettingsAdoptionTests
         }
 
         var yamlCodec = new ConfigurationWritableYamlStateCodec<AppSettings.Fragment>(
-            modelId: "app-settings"
+            modelId: "app-settings",
+            modelSchema: AppSettings.FragmentSchema
         );
-        var invalidVersion = new ReadOnlySequence<byte>(
-            Encoding.UTF8.GetBytes("$version: 0\nretryCount: 1\n")
-        );
-        Should.Throw<YamlException>(() => yamlCodec.ReadSchemaMetadata(in invalidVersion));
+        foreach (var version in new[] { "0", "-1", "1.5", "one", "true", "null" })
+        {
+            var invalidVersion = new ReadOnlySequence<byte>(
+                Encoding.UTF8.GetBytes($"$version: {version}\nretryCount: 1\n")
+            );
+            Should.Throw<SharpYaml.YamlException>(() =>
+                yamlCodec.ReadSchemaMetadata(in invalidVersion)
+            );
+        }
         var malformed = new ReadOnlySequence<byte>(Encoding.UTF8.GetBytes("a: [\n"));
-        Should.Throw<YamlException>(() => yamlCodec.Deserialize(in malformed, default));
+        Should.Throw<SharpYaml.YamlException>(() => yamlCodec.Deserialize(in malformed, default));
     }
 }

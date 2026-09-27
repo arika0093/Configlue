@@ -1,5 +1,5 @@
-using YamlDotNet.Serialization;
-using YamlDotNet.Serialization.NamingConventions;
+using System.Text.Json;
+using SharpYaml;
 
 namespace Configlue.Provider.Yaml;
 
@@ -28,8 +28,11 @@ public sealed class YamlFileSourceOptions
     /// <summary>Whether to watch the file for changes.</summary>
     public bool WatchChanges { get; init; } = true;
 
-    /// <summary>An optional YamlDotNet property naming convention.</summary>
-    public INamingConvention? NamingConvention { get; init; }
+    /// <summary>An optional property naming policy, such as <see cref="JsonNamingPolicy.CamelCase"/>.</summary>
+    public JsonNamingPolicy? PropertyNamingPolicy { get; init; }
+
+    /// <summary>Optional SharpYaml serializer metadata and behavior.</summary>
+    public YamlSerializerOptions? SerializerOptions { get; init; }
 
     /// <summary>Backup and retry settings for the helper-created file resource.</summary>
     public FileResourceOptions? ResourceOptions { get; init; }
@@ -88,7 +91,11 @@ public static class YamlFileSourceRegistration
                 sourceWriter = writer is null ? null : section;
             }
             IStateWatcher? watcher = options.WatchChanges ? file : null;
-            var codec = new YamlStateCodec(options.NamingConvention);
+            var codec = new YamlStateCodec(
+                options.PropertyNamingPolicy,
+                modelSchema,
+                options.SerializerOptions
+            );
             var stateReader = new SerializedStateReader<TFragment>(resource, codec);
             var stateWriter = sourceWriter is null
                 ? null
