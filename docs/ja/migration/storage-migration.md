@@ -15,7 +15,7 @@ description: 検証と退役つきでソース間に寄与をコピーする。
 
 `MigrateSourcesToTargetsAsync(sourceIds, targetProjections)` は選択寄与だけをマージし、宛先ごとにフラグメント投影を適用して、各宛先をリビジョンチェック・検証します。再試行時は選択ソースを読み直し、journal に完了記録がある宛先も含めて再確認します。宛先が最新ソース寄与の投影と一致している場合だけ書き込みを省略します。前回の実行から source が変わっていれば、宛先を新しい寄与に合わせて再調整します。後段の宛先で失敗したら、移行を再実行して再開します。複数宛先の書き込みはアトミックではありません。
 
-複数宛先をプロセス再起動後も再開する場合は、`StateStorageMigrationDefinition<TFragment>` と `FileStateStorageMigrationJournal` を使います。journal は `StateStorageMigrationProgress` を migration ID ごとの JSON ファイルに永続化し、各宛先の検証後に更新します。ファイルは `FileResource` が revision check 付きで原子的に置換します。同じ migration ID を複数プロセスから同時実行しないでください。
+複数宛先をプロセス再起動後も再開する場合は、`StateStorageMigrationDefinition<TFragment>` と `FileStateStorageMigrationJournal` を使います。journal は `StateStorageMigrationProgress` を migration ID ごとの JSON ファイルに永続化し、各宛先の検証後に更新します。ファイルは `FileResource` が revision check 付きで原子的に置換し、migration 全体の間はプロセス間 lease を保持するため、同じ ID の別プロセスは先行実行の終了を待ちます。独自 journal でも同じ動作が必要なら `IStateStorageMigrationLeaseProvider` を実装してください。lease を提供しない journal は呼び出し側で同時実行を調整します。
 
 JSON ファイルから YAML ファイルへ形式を移す例です。両ソースの codec は同じ生成 Fragment に変換されるため、形式変換はターゲット source の writer が行います。
 

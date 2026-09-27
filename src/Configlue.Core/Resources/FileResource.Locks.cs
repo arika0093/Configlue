@@ -5,6 +5,25 @@ namespace Configlue;
 
 public sealed partial class FileResource
 {
+    internal async ValueTask<IDisposable> AcquireExclusiveLockAsync(
+        CancellationToken cancellationToken
+    )
+    {
+        var processLease = await AcquireProcessLockAsync(_path, cancellationToken)
+            .ConfigureAwait(false);
+        try
+        {
+            var interprocessLease = await AcquireInterprocessLockAsync(cancellationToken)
+                .ConfigureAwait(false);
+            return new FileResourceLockLease(processLease, interprocessLease);
+        }
+        catch
+        {
+            processLease.Dispose();
+            throw;
+        }
+    }
+
     private static async ValueTask<ProcessLockLease> AcquireProcessLockAsync(
         string path,
         CancellationToken cancellationToken
@@ -203,5 +222,30 @@ public sealed partial class FileResource
         }
 
         public void Dispose() => ReleaseProcessLock(_path, _entry, releaseSemaphore: true);
+    }
+
+    private sealed class FileResourceLockLease(
+        ProcessLockLease processLease,
+        FileStream interprocessLease
+    ) : IDisposable
+    {
+        private int _disposed;
+
+        public void Dispose()
+        {
+            if (Interlocked.Exchange(ref _disposed, 1) != 0)
+            {
+                return;
+            }
+
+            try
+            {
+                interprocessLease.Dispose();
+            }
+            finally
+            {
+                processLease.Dispose();
+            }
+        }
     }
 }
