@@ -16,7 +16,7 @@ Reads resolve every source by priority and return a deep copy. In DI you can als
 
 For synchronous callers, `options.CurrentValue` resolves the sources on first access and returns a deep copy. Later accesses return a clone of the cached value. Successful watcher reloads replace the cache, and successful writes invalidate it so the next access reads again. Without watchers, external changes are not observed automatically; call `GetValueAsync` for a fresh read. The first getter blocks until asynchronous source reads complete. In DI, `IOptionsMonitor<T>.CurrentValue` has its own watcher-backed cache.
 
-Generated clones handle nested Configlue models, common collections, and ordinary POCOs with a public parameterless constructor and public mutable properties. The generated POCO helpers preserve shared references and cycles between those POCOs. Types that require constructor arguments or required/init-only properties, and values in unsupported collection shapes, are left as references; configure a custom copy strategy for those values:
+Generated clones handle nested Configlue models, common collections, and ordinary POCOs whose public instance state consists of public get/set properties and that have a public parameterless constructor. The generated POCO helpers preserve shared references and cycles between those POCOs. Types with public fields, read-only properties, constructor arguments, or required/init-only properties, and values in unsupported collection shapes, are left as references; configure a custom copy strategy for those values:
 
 ```csharp
 config.Add<AppSettings>(model =>
