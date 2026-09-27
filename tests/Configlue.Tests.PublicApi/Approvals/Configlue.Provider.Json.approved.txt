@@ -31,6 +31,12 @@ namespace Configlue.Provider.Json
     public static class JsonFileSourceRegistration
     {
         public static void FromJsonFile(this Configlue.ConfiglueSourceSetBuilder sources, Configlue.Provider.Json.JsonFileSourceOptions options) { }
+        public static void UseDefaultJsonFile<TModel>(this Configlue.ConfiglueModelBuilder<TModel> model)
+            where TModel : Configlue.IConfiglueFacadeModel<TModel> { }
+        public static void UseJsonFile<TModel>(this Configlue.ConfiglueModelBuilder<TModel> model, Configlue.Provider.Json.JsonFileSourceOptions options)
+            where TModel : Configlue.IConfiglueFacadeModel<TModel> { }
+        public static void UseJsonFile<TModel>(this Configlue.ConfiglueModelBuilder<TModel> model, string path)
+            where TModel : Configlue.IConfiglueFacadeModel<TModel> { }
     }
     public sealed class JsonHttpSourceOptions
     {

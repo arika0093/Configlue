@@ -42,12 +42,7 @@ await using var context = ConfiglueApp.CreateContext(conf =>
 {
     conf.Add<SampleSetting>(model =>
     {
-        model.Sources(sources => sources.FromJsonFile(new()
-        {
-            Id = "settings",
-            Path = "usersettings.json",
-        }));
-        model.WriteRoute = StateWriteRoute.To("settings");
+        model.UseDefaultJsonFile();
     });
 });
 
@@ -67,7 +62,7 @@ Current Name: default name
 Saved. New Name: Alice
 ```
 
-The settings are stored in `./usersettings.json`. Editing the file externally notifies the application (see [Change Detection](#change-detection)).
+`UseDefaultJsonFile()` stores settings in `usersettings.json` beside the application executable. Use `UseJsonFile(path)` to choose a path. Editing the file externally notifies the application (see [Change Detection](#change-detection)).
 
 ## Usage
 
@@ -120,12 +115,7 @@ await using var context = ConfiglueApp.CreateContext(conf =>
 {
     conf.Add<SampleSetting>(model =>
     {
-        model.Sources(sources => sources.FromJsonFile(new()
-        {
-            Id = "settings",
-            Path = "usersettings.json",
-        }));
-        model.WriteRoute = StateWriteRoute.To("settings");
+        model.UseDefaultJsonFile();
     });
 });
 
