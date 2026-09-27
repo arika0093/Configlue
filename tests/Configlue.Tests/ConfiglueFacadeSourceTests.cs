@@ -331,6 +331,75 @@ public sealed class ConfiglueFacadeSourceTests
     }
 
     [Test]
+    public async Task RemovingAndDisposingFacadeProfilesStopsAndDisposesTheirFileWatchersOnce()
+    {
+        using var directory = new TemporaryDirectory();
+        var catalogStore = new InMemoryStateStore<ConfiglueProfileCatalog>();
+        var catalog = new StateSource<ConfiglueProfileCatalog>(
+            "catalog",
+            catalogStore,
+            writer: catalogStore,
+            watcher: catalogStore
+        );
+        var context = Configlue.CreateContext(builder =>
+        {
+            builder.Add<AppSettings>(model =>
+            {
+                model.EnableProfiles(catalog);
+                model.SourcesForOptions(
+                    (name, sources) =>
+                        sources.FromJsonFile(
+                            new JsonFileSourceOptions
+                            {
+                                Id = $"profile-{name}",
+                                Path = Path.Combine(directory.FullPath, $"{name}.json"),
+                                WatchChanges = true,
+                            }
+                        )
+                );
+            });
+        });
+        var profiles = context.GetProfiledOptions<AppSettings>();
+        await profiles.GetProfileNamesAsync();
+        await profiles.CreateProfileAsync("removed", copyFrom: "default");
+        await profiles.CreateProfileAsync("context-end", copyFrom: "default");
+
+        var registry = (ConfiglueFacadeOptionsRegistry<AppSettings>)
+            context.GetOptionsRegistry<AppSettings>();
+        var removedResource = registry
+            .GetOwnedResourcesForTests("removed")
+            .OfType<FileResource>()
+            .Single();
+        var contextEndResource = registry
+            .GetOwnedResourcesForTests("context-end")
+            .OfType<FileResource>()
+            .Single();
+        using var removedSubscription = context
+            .GetOptions<AppSettings>("removed")
+            .OnChange(static _ => { });
+        using var contextEndSubscription = context
+            .GetOptions<AppSettings>("context-end")
+            .OnChange(static _ => { });
+
+        await WaitUntilAsync(
+            () =>
+                removedResource.HasActiveWatcherForTests
+                && contextEndResource.HasActiveWatcherForTests
+        );
+        await profiles.RemoveProfileAsync("removed");
+
+        (removedResource.IsDisposedForTests).ShouldBeTrue();
+        (removedResource.HasActiveWatcherForTests).ShouldBeFalse();
+        (removedResource.DisposeCallCountForTests).ShouldBe(1);
+
+        await context.DisposeAsync();
+
+        (contextEndResource.IsDisposedForTests).ShouldBeTrue();
+        (contextEndResource.HasActiveWatcherForTests).ShouldBeFalse();
+        (contextEndResource.DisposeCallCountForTests).ShouldBe(1);
+    }
+
+    [Test]
     public async Task DynamicSourceFactoryFailureDisposesResourcesCreatedEarlierInItsRuntime()
     {
         var resource = new DisposableProbe();
