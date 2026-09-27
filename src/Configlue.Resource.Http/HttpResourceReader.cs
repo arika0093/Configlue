@@ -441,13 +441,39 @@ public sealed class HttpResourceReader : IResourceReader, IStateWatcher, IResour
         }
     }
 
-    private readonly record struct HttpResourceSnapshot(
-        StateReadStatus Status,
-        string? Revision,
-        string? ContentFingerprint,
-        StateSchemaMetadata? Schema
-    )
+    private readonly record struct HttpResourceSnapshot
     {
+        public StateReadStatus Status { get; init; }
+        public string? Revision { get; init; }
+        public string? ContentFingerprint { get; init; }
+        public StateSchemaMetadata? Schema { get; init; }
+
+        public HttpResourceSnapshot(
+            StateReadStatus Status,
+            string? Revision,
+            string? ContentFingerprint,
+            StateSchemaMetadata? Schema
+        )
+        {
+            this.Status = Status;
+            this.Revision = Revision;
+            this.ContentFingerprint = ContentFingerprint;
+            this.Schema = Schema;
+        }
+
+        public void Deconstruct(
+            out StateReadStatus Status,
+            out string? Revision,
+            out string? ContentFingerprint,
+            out StateSchemaMetadata? Schema
+        )
+        {
+            Status = this.Status;
+            Revision = this.Revision;
+            ContentFingerprint = this.ContentFingerprint;
+            Schema = this.Schema;
+        }
+
         public static HttpResourceSnapshot Success(
             string? revision,
             string fingerprint,
@@ -455,12 +481,34 @@ public sealed class HttpResourceReader : IResourceReader, IStateWatcher, IResour
         ) => new(StateReadStatus.Success, revision, fingerprint, schema);
     }
 
-    private readonly record struct HttpReadResponse(
-        ResourceReadResult Result,
-        HttpResourceSnapshot ObservedSnapshot,
-        bool NotModified
-    )
+    private readonly record struct HttpReadResponse
     {
+        public ResourceReadResult Result { get; init; }
+        public HttpResourceSnapshot ObservedSnapshot { get; init; }
+        public bool NotModified { get; init; }
+
+        public HttpReadResponse(
+            ResourceReadResult Result,
+            HttpResourceSnapshot ObservedSnapshot,
+            bool NotModified
+        )
+        {
+            this.Result = Result;
+            this.ObservedSnapshot = ObservedSnapshot;
+            this.NotModified = NotModified;
+        }
+
+        public void Deconstruct(
+            out ResourceReadResult Result,
+            out HttpResourceSnapshot ObservedSnapshot,
+            out bool NotModified
+        )
+        {
+            Result = this.Result;
+            ObservedSnapshot = this.ObservedSnapshot;
+            NotModified = this.NotModified;
+        }
+
         public static HttpReadResponse Unchanged { get; } =
             new(default, default, NotModified: true);
     }

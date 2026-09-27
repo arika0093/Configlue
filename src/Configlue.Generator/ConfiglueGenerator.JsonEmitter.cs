@@ -32,23 +32,23 @@ public sealed partial class ConfiglueGenerator
         code.AppendLineAt(3, "{");
         code.AppendLineAt(
             4,
-            "if (reader.TokenType != global::System.Text.Json.JsonTokenType.StartObject) throw new global::System.Text.Json.JsonException(\"A fragment must be a JSON object.\");"
+            "if (reader.TokenType != global::System.Text.Json.JsonTokenType.StartObject) { throw new global::System.Text.Json.JsonException(\"A fragment must be a JSON object.\"); }"
         );
         code.AppendLineAt(4, "var builder = new FragmentBuilder();");
         code.AppendLineAt(4, "while (reader.Read())");
         code.AppendLineAt(4, "{");
         code.AppendLineAt(
             5,
-            "if (reader.TokenType == global::System.Text.Json.JsonTokenType.EndObject) return builder.Build();"
+            "if (reader.TokenType == global::System.Text.Json.JsonTokenType.EndObject) { return builder.Build(); }"
         );
         code.AppendLineAt(
             5,
-            "if (reader.TokenType != global::System.Text.Json.JsonTokenType.PropertyName) throw new global::System.Text.Json.JsonException(\"Expected a fragment property name.\");"
+            "if (reader.TokenType != global::System.Text.Json.JsonTokenType.PropertyName) { throw new global::System.Text.Json.JsonException(\"Expected a fragment property name.\"); }"
         );
         code.AppendLineAt(5, "var propertyName = reader.GetString();");
         code.AppendLineAt(
             5,
-            "if (!reader.Read()) throw new global::System.Text.Json.JsonException(\"Unexpected end of fragment.\");"
+            "if (!reader.Read()) { throw new global::System.Text.Json.JsonException(\"Unexpected end of fragment.\"); }"
         );
         if (members.Length > 0)
         {
@@ -194,7 +194,7 @@ public sealed partial class ConfiglueGenerator
             "private static bool Matches(string? actual, string propertyName, bool useNamingPolicy, global::System.Text.Json.JsonSerializerOptions options)"
         );
         code.AppendLineAt(3, "{");
-        code.AppendLineAt(4, "if (actual is null) return false;");
+        code.AppendLineAt(4, "if (actual is null) { return false; }");
         code.AppendLineAt(
             4,
             "var expected = useNamingPolicy ? options.PropertyNamingPolicy?.ConvertName(propertyName) ?? propertyName : propertyName;"

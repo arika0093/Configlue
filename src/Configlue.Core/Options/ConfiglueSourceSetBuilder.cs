@@ -110,7 +110,9 @@ public class ConfiglueSourceSetBuilder
     internal void CopyFrom(ConfiglueSourceSetBuilder source)
     {
         if (_sealed)
+        {
             throw new InvalidOperationException("The source registration has already been added.");
+        }
         _sources.AddRange(source._sources);
     }
 

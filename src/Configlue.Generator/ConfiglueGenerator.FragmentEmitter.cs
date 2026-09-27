@@ -472,14 +472,14 @@ public sealed partial class ConfiglueGenerator
             code.AppendLineAt(2, "{");
             code.AppendLineAt(
                 3,
-                "if (global::System.Object.ReferenceEquals(before, after)) return default;"
+                "if (global::System.Object.ReferenceEquals(before, after)) { return default; }"
             );
             code.AppendIndent(3)
-                .Append("if (before is null || after is null) return global::Configlue.Optional<")
+                .Append("if (before is null || after is null) { return global::Configlue.Optional<")
                 .Append(FragmentValueType(member))
                 .Append(">.Present(after is null ? null : ")
                 .Append(type)
-                .AppendLine(".Fragment.From(after));");
+                .AppendLine(".Fragment.From(after)); }");
             code.AppendIndent(3)
                 .Append("var difference = ")
                 .Append(type)

@@ -82,11 +82,26 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
         throw new ArgumentException("The property path is empty.", nameof(propertyPath));
     }
 
-    private sealed record CollectionElementProvenance(
-        int Index,
-        object? Value,
-        int[] SourceIndices
-    );
+    private sealed record CollectionElementProvenance
+    {
+        public int Index { get; init; }
+        public object? Value { get; init; }
+        public int[] SourceIndices { get; init; }
+
+        public CollectionElementProvenance(int Index, object? Value, int[] SourceIndices)
+        {
+            this.Index = Index;
+            this.Value = Value;
+            this.SourceIndices = SourceIndices;
+        }
+
+        public void Deconstruct(out int Index, out object? Value, out int[] SourceIndices)
+        {
+            Index = this.Index;
+            Value = this.Value;
+            SourceIndices = this.SourceIndices;
+        }
+    }
 
     private static IReadOnlyList<CollectionElementProvenance> CollectCollectionElementProvenance(
         ConfiglueMemberSchema member,
@@ -361,11 +376,34 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
         }
     }
 
-    private sealed record ResolvedContribution(
-        StateSource<TFragment> Source,
-        StateReadResult<TFragment> Result,
-        bool IsModelDefaults = false
-    );
+    private sealed record ResolvedContribution
+    {
+        public StateSource<TFragment> Source { get; init; }
+        public StateReadResult<TFragment> Result { get; init; }
+        public bool IsModelDefaults { get; init; }
+
+        public ResolvedContribution(
+            StateSource<TFragment> Source,
+            StateReadResult<TFragment> Result,
+            bool IsModelDefaults = false
+        )
+        {
+            this.Source = Source;
+            this.Result = Result;
+            this.IsModelDefaults = IsModelDefaults;
+        }
+
+        public void Deconstruct(
+            out StateSource<TFragment> Source,
+            out StateReadResult<TFragment> Result,
+            out bool IsModelDefaults
+        )
+        {
+            Source = this.Source;
+            Result = this.Result;
+            IsModelDefaults = this.IsModelDefaults;
+        }
+    }
 
     private sealed class ModelDefaultsReader(TFragment fragment) : IStateReader<TFragment>
     {
@@ -378,17 +416,60 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
         }
     }
 
-    private sealed record ResolvedFailure(
-        StateSource<TFragment> Source,
-        StateReadResult<TFragment> Result
-    );
+    private sealed record ResolvedFailure
+    {
+        public StateSource<TFragment> Source { get; init; }
+        public StateReadResult<TFragment> Result { get; init; }
 
-    private sealed record ResolvedState(
-        StateReadResult<TModel> Result,
-        IReadOnlyList<ResolvedContribution> Contributions,
-        TFragment? MergedFragment,
-        IReadOnlyList<ResolvedFailure> Failures
-    );
+        public ResolvedFailure(StateSource<TFragment> Source, StateReadResult<TFragment> Result)
+        {
+            this.Source = Source;
+            this.Result = Result;
+        }
+
+        public void Deconstruct(
+            out StateSource<TFragment> Source,
+            out StateReadResult<TFragment> Result
+        )
+        {
+            Source = this.Source;
+            Result = this.Result;
+        }
+    }
+
+    private sealed record ResolvedState
+    {
+        public StateReadResult<TModel> Result { get; init; }
+        public IReadOnlyList<ResolvedContribution> Contributions { get; init; }
+        public TFragment? MergedFragment { get; init; }
+        public IReadOnlyList<ResolvedFailure> Failures { get; init; }
+
+        public ResolvedState(
+            StateReadResult<TModel> Result,
+            IReadOnlyList<ResolvedContribution> Contributions,
+            TFragment? MergedFragment,
+            IReadOnlyList<ResolvedFailure> Failures
+        )
+        {
+            this.Result = Result;
+            this.Contributions = Contributions;
+            this.MergedFragment = MergedFragment;
+            this.Failures = Failures;
+        }
+
+        public void Deconstruct(
+            out StateReadResult<TModel> Result,
+            out IReadOnlyList<ResolvedContribution> Contributions,
+            out TFragment? MergedFragment,
+            out IReadOnlyList<ResolvedFailure> Failures
+        )
+        {
+            Result = this.Result;
+            Contributions = this.Contributions;
+            MergedFragment = this.MergedFragment;
+            Failures = this.Failures;
+        }
+    }
 
     private sealed class ChangeSubscription(
         ConfiglueOptions<TModel, TFragment> owner,

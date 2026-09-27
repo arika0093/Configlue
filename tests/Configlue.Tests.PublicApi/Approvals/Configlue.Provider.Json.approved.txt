@@ -77,6 +77,7 @@ namespace Configlue.Provider.Json
         public string FileName { get; init; }
         public Configlue.ConfiglueModelSchema Model { get; init; }
         public System.Text.Json.Nodes.JsonNode Schema { get; init; }
+        public void Deconstruct(out Configlue.ConfiglueModelSchema Model, out string FileName, out System.Text.Json.Nodes.JsonNode Schema) { }
     }
     public sealed class JsonSchemaGenerationDiagnostic : System.IEquatable<Configlue.Provider.Json.JsonSchemaGenerationDiagnostic>
     {
@@ -87,6 +88,7 @@ namespace Configlue.Provider.Json
         public System.Type? ModelType { get; init; }
         public string? OutputPath { get; init; }
         public int? Version { get; init; }
+        public void Deconstruct(out string Code, out string Message, out System.Type? ModelType, out string? ModelId, out int? Version, out string? OutputPath) { }
     }
     public sealed class JsonSchemaGenerationResult
     {

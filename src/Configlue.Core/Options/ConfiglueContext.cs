@@ -192,7 +192,9 @@ public sealed class ConfiglueContext : IDisposable, IAsyncDisposable
             foreach (var registration in registrations)
             {
                 if (!registration.EnableDynamicOptions)
+                {
                     continue;
+                }
                 if (registries.ContainsKey(registration.ModelType))
                 {
                     throw new InvalidOperationException(

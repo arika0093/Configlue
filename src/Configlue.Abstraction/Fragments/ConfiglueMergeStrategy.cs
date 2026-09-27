@@ -1,10 +1,60 @@
 namespace Configlue;
 
 /// <summary>A source contribution supplied to a custom merge strategy.</summary>
-public readonly record struct ConfiglueMergeSourceValue(string SourceId, Optional<object?> Value);
+public readonly record struct ConfiglueMergeSourceValue
+{
+    /// <summary>Gets or initializes the <see cref="SourceId"/> value.</summary>
+    public string SourceId { get; init; }
+
+    /// <summary>Gets or initializes the <see cref="Value"/> value.</summary>
+    public Optional<object?> Value { get; init; }
+
+    /// <summary>Initializes a new instance of this record.</summary>
+    /// <param name="SourceId">The initial value for the <see cref="SourceId"/> property.</param>
+    /// <param name="Value">The initial value for the <see cref="Value"/> property.</param>
+    public ConfiglueMergeSourceValue(string SourceId, Optional<object?> Value)
+    {
+        this.SourceId = SourceId;
+        this.Value = Value;
+    }
+
+    /// <summary>Deconstructs this record into its property values.</summary>
+    /// <param name="SourceId">Receives the current <see cref="SourceId"/> value.</param>
+    /// <param name="Value">Receives the current <see cref="Value"/> value.</param>
+    public void Deconstruct(out string SourceId, out Optional<object?> Value)
+    {
+        SourceId = this.SourceId;
+        Value = this.Value;
+    }
+}
 
 /// <summary>A source contribution supplied to a typed custom merge strategy.</summary>
-public readonly record struct ConfiglueMergeSourceValue<T>(string SourceId, Optional<T> Value);
+public readonly record struct ConfiglueMergeSourceValue<T>
+{
+    /// <summary>Gets or initializes the <see cref="SourceId"/> value.</summary>
+    public string SourceId { get; init; }
+
+    /// <summary>Gets or initializes the <see cref="Value"/> value.</summary>
+    public Optional<T> Value { get; init; }
+
+    /// <summary>Initializes a new instance of this record.</summary>
+    /// <param name="SourceId">The initial value for the <see cref="SourceId"/> property.</param>
+    /// <param name="Value">The initial value for the <see cref="Value"/> property.</param>
+    public ConfiglueMergeSourceValue(string SourceId, Optional<T> Value)
+    {
+        this.SourceId = SourceId;
+        this.Value = Value;
+    }
+
+    /// <summary>Deconstructs this record into its property values.</summary>
+    /// <param name="SourceId">Receives the current <see cref="SourceId"/> value.</param>
+    /// <param name="Value">Receives the current <see cref="Value"/> value.</param>
+    public void Deconstruct(out string SourceId, out Optional<T> Value)
+    {
+        SourceId = this.SourceId;
+        Value = this.Value;
+    }
+}
 
 /// <summary>Identifies the sources that contributed an effective collection element.</summary>
 public sealed class ConfiglueMergeElementProvenance

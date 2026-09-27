@@ -16,21 +16,113 @@ using System.Text.Json.Schema;
 namespace Configlue.Provider.Json;
 
 /// <summary>Represents a generated JSON Schema document.</summary>
-public sealed record JsonSchemaDocument(
-    ConfiglueModelSchema Model,
-    string FileName,
-    JsonNode Schema
-);
+public sealed record JsonSchemaDocument
+{
+    /// <summary>Gets or initializes the <see cref="Model"/> value.</summary>
+    public ConfiglueModelSchema Model { get; init; }
+
+    /// <summary>Gets or initializes the <see cref="FileName"/> value.</summary>
+    public string FileName { get; init; }
+
+    /// <summary>Gets or initializes the <see cref="Schema"/> value.</summary>
+    public JsonNode Schema { get; init; }
+
+    /// <summary>Initializes a new instance of this record.</summary>
+    /// <param name="Model">The initial value for the <see cref="Model"/> property.</param>
+    /// <param name="FileName">The initial value for the <see cref="FileName"/> property.</param>
+    /// <param name="Schema">The initial value for the <see cref="Schema"/> property.</param>
+    public JsonSchemaDocument(ConfiglueModelSchema Model, string FileName, JsonNode Schema)
+    {
+        this.Model = Model;
+        this.FileName = FileName;
+        this.Schema = Schema;
+    }
+
+    /// <summary>Deconstructs this record into its property values.</summary>
+    /// <param name="Model">Receives the current <see cref="Model"/> value.</param>
+    /// <param name="FileName">Receives the current <see cref="FileName"/> value.</param>
+    /// <param name="Schema">Receives the current <see cref="Schema"/> value.</param>
+    public void Deconstruct(
+        out ConfiglueModelSchema Model,
+        out string FileName,
+        out JsonNode Schema
+    )
+    {
+        Model = this.Model;
+        FileName = this.FileName;
+        Schema = this.Schema;
+    }
+}
 
 /// <summary>Describes a problem encountered while generating or writing JSON Schemas.</summary>
-public sealed record JsonSchemaGenerationDiagnostic(
-    string Code,
-    string Message,
-    Type? ModelType = null,
-    string? ModelId = null,
-    int? Version = null,
-    string? OutputPath = null
-);
+public sealed record JsonSchemaGenerationDiagnostic
+{
+    /// <summary>Gets or initializes the <see cref="Code"/> value.</summary>
+    public string Code { get; init; }
+
+    /// <summary>Gets or initializes the <see cref="Message"/> value.</summary>
+    public string Message { get; init; }
+
+    /// <summary>Gets or initializes the <see cref="ModelType"/> value.</summary>
+    public Type? ModelType { get; init; }
+
+    /// <summary>Gets or initializes the <see cref="ModelId"/> value.</summary>
+    public string? ModelId { get; init; }
+
+    /// <summary>Gets or initializes the <see cref="Version"/> value.</summary>
+    public int? Version { get; init; }
+
+    /// <summary>Gets or initializes the <see cref="OutputPath"/> value.</summary>
+    public string? OutputPath { get; init; }
+
+    /// <summary>Initializes a new instance of this record.</summary>
+    /// <param name="Code">The initial value for the <see cref="Code"/> property.</param>
+    /// <param name="Message">The initial value for the <see cref="Message"/> property.</param>
+    /// <param name="ModelType">The initial value for the <see cref="ModelType"/> property.</param>
+    /// <param name="ModelId">The initial value for the <see cref="ModelId"/> property.</param>
+    /// <param name="Version">The initial value for the <see cref="Version"/> property.</param>
+    /// <param name="OutputPath">The initial value for the <see cref="OutputPath"/> property.</param>
+    public JsonSchemaGenerationDiagnostic(
+        string Code,
+        string Message,
+        Type? ModelType = null,
+        string? ModelId = null,
+        int? Version = null,
+        string? OutputPath = null
+    )
+    {
+        this.Code = Code;
+        this.Message = Message;
+        this.ModelType = ModelType;
+        this.ModelId = ModelId;
+        this.Version = Version;
+        this.OutputPath = OutputPath;
+    }
+
+    /// <summary>Deconstructs this record into its property values.</summary>
+    /// <param name="Code">Receives the current <see cref="Code"/> value.</param>
+    /// <param name="Message">Receives the current <see cref="Message"/> value.</param>
+    /// <param name="ModelType">Receives the current <see cref="ModelType"/> value.</param>
+    /// <param name="ModelId">Receives the current <see cref="ModelId"/> value.</param>
+    /// <param name="Version">Receives the current <see cref="Version"/> value.</param>
+    /// <param name="OutputPath">Receives the current <see cref="OutputPath"/> value.</param>
+    public void Deconstruct(
+        out string Code,
+        out string Message,
+        out Type? ModelType,
+        out string? ModelId,
+        out int? Version,
+        out string? OutputPath
+    )
+    {
+        Code = this.Code;
+        Message = this.Message;
+        ModelType = this.ModelType;
+        ModelId = this.ModelId;
+        Version = this.Version;
+        OutputPath = this.OutputPath;
+    }
+}
 
 /// <summary>Contains generated documents, written paths, and diagnostics.</summary>
 public sealed class JsonSchemaGenerationResult
@@ -77,9 +169,13 @@ public static partial class JsonSchemaGenerator
     )
     {
         if (models is null)
+        {
             throw new ArgumentNullException(nameof(models));
+        }
         if (resolver is null)
+        {
             throw new ArgumentNullException(nameof(resolver));
+        }
 
         var diagnostics = new List<JsonSchemaGenerationDiagnostic>();
         var normalizedSchemaBaseUri = NormalizeSchemaBaseUri(schemaBaseUri, diagnostics);
@@ -94,7 +190,9 @@ public static partial class JsonSchemaGenerator
         _ = ValidateModels(models, diagnostics);
 #endif
         if (diagnostics.Count > 0)
+        {
             return CreateResult([], [], diagnostics);
+        }
 
 #if !NET9_0_OR_GREATER
         diagnostics.Add(
@@ -207,13 +305,17 @@ public static partial class JsonSchemaGenerator
     )
     {
         if (string.IsNullOrWhiteSpace(outputDirectory))
+        {
             throw new ArgumentException(
                 "An output directory is required.",
                 nameof(outputDirectory)
             );
+        }
         var generation = Generate(models, resolver, schemaBaseUri, documentLayout);
         if (!generation.Succeeded)
+        {
             return generation;
+        }
 
         string fullOutputDirectory;
         try
@@ -439,7 +541,9 @@ public static partial class JsonSchemaGenerator
             }
 
             if (!seenModels.Add((model.ModelType, model.Id, model.Version)))
+            {
                 continue;
+            }
 
             var fileName = JsonSchemaGeneration.GetSchemaFileName(model.Id, model.Version);
             if (outputNames.TryGetValue(fileName, out var existing))

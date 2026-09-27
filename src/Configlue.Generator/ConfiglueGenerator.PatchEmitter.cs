@@ -146,7 +146,7 @@ public sealed partial class ConfiglueGenerator
         code.AppendLineAt(3, "var patch = new Patch();");
         code.AppendLineAt(
             3,
-            "if (operation.Kind == global::Configlue.FragmentOperationKind.Unset) patch.Unset();"
+            "if (operation.Kind == global::Configlue.FragmentOperationKind.Unset) { patch.Unset(); }"
         );
         code.AppendLineAt(
             3,
@@ -233,15 +233,15 @@ public sealed partial class ConfiglueGenerator
         code.AppendLineAt(2, "{");
         code.AppendLineAt(
             3,
-            "if (__configlue_whole_operation.Kind == global::Configlue.FragmentOperationKind.Unset) current = global::Configlue.Optional<Fragment?>.Missing;"
+            "if (__configlue_whole_operation.Kind == global::Configlue.FragmentOperationKind.Unset) { current = global::Configlue.Optional<Fragment?>.Missing; }"
         );
         code.AppendLineAt(
             3,
-            "else if (__configlue_whole_operation.Kind == global::Configlue.FragmentOperationKind.Set) current = global::Configlue.Optional<Fragment?>.Present(__configlue_whole_operation.Value);"
+            "else if (__configlue_whole_operation.Kind == global::Configlue.FragmentOperationKind.Set) { current = global::Configlue.Optional<Fragment?>.Present(__configlue_whole_operation.Value); }"
         );
         code.AppendLineAt(
             3,
-            "if (" + NestedOperationsEmptyExpression(members) + ") return current;"
+            "if (" + NestedOperationsEmptyExpression(members) + ") { return current; }"
         );
         code.AppendLineAt(
             3,
@@ -304,11 +304,11 @@ public sealed partial class ConfiglueGenerator
                     4,
                     "if (replacement."
                         + field
-                        + ".Kind == global::Configlue.FragmentOperationKind.Unchanged) replacement."
+                        + ".Kind == global::Configlue.FragmentOperationKind.Unchanged) { replacement."
                         + field
                         + " = global::Configlue.FragmentOperation<"
                         + FragmentValueType(member)
-                        + ">.Unset;"
+                        + ">.Unset; }"
                 );
             }
             else
@@ -345,7 +345,7 @@ public sealed partial class ConfiglueGenerator
         code.AppendLineAt(2, "{");
         code.AppendLineAt(
             3,
-            "if (fragment is not Fragment typed) throw new global::System.ArgumentException(\"The patch can only be applied to its generated fragment type.\", nameof(fragment));"
+            "if (fragment is not Fragment typed) { throw new global::System.ArgumentException(\"The patch can only be applied to its generated fragment type.\", nameof(fragment)); }"
         );
         code.AppendLineAt(3, "return typed.Apply(this);");
         code.AppendLineAt(2, "}");
@@ -428,11 +428,11 @@ public sealed partial class ConfiglueGenerator
             4,
             "if (!("
                 + NestedOperationsEmptyExpression(members)
-                + ")) throw new global::System.NotSupportedException(\"A whole-model operation cannot be combined with member patches during source routing.\");"
+                + ")) { throw new global::System.NotSupportedException(\"A whole-model operation cannot be combined with member patches during source routing.\"); }"
         );
         code.AppendLineAt(
             4,
-            "if (propertyPrefix.Length > 0 && writePlan.HasRouteBelow(propertyPrefix)) throw new global::System.NotSupportedException($\"A whole nested patch for '{propertyPrefix}' cannot be split across child source routes.\");"
+            "if (propertyPrefix.Length > 0 && writePlan.HasRouteBelow(propertyPrefix)) { throw new global::System.NotSupportedException($\"A whole nested patch for '{propertyPrefix}' cannot be split across child source routes.\"); }"
         );
         code.AppendLineAt(
             4,
@@ -553,7 +553,7 @@ public sealed partial class ConfiglueGenerator
         code.AppendLineAt(3, "{");
         code.AppendLineAt(
             4,
-            "if (!merged.IsEmpty) throw new global::System.InvalidOperationException(\"A whole-model operation cannot be combined with member patches.\");"
+            "if (!merged.IsEmpty) { throw new global::System.InvalidOperationException(\"A whole-model operation cannot be combined with member patches.\"); }"
         );
         code.AppendLineAt(
             4,

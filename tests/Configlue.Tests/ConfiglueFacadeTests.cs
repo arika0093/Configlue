@@ -647,5 +647,18 @@ public sealed class ConfiglueFacadeTests
         return new StateSource<AppSettings.Fragment>(id, store, writer: store, watcher: store);
     }
 
-    private sealed record SettingsSourceValue(string Value);
+    private sealed record SettingsSourceValue
+    {
+        public string Value { get; init; }
+
+        public SettingsSourceValue(string Value)
+        {
+            this.Value = Value;
+        }
+
+        public void Deconstruct(out string Value)
+        {
+            Value = this.Value;
+        }
+    }
 }

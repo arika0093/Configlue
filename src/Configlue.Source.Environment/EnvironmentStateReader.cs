@@ -449,9 +449,13 @@ public sealed class EnvironmentStateReader<TFragment> : IStateReader<TFragment>
         }
 
         if (valueType == typeof(string))
+        {
             return value;
+        }
         if (valueType == typeof(bool))
+        {
             return bool.Parse(value);
+        }
         if (valueType == typeof(char))
         {
             return value.Length == 1
@@ -462,33 +466,53 @@ public sealed class EnvironmentStateReader<TFragment> : IStateReader<TFragment>
         }
 
         if (valueType.IsEnum)
+        {
             return Enum.Parse(valueType, value, ignoreCase: true);
+        }
         if (valueType == typeof(Guid))
+        {
             return Guid.Parse(value);
+        }
         if (valueType == typeof(DateTime))
+        {
             return DateTime.Parse(
                 value,
                 CultureInfo.InvariantCulture,
                 DateTimeStyles.RoundtripKind
             );
+        }
         if (valueType == typeof(DateTimeOffset))
+        {
             return DateTimeOffset.Parse(
                 value,
                 CultureInfo.InvariantCulture,
                 DateTimeStyles.RoundtripKind
             );
+        }
         if (valueType == typeof(DateOnly))
+        {
             return DateOnly.Parse(value, CultureInfo.InvariantCulture);
+        }
         if (valueType == typeof(TimeOnly))
+        {
             return TimeOnly.Parse(value, CultureInfo.InvariantCulture);
+        }
         if (valueType == typeof(TimeSpan))
+        {
             return TimeSpan.Parse(value, CultureInfo.InvariantCulture);
+        }
         if (valueType == typeof(Uri))
+        {
             return new Uri(value, UriKind.RelativeOrAbsolute);
+        }
         if (valueType == typeof(Version))
+        {
             return Version.Parse(value);
+        }
         if (valueType == typeof(byte[]))
+        {
             return Convert.FromBase64String(value);
+        }
         if (typeof(IConvertible).IsAssignableFrom(valueType))
         {
             return Convert.ChangeType(value, valueType, CultureInfo.InvariantCulture);
@@ -530,9 +554,57 @@ public sealed class EnvironmentStateReader<TFragment> : IStateReader<TFragment>
         }
     }
 
-    private readonly record struct AppliedFragment(IConfiglueFragment Fragment, bool Matched);
+    private readonly record struct AppliedFragment
+    {
+        public IConfiglueFragment Fragment { get; init; }
+        public bool Matched { get; init; }
 
-    private sealed record EnvironmentMapping(string PropertyPath);
+        public AppliedFragment(IConfiglueFragment Fragment, bool Matched)
+        {
+            this.Fragment = Fragment;
+            this.Matched = Matched;
+        }
 
-    private sealed record EnvironmentAssignment(string[] Path, string Value, string EnvironmentKey);
+        public void Deconstruct(out IConfiglueFragment Fragment, out bool Matched)
+        {
+            Fragment = this.Fragment;
+            Matched = this.Matched;
+        }
+    }
+
+    private sealed record EnvironmentMapping
+    {
+        public string PropertyPath { get; init; }
+
+        public EnvironmentMapping(string PropertyPath)
+        {
+            this.PropertyPath = PropertyPath;
+        }
+
+        public void Deconstruct(out string PropertyPath)
+        {
+            PropertyPath = this.PropertyPath;
+        }
+    }
+
+    private sealed record EnvironmentAssignment
+    {
+        public string[] Path { get; init; }
+        public string Value { get; init; }
+        public string EnvironmentKey { get; init; }
+
+        public EnvironmentAssignment(string[] Path, string Value, string EnvironmentKey)
+        {
+            this.Path = Path;
+            this.Value = Value;
+            this.EnvironmentKey = EnvironmentKey;
+        }
+
+        public void Deconstruct(out string[] Path, out string Value, out string EnvironmentKey)
+        {
+            Path = this.Path;
+            Value = this.Value;
+            EnvironmentKey = this.EnvironmentKey;
+        }
+    }
 }

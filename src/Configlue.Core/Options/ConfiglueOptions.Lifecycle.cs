@@ -60,7 +60,9 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
         }
         _watchCancellation?.Dispose();
         if (errors is not null)
+        {
             throw new AggregateException("Options shutdown failed.", errors);
+        }
     }
 
     private IDisposable EnterOperation()
@@ -90,14 +92,20 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
     private void ExitOperation(OperationFrame? root)
     {
         if (root is null)
+        {
             return;
+        }
         Volatile.Write(ref root.Active, 0);
         if (ReferenceEquals(_operationFrame.Value, root))
+        {
             _operationFrame.Value = root.Parent;
+        }
         lock (_changeGate)
         {
             if (--_activeOperations == 0)
+            {
                 _operationsDrained.TrySetResult();
+            }
         }
     }
 

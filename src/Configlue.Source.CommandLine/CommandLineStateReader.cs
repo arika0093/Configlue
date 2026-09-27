@@ -190,7 +190,26 @@ internal sealed class CommandLineStateReader<TFragment> : IStateReader<TFragment
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(builder.ToString())));
     }
 
-    private sealed record AssignedValue(string[] Path, object? Value, string SymbolName);
+    private sealed record AssignedValue
+    {
+        public string[] Path { get; init; }
+        public object? Value { get; init; }
+        public string SymbolName { get; init; }
+
+        public AssignedValue(string[] Path, object? Value, string SymbolName)
+        {
+            this.Path = Path;
+            this.Value = Value;
+            this.SymbolName = SymbolName;
+        }
+
+        public void Deconstruct(out string[] Path, out object? Value, out string SymbolName)
+        {
+            Path = this.Path;
+            Value = this.Value;
+            SymbolName = this.SymbolName;
+        }
+    }
 }
 
 /// <summary>Converts parsed command-line values to generated model member types without reflection-based serialization.</summary>

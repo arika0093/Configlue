@@ -372,16 +372,59 @@ public sealed class HttpResourceTests
                 : await request.Content.ReadAsByteArrayAsync(cancellationToken)
         );
 
-    private sealed record CapturedRequest(
-        HttpMethod Method,
-        Uri? RequestUri,
-        string? IfMatch,
-        string? IfNoneMatch,
-        string? SchemaId,
-        string? SchemaVersion,
-        string? ContentType,
-        byte[] Content
-    );
+    private sealed record CapturedRequest
+    {
+        public HttpMethod Method { get; init; }
+        public Uri? RequestUri { get; init; }
+        public string? IfMatch { get; init; }
+        public string? IfNoneMatch { get; init; }
+        public string? SchemaId { get; init; }
+        public string? SchemaVersion { get; init; }
+        public string? ContentType { get; init; }
+        public byte[] Content { get; init; }
+
+        public CapturedRequest(
+            HttpMethod Method,
+            Uri? RequestUri,
+            string? IfMatch,
+            string? IfNoneMatch,
+            string? SchemaId,
+            string? SchemaVersion,
+            string? ContentType,
+            byte[] Content
+        )
+        {
+            this.Method = Method;
+            this.RequestUri = RequestUri;
+            this.IfMatch = IfMatch;
+            this.IfNoneMatch = IfNoneMatch;
+            this.SchemaId = SchemaId;
+            this.SchemaVersion = SchemaVersion;
+            this.ContentType = ContentType;
+            this.Content = Content;
+        }
+
+        public void Deconstruct(
+            out HttpMethod Method,
+            out Uri? RequestUri,
+            out string? IfMatch,
+            out string? IfNoneMatch,
+            out string? SchemaId,
+            out string? SchemaVersion,
+            out string? ContentType,
+            out byte[] Content
+        )
+        {
+            Method = this.Method;
+            RequestUri = this.RequestUri;
+            IfMatch = this.IfMatch;
+            IfNoneMatch = this.IfNoneMatch;
+            SchemaId = this.SchemaId;
+            SchemaVersion = this.SchemaVersion;
+            ContentType = this.ContentType;
+            Content = this.Content;
+        }
+    }
 
     private sealed class DelegateHttpMessageHandler(
         Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> send

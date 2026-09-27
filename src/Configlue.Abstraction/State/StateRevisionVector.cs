@@ -3,7 +3,32 @@ using System.Collections.ObjectModel;
 namespace Configlue;
 
 /// <summary>A backend revision associated with one logical source identifier.</summary>
-public readonly record struct StateRevision(string SourceId, string? Revision);
+public readonly record struct StateRevision
+{
+    /// <summary>Gets or initializes the <see cref="SourceId"/> value.</summary>
+    public string SourceId { get; init; }
+
+    /// <summary>Gets or initializes the <see cref="Revision"/> value.</summary>
+    public string? Revision { get; init; }
+
+    /// <summary>Initializes a new instance of this record.</summary>
+    /// <param name="SourceId">The initial value for the <see cref="SourceId"/> property.</param>
+    /// <param name="Revision">The initial value for the <see cref="Revision"/> property.</param>
+    public StateRevision(string SourceId, string? Revision)
+    {
+        this.SourceId = SourceId;
+        this.Revision = Revision;
+    }
+
+    /// <summary>Deconstructs this record into its property values.</summary>
+    /// <param name="SourceId">Receives the current <see cref="SourceId"/> value.</param>
+    /// <param name="Revision">Receives the current <see cref="Revision"/> value.</param>
+    public void Deconstruct(out string SourceId, out string? Revision)
+    {
+        SourceId = this.SourceId;
+        Revision = this.Revision;
+    }
+}
 
 /// <summary>Direct and nested revisions observed during one state resolution.</summary>
 public sealed class StateRevisionVector

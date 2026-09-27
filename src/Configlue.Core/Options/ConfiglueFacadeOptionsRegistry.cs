@@ -8,7 +8,23 @@ internal sealed class ConfiglueFacadeOptionsRegistry<TModel>
         IConfiglueOptionsRegistryNotificationDeferrer<TModel>
     where TModel : IConfiglueFacadeModel<TModel>
 {
-    private sealed record Entry(IWritableOptions<TModel> Runtime, IDisposable[] Resources);
+    private sealed record Entry
+    {
+        public IWritableOptions<TModel> Runtime { get; init; }
+        public IDisposable[] Resources { get; init; }
+
+        public Entry(IWritableOptions<TModel> Runtime, IDisposable[] Resources)
+        {
+            this.Runtime = Runtime;
+            this.Resources = Resources;
+        }
+
+        public void Deconstruct(out IWritableOptions<TModel> Runtime, out IDisposable[] Resources)
+        {
+            Runtime = this.Runtime;
+            Resources = this.Resources;
+        }
+    }
 
     private sealed class Notification(IWritableOptions<TModel> runtime, Action dispatch)
     {
@@ -155,7 +171,9 @@ internal sealed class ConfiglueFacadeOptionsRegistry<TModel>
         {
             ThrowIfDisposed();
             if (!_entries.Remove(profileName, out entry))
+            {
                 return false;
+            }
             _retiringNames.Add(profileName);
             _pendingRemovals.Add(completed.Task);
             notification = new Notification(
@@ -191,7 +209,9 @@ internal sealed class ConfiglueFacadeOptionsRegistry<TModel>
         }
         await WaitForNotifications([notification], waitForNotifications).ConfigureAwait(false);
         if (disposalError is not null)
+        {
             ExceptionDispatchInfo.Capture(disposalError).Throw();
+        }
         return true;
     }
 
@@ -232,7 +252,9 @@ internal sealed class ConfiglueFacadeOptionsRegistry<TModel>
             waitForNotifications = !_insideNotification.Value && _notificationDeferralCount == 0;
             pendingBeforeClear = _insideNotification.Value ? [] : _pendingRemovals.ToArray();
             if (removed.Length > 0)
+            {
                 _pendingRemovals.Add(completed.Task);
+            }
         }
         if (removed.Length == 0)
         {
@@ -325,7 +347,9 @@ internal sealed class ConfiglueFacadeOptionsRegistry<TModel>
         lock (_gate)
         {
             if (_disposeTask is not null)
+            {
                 return new ValueTask(_insideNotification.Value ? Task.CompletedTask : _disposeTask);
+            }
             _disposed = true;
             removed = _entries.ToArray();
             _entries.Clear();
@@ -460,9 +484,13 @@ internal sealed class ConfiglueFacadeOptionsRegistry<TModel>
         try
         {
             if (entry.Runtime is IAsyncDisposable asyncDisposable)
+            {
                 await asyncDisposable.DisposeAsync().ConfigureAwait(false);
+            }
             else if (entry.Runtime is IDisposable disposable)
+            {
                 disposable.Dispose();
+            }
         }
         catch (Exception exception)
         {
@@ -581,7 +609,9 @@ internal sealed class ConfiglueFacadeOptionsRegistry<TModel>
     private void NotifyAdded(string name, IWritableOptions<TModel> options)
     {
         if (ProfileAdded is not { } handlers)
+        {
             return;
+        }
         foreach (
             var handler in handlers
                 .GetInvocationList()
@@ -602,7 +632,9 @@ internal sealed class ConfiglueFacadeOptionsRegistry<TModel>
     private void NotifyRemoved(string name)
     {
         if (ProfileRemoved is not { } handlers)
+        {
             return;
+        }
         foreach (var handler in handlers.GetInvocationList().Cast<Action<string>>())
         {
             try
@@ -621,7 +653,9 @@ internal sealed class ConfiglueFacadeOptionsRegistry<TModel>
         lock (_gate)
         {
             if (_dispatchingNotifications || _notificationDeferralCount > 0)
+            {
                 return;
+            }
             _dispatchingNotifications = true;
         }
 

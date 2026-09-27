@@ -1,12 +1,56 @@
 namespace Configlue;
 
 /// <summary>The result of preparing one target in a retryable storage migration.</summary>
-public readonly record struct StateStorageMigrationTargetResult(
-    string TargetId,
-    string? PreviousRevision,
-    string? TargetRevision,
-    bool WasAlreadyCurrent
-);
+public readonly record struct StateStorageMigrationTargetResult
+{
+    /// <summary>Gets or initializes the <see cref="TargetId"/> value.</summary>
+    public string TargetId { get; init; }
+
+    /// <summary>Gets or initializes the <see cref="PreviousRevision"/> value.</summary>
+    public string? PreviousRevision { get; init; }
+
+    /// <summary>Gets or initializes the <see cref="TargetRevision"/> value.</summary>
+    public string? TargetRevision { get; init; }
+
+    /// <summary>Gets or initializes the <see cref="WasAlreadyCurrent"/> value.</summary>
+    public bool WasAlreadyCurrent { get; init; }
+
+    /// <summary>Initializes a new instance of this record.</summary>
+    /// <param name="TargetId">The initial value for the <see cref="TargetId"/> property.</param>
+    /// <param name="PreviousRevision">The initial value for the <see cref="PreviousRevision"/> property.</param>
+    /// <param name="TargetRevision">The initial value for the <see cref="TargetRevision"/> property.</param>
+    /// <param name="WasAlreadyCurrent">The initial value for the <see cref="WasAlreadyCurrent"/> property.</param>
+    public StateStorageMigrationTargetResult(
+        string TargetId,
+        string? PreviousRevision,
+        string? TargetRevision,
+        bool WasAlreadyCurrent
+    )
+    {
+        this.TargetId = TargetId;
+        this.PreviousRevision = PreviousRevision;
+        this.TargetRevision = TargetRevision;
+        this.WasAlreadyCurrent = WasAlreadyCurrent;
+    }
+
+    /// <summary>Deconstructs this record into its property values.</summary>
+    /// <param name="TargetId">Receives the current <see cref="TargetId"/> value.</param>
+    /// <param name="PreviousRevision">Receives the current <see cref="PreviousRevision"/> value.</param>
+    /// <param name="TargetRevision">Receives the current <see cref="TargetRevision"/> value.</param>
+    /// <param name="WasAlreadyCurrent">Receives the current <see cref="WasAlreadyCurrent"/> value.</param>
+    public void Deconstruct(
+        out string TargetId,
+        out string? PreviousRevision,
+        out string? TargetRevision,
+        out bool WasAlreadyCurrent
+    )
+    {
+        TargetId = this.TargetId;
+        PreviousRevision = this.PreviousRevision;
+        TargetRevision = this.TargetRevision;
+        WasAlreadyCurrent = this.WasAlreadyCurrent;
+    }
+}
 
 /// <summary>The per-source revisions and per-target outcomes of a storage migration run.</summary>
 public sealed class StateStorageMigrationResult
