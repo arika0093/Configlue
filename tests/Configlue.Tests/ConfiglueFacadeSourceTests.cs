@@ -486,6 +486,87 @@ public sealed class ConfiglueFacadeSourceTests
     }
 
     [Test]
+    public async Task JsonHttpSourceUsesNamedClientAndDefaultsToReadOnly()
+    {
+        var requestedUris = new System.Collections.Concurrent.ConcurrentBag<Uri>();
+        var content = SerializeFragment(
+            new AppSettings.Fragment { RetryCount = Optional<int>.Present(11) }
+        );
+        var services = new ServiceCollection();
+        services
+            .AddHttpClient("json-settings")
+            .ConfigurePrimaryHttpMessageHandler(() =>
+                new HttpResponseHandler(requestedUris, content)
+            );
+        services.AddConfiglue(builder =>
+        {
+            builder.Add<AppSettings>(model =>
+                model.Sources(sources =>
+                    sources.FromJsonHttpClientFactory(
+                        "json-settings",
+                        new JsonHttpSourceOptions
+                        {
+                            Id = "json-http",
+                            EndPoint = "https://settings.example.test/json/",
+                            WatchChanges = false,
+                        }
+                    )
+                )
+            );
+        });
+
+        await using var provider = services.BuildServiceProvider();
+        var options = provider.GetRequiredService<IWritableOptions<AppSettings>>();
+        (await options.GetValueAsync()).RetryCount.ShouldBe(11);
+        requestedUris.ShouldContain(new Uri("https://settings.example.test/json/get"));
+        await Should.ThrowAsync<InvalidOperationException>(async () =>
+            await options.BeginConfigureAsync()
+        );
+    }
+
+    [Test]
+    public async Task JsonHttpSourceCanWriteWhenEnabledAndDoesNotOwnTheClient()
+    {
+        var handler = new RecordingHttpHandler(SerializeFragment(new AppSettings.Fragment()));
+        using var client = new HttpClient(handler);
+        await using (
+            var context = Configlue.CreateContext(builder =>
+            {
+                builder.Add<AppSettings>(model =>
+                    model.Sources(sources =>
+                        sources.FromJsonHttp(
+                            new JsonHttpSourceOptions
+                            {
+                                Id = "writable-json-http",
+                                EndPoint = "https://settings.example.test/writable/",
+                                Client = client,
+                                Writable = true,
+                                WatchChanges = false,
+                            }
+                        )
+                    )
+                );
+            })
+        )
+        {
+            var result = await context
+                .GetOptions<AppSettings>()
+                .ApplyPatchesAsync([
+                    new StateSourcePatch(
+                        "writable-json-http",
+                        new AppSettings.Patch { RetryCount = FragmentOperation<int>.Set(3) }
+                    ),
+                ]);
+            (result.PhysicalWriteCount).ShouldBe(1);
+            handler.RequestMethods.ShouldContain(HttpMethod.Put);
+        }
+
+        handler.IsDisposed.ShouldBeFalse();
+        var response = await client.GetAsync("https://settings.example.test/after-dispose");
+        (response.StatusCode).ShouldBe(HttpStatusCode.OK);
+    }
+
+    [Test]
     public async Task HttpSourceUsesNamedFactoryClientsAndKeepsReadOnlyCapabilities()
     {
         var requestedUris = new System.Collections.Concurrent.ConcurrentBag<Uri>();
@@ -778,6 +859,35 @@ public sealed class ConfiglueFacadeSourceTests
                     ? new HttpResponseMessage(HttpStatusCode.NotFound)
                     : new HttpResponseMessage(HttpStatusCode.NoContent)
             );
+    }
+
+    private sealed class RecordingHttpHandler(byte[] content) : HttpMessageHandler
+    {
+        public List<HttpMethod> RequestMethods { get; } = [];
+
+        public bool IsDisposed { get; private set; }
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken
+        )
+        {
+            RequestMethods.Add(request.Method);
+            return Task.FromResult(
+                request.Method == HttpMethod.Get
+                    ? new HttpResponseMessage(HttpStatusCode.OK)
+                    {
+                        Content = new ByteArrayContent(content),
+                    }
+                    : new HttpResponseMessage(HttpStatusCode.NoContent)
+            );
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            IsDisposed = true;
+            base.Dispose(disposing);
+        }
     }
 
     private sealed class HttpResponseHandler(

@@ -31,6 +31,26 @@ namespace Configlue.Provider.Json
     {
         public static void FromJsonFile(this Configlue.ConfiglueSourceSetBuilder sources, Configlue.Provider.Json.JsonFileSourceOptions options) { }
     }
+    public sealed class JsonHttpSourceOptions
+    {
+        public JsonHttpSourceOptions() { }
+        public System.Net.Http.HttpClient? Client { get; init; }
+        public System.Func<System.IServiceProvider?, System.Net.Http.HttpClient>? ClientFactory { get; init; }
+        public Configlue.StateCodecContext CodecContext { get; init; }
+        public required string EndPoint { get; init; }
+        public Configlue.StateFallbackCondition FallbackCondition { get; init; }
+        public required string Id { get; init; }
+        public int Priority { get; init; }
+        public Configlue.ResourceId? ResourceId { get; init; }
+        public Configlue.Resource.Http.HttpResourceOptions? ResourceOptions { get; init; }
+        public System.Text.Json.JsonSerializerOptions? SerializerOptions { get; init; }
+        public bool WatchChanges { get; init; }
+        public bool Writable { get; init; }
+    }
+    public static class JsonHttpSourceRegistration
+    {
+        public static void FromJsonHttp(this Configlue.ConfiglueSourceSetBuilder sources, Configlue.Provider.Json.JsonHttpSourceOptions options) { }
+    }
     public sealed class JsonSchemaDocument : System.IEquatable<Configlue.Provider.Json.JsonSchemaDocument>
     {
         public JsonSchemaDocument(Configlue.ConfiglueModelSchema Model, string FileName, System.Text.Json.Nodes.JsonNode Schema) { }

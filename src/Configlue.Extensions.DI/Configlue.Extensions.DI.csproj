@@ -8,6 +8,7 @@
   <ItemGroup>
     <ProjectReference Include="../Configlue.Abstraction/Configlue.Abstraction.csproj" />
     <ProjectReference Include="../Configlue.Core/Configlue.Core.csproj" />
+    <ProjectReference Include="../Configlue.Provider.Json/Configlue.Provider.Json.csproj" />
     <ProjectReference Include="../Configlue.Resource.Http/Configlue.Resource.Http.csproj" />
     <PackageReference
       Include="Microsoft.Extensions.DependencyInjection.Abstractions"

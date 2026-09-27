@@ -1,0 +1,78 @@
+using System.Text.Json;
+using Configlue.Resource.Http;
+
+namespace Configlue.Provider.Json;
+
+/// <summary>Options for registering a JSON-over-HTTP source through the one-arity facade.</summary>
+public sealed class JsonHttpSourceOptions
+{
+    /// <summary>The stable logical source ID used for provenance and write routing.</summary>
+    public required string Id { get; init; }
+
+    /// <summary>The HTTP resource endpoint root.</summary>
+    public required string EndPoint { get; init; }
+
+    /// <summary>A directly supplied client; it remains caller-owned.</summary>
+    public HttpClient? Client { get; init; }
+
+    /// <summary>Resolves a client when the facade context is created.</summary>
+    /// <remarks>The returned client remains owned by the service or factory that supplied it.</remarks>
+    public Func<IServiceProvider?, HttpClient>? ClientFactory { get; init; }
+
+    /// <summary>Higher values are read first.</summary>
+    public int Priority { get; init; }
+
+    /// <summary>Read statuses that allow lower-priority sources to be tried.</summary>
+    public StateFallbackCondition FallbackCondition { get; init; } =
+        StateFallbackCondition.NotFound;
+
+    /// <summary>Whether the endpoint supports writes. Defaults to read-only.</summary>
+    public bool Writable { get; init; }
+
+    /// <summary>Whether to poll the endpoint for changes.</summary>
+    public bool WatchChanges { get; init; } = true;
+
+    /// <summary>HTTP endpoint paths, content type, and polling interval.</summary>
+    public HttpResourceOptions? ResourceOptions { get; init; }
+
+    /// <summary>An optional stable physical resource identity.</summary>
+    public ResourceId? ResourceId { get; init; }
+
+    /// <summary>JSON serialization and property naming options.</summary>
+    public JsonSerializerOptions? SerializerOptions { get; init; }
+
+    /// <summary>Additional context passed to the codec.</summary>
+    public StateCodecContext CodecContext { get; init; }
+
+    internal HttpSourceOptions ToHttpSourceOptions() =>
+        new()
+        {
+            Id = Id,
+            EndPoint = EndPoint,
+            Client = Client,
+            ClientFactory = ClientFactory,
+            Codec = new JsonStateCodec(SerializerOptions),
+            Priority = Priority,
+            FallbackCondition = FallbackCondition,
+            Writable = Writable,
+            WatchChanges = WatchChanges,
+            ResourceOptions = ResourceOptions,
+            ResourceId = ResourceId,
+            CodecContext = CodecContext,
+        };
+}
+
+/// <summary>Registers facade sources backed by JSON over the Configlue HTTP resource protocol.</summary>
+public static class JsonHttpSourceRegistration
+{
+    /// <summary>Adds a JSON HTTP source. The client remains owned by its provider.</summary>
+    public static void FromJsonHttp(
+        this ConfiglueSourceSetBuilder sources,
+        JsonHttpSourceOptions options
+    )
+    {
+        ArgumentNullException.ThrowIfNull(sources);
+        ArgumentNullException.ThrowIfNull(options);
+        sources.FromHttp(options.ToHttpSourceOptions());
+    }
+}

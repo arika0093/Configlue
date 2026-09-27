@@ -54,5 +54,6 @@ namespace Configlue.Resource.Http
     public static class HttpClientFactorySourceExtensions
     {
         public static void FromHttpClientFactory(this Configlue.ConfiglueSourceSetBuilder sources, string clientName, Configlue.Resource.Http.HttpSourceOptions options) { }
+        public static void FromJsonHttpClientFactory(this Configlue.ConfiglueSourceSetBuilder sources, string clientName, Configlue.Provider.Json.JsonHttpSourceOptions options) { }
     }
 }

@@ -253,21 +253,24 @@ var codec = new YamlStateCodec<AppSettings.Fragment>(
 `ZipEntryResource` exposes one archive entry as a logical resource while retaining the archive's physical identity and revision. Disjoint entry updates can share one batched archive write, and untouched entries remain intact.
 `HttpResourceReader` reads from `{root}/get` and can be composed with any state codec. Call `CreateWriter()` and pass the result as `writer:` to `SerializedStateSource.FromResource` only when the endpoint supports updates; HTTP requests use ETags for conditional writes and polling. The optional `Configlue.Resource.Http.AspNetCore` package maps the same protocol over user-provided resource handlers. See the [HTTP resource protocol](docs/en/reference/http-resource-protocol.md).
 
-Host applications can register named clients with the standard `AddHttpClient` APIs and pass them to facade sources through `FromHttpClientFactory`. Configure base addresses, authentication, retry handlers, and timeouts on each named client as usual. The source resolves its client when the Configlue context is created; `IHttpClientFactory` manages the underlying handlers, and the source does not dispose the returned client. Register separate names and endpoint roots for distinct services. HTTP sources stay read-only unless `Writable = true` is explicitly set for an endpoint that supports updates.
+Host applications can register named clients with the standard `AddHttpClient` APIs and pass them to facade sources through `FromHttpClientFactory`. For JSON endpoints, `FromJsonHttp` and `FromJsonHttpClientFactory` create the JSON codec for you; set `Writable = true` only when the endpoint supports updates. These sources are read-only by default. Configure base addresses, authentication, retry handlers, and timeouts on each named client as usual. The source resolves its client when the Configlue context is created; `IHttpClientFactory` manages the underlying handlers, and the source does not dispose the returned client. Register separate names and endpoint roots for distinct services. Use `FromHttp` when an endpoint uses a codec other than JSON.
 
 ```csharp
+using Configlue.Provider.Json;
+using Configlue.Resource.Http;
+using Microsoft.Extensions.DependencyInjection;
+
 services.AddHttpClient("remote-settings", client =>
 {
     client.Timeout = TimeSpan.FromSeconds(10);
 });
 services.AddConfiglue(builder => builder.Add<AppSettings>(model =>
-    model.Sources(sources => sources.FromHttpClientFactory(
+    model.Sources(sources => sources.FromJsonHttpClientFactory(
         "remote-settings",
-        new HttpSourceOptions
+        new JsonHttpSourceOptions
         {
             Id = "remote-settings",
             EndPoint = "https://settings.example.test/app/",
-            Codec = new JsonStateCodec<AppSettings.Fragment>(),
             Priority = 10,
         }))));
 ```
