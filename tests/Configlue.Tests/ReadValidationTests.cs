@@ -1,9 +1,25 @@
+using System.ComponentModel.DataAnnotations;
 using Configlue;
 using Configlue.Provider.Json;
 using Configlue.Source.Environment;
 using Configlue.Testing;
 
 namespace Configlue.Tests;
+
+[ConfiglueModel("read-validation-root", Version = 1)]
+public partial class ReadValidationRoot
+{
+    public ReadValidationNested? Nested { get; set; } = new();
+}
+
+[ConfiglueModel("read-validation-nested", Version = 1)]
+public partial class ReadValidationNested
+{
+    public string Name { get; set; } = "default";
+
+    [Range(1, 65535)]
+    public int Port { get; set; } = 5432;
+}
 
 public sealed class ReadValidationTests
 {
@@ -96,6 +112,116 @@ public sealed class ReadValidationTests
         (resolved.Status).ShouldBe(StateReadStatus.Success);
         (resolved.Value!.RetryCount).ShouldBe(3);
         (resolved.Value.Label).ShouldBe("kept");
+    }
+
+    [Test]
+    public async Task IgnoreValue_DropsOnlyInvalidNestedMember()
+    {
+        var options = new ConfiglueOptions<ReadValidationRoot, ReadValidationRoot.Fragment>(
+            new StateSourceSet<ReadValidationRoot.Fragment>([
+                new StateSource<ReadValidationRoot.Fragment>(
+                    "nested-layer",
+                    new InMemoryStateStore<ReadValidationRoot.Fragment>(
+                        new ReadValidationRoot.Fragment
+                        {
+                            Nested = Optional<ReadValidationNested.Fragment?>.Present(
+                                new ReadValidationNested.Fragment
+                                {
+                                    Name = Optional<string>.Present("kept"),
+                                    Port = Optional<int>.Present(0),
+                                }
+                            ),
+                        }
+                    )
+                ),
+            ]),
+            readValidationMode: ReadValidationMode.IgnoreValue
+        );
+
+        var resolved = await options.ReadAsync();
+
+        (resolved.Value!.Nested!.Name).ShouldBe("kept");
+        (resolved.Value.Nested.Port).ShouldBe(5432);
+    }
+
+    [Test]
+    public async Task DisablingDataAnnotationsKeepsAnnotatedValuesInEachReadMode()
+    {
+        foreach (var mode in Enum.GetValues<ReadValidationMode>())
+        {
+            var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(
+                new StateSourceSet<AppSettings.Fragment>([
+                    new StateSource<AppSettings.Fragment>(
+                        "layer",
+                        new InMemoryStateStore<AppSettings.Fragment>(
+                            new AppSettings.Fragment { RetryCount = Optional<int>.Present(150) }
+                        )
+                    ),
+                ]),
+                validateDataAnnotations: false,
+                readValidationMode: mode
+            );
+
+            var resolved = await options.ReadAsync();
+
+            (resolved.Status).ShouldBe(StateReadStatus.Success);
+            (resolved.Value!.RetryCount).ShouldBe(150);
+        }
+    }
+
+    [Test]
+    public async Task StrictThrowRunsCustomValidatorsWhenDataAnnotationsAreDisabled()
+    {
+        var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(
+            new StateSourceSet<AppSettings.Fragment>([
+                new StateSource<AppSettings.Fragment>(
+                    "layer",
+                    new InMemoryStateStore<AppSettings.Fragment>(
+                        new AppSettings.Fragment
+                        {
+                            Label = Optional<string?>.Present("custom-invalid"),
+                        }
+                    )
+                ),
+            ]),
+            validators: [new InvalidLabelValidator()],
+            validateDataAnnotations: false,
+            readValidationMode: ReadValidationMode.StrictThrow
+        );
+
+        var failure = await Should.ThrowAsync<ConfiglueValidationException>(async () =>
+            await options.ReadAsync()
+        );
+
+        (string.Join("; ", failure.Failures)).ShouldContain("custom validator");
+    }
+
+    [Test]
+    public async Task InvalidFallbackConditionContinuesToLowerPrioritySource()
+    {
+        var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(
+            new StateSourceSet<AppSettings.Fragment>([
+                new StateSource<AppSettings.Fragment>(
+                    "invalid",
+                    new StubReader(
+                        StateReadResult<AppSettings.Fragment>.Invalid(new AppSettings.Fragment())
+                    ),
+                    priority: 100,
+                    fallbackCondition: StateFallbackCondition.Invalid
+                ),
+                new StateSource<AppSettings.Fragment>(
+                    "valid",
+                    new InMemoryStateStore<AppSettings.Fragment>(
+                        new AppSettings.Fragment { RetryCount = Optional<int>.Present(8) }
+                    )
+                ),
+            ])
+        );
+
+        var resolved = await options.ReadAsync();
+
+        (resolved.Status).ShouldBe(StateReadStatus.Success);
+        (resolved.Value!.RetryCount).ShouldBe(8);
     }
 
     [Test]
@@ -208,5 +334,11 @@ public sealed class ReadValidationTests
         public ValueTask<StateReadResult<AppSettings.Fragment>> ReadAsync(
             CancellationToken cancellationToken = default
         ) => ValueTask.FromResult(result);
+    }
+
+    private sealed class InvalidLabelValidator : IConfiglueValidator<AppSettings>
+    {
+        public IReadOnlyList<string> Validate(AppSettings value) =>
+            value.Label == "custom-invalid" ? ["custom validator rejected Label"] : [];
     }
 }

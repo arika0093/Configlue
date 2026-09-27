@@ -191,6 +191,11 @@ public sealed class ConfiglueModelBuilder<TModel>
         set
         {
             EnsureMutable();
+            if (!Enum.IsDefined(value))
+            {
+                throw new ArgumentOutOfRangeException(nameof(value));
+            }
+
             _readValidationMode = value;
         }
     }

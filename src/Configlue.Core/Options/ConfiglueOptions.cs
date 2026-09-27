@@ -1,9 +1,6 @@
 using System.Collections;
 using System.Collections.Concurrent;
 using System.ComponentModel.DataAnnotations;
-using System.Diagnostics.CodeAnalysis;
-using System.Reflection;
-using System.Runtime.CompilerServices;
 using Microsoft.Extensions.Logging;
 
 namespace Configlue;
@@ -11,7 +8,7 @@ namespace Configlue;
 /// <summary>Resolves and saves a generated configuration model over a set of state sources.</summary>
 /// <typeparam name="TModel">The generated configuration model.</typeparam>
 /// <typeparam name="TFragment">The model's generated sparse fragment.</typeparam>
-public sealed class ConfiglueOptions<TModel, TFragment>
+public sealed partial class ConfiglueOptions<TModel, TFragment>
     : IConfiglueOptions<TModel>,
         IConfiglueValueCloneProvider<TModel>,
         IDisposable,
@@ -146,6 +143,11 @@ public sealed class ConfiglueOptions<TModel, TFragment>
         _optionsName = optionsName ?? string.Empty;
         _logger = logger;
         _validateDataAnnotations = validateDataAnnotations;
+        if (!Enum.IsDefined(readValidationMode))
+        {
+            throw new ArgumentOutOfRangeException(nameof(readValidationMode));
+        }
+
         _readValidationMode = readValidationMode;
         _onChangeDebounce = onChangeDebounce ?? TimeSpan.FromMilliseconds(300);
         if (_onChangeDebounce < TimeSpan.Zero)
@@ -4007,226 +4009,6 @@ public sealed class ConfiglueOptions<TModel, TFragment>
 
         return targetValues;
     }
-
-    private void Validate(TModel value)
-    {
-        var failures = CollectValidationFailures(value);
-        if (failures.Count > 0)
-        {
-            throw new ConfiglueValidationException(_optionsName, typeof(TModel), failures);
-        }
-    }
-
-    private List<string> CollectValidationFailures(TModel value)
-    {
-        var failures = new List<string>();
-        foreach (var validator in _validators)
-        {
-            failures.AddRange(validator.Validate(_optionsName, value));
-        }
-
-        if (_validateDataAnnotations && RuntimeFeature.IsDynamicCodeSupported)
-        {
-            var validationResults = new List<ValidationResult>();
-            Validator.TryValidateObject(
-                value,
-                new ValidationContext(value),
-                validationResults,
-                validateAllProperties: true
-            );
-            failures.AddRange(
-                validationResults.Select(result =>
-                    result.ErrorMessage ?? "Configuration validation failed."
-                )
-            );
-        }
-
-        return failures;
-    }
-
-    private void ValidateContribution(StateSource<TFragment> source, IConfiglueFragment fragment)
-    {
-        var failures = new List<string>();
-        CollectMemberFailures(fragment.Schema, fragment, string.Empty, failures);
-        if (failures.Count == 0)
-        {
-            return;
-        }
-
-        _logger?.LogWarning(
-            ReadValidationEvent,
-            "Configuration source {SourceId} contributed invalid values for {ModelType} options {OptionsName}: {Failures}.",
-            source.Id,
-            typeof(TModel).FullName,
-            _optionsName,
-            string.Join("; ", failures)
-        );
-        throw new ConfiglueValidationException(
-            _optionsName,
-            typeof(TModel),
-            failures.Select(failure => $"Source '{source.Id}': {failure}")
-        );
-    }
-
-    private IConfiglueFragment PruneInvalidMembers(
-        StateSource<TFragment> source,
-        IConfiglueFragment fragment
-    )
-    {
-        var failures = new List<string>();
-        var invalidIds = new List<int>();
-        CollectMemberFailures(fragment.Schema, fragment, string.Empty, failures, invalidIds);
-        if (failures.Count == 0)
-        {
-            return fragment;
-        }
-
-        _logger?.LogWarning(
-            ReadValidationEvent,
-            "Ignoring invalid values from configuration source {SourceId} for {ModelType} options {OptionsName}: {Failures}.",
-            source.Id,
-            typeof(TModel).FullName,
-            _optionsName,
-            string.Join("; ", failures)
-        );
-        foreach (var memberId in invalidIds)
-        {
-            try
-            {
-                fragment = fragment.WithoutMember(memberId);
-            }
-            catch (NotSupportedException)
-            {
-                break;
-            }
-        }
-
-        return fragment;
-    }
-
-    private void ValidateResolvedModel(TModel model, IConfiglueFragment merged)
-    {
-        var failures = new List<string>();
-        CollectMemberFailures(merged.Schema, merged, string.Empty, failures);
-        failures.AddRange(CollectValidationFailures(model));
-        if (failures.Count == 0)
-        {
-            return;
-        }
-
-        _logger?.LogWarning(
-            ReadValidationEvent,
-            "Resolved configuration for {ModelType} options {OptionsName} failed validation: {Failures}.",
-            typeof(TModel).FullName,
-            _optionsName,
-            string.Join("; ", failures)
-        );
-        throw new ConfiglueValidationException(_optionsName, typeof(TModel), failures);
-    }
-
-    private static void CollectMemberFailures(
-        ConfiglueModelSchema schema,
-        IConfiglueFragment fragment,
-        string prefix,
-        List<string> failures,
-        List<int>? invalidMemberIds = null
-    )
-    {
-        if (!RuntimeFeature.IsDynamicCodeSupported)
-        {
-            return;
-        }
-
-        foreach (var present in fragment.EnumeratePresentMembers())
-        {
-            var member = schema
-                .Members.Where(candidate => candidate.Id == present.Id)
-                .Cast<ConfiglueMemberSchema?>()
-                .FirstOrDefault();
-            if (member is not { } found)
-            {
-                continue;
-            }
-
-            var path = prefix + found.Name;
-            if (found.NestedSchemaFactory is not null && present.Value is IConfiglueFragment nested)
-            {
-                var nestedCount = failures.Count;
-                CollectMemberFailures(
-                    found.NestedSchemaFactory(),
-                    nested,
-                    path + ".",
-                    failures,
-                    invalidMemberIds: null
-                );
-                if (failures.Count != nestedCount)
-                {
-                    invalidMemberIds?.Add(found.Id);
-                }
-
-                continue;
-            }
-
-            if (
-                CollectMemberAttributeFailures(
-                    schema.ModelType,
-                    found.Name,
-                    present.Value,
-                    out var message
-                )
-            )
-            {
-                failures.Add($"{path}: {message}");
-                invalidMemberIds?.Add(found.Id);
-            }
-        }
-    }
-
-    [RequiresUnreferencedCode(
-        "Member validation reflects over model properties that trimming may remove."
-    )]
-    [RequiresDynamicCode("Member validation inspects model properties at runtime.")]
-    private static bool CollectMemberAttributeFailures(
-        Type modelType,
-        string memberName,
-        object? value,
-        out string message
-    )
-    {
-        var failure = GetMemberValidationAttributes(modelType, memberName)
-            .Where(attribute => !attribute.IsValid(value))
-            .Select(attribute => attribute.FormatErrorMessage(memberName))
-            .FirstOrDefault();
-        if (failure is null)
-        {
-            message = string.Empty;
-            return false;
-        }
-
-        message = failure;
-        return true;
-    }
-
-    [RequiresUnreferencedCode(
-        "Member validation reflects over model properties that trimming may remove."
-    )]
-    [RequiresDynamicCode("Member validation inspects model properties at runtime.")]
-    private static ValidationAttribute[] GetMemberValidationAttributes(
-        Type modelType,
-        string memberName
-    ) =>
-        MemberValidationAttributes.GetOrAdd(
-            (modelType, memberName),
-            static key =>
-                key.ModelType.GetProperty(
-                        key.MemberName,
-                        BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase
-                    )
-                    ?.GetCustomAttributes(typeof(ValidationAttribute), inherit: true)
-                    .OfType<ValidationAttribute>()
-                    .ToArray()
-                ?? []
-        );
 
     private async ValueTask<TFragment> MigrateAsync(
         TFragment value,
