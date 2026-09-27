@@ -55,6 +55,7 @@ public sealed partial class ConfiglueGenerator
         AppendModelSchema(code, modelType, modelId, version, members);
         AppendFragmentSchema(code, modelType, modelId, version, members);
         AppendDeepClone(code, modelType, members);
+        AppendPocoCloneHelpers(code, GetPocoCloneTypes(members, cancellationToken));
         AppendCollectionCloneHelpers(code);
         AppendFragment(code, modelType, members, previousModels);
         AppendModelFragmentBridge(code, modelType);
@@ -360,10 +361,13 @@ public sealed partial class ConfiglueGenerator
         ImmutableArray<MemberModel> members
     )
     {
-        code.AppendIndent(1)
-            .Append("public ")
-            .Append(modelType)
-            .AppendLine(" DeepClone() => new()");
+        code.AppendIndent(1).Append("public ").Append(modelType).AppendLine(" DeepClone()");
+        code.AppendLineAt(1, "{");
+        code.AppendLineAt(
+            2,
+            "var __configlue_clone_context = new global::System.Collections.Generic.Dictionary<object, object>(global::System.Collections.Generic.ReferenceEqualityComparer.Instance);"
+        );
+        code.AppendIndent(2).Append("return new ").Append(modelType).AppendLine();
         code.AppendLineAt(1, "{");
         foreach (var member in members)
         {
@@ -381,6 +385,51 @@ public sealed partial class ConfiglueGenerator
         }
 
         code.AppendLineAt(1, "};");
+        code.AppendLineAt(1, "}");
+    }
+
+    private static void AppendPocoCloneHelpers(
+        IndentedStringBuilder code,
+        ImmutableArray<INamedTypeSymbol> pocoTypes
+    )
+    {
+        foreach (var pocoType in pocoTypes)
+        {
+            var typeName = NonNullableTypeName(pocoType);
+            var helperName =
+                "__Clone_" + GetStableTypeHash(pocoType.ToDisplayString(), code.CancellationToken);
+            code.AppendIndent(1)
+                .Append("private static ")
+                .Append(typeName)
+                .Append(' ')
+                .Append(helperName)
+                .Append('(')
+                .Append(typeName)
+                .AppendLine(
+                    " value, global::System.Collections.Generic.Dictionary<object, object> __configlue_clone_context)"
+                );
+            code.AppendLineAt(1, "{");
+            code.AppendLineAt(
+                2,
+                "if (__configlue_clone_context.TryGetValue(value, out var existing)) return ("
+                    + typeName
+                    + ")existing;"
+            );
+            code.AppendIndent(2).Append("var clone = new ").Append(typeName).AppendLine("();");
+            code.AppendLineAt(2, "__configlue_clone_context.Add(value, clone);");
+            foreach (var member in GetMembers(pocoType, code.CancellationToken))
+            {
+                var name = EscapeIdentifier(member.Property.Name);
+                code.AppendIndent(2)
+                    .Append("clone.")
+                    .Append(name)
+                    .Append(" = ")
+                    .Append(CloneModelExpression(member, "value." + name, code.CancellationToken))
+                    .AppendLine(";");
+            }
+            code.AppendLineAt(2, "return clone;");
+            code.AppendLineAt(1, "}");
+        }
     }
 
     private static void AppendModelFragmentBridge(IndentedStringBuilder code, string modelType)

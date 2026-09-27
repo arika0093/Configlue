@@ -13,6 +13,29 @@ namespace Configlue.Generator;
 
 public sealed partial class ConfiglueGenerator
 {
+    private static string CloneValueExpression(
+        ITypeSymbol type,
+        string access,
+        CancellationToken cancellationToken
+    )
+    {
+        if (IsConfiglueModel(type, cancellationToken))
+        {
+            return type.IsReferenceType
+                ? $"{access} is null ? default! : (({TypeName(type)}){access}).DeepClone()"
+                : $"(({TypeName(type)}){access}).DeepClone()";
+        }
+
+        if (TryGetPocoCloneType(type, cancellationToken, out var pocoType))
+        {
+            return type.IsReferenceType
+                ? $"{access} is null ? default! : __Clone_{GetStableTypeHash(pocoType.ToDisplayString(), cancellationToken)}({access}, __configlue_clone_context)"
+                : $"__Clone_{GetStableTypeHash(pocoType.ToDisplayString(), cancellationToken)}({access}, __configlue_clone_context)";
+        }
+
+        return access;
+    }
+
     private static string CloneModelExpression(
         MemberModel member,
         string access,
@@ -22,6 +45,11 @@ public sealed partial class ConfiglueGenerator
         if (member.ChildModel is not null)
         {
             return $"{access} is null ? null! : {access}.DeepClone()";
+        }
+
+        if (TryGetPocoCloneType(member.Property.Type, cancellationToken, out var pocoType))
+        {
+            return $"{access} is null ? null! : __Clone_{GetStableTypeHash(pocoType.ToDisplayString(), cancellationToken)}({access}, __configlue_clone_context)";
         }
 
         var cloned = CloneCollectionExpression(member, access, cancellationToken);
@@ -39,6 +67,11 @@ public sealed partial class ConfiglueGenerator
         if (member.ChildModel is not null)
         {
             return $"{access}?.DeepClone()";
+        }
+
+        if (TryGetPocoCloneType(member.Property.Type, cancellationToken, out var pocoType))
+        {
+            return $"{access} is null ? null : __Clone_{GetStableTypeHash(pocoType.ToDisplayString(), cancellationToken)}({access}!, __configlue_clone_context)";
         }
 
         var cloned = CloneCollectionExpression(member, access + "!", cancellationToken);
@@ -59,26 +92,32 @@ public sealed partial class ConfiglueGenerator
 
         var elementType = TypeName(collection.ElementType);
         var elements = access;
-        if (IsConfiglueModel(collection.ElementType, cancellationToken))
+        if (
+            IsConfiglueModel(collection.ElementType, cancellationToken)
+            || TryGetPocoCloneType(collection.ElementType, cancellationToken, out _)
+        )
         {
             elements =
-                $"global::System.Linq.Enumerable.Select({access}, static item => item is null ? default! : (({elementType})item).DeepClone())";
+                $"global::System.Linq.Enumerable.Select({access}, item => {CloneValueExpression(collection.ElementType, "item", cancellationToken)})";
         }
 
-        var valueType = collection.ValueType is null ? null : TypeName(collection.ValueType);
         if (collection.ValueType is not null)
         {
             if (collection.CloneKind == CloneCollectionKind.PriorityQueue)
             {
                 var priorityType = TypeName(collection.ValueType);
-                var elementSelector = IsConfiglueModel(collection.ElementType, cancellationToken)
-                    ? $"item.Element is null ? default! : (({elementType})item.Element).DeepClone()"
-                    : "item.Element";
-                var prioritySelector = IsConfiglueModel(collection.ValueType, cancellationToken)
-                    ? $"item.Priority is null ? default! : (({priorityType})item.Priority).DeepClone()"
-                    : "item.Priority";
+                var elementSelector = CloneValueExpression(
+                    collection.ElementType,
+                    "item.Element",
+                    cancellationToken
+                );
+                var prioritySelector = CloneValueExpression(
+                    collection.ValueType,
+                    "item.Priority",
+                    cancellationToken
+                );
                 var entries =
-                    $"global::System.Linq.Enumerable.Select({access}.UnorderedItems, static item => ({elementSelector}, {prioritySelector}))";
+                    $"global::System.Linq.Enumerable.Select({access}.UnorderedItems, item => ({elementSelector}, {prioritySelector}))";
                 return $"new global::System.Collections.Generic.PriorityQueue<{elementType}, {priorityType}>({entries}, {access}.Comparer)";
             }
 
@@ -88,12 +127,10 @@ public sealed partial class ConfiglueGenerator
                     collection.NamedType?.ConstructedFrom.ToDisplayString()
                     == "System.Collections.Generic.Dictionary<TKey, TValue>";
                 var comparer = isConcreteDictionary ? access + ".Comparer" : null;
-                var keySelector = IsConfiglueModel(collection.ElementType, cancellationToken)
-                    ? $"static pair => pair.Key is null ? default! : (({elementType})pair.Key).DeepClone()"
-                    : "static pair => pair.Key";
-                var valueSelector = IsConfiglueModel(collection.ValueType, cancellationToken)
-                    ? $"static pair => pair.Value is null ? default! : (({valueType})pair.Value).DeepClone()"
-                    : "static pair => pair.Value";
+                var keySelector =
+                    $"pair => {CloneValueExpression(collection.ElementType, "pair.Key", cancellationToken)}";
+                var valueSelector =
+                    $"pair => {CloneValueExpression(collection.ValueType, "pair.Value", cancellationToken)}";
                 return comparer is null
                     ? $"global::System.Linq.Enumerable.ToDictionary({access}, {keySelector}, {valueSelector})"
                     : $"global::System.Linq.Enumerable.ToDictionary({access}, {keySelector}, {valueSelector}, {comparer})";
@@ -101,12 +138,10 @@ public sealed partial class ConfiglueGenerator
 
             if (collection.CloneKind == CloneCollectionKind.ImmutableDictionary)
             {
-                var keySelector = IsConfiglueModel(collection.ElementType, cancellationToken)
-                    ? $"static pair => pair.Key is null ? default! : (({elementType})pair.Key).DeepClone()"
-                    : "static pair => pair.Key";
-                var valueSelector = IsConfiglueModel(collection.ValueType, cancellationToken)
-                    ? $"static pair => pair.Value is null ? default! : (({valueType})pair.Value).DeepClone()"
-                    : "static pair => pair.Value";
+                var keySelector =
+                    $"pair => {CloneValueExpression(collection.ElementType, "pair.Key", cancellationToken)}";
+                var valueSelector =
+                    $"pair => {CloneValueExpression(collection.ValueType, "pair.Value", cancellationToken)}";
                 return $"global::System.Collections.Immutable.ImmutableDictionary.ToImmutableDictionary({access}, {keySelector}, {valueSelector}, {access}.KeyComparer, {access}.ValueComparer)";
             }
 
