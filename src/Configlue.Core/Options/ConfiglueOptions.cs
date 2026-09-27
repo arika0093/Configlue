@@ -494,8 +494,8 @@ public sealed class ConfiglueOptions<TModel, TFragment>
             );
         }
 
-        var merged = TFragment.Empty;
-        for (var index = contributions.Count - 1; index >= 0; index--)
+        var merged = contributions.Count == 0 ? TFragment.Empty : contributions[^1].Result.Value!;
+        for (var index = contributions.Count - 2; index >= 0; index--)
         {
             merged = merged.Merge(contributions[index].Result.Value!);
         }
