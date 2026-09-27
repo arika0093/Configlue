@@ -7,7 +7,11 @@ namespace Configlue;
 /// associated with an operation's transitions before that operation completes. Calls made
 /// reentrantly from a callback, or while notifications are deferred, may complete before their
 /// queued callbacks; the active dispatcher or deferral scope delivers them afterward. A listener
-/// exception is logged and does not prevent other listeners from receiving the notification.
+/// exception is logged and does not prevent other listeners from receiving the notification. A
+/// custom registry used by a profile manager should implement
+/// <see cref="IConfiglueOptionsRegistryNotificationDeferrer{T}"/> when its listeners reenter that
+/// manager. Without that capability, callbacks may run synchronously while the manager is in an
+/// operation, so listeners must not synchronously wait for another manager operation.
 /// </remarks>
 public interface IConfiglueOptionsRegistry<T> : IDisposable, IAsyncDisposable
 {

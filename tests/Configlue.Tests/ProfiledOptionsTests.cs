@@ -315,6 +315,84 @@ public sealed class ProfiledOptionsTests
     }
 
     [Test]
+    public async Task CustomDeferringRegistryAllowsProfileManagerReentrancyFromRegistryEvents()
+    {
+        var catalogStore = new InMemoryStateStore<ConfiglueProfileCatalog>(
+            new ConfiglueProfileCatalog
+            {
+                ProfileNames = ["default"],
+                ActiveProfileName = "default",
+            }
+        );
+        var innerRegistry = CreateProfileRegistry();
+        var registry = new ThrowingNotificationDeferralRegistry(innerRegistry);
+        var profiles = new ConfiglueProfiledOptions<AppSettings, AppSettings.Fragment>(
+            registry,
+            new StateSource<ConfiglueProfileCatalog>("catalog", catalogStore, writer: catalogStore)
+        );
+        await profiles.GetProfileNamesAsync();
+        await (await profiles.GetProfileAsync("default")).SaveAsync(
+            new AppSettings { Label = "default-value" }
+        );
+
+        var addedObservation = new TaskCompletionSource<(bool IsPublished, string? Value)>(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        registry.ProfileAdded += (name, options) =>
+        {
+            if (name != "Work")
+            {
+                return;
+            }
+
+            var names = profiles
+                .GetProfileNamesAsync()
+                .AsTask()
+                .WaitAsync(TimeSpan.FromSeconds(5))
+                .GetAwaiter()
+                .GetResult();
+            var value = options
+                .GetValueAsync()
+                .AsTask()
+                .WaitAsync(TimeSpan.FromSeconds(5))
+                .GetAwaiter()
+                .GetResult();
+            addedObservation.TrySetResult((names.Contains(name), value.Label));
+        };
+
+        await profiles
+            .CreateProfileAsync("Work", copyFrom: "default")
+            .AsTask()
+            .WaitAsync(TimeSpan.FromSeconds(5));
+        (await addedObservation.Task.WaitAsync(TimeSpan.FromSeconds(5))).ShouldBe(
+            (true, "default-value")
+        );
+
+        var removedObservation = new TaskCompletionSource<bool>(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        registry.ProfileRemoved += name =>
+        {
+            if (name != "Work")
+            {
+                return;
+            }
+
+            var names = profiles
+                .GetProfileNamesAsync()
+                .AsTask()
+                .WaitAsync(TimeSpan.FromSeconds(5))
+                .GetAwaiter()
+                .GetResult();
+            removedObservation.TrySetResult(!names.Contains(name));
+        };
+
+        await profiles.RemoveProfileAsync("Work").AsTask().WaitAsync(TimeSpan.FromSeconds(5));
+        (await removedObservation.Task.WaitAsync(TimeSpan.FromSeconds(5))).ShouldBeTrue();
+        await innerRegistry.DisposeAsync();
+    }
+
+    [Test]
     public async Task ProfileCatalogConflictRefreshRemovesStaleNamesFromEachRuntimeRegistry()
     {
         using var directory = new TemporaryDirectory();
