@@ -9,6 +9,7 @@ $expectedPackageIds = @(
     'Configlue.Abstraction',
     'Configlue.Core',
     'Configlue.Extensions.DI',
+    'Configlue.Extensions.MSOptions',
     'Configlue.Generator',
     'Configlue.Testing',
     'Configlue.Provider.Json',
@@ -119,6 +120,7 @@ $requiredMetaDependencies = @(
     'Configlue.Extensions.DI',
     'Configlue.Provider.Json',
     'Configlue.Resource.Http',
+    'Configlue.Source.Common',
     'Configlue.Source.Environment'
 )
 $missingMetaDependencies = @(
