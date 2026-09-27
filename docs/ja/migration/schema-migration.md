@@ -48,7 +48,7 @@ public partial class UserSetting
 
 ## 存在を意識した移行
 
-生成された `FragmentBuilder`・`Patch` メンバーは `ref` プロパティです: `builder.Value = 123`、`builder.Value.Set(123)`、`builder.Value.Unset()`、`builder.Value.CopyFrom(source.OldValue)`。改名メンバーは `builder.NewName.CopyFrom(previous.OldName)` と明示代入します。生成子型が変わった入れ子メンバーは存在値を変換します (例: `builder.Database.CopyFrom(previous.Database, static value => value is null ? null : NewDatabase.Fragment.FromPrevious(value))`)。`Fragment.FromPrevious` は現行生成モデルが以前の子型を宣言する同名入れ子子に再帰し、Missing・存在 `null`・存在値を保持します。`CreateSchemaDispatcher` も既定で同じ移行を使います。
+生成された `FragmentBuilder`・`Patch` メンバーは `ref` プロパティです: `builder.Value = 123`、`builder.Value.Set(123)`、`builder.Value.Unset()`、`builder.Value.CopyFrom(source.OldValue)`。生成 Patch は `IConfiglueMemberPatch.SelectMembers(memberIds)` も実装し、指定した安定 schema member ID の操作だけを `Unchanged`・`Set`・`Unset` の状態のままコピーします。これにより、ソースルーターは明示的な null/default 値や削除操作を通常のフラグメント値へ変換せずに patch を分割できます。既存の独自 `IConfigluePatch` 実装はそのまま利用でき、member 単位のルーティングを行う場合に `IConfiglueMemberPatch` を実装します。改名メンバーは `builder.NewName.CopyFrom(previous.OldName)` と明示代入します。生成子型が変わった入れ子メンバーは存在値を変換します (例: `builder.Database.CopyFrom(previous.Database, static value => value is null ? null : NewDatabase.Fragment.FromPrevious(value))`)。`Fragment.FromPrevious` は現行生成モデルが以前の子型を宣言する同名入れ子子に再帰し、Missing・存在 `null`・存在値を保持します。`CreateSchemaDispatcher` も既定で同じ移行を使います。
 
 ## 次のステップ
 

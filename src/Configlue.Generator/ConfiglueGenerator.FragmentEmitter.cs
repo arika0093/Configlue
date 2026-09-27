@@ -804,7 +804,7 @@ public sealed partial class ConfiglueGenerator
             1,
             "/// <summary>A source-local set/unset patch for generated fragment members.</summary>"
         );
-        code.AppendLineAt(1, "public sealed class Patch : global::Configlue.IConfigluePatch");
+        code.AppendLineAt(1, "public sealed class Patch : global::Configlue.IConfiglueMemberPatch");
         code.AppendLineAt(1, "{");
         code.AppendIndent(2)
             .Append("public global::Configlue.ConfiglueModelSchema Schema => ")
@@ -872,6 +872,36 @@ public sealed partial class ConfiglueGenerator
             "if (fragment is not Fragment typed) throw new global::System.ArgumentException(\"The patch can only be applied to its generated fragment type.\", nameof(fragment));"
         );
         code.AppendLineAt(3, "return typed.Apply(this);");
+        code.AppendLineAt(2, "}");
+        code.AppendLineAt(
+            2,
+            "public global::Configlue.IConfigluePatch SelectMembers(global::System.ReadOnlySpan<int> memberIds)"
+        );
+        code.AppendLineAt(2, "{");
+        code.AppendLineAt(3, "var selected = new Patch();");
+        foreach (var member in members)
+        {
+            var field = MemberBackingField(member);
+            code.AppendLineAt(3, "{");
+            code.AppendLineAt(
+                4,
+                "for (var memberIndex = 0; memberIndex < memberIds.Length; memberIndex++)"
+            );
+            code.AppendLineAt(4, "{");
+            code.AppendLineAt(5, $"if (memberIds[memberIndex] == {member.Id})");
+            code.AppendLineAt(5, "{");
+            code.AppendIndent(6)
+                .Append("selected.")
+                .Append(field)
+                .Append(" = ")
+                .Append(field)
+                .AppendLine(";");
+            code.AppendLineAt(6, "break;");
+            code.AppendLineAt(5, "}");
+            code.AppendLineAt(4, "}");
+            code.AppendLineAt(3, "}");
+        }
+        code.AppendLineAt(3, "return selected;");
         code.AppendLineAt(2, "}");
         code.AppendLineAt(1, "}");
     }
