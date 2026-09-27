@@ -275,6 +275,7 @@ namespace Configlue
     }
     public interface IReadOnlyOptions<T>
     {
+        T CurrentValue { get; }
         System.Threading.Tasks.ValueTask<Configlue.ConfiglueValueExplanation> ExplainAsync(string propertyPath, System.Threading.CancellationToken cancellationToken = default);
         Configlue.ConfiglueOptionsDiagnostics GetDiagnostics();
         System.Threading.Tasks.ValueTask<T> GetValueAsync(System.Threading.CancellationToken cancellationToken = default);

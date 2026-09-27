@@ -4,6 +4,10 @@ namespace Configlue;
 /// <typeparam name="T">The configuration model type.</typeparam>
 public interface IReadOnlyOptions<T>
 {
+    /// <summary>Synchronously resolves the current value from the registered sources.</summary>
+    /// <remarks>This blocks when a source read is asynchronous. Use <see cref="GetValueAsync"/> from asynchronous flows.</remarks>
+    T CurrentValue => GetValueAsync(CancellationToken.None).GetAwaiter().GetResult();
+
     /// <summary>Reads and resolves the current configuration value.</summary>
     ValueTask<StateReadResult<T>> ReadAsync(CancellationToken cancellationToken = default);
 

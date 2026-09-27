@@ -14,6 +14,8 @@ Console.WriteLine($">> Name: {setting.Name}");
 
 Reads resolve every source by priority and return a deep copy. In DI you can also use the synchronous `IOptions<T>.Value` / `IOptionsSnapshot<T>` / `IOptionsMonitor<T>` adapters, but prefer the async methods in asynchronous flows.
 
+For synchronous callers, `options.CurrentValue` reads the sources and returns a deep copy. The getter blocks until asynchronous source reads complete. In DI, `IOptionsMonitor<T>.CurrentValue` uses its watcher-backed cache when the registered sources expose watchers.
+
 Generated clones handle nested Configlue models and common collections. If a model contains a mutable reference type that needs a custom copy, configure one strategy for that options runtime:
 
 ```csharp

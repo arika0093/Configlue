@@ -9,7 +9,7 @@ Options はアプリから見える窓口です。Source や Fragment の詳細�
 
 ## 読みと書きの窓口
 
-- `IReadOnlyOptions<T>`: 非同期の読み（`GetValueAsync` / `ReadAsync`）、`OnChange`、`ExplainAsync`、`GetDiagnostics`。読むための基本面です。
+- `IReadOnlyOptions<T>`: 同期読みの `CurrentValue`、非同期の読み（`GetValueAsync` / `ReadAsync`）、`OnChange`、`ExplainAsync`、`GetDiagnostics`。`CurrentValue` は非同期 source の完了までブロックするため、非同期処理では `GetValueAsync` を使います。
 - `IWritableOptions<T>`: 上に保存（`SaveAsync`・`BeginConfigureAsync`）、`ApplyPatchAsync` / `ApplyPatchesAsync`、ソース間・保存場所の移行を足します。
 
 保存の前には全 Source のリビジョンベクターを比べ、参加 Source が変わっていれば `StateConflictException` で止めます。読み取り専用に隠された値の変更もここで止まります。
