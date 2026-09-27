@@ -10,8 +10,10 @@ Options はアプリから見える窓口です。通常の読み書きを小さ
 ## 読みと書きの窓口
 
 - `IReadOnlyOptions<T>`: 非同期読み（`GetValueAsync` / `ReadAsync`）と `OnChange`。
-- `IWritableOptions<T>`: 保存と `OpenEditSessionAsync` を追加します。
-- `IConfiglueOptions<T>`: Source の診断・説明、reload failure 通知、ソースローカル patch batch、ソース間・保存場所の移行を提供します。`CurrentValue` もこちらで使えますが、初回の非同期読み込み中はブロックします。
+- `IWritableOptions<T>`: Patch による保存を追加します。
+- `IConfiglueOptions<T>`: 編集セッション、Source の選択・診断・説明、reload failure 通知、ソースローカル patch batch、ソース間・保存場所の移行を提供します。
+
+Core に同期 `CurrentValue` プロパティはありません。Context では `GetAdvancedOptions<T>()`、DI では `IConfiglueOptions<T>` を使ってください。Microsoft の同期 options interface への適合は opt-in の `Configlue.Extensions.MSOptions` package が提供します。
 
 保存の前には全 Source のリビジョンベクターを比べ、参加 Source が変わっていれば `StateConflictException` で止めます。読み取り専用に隠された値の変更もここで止まります。
 

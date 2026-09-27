@@ -180,7 +180,7 @@ public sealed class NestedSourceBindingTests
             );
         });
 
-        var options = context.GetOptions<AppSettings>();
+        var options = context.GetAdvancedOptions<AppSettings>();
         using (
             var edit = await options.OpenEditSessionAsync(
                 new StateWritePlan(
@@ -260,7 +260,7 @@ public sealed class NestedSourceBindingTests
 
         using (
             var edit = await context
-                .GetOptions<AppSettings>()
+                .GetAdvancedOptions<AppSettings>()
                 .OpenEditSessionAsync(
                     new StateWritePlan(
                         new Dictionary<string, string>(StringComparer.Ordinal)
@@ -341,7 +341,7 @@ public sealed class NestedSourceBindingTests
         });
 
         using var edit = await context
-            .GetOptions<RootWithTwoSettings>()
+            .GetAdvancedOptions<RootWithTwoSettings>()
             .OpenEditSessionAsync(
                 new StateWritePlan(
                     new Dictionary<string, string>(StringComparer.Ordinal)

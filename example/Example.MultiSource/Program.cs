@@ -90,7 +90,7 @@ await using var options = new ConfiglueOptions<SampleSetting, SampleSetting.Frag
     StateWriteRoute.To("explicit"),
     onChangeDebounce: TimeSpan.Zero
 );
-var writable = (IWritableOptions<SampleSetting>)options;
+var writable = (IConfiglueOptions<SampleSetting>)options;
 var current = await writable.GetValueAsync();
 PrintSettings(current);
 

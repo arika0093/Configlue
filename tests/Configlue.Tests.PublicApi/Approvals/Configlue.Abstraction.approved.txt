@@ -190,6 +190,11 @@ namespace Configlue
         public System.Collections.Generic.IReadOnlyList<Configlue.ConfiglueSourceDiagnostics> Sources { get; }
         public string? GetWriteSourceId(string? propertyPath = null) { }
     }
+    public static class ConfiglueOptionsExtensions
+    {
+        public static Configlue.EditSession<T> OpenEditSession<T>(this Configlue.IConfiglueOptions<T> options) { }
+        public static Configlue.ConfiglueSourceHandle<T> Source<T>(this Configlue.IConfiglueOptions<T> options, Configlue.SourceKey<T> sourceKey) { }
+    }
     [System.AttributeUsage(System.AttributeTargets.Class | System.AttributeTargets.Struct, AllowMultiple=true, Inherited=false)]
     public sealed class ConfigluePreviousVersionAttribute : System.Attribute
     {
@@ -337,13 +342,14 @@ namespace Configlue
     }
     public interface IConfiglueOptions<T> : Configlue.IReadOnlyOptions<T>, Configlue.IWritableOptions<T>
     {
-        T CurrentValue { get; }
         System.Threading.Tasks.ValueTask<Configlue.StateMultiWriteResult> ApplyPatchesAsync(System.Collections.Generic.IEnumerable<Configlue.StateSourcePatch> patches, System.Threading.CancellationToken cancellationToken = default);
         System.Threading.Tasks.ValueTask<Configlue.ConfiglueDetailsSnapshot> GetDetailsSnapshotAsync(System.Threading.CancellationToken cancellationToken = default);
         Configlue.ConfiglueOptionsDiagnostics GetDiagnostics();
         System.Threading.Tasks.ValueTask<Configlue.StateSourceMigrationResult> MigrateSourceAsync(string sourceId, string targetId, System.Threading.CancellationToken cancellationToken = default);
         System.Threading.Tasks.ValueTask<Configlue.StateStorageMigrationResult> MigrateSourcesToTargetsAsync(System.Collections.Generic.IEnumerable<string> sourceIds, System.Collections.Generic.IReadOnlyDictionary<string, System.Func<Configlue.IConfiglueFragment, Configlue.IConfiglueFragment>> targetProjections, System.Threading.CancellationToken cancellationToken = default, bool retireSources = false);
         System.IDisposable OnReloadFailed(System.Action<System.Exception> listener);
+        System.Threading.Tasks.ValueTask<Configlue.EditSession<T>> OpenEditSessionAsync(System.Threading.CancellationToken cancellationToken = default);
+        System.Threading.Tasks.ValueTask<Configlue.EditSession<T>> OpenEditSessionAsync(Configlue.StateWritePlan writePlan, System.Threading.CancellationToken cancellationToken = default);
     }
     public interface IConfigluePatch
     {
@@ -353,7 +359,6 @@ namespace Configlue
     }
     public interface IConfiglueProfiledOptions<TModel>
     {
-        TModel CurrentValue { get; }
         string DefaultProfileName { get; }
         event System.Action<string>? ActiveProfileChanged;
         System.Threading.Tasks.ValueTask CreateProfileAsync(string profileName, string? copyFrom = null, System.Threading.CancellationToken cancellationToken = default);
@@ -466,8 +471,6 @@ namespace Configlue
     }
     public interface IWritableOptions<T> : Configlue.IReadOnlyOptions<T>
     {
-        System.Threading.Tasks.ValueTask<Configlue.EditSession<T>> OpenEditSessionAsync(System.Threading.CancellationToken cancellationToken = default);
-        System.Threading.Tasks.ValueTask<Configlue.EditSession<T>> OpenEditSessionAsync(Configlue.StateWritePlan writePlan, System.Threading.CancellationToken cancellationToken = default);
         System.Threading.Tasks.ValueTask<Configlue.StateWriteResult> SaveAsync(Configlue.IConfigluePatch patch, System.Threading.CancellationToken cancellationToken = default);
     }
     public enum MergeMode
@@ -770,10 +773,5 @@ namespace Configlue
         public StateWriteResult(string? Revision) { }
         public Configlue.StateMultiWriteResult? MultiWriteResult { get; init; }
         public string? Revision { get; init; }
-    }
-    public static class WritableOptionsExtensions
-    {
-        public static Configlue.EditSession<T> OpenEditSession<T>(this Configlue.IWritableOptions<T> options) { }
-        public static Configlue.ConfiglueSourceHandle<T> Source<T>(this Configlue.IWritableOptions<T> options, Configlue.SourceKey<T> sourceKey) { }
     }
 }

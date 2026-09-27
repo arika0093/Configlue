@@ -638,6 +638,10 @@ public sealed class ConfiglueContext : IDisposable, IAsyncDisposable
         );
     }
 
+    /// <summary>Gets the advanced options surface for source administration and edit sessions.</summary>
+    public IConfiglueOptions<TModel> GetAdvancedOptions<TModel>(string? optionsName = null) =>
+        (IConfiglueOptions<TModel>)GetOptions<TModel>(optionsName);
+
     /// <summary>Gets the runtime registry for dynamic named options.</summary>
     public IConfiglueOptionsRegistry<TModel> GetOptionsRegistry<TModel>()
     {
@@ -906,6 +910,22 @@ public static class Configlue
         }
 
         return context.GetOptions<TModel>(optionsName);
+    }
+
+    /// <summary>Gets the advanced options surface from the process-wide default context.</summary>
+    public static IConfiglueOptions<TModel> GetAdvancedOptions<TModel>(string? optionsName = null)
+    {
+        ConfiglueContext context;
+        lock (Gate)
+        {
+            context =
+                _defaultContext
+                ?? throw new InvalidOperationException(
+                    "The process-wide Configlue context has not been initialized."
+                );
+        }
+
+        return context.GetAdvancedOptions<TModel>(optionsName);
     }
 
     /// <summary>Disposes the initialized process-wide context and clears it for later initialization.</summary>

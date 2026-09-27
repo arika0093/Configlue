@@ -56,7 +56,7 @@ public class OptionsRuntimeBenchmarks
         _readOptions = _options;
         _monitor = _serviceProvider.GetRequiredService<IOptionsMonitor<BenchmarkSettings>>();
         _ = await _readOptions.GetValueAsync().ConfigureAwait(false);
-        _ = _options.CurrentValue;
+        _ = await _readOptions.GetValueAsync().ConfigureAwait(false);
         _ = _monitor.CurrentValue;
         _subscription = _options.OnChange(_ => _publishCompleted.Set());
     }
@@ -75,7 +75,8 @@ public class OptionsRuntimeBenchmarks
     public BenchmarkSettings MonitorCurrentValue() => _monitor.CurrentValue;
 
     [Benchmark]
-    public BenchmarkSettings FacadeCurrentValue() => _options.CurrentValue;
+    public ValueTask<BenchmarkSettings> FacadeGetValueAsync() =>
+        ((IReadOnlyOptions<BenchmarkSettings>)_options).GetValueAsync();
 
     [Benchmark]
     public async Task PublishChangeAsync()

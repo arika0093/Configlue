@@ -70,7 +70,9 @@ public class FilePersistenceBenchmarks
             );
         });
         _writable = WritableOptions.GetOptions<WritablePersistenceBenchmarkSettings>();
-        _ = _writable.CurrentValue;
+        _ = await ((Configlue.IReadOnlyOptions<PersistenceBenchmarkSettings>)_configlue)
+            .GetValueAsync()
+            .ConfigureAwait(false);
     }
 
     [GlobalCleanup]
@@ -90,7 +92,8 @@ public class FilePersistenceBenchmarks
     }
 
     [Benchmark]
-    public PersistenceBenchmarkSettings ConfiglueCurrentValue() => _configlue.CurrentValue;
+    public ValueTask<PersistenceBenchmarkSettings> ConfiglueGetValueAsync() =>
+        ((Configlue.IReadOnlyOptions<PersistenceBenchmarkSettings>)_configlue).GetValueAsync();
 
     [Benchmark]
     public WritablePersistenceBenchmarkSettings ConfigurationWritableCurrentValue() =>

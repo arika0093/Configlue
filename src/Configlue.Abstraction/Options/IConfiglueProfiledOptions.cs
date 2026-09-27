@@ -7,11 +7,6 @@ public interface IConfiglueProfiledOptions<TModel>
     /// <summary>The configured profile name that cannot be removed.</summary>
     string DefaultProfileName { get; }
 
-    /// <summary>Synchronously reads the current value of the active profile.</summary>
-    /// <remarks>This blocks while the active profile is read. Use <see cref="GetActiveValueAsync"/> from asynchronous flows.</remarks>
-    TModel CurrentValue =>
-        GetActiveValueAsync(CancellationToken.None).AsTask().GetAwaiter().GetResult();
-
     /// <summary>Raised after the active profile changes.</summary>
     event Action<string>? ActiveProfileChanged;
 
