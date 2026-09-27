@@ -8,7 +8,7 @@
     <IsPackable>false</IsPackable>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="../../src/Configlue/Configlue.csproj" />
+    <ProjectReference Include="../../src/Configlue.Core/Configlue.Core.csproj" />
     <ProjectReference
       Include="../../src/Configlue.Generator/Configlue.Generator.csproj"
       OutputItemType="Analyzer"

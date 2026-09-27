@@ -2,7 +2,6 @@ using System.Text.Json;
 using Configlue;
 using Configlue.Provider.Json;
 using Example.ConsoleApp;
-using Microsoft.Extensions.DependencyInjection;
 
 var settingsPath = Path.Combine(AppContext.BaseDirectory, "settings.json");
 using var resource = new FileResource(settingsPath);
@@ -13,15 +12,16 @@ var source = SerializedStateSource.FromResource<SampleSetting.Fragment>(
     new JsonStateCodec<SampleSetting.Fragment>(new JsonSerializerOptions { WriteIndented = true }),
     physicalOrigin: settingsPath
 );
-var services = new ServiceCollection();
-services.AddConfiglueOptions<SampleSetting, SampleSetting.Fragment>(
-    new StateSourceSet<SampleSetting.Fragment>([source]),
-    StateWriteRoute.To("settings"),
-    onChangeDebounce: TimeSpan.Zero
-);
-
-using var serviceProvider = services.BuildServiceProvider();
-var settings = serviceProvider.GetRequiredService<IWritableOptions<SampleSetting>>();
+await using var context = ConfiglueApp.CreateContext(builder =>
+{
+    builder.Add<SampleSetting>(model =>
+    {
+        model.Sources(sources => sources.Add(source));
+        model.WriteRoute = StateWriteRoute.To("settings");
+        model.OnChangeDebounce = TimeSpan.Zero;
+    });
+});
+var settings = context.GetOptions<SampleSetting>();
 var current = await settings.GetValueAsync();
 Console.WriteLine($"Hello, {current.Name}. This is run {current.RunCount}.");
 
