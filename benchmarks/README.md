@@ -1,9 +1,17 @@
 # Benchmarks
 
-Run the runtime benchmarks in Release mode:
+Run every benchmark in Release mode:
 
 ```shell
-dotnet run -c Release --project benchmarks/Configlue.Benchmarks -- --filter '*OptionsRuntimeBenchmarks*'
+dotnet run -c Release --project benchmarks/Configlue.Benchmarks
 ```
 
-`GetValueAsync` measures a warm read and resolution from one in-memory generated fragment. `FacadeCurrentValue` measures the cached `IReadOnlyOptions<T>.CurrentValue` path, including an independent model clone per access. `MonitorCurrentValue` measures the cached `IOptionsMonitor<T>.CurrentValue` path for a watched source. `PublishChangeAsync` measures the watched path from an in-memory source revision change through re-resolution and listener notification. The latter waits for the listener so each invocation includes the full publish path. All use `MemoryDiagnoser`; benchmark results depend on the machine and runtime and are not CI pass/fail thresholds.
+To run one group, pass a BenchmarkDotNet filter:
+
+```shell
+dotnet run -c Release --project benchmarks/Configlue.Benchmarks -- --filter '*FilePersistenceBenchmarks*'
+```
+
+`OptionsRuntimeBenchmarks` measures warm reads, cached facade and `IOptionsMonitor<T>` values, and a watched in-memory source update through listener notification. `LayeredResolutionBenchmarks` measures resolution with 1, 4, and 16 in-memory sources. `FilePersistenceBenchmarks` compares cached reads and async saves between Configlue and Configuration.Writable using separate JSON files, each library's default document format, and default backup behavior. All groups use `MemoryDiagnoser`.
+
+BenchmarkDotNet reports elapsed time and allocated bytes for the benchmark process and runtime. Compare results from the same machine, .NET runtime, power mode, and build configuration. File persistence numbers include local file system and OS cache behavior. Results are measurements, not CI thresholds; the two libraries use different document formats, so file size and serialization work are not identical.
