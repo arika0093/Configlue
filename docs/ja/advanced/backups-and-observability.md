@@ -17,7 +17,7 @@ var resource = new FileResource(
 
 `BackupMaxCount = 0` でバックアップ無効化です。不可分書き込み (一時ファイル+リネーム) と再試行つきアクセスで並行保存も安全です。
 
-`RetryDelay` は一時的な共有エラー間の固定待ち時間です。`RetryDelayFactory` を設定すると、1 始まりの再試行回数ごとに待ち時間を計算できます。
+ファイル書き込みは一時的な共有エラーを既定で最大 3 回再試行し、各試行の間に 100ms 待ちます。`RetryCount` と `RetryDelay` で変更できます。`RetryDelayFactory` を設定すると、1 始まりの再試行回数ごとに待ち時間を計算できます。
 
 ```csharp
 var options = new FileResourceOptions

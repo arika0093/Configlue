@@ -20,10 +20,10 @@ public sealed class FileResourceOptions
     public string? BackupDirectory { get; init; }
 
     /// <summary>How many transient sharing failures are retried.</summary>
-    public int RetryCount { get; init; } = 5;
+    public int RetryCount { get; init; } = 3;
 
     /// <summary>The delay between transient sharing failures.</summary>
-    public TimeSpan RetryDelay { get; init; } = TimeSpan.FromMilliseconds(40);
+    public TimeSpan RetryDelay { get; init; } = TimeSpan.FromMilliseconds(100);
 
     /// <summary>Calculates the delay before a retry from its one-based attempt number.</summary>
     /// <remarks>When set, this takes precedence over <see cref="RetryDelay"/>.</remarks>
