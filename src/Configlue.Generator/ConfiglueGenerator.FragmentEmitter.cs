@@ -816,7 +816,7 @@ public sealed partial class ConfiglueGenerator
         );
         code.AppendLineAt(
             1,
-            "public sealed class Patch : global::Configlue.IConfiglueMemberPatch, global::Configlue.IConfiglueReplacementPatch"
+            "public sealed class Patch : global::Configlue.IConfiglueRoutablePatch, global::Configlue.IConfiglueReplacementPatch"
         );
         code.AppendLineAt(1, "{");
         code.AppendIndent(2)
@@ -1136,7 +1136,213 @@ public sealed partial class ConfiglueGenerator
         }
         code.AppendLineAt(3, "return selected;");
         code.AppendLineAt(2, "}");
+        AppendPatchRouting(code, members);
         code.AppendLineAt(1, "}");
+    }
+
+    private static void AppendPatchRouting(
+        IndentedStringBuilder code,
+        ImmutableArray<MemberModel> members
+    )
+    {
+        code.AppendLineAt(
+            2,
+            "public global::System.Collections.Generic.IReadOnlyDictionary<string, global::Configlue.IConfigluePatch> Route(global::Configlue.StateWritePlan writePlan, string? fallbackSourceId)"
+        );
+        code.AppendLineAt(2, "{");
+        code.AppendLineAt(3, "global::System.ArgumentNullException.ThrowIfNull(writePlan);");
+        code.AppendLineAt(3, "return RouteCore(writePlan, fallbackSourceId, string.Empty);");
+        code.AppendLineAt(2, "}");
+        code.AppendLineAt(
+            2,
+            "internal global::System.Collections.Generic.Dictionary<string, global::Configlue.IConfigluePatch> RouteCore(global::Configlue.StateWritePlan writePlan, string? fallbackSourceId, string propertyPrefix)"
+        );
+        code.AppendLineAt(2, "{");
+        code.AppendLineAt(
+            3,
+            "var routed = new global::System.Collections.Generic.Dictionary<string, global::Configlue.IConfigluePatch>(global::System.StringComparer.Ordinal);"
+        );
+        code.AppendLineAt(
+            3,
+            "if (__configlue_whole_operation.Kind != global::Configlue.FragmentOperationKind.Unchanged)"
+        );
+        code.AppendLineAt(3, "{");
+        code.AppendLineAt(
+            4,
+            "if (!("
+                + NestedOperationsEmptyExpression(members)
+                + ")) throw new global::System.NotSupportedException(\"A whole-model operation cannot be combined with member patches during source routing.\");"
+        );
+        code.AppendLineAt(
+            4,
+            "if (propertyPrefix.Length > 0 && writePlan.HasRouteBelow(propertyPrefix)) throw new global::System.NotSupportedException($\"A whole nested patch for '{propertyPrefix}' cannot be split across child source routes.\");"
+        );
+        code.AppendLineAt(
+            4,
+            "var wholeSourceId = (propertyPrefix.Length == 0 ? fallbackSourceId : writePlan.ResolveSourceIdOrNull(propertyPrefix, fallbackSourceId)) ?? throw new global::System.InvalidOperationException($\"No write owner is configured for '{propertyPrefix}'.\");"
+        );
+        code.AppendLineAt(4, "routed.Add(wholeSourceId, ClonePatch());");
+        code.AppendLineAt(4, "return routed;");
+        code.AppendLineAt(3, "}");
+        foreach (var member in members)
+        {
+            var field = MemberBackingField(member);
+            var name = EscapeIdentifier(member.Property.Name);
+            var pathVariable = "__configlue_path_" + member.Id;
+            code.AppendLineAt(3, "{");
+            code.AppendLineAt(
+                4,
+                "var "
+                    + pathVariable
+                    + " = propertyPrefix.Length == 0 ? "
+                    + SymbolDisplay.FormatLiteral(member.Property.Name, true)
+                    + " : propertyPrefix + \".\" + "
+                    + SymbolDisplay.FormatLiteral(member.Property.Name, true)
+                    + ";"
+            );
+            if (member.ChildModel is not null)
+            {
+                code.AppendLineAt(
+                    4,
+                    "if ("
+                        + field
+                        + " is not null && !"
+                        + field
+                        + ".IsEmpty && writePlan.HasRouteBelow("
+                        + pathVariable
+                        + "))"
+                );
+                code.AppendLineAt(4, "{");
+                code.AppendLineAt(
+                    5,
+                    "foreach (var (sourceId, nestedPatch) in "
+                        + field
+                        + ".RouteCore(writePlan, fallbackSourceId, "
+                        + pathVariable
+                        + "))"
+                );
+                code.AppendLineAt(5, "{");
+                code.AppendLineAt(6, "var parentPatch = new Patch();");
+                code.AppendLineAt(
+                    6,
+                    "parentPatch." + field + " = (" + NestedPatchType(member) + ")nestedPatch;"
+                );
+                code.AppendLineAt(6, "MergeRoutedPatch(routed, sourceId, parentPatch);");
+                code.AppendLineAt(5, "}");
+                code.AppendLineAt(4, "}");
+                code.AppendLineAt(
+                    4,
+                    "else if (" + field + " is not null && !" + field + ".IsEmpty)"
+                );
+                code.AppendLineAt(4, "{");
+                code.AppendLineAt(
+                    5,
+                    "var sourceId = writePlan.ResolveSourceIdOrNull("
+                        + pathVariable
+                        + ", fallbackSourceId) ?? throw new global::System.InvalidOperationException($\"No write owner is configured for '{"
+                        + pathVariable
+                        + "}'.\");"
+                );
+                code.AppendLineAt(
+                    5,
+                    "MergeRoutedPatch(routed, sourceId, (Patch)SelectMembers([" + member.Id + "]));"
+                );
+                code.AppendLineAt(4, "}");
+            }
+            else
+            {
+                code.AppendLineAt(
+                    4,
+                    "if (" + name + ".Kind != global::Configlue.FragmentOperationKind.Unchanged)"
+                );
+                code.AppendLineAt(4, "{");
+                code.AppendLineAt(
+                    5,
+                    "var sourceId = writePlan.ResolveSourceIdOrNull("
+                        + pathVariable
+                        + ", fallbackSourceId) ?? throw new global::System.InvalidOperationException($\"No write owner is configured for '{"
+                        + pathVariable
+                        + "}'.\");"
+                );
+                code.AppendLineAt(
+                    5,
+                    "MergeRoutedPatch(routed, sourceId, (Patch)SelectMembers([" + member.Id + "]));"
+                );
+                code.AppendLineAt(4, "}");
+            }
+
+            code.AppendLineAt(3, "}");
+        }
+
+        code.AppendLineAt(3, "return routed;");
+        code.AppendLineAt(2, "}");
+        code.AppendLineAt(
+            2,
+            "private static void MergeRoutedPatch(global::System.Collections.Generic.Dictionary<string, global::Configlue.IConfigluePatch> routed, string sourceId, Patch patch)"
+        );
+        code.AppendLineAt(2, "{");
+        code.AppendLineAt(
+            3,
+            "routed[sourceId] = routed.TryGetValue(sourceId, out var current) ? ((Patch)current).MergePatch(patch) : patch;"
+        );
+        code.AppendLineAt(2, "}");
+        code.AppendLineAt(2, "internal Patch MergePatch(Patch other)");
+        code.AppendLineAt(2, "{");
+        code.AppendLineAt(3, "var merged = ClonePatch();");
+        code.AppendLineAt(
+            3,
+            "if (other.__configlue_whole_operation.Kind != global::Configlue.FragmentOperationKind.Unchanged)"
+        );
+        code.AppendLineAt(3, "{");
+        code.AppendLineAt(
+            4,
+            "if (!merged.IsEmpty) throw new global::System.InvalidOperationException(\"A whole-model operation cannot be combined with member patches.\");"
+        );
+        code.AppendLineAt(
+            4,
+            "merged.__configlue_whole_operation = other.__configlue_whole_operation;"
+        );
+        code.AppendLineAt(3, "}");
+        foreach (var member in members)
+        {
+            var field = MemberBackingField(member);
+            if (member.ChildModel is null)
+            {
+                code.AppendLineAt(
+                    3,
+                    "if (other."
+                        + field
+                        + ".Kind != global::Configlue.FragmentOperationKind.Unchanged) merged."
+                        + field
+                        + " = other."
+                        + field
+                        + ";"
+                );
+            }
+            else
+            {
+                code.AppendLineAt(3, "if (other." + field + " is not null)");
+                code.AppendLineAt(3, "{");
+                code.AppendLineAt(
+                    4,
+                    "merged."
+                        + field
+                        + " = merged."
+                        + field
+                        + " is null ? other."
+                        + field
+                        + ".ClonePatch() : merged."
+                        + field
+                        + ".MergePatch(other."
+                        + field
+                        + ");"
+                );
+                code.AppendLineAt(3, "}");
+            }
+        }
+
+        code.AppendLineAt(3, "return merged;");
+        code.AppendLineAt(2, "}");
     }
 
     private static string NestedPatchType(MemberModel member) =>

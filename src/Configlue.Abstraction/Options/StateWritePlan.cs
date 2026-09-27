@@ -77,6 +77,13 @@ public sealed class StateWritePlan
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(propertyPath);
         ArgumentException.ThrowIfNullOrWhiteSpace(fallbackSourceId);
+        return ResolveSourceIdOrNull(propertyPath, fallbackSourceId)!;
+    }
+
+    /// <summary>Resolves a path to its most specific source, or returns null when no owner is configured.</summary>
+    public string? ResolveSourceIdOrNull(string propertyPath, string? fallbackSourceId = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(propertyPath);
         var route = _routes
             .Where(candidate =>
                 string.Equals(propertyPath, candidate.Key, StringComparison.Ordinal)
