@@ -52,9 +52,13 @@ await options.SaveAsync(updatedConfig); // 書き込み先の全体置換
 
 ```csharp
 using var edit = await options.BeginConfigureAsync();
-edit.Value.SomeSetting = newValue;
+edit.Update(value => value.SomeSetting = newValue);
+// edit.ResetToLoaded();  // セッション開始時に読み込んだ値へ戻す
+// edit.ResetToDefault(); // モデルの既定値へ戻す
 await edit.SaveAsync();
 ```
+
+`Value` と `CurrentValue` で編集途中の値を参照できます。`Update` はその値を直接編集します。リセット API は全体、または選択したメンバーだけを読み込み時点のスナップショットか新しいモデル既定値へ戻します。
 
 操作単位の `StateWritePlan` でセッションを複数ソースに分割できます — [書き込み経路指定](../layering/write-routing.md) 参照。
 
