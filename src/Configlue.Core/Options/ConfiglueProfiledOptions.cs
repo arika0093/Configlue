@@ -66,10 +66,6 @@ public sealed class ConfiglueProfiledOptions<TModel, TFragment>
     public string DefaultProfileName => _defaultProfileName;
 
     /// <inheritdoc />
-    public TModel CurrentValue =>
-        GetActiveValueAsync(CancellationToken.None).AsTask().GetAwaiter().GetResult();
-
-    /// <inheritdoc />
     public IDisposable OnChange(Action<TModel> listener)
     {
         ArgumentNullException.ThrowIfNull(listener);
@@ -248,7 +244,7 @@ public sealed class ConfiglueProfiledOptions<TModel, TFragment>
     )
     {
         var activeProfile = await GetActiveProfileAsync(cancellationToken).ConfigureAwait(false);
-        using var session = await activeProfile
+        using var session = await AsAdvancedOptions(activeProfile)
             .OpenEditSessionAsync(cancellationToken)
             .ConfigureAwait(false);
         session.Value = value;
@@ -263,7 +259,7 @@ public sealed class ConfiglueProfiledOptions<TModel, TFragment>
     {
         ArgumentNullException.ThrowIfNull(update);
         var activeProfile = await GetActiveProfileAsync(cancellationToken).ConfigureAwait(false);
-        using var session = await activeProfile
+        using var session = await AsAdvancedOptions(activeProfile)
             .OpenEditSessionAsync(cancellationToken)
             .ConfigureAwait(false);
         update(session.Value);
@@ -278,7 +274,7 @@ public sealed class ConfiglueProfiledOptions<TModel, TFragment>
     {
         ArgumentNullException.ThrowIfNull(update);
         var activeProfile = await GetActiveProfileAsync(cancellationToken).ConfigureAwait(false);
-        using var session = await activeProfile
+        using var session = await AsAdvancedOptions(activeProfile)
             .OpenEditSessionAsync(cancellationToken)
             .ConfigureAwait(false);
         await update(session.Value).ConfigureAwait(false);
@@ -340,8 +336,7 @@ public sealed class ConfiglueProfiledOptions<TModel, TFragment>
             {
                 if (hasSourceValue)
                 {
-                    using var session = await _registry
-                        .Get(profileName)
+                    using var session = await AsAdvancedOptions(_registry.Get(profileName))
                         .OpenEditSessionAsync(cancellationToken)
                         .ConfigureAwait(false);
                     session.Value = sourceValue;
@@ -890,6 +885,12 @@ public sealed class ConfiglueProfiledOptions<TModel, TFragment>
 
     private IConfiglueOptionsRegistryNotificationDeferral<TModel>? DeferRegistryNotifications() =>
         (_registry as IConfiglueOptionsRegistryNotificationDeferrer<TModel>)?.DeferNotifications();
+
+    private static IConfiglueOptions<TModel> AsAdvancedOptions(IWritableOptions<TModel> options) =>
+        options as IConfiglueOptions<TModel>
+        ?? throw new InvalidOperationException(
+            "The profile registry returned options without edit-session support."
+        );
 
     private void EnqueueActiveProfileNotification(string profileName)
     {

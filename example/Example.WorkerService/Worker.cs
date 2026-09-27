@@ -4,7 +4,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Example.WorkerService;
 
-internal sealed class Worker(IWritableOptions<SampleSetting> settings, ILogger<Worker> logger)
+internal sealed class Worker(IConfiglueOptions<SampleSetting> settings, ILogger<Worker> logger)
     : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)

@@ -24,7 +24,7 @@ await using var context = ConfiglueApp.CreateContext(builder =>
         model.OnChangeDebounce = TimeSpan.Zero;
     });
 });
-var settings = context.GetOptions<SampleSetting>();
+var settings = context.GetAdvancedOptions<SampleSetting>();
 var current = await settings.GetValueAsync();
 Console.WriteLine($"Hello, {current.Name}. This is run {current.RunCount}.");
 

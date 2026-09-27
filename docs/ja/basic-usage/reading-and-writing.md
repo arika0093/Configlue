@@ -51,7 +51,7 @@ await options.Source(userKey).ReplaceAsync(replacement);
 
 ## 編集セッション
 
-設定画面で複数変更をまとめて適用する場合は `OpenEditSessionAsync` を使います。セッションは `CommitAsync` までインメモリで、破棄すれば未保存の変更は捨てられます。コミット中に破棄した場合、そのコミットは完了し、以後の編集やコミットはできません。コミット直前に全ソースのリビジョンベクターを比較し、参加ソースが変わっていれば `StateConflictException` で失敗します。
+設定画面で複数変更をまとめて適用する場合は `IConfiglueOptions<T>` の `OpenEditSessionAsync` を使います。`IWritableOptions<T>` は Patch 保存に絞っています。セッションは `CommitAsync` までインメモリで、破棄すれば未保存の変更は捨てられます。コミット中に破棄した場合、そのコミットは完了し、以後の編集やコミットはできません。コミット直前に全ソースのリビジョンベクターを比較し、参加ソースが変わっていれば `StateConflictException` で失敗します。
 
 同期処理からは `options.OpenEditSession()` も使えます。非同期 source の読み込み中は呼び出し元をブロックするため、非同期処理では `OpenEditSessionAsync` を使ってください。
 

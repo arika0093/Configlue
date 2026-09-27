@@ -56,11 +56,8 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
     private readonly TimeSpan _onChangeDebounce;
     private readonly ILogger? _logger;
     private readonly object _changeGate = new();
-    private readonly object _currentValueGate = new();
     private readonly List<Action<TModel>> _changeListeners = [];
     private readonly List<Action<Exception>> _reloadFailureListeners = [];
-    private CurrentValueCacheEntry? _currentValueCache;
-    private IDisposable? _currentValueCacheSubscription;
     private CancellationTokenSource? _watchCancellation;
     private Task? _watchTask;
     private TaskCompletionSource _operationsDrained = CompletedOperationsSignal();
@@ -215,36 +212,6 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
             _writeRoute.SourceId is null && defaultWriteSource is not null,
             _defaultWritePlan.PropertyRoutes
         );
-    }
-
-    /// <inheritdoc />
-    public TModel CurrentValue
-    {
-        get
-        {
-            var cache = Volatile.Read(ref _currentValueCache);
-            if (cache is not null)
-            {
-                return CloneModel(cache.Value);
-            }
-
-            lock (_currentValueGate)
-            {
-                cache = Volatile.Read(ref _currentValueCache);
-                if (cache is not null)
-                {
-                    return CloneModel(cache.Value);
-                }
-
-                _currentValueCacheSubscription ??= OnChange(UpdateCurrentValueCache);
-                var value = ((IReadOnlyOptions<TModel>)this)
-                    .GetValueAsync(CancellationToken.None)
-                    .GetAwaiter()
-                    .GetResult();
-                Volatile.Write(ref _currentValueCache, new CurrentValueCacheEntry(value));
-                return CloneModel(value);
-            }
-        }
     }
 
     /// <inheritdoc />
@@ -1818,7 +1785,6 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
                     throw;
                 }
 #pragma warning restore S2139
-                InvalidateCurrentValueCache();
                 results.Add(
                     plan.Source.Id,
                     new StateSourceWriteResult(plan.Source.Id, plan.ResourceId, write.Revision)
@@ -1897,7 +1863,6 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
                 throw;
             }
 #pragma warning restore S2139
-            InvalidateCurrentValueCache();
             foreach (var plan in group)
             {
                 results.Add(
@@ -2723,15 +2688,6 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
             _reloadFailureListeners.Clear();
             _watchCancellation?.Cancel();
         }
-
-        IDisposable? currentValueCacheSubscription;
-        lock (_currentValueGate)
-        {
-            currentValueCacheSubscription = _currentValueCacheSubscription;
-            _currentValueCacheSubscription = null;
-            Volatile.Write(ref _currentValueCache, null);
-        }
-        currentValueCacheSubscription?.Dispose();
     }
 
     /// <inheritdoc />
@@ -2934,7 +2890,6 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
             typeof(TModel).FullName,
             _optionsName
         );
-        InvalidateCurrentValueCache();
         return result;
     }
 
@@ -4310,16 +4265,6 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
     private static TFragment CloneFragment(TFragment value) =>
         value is IConfiglueDeepCloneable<TFragment> cloneable ? cloneable.DeepClone() : value;
 
-    private void UpdateCurrentValueCache(TModel value)
-    {
-        lock (_currentValueGate)
-        {
-            Volatile.Write(ref _currentValueCache, new CurrentValueCacheEntry(value));
-        }
-    }
-
-    private void InvalidateCurrentValueCache() => Volatile.Write(ref _currentValueCache, null);
-
     TModel IConfiglueValueCloneProvider<TModel>.CloneValue(TModel value) => CloneModel(value);
 
     private static object? GetModelValue(
@@ -4684,16 +4629,6 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
         TFragment? MergedFragment,
         IReadOnlyList<ResolvedFailure> Failures
     );
-
-    private sealed class CurrentValueCacheEntry
-    {
-        public CurrentValueCacheEntry(TModel value)
-        {
-            Value = value;
-        }
-
-        public TModel Value { get; }
-    }
 
     private sealed class ChangeSubscription(
         ConfiglueOptions<TModel, TFragment> owner,

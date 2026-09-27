@@ -93,7 +93,7 @@ public sealed class ConfiglueFacadeTests
             });
         });
 
-        var options = context.GetOptions<AppSettings>();
+        var options = context.GetAdvancedOptions<AppSettings>();
         (await options.GetValueAsync()).RetryCount.ShouldBe(3);
         using (var edit = await options.OpenEditSessionAsync())
         {

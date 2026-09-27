@@ -520,7 +520,7 @@ public sealed class ConfiglueFacadeSourceTests
         });
 
         await using var provider = services.BuildServiceProvider();
-        var options = provider.GetRequiredService<IWritableOptions<AppSettings>>();
+        var options = provider.GetRequiredService<IConfiglueOptions<AppSettings>>();
         (await options.GetValueAsync()).RetryCount.ShouldBe(11);
         requestedUris.ShouldContain(new Uri("https://settings.example.test/json/get"));
         await Should.ThrowAsync<InvalidOperationException>(async () =>
@@ -621,7 +621,7 @@ public sealed class ConfiglueFacadeSourceTests
         });
 
         await using var provider = services.BuildServiceProvider();
-        var options = provider.GetRequiredService<IWritableOptions<AppSettings>>();
+        var options = provider.GetRequiredService<IConfiglueOptions<AppSettings>>();
         (await options.GetValueAsync()).RetryCount.ShouldBe(9);
         requestedUris.ShouldContain(new Uri("https://settings.example.test/primary/get"));
         requestedUris.ShouldContain(new Uri("https://settings.example.test/secondary/get"));

@@ -10,8 +10,10 @@ Options is the facade apps see. Regular reads and writes stay small; source admi
 ## Read and write facades
 
 - `IReadOnlyOptions<T>`: async reads (`GetValueAsync`/`ReadAsync`) and `OnChange`.
-- `IWritableOptions<T>`: adds saves and `OpenEditSessionAsync`.
-- `IConfiglueOptions<T>`: advanced source diagnostics and explanation, reload failures, source patch batches, and source/storage migration. `CurrentValue` is also available here; it blocks during its first asynchronous read.
+- `IWritableOptions<T>`: adds patch-based saves.
+- `IConfiglueOptions<T>`: adds edit sessions, source selection, diagnostics, reload failures, source patch batches, and source/storage migration.
+
+Core has no synchronous current-value property. Retrieve the advanced surface from a context with `GetAdvancedOptions<T>()`, or inject `IConfiglueOptions<T>` in DI. The opt-in `Configlue.Extensions.MSOptions` package adapts to Microsoft's synchronous options interfaces.
 
 Before saving, the full source revision vector is compared; if any participating source changed, the save stops with `StateConflictException`. Edits shadowed by read-only values stop here too.
 

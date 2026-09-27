@@ -1686,7 +1686,8 @@ public sealed class StateRuntimeTests
         (stored.Value!.RetryCount.Value).ShouldBe(3);
         (stored.Revision).ShouldBe("1");
 
-        using var edit = await writable.OpenEditSessionAsync();
+        var advanced = serviceProvider.GetRequiredService<IConfiglueOptions<AppSettings>>();
+        using var edit = await advanced.OpenEditSessionAsync();
         edit.Value.RetryCount = 101;
         var editWasRejected = false;
         try

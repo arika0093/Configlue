@@ -4,9 +4,14 @@ namespace Configlue;
 /// <typeparam name="T">The configuration model type.</typeparam>
 public interface IConfiglueOptions<T> : IWritableOptions<T>
 {
-    /// <summary>Synchronously resolves the current value from the registered sources.</summary>
-    /// <remarks>This blocks when a source read is asynchronous. Use <see cref="IReadOnlyOptions{T}.GetValueAsync"/> from asynchronous flows.</remarks>
-    T CurrentValue => GetValueAsync(CancellationToken.None).GetAwaiter().GetResult();
+    /// <summary>Begins editing a deep clone of the currently resolved configuration.</summary>
+    ValueTask<EditSession<T>> OpenEditSessionAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>Begins editing with path-based source routing for changed model members.</summary>
+    ValueTask<EditSession<T>> OpenEditSessionAsync(
+        StateWritePlan writePlan,
+        CancellationToken cancellationToken = default
+    );
 
     /// <summary>Subscribes to failures while the background watcher reads changed state.</summary>
     /// <remarks>Receives thrown watcher/reload exceptions and an <see cref="InvalidOperationException"/> when a changed state resolves to a non-success status. Failures from explicit read calls and change listeners are not reported here.</remarks>
