@@ -34,6 +34,7 @@ public sealed class ConfiglueOptions<TModel, TFragment>
     private TaskCompletionSource _sourceTopologyChanged = NewTopologySignal();
     private readonly StateWriteRoute _writeRoute;
     private readonly StateWritePlan _defaultWritePlan;
+    private readonly Func<TModel, TModel>? _cloneStrategy;
     private readonly StateSchemaMigrationChain<TFragment> _migrationChain;
     private readonly IConfiglueValidator<TModel>[] _validators;
     private readonly string _optionsName;
@@ -84,6 +85,32 @@ public sealed class ConfiglueOptions<TModel, TFragment>
         string? optionsName = null,
         ILogger? logger = null
     )
+        : this(
+            sourceSet,
+            writeRoute,
+            defaultWritePlan,
+            migrations,
+            validators,
+            validateDataAnnotations,
+            onChangeDebounce,
+            optionsName,
+            logger,
+            cloneStrategy: null
+        ) { }
+
+    /// <summary>Creates options with a custom model clone strategy.</summary>
+    public ConfiglueOptions(
+        StateSourceSet<TFragment> sourceSet,
+        StateWriteRoute writeRoute,
+        StateWritePlan defaultWritePlan,
+        IEnumerable<IStateSchemaMigration<TFragment>>? migrations,
+        IEnumerable<IConfiglueValidator<TModel>>? validators,
+        bool validateDataAnnotations,
+        TimeSpan? onChangeDebounce,
+        string? optionsName,
+        ILogger? logger,
+        Func<TModel, TModel>? cloneStrategy
+    )
     {
         ArgumentNullException.ThrowIfNull(sourceSet);
         ArgumentNullException.ThrowIfNull(defaultWritePlan);
@@ -91,6 +118,7 @@ public sealed class ConfiglueOptions<TModel, TFragment>
         _activeSources = sourceSet.Sources.ToArray();
         _writeRoute = writeRoute;
         _defaultWritePlan = defaultWritePlan;
+        _cloneStrategy = cloneStrategy;
         _validators = validators?.ToArray() ?? [];
         _optionsName = optionsName ?? Options.DefaultName;
         _logger = logger;
@@ -177,7 +205,23 @@ public sealed class ConfiglueOptions<TModel, TFragment>
     /// <inheritdoc />
     public ValueTask<StateReadResult<TModel>> ReadAsync(
         CancellationToken cancellationToken = default
-    ) => ReadCoreAsync(null, cancellationToken);
+    ) => ReadPublicValueAsync(cancellationToken);
+
+    private async ValueTask<StateReadResult<TModel>> ReadPublicValueAsync(
+        CancellationToken cancellationToken
+    )
+    {
+        var result = await ReadCoreAsync(null, cancellationToken).ConfigureAwait(false);
+        return
+            _cloneStrategy is not null
+            && result.Status == StateReadStatus.Success
+            && result.Value is not null
+            ? result with
+            {
+                Value = CloneModel(result.Value),
+            }
+            : result;
+    }
 
     /// <inheritdoc />
     public async ValueTask<ConfiglueValueExplanation> ExplainAsync(
@@ -488,8 +532,8 @@ public sealed class ConfiglueOptions<TModel, TFragment>
             expectedRevision = current.Revision;
         }
 
-        var draft = resolved.Value!.DeepClone();
-        var baseline = resolved.Value.DeepClone();
+        var draft = CloneModel(resolved.Value!);
+        var baseline = CloneModel(resolved.Value!);
         var expectedRevisions = resolved.Revisions;
         return new ConfigureSession<TModel>(
             draft,
@@ -2656,6 +2700,7 @@ public sealed class ConfiglueOptions<TModel, TFragment>
     )
     {
         using var operation = EnterOperation();
+        after = CloneModel(after);
         Validate(after);
         var changes = TModel.Diff(before, after);
         if (changes.IsEmpty)
@@ -3016,6 +3061,7 @@ public sealed class ConfiglueOptions<TModel, TFragment>
     )
     {
         using var operation = EnterOperation();
+        value = CloneModel(value);
         if (!IsSourceActive(source.Id))
         {
             throw LogConflict($"State source '{source.Id}' was retired before the write began.");
@@ -3047,6 +3093,7 @@ public sealed class ConfiglueOptions<TModel, TFragment>
     )
     {
         using var operation = EnterOperation();
+        after = CloneModel(after);
         Validate(after);
         var requestedChanges = TModel.Diff(before, after);
         if (requestedChanges.IsEmpty)
@@ -3692,7 +3739,7 @@ public sealed class ConfiglueOptions<TModel, TFragment>
         {
             try
             {
-                listener(value.DeepClone());
+                listener(CloneModel(value));
             }
             catch (Exception exception)
             {
@@ -3705,6 +3752,19 @@ public sealed class ConfiglueOptions<TModel, TFragment>
                 );
             }
         }
+    }
+
+    private TModel CloneModel(TModel value)
+    {
+        var clone = _cloneStrategy is null ? value.DeepClone() : _cloneStrategy(value);
+        if (clone is null || ReferenceEquals(clone, value))
+        {
+            throw new InvalidOperationException(
+                "The model clone strategy must return a non-null, distinct model instance."
+            );
+        }
+
+        return clone;
     }
 
     private static object? GetModelValue(

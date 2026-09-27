@@ -14,6 +14,22 @@ Console.WriteLine($">> Name: {setting.Name}");
 
 読み取りは全ソースを優先度で解決し、ディープコピーを返します。DI では同期の `IOptions<T>.Value` / `IOptionsSnapshot<T>` / `IOptionsMonitor<T>` アダプターも使えますが、非同期フローでは async メソッドを使ってください。
 
+生成 clone は入れ子の Configlue model と一般的なコレクションを複製します。独自の可変参照型を含み、コピー方法を指定したい場合は options runtime ごとに clone 戦略を設定します:
+
+```csharp
+config.Add<AppSettings>(model =>
+{
+    model.UseCloneStrategy(static original =>
+    {
+        var clone = original.DeepClone();
+        clone.CustomState = original.CustomState?.DeepClone();
+        return clone;
+    });
+});
+```
+
+この戦略は公開 read の戻り値、編集セッションの draft と baseline、各変更通知の値を複製し、model 全体の保存では source fragment を作る前にも複製します。入力を変更せず、入力と別の model を返し、その可変メンバーも入力と共有しないようにしてください。省略時は生成 clone を使います。`ApplyPatchAsync` と `ApplyPatchesAsync` は fragment を直接受け取るため、fragment 内の独自可変値は呼び出し側で複製してください。
+
 ## 疎に保存する
 
 updater オーバーロードは現在値のディープクローンを編集し、変更パスのみを意味的差分として書き込みます:

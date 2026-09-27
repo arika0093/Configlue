@@ -76,6 +76,7 @@ public sealed class ConfiglueModelBuilder<TModel>
     private bool _enableDynamicOptions;
     private TimeSpan? _onChangeDebounce;
     private ILogger? _logger;
+    private Func<TModel, TModel>? _cloneStrategy;
     private bool _sealed;
 
     /// <summary>The name used by named options and profiles. The default is the unnamed instance.</summary>
@@ -132,6 +133,15 @@ public sealed class ConfiglueModelBuilder<TModel>
             EnsureMutable();
             _logger = value;
         }
+    }
+
+    /// <summary>Sets a custom deep-clone strategy for model values used by this options runtime.</summary>
+    /// <remarks>The strategy must return a distinct model with independent mutable members. Full-model saves use it before creating the source fragment; direct fragment patch APIs remain the caller's responsibility.</remarks>
+    public void UseCloneStrategy(Func<TModel, TModel> cloneStrategy)
+    {
+        EnsureMutable();
+        ArgumentNullException.ThrowIfNull(cloneStrategy);
+        _cloneStrategy = cloneStrategy;
     }
 
     /// <summary>Enables validation attributes on the model before writes.</summary>
@@ -292,6 +302,9 @@ public sealed class ConfiglueModelBuilder<TModel>
     internal StateSource<ConfiglueProfileCatalog>? ProfileCatalogSource => _profileCatalogSource;
     internal string DefaultProfileName => _defaultProfileName;
 
+    /// <summary>The optional custom clone strategy configured for this model.</summary>
+    public Func<TModel, TModel>? CloneStrategy => _cloneStrategy;
+
     /// <summary>Gets the explicitly configured logger or creates one from the service provider.</summary>
     public ILogger? GetLogger(IServiceProvider? serviceProvider)
     {
@@ -318,6 +331,7 @@ public sealed class ConfiglueModelBuilder<TModel>
             Logger = _logger,
         };
         clone._sources.CopyFrom(_sources);
+        clone._cloneStrategy = _cloneStrategy;
         clone._validators.AddRange(_validators);
         clone._migrations.AddRange(_migrations);
         clone._namedSourceConfigurations.AddRange(_namedSourceConfigurations);

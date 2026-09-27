@@ -14,6 +14,22 @@ Console.WriteLine($">> Name: {setting.Name}");
 
 Reads resolve every source by priority and return a deep copy. In DI you can also use the synchronous `IOptions<T>.Value` / `IOptionsSnapshot<T>` / `IOptionsMonitor<T>` adapters, but prefer the async methods in asynchronous flows.
 
+Generated clones handle nested Configlue models and common collections. If a model contains a mutable reference type that needs a custom copy, configure one strategy for that options runtime:
+
+```csharp
+config.Add<AppSettings>(model =>
+{
+    model.UseCloneStrategy(static original =>
+    {
+        var clone = original.DeepClone();
+        clone.CustomState = original.CustomState?.DeepClone();
+        return clone;
+    });
+});
+```
+
+The strategy clones public read results, creates the edit-session draft and baseline, isolates each change-listener value, and clones full model values before save fragments are created. It must not mutate the input and must return a distinct model whose mutable members do not alias the input. The generated strategy remains the default when this option is omitted. `ApplyPatchAsync` and `ApplyPatchesAsync` accept fragments directly, so custom mutable values in those fragments must be copied by the caller.
+
 ## Save sparsely
 
 The updater overload edits a deep clone of the current value and writes only the changed paths as a semantic diff:
