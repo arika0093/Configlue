@@ -116,7 +116,7 @@ namespace Configlue
         public System.Threading.Tasks.ValueTask<Configlue.StateWriteResult> SaveAsync(System.Func<TModel, System.Threading.Tasks.Task> update, Configlue.StateWritePlan writePlan, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask<Configlue.StateWriteResult> SaveAsync(TModel value, Configlue.StateWritePlan writePlan, System.Threading.CancellationToken cancellationToken = default) { }
     }
-    public sealed class ConfiglueProfiledOptions<TModel, TFragment> : Configlue.IConfiglueProfiledOptions<TModel>
+    public sealed class ConfiglueProfiledOptions<TModel, TFragment> : Configlue.IConfiglueProfiledOptions<TModel>, System.IDisposable, System.IAsyncDisposable
         where TModel : Configlue.IConfiglueModel<TModel, TFragment>
         where TFragment :  class, Configlue.IConfiglueFragment<TFragment>
     {
@@ -124,6 +124,7 @@ namespace Configlue
         public TModel CurrentValue { get; }
         public string DefaultProfileName { get; }
         public event System.Action<string>? ActiveProfileChanged;
+        public System.IDisposable OnChange(System.Action<TModel> listener);
         public System.Threading.Tasks.ValueTask CreateProfileAsync(string profileName, string? copyFrom = null, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask<Configlue.IWritableOptions<TModel>> GetActiveProfileAsync(System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask<string> GetActiveProfileNameAsync(System.Threading.CancellationToken cancellationToken = default) { }

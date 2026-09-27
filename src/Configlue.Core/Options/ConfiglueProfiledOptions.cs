@@ -5,7 +5,10 @@ namespace Configlue;
 /// <summary>Manages profile options instances using a persisted catalog.</summary>
 /// <typeparam name="TModel">The generated configuration model.</typeparam>
 /// <typeparam name="TFragment">The model's generated sparse fragment.</typeparam>
-public sealed class ConfiglueProfiledOptions<TModel, TFragment> : IConfiglueProfiledOptions<TModel>
+public sealed class ConfiglueProfiledOptions<TModel, TFragment>
+    : IConfiglueProfiledOptions<TModel>,
+        IDisposable,
+        IAsyncDisposable
     where TModel : IConfiglueModel<TModel, TFragment>
     where TFragment : class, IConfiglueFragment<TFragment>
 {
@@ -21,8 +24,15 @@ public sealed class ConfiglueProfiledOptions<TModel, TFragment> : IConfiglueProf
     private readonly HashSet<string> _catalogRuntimeNames = new(StringComparer.Ordinal);
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly object _activeProfileNotificationGate = new();
+    private readonly object _subscriptionGate = new();
     private readonly Queue<string> _pendingActiveProfileNotifications = new();
+    private readonly HashSet<ActiveProfileValueSubscription> _subscriptions = [];
+    private readonly CancellationTokenSource _watcherCancellation = new();
     private ConfiglueProfileCatalog? _catalog;
+    private string? _catalogRevision;
+    private Task? _catalogWatchTask;
+    private Task? _disposeTask;
+    private int _disposed;
     private bool _dispatchingActiveProfileNotifications;
     private bool _initialized;
 
@@ -58,6 +68,58 @@ public sealed class ConfiglueProfiledOptions<TModel, TFragment> : IConfiglueProf
     /// <inheritdoc />
     public TModel CurrentValue =>
         GetActiveValueAsync(CancellationToken.None).AsTask().GetAwaiter().GetResult();
+
+    /// <inheritdoc />
+    public IDisposable OnChange(Action<TModel> listener)
+    {
+        ArgumentNullException.ThrowIfNull(listener);
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
+        var subscription = new ActiveProfileValueSubscription(this, listener);
+        lock (_subscriptionGate)
+        {
+            ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
+            _subscriptions.Add(subscription);
+        }
+
+        try
+        {
+            subscription.Start();
+            return subscription;
+        }
+        catch
+        {
+            subscription.Dispose();
+            throw;
+        }
+    }
+
+    /// <inheritdoc />
+    public void Dispose() => DisposeAsync().AsTask().GetAwaiter().GetResult();
+
+    /// <inheritdoc />
+    public ValueTask DisposeAsync()
+    {
+        Task disposeTask;
+        lock (_subscriptionGate)
+        {
+            if (_disposeTask is not null)
+            {
+                return new ValueTask(_disposeTask);
+            }
+
+            Volatile.Write(ref _disposed, 1);
+            _watcherCancellation.Cancel();
+            foreach (var subscription in _subscriptions.ToArray())
+            {
+                subscription.Dispose();
+            }
+            _subscriptions.Clear();
+            disposeTask = DisposeCoreAsync(_catalogWatchTask);
+            _disposeTask = disposeTask;
+        }
+
+        return new ValueTask(disposeTask);
+    }
 
     /// <inheritdoc />
     public async ValueTask<IReadOnlyCollection<string>> GetProfileNamesAsync(
@@ -414,6 +476,7 @@ public sealed class ConfiglueProfiledOptions<TModel, TFragment> : IConfiglueProf
 
     private async Task EnsureInitializedAsync(CancellationToken cancellationToken)
     {
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
         if (_initialized)
         {
             return;
@@ -438,11 +501,13 @@ public sealed class ConfiglueProfiledOptions<TModel, TFragment> : IConfiglueProf
                 }
 
                 catalog = Normalize(result.Value, out needsWrite);
+                _catalogRevision = result.Revision;
             }
             else if (result.Status == StateReadStatus.NotFound)
             {
                 catalog = CreateDefaultCatalog();
                 needsWrite = true;
+                _catalogRevision = result.Revision;
             }
             else
             {
@@ -455,7 +520,7 @@ public sealed class ConfiglueProfiledOptions<TModel, TFragment> : IConfiglueProf
             {
                 try
                 {
-                    await _catalogSource
+                    var writeResult = await _catalogSource
                         .Writer!.WriteAsync(
                             new StateWriteRequest<ConfiglueProfileCatalog>(
                                 catalog,
@@ -465,6 +530,7 @@ public sealed class ConfiglueProfiledOptions<TModel, TFragment> : IConfiglueProf
                             cancellationToken
                         )
                         .ConfigureAwait(false);
+                    _catalogRevision = writeResult.Revision;
                 }
                 catch (StateConflictException) when (attempt < 4)
                 {
@@ -475,6 +541,7 @@ public sealed class ConfiglueProfiledOptions<TModel, TFragment> : IConfiglueProf
             await SynchronizeRegistryAsync(catalog).ConfigureAwait(false);
             _catalog = catalog;
             _initialized = true;
+            StartCatalogWatcher();
             if (
                 previousActiveProfileName is not null
                 && !string.Equals(
@@ -526,7 +593,7 @@ public sealed class ConfiglueProfiledOptions<TModel, TFragment> : IConfiglueProf
             // Refresh the token while the logical catalog still matches before attempting a conditional write.
             try
             {
-                await _catalogSource
+                var writeResult = await _catalogSource
                     .Writer!.WriteAsync(
                         new StateWriteRequest<ConfiglueProfileCatalog>(
                             catalog,
@@ -536,6 +603,7 @@ public sealed class ConfiglueProfiledOptions<TModel, TFragment> : IConfiglueProf
                         cancellationToken
                     )
                     .ConfigureAwait(false);
+                _catalogRevision = writeResult.Revision;
                 _catalog = catalog;
                 return;
             }
@@ -567,6 +635,93 @@ public sealed class ConfiglueProfiledOptions<TModel, TFragment> : IConfiglueProf
     {
         _initialized = false;
         await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    private void StartCatalogWatcher()
+    {
+        lock (_subscriptionGate)
+        {
+            if (
+                _catalogSource.Watcher is null
+                || _catalogWatchTask is not null
+                || Volatile.Read(ref _disposed) != 0
+            )
+            {
+                return;
+            }
+
+            _catalogWatchTask = WatchCatalogAsync(_watcherCancellation.Token);
+        }
+    }
+
+    private async Task WatchCatalogAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            while (true)
+            {
+                await _catalogSource
+                    .Watcher!.WaitForChangeAsync(_catalogRevision, cancellationToken)
+                    .ConfigureAwait(false);
+                await RefreshCatalogFromWatcherAsync(cancellationToken).ConfigureAwait(false);
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            return;
+        }
+        catch (ObjectDisposedException) when (Volatile.Read(ref _disposed) != 0)
+        {
+            return;
+        }
+        catch (Exception exception)
+        {
+            Trace.TraceError("Configlue profile catalog watcher failed: {0}", exception);
+        }
+    }
+
+    private async Task RefreshCatalogFromWatcherAsync(CancellationToken cancellationToken)
+    {
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        IConfiglueOptionsRegistryNotificationDeferral<TModel>? notificationScope = null;
+        try
+        {
+            notificationScope = DeferRegistryNotifications();
+            _initialized = false;
+            await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            _gate.Release();
+            try
+            {
+                notificationScope?.Dispose();
+            }
+            finally
+            {
+                _ = Task.Run(DrainPendingActiveProfileNotifications, CancellationToken.None);
+            }
+        }
+    }
+
+    private async Task DisposeCoreAsync(Task? catalogWatchTask)
+    {
+        if (catalogWatchTask is not null)
+        {
+            await catalogWatchTask.ConfigureAwait(false);
+        }
+
+        await _gate.WaitAsync(CancellationToken.None).ConfigureAwait(false);
+        _gate.Release();
+        _watcherCancellation.Dispose();
+    }
+
+    private void RemoveSubscription(ActiveProfileValueSubscription subscription)
+    {
+        lock (_subscriptionGate)
+        {
+            _subscriptions.Remove(subscription);
+        }
     }
 
     private async Task SynchronizeRegistryAsync(ConfiglueProfileCatalog catalog)
@@ -702,6 +857,137 @@ public sealed class ConfiglueProfiledOptions<TModel, TFragment> : IConfiglueProf
             }
 
             NotifyActiveProfileChanged(profileName);
+        }
+    }
+
+    private sealed class ActiveProfileValueSubscription : IDisposable
+    {
+        private readonly ConfiglueProfiledOptions<TModel, TFragment> _owner;
+        private readonly Action<TModel> _listener;
+        private readonly object _gate = new();
+        private string? _profileName;
+        private IWritableOptions<TModel>? _profile;
+        private IDisposable? _profileSubscription;
+        private bool _disposed;
+
+        public ActiveProfileValueSubscription(
+            ConfiglueProfiledOptions<TModel, TFragment> owner,
+            Action<TModel> listener
+        )
+        {
+            _owner = owner;
+            _listener = listener;
+        }
+
+        public void Start()
+        {
+            lock (_gate)
+            {
+                if (_disposed)
+                {
+                    return;
+                }
+
+                _owner.ActiveProfileChanged += OnActiveProfileChanged;
+            }
+
+            var profileName = _owner.GetActiveProfileNameAsync().GetAwaiter().GetResult();
+            var profile = _owner.GetProfileAsync(profileName).GetAwaiter().GetResult();
+            Bind(profileName, profile, notify: false);
+        }
+
+        public void Dispose()
+        {
+            IDisposable? profileSubscription;
+            lock (_gate)
+            {
+                if (_disposed)
+                {
+                    return;
+                }
+
+                _disposed = true;
+                profileSubscription = _profileSubscription;
+                _profileSubscription = null;
+                _profile = null;
+            }
+
+            _owner.ActiveProfileChanged -= OnActiveProfileChanged;
+            profileSubscription?.Dispose();
+            _owner.RemoveSubscription(this);
+        }
+
+        private void OnActiveProfileChanged(string profileName)
+        {
+            try
+            {
+                var profile = _owner.GetProfileAsync(profileName).GetAwaiter().GetResult();
+                Bind(profileName, profile, notify: true);
+            }
+            catch (Exception exception)
+            {
+                Trace.TraceError(
+                    "Configlue active-profile value subscription failed: {0}",
+                    exception
+                );
+            }
+        }
+
+        private void Bind(string profileName, IWritableOptions<TModel> profile, bool notify)
+        {
+            IDisposable? previousSubscription;
+            lock (_gate)
+            {
+                if (_disposed)
+                {
+                    return;
+                }
+                if (
+                    string.Equals(_profileName, profileName, StringComparison.Ordinal)
+                    && ReferenceEquals(_profile, profile)
+                )
+                {
+                    return;
+                }
+
+                previousSubscription = _profileSubscription;
+                _profileName = profileName;
+                _profile = profile;
+                _profileSubscription = profile.OnChange(value =>
+                    OnProfileValueChanged(profile, value)
+                );
+            }
+
+            previousSubscription?.Dispose();
+            if (notify)
+            {
+                NotifyListener(profile.GetValueAsync().AsTask().GetAwaiter().GetResult());
+            }
+        }
+
+        private void OnProfileValueChanged(IWritableOptions<TModel> profile, TModel value)
+        {
+            lock (_gate)
+            {
+                if (_disposed || !ReferenceEquals(_profile, profile))
+                {
+                    return;
+                }
+            }
+
+            NotifyListener(value);
+        }
+
+        private void NotifyListener(TModel value)
+        {
+            try
+            {
+                _listener(value);
+            }
+            catch (Exception exception)
+            {
+                Trace.TraceError("Configlue active-profile value listener failed: {0}", exception);
+            }
         }
     }
 

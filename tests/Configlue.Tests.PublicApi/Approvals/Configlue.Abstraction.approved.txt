@@ -263,6 +263,7 @@ namespace Configlue
         string DefaultProfileName { get; }
         TModel CurrentValue { get; }
         event System.Action<string>? ActiveProfileChanged;
+        System.IDisposable OnChange(System.Action<TModel> listener);
         System.Threading.Tasks.ValueTask CreateProfileAsync(string profileName, string? copyFrom = null, System.Threading.CancellationToken cancellationToken = default);
         System.Threading.Tasks.ValueTask<Configlue.IWritableOptions<TModel>> GetActiveProfileAsync(System.Threading.CancellationToken cancellationToken = default);
         System.Threading.Tasks.ValueTask<string> GetActiveProfileNameAsync(System.Threading.CancellationToken cancellationToken = default);

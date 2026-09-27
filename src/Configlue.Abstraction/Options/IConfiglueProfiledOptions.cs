@@ -15,6 +15,9 @@ public interface IConfiglueProfiledOptions<TModel>
     /// <summary>Raised after the active profile changes.</summary>
     event Action<string>? ActiveProfileChanged;
 
+    /// <summary>Subscribes to changes in the active profile value and active-profile selection.</summary>
+    IDisposable OnChange(Action<TModel> listener);
+
     /// <summary>Gets the persisted profile names in display order.</summary>
     ValueTask<IReadOnlyCollection<string>> GetProfileNamesAsync(
         CancellationToken cancellationToken = default
