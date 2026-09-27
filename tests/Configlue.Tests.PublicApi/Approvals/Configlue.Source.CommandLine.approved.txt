@@ -8,13 +8,16 @@ namespace Configlue.Source.CommandLine
         public void Map<TValue>(System.CommandLine.Option<TValue> option, string propertyPath) { }
         public void Map<TModel, TValue>(System.CommandLine.Argument<TValue> argument, System.Linq.Expressions.Expression<System.Func<TModel, TValue>> property) { }
         public void Map<TModel, TValue>(System.CommandLine.Option<TValue> option, System.Linq.Expressions.Expression<System.Func<TModel, TValue>> property) { }
+        public void Map<TValue, TMember>(System.CommandLine.Argument<TValue> argument, string propertyPath, System.Func<TValue?, TMember?> convert) { }
+        public void Map<TValue, TMember>(System.CommandLine.Option<TValue> option, string propertyPath, System.Func<TValue?, TMember?> convert) { }
+        public void Map<TModel, TValue, TMember>(System.CommandLine.Argument<TValue> argument, System.Linq.Expressions.Expression<System.Func<TModel, TMember>> property, System.Func<TValue?, TMember?> convert) { }
+        public void Map<TModel, TValue, TMember>(System.CommandLine.Option<TValue> option, System.Linq.Expressions.Expression<System.Func<TModel, TMember>> property, System.Func<TValue?, TMember?> convert) { }
     }
     public sealed class CommandLineSourceOptions
     {
         public CommandLineSourceOptions() { }
         public Configlue.StateFallbackCondition FallbackCondition { get; init; }
         public required string Id { get; init; }
-        public System.Text.Json.JsonSerializerOptions? JsonSerializerOptions { get; init; }
         public required System.CommandLine.ParseResult ParseResult { get; init; }
         public int Priority { get; init; }
     }

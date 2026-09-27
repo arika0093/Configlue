@@ -10,6 +10,8 @@
     <AnalysisLevel>latest</AnalysisLevel>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
+    <!-- Keep in sync with src/Directory.Build.props; override with -p:ConfiglueSystemCommandLineVersion=... . -->
+    <ConfiglueSystemCommandLineVersion Condition="'$(ConfiglueSystemCommandLineVersion)' == ''">2.0.12</ConfiglueSystemCommandLineVersion>
   </PropertyGroup>
   <PropertyGroup Condition="'$(ConfiglueNativeAot)' == 'true'">
     <PublishAot>true</PublishAot>
