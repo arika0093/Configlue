@@ -79,22 +79,22 @@ export default defineConfig({
           ],
         },
         {
-          label: 'Guides',
-          translations: { ja: '機能ガイド' },
+          label: 'Functional guides',
+          translations: { ja: '機能説明' },
           items: [
+            'guides/overview',
             {
-              label: 'Basic usage',
-              translations: { ja: '基本的な使い方' },
+              label: 'Setup and read-write',
+              translations: { ja: '構成と読み書き' },
               items: [
-                'basic-usage/reading-and-writing',
                 'basic-usage/app-setup',
+                'basic-usage/reading-and-writing',
                 'basic-usage/common-sources',
-                'basic-usage/changes-and-validation',
               ],
             },
             {
-              label: 'Sources',
-              translations: { ja: 'ソース' },
+              label: 'Locations and formats',
+              translations: { ja: '保存場所と形式' },
               items: [
                 'sources/files-and-sections',
                 'sources/environment-and-commandline',
@@ -112,25 +112,29 @@ export default defineConfig({
               ],
             },
             {
-              label: 'Profiles',
-              translations: { ja: 'プロファイル' },
-              items: ['profiles/profiles', 'profiles/dynamic-options'],
+              label: 'Named instances and validation',
+              translations: { ja: '名前付きと検証' },
+              items: [
+                'profiles/profiles',
+                'profiles/dynamic-options',
+                'basic-usage/changes-and-validation',
+              ],
             },
             {
-              label: 'Migration',
-              translations: { ja: '移行' },
+              label: 'Schema and migration',
+              translations: { ja: 'スキーマと移行' },
               items: [
+                'advanced/json-schema-and-testing',
                 'migration/schema-migration',
                 'migration/storage-migration',
                 'migration/adopting-configuration-writable',
               ],
             },
             {
-              label: 'Advanced',
-              translations: { ja: '応用' },
+              label: 'Operations and diagnostics',
+              translations: { ja: '運用と診断' },
               items: [
                 'advanced/native-aot',
-                'advanced/json-schema-and-testing',
                 'advanced/backups-and-observability',
               ],
             },

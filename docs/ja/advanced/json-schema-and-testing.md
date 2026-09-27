@@ -32,5 +32,5 @@ dotnet add package Configlue.Testing
 
 ## 次のステップ
 
-* [バックアップと可観測性](./backups-and-observability.md)。
+* [バックアップ・ログ・診断](./backups-and-observability.md)。
 * [NativeAOT](./native-aot.md)。

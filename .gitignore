@@ -11,3 +11,4 @@ docs-site/dist/
 *.user
 *.suo
 *.trx
+todo/

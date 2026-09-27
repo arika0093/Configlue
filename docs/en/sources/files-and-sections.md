@@ -1,9 +1,9 @@
 ---
-title: Files and sections
-description: JSON, YAML, and XML file sources plus nested section views.
+title: Files, formats, and sections
+description: JSON, YAML, and XML formats and file sources plus nested section views.
 ---
 
-# Files and sections
+# Files, formats, and sections
 
 Provider packages add one-call source registrations to the shared `Sources` builder. JSON, YAML, and XML files share the same options shape.
 

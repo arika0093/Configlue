@@ -66,4 +66,4 @@ or pass `validateDataAnnotations: true` when registering options. See [Changes a
 ## Next steps
 
 * [Common layered sources](./common-sources.md) for the standard global/local/specific/env/cli stack.
-* [Files and sections](../sources/files-and-sections.md) for provider registrations.
+* [Files, formats, and sections](../sources/files-and-sections.md) for provider registrations.

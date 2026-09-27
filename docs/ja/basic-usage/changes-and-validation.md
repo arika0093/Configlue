@@ -50,5 +50,5 @@ services.AddConfiglueValidator<UserSetting>(new UserSettingValidator());
 
 ## 次のステップ
 
-* プロバイダー登録は [ファイルとセクション](../sources/files-and-sections.md)。
-* ファイル安全と `ExplainAsync` は [バックアップと可観測性](../advanced/backups-and-observability.md)。
+* プロバイダー登録は [ファイル・形式・セクション](../sources/files-and-sections.md)。
+* ファイル安全と `ExplainAsync` は [バックアップ・ログ・診断](../advanced/backups-and-observability.md)。

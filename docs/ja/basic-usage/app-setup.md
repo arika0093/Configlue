@@ -66,4 +66,4 @@ services.AddConfiglueValidator<UserSetting>(new UserSettingValidator());
 ## 次のステップ
 
 * 定番の共通/ローカル/指定/env/cli 構成は [共通レイヤーソース](./common-sources.md)。
-* プロバイダー登録は [ファイルとセクション](../sources/files-and-sections.md)。
+* プロバイダー登録は [ファイル・形式・セクション](../sources/files-and-sections.md)。
