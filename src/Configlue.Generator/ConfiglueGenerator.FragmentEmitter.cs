@@ -319,27 +319,55 @@ public sealed partial class ConfiglueGenerator
     {
         code.AppendIndent(2).Append("public ").Append(modelType).AppendLine(" ToModel()");
         code.AppendLineAt(2, "{");
+        if (!members.IsEmpty)
+        {
+            code.AppendIndent(3).Append("if (");
+            for (var index = 0; index < members.Length; index++)
+            {
+                if (index > 0)
+                {
+                    code.Append(" && ");
+                }
+
+                code.Append(EscapeIdentifier(members[index].Property.Name)).Append(".IsPresent");
+            }
+
+            code.AppendLine(")");
+            code.AppendLineAt(3, "{");
+            AppendModelInitializer(code, modelType, members, indent: 4, useDefaults: false);
+            code.AppendLineAt(3, "}");
+        }
+
         code.AppendIndent(3).Append("var defaults = new ").Append(modelType).AppendLine("();");
-        code.AppendIndent(3).Append("return new ").Append(modelType).AppendLine();
-        code.AppendLineAt(3, "{");
+        AppendModelInitializer(code, modelType, members, indent: 3, useDefaults: true);
+        code.AppendLineAt(2, "}");
+        code.AppendLine();
+    }
+
+    private static void AppendModelInitializer(
+        IndentedStringBuilder code,
+        string modelType,
+        ImmutableArray<MemberModel> members,
+        int indent,
+        bool useDefaults
+    )
+    {
+        code.AppendIndent(indent).Append("return new ").Append(modelType).AppendLine();
+        code.AppendLineAt(indent, "{");
         foreach (var member in members)
         {
             var name = EscapeIdentifier(member.Property.Name);
             var value = member.ChildModel is null ? name + ".Value!" : name + ".Value?.ToModel()!";
-            code.AppendIndent(4)
+            code.AppendIndent(indent + 1)
                 .Append(name)
                 .Append(" = ")
-                .Append(name)
-                .Append(".IsPresent ? ")
-                .Append(value)
-                .Append(" : defaults.")
-                .Append(name)
+                .Append(
+                    useDefaults ? name + ".IsPresent ? " + value + " : defaults." + name : value
+                )
                 .AppendLine(",");
         }
 
-        code.AppendLineAt(3, "};");
-        code.AppendLineAt(2, "}");
-        code.AppendLine();
+        code.AppendLineAt(indent, "};");
     }
 
     private static void AppendMerge(IndentedStringBuilder code, ImmutableArray<MemberModel> members)

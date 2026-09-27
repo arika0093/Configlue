@@ -995,9 +995,13 @@ public sealed class StateRuntimeTests
         (initial.Value!.RetryCount).ShouldBe(4);
         (initial.Revision).ShouldBe("opaque");
         (initial.PhysicalOrigin).ShouldBe("fallback://settings");
-        (initialDetails.RetryCount.Sources.Single(s => s.IsPresent).Source.Locator).ShouldBe(
-            "fallback://settings"
-        );
+        (
+            initialDetails
+                .RetryCount.Sources.Single(s =>
+                    s.IsPresent && s.Source.Locator == "fallback://settings"
+                )
+                .Source.Locator
+        ).ShouldBe("fallback://settings");
         initial.Revisions!.NestedRevisions.Count.ShouldBe(1);
         var initialNested = initial.Revisions.NestedRevisions["composite"];
         (initialNested.TryGetRevision("remote", out _)).ShouldBeTrue();
@@ -1028,9 +1032,13 @@ public sealed class StateRuntimeTests
 
         (recovered.Revision).ShouldBe("opaque");
         (recovered.PhysicalOrigin).ShouldBe("primary://settings");
-        (recoveredDetails.RetryCount.Sources.Single(s => s.IsPresent).Source.Locator).ShouldBe(
-            "primary://settings"
-        );
+        (
+            recoveredDetails
+                .RetryCount.Sources.Single(s =>
+                    s.IsPresent && s.Source.Locator == "primary://settings"
+                )
+                .Source.Locator
+        ).ShouldBe("primary://settings");
         recovered.Revisions!.NestedRevisions.Count.ShouldBe(1);
         var recoveredNested = recovered.Revisions.NestedRevisions["composite"];
         (recoveredNested.TryGetRevision("remote", out _)).ShouldBeTrue();
@@ -1809,6 +1817,26 @@ public sealed class StateRuntimeTests
     }
 
     [Test]
+    public async Task SaveAsync_UnsetRevealsTheModelDefaultsContribution()
+    {
+        var store = new InMemoryStateStore<AppSettings.Fragment>(
+            new AppSettings.Fragment { RetryCount = Optional<int>.Present(12) }
+        );
+        await using var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(
+            new StateSourceSet<AppSettings.Fragment>([new("user", store, writer: store)])
+        );
+
+        await options.SaveAsync(
+            new AppSettings.Patch { RetryCount = FragmentOperation<int>.Unset }
+        );
+        var resolved = await options.ReadAsync();
+        var details = await options.GetDetailsAsync();
+
+        (resolved.Value!.RetryCount).ShouldBe(3);
+        (details.RetryCount.Source?.Kind).ShouldBe("model-defaults");
+    }
+
+    [Test]
     public async Task DependencyInjection_ResolvesNamedProfilesByServiceKey()
     {
         var primaryStore = new InMemoryStateStore<AppSettings.Fragment>(
@@ -2233,13 +2261,14 @@ public sealed class StateRuntimeTests
 
         (details.Database!.Port.Value).ShouldBe(6432);
         (details.Database.Port.Source?.Key).ShouldBe(details.Database.Port.Sources[0].Source.Key);
-        (details.Database.Port.Sources.Count).ShouldBe(2);
+        (details.Database.Port.Sources.Count).ShouldBe(3);
         (details.Database.Port.Sources[0].Value).ShouldBe(6432);
         (details.Database.Port.Sources[0].Source.Locator).ShouldBe("user-settings.json");
         (details.Database.Host.Value).ShouldBe("default.db");
         (details.Database.Host.Source?.Key).ShouldBe(details.Database.Host.Sources[1].Source.Key);
         ((bool)details.Enabled.Value!).ShouldBeTrue();
-        (details.Enabled.Sources.All(item => !item.IsPresent)).ShouldBeTrue();
+        (details.Enabled.Sources[^1].Source.Kind).ShouldBe("model-defaults");
+        (details.Enabled.Sources[^1].IsPresent).ShouldBeTrue();
     }
 
     [Test]

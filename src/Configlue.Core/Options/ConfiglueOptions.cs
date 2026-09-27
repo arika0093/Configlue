@@ -38,6 +38,8 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
     > MemberValidationAttributes = new();
 
     private readonly StateSourceSet<TFragment> _sourceSet;
+    private readonly TFragment _modelDefaultsFragment;
+    private readonly StateSource<TFragment> _modelDefaultsSource;
     private readonly object _sourceGate = new();
     private readonly HashSet<string> _retiredSourceIds = new(StringComparer.Ordinal);
     private readonly Dictionary<string, string> _detailsSourceKeys = new(StringComparer.Ordinal);
@@ -137,6 +139,11 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
         ArgumentNullException.ThrowIfNull(defaultWritePlan);
         _sourceSet = sourceSet;
         _activeSources = sourceSet.Sources.ToArray();
+        _modelDefaultsFragment = TModel.ToFragment(TModel.FromFragment(TFragment.Empty));
+        _modelDefaultsSource = new StateSource<TFragment>(
+            $"__configlue_model_defaults:{Guid.NewGuid():N}",
+            new ModelDefaultsReader(_modelDefaultsFragment)
+        );
         _writeRoute = writeRoute;
         _defaultWritePlan = defaultWritePlan;
         _cloneStrategy = cloneStrategy;
@@ -476,7 +483,14 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
             );
         }
 
-        var merged = contributions.Count == 0 ? TFragment.Empty : contributions[^1].Result.Value!;
+        contributions.Add(
+            new ResolvedContribution(
+                _modelDefaultsSource,
+                StateReadResult<TFragment>.Success(_modelDefaultsFragment),
+                IsModelDefaults: true
+            )
+        );
+        var merged = contributions[^1].Result.Value!;
         for (var index = contributions.Count - 2; index >= 0; index--)
         {
             merged = merged.Merge(contributions[index].Result.Value!);
@@ -487,7 +501,9 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
         {
             ValidateResolvedModel(model, merged);
         }
-        var active = contributions.FirstOrDefault();
+        var active = contributions.FirstOrDefault(static contribution =>
+            !contribution.IsModelDefaults
+        );
         var resolvedResult = StateReadResult<TModel>.Success(
             model,
             active?.Result.Revision,
@@ -4642,8 +4658,20 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
 
     private sealed record ResolvedContribution(
         StateSource<TFragment> Source,
-        StateReadResult<TFragment> Result
+        StateReadResult<TFragment> Result,
+        bool IsModelDefaults = false
     );
+
+    private sealed class ModelDefaultsReader(TFragment fragment) : IStateReader<TFragment>
+    {
+        public ValueTask<StateReadResult<TFragment>> ReadAsync(
+            CancellationToken cancellationToken = default
+        )
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return ValueTask.FromResult(StateReadResult<TFragment>.Success(fragment));
+        }
+    }
 
     private sealed record ResolvedFailure(
         StateSource<TFragment> Source,

@@ -26,6 +26,16 @@ public partial class AppSettings
     public IReadOnlyList<string> Plugins { get; set; } = [];
 }
 
+[ConfiglueModel("clr-default-settings", Version = 1)]
+public partial class ClrDefaultSettings
+{
+    public int RetryCount { get; set; }
+
+    public bool Enabled { get; set; }
+
+    public string? Name { get; set; }
+}
+
 [ConfiglueModel("database-settings", Version = 2)]
 public partial class DatabaseSettings
 {
