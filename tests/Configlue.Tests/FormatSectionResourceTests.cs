@@ -284,7 +284,7 @@ public sealed class FormatSectionResourceTests
             new StateSourceSet<AppSettings.Fragment>([source])
         );
 
-        await options.ApplyPatchAsync(
+        await options.SaveAsync(
             new AppSettings.Patch { RetryCount = FragmentOperation<int>.Set(9) }
         );
 
@@ -317,7 +317,7 @@ public sealed class FormatSectionResourceTests
             new StateSourceSet<AppSettings.Fragment>([source])
         );
 
-        await options.ApplyPatchAsync(
+        await options.SaveAsync(
             new AppSettings.Patch { RetryCount = FragmentOperation<int>.Set(7) }
         );
 
@@ -377,7 +377,7 @@ public sealed class FormatSectionResourceTests
             new StateSourceSet<AppSettings.Fragment>([source])
         );
 
-        await options.ApplyPatchAsync(
+        await options.SaveAsync(
             new AppSettings.Patch { RetryCount = FragmentOperation<int>.Set(9) }
         );
 
@@ -404,7 +404,7 @@ public sealed class FormatSectionResourceTests
             new StateSourceSet<AppSettings.Fragment>([source])
         );
 
-        await options.ApplyPatchAsync(
+        await options.SaveAsync(
             new AppSettings.Patch { RetryCount = FragmentOperation<int>.Set(7) }
         );
 
@@ -430,7 +430,7 @@ public sealed class FormatSectionResourceTests
         );
 
         await Should.ThrowAsync<SharpYaml.YamlException>(async () =>
-            await options.ApplyPatchAsync(
+            await options.SaveAsync(
                 new AppSettings.Patch { RetryCount = FragmentOperation<int>.Set(7) }
             )
         );

@@ -15,7 +15,7 @@ Fragment と Patch は、解決・移行・投影・書き込み計画が動く�
 
 ## Patch: 一項目の編集
 
-生成された `TModel.Patch` は一項目の編集の断片です。`ApplyPatchAsync` で単一項目を、明示的な宛先指定では `StateSourcePatch` の列挙と `ApplyPatchesAsync` で複数 Source への分割書き込みを行います。`Unset` は書き込み Source の寄与だけを取り除きます。
+生成された `TModel.Patch` は一項目の編集の断片です。`SaveAsync` で単一項目を、明示的な宛先指定では `StateSourcePatch` の列挙と `ApplyPatchesAsync` で複数 Source への分割書き込みを行います。`Unset` は書き込み Source の寄与だけを取り除きます。
 
 ## マージ方式の指定
 

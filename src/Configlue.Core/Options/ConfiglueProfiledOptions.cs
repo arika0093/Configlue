@@ -248,7 +248,11 @@ public sealed class ConfiglueProfiledOptions<TModel, TFragment>
     )
     {
         var activeProfile = await GetActiveProfileAsync(cancellationToken).ConfigureAwait(false);
-        return await activeProfile.SaveAsync(value, cancellationToken).ConfigureAwait(false);
+        using var session = await activeProfile
+            .OpenEditSessionAsync(cancellationToken)
+            .ConfigureAwait(false);
+        session.Value = value;
+        return await session.CommitAsync(cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -259,7 +263,11 @@ public sealed class ConfiglueProfiledOptions<TModel, TFragment>
     {
         ArgumentNullException.ThrowIfNull(update);
         var activeProfile = await GetActiveProfileAsync(cancellationToken).ConfigureAwait(false);
-        return await activeProfile.SaveAsync(update, cancellationToken).ConfigureAwait(false);
+        using var session = await activeProfile
+            .OpenEditSessionAsync(cancellationToken)
+            .ConfigureAwait(false);
+        update(session.Value);
+        return await session.CommitAsync(cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -270,7 +278,11 @@ public sealed class ConfiglueProfiledOptions<TModel, TFragment>
     {
         ArgumentNullException.ThrowIfNull(update);
         var activeProfile = await GetActiveProfileAsync(cancellationToken).ConfigureAwait(false);
-        return await activeProfile.SaveAsync(update, cancellationToken).ConfigureAwait(false);
+        using var session = await activeProfile
+            .OpenEditSessionAsync(cancellationToken)
+            .ConfigureAwait(false);
+        await update(session.Value).ConfigureAwait(false);
+        return await session.CommitAsync(cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -328,10 +340,12 @@ public sealed class ConfiglueProfiledOptions<TModel, TFragment>
             {
                 if (hasSourceValue)
                 {
-                    await _registry
+                    using var session = await _registry
                         .Get(profileName)
-                        .SaveAsync(sourceValue, cancellationToken)
+                        .OpenEditSessionAsync(cancellationToken)
                         .ConfigureAwait(false);
+                    session.Value = sourceValue;
+                    await session.CommitAsync(cancellationToken).ConfigureAwait(false);
                 }
 
                 await PersistCatalogAsync(updated, cancellationToken).ConfigureAwait(false);

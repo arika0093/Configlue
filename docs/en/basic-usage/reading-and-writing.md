@@ -30,20 +30,22 @@ config.Add<AppSettings>(model =>
 });
 ```
 
-The strategy clones public read results, creates the edit-session draft and baseline, isolates each change-listener value, and clones full model values before save fragments are created. It must not mutate the input and must return a distinct model whose mutable members do not alias the input. The generated strategy remains the default when this option is omitted. `ApplyPatchAsync` and `ApplyPatchesAsync` accept fragments directly, so custom mutable values in those fragments must be copied by the caller.
+The strategy clones public read results, creates the edit-session draft and baseline, and isolates each change-listener value. It must not mutate the input and must return a distinct model whose mutable members do not alias the input. The generated strategy remains the default when this option is omitted. `SaveAsync` and `ApplyPatchesAsync` accept fragments directly, so custom mutable values in those fragments must be copied by the caller.
 
 ## Save sparsely
 
-The updater overload edits a deep clone of the current value and writes only the changed paths as a semantic diff:
+The generated Patch overload writes only the members you specify to the configured write source:
 
 ```csharp
 await options.SaveAsync(settings => settings.SomeSetting = newValue);
 ```
 
-Unchanged fields retain their existing sparse state. Contrast with the whole-value overload, which replaces the write source's complete contribution — including model defaults — and does not preserve members absent from that source:
+Unchanged fields retain their existing sparse state. For destructive replacement of one source contribution, use its typed source handle:
 
 ```csharp
-await options.SaveAsync(updatedConfig); // full replacement of the write target
+var replacement = new AppSettings.Patch();
+replacement.Name = "new-name";
+await options.Source(SourceKey<AppSettings>.FromId("user")).ReplaceAsync(replacement);
 ```
 
 ## Edit sessions
@@ -69,13 +71,13 @@ A per-operation `StateWritePlan` can split the session across sources — see [W
 Generated `TModel.Patch` values address members individually. `Unset` removes only the write source's contribution and exposes lower-priority values again:
 
 ```csharp
-await options.SavePatchAsync(patch => patch.Database.Host = "db.example.test");
-await options.SavePatchAsync(patch => patch.Database.Password.Unset());
+await options.SaveAsync(patch => patch.Database.Host = "db.example.test");
+await options.SaveAsync(patch => patch.Database.Password.Unset());
 
 var patch = new AppSettings.Patch();
 patch.SomeSetting = newValue;   // set
 // patch.SomeSetting.Unset();   // withdraw this source's contribution
-await options.ApplyPatchAsync(patch);
+await options.SaveAsync(patch);
 ```
 
 Use `ApplyPatchesAsync` with `StateSourcePatch` entries for an explicit source-local multi-write. Disjoint section updates sharing a `ResourceId` persist with one physical write; overlapping scopes are rejected and the result reports each source revision and physical write count. Writes across different resources are not atomic.

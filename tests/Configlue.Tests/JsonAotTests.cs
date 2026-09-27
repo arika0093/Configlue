@@ -36,7 +36,11 @@ public sealed class JsonAotTests
             new StateSourceSet<JsonAotSettings.Fragment>([projected])
         );
 
-        await options.SaveAsync(new JsonAotSettings { Host = "native.example", Port = 8443 });
+        await options.SaveAsync(patch =>
+        {
+            patch.Host = "native.example";
+            patch.Port = 8443;
+        });
         var roundTrip = await options.ReadAsync();
 
         roundTrip.Value.ShouldNotBeNull();

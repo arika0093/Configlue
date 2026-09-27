@@ -45,7 +45,7 @@ public sealed class JsonSectionResourceTests
         try
         {
             var before = await options.ReadAsync();
-            await options.ApplyPatchAsync(
+            await options.SaveAsync(
                 new AppSettings.Patch { RetryCount = FragmentOperation<int>.Set(9) }
             );
             using var document = JsonDocument.Parse(await File.ReadAllBytesAsync(path));

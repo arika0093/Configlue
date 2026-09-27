@@ -27,7 +27,9 @@ internal sealed class Worker(IWritableOptions<SampleSetting> settings, ILogger<W
                 current.RunCount
             );
 
-            await settings.SaveAsync(value => value.RunCount++, stoppingToken);
+            using var edit = await settings.OpenEditSessionAsync(stoppingToken);
+            edit.Value.RunCount++;
+            await edit.CommitAsync(stoppingToken);
             await timer.WaitForNextTickAsync(stoppingToken);
         }
     }

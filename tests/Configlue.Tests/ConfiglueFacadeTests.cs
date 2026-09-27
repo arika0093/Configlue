@@ -94,11 +94,11 @@ public sealed class ConfiglueFacadeTests
 
         var options = context.GetOptions<AppSettings>();
         (await options.GetValueAsync()).RetryCount.ShouldBe(3);
-        await options.SaveAsync(value =>
+        using (var edit = await options.OpenEditSessionAsync())
         {
-            value.RetryCount = 8;
-            return Task.CompletedTask;
-        });
+            edit.Value.RetryCount = 8;
+            await edit.CommitAsync();
+        }
 
         var overlayFragment = (await overlay.ReadAsync()).Value!;
         overlayFragment.RetryCount.Value.ShouldBe(8);
@@ -107,19 +107,20 @@ public sealed class ConfiglueFacadeTests
         resolved.RetryCount.ShouldBe(8);
         resolved.Label.ShouldBe("default-label");
 
-        await options.SaveAsync(
-            value =>
-            {
-                value.RetryCount = 9;
-                return Task.CompletedTask;
-            },
-            new StateWritePlan(
-                new Dictionary<string, string>(StringComparer.Ordinal)
-                {
-                    ["RetryCount"] = "session-overlay",
-                }
+        using (
+            var edit = await options.OpenEditSessionAsync(
+                new StateWritePlan(
+                    new Dictionary<string, string>(StringComparer.Ordinal)
+                    {
+                        ["RetryCount"] = "session-overlay",
+                    }
+                )
             )
-        );
+        )
+        {
+            edit.Value.RetryCount = 9;
+            await edit.CommitAsync();
+        }
         (await sessionOverlay.ReadAsync()).Value!.RetryCount.Value.ShouldBe(9);
         (await options.GetValueAsync()).RetryCount.ShouldBe(9);
     }

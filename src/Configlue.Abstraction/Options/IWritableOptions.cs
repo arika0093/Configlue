@@ -13,47 +13,8 @@ public interface IWritableOptions<T> : IReadOnlyOptions<T>
         CancellationToken cancellationToken = default
     );
 
-    /// <summary>
-    /// Replaces the configured write source's contribution with a complete configuration value.
-    /// Missing members in that source are not preserved; use an update delegate, configure session, or patch for sparse edits.
-    /// </summary>
-    ValueTask<StateWriteResult> SaveAsync(T value, CancellationToken cancellationToken = default);
-
-    /// <summary>Saves semantic changes to a model value using path-based source routing.</summary>
+    /// <summary>Applies a generated sparse patch to the configured write source's fragment.</summary>
     ValueTask<StateWriteResult> SaveAsync(
-        T value,
-        StateWritePlan writePlan,
-        CancellationToken cancellationToken = default
-    );
-
-    /// <summary>Updates a deep clone of the current configuration and saves it.</summary>
-    ValueTask<StateWriteResult> SaveAsync(
-        Action<T> update,
-        CancellationToken cancellationToken = default
-    );
-
-    /// <summary>Updates a clone of the current value and saves changed paths to their planned sources.</summary>
-    ValueTask<StateWriteResult> SaveAsync(
-        Action<T> update,
-        StateWritePlan writePlan,
-        CancellationToken cancellationToken = default
-    );
-
-    /// <summary>Asynchronously updates a deep clone of the current configuration and saves it.</summary>
-    ValueTask<StateWriteResult> SaveAsync(
-        Func<T, Task> update,
-        CancellationToken cancellationToken = default
-    );
-
-    /// <summary>Asynchronously updates a clone of the current value using path-based source routing.</summary>
-    ValueTask<StateWriteResult> SaveAsync(
-        Func<T, Task> update,
-        StateWritePlan writePlan,
-        CancellationToken cancellationToken = default
-    );
-
-    /// <summary>Applies a generated set/unset patch to the configured write source's fragment.</summary>
-    ValueTask<StateWriteResult> ApplyPatchAsync(
         IConfigluePatch patch,
         CancellationToken cancellationToken = default
     );

@@ -353,16 +353,15 @@ public sealed class StateRuntimeTests
         (ReferenceEquals(readOnly, writable)).ShouldBeTrue();
         var resolved = await readOnly.ReadAsync();
         var currentValue = await readOnly.GetValueAsync();
-        var saveResult = await writable.SaveAsync(
-            new AppSettings
-            {
-                Enabled = true,
-                RetryCount = 10,
-                Label = "saved",
-                Database = new DatabaseSettings { Host = "saved.local", Port = 7443 },
-                Plugins = ["saved-plugin"],
-            }
-        );
+        var saveResult = await writable.SaveAsync(patch =>
+        {
+            patch.Enabled = true;
+            patch.RetryCount = 10;
+            patch.Label = "saved";
+            patch.Database.Host = "saved.local";
+            patch.Database.Port = 7443;
+            patch.Plugins = new[] { "saved-plugin" };
+        });
         var written = await user.ReadAsync();
 
         (resolved.Status).ShouldBe(StateReadStatus.Success);
@@ -884,7 +883,7 @@ public sealed class StateRuntimeTests
         var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(sourceSet);
 
         var result = await options.ReadAsync();
-        var saved = await options.SaveAsync(new AppSettings { RetryCount = 7 });
+        var saved = await options.SaveAsync(patch => patch.RetryCount = 7);
 
         (result.Status).ShouldBe(StateReadStatus.Success);
         (result.Value!.Enabled).ShouldBeTrue();
@@ -1190,17 +1189,19 @@ public sealed class StateRuntimeTests
         var sources = new StateSourceSet<AppSettings.Fragment>([new("user", store, writer: store)]);
         var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(sources);
 
-        await options.SaveAsync(settings =>
+        using (var edit = await options.OpenEditSessionAsync())
         {
-            settings.RetryCount++;
-            settings.Plugins = [.. settings.Plugins, "sync"];
-        });
-        await options.SaveAsync(async settings =>
+            edit.Value.RetryCount++;
+            edit.Value.Plugins = [.. edit.Value.Plugins, "sync"];
+            await edit.CommitAsync();
+        }
+        using (var edit = await options.OpenEditSessionAsync())
         {
             await Task.Yield();
-            settings.RetryCount++;
-            settings.Plugins = [.. settings.Plugins, "async"];
-        });
+            edit.Value.RetryCount++;
+            edit.Value.Plugins = [.. edit.Value.Plugins, "async"];
+            await edit.CommitAsync();
+        }
 
         var saved = await store.ReadAsync();
         var resolved = await options.ReadAsync();
@@ -1219,7 +1220,7 @@ public sealed class StateRuntimeTests
         await using var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(sources);
         var plugins = new List<string> { "before-save" };
 
-        await options.SaveAsync(new AppSettings { Plugins = plugins });
+        await options.SaveAsync(patch => patch.Plugins = plugins);
         plugins.Add("after-save");
 
         var saved = await options.ReadAsync();
@@ -1655,7 +1656,7 @@ public sealed class StateRuntimeTests
 
         try
         {
-            await writable.SaveAsync(new AppSettings { RetryCount = 101 });
+            await writable.SaveAsync(patch => patch.RetryCount = 101);
         }
         catch (OptionsValidationException exception)
         {
@@ -1734,7 +1735,7 @@ public sealed class StateRuntimeTests
         using var serviceProvider = services.BuildServiceProvider();
 
         var defaultOptions = serviceProvider.GetRequiredService<IWritableOptions<AppSettings>>();
-        await defaultOptions.SaveAsync(new AppSettings { RetryCount = 12 });
+        await defaultOptions.SaveAsync(patch => patch.RetryCount = 12);
         ((await defaultStore.ReadAsync()).Value!.RetryCount.Value).ShouldBe(12);
 
         var keyedOptions = serviceProvider.GetRequiredKeyedService<IWritableOptions<AppSettings>>(
@@ -1763,7 +1764,7 @@ public sealed class StateRuntimeTests
     }
 
     [Test]
-    public async Task ApplyPatchAsync_ChangesOnlyTheTargetContributionAndUnsetRevealsLowerValues()
+    public async Task SaveAsync_ChangesOnlyTheTargetContributionAndUnsetRevealsLowerValues()
     {
         var defaults = new InMemoryStateStore<AppSettings.Fragment>(
             new AppSettings.Fragment
@@ -1791,7 +1792,7 @@ public sealed class StateRuntimeTests
             Label = FragmentOperation<string?>.Set("patched label"),
         };
 
-        var write = await options.ApplyPatchAsync(patch);
+        var write = await options.SaveAsync(patch);
         var stored = await user.ReadAsync();
         var resolved = await options.ReadAsync();
 
@@ -2132,7 +2133,7 @@ public sealed class StateRuntimeTests
         );
 
         var resolved = await options.ReadAsync();
-        await options.ApplyPatchAsync(
+        await options.SaveAsync(
             new AppSettings.Patch
             {
                 Database = FragmentOperation<DatabaseSettings.Fragment?>.Set(
@@ -2591,7 +2592,7 @@ public sealed class StateRuntimeTests
         var sourceSet = new StateSourceSet<AppSettings.Fragment>([source]);
         var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(sourceSet);
 
-        await options.ApplyPatchAsync(
+        await options.SaveAsync(
             new AppSettings.Patch { RetryCount = FragmentOperation<int>.Set(12) }
         );
         var resolved = await options.ReadAsync();
@@ -2817,7 +2818,7 @@ public sealed class StateRuntimeTests
     {
         try
         {
-            await options.SaveAsync(new AppSettings { RetryCount = 12 });
+            await options.SaveAsync(patch => patch.RetryCount = 12);
         }
         catch (OptionsValidationException exception)
         {

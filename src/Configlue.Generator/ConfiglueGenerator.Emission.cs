@@ -78,7 +78,7 @@ public sealed partial class ConfiglueGenerator
         code.AppendLine("{");
         code.AppendLineAt(
             1,
-            "public static global::System.Threading.Tasks.ValueTask<global::Configlue.StateWriteResult> SavePatchAsync("
+            "public static global::System.Threading.Tasks.ValueTask<global::Configlue.StateWriteResult> SaveAsync("
         );
         code.AppendLineAt(2, "this global::Configlue.IWritableOptions<" + modelType + "> options,");
         code.AppendLineAt(2, "global::System.Action<" + modelType + ".Patch> configure,");
@@ -91,7 +91,7 @@ public sealed partial class ConfiglueGenerator
         code.AppendLineAt(2, "global::System.ArgumentNullException.ThrowIfNull(configure);");
         code.AppendLineAt(2, "var patch = new " + modelType + ".Patch();");
         code.AppendLineAt(2, "configure(patch);");
-        code.AppendLineAt(2, "return options.ApplyPatchAsync(patch, cancellationToken);");
+        code.AppendLineAt(2, "return options.SaveAsync(patch, cancellationToken);");
         code.AppendLineAt(1, "}");
         AppendSourcePatchExtension(code, modelType, "SaveAsync", "SaveAsync");
         AppendSourcePatchExtension(code, modelType, "ReplaceAsync", "ReplaceAsync");
