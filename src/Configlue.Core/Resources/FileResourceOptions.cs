@@ -25,6 +25,10 @@ public sealed class FileResourceOptions
     /// <summary>The delay between transient sharing failures.</summary>
     public TimeSpan RetryDelay { get; init; } = TimeSpan.FromMilliseconds(40);
 
+    /// <summary>Calculates the delay before a retry from its one-based attempt number.</summary>
+    /// <remarks>When set, this takes precedence over <see cref="RetryDelay"/>.</remarks>
+    public Func<int, TimeSpan>? RetryDelayFactory { get; init; }
+
     /// <summary>
     /// The maximum time to wait for the cross-process sidecar lock before a write fails with an
     /// <see cref="System.IO.IOException"/>. A <see langword="null"/> value (the default) waits until the

@@ -604,7 +604,21 @@ public sealed class FileResource
                 catch (IOException) when (attempt < _options.RetryCount)
                 {
                     attempt++;
-                    await Task.Delay(_options.RetryDelay, cancellationToken).ConfigureAwait(false);
+                    var retryDelayFactory = _options.RetryDelayFactory;
+                    var retryDelay = _options.RetryDelay;
+                    if (retryDelayFactory is not null)
+                    {
+                        retryDelay = retryDelayFactory(attempt);
+                    }
+
+                    if (retryDelay < TimeSpan.Zero)
+                    {
+                        throw new InvalidOperationException(
+                            "The retry delay factory returned a negative delay."
+                        );
+                    }
+
+                    await Task.Delay(retryDelay, cancellationToken).ConfigureAwait(false);
                 }
             }
         }
