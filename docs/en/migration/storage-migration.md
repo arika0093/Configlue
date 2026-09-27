@@ -15,7 +15,7 @@ Schema migration evolves shapes; storage migration moves contributions between s
 
 `MigrateSourcesToTargetsAsync(sourceIds, targetProjections)` merges only the selected contributions, applies a fragment projection for each destination, and revision-checks and verifies each target. A completed target is skipped on retry; if a later target fails, rerun the migration to resume. Multi-target writes are not atomic.
 
-For retries across process restarts, use `StateStorageMigrationDefinition<TFragment>` with an `IStateStorageMigrationJournal`. The journal stores `StateStorageMigrationProgress` by migration ID and is updated after each target verifies. The application chooses the durable store and must make journal writes atomic. Prevent concurrent processes from running the same migration ID.
+For retries across process restarts, use `StateStorageMigrationDefinition<TFragment>` with `FileStateStorageMigrationJournal`. It stores `StateStorageMigrationProgress` in one JSON file per migration ID and updates the file after each target verifies. `FileResource` replaces each file atomically with a revision check. Do not run the same migration ID concurrently in multiple processes.
 
 For a JSON-to-YAML file migration, both sources decode to the same generated Fragment; the target writer handles the format change:
 
@@ -26,7 +26,7 @@ var migration = new StateStorageMigrationDefinition<AppSettings.Fragment>(
     [new StateStorageMigrationTarget<AppSettings.Fragment>("settings-yaml", fragment => fragment)],
     retireSources: true);
 
-// The application implements this journal using a durable store.
+var journal = new FileStateStorageMigrationJournal("./.configlue-migrations");
 var progress = await options.MigrateAsync(migration, journal);
 ```
 

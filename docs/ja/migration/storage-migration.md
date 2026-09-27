@@ -15,7 +15,7 @@ description: 検証と退役つきでソース間に寄与をコピーする。
 
 `MigrateSourcesToTargetsAsync(sourceIds, targetProjections)` は選択寄与だけをマージし、宛先ごとにフラグメント投影を適用して、各宛先をリビジョンチェック・検証します。完了済み宛先は再試行でスキップされ、後段の宛先で失敗したら移行を再実行して再開します。複数宛先の書き込みはアトミックではありません。
 
-複数宛先をプロセス再起動後も再開する場合は、`StateStorageMigrationDefinition<TFragment>` と `IStateStorageMigrationJournal` を使います。journal は `StateStorageMigrationProgress` を migration ID ごとに永続化し、各宛先の検証後に更新します。アプリ側で journal の保存先を選び、書き込みを原子的に実装してください。同じ migration ID を複数プロセスから同時実行しないでください。
+複数宛先をプロセス再起動後も再開する場合は、`StateStorageMigrationDefinition<TFragment>` と `FileStateStorageMigrationJournal` を使います。journal は `StateStorageMigrationProgress` を migration ID ごとの JSON ファイルに永続化し、各宛先の検証後に更新します。ファイルは `FileResource` が revision check 付きで原子的に置換します。同じ migration ID を複数プロセスから同時実行しないでください。
 
 JSON ファイルから YAML ファイルへ形式を移す例です。両ソースの codec は同じ生成 Fragment に変換されるため、形式変換はターゲット source の writer が行います。
 
@@ -26,7 +26,7 @@ var migration = new StateStorageMigrationDefinition<AppSettings.Fragment>(
     [new StateStorageMigrationTarget<AppSettings.Fragment>("settings-yaml", fragment => fragment)],
     retireSources: true);
 
-// journal は StateStorageMigrationProgress を永続ストレージに保存するアプリ実装。
+var journal = new FileStateStorageMigrationJournal("./.configlue-migrations");
 var progress = await options.MigrateAsync(migration, journal);
 ```
 
