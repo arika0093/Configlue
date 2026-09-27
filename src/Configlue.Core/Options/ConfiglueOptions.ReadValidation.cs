@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
@@ -27,7 +28,11 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
             failures.AddRange(validator.Validate(_optionsName, value));
         }
 
-        if (_validateDataAnnotations && RuntimeFeature.IsDynamicCodeSupported)
+        if (
+            _validateDataAnnotations
+            && RuntimeFeature.IsDynamicCodeSupported
+            && HasValidationMetadata(value.GetType())
+        )
         {
             var validationResults = new List<ValidationResult>();
             Validator.TryValidateObject(
@@ -45,6 +50,18 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
 
         return failures;
     }
+
+    private static bool HasValidationMetadata(Type modelType) =>
+        ModelValidationMetadata.GetOrAdd(
+            modelType,
+            static type =>
+                typeof(IValidatableObject).IsAssignableFrom(type)
+                || TypeDescriptor.GetAttributes(type).OfType<ValidationAttribute>().Any()
+                || TypeDescriptor
+                    .GetProperties(type)
+                    .Cast<PropertyDescriptor>()
+                    .Any(static property => property.Attributes.OfType<ValidationAttribute>().Any())
+        );
 
     private void ValidateContribution(StateSource<TFragment> source, TFragment fragment)
     {
@@ -162,7 +179,11 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
     private void ValidateResolvedModel(TModel model, IConfiglueFragment merged)
     {
         var failures = new List<string>();
-        if (_validateDataAnnotations)
+        if (
+            _validateDataAnnotations
+            && RuntimeFeature.IsDynamicCodeSupported
+            && HasMemberValidationMetadata(merged.Schema)
+        )
         {
             CollectMemberFailures(merged.Schema, merged, string.Empty, failures);
         }
@@ -182,6 +203,41 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
             string.Join("; ", failures)
         );
         throw new ConfiglueValidationException(_optionsName, typeof(TModel), failures);
+    }
+
+    private static bool HasMemberValidationMetadata(ConfiglueModelSchema schema) =>
+        MemberValidationMetadata.GetOrAdd(
+            schema.ModelType,
+            _ => HasMemberValidationMetadata(schema, [])
+        );
+
+    private static bool HasMemberValidationMetadata(
+        ConfiglueModelSchema schema,
+        HashSet<Type> visited
+    )
+    {
+        if (!visited.Add(schema.ModelType))
+        {
+            return false;
+        }
+
+        foreach (var member in schema.Members)
+        {
+            if (GetMemberValidationAttributes(schema.ModelType, member.Name).Length > 0)
+            {
+                return true;
+            }
+
+            if (
+                member.NestedSchemaFactory?.Invoke() is { } nestedSchema
+                && HasMemberValidationMetadata(nestedSchema, visited)
+            )
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static void CollectMemberFailures(

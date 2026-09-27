@@ -36,6 +36,8 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
         (Type ModelType, string MemberName),
         ValidationAttribute[]
     > MemberValidationAttributes = new();
+    private static readonly ConcurrentDictionary<Type, bool> ModelValidationMetadata = new();
+    private static readonly ConcurrentDictionary<Type, bool> MemberValidationMetadata = new();
 
     private readonly StateSourceSet<TFragment> _sourceSet;
     private readonly TFragment _modelDefaultsFragment;
