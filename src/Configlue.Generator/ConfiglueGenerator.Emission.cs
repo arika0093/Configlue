@@ -55,12 +55,41 @@ public sealed partial class ConfiglueGenerator
         AppendModelSchema(code, modelType, modelId, version, members);
         AppendFragmentSchema(code, modelType, modelId, version, members);
         AppendDeepClone(code, modelType, members);
+        AppendCollectionCloneHelpers(code);
         AppendFragment(code, modelType, members, previousModels);
         AppendModelFragmentBridge(code, modelType);
         AppendFacadeRuntimeBridge(code, modelType);
         AppendHistoricalDispatcherFactory(code, modelType, previousModels);
         code.AppendLine("}");
         return code.ToString();
+    }
+
+    private static void AppendCollectionCloneHelpers(IndentedStringBuilder code)
+    {
+        code.AppendLineAt(
+            1,
+            "private static global::System.Collections.Concurrent.BlockingCollection<T> __CloneBlockingCollection<T>(global::System.Collections.Concurrent.BlockingCollection<T> original, global::System.Collections.Generic.IEnumerable<T> items)"
+        );
+        code.AppendLineAt(1, "{");
+        code.AppendLineAt(
+            2,
+            "var queue = new global::System.Collections.Concurrent.ConcurrentQueue<T>(items);"
+        );
+        code.AppendLineAt(2, "var clone = original.BoundedCapacity > 0");
+        code.AppendLineAt(
+            3,
+            "? new global::System.Collections.Concurrent.BlockingCollection<T>(queue, original.BoundedCapacity)"
+        );
+        code.AppendLineAt(
+            3,
+            ": new global::System.Collections.Concurrent.BlockingCollection<T>(queue);"
+        );
+        code.AppendLineAt(2, "if (original.IsAddingCompleted)");
+        code.AppendLineAt(2, "{");
+        code.AppendLineAt(3, "clone.CompleteAdding();");
+        code.AppendLineAt(2, "}");
+        code.AppendLineAt(2, "return clone;");
+        code.AppendLineAt(1, "}");
     }
 
     private static void AppendHistoricalDispatcherFactory(

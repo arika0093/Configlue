@@ -581,8 +581,16 @@ public sealed partial class ConfiglueGenerator : IIncrementalGenerator
                 CloneCollectionKind.Dictionary,
             "System.Collections.Generic.Queue<T>" => CloneCollectionKind.Queue,
             "System.Collections.Generic.Stack<T>" => CloneCollectionKind.Stack,
+            "System.Collections.Concurrent.ConcurrentQueue<T>" =>
+                CloneCollectionKind.ConcurrentQueue,
+            "System.Collections.Concurrent.ConcurrentStack<T>" =>
+                CloneCollectionKind.ConcurrentStack,
+            "System.Collections.Concurrent.BlockingCollection<T>" =>
+                CloneCollectionKind.BlockingCollection,
             "System.Collections.Generic.LinkedList<T>" => CloneCollectionKind.LinkedList,
             "System.Collections.Generic.SortedSet<T>" => CloneCollectionKind.SortedSet,
+            "System.Collections.Generic.PriorityQueue<TElement, TPriority>" =>
+                CloneCollectionKind.PriorityQueue,
             "System.Collections.ObjectModel.ObservableCollection<T>" =>
                 CloneCollectionKind.ObservableCollection,
             "System.Collections.ObjectModel.ReadOnlyCollection<T>" =>
@@ -718,6 +726,10 @@ public sealed partial class ConfiglueGenerator : IIncrementalGenerator
         Dictionary,
         Queue,
         Stack,
+        ConcurrentQueue,
+        ConcurrentStack,
+        BlockingCollection,
+        PriorityQueue,
         LinkedList,
         SortedSet,
         ObservableCollection,

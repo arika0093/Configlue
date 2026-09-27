@@ -68,6 +68,20 @@ public sealed partial class ConfiglueGenerator
         var valueType = collection.ValueType is null ? null : TypeName(collection.ValueType);
         if (collection.ValueType is not null)
         {
+            if (collection.CloneKind == CloneCollectionKind.PriorityQueue)
+            {
+                var priorityType = TypeName(collection.ValueType);
+                var elementSelector = IsConfiglueModel(collection.ElementType, cancellationToken)
+                    ? $"item.Element is null ? default! : (({elementType})item.Element).DeepClone()"
+                    : "item.Element";
+                var prioritySelector = IsConfiglueModel(collection.ValueType, cancellationToken)
+                    ? $"item.Priority is null ? default! : (({priorityType})item.Priority).DeepClone()"
+                    : "item.Priority";
+                var entries =
+                    $"global::System.Linq.Enumerable.Select({access}.UnorderedItems, static item => ({elementSelector}, {prioritySelector}))";
+                return $"new global::System.Collections.Generic.PriorityQueue<{elementType}, {priorityType}>({entries}, {access}.Comparer)";
+            }
+
             if (collection.CloneKind == CloneCollectionKind.Dictionary)
             {
                 var isConcreteDictionary =
@@ -120,6 +134,12 @@ public sealed partial class ConfiglueGenerator
                 $"new global::System.Collections.Generic.Queue<{elementType}>({elements})",
             CloneCollectionKind.Stack =>
                 $"new global::System.Collections.Generic.Stack<{elementType}>(global::System.Linq.Enumerable.Reverse({elements}))",
+            CloneCollectionKind.ConcurrentQueue =>
+                $"new global::System.Collections.Concurrent.ConcurrentQueue<{elementType}>({elements})",
+            CloneCollectionKind.ConcurrentStack =>
+                $"new global::System.Collections.Concurrent.ConcurrentStack<{elementType}>(global::System.Linq.Enumerable.Reverse({elements}))",
+            CloneCollectionKind.BlockingCollection =>
+                $"__CloneBlockingCollection({access}, {elements})",
             CloneCollectionKind.LinkedList =>
                 $"new global::System.Collections.Generic.LinkedList<{elementType}>({elements})",
             CloneCollectionKind.SortedSet =>
