@@ -38,12 +38,13 @@ namespace Configlue
     }
     public readonly struct ConfiglueMemberSchema : System.IEquatable<Configlue.ConfiglueMemberSchema>
     {
-        public ConfiglueMemberSchema(int Id, string Name, System.Type ValueType, Configlue.MergeMode MergeMode, System.Func<object, object?>? GetValue = null, System.Func<Configlue.ConfiglueModelSchema>? NestedSchemaFactory = null, System.Func<System.Collections.Generic.IEnumerable<object?>, object?>? CollectionValueFactory = null, string? EnvironmentVariableName = null) { }
+        public ConfiglueMemberSchema(int Id, string Name, System.Type ValueType, Configlue.MergeMode MergeMode, System.Func<object, object?>? GetValue = null, System.Func<Configlue.ConfiglueModelSchema>? NestedSchemaFactory = null, System.Func<System.Collections.Generic.IEnumerable<object?>, object?>? CollectionValueFactory = null, string? EnvironmentVariableName = null, Configlue.IConfiglueMergeStrategy? MergeStrategy = null) { }
         public System.Func<System.Collections.Generic.IEnumerable<object?>, object?>? CollectionValueFactory { get; init; }
         public string? EnvironmentVariableName { get; init; }
         public System.Func<object, object?>? GetValue { get; init; }
         public int Id { get; init; }
         public Configlue.MergeMode MergeMode { get; init; }
+        public Configlue.IConfiglueMergeStrategy? MergeStrategy { get; init; }
         public string Name { get; init; }
         public System.Func<Configlue.ConfiglueModelSchema>? NestedSchemaFactory { get; init; }
         public System.Type ValueType { get; init; }
@@ -52,7 +53,36 @@ namespace Configlue
     public sealed class ConfiglueMergeAttribute : System.Attribute
     {
         public ConfiglueMergeAttribute(Configlue.MergeMode mode) { }
+        public ConfiglueMergeAttribute(System.Type strategyType) { }
         public Configlue.MergeMode Mode { get; }
+        public System.Type? StrategyType { get; }
+    }
+    public sealed class ConfiglueMergeElementProvenance
+    {
+        public ConfiglueMergeElementProvenance(int index, System.Collections.Generic.IEnumerable<string> sourceIds) { }
+        public int Index { get; }
+        public System.Collections.Generic.IReadOnlyList<string> SourceIds { get; }
+    }
+    public readonly struct ConfiglueMergeSourceValue : System.IEquatable<Configlue.ConfiglueMergeSourceValue>
+    {
+        public ConfiglueMergeSourceValue(string SourceId, Configlue.Optional<object?> Value) { }
+        public string SourceId { get; init; }
+        public Configlue.Optional<object?> Value { get; init; }
+    }
+    public readonly struct ConfiglueMergeSourceValue<T> : System.IEquatable<Configlue.ConfiglueMergeSourceValue<T>>
+    {
+        public ConfiglueMergeSourceValue(string SourceId, Configlue.Optional<T> Value) { }
+        public string SourceId { get; init; }
+        public Configlue.Optional<T> Value { get; init; }
+    }
+    public abstract class ConfiglueMergeStrategy<T> : Configlue.IConfiglueMergeStrategy
+    {
+        protected ConfiglueMergeStrategy() { }
+        public abstract bool AreEqual(T? left, T? right);
+        public abstract System.Collections.Generic.IReadOnlyList<Configlue.ConfiglueMergeElementProvenance> ExplainElements(T? effective, System.Collections.Generic.IReadOnlyList<Configlue.ConfiglueMergeSourceValue<T>> sourceValuesLowToHigh);
+        public abstract Configlue.Optional<T> Merge(Configlue.Optional<T> lowerPriority, Configlue.Optional<T> higherPriority);
+        public abstract bool TryPlanSourceContribution(System.Collections.Generic.IReadOnlyList<Configlue.ConfiglueMergeSourceValue<T>> sourceValuesLowToHigh, string targetSourceId, T? desiredEffective, out Configlue.Optional<T> targetContribution, out string? reason);
+        public abstract bool TryRebase(T? editBase, T? desired, T? current, out T? rebased, out string? reason);
     }
     [System.AttributeUsage(System.AttributeTargets.Class | System.AttributeTargets.Struct, Inherited=false)]
     public sealed class ConfiglueModelAttribute : System.Attribute
@@ -166,6 +196,7 @@ namespace Configlue
         Configlue.ConfiglueModelSchema Schema { get; }
         System.Collections.Generic.IEnumerable<Configlue.ConfiglueFragmentMember> EnumeratePresentMembers();
         Configlue.IConfiglueFragment WithMember(int memberId, object? value);
+        Configlue.IConfiglueFragment WithoutMember(int memberId);
     }
     public interface IConfiglueFragment<TSelf> : Configlue.IConfiglueFragment
         where TSelf :  class, Configlue.IConfiglueFragment<TSelf>
@@ -174,6 +205,15 @@ namespace Configlue
         TSelf Empty { get; }
         TSelf ApplyChanges(TSelf changes);
         TSelf Merge(TSelf higher);
+    }
+    public interface IConfiglueMergeStrategy
+    {
+        bool AreEqual(object? left, object? right);
+        System.Collections.Generic.IReadOnlyList<Configlue.ConfiglueMergeElementProvenance> ExplainElements(object? effective, System.Collections.Generic.IReadOnlyList<Configlue.ConfiglueMergeSourceValue> sourceValuesLowToHigh);
+        Configlue.Optional<object?> Merge(Configlue.Optional<object?> lowerPriority, Configlue.Optional<object?> higherPriority);
+        bool TryPlanSourceContribution(System.Collections.Generic.IReadOnlyList<Configlue.ConfiglueMergeSourceValue> sourceValuesLowToHigh, string targetSourceId, object? desiredEffective, out Configlue.Optional<object?> targetContribution, out string? reason);
+        bool TryRebase(object? editBase, object? desired, object? current, out object? rebased, out string? reason);
+        System.Type ValueType { get; }
     }
     public interface IConfiglueModel<TSelf, TFragment> : Configlue.IConfiglueDeepCloneable<TSelf>
         where TSelf : Configlue.IConfiglueModel<TSelf, TFragment>
@@ -325,6 +365,7 @@ namespace Configlue
         Deep = 1,
         Append = 2,
         SetUnion = 3,
+        Custom = 4,
     }
     public readonly struct Optional<T> : System.IEquatable<Configlue.Optional<T>>
     {

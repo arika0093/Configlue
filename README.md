@@ -416,7 +416,16 @@ routedEdit.Value.Database!.Password = "updated";
 var writeResult = await routedEdit.SaveAsync();
 ```
 
-Plans validate paths and targets before editing, then verify the fully resolved model and all source revisions before writing. A read-only contribution that shadows the requested value causes a `StateConflictException`. Unchanged fields retain their existing sparse state. `Append` and `SetUnion` edits are rebased onto each target source's collection segment; edits hidden by a higher-priority source fail explicitly instead of being silently replaced. Customize collection merging per member with `[ConfiglueMerge(MergeMode.Append)]` (or `Deep`, `Replace`, `SetUnion`).
+Plans validate paths and targets before editing, then verify the fully resolved model and all source revisions before writing. A read-only contribution that shadows the requested value causes a `StateConflictException`. Unchanged fields retain their existing sparse state. `Append` and `SetUnion` edits are rebased onto each target source's collection segment; edits hidden by a higher-priority source fail explicitly instead of being silently replaced. Customize built-in merging per member with `[ConfiglueMerge(MergeMode.Append)]` (or `Deep`, `Replace`, `SetUnion`).
+
+Merge modes apply when a higher-priority fragment contains the member. Missing leaves the accumulated lower-priority value unchanged; present `null` replaces it. `Deep` recursively combines two present, non-null nested model fragments. `Append` concatenates low-to-high and keeps duplicates. `SetUnion` uses the same order and keeps the first value under default equality; arrays and lists preserve order, while `HashSet<T>` enumeration order is unspecified.
+
+For an application-specific merge algebra, use `[ConfiglueMerge(typeof(MyStrategy))]`. The strategy derives from `ConfiglueMergeStrategy<TMember>` and implements presence-aware `Merge`, semantic `AreEqual`, concurrent `TryRebase`, source-local `TryPlanSourceContribution`, and collection `ExplainElements`. The planner receives contributions from low to high priority and returns a sparse contribution or a reason to reject the edit. A single strategy instance is shared by the generated model, so implementations must be stateless and thread-safe. This connects resolution, generated diffs, rebasing, write planning, and element provenance to the same strategy.
+
+```csharp
+[ConfiglueMerge(typeof(FeatureMergeStrategy))]
+public IReadOnlyList<string> Features { get; init; } = [];
+```
 
 ### Change Detection
 

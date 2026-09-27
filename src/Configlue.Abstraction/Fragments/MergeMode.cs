@@ -14,4 +14,7 @@ public enum MergeMode
 
     /// <summary>Present collections are combined as an insertion-ordered set union.</summary>
     SetUnion,
+
+    /// <summary>A generated member delegates all merge operations to a registered strategy type.</summary>
+    Custom,
 }

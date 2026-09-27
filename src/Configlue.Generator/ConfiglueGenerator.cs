@@ -16,6 +16,7 @@ public sealed partial class ConfiglueGenerator : IIncrementalGenerator
     private const string PreviousVersionAttributeName =
         "Configlue.ConfigluePreviousVersionAttribute";
     private const string MergeAttributeName = "Configlue.ConfiglueMergeAttribute";
+    private const int CustomMergeMode = 4;
     private const int InitialSchemaVersion = 1;
     private static readonly SymbolDisplayFormat TypeFormat =
         SymbolDisplayFormat.FullyQualifiedFormat.WithMiscellaneousOptions(
@@ -83,6 +84,14 @@ public sealed partial class ConfiglueGenerator : IIncrementalGenerator
         "CFG008",
         "Invalid Configlue model schema version",
         "Model '{0}' must declare a schema version of 1 or greater",
+        "Configlue",
+        DiagnosticSeverity.Error,
+        true
+    );
+    private static readonly DiagnosticDescriptor InvalidMergeStrategy = new(
+        "CFG009",
+        "Invalid custom merge strategy",
+        "Merge strategy '{0}' is invalid for member '{1}': it must target a non-nested member type and be a concrete type with an accessible parameterless constructor deriving from ConfiglueMergeStrategy<TMember>",
         "Configlue",
         DiagnosticSeverity.Error,
         true
@@ -199,12 +208,47 @@ public sealed partial class ConfiglueGenerator : IIncrementalGenerator
         foreach (var member in members)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            if (
+                member.MergeMode == CustomMergeMode
+                && (
+                    member.MergeStrategyType is null
+                    || !IsValidMergeStrategy(
+                        member.MergeStrategyType,
+                        member.Property.Type,
+                        member.ChildModel is not null,
+                        cancellationToken
+                    )
+                )
+            )
+            {
+                diagnostics.Add(
+                    GeneratorDiagnosticInfo.Create(
+                        InvalidMergeStrategy,
+                        member.Property.Locations.FirstOrDefault(),
+                        member.MergeStrategyType?.ToDisplayString() ?? "<missing>",
+                        member.Property.Name
+                    )
+                );
+            }
+
             if (member.Property.IsRequired)
             {
                 diagnostics.Add(
                     GeneratorDiagnosticInfo.Create(
                         UnsupportedRequired,
                         member.Property.Locations.FirstOrDefault(),
+                        member.Property.Name
+                    )
+                );
+            }
+
+            if (member.MergeMode is < 0 or > CustomMergeMode)
+            {
+                diagnostics.Add(
+                    GeneratorDiagnosticInfo.Create(
+                        UnsupportedMerge,
+                        member.Property.Locations.FirstOrDefault(),
+                        member.MergeMode.ToString(),
                         member.Property.Name
                     )
                 );
@@ -351,9 +395,24 @@ public sealed partial class ConfiglueGenerator : IIncrementalGenerator
                     break;
                 }
             }
-            if (merge?.ConstructorArguments.FirstOrDefault().Value is int requestedMode)
+
+            INamedTypeSymbol? mergeStrategyType = null;
+            if (
+                merge?.ConstructorArguments.FirstOrDefault() is
+                { Kind: TypedConstantKind.Type } strategyConstant
+            )
+            {
+                mergeStrategyType = strategyConstant.Value as INamedTypeSymbol;
+                mode = CustomMergeMode;
+            }
+            else if (merge?.ConstructorArguments.FirstOrDefault().Value is int requestedMode)
             {
                 mode = requestedMode;
+            }
+
+            if (mode is < 0 or > CustomMergeMode)
+            {
+                mode = int.MaxValue;
             }
 
             yield return new MemberModel(
@@ -361,7 +420,8 @@ public sealed partial class ConfiglueGenerator : IIncrementalGenerator
                 property,
                 child,
                 mode,
-                GetCollectionInfo(property.Type)
+                GetCollectionInfo(property.Type),
+                mergeStrategyType
             );
         }
     }
@@ -491,12 +551,67 @@ public sealed partial class ConfiglueGenerator : IIncrementalGenerator
         return new CollectionInfo(kind, elementType, named);
     }
 
+    private static bool IsValidMergeStrategy(
+        INamedTypeSymbol strategyType,
+        ITypeSymbol memberType,
+        bool isNestedModel,
+        CancellationToken cancellationToken
+    )
+    {
+        if (
+            isNestedModel
+            || strategyType.TypeKind != TypeKind.Class
+            || strategyType.IsAbstract
+            || strategyType.Arity != 0
+        )
+        {
+            return false;
+        }
+
+        for (var current = strategyType; current is not null; current = current.ContainingType)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (
+                current.DeclaredAccessibility
+                is not (Accessibility.Public or Accessibility.Internal)
+            )
+            {
+                return false;
+            }
+        }
+
+        var hasConstructor = strategyType.InstanceConstructors.Any(static constructor =>
+            constructor.Parameters.Length == 0
+            && constructor.DeclaredAccessibility is Accessibility.Public or Accessibility.Internal
+        );
+        if (!hasConstructor)
+        {
+            return false;
+        }
+
+        for (var current = strategyType; current is not null; current = current.BaseType)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (
+                current.OriginalDefinition.ToDisplayString()
+                    == "Configlue.ConfiglueMergeStrategy<T>"
+                && SymbolEqualityComparer.Default.Equals(current.TypeArguments[0], memberType)
+            )
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private sealed class MemberModel(
         int id,
         IPropertySymbol property,
         INamedTypeSymbol? childModel,
         int mergeMode,
-        CollectionInfo collection
+        CollectionInfo collection,
+        INamedTypeSymbol? mergeStrategyType
     )
     {
         public int Id { get; } = id;
@@ -504,6 +619,7 @@ public sealed partial class ConfiglueGenerator : IIncrementalGenerator
         public INamedTypeSymbol? ChildModel { get; } = childModel;
         public int MergeMode { get; } = mergeMode;
         public CollectionInfo Collection { get; } = collection;
+        public INamedTypeSymbol? MergeStrategyType { get; } = mergeStrategyType;
     }
 
     private sealed class PreviousModelInfo(
