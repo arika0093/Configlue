@@ -586,7 +586,7 @@ Compose `SerializedStateSource.FromResource` over an `InMemoryResource` to test 
 
 ### Interfaces
 
-* `IReadOnlyOptions<T>` — `CurrentValue`, async reads (`GetValueAsync`/`ReadAsync`), `OnChange`, `ExplainAsync`, `GetDiagnostics`, and provider-independent metadata. `CurrentValue` blocks for asynchronous sources; use `GetValueAsync` in async flows.
+* `IReadOnlyOptions<T>` — `CurrentValue`, async reads (`GetValueAsync`/`ReadAsync`), `OnChange`, `ExplainAsync`, `GetDiagnostics`, and provider-independent metadata. `CurrentValue` returns a cached clone after its first read, refreshes from successful watcher notifications, and blocks while its initial asynchronous read completes. Use `GetValueAsync` for a fresh asynchronous read.
 * `IWritableOptions<T>` — adds `SaveAsync`, `BeginConfigureAsync`, `ApplyPatchAsync`/`ApplyPatchesAsync`, and source/storage migration.
 * `IConfiglueOptionsRegistry<T>` — runtime `TryAdd`/`Get`/`TryRemoveAsync` for dynamic named options.
 * `IConfiglueProfiledOptions<T>` — persisted named profiles with active-profile selection.
