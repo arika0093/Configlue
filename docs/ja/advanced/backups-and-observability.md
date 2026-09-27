@@ -30,7 +30,7 @@ model.UseJsonFile(new JsonFileSourceOptions
 
 ファイルがない場合や JSON が壊れている場合、最新バックアップ (Linux/macOS なら `.backup/settings.json.bak`) を読み直してデコードでき、失敗した読み取りの後に元ファイルが変更されていない場合にだけ復元します。Configuration.Writable のタイムスタンプ付きバックアップと、以前の Configlue がリソースファイルの隣や旧 current directory 基準の保存先に作ったバックアップも認識します。バックアップを作成する次回保存時に保持対象の世代を現行レイアウトへ移します。既定の JSON codec は不正な JSON を復旧対象として判定します。独自 codec の形式エラー復旧には `IStateCodecRecoveryPolicy` の実装が必要です。ファイル欠損からの復旧にはこの policy は要りません。
 
-ファイル書き込みは一時的な共有エラーを既定で 2 回再試行します (初回を含めて最大 3 回試行)。各試行の間は 100ms 待ちます。`RetryCount` は初回後の再試行回数で、`RetryCount` と `RetryDelay` で変更できます。`RetryDelayFactory` を設定すると、1 始まりの再試行回数ごとに待ち時間を計算できます。
+ファイル書き込みは一時ファイルの作成・書き込み・flush・置換の失敗を既定で 2 回再試行します (初回を含めて最大 3 回試行)。各試行の間は 100ms 待ち、キャンセルは再試行しません。`RetryCount` は初回後の再試行回数で、`RetryCount` と `RetryDelay` で変更できます。`RetryDelayFactory` を設定すると、1 始まりの再試行回数ごとに待ち時間を計算できます。
 
 ```csharp
 var options = new FileResourceOptions
