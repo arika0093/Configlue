@@ -191,6 +191,48 @@ public sealed class ProfiledOptionsTests
             .ShouldBe((new[] { "default", "First", "Second" }).OrderBy(static item => item));
     }
 
+    [Test]
+    public async Task ProfileCatalogConflictRefreshRemovesStaleNamesFromEachRuntimeRegistry()
+    {
+        using var directory = new TemporaryDirectory();
+        var filePath = Path.Combine(directory.FullPath, "profiles.json");
+        using var firstProvider = CreateServiceProvider(filePath);
+        using var secondProvider = CreateServiceProvider(filePath);
+        var first = firstProvider.GetRequiredService<IConfiglueProfiledOptions<AppSettings>>();
+        var second = secondProvider.GetRequiredService<IConfiglueProfiledOptions<AppSettings>>();
+        var secondRegistry = secondProvider.GetRequiredService<
+            IConfiglueOptionsRegistry<AppSettings>
+        >();
+        await Task.WhenAll(
+            first.GetProfileNamesAsync().AsTask(),
+            second.GetProfileNamesAsync().AsTask()
+        );
+
+        await first.CreateProfileAsync("Stale");
+        if (!await TryCreateProfileAsync(second, "Other"))
+        {
+            await second.CreateProfileAsync("Other");
+        }
+        secondRegistry.TryGet("Stale", out _).ShouldBeTrue();
+
+        try
+        {
+            await first.RemoveProfileAsync("Stale");
+        }
+        catch (StateConflictException)
+        {
+            await first.RemoveProfileAsync("Stale");
+        }
+        if (!await TryCreateProfileAsync(second, "Third"))
+        {
+            await second.CreateProfileAsync("Third");
+        }
+
+        secondRegistry.TryGet("Stale", out _).ShouldBeFalse();
+        secondRegistry.TryGet("Other", out _).ShouldBeTrue();
+        secondRegistry.TryGet("Third", out _).ShouldBeTrue();
+    }
+
     private static async Task<bool> TryCreateProfileAsync(
         IConfiglueProfiledOptions<AppSettings> profiles,
         string profileName
