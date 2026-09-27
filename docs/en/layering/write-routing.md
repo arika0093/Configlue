@@ -15,6 +15,8 @@ Writes can target a source independently of read priority. Edits made through `B
 model.WriteRoute = StateWriteRoute.To("user-settings");
 ```
 
+When no `WriteRoute` is configured, semantic edits evaluate writable sources in read-priority order for changed paths without an explicit path owner. Configlue simulates each candidate together with any explicitly routed patches against the full source set and uses the first candidate that realizes the requested effective model. Candidate evaluation does not write; the chosen sources are written only after the edit baseline revisions are checked again. A configured `WriteRoute` and explicit path routes remain fixed and fail with `StateConflictException` if they cannot realize the edit. `SaveAsync(value)` still replaces the selected write source's complete contribution.
+
 ## Per-path plans
 
 Set `ConfiglueModelBuilder<T>.WritePlan` to declare default owners for paths or subtrees; for example, route `Database` to a writable user overlay while leaving unrelated values in lower-priority sources. The most specific path wins. A per-operation `StateWritePlan` replaces registration routes for matching paths and can split nested model changes across source fragments:

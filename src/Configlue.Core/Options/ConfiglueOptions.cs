@@ -2663,7 +2663,8 @@ public sealed class ConfiglueOptions<TModel, TFragment>
             return new StateWriteResult(expectedFallbackRevision);
         }
 
-        var routedChanges = PartitionRoutedChanges(
+        var canSearchFallbackCandidates = _writeRoute.SourceId is null;
+        var initialRouting = PartitionRoutedChanges(
             TModel.ConfiglueSchema,
             changes,
             after,
@@ -2671,6 +2672,104 @@ public sealed class ConfiglueOptions<TModel, TFragment>
             fallbackSource.Id,
             writePlan
         );
+        var hasUnroutedChanges = initialRouting.ContainsKey(fallbackSource.Id);
+        var fallbackCandidateIds =
+            canSearchFallbackCandidates && hasUnroutedChanges
+                ? GetActiveSources()
+                    .Where(static candidate => candidate.Writer is not null)
+                    .Select(static candidate => candidate.Id)
+                    .ToArray()
+                : [fallbackSource.Id];
+        StateSourcePatch[]? patches = null;
+        var selectedFallbackSourceId = fallbackSource.Id;
+        string? lastFailure = null;
+        foreach (var candidateId in fallbackCandidateIds)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var routedChanges = string.Equals(
+                candidateId,
+                fallbackSource.Id,
+                StringComparison.Ordinal
+            )
+                ? initialRouting
+                : PartitionRoutedChanges(
+                    TModel.ConfiglueSchema,
+                    changes,
+                    after,
+                    [],
+                    candidateId,
+                    writePlan
+                );
+
+            StateSourcePatch[] candidatePatches;
+            try
+            {
+                candidatePatches = CreateRoutedPatches(routedChanges, after, baselineContributions);
+            }
+            catch (StateConflictException exception) when (canSearchFallbackCandidates)
+            {
+                lastFailure = exception.Message;
+                continue;
+            }
+
+            if (candidatePatches.Length == 0)
+            {
+                return new StateWriteResult(expectedFallbackRevision);
+            }
+
+            if (
+                canSearchFallbackCandidates
+                && hasUnroutedChanges
+                && !await CanRealizePatchBatchAsync(
+                        candidatePatches,
+                        expectedBaselineRevisions,
+                        after,
+                        cancellationToken
+                    )
+                    .ConfigureAwait(false)
+            )
+            {
+                lastFailure =
+                    $"Candidate source '{candidateId}' cannot realize the requested edit.";
+                continue;
+            }
+
+            patches = candidatePatches;
+            selectedFallbackSourceId = candidateId;
+            break;
+        }
+
+        if (patches is null)
+        {
+            throw LogConflict(
+                lastFailure is null
+                    ? "No writable source candidate could realize the routed configuration edit."
+                    : $"No writable source candidate could realize the routed configuration edit. {lastFailure}"
+            );
+        }
+
+        var result = await ApplyPatchesCoreAsync(
+                patches,
+                expectedBaselineRevisions,
+                after,
+                cancellationToken
+            )
+            .ConfigureAwait(false);
+        var fallbackResult = result.Sources.FirstOrDefault(source =>
+            string.Equals(source.SourceId, selectedFallbackSourceId, StringComparison.Ordinal)
+        );
+        var revision = fallbackResult.SourceId is not null
+            ? fallbackResult.Revision
+            : result.Sources[0].Revision;
+        return new StateWriteResult(revision) { MultiWriteResult = result };
+    }
+
+    private StateSourcePatch[] CreateRoutedPatches(
+        Dictionary<string, IConfiglueFragment> routedChanges,
+        TModel after,
+        IReadOnlyList<ResolvedContribution> baselineContributions
+    )
+    {
         var patches = new List<StateSourcePatch>(routedChanges.Count);
         foreach (var (sourceId, sourceChanges) in routedChanges)
         {
@@ -2690,25 +2789,116 @@ public sealed class ConfiglueOptions<TModel, TFragment>
             }
         }
 
-        if (patches.Count == 0)
+        return patches.ToArray();
+    }
+
+    private async ValueTask<bool> CanRealizePatchBatchAsync(
+        StateSourcePatch[] patchRequests,
+        StateRevisionVector? expectedBaselineRevisions,
+        TModel expectedResolvedModel,
+        CancellationToken cancellationToken
+    )
+    {
+        var baseline = await ResolveCoreAsync(null, cancellationToken).ConfigureAwait(false);
+        if (baseline.Result.Status != StateReadStatus.Success)
         {
-            return new StateWriteResult(expectedFallbackRevision);
+            throw new InvalidOperationException(
+                $"Configuration state could not be read before planning writes: {baseline.Result.Status}."
+            );
         }
 
-        var result = await ApplyPatchesCoreAsync(
-                patches.ToArray(),
-                expectedBaselineRevisions,
-                after,
-                cancellationToken
-            )
-            .ConfigureAwait(false);
-        var fallbackResult = result.Sources.FirstOrDefault(source =>
-            string.Equals(source.SourceId, fallbackSource.Id, StringComparison.Ordinal)
+        if (
+            expectedBaselineRevisions is not null
+            && !HaveSameRevisions(expectedBaselineRevisions, baseline.Result.Revisions)
+        )
+        {
+            throw LogConflict("A state source changed after the configuration edit began.");
+        }
+
+        var replacements = new Dictionary<string, StateReadResult<TFragment>>(
+            StringComparer.Ordinal
         );
-        var revision = fallbackResult.SourceId is not null
-            ? fallbackResult.Revision
-            : result.Sources[0].Revision;
-        return new StateWriteResult(revision) { MultiWriteResult = result };
+        foreach (var patchRequest in patchRequests)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var source = FindSource(patchRequest.SourceId);
+            if (!IsSourceActive(source.Id))
+            {
+                throw new InvalidOperationException(
+                    $"State source '{source.Id}' has been retired from this options instance."
+                );
+            }
+
+            var current = await source.Reader.ReadAsync(cancellationToken).ConfigureAwait(false);
+            if (current.Status == StateReadStatus.Unavailable)
+            {
+                return false;
+            }
+
+            if (
+                baseline.Result.Revisions is null
+                || !baseline.Result.Revisions.TryGetRevision(source.Id, out var baselineRevision)
+                || !string.Equals(current.Revision, baselineRevision, StringComparison.Ordinal)
+            )
+            {
+                throw LogConflict(
+                    $"State source '{source.Id}' changed while the write plan was being evaluated."
+                );
+            }
+
+            var sourceFragment = current.Status switch
+            {
+                StateReadStatus.NotFound => TFragment.Empty,
+                StateReadStatus.Success => current.Value
+                    ?? throw new InvalidOperationException(
+                        $"State source '{source.Id}' returned a null configuration fragment."
+                    ),
+                _ => throw new InvalidOperationException(
+                    $"Source '{source.Id}' could not be planned: {current.Status}."
+                ),
+            };
+            if (current.Schema is { } schema)
+            {
+                sourceFragment = await MigrateAsync(sourceFragment, schema, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+
+            if (patchRequest.Patch.Apply(sourceFragment) is not TFragment patchedFragment)
+            {
+                throw new InvalidOperationException(
+                    $"The patch for source '{source.Id}' returned an incompatible fragment."
+                );
+            }
+
+            replacements.Add(
+                source.Id,
+                StateReadResult<TFragment>.Success(
+                    patchedFragment,
+                    current.Revision,
+                    TModel.ConfiglueSchema.ToMetadata()
+                )
+            );
+        }
+
+        var proposed = await ResolveCoreAsync(replacements, cancellationToken)
+            .ConfigureAwait(false);
+        if (proposed.Result.Status != StateReadStatus.Success)
+        {
+            return false;
+        }
+
+        if (!HaveSameRevisions(baseline.Result.Revisions, proposed.Result.Revisions))
+        {
+            throw LogConflict("A state source changed while the write plan was being evaluated.");
+        }
+
+        if (!TModel.Diff(proposed.Result.Value!, expectedResolvedModel).IsEmpty)
+        {
+            return false;
+        }
+
+        Validate(proposed.Result.Value!);
+        return true;
     }
 
     private static List<string> GetChangedPropertyPaths(
@@ -2858,95 +3048,164 @@ public sealed class ConfiglueOptions<TModel, TFragment>
     {
         using var operation = EnterOperation();
         Validate(after);
-        var changes = TModel.Diff(before, after);
-        if (changes.IsEmpty)
+        var requestedChanges = TModel.Diff(before, after);
+        if (requestedChanges.IsEmpty)
         {
             return new StateWriteResult(expectedRevision);
         }
 
-        var current = await source.Reader.ReadAsync(cancellationToken).ConfigureAwait(false);
-        if (!string.Equals(current.Revision, expectedRevision, StringComparison.Ordinal))
+        var searchCandidates = _writeRoute.SourceId is null;
+        var candidates = searchCandidates
+            ? GetActiveSources().Where(static candidate => candidate.Writer is not null).ToArray()
+            : [source];
+        string? lastFailure = null;
+        foreach (var candidate in candidates)
         {
-            throw LogConflict(
-                $"State source '{source.Id}' changed after the configuration edit began."
-            );
-        }
-
-        if (current.Status == StateReadStatus.Unavailable)
-        {
-            throw new InvalidOperationException(
-                $"Cannot safely update configuration because source '{source.Id}' is unavailable."
-            );
-        }
-
-        var sourceFragment =
-            current.Status == StateReadStatus.Success
-                ? current.Value
-                    ?? throw new InvalidOperationException(
-                        $"State source '{source.Id}' returned a null configuration fragment."
+            cancellationToken.ThrowIfCancellationRequested();
+            var candidateExpectedRevision = expectedRevision;
+            if (
+                !string.Equals(candidate.Id, source.Id, StringComparison.Ordinal)
+                && (
+                    expectedBaselineRevisions is null
+                    || !expectedBaselineRevisions.TryGetRevision(
+                        candidate.Id,
+                        out candidateExpectedRevision
                     )
-                : TFragment.Empty;
-        if (current.Schema is { } schema)
-        {
-            sourceFragment = await MigrateAsync(sourceFragment, schema, cancellationToken)
+                )
+            )
+            {
+                throw LogConflict(
+                    $"The edit baseline has no revision for candidate source '{candidate.Id}'."
+                );
+            }
+
+            var current = await candidate.Reader.ReadAsync(cancellationToken).ConfigureAwait(false);
+            if (
+                !string.Equals(
+                    current.Revision,
+                    candidateExpectedRevision,
+                    StringComparison.Ordinal
+                )
+            )
+            {
+                throw LogConflict(
+                    $"State source '{candidate.Id}' changed after the configuration edit began."
+                );
+            }
+
+            if (current.Status == StateReadStatus.Unavailable)
+            {
+                lastFailure = $"Candidate source '{candidate.Id}' is unavailable.";
+                if (searchCandidates)
+                {
+                    continue;
+                }
+
+                throw new InvalidOperationException(
+                    $"Cannot safely update configuration because source '{candidate.Id}' is unavailable."
+                );
+            }
+
+            var sourceFragment =
+                current.Status == StateReadStatus.Success
+                    ? current.Value
+                        ?? throw new InvalidOperationException(
+                            $"State source '{candidate.Id}' returned a null configuration fragment."
+                        )
+                    : TFragment.Empty;
+            if (current.Schema is { } schema)
+            {
+                sourceFragment = await MigrateAsync(sourceFragment, schema, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+
+            TFragment plannedChanges;
+            try
+            {
+                plannedChanges = (TFragment)PlanMergeAwareChanges(
+                    TModel.ConfiglueSchema,
+                    requestedChanges,
+                    after,
+                    [],
+                    candidate.Id,
+                    baselineContributions
+                );
+            }
+            catch (StateConflictException exception) when (searchCandidates)
+            {
+                lastFailure = exception.Message;
+                continue;
+            }
+
+            var updated = sourceFragment.ApplyChanges(plannedChanges);
+            var proposed = await ReadCoreAsync(
+                    new Dictionary<string, StateReadResult<TFragment>>(StringComparer.Ordinal)
+                    {
+                        [candidate.Id] = StateReadResult<TFragment>.Success(
+                            updated,
+                            current.Revision,
+                            TModel.ConfiglueSchema.ToMetadata()
+                        ),
+                    },
+                    cancellationToken
+                )
+                .ConfigureAwait(false);
+            if (proposed.Status != StateReadStatus.Success)
+            {
+                lastFailure = $"The proposal resolved to {proposed.Status}.";
+                if (searchCandidates)
+                {
+                    continue;
+                }
+
+                throw new InvalidOperationException(
+                    $"The edited configuration could not be resolved: {proposed.Status}."
+                );
+            }
+
+            if (!TModel.Diff(proposed.Value!, after).IsEmpty)
+            {
+                lastFailure =
+                    $"Candidate source '{candidate.Id}' cannot realize the requested edit while preserving higher-priority contributions.";
+                if (searchCandidates)
+                {
+                    continue;
+                }
+
+                throw LogConflict(lastFailure);
+            }
+
+            Validate(proposed.Value!);
+            var latest = await ReadAsync(cancellationToken).ConfigureAwait(false);
+            if (
+                latest.Status != StateReadStatus.Success
+                || !HaveSameRevisions(expectedBaselineRevisions, latest.Revisions)
+            )
+            {
+                throw LogConflict(
+                    "A state source changed before the configuration edit could be written."
+                );
+            }
+
+            return await WriteStateAsync(
+                    candidate,
+                    candidate.Writer!,
+                    new StateWriteRequest<TFragment>(
+                        updated,
+                        current.Revision,
+                        CheckRevision: true
+                    ),
+                    "save",
+                    cancellationToken
+                )
                 .ConfigureAwait(false);
         }
 
-        changes = (TFragment)PlanMergeAwareChanges(
-            TModel.ConfiglueSchema,
-            changes,
-            after,
-            [],
-            source.Id,
-            baselineContributions
+        throw LogConflict(
+            lastFailure is null
+                ? "No writable source candidate could realize the requested edit."
+                : $"No writable source candidate could realize the requested edit. {lastFailure}"
         );
-        var updated = sourceFragment.ApplyChanges(changes);
-        var proposed = await ReadCoreAsync(
-                new Dictionary<string, StateReadResult<TFragment>>(StringComparer.Ordinal)
-                {
-                    [source.Id] = StateReadResult<TFragment>.Success(
-                        updated,
-                        current.Revision,
-                        TModel.ConfiglueSchema.ToMetadata()
-                    ),
-                },
-                cancellationToken
-            )
-            .ConfigureAwait(false);
-        if (proposed.Status != StateReadStatus.Success)
-        {
-            throw new InvalidOperationException(
-                $"The edited configuration could not be resolved: {proposed.Status}."
-            );
-        }
-
-        if (!TModel.Diff(proposed.Value!, after).IsEmpty)
-        {
-            throw LogConflict(
-                $"State source '{source.Id}' cannot realize the requested edit while preserving higher-priority contributions."
-            );
-        }
-
-        Validate(proposed.Value!);
-        var latest = await ReadAsync(cancellationToken).ConfigureAwait(false);
-        if (
-            latest.Status != StateReadStatus.Success
-            || !HaveSameRevisions(expectedBaselineRevisions, latest.Revisions)
-        )
-        {
-            throw LogConflict(
-                "A state source changed before the configuration edit could be written."
-            );
-        }
-
-        return await WriteStateAsync(
-                source,
-                source.Writer!,
-                new StateWriteRequest<TFragment>(updated, current.Revision, CheckRevision: true),
-                "save",
-                cancellationToken
-            )
-            .ConfigureAwait(false);
     }
 
     private IConfiglueFragment PlanMergeAwareChanges(
