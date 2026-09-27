@@ -110,7 +110,7 @@ public sealed class CommandLineSourceTests
     }
 
     [Test]
-    public async Task IncompatibleParsedValueTypeFailsWithJsonConversionDetails()
+    public async Task IncompatibleParsedValueTypeFailsWithConversionDetails()
     {
         var retryOption = new Option<string>("--retry");
         var root = new RootCommand();
@@ -130,7 +130,7 @@ public sealed class CommandLineSourceTests
     }
 
     [Test]
-    public void DuplicateCommandLineModelMappingsAreRejected()
+    public async Task LaterMappingsWinWhenSeveralSymbolsTargetOneMember()
     {
         var firstOption = new Option<int>("--first");
         var secondOption = new Option<int>("--second");
@@ -138,6 +138,43 @@ public sealed class CommandLineSourceTests
         root.Options.Add(firstOption);
         root.Options.Add(secondOption);
         var parseResult = root.Parse(["--first", "1", "--second", "2"]);
+
+        await using (
+            var context = CreateContext(
+                parseResult,
+                mappings =>
+                {
+                    mappings.Map(firstOption, "RetryCount");
+                    mappings.Map(secondOption, "RetryCount");
+                }
+            )
+        )
+        {
+            (await context.GetOptions<AppSettings>().GetValueAsync()).RetryCount.ShouldBe(2);
+        }
+
+        await using (
+            var reversed = CreateContext(
+                parseResult,
+                mappings =>
+                {
+                    mappings.Map(secondOption, "RetryCount");
+                    mappings.Map(firstOption, "RetryCount");
+                }
+            )
+        )
+        {
+            (await reversed.GetOptions<AppSettings>().GetValueAsync()).RetryCount.ShouldBe(1);
+        }
+    }
+
+    [Test]
+    public void MappingTheSameSymbolToTheSamePathTwiceIsRejected()
+    {
+        var retryOption = new Option<int>("--retry");
+        var root = new RootCommand();
+        root.Options.Add(retryOption);
+        var parseResult = root.Parse(["--retry", "1"]);
 
         Should.Throw<ArgumentException>(() =>
             Configlue.CreateContext(builder =>
@@ -151,14 +188,69 @@ public sealed class CommandLineSourceTests
                             },
                             mappings =>
                             {
-                                mappings.Map(firstOption, "RetryCount");
-                                mappings.Map(secondOption, "RetryCount");
+                                mappings.Map(retryOption, "RetryCount");
+                                mappings.Map(retryOption, "RetryCount");
                             }
                         )
                     )
                 )
             )
         );
+    }
+
+    [Test]
+    public async Task ConvertedMappingsSplitOneArgumentIntoSeveralMembers()
+    {
+        var databaseOption = new Option<string>("--database");
+        var root = new RootCommand();
+        root.Options.Add(databaseOption);
+
+        await using (
+            var context = CreateContext(
+                root.Parse(["--database", "db.example.test:6432"]),
+                mappings =>
+                {
+                    mappings.Map(
+                        databaseOption,
+                        "Database.Host",
+                        static value => value?.Split(':')[0]
+                    );
+                    mappings.Map(
+                        databaseOption,
+                        "Database.Port",
+                        static value =>
+                            int.Parse(
+                                value?.Split(':')[1] ?? "0",
+                                System.Globalization.CultureInfo.InvariantCulture
+                            )
+                    );
+                }
+            )
+        )
+        {
+            var value = await context.GetOptions<AppSettings>().GetValueAsync();
+            (value.Database!.Host).ShouldBe("db.example.test");
+            (value.Database.Port).ShouldBe(6432);
+        }
+    }
+
+    [Test]
+    public async Task CollectionOptionsBindWithoutJsonSerialization()
+    {
+        var pluginOption = new Option<string[]>("--plugin");
+        var root = new RootCommand();
+        root.Options.Add(pluginOption);
+
+        await using (
+            var context = CreateContext(
+                root.Parse(["--plugin", "nord", "--plugin", "dracula"]),
+                mappings => mappings.Map(pluginOption, "Plugins")
+            )
+        )
+        {
+            var value = await context.GetOptions<AppSettings>().GetValueAsync();
+            (value.Plugins).ShouldBe(["nord", "dracula"]);
+        }
     }
 
     private static ConfiglueContext CreateContext(

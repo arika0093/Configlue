@@ -55,6 +55,17 @@ mappings =>
 }));
 ```
 
+マッピングはパース済み値を JSON 序列化なしに直接メンバー型へ変換するため、NativeAOT でも動作します。独自形状には変換を付け、1シンボルを複数メンバーへ分配したり、複数シンボルを1メンバーに向ける (存在するものは後勝ち) こともできます:
+
+```csharp
+mappings.Map(databaseOption, "Database.Host", static value => value?.Split(':')[0]);
+mappings.Map(databaseOption, "Database.Port", static value => int.Parse(value?.Split(':')[1] ?? "0", CultureInfo.InvariantCulture));
+mappings.Map(firstOption, "RetryCount");
+mappings.Map(secondOption, "RetryCount"); // 両方ある場合はこちらが勝つ
+```
+
+パッケージは System.CommandLine 2.0.12 向けにビルドし、3.x 系列にもある API のみ使っています。他の系列を確認するには `-p:ConfiglueSystemCommandLineVersion=<version>` (例 `3.0.0-rc.1.26425.128`) 付きでビルドします。
+
 ## 次のステップ
 
 * リモートとアーカイブは [HTTP と ZIP](./http-and-zip.md)。
