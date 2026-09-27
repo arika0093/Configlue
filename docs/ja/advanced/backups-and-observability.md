@@ -28,7 +28,7 @@ model.UseJsonFile(new JsonFileSourceOptions
 });
 ```
 
-ファイルがない場合や JSON が壊れている場合、最新バックアップ (Linux/macOS なら `.backup/settings.json.bak`) を読み直してデコードでき、失敗した読み取りの後に元ファイルが変更されていない場合にだけ復元します。既定の JSON codec は不正な JSON を復旧対象として判定します。独自 codec の形式エラー復旧には `IStateCodecRecoveryPolicy` の実装が必要です。ファイル欠損からの復旧にはこの policy は要りません。
+ファイルがない場合や JSON が壊れている場合、最新バックアップ (Linux/macOS なら `.backup/settings.json.bak`) を読み直してデコードでき、失敗した読み取りの後に元ファイルが変更されていない場合にだけ復元します。Configuration.Writable が作成したタイムスタンプ付きバックアップも認識し、バックアップを作成する次回保存時に保持対象の世代を現行レイアウトへ移します。既定の JSON codec は不正な JSON を復旧対象として判定します。独自 codec の形式エラー復旧には `IStateCodecRecoveryPolicy` の実装が必要です。ファイル欠損からの復旧にはこの policy は要りません。
 
 ファイル書き込みは一時的な共有エラーを既定で最大 3 回再試行し、各試行の間に 100ms 待ちます。`RetryCount` と `RetryDelay` で変更できます。`RetryDelayFactory` を設定すると、1 始まりの再試行回数ごとに待ち時間を計算できます。
 

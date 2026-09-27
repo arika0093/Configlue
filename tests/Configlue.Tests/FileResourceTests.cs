@@ -182,7 +182,7 @@ public sealed class FileResourceTests
         Directory.CreateDirectory(directory);
         var path = System.IO.Path.Combine(directory, "settings.json");
         using var resource = new FileResource(path);
-        await File.WriteAllTextAsync(GetDefaultBackupPath(path), "{}");
+        await File.WriteAllTextAsync(GetLegacyBackupPath(path), "{}");
         var reader = new SerializedStateReader<AppSettings.Fragment>(
             resource,
             new JsonStateCodec<AppSettings.Fragment>()
@@ -242,7 +242,7 @@ public sealed class FileResourceTests
         Directory.CreateDirectory(directory);
         await File.WriteAllTextAsync(path, "{ invalid primary");
         var corruptPrimary = await File.ReadAllTextAsync(path);
-        await File.WriteAllTextAsync(GetDefaultBackupPath(path), "{ invalid backup");
+        await File.WriteAllTextAsync(GetLegacyBackupPath(path), "{ invalid backup");
         var reader = new SerializedStateReader<AppSettings.Fragment>(
             resource,
             new JsonStateCodec<AppSettings.Fragment>()
@@ -262,7 +262,7 @@ public sealed class FileResourceTests
         using var resource = new FileResource(path);
         Directory.CreateDirectory(directory);
         await File.WriteAllTextAsync(path, "current");
-        await File.WriteAllTextAsync(GetDefaultBackupPath(path), "backup");
+        await File.WriteAllTextAsync(GetLegacyBackupPath(path), "backup");
 
         await Should.ThrowAsync<StateConflictException>(async () =>
             await resource.TryRecoverLatestBackupAsync(
@@ -544,6 +544,28 @@ public sealed class FileResourceTests
         );
         Directory.CreateDirectory(directory);
         return System.IO.Path.Combine(directory, System.IO.Path.GetFileName(path) + ".bak");
+    }
+
+    private static string GetLegacyBackupPath(string path)
+    {
+        var directory = System.IO.Path.Combine(
+            System.IO.Path.GetDirectoryName(path)!,
+            OperatingSystem.IsWindows() ? "backup" : ".backup"
+        );
+        Directory.CreateDirectory(directory);
+        var name = System.IO.Path.GetFileNameWithoutExtension(path);
+        if (!OperatingSystem.IsWindows())
+        {
+            name = "." + name;
+        }
+
+        name += "_" + DateTime.UtcNow.Ticks.ToString(
+            System.Globalization.CultureInfo.InvariantCulture
+        );
+        return System.IO.Path.Combine(
+            directory,
+            name + System.IO.Path.GetExtension(path) + ".bak"
+        );
     }
 
     private static byte[] SerializeFragment(

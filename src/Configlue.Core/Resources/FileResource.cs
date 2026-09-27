@@ -61,6 +61,11 @@ public sealed class FileResource
         _fileName = System.IO.Path.GetFileName(_path);
         _options = options ?? new FileResourceOptions();
         var backupDirectory = _options.BackupDirectory;
+        if (backupDirectory is not null)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(backupDirectory);
+        }
+
         if (backupDirectory is null)
         {
             backupDirectory = OperatingSystem.IsWindows() ? "backup" : ".backup";
@@ -262,7 +267,15 @@ public sealed class FileResource
         {
             await using var interprocessLock = await AcquireInterprocessLockAsync(cancellationToken)
                 .ConfigureAwait(false);
-            var backupPath = GetBackupPath(0);
+            var backupPath = GetLatestBackupPath();
+            if (backupPath is null)
+            {
+                throw new FileNotFoundException(
+                    "No backup exists for this file resource.",
+                    GetBackupPath(0)
+                );
+            }
+
             var content = await File.ReadAllBytesAsync(backupPath, cancellationToken)
                 .ConfigureAwait(false);
             await WriteAtomicAsync(_path, content, cancellationToken).ConfigureAwait(false);
@@ -303,10 +316,16 @@ public sealed class FileResource
                 );
             }
 
+            var backupPath = GetLatestBackupPath();
+            if (backupPath is null)
+            {
+                return null;
+            }
+
             byte[] backup;
             try
             {
-                backup = await File.ReadAllBytesAsync(GetBackupPath(0), cancellationToken)
+                backup = await File.ReadAllBytesAsync(backupPath, cancellationToken)
                     .ConfigureAwait(false);
             }
             catch (FileNotFoundException)
@@ -540,34 +559,158 @@ public sealed class FileResource
     {
         Directory.CreateDirectory(_backupDirectory);
         SetHiddenOnWindows(_backupDirectory);
-        for (var index = _options.BackupMaxCount - 1; index > 0; index--)
+        var existingBackupPaths = GetExistingBackupPaths();
+        var retainedPreviousCount = Math.Min(
+            _options.BackupMaxCount - 1,
+            existingBackupPaths.Count
+        );
+        var stagedBackupPaths = new string?[retainedPreviousCount];
+        try
         {
-            var previousBackupPath = GetBackupPath(index - 1);
-            byte[]? olderContent;
-            try
+            for (var index = 0; index < retainedPreviousCount; index++)
             {
-                olderContent = await File.ReadAllBytesAsync(previousBackupPath, cancellationToken)
-                    .ConfigureAwait(false);
-            }
-            catch (FileNotFoundException)
-            {
-                continue;
-            }
-            catch (DirectoryNotFoundException)
-            {
-                continue;
+                if (
+                    TryGetCurrentBackupIndex(existingBackupPaths[index], out var currentIndex)
+                    && currentIndex > index + 1
+                    && currentIndex <= retainedPreviousCount
+                )
+                {
+                    var stagedPath = System.IO.Path.Combine(
+                        _backupDirectory,
+                        ".configlue-backup-stage-" + Guid.NewGuid().ToString("N")
+                    );
+                    stagedBackupPaths[index] = stagedPath;
+                    File.Copy(existingBackupPaths[index], stagedPath);
+                }
             }
 
-            var backupPath = GetBackupPath(index);
-            await WriteAtomicAsync(backupPath, olderContent, cancellationToken)
+            for (var index = retainedPreviousCount; index > 0; index--)
+            {
+                var previousBackupPath =
+                    stagedBackupPaths[index - 1] ?? existingBackupPaths[index - 1];
+                var olderContent = await File.ReadAllBytesAsync(
+                        previousBackupPath,
+                        cancellationToken
+                    )
+                    .ConfigureAwait(false);
+                var backupPath = GetBackupPath(index);
+                await WriteAtomicAsync(backupPath, olderContent, cancellationToken)
+                    .ConfigureAwait(false);
+                SetHiddenOnWindows(backupPath);
+            }
+
+            var latestBackupPath = GetBackupPath(0);
+            await WriteAtomicAsync(latestBackupPath, previousContent, cancellationToken)
                 .ConfigureAwait(false);
-            SetHiddenOnWindows(backupPath);
+            SetHiddenOnWindows(latestBackupPath);
+
+            foreach (var existingBackupPath in existingBackupPaths)
+            {
+                if (
+                    !TryGetCurrentBackupIndex(existingBackupPath, out var existingIndex)
+                    || existingIndex > retainedPreviousCount
+                )
+                {
+                    File.Delete(existingBackupPath);
+                }
+            }
+        }
+        finally
+        {
+            foreach (var stagedPath in stagedBackupPaths.Where(static path => path is not null))
+            {
+                try
+                {
+                    File.Delete(stagedPath!);
+                }
+                catch (IOException)
+                {
+                    // A failed cleanup does not affect the retained backups.
+                }
+            }
+        }
+    }
+
+    private string? GetLatestBackupPath()
+    {
+        var backupPaths = GetExistingBackupPaths();
+        return backupPaths.Count == 0 ? null : backupPaths[0];
+    }
+
+    private List<string> GetExistingBackupPaths()
+    {
+        var backupPaths = new List<string>();
+        if (!Directory.Exists(_backupDirectory))
+        {
+            return backupPaths;
         }
 
-        var latestBackupPath = GetBackupPath(0);
-        await WriteAtomicAsync(latestBackupPath, previousContent, cancellationToken)
-            .ConfigureAwait(false);
-        SetHiddenOnWindows(latestBackupPath);
+        var currentBackups = new List<(int Index, string Path)>();
+        foreach (var path in Directory.EnumerateFiles(_backupDirectory))
+        {
+            if (TryGetCurrentBackupIndex(path, out var index))
+            {
+                currentBackups.Add((index, path));
+            }
+        }
+
+        currentBackups.Sort(static (left, right) => left.Index.CompareTo(right.Index));
+        foreach (var backup in currentBackups)
+        {
+            backupPaths.Add(backup.Path);
+        }
+
+        var legacyPrefix = System.IO.Path.GetFileNameWithoutExtension(_path);
+        if (!OperatingSystem.IsWindows())
+        {
+            legacyPrefix = "." + legacyPrefix;
+        }
+
+        var legacyPattern = legacyPrefix + "_*" + System.IO.Path.GetExtension(_path) + ".bak";
+        var legacyBackups = new List<FileInfo>();
+        foreach (var path in Directory.EnumerateFiles(_backupDirectory, legacyPattern))
+        {
+            legacyBackups.Add(new FileInfo(path));
+        }
+
+        legacyBackups.Sort(
+            static (left, right) => right.CreationTimeUtc.CompareTo(left.CreationTimeUtc)
+        );
+        foreach (var backup in legacyBackups)
+        {
+            backupPaths.Add(backup.FullName);
+        }
+
+        return backupPaths;
+    }
+
+    private bool TryGetCurrentBackupIndex(string path, out int index)
+    {
+        var fileName = System.IO.Path.GetFileName(path);
+        var baseName = _fileName + _options.BackupExtension;
+        if (string.Equals(fileName, baseName, StringComparison.Ordinal))
+        {
+            index = 0;
+            return true;
+        }
+
+        var indexPrefix = baseName + ".";
+        if (
+            fileName.StartsWith(indexPrefix, StringComparison.Ordinal)
+            && int.TryParse(
+                fileName.AsSpan(indexPrefix.Length),
+                System.Globalization.NumberStyles.None,
+                System.Globalization.CultureInfo.InvariantCulture,
+                out index
+            )
+            && index > 0
+        )
+        {
+            return true;
+        }
+
+        index = -1;
+        return false;
     }
 
     private static void SetHiddenOnWindows(string path)
