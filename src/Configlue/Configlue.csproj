@@ -4,7 +4,7 @@
     <RootNamespace>Configlue</RootNamespace>
     <IsPackable>true</IsPackable>
     <IncludeBuildOutput>false</IncludeBuildOutput>
-    <PackageDescription>Convenience package for Configlue Core, the Abstraction contracts, dependency injection, the JSON provider, HTTP resources, common layered sources, the environment source, and source generation. Configlue.Abstraction is referenced directly so the complete requested set appears in this package's dependency list instead of only transitively through Core.</PackageDescription>
+    <PackageDescription>Convenience package for Configlue.</PackageDescription>
     <!-- This package intentionally contains dependencies and an analyzer but no lib assembly. -->
     <NoWarn>$(NoWarn);NU5128</NoWarn>
   </PropertyGroup>
