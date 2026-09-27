@@ -36,7 +36,13 @@ builder.Services.AddConfiglue(conf => conf.Add<UserSettings>(model =>
 }));
 ```
 
-The service provider owns the context. Inject `IReadOnlyOptions<T>` / `IWritableOptions<T>`, or the `IOptions<T>` / `IOptionsSnapshot<T>` / `IOptionsMonitor<T>` adapters for class models. An already materialized `IOptionsSnapshot<T>` keeps its value for that scope, as snapshots normally do.
+The service provider owns the context. Inject `IReadOnlyOptions<T>` / `IWritableOptions<T>`. To use `IOptions<T>` / `IOptionsSnapshot<T>` / `IOptionsMonitor<T>` for a class model, install `Configlue.Extension.MSOptions` and opt in after registering the model:
+
+```csharp
+services.AddConfiglueMicrosoftOptions<UserSettings>();
+```
+
+An already materialized `IOptionsSnapshot<T>` keeps its value for that scope, as snapshots normally do.
 
 For consumers that need the model itself, set `RegisterAsSingleton = true` on the default model registration. DI creates the model singleton from the current options value when the model is first resolved. The injected model keeps that snapshot after later source changes; use an options interface when a consumer needs current values or change notifications. This setting takes effect with `AddConfiglue` and requires the default options name.
 

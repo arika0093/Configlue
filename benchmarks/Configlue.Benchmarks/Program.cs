@@ -34,21 +34,20 @@ public class OptionsRuntimeBenchmarks
     public async Task SetupAsync()
     {
         _store = new InMemoryStateStore<BenchmarkSettings.Fragment>(CreateFragment(0));
-        var sourceSet = new StateSourceSet<BenchmarkSettings.Fragment>(
-        [
+        var sourceSet = new StateSourceSet<BenchmarkSettings.Fragment>([
             new StateSource<BenchmarkSettings.Fragment>(
                 "benchmark",
                 _store,
                 writer: _store,
                 watcher: _store
             ),
-        ]
-        );
+        ]);
         var services = new ServiceCollection();
         services.AddConfiglueOptions<BenchmarkSettings, BenchmarkSettings.Fragment>(
             sourceSet,
             onChangeDebounce: TimeSpan.Zero
         );
+        services.AddConfiglueMicrosoftOptions<BenchmarkSettings>();
         _serviceProvider = services.BuildServiceProvider();
         _options = _serviceProvider.GetRequiredService<
             ConfiglueOptions<BenchmarkSettings, BenchmarkSettings.Fragment>

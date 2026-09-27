@@ -10,7 +10,8 @@ description: 機能ごとの NuGet パッケージを探す。
 | `Configlue` | ユーザー向けメタパッケージ: Core・DI 統合・JSON プロバイダー・HTTP リソース・環境変数ソース・ジェネレーターアナライザー。実装アセンブリ自体はありません。 |
 | `Configlue.Abstraction` | プロバイダー・コーデック・リソース・生成モデルの契約。 |
 | `Configlue.Core` | 状態解決と永続化ランタイム。 |
-| `Configlue.Extensions.DI` | 依存性注入の登録と Microsoft options アダプター。 |
+| `Configlue.Extensions.DI` | Configlue options の依存性注入登録。 |
+| `Configlue.Extension.MSOptions` | Microsoft options インターフェイス向けの任意アダプター。 |
 | `Configlue.Generator` | 疎モデル生成サポート (Roslyn アナライザー)。 |
 | `Configlue.Testing` | インメモリリソースとテストダブル。 |
 | `Configlue.Provider.Json` | JSON コーデック、セクションリソース、ファイル登録、JSON Schema 出力。 |

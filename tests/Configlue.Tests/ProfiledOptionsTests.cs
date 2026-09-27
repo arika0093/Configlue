@@ -466,6 +466,7 @@ public sealed class ProfiledOptionsTests
     private static ServiceProvider CreateServiceProvider(string filePath)
     {
         var services = new ServiceCollection();
+        services.AddConfiglueMicrosoftOptions<AppSettings>();
         services.AddSingleton<FileResource>(_ => new FileResource(
             filePath,
             new FileResourceOptions { CreateBackup = false }

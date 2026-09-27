@@ -102,7 +102,6 @@ public static class ConfiglueServiceCollectionExtensions
         services.AddSingleton<IWritableOptions<TModel>>(provider =>
             provider.GetRequiredService<ConfiglueOptions<TModel, TFragment>>()
         );
-        services.AddConfiglueMicrosoftOptions<TModel>();
         return services;
     }
 
@@ -198,7 +197,6 @@ public static class ConfiglueServiceCollectionExtensions
             services.AddSingleton(new ConfiglueNamedOptionsProfile<TModel>(profileName));
         }
 
-        services.AddConfiglueMicrosoftOptions<TModel>();
         return services;
     }
 
@@ -251,59 +249,12 @@ public static class ConfiglueServiceCollectionExtensions
                 )
             )
         );
-        services.AddConfiglueMicrosoftOptions<TModel>();
         return services;
-    }
-
-    private static void AddConfiglueMicrosoftOptions<TModel>(this IServiceCollection services)
-    {
-        if (!typeof(TModel).IsValueType)
-        {
-            var modelType = typeof(TModel);
-            var resolverType = typeof(ConfiglueMicrosoftOptionsResolver<>).MakeGenericType(
-                modelType
-            );
-            var optionsType = typeof(IOptions<>).MakeGenericType(modelType);
-            var snapshotType = typeof(IOptionsSnapshot<>).MakeGenericType(modelType);
-            var monitorType = typeof(IOptionsMonitor<>).MakeGenericType(modelType);
-            var valueAdapterType = typeof(ConfiglueMicrosoftOptionsValue<>).MakeGenericType(
-                modelType
-            );
-            var snapshotAdapterType = typeof(ConfiglueMicrosoftOptionsSnapshot<>).MakeGenericType(
-                modelType
-            );
-            var monitorAdapterType = typeof(ConfiglueMicrosoftOptionsMonitor<>).MakeGenericType(
-                modelType
-            );
-
-            services.AddSingleton(resolverType, provider => CreateAdapter(resolverType, provider));
-            services.AddSingleton(
-                optionsType,
-                provider =>
-                    CreateAdapter(valueAdapterType, GetRequiredService(provider, resolverType))
-            );
-            services.AddScoped(
-                snapshotType,
-                provider =>
-                    CreateAdapter(snapshotAdapterType, GetRequiredService(provider, resolverType))
-            );
-            services.AddSingleton(
-                monitorType,
-                provider =>
-                    CreateAdapter(
-                        monitorAdapterType,
-                        GetRequiredService(provider, resolverType),
-                        GetNamedOptionsProfiles<TModel>(provider)
-                    )
-            );
-        }
     }
 
     private sealed class ConfiglueFacadeRegistrationVisitor(IServiceCollection services)
         : IConfiglueRegistrationVisitor
     {
-        private readonly HashSet<Type> _registeredModels = [];
-
         public void Visit<TModel>(ConfiglueModelRegistration<TModel> registration)
             where TModel : IConfiglueFacadeModel<TModel>
         {
@@ -313,32 +264,8 @@ public static class ConfiglueServiceCollectionExtensions
                     new ConfiglueNamedOptionsProfile<TModel>(registration.OptionsName)
                 );
             }
-
-            if (_registeredModels.Add(typeof(TModel)))
-            {
-                services.AddConfiglueMicrosoftOptions<TModel>();
-            }
         }
     }
-
-    private static object GetRequiredService(IServiceProvider provider, Type serviceType) =>
-        provider.GetService(serviceType)
-        ?? throw new InvalidOperationException($"Service '{serviceType}' is not registered.");
-
-    private static object GetNamedOptionsProfiles<TModel>(IServiceProvider provider) =>
-        provider.GetServices<ConfiglueNamedOptionsProfile<TModel>>();
-
-    private static object CreateAdapter(Type adapterType, params object[] arguments) =>
-        Activator.CreateInstance(
-            adapterType,
-            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public,
-            binder: null,
-            args: arguments,
-            culture: null
-        )
-        ?? throw new InvalidOperationException(
-            $"Could not create Configlue options adapter '{adapterType}'."
-        );
 
     /// <summary>Registers a standard Microsoft options validator for Configlue saves.</summary>
     public static IServiceCollection AddConfiglueValidator<TModel>(

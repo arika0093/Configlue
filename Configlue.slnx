@@ -4,6 +4,7 @@
     <Project Path="src/Configlue.Core/Configlue.Core.csproj" />
     <Project Path="src/Configlue.Generator/Configlue.Generator.csproj" />
     <Project Path="src/Configlue.Extensions.DI/Configlue.Extensions.DI.csproj" />
+    <Project Path="src/Configlue.Extension.MSOptions/Configlue.Extension.MSOptions.csproj" />
     <Project Path="src/Configlue.Testing/Configlue.Testing.csproj" />
     <Project Path="src/Configlue/Configlue.csproj" />
   </Folder>

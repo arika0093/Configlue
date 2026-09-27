@@ -341,6 +341,7 @@ public sealed class StateRuntimeTests
             new("defaults", defaults, priority: 0),
         ]);
         var services = new ServiceCollection();
+        services.AddConfiglueMicrosoftOptions<AppSettings>();
         services.AddConfiglueOptions<AppSettings, AppSettings.Fragment>(
             _ => sources,
             StateWriteRoute.To("user")
@@ -390,6 +391,7 @@ public sealed class StateRuntimeTests
             new AppSettings.Fragment { RetryCount = Optional<int>.Present(17) }
         );
         var services = new ServiceCollection();
+        services.AddConfiglueMicrosoftOptions<AppSettings>();
         services.AddConfiglueOptions<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([new("default", store, writer: store)])
         );
@@ -418,6 +420,7 @@ public sealed class StateRuntimeTests
             new AppSettings.Fragment { RetryCount = Optional<int>.Present(8) }
         );
         var services = new ServiceCollection();
+        services.AddConfiglueMicrosoftOptions<AppSettings>();
         services.AddConfiglueOptions<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
                 new("default", defaultStore, writer: defaultStore),
@@ -466,6 +469,7 @@ public sealed class StateRuntimeTests
             new AppSettings.Fragment { RetryCount = Optional<int>.Present(8) }
         );
         var services = new ServiceCollection();
+        services.AddConfiglueMicrosoftOptions<AppSettings>();
         services.AddConfiglueOptions<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([new("default", defaults, writer: defaults)]),
             onChangeDebounce: TimeSpan.Zero
@@ -511,6 +515,7 @@ public sealed class StateRuntimeTests
             StringComparer.Ordinal
         );
         var services = new ServiceCollection();
+        services.AddConfiglueMicrosoftOptions<AppSettings>();
         services.AddConfiglueOptionsRegistry<AppSettings, AppSettings.Fragment>(
             (_, profileName) =>
             {
@@ -553,6 +558,7 @@ public sealed class StateRuntimeTests
             StringComparer.Ordinal
         );
         var services = new ServiceCollection();
+        services.AddConfiglueMicrosoftOptions<AppSettings>();
         services.AddConfiglueOptionsRegistry<AppSettings, AppSettings.Fragment>(
             (_, profileName) =>
             {
@@ -1637,6 +1643,7 @@ public sealed class StateRuntimeTests
             new("user", store, writer: store),
         ]);
         var services = new ServiceCollection();
+        services.AddConfiglueMicrosoftOptions<AppSettings>();
         services.AddConfiglueValidator<AppSettings>(new RetryCountValidator());
         services.AddConfiglueOptions<AppSettings, AppSettings.Fragment>(
             sourceSet,
@@ -1699,6 +1706,7 @@ public sealed class StateRuntimeTests
             StringComparer.Ordinal
         );
         var services = new ServiceCollection();
+        services.AddConfiglueMicrosoftOptions<AppSettings>();
         services.AddConfiglueValidator(new ProfileScopedRetryCountValidator());
         services.AddConfiglueOptions<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
@@ -1812,6 +1820,7 @@ public sealed class StateRuntimeTests
             new("profile", secondaryStore),
         ]);
         var services = new ServiceCollection();
+        services.AddConfiglueMicrosoftOptions<AppSettings>();
         services.AddConfiglueOptions<AppSettings, AppSettings.Fragment>("primary", primarySources);
         services.AddConfiglueOptions<AppSettings, AppSettings.Fragment>(
             "secondary",
@@ -1836,6 +1845,7 @@ public sealed class StateRuntimeTests
     public async Task DependencyInjection_ManagesDynamicProfilesThroughRegistry()
     {
         var services = new ServiceCollection();
+        services.AddConfiglueMicrosoftOptions<AppSettings>();
         var factoryCalls = 0;
         services.AddConfiglueOptionsRegistry<AppSettings, AppSettings.Fragment>(
             (_, profileName) =>
@@ -1886,6 +1896,7 @@ public sealed class StateRuntimeTests
     public async Task RegistryAddClearAndDisposeWaitForQueuedNotifications()
     {
         var services = new ServiceCollection();
+        services.AddConfiglueMicrosoftOptions<AppSettings>();
         services.AddConfiglueOptionsRegistry<AppSettings, AppSettings.Fragment>(
             (_, name) =>
             {
@@ -2014,6 +2025,7 @@ public sealed class StateRuntimeTests
     public async Task RegistryNotificationsCanReenterClearAndDispose()
     {
         var services = new ServiceCollection();
+        services.AddConfiglueMicrosoftOptions<AppSettings>();
         services.AddConfiglueOptionsRegistry<AppSettings, AppSettings.Fragment>(
             (_, name) =>
             {

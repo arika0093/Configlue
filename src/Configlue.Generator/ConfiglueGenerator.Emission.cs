@@ -63,15 +63,17 @@ public sealed partial class ConfiglueGenerator
         AppendFacadeRuntimeBridge(code, modelType);
         AppendHistoricalDispatcherFactory(code, modelType, previousModels);
         code.AppendLine("}");
-        AppendTypedPatchExtensions(code, modelType);
+        AppendTypedPatchExtensions(code, modelType, name);
         return code.ToString();
     }
 
-    private static void AppendTypedPatchExtensions(IndentedStringBuilder code, string modelType)
+    private static void AppendTypedPatchExtensions(
+        IndentedStringBuilder code,
+        string modelType,
+        string modelName
+    )
     {
-        var modelParts = modelType.Split('.');
-        var extensionType =
-            EscapeIdentifier(modelParts[modelParts.Length - 1]) + "PatchOptionsExtensions";
+        var extensionType = modelName + "PatchOptionsExtensions";
         code.AppendLine("public static class " + extensionType);
         code.AppendLine("{");
         code.AppendLineAt(

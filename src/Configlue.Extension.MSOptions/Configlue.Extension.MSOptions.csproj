@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>Configlue.Extension.MSOptions</AssemblyName>
+    <RootNamespace>Configlue</RootNamespace>
+    <IsPackable>true</IsPackable>
+    <PackageDescription>Opt-in adapters between Configlue and Microsoft.Extensions.Options.</PackageDescription>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Configlue.Extensions.DI/Configlue.Extensions.DI.csproj" />
+    <PackageReference Include="Microsoft.Extensions.Options" Version="10.0.0" />
+  </ItemGroup>
+</Project>

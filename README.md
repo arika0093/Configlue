@@ -13,7 +13,7 @@ Browse the [Configlue documentation site](https://arika0093.github.io/Configlue/
 * [Write back sparsely](#save-and-edit): route edits to a chosen source, split one edit across sources, or patch a single source contribution.
 * [Built-in](#file-sources) atomic file writing with backup generations and restore.
 * [Automatic detection](#change-detection) of external changes with debounced notifications.
-* Simple API for applications both [without](#simple-application-without-di) and [with](#host-application-with-di) DI, plus Microsoft `IOptions<T>` adapters.
+* Simple API for applications both [without](#simple-application-without-di) and [with](#host-application-with-di) DI. Microsoft `IOptions<T>` adapters are available from the optional `Configlue.Extension.MSOptions` package.
 * [Named profiles](#profiles) with a persisted catalog, and [runtime dynamic options](#dynamic-options) for multi-document scenarios.
 * [Schema and storage migration](#migration): versioned models, source-to-source copies, and adoption of existing `Configuration.Writable` files.
 * [JSON Schema export](#json-schema-support) from generated models.
@@ -159,7 +159,7 @@ Then inject `IReadOnlyOptions<T>` or `IWritableOptions<T>` to read and write set
 
 ```csharp
 // read config in your class
-// you can also use IOptions<T>, IOptionsMonitor<T> or IOptionsSnapshot<T>
+// install Configlue.Extension.MSOptions and call AddConfiglueMicrosoftOptions<UserSetting>() to opt in to IOptions adapters
 public class ConfigReadService(IReadOnlyOptions<UserSetting> options)
 {
     public async Task PrintAsync()
@@ -442,7 +442,7 @@ builder.Services.AddConfiglue(conf =>
 });
 ```
 
-Class-model registrations also provide `IOptions<T>`, scoped `IOptionsSnapshot<T>`, and `IOptionsMonitor<T>` adapters. Their synchronous `Value` and `Get` calls read Configlue state synchronously; use `ReadAsync` or `GetValueAsync` in asynchronous application flows.
+Microsoft options adapters are opt-in. Install `Configlue.Extension.MSOptions` and call `services.AddConfiglueMicrosoftOptions<UserSetting>()` after registering Configlue options to add `IOptions<T>`, scoped `IOptionsSnapshot<T>`, and `IOptionsMonitor<T>` for a class model. Their synchronous `Value` and `Get` calls read Configlue state synchronously; use `ReadAsync` or `GetValueAsync` in asynchronous application flows.
 
 ### Profiles
 
@@ -580,7 +580,7 @@ Compose `SerializedStateSource.FromResource` over an `InMemoryResource` to test 
 * `IWritableOptions<T>` — adds `SaveAsync`, `BeginConfigureAsync`, `ApplyPatchAsync`/`ApplyPatchesAsync`, and source/storage migration.
 * `IConfiglueOptionsRegistry<T>` — runtime `TryAdd`/`Get`/`TryRemoveAsync` for dynamic named options.
 * `IConfiglueProfiledOptions<T>` — persisted named profiles with active-profile selection.
-* Compatibility adapters — `IOptions<T>`, `IOptionsSnapshot<T>`, `IOptionsMonitor<T>` for class models, following Microsoft.Extensions.Options semantics. Dynamic names resolve through the registry and `IOptionsMonitor`, not keyed services.
+* Optional compatibility adapters — install `Configlue.Extension.MSOptions` and call `AddConfiglueMicrosoftOptions<T>()` to register `IOptions<T>`, `IOptionsSnapshot<T>`, and `IOptionsMonitor<T>` for class models. Dynamic names resolve through the registry and `IOptionsMonitor`, not keyed services.
 
 ## Packages
 
@@ -589,7 +589,8 @@ Compose `SerializedStateSource.FromResource` over an `InMemoryResource` to test 
 | `Configlue` | User-facing meta-package: Core, DI integration, JSON provider, HTTP resources, environment source, and the generator analyzer. Contains no implementation assembly of its own. |
 | `Configlue.Abstraction` | Provider, codec, resource, and generated-model contracts. |
 | `Configlue.Core` | State resolution and persistence runtime. |
-| `Configlue.Extensions.DI` | Dependency-injection registration and Microsoft options adapters. |
+| `Configlue.Extensions.DI` | Dependency-injection registration for Configlue options. |
+| `Configlue.Extension.MSOptions` | Optional Microsoft `IOptions<T>`, `IOptionsSnapshot<T>`, and `IOptionsMonitor<T>` adapters. |
 | `Configlue.Generator` | Generated sparse model support (Roslyn analyzer). |
 | `Configlue.Testing` | In-memory resources and test doubles. |
 | `Configlue.Provider.Json` | JSON codec, section resources, file registrations, and JSON Schema export. |
