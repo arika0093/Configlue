@@ -229,6 +229,26 @@ If a source revision changes while a configure session is open, Configlue re-res
 Section edits require standard JSON or UTF-8 YAML. JSON comments/trailing-comma JSONC are not supported, and section writes reserialize the document: comment, whitespace, quoting, and scalar-style preservation is not guaranteed. YAML input with invalid UTF-8 now fails instead of being replacement-decoded and rewritten as UTF-8.
 `ZipEntryResource` exposes one archive entry as a logical resource while retaining the archive's physical identity and revision. Disjoint entry updates can share one batched archive write, and untouched entries remain intact.
 `HttpResourceReader` reads from `{root}/get` and can be composed with any state codec. Call `CreateWriter()` and pass the result as `writer:` to `SerializedStateSource.FromResource` only when the endpoint supports updates; HTTP requests use ETags for conditional writes and polling. The optional `Configlue.Resource.Http.AspNetCore` package maps the same protocol over user-provided resource handlers. See the [HTTP resource protocol](docs/en/reference/http-resource-protocol.md).
+
+Host applications can register named clients with the standard `AddHttpClient` APIs and pass them to facade sources through `FromHttpClientFactory`. Configure base addresses, authentication, retry handlers, and timeouts on each named client as usual. The source resolves its client when the Configlue context is created; `IHttpClientFactory` manages the underlying handlers, and the source does not dispose the returned client. Register separate names and endpoint roots for distinct services. HTTP sources stay read-only unless `Writable = true` is explicitly set for an endpoint that supports updates.
+
+```csharp
+services.AddHttpClient("remote-settings", client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(10);
+});
+services.AddConfiglue(builder => builder.Add<AppSettings>(model =>
+    model.Sources(sources => sources.FromHttpClientFactory(
+        "remote-settings",
+        new HttpSourceOptions
+        {
+            Id = "remote-settings",
+            EndPoint = "https://settings.example.test/app/",
+            Codec = new JsonStateCodec<AppSettings.Fragment>(),
+            Priority = 10,
+        }))));
+```
+
 `JsonSchemaGenerator.Generate` and `Write` export versioned schemas from a model's generated `ConfiglueModelSchema`; pass a source-generated `IJsonTypeInfoResolver` for trimming and NativeAOT-friendly metadata. Supported DataAnnotations are mapped to schema constraints.
 
 `Configlue.Source.CommandLine` accepts the application's existing parse result and explicit symbol-to-path mappings. Parser defaults do not become overrides unless the symbol was explicitly supplied; a parse result with errors fails the source read. Map root and selected subcommand symbols explicitly, and create a new source/context when command-line input changes.

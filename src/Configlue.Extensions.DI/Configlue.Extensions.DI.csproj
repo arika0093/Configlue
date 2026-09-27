@@ -8,9 +8,11 @@
   <ItemGroup>
     <ProjectReference Include="../Configlue.Abstraction/Configlue.Abstraction.csproj" />
     <ProjectReference Include="../Configlue.Core/Configlue.Core.csproj" />
+    <ProjectReference Include="../Configlue.Resource.Http/Configlue.Resource.Http.csproj" />
     <PackageReference
       Include="Microsoft.Extensions.DependencyInjection.Abstractions"
       Version="10.0.0"
     />
+    <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.0" />
   </ItemGroup>
 </Project>

@@ -49,3 +49,10 @@ namespace Configlue
         public Configlue.StateSourceSet<T> Build() { }
     }
 }
+namespace Configlue.Resource.Http
+{
+    public static class HttpClientFactorySourceExtensions
+    {
+        public static void FromHttpClientFactory(this Configlue.ConfiglueSourceSetBuilder sources, string clientName, Configlue.Resource.Http.HttpSourceOptions options) { }
+    }
+}

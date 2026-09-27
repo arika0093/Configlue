@@ -491,6 +491,66 @@ public sealed class ConfiglueFacadeSourceTests
         (actualOverride).ShouldBe(overrideId);
     }
 
+    [Test]
+    public async Task HttpSourceUsesNamedFactoryClientsAndKeepsReadOnlyCapabilities()
+    {
+        var requestedUris = new System.Collections.Concurrent.ConcurrentBag<Uri>();
+        var firstBody = SerializeFragment(
+            new AppSettings.Fragment { RetryCount = Optional<int>.Present(5) }
+        );
+        var secondBody = SerializeFragment(
+            new AppSettings.Fragment { RetryCount = Optional<int>.Present(9) }
+        );
+        var services = new ServiceCollection();
+        services
+            .AddHttpClient("settings-primary")
+            .ConfigurePrimaryHttpMessageHandler(() =>
+                new HttpResponseHandler(requestedUris, firstBody)
+            );
+        services
+            .AddHttpClient("settings-secondary")
+            .ConfigurePrimaryHttpMessageHandler(() =>
+                new HttpResponseHandler(requestedUris, secondBody)
+            );
+        services.AddConfiglue(builder =>
+        {
+            builder.Add<AppSettings>(model =>
+                model.Sources(sources =>
+                {
+                    sources.FromHttpClientFactory(
+                        "settings-primary",
+                        new HttpSourceOptions
+                        {
+                            Id = "primary",
+                            EndPoint = "https://settings.example.test/primary/",
+                            Codec = new JsonStateCodec<AppSettings.Fragment>(),
+                        }
+                    );
+                    sources.FromHttpClientFactory(
+                        "settings-secondary",
+                        new HttpSourceOptions
+                        {
+                            Id = "secondary",
+                            EndPoint = "https://settings.example.test/secondary/",
+                            Codec = new JsonStateCodec<AppSettings.Fragment>(),
+                            Priority = 10,
+                        }
+                    );
+                })
+            );
+        });
+
+        await using var provider = services.BuildServiceProvider();
+        var options = provider.GetRequiredService<IWritableOptions<AppSettings>>();
+        (await options.GetValueAsync()).RetryCount.ShouldBe(9);
+        requestedUris.ShouldContain(new Uri("https://settings.example.test/primary/get"));
+        requestedUris.ShouldContain(new Uri("https://settings.example.test/secondary/get"));
+        await Should.ThrowAsync<InvalidOperationException>(async () =>
+        {
+            await options.BeginConfigureAsync();
+        });
+    }
+
     private static async Task<ResourceId?> WriteHttpPatchAndGetResourceIdAsync(
         string endpoint,
         ResourceId? resourceId
@@ -622,6 +682,13 @@ public sealed class ConfiglueFacadeSourceTests
         await File.WriteAllBytesAsync(path, output.WrittenMemory.ToArray());
     }
 
+    private static byte[] SerializeFragment(AppSettings.Fragment fragment)
+    {
+        var output = new ArrayBufferWriter<byte>();
+        new JsonStateCodec<AppSettings.Fragment>().Serialize(fragment, output, default);
+        return output.WrittenSpan.ToArray();
+    }
+
     private static JsonNode? FindJsonProperty(JsonNode node, string propertyName)
     {
         if (node is JsonObject obj)
@@ -717,5 +784,29 @@ public sealed class ConfiglueFacadeSourceTests
                     ? new HttpResponseMessage(HttpStatusCode.NotFound)
                     : new HttpResponseMessage(HttpStatusCode.NoContent)
             );
+    }
+
+    private sealed class HttpResponseHandler(
+        System.Collections.Concurrent.ConcurrentBag<Uri> requestedUris,
+        byte[] content
+    ) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken
+        )
+        {
+            if (request.RequestUri is { } requestUri)
+            {
+                requestedUris.Add(requestUri);
+            }
+
+            var response = new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new ByteArrayContent(content),
+            };
+            response.Headers.ETag = new System.Net.Http.Headers.EntityTagHeaderValue("\"v1\"");
+            return Task.FromResult(response);
+        }
     }
 }
