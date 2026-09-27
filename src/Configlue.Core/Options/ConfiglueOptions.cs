@@ -1,5 +1,6 @@
 using System.Collections;
 using System.ComponentModel.DataAnnotations;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace Configlue;
@@ -14,6 +15,18 @@ public sealed class ConfiglueOptions<TModel, TFragment>
     where TModel : IConfiglueModel<TModel, TFragment>
     where TFragment : class, IConfiglueFragment<TFragment>
 {
+    private static readonly EventId SourceReadEvent = new(1000, "SourceRead");
+    private static readonly EventId SourceReadFailedEvent = new(1001, "SourceReadFailed");
+    private static readonly EventId SourceFallbackEvent = new(1002, "SourceFallback");
+    private static readonly EventId SourceSelectedEvent = new(1003, "SourceSelected");
+    private static readonly EventId PhysicalWriteEvent = new(1010, "PhysicalWrite");
+    private static readonly EventId PhysicalWriteFailedEvent = new(1011, "PhysicalWriteFailed");
+    private static readonly EventId MigrationEvent = new(1020, "StorageMigration");
+    private static readonly EventId ConflictEvent = new(1030, "WriteConflict");
+    private static readonly EventId WatchFailureEvent = new(1040, "WatcherFailure");
+    private static readonly EventId ListenerFailureEvent = new(1041, "ChangeListenerFailure");
+    private static readonly EventId WatchReloadEvent = new(1042, "WatcherReload");
+
     private readonly StateSourceSet<TFragment> _sourceSet;
     private readonly object _sourceGate = new();
     private readonly HashSet<string> _retiredSourceIds = new(StringComparer.Ordinal);
@@ -26,6 +39,7 @@ public sealed class ConfiglueOptions<TModel, TFragment>
     private readonly string _optionsName;
     private readonly bool _validateDataAnnotations;
     private readonly TimeSpan _onChangeDebounce;
+    private readonly ILogger? _logger;
     private readonly object _changeGate = new();
     private readonly List<Action<TModel>> _changeListeners = [];
     private CancellationTokenSource? _watchCancellation;
@@ -43,7 +57,8 @@ public sealed class ConfiglueOptions<TModel, TFragment>
         IEnumerable<IConfiglueValidator<TModel>>? validators = null,
         bool validateDataAnnotations = false,
         TimeSpan? onChangeDebounce = null,
-        string? optionsName = null
+        string? optionsName = null,
+        ILogger? logger = null
     )
         : this(
             sourceSet,
@@ -53,7 +68,8 @@ public sealed class ConfiglueOptions<TModel, TFragment>
             validators,
             validateDataAnnotations,
             onChangeDebounce,
-            optionsName
+            optionsName,
+            logger
         ) { }
 
     /// <summary>Creates options backed by sources and registration-level property write routes.</summary>
@@ -65,7 +81,8 @@ public sealed class ConfiglueOptions<TModel, TFragment>
         IEnumerable<IConfiglueValidator<TModel>>? validators = null,
         bool validateDataAnnotations = false,
         TimeSpan? onChangeDebounce = null,
-        string? optionsName = null
+        string? optionsName = null,
+        ILogger? logger = null
     )
     {
         ArgumentNullException.ThrowIfNull(sourceSet);
@@ -76,6 +93,7 @@ public sealed class ConfiglueOptions<TModel, TFragment>
         _defaultWritePlan = defaultWritePlan;
         _validators = validators?.ToArray() ?? [];
         _optionsName = optionsName ?? Options.DefaultName;
+        _logger = logger;
         _validateDataAnnotations = validateDataAnnotations;
         _onChangeDebounce = onChangeDebounce ?? TimeSpan.FromMilliseconds(300);
         if (_onChangeDebounce < TimeSpan.Zero)
@@ -97,6 +115,43 @@ public sealed class ConfiglueOptions<TModel, TFragment>
         _migrationChain = new StateSchemaMigrationChain<TFragment>(
             TModel.ConfiglueSchema.ToMetadata(),
             migrations
+        );
+    }
+
+    /// <inheritdoc />
+    public ConfiglueOptionsDiagnostics GetDiagnostics()
+    {
+        StateSource<TFragment>[] activeSources;
+        lock (_sourceGate)
+        {
+            activeSources = _activeSources;
+        }
+
+        var activeIds = activeSources
+            .Select(static source => source.Id)
+            .ToHashSet(StringComparer.Ordinal);
+        var sources = _sourceSet
+            .Sources.Select(source => new ConfiglueSourceDiagnostics(
+                source.Id,
+                source.Priority,
+                source.FallbackCondition,
+                canRead: true,
+                canWrite: source.Writer is not null,
+                canWatch: source.Watcher is not null,
+                isActive: activeIds.Contains(source.Id),
+                physicalOrigin: source.PhysicalOrigin,
+                resourceId: source.ResourceId
+            ))
+            .ToArray();
+        var defaultWriteSource =
+            _writeRoute.SourceId
+            ?? activeSources.FirstOrDefault(static source => source.Writer is not null)?.Id;
+        return new ConfiglueOptionsDiagnostics(
+            _optionsName,
+            sources,
+            defaultWriteSource,
+            _writeRoute.SourceId is null && defaultWriteSource is not null,
+            _defaultWritePlan.PropertyRoutes
         );
     }
 
@@ -212,12 +267,55 @@ public sealed class ConfiglueOptions<TModel, TFragment>
             }
             else
             {
-                sourceResult = await source
-                    .Reader.ReadAsync(cancellationToken)
-                    .ConfigureAwait(false);
+                _logger?.LogTrace(
+                    SourceReadEvent,
+                    "Reading configuration source {SourceId} for {ModelType} options {OptionsName} at {PhysicalOrigin} ({ResourceId}).",
+                    source.Id,
+                    typeof(TModel).FullName,
+                    _optionsName,
+                    source.PhysicalOrigin,
+                    source.ResourceId?.Value
+                );
+                try
+                {
+                    sourceResult = await source
+                        .Reader.ReadAsync(cancellationToken)
+                        .ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    throw;
+                }
+                // Preserve the codec's original exception type so its recoverability policy can classify it.
+#pragma warning disable S2139
+                catch (Exception exception)
+                {
+                    _logger?.LogError(
+                        SourceReadFailedEvent,
+                        exception,
+                        "Reading configuration source {SourceId} failed for {ModelType} options {OptionsName} at {PhysicalOrigin} ({ResourceId}).",
+                        source.Id,
+                        typeof(TModel).FullName,
+                        _optionsName,
+                        source.PhysicalOrigin,
+                        source.ResourceId?.Value
+                    );
+                    throw;
+                }
+#pragma warning restore S2139
             }
 
             var result = sourceResult.FromSource(source.Id, source.PhysicalOrigin);
+            _logger?.LogDebug(
+                SourceReadEvent,
+                "Configuration source {SourceId} returned {ReadStatus} for {ModelType} options {OptionsName} at {PhysicalOrigin} ({ResourceId}).",
+                source.Id,
+                result.Status,
+                typeof(TModel).FullName,
+                _optionsName,
+                source.PhysicalOrigin,
+                source.ResourceId?.Value
+            );
             revisions.Add(new StateRevision(source.Id, result.Revision));
             if (sourceResult.Revisions is { } nestedVector)
             {
@@ -238,6 +336,15 @@ public sealed class ConfiglueOptions<TModel, TFragment>
                 var fragment = result.Value;
                 if (result.Schema is { } sourceSchema)
                 {
+                    _logger?.LogInformation(
+                        MigrationEvent,
+                        "Migrating schema from source {SourceId} from {SourceModelId} version {SourceVersion} for {ModelType} options {OptionsName}.",
+                        source.Id,
+                        sourceSchema.ModelId,
+                        sourceSchema.Version,
+                        typeof(TModel).FullName,
+                        _optionsName
+                    );
                     fragment = await MigrateAsync(fragment, sourceSchema, cancellationToken)
                         .ConfigureAwait(false);
                 }
@@ -249,7 +356,18 @@ public sealed class ConfiglueOptions<TModel, TFragment>
             }
 
             lastFailure = result;
-            if (!CanFallBack(source.FallbackCondition, result.Status))
+            var canFallBack = CanFallBack(source.FallbackCondition, result.Status);
+            _logger?.Log(
+                result.Status == StateReadStatus.Unavailable ? LogLevel.Warning : LogLevel.Debug,
+                SourceFallbackEvent,
+                "Configuration source {SourceId} returned {ReadStatus}; fallback {FallbackAction} for {ModelType} options {OptionsName}.",
+                source.Id,
+                result.Status,
+                canFallBack ? "continues" : "stops",
+                typeof(TModel).FullName,
+                _optionsName
+            );
+            if (!canFallBack)
             {
                 return new ResolvedState(
                     new StateReadResult<TModel>(
@@ -302,6 +420,17 @@ public sealed class ConfiglueOptions<TModel, TFragment>
             PhysicalOrigin = active?.Result.PhysicalOrigin,
             Revisions = new StateRevisionVector(revisions, nestedRevisions),
         };
+        if (active is not null)
+        {
+            _logger?.LogDebug(
+                SourceSelectedEvent,
+                "Configuration source {SourceId} is the highest-priority contributor for {ModelType} options {OptionsName}.",
+                active.Source.Id,
+                typeof(TModel).FullName,
+                _optionsName
+            );
+        }
+
         return new ResolvedState(resolvedResult, contributions, merged);
     }
 
@@ -433,7 +562,7 @@ public sealed class ConfiglueOptions<TModel, TFragment>
         );
     }
 
-    private static TModel RebaseConfigurationEdit(TModel before, TModel desired, TModel current)
+    private TModel RebaseConfigurationEdit(TModel before, TModel desired, TModel current)
     {
         var changes = TModel.Diff(before, desired);
         if (changes.IsEmpty)
@@ -454,7 +583,7 @@ public sealed class ConfiglueOptions<TModel, TFragment>
         return result;
     }
 
-    private static IConfiglueFragment RebaseChanges(
+    private IConfiglueFragment RebaseChanges(
         ConfiglueModelSchema schema,
         IConfiglueFragment changes,
         object before,
@@ -521,7 +650,7 @@ public sealed class ConfiglueOptions<TModel, TFragment>
                     && !AreEditValuesEqual(desiredValue, currentValue)
                 )
                 {
-                    throw new StateConflictException(
+                    throw LogConflict(
                         $"The configuration edit conflicts with a concurrent change to '{string.Join('.', path)}'."
                     );
                 }
@@ -535,7 +664,7 @@ public sealed class ConfiglueOptions<TModel, TFragment>
         return changes;
     }
 
-    private static object? RebaseCollectionEdit(
+    private object? RebaseCollectionEdit(
         ConfiglueMemberSchema member,
         object? beforeValue,
         object? desiredValue,
@@ -557,7 +686,7 @@ public sealed class ConfiglueOptions<TModel, TFragment>
                 && !AreEditValuesEqual(desiredValue, currentValue)
             )
             {
-                throw new StateConflictException(
+                throw LogConflict(
                     $"The configuration edit conflicts with a concurrent change to '{propertyPath}'."
                 );
             }
@@ -574,7 +703,7 @@ public sealed class ConfiglueOptions<TModel, TFragment>
             {
                 if (!current.SequenceEqual(before) && !current.SequenceEqual(desired))
                 {
-                    throw new StateConflictException(
+                    throw LogConflict(
                         $"The configuration edit conflicts with a concurrent change to append-merged member '{propertyPath}'."
                     );
                 }
@@ -584,7 +713,7 @@ public sealed class ConfiglueOptions<TModel, TFragment>
 
             if (current.Count < before.Count || !current.Take(before.Count).SequenceEqual(before))
             {
-                throw new StateConflictException(
+                throw LogConflict(
                     $"The configuration edit cannot reapply its append to '{propertyPath}' because the existing collection prefix changed."
                 );
             }
@@ -602,7 +731,7 @@ public sealed class ConfiglueOptions<TModel, TFragment>
                 && !current.SequenceEqual(desired)
             )
             {
-                throw new StateConflictException(
+                throw LogConflict(
                     $"The configuration edit conflicts with a concurrent change to set-union member '{propertyPath}'."
                 );
             }
@@ -630,7 +759,7 @@ public sealed class ConfiglueOptions<TModel, TFragment>
             && !AreEditValuesEqual(desiredValue, currentValue)
         )
         {
-            throw new StateConflictException(
+            throw LogConflict(
                 $"The configuration edit conflicts with a concurrent change to '{propertyPath}'."
             );
         }
@@ -840,18 +969,20 @@ public sealed class ConfiglueOptions<TModel, TFragment>
         Validate(proposed.Value!);
         if (!IsSourceActive(source.Id))
         {
-            throw new StateConflictException(
+            throw LogConflict(
                 $"State source '{source.Id}' was retired while the patch was being prepared."
             );
         }
 
-        return await source
-            .Writer!.WriteAsync(
+        return await WriteStateAsync(
+                source,
+                source.Writer!,
                 new StateWriteRequest<TFragment>(
                     patchedFragment,
                     current.Revision,
                     CheckRevision: true
                 ),
+                "patch",
                 cancellationToken
             )
             .ConfigureAwait(false);
@@ -935,9 +1066,7 @@ public sealed class ConfiglueOptions<TModel, TFragment>
             && !HaveSameRevisions(expectedBaselineRevisions, baseline.Result.Revisions)
         )
         {
-            throw new StateConflictException(
-                "A state source changed after the configuration edit began."
-            );
+            throw LogConflict("A state source changed after the configuration edit began.");
         }
 
         var replacements = new Dictionary<string, StateReadResult<TFragment>>(
@@ -981,7 +1110,7 @@ public sealed class ConfiglueOptions<TModel, TFragment>
                 || !string.Equals(current.Revision, baselineRevision, StringComparison.Ordinal)
             )
             {
-                throw new StateConflictException(
+                throw LogConflict(
                     $"State source '{source.Id}' changed while the patch batch was being prepared."
                 );
             }
@@ -1128,14 +1257,14 @@ public sealed class ConfiglueOptions<TModel, TFragment>
                     readonlySources.Length == 0
                         ? string.Empty
                         : $" Read-only source(s) contributing to the resolved state: '{string.Join("', '", readonlySources)}'.";
-                throw new StateConflictException(
+                throw LogConflict(
                     $"The configured source routes cannot realize the requested edit for '{details}'. A higher-priority contribution may shadow the write.{shadowing}"
                 );
             }
 
             if (!HaveSameRevisions(baseline.Result.Revisions, proposed.Result.Revisions))
             {
-                throw new StateConflictException(
+                throw LogConflict(
                     "A state source changed while the patch batch was being resolved."
                 );
             }
@@ -1207,7 +1336,7 @@ public sealed class ConfiglueOptions<TModel, TFragment>
                 || !HaveSameRevisions(baseline.Result.Revisions, latest.Revisions)
             )
             {
-                throw new StateConflictException(
+                throw LogConflict(
                     "A state source changed before the patch batch could be written."
                 );
             }
@@ -1221,27 +1350,101 @@ public sealed class ConfiglueOptions<TModel, TFragment>
         foreach (var group in writeGroups)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            var sourceIds = string.Join(",", group.Select(static plan => plan.Source.Id));
+            var resourceId = group[0].ResourceId?.Value;
             if (group.Count == 1)
             {
                 var plan = group[0];
-                var write = await plan
-                    .Writer.WriteAsync(plan.Request, cancellationToken)
-                    .ConfigureAwait(false);
+                _logger?.LogInformation(
+                    PhysicalWriteEvent,
+                    "Writing configuration state for {ModelType} options {OptionsName} through source {SourceId} at resource {ResourceId}.",
+                    typeof(TModel).FullName,
+                    _optionsName,
+                    plan.Source.Id,
+                    resourceId
+                );
+                StateWriteResult write;
+                try
+                {
+                    write = await plan
+                        .Writer.WriteAsync(plan.Request, cancellationToken)
+                        .ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    throw;
+                }
+                // Preserve the writer's exception type for callers that classify conflicts or retries.
+#pragma warning disable S2139
+                catch (Exception exception)
+                {
+                    _logger?.LogError(
+                        PhysicalWriteFailedEvent,
+                        exception,
+                        "Writing configuration state failed for {ModelType} options {OptionsName} through source {SourceId} at resource {ResourceId}.",
+                        typeof(TModel).FullName,
+                        _optionsName,
+                        plan.Source.Id,
+                        resourceId
+                    );
+                    throw;
+                }
+#pragma warning restore S2139
                 results.Add(
                     plan.Source.Id,
                     new StateSourceWriteResult(plan.Source.Id, plan.ResourceId, write.Revision)
+                );
+                _logger?.LogDebug(
+                    PhysicalWriteEvent,
+                    "Wrote configuration state through source {SourceId} at resource {ResourceId} for {ModelType} options {OptionsName}.",
+                    plan.Source.Id,
+                    resourceId,
+                    typeof(TModel).FullName,
+                    _optionsName
                 );
                 physicalWriteCount++;
                 continue;
             }
 
             var batchWriter = group[0].BatchWriter!;
-            var batchResult = await batchWriter
-                .WriteBatchAsync(
-                    group.Select(static plan => plan.Mutation!).ToArray(),
-                    cancellationToken
-                )
-                .ConfigureAwait(false);
+            _logger?.LogInformation(
+                PhysicalWriteEvent,
+                "Writing a physical batch for {ModelType} options {OptionsName} through sources {SourceIds} at resource {ResourceId}.",
+                typeof(TModel).FullName,
+                _optionsName,
+                sourceIds,
+                resourceId
+            );
+            StateWriteResult batchResult;
+            try
+            {
+                batchResult = await batchWriter
+                    .WriteBatchAsync(
+                        group.Select(static plan => plan.Mutation!).ToArray(),
+                        cancellationToken
+                    )
+                    .ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            // Preserve the batch writer's exception type for conflict and retry handling.
+#pragma warning disable S2139
+            catch (Exception exception)
+            {
+                _logger?.LogError(
+                    PhysicalWriteFailedEvent,
+                    exception,
+                    "The physical batch write failed for {ModelType} options {OptionsName} through sources {SourceIds} at resource {ResourceId}.",
+                    typeof(TModel).FullName,
+                    _optionsName,
+                    sourceIds,
+                    resourceId
+                );
+                throw;
+            }
+#pragma warning restore S2139
             foreach (var plan in group)
             {
                 results.Add(
@@ -1255,6 +1458,14 @@ public sealed class ConfiglueOptions<TModel, TFragment>
             }
 
             physicalWriteCount++;
+            _logger?.LogDebug(
+                PhysicalWriteEvent,
+                "Wrote one physical batch for {ModelType} options {OptionsName} through sources {SourceIds} at resource {ResourceId}.",
+                typeof(TModel).FullName,
+                _optionsName,
+                sourceIds,
+                resourceId
+            );
         }
 
         return new StateMultiWriteResult(
@@ -1291,7 +1502,16 @@ public sealed class ConfiglueOptions<TModel, TFragment>
             );
         }
 
-        var sourceResult = await source.Reader.ReadAsync(cancellationToken).ConfigureAwait(false);
+        _logger?.LogInformation(
+            MigrationEvent,
+            "Migrating configuration contribution from source {SourceId} to {TargetSourceId} for {ModelType} options {OptionsName}.",
+            source.Id,
+            target.Id,
+            typeof(TModel).FullName,
+            _optionsName
+        );
+        var sourceResult = await ReadMigrationSourceAsync(source, cancellationToken)
+            .ConfigureAwait(false);
         if (sourceResult.Status != StateReadStatus.Success)
         {
             throw new InvalidOperationException(
@@ -1326,7 +1546,7 @@ public sealed class ConfiglueOptions<TModel, TFragment>
 
         var targetResult = ReferenceEquals(source, target)
             ? sourceResult
-            : await target.Reader.ReadAsync(cancellationToken).ConfigureAwait(false);
+            : await ReadMigrationSourceAsync(target, cancellationToken).ConfigureAwait(false);
         if (targetResult.Status == StateReadStatus.Unavailable)
         {
             throw new InvalidOperationException($"Target source '{target.Id}' is unavailable.");
@@ -1339,22 +1559,35 @@ public sealed class ConfiglueOptions<TModel, TFragment>
             );
         }
 
-        var write = await target
-            .Writer.WriteAsync(
+        var write = await WriteStateAsync(
+                target,
+                target.Writer,
                 new StateWriteRequest<TFragment>(
                     sourceFragment,
                     targetResult.Revision,
                     CheckRevision: true
                 ),
-                cancellationToken
+                "source migration",
+                cancellationToken,
+                source.Id,
+                MigrationEvent
             )
             .ConfigureAwait(false);
-        return new StateSourceMigrationResult(
+        var migrationResult = new StateSourceMigrationResult(
             source.Id,
             target.Id,
             sourceResult.Revision,
             write.Revision
         );
+        _logger?.LogInformation(
+            MigrationEvent,
+            "Migrated configuration contribution from source {SourceId} to {TargetSourceId} for {ModelType} options {OptionsName}.",
+            source.Id,
+            target.Id,
+            typeof(TModel).FullName,
+            _optionsName
+        );
+        return migrationResult;
     }
 
     /// <summary>
@@ -1439,12 +1672,19 @@ public sealed class ConfiglueOptions<TModel, TFragment>
                 TFragment Fragment
             )>();
         var sourceRevisions = new List<StateRevision>();
+        _logger?.LogInformation(
+            MigrationEvent,
+            "Starting storage migration for {ModelType} options {OptionsName} from sources {SourceIds} to targets {TargetSourceIds}.",
+            typeof(TModel).FullName,
+            _optionsName,
+            string.Join(",", requestedSourceIds),
+            string.Join(",", targetProjections.Keys)
+        );
         foreach (var source in _sourceSet.Sources.Where(source => selectedIds.Contains(source.Id)))
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var result = (
-                await source.Reader.ReadAsync(cancellationToken).ConfigureAwait(false)
-            ).FromSource(source.Id, source.PhysicalOrigin);
+            var result = await ReadMigrationSourceAsync(source, cancellationToken)
+                .ConfigureAwait(false);
             sourceRevisions.Add(new StateRevision(source.Id, result.Revision));
             if (result.Status == StateReadStatus.Unavailable)
             {
@@ -1494,8 +1734,7 @@ public sealed class ConfiglueOptions<TModel, TFragment>
             for (var index = 0; index < sourceContributions.Count; index++)
             {
                 var contribution = sourceContributions[index];
-                var latest = await contribution
-                    .Source.Reader.ReadAsync(cancellationToken)
+                var latest = await ReadMigrationSourceAsync(contribution.Source, cancellationToken)
                     .ConfigureAwait(false);
                 if (
                     latest.Status == contribution.Result.Status
@@ -1515,7 +1754,7 @@ public sealed class ConfiglueOptions<TModel, TFragment>
                     || latest.Schema != contribution.Result.Schema
                 )
                 {
-                    throw new StateConflictException(
+                    throw LogConflict(
                         $"Source '{contribution.Source.Id}' changed while the storage migration was running."
                     );
                 }
@@ -1527,7 +1766,7 @@ public sealed class ConfiglueOptions<TModel, TFragment>
                         ?? throw new InvalidOperationException(
                             $"State source '{contribution.Source.Id}' returned a null configuration fragment."
                         ),
-                    _ => throw new StateConflictException(
+                    _ => throw LogConflict(
                         $"Source '{contribution.Source.Id}' became unavailable during migration."
                     ),
                 };
@@ -1543,7 +1782,7 @@ public sealed class ConfiglueOptions<TModel, TFragment>
 
                 if (!ConfiglueFragmentComparer.AreEqual(latestFragment, contribution.Fragment))
                 {
-                    throw new StateConflictException(
+                    throw LogConflict(
                         $"Source '{contribution.Source.Id}' changed while the storage migration was running."
                     );
                 }
@@ -1588,9 +1827,8 @@ public sealed class ConfiglueOptions<TModel, TFragment>
         {
             cancellationToken.ThrowIfCancellationRequested();
             await VerifySourceSnapshotsAsync().ConfigureAwait(false);
-            var current = (
-                await target.Reader.ReadAsync(cancellationToken).ConfigureAwait(false)
-            ).FromSource(target.Id, target.PhysicalOrigin);
+            var current = await ReadMigrationSourceAsync(target, cancellationToken)
+                .ConfigureAwait(false);
             if (current.Status == StateReadStatus.Unavailable)
             {
                 throw new InvalidOperationException($"Target source '{target.Id}' is unavailable.");
@@ -1627,9 +1865,8 @@ public sealed class ConfiglueOptions<TModel, TFragment>
                 && ConfiglueFragmentComparer.AreEqual(currentFragment, desired)
             )
             {
-                var confirmation = (
-                    await target.Reader.ReadAsync(cancellationToken).ConfigureAwait(false)
-                ).FromSource(target.Id, target.PhysicalOrigin);
+                var confirmation = await ReadMigrationSourceAsync(target, cancellationToken)
+                    .ConfigureAwait(false);
                 if (
                     confirmation.Status != current.Status
                     || !string.Equals(
@@ -1639,7 +1876,7 @@ public sealed class ConfiglueOptions<TModel, TFragment>
                     )
                 )
                 {
-                    throw new StateConflictException(
+                    throw LogConflict(
                         $"Target source '{target.Id}' changed during migration verification."
                     );
                 }
@@ -1668,13 +1905,20 @@ public sealed class ConfiglueOptions<TModel, TFragment>
                         ) || !ConfiglueFragmentComparer.AreEqual(confirmedFragment, desired)
                     )
                     {
-                        throw new StateConflictException(
+                        throw LogConflict(
                             $"Target source '{target.Id}' changed during migration verification."
                         );
                     }
                 }
 
                 await VerifySourceSnapshotsAsync().ConfigureAwait(false);
+                _logger?.LogInformation(
+                    MigrationEvent,
+                    "Storage migration target {TargetSourceId} already contains the verified contribution for {ModelType} options {OptionsName}.",
+                    target.Id,
+                    typeof(TModel).FullName,
+                    _optionsName
+                );
                 targetResults.Add(
                     new StateStorageMigrationTargetResult(
                         target.Id,
@@ -1687,25 +1931,28 @@ public sealed class ConfiglueOptions<TModel, TFragment>
             }
 
             await VerifySourceSnapshotsAsync().ConfigureAwait(false);
-            var write = await writer
-                .WriteAsync(
+            var write = await WriteStateAsync(
+                    target,
+                    writer,
                     new StateWriteRequest<TFragment>(
                         desired,
                         current.Revision,
                         CheckRevision: true
                     ),
-                    cancellationToken
+                    "storage migration",
+                    cancellationToken,
+                    string.Join(",", sourceContributions.Select(static item => item.Source.Id)),
+                    MigrationEvent
                 )
                 .ConfigureAwait(false);
-            var verification = (
-                await target.Reader.ReadAsync(cancellationToken).ConfigureAwait(false)
-            ).FromSource(target.Id, target.PhysicalOrigin);
+            var verification = await ReadMigrationSourceAsync(target, cancellationToken)
+                .ConfigureAwait(false);
             if (
                 verification.Status != StateReadStatus.Success
                 || !string.Equals(verification.Revision, write.Revision, StringComparison.Ordinal)
             )
             {
-                throw new StateConflictException(
+                throw LogConflict(
                     $"Target source '{target.Id}' changed before migration verification completed."
                 );
             }
@@ -1730,10 +1977,19 @@ public sealed class ConfiglueOptions<TModel, TFragment>
                 || !ConfiglueFragmentComparer.AreEqual(verifiedFragment, desired)
             )
             {
-                throw new StateConflictException(
+                throw LogConflict(
                     $"Target source '{target.Id}' did not retain the migrated fragment."
                 );
             }
+
+            _logger?.LogInformation(
+                MigrationEvent,
+                "Verified storage migration target {TargetSourceId} for {ModelType} options {OptionsName} from sources {SourceIds}.",
+                target.Id,
+                typeof(TModel).FullName,
+                _optionsName,
+                string.Join(",", sourceContributions.Select(static item => item.Source.Id))
+            );
 
             targetResults.Add(
                 new StateStorageMigrationTargetResult(
@@ -1762,7 +2018,24 @@ public sealed class ConfiglueOptions<TModel, TFragment>
                 .Select(static contribution => contribution.Source.Id)
                 .ToArray();
             RetireSourcesFromOptions(retiredSourceIds);
+            _logger?.LogInformation(
+                MigrationEvent,
+                "Retired migrated sources {SourceIds} from {ModelType} options {OptionsName}.",
+                string.Join(",", retiredSourceIds),
+                typeof(TModel).FullName,
+                _optionsName
+            );
         }
+
+        _logger?.LogInformation(
+            MigrationEvent,
+            "Completed storage migration for {ModelType} options {OptionsName} from sources {SourceIds} to targets {TargetSourceIds}; retired {RetiredSourceIds}.",
+            typeof(TModel).FullName,
+            _optionsName,
+            string.Join(",", sourceContributions.Select(static item => item.Source.Id)),
+            string.Join(",", targetPlans.Select(static item => item.Target.Id)),
+            string.Join(",", retiredSourceIds)
+        );
 
         return new StateStorageMigrationResult(
             sourceContributions.Select(static contribution => contribution.Source.Id),
@@ -1856,9 +2129,7 @@ public sealed class ConfiglueOptions<TModel, TFragment>
                 )
             )
             {
-                throw new StateConflictException(
-                    $"Target source '{target.Id}' changed before source retirement."
-                );
+                throw LogConflict($"Target source '{target.Id}' changed before source retirement.");
             }
 
             var currentFragment = current.Status switch
@@ -1868,7 +2139,7 @@ public sealed class ConfiglueOptions<TModel, TFragment>
                     ?? throw new InvalidOperationException(
                         $"State source '{target.Id}' returned a null configuration fragment."
                     ),
-                _ => throw new StateConflictException(
+                _ => throw LogConflict(
                     $"Target source '{target.Id}' is not available for source retirement."
                 ),
             };
@@ -1883,7 +2154,7 @@ public sealed class ConfiglueOptions<TModel, TFragment>
                 || !ConfiglueFragmentComparer.AreEqual(currentFragment, desired)
             )
             {
-                throw new StateConflictException(
+                throw LogConflict(
                     $"Target source '{target.Id}' no longer contains the verified migration result."
                 );
             }
@@ -1904,7 +2175,7 @@ public sealed class ConfiglueOptions<TModel, TFragment>
             || !TModel.Diff(before, proposed.Result.Value!).IsEmpty
         )
         {
-            throw new StateConflictException(
+            throw LogConflict(
                 "The migrated targets cannot replace the selected sources without changing the effective configuration."
             );
         }
@@ -1920,7 +2191,7 @@ public sealed class ConfiglueOptions<TModel, TFragment>
             ).FromSource(target.Id, target.PhysicalOrigin);
             if (!string.Equals(latest.Revision, outcome.TargetRevision, StringComparison.Ordinal))
             {
-                throw new StateConflictException(
+                throw LogConflict(
                     $"Target source '{target.Id}' changed while source retirement was being verified."
                 );
             }
@@ -1932,7 +2203,7 @@ public sealed class ConfiglueOptions<TModel, TFragment>
 
             if (latest.Status != StateReadStatus.Success || latest.Value is null)
             {
-                throw new StateConflictException(
+                throw LogConflict(
                     $"Target source '{target.Id}' is not available for source retirement."
                 );
             }
@@ -1946,7 +2217,7 @@ public sealed class ConfiglueOptions<TModel, TFragment>
                 || !ConfiglueFragmentComparer.AreEqual(latestFragment, desired)
             )
             {
-                throw new StateConflictException(
+                throw LogConflict(
                     $"Target source '{target.Id}' no longer contains the verified migration result."
                 );
             }
@@ -2109,6 +2380,127 @@ public sealed class ConfiglueOptions<TModel, TFragment>
         }
 
         return source;
+    }
+
+    private async ValueTask<StateWriteResult> WriteStateAsync(
+        StateSource<TFragment> target,
+        IStateWriter<TFragment> writer,
+        StateWriteRequest<TFragment> request,
+        string operation,
+        CancellationToken cancellationToken,
+        string? relatedSourceIds = null,
+        EventId? eventId = null
+    )
+    {
+        var writeEvent = eventId ?? PhysicalWriteEvent;
+        _logger?.LogInformation(
+            writeEvent,
+            "{Operation} for {ModelType} options {OptionsName} through source {SourceId} at resource {ResourceId}; related sources {RelatedSourceIds}.",
+            operation,
+            typeof(TModel).FullName,
+            _optionsName,
+            target.Id,
+            target.ResourceId?.Value,
+            relatedSourceIds
+        );
+        StateWriteResult result;
+        try
+        {
+            result = await writer.WriteAsync(request, cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        // Preserve the writer's exception type for callers that classify conflicts or retries.
+#pragma warning disable S2139
+        catch (Exception exception)
+        {
+            _logger?.LogError(
+                writeEvent,
+                exception,
+                "{Operation} failed for {ModelType} options {OptionsName} through source {SourceId} at resource {ResourceId}; related sources {RelatedSourceIds}.",
+                operation,
+                typeof(TModel).FullName,
+                _optionsName,
+                target.Id,
+                target.ResourceId?.Value,
+                relatedSourceIds
+            );
+            throw;
+        }
+#pragma warning restore S2139
+
+        _logger?.LogDebug(
+            writeEvent,
+            "{Operation} completed through source {SourceId} at resource {ResourceId} for {ModelType} options {OptionsName}.",
+            operation,
+            target.Id,
+            target.ResourceId?.Value,
+            typeof(TModel).FullName,
+            _optionsName
+        );
+        return result;
+    }
+
+    private async ValueTask<StateReadResult<TFragment>> ReadMigrationSourceAsync(
+        StateSource<TFragment> source,
+        CancellationToken cancellationToken
+    )
+    {
+        StateReadResult<TFragment> result;
+        try
+        {
+            result = await source.Reader.ReadAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        // Preserve the reader's exception type so a codec's recovery policy remains effective.
+#pragma warning disable S2139
+        catch (Exception exception)
+        {
+            _logger?.LogError(
+                MigrationEvent,
+                exception,
+                "Reading migration source {SourceId} failed for {ModelType} options {OptionsName} at {PhysicalOrigin} ({ResourceId}).",
+                source.Id,
+                typeof(TModel).FullName,
+                _optionsName,
+                source.PhysicalOrigin,
+                source.ResourceId?.Value
+            );
+            throw;
+        }
+#pragma warning restore S2139
+
+        var sourcedResult = result.FromSource(source.Id, source.PhysicalOrigin);
+        _logger?.LogDebug(
+            MigrationEvent,
+            "Migration source {SourceId} returned {ReadStatus} for {ModelType} options {OptionsName} at {PhysicalOrigin} ({ResourceId}).",
+            source.Id,
+            sourcedResult.Status,
+            typeof(TModel).FullName,
+            _optionsName,
+            source.PhysicalOrigin,
+            source.ResourceId?.Value
+        );
+        return sourcedResult;
+    }
+
+    private StateConflictException LogConflict(string message)
+    {
+        var exception = new StateConflictException(message);
+        _logger?.LogWarning(
+            ConflictEvent,
+            exception,
+            "A configuration write conflict occurred for {ModelType} options {OptionsName}: {Conflict}.",
+            typeof(TModel).FullName,
+            _optionsName,
+            message
+        );
+        return exception;
     }
 
     private StateSource<TFragment> FindSource(string sourceId) =>
@@ -2301,7 +2693,7 @@ public sealed class ConfiglueOptions<TModel, TFragment>
         return paths;
     }
 
-    private static Dictionary<string, IConfiglueFragment> PartitionRoutedChanges(
+    private Dictionary<string, IConfiglueFragment> PartitionRoutedChanges(
         ConfiglueModelSchema schema,
         IConfiglueFragment changes,
         object afterModel,
@@ -2357,7 +2749,7 @@ public sealed class ConfiglueOptions<TModel, TFragment>
                     && writePlan.HasRouteBelow(propertyPath)
                 )
                 {
-                    throw new StateConflictException(
+                    throw LogConflict(
                         $"The edit replaces nested member '{propertyPath}' with null, so its more specific source routes cannot be applied."
                     );
                 }
@@ -2387,19 +2779,19 @@ public sealed class ConfiglueOptions<TModel, TFragment>
         using var operation = EnterOperation();
         if (!IsSourceActive(source.Id))
         {
-            throw new StateConflictException(
-                $"State source '{source.Id}' was retired before the write began."
-            );
+            throw LogConflict($"State source '{source.Id}' was retired before the write began.");
         }
 
         Validate(value);
-        return await source
-            .Writer!.WriteAsync(
+        return await WriteStateAsync(
+                source,
+                source.Writer!,
                 new StateWriteRequest<TFragment>(
                     TModel.ToFragment(value),
                     expectedRevision,
                     CheckRevision: true
                 ),
+                "save",
                 cancellationToken
             )
             .ConfigureAwait(false);
@@ -2426,7 +2818,7 @@ public sealed class ConfiglueOptions<TModel, TFragment>
         var current = await source.Reader.ReadAsync(cancellationToken).ConfigureAwait(false);
         if (!string.Equals(current.Revision, expectedRevision, StringComparison.Ordinal))
         {
-            throw new StateConflictException(
+            throw LogConflict(
                 $"State source '{source.Id}' changed after the configuration edit began."
             );
         }
@@ -2481,7 +2873,7 @@ public sealed class ConfiglueOptions<TModel, TFragment>
 
         if (!TModel.Diff(proposed.Value!, after).IsEmpty)
         {
-            throw new StateConflictException(
+            throw LogConflict(
                 $"State source '{source.Id}' cannot realize the requested edit while preserving higher-priority contributions."
             );
         }
@@ -2493,14 +2885,16 @@ public sealed class ConfiglueOptions<TModel, TFragment>
             || !HaveSameRevisions(expectedBaselineRevisions, latest.Revisions)
         )
         {
-            throw new StateConflictException(
+            throw LogConflict(
                 "A state source changed before the configuration edit could be written."
             );
         }
 
-        return await source
-            .Writer!.WriteAsync(
+        return await WriteStateAsync(
+                source,
+                source.Writer!,
                 new StateWriteRequest<TFragment>(updated, current.Revision, CheckRevision: true),
+                "save",
                 cancellationToken
             )
             .ConfigureAwait(false);
@@ -2628,7 +3022,7 @@ public sealed class ConfiglueOptions<TModel, TFragment>
         return valuesBySource;
     }
 
-    private static List<object?> PlanAppendContribution(
+    private List<object?> PlanAppendContribution(
         IReadOnlyList<StateSource<TFragment>> sourceOrder,
         int targetIndex,
         IReadOnlyDictionary<string, List<object?>> valuesBySource,
@@ -2660,7 +3054,7 @@ public sealed class ConfiglueOptions<TModel, TFragment>
             || !desired.Skip(desired.Count - suffix.Count).SequenceEqual(suffix)
         )
         {
-            throw new StateConflictException(
+            throw LogConflict(
                 $"The edit to append-merged member '{memberName}' cannot be represented by source '{sourceOrder[targetIndex].Id}' while preserving other source contributions."
             );
         }
@@ -2671,7 +3065,7 @@ public sealed class ConfiglueOptions<TModel, TFragment>
             .ToList();
     }
 
-    private static List<object?> PlanSetUnionContribution(
+    private List<object?> PlanSetUnionContribution(
         IReadOnlyList<StateSource<TFragment>> sourceOrder,
         int targetIndex,
         IReadOnlyDictionary<string, List<object?>> valuesBySource,
@@ -2693,7 +3087,7 @@ public sealed class ConfiglueOptions<TModel, TFragment>
 
         if (otherValues.Any(value => !desired.Contains(value)))
         {
-            throw new StateConflictException(
+            throw LogConflict(
                 $"The edit to set-union member '{member.Name}' removes a value contributed by another source."
             );
         }
@@ -2731,7 +3125,7 @@ public sealed class ConfiglueOptions<TModel, TFragment>
             : merged.SequenceEqual(desired);
         if (!matchesDesired)
         {
-            throw new StateConflictException(
+            throw LogConflict(
                 $"The edit to set-union member '{member.Name}' cannot be represented by source '{sourceOrder[targetIndex].Id}' while preserving other source contributions."
             );
         }
@@ -2805,6 +3199,15 @@ public sealed class ConfiglueOptions<TModel, TFragment>
                     && !HaveSameRevisions(previous.Revisions, current.Revisions)
                 )
                 {
+                    _logger?.LogDebug(
+                        WatchReloadEvent,
+                        "Configuration changed for {ModelType} options {OptionsName}; observed sources {SourceIds}.",
+                        typeof(TModel).FullName,
+                        _optionsName,
+                        current.Revisions is { } revisions
+                            ? string.Join(",", revisions.Revisions.Keys)
+                            : string.Empty
+                    );
                     NotifyListeners(current.Value!);
                 }
                 else if (current.Status != StateReadStatus.Success)
@@ -2821,9 +3224,22 @@ public sealed class ConfiglueOptions<TModel, TFragment>
             }
             catch (Exception exception)
             {
-                System.Diagnostics.Trace.TraceError(
-                    "Configlue failed while watching configuration changes: {0}",
-                    exception
+                var watcherSources = GetActiveSources()
+                    .Where(static source => source.Watcher is not null)
+                    .ToArray();
+                _logger?.LogError(
+                    WatchFailureEvent,
+                    exception,
+                    "Watching configuration changes failed for {ModelType} options {OptionsName}; sources {SourceIds}, resources {ResourceIds}.",
+                    typeof(TModel).FullName,
+                    _optionsName,
+                    string.Join(",", watcherSources.Select(static source => source.Id)),
+                    string.Join(
+                        ",",
+                        watcherSources
+                            .Where(static source => source.ResourceId is not null)
+                            .Select(static source => source.ResourceId!.Value.Value)
+                    )
                 );
                 try
                 {
@@ -2922,9 +3338,12 @@ public sealed class ConfiglueOptions<TModel, TFragment>
             }
             catch (Exception exception)
             {
-                System.Diagnostics.Trace.TraceError(
-                    "Configlue change listener failed: {0}",
-                    exception
+                _logger?.LogError(
+                    ListenerFailureEvent,
+                    exception,
+                    "A configuration change listener failed for {ModelType} options {OptionsName}.",
+                    typeof(TModel).FullName,
+                    _optionsName
                 );
             }
         }

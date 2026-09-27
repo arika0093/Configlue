@@ -10,6 +10,9 @@ public interface IReadOnlyOptions<T>
     /// <summary>Subscribes to resolved values when watched state sources change.</summary>
     IDisposable OnChange(Action<T> listener);
 
+    /// <summary>Returns the configured source topology and registration-level write routing.</summary>
+    ConfiglueOptionsDiagnostics GetDiagnostics();
+
     /// <summary>Gets the current value, throwing when no usable state can be read.</summary>
     async ValueTask<T> GetValueAsync(CancellationToken cancellationToken = default)
     {

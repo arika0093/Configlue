@@ -1,16 +1,22 @@
+using Microsoft.Extensions.Logging;
+
 namespace Configlue;
 
 /// <summary>Reads the first successful state from a priority-ordered set of sources.</summary>
 public sealed class StateSourceResolver<T> : IStateReader<T>
 {
+    private static readonly EventId ReadEvent = new(1050, "ResolverSourceRead");
+    private static readonly EventId FallbackEvent = new(1051, "ResolverSourceFallback");
     private readonly StateSourceSet<T> _sourceSet;
+    private readonly ILogger? _logger;
     private Resolution? _resolution;
 
     /// <summary>Creates a source resolver.</summary>
-    public StateSourceResolver(StateSourceSet<T> sourceSet)
+    public StateSourceResolver(StateSourceSet<T> sourceSet, ILogger? logger = null)
     {
         ArgumentNullException.ThrowIfNull(sourceSet);
         _sourceSet = sourceSet;
+        _logger = logger;
     }
 
     /// <summary>The source that most recently supplied a value.</summary>
@@ -27,8 +33,47 @@ public sealed class StateSourceResolver<T> : IStateReader<T>
         foreach (var source in _sourceSet.Sources)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var result = await source.Reader.ReadAsync(cancellationToken).ConfigureAwait(false);
+            _logger?.LogTrace(
+                ReadEvent,
+                "Reading state source {SourceId} at {PhysicalOrigin} ({ResourceId}).",
+                source.Id,
+                source.PhysicalOrigin,
+                source.ResourceId?.Value
+            );
+            StateReadResult<T> result;
+            try
+            {
+                result = await source.Reader.ReadAsync(cancellationToken).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            // Preserve the source reader's exception type for provider recovery handling.
+#pragma warning disable S2139
+            catch (Exception exception)
+            {
+                _logger?.LogError(
+                    ReadEvent,
+                    exception,
+                    "Reading state source {SourceId} failed at {PhysicalOrigin} ({ResourceId}).",
+                    source.Id,
+                    source.PhysicalOrigin,
+                    source.ResourceId?.Value
+                );
+                throw;
+            }
+#pragma warning restore S2139
+
             result = result.FromSource(source.Id, source.PhysicalOrigin);
+            _logger?.LogDebug(
+                ReadEvent,
+                "State source {SourceId} returned {ReadStatus} at {PhysicalOrigin} ({ResourceId}).",
+                source.Id,
+                result.Status,
+                source.PhysicalOrigin,
+                source.ResourceId?.Value
+            );
             revisions.Add(new StateRevision(source.Id, result.Revision));
             if (result.Revisions is { } nestedVector)
             {
@@ -44,7 +89,16 @@ public sealed class StateSourceResolver<T> : IStateReader<T>
                 return result with { Revisions = revisionVector };
             }
 
-            if (!CanFallBack(source.FallbackCondition, result.Status))
+            var canFallBack = CanFallBack(source.FallbackCondition, result.Status);
+            _logger?.Log(
+                result.Status == StateReadStatus.Unavailable ? LogLevel.Warning : LogLevel.Debug,
+                FallbackEvent,
+                "State source {SourceId} returned {ReadStatus}; fallback {FallbackAction}.",
+                source.Id,
+                result.Status,
+                canFallBack ? "continues" : "stops"
+            );
+            if (!canFallBack)
             {
                 var revisionVector = new StateRevisionVector(revisions, nestedRevisions);
                 Volatile.Write(ref _resolution, new Resolution(null, revisionVector));

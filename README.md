@@ -253,6 +253,55 @@ var codec = new YamlStateCodec<AppSettings.Fragment>(
 `ZipEntryResource` exposes one archive entry as a logical resource while retaining the archive's physical identity and revision. Disjoint entry updates can share one batched archive write, and untouched entries remain intact.
 `HttpResourceReader` reads from `{root}/get` and can be composed with any state codec. Call `CreateWriter()` and pass the result as `writer:` to `SerializedStateSource.FromResource` only when the endpoint supports updates; HTTP requests use ETags for conditional writes and polling. The optional `Configlue.Resource.Http.AspNetCore` package maps the same protocol over user-provided resource handlers. See the [HTTP resource protocol](docs/en/reference/http-resource-protocol.md).
 
+`IReadOnlyOptions<T>.GetDiagnostics()` returns an immutable snapshot of the configured source topology for that options runtime, including source ID, priority, fallback policy, read/write/watch capabilities, physical origin, resource identity, and retired status. It also reports the default and property-path write routes; `GetWriteSourceId("Database.Endpoint")` resolves a registration-level route. Per-operation write plans are specific to that operation and are not included. Use `ReadAsync` for the latest read result and revisions, `ExplainAsync(path)` for effective values and their contributing sources, and write results for completed writes. No configuration values are written to logs.
+
+```csharp
+var diagnostics = options.GetDiagnostics();
+var defaultWriteSource = diagnostics.GetWriteSourceId();
+var endpointWriteSource = diagnostics.GetWriteSourceId("Database.Endpoint");
+foreach (var source in diagnostics.Sources)
+{
+    Console.WriteLine(
+        $"{source.Id}: priority={source.Priority}, active={source.IsActive}, " +
+        $"read={source.CanRead}, write={source.CanWrite}, watch={source.CanWatch}, " +
+        $"origin={source.PhysicalOrigin}, resource={source.ResourceId}");
+}
+```
+
+For example, a runtime can layer a JSON file, environment overrides, and a remote JSON fallback. The priorities below are inspected in descending order; the HTTP source is reached when higher sources report `NotFound`.
+
+```csharp
+using Configlue.Provider.Json;
+using Configlue.Resource.Http;
+using Configlue.Source.Environment;
+
+config.Add<AppSettings>(model => model.Sources(sources =>
+{
+    sources.FromJsonFile(new()
+    {
+        Id = "settings-file",
+        Path = "settings.json",
+        Priority = 100,
+    });
+    sources.FromEnvironment(new()
+    {
+        Id = "settings-environment",
+        Prefix = "APP",
+        Priority = 200,
+    });
+    sources.FromJsonHttp(new()
+    {
+        Id = "settings-remote",
+        EndPoint = "https://settings.example.test/app/",
+        Client = httpClient,
+        Priority = 10,
+        ResourceOptions = new HttpResourceOptions { WatchChanges = false },
+    });
+}));
+```
+
+Facade runtimes use `ILoggerFactory` from DI when one is registered. Non-DI callers can set `Logger` on `ConfiglueModelBuilder<TModel>`, and callers constructing `ConfiglueOptions<TModel, TFragment>` directly can pass its optional `logger` argument. Logging is optional; source read decisions, watcher failures, writes, migration outcomes, and revision conflicts use structured metadata such as model, options name, source ID, physical origin, and resource ID.
+
 Host applications can register named clients with the standard `AddHttpClient` APIs and pass them to facade sources through `FromHttpClientFactory`. For JSON endpoints, `FromJsonHttp` and `FromJsonHttpClientFactory` create the JSON codec for you; set `Writable = true` only when the endpoint supports updates. These sources are read-only by default. Configure base addresses, authentication, retry handlers, and timeouts on each named client as usual. The source resolves its client when the Configlue context is created; `IHttpClientFactory` manages the underlying handlers, and the source does not dispose the returned client. Register separate names and endpoint roots for distinct services. Use `FromHttp` when an endpoint uses a codec other than JSON.
 
 ```csharp

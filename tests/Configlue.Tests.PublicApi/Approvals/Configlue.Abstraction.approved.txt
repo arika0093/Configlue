@@ -71,6 +71,16 @@ namespace Configlue
         public Configlue.IConfiglueFragment CreateEmptyFragment() { }
         public Configlue.StateSchemaMetadata ToMetadata() { }
     }
+    public sealed class ConfiglueOptionsDiagnostics
+    {
+        public ConfiglueOptionsDiagnostics(string optionsName, System.Collections.Generic.IEnumerable<Configlue.ConfiglueSourceDiagnostics> sources, string? defaultWriteSourceId, bool defaultUsesHighestPriorityWritable, System.Collections.Generic.IReadOnlyDictionary<string, string> propertyWriteRoutes) { }
+        public bool DefaultUsesHighestPriorityWritable { get; }
+        public string? DefaultWriteSourceId { get; }
+        public string OptionsName { get; }
+        public System.Collections.Generic.IReadOnlyDictionary<string, string> PropertyWriteRoutes { get; }
+        public System.Collections.Generic.IReadOnlyList<Configlue.ConfiglueSourceDiagnostics> Sources { get; }
+        public string? GetWriteSourceId(string? propertyPath = null) { }
+    }
     [System.AttributeUsage(System.AttributeTargets.Class | System.AttributeTargets.Struct, AllowMultiple=true, Inherited=false)]
     public sealed class ConfigluePreviousVersionAttribute : System.Attribute
     {
@@ -90,6 +100,19 @@ namespace Configlue
         public string? Revision { get; init; }
         public string SourceId { get; init; }
         public object? Value { get; init; }
+    }
+    public sealed class ConfiglueSourceDiagnostics
+    {
+        public ConfiglueSourceDiagnostics(string id, int priority, Configlue.StateFallbackCondition fallbackCondition, bool canRead, bool canWrite, bool canWatch, bool isActive, string? physicalOrigin, Configlue.ResourceId? resourceId) { }
+        public bool CanRead { get; }
+        public bool CanWatch { get; }
+        public bool CanWrite { get; }
+        public Configlue.StateFallbackCondition FallbackCondition { get; }
+        public string Id { get; }
+        public bool IsActive { get; }
+        public int Priority { get; }
+        public string? PhysicalOrigin { get; }
+        public Configlue.ResourceId? ResourceId { get; }
     }
     public static class ConfiglueValueComparer
     {
@@ -209,6 +232,7 @@ namespace Configlue
     public interface IReadOnlyOptions<T>
     {
         System.Threading.Tasks.ValueTask<Configlue.ConfiglueValueExplanation> ExplainAsync(string propertyPath, System.Threading.CancellationToken cancellationToken = default);
+        Configlue.ConfiglueOptionsDiagnostics GetDiagnostics();
         System.Threading.Tasks.ValueTask<T> GetValueAsync(System.Threading.CancellationToken cancellationToken = default);
         System.IDisposable OnChange(System.Action<T> listener);
         System.Threading.Tasks.ValueTask<Configlue.StateReadResult<T>> ReadAsync(System.Threading.CancellationToken cancellationToken = default);

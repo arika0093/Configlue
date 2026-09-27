@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace Configlue;
@@ -74,6 +75,7 @@ public sealed class ConfiglueModelBuilder<TModel>
     private bool _validateDataAnnotations;
     private bool _enableDynamicOptions;
     private TimeSpan? _onChangeDebounce;
+    private ILogger? _logger;
     private bool _sealed;
 
     /// <summary>The name used by named options and profiles. The default is the unnamed instance.</summary>
@@ -118,6 +120,17 @@ public sealed class ConfiglueModelBuilder<TModel>
         {
             EnsureMutable();
             _enableDynamicOptions = value;
+        }
+    }
+
+    /// <summary>An optional logger used by this runtime; DI loggers are resolved automatically when omitted.</summary>
+    public ILogger? Logger
+    {
+        get => _logger;
+        set
+        {
+            EnsureMutable();
+            _logger = value;
         }
     }
 
@@ -279,6 +292,19 @@ public sealed class ConfiglueModelBuilder<TModel>
     internal StateSource<ConfiglueProfileCatalog>? ProfileCatalogSource => _profileCatalogSource;
     internal string DefaultProfileName => _defaultProfileName;
 
+    /// <summary>Gets the explicitly configured logger or creates one from the service provider.</summary>
+    public ILogger? GetLogger(IServiceProvider? serviceProvider)
+    {
+        if (_logger is not null)
+        {
+            return _logger;
+        }
+
+        return (
+            serviceProvider?.GetService(typeof(ILoggerFactory)) as ILoggerFactory
+        )?.CreateLogger($"Configlue.Options.{typeof(TModel).FullName}.{OptionsName}");
+    }
+
     internal ConfiglueModelBuilder<TModel> CloneForOptionsName(string optionsName)
     {
         var clone = new ConfiglueModelBuilder<TModel>
@@ -289,6 +315,7 @@ public sealed class ConfiglueModelBuilder<TModel>
             ValidateDataAnnotations = _validateDataAnnotations,
             EnableDynamicOptions = _enableDynamicOptions,
             OnChangeDebounce = _onChangeDebounce,
+            Logger = _logger,
         };
         clone._sources.CopyFrom(_sources);
         clone._validators.AddRange(_validators);
