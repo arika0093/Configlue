@@ -55,6 +55,17 @@ mappings =>
 }));
 ```
 
+Mappings convert parsed values directly to member types without JSON serialization, so they work under NativeAOT. Attach a converter for custom shapes, fan one symbol out to several members, or target one member from several symbols (the last present mapping wins):
+
+```csharp
+mappings.Map(databaseOption, "Database.Host", static value => value?.Split(':')[0]);
+mappings.Map(databaseOption, "Database.Port", static value => int.Parse(value?.Split(':')[1] ?? "0", CultureInfo.InvariantCulture));
+mappings.Map(firstOption, "RetryCount");
+mappings.Map(secondOption, "RetryCount"); // wins when both are present
+```
+
+The package builds against System.CommandLine 2.0.12 and uses only APIs that also exist in the 3.x line. To verify another line, build with `-p:ConfiglueSystemCommandLineVersion=<version>` (for example `3.0.0-rc.1.26425.128`).
+
 ## Next steps
 
 * [HTTP and ZIP](./http-and-zip.md) for remote and archive sources.

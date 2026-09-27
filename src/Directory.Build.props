@@ -16,6 +16,8 @@
     <RepositoryUrl>https://github.com/arika0093/Configlue</RepositoryUrl>
     <PackageProjectUrl>https://github.com/arika0093/Configlue</PackageProjectUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>
+    <!-- Override with -p:ConfiglueSystemCommandLineVersion=... to verify other System.CommandLine lines. -->
+    <ConfiglueSystemCommandLineVersion Condition="'$(ConfiglueSystemCommandLineVersion)' == ''">2.0.12</ConfiglueSystemCommandLineVersion>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Nerdbank.GitVersioning" Version="3.*" PrivateAssets="all">
