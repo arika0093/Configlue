@@ -29,8 +29,16 @@ The foundation is in place: backend-neutral read/write/watch contracts, prioriti
 
 * Writes across different resources are not atomic.
 * Source retirement is scoped to the current options instance and leaves backing data intact; callers must update source registration for future process starts.
-* A source set is fixed for an options runtime. Applications replace it by building a new context and coordinating the handoff; verified migration can retire sources from the current runtime.
+* A source set is fixed for an options runtime. Dynamic named options and persistent profiles can create or remove whole runtimes, each with its own source set. Applications can change a running application's topology by building a new context and coordinating the handoff; verified migration can retire sources from the current runtime.
 * The migration journal persists progress but does not coordinate concurrent processes. Applications must ensure that only one process runs a given migration ID at a time.
 * Watchers provide invalidation signals. Provider-specific polling, retry, and reconnection policies remain the provider's responsibility.
+
+## Runtime source topology decision
+
+Configlue does not currently replace the source set of an existing options identity in place. That API is deferred: dynamic options and `SourcesForOptions` already cover independently configured names, while a complete context handoff covers application-wide changes. No same-name hot-swap requirement has been established that would justify changing the live-handle contract.
+
+If a concrete use case requires changing one options identity without rebuilding its consumers, implement replacement as a whole-runtime transition. The implementation must build and validate the candidate source set before publishing it; scope the change to that options identity; define whether previously returned handles finish against the old runtime or follow the replacement; stop new operations on the old runtime and drain its operations and watcher before disposing helper-created resources; and update registry notifications and topology diagnostics consistently. Revision checks must prevent an edit started against the old runtime from writing a mixed old/new source set. Data movement remains explicit: migrate selected source contributions, verify targets, then retire old sources. Shared resources must retain `ResourceId`-based write grouping and overlap checks across the transition.
+
+Until those conditions are specified by a real use case, build a new context, migrate explicitly when required, switch the application's consumers, and dispose the old context. See [dynamic options](../profiles/dynamic-options.md) for the current per-name lifecycle.
 
 The current API is an architectural foundation rather than a feature-complete replacement for Configuration.Writable.
