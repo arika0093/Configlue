@@ -129,6 +129,25 @@ namespace Configlue
         public void Add<TFragment>(System.Func<System.IServiceProvider?, Configlue.StateSource<TFragment>> sourceFactory)
             where TFragment :  class, Configlue.IConfiglueFragment<TFragment> { }
     }
+    public static class ConfiglueSourceSetBuilderMountExtensions
+    {
+        public static void AddMounted<TRootFragment, TSubtreeFragment>(this Configlue.ConfiglueSourceSetBuilder sources, Configlue.StateSource<TSubtreeFragment> source, string propertyPath)
+            where TRootFragment :  class, Configlue.IConfiglueFragment<TRootFragment>
+            where TSubtreeFragment :  class, Configlue.IConfiglueFragment<TSubtreeFragment> { }
+        public static void AddMounted<TRootFragment, TSubtreeFragment>(this Configlue.ConfiglueSourceSetBuilder sources, System.Func<System.IServiceProvider?, Configlue.StateSource<TSubtreeFragment>> sourceFactory, string propertyPath)
+            where TRootFragment :  class, Configlue.IConfiglueFragment<TRootFragment>
+            where TSubtreeFragment :  class, Configlue.IConfiglueFragment<TSubtreeFragment> { }
+        public static void AddMounted<TModel, TRootFragment, TSubtreeModel, TSubtreeFragment>(this Configlue.ConfiglueSourceSetBuilder sources, Configlue.StateSource<TSubtreeFragment> source, System.Linq.Expressions.Expression<System.Func<TModel, TSubtreeModel?>> subtreeSelector)
+            where TModel : Configlue.IConfiglueModel<TModel, TRootFragment>
+            where TRootFragment :  class, Configlue.IConfiglueFragment<TRootFragment>
+            where TSubtreeModel :  class, Configlue.IConfiglueModel<TSubtreeModel, TSubtreeFragment>
+            where TSubtreeFragment :  class, Configlue.IConfiglueFragment<TSubtreeFragment> { }
+        public static void AddMounted<TModel, TRootFragment, TSubtreeModel, TSubtreeFragment>(this Configlue.ConfiglueSourceSetBuilder sources, System.Func<System.IServiceProvider?, Configlue.StateSource<TSubtreeFragment>> sourceFactory, System.Linq.Expressions.Expression<System.Func<TModel, TSubtreeModel?>> subtreeSelector)
+            where TModel : Configlue.IConfiglueModel<TModel, TRootFragment>
+            where TRootFragment :  class, Configlue.IConfiglueFragment<TRootFragment>
+            where TSubtreeModel :  class, Configlue.IConfiglueModel<TSubtreeModel, TSubtreeFragment>
+            where TSubtreeFragment :  class, Configlue.IConfiglueFragment<TSubtreeFragment> { }
+    }
     public static class ConfiglueStandardPaths
     {
         public static string GetStandardSaveDirectory(string applicationId) { }

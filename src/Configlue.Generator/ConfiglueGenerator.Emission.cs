@@ -288,10 +288,25 @@ public sealed partial class ConfiglueGenerator
                 .Append(valueType)
                 .Append("), global::Configlue.MergeMode.")
                 .Append(MergeModeName(member.MergeMode))
-                .AppendLine("),");
+                .Append(", null, ");
+            if (member.ChildModel is null)
+            {
+                code.Append("null");
+            }
+            else
+            {
+                code.Append("static () => ")
+                    .Append(NonNullableTypeName(member.ChildModel))
+                    .Append(".FragmentSchema");
+            }
+
+            code.AppendLine("),");
         }
 
-        code.AppendLineAt(1, "});");
+        code.AppendIndent(1)
+            .Append("}, static () => ")
+            .Append(modelType)
+            .AppendLine(".Fragment.Empty);");
     }
 
     private static void AppendDeepClone(

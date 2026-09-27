@@ -437,6 +437,9 @@ namespace Configlue
     }
     public static class StateSourceProjection
     {
+        public static Configlue.StateSource<TTarget> Mount<TSource, TTarget>(Configlue.StateSource<TSource> source, string propertyPath, Configlue.StateSchemaMetadata? projectedSchema = default)
+            where TSource :  class, Configlue.IConfiglueFragment<TSource>
+            where TTarget :  class, Configlue.IConfiglueFragment<TTarget> { }
         public static Configlue.StateSource<TTarget> Project<TSource, TTarget>(Configlue.StateSource<TSource> source, System.Func<TSource, TTarget> toTarget, System.Func<TTarget, TSource>? toSource = null, Configlue.StateSchemaMetadata? projectedSchema = default, System.Collections.Generic.IEnumerable<Configlue.IStateSchemaMigration<TSource>>? sourceMigrations = null, Configlue.StateSchemaMetadata? sourceSchema = default) { }
     }
     public sealed class StateSourceSet<T>

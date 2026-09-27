@@ -4,6 +4,60 @@ namespace Configlue;
 public static class StateSourceProjection
 {
     /// <summary>
+    /// Mounts a generated subtree fragment into its matching nested member of a root fragment.
+    /// The mounted source is read-only; reverse writes require an explicit binding contract.
+    /// </summary>
+    /// <typeparam name="TSource">The generated fragment for the nested model.</typeparam>
+    /// <typeparam name="TTarget">The generated root fragment.</typeparam>
+    /// <param name="source">The nested source to mount.</param>
+    /// <param name="propertyPath">The dotted logical path to the nested model.</param>
+    /// <param name="projectedSchema">Optional schema metadata for the root fragment.</param>
+    public static StateSource<TTarget> Mount<TSource, TTarget>(
+        StateSource<TSource> source,
+        string propertyPath,
+        StateSchemaMetadata? projectedSchema = null
+    )
+        where TSource : class, IConfiglueFragment<TSource>
+        where TTarget : class, IConfiglueFragment<TTarget>
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentException.ThrowIfNullOrWhiteSpace(propertyPath);
+        var path = propertyPath.Split('.', StringSplitOptions.None);
+        if (path.Any(string.IsNullOrWhiteSpace))
+        {
+            throw new ArgumentException(
+                "A mount path cannot contain empty segments.",
+                nameof(propertyPath)
+            );
+        }
+
+        var rootSchema = TTarget.Empty.Schema;
+        var sourceSchema = TSource.Empty.Schema;
+        _ = CreateMountedFragment(
+            rootSchema,
+            path,
+            0,
+            TSource.Empty,
+            sourceSchema.ModelType,
+            propertyPath
+        );
+        var mounted = Project(
+            source,
+            fragment =>
+                (TTarget)CreateMountedFragment(
+                    rootSchema,
+                    path,
+                    0,
+                    fragment,
+                    sourceSchema.ModelType,
+                    propertyPath
+                ),
+            projectedSchema: projectedSchema ?? rootSchema.ToMetadata()
+        );
+        return mounted;
+    }
+
+    /// <summary>
     /// Adapts a typed source so it contributes a projected value to another source set.
     /// Source-schema migrations should run before projection. <paramref name="projectedSchema"/>, when supplied,
     /// describes the projected value and is passed to the target runtime's migration pipeline.
@@ -117,6 +171,62 @@ public static class StateSourceProjection
                 result.Revisions
             );
         }
+    }
+
+    private static IConfiglueFragment CreateMountedFragment(
+        ConfiglueModelSchema targetSchema,
+        IReadOnlyList<string> path,
+        int pathIndex,
+        IConfiglueFragment sourceFragment,
+        Type sourceModelType,
+        string propertyPath
+    )
+    {
+        var matches = targetSchema
+            .Members.Where(member =>
+                string.Equals(member.Name, path[pathIndex], StringComparison.OrdinalIgnoreCase)
+            )
+            .ToArray();
+        if (matches.Length != 1)
+        {
+            throw new ArgumentException(
+                $"Mount path '{propertyPath}' has an unknown or ambiguous member '{path[pathIndex]}' in model '{targetSchema.ModelType}'.",
+                nameof(propertyPath)
+            );
+        }
+
+        var member = matches[0];
+        var nestedSchema = member.NestedSchemaFactory?.Invoke();
+        if (nestedSchema is null)
+        {
+            throw new ArgumentException(
+                $"Mount path '{propertyPath}' continues through non-nested member '{member.Name}'.",
+                nameof(propertyPath)
+            );
+        }
+
+        if (pathIndex == path.Count - 1)
+        {
+            if (nestedSchema.ModelType != sourceModelType)
+            {
+                throw new ArgumentException(
+                    $"Mount path '{propertyPath}' expects fragment model '{nestedSchema.ModelType}', but source fragment model is '{sourceModelType}'.",
+                    nameof(propertyPath)
+                );
+            }
+
+            return targetSchema.CreateEmptyFragment().WithMember(member.Id, sourceFragment);
+        }
+
+        var nestedFragment = CreateMountedFragment(
+            nestedSchema,
+            path,
+            pathIndex + 1,
+            sourceFragment,
+            sourceModelType,
+            propertyPath
+        );
+        return targetSchema.CreateEmptyFragment().WithMember(member.Id, nestedFragment);
     }
 
     private sealed class ProjectedWriter<TSource, TTarget>(

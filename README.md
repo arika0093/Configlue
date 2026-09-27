@@ -172,6 +172,19 @@ For profiles created during runtime, register `AddConfiglueOptionsRegistry<TMode
 Use `AddConfiglueProfiledOptions<TModel, TFragment>(profileSourceSetFactory, catalogSourceFactory)` when profile names and the active profile must survive restarts. The catalog is stored through a normal writable `StateSource<ConfiglueProfileCatalog>`, so its provider can be chosen independently. `IConfiglueProfiledOptions<TModel>` lazily restores or creates the default profile on its first async operation, can copy a profile with `CreateProfileAsync`, and persists active-profile changes. Removing a profile removes it from the catalog and runtime; its backing state is retained.
 File resources keep one atomic `.bak` generation by default; `FileResourceOptions` can retain more generations in a chosen directory, and `RestoreLatestBackupAsync` restores the newest one explicitly.
 Use `StateSourceProjection.Project` to migrate and map a source-specific fragment into a nested model fragment; provide a reverse projection to enable writes to that source.
+When the source fragment already matches a generated nested model, mount it with `StateSourceProjection.Mount<TSubtreeFragment, TRootFragment>(source, "Policy")` or register it with the typed selector `sources.AddMounted<TModel, TRootFragment, TSubtreeModel, TSubtreeFragment>(source, model => model.Policy)`. The selector checks both the member path and subtree model/fragment types at compile time; the string overload is available when a path is composed dynamically and validates it against the generated schema during registration. A partial mounted fragment contributes only its present members. The mount retains the source ID, priority, revision, resource identity, and physical origin, and it is read-only; writes require a reverse-binding contract. For a distinct source DTO, first use `StateSourceProjection.Project` (including source-schema migrations) to map it to the nested model fragment, then mount that projected source.
+
+```csharp
+model.Sources(sources =>
+{
+    sources.FromJsonFile(new() { Id = "settings", Path = "settings.json", Priority = 10 });
+    sources.AddMounted<AppSettings, AppSettings.Fragment, PolicySettings, PolicySettings.Fragment>(
+        policyHttpSource,
+        model => model.Policy);
+});
+```
+
+The full JSON source and the mounted HTTP source can contribute different members of `AppSettings.Policy`; missing HTTP members fall through to JSON. Mount multiple nested fragments to split one model across sources. Section resources can also share one physical `ResourceId` while retaining distinct source IDs and priorities.
 Use `SerializedStateSource.FromResource<T>` to compose a resource and a codec into a typed source with automatic writer and watcher detection.
 Use `FallbackStateSource<TFragment>` to group serialized representations of the same logical state, such as a canonical JSON file and a legacy YAML file. It reads the first successful candidate by priority, subject to each candidate's fallback condition, and exposes that candidate as one source, so values from separate formats are never overlaid. By default, writes go to the active writable candidate, or the highest-priority writable candidate when none is active; set `writeSourceId` to route edits to a fixed candidate such as the canonical file. This does not copy state on creation or delete the other representations, and the candidate sources and resources remain caller-owned.
 Resources can expose a stable `ResourceId` separately from logical source IDs and physical-origin labels; section views inherit the underlying identity, and custom resources can implement `IResourceIdentity` or supply an ID to `SerializedStateSource.FromResource`, `StateSource`, or a section view.
