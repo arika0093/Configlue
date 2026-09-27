@@ -58,7 +58,7 @@ edit.Update(value => value.SomeSetting = newValue);
 await edit.SaveAsync();
 ```
 
-`Value` and `CurrentValue` expose the draft directly. `Update` edits it in place; the reset helpers restore the whole draft or selected members from the loaded snapshot or a fresh model-default value.
+`Value` and `CurrentValue` expose the draft directly. `Update` edits it in place; the reset helpers restore the whole draft or selected members from the loaded snapshot or a fresh model-default value. Sessions returned by `BeginConfigureAsync` know both baselines. A session constructed directly with the two-argument constructor has no model-default baseline, so `ResetToDefault` requires the overload that supplies one.
 
 A per-operation `StateWritePlan` can split the session across sources — see [Write routing](../layering/write-routing.md).
 

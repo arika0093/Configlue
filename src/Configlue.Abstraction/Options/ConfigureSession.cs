@@ -8,11 +8,14 @@ public sealed class ConfigureSession<T> : IDisposable
     private readonly Func<T, T> _clone;
     private readonly T _loadedValue;
     private readonly T _defaultValue;
+    private readonly bool _hasLoadedValue;
+    private readonly bool _hasDefaultValue;
     private int _state;
 
     /// <summary>Creates a configure session around a staged value and its save operation.</summary>
+    /// <remarks>The initial value is the loaded baseline. Default resets require the baseline overload.</remarks>
     public ConfigureSession(T value, Func<T, CancellationToken, ValueTask<StateWriteResult>> save)
-        : this(value, save, Clone, value, value) { }
+        : this(value, save, Clone, value, value, hasDefaultValue: false) { }
 
     /// <summary>Creates a configure session with independent loaded and default baselines.</summary>
     public ConfigureSession(
@@ -22,11 +25,26 @@ public sealed class ConfigureSession<T> : IDisposable
         T loadedValue,
         T defaultValue
     )
+        : this(value, save, clone, loadedValue, defaultValue, hasDefaultValue: true) { }
+
+    private ConfigureSession(
+        T value,
+        Func<T, CancellationToken, ValueTask<StateWriteResult>> save,
+        Func<T, T> clone,
+        T loadedValue,
+        T defaultValue,
+        bool hasDefaultValue
+    )
     {
         _save = save ?? throw new ArgumentNullException(nameof(save));
         _clone = clone ?? throw new ArgumentNullException(nameof(clone));
         _loadedValue = _clone(loadedValue);
         _defaultValue = _clone(defaultValue);
+        _hasLoadedValue =
+            typeof(T).IsValueType
+            || typeof(T) == typeof(string)
+            || !ReferenceEquals(loadedValue, _loadedValue);
+        _hasDefaultValue = hasDefaultValue;
         Value = _clone(value);
     }
 
@@ -51,6 +69,7 @@ public sealed class ConfigureSession<T> : IDisposable
     public void ResetToLoaded()
     {
         EnsureEditable();
+        EnsureLoadedValue();
         Value = _clone(_loadedValue);
     }
 
@@ -59,6 +78,7 @@ public sealed class ConfigureSession<T> : IDisposable
     {
         ArgumentNullException.ThrowIfNull(reset);
         EnsureEditable();
+        EnsureLoadedValue();
         reset(Value, _clone(_loadedValue));
     }
 
@@ -66,6 +86,7 @@ public sealed class ConfigureSession<T> : IDisposable
     public void ResetToDefault()
     {
         EnsureEditable();
+        EnsureDefaultValue();
         Value = _clone(_defaultValue);
     }
 
@@ -74,6 +95,7 @@ public sealed class ConfigureSession<T> : IDisposable
     {
         ArgumentNullException.ThrowIfNull(reset);
         EnsureEditable();
+        EnsureDefaultValue();
         reset(Value, _clone(_defaultValue));
     }
 
@@ -111,6 +133,26 @@ public sealed class ConfigureSession<T> : IDisposable
         {
             throw new InvalidOperationException(
                 "This configure session is already saving, committed, or disposed."
+            );
+        }
+    }
+
+    private void EnsureDefaultValue()
+    {
+        if (!_hasDefaultValue)
+        {
+            throw new InvalidOperationException(
+                "This configure session was not given a model-default baseline."
+            );
+        }
+    }
+
+    private void EnsureLoadedValue()
+    {
+        if (!_hasLoadedValue)
+        {
+            throw new InvalidOperationException(
+                "This configure session's loaded baseline could not be cloned."
             );
         }
     }
