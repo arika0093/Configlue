@@ -7,6 +7,18 @@ description: Bind source fragments into nested models, reversibly when needed.
 
 When the source fragment already matches a generated nested model, mount it with `StateSourceProjection.Mount<TSubtreeFragment, TRootFragment>(source, "Policy")` or register it with the typed selector `sources.AddMounted<TModel, TRootFragment, TSubtreeModel, TSubtreeFragment>(source, model => model.Policy)`. The selector checks both the member path and subtree model/fragment types at compile time; the string overload is available when a path is composed dynamically and validates it against the generated schema during registration. If the source has a writer, Configlue extracts the sparse subtree fragment from writes automatically; a reader-only source stays read-only. A present-null whole subtree cannot be written through a subtree fragment and raises an error.
 
+JSON file sources can be mounted directly in the model's source set:
+
+```csharp
+model.Sources(sources =>
+{
+    sources.JsonFile("settings.json").ReadOnly();
+    sources.JsonFile("secrets.json")
+        .Mount(settings => settings.Policy)
+        .Priority(100);
+});
+```
+
 ```csharp
 model.Sources(sources =>
 {

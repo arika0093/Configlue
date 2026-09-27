@@ -14,7 +14,11 @@ public sealed record JsonFileSourceSelector
 
     internal string SourceId { get; init; }
 
-    internal static string CreateSourceId(string path, string? sectionPath)
+    internal static string CreateSourceId(
+        string path,
+        string? sectionPath,
+        string? mountPath = null
+    )
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
         var canonicalPath = Path.GetFullPath(path);
@@ -26,7 +30,9 @@ public sealed record JsonFileSourceSelector
         canonicalPath = canonicalPath.Normalize(NormalizationForm.FormKC);
         var canonicalSection =
             sectionPath?.Trim().Normalize(NormalizationForm.FormKC) ?? string.Empty;
-        var identity = $"configlue-json-file-v1\n{canonicalPath}\n{canonicalSection}";
+        var canonicalMount = mountPath?.Trim().Normalize(NormalizationForm.FormKC) ?? string.Empty;
+        var identity =
+            $"configlue-json-file-v1\n{canonicalPath}\n{canonicalSection}\n{canonicalMount}";
         var hash = SHA256.HashData(Encoding.UTF8.GetBytes(identity));
         return $"json-file:{Convert.ToHexString(hash).ToLowerInvariant()}";
     }
@@ -36,15 +42,25 @@ public sealed record JsonFileSourceSelector
 public static class JsonFileSource
 {
     /// <summary>Selects a JSON file source by path and optional JSON document section.</summary>
-    public static JsonFileSourceSelector At(string path, string? sectionPath = null)
+    public static JsonFileSourceSelector At(
+        string path,
+        string? sectionPath = null,
+        string? mountPath = null
+    )
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
         if (sectionPath is not null && string.IsNullOrWhiteSpace(sectionPath))
         {
             throw new ArgumentException("A section path cannot be empty.", nameof(sectionPath));
         }
+        if (mountPath is not null && string.IsNullOrWhiteSpace(mountPath))
+        {
+            throw new ArgumentException("A mount path cannot be empty.", nameof(mountPath));
+        }
 
-        return new JsonFileSourceSelector(JsonFileSourceSelector.CreateSourceId(path, sectionPath));
+        return new JsonFileSourceSelector(
+            JsonFileSourceSelector.CreateSourceId(path, sectionPath, mountPath)
+        );
     }
 }
 

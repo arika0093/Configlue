@@ -110,7 +110,7 @@ using Configlue.Provider.Json;
 await options.Source(JsonFileSource.At("./settings.json")).SaveAsync(patch);
 ```
 
-This path-derived selector matches a source registered without `JsonFileSourceOptions.Id`. If you provide an explicit ID, select it with the corresponding `SourceKey<TModel>`.
+This path-derived selector matches a source registered without `JsonFileSourceOptions.Id`. For a mounted source, pass its model path as `mountPath`, for example `JsonFileSource.At("./secrets.json", mountPath: "Secrets")`. If you provide an explicit ID, select it with the corresponding `SourceKey<TModel>`.
 
 ## Next steps
 

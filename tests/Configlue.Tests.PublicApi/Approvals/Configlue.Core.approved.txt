@@ -79,9 +79,13 @@ namespace Configlue
             where TFragment :  class, Configlue.IConfiglueFragment<TFragment> { }
         public System.Collections.Generic.IReadOnlyList<Configlue.IConfiglueValidator<TModel>> GetValidators(System.IServiceProvider? serviceProvider) { }
         public void Sources(System.Action<Configlue.ConfiglueSourceSetBuilder> configure) { }
+        public void Sources(System.Action<Configlue.ConfiglueSourceSetBuilder<TModel>> configure) { }
         public void Sources(System.Action<System.IServiceProvider?, Configlue.ConfiglueSourceSetBuilder> configure) { }
+        public void Sources(System.Action<System.IServiceProvider?, Configlue.ConfiglueSourceSetBuilder<TModel>> configure) { }
         public void SourcesForOptions(System.Action<string, Configlue.ConfiglueSourceSetBuilder> configure) { }
+        public void SourcesForOptions(System.Action<string, Configlue.ConfiglueSourceSetBuilder<TModel>> configure) { }
         public void SourcesForOptions(System.Action<string, System.IServiceProvider?, Configlue.ConfiglueSourceSetBuilder> configure) { }
+        public void SourcesForOptions(System.Action<string, System.IServiceProvider?, Configlue.ConfiglueSourceSetBuilder<TModel>> configure) { }
         public void UseCloneStrategy(System.Func<TModel, TModel> cloneStrategy) { }
     }
     public sealed class ConfiglueOptionsRegistry<TModel, TFragment> : Configlue.IConfiglueOptionsRegistryNotificationDeferrer<TModel>, Configlue.IConfiglueOptionsRegistry<TModel>, System.IAsyncDisposable, System.IDisposable
@@ -146,9 +150,10 @@ namespace Configlue
         public System.Threading.Tasks.ValueTask<Configlue.StateWriteResult> SaveAsync(TModel value, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask SetActiveProfileAsync(string profileName, System.Threading.CancellationToken cancellationToken = default) { }
     }
-    public sealed class ConfiglueSourceSetBuilder
+    public class ConfiglueSourceSetBuilder
     {
         public ConfiglueSourceSetBuilder() { }
+        public bool IsSealed { get; }
         public void Add(Configlue.IConfiglueSourceDefinition definition) { }
         public void Add<TFragment>(Configlue.StateSource<TFragment> source)
             where TFragment :  class, Configlue.IConfiglueFragment<TFragment> { }
@@ -193,6 +198,12 @@ namespace Configlue
             where TRootFragment :  class, Configlue.IConfiglueFragment<TRootFragment>
             where TSubtreeModel :  class, Configlue.IConfiglueModel<TSubtreeModel, TSubtreeFragment>
             where TSubtreeFragment :  class, Configlue.IConfiglueFragment<TSubtreeFragment> { }
+    }
+    public sealed class ConfiglueSourceSetBuilder<TModel> : Configlue.ConfiglueSourceSetBuilder
+        where TModel : Configlue.IConfiglueFacadeModel<TModel>
+    {
+        public ConfiglueSourceSetBuilder() { }
+        public System.Type ModelType { get; }
     }
     public static class ConfiglueStandardPaths
     {

@@ -1,0 +1,196 @@
+namespace Configlue;
+
+/// <summary>Collects typed state sources without requiring a Fragment type argument on the model API.</summary>
+public class ConfiglueSourceSetBuilder
+{
+    private readonly List<IConfiglueSourceRegistration> _sources = [];
+    private bool _sealed;
+
+    /// <summary>Whether this source set has been built or its model registration has been sealed.</summary>
+    public bool IsSealed => _sealed;
+
+    /// <summary>Adds an already-created source. Its resource instances remain caller-owned.</summary>
+    public void Add<TFragment>(StateSource<TFragment> source)
+        where TFragment : class, IConfiglueFragment<TFragment>
+    {
+        EnsureMutable();
+        ArgumentNullException.ThrowIfNull(source);
+        _sources.Add(new ConfiglueSourceRegistration<TFragment>(_ => source));
+    }
+
+    /// <summary>Adds a source under a typed key, preserving its reader, writer, watcher, and resource identity.</summary>
+    public void Add<TModel, TFragment>(SourceKey<TModel> sourceKey, StateSource<TFragment> source)
+        where TFragment : class, IConfiglueFragment<TFragment>
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        Add(sourceKey, _ => source);
+    }
+
+    /// <summary>Adds a provider-aware source factory under a typed key.</summary>
+    public void Add<TModel, TFragment>(
+        SourceKey<TModel> sourceKey,
+        Func<IServiceProvider?, StateSource<TFragment>> sourceFactory
+    )
+        where TFragment : class, IConfiglueFragment<TFragment>
+    {
+        EnsureMutable();
+        ArgumentNullException.ThrowIfNull(sourceFactory);
+        if (string.IsNullOrWhiteSpace(sourceKey.Id))
+        {
+            throw new ArgumentException("The source key is uninitialized.", nameof(sourceKey));
+        }
+
+        _sources.Add(
+            new ConfiglueSourceRegistration<TFragment>(provider =>
+            {
+                var source =
+                    sourceFactory(provider)
+                    ?? throw new InvalidOperationException("A source factory returned null.");
+                return new StateSource<TFragment>(
+                    sourceKey.Id,
+                    source.Reader,
+                    source.Priority,
+                    source.FallbackCondition,
+                    source.Writer,
+                    source.Watcher,
+                    source.PhysicalOrigin,
+                    source.ResourceId
+                );
+            })
+        );
+    }
+
+    /// <summary>Adds a source factory. The service provider is null in a non-DI context.</summary>
+    public void Add<TFragment>(Func<IServiceProvider?, StateSource<TFragment>> sourceFactory)
+        where TFragment : class, IConfiglueFragment<TFragment>
+    {
+        EnsureMutable();
+        ArgumentNullException.ThrowIfNull(sourceFactory);
+        _sources.Add(new ConfiglueSourceRegistration<TFragment>(sourceFactory));
+    }
+
+    /// <summary>Adds a provider-defined source using the generated model's fragment type.</summary>
+    public void Add(IConfiglueSourceDefinition definition)
+    {
+        EnsureMutable();
+        ArgumentNullException.ThrowIfNull(definition);
+        _sources.Add(new ConfiglueSourceDefinitionRegistration(definition));
+    }
+
+    internal StateSourceSet<TFragment> Build<TFragment>(IServiceProvider? serviceProvider)
+        where TFragment : class, IConfiglueFragment<TFragment> =>
+        Build<TFragment>(default!, serviceProvider, static _ => { });
+
+    internal StateSourceSet<TFragment> Build<TFragment>(
+        ConfiglueModelSchema? modelSchema,
+        IServiceProvider? serviceProvider,
+        Action<IDisposable> ownResource
+    )
+        where TFragment : class, IConfiglueFragment<TFragment>
+    {
+        Seal();
+        if (modelSchema is null && _sources.Any(static source => source.RequiresGeneratedModel))
+        {
+            throw new InvalidOperationException(
+                "Provider source definitions require the generated facade to supply model metadata and resource ownership."
+            );
+        }
+
+        var sources = new List<StateSource<TFragment>>(_sources.Count);
+        foreach (var registration in _sources)
+        {
+            sources.Add(registration.Create<TFragment>(modelSchema, serviceProvider, ownResource));
+        }
+
+        return new StateSourceSet<TFragment>(sources);
+    }
+
+    internal void CopyFrom(ConfiglueSourceSetBuilder source)
+    {
+        if (_sealed)
+            throw new InvalidOperationException("The source registration has already been added.");
+        _sources.AddRange(source._sources);
+    }
+
+    internal void Seal() => _sealed = true;
+
+    private void EnsureMutable()
+    {
+        if (_sealed)
+        {
+            throw new InvalidOperationException("The source registration has already been added.");
+        }
+    }
+
+    private interface IConfiglueSourceRegistration
+    {
+        bool RequiresGeneratedModel { get; }
+
+        StateSource<TFragment> Create<TFragment>(
+            ConfiglueModelSchema? modelSchema,
+            IServiceProvider? serviceProvider,
+            Action<IDisposable> ownResource
+        )
+            where TFragment : class, IConfiglueFragment<TFragment>;
+    }
+
+    private sealed class ConfiglueSourceRegistration<TFragment>(
+        Func<IServiceProvider?, StateSource<TFragment>> sourceFactory
+    ) : IConfiglueSourceRegistration
+        where TFragment : class, IConfiglueFragment<TFragment>
+    {
+        public bool RequiresGeneratedModel => false;
+
+        public StateSource<TRequestedFragment> Create<TRequestedFragment>(
+            ConfiglueModelSchema? modelSchema,
+            IServiceProvider? serviceProvider,
+            Action<IDisposable> ownResource
+        )
+            where TRequestedFragment : class, IConfiglueFragment<TRequestedFragment>
+        {
+            if (typeof(TFragment) != typeof(TRequestedFragment))
+            {
+                throw new InvalidOperationException(
+                    $"A source for model fragment '{typeof(TFragment)}' cannot be used with '{typeof(TRequestedFragment)}'."
+                );
+            }
+
+            return (StateSource<TRequestedFragment>)
+                (object)(
+                    sourceFactory(serviceProvider)
+                    ?? throw new InvalidOperationException("A source factory returned null.")
+                );
+        }
+    }
+
+    private sealed class ConfiglueSourceDefinitionRegistration(
+        IConfiglueSourceDefinition definition
+    ) : IConfiglueSourceRegistration
+    {
+        public bool RequiresGeneratedModel => true;
+
+        public StateSource<TFragment> Create<TFragment>(
+            ConfiglueModelSchema? modelSchema,
+            IServiceProvider? serviceProvider,
+            Action<IDisposable> ownResource
+        )
+            where TFragment : class, IConfiglueFragment<TFragment> =>
+            definition.Create<TFragment>(
+                modelSchema
+                    ?? throw new InvalidOperationException(
+                        "Provider source definitions require generated model metadata."
+                    ),
+                serviceProvider,
+                ownResource
+            ) ?? throw new InvalidOperationException("A source definition returned null.");
+    }
+}
+
+/// <summary>Collects sources for one generated model and enables strongly typed provider registration.</summary>
+/// <typeparam name="TModel">The generated configuration model.</typeparam>
+public sealed class ConfiglueSourceSetBuilder<TModel> : ConfiglueSourceSetBuilder
+    where TModel : IConfiglueFacadeModel<TModel>
+{
+    /// <summary>The generated model associated with this source set.</summary>
+    public Type ModelType => typeof(TModel);
+}
