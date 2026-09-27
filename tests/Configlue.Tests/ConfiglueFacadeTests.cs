@@ -203,6 +203,92 @@ public sealed class ConfiglueFacadeTests
     }
 
     [Test]
+    public async Task FacadeProfileRegistryEventsCanReenterManagerAfterCatalogChanges()
+    {
+        var catalogStore = new InMemoryStateStore<ConfiglueProfileCatalog>();
+        var catalog = new StateSource<ConfiglueProfileCatalog>(
+            "catalog",
+            catalogStore,
+            writer: catalogStore,
+            watcher: catalogStore
+        );
+        await using var context = Configlue.CreateContext(builder =>
+        {
+            builder.Add<AppSettings>(model =>
+            {
+                model.EnableProfiles(catalog);
+                model.SourcesForOptions(
+                    (name, sources) =>
+                        sources.Add(_ =>
+                            CreateSource(
+                                string.IsNullOrEmpty(name) ? "default-source" : $"profile-{name}",
+                                $"{name}-value"
+                            )
+                        )
+                );
+            });
+        });
+
+        var profiles = context.GetProfiledOptions<AppSettings>();
+        await profiles.GetProfileNamesAsync();
+        var registry = context.GetOptionsRegistry<AppSettings>();
+        var addedObservation = new TaskCompletionSource<(bool IsPublished, string? Value)>(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        registry.ProfileAdded += (name, options) =>
+        {
+            if (name != "Work")
+            {
+                return;
+            }
+
+            var names = profiles
+                .GetProfileNamesAsync()
+                .AsTask()
+                .WaitAsync(TimeSpan.FromSeconds(5))
+                .GetAwaiter()
+                .GetResult();
+            var value = options
+                .GetValueAsync()
+                .AsTask()
+                .WaitAsync(TimeSpan.FromSeconds(5))
+                .GetAwaiter()
+                .GetResult();
+            addedObservation.TrySetResult((names.Contains(name), value.Label));
+        };
+
+        await profiles
+            .CreateProfileAsync("Work", copyFrom: "default")
+            .AsTask()
+            .WaitAsync(TimeSpan.FromSeconds(5));
+        (await addedObservation.Task.WaitAsync(TimeSpan.FromSeconds(5))).ShouldBe(
+            (true, "default-value")
+        );
+
+        var removedObservation = new TaskCompletionSource<bool>(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        registry.ProfileRemoved += name =>
+        {
+            if (name != "Work")
+            {
+                return;
+            }
+
+            var names = profiles
+                .GetProfileNamesAsync()
+                .AsTask()
+                .WaitAsync(TimeSpan.FromSeconds(5))
+                .GetAwaiter()
+                .GetResult();
+            removedObservation.TrySetResult(!names.Contains(name));
+        };
+
+        await profiles.RemoveProfileAsync("Work").AsTask().WaitAsync(TimeSpan.FromSeconds(5));
+        (await removedObservation.Task.WaitAsync(TimeSpan.FromSeconds(5))).ShouldBeTrue();
+    }
+
+    [Test]
     public async Task FacadeDynamicOptionsUpdateDiMonitorAndInvalidateRemovedHandles()
     {
         var services = new ServiceCollection();
