@@ -963,79 +963,90 @@ public sealed class ConfiglueOptions<TModel, TFragment>
         }
 
         var source = SelectWriteSource();
-        var current = await source.Reader.ReadAsync(cancellationToken).ConfigureAwait(false);
-        if (current.Status == StateReadStatus.Unavailable)
-        {
-            throw new InvalidOperationException(
-                $"Cannot safely patch configuration because source '{source.Id}' is unavailable."
-            );
-        }
-
         if (patch.IsEmpty)
         {
+            var current = await source.Reader.ReadAsync(cancellationToken).ConfigureAwait(false);
+            if (current.Status == StateReadStatus.Unavailable)
+            {
+                throw new InvalidOperationException(
+                    $"Cannot safely patch configuration because source '{source.Id}' is unavailable."
+                );
+            }
+
             return new StateWriteResult(current.Revision);
         }
 
-        var sourceFragment =
-            current.Status == StateReadStatus.Success
-                ? current.Value
-                    ?? throw new InvalidOperationException(
-                        $"State source '{source.Id}' returned a null configuration fragment."
-                    )
-                : TFragment.Empty;
-        if (current.Schema is { } schema)
+        if (patch is not IConfiglueMemberPatch memberPatch)
         {
-            sourceFragment = await MigrateAsync(sourceFragment, schema, cancellationToken)
-                .ConfigureAwait(false);
-        }
-
-        if (patch.Apply(sourceFragment) is not TFragment patchedFragment)
-        {
-            throw new InvalidOperationException(
-                "The patch returned an incompatible configuration fragment."
+            throw new NotSupportedException(
+                "A patch saved through Configlue must support generated member selection."
             );
         }
 
-        var proposedResult = StateReadResult<TFragment>.Success(
-            patchedFragment,
-            current.Revision,
-            modelSchema.ToMetadata()
+        if (_defaultWritePlan.PropertyRoutes.Count > 0)
+        {
+            ValidateWritePlan(_defaultWritePlan);
+        }
+
+        var patchesBySource = new Dictionary<string, List<int>>(StringComparer.Ordinal);
+        foreach (var member in modelSchema.Members)
+        {
+            var selected = memberPatch.SelectMembers([member.Id]);
+            if (selected.IsEmpty)
+            {
+                continue;
+            }
+
+            var propertyPath = member.Name;
+            var nestedTargets = _defaultWritePlan
+                .PropertyRoutes.Where(route =>
+                    route.Key.StartsWith(propertyPath + ".", StringComparison.Ordinal)
+                )
+                .Select(static route => route.Value)
+                .Distinct(StringComparer.Ordinal)
+                .ToArray();
+            if (nestedTargets.Length > 1)
+            {
+                throw new NotSupportedException(
+                    $"Patch for nested member '{propertyPath}' spans multiple sources. Use an edit session to route its nested changes."
+                );
+            }
+
+            var targetSourceId =
+                nestedTargets.Length == 1
+                    ? nestedTargets[0]
+                    : _defaultWritePlan.ResolveSourceId(propertyPath, source.Id);
+            if (!patchesBySource.TryGetValue(targetSourceId, out var memberIds))
+            {
+                memberIds = [];
+                patchesBySource.Add(targetSourceId, memberIds);
+            }
+
+            memberIds.Add(member.Id);
+        }
+
+        if (patchesBySource.Count == 0)
+        {
+            patchesBySource.Add(source.Id, []);
+        }
+
+        var sourcePatches = patchesBySource
+            .Select(route => new StateSourcePatch(
+                route.Key,
+                route.Value.Count == 0 ? patch : memberPatch.SelectMembers(route.Value.ToArray())
+            ))
+            .ToArray();
+        var result = await ApplyPatchesCoreAsync(sourcePatches, null, null, cancellationToken)
+            .ConfigureAwait(false);
+        var sourceResult = result.Sources.FirstOrDefault(route =>
+            string.Equals(route.SourceId, source.Id, StringComparison.Ordinal)
         );
-        var proposed = await ReadCoreAsync(
-                new Dictionary<string, StateReadResult<TFragment>>(StringComparer.Ordinal)
-                {
-                    [source.Id] = proposedResult,
-                },
-                cancellationToken
-            )
-            .ConfigureAwait(false);
-        if (proposed.Status != StateReadStatus.Success)
-        {
-            throw new InvalidOperationException(
-                $"The patched configuration could not be resolved: {proposed.Status}."
-            );
-        }
-
-        Validate(proposed.Value!);
-        if (!IsSourceActive(source.Id))
-        {
-            throw LogConflict(
-                $"State source '{source.Id}' was retired while the patch was being prepared."
-            );
-        }
-
-        return await WriteStateAsync(
-                source,
-                source.Writer!,
-                new StateWriteRequest<TFragment>(
-                    patchedFragment,
-                    current.Revision,
-                    CheckRevision: true
-                ),
-                "patch",
-                cancellationToken
-            )
-            .ConfigureAwait(false);
+        var revision = sourceResult.SourceId is null
+            ? result.Sources[0].Revision
+            : sourceResult.Revision;
+        return result.Sources.Count == 1
+            ? new StateWriteResult(revision)
+            : new StateWriteResult(revision) { MultiWriteResult = result };
     }
 
     /// <inheritdoc />
