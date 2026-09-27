@@ -52,9 +52,13 @@ Use `BeginConfigureAsync` when a settings screen applies several changes togethe
 
 ```csharp
 using var edit = await options.BeginConfigureAsync();
-edit.Value.SomeSetting = newValue;
+edit.Update(value => value.SomeSetting = newValue);
+// edit.ResetToLoaded();  // restore the value loaded when the session began
+// edit.ResetToDefault(); // restore model defaults
 await edit.SaveAsync();
 ```
+
+`Value` and `CurrentValue` expose the draft directly. `Update` edits it in place; the reset helpers restore the whole draft or selected members from the loaded snapshot or a fresh model-default value.
 
 A per-operation `StateWritePlan` can split the session across sources — see [Write routing](../layering/write-routing.md).
 

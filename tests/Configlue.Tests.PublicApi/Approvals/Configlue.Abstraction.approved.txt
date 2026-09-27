@@ -161,10 +161,17 @@ namespace Configlue
     public sealed class ConfigureSession<T> : System.IDisposable
     {
         public ConfigureSession(T value, System.Func<T, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<Configlue.StateWriteResult>> save) { }
+        public ConfigureSession(T value, System.Func<T, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<Configlue.StateWriteResult>> save, System.Func<T, T> clone, T loadedValue, T defaultValue) { }
+        public T CurrentValue { get; }
         public bool IsCommitted { get; }
         public T Value { get; set; }
         public void Dispose() { }
+        public void ResetToDefault() { }
+        public void ResetToDefault(System.Action<T, T> reset) { }
+        public void ResetToLoaded() { }
+        public void ResetToLoaded(System.Action<T, T> reset) { }
         public System.Threading.Tasks.ValueTask<Configlue.StateWriteResult> SaveAsync(System.Threading.CancellationToken cancellationToken = default) { }
+        public void Update(System.Action<T> updater) { }
     }
     public enum FragmentOperationKind
     {

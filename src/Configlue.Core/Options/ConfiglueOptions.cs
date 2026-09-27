@@ -583,6 +583,7 @@ public sealed class ConfiglueOptions<TModel, TFragment>
 
         var draft = CloneModel(resolved.Value!);
         var baseline = CloneModel(resolved.Value!);
+        var defaultValue = CloneModel(TModel.FromFragment(TFragment.Empty));
         var expectedRevisions = resolved.Revisions;
         return new ConfigureSession<TModel>(
             draft,
@@ -651,7 +652,10 @@ public sealed class ConfiglueOptions<TModel, TFragment>
                         token
                     )
                     .ConfigureAwait(false);
-            }
+            },
+            CloneModel,
+            baseline,
+            defaultValue
         );
     }
 
