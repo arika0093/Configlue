@@ -126,9 +126,6 @@ public static class YamlFileSourceRegistration
                     new StateCodecContext(null, null, options.SchemaReferenceBaseUri)
                 );
             var physicalResourceId = options.ResourceId ?? (file as IResourceIdentity)?.ResourceId;
-            var logicalDescriptor = options.SectionPath is null
-                ? "yaml-root"
-                : $"yaml:{options.SectionPath}";
             return options.Id is { } id
                 ? new StateSource<TFragment>(
                     id,
@@ -141,14 +138,14 @@ public static class YamlFileSourceRegistration
                     physicalResourceId
                 )
                 : new StateSource<TFragment>(
+                    YamlFileSourceSelector.CreateSourceId(file.Path, options.SectionPath),
                     stateReader,
                     options.Priority,
                     options.FallbackCondition,
                     stateWriter,
                     watcher,
                     file.Path,
-                    physicalResourceId,
-                    logicalDescriptor
+                    physicalResourceId
                 );
         }
     }

@@ -87,9 +87,6 @@ public static class XmlFileSourceRegistration
                 ? null
                 : new SerializedStateWriter<TFragment>(sourceWriter, codec);
             var physicalResourceId = options.ResourceId ?? (file as IResourceIdentity)?.ResourceId;
-            var logicalDescriptor = options.SectionPath is null
-                ? "xml-root"
-                : $"xml:{options.SectionPath}";
             return options.Id is { } id
                 ? new StateSource<TFragment>(
                     id,
@@ -102,14 +99,14 @@ public static class XmlFileSourceRegistration
                     physicalResourceId
                 )
                 : new StateSource<TFragment>(
+                    XmlFileSourceSelector.CreateSourceId(file.Path, options.SectionPath),
                     stateReader,
                     options.Priority,
                     options.FallbackCondition,
                     stateWriter,
                     watcher,
                     file.Path,
-                    physicalResourceId,
-                    logicalDescriptor
+                    physicalResourceId
                 );
         }
     }

@@ -92,15 +92,19 @@ await userSource.SaveAsync(patch => patch.Database.Host = "db.example.test");
 await userSource.ReplaceAsync(patch => patch.Database.Host = "db.example.test");
 ```
 
-JSON ファイルソースは正規化されたパスと、必要に応じて JSON ドキュメント内の section からも選択できます:
+JSON・YAML・XML ファイルソースは正規化されたパスと、必要に応じてドキュメント内の section からも選択できます:
 
 ```csharp
 using Configlue.Provider.Json;
+using Configlue.Provider.Xml;
+using Configlue.Provider.Yaml;
 
 await options.Source(JsonFileSource.At("./settings.json")).SaveAsync(patch);
+await options.Source(YamlFileSource.At("./settings.yaml", "App:Settings")).SaveAsync(patch);
+await options.Source(XmlFileSource.At("./settings.xml", "App:Settings")).SaveAsync(patch);
 ```
 
-このパス由来 selector は `JsonFileSourceOptions.Id` を指定せずに登録したソースに対応します。mount したソースでは `mountPath` にモデルパスを渡します (例: `JsonFileSource.At("./secrets.json", mountPath: "Secrets")`)。明示 ID を指定した場合は、対応する `SourceKey<TModel>` で選択します。
+これらのパス由来 selector は明示的な `Id` を指定せずに登録したソースに対応します。JSON の mount したソースでは `mountPath` にモデルパスを渡します (例: `JsonFileSource.At("./secrets.json", mountPath: "Secrets")`)。明示 ID を指定した場合は、対応する `SourceKey<TModel>` で選択します。
 
 ## 次のステップ
 

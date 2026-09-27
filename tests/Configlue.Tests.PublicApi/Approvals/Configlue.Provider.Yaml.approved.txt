@@ -1,6 +1,10 @@
 [assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/arika0093/Configlue")]
 namespace Configlue.Provider.Yaml
 {
+    public static class YamlFileSource
+    {
+        public static Configlue.Provider.Yaml.YamlFileSourceSelector At(string path, string? sectionPath = null) { }
+    }
     public sealed class YamlFileSourceOptions
     {
         public YamlFileSourceOptions() { }
@@ -21,6 +25,11 @@ namespace Configlue.Provider.Yaml
     public static class YamlFileSourceRegistration
     {
         public static void FromYamlFile(this Configlue.ConfiglueSourceSetBuilder sources, Configlue.Provider.Yaml.YamlFileSourceOptions options) { }
+    }
+    public sealed class YamlFileSourceSelector : System.IEquatable<Configlue.Provider.Yaml.YamlFileSourceSelector> { }
+    public static class YamlFileSourceSelectorExtensions
+    {
+        public static Configlue.ConfiglueSourceHandle<TModel> Source<TModel>(this Configlue.IConfiglueOptions<TModel> options, Configlue.Provider.Yaml.YamlFileSourceSelector selector) { }
     }
     public sealed class YamlSectionResource : Configlue.IResourceBackupRecovery, Configlue.IResourceBatchParticipant, Configlue.IResourceIdentity, Configlue.IResourceReader, Configlue.IResourceWriter, Configlue.IStateWatcher
     {
