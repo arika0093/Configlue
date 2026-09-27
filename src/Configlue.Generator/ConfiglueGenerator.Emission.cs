@@ -238,6 +238,10 @@ public sealed partial class ConfiglueGenerator
             .Append("}, static () => ")
             .Append(modelType)
             .AppendLine(".Fragment.Empty);");
+        code.AppendLineAt(
+            1,
+            "public static global::Configlue.ConfiglueModelSchema GetConfiglueSchema() => ConfiglueSchema;"
+        );
     }
 
     private static string CollectionValueFactory(MemberModel member)

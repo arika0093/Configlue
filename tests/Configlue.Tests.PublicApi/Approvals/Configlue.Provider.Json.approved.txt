@@ -86,6 +86,7 @@ namespace Configlue.Provider.Json
         public static Configlue.Provider.Json.JsonSchemaGenerationResult Write<TModel, TFragment>(string outputDirectory, System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver resolver, string? schemaBaseUri = null)
             where TModel : Configlue.IConfiglueModel<TModel, TFragment>
             where TFragment :  class, Configlue.IConfiglueFragment<TFragment> { }
+        public static bool TryWriteFromCommandLine(System.Collections.Generic.IReadOnlyList<string> arguments, System.Collections.Generic.IEnumerable<Configlue.ConfiglueModelSchema> models, System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver resolver, out Configlue.Provider.Json.JsonSchemaGenerationResult? result, string? schemaBaseUri = null) { }
     }
     [System.AttributeUsage(System.AttributeTargets.Property | System.AttributeTargets.Field, Inherited=true)]
     public sealed class JsonSchemaOneOfAttribute : System.Attribute

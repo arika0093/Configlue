@@ -5,6 +5,12 @@ namespace Configlue;
 public interface IConfiglueFacadeModel<TSelf>
     where TSelf : IConfiglueFacadeModel<TSelf>
 {
+    /// <summary>Gets the generated model metadata used by schema export and source registration.</summary>
+    static virtual ConfiglueModelSchema GetConfiglueSchema() =>
+        throw new NotSupportedException(
+            $"Generated schema metadata is unavailable for facade model '{typeof(TSelf)}'."
+        );
+
     /// <summary>Creates the model's runtime using the fragment type fixed by source generation.</summary>
     static abstract IWritableOptions<TSelf> CreateConfiglueRuntime(
         ConfiglueModelBuilder<TSelf> configuration,
