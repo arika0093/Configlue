@@ -17,6 +17,19 @@ var resource = new FileResource(
 
 Set `BackupMaxCount = 0` to disable backups. Atomic writes (temporary file plus rename) and retryable access keep concurrent saves safe.
 
+Automatic recovery is opt-in. For JSON file sources, enable it through `ResourceOptions`:
+
+```csharp
+model.UseJsonFile(new JsonFileSourceOptions
+{
+    Id = "settings",
+    Path = "settings.json",
+    ResourceOptions = new FileResourceOptions { AutomaticBackupRecovery = true },
+});
+```
+
+When the file is missing or contains invalid JSON, Configlue checks the latest backup and restores it only if it can be decoded and the file has not changed since the failed read. The default JSON codec classifies malformed JSON for recovery. Custom codecs must implement `IStateCodecRecoveryPolicy` to recover from format errors; missing-file recovery does not require that policy.
+
 File writes retry transient sharing failures up to 3 times by default, waiting 100ms between attempts. `RetryCount` and `RetryDelay` change those defaults. Set `RetryDelayFactory` to calculate a delay for each one-based retry attempt, for example:
 
 ```csharp
