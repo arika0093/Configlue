@@ -9,7 +9,7 @@ description: 旧来のインライン版つきファイルを読んで移行入�
 
 ## 旧来ドキュメント
 
-Configuration.Writable の JSON/YAML ファイルを取り込むには、シンプルなドキュメントレイアウト (`DocumentLayout.Simple`、既定) で読みます。コーデックはインライン `$version` (と `Version` フォールバック) を認識し、版のないスキーマ注釈つきオブジェクト/マッピングを版 1 とみなし、履歴配送向けに現行 Configlue モデル ID へ版を対応づけられます。`$schema` はメタデータとして剥がします。空・空白のみの YAML は空の疎フラグメントとして読みます。BOM つき YAML の符号化は自動判定します。明示的な非 UTF-8 符号化で入れ子セクションを読む場合は、`YamlSectionResource` とコーデックの両方に `textEncoding` を渡します。まず `JsonSectionResource`・`YamlSectionResource` で入れ子セクションを選び、`SerializedStateReader<TFragment>` とライターなし `StateSource<TFragment>` で包みます。
+Configuration.Writable の JSON/YAML ファイルを取り込むには、シンプルなドキュメントレイアウト (`DocumentLayout.Simple`、既定) で読みます。コーデックはインライン `$version` (と `Version` フォールバック) を認識し、版のないスキーマ注釈つきオブジェクト/マッピングを版 1 とみなし、履歴配送向けに現行 Configlue モデル ID へ版を対応づけられます。`StateSchemaDispatcher<T>` はモデル ID のないインライン版を dispatcher の対象モデルに対応づけます。`$schema` はメタデータとして剥がします。空・空白のみの YAML は空の疎フラグメントとして読みます。BOM つき YAML の符号化は自動判定します。明示的な非 UTF-8 符号化で入れ子セクションを読む場合は、`YamlSectionResource` とコーデックの両方に `textEncoding` を渡します。まず `JsonSectionResource`・`YamlSectionResource` で入れ子セクションを選び、`SerializedStateReader<TFragment>` とライターなし `StateSource<TFragment>` で包みます。
 
 ```csharp
 var oldFile = new FileResource("./old-settings.json");

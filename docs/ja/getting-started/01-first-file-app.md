@@ -128,11 +128,9 @@ await options.SaveAsync(patch =>
 
 ```json
 {
-  "$configlue": { "id": "tutorial.settings", "version": 1 },
-  "$value": {
-    "Name": "Ada",
-    "RunCount": 1
-  }
+  "$version": 1,
+  "Name": "Ada",
+  "RunCount": 1
 }
 ```
 

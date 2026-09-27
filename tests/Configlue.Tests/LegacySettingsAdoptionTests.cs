@@ -76,6 +76,28 @@ public sealed class LegacySettingsAdoptionTests
     }
 
     [Test]
+    public async Task SchemaDispatcherAttributesSimpleDocumentVersionToItsTargetModel()
+    {
+        var payload = new ReadOnlySequence<byte>(
+            Encoding.UTF8.GetBytes("{\"$version\":1,\"RetryCount\":4}")
+        );
+        var codec = new JsonStateCodec<HistoricalSettingsV1.Fragment>();
+        var sourceSchema = codec.ReadSchemaMetadata(in payload)!.Value;
+        var targetSchema = HistoricalSettings.ConfiglueSchema.ToMetadata();
+        var dispatcher = new StateSchemaDispatcher<HistoricalSettings.Fragment>(targetSchema).Add(
+            new StateSchemaMetadata(targetSchema.ModelId, 1),
+            codec,
+            static previous => HistoricalSettings.Fragment.FromPrevious(previous)
+        );
+
+        (sourceSchema).ShouldBe(new StateSchemaMetadata(null, 1));
+        (
+            dispatcher.TryDeserialize(sourceSchema, in payload, null, out var migrated)
+        ).ShouldBeTrue();
+        (migrated!.RetryCount.Value).ShouldBe(4);
+    }
+
+    [Test]
     public async Task LegacyJsonCodecSupportsConfiguredVersionNameAndJsonNamingPolicy()
     {
         var content = Encoding.UTF8.GetBytes(

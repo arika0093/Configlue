@@ -47,7 +47,7 @@ Console.WriteLine($"Wrote: {string.Join(", ", result.WrittenFiles)}");
 </TabItem>
 </Tabs>
 
-`Write` creates files in a local output directory. Publish that directory to GitHub Pages or another host separately. Passing an absolute `schemaBaseUri`, such as `https://example.com/schemas/`, sets each generated document's `$id` to the base URI plus its versioned file name and includes an optional root `$schema` property in the generated configuration schema. It does not change the output directory. Output is versioned, so re-export when the model `Version` rises. Supported DataAnnotations map to schema constraints. The exported schema describes Configlue's persisted envelope: `$configlue` carries the model ID and version, and `$value` carries the sparse settings fragment.
+`Write` creates files in a local output directory. Publish that directory to GitHub Pages or another host separately. Passing an absolute `schemaBaseUri`, such as `https://example.com/schemas/`, sets each generated document's `$id` to the base URI plus its versioned file name and includes an optional root `$schema` property in the generated configuration schema. It does not change the output directory. Output is versioned, so re-export when the model `Version` rises. Supported DataAnnotations map to schema constraints. By default, the exported schema describes the simple persisted document: `$version` and sparse settings members share the root object, with no model ID field.
 
 ## Use it in editors and CI
 
@@ -62,15 +62,13 @@ sources.FromJsonFile(new()
 });
 ```
 
-The saved file then has the schema reference at the root, alongside the same envelope the generated schema describes:
+The saved file then has the schema reference at the root, alongside the inline version and settings members the generated schema describes:
 
 ```json
 {
   "$schema": "./schemas/tutorial.settings.v1.json",
-  "$configlue": { "id": "tutorial.settings", "version": 1 },
-  "$value": {
-    "Server": { "Host": "localhost", "Port": 8080 }
-  }
+  "$version": 1,
+  "Server": { "Host": "localhost", "Port": 8080 }
 }
 ```
 

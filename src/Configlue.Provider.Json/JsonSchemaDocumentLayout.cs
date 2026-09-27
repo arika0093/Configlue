@@ -341,4 +341,5 @@ public static partial class JsonSchemaGenerator
             }
         }
     }
+#endif
 }
