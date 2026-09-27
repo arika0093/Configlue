@@ -34,7 +34,7 @@ public sealed class FormatSectionResourceTests
                 + ",\"Sibling\":\"preserved\"}}";
             const string malformed = "{ malformed document";
             await File.WriteAllTextAsync(path, malformed);
-            await File.WriteAllTextAsync(GetDefaultBackupPath(path), backup);
+            await File.WriteAllTextAsync(GetLegacyBackupPath(path), backup);
             using var resource = new FileResource(
                 path,
                 new FileResourceOptions { AutomaticBackupRecovery = true }
@@ -77,7 +77,7 @@ public sealed class FormatSectionResourceTests
                 "{\"App\":{\"Settings\":"
                 + Encoding.UTF8.GetString(section)
                 + ",\"Sibling\":\"preserved\"}}";
-            await File.WriteAllTextAsync(GetDefaultBackupPath(path), backup);
+            await File.WriteAllTextAsync(GetLegacyBackupPath(path), backup);
             using var resource = new FileResource(
                 path,
                 new FileResourceOptions { AutomaticBackupRecovery = true }
@@ -131,7 +131,7 @@ public sealed class FormatSectionResourceTests
             );
             var backup = "{\"App\":{\"Settings\":" + Encoding.UTF8.GetString(backupSection) + "}}";
             await File.WriteAllTextAsync(path, current);
-            await File.WriteAllTextAsync(GetDefaultBackupPath(path), backup);
+            await File.WriteAllTextAsync(GetLegacyBackupPath(path), backup);
             using var resource = new FileResource(
                 path,
                 new FileResourceOptions { AutomaticBackupRecovery = true }
@@ -176,7 +176,7 @@ public sealed class FormatSectionResourceTests
                 + "</Settings><Sibling>preserved</Sibling></App></configuration>";
             const string malformed = "<configuration><App>";
             await File.WriteAllTextAsync(path, malformed);
-            await File.WriteAllTextAsync(GetDefaultBackupPath(path), backup);
+            await File.WriteAllTextAsync(GetLegacyBackupPath(path), backup);
             using var resource = new FileResource(
                 path,
                 new FileResourceOptions { AutomaticBackupRecovery = true }
@@ -224,7 +224,7 @@ public sealed class FormatSectionResourceTests
                 + Environment.NewLine;
             const string malformed = "App: [unterminated";
             await File.WriteAllTextAsync(path, malformed);
-            await File.WriteAllTextAsync(GetDefaultBackupPath(path), backup);
+            await File.WriteAllTextAsync(GetLegacyBackupPath(path), backup);
             using var resource = new FileResource(
                 path,
                 new FileResourceOptions { AutomaticBackupRecovery = true }
@@ -459,14 +459,26 @@ public sealed class FormatSectionResourceTests
         return output.WrittenSpan.ToArray();
     }
 
-    private static string GetDefaultBackupPath(string path)
+    private static string GetLegacyBackupPath(string path)
     {
         var directory = System.IO.Path.Combine(
             System.IO.Path.GetDirectoryName(path)!,
             OperatingSystem.IsWindows() ? "backup" : ".backup"
         );
         Directory.CreateDirectory(directory);
-        return System.IO.Path.Combine(directory, System.IO.Path.GetFileName(path) + ".bak");
+        var name = System.IO.Path.GetFileNameWithoutExtension(path);
+        if (!OperatingSystem.IsWindows())
+        {
+            name = "." + name;
+        }
+
+        name += "_" + DateTime.UtcNow.Ticks.ToString(
+            System.Globalization.CultureInfo.InvariantCulture
+        );
+        return System.IO.Path.Combine(
+            directory,
+            name + System.IO.Path.GetExtension(path) + ".bak"
+        );
     }
 
     private static object? LoadYaml(ReadOnlySpan<byte> content) =>
