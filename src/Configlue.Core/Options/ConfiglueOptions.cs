@@ -144,7 +144,7 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
             new ModelDefaultsReader(_modelDefaultsFragment)
         );
         _writeRoute = writeRoute;
-        _defaultWritePlan = defaultWritePlan;
+        _defaultWritePlan = BuildWritePlanWithMountedOwners(_activeSources, defaultWritePlan);
         _cloneStrategy = cloneStrategy;
         _validators = validators?.ToArray() ?? [];
         _optionsName = optionsName ?? string.Empty;
@@ -179,6 +179,42 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
         );
     }
 
+    private static StateWritePlan BuildWritePlanWithMountedOwners(
+        IReadOnlyList<StateSource<TFragment>> sources,
+        StateWritePlan configuredWritePlan
+    )
+    {
+        var owners = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var source in sources)
+        {
+            if (source.Writer is null || source.ExplicitOnly)
+            {
+                continue;
+            }
+
+            foreach (var path in source.OwnedPropertyPaths)
+            {
+                var existingOwner = owners.FirstOrDefault(owner =>
+                    string.Equals(owner.Key, path, StringComparison.Ordinal)
+                    || owner.Key.StartsWith(path + ".", StringComparison.Ordinal)
+                    || path.StartsWith(owner.Key + ".", StringComparison.Ordinal)
+                );
+                if (!string.IsNullOrEmpty(existingOwner.Key))
+                {
+                    throw new InvalidOperationException(
+                        $"Writable sources '{existingOwner.Value}' and '{source.Id}' have overlapping ownership paths '{existingOwner.Key}' and '{path}'. Configure one source as explicit-only."
+                    );
+                }
+
+                owners.Add(path, source.Id);
+            }
+        }
+
+        var inferredWritePlan =
+            owners.Count == 0 ? StateWritePlan.Empty : new StateWritePlan(owners);
+        return inferredWritePlan.OverrideWith(configuredWritePlan);
+    }
+
     /// <inheritdoc />
     public ConfiglueOptionsDiagnostics GetDiagnostics()
     {
@@ -191,6 +227,13 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
         var activeIds = activeSources
             .Select(static source => source.Id)
             .ToHashSet(StringComparer.Ordinal);
+        var inferredRootWriteSources = activeSources
+            .Where(static source =>
+                source.Writer is not null
+                && !source.ExplicitOnly
+                && source.OwnedPropertyPaths.Count == 0
+            )
+            .ToArray();
         var sources = _sourceSet
             .Sources.Select(source => new ConfiglueSourceDiagnostics(
                 source.Id,
@@ -206,12 +249,12 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
             .ToArray();
         var defaultWriteSource =
             _writeRoute.SourceId
-            ?? activeSources.FirstOrDefault(static source => source.Writer is not null)?.Id;
+            ?? (inferredRootWriteSources.Length == 1 ? inferredRootWriteSources[0].Id : null);
         return new ConfiglueOptionsDiagnostics(
             _optionsName,
             sources,
             defaultWriteSource,
-            _writeRoute.SourceId is null && defaultWriteSource is not null,
+            _writeRoute.SourceId is null && inferredRootWriteSources.Length == 1,
             _defaultWritePlan.PropertyRoutes
         );
     }
@@ -932,19 +975,23 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
             );
         }
 
-        var source = SelectWriteSource();
         if (patch.IsEmpty)
         {
-            var current = await source.Reader.ReadAsync(cancellationToken).ConfigureAwait(false);
+            var emptyPatchSource = SelectWriteSource(allowPriorityFallback: true);
+            var current = await emptyPatchSource
+                .Reader.ReadAsync(cancellationToken)
+                .ConfigureAwait(false);
             if (current.Status == StateReadStatus.Unavailable)
             {
                 throw new InvalidOperationException(
-                    $"Cannot safely patch configuration because source '{source.Id}' is unavailable."
+                    $"Cannot safely patch configuration because source '{emptyPatchSource.Id}' is unavailable."
                 );
             }
 
             return new StateWriteResult(current.Revision);
         }
+
+        var fallbackSource = TrySelectDefaultWriteSource();
 
         var baseline = await ResolveCoreAsync(null, cancellationToken).ConfigureAwait(false);
         if (baseline.Result.Status != StateReadStatus.Success)
@@ -974,7 +1021,7 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
         IReadOnlyDictionary<string, IConfigluePatch> patchesBySource;
         if (patch is IConfiglueRoutablePatch routablePatch)
         {
-            patchesBySource = routablePatch.Route(_defaultWritePlan, source.Id);
+            patchesBySource = routablePatch.Route(_defaultWritePlan, fallbackSource?.Id);
         }
         else if (patch is IConfiglueMemberPatch memberPatch)
         {
@@ -987,7 +1034,16 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
                     continue;
                 }
 
-                var targetSourceId = _defaultWritePlan.ResolveSourceId(member.Name, source.Id);
+                var targetSourceId = _defaultWritePlan.ResolveSourceIdOrNull(
+                    member.Name,
+                    fallbackSource?.Id
+                );
+                if (targetSourceId is null)
+                {
+                    throw new InvalidOperationException(
+                        $"No writable source owns '{member.Name}'. Configure a root write target or an explicit write plan."
+                    );
+                }
                 if (!routed.TryGetValue(targetSourceId, out var memberIds))
                 {
                     memberIds = [];
@@ -1001,7 +1057,12 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
                 routed.Count == 0
                     ? new Dictionary<string, IConfigluePatch>(StringComparer.Ordinal)
                     {
-                        [source.Id] = patch,
+                        [
+                            fallbackSource?.Id
+                                ?? throw new InvalidOperationException(
+                                    "No writable source owns this patch. Configure a root write target or an explicit write plan."
+                                )
+                        ] = patch,
                     }
                     : routed.ToDictionary(
                         static route => route.Key,
@@ -1013,7 +1074,12 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
         {
             patchesBySource = new Dictionary<string, IConfigluePatch>(StringComparer.Ordinal)
             {
-                [source.Id] = patch,
+                [
+                    fallbackSource?.Id
+                        ?? throw new InvalidOperationException(
+                            "No writable source owns this patch. Configure a root write target or an explicit write plan."
+                        )
+                ] = patch,
             };
         }
 
@@ -1027,9 +1093,11 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
                 cancellationToken
             )
             .ConfigureAwait(false);
-        var sourceResult = result.Sources.FirstOrDefault(route =>
-            string.Equals(route.SourceId, source.Id, StringComparison.Ordinal)
-        );
+        var sourceResult = fallbackSource is null
+            ? default
+            : result.Sources.FirstOrDefault(route =>
+                string.Equals(route.SourceId, fallbackSource.Id, StringComparison.Ordinal)
+            );
         var revision = sourceResult.SourceId is null
             ? result.Sources[0].Revision
             : sourceResult.Revision;
@@ -2809,7 +2877,11 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
             source = null;
             foreach (var candidate in activeSources)
             {
-                if (candidate.Writer is null)
+                if (
+                    candidate.Writer is null
+                    || candidate.ExplicitOnly
+                    || candidate.OwnedPropertyPaths.Count > 0
+                )
                 {
                     continue;
                 }
@@ -2822,6 +2894,13 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
                 }
 
                 source ??= candidate;
+            }
+
+            if (source is null && allowPriorityFallback)
+            {
+                source = activeSources.FirstOrDefault(candidate =>
+                    candidate.Writer is not null && !candidate.ExplicitOnly
+                );
             }
         }
 
@@ -2851,6 +2930,37 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
             throw new InvalidOperationException(
                 $"State source '{source.Id}' does not support writes."
             );
+        }
+
+        return source;
+    }
+
+    private StateSource<TFragment>? TrySelectDefaultWriteSource()
+    {
+        if (_writeRoute.SourceId is not null)
+        {
+            return SelectWriteSource();
+        }
+
+        var activeSources = GetActiveSources();
+        StateSource<TFragment>? source = null;
+        foreach (var candidate in activeSources)
+        {
+            if (
+                candidate.Writer is null
+                || candidate.ExplicitOnly
+                || candidate.OwnedPropertyPaths.Count > 0
+            )
+            {
+                continue;
+            }
+
+            if (source is not null)
+            {
+                return null;
+            }
+
+            source = candidate;
         }
 
         return source;
@@ -3090,22 +3200,36 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
         }
 
         var canSearchFallbackCandidates = _writeRoute.SourceId is null;
+        var routingFallbackSourceId =
+            fallbackSource.OwnedPropertyPaths.Count == 0 && !fallbackSource.ExplicitOnly
+                ? fallbackSource.Id
+                : "__configlue_missing_write_owner__";
         var initialRouting = PartitionRoutedChanges(
             TModel.ConfiglueSchema,
             changes,
             after,
             [],
-            fallbackSource.Id,
+            routingFallbackSourceId,
             writePlan
         );
-        var hasUnroutedChanges = initialRouting.ContainsKey(fallbackSource.Id);
+        var hasUnroutedChanges = initialRouting.ContainsKey(routingFallbackSourceId);
         var fallbackCandidateIds =
             canSearchFallbackCandidates && hasUnroutedChanges
                 ? GetActiveSources()
-                    .Where(static candidate => candidate.Writer is not null)
+                    .Where(static candidate =>
+                        candidate.Writer is not null
+                        && !candidate.ExplicitOnly
+                        && candidate.OwnedPropertyPaths.Count == 0
+                    )
                     .Select(static candidate => candidate.Id)
                     .ToArray()
                 : [fallbackSource.Id];
+        if (hasUnroutedChanges && fallbackCandidateIds.Length == 0)
+        {
+            throw new InvalidOperationException(
+                "No writable root source owns one or more edited properties. Configure a root write target or an explicit write plan."
+            );
+        }
         StateSourcePatch[]? patches = null;
         var selectedFallbackSourceId = fallbackSource.Id;
         string? lastFailure = null;
