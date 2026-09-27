@@ -251,6 +251,12 @@ namespace Configlue
         public StateSourceWriter(Configlue.StateSourceSet<T> sourceSet, Configlue.StateWriteRoute route = default) { }
         public System.Threading.Tasks.ValueTask<Configlue.StateWriteResult> WriteAsync(Configlue.StateWriteRequest<T> request, System.Threading.CancellationToken cancellationToken = default) { }
     }
+    public static class StateStorageMigrationExtensions
+    {
+        public static System.Threading.Tasks.ValueTask<Configlue.StateStorageMigrationProgress> MigrateAsync<TModel, TFragment>(this Configlue.IWritableOptions<TModel> options, Configlue.StateStorageMigrationDefinition<TFragment> definition, Configlue.IStateStorageMigrationJournal journal, System.Threading.CancellationToken cancellationToken = default)
+            where TModel : Configlue.IConfiglueModel<TModel, TFragment>
+            where TFragment :  class, Configlue.IConfiglueFragment<TFragment> { }
+    }
     public readonly struct StateWriteRoute : System.IEquatable<Configlue.StateWriteRoute>
     {
         public StateWriteRoute(string? SourceId = null) { }

@@ -332,6 +332,11 @@ namespace Configlue
         Configlue.StateSchemaMetadata TargetSchema { get; }
         System.Threading.Tasks.ValueTask<T> MigrateAsync(T value, System.Threading.CancellationToken cancellationToken = default);
     }
+    public interface IStateStorageMigrationJournal
+    {
+        System.Threading.Tasks.ValueTask<Configlue.StateStorageMigrationProgress?> ReadAsync(string migrationId, System.Threading.CancellationToken cancellationToken = default);
+        System.Threading.Tasks.ValueTask WriteAsync(Configlue.StateStorageMigrationProgress progress, System.Threading.CancellationToken cancellationToken = default);
+    }
     public interface IStateWatcher
     {
         System.Threading.Tasks.ValueTask WaitForChangeAsync(string? observedRevision, System.Threading.CancellationToken cancellationToken = default);
@@ -549,6 +554,26 @@ namespace Configlue
         public Configlue.IStateWatcher? Watcher { get; }
         public Configlue.IStateWriter<T>? Writer { get; }
     }
+    public sealed class StateStorageMigrationDefinition<TFragment>
+        where TFragment :  class, Configlue.IConfiglueFragment<TFragment>
+    {
+        public StateStorageMigrationDefinition(string id, System.Collections.Generic.IEnumerable<string> sourceIds, System.Collections.Generic.IEnumerable<Configlue.StateStorageMigrationTarget<TFragment>> targets, bool retireSources = false) { }
+        public string Id { get; }
+        public bool RetireSources { get; }
+        public System.Collections.Generic.IReadOnlyList<string> SourceIds { get; }
+        public System.Collections.Generic.IReadOnlyList<Configlue.StateStorageMigrationTarget<TFragment>> Targets { get; }
+    }
+    public sealed class StateStorageMigrationProgress
+    {
+        public StateStorageMigrationProgress(string migrationId, System.Collections.Generic.IEnumerable<string> sourceIds, System.Collections.Generic.IEnumerable<string> targetSourceIds, System.Collections.Generic.IEnumerable<string>? completedTargetSourceIds = null, bool retireSources = false, bool sourcesRetired = false) { }
+        public bool AllTargetsCompleted { get; }
+        public System.Collections.Generic.IReadOnlyList<string> CompletedTargetSourceIds { get; }
+        public string MigrationId { get; }
+        public bool RetireSources { get; }
+        public System.Collections.Generic.IReadOnlyList<string> SourceIds { get; }
+        public bool SourcesRetired { get; }
+        public System.Collections.Generic.IReadOnlyList<string> TargetSourceIds { get; }
+    }
     public sealed class StateStorageMigrationResult
     {
         public StateStorageMigrationResult(System.Collections.Generic.IEnumerable<string> sourceIds, Configlue.StateRevisionVector sourceRevisions, System.Collections.Generic.IEnumerable<Configlue.StateStorageMigrationTargetResult> targets, System.Collections.Generic.IEnumerable<string>? retiredSourceIds = null) { }
@@ -557,6 +582,13 @@ namespace Configlue
         public Configlue.StateRevisionVector SourceRevisions { get; }
         public bool SourcesRetired { get; }
         public System.Collections.Generic.IReadOnlyList<Configlue.StateStorageMigrationTargetResult> Targets { get; }
+    }
+    public sealed class StateStorageMigrationTarget<TFragment>
+        where TFragment :  class, Configlue.IConfiglueFragment<TFragment>
+    {
+        public StateStorageMigrationTarget(string targetSourceId, System.Func<TFragment, TFragment> project) { }
+        public System.Func<TFragment, TFragment> Project { get; }
+        public string TargetSourceId { get; }
     }
     public readonly struct StateStorageMigrationTargetResult : System.IEquatable<Configlue.StateStorageMigrationTargetResult>
     {
