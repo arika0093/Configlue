@@ -26,15 +26,17 @@ namespace Configlue.Provider.Yaml
     {
         public static void FromYamlFile(this Configlue.ConfiglueSourceSetBuilder sources, Configlue.Provider.Yaml.YamlFileSourceOptions options) { }
     }
-    public sealed class YamlSectionResource : Configlue.IResourceBatchParticipant, Configlue.IResourceIdentity, Configlue.IResourceReader, Configlue.IResourceWriter, Configlue.IStateWatcher
+    public sealed class YamlSectionResource : Configlue.IResourceBackupRecovery, Configlue.IResourceBatchParticipant, Configlue.IResourceIdentity, Configlue.IResourceReader, Configlue.IResourceWriter, Configlue.IStateWatcher
     {
         public YamlSectionResource(Configlue.IResourceReader resource, string sectionPath) { }
         public YamlSectionResource(Configlue.IResourceReader reader, Configlue.IResourceWriter? writer, string sectionPath, Configlue.IStateWatcher? watcher = null, Configlue.ResourceId? resourceId = default, System.Text.Encoding? textEncoding = null) { }
+        public bool AutomaticBackupRecoveryEnabled { get; }
         public Configlue.IResourceBatchWriter? BatchWriter { get; }
         public bool CanWrite { get; }
         public Configlue.ResourceId ResourceId { get; }
         public Configlue.ResourceWriteMutation CreateMutation(Configlue.ResourceWriteRequest request) { }
         public System.Threading.Tasks.ValueTask<Configlue.ResourceReadResult> ReadAsync(System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Configlue.ResourceReadResult?> TryRecoverLatestBackupAsync(string? expectedRevision, bool expectedMissing, System.Func<Configlue.ResourceReadResult, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<bool>> validate, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask WaitForChangeAsync(string? observedRevision, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask<Configlue.StateWriteResult> WriteAsync(Configlue.ResourceWriteRequest request, System.Threading.CancellationToken cancellationToken = default) { }
     }

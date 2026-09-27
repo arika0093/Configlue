@@ -213,6 +213,11 @@ namespace Configlue
         System.IDisposable OnChange(System.Action<T> listener);
         System.Threading.Tasks.ValueTask<Configlue.StateReadResult<T>> ReadAsync(System.Threading.CancellationToken cancellationToken = default);
     }
+    public interface IResourceBackupRecovery
+    {
+        bool AutomaticBackupRecoveryEnabled { get; }
+        System.Threading.Tasks.ValueTask<Configlue.ResourceReadResult?> TryRecoverLatestBackupAsync(string? expectedRevision, bool expectedMissing, System.Func<Configlue.ResourceReadResult, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<bool>> validate, System.Threading.CancellationToken cancellationToken = default);
+    }
     public interface IResourceBatchParticipant
     {
         Configlue.IResourceBatchWriter? BatchWriter { get; }

@@ -10,7 +10,8 @@ public sealed class JsonSectionResource
         IResourceWriter,
         IStateWatcher,
         IResourceIdentity,
-        IResourceBatchParticipant
+        IResourceBatchParticipant,
+        IResourceBackupRecovery
 {
     private readonly IResourceReader _reader;
     private readonly IResourceWriter? _writer;
@@ -87,11 +88,69 @@ public sealed class JsonSectionResource
     public IResourceBatchWriter? BatchWriter => _writer as IResourceBatchWriter;
 
     /// <inheritdoc />
+    public bool AutomaticBackupRecoveryEnabled =>
+        _reader is IResourceBackupRecovery recovery && recovery.AutomaticBackupRecoveryEnabled;
+
+    /// <inheritdoc />
     public async ValueTask<ResourceReadResult> ReadAsync(
         CancellationToken cancellationToken = default
     )
     {
         var resource = await _reader.ReadAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            return ExtractSection(resource);
+        }
+        catch (JsonException exception)
+        {
+            exception.Data["Configlue.ObservedResourceRevision"] = resource.Revision;
+            throw;
+        }
+    }
+
+    /// <inheritdoc />
+    public async ValueTask<ResourceReadResult?> TryRecoverLatestBackupAsync(
+        string? expectedRevision,
+        bool expectedMissing,
+        Func<ResourceReadResult, CancellationToken, ValueTask<bool>> validate,
+        CancellationToken cancellationToken = default
+    )
+    {
+        if (
+            _reader is not IResourceBackupRecovery recovery
+            || !recovery.AutomaticBackupRecoveryEnabled
+        )
+        {
+            return null;
+        }
+
+        var restored = await recovery
+            .TryRecoverLatestBackupAsync(
+                expectedRevision,
+                expectedMissing,
+                async (candidate, token) =>
+                {
+                    ResourceReadResult section;
+                    try
+                    {
+                        section = ExtractSection(candidate);
+                    }
+                    catch (JsonException)
+                    {
+                        return false;
+                    }
+
+                    return section.Status == StateReadStatus.Success
+                        && await validate(section, token).ConfigureAwait(false);
+                },
+                cancellationToken
+            )
+            .ConfigureAwait(false);
+        return restored is { } result ? ExtractSection(result) : null;
+    }
+
+    private ResourceReadResult ExtractSection(ResourceReadResult resource)
+    {
         if (resource.Status != StateReadStatus.Success)
         {
             return new ResourceReadResult(resource.Status, default, resource.Revision);

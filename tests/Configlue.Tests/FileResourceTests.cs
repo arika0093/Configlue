@@ -265,7 +265,7 @@ public sealed class FileResourceTests
         await File.WriteAllTextAsync(path + ".bak", "backup");
 
         await Should.ThrowAsync<StateConflictException>(async () =>
-            await resource.TryRestoreLatestBackupAsync(
+            await resource.TryRecoverLatestBackupAsync(
                 "stale-revision",
                 expectedMissing: false,
                 static (_, _) => ValueTask.FromResult(true),

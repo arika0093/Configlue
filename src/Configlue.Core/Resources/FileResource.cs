@@ -23,7 +23,12 @@ namespace Configlue;
 /// spuriously.
 /// </para>
 /// </remarks>
-public sealed class FileResource : IResourceReader, IStateWatcher, IResourceBatchWriter, IDisposable
+public sealed class FileResource
+    : IResourceReader,
+        IStateWatcher,
+        IResourceBatchWriter,
+        IResourceBackupRecovery,
+        IDisposable
 {
     private static readonly object ProcessLockGate = new();
     private static readonly Dictionary<string, ProcessLockEntry> ProcessLocks = new(
@@ -110,7 +115,8 @@ public sealed class FileResource : IResourceReader, IStateWatcher, IResourceBatc
     /// <inheritdoc />
     public ResourceId ResourceId { get; }
 
-    internal bool AutomaticBackupRecoveryEnabled => _options.AutomaticBackupRecovery;
+    /// <inheritdoc />
+    public bool AutomaticBackupRecoveryEnabled => _options.AutomaticBackupRecovery;
 
     internal bool IsDisposedForTests
     {
@@ -260,11 +266,12 @@ public sealed class FileResource : IResourceReader, IStateWatcher, IResourceBatc
         }
     }
 
-    internal async ValueTask<ResourceReadResult?> TryRestoreLatestBackupAsync(
+    /// <inheritdoc />
+    public async ValueTask<ResourceReadResult?> TryRecoverLatestBackupAsync(
         string? expectedRevision,
         bool expectedMissing,
-        Func<ReadOnlyMemory<byte>, CancellationToken, ValueTask<bool>> validate,
-        CancellationToken cancellationToken
+        Func<ResourceReadResult, CancellationToken, ValueTask<bool>> validate,
+        CancellationToken cancellationToken = default
     )
     {
         ArgumentNullException.ThrowIfNull(validate);
@@ -303,14 +310,14 @@ public sealed class FileResource : IResourceReader, IStateWatcher, IResourceBatc
                 return null;
             }
 
-            if (!await validate(backup, cancellationToken).ConfigureAwait(false))
+            var backupResult = ResourceReadResult.Success(backup, GetRevision(backup));
+            if (!await validate(backupResult, cancellationToken).ConfigureAwait(false))
             {
                 return null;
             }
 
             await WriteAtomicAsync(_path, backup, cancellationToken).ConfigureAwait(false);
-            var revision = GetRevision(backup);
-            return ResourceReadResult.Success(backup, revision);
+            return backupResult;
         }
         finally
         {

@@ -1,6 +1,7 @@
 using System.Buffers;
 using System.Text;
 using System.Xml.Linq;
+using Configlue.Provider.Json;
 using Configlue.Provider.Xml;
 using Configlue.Provider.Yaml;
 using Configlue.Testing;
@@ -11,6 +12,239 @@ namespace Configlue.Tests;
 
 public sealed class FormatSectionResourceTests
 {
+    [Test]
+    public async Task JsonSectionResource_RecoversMalformedDocumentAfterSectionAndCodecValidation()
+    {
+        var directory = System.IO.Path.Combine(
+            System.IO.Path.GetTempPath(),
+            "ConfiglueTests",
+            Guid.NewGuid().ToString("N")
+        );
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var path = System.IO.Path.Combine(directory, "settings.json");
+            var codec = new JsonStateCodec<AppSettings.Fragment>();
+            var section = Serialize(
+                codec,
+                new AppSettings.Fragment { RetryCount = Optional<int>.Present(4) }
+            );
+            var backup =
+                "{\"App\":{\"Settings\":"
+                + Encoding.UTF8.GetString(section)
+                + ",\"Sibling\":\"preserved\"}}";
+            const string malformed = "{ malformed document";
+            await File.WriteAllTextAsync(path, malformed);
+            await File.WriteAllTextAsync(path + ".bak", backup);
+            using var resource = new FileResource(
+                path,
+                new FileResourceOptions { AutomaticBackupRecovery = true }
+            );
+            var reader = new SerializedStateReader<AppSettings.Fragment>(
+                new JsonSectionResource(resource, "App:Settings"),
+                codec
+            );
+
+            var recovered = await reader.ReadAsync();
+
+            recovered.Status.ShouldBe(StateReadStatus.Success);
+            recovered.Value!.RetryCount.ShouldBe(4);
+            (await File.ReadAllTextAsync(path)).ShouldBe(backup);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task JsonSectionResource_RecoversMissingFileBeforeFallbackSelection()
+    {
+        var directory = System.IO.Path.Combine(
+            System.IO.Path.GetTempPath(),
+            "ConfiglueTests",
+            Guid.NewGuid().ToString("N")
+        );
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var path = System.IO.Path.Combine(directory, "settings.json");
+            var codec = new JsonStateCodec<AppSettings.Fragment>();
+            var section = Serialize(
+                codec,
+                new AppSettings.Fragment { RetryCount = Optional<int>.Present(4) }
+            );
+            var backup =
+                "{\"App\":{\"Settings\":"
+                + Encoding.UTF8.GetString(section)
+                + ",\"Sibling\":\"preserved\"}}";
+            await File.WriteAllTextAsync(path + ".bak", backup);
+            using var resource = new FileResource(
+                path,
+                new FileResourceOptions { AutomaticBackupRecovery = true }
+            );
+            var primarySource = SerializedStateSource.FromResource<AppSettings.Fragment>(
+                "primary-file",
+                new JsonSectionResource(resource, "App:Settings"),
+                codec,
+                priority: 100
+            );
+            var fallbackSource = new StateSource<AppSettings.Fragment>(
+                "fallback",
+                new InMemoryStateStore<AppSettings.Fragment>(
+                    new AppSettings.Fragment { RetryCount = Optional<int>.Present(99) }
+                )
+            );
+            await using var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(
+                new StateSourceSet<AppSettings.Fragment>([primarySource, fallbackSource])
+            );
+
+            var recovered = await options.ReadAsync();
+
+            recovered.Status.ShouldBe(StateReadStatus.Success);
+            recovered.Value!.RetryCount.ShouldBe(4);
+            recovered.SourceId.ShouldBe("primary-file");
+            (await File.ReadAllTextAsync(path)).ShouldBe(backup);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task JsonSectionResource_LeavesValidDocumentWithMissingSectionUntouched()
+    {
+        var directory = System.IO.Path.Combine(
+            System.IO.Path.GetTempPath(),
+            "ConfiglueTests",
+            Guid.NewGuid().ToString("N")
+        );
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var path = System.IO.Path.Combine(directory, "settings.json");
+            const string current = "{\"App\":{\"Sibling\":\"current\"}}";
+            var codec = new JsonStateCodec<AppSettings.Fragment>();
+            var backupSection = Serialize(
+                codec,
+                new AppSettings.Fragment { RetryCount = Optional<int>.Present(4) }
+            );
+            var backup = "{\"App\":{\"Settings\":" + Encoding.UTF8.GetString(backupSection) + "}}";
+            await File.WriteAllTextAsync(path, current);
+            await File.WriteAllTextAsync(path + ".bak", backup);
+            using var resource = new FileResource(
+                path,
+                new FileResourceOptions { AutomaticBackupRecovery = true }
+            );
+            var reader = new SerializedStateReader<AppSettings.Fragment>(
+                new JsonSectionResource(resource, "App:Settings"),
+                codec
+            );
+
+            var result = await reader.ReadAsync();
+
+            result.Status.ShouldBe(StateReadStatus.NotFound);
+            (await File.ReadAllTextAsync(path)).ShouldBe(current);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task XmlSectionResource_RecoversMalformedDocumentAndPreservesValidatedBackup()
+    {
+        var directory = System.IO.Path.Combine(
+            System.IO.Path.GetTempPath(),
+            "ConfiglueTests",
+            Guid.NewGuid().ToString("N")
+        );
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var path = System.IO.Path.Combine(directory, "settings.xml");
+            var codec = new XmlStateCodec<AppSettings.Fragment>();
+            var section = Serialize(
+                codec,
+                new AppSettings.Fragment { RetryCount = Optional<int>.Present(4) }
+            );
+            var sectionDocument = XDocument.Parse(Encoding.UTF8.GetString(section));
+            var backup =
+                "<configuration><App><Settings>"
+                + sectionDocument.Root!.ToString(SaveOptions.DisableFormatting)
+                + "</Settings><Sibling>preserved</Sibling></App></configuration>";
+            const string malformed = "<configuration><App>";
+            await File.WriteAllTextAsync(path, malformed);
+            await File.WriteAllTextAsync(path + ".bak", backup);
+            using var resource = new FileResource(
+                path,
+                new FileResourceOptions { AutomaticBackupRecovery = true }
+            );
+            var reader = new SerializedStateReader<AppSettings.Fragment>(
+                new XmlSectionResource(resource, "App:Settings"),
+                codec
+            );
+
+            var recovered = await reader.ReadAsync();
+
+            recovered.Status.ShouldBe(StateReadStatus.Success);
+            recovered.Value!.RetryCount.ShouldBe(4);
+            (await File.ReadAllTextAsync(path)).ShouldBe(backup);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task YamlSectionResource_RecoversMalformedDocumentAndPreservesValidatedBackup()
+    {
+        var directory = System.IO.Path.Combine(
+            System.IO.Path.GetTempPath(),
+            "ConfiglueTests",
+            Guid.NewGuid().ToString("N")
+        );
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var path = System.IO.Path.Combine(directory, "settings.yaml");
+            var codec = new YamlStateCodec<AppSettings.Fragment>();
+            var backup =
+                "App:"
+                + Environment.NewLine
+                + "  Settings:"
+                + Environment.NewLine
+                + "    RetryCount: 4"
+                + Environment.NewLine
+                + "  Sibling: preserved"
+                + Environment.NewLine;
+            const string malformed = "App: [unterminated";
+            await File.WriteAllTextAsync(path, malformed);
+            await File.WriteAllTextAsync(path + ".bak", backup);
+            using var resource = new FileResource(
+                path,
+                new FileResourceOptions { AutomaticBackupRecovery = true }
+            );
+            var reader = new SerializedStateReader<AppSettings.Fragment>(
+                new YamlSectionResource(resource, "App:Settings"),
+                codec
+            );
+
+            var recovered = await reader.ReadAsync();
+
+            recovered.Status.ShouldBe(StateReadStatus.Success);
+            recovered.Value!.RetryCount.ShouldBe(4);
+            (await File.ReadAllTextAsync(path)).ShouldBe(backup);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
     [Test]
     public async Task XmlSectionResource_UpdatesNestedGeneratedFragmentAndPreservesSiblings()
     {
