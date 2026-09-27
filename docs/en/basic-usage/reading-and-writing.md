@@ -50,6 +50,8 @@ await options.SaveAsync(updatedConfig); // full replacement of the write target
 
 Use `BeginConfigureAsync` when a settings screen applies several changes together. The session is in-memory until `SaveAsync`; discard it to abandon changes. Sessions compare the full source revision vector immediately before saving and fail with `StateConflictException` if any participating source changed underneath.
 
+Synchronous callers can use `options.BeginConfigure()`. It blocks while asynchronous sources are read; use `BeginConfigureAsync` from asynchronous code.
+
 ```csharp
 using var edit = await options.BeginConfigureAsync();
 edit.Update(value => value.SomeSetting = newValue);
