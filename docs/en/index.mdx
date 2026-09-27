@@ -5,18 +5,54 @@ template: splash
 hero:
   tagline: "$ Configuration that stays composable."
   actions:
+    - text: Get started
+      link: /en/getting-started/installation/
+      icon: right-arrow
+    - text: Quick start
+      link: /en/getting-started/quick-start/
+      icon: rocket
+      variant: minimal
     - text: View on GitHub
       link: https://github.com/arika0093/Configlue
       icon: external
       variant: minimal
 ---
 
-Configlue is a .NET library for reading, resolving, editing, and persisting typed configuration from independent sources. Each source contributes only the fields it owns, so values can be layered without replacing an entire settings object.
+import { Card, CardGrid } from '@astrojs/starlight/components';
 
-## What Configlue provides
+Configlue is a source-generator-first .NET library for reading, resolving, editing, and persisting typed configuration from independent sources. Each source contributes only the fields it owns, so values can be layered without replacing an entire settings object.
 
-- Source-generated model fragments and patches, with semantic merge and diff operations.
-- Priority-based resolution across independent sources.
-- Separate resource, codec, and source contracts.
-- Read-only, writable, and watched sources that can be combined as needed.
-- Dependency injection, named profiles, validation, migration, and property-level explanations.
+## What can it do?
+
+<CardGrid stagger>
+  <Card title="Layer independent sources" icon="layers">
+    Merge JSON, YAML, XML, environment variables, command-line options, and HTTP resources by priority. Each source owns only its fields.
+  </Card>
+  <Card title="Edit sparsely" icon="pencil">
+    Save a single property, open an edit session, or route one edit across several sources. Untouched members are preserved.
+  </Card>
+  <Card title="Reuse one definition" icon="puzzle">
+    The same model and source definitions work with and without dependency injection, plus `IOptions<T>` adapters.
+  </Card>
+  <Card title="Explain every value" icon="magnifier">
+    Ask where `Database.Host` came from and see each source contribution from highest to lowest priority.
+  </Card>
+  <Card title="Profiles and dynamic options" icon="user">
+    Persist named profiles with an active-profile catalog, or add per-document options at runtime.
+  </Card>
+  <Card title="Migrate safely" icon="arrow-right">
+    Version models with generated migrations, copy sources with verification, and adopt existing `Configuration.Writable` files.
+  </Card>
+  <Card title="Validate and schema" icon="approve-check">
+    DataAnnotations or custom validators, plus versioned JSON Schema export for editors and CI.
+  </Card>
+  <Card title="NativeAOT ready" icon="rocket">
+    Source-generated serialization metadata keeps trimming-safe apps working, with a NativeAOT sample included.
+  </Card>
+</CardGrid>
+
+## Next steps
+
+* New to Configlue? Start with [Why Configlue](./getting-started/why-configlue.md) and the [Quick start](./getting-started/quick-start.md).
+* Browse runnable code in [Examples](./getting-started/examples.md).
+* Look up a capability in the sidebar: sources, layering, profiles, migration, or the package reference.
