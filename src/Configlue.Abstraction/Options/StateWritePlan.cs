@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Linq.Expressions;
 
 namespace Configlue;
 
@@ -46,6 +47,9 @@ public sealed class StateWritePlan
     /// <summary>Creates a plan with no overrides; all changed paths use the configured write source.</summary>
     public static StateWritePlan Empty { get; } =
         new(new Dictionary<string, string>(StringComparer.Ordinal));
+
+    /// <summary>Starts a strongly typed write-routing plan for one generated model.</summary>
+    public static StateWritePlanBuilder<TModel> For<TModel>() => new();
 
     /// <summary>Configured model property paths and their target logical source IDs.</summary>
     public IReadOnlyDictionary<string, string> PropertyRoutes { get; }

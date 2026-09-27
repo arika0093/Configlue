@@ -12,29 +12,32 @@ description: WriteRoute 既定、パス単位 WritePlan、競合、複数書き�
 `WriteRoute` が既定の保存先を選びます。パスに所有者がなければ `WriteRoute` (または最優先の書き込み可能ソース) を使います:
 
 ```csharp
-model.WriteRoute = StateWriteRoute.To("user-settings");
+var userSettings = SourceKey<AppSettings>.Create();
+model.Sources(sources => sources.Add(userSettings, CreateUserSettingsSource()));
+model.WriteRoute = StateWriteRoute.To(userSettings);
 ```
 
 `WriteRoute` を設定していない場合、明示的なパス所有者がない変更パスについて書き込み可能ソースを読み取り優先度順に評価します。明示経路に振り分けたパッチと候補を全ソースに適用した状態をシミュレーションし、要求された実効モデルになる最初の候補を使います。評価中は書き込まず、編集基準の全 revision を再確認してから選択先へ書き込みます。設定済み `WriteRoute` と明示的なパス経路は固定され、要求値を実現できなければ `StateConflictException` になります。`SaveAsync(value)` は引き続き選択した書き込み先の寄与全体を置き換えます。
 
 ## パス単位プラン
 
-`ConfiglueModelBuilder<T>.WritePlan` でパス/部分木ごとの既定所有者を宣言します。例えば `Database` を書き込み可能なユーザーオーバーレイに寄せつつ、無関係の値は下位ソースに残せます。最も具体的なパスが勝ちます。操作単位の `StateWritePlan` は一致パスについて登録経路を置き換え、入れ子モデル変更を複数ソースフラグメントに分割できます:
+`ConfiglueModelBuilder<T>.WritePlan` でパス/部分木ごとの既定所有者を宣言します。例えば `Database` を書き込み可能なユーザーオーバーレイに寄せつつ、無関係の値は下位ソースに残せます。最も具体的なパスが勝ちます。型付き `SourceKey<T>` とプロパティ selector を使い、文字列 ID やプロパティパスを直接扱わずに指定できます。操作単位の `StateWritePlan` は一致パスについて登録経路を置き換え、入れ子モデル変更を複数ソースフラグメントに分割できます:
 
 ```csharp
 // 1回の編集でモデルパスごとに書き込み先を変える。
-var writePlan = new StateWritePlan(new Dictionary<string, string>
-{
-    ["Database"] = "database-settings",
-    ["Database.Password"] = "secrets",
-});
+var database = SourceKey<AppSettings>.Create();
+var secrets = SourceKey<AppSettings>.Create();
+var writePlan = StateWritePlan.For<AppSettings>()
+    .Route(settings => settings.Database, database)
+    .Route(settings => settings.Database!.Password, secrets)
+    .Build();
 using var routedEdit = await options.OpenEditSessionAsync(writePlan);
 routedEdit.Value.Database!.Password = "updated";
 var writeResult = await routedEdit.CommitAsync();
 var sourceWrites = writeResult.MultiWriteResult;
 ```
 
-`SaveAsync(value, writePlan)` オーバーロードは値を解決済み基準と比較し、変更パスのみを振り分けます。
+通常の patch 保存も登録時のトップレベル経路と単一ソースが所有する部分木に従います。1つの入れ子 patch 内で複数ソースへ分割する場合は edit session を使います。
 
 ## 検証と競合
 

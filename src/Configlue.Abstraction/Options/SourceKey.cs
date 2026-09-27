@@ -6,7 +6,11 @@ public readonly record struct SourceKey<TModel>
 {
     private SourceKey(string id) => Id = id;
 
-    internal string Id { get; }
+    /// <summary>The opaque logical identifier represented by this key.</summary>
+    public string Id { get; }
+
+    /// <summary>Creates a new opaque key for explicitly registered sources.</summary>
+    public static SourceKey<TModel> Create() => new($"source:{Guid.NewGuid():N}");
 
     /// <summary>Creates a typed key for a registered logical source identifier.</summary>
     public static SourceKey<TModel> FromId(string id)
