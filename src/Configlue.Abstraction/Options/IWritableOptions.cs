@@ -13,7 +13,8 @@ public interface IWritableOptions<T> : IReadOnlyOptions<T>
         CancellationToken cancellationToken = default
     );
 
-    /// <summary>Applies a generated sparse patch to the configured write source's fragment.</summary>
+    /// <summary>Applies a generated sparse patch to the configured write source.</summary>
+    /// <remarks>Throws a <see cref="StateConflictException"/> when higher-priority contributions prevent the patch from producing its requested effective values.</remarks>
     ValueTask<StateWriteResult> SaveAsync(
         IConfigluePatch patch,
         CancellationToken cancellationToken = default
