@@ -36,7 +36,13 @@ builder.Services.AddConfiglue(conf => conf.Add<UserSettings>(model =>
 }));
 ```
 
-コンテキストはサービスプロバイダーが所有します。`IReadOnlyOptions<T>` / `IWritableOptions<T>` を注入するか、クラスモデル向けの `IOptions<T>` / `IOptionsSnapshot<T>` / `IOptionsMonitor<T>` アダプターを使います。既に実体化された `IOptionsSnapshot<T>` は通常のスナップショット通り、そのスコープの値を保ちます。
+コンテキストはサービスプロバイダーが所有します。`IReadOnlyOptions<T>` / `IWritableOptions<T>` を注入してください。クラスモデル向けの `IOptions<T>` / `IOptionsSnapshot<T>` / `IOptionsMonitor<T>` を使う場合は、`Configlue.Extension.MSOptions` を追加し、モデル登録後に明示的に登録します:
+
+```csharp
+services.AddConfiglueMicrosoftOptions<UserSettings>();
+```
+
+既に実体化された `IOptionsSnapshot<T>` は通常のスナップショット通り、そのスコープの値を保ちます。
 
 モデル自体を使う場合は、既定モデルの登録で `RegisterAsSingleton = true` を設定します。DI はモデルが初めて解決された時点の options 値からモデル singleton を作ります。その後ソースが変わっても注入済みモデルはこのスナップショットを保ちます。最新値や変更通知が必要な利用側には options インターフェイスを使います。この設定は `AddConfiglue` で有効になり、既定のオプション名が必要です。
 

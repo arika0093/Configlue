@@ -162,6 +162,7 @@ public sealed class ConfiglueFacadeSourceTests
             new AppSettings.Fragment { Label = Optional<string?>.Present("di-file") }
         );
         var services = new ServiceCollection();
+        services.AddConfiglueMicrosoftOptions<AppSettings>();
         services.AddConfiglue(builder =>
         {
             builder.Add<AppSettings>(model =>
@@ -443,6 +444,7 @@ public sealed class ConfiglueFacadeSourceTests
             new AppSettings.Fragment { Label = Optional<string?>.Present("selected-di") }
         );
         var services = new ServiceCollection();
+        services.AddConfiglueMicrosoftOptions<AppSettings>();
         services.AddConfiglue(builder =>
         {
             builder.Add<AppSettings>(model =>
@@ -493,6 +495,7 @@ public sealed class ConfiglueFacadeSourceTests
             new AppSettings.Fragment { RetryCount = Optional<int>.Present(11) }
         );
         var services = new ServiceCollection();
+        services.AddConfiglueMicrosoftOptions<AppSettings>();
         services
             .AddHttpClient("json-settings")
             .ConfigurePrimaryHttpMessageHandler(() =>
@@ -577,6 +580,7 @@ public sealed class ConfiglueFacadeSourceTests
             new AppSettings.Fragment { RetryCount = Optional<int>.Present(9) }
         );
         var services = new ServiceCollection();
+        services.AddConfiglueMicrosoftOptions<AppSettings>();
         services
             .AddHttpClient("settings-primary")
             .ConfigurePrimaryHttpMessageHandler(() =>

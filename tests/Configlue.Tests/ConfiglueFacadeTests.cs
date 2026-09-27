@@ -128,6 +128,7 @@ public sealed class ConfiglueFacadeTests
     public async Task DiFacadeUsesSameRegistrationForConfiglueAndMicrosoftOptions()
     {
         var services = new ServiceCollection();
+        services.AddConfiglueMicrosoftOptions<AppSettings>();
         services.AddConfiglue(builder =>
         {
             builder.Add<AppSettings>(model =>
@@ -149,6 +150,7 @@ public sealed class ConfiglueFacadeTests
     public async Task DiFacadeRegistersNamedInstancesAsKeyedAndMicrosoftOptions()
     {
         var services = new ServiceCollection();
+        services.AddConfiglueMicrosoftOptions<AppSettings>();
         services.AddConfiglue(builder =>
         {
             builder.Add<AppSettings>(model =>
@@ -376,6 +378,7 @@ public sealed class ConfiglueFacadeTests
     public async Task FacadeDynamicOptionsUpdateDiMonitorAndInvalidateRemovedHandles()
     {
         var services = new ServiceCollection();
+        services.AddConfiglueMicrosoftOptions<AppSettings>();
         services.AddConfiglue(builder =>
         {
             builder.Add<AppSettings>(model =>
@@ -413,6 +416,7 @@ public sealed class ConfiglueFacadeTests
             watcher: catalogStore
         );
         var services = new ServiceCollection();
+        services.AddConfiglueMicrosoftOptions<AppSettings>();
         services.AddConfiglue(builder =>
         {
             builder.Add<AppSettings>(model =>

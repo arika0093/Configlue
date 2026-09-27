@@ -55,7 +55,7 @@ services.AddConfiglueValidator<UserSetting>(new UserSettingValidator());
 
 旧フラグメントが同じ生成形状を持つ場合の `IStateSchemaMigration<TFragment>` 登録は [スキーマ移行](../migration/schema-migration.md) 参照。
 
-クラスモデル登録には `IOptions<T>`、スコープ付き `IOptionsSnapshot<T>`、`IOptionsMonitor<T>` アダプターも付きます。`IOptions<T>` は最初の値をキャッシュし、各 snapshot はスコープ内で値をキャッシュします。monitor は watcher を持つ source の場合、名前ごとに値をキャッシュし、変更通知後に成功した値へ更新します。getter は毎回 clone を返し、再読み込みに失敗した場合は最後に成功した値を保ちます。watcher を持つ source がない場合は無効化の合図がないため、`Get` のたびに現在状態を読みます。これらのアダプターは同期読みを使うため、非同期フローでは `ReadAsync`・`GetValueAsync` を使ってください。
+Microsoft Options アダプターは `Configlue.Extension.MSOptions` の `services.AddConfiglueMicrosoftOptions<T>()` で opt-in します。`IOptions<T>` は最初の値をキャッシュし、各 snapshot はスコープ内で値をキャッシュします。monitor は watcher を持つ source の場合、名前ごとに値をキャッシュし、変更通知後に成功した値へ更新します。getter は毎回 clone を返し、再読み込みに失敗した場合は最後に成功した値を保ちます。watcher を持つ source がない場合は無効化の合図がないため、`Get` のたびに現在状態を読みます。これらのアダプターは同期読みを使うため、非同期フローでは `ReadAsync`・`GetValueAsync` を使ってください。
 
 ## 次のステップ
 

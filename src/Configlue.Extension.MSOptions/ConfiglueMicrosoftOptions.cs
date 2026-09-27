@@ -4,11 +4,6 @@ using Microsoft.Extensions.Options;
 
 namespace Configlue;
 
-internal sealed record ConfiglueNamedOptionsProfile<TModel>(string Name)
-{
-    public Type ModelType => typeof(TModel);
-}
-
 internal sealed class ConfiglueMicrosoftOptionsResolver<TModel>
 {
     private readonly IServiceProvider _services;

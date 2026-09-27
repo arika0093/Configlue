@@ -10,7 +10,8 @@ description: Find the NuGet package for each Configlue capability.
 | `Configlue` | User-facing meta-package: Core, DI integration, JSON provider, HTTP resources, environment source, and the generator analyzer. Contains no implementation assembly of its own. |
 | `Configlue.Abstraction` | Provider, codec, resource, and generated-model contracts. |
 | `Configlue.Core` | State resolution and persistence runtime. |
-| `Configlue.Extensions.DI` | Dependency-injection registration and Microsoft options adapters. |
+| `Configlue.Extensions.DI` | Dependency-injection registration for Configlue options. |
+| `Configlue.Extension.MSOptions` | Optional adapters for Microsoft's options interfaces. |
 | `Configlue.Generator` | Generated sparse model support (Roslyn analyzer). |
 | `Configlue.Testing` | In-memory resources and test doubles. |
 | `Configlue.Provider.Json` | JSON codec, section resources, file registrations, and JSON Schema export. |
