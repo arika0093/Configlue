@@ -7,7 +7,7 @@ description: File backup generations and restore, logging, explanations, and dia
 
 ## File backups
 
-File resources keep one atomic `.bak` generation by default; `FileResourceOptions` can retain more generations in a chosen directory, and `RestoreLatestBackupAsync` restores the newest one explicitly.
+File resources keep one atomic `.bak` generation by default. Backups go under `backup/` beside the resource file on Windows and `.backup/` on other platforms; Windows marks the directory and files hidden. `FileResourceOptions` can retain more generations in a chosen directory, and `RestoreLatestBackupAsync` restores the newest one explicitly. Relative `BackupDirectory` values are resolved from the resource file directory.
 
 ```csharp
 var resource = new FileResource(
@@ -28,7 +28,7 @@ model.UseJsonFile(new JsonFileSourceOptions
 });
 ```
 
-When the file is missing or contains invalid JSON, Configlue checks the latest backup and restores it only if it can be decoded and the file has not changed since the failed read. The default JSON codec classifies malformed JSON for recovery. Custom codecs must implement `IStateCodecRecoveryPolicy` to recover from format errors; missing-file recovery does not require that policy.
+When the file is missing or contains invalid JSON, Configlue checks the latest backup (for example, `.backup/settings.json.bak` on Linux and macOS) and restores it only if it can be decoded and the file has not changed since the failed read. The default JSON codec classifies malformed JSON for recovery. Custom codecs must implement `IStateCodecRecoveryPolicy` to recover from format errors; missing-file recovery does not require that policy.
 
 File writes retry transient sharing failures up to 3 times by default, waiting 100ms between attempts. `RetryCount` and `RetryDelay` change those defaults. Set `RetryDelayFactory` to calculate a delay for each one-based retry attempt, for example:
 

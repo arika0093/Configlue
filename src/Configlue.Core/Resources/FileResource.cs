@@ -60,9 +60,17 @@ public sealed class FileResource
         _directory = System.IO.Path.GetDirectoryName(_path)!;
         _fileName = System.IO.Path.GetFileName(_path);
         _options = options ?? new FileResourceOptions();
-        _backupDirectory = _options.BackupDirectory is null
-            ? _directory
-            : System.IO.Path.GetFullPath(_options.BackupDirectory);
+        var backupDirectory = _options.BackupDirectory;
+        if (backupDirectory is null)
+        {
+            backupDirectory = OperatingSystem.IsWindows() ? "backup" : ".backup";
+        }
+
+        _backupDirectory = System.IO.Path.GetFullPath(
+            System.IO.Path.IsPathRooted(backupDirectory)
+                ? backupDirectory
+                : System.IO.Path.Combine(_directory, backupDirectory)
+        );
         if (_options.BackupMaxCount < 0)
         {
             throw new ArgumentOutOfRangeException(
@@ -531,6 +539,7 @@ public sealed class FileResource
     )
     {
         Directory.CreateDirectory(_backupDirectory);
+        SetHiddenOnWindows(_backupDirectory);
         for (var index = _options.BackupMaxCount - 1; index > 0; index--)
         {
             var previousBackupPath = GetBackupPath(index - 1);
@@ -549,12 +558,24 @@ public sealed class FileResource
                 continue;
             }
 
-            await WriteAtomicAsync(GetBackupPath(index), olderContent, cancellationToken)
+            var backupPath = GetBackupPath(index);
+            await WriteAtomicAsync(backupPath, olderContent, cancellationToken)
                 .ConfigureAwait(false);
+            SetHiddenOnWindows(backupPath);
         }
 
-        await WriteAtomicAsync(GetBackupPath(0), previousContent, cancellationToken)
+        var latestBackupPath = GetBackupPath(0);
+        await WriteAtomicAsync(latestBackupPath, previousContent, cancellationToken)
             .ConfigureAwait(false);
+        SetHiddenOnWindows(latestBackupPath);
+    }
+
+    private static void SetHiddenOnWindows(string path)
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            File.SetAttributes(path, File.GetAttributes(path) | FileAttributes.Hidden);
+        }
     }
 
     private string GetBackupPath(int index)

@@ -55,7 +55,7 @@ public sealed class FileResourceTests
             var secondWrite = await resource.WriteAsync(
                 new ResourceWriteRequest(secondContent, firstWrite.Revision)
             );
-            var backup = await File.ReadAllBytesAsync(path + ".bak");
+            var backup = await File.ReadAllBytesAsync(GetDefaultBackupPath(path));
             var saved = await resource.ReadAsync();
 
             (missing.Status).ShouldBe(StateReadStatus.NotFound);
@@ -182,7 +182,7 @@ public sealed class FileResourceTests
         Directory.CreateDirectory(directory);
         var path = System.IO.Path.Combine(directory, "settings.json");
         using var resource = new FileResource(path);
-        await File.WriteAllTextAsync(path + ".bak", "{}");
+        await File.WriteAllTextAsync(GetDefaultBackupPath(path), "{}");
         var reader = new SerializedStateReader<AppSettings.Fragment>(
             resource,
             new JsonStateCodec<AppSettings.Fragment>()
@@ -242,7 +242,7 @@ public sealed class FileResourceTests
         Directory.CreateDirectory(directory);
         await File.WriteAllTextAsync(path, "{ invalid primary");
         var corruptPrimary = await File.ReadAllTextAsync(path);
-        await File.WriteAllTextAsync(path + ".bak", "{ invalid backup");
+        await File.WriteAllTextAsync(GetDefaultBackupPath(path), "{ invalid backup");
         var reader = new SerializedStateReader<AppSettings.Fragment>(
             resource,
             new JsonStateCodec<AppSettings.Fragment>()
@@ -262,7 +262,7 @@ public sealed class FileResourceTests
         using var resource = new FileResource(path);
         Directory.CreateDirectory(directory);
         await File.WriteAllTextAsync(path, "current");
-        await File.WriteAllTextAsync(path + ".bak", "backup");
+        await File.WriteAllTextAsync(GetDefaultBackupPath(path), "backup");
 
         await Should.ThrowAsync<StateConflictException>(async () =>
             await resource.TryRecoverLatestBackupAsync(
@@ -535,6 +535,16 @@ public sealed class FileResourceTests
             "Configlue.Tests",
             Guid.NewGuid().ToString("N")
         );
+
+    private static string GetDefaultBackupPath(string path)
+    {
+        var directory = System.IO.Path.Combine(
+            System.IO.Path.GetDirectoryName(path)!,
+            OperatingSystem.IsWindows() ? "backup" : ".backup"
+        );
+        Directory.CreateDirectory(directory);
+        return System.IO.Path.Combine(directory, System.IO.Path.GetFileName(path) + ".bak");
+    }
 
     private static byte[] SerializeFragment(
         AppSettings.Fragment fragment,
