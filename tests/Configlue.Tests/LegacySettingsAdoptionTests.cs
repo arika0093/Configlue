@@ -13,10 +13,19 @@ public sealed class LegacySettingsAdoptionTests
     [Test]
     public async Task LegacyJsonCodecReadsVersionSchemaAndSparsePresenceWithoutWriting()
     {
-        var json = "{\"$version\":1,\"RetryCount\":0,\"NullableLabel\":null,\"$schema\":\"legacy.json\"}";
+        var json =
+            "{\"$version\":1,\"RetryCount\":0,\"NullableLabel\":null,\"$schema\":\"legacy.json\"}";
         var content = Encoding.UTF8.GetBytes(json);
         var codec = new ConfigurationWritableJsonStateCodec<HistoricalSettingsV1.Fragment>(
-            new JsonSerializerOptions { UnmappedMemberHandling = System.Text.Json.Serialization.JsonUnmappedMemberHandling.Disallow },
+            new JsonSerializerOptions
+            {
+                UnmappedMemberHandling = System
+                    .Text
+                    .Json
+                    .Serialization
+                    .JsonUnmappedMemberHandling
+                    .Disallow,
+            },
             modelId: "historical-settings"
         );
         var sequence = new ReadOnlySequence<byte>(content);
@@ -33,6 +42,64 @@ public sealed class LegacySettingsAdoptionTests
         var destination = new ArrayBufferWriter<byte>();
         Should.Throw<NotSupportedException>(() => codec.Serialize(fragment, destination, default));
         Encoding.UTF8.GetString(content).ShouldBe(json);
+    }
+
+    [Test]
+    public async Task LegacyJsonCodecSupportsConfiguredVersionNameAndJsonNamingPolicy()
+    {
+        var content = Encoding.UTF8.GetBytes(
+            "{\"schemaVersion\":2,\"retryCount\":7,\"nullableLabel\":null}"
+        );
+        var codec = new ConfigurationWritableJsonStateCodec<HistoricalSettingsV1.Fragment>(
+            new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase },
+            modelId: "historical-settings",
+            versionProperty: "schemaVersion"
+        );
+        var sequence = new ReadOnlySequence<byte>(content);
+
+        (codec.ReadSchemaMetadata(in sequence)).ShouldBe(
+            new StateSchemaMetadata("historical-settings", 2)
+        );
+        var fragment = codec.Deserialize(in sequence, default)!;
+        (fragment.RetryCount.Value).ShouldBe(7);
+        (fragment.NullableLabel.IsPresent).ShouldBeTrue();
+        (fragment.NullableLabel.Value).ShouldBeNull();
+        (fragment.OldName.IsPresent).ShouldBeFalse();
+    }
+
+    [Test]
+    public async Task UnmarkedLegacyJsonDefaultsToVersionOneAndStripsSchemaReference()
+    {
+        var json = "{\"$schema\":\"legacy.json\",\"RetryCount\":3}";
+        var content = Encoding.UTF8.GetBytes(json);
+        var codec = new ConfigurationWritableJsonStateCodec<HistoricalSettingsV1.Fragment>(
+            new JsonSerializerOptions
+            {
+                UnmappedMemberHandling = System
+                    .Text
+                    .Json
+                    .Serialization
+                    .JsonUnmappedMemberHandling
+                    .Disallow,
+            },
+            modelId: "historical-settings"
+        );
+        var sequence = new ReadOnlySequence<byte>(content);
+
+        (codec.ReadSchemaMetadata(in sequence)).ShouldBe(
+            new StateSchemaMetadata("historical-settings", 1)
+        );
+        var fragment = codec.Deserialize(in sequence, default)!;
+        (fragment.RetryCount.Value).ShouldBe(3);
+        Encoding.UTF8.GetString(content).ShouldBe(json);
+
+        var fallbackContent = new ReadOnlySequence<byte>(
+            Encoding.UTF8.GetBytes("{\"Version\":2,\"RetryCount\":4}")
+        );
+        (codec.ReadSchemaMetadata(in fallbackContent)).ShouldBe(
+            new StateSchemaMetadata("historical-settings", 2)
+        );
+        (codec.Deserialize(in fallbackContent, default)!.RetryCount.Value).ShouldBe(4);
     }
 
     [Test]
@@ -103,10 +170,33 @@ public sealed class LegacySettingsAdoptionTests
     }
 
     [Test]
+    public async Task LegacyYamlCodecUsesExplicitNamingConvention()
+    {
+        var content = Encoding.UTF8.GetBytes("retry_count: 6\nnullable_label: value\n");
+        var sequence = new ReadOnlySequence<byte>(content);
+        var codec = new ConfigurationWritableYamlStateCodec<HistoricalSettingsV1.Fragment>(
+            namingConvention: YamlDotNet
+                .Serialization
+                .NamingConventions
+                .UnderscoredNamingConvention
+                .Instance,
+            modelId: "historical-settings"
+        );
+
+        (codec.ReadSchemaMetadata(in sequence)).ShouldBe(
+            new StateSchemaMetadata("historical-settings", 1)
+        );
+        var fragment = codec.Deserialize(in sequence, default)!;
+        (fragment.RetryCount.Value).ShouldBe(6);
+        (fragment.NullableLabel.Value).ShouldBe("value");
+    }
+
+    [Test]
     public async Task LegacyYamlSectionReadsExplicitEncodingAndLeavesOriginalBytesUntouched()
     {
         var encoding = Encoding.Unicode;
-        var original = encoding.GetPreamble()
+        var original = encoding
+            .GetPreamble()
             .Concat(encoding.GetBytes("App:\n  Settings:\n    retryCount: 2\n  Other: keep\n"))
             .ToArray();
         var resource = new InMemoryResource();
@@ -138,7 +228,7 @@ public sealed class LegacySettingsAdoptionTests
     public async Task LegacyJsonSectionDispatchesAndMigratesOnlyTheSelectedContribution()
     {
         var original = Encoding.UTF8.GetBytes(
-            "{\"Profile\":{\"$version\":1,\"RetryCount\":0,\"NullableLabel\":null,\"OldName\":\"legacy\"},\"Other\":{\"RetryCount\":99}}"
+            "{\"Profile\":{\"RetryCount\":0,\"NullableLabel\":null,\"OldName\":\"legacy\"},\"Other\":{\"RetryCount\":99}}"
         );
         var resource = new InMemoryResource();
         await resource.WriteAsync(new ResourceWriteRequest(original));
@@ -194,11 +284,7 @@ public sealed class LegacySettingsAdoptionTests
             priority: 500
         );
         var options = new ConfiglueOptions<HistoricalSettings, HistoricalSettings.Fragment>(
-            new StateSourceSet<HistoricalSettings.Fragment>([
-                higherPrioritySource,
-                source,
-                target,
-            ])
+            new StateSourceSet<HistoricalSettings.Fragment>([higherPrioritySource, source, target])
         );
 
         var result = await source.Reader.ReadAsync();
