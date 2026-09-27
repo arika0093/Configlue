@@ -1,4 +1,6 @@
+using System.Collections.Concurrent;
 using Configlue.Provider.Json;
+using Configlue.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
@@ -192,6 +194,84 @@ public sealed class ProfiledOptionsTests
     }
 
     [Test]
+    public async Task ProfileCatalogReconciliationNotifiesOnlyCommittedAmbiguousActiveChanges()
+    {
+        var committedStore = new InMemoryStateStore<ConfiglueProfileCatalog>(
+            new ConfiglueProfileCatalog
+            {
+                ProfileNames = ["default", "Work"],
+                ActiveProfileName = "default",
+            }
+        );
+        var committedWriter = new CommitThenThrowCatalogWriter(
+            committedStore,
+            commitBeforeThrow: true
+        );
+        var committedRegistry = CreateProfileRegistry();
+        var committedProfiles = new ConfiglueProfiledOptions<AppSettings, AppSettings.Fragment>(
+            committedRegistry,
+            new StateSource<ConfiglueProfileCatalog>(
+                "catalog",
+                committedStore,
+                writer: committedWriter
+            )
+        );
+        await committedProfiles.GetProfileNamesAsync();
+        var committedNotifications = new ConcurrentQueue<(string Published, string Reentered)>();
+        committedProfiles.ActiveProfileChanged += profileName =>
+        {
+            var reenteredName = committedProfiles
+                .GetActiveProfileNameAsync()
+                .AsTask()
+                .GetAwaiter()
+                .GetResult();
+            committedNotifications.Enqueue((profileName, reenteredName));
+        };
+
+        await Should.ThrowAsync<IOException>(async () =>
+            await committedProfiles.SetActiveProfileAsync("Work")
+        );
+        (await committedStore.ReadAsync()).Value!.ActiveProfileName.ShouldBe("Work");
+        var reconciledNames = await Task.WhenAll(
+            Enumerable
+                .Range(0, 8)
+                .Select(_ => committedProfiles.GetActiveProfileNameAsync().AsTask())
+        );
+        reconciledNames.ShouldBe(Enumerable.Repeat("Work", 8).ToArray());
+        committedNotifications.ShouldBe(new[] { ("Work", "Work") });
+        (await committedProfiles.GetActiveProfileNameAsync()).ShouldBe("Work");
+        committedNotifications.ShouldBe(new[] { ("Work", "Work") });
+        await committedRegistry.DisposeAsync();
+
+        var unchangedStore = new InMemoryStateStore<ConfiglueProfileCatalog>(
+            new ConfiglueProfileCatalog
+            {
+                ProfileNames = ["default", "Work"],
+                ActiveProfileName = "default",
+            }
+        );
+        var unchangedRegistry = CreateProfileRegistry();
+        var unchangedProfiles = new ConfiglueProfiledOptions<AppSettings, AppSettings.Fragment>(
+            unchangedRegistry,
+            new StateSource<ConfiglueProfileCatalog>(
+                "catalog",
+                unchangedStore,
+                writer: new CommitThenThrowCatalogWriter(unchangedStore, commitBeforeThrow: false)
+            )
+        );
+        await unchangedProfiles.GetProfileNamesAsync();
+        var unchangedNotifications = new ConcurrentQueue<string>();
+        unchangedProfiles.ActiveProfileChanged += unchangedNotifications.Enqueue;
+
+        await Should.ThrowAsync<IOException>(async () =>
+            await unchangedProfiles.SetActiveProfileAsync("Work")
+        );
+        (await unchangedProfiles.GetActiveProfileNameAsync()).ShouldBe("default");
+        unchangedNotifications.ShouldBeEmpty();
+        await unchangedRegistry.DisposeAsync();
+    }
+
+    [Test]
     public async Task ProfileCatalogConflictRefreshRemovesStaleNamesFromEachRuntimeRegistry()
     {
         using var directory = new TemporaryDirectory();
@@ -249,6 +329,19 @@ public sealed class ProfiledOptionsTests
         }
     }
 
+    private static ConfiglueOptionsRegistry<
+        AppSettings,
+        AppSettings.Fragment
+    > CreateProfileRegistry() =>
+        new(name =>
+        {
+            var store = new InMemoryStateStore<AppSettings.Fragment>();
+            var source = new StateSource<AppSettings.Fragment>(name, store, writer: store);
+            return new ConfiglueOptions<AppSettings, AppSettings.Fragment>(
+                new StateSourceSet<AppSettings.Fragment>([source])
+            );
+        });
+
     private static ServiceProvider CreateServiceProvider(string filePath)
     {
         var services = new ServiceCollection();
@@ -303,6 +396,30 @@ public sealed class ProfiledOptionsTests
             {
                 Directory.Delete(FullPath, recursive: true);
             }
+        }
+    }
+
+    private sealed class CommitThenThrowCatalogWriter(
+        InMemoryStateStore<ConfiglueProfileCatalog> inner,
+        bool commitBeforeThrow
+    ) : IStateWriter<ConfiglueProfileCatalog>
+    {
+        private int _shouldThrow = 1;
+
+        public async ValueTask<StateWriteResult> WriteAsync(
+            StateWriteRequest<ConfiglueProfileCatalog> request,
+            CancellationToken cancellationToken = default
+        )
+        {
+            if (Interlocked.Exchange(ref _shouldThrow, 0) == 1)
+            {
+                if (commitBeforeThrow)
+                {
+                    await inner.WriteAsync(request, cancellationToken);
+                }
+                throw new IOException("The catalog writer failed after an ambiguous commit.");
+            }
+            return await inner.WriteAsync(request, cancellationToken);
         }
     }
 }
