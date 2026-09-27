@@ -95,10 +95,10 @@ Console.WriteLine($"Hello, {current.Name}! (run #{current.RunCount})");
 using var subscription = options.OnChange(updated =>
     Console.WriteLine($"Changed: {updated.Name}"));
 
-await options.SaveAsync(settings =>
+await options.SaveAsync(patch =>
 {
-    settings.Name = "Ada";
-    settings.RunCount++;
+    patch.Name = "Ada";
+    patch.RunCount = current.RunCount + 1;
 });
 ```
 
@@ -112,10 +112,10 @@ Console.WriteLine($"Hello, {current.Name}! (run #{current.RunCount})");
 using var subscription = options.OnChange(updated =>
     Console.WriteLine($"Changed: {updated.Name}"));
 
-await options.SaveAsync(settings =>
+await options.SaveAsync(patch =>
 {
-    settings.Name = "Ada";
-    settings.RunCount++;
+    patch.Name = "Ada";
+    patch.RunCount = current.RunCount + 1;
 });
 ```
 
@@ -124,7 +124,7 @@ The read/write code is identical with or without DI. Only context creation diffe
 </TabItem>
 </Tabs>
 
-The lambda passed to `SaveAsync` is a sparse edit: only touched members are saved, untouched ones keep their source values. Afterwards `settings.json` holds just this source's members:
+The generated Patch passed to `SaveAsync` is sparse: only specified members are saved, and untouched ones keep their source values. Afterwards `settings.json` holds just this source's members:
 
 ```json
 {

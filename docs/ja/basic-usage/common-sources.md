@@ -10,17 +10,15 @@ description: 共通・ローカル・指定・環境変数・コマンドライ�
 ```csharp
 using Configlue.Source.Common;
 
-config.Add<AppSettings>(model => model.UseCommonSources(new CommonSourceOptions
-{
-    ApplicationId = "ExampleApp",
-    GlobalFileName = "settings.json",
-    SpecificFilePath = selectedPath, // 選択ファイルパス。項目上書きとは別
-    EnvironmentPrefix = "EXAMPLE",
-    CommandLineParseResult = parseResult,
-    ConfigureCommandLineMappings = mappings => mappings.Map<AppSettings, int>(portOption, settings => settings.Server!.Port),
-    WriteLayer = CommonSourceWriteLayer.BestAvailable,
-}));
+config.Add<AppSettings>(model =>
+    model.UseCommonSources(
+        "ExampleApp",
+        specificFilePath: selectedPath, // 選択ファイルパス。項目上書きとは別
+        environmentPrefix: "EXAMPLE",
+        writeLayer: CommonSourceWriteLayer.BestAvailable));
 ```
+
+この規約では標準ユーザーディレクトリと現在のディレクトリに `settings.json` を使います。ファイル名、command-line mapping、serializer、独自 file resource を指定する場合は `CommonSourceOptions` を渡してください。
 
 `UseCommonSources` は次の安定した論理ソースに展開されます:
 

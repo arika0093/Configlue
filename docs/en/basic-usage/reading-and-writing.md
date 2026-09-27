@@ -37,15 +37,16 @@ The strategy clones public read results, creates the edit-session draft and base
 The generated Patch overload writes only the members you specify to the configured write source:
 
 ```csharp
-await options.SaveAsync(settings => settings.SomeSetting = newValue);
+await options.SaveAsync(patch => patch.SomeSetting = newValue);
 ```
 
 Unchanged fields retain their existing sparse state. For destructive replacement of one source contribution, use its typed source handle:
 
 ```csharp
+var userKey = SourceKey<AppSettings>.Create(); // reuse this key when registering the user source
 var replacement = new AppSettings.Patch();
 replacement.Name = "new-name";
-await options.Source(SourceKey<AppSettings>.FromId("user")).ReplaceAsync(replacement);
+await options.Source(userKey).ReplaceAsync(replacement);
 ```
 
 ## Edit sessions
@@ -85,7 +86,8 @@ Use `ApplyPatchesAsync` with `StateSourcePatch` entries for an explicit source-l
 For one source, use a typed key and handle. `SaveAsync` keeps unspecified contributions in that source; `ReplaceAsync` withdraws unspecified members while preserving explicit Set operations:
 
 ```csharp
-var userSource = options.Source(SourceKey<AppSettings>.FromId("user"));
+var userKey = SourceKey<AppSettings>.Create(); // same key used by source registration
+var userSource = options.Source(userKey);
 await userSource.SaveAsync(patch => patch.Database.Host = "db.example.test");
 await userSource.ReplaceAsync(patch => patch.Database.Host = "db.example.test");
 ```

@@ -62,11 +62,11 @@ Console.WriteLine($"Hello, {current.Name}! (run #{current.RunCount})");
 using var subscription = options.OnChange(updated =>
     Console.WriteLine($"Settings changed: {updated.Name}"));
 
-// 疎編集: Name だけ書き込まれ、RunCount はソースの値を保つ。
-await options.SaveAsync(settings =>
+// 疎 Patch: 指定した項目だけを書き込む。
+await options.SaveAsync(patch =>
 {
-    settings.Name = "Ada";
-    settings.RunCount++;
+    patch.Name = "Ada";
+    patch.RunCount = current.RunCount + 1;
 });
 ```
 

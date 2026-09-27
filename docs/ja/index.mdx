@@ -53,7 +53,7 @@ Configlue はこの「増えた後の設定」を前提にしています。出�
     同じモデル定義・ソース定義が、DI なしのコンソールやデスクトップアプリでも、DI ありの ASP.NET Core や Worker Service でも動きます。`IOptions<T>` として受け取ることもできます。
   </Card>
   <Card title="書き心地は普通の C#" icon="pencil">
-    読み書きするのは普通のクラスのインスタンスです。`SaveAsync(s => s.Name = "Ada")` のように書けば、裏側で差分だけが対象のソースに届きます。Source Generator が面倒な差分管理を引き受けます。
+    読み取るのは普通のクラスのインスタンスで、書き込みは生成 Patch の `SaveAsync(patch => patch.Name = "Ada")` で行います。Patch で Set/Unset する疎なメンバーを指定できます。
   </Card>
   <Card title="運用の道具も揃える" icon="approve-check">
     変更通知、バリデーション、バックアップ付きの安全な保存、JSON Schema の出力、NativeAOT 対応まで備えています。小さく始めて、そのまま本番の運用に持ち込めます。

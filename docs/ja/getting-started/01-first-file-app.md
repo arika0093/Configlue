@@ -95,10 +95,10 @@ Console.WriteLine($"Hello, {current.Name}! (run #{current.RunCount})");
 using var subscription = options.OnChange(updated =>
     Console.WriteLine($"変わりました: {updated.Name}"));
 
-await options.SaveAsync(settings =>
+await options.SaveAsync(patch =>
 {
-    settings.Name = "Ada";
-    settings.RunCount++;
+    patch.Name = "Ada";
+    patch.RunCount = current.RunCount + 1;
 });
 ```
 
@@ -112,10 +112,10 @@ Console.WriteLine($"Hello, {current.Name}! (run #{current.RunCount})");
 using var subscription = options.OnChange(updated =>
     Console.WriteLine($"変わりました: {updated.Name}"));
 
-await options.SaveAsync(settings =>
+await options.SaveAsync(patch =>
 {
-    settings.Name = "Ada";
-    settings.RunCount++;
+    patch.Name = "Ada";
+    patch.RunCount = current.RunCount + 1;
 });
 ```
 
@@ -124,7 +124,7 @@ await options.SaveAsync(settings =>
 </TabItem>
 </Tabs>
 
-`SaveAsync` に渡すラムダは「疎編集」です。触った項目だけが保存され、触っていない項目はソースの値を保ちます。保存後に `settings.json` を開くと、このソースが持つ項目だけが入っています。
+生成 Patch は「疎編集」です。指定した項目だけが保存され、触っていない項目はソースの値を保ちます。保存後に `settings.json` を開くと、このソースが持つ項目だけが入っています。
 
 ```json
 {

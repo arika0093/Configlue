@@ -65,7 +65,7 @@ It fails — with a `StateConflictException`. A read-only contribution shadows t
 
 ```csharp
 // Fails with a conflict while EXAMPLE__SERVER__PORT is set.
-await options.SaveAsync(settings => settings.Server.Port = 9000);
+await options.SaveAsync(patch => patch.Server!.Port = 9000);
 ```
 
 Pick one of these:

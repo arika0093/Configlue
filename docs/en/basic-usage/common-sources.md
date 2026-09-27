@@ -10,17 +10,15 @@ The optional `Configlue.Source.Common` package composes the standard application
 ```csharp
 using Configlue.Source.Common;
 
-config.Add<AppSettings>(model => model.UseCommonSources(new CommonSourceOptions
-{
-    ApplicationId = "ExampleApp",
-    GlobalFileName = "settings.json",
-    SpecificFilePath = selectedPath, // selected file path, separate from member overrides
-    EnvironmentPrefix = "EXAMPLE",
-    CommandLineParseResult = parseResult,
-    ConfigureCommandLineMappings = mappings => mappings.Map<AppSettings, int>(portOption, settings => settings.Server!.Port),
-    WriteLayer = CommonSourceWriteLayer.BestAvailable,
-}));
+config.Add<AppSettings>(model =>
+    model.UseCommonSources(
+        "ExampleApp",
+        specificFilePath: selectedPath, // selected file path, separate from member overrides
+        environmentPrefix: "EXAMPLE",
+        writeLayer: CommonSourceWriteLayer.BestAvailable));
 ```
+
+This convention uses `settings.json` in the standard per-user directory and current directory. Pass `CommonSourceOptions` when you need a custom file name, command-line mappings, serializer settings, or custom file resources.
 
 `UseCommonSources` expands to these stable logical sources:
 

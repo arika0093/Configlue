@@ -45,8 +45,8 @@ namespace Configlue
     public sealed class StateSourceSetBuilder<T>
     {
         public StateSourceSetBuilder() { }
-        public Configlue.StateSourceBuilder<T> Add(Configlue.IStateReader<T> reader, int priority = 0, Configlue.StateFallbackCondition fallbackCondition = 1, string? physicalOrigin = null, Configlue.ResourceId? resourceId = default, string? logicalDescriptor = null) { }
         public Configlue.StateSourceSetBuilder<T> Add(Configlue.StateSource<T> source) { }
+        public Configlue.StateSourceBuilder<T> Add(Configlue.IStateReader<T> reader, int priority = 0, Configlue.StateFallbackCondition fallbackCondition = 1, string? physicalOrigin = null, Configlue.ResourceId? resourceId = default, string? logicalDescriptor = null) { }
         public Configlue.StateSourceBuilder<T> Add(string id, Configlue.IStateReader<T> reader, int priority = 0, Configlue.StateFallbackCondition fallbackCondition = 1, string? physicalOrigin = null, Configlue.ResourceId? resourceId = default) { }
         public Configlue.StateSourceSet<T> Build() { }
     }

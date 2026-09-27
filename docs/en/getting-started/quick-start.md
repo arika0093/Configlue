@@ -62,11 +62,11 @@ Console.WriteLine($"Hello, {current.Name}! (run #{current.RunCount})");
 using var subscription = options.OnChange(updated =>
     Console.WriteLine($"Settings changed: {updated.Name}"));
 
-// Sparse edit: only Name is written; RunCount keeps its source value.
-await options.SaveAsync(settings =>
+// Sparse patch: only specified members are written.
+await options.SaveAsync(patch =>
 {
-    settings.Name = "Ada";
-    settings.RunCount++;
+    patch.Name = "Ada";
+    patch.RunCount = current.RunCount + 1;
 });
 ```
 

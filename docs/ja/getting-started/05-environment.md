@@ -65,7 +65,7 @@ builder.Services.AddConfiglue(conf =>
 
 ```csharp
 // EXAMPLE__SERVER__PORT が設定されていると、この保存は競合で失敗します。
-await options.SaveAsync(settings => settings.Server.Port = 9000);
+await options.SaveAsync(patch => patch.Server!.Port = 9000);
 ```
 
 対処はどれかです。

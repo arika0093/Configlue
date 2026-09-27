@@ -53,7 +53,7 @@ Configlue assumes settings *will* grow. Keep one source per origin, layer only t
     The same model and source definitions run in plain console or desktop apps and in DI-based ASP.NET Core or Worker Services. Values can also be consumed as `IOptions<T>`.
   </Card>
   <Card title="Feels like plain C#" icon="pencil">
-    You read and write an ordinary class instance. Write `SaveAsync(s => s.Name = "Ada")` and only the difference reaches the target source. A source generator takes care of the tedious diffing.
+    You read an ordinary class instance and write a generated Patch with `SaveAsync(patch => patch.Name = "Ada")`. The patch names the sparse members to set or unset.
   </Card>
   <Card title="Ready for production" icon="approve-check">
     Change notifications, validation, safe saving with backups, JSON Schema export, and NativeAOT support are included. Start small and carry the same setup into production.
