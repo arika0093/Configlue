@@ -728,9 +728,7 @@ public sealed class ConfiglueFacadeSourceTests
             (value.RetryCount).ShouldBe(5);
             (value.Label).ShouldBe("local");
             (value.Enabled).ShouldBeFalse();
-            (await options.ExplainAsync("RetryCount")).HighestPrioritySourceId.ShouldBe(
-                "common.commandLine"
-            );
+            ((await options.GetDetailsAsync()).RetryCount.Source?.Kind).ShouldBe("CommandLine");
 
             await options.SaveAsync(settings => settings.Label = "written-to-specific");
             var written = new JsonStateCodec<AppSettings.Fragment>();

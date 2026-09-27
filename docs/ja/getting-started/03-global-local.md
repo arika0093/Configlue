@@ -115,6 +115,6 @@ builder.Services.AddConfiglue(conf =>
 - **書き:** 既定では `WriteRoute` の指すひとつのソースにだけ書く。項目ごとに宛先を分けたいときは `WritePlan` を使う（[書き込み経路指定](../layering/write-routing.md)）。
 - **宛先の決め方:** `WriteLayer` や `WriteRoute` で暗黙に決めておき、操作ごとに変えたいときだけ明示的に指定する。どこに書くかは常にコードから読める状態にしておきます。
 
-`ExplainAsync("Server.Port")` で実効値と寄与を並べると、重ね合わせが目に見えます。ぜひ試してください。
+`(await options.GetDetailsAsync()).Server.Port` で実効値と寄与を並べると、重ね合わせが目に見えます。ぜひ試してください。
 
 次: [STEP 4: バリデーションを付ける](./04-validation.md)。間違った値を保存前に止めます。

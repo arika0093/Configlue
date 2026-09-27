@@ -40,6 +40,7 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
     private readonly StateSourceSet<TFragment> _sourceSet;
     private readonly object _sourceGate = new();
     private readonly HashSet<string> _retiredSourceIds = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, string> _detailsSourceKeys = new(StringComparer.Ordinal);
     private StateSource<TFragment>[] _activeSources;
     private TaskCompletionSource _sourceTopologyChanged = NewTopologySignal();
     private readonly StateWriteRoute _writeRoute;
@@ -288,65 +289,6 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
             : result;
     }
 
-    /// <inheritdoc />
-    public async ValueTask<ConfiglueValueExplanation> ExplainAsync(
-        string propertyPath,
-        CancellationToken cancellationToken = default
-    )
-    {
-        using var operation = EnterOperation();
-        ArgumentException.ThrowIfNullOrWhiteSpace(propertyPath);
-        var path = propertyPath.Split('.', StringSplitOptions.None);
-        if (path.Any(string.IsNullOrWhiteSpace))
-        {
-            throw new ArgumentException(
-                "A property path cannot contain empty member names.",
-                nameof(propertyPath)
-            );
-        }
-
-        var resolved = await ResolveCoreAsync(null, cancellationToken).ConfigureAwait(false);
-        if (resolved.Result.Status != StateReadStatus.Success)
-        {
-            throw new InvalidOperationException(
-                $"Configuration state could not be read: {resolved.Result.Status}."
-            );
-        }
-
-        var effectiveValue = GetModelValue(
-            TModel.ConfiglueSchema,
-            resolved.Result.Value!,
-            path,
-            propertyPath,
-            out var member
-        );
-        var sourceContributions = new List<ConfiglueSourceContribution>();
-        foreach (var contribution in resolved.Contributions)
-        {
-            if (TryGetFragmentValue(contribution.Result.Value!, path, out var value))
-            {
-                sourceContributions.Add(
-                    new ConfiglueSourceContribution(
-                        contribution.Source.Id,
-                        contribution.Result.PhysicalOrigin,
-                        contribution.Result.Revision,
-                        value
-                    )
-                );
-            }
-        }
-
-        var collectionElements = IsCollectionType(member)
-            ? ExplainCollectionElements(member, effectiveValue, sourceContributions)
-            : [];
-        return new ConfiglueValueExplanation(
-            propertyPath,
-            effectiveValue,
-            sourceContributions,
-            collectionElements
-        );
-    }
-
     private async ValueTask<StateReadResult<TModel>> ReadCoreAsync(
         IReadOnlyDictionary<string, StateReadResult<TFragment>>? replacements,
         CancellationToken cancellationToken
@@ -359,6 +301,7 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
     {
         using var operation = EnterOperation();
         var contributions = new List<ResolvedContribution>();
+        var failures = new List<ResolvedFailure>();
         var revisions = new List<StateRevision>();
         var nestedRevisions = new List<KeyValuePair<string, StateRevisionVector>>();
         StateReadResult<TFragment> lastFailure = default;
@@ -507,9 +450,12 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
                         new StateRevisionVector(revisions, nestedRevisions)
                     ),
                     contributions,
-                    null
+                    null,
+                    [.. failures, new ResolvedFailure(source, result)]
                 );
             }
+
+            failures.Add(new ResolvedFailure(source, result));
         }
 
         if (contributions.Count == 0 && lastFailure.Status == StateReadStatus.Unavailable)
@@ -525,7 +471,8 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
                     new StateRevisionVector(revisions, nestedRevisions)
                 ),
                 contributions,
-                null
+                null,
+                failures
             );
         }
 
@@ -562,7 +509,7 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
             );
         }
 
-        return new ResolvedState(resolvedResult, contributions, merged);
+        return new ResolvedState(resolvedResult, contributions, merged, failures);
     }
 
     /// <inheritdoc />
@@ -4414,44 +4361,22 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
         throw new ArgumentException("The property path is empty.", nameof(propertyPath));
     }
 
-    private static bool IsGeneratedCollectionType(Type valueType)
-    {
-        if (valueType.IsArray)
-        {
-            return true;
-        }
+    private sealed record CollectionElementProvenance(
+        int Index,
+        object? Value,
+        int[] SourceIndices
+    );
 
-        if (!valueType.IsGenericType)
-        {
-            return false;
-        }
-
-        var definition = valueType.GetGenericTypeDefinition();
-        return definition == typeof(IEnumerable<>)
-            || definition == typeof(IReadOnlyCollection<>)
-            || definition == typeof(IReadOnlyList<>)
-            || definition == typeof(List<>)
-            || definition == typeof(HashSet<>)
-            || definition == typeof(ISet<>)
-            || definition == typeof(IReadOnlySet<>);
-    }
-
-    private static bool IsCollectionType(ConfiglueMemberSchema member) =>
-        member.MergeStrategy is not null
-            ? member.ValueType != typeof(string)
-                && typeof(IEnumerable).IsAssignableFrom(member.ValueType)
-            : IsGeneratedCollectionType(member.ValueType);
-
-    private static IReadOnlyList<ConfiglueCollectionElementExplanation> ExplainCollectionElements(
+    private static IReadOnlyList<CollectionElementProvenance> CollectCollectionElementProvenance(
         ConfiglueMemberSchema member,
         object? effectiveValue,
-        IReadOnlyList<ConfiglueSourceContribution> sourceContributions
+        IReadOnlyList<(string SourceId, object? Value)> sourceContributions
     )
     {
         var effectiveElements = GetCollectionElements(effectiveValue);
-        var elementContributions = Enumerable
+        var elementSources = Enumerable
             .Range(0, effectiveElements.Length)
-            .Select(static _ => new List<ConfiglueSourceContribution>())
+            .Select(static _ => new List<int>())
             .ToArray();
 
         if (member.MergeStrategy is { } mergeStrategy)
@@ -4492,33 +4417,10 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
                     orderedSourceIndices.Add(sourceIndex);
                 }
 
-                foreach (var sourceIndex in orderedSourceIndices)
-                {
-                    var source = sourceContributions[sourceIndex];
-                    elementContributions[provenance.Index]
-                        .Add(
-                            new ConfiglueSourceContribution(
-                                source.SourceId,
-                                source.PhysicalOrigin,
-                                source.Revision,
-                                effectiveElements[provenance.Index]
-                            )
-                        );
-                }
+                elementSources[provenance.Index].AddRange(orderedSourceIndices);
             }
 
-            return Array.AsReadOnly(
-                effectiveElements
-                    .Select(
-                        (value, index) =>
-                            new ConfiglueCollectionElementExplanation(
-                                index,
-                                value,
-                                elementContributions[index]
-                            )
-                    )
-                    .ToArray()
-            );
+            return BuildProvenance(effectiveElements, elementSources);
         }
 
         if (member.MergeMode == MergeMode.Append && effectiveValue is IList)
@@ -4529,27 +4431,22 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
             if (expectedElementCount == effectiveElements.Length)
             {
                 var elementIndex = 0;
-                foreach (var contribution in sourceContributions.Reverse())
+                foreach (
+                    var (contribution, sourceIndex) in sourceContributions
+                        .Select((candidate, index) => (candidate, index))
+                        .Reverse()
+                )
                 {
                     foreach (var _ in GetCollectionElements(contribution.Value))
                     {
-                        AddElementContribution(
-                            elementContributions,
-                            elementIndex,
-                            effectiveElements[elementIndex],
-                            contribution
-                        );
+                        elementSources[elementIndex].Add(sourceIndex);
                         elementIndex++;
                     }
                 }
             }
             else
             {
-                AddMatchingElementContributions(
-                    effectiveElements,
-                    sourceContributions,
-                    elementContributions
-                );
+                AddMatchingElementSources(effectiveElements, sourceContributions, elementSources);
             }
         }
         else
@@ -4558,67 +4455,60 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
                 member.MergeMode == MergeMode.Replace
                     ? sourceContributions.Take(1)
                     : sourceContributions;
-            AddMatchingElementContributions(
-                effectiveElements,
-                eligibleSources,
-                elementContributions
-            );
+            AddMatchingElementSources(effectiveElements, eligibleSources, elementSources);
         }
 
-        return Array.AsReadOnly(
+        return BuildProvenance(effectiveElements, elementSources);
+    }
+
+    private static IReadOnlyList<CollectionElementProvenance> BuildProvenance(
+        object?[] effectiveElements,
+        IReadOnlyList<List<int>> elementSources
+    ) =>
+        Array.AsReadOnly(
             effectiveElements
                 .Select(
                     (value, index) =>
-                        new ConfiglueCollectionElementExplanation(
+                        new CollectionElementProvenance(
                             index,
                             value,
-                            elementContributions[index]
+                            elementSources[index].ToArray()
                         )
                 )
                 .ToArray()
         );
-    }
 
     private static object?[] GetCollectionElements(object? value) =>
         value is IEnumerable elements && value is not string
             ? elements.Cast<object?>().ToArray()
             : [];
 
-    private static void AddMatchingElementContributions(
+    private static void AddMatchingElementSources(
         IReadOnlyList<object?> effectiveElements,
-        IEnumerable<ConfiglueSourceContribution> sourceContributions,
-        IReadOnlyList<List<ConfiglueSourceContribution>> elementContributions
+        IEnumerable<(string SourceId, object? Value)> sourceContributions,
+        IReadOnlyList<List<int>> elementSources
     )
     {
-        foreach (var (element, index) in effectiveElements.Select((value, index) => (value, index)))
+        var indexed = sourceContributions
+            .Select((source, index) => (source.SourceId, source.Value, index))
+            .ToArray();
+        foreach (
+            var (element, elementIndex) in effectiveElements.Select(
+                (value, index) => (value, index)
+            )
+        )
         {
             foreach (
-                var sourceContribution in sourceContributions.Where(source =>
+                var source in indexed.Where(source =>
                     GetCollectionElements(source.Value)
                         .Any(sourceElement => Equals(sourceElement, element))
                 )
             )
             {
-                AddElementContribution(elementContributions, index, element, sourceContribution);
+                elementSources[elementIndex].Add(source.index);
             }
         }
     }
-
-    private static void AddElementContribution(
-        IReadOnlyList<List<ConfiglueSourceContribution>> elementContributions,
-        int elementIndex,
-        object? element,
-        ConfiglueSourceContribution source
-    ) =>
-        elementContributions[elementIndex]
-            .Add(
-                new ConfiglueSourceContribution(
-                    source.SourceId,
-                    source.PhysicalOrigin,
-                    source.Revision,
-                    element
-                )
-            );
 
     private static bool TryGetFragmentValue(
         IConfiglueFragment fragment,
@@ -4755,10 +4645,16 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
         StateReadResult<TFragment> Result
     );
 
+    private sealed record ResolvedFailure(
+        StateSource<TFragment> Source,
+        StateReadResult<TFragment> Result
+    );
+
     private sealed record ResolvedState(
         StateReadResult<TModel> Result,
         IReadOnlyList<ResolvedContribution> Contributions,
-        TFragment? MergedFragment
+        TFragment? MergedFragment,
+        IReadOnlyList<ResolvedFailure> Failures
     );
 
     private sealed class CurrentValueCacheEntry

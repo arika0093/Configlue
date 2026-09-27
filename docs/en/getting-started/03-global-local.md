@@ -115,6 +115,6 @@ Reads compose from both. Fields present in `local` beat `global`; fields missing
 - **Writes:** go to the single `WriteRoute` source by default. To split destinations per path, use a `WritePlan` ([write routing](../layering/write-routing.md)).
 - **Choosing destinations:** decide implicitly with `WriteLayer`/`WriteRoute`, and specify explicitly only for the operation that differs. Where a save lands should always be readable from code.
 
-Run `ExplainAsync("Server.Port")` to see the effective value and contributions side by side.
+Run `(await options.GetDetailsAsync()).Server.Port` to see the effective value and contributions side by side.
 
 Next: [STEP 4: Add validation](./04-validation.md). Reject bad values before they are saved.

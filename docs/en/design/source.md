@@ -15,7 +15,7 @@ Fall-through on missing files, and surfacing other read failures, is a Source pr
 
 ## Read-only as a property
 
-Environment, command-line, and default HTTP sources are read-only. Trying to change a value shadowed by a read-only contribution from the writable side fails with a conflict instead of silently ignoring it. Checking origins with `ExplainAsync` before saving pays off.
+Environment, command-line, and default HTTP sources are read-only. Trying to change a value shadowed by a read-only contribution from the writable side fails with a conflict instead of silently ignoring it. Checking origins with `GetDetailsAsync` before saving pays off.
 
 ## Projection and mounting
 

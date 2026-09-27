@@ -83,11 +83,11 @@ Open `quicksettings.json` afterwards — it contains only the members this sourc
 ## 4. See where a value came from
 
 ```csharp
-var explanation = await options.ExplainAsync("Name");
-Console.WriteLine(explanation);
+var details = await options.GetDetailsAsync();
+Console.WriteLine(details.Name);
 ```
 
-The explanation lists the effective value and each present source contribution from highest to lowest priority.
+The details tree lists the effective value and each source contribution from highest to lowest priority, with editability attached.
 
 ## Next steps
 

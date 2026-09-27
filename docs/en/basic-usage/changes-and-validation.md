@@ -31,7 +31,23 @@ DataAnnotations validation runs on save by default. Set `ValidateDataAnnotations
 
 Validation failures throw `ConfiglueValidationException`, which includes the options name, options type, and all failure messages. This validation contract is part of Configlue Core and does not require `Microsoft.Extensions.Options`.
 
-Reads are validated too. `ReadValidationMode` selects how read-time failures are handled: `EffectiveThrow` (the default) throws when the finally resolved value is invalid, `StrictThrow` throws as soon as any source contributes an invalid value, and `IgnoreValue` drops invalid contributed members and resolves the remaining values. Sources that report an invalid value carry the `Invalid` read status through provenance and `ExplainAsync` diagnostics. A watcher reload that fails validation is reported to `OnReloadFailed` without notifying `OnChange` listeners.
+Reads are validated too. `ReadValidationMode` selects how read-time failures are handled: `EffectiveThrow` (the default) throws when the finally resolved value is invalid, `StrictThrow` throws as soon as any source contributes an invalid value, and `IgnoreValue` drops invalid contributed members and resolves the remaining values. Sources that report an invalid value carry the `Invalid` read status through provenance and details diagnostics. A watcher reload that fails validation is reported to `OnReloadFailed` without notifying `OnChange` listeners.
+
+## Configuration details
+
+`GetDetailsAsync()` returns a generated, strongly typed snapshot of one consistent resolution: effective values with per-source contributions, editability, and collection element provenance.
+
+```csharp
+var details = await options.GetDetailsAsync();
+
+string name = details.Name;
+bool editable = details.Name.IsEditable;
+var origin = details.Name.Source?.DisplayName;
+foreach (var source in details.Name.Sources)
+{
+    Console.WriteLine($"{source.Source.DisplayName}: {source.State} = {source.Value}");
+}
+```
 
 ```csharp
 conf.Add<UserSetting>(model =>
@@ -65,4 +81,4 @@ Microsoft options adapters are opt-in through `Configlue.Extensions.MSOptions` a
 ## Next steps
 
 * [Files, formats, and sections](../sources/files-and-sections.md) for provider registrations.
-* [Backups, logging, and diagnostics](../advanced/backups-and-observability.md) for file safety and `ExplainAsync`.
+* [Backups, logging, and diagnostics](../advanced/backups-and-observability.md) for file safety and configuration details.
