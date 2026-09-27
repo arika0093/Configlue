@@ -814,7 +814,10 @@ public sealed partial class ConfiglueGenerator
             1,
             "/// <summary>A source-local set/unset patch for generated fragment members.</summary>"
         );
-        code.AppendLineAt(1, "public sealed class Patch : global::Configlue.IConfiglueMemberPatch");
+        code.AppendLineAt(
+            1,
+            "public sealed class Patch : global::Configlue.IConfiglueMemberPatch, global::Configlue.IConfiglueReplacementPatch"
+        );
         code.AppendLineAt(1, "{");
         code.AppendIndent(2)
             .Append("public global::Configlue.ConfiglueModelSchema Schema => ")
@@ -1023,6 +1026,60 @@ public sealed partial class ConfiglueGenerator
             }
         }
         code.AppendLineAt(3, "return clone;");
+        code.AppendLineAt(2, "}");
+        code.AppendLineAt(
+            2,
+            "public global::Configlue.IConfigluePatch WithUnspecifiedMembersUnset()"
+        );
+        code.AppendLineAt(2, "{");
+        code.AppendLineAt(3, "var replacement = ClonePatch();");
+        code.AppendLineAt(
+            3,
+            "if (replacement.__configlue_whole_operation.Kind == global::Configlue.FragmentOperationKind.Unchanged)"
+        );
+        code.AppendLineAt(3, "{");
+        foreach (var member in members)
+        {
+            var field = MemberBackingField(member);
+            if (member.ChildModel is null)
+            {
+                code.AppendLineAt(
+                    4,
+                    "if (replacement."
+                        + field
+                        + ".Kind == global::Configlue.FragmentOperationKind.Unchanged) replacement."
+                        + field
+                        + " = global::Configlue.FragmentOperation<"
+                        + FragmentValueType(member)
+                        + ">.Unset;"
+                );
+            }
+            else
+            {
+                var nestedPatchType = NestedPatchType(member);
+                code.AppendLineAt(4, "if (replacement." + field + " is null)");
+                code.AppendLineAt(4, "{");
+                code.AppendLineAt(5, "var nested = new " + nestedPatchType + "();");
+                code.AppendLineAt(5, "nested.Unset();");
+                code.AppendLineAt(5, "replacement." + field + " = nested;");
+                code.AppendLineAt(4, "}");
+                code.AppendLineAt(4, "else");
+                code.AppendLineAt(4, "{");
+                code.AppendLineAt(
+                    5,
+                    "replacement."
+                        + field
+                        + " = ("
+                        + nestedPatchType
+                        + ")replacement."
+                        + field
+                        + ".WithUnspecifiedMembersUnset();"
+                );
+                code.AppendLineAt(4, "}");
+            }
+        }
+        code.AppendLineAt(3, "}");
+        code.AppendLineAt(3, "return replacement;");
         code.AppendLineAt(2, "}");
         code.AppendLineAt(
             2,

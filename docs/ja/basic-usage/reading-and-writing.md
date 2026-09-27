@@ -80,6 +80,14 @@ await options.ApplyPatchAsync(patch);
 
 明示的なソースローカル複数書き込みには `StateSourcePatch` 付きの `ApplyPatchesAsync` を使います。`ResourceId` を共有する互いに重ならないセクション更新は1回の物理書き込みにまとめられ、重なる範囲は拒否されます。結果には各ソースのリビジョンと物理書き込み回数が報告されます。異なるリソース間の書き込みはアトミックではありません。
 
+1つのソースには、型付きキーとハンドルを使えます。`SaveAsync` は指定されていない寄与を保持し、`ReplaceAsync` は明示的な Set を残したうえで未指定メンバーを取り下げます:
+
+```csharp
+var userSource = options.Source(SourceKey<AppSettings>.FromId("user"));
+await userSource.SaveAsync(patch => patch.Database.Host = "db.example.test");
+await userSource.ReplaceAsync(patch => patch.Database.Host = "db.example.test");
+```
+
 ## 次のステップ
 
 * DI/非 DI の寿命と所有権は [アプリケーション構成](./app-setup.md)。
