@@ -30,17 +30,19 @@ namespace Configlue.Provider.Xml
         public System.Threading.Tasks.ValueTask WaitForChangeAsync(string? observedRevision, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask<Configlue.StateWriteResult> WriteAsync(Configlue.ResourceWriteRequest request, System.Threading.CancellationToken cancellationToken = default) { }
     }
-    public sealed class XmlStateCodec : Configlue.IStateCodec, Configlue.IStateSchemaMetadataReader
+    public sealed class XmlStateCodec : Configlue.IStateCodec, Configlue.IStateCodecRecoveryPolicy, Configlue.IStateSchemaMetadataReader
     {
         public XmlStateCodec() { }
         public object? Deserialize(System.Type type, in System.Buffers.ReadOnlySequence<byte> source, in Configlue.StateCodecContext context) { }
+        public bool IsRecoverableReadException(System.Exception exception) { }
         public Configlue.StateSchemaMetadata? ReadSchemaMetadata(in System.Buffers.ReadOnlySequence<byte> source) { }
         public void Serialize(System.Type type, object? value, System.Buffers.IBufferWriter<byte> destination, in Configlue.StateCodecContext context) { }
     }
-    public sealed class XmlStateCodec<T> : Configlue.IStateCodec<T>, Configlue.IStateSchemaMetadataReader
+    public sealed class XmlStateCodec<T> : Configlue.IStateCodecRecoveryPolicy, Configlue.IStateCodec<T>, Configlue.IStateSchemaMetadataReader
     {
         public XmlStateCodec() { }
         public T? Deserialize(in System.Buffers.ReadOnlySequence<byte> source, in Configlue.StateCodecContext context) { }
+        public bool IsRecoverableReadException(System.Exception exception) { }
         public Configlue.StateSchemaMetadata? ReadSchemaMetadata(in System.Buffers.ReadOnlySequence<byte> source) { }
         public void Serialize(T? value, System.Buffers.IBufferWriter<byte> destination, in Configlue.StateCodecContext context) { }
     }

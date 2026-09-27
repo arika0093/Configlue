@@ -240,6 +240,10 @@ namespace Configlue
         object? Deserialize(System.Type type, in System.Buffers.ReadOnlySequence<byte> source, in Configlue.StateCodecContext context);
         void Serialize(System.Type type, object? value, System.Buffers.IBufferWriter<byte> destination, in Configlue.StateCodecContext context);
     }
+    public interface IStateCodecRecoveryPolicy
+    {
+        bool IsRecoverableReadException(System.Exception exception);
+    }
     public interface IStateCodec<T>
     {
         T? Deserialize(in System.Buffers.ReadOnlySequence<byte> source, in Configlue.StateCodecContext context);

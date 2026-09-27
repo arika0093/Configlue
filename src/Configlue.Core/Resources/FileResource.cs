@@ -110,6 +110,8 @@ public sealed class FileResource : IResourceReader, IStateWatcher, IResourceBatc
     /// <inheritdoc />
     public ResourceId ResourceId { get; }
 
+    internal bool AutomaticBackupRecoveryEnabled => _options.AutomaticBackupRecovery;
+
     internal bool IsDisposedForTests
     {
         get
@@ -251,6 +253,64 @@ public sealed class FileResource : IResourceReader, IStateWatcher, IResourceBatc
                 .ConfigureAwait(false);
             await WriteAtomicAsync(_path, content, cancellationToken).ConfigureAwait(false);
             return new StateWriteResult(GetRevision(content));
+        }
+        finally
+        {
+            processLock.Dispose();
+        }
+    }
+
+    internal async ValueTask<ResourceReadResult?> TryRestoreLatestBackupAsync(
+        string? expectedRevision,
+        bool expectedMissing,
+        Func<ReadOnlyMemory<byte>, CancellationToken, ValueTask<bool>> validate,
+        CancellationToken cancellationToken
+    )
+    {
+        ArgumentNullException.ThrowIfNull(validate);
+        cancellationToken.ThrowIfCancellationRequested();
+        Directory.CreateDirectory(_directory);
+        var processLock = await AcquireProcessLockAsync(_path, cancellationToken)
+            .ConfigureAwait(false);
+        try
+        {
+            await using var interprocessLock = await AcquireInterprocessLockAsync(cancellationToken)
+                .ConfigureAwait(false);
+            var current = await TryReadForWriteAsync(cancellationToken).ConfigureAwait(false);
+            var currentRevision = current is null ? null : GetRevision(current);
+            if (
+                expectedMissing != (current is null)
+                || !string.Equals(expectedRevision, currentRevision, StringComparison.Ordinal)
+            )
+            {
+                throw new StateConflictException(
+                    $"The file resource '{_path}' changed while backup recovery was being prepared."
+                );
+            }
+
+            byte[] backup;
+            try
+            {
+                backup = await File.ReadAllBytesAsync(GetBackupPath(0), cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            catch (FileNotFoundException)
+            {
+                return null;
+            }
+            catch (DirectoryNotFoundException)
+            {
+                return null;
+            }
+
+            if (!await validate(backup, cancellationToken).ConfigureAwait(false))
+            {
+                return null;
+            }
+
+            await WriteAtomicAsync(_path, backup, cancellationToken).ConfigureAwait(false);
+            var revision = GetRevision(backup);
+            return ResourceReadResult.Success(backup, revision);
         }
         finally
         {

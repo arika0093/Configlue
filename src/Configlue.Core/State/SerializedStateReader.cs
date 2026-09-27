@@ -40,6 +40,81 @@ public sealed class SerializedStateReader<T> : IStateReader<T>
     )
     {
         var result = await _resource.ReadAsync(cancellationToken).ConfigureAwait(false);
+        if (_resource is not FileResource file || !file.AutomaticBackupRecoveryEnabled)
+        {
+            return Deserialize(result);
+        }
+
+        if (result.Status == StateReadStatus.NotFound)
+        {
+            var recovered = await TryRecoverAsync(
+                    file,
+                    result,
+                    expectedMissing: true,
+                    cancellationToken
+                )
+                .ConfigureAwait(false);
+            return recovered is { } restored ? Deserialize(restored) : Deserialize(result);
+        }
+
+        if (result.Status == StateReadStatus.Success)
+        {
+            try
+            {
+                return Deserialize(result);
+            }
+            catch (Exception exception) when (IsRecoverableReadException(exception))
+            {
+                var recovered = await TryRecoverAsync(
+                        file,
+                        result,
+                        expectedMissing: false,
+                        cancellationToken
+                    )
+                    .ConfigureAwait(false);
+                if (recovered is { } restored)
+                {
+                    return Deserialize(restored);
+                }
+
+                throw;
+            }
+        }
+
+        return Deserialize(result);
+    }
+
+    private async ValueTask<ResourceReadResult?> TryRecoverAsync(
+        FileResource file,
+        ResourceReadResult observed,
+        bool expectedMissing,
+        CancellationToken cancellationToken
+    ) =>
+        await file.TryRestoreLatestBackupAsync(
+                observed.Revision,
+                expectedMissing,
+                (content, _) =>
+                {
+                    try
+                    {
+                        Deserialize(ResourceReadResult.Success(content, observed.Revision));
+                        return ValueTask.FromResult(true);
+                    }
+                    catch (Exception exception) when (IsRecoverableReadException(exception))
+                    {
+                        return ValueTask.FromResult(false);
+                    }
+                },
+                cancellationToken
+            )
+            .ConfigureAwait(false);
+
+    private bool IsRecoverableReadException(Exception exception) =>
+        _codec is IStateCodecRecoveryPolicy recoveryPolicy
+        && recoveryPolicy.IsRecoverableReadException(exception);
+
+    private StateReadResult<T> Deserialize(ResourceReadResult result)
+    {
         if (result.Status != StateReadStatus.Success)
         {
             return new StateReadResult<T>(

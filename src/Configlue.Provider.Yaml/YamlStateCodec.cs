@@ -10,7 +10,10 @@ using YamlDotNet.Serialization.NamingConventions;
 namespace Configlue.Provider.Yaml;
 
 /// <summary>A YAML codec for ordinary models and generated sparse fragments.</summary>
-public sealed class YamlStateCodec : IStateCodec, IStateSchemaMetadataReader
+public sealed class YamlStateCodec
+    : IStateCodec,
+        IStateSchemaMetadataReader,
+        IStateCodecRecoveryPolicy
 {
     private readonly ISerializer _serializer;
     private readonly IDeserializer _deserializer;
@@ -74,10 +77,17 @@ public sealed class YamlStateCodec : IStateCodec, IStateSchemaMetadataReader
     /// <inheritdoc />
     public StateSchemaMetadata? ReadSchemaMetadata(in ReadOnlySequence<byte> source) =>
         YamlStateCodecOperations.ReadSchemaMetadata(source.ToArray());
+
+    /// <inheritdoc />
+    public bool IsRecoverableReadException(Exception exception) =>
+        exception is YamlException or DecoderFallbackException;
 }
 
 /// <summary>A typed YAML state codec fast path.</summary>
-public sealed class YamlStateCodec<T> : IStateCodec<T>, IStateSchemaMetadataReader
+public sealed class YamlStateCodec<T>
+    : IStateCodec<T>,
+        IStateSchemaMetadataReader,
+        IStateCodecRecoveryPolicy
 {
     private readonly YamlStateCodec _inner;
 
@@ -99,6 +109,10 @@ public sealed class YamlStateCodec<T> : IStateCodec<T>, IStateSchemaMetadataRead
     /// <inheritdoc />
     public StateSchemaMetadata? ReadSchemaMetadata(in ReadOnlySequence<byte> source) =>
         _inner.ReadSchemaMetadata(in source);
+
+    /// <inheritdoc />
+    public bool IsRecoverableReadException(Exception exception) =>
+        _inner.IsRecoverableReadException(exception);
 }
 
 internal sealed class FragmentYamlTypeConverter(INamingConvention namingConvention)

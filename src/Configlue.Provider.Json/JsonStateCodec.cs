@@ -6,7 +6,10 @@ using System.Text.Json.Serialization.Metadata;
 namespace Configlue.Provider.Json;
 
 /// <summary>A JSON state codec with optional schema metadata stored beside the payload.</summary>
-public sealed class JsonStateCodec : IStateCodec, IStateSchemaMetadataReader
+public sealed class JsonStateCodec
+    : IStateCodec,
+        IStateSchemaMetadataReader,
+        IStateCodecRecoveryPolicy
 {
     private readonly JsonSerializerOptions _options;
 
@@ -60,10 +63,16 @@ public sealed class JsonStateCodec : IStateCodec, IStateSchemaMetadataReader
     /// <inheritdoc />
     public StateSchemaMetadata? ReadSchemaMetadata(in ReadOnlySequence<byte> source) =>
         JsonStateCodecOperations.ReadSchemaMetadata(in source);
+
+    /// <inheritdoc />
+    public bool IsRecoverableReadException(Exception exception) => exception is JsonException;
 }
 
 /// <summary>A typed JSON fast path for a state codec.</summary>
-public sealed class JsonStateCodec<T> : IStateCodec<T>, IStateSchemaMetadataReader
+public sealed class JsonStateCodec<T>
+    : IStateCodec<T>,
+        IStateSchemaMetadataReader,
+        IStateCodecRecoveryPolicy
 {
     private readonly JsonSerializerOptions _options;
     private readonly JsonTypeInfo<T>? _typeInfo;
@@ -152,6 +161,9 @@ public sealed class JsonStateCodec<T> : IStateCodec<T>, IStateSchemaMetadataRead
     /// <inheritdoc />
     public StateSchemaMetadata? ReadSchemaMetadata(in ReadOnlySequence<byte> source) =>
         JsonStateCodecOperations.ReadSchemaMetadata(in source);
+
+    /// <inheritdoc />
+    public bool IsRecoverableReadException(Exception exception) => exception is JsonException;
 }
 
 internal static class JsonStateCodecOperations

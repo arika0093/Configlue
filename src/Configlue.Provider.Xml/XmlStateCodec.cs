@@ -10,7 +10,10 @@ using System.Xml.Serialization;
 namespace Configlue.Provider.Xml;
 
 /// <summary>An XML codec for ordinary models and generated sparse fragments.</summary>
-public sealed class XmlStateCodec : IStateCodec, IStateSchemaMetadataReader
+public sealed class XmlStateCodec
+    : IStateCodec,
+        IStateSchemaMetadataReader,
+        IStateCodecRecoveryPolicy
 {
     /// <inheritdoc />
     public object? Deserialize(
@@ -41,10 +44,18 @@ public sealed class XmlStateCodec : IStateCodec, IStateSchemaMetadataReader
     /// <inheritdoc />
     public StateSchemaMetadata? ReadSchemaMetadata(in ReadOnlySequence<byte> source) =>
         XmlStateCodecOperations.ReadSchemaMetadata(source.ToArray());
+
+    /// <inheritdoc />
+    public bool IsRecoverableReadException(Exception exception) =>
+        exception is XmlException
+        || exception is InvalidOperationException { InnerException: XmlException };
 }
 
 /// <summary>A typed XML codec fast path.</summary>
-public sealed class XmlStateCodec<T> : IStateCodec<T>, IStateSchemaMetadataReader
+public sealed class XmlStateCodec<T>
+    : IStateCodec<T>,
+        IStateSchemaMetadataReader,
+        IStateCodecRecoveryPolicy
 {
     /// <inheritdoc />
     public T? Deserialize(in ReadOnlySequence<byte> source, in StateCodecContext context) =>
@@ -62,6 +73,11 @@ public sealed class XmlStateCodec<T> : IStateCodec<T>, IStateSchemaMetadataReade
     /// <inheritdoc />
     public StateSchemaMetadata? ReadSchemaMetadata(in ReadOnlySequence<byte> source) =>
         XmlStateCodecOperations.ReadSchemaMetadata(source.ToArray());
+
+    /// <inheritdoc />
+    public bool IsRecoverableReadException(Exception exception) =>
+        exception is XmlException
+        || exception is InvalidOperationException { InnerException: XmlException };
 }
 
 internal static class XmlStateCodecOperations

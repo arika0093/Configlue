@@ -12,6 +12,10 @@ public sealed class FileResourceOptions
     /// <summary>Maximum number of generations to retain, including the latest backup. Set to zero to disable backups.</summary>
     public int BackupMaxCount { get; init; } = 1;
 
+    /// <summary>Whether serialized state readers may restore a valid latest backup after missing or corrupt input.</summary>
+    /// <remarks>Disabled by default. Corrupt input recovery requires a codec that classifies format errors.</remarks>
+    public bool AutomaticBackupRecovery { get; init; }
+
     /// <summary>An optional directory for backup files. The resource directory is used when unset.</summary>
     public string? BackupDirectory { get; init; }
 

@@ -1,4 +1,8 @@
+using System.Buffers;
 using System.Text;
+using System.Text.Json;
+using Configlue.Provider.Json;
+using Configlue.Testing;
 
 namespace Configlue.Tests;
 
@@ -119,6 +123,157 @@ public sealed class FileResourceTests
                 Directory.Delete(directory, recursive: true);
             }
         }
+    }
+
+    [Test]
+    public async Task SerializedReader_RecoversMissingFileBeforeSelectingFallbackSource()
+    {
+        var directory = CreateTemporaryDirectory();
+        using var cleanup = new DirectoryCleanup(directory);
+        var path = System.IO.Path.Combine(directory, "settings.json");
+        using var resource = new FileResource(
+            path,
+            new FileResourceOptions { AutomaticBackupRecovery = true }
+        );
+        var codec = new JsonStateCodec<AppSettings.Fragment>();
+        var backupContent = SerializeFragment(
+            new AppSettings.Fragment { RetryCount = Optional<int>.Present(4) },
+            codec
+        );
+        await resource.WriteAsync(new ResourceWriteRequest(backupContent));
+        await resource.WriteAsync(
+            new ResourceWriteRequest(
+                SerializeFragment(
+                    new AppSettings.Fragment { RetryCount = Optional<int>.Present(8) },
+                    codec
+                )
+            )
+        );
+        File.Delete(path);
+
+        var primarySource = SerializedStateSource.FromResource<AppSettings.Fragment>(
+            "primary-file",
+            resource,
+            codec,
+            priority: 100
+        );
+        var fallbackStore = new InMemoryStateStore<AppSettings.Fragment>(
+            new AppSettings.Fragment { RetryCount = Optional<int>.Present(99) }
+        );
+        var fallbackSource = new StateSource<AppSettings.Fragment>("fallback", fallbackStore);
+        await using var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(
+            new StateSourceSet<AppSettings.Fragment>([primarySource, fallbackSource])
+        );
+
+        var recovered = await options.ReadAsync();
+
+        recovered.Status.ShouldBe(StateReadStatus.Success);
+        recovered.Value!.RetryCount.ShouldBe(4);
+        recovered.SourceId.ShouldBe("primary-file");
+        (await File.ReadAllTextAsync(path)).ShouldBe(Encoding.UTF8.GetString(backupContent));
+        recovered.Revision.ShouldBe((await resource.ReadAsync()).Revision);
+    }
+
+    [Test]
+    public async Task SerializedReader_LeavesRecoveryDisabledByDefault()
+    {
+        var directory = CreateTemporaryDirectory();
+        using var cleanup = new DirectoryCleanup(directory);
+        Directory.CreateDirectory(directory);
+        var path = System.IO.Path.Combine(directory, "settings.json");
+        using var resource = new FileResource(path);
+        await File.WriteAllTextAsync(path + ".bak", "{}");
+        var reader = new SerializedStateReader<AppSettings.Fragment>(
+            resource,
+            new JsonStateCodec<AppSettings.Fragment>()
+        );
+
+        var result = await reader.ReadAsync();
+
+        result.Status.ShouldBe(StateReadStatus.NotFound);
+        File.Exists(path).ShouldBeFalse();
+    }
+
+    [Test]
+    public async Task SerializedReader_RecoversCorruptPrimaryOnlyAfterBackupValidation()
+    {
+        var directory = CreateTemporaryDirectory();
+        using var cleanup = new DirectoryCleanup(directory);
+        var path = System.IO.Path.Combine(directory, "settings.json");
+        using var resource = new FileResource(
+            path,
+            new FileResourceOptions { AutomaticBackupRecovery = true }
+        );
+        var codec = new JsonStateCodec<AppSettings.Fragment>();
+        var backupContent = SerializeFragment(
+            new AppSettings.Fragment { RetryCount = Optional<int>.Present(4) },
+            codec
+        );
+        await resource.WriteAsync(new ResourceWriteRequest(backupContent));
+        await resource.WriteAsync(
+            new ResourceWriteRequest(
+                SerializeFragment(
+                    new AppSettings.Fragment { RetryCount = Optional<int>.Present(8) },
+                    codec
+                )
+            )
+        );
+        await File.WriteAllTextAsync(path, "{ invalid json");
+        var reader = new SerializedStateReader<AppSettings.Fragment>(resource, codec);
+
+        var recovered = await reader.ReadAsync();
+
+        recovered.Status.ShouldBe(StateReadStatus.Success);
+        recovered.Value!.RetryCount.ShouldBe(4);
+        (await File.ReadAllTextAsync(path)).ShouldBe(Encoding.UTF8.GetString(backupContent));
+        recovered.Revision.ShouldBe((await resource.ReadAsync()).Revision);
+    }
+
+    [Test]
+    public async Task SerializedReader_LeavesPrimaryUntouchedWhenBackupIsInvalid()
+    {
+        var directory = CreateTemporaryDirectory();
+        using var cleanup = new DirectoryCleanup(directory);
+        var path = System.IO.Path.Combine(directory, "settings.json");
+        using var resource = new FileResource(
+            path,
+            new FileResourceOptions { AutomaticBackupRecovery = true }
+        );
+        Directory.CreateDirectory(directory);
+        await File.WriteAllTextAsync(path, "{ invalid primary");
+        var corruptPrimary = await File.ReadAllTextAsync(path);
+        await File.WriteAllTextAsync(path + ".bak", "{ invalid backup");
+        var reader = new SerializedStateReader<AppSettings.Fragment>(
+            resource,
+            new JsonStateCodec<AppSettings.Fragment>()
+        );
+
+        await Should.ThrowAsync<JsonException>(async () => await reader.ReadAsync());
+
+        (await File.ReadAllTextAsync(path)).ShouldBe(corruptPrimary);
+    }
+
+    [Test]
+    public async Task FileResource_RejectsAutomaticRecoveryAfterObservedRevisionChanges()
+    {
+        var directory = CreateTemporaryDirectory();
+        using var cleanup = new DirectoryCleanup(directory);
+        var path = System.IO.Path.Combine(directory, "settings.json");
+        using var resource = new FileResource(path);
+        Directory.CreateDirectory(directory);
+        await File.WriteAllTextAsync(path, "current");
+        await File.WriteAllTextAsync(path + ".bak", "backup");
+
+        await Should.ThrowAsync<StateConflictException>(async () =>
+            await resource.TryRestoreLatestBackupAsync(
+                "stale-revision",
+                expectedMissing: false,
+                static (_, _) => ValueTask.FromResult(true),
+                CancellationToken.None
+            )
+        );
+
+        (await File.ReadAllTextAsync(path)).ShouldBe("current");
     }
 
     [Test]
@@ -381,11 +536,26 @@ public sealed class FileResourceTests
             Guid.NewGuid().ToString("N")
         );
 
+    private static byte[] SerializeFragment(
+        AppSettings.Fragment fragment,
+        JsonStateCodec<AppSettings.Fragment> codec
+    )
+    {
+        var output = new ArrayBufferWriter<byte>();
+        codec.Serialize(fragment, output, default);
+        return output.WrittenSpan.ToArray();
+    }
+
     private static void DeleteDirectory(string directory)
     {
         if (Directory.Exists(directory))
         {
             Directory.Delete(directory, recursive: true);
         }
+    }
+
+    private sealed class DirectoryCleanup(string directory) : IDisposable
+    {
+        public void Dispose() => DeleteDirectory(directory);
     }
 }
