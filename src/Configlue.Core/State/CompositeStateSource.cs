@@ -73,6 +73,8 @@ public sealed class CompositeStateSource<TFragment>
 
     internal StateWritePlan WritePlan => _writePlan;
 
+    internal string? DefaultWriteSourceId => _defaultWriteSourceId;
+
     internal StateSource<TFragment> ResolveWriteComponent(string propertyPath)
     {
         var componentId = _writePlan.ResolveSourceId(

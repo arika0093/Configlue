@@ -37,7 +37,7 @@ var writeResult = await routedEdit.CommitAsync();
 var sourceWrites = writeResult.MultiWriteResult;
 ```
 
-通常の patch 保存も登録時のトップレベル経路と単一ソースが所有する部分木に従います。1つの入れ子 patch 内で複数ソースへ分割する場合は edit session を使います。
+通常の patch 保存は登録時の経路に従い、nested Patch を複数ソースへ再帰的に分割します。全体置換 Patch は1つの書き込み先に適用します。
 
 ## 検証と競合
 

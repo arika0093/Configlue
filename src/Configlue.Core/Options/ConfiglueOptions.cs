@@ -976,65 +976,59 @@ public sealed class ConfiglueOptions<TModel, TFragment>
             return new StateWriteResult(current.Revision);
         }
 
-        if (patch is not IConfiglueMemberPatch memberPatch)
-        {
-            throw new NotSupportedException(
-                "A patch saved through Configlue must support generated member selection."
-            );
-        }
-
         if (_defaultWritePlan.PropertyRoutes.Count > 0)
         {
             ValidateWritePlan(_defaultWritePlan);
         }
 
-        var patchesBySource = new Dictionary<string, List<int>>(StringComparer.Ordinal);
-        foreach (var member in modelSchema.Members)
+        IReadOnlyDictionary<string, IConfigluePatch> patchesBySource;
+        if (patch is IConfiglueRoutablePatch routablePatch)
         {
-            var selected = memberPatch.SelectMembers([member.Id]);
-            if (selected.IsEmpty)
-            {
-                continue;
-            }
-
-            var propertyPath = member.Name;
-            var nestedTargets = _defaultWritePlan
-                .PropertyRoutes.Where(route =>
-                    route.Key.StartsWith(propertyPath + ".", StringComparison.Ordinal)
-                )
-                .Select(static route => route.Value)
-                .Distinct(StringComparer.Ordinal)
-                .ToArray();
-            if (nestedTargets.Length > 1)
-            {
-                throw new NotSupportedException(
-                    $"Patch for nested member '{propertyPath}' spans multiple sources. Use an edit session to route its nested changes."
-                );
-            }
-
-            var targetSourceId =
-                nestedTargets.Length == 1
-                    ? nestedTargets[0]
-                    : _defaultWritePlan.ResolveSourceId(propertyPath, source.Id);
-            if (!patchesBySource.TryGetValue(targetSourceId, out var memberIds))
-            {
-                memberIds = [];
-                patchesBySource.Add(targetSourceId, memberIds);
-            }
-
-            memberIds.Add(member.Id);
+            patchesBySource = routablePatch.Route(_defaultWritePlan, source.Id);
         }
-
-        if (patchesBySource.Count == 0)
+        else if (patch is IConfiglueMemberPatch memberPatch)
         {
-            patchesBySource.Add(source.Id, []);
+            var routed = new Dictionary<string, List<int>>(StringComparer.Ordinal);
+            foreach (var member in modelSchema.Members)
+            {
+                var selected = memberPatch.SelectMembers([member.Id]);
+                if (selected.IsEmpty)
+                {
+                    continue;
+                }
+
+                var targetSourceId = _defaultWritePlan.ResolveSourceId(member.Name, source.Id);
+                if (!routed.TryGetValue(targetSourceId, out var memberIds))
+                {
+                    memberIds = [];
+                    routed.Add(targetSourceId, memberIds);
+                }
+
+                memberIds.Add(member.Id);
+            }
+
+            patchesBySource =
+                routed.Count == 0
+                    ? new Dictionary<string, IConfigluePatch>(StringComparer.Ordinal)
+                    {
+                        [source.Id] = patch,
+                    }
+                    : routed.ToDictionary(
+                        static route => route.Key,
+                        route => memberPatch.SelectMembers(route.Value.ToArray()),
+                        StringComparer.Ordinal
+                    );
+        }
+        else
+        {
+            patchesBySource = new Dictionary<string, IConfigluePatch>(StringComparer.Ordinal)
+            {
+                [source.Id] = patch,
+            };
         }
 
         var sourcePatches = patchesBySource
-            .Select(route => new StateSourcePatch(
-                route.Key,
-                route.Value.Count == 0 ? patch : memberPatch.SelectMembers(route.Value.ToArray())
-            ))
+            .Select(static route => new StateSourcePatch(route.Key, route.Value))
             .ToArray();
         var result = await ApplyPatchesCoreAsync(sourcePatches, null, null, cancellationToken)
             .ConfigureAwait(false);
@@ -1219,6 +1213,18 @@ public sealed class ConfiglueOptions<TModel, TFragment>
                             componentId,
                             new FragmentChangesPatch((TFragment)componentChanges)
                         );
+                    }
+                }
+                else if (patchRequest.Patch is IConfiglueRoutablePatch routablePatch)
+                {
+                    foreach (
+                        var (componentId, componentPatch) in routablePatch.Route(
+                            composite.WritePlan,
+                            composite.DefaultWriteSourceId
+                        )
+                    )
+                    {
+                        routedPatches.Add(componentId, componentPatch);
                     }
                 }
                 else

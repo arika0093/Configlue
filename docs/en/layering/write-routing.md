@@ -37,7 +37,7 @@ var writeResult = await routedEdit.CommitAsync();
 var sourceWrites = writeResult.MultiWriteResult;
 ```
 
-Generated patch saves follow registered top-level routes and subtrees owned by one source. Use an edit session when one nested patch needs to split across multiple sources.
+Generated patch saves follow registered routes and recursively split nested patches across multiple sources. Whole-model replacement patches apply to one write destination.
 
 ## Verification and conflicts
 
