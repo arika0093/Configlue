@@ -13,7 +13,7 @@ Schema migration evolves shapes; storage migration moves contributions between s
 
 ## Multi-target migration with retirement
 
-`MigrateSourcesToTargetsAsync(sourceIds, targetProjections)` merges only the selected contributions, applies a fragment projection for each destination, and revision-checks and verifies each target. A completed target is skipped on retry; if a later target fails, rerun the migration to resume. Multi-target writes are not atomic.
+`MigrateSourcesToTargetsAsync(sourceIds, targetProjections)` merges only the selected contributions, applies a fragment projection for each destination, and revision-checks and verifies each target. On retry, it re-reads the selected sources and rechecks every target, including targets recorded as complete in the journal. It skips a target write only when that target already matches the projection of the current source contribution; if the source changed between runs, it reconciles the target to the new contribution. If a later target fails, rerun the migration to resume. Multi-target writes are not atomic.
 
 For retries across process restarts, use `StateStorageMigrationDefinition<TFragment>` with `FileStateStorageMigrationJournal`. It stores `StateStorageMigrationProgress` in one JSON file per migration ID and updates the file after each target verifies. `FileResource` replaces each file atomically with a revision check. Do not run the same migration ID concurrently in multiple processes.
 

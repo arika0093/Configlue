@@ -559,7 +559,7 @@ Register `IStateSchemaMigration<TFragment>` implementations as services to migra
 
 ### Storage migration
 
-`IWritableOptions<T>.MigrateSourceAsync(sourceId, targetId)` copies one source contribution, applies its schema migration chain, and writes it to a selected destination. `MigrateSourcesToTargetsAsync(sourceIds, targetProjections)` merges selected contributions, revision-checks and verifies each target, and can retire the old sources after verification. Pass `retireSources: true` to remove the selected sources from that options instance after every target verifies and only when the effective model stays the same. Multi-target writes are not atomic; if a later target fails, rerun the migration to resume. Retired sources are removed from the running topology only — update the application's registration for future process starts.
+`IWritableOptions<T>.MigrateSourceAsync(sourceId, targetId)` copies one source contribution, applies its schema migration chain, and writes it to a selected destination. `MigrateSourcesToTargetsAsync(sourceIds, targetProjections)` merges selected contributions, revision-checks and verifies each target, and can retire the old sources after verification. Pass `retireSources: true` to remove the selected sources from that options instance after every target verifies and only when the effective model stays the same. Multi-target writes are not atomic; on retry, every target is rechecked against the current source contribution, and writes are skipped only for targets that already match. If a later target fails, rerun the migration to resume. Retired sources are removed from the running topology only — update the application's registration for future process starts.
 
 ### Adopting existing settings
 
