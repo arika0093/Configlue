@@ -29,8 +29,8 @@ The foundation is in place: backend-neutral read/write/watch contracts, prioriti
 
 * Writes across different resources are not atomic.
 * Source retirement is scoped to the current options instance and leaves backing data intact; callers must update source registration for future process starts.
-* Provider-specific watcher policies still need implementation.
-* No custom merge-strategy registration yet — see `todo/custom-merge-strategies.md`.
-* No declarative, restart-spanning storage-migration definitions yet — see `todo/declarative-storage-migration.md`.
+* A source set is fixed for an options runtime. Applications replace it by building a new context and coordinating the handoff; verified migration can retire sources from the current runtime.
+* The migration journal persists progress but does not coordinate concurrent processes. Applications must ensure that only one process runs a given migration ID at a time.
+* Watchers provide invalidation signals. Provider-specific polling, retry, and reconnection policies remain the provider's responsibility.
 
 The current API is an architectural foundation rather than a feature-complete replacement for Configuration.Writable.
