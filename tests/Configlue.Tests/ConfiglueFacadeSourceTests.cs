@@ -19,6 +19,39 @@ namespace Configlue.Tests;
 public sealed class ConfiglueFacadeSourceTests
 {
     [Test]
+    public async Task JsonFileSelectorResolvesThePathDerivedSourceIdentity()
+    {
+        using var directory = new TemporaryDirectory();
+        var path = Path.Combine(directory.FullPath, "settings.json");
+        await File.WriteAllTextAsync(path, "{\"Label\":\"before\"}");
+
+        await using var context = Configlue.CreateContext(builder =>
+        {
+            builder.Add<AppSettings>(model =>
+                model.Sources(sources =>
+                    sources.FromJsonFile(
+                        new JsonFileSourceOptions
+                        {
+                            Path = path,
+                            WatchChanges = false,
+                            ResourceOptions = new FileResourceOptions { CreateBackup = false },
+                        }
+                    )
+                )
+            );
+        });
+
+        await context
+            .GetAdvancedOptions<AppSettings>()
+            .Source(JsonFileSource.At(path))
+            .SaveAsync(new AppSettings.Patch { Label = FragmentOperation<string?>.Set("after") });
+
+        (JsonNode.Parse(await File.ReadAllTextAsync(path))!["Label"]!.GetValue<string>()).ShouldBe(
+            "after"
+        );
+    }
+
+    [Test]
     public async Task JsonFacadeFileSource_WritesNestedSectionAndPreservesSiblings()
     {
         using var directory = new TemporaryDirectory();

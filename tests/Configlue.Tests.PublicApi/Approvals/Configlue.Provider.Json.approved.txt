@@ -1,6 +1,10 @@
 [assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/arika0093/Configlue")]
 namespace Configlue.Provider.Json
 {
+    public static class JsonFileSource
+    {
+        public static Configlue.Provider.Json.JsonFileSourceSelector At(string path, string? sectionPath = null) { }
+    }
     public sealed class JsonFileSourceOptions
     {
         public JsonFileSourceOptions() { }
@@ -26,6 +30,11 @@ namespace Configlue.Provider.Json
             where TModel : Configlue.IConfiglueFacadeModel<TModel> { }
         public static void UseJsonFile<TModel>(this Configlue.ConfiglueModelBuilder<TModel> model, string path)
             where TModel : Configlue.IConfiglueFacadeModel<TModel> { }
+    }
+    public sealed class JsonFileSourceSelector : System.IEquatable<Configlue.Provider.Json.JsonFileSourceSelector> { }
+    public static class JsonFileSourceSelectorExtensions
+    {
+        public static Configlue.ConfiglueSourceHandle<TModel> Source<TModel>(this Configlue.IConfiglueOptions<TModel> options, Configlue.Provider.Json.JsonFileSourceSelector selector) { }
     }
     public sealed class JsonHttpSourceOptions
     {

@@ -92,6 +92,16 @@ await userSource.SaveAsync(patch => patch.Database.Host = "db.example.test");
 await userSource.ReplaceAsync(patch => patch.Database.Host = "db.example.test");
 ```
 
+JSON ファイルソースは正規化されたパスと、必要に応じて JSON ドキュメント内の section からも選択できます:
+
+```csharp
+using Configlue.Provider.Json;
+
+await options.Source(JsonFileSource.At("./settings.json")).SaveAsync(patch);
+```
+
+このパス由来 selector は `JsonFileSourceOptions.Id` を指定せずに登録したソースに対応します。明示 ID を指定した場合は、対応する `SourceKey<TModel>` で選択します。
+
 ## 次のステップ
 
 * DI/非 DI の寿命と所有権は [アプリケーション構成](./app-setup.md)。
