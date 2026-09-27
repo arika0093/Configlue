@@ -6,29 +6,54 @@ namespace Configlue;
 /// <typeparam name="TFragment">The generated fragment type shared by the component sources.</typeparam>
 /// <remarks>
 /// Component sources are read in priority order and their present members are merged into one fragment. A
-/// component's fallback condition determines whether a missing or unavailable component can be omitted. This
-/// composition is read-only; write ownership remains with the component sources or another configured source.
-/// All successful components in one read must use the same schema metadata so schema migration can run once on
-/// the combined fragment.
+/// component's fallback condition determines whether a missing or unavailable component can be omitted. Writes
+/// require an explicit default component or member routes and are expanded to component-local patches. All
+/// successful components in one read must use the same schema metadata so schema migration can run once on the
+/// combined fragment.
 /// </remarks>
-public sealed class CompositeStateSource<TFragment> : IStateReader<TFragment>, IStateWatcher
+public sealed class CompositeStateSource<TFragment>
+    : IStateReader<TFragment>,
+        IStateWriter<TFragment>,
+        IStateWatcher
     where TFragment : class, IConfiglueFragment<TFragment>
 {
     private readonly StateSourceSet<TFragment> _components;
+    private readonly string? _defaultWriteSourceId;
+    private readonly StateWritePlan _writePlan;
     private WatchTarget[] _watchTargets = [];
 
     /// <summary>Creates a logical read source from priority-ordered component sources.</summary>
-    /// <param name="components">Read-only component sources that return the same generated fragment type.</param>
-    public CompositeStateSource(StateSourceSet<TFragment> components)
+    /// <param name="components">Component sources that return the same generated fragment type.</param>
+    /// <param name="defaultWriteSourceId">Optional component that owns members without an explicit route.</param>
+    /// <param name="writePlan">Optional routes from top-level model member names to component source IDs.</param>
+    public CompositeStateSource(
+        StateSourceSet<TFragment> components,
+        string? defaultWriteSourceId = null,
+        StateWritePlan? writePlan = null
+    )
     {
         ArgumentNullException.ThrowIfNull(components);
-        if (components.Sources.Any(static source => source.Writer is not null))
+        _writePlan = writePlan ?? StateWritePlan.Empty;
+        if (defaultWriteSourceId is not null)
         {
-            throw new ArgumentException(
-                "Composite state source components must be read-only. Configure write ownership separately.",
-                nameof(components)
-            );
+            ArgumentException.ThrowIfNullOrWhiteSpace(defaultWriteSourceId);
+            GetWritableComponent(components, defaultWriteSourceId);
         }
+
+        foreach (var (path, sourceId) in _writePlan.PropertyRoutes)
+        {
+            if (path.Contains('.', StringComparison.Ordinal))
+            {
+                throw new ArgumentException(
+                    "Composite write routes must target top-level model members.",
+                    nameof(writePlan)
+                );
+            }
+
+            GetWritableComponent(components, sourceId);
+        }
+
+        _defaultWriteSourceId = defaultWriteSourceId;
 
         _components = components;
     }
@@ -41,11 +66,46 @@ public sealed class CompositeStateSource<TFragment> : IStateReader<TFragment>, I
         string id,
         int priority = 0,
         StateFallbackCondition fallbackCondition = StateFallbackCondition.NotFound
-    ) => new(id, this, priority, fallbackCondition, watcher: this);
+    ) =>
+        new(
+            id,
+            this,
+            priority,
+            fallbackCondition,
+            writer: HasWriteRoutes ? this : null,
+            watcher: this
+        );
+
+    internal bool HasWriteRoutes =>
+        _defaultWriteSourceId is not null || _writePlan.PropertyRoutes.Count > 0;
+
+    internal StateWritePlan WritePlan => _writePlan;
+
+    internal StateSource<TFragment> ResolveWriteComponent(string memberName)
+    {
+        var componentId = _writePlan.ResolveSourceId(
+            memberName,
+            _defaultWriteSourceId
+                ?? throw new InvalidOperationException(
+                    $"Composite member '{memberName}' has no configured write owner."
+                )
+        );
+        return GetWritableComponent(_components, componentId);
+    }
+
+    internal async ValueTask<StateReadResult<TFragment>> ReadWithOverridesAsync(
+        IReadOnlyDictionary<string, TFragment> overrides,
+        CancellationToken cancellationToken
+    ) => await ReadCoreAsync(overrides, cancellationToken).ConfigureAwait(false);
 
     /// <inheritdoc />
     public async ValueTask<StateReadResult<TFragment>> ReadAsync(
         CancellationToken cancellationToken = default
+    ) => await ReadCoreAsync(null, cancellationToken).ConfigureAwait(false);
+
+    private async ValueTask<StateReadResult<TFragment>> ReadCoreAsync(
+        IReadOnlyDictionary<string, TFragment>? overrides,
+        CancellationToken cancellationToken
     )
     {
         var successful = new List<ComponentResult>();
@@ -61,6 +121,23 @@ public sealed class CompositeStateSource<TFragment> : IStateReader<TFragment>, I
             cancellationToken.ThrowIfCancellationRequested();
             var result = await source.Reader.ReadAsync(cancellationToken).ConfigureAwait(false);
             result = result.FromSource(source.Id, source.PhysicalOrigin);
+            if (
+                result.Status == StateReadStatus.NotFound
+                && overrides is not null
+                && overrides.TryGetValue(source.Id, out var addedReplacement)
+            )
+            {
+                result = StateReadResult<TFragment>.Success(
+                    addedReplacement,
+                    result.Revision,
+                    addedReplacement.Schema.ToMetadata()
+                ) with
+                {
+                    PhysicalOrigin = result.PhysicalOrigin,
+                    Revisions = result.Revisions,
+                };
+            }
+
             revisions.Add(new StateRevision(source.Id, result.Revision));
             watchTargets.Add(new WatchTarget(source, result.Revision));
             if (result.Revisions is { } nested)
@@ -89,6 +166,19 @@ public sealed class CompositeStateSource<TFragment> : IStateReader<TFragment>, I
                     throw new InvalidOperationException(
                         "Composite state source components must return matching schema metadata."
                     );
+                }
+
+                if (overrides is not null && overrides.TryGetValue(source.Id, out var replacement))
+                {
+                    result = StateReadResult<TFragment>.Success(
+                        replacement,
+                        result.Revision,
+                        replacement.Schema.ToMetadata()
+                    ) with
+                    {
+                        PhysicalOrigin = result.PhysicalOrigin,
+                        Revisions = result.Revisions,
+                    };
                 }
 
                 successful.Add(new ComponentResult(source, result));
@@ -127,6 +217,44 @@ public sealed class CompositeStateSource<TFragment> : IStateReader<TFragment>, I
             PhysicalOrigin = GetPhysicalOrigin(successful),
             Revisions = new StateRevisionVector(revisions, nestedRevisions),
         };
+    }
+
+    /// <summary>Composite writes must be expressed as member patches so ownership stays component-local.</summary>
+    public ValueTask<StateWriteResult> WriteAsync(
+        StateWriteRequest<TFragment> request,
+        CancellationToken cancellationToken = default
+    )
+    {
+        _ = request;
+        cancellationToken.ThrowIfCancellationRequested();
+        throw new NotSupportedException(
+            "Composite sources accept member-routed patches; writing a merged fragment directly is unsafe."
+        );
+    }
+
+    private static StateSource<TFragment> GetWritableComponent(
+        StateSourceSet<TFragment> components,
+        string componentId
+    )
+    {
+        var component = components.Sources.FirstOrDefault(source =>
+            string.Equals(source.Id, componentId, StringComparison.Ordinal)
+        );
+        if (component is null)
+        {
+            throw new ArgumentException(
+                $"Composite write target '{componentId}' is not a component source."
+            );
+        }
+
+        if (component.Writer is null)
+        {
+            throw new ArgumentException(
+                $"Composite write target '{componentId}' does not support writes."
+            );
+        }
+
+        return component;
     }
 
     /// <inheritdoc />

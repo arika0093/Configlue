@@ -30,15 +30,20 @@ var currentSource = SerializedStateSource.FromResource<AppSettings.Fragment>(
 
 ### 複数リソースを1つの論理ソースにまとめる
 
-複数の読み取り専用リソースが疎フラグメントを寄与し、options runtime には1つの論理ソースとして見せる場合は `CompositeStateSource<TFragment>` を使います:
+複数リソースが疎フラグメントを寄与し、options runtime には1つの論理ソースとして見せる場合は `CompositeStateSource<TFragment>` を使います。書き込み先は既定の component とトップレベル member ごとの routing で明示します:
 
 ```csharp
 var combined = new CompositeStateSource<AppSettings.Fragment>(
-    new StateSourceSet<AppSettings.Fragment>([globalSource, localSource]));
+    new StateSourceSet<AppSettings.Fragment>([globalSource, localSource]),
+    defaultWriteSourceId: "local",
+    writePlan: new StateWritePlan(new Dictionary<string, string>
+    {
+        [nameof(AppSettings.Policy)] = "global",
+    }));
 model.Sources(sources => sources.Add(combined.CreateSource("common-files", priority: 100)));
 ```
 
-各 component は低優先度から高優先度へマージされます。component の `fallbackCondition` が、欠損または一時利用不可の fragment を省略できるか決めます。1回の読み取りで成功した component は同じ schema metadata を返す必要があり、結合後に schema migration を1回実行します。component の revision と watcher は論理ソースの revision の内側に保持されます。この合成は読み取り専用で、単一の `ResourceId` を持ちません。書き込み先は別途登録した source に保持し、編集をそこへ routing します。
+各 component は低優先度から高優先度へマージされます。component の `fallbackCondition` が、欠損または一時利用不可の fragment を省略できるか決めます。1回の読み取りで成功した component は同じ schema metadata を返す必要があり、結合後に schema migration を1回実行します。component の revision と watcher は論理ソースの revision の内側に保持されます。変更されたトップレベル member は、設定した component へ疎 patch として送られます。Unset は所有 component の寄与を取り除き、下位優先度の値があれば再び見えるようにします。書き込み先は書き込み可能な component でなければなりません。合成 source は単一の `ResourceId` を持たず、component の書き込みには既存の resource batching が使われます。異なる resource への書き込みは順次実行され、原子的ではありません。後続 resource で失敗した場合は `StateMultiWriteException` が完了済み source、失敗した resource/source、未実行 source、元例外 (`InnerException`) を保持します。
 
 ## 次のステップ
 

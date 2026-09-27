@@ -1,13 +1,13 @@
 namespace Configlue;
 
-/// <summary>The result of writing one source-local patch.</summary>
+/// <summary>The result of writing one source-local patch; composite writes identify physical component sources.</summary>
 public readonly record struct StateSourceWriteResult(
     string SourceId,
     ResourceId? ResourceId,
     string? Revision
 );
 
-/// <summary>The per-source results and physical write count of a multi-source patch operation.</summary>
+/// <summary>The completed per-source results and physical write count of a multi-source patch operation.</summary>
 public sealed class StateMultiWriteResult
 {
     /// <summary>Creates a multi-source write result.</summary>

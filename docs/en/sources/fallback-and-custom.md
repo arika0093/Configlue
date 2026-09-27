@@ -30,15 +30,20 @@ For a fully hand-rolled source, implement `IStateReader<TFragment>` (plus `IStat
 
 ### Combine multiple resources as one logical source
 
-Use `CompositeStateSource<TFragment>` when several read-only resources contribute sparse fragments but should appear as one logical source to the options runtime:
+Use `CompositeStateSource<TFragment>` when several resources contribute sparse fragments but should appear as one logical source to the options runtime. Keep writes explicit by naming a default writable component and optional top-level member routes:
 
 ```csharp
 var combined = new CompositeStateSource<AppSettings.Fragment>(
-    new StateSourceSet<AppSettings.Fragment>([globalSource, localSource]));
+    new StateSourceSet<AppSettings.Fragment>([globalSource, localSource]),
+    defaultWriteSourceId: "local",
+    writePlan: new StateWritePlan(new Dictionary<string, string>
+    {
+        [nameof(AppSettings.Policy)] = "global",
+    }));
 model.Sources(sources => sources.Add(combined.CreateSource("common-files", priority: 100)));
 ```
 
-The component sources merge from low to high priority. Each component's `fallbackCondition` controls whether a missing or unavailable fragment can be omitted. All successful components in one read must report matching schema metadata; the combined fragment is migrated once. Component revisions and watchers remain nested under the logical source revision. This composition is read-only and has no single `ResourceId`; keep writable ownership on separately registered sources and route edits there.
+The component sources merge from low to high priority. Each component's `fallbackCondition` controls whether a missing or unavailable fragment can be omitted. All successful components in one read must report matching schema metadata; the combined fragment is migrated once. Component revisions and watchers remain nested under the logical source revision. A patch sends each changed top-level member to its configured component as a sparse patch, so unsetting a member removes that component's contribution and reveals lower-priority values. Targets must be writable components. The composite has no single `ResourceId`; component writes use the existing resource batching rules. Writes across different resources are sequential and non-atomic. If a later resource fails, `StateMultiWriteException` carries completed source results, the failed resource and sources, unattempted source IDs, and the original exception in `InnerException`.
 
 ## Next steps
 
