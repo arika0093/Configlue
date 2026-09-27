@@ -47,7 +47,7 @@ Console.WriteLine($"Wrote: {string.Join(", ", result.WrittenFiles)}");
 </TabItem>
 </Tabs>
 
-`Write` creates files in a local output directory. Publish that directory to GitHub Pages or another host separately. Passing a non-null `schemaBaseUri` adds the optional `$schema` member to the generated configuration schema; it does not change the output directory. Output is versioned, so re-export when the model `Version` rises. Supported DataAnnotations map to schema constraints.
+`Write` creates files in a local output directory. Publish that directory to GitHub Pages or another host separately. Passing an absolute `schemaBaseUri`, such as `https://example.com/schemas/`, sets each generated document's `$id` to the base URI plus its versioned file name and permits an optional `$schema` member in configuration. It does not change the output directory. Output is versioned, so re-export when the model `Version` rises. Supported DataAnnotations map to schema constraints.
 
 ## Use it in editors and CI
 

@@ -67,7 +67,7 @@ public static class JsonSchemaGenerator
     /// </summary>
     /// <param name="models">The generated model schemas to export.</param>
     /// <param name="resolver">The JSON type-info resolver, preferably source-generated for trimming and NativeAOT.</param>
-    /// <param name="schemaBaseUri">The configured base URI. When set, the exported configuration schema includes its schema-reference property.</param>
+    /// <param name="schemaBaseUri">An optional absolute base URI for generated schema identifiers. The schema file name is appended to it, and the exported configuration schema includes an optional <c>$schema</c> property when this value is set. The URI must not include a query or fragment.</param>
     public static JsonSchemaGenerationResult Generate(
         IEnumerable<ConfiglueModelSchema> models,
         IJsonTypeInfoResolver resolver,
@@ -80,6 +80,12 @@ public static class JsonSchemaGenerator
             throw new ArgumentNullException(nameof(resolver));
 
         var diagnostics = new List<JsonSchemaGenerationDiagnostic>();
+        var normalizedSchemaBaseUri = NormalizeSchemaBaseUri(schemaBaseUri, diagnostics);
+        if (diagnostics.Count > 0)
+        {
+            return CreateResult([], [], diagnostics);
+        }
+
 #if NET9_0_OR_GREATER
         var candidates = ValidateModels(models, diagnostics);
 #else
@@ -135,14 +141,12 @@ public static class JsonSchemaGenerator
                     continue;
                 }
 
-                AddLibraryProperties(schema, model, schemaBaseUri is not null);
-                documents.Add(
-                    new JsonSchemaDocument(
-                        model,
-                        JsonSchemaGeneration.GetSchemaFileName(model.Id, model.Version),
-                        schema
-                    )
-                );
+                var fileName = JsonSchemaGeneration.GetSchemaFileName(model.Id, model.Version);
+                var schemaId = normalizedSchemaBaseUri is null
+                    ? fileName
+                    : new Uri(normalizedSchemaBaseUri, fileName).AbsoluteUri;
+                AddLibraryProperties(schema, schemaId, schemaBaseUri is not null);
+                documents.Add(new JsonSchemaDocument(model, fileName, schema));
             }
             catch (Exception exception)
                 when (exception
@@ -183,7 +187,7 @@ public static class JsonSchemaGenerator
     /// <param name="models">The generated model schemas to export.</param>
     /// <param name="outputDirectory">The directory in which schema files are written.</param>
     /// <param name="resolver">The JSON type-info resolver, preferably source-generated for trimming and NativeAOT.</param>
-    /// <param name="schemaBaseUri">The configured base URI. When set, the exported configuration schema includes its schema-reference property.</param>
+    /// <param name="schemaBaseUri">An optional absolute base URI for generated schema identifiers. The schema file name is appended to it, and the exported configuration schema includes an optional <c>$schema</c> property when this value is set. The URI must not include a query or fragment.</param>
     public static JsonSchemaGenerationResult Write(
         IEnumerable<ConfiglueModelSchema> models,
         string outputDirectory,
@@ -367,6 +371,40 @@ public static class JsonSchemaGenerator
         ConfiglueModelSchema model,
         string? outputPath = null
     ) => new(code, message, model.ModelType, model.Id, model.Version, outputPath);
+
+    private static Uri? NormalizeSchemaBaseUri(
+        string? schemaBaseUri,
+        List<JsonSchemaGenerationDiagnostic> diagnostics
+    )
+    {
+        if (schemaBaseUri is null)
+        {
+            return null;
+        }
+
+        if (
+            !Uri.TryCreate(schemaBaseUri, UriKind.Absolute, out var baseUri)
+            || !string.IsNullOrEmpty(baseUri.Query)
+            || !string.IsNullOrEmpty(baseUri.Fragment)
+        )
+        {
+            diagnostics.Add(
+                new JsonSchemaGenerationDiagnostic(
+                    "CWSC012",
+                    "The schema base URI must be an absolute URI without a query or fragment."
+                )
+            );
+            return null;
+        }
+
+        var builder = new UriBuilder(baseUri);
+        if (!builder.Path.EndsWith("/", StringComparison.Ordinal))
+        {
+            builder.Path += "/";
+        }
+
+        return builder.Uri;
+    }
 
     private static JsonSchemaGenerationResult CreateResult(
         IReadOnlyList<JsonSchemaDocument> documents,
@@ -565,14 +603,14 @@ public static class JsonSchemaGenerator
 
     private static void AddLibraryProperties(
         JsonNode schema,
-        ConfiglueModelSchema model,
+        string schemaId,
         bool includeConfigurationSchema
     )
     {
         if (schema is not JsonObject root)
             throw new InvalidOperationException("The exported JSON schema root must be an object.");
         root["$schema"] = "https://json-schema.org/draft/2020-12/schema";
-        root["$id"] = JsonSchemaGeneration.GetSchemaFileName(model.Id, model.Version);
+        root["$id"] = schemaId;
         if (root["properties"] is not JsonObject properties)
         {
             properties = [];
