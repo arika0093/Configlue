@@ -15,6 +15,8 @@ $expectedPackageIds = @(
     'Configlue.Provider.Xml',
     'Configlue.Provider.Yaml',
     'Configlue.Source.Environment',
+    'Configlue.Source.CommandLine',
+    'Configlue.Source.Common',
     'Configlue.Resource.Zip',
     'Configlue.Resource.Http',
     'Configlue.Resource.Http.AspNetCore'

@@ -364,8 +364,8 @@ public sealed class ConfiglueFacadeSourceTests
         await profiles.CreateProfileAsync("removed", copyFrom: "default");
         await profiles.CreateProfileAsync("context-end", copyFrom: "default");
 
-        var registry = (ConfiglueFacadeOptionsRegistry<AppSettings>)
-            context.GetOptionsRegistry<AppSettings>();
+        var registry =
+            (ConfiglueFacadeOptionsRegistry<AppSettings>)context.GetOptionsRegistry<AppSettings>();
         var removedResource = registry
             .GetOwnedResourcesForTests("removed")
             .OfType<FileResource>()
@@ -381,10 +381,8 @@ public sealed class ConfiglueFacadeSourceTests
             .GetOptions<AppSettings>("context-end")
             .OnChange(static _ => { });
 
-        await WaitUntilAsync(
-            () =>
-                removedResource.HasActiveWatcherForTests
-                && contextEndResource.HasActiveWatcherForTests
+        await WaitUntilAsync(() =>
+            removedResource.HasActiveWatcherForTests && contextEndResource.HasActiveWatcherForTests
         );
         await profiles.RemoveProfileAsync("removed");
 
