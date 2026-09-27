@@ -29,6 +29,8 @@ watcher または再読み込みで発生した例外が通知されます。変
 
 DataAnnotations 検証は既定で保存時に実行されます。無効にするには `ValidateDataAnnotations = false` を設定します。NativeAOT など実行環境が動的コードをサポートしない場合、リフレクションを使う DataAnnotations 検証は自動的にスキップされます。登録済みの独自バリデーターは引き続き実行されます。
 
+検証に失敗すると `ConfiglueValidationException` が送出され、options 名・型・すべての失敗メッセージを確認できます。この検証契約は Configlue Core に属し、`Microsoft.Extensions.Options` を必要としません。
+
 ```csharp
 conf.Add<UserSetting>(model =>
 {

@@ -29,6 +29,8 @@ The callback receives watcher or reload exceptions. If a changed state resolves 
 
 DataAnnotations validation runs on save by default. Set `ValidateDataAnnotations = false` to disable it. Configlue skips reflection-based DataAnnotations validation automatically when the runtime does not support dynamic code, such as NativeAOT; registered validators continue to run.
 
+Validation failures throw `ConfiglueValidationException`, which includes the options name, options type, and all failure messages. This validation contract is part of Configlue Core and does not require `Microsoft.Extensions.Options`.
+
 ```csharp
 conf.Add<UserSetting>(model =>
 {
