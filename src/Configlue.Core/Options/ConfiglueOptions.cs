@@ -366,25 +366,53 @@ public sealed class ConfiglueOptions<TModel, TFragment>
             draft,
             async (value, token) =>
             {
-                var latest = await ReadAsync(token).ConfigureAwait(false);
-                if (
-                    latest.Status != StateReadStatus.Success
-                    || !HaveSameRevisions(expectedRevisions, latest.Revisions)
-                )
+                var latestState = await ResolveCoreAsync(null, token).ConfigureAwait(false);
+                var latest = latestState.Result;
+                if (latest.Status != StateReadStatus.Success)
                 {
-                    throw new StateConflictException(
-                        "A state source changed after the configuration edit began."
+                    throw new InvalidOperationException(
+                        $"Configuration state could not be read before saving: {latest.Status}."
                     );
+                }
+
+                var hasRevisionChanges = !HaveSameRevisions(expectedRevisions, latest.Revisions);
+                var saveBaseline = baseline;
+                var saveValue = value;
+                var saveContributions = resolvedState.Contributions;
+                var saveRevisions = expectedRevisions;
+                var saveExpectedRevision = expectedRevision;
+                if (hasRevisionChanges)
+                {
+                    saveBaseline = latest.Value!;
+                    saveValue = RebaseConfigurationEdit(baseline, value, saveBaseline);
+                    saveContributions = latestState.Contributions;
+                    saveRevisions = latest.Revisions;
+                    if (
+                        saveRevisions is null
+                        || !saveRevisions.TryGetRevision(source.Id, out saveExpectedRevision)
+                    )
+                    {
+                        var current = await source.Reader.ReadAsync(token).ConfigureAwait(false);
+                        if (current.Status == StateReadStatus.Unavailable)
+                        {
+                            throw new InvalidOperationException(
+                                $"Cannot safely begin editing because source '{source.Id}' is unavailable."
+                            );
+                        }
+
+                        saveExpectedRevision = current.Revision;
+                    }
                 }
 
                 if (effectiveWritePlan.PropertyRoutes.Count == 0)
                 {
                     return await WriteChangesToSourceAsync(
                             source,
-                            baseline,
-                            value,
-                            expectedRevision,
-                            resolvedState.Contributions,
+                            saveBaseline,
+                            saveValue,
+                            saveExpectedRevision,
+                            saveContributions,
+                            saveRevisions,
                             token
                         )
                         .ConfigureAwait(false);
@@ -392,17 +420,242 @@ public sealed class ConfiglueOptions<TModel, TFragment>
 
                 return await WriteChangesToSourcesAsync(
                         source,
-                        baseline,
-                        value,
-                        expectedRevision,
-                        expectedRevisions,
-                        resolvedState.Contributions,
+                        saveBaseline,
+                        saveValue,
+                        saveExpectedRevision,
+                        saveRevisions,
+                        saveContributions,
                         effectiveWritePlan,
                         token
                     )
                     .ConfigureAwait(false);
             }
         );
+    }
+
+    private static TModel RebaseConfigurationEdit(TModel before, TModel desired, TModel current)
+    {
+        var changes = TModel.Diff(before, desired);
+        if (changes.IsEmpty)
+        {
+            return current;
+        }
+
+        var rebased = RebaseChanges(TModel.ConfiglueSchema, changes, before, desired, current, []);
+        var currentFragment = TModel.ToFragment(current);
+        if (currentFragment.ApplyChanges((TFragment)rebased) is not TFragment updated)
+        {
+            throw new InvalidOperationException(
+                "The rebased edit produced an incompatible fragment."
+            );
+        }
+
+        var result = TModel.FromFragment(updated);
+        return result;
+    }
+
+    private static IConfiglueFragment RebaseChanges(
+        ConfiglueModelSchema schema,
+        IConfiglueFragment changes,
+        object before,
+        object desired,
+        object current,
+        List<string> path
+    )
+    {
+        foreach (var change in changes.EnumeratePresentMembers().ToArray())
+        {
+            var member = schema.Members.FirstOrDefault(candidate => candidate.Id == change.Id);
+            if (string.IsNullOrEmpty(member.Name))
+            {
+                throw new InvalidOperationException(
+                    $"Generated schema '{schema.Id}' has no member with id {change.Id}."
+                );
+            }
+
+            path.Add(member.Name);
+            try
+            {
+                var beforeValue = member.GetValue?.Invoke(before);
+                var desiredValue = member.GetValue?.Invoke(desired);
+                var currentValue = member.GetValue?.Invoke(current);
+                if (
+                    member.NestedSchemaFactory is not null
+                    && change.Value is IConfiglueFragment nestedChanges
+                    && beforeValue is not null
+                    && desiredValue is not null
+                    && currentValue is not null
+                )
+                {
+                    var nested = RebaseChanges(
+                        member.NestedSchemaFactory(),
+                        nestedChanges,
+                        beforeValue,
+                        desiredValue,
+                        currentValue,
+                        path
+                    );
+                    changes = changes.WithMember(member.Id, nested);
+                    continue;
+                }
+
+                if (member.CollectionValueFactory is not null)
+                {
+                    var rebasedCollection = RebaseCollectionEdit(
+                        member,
+                        beforeValue,
+                        desiredValue,
+                        currentValue,
+                        string.Join('.', path)
+                    );
+                    if (rebasedCollection is not null)
+                    {
+                        changes = changes.WithMember(member.Id, rebasedCollection);
+                    }
+
+                    continue;
+                }
+
+                if (
+                    !AreEditValuesEqual(beforeValue, currentValue)
+                    && !AreEditValuesEqual(desiredValue, currentValue)
+                )
+                {
+                    throw new StateConflictException(
+                        $"The configuration edit conflicts with a concurrent change to '{string.Join('.', path)}'."
+                    );
+                }
+            }
+            finally
+            {
+                path.RemoveAt(path.Count - 1);
+            }
+        }
+
+        return changes;
+    }
+
+    private static object? RebaseCollectionEdit(
+        ConfiglueMemberSchema member,
+        object? beforeValue,
+        object? desiredValue,
+        object? currentValue,
+        string propertyPath
+    )
+    {
+        if (
+            beforeValue is not System.Collections.IEnumerable beforeEnumerable
+            || beforeValue is string
+            || desiredValue is not System.Collections.IEnumerable desiredEnumerable
+            || desiredValue is string
+            || currentValue is not System.Collections.IEnumerable currentEnumerable
+            || currentValue is string
+        )
+        {
+            if (
+                !AreEditValuesEqual(beforeValue, currentValue)
+                && !AreEditValuesEqual(desiredValue, currentValue)
+            )
+            {
+                throw new StateConflictException(
+                    $"The configuration edit conflicts with a concurrent change to '{propertyPath}'."
+                );
+            }
+
+            return null;
+        }
+
+        var before = beforeEnumerable.Cast<object?>().ToList();
+        var desired = desiredEnumerable.Cast<object?>().ToList();
+        var current = currentEnumerable.Cast<object?>().ToList();
+        if (member.MergeMode == MergeMode.Append)
+        {
+            if (desired.Count < before.Count || !desired.Take(before.Count).SequenceEqual(before))
+            {
+                if (!current.SequenceEqual(before) && !current.SequenceEqual(desired))
+                {
+                    throw new StateConflictException(
+                        $"The configuration edit conflicts with a concurrent change to append-merged member '{propertyPath}'."
+                    );
+                }
+
+                return member.CollectionValueFactory!(desired);
+            }
+
+            if (current.Count < before.Count || !current.Take(before.Count).SequenceEqual(before))
+            {
+                throw new StateConflictException(
+                    $"The configuration edit cannot reapply its append to '{propertyPath}' because the existing collection prefix changed."
+                );
+            }
+
+            var additions = desired.Skip(before.Count);
+            return member.CollectionValueFactory!(current.Concat(additions));
+        }
+
+        if (member.MergeMode == MergeMode.SetUnion)
+        {
+            var removed = before.Where(value => !desired.Contains(value)).ToArray();
+            if (
+                removed.Length > 0
+                && !current.SequenceEqual(before)
+                && !current.SequenceEqual(desired)
+            )
+            {
+                throw new StateConflictException(
+                    $"The configuration edit conflicts with a concurrent change to set-union member '{propertyPath}'."
+                );
+            }
+
+            if (removed.Length > 0)
+            {
+                return member.CollectionValueFactory!(desired);
+            }
+
+            var rebased = current.ToList();
+            foreach (
+                var value in desired
+                    .Where(value => !before.Contains(value))
+                    .Where(value => !rebased.Contains(value))
+            )
+            {
+                rebased.Add(value);
+            }
+
+            return member.CollectionValueFactory!(rebased);
+        }
+
+        if (
+            !AreEditValuesEqual(beforeValue, currentValue)
+            && !AreEditValuesEqual(desiredValue, currentValue)
+        )
+        {
+            throw new StateConflictException(
+                $"The configuration edit conflicts with a concurrent change to '{propertyPath}'."
+            );
+        }
+
+        return null;
+    }
+
+    private static bool AreEditValuesEqual(object? left, object? right)
+    {
+        if (ReferenceEquals(left, right))
+        {
+            return true;
+        }
+
+        if (
+            left is System.Collections.IEnumerable leftValues
+            && left is not string
+            && right is System.Collections.IEnumerable rightValues
+            && right is not string
+        )
+        {
+            return leftValues.Cast<object?>().SequenceEqual(rightValues.Cast<object?>());
+        }
+
+        return Equals(left, right);
     }
 
     /// <inheritdoc />
@@ -2158,6 +2411,7 @@ public sealed class ConfiglueOptions<TModel, TFragment>
         TModel after,
         string? expectedRevision,
         IReadOnlyList<ResolvedContribution> baselineContributions,
+        StateRevisionVector? expectedBaselineRevisions,
         CancellationToken cancellationToken
     )
     {
@@ -2233,6 +2487,17 @@ public sealed class ConfiglueOptions<TModel, TFragment>
         }
 
         Validate(proposed.Value!);
+        var latest = await ReadAsync(cancellationToken).ConfigureAwait(false);
+        if (
+            latest.Status != StateReadStatus.Success
+            || !HaveSameRevisions(expectedBaselineRevisions, latest.Revisions)
+        )
+        {
+            throw new StateConflictException(
+                "A state source changed before the configuration edit could be written."
+            );
+        }
+
         return await source
             .Writer!.WriteAsync(
                 new StateWriteRequest<TFragment>(updated, current.Revision, CheckRevision: true),

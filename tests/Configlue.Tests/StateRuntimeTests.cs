@@ -1088,18 +1088,85 @@ public sealed class StateRuntimeTests
         using var stale = await options.BeginConfigureAsync();
         stale.Value.RetryCount = 7;
         store.Set(new AppSettings.Fragment { RetryCount = Optional<int>.Present(8) });
-        var conflicted = false;
+        StateConflictException? conflict = null;
         try
         {
             await stale.SaveAsync();
         }
-        catch (StateConflictException)
+        catch (StateConflictException exception)
         {
-            conflicted = true;
+            conflict = exception;
         }
 
-        (conflicted).ShouldBeTrue();
+        conflict.ShouldNotBeNull();
+        conflict.Message.ShouldContain("RetryCount");
         (stale.IsCommitted).ShouldBeFalse();
+    }
+
+    [Test]
+    public async Task ConfigureSession_RebasesAChangeAfterAnUnrelatedPathChanges()
+    {
+        var store = new InMemoryStateStore<AppSettings.Fragment>(
+            new AppSettings.Fragment { RetryCount = Optional<int>.Present(3) }
+        );
+        var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(
+            new StateSourceSet<AppSettings.Fragment>([new("user", store, writer: store)])
+        );
+        using var session = await options.BeginConfigureAsync();
+        session.Value.RetryCount = 6;
+        store.Set(
+            new AppSettings.Fragment
+            {
+                RetryCount = Optional<int>.Present(3),
+                Enabled = Optional<bool>.Present(true),
+            }
+        );
+
+        await session.SaveAsync();
+
+        var resolved = (await options.ReadAsync()).Value!;
+        resolved.RetryCount.ShouldBe(6);
+        resolved.Enabled.ShouldBeTrue();
+    }
+
+    [Test]
+    public async Task ConfigureSession_RebasesNestedDisjointChanges()
+    {
+        var store = new InMemoryStateStore<AppSettings.Fragment>(
+            new AppSettings.Fragment
+            {
+                Database = Optional<DatabaseSettings.Fragment?>.Present(
+                    new DatabaseSettings.Fragment
+                    {
+                        Host = Optional<string>.Present("before"),
+                        Port = Optional<int>.Present(5432),
+                    }
+                ),
+            }
+        );
+        var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(
+            new StateSourceSet<AppSettings.Fragment>([new("user", store, writer: store)])
+        );
+        using var session = await options.BeginConfigureAsync();
+        session.Value.Database!.Host = "session-host";
+        store.Set(
+            new AppSettings.Fragment
+            {
+                Database = Optional<DatabaseSettings.Fragment?>.Present(
+                    new DatabaseSettings.Fragment
+                    {
+                        Host = Optional<string>.Present("before"),
+                        Port = Optional<int>.Present(7443),
+                    }
+                ),
+            }
+        );
+
+        await session.SaveAsync();
+
+        var resolved = (await options.ReadAsync()).Value!;
+        resolved.Database!.Host.ShouldBe("session-host");
+        resolved.Database.Port.ShouldBe(7443);
     }
 
     [Test]
@@ -1137,7 +1204,7 @@ public sealed class StateRuntimeTests
     }
 
     [Test]
-    public async Task ConfigureSession_RejectsChangesToAnyParticipatingSource()
+    public async Task ConfigureSession_RebasesAfterAnUnrelatedSourceChanges()
     {
         var user = new InMemoryStateStore<AppSettings.Fragment>(
             new AppSettings.Fragment { Enabled = Optional<bool>.Present(true) }
@@ -1154,20 +1221,14 @@ public sealed class StateRuntimeTests
         session.Value.Enabled = false;
         defaults.Set(new AppSettings.Fragment { RetryCount = Optional<int>.Present(8) });
 
-        var conflicted = false;
-        try
-        {
-            await session.SaveAsync();
-        }
-        catch (StateConflictException)
-        {
-            conflicted = true;
-        }
+        await session.SaveAsync();
 
         var storedUser = await user.ReadAsync();
-        (conflicted).ShouldBeTrue();
-        (storedUser.Value!.Enabled.Value).ShouldBeTrue();
-        (storedUser.Revision).ShouldBe("1");
+        var resolved = await options.ReadAsync();
+        (storedUser.Value!.Enabled.Value).ShouldBeFalse();
+        (storedUser.Revision).ShouldBe("2");
+        resolved.Value!.RetryCount.ShouldBe(8);
+        resolved.Value.Enabled.ShouldBeFalse();
     }
 
     [Test]
@@ -1368,6 +1429,40 @@ public sealed class StateRuntimeTests
     }
 
     [Test]
+    public async Task ConfigureSession_RebasesConcurrentAppendAdditions()
+    {
+        var defaults = new InMemoryStateStore<AppSettings.Fragment>(
+            new AppSettings.Fragment { Plugins = Optional<IReadOnlyList<string>>.Present(["base"]) }
+        );
+        var user = new InMemoryStateStore<AppSettings.Fragment>(
+            new AppSettings.Fragment { Plugins = Optional<IReadOnlyList<string>>.Present(["user"]) }
+        );
+        var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(
+            new StateSourceSet<AppSettings.Fragment>([
+                new("user", user, priority: 100, writer: user),
+                new("defaults", defaults),
+            ])
+        );
+        using var session = await options.BeginConfigureAsync();
+        session.Value.Plugins = [.. session.Value.Plugins, "session"];
+        user.Set(
+            new AppSettings.Fragment
+            {
+                Plugins = Optional<IReadOnlyList<string>>.Present(["user", "external"]),
+            }
+        );
+
+        await session.SaveAsync();
+
+        var resolved = (await options.ReadAsync()).Value!;
+        resolved
+            .Plugins.OrderBy(static value => value)
+            .ShouldBe(
+                (new[] { "base", "user", "external", "session" }).OrderBy(static value => value)
+            );
+    }
+
+    [Test]
     public async Task ConfigureSession_RebasesSetUnionEditsAndRejectsRemovingOtherSourceValues()
     {
         var defaults = new InMemoryStateStore<SetUnionSettings.Fragment>(
@@ -1418,6 +1513,46 @@ public sealed class StateRuntimeTests
 
         (rejected).ShouldBeTrue();
         ((await user.ReadAsync()).Revision).ShouldBe("2");
+    }
+
+    [Test]
+    public async Task ConfigureSession_RebasesConcurrentSetUnionAdditions()
+    {
+        var defaults = new InMemoryStateStore<SetUnionSettings.Fragment>(
+            new SetUnionSettings.Fragment
+            {
+                Tags = Optional<IReadOnlyList<string>>.Present(["base"]),
+            }
+        );
+        var user = new InMemoryStateStore<SetUnionSettings.Fragment>(
+            new SetUnionSettings.Fragment
+            {
+                Tags = Optional<IReadOnlyList<string>>.Present(["user"]),
+            }
+        );
+        var options = new ConfiglueOptions<SetUnionSettings, SetUnionSettings.Fragment>(
+            new StateSourceSet<SetUnionSettings.Fragment>([
+                new("user", user, priority: 100, writer: user),
+                new("defaults", defaults),
+            ])
+        );
+        using var session = await options.BeginConfigureAsync();
+        session.Value.Tags = [.. session.Value.Tags, "session"];
+        user.Set(
+            new SetUnionSettings.Fragment
+            {
+                Tags = Optional<IReadOnlyList<string>>.Present(["user", "external"]),
+            }
+        );
+
+        await session.SaveAsync();
+
+        var resolved = (await options.ReadAsync()).Value!;
+        resolved
+            .Tags.OrderBy(static value => value)
+            .ShouldBe(
+                (new[] { "base", "user", "external", "session" }).OrderBy(static value => value)
+            );
     }
 
     [Test]
