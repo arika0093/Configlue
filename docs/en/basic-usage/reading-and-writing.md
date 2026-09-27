@@ -80,6 +80,14 @@ await options.ApplyPatchAsync(patch);
 
 Use `ApplyPatchesAsync` with `StateSourcePatch` entries for an explicit source-local multi-write. Disjoint section updates sharing a `ResourceId` persist with one physical write; overlapping scopes are rejected and the result reports each source revision and physical write count. Writes across different resources are not atomic.
 
+For one source, use a typed key and handle. `SaveAsync` keeps unspecified contributions in that source; `ReplaceAsync` withdraws unspecified members while preserving explicit Set operations:
+
+```csharp
+var userSource = options.Source(SourceKey<AppSettings>.FromId("user"));
+await userSource.SaveAsync(patch => patch.Database.Host = "db.example.test");
+await userSource.ReplaceAsync(patch => patch.Database.Host = "db.example.test");
+```
+
 ## Next steps
 
 * [Application setup](./app-setup.md) for DI/non-DI lifetimes and ownership.

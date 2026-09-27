@@ -93,7 +93,40 @@ public sealed partial class ConfiglueGenerator
         code.AppendLineAt(2, "configure(patch);");
         code.AppendLineAt(2, "return options.ApplyPatchAsync(patch, cancellationToken);");
         code.AppendLineAt(1, "}");
+        AppendSourcePatchExtension(code, modelType, "SaveAsync", "SaveAsync");
+        AppendSourcePatchExtension(code, modelType, "ReplaceAsync", "ReplaceAsync");
         code.AppendLine("}");
+    }
+
+    private static void AppendSourcePatchExtension(
+        IndentedStringBuilder code,
+        string modelType,
+        string methodName,
+        string handleMethodName
+    )
+    {
+        code.AppendLineAt(
+            1,
+            "public static global::System.Threading.Tasks.ValueTask<global::Configlue.StateMultiWriteResult> "
+                + methodName
+                + "("
+        );
+        code.AppendLineAt(
+            2,
+            "this global::Configlue.ConfiglueSourceHandle<" + modelType + "> source,"
+        );
+        code.AppendLineAt(2, "global::System.Action<" + modelType + ".Patch> configure,");
+        code.AppendLineAt(
+            2,
+            "global::System.Threading.CancellationToken cancellationToken = default)"
+        );
+        code.AppendLineAt(1, "{");
+        code.AppendLineAt(2, "global::System.ArgumentNullException.ThrowIfNull(source);");
+        code.AppendLineAt(2, "global::System.ArgumentNullException.ThrowIfNull(configure);");
+        code.AppendLineAt(2, "var patch = new " + modelType + ".Patch();");
+        code.AppendLineAt(2, "configure(patch);");
+        code.AppendLineAt(2, "return source." + handleMethodName + "(patch, cancellationToken);");
+        code.AppendLineAt(1, "}");
     }
 
     private static void AppendCollectionCloneHelpers(IndentedStringBuilder code)
