@@ -69,6 +69,9 @@ await edit.SaveAsync();
 生成された `TModel.Patch` 値は項目を個別に扱います。`Unset` は書き込みソースの寄与だけを取り下げ、下位の値を再び露出させます:
 
 ```csharp
+await options.SavePatchAsync(patch => patch.Database.Host = "db.example.test");
+await options.SavePatchAsync(patch => patch.Database.Password.Unset());
+
 var patch = new AppSettings.Patch();
 patch.SomeSetting = newValue;   // 設定
 // patch.SomeSetting.Unset();   // このソースの寄与を取り下げ
