@@ -47,7 +47,7 @@ Console.WriteLine($"書き出し: {string.Join(", ", result.WrittenFiles)}");
 </TabItem>
 </Tabs>
 
-`Write` が作るのはローカルの出力ディレクトリ内のファイルです。そのディレクトリを GitHub Pages などへ公開する処理は別途行います。`schemaBaseUri` に null 以外を渡すと、設定ファイル側の任意の `$schema` 項目を生成スキーマに追加します。出力先ディレクトリは変わりません。出力は版付きなので、モデルの `Version` を上げたら出し直します。対応する DataAnnotations はスキーマの制約に写ります。
+`Write` が作るのはローカルの出力ディレクトリ内のファイルです。そのディレクトリを GitHub Pages などへ公開する処理は別途行います。`https://example.com/schemas/` のような絶対 `schemaBaseUri` を渡すと、生成文書の `$id` は基底 URI と版付きファイル名を結合した値になり、設定データ内の任意の `$schema` 項目も許可します。出力先ディレクトリは変わりません。出力は版付きなので、モデルの `Version` を上げたら出し直します。対応する DataAnnotations はスキーマの制約に写ります。
 
 ## エディターと CI で使う
 

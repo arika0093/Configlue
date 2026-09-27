@@ -17,6 +17,8 @@ var result = JsonSchemaGenerator.Generate(
 
 `Generate` builds the documents in memory; `Write` persists them. Check the result diagnostics (`CWSC001` reports frameworks without `System.Text.Json` schema-export support). Host the files wherever fits — a `main`-branch folder, a CDN, or release assets — and point editors at them.
 
+Pass an absolute `schemaBaseUri` such as `https://example.com/schemas/` to set each document's root `$id` to that URI plus its versioned file name (for example, `https://example.com/schemas/AppSettings.v1.json`). The final slash is added when needed. The URI cannot contain a query or fragment; invalid values return diagnostic `CWSC012`. A non-null value also permits an optional `$schema` string property in the configuration model. `Write` still writes to the local output directory; publishing those files is a separate step.
+
 ## Testing
 
 The testing helpers live in the separate `Configlue.Testing` package:
