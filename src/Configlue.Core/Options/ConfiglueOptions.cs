@@ -227,7 +227,7 @@ public sealed class ConfiglueOptions<TModel, TFragment>
             }
         }
 
-        var collectionElements = IsGeneratedCollectionType(member.ValueType)
+        var collectionElements = IsCollectionType(member)
             ? ExplainCollectionElements(member, effectiveValue, sourceContributions)
             : [];
         return new ConfiglueValueExplanation(
@@ -625,6 +625,28 @@ public sealed class ConfiglueOptions<TModel, TFragment>
                         path
                     );
                     changes = changes.WithMember(member.Id, nested);
+                    continue;
+                }
+
+                if (member.MergeStrategy is { } mergeStrategy)
+                {
+                    if (
+                        !mergeStrategy.TryRebase(
+                            beforeValue,
+                            desiredValue,
+                            currentValue,
+                            out var rebasedValue,
+                            out var reason
+                        )
+                    )
+                    {
+                        throw LogConflict(
+                            reason
+                                ?? $"The custom merge strategy could not rebase the edit to '{string.Join('.', path)}'."
+                        );
+                    }
+
+                    changes = changes.WithMember(member.Id, rebasedValue);
                     continue;
                 }
 
@@ -2943,6 +2965,56 @@ public sealed class ConfiglueOptions<TModel, TFragment>
                     continue;
                 }
 
+                if (member.MergeStrategy is { } mergeStrategy)
+                {
+                    var strategySourceOrder = GetActiveSources().Reverse().ToArray();
+                    var strategyValues = new ConfiglueMergeSourceValue[strategySourceOrder.Length];
+                    for (var index = 0; index < strategySourceOrder.Length; index++)
+                    {
+                        var source = strategySourceOrder[index];
+                        var value = Optional<object?>.Missing;
+                        foreach (var contribution in contributions)
+                        {
+                            if (
+                                string.Equals(
+                                    contribution.Source.Id,
+                                    source.Id,
+                                    StringComparison.Ordinal
+                                )
+                                && contribution.Result.Value is { } sourceValue
+                                && TryGetFragmentValue(sourceValue, path, out var contributionValue)
+                            )
+                            {
+                                value = Optional<object?>.Present(contributionValue);
+                                break;
+                            }
+                        }
+
+                        strategyValues[index] = new ConfiglueMergeSourceValue(source.Id, value);
+                    }
+
+                    if (
+                        !mergeStrategy.TryPlanSourceContribution(
+                            strategyValues,
+                            targetSourceId,
+                            afterValue,
+                            out var targetContribution,
+                            out var reason
+                        )
+                    )
+                    {
+                        throw LogConflict(
+                            reason
+                                ?? $"The custom merge strategy cannot represent the edit to '{member.Name}' in source '{targetSourceId}'."
+                        );
+                    }
+
+                    changes = targetContribution.IsPresent
+                        ? changes.WithMember(member.Id, targetContribution.Value)
+                        : changes.WithoutMember(member.Id);
+                    continue;
+                }
+
                 if (
                     member.CollectionValueFactory is null
                     || afterValue is not System.Collections.IEnumerable desiredValues
@@ -3426,6 +3498,12 @@ public sealed class ConfiglueOptions<TModel, TFragment>
             || definition == typeof(IReadOnlySet<>);
     }
 
+    private static bool IsCollectionType(ConfiglueMemberSchema member) =>
+        member.MergeStrategy is not null
+            ? member.ValueType != typeof(string)
+                && typeof(IEnumerable).IsAssignableFrom(member.ValueType)
+            : IsGeneratedCollectionType(member.ValueType);
+
     private static IReadOnlyList<ConfiglueCollectionElementExplanation> ExplainCollectionElements(
         ConfiglueMemberSchema member,
         object? effectiveValue,
@@ -3437,6 +3515,73 @@ public sealed class ConfiglueOptions<TModel, TFragment>
             .Range(0, effectiveElements.Length)
             .Select(static _ => new List<ConfiglueSourceContribution>())
             .ToArray();
+
+        if (member.MergeStrategy is { } mergeStrategy)
+        {
+            var sourcePriority = sourceContributions
+                .Select((source, index) => (source.SourceId, index))
+                .ToDictionary(
+                    static source => source.SourceId,
+                    static source => source.index,
+                    StringComparer.Ordinal
+                );
+            var sourceValues = sourceContributions
+                .Reverse()
+                .Select(static source => new ConfiglueMergeSourceValue(
+                    source.SourceId,
+                    Optional<object?>.Present(source.Value)
+                ))
+                .ToArray();
+            foreach (var provenance in mergeStrategy.ExplainElements(effectiveValue, sourceValues))
+            {
+                if (provenance.Index >= effectiveElements.Length)
+                {
+                    throw new InvalidOperationException(
+                        $"Merge strategy for '{member.Name}' returned provenance for out-of-range element index {provenance.Index}."
+                    );
+                }
+
+                var orderedSourceIndices = new SortedSet<int>();
+                foreach (var sourceId in provenance.SourceIds)
+                {
+                    if (!sourcePriority.TryGetValue(sourceId, out var sourceIndex))
+                    {
+                        throw new InvalidOperationException(
+                            $"Merge strategy for '{member.Name}' referenced unknown source '{sourceId}' in element provenance."
+                        );
+                    }
+
+                    orderedSourceIndices.Add(sourceIndex);
+                }
+
+                foreach (var sourceIndex in orderedSourceIndices)
+                {
+                    var source = sourceContributions[sourceIndex];
+                    elementContributions[provenance.Index]
+                        .Add(
+                            new ConfiglueSourceContribution(
+                                source.SourceId,
+                                source.PhysicalOrigin,
+                                source.Revision,
+                                effectiveElements[provenance.Index]
+                            )
+                        );
+                }
+            }
+
+            return Array.AsReadOnly(
+                effectiveElements
+                    .Select(
+                        (value, index) =>
+                            new ConfiglueCollectionElementExplanation(
+                                index,
+                                value,
+                                elementContributions[index]
+                            )
+                    )
+                    .ToArray()
+            );
+        }
 
         if (member.MergeMode == MergeMode.Append && effectiveValue is IList)
         {

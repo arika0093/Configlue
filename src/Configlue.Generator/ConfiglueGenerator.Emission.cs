@@ -225,6 +225,12 @@ public sealed partial class ConfiglueGenerator
                         ? SymbolDisplay.FormatLiteral(name, true)
                         : "null"
                 )
+                .Append(", ")
+                .Append(
+                    member.MergeStrategyType is null
+                        ? "null"
+                        : "Fragment.__configlue_merge_strategy_" + member.Id
+                )
                 .AppendLine("),");
         }
 
@@ -236,7 +242,7 @@ public sealed partial class ConfiglueGenerator
 
     private static string CollectionValueFactory(MemberModel member)
     {
-        if (member.MergeMode is not (2 or 3))
+        if (member.MergeStrategyType is not null || member.MergeMode is not (2 or 3))
         {
             return "null";
         }
@@ -300,6 +306,12 @@ public sealed partial class ConfiglueGenerator
                     .Append(".FragmentSchema");
             }
 
+            code.Append(", null, null, ")
+                .Append(
+                    member.MergeStrategyType is null
+                        ? "null"
+                        : "Fragment.__configlue_merge_strategy_" + member.Id
+                );
             code.AppendLine("),");
         }
 

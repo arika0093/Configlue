@@ -107,6 +107,9 @@ public sealed partial class ConfiglueGenerator
         };
     }
 
+    private static string MergeStrategyField(MemberModel member) =>
+        "__configlue_merge_strategy_" + member.Id;
+
     private static string FragmentValueType(MemberModel member)
     {
         if (member.ChildModel is null)
@@ -169,6 +172,7 @@ public sealed partial class ConfiglueGenerator
             1 => "Deep",
             2 => "Append",
             3 => "SetUnion",
+            4 => "Custom",
             _ => "Replace",
         };
 

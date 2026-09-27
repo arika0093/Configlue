@@ -45,6 +45,19 @@ public sealed partial class ConfiglueGenerator
                 .AppendLine(" { get; init; }");
         }
 
+        foreach (var member in members.Where(static member => member.MergeStrategyType is not null))
+        {
+            code.AppendIndent(2)
+                .Append("internal static readonly global::Configlue.ConfiglueMergeStrategy<")
+                .Append(TypeName(member.Property.Type))
+                .Append("> ")
+                .Append("__configlue_merge_strategy_")
+                .Append(member.Id)
+                .Append(" = new ")
+                .Append(TypeName(member.MergeStrategyType!))
+                .AppendLine("();");
+        }
+
         code.AppendLine();
         code.AppendLineAt(
             2,
@@ -225,6 +238,33 @@ public sealed partial class ConfiglueGenerator
         code.AppendLineAt(3, "}");
         code.AppendLineAt(3, "return builder.Build();");
         code.AppendLineAt(2, "}");
+        code.AppendLineAt(
+            2,
+            "public global::Configlue.IConfiglueFragment WithoutMember(int memberId)"
+        );
+        code.AppendLineAt(2, "{");
+        code.AppendLineAt(3, "var builder = ToBuilder();");
+        code.AppendLineAt(3, "switch (memberId)");
+        code.AppendLineAt(3, "{");
+        foreach (var member in members)
+        {
+            code.AppendIndent(4)
+                .Append("case ")
+                .Append(member.Id)
+                .Append(": builder.")
+                .Append(EscapeIdentifier(member.Property.Name))
+                .Append(" = global::Configlue.Optional<")
+                .Append(FragmentValueType(member))
+                .AppendLine(">.Missing; break;");
+        }
+
+        code.AppendLineAt(
+            4,
+            "default: throw new global::System.ArgumentOutOfRangeException(nameof(memberId));"
+        );
+        code.AppendLineAt(3, "}");
+        code.AppendLineAt(3, "return builder.Build();");
+        code.AppendLineAt(2, "}");
         code.AppendLine();
     }
 
@@ -310,7 +350,11 @@ public sealed partial class ConfiglueGenerator
             var lower = "this." + name;
             var higher = "higherPriority." + name;
             string expression;
-            if (member.MergeMode == 1 && member.ChildModel is not null)
+            if (member.MergeStrategyType is not null)
+            {
+                expression = $"{MergeStrategyField(member)}.Merge({lower}, {higher})";
+            }
+            else if (member.MergeMode == 1 && member.ChildModel is not null)
             {
                 expression =
                     $"{higher}.IsPresent ? global::Configlue.Optional<{FragmentValueType(member)}>.Present(({lower}.IsPresent && (object?){lower}.Value is not null && (object?){higher}.Value is not null) ? {lower}.Value!.Merge({higher}.Value!) : {higher}.Value) : {lower}";
@@ -426,9 +470,21 @@ public sealed partial class ConfiglueGenerator
             var before = "before." + name;
             var after = "after." + name;
             var valueType = FragmentValueType(member);
-            var condition = member.ChildModel is null
-                ? $"global::Configlue.ConfiglueValueComparer.AreEqual({before}, {after}) ? default : global::Configlue.Optional<{valueType}>.Present({after})"
-                : $"__Diff_{name}({before}, {after})";
+            string condition;
+            if (member.MergeStrategyType is not null)
+            {
+                condition =
+                    $"{MergeStrategyField(member)}.AreEqual({before}, {after}) ? default : global::Configlue.Optional<{valueType}>.Present({after})";
+            }
+            else if (member.ChildModel is null)
+            {
+                condition =
+                    $"global::Configlue.ConfiglueValueComparer.AreEqual({before}, {after}) ? default : global::Configlue.Optional<{valueType}>.Present({after})";
+            }
+            else
+            {
+                condition = $"__Diff_{name}({before}, {after})";
+            }
             code.AppendIndent(4).Append(name).Append(" = ").Append(condition).AppendLine(",");
         }
 
