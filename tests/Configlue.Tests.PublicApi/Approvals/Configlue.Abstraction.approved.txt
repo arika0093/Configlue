@@ -433,6 +433,12 @@ namespace Configlue
         public static bool operator !=(Configlue.Optional<T> left, Configlue.Optional<T> right) { }
         public static bool operator ==(Configlue.Optional<T> left, Configlue.Optional<T> right) { }
     }
+    public enum ReadValidationMode
+    {
+        EffectiveThrow = 0,
+        StrictThrow = 1,
+        IgnoreValue = 2,
+    }
     public readonly struct ResourceId : System.IEquatable<Configlue.ResourceId>
     {
         public ResourceId(string value) { }
@@ -494,6 +500,7 @@ namespace Configlue
         NotFound = 1,
         Unavailable = 2,
         NotFoundOrUnavailable = 3,
+        Invalid = 4,
     }
     public sealed class StateMultiWriteException : System.Exception
     {
@@ -520,6 +527,7 @@ namespace Configlue
         public Configlue.StateReadStatus Status { get; init; }
         public T Value { get; init; }
         public Configlue.StateReadResult<T> FromSource(string sourceId, string? physicalOrigin = null) { }
+        public static Configlue.StateReadResult<T> Invalid(T? value, string? revision = null) { }
         public static Configlue.StateReadResult<T> NotFound(string? revision = null) { }
         public static Configlue.StateReadResult<T> Success(T? value, string? revision = null, Configlue.StateSchemaMetadata? schema = default) { }
         public static Configlue.StateReadResult<T> Unavailable(string? revision = null) { }
@@ -529,6 +537,7 @@ namespace Configlue
         Success = 0,
         NotFound = 1,
         Unavailable = 2,
+        Invalid = 3,
     }
     public readonly struct StateRevision : System.IEquatable<Configlue.StateRevision>
     {

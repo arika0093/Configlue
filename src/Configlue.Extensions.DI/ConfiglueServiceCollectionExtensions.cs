@@ -54,7 +54,8 @@ public static class ConfiglueServiceCollectionExtensions
         Action<IServiceProvider, StateSourceSetBuilder<TFragment>> configureSources,
         StateWriteRoute writeRoute = default,
         bool validateDataAnnotations = true,
-        TimeSpan? onChangeDebounce = null
+        TimeSpan? onChangeDebounce = null,
+        ReadValidationMode readValidationMode = ReadValidationMode.EffectiveThrow
     )
         where TModel : IConfiglueModel<TModel, TFragment>
         where TFragment : class, IConfiglueFragment<TFragment>
@@ -70,7 +71,8 @@ public static class ConfiglueServiceCollectionExtensions
             },
             writeRoute,
             validateDataAnnotations,
-            onChangeDebounce
+            onChangeDebounce,
+            readValidationMode
         );
     }
 
@@ -80,7 +82,8 @@ public static class ConfiglueServiceCollectionExtensions
         Func<IServiceProvider, StateSourceSet<TFragment>> sourceSetFactory,
         StateWriteRoute writeRoute = default,
         bool validateDataAnnotations = true,
-        TimeSpan? onChangeDebounce = null
+        TimeSpan? onChangeDebounce = null,
+        ReadValidationMode readValidationMode = ReadValidationMode.EffectiveThrow
     )
         where TModel : IConfiglueModel<TModel, TFragment>
         where TFragment : class, IConfiglueFragment<TFragment>
@@ -94,7 +97,8 @@ public static class ConfiglueServiceCollectionExtensions
             provider.GetServices<IStateSchemaMigration<TFragment>>(),
             provider.GetServices<IConfiglueValidator<TModel>>(),
             validateDataAnnotations,
-            onChangeDebounce
+            onChangeDebounce,
+            readValidationMode: readValidationMode
         ));
         services.AddSingleton<IReadOnlyOptions<TModel>>(provider =>
             provider.GetRequiredService<ConfiglueOptions<TModel, TFragment>>()
@@ -114,7 +118,8 @@ public static class ConfiglueServiceCollectionExtensions
         StateSourceSet<TFragment> sourceSet,
         StateWriteRoute writeRoute = default,
         bool validateDataAnnotations = true,
-        TimeSpan? onChangeDebounce = null
+        TimeSpan? onChangeDebounce = null,
+        ReadValidationMode readValidationMode = ReadValidationMode.EffectiveThrow
     )
         where TModel : IConfiglueModel<TModel, TFragment>
         where TFragment : class, IConfiglueFragment<TFragment>
@@ -124,7 +129,8 @@ public static class ConfiglueServiceCollectionExtensions
             _ => sourceSet,
             writeRoute,
             validateDataAnnotations,
-            onChangeDebounce
+            onChangeDebounce,
+            readValidationMode
         );
     }
 
@@ -135,7 +141,8 @@ public static class ConfiglueServiceCollectionExtensions
         Action<IServiceProvider, StateSourceSetBuilder<TFragment>> configureSources,
         StateWriteRoute writeRoute = default,
         bool validateDataAnnotations = true,
-        TimeSpan? onChangeDebounce = null
+        TimeSpan? onChangeDebounce = null,
+        ReadValidationMode readValidationMode = ReadValidationMode.EffectiveThrow
     )
         where TModel : IConfiglueModel<TModel, TFragment>
         where TFragment : class, IConfiglueFragment<TFragment>
@@ -152,7 +159,8 @@ public static class ConfiglueServiceCollectionExtensions
             },
             writeRoute,
             validateDataAnnotations,
-            onChangeDebounce
+            onChangeDebounce,
+            readValidationMode
         );
     }
 
@@ -163,7 +171,8 @@ public static class ConfiglueServiceCollectionExtensions
         Func<IServiceProvider, StateSourceSet<TFragment>> sourceSetFactory,
         StateWriteRoute writeRoute = default,
         bool validateDataAnnotations = true,
-        TimeSpan? onChangeDebounce = null
+        TimeSpan? onChangeDebounce = null,
+        ReadValidationMode readValidationMode = ReadValidationMode.EffectiveThrow
     )
         where TModel : IConfiglueModel<TModel, TFragment>
         where TFragment : class, IConfiglueFragment<TFragment>
@@ -182,7 +191,8 @@ public static class ConfiglueServiceCollectionExtensions
                     provider.GetServices<IConfiglueValidator<TModel>>(),
                     validateDataAnnotations,
                     onChangeDebounce,
-                    optionsName: key as string ?? Options.DefaultName
+                    optionsName: key as string ?? Options.DefaultName,
+                    readValidationMode: readValidationMode
                 )
         );
         services.AddKeyedSingleton<IReadOnlyOptions<TModel>>(
@@ -215,7 +225,8 @@ public static class ConfiglueServiceCollectionExtensions
         StateSourceSet<TFragment> sourceSet,
         StateWriteRoute writeRoute = default,
         bool validateDataAnnotations = true,
-        TimeSpan? onChangeDebounce = null
+        TimeSpan? onChangeDebounce = null,
+        ReadValidationMode readValidationMode = ReadValidationMode.EffectiveThrow
     )
         where TModel : IConfiglueModel<TModel, TFragment>
         where TFragment : class, IConfiglueFragment<TFragment>
@@ -226,7 +237,8 @@ public static class ConfiglueServiceCollectionExtensions
             _ => sourceSet,
             writeRoute,
             validateDataAnnotations,
-            onChangeDebounce
+            onChangeDebounce,
+            readValidationMode
         );
     }
 
@@ -236,7 +248,8 @@ public static class ConfiglueServiceCollectionExtensions
         Func<IServiceProvider, string, StateSourceSet<TFragment>> sourceSetFactory,
         StateWriteRoute writeRoute = default,
         bool validateDataAnnotations = true,
-        TimeSpan? onChangeDebounce = null
+        TimeSpan? onChangeDebounce = null,
+        ReadValidationMode readValidationMode = ReadValidationMode.EffectiveThrow
     )
         where TModel : IConfiglueModel<TModel, TFragment>
         where TFragment : class, IConfiglueFragment<TFragment>
@@ -253,7 +266,8 @@ public static class ConfiglueServiceCollectionExtensions
                     provider.GetServices<IConfiglueValidator<TModel>>(),
                     validateDataAnnotations,
                     onChangeDebounce,
-                    optionsName: profileName
+                    optionsName: profileName,
+                    readValidationMode: readValidationMode
                 )
             )
         );

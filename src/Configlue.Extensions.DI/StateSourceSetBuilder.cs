@@ -86,7 +86,12 @@ public sealed class StateSourceSetBuilder<T>
 
     private static void ValidateFallbackCondition(StateFallbackCondition fallbackCondition)
     {
-        if ((fallbackCondition & ~StateFallbackCondition.NotFoundOrUnavailable) != 0)
+        if (
+            (
+                fallbackCondition
+                & ~(StateFallbackCondition.NotFoundOrUnavailable | StateFallbackCondition.Invalid)
+            ) != 0
+        )
         {
             throw new ArgumentOutOfRangeException(nameof(fallbackCondition));
         }

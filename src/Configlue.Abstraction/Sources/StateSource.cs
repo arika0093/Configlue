@@ -49,7 +49,12 @@ public sealed class StateSource<T>
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
         ArgumentNullException.ThrowIfNull(reader);
-        if ((fallbackCondition & ~StateFallbackCondition.NotFoundOrUnavailable) != 0)
+        if (
+            (
+                fallbackCondition
+                & ~(StateFallbackCondition.NotFoundOrUnavailable | StateFallbackCondition.Invalid)
+            ) != 0
+        )
         {
             throw new ArgumentOutOfRangeException(nameof(fallbackCondition));
         }

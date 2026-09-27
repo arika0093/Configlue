@@ -23,7 +23,7 @@ using var reloadFailureSubscription = options.OnReloadFailed(exception =>
     logger.LogError(exception, "Configuration reload failed"));
 ```
 
-watcher または再読み込みで発生した例外が通知されます。変更後の state が `NotFound` / `Unavailable` になった場合は、その status を示す `InvalidOperationException` が渡されます。明示的な `ReadAsync` の失敗や `OnChange` listener の例外はこの通知に含まれません。reload-failure listener が例外を投げてもログに記録し、他 listener と watcher の再試行は継続します。
+watcher または再読み込みで発生した例外が通知されます。変更後の state が `NotFound` / `Unavailable` / `Invalid` になった場合は、その status を示す `InvalidOperationException` が渡されます。明示的な `ReadAsync` の失敗や `OnChange` listener の例外はこの通知に含まれません。reload-failure listener が例外を投げてもログに記録し、他 listener と watcher の再試行は継続します。
 
 ## 検証
 
@@ -31,10 +31,13 @@ DataAnnotations 検証は既定で保存時に実行されます。無効にす�
 
 検証に失敗すると `ConfiglueValidationException` が送出され、options 名・型・すべての失敗メッセージを確認できます。この検証契約は Configlue Core に属し、`Microsoft.Extensions.Options` を必要としません。
 
+読み取り時も検証されます。`ReadValidationMode` で読み取り失敗の扱いを選びます。`EffectiveThrow` (既定) は最終解決値が不正な場合に例外、`StrictThrow` はいずれかのソースが不正値を寄与した時点で例外、`IgnoreValue` は不正な寄与メンバーを除外して残りを解決します。不正値を報告したソースは `Invalid` 読み取りステータスで来歴・`ExplainAsync` 診断に残ります。検証に失敗した watcher 再読み込みは `OnChange` listener に流さず `OnReloadFailed` に通知されます。
+
 ```csharp
 conf.Add<UserSetting>(model =>
 {
     model.ValidateDataAnnotations = false; // 必要な場合のみ
+    model.ReadValidationMode = ReadValidationMode.IgnoreValue; // 必要な場合のみ
     // ...sources...
 });
 ```

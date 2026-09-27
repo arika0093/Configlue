@@ -15,4 +15,7 @@ public enum StateFallbackCondition
 
     /// <summary>Continue after either a missing state or temporary unavailability.</summary>
     NotFoundOrUnavailable = NotFound | Unavailable,
+
+    /// <summary>Continue after a source reports a value that failed validation.</summary>
+    Invalid = 4,
 }
