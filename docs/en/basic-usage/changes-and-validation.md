@@ -55,7 +55,7 @@ services.AddConfiglueValidator<UserSetting>(new UserSettingValidator());
 
 Register `IStateSchemaMigration<TFragment>` implementations as services when older fragments share the generated shape — see [Schema migration](../migration/schema-migration.md).
 
-Class-model registrations also provide `IOptions<T>`, scoped `IOptionsSnapshot<T>`, and `IOptionsMonitor<T>` adapters. Their synchronous `Value` and `Get` calls read Configlue state synchronously; use `ReadAsync` or `GetValueAsync` in asynchronous application flows.
+Class-model registrations also provide `IOptions<T>`, scoped `IOptionsSnapshot<T>`, and `IOptionsMonitor<T>` adapters. `IOptions<T>` caches its first value, and each snapshot caches values for its scope. The monitor caches each named value when its sources expose watchers, then replaces it after a successful change notification; each getter returns a clone, and a failed reload leaves the last successful value available. If no source exposes a watcher, `Get` reads the current state on each call because there is no invalidation signal. These adapters use synchronous reads, so use `ReadAsync` or `GetValueAsync` in asynchronous application flows.
 
 ## Next steps
 
