@@ -56,6 +56,10 @@ public sealed class ConfiglueProfiledOptions<TModel, TFragment> : IConfiglueProf
     public string DefaultProfileName => _defaultProfileName;
 
     /// <inheritdoc />
+    public TModel CurrentValue =>
+        GetActiveValueAsync(CancellationToken.None).AsTask().GetAwaiter().GetResult();
+
+    /// <inheritdoc />
     public async ValueTask<IReadOnlyCollection<string>> GetProfileNamesAsync(
         CancellationToken cancellationToken = default
     )
@@ -173,6 +177,38 @@ public sealed class ConfiglueProfiledOptions<TModel, TFragment> : IConfiglueProf
     {
         var activeProfile = await GetActiveProfileAsync(cancellationToken).ConfigureAwait(false);
         return await activeProfile.GetValueAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async ValueTask<StateWriteResult> SaveAsync(
+        TModel value,
+        CancellationToken cancellationToken = default
+    )
+    {
+        var activeProfile = await GetActiveProfileAsync(cancellationToken).ConfigureAwait(false);
+        return await activeProfile.SaveAsync(value, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async ValueTask<StateWriteResult> SaveAsync(
+        Action<TModel> update,
+        CancellationToken cancellationToken = default
+    )
+    {
+        ArgumentNullException.ThrowIfNull(update);
+        var activeProfile = await GetActiveProfileAsync(cancellationToken).ConfigureAwait(false);
+        return await activeProfile.SaveAsync(update, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async ValueTask<StateWriteResult> SaveAsync(
+        Func<TModel, Task> update,
+        CancellationToken cancellationToken = default
+    )
+    {
+        ArgumentNullException.ThrowIfNull(update);
+        var activeProfile = await GetActiveProfileAsync(cancellationToken).ConfigureAwait(false);
+        return await activeProfile.SaveAsync(update, cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc />

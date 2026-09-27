@@ -261,6 +261,7 @@ namespace Configlue
     public interface IConfiglueProfiledOptions<TModel>
     {
         string DefaultProfileName { get; }
+        TModel CurrentValue { get; }
         event System.Action<string>? ActiveProfileChanged;
         System.Threading.Tasks.ValueTask CreateProfileAsync(string profileName, string? copyFrom = null, System.Threading.CancellationToken cancellationToken = default);
         System.Threading.Tasks.ValueTask<Configlue.IWritableOptions<TModel>> GetActiveProfileAsync(System.Threading.CancellationToken cancellationToken = default);
@@ -269,6 +270,9 @@ namespace Configlue
         System.Threading.Tasks.ValueTask<Configlue.IWritableOptions<TModel>> GetProfileAsync(string profileName, System.Threading.CancellationToken cancellationToken = default);
         System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyCollection<string>> GetProfileNamesAsync(System.Threading.CancellationToken cancellationToken = default);
         System.Threading.Tasks.ValueTask RemoveProfileAsync(string profileName, System.Threading.CancellationToken cancellationToken = default);
+        System.Threading.Tasks.ValueTask<Configlue.StateWriteResult> SaveAsync(System.Action<TModel> update, System.Threading.CancellationToken cancellationToken = default);
+        System.Threading.Tasks.ValueTask<Configlue.StateWriteResult> SaveAsync(System.Func<TModel, System.Threading.Tasks.Task> update, System.Threading.CancellationToken cancellationToken = default);
+        System.Threading.Tasks.ValueTask<Configlue.StateWriteResult> SaveAsync(TModel value, System.Threading.CancellationToken cancellationToken = default);
         System.Threading.Tasks.ValueTask SetActiveProfileAsync(string profileName, System.Threading.CancellationToken cancellationToken = default);
     }
     public interface IConfiglueValidator<in T>
