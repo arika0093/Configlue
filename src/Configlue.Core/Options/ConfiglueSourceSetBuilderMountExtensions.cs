@@ -6,7 +6,7 @@ namespace Configlue;
 public static class ConfiglueSourceSetBuilderMountExtensions
 {
     /// <summary>Adds a nested source using a generated model member selector.</summary>
-    /// <remarks>The source remains caller-owned. Without a reverse mapping, the mounted source is read-only.</remarks>
+    /// <remarks>The source remains caller-owned. The generated fragment path is used as the reverse mapping when the source supports writes.</remarks>
     public static void AddMounted<TModel, TRootFragment, TSubtreeModel, TSubtreeFragment>(
         this ConfiglueSourceSetBuilder sources,
         StateSource<TSubtreeFragment> source,
@@ -19,10 +19,12 @@ public static class ConfiglueSourceSetBuilderMountExtensions
     {
         ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(subtreeSelector);
+        var propertyPath = GetPropertyPath(subtreeSelector);
         AddMounted<TRootFragment, TSubtreeFragment>(
             sources,
             _ => source,
-            GetPropertyPath(subtreeSelector)
+            propertyPath,
+            root => ExtractMountedFragment<TRootFragment, TSubtreeFragment>(root, propertyPath)
         );
     }
 
@@ -46,7 +48,7 @@ public static class ConfiglueSourceSetBuilderMountExtensions
     }
 
     /// <summary>Adds a nested source factory using a generated model member selector.</summary>
-    /// <remarks>Factory-created sources remain caller-owned. Without a reverse mapping, the mounted source is read-only.</remarks>
+    /// <remarks>Factory-created sources remain caller-owned. The generated fragment path is used as the reverse mapping when the source supports writes.</remarks>
     public static void AddMounted<TModel, TRootFragment, TSubtreeModel, TSubtreeFragment>(
         this ConfiglueSourceSetBuilder sources,
         Func<IServiceProvider?, StateSource<TSubtreeFragment>> sourceFactory,
@@ -59,10 +61,12 @@ public static class ConfiglueSourceSetBuilderMountExtensions
     {
         ArgumentNullException.ThrowIfNull(sourceFactory);
         ArgumentNullException.ThrowIfNull(subtreeSelector);
+        var propertyPath = GetPropertyPath(subtreeSelector);
         AddMounted<TRootFragment, TSubtreeFragment>(
             sources,
             sourceFactory,
-            GetPropertyPath(subtreeSelector)
+            propertyPath,
+            root => ExtractMountedFragment<TRootFragment, TSubtreeFragment>(root, propertyPath)
         );
     }
 
@@ -239,4 +243,12 @@ public static class ConfiglueSourceSetBuilderMountExtensions
 
         return string.Join('.', segments);
     }
+
+    private static TSubtreeFragment ExtractMountedFragment<TRootFragment, TSubtreeFragment>(
+        TRootFragment root,
+        string propertyPath
+    )
+        where TRootFragment : class, IConfiglueFragment<TRootFragment>
+        where TSubtreeFragment : class, IConfiglueFragment<TSubtreeFragment> =>
+        (TSubtreeFragment)StateSourceProjection.ExtractMountedFragment(root, propertyPath);
 }

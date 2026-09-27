@@ -13,12 +13,11 @@ model.Sources(sources =>
     sources.FromJsonFile(new() { Id = "settings", Path = "settings.json", Priority = 10 });
     sources.AddMounted<AppSettings, AppSettings.Fragment, PolicySettings, PolicySettings.Fragment>(
         policyHttpSource,
-        model => model.Policy,
-        root => root.Policy.Value!);
+        model => model.Policy);
 });
 ```
 
-The full JSON source and the mounted HTTP source can contribute different members of `AppSettings.Policy`; missing HTTP members fall through to JSON. A partial mounted fragment contributes only its present members. The mount retains the source ID, priority, revision, resource identity, and physical origin. It is read-only unless you provide `toSource`, which maps the sparse root contribution back to the source fragment. The callback should preserve the source fragment's partial shape.
+The full JSON source and the mounted HTTP source can contribute different members of `AppSettings.Policy`; missing HTTP members fall through to JSON. A partial mounted fragment contributes only its present members. The mount retains the source ID, priority, revision, resource identity, and physical origin. A typed model selector also infers the reverse mapping from the generated fragment path, so writes remain sparse. Use the explicit `toSource` overload when the source representation needs custom mapping. Sources without a writer remain read-only.
 
 For a distinct source DTO, first use `StateSourceProjection.Project` (including source-schema migrations and an explicit reverse projection when writable) to map it to the nested model fragment, then mount that projected source. Use `ProjectWithUpdate` when the reverse projection needs the current source contract to preserve fields outside the projected model; its callback receives the previous and updated projected values plus the current source contract, so it can distinguish an unset from an unprojected field. Current-aware writes re-read and revision-check the source, then prepare batch mutations when the resource supports them. Map `Unset` operations to the source's removal representation or throw from the reverse callback when the source contract cannot represent removal.
 
