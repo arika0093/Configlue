@@ -30,7 +30,7 @@ The foundation is in place: backend-neutral read/write/watch contracts, prioriti
 * Writes across different resources are not atomic.
 * Source retirement is scoped to the current options instance and leaves backing data intact; callers must update source registration for future process starts.
 * A source set is fixed for an options runtime. Dynamic named options and persistent profiles can create or remove whole runtimes, each with its own source set. Applications can change a running application's topology by building a new context and coordinating the handoff; verified migration can retire sources from the current runtime.
-* The migration journal persists progress but does not coordinate concurrent processes. Applications must ensure that only one process runs a given migration ID at a time.
+* `FileStateStorageMigrationJournal` holds a cross-process lease for the full run of a migration ID. Custom journals that do not implement `IStateStorageMigrationLeaseProvider` require callers to coordinate concurrent runs.
 * Watchers provide invalidation signals. Provider-specific polling, retry, and reconnection policies remain the provider's responsibility.
 
 ## Runtime source topology decision

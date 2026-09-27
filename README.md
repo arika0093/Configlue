@@ -578,8 +578,8 @@ Compose `SerializedStateSource.FromResource` over an `InMemoryResource` to test 
 ### Interfaces
 
 * `IReadOnlyOptions<T>` — async reads (`GetValueAsync`/`ReadAsync`) and `OnChange`.
-* `IWritableOptions<T>` — adds generated Patch saves and `OpenEditSessionAsync`.
-* `IConfiglueOptions<T>` — advanced diagnostics, source explanations, reload failures, source patch batches, and source/storage migration. It also exposes synchronous `CurrentValue`.
+* `IWritableOptions<T>` — adds generated Patch saves.
+* `IConfiglueOptions<T>` — adds edit sessions, advanced diagnostics, source explanations, reload failures, source patch batches, and source/storage migration. Synchronous callers can use `OpenEditSession()`; async code should use `OpenEditSessionAsync()`.
 * `IConfiglueOptionsRegistry<T>` — runtime `TryAdd`/`Get`/`TryRemoveAsync` for dynamic named options.
 * `IConfiglueProfiledOptions<T>` — persisted named profiles with active-profile selection.
 * Optional compatibility adapters — install `Configlue.Extensions.MSOptions` and call `AddConfiglueMicrosoftOptions<T>()` to register `IOptions<T>`, `IOptionsSnapshot<T>`, and `IOptionsMonitor<T>` for class models. Dynamic names resolve through the registry and `IOptionsMonitor`, not keyed services.
