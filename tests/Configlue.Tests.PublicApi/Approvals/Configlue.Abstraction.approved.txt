@@ -294,6 +294,7 @@ namespace Configlue
     {
         bool IsEmpty { get; }
         TSelf Empty { get; }
+        System.Text.Json.Serialization.JsonConverter<TSelf>? JsonConverter { get; }
         TSelf ApplyChanges(TSelf changes);
         TSelf Merge(TSelf higher);
     }

@@ -31,11 +31,13 @@ dotnet run --project example/Example.MultiSource -- --set-name Ada
 
 Set `CONFIGLUE_POLICY_URL` to the HTTP resource root to add the remote policy source. The sample reads the serialized sparse fragment from `{root}/get`. `example/Example.MultiSource/policy.json` is a small fixture for serving locally.
 
-`Example.ConsoleApp.NativeAot` uses source-generated `System.Text.Json` metadata and projects the persisted model into Configlue's sparse fragment. Publish it for Linux with:
+`Example.ConsoleApp.NativeAot` uses source-generated `System.Text.Json` metadata with fluent JSON file registration. It reads and writes a root settings file and a separate mounted database file. Publish it for Linux with:
 
 ```sh
 dotnet publish example/Example.ConsoleApp.NativeAot --configuration Release --runtime linux-x64 --self-contained true
 ```
+
+Pass `--set-database-host db.example.test` to verify a mounted subtree write, or `--set-name Ada` to write the root settings file.
 
 `Example.ConsoleApp.Yaml` persists the same kind of generated model as YAML, using camel-case member names:
 

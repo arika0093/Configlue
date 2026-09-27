@@ -32,6 +32,11 @@ public sealed partial class ConfiglueGenerator
             "public sealed class Fragment : global::Configlue.IConfiglueFragment<Fragment>, global::Configlue.IConfiglueDeepCloneable<Fragment>"
         );
         code.AppendLineAt(1, "{");
+        code.AppendLineAt(
+            2,
+            "public static global::System.Text.Json.Serialization.JsonConverter<Fragment> JsonConverter { get; } = new FragmentJsonConverter();"
+        );
+        code.AppendLine();
         foreach (var member in members)
         {
             code.AppendLineAt(
@@ -686,18 +691,39 @@ public sealed partial class ConfiglueGenerator
                     .Append(", ")
                     .Append(explicitName ? "false" : "true")
                     .AppendLine(", options))");
-                code.AppendIndent(6)
-                    .Append("builder.")
-                    .Append(property)
-                    .Append(" = global::Configlue.Optional<")
-                    .Append(FragmentValueType(member))
-                    .Append(
-                        ">.Present(global::System.Text.Json.JsonSerializer.Deserialize(ref reader, (global::System.Text.Json.Serialization.Metadata.JsonTypeInfo<"
-                    )
-                    .Append(FragmentValueType(member))
-                    .Append(">)options.GetTypeInfo(typeof(")
-                    .Append(FragmentRuntimeValueType(member))
-                    .AppendLine("))));");
+                if (member.ChildModel is null)
+                {
+                    code.AppendIndent(6)
+                        .Append("builder.")
+                        .Append(property)
+                        .Append(" = global::Configlue.Optional<")
+                        .Append(FragmentValueType(member))
+                        .Append(
+                            ">.Present(global::System.Text.Json.JsonSerializer.Deserialize(ref reader, (global::System.Text.Json.Serialization.Metadata.JsonTypeInfo<"
+                        )
+                        .Append(FragmentValueType(member))
+                        .Append(">)options.GetTypeInfo(typeof(")
+                        .Append(FragmentRuntimeValueType(member))
+                        .AppendLine("))));");
+                }
+                else
+                {
+                    var childFragment = NonNullableTypeName(member.ChildModel) + ".Fragment";
+                    code.AppendIndent(6)
+                        .Append("builder.")
+                        .Append(property)
+                        .Append(" = global::Configlue.Optional<")
+                        .Append(FragmentValueType(member))
+                        .Append(
+                            ">.Present(reader.TokenType == global::System.Text.Json.JsonTokenType.Null ? null : "
+                        )
+                        .Append(childFragment)
+                        .AppendLine(
+                            ".JsonConverter.Read(ref reader, typeof("
+                                + childFragment
+                                + "), options));"
+                        );
+                }
                 first = false;
             }
 
@@ -748,16 +774,38 @@ public sealed partial class ConfiglueGenerator
                     .AppendLine(");");
             }
 
-            code.AppendIndent(5)
-                .Append("global::System.Text.Json.JsonSerializer.Serialize<")
-                .Append(FragmentValueType(member))
-                .Append(">(writer, value.")
-                .Append(property)
-                .Append(".Value!, (global::System.Text.Json.Serialization.Metadata.JsonTypeInfo<")
-                .Append(FragmentValueType(member))
-                .Append(">)options.GetTypeInfo(typeof(")
-                .Append(FragmentRuntimeValueType(member))
-                .AppendLine(")));");
+            if (member.ChildModel is null)
+            {
+                code.AppendIndent(5)
+                    .Append("global::System.Text.Json.JsonSerializer.Serialize<")
+                    .Append(FragmentValueType(member))
+                    .Append(">(writer, value.")
+                    .Append(property)
+                    .Append(
+                        ".Value!, (global::System.Text.Json.Serialization.Metadata.JsonTypeInfo<"
+                    )
+                    .Append(FragmentValueType(member))
+                    .Append(">)options.GetTypeInfo(typeof(")
+                    .Append(FragmentRuntimeValueType(member))
+                    .AppendLine("))); ");
+            }
+            else
+            {
+                var childFragment = NonNullableTypeName(member.ChildModel) + ".Fragment";
+                code.AppendIndent(5)
+                    .Append("if (value.")
+                    .Append(property)
+                    .AppendLine(".Value is null)");
+                code.AppendLineAt(5, "{ writer.WriteNullValue(); }");
+                code.AppendIndent(5).AppendLine("else");
+                code.AppendLineAt(5, "{");
+                code.AppendIndent(6)
+                    .Append(childFragment)
+                    .Append(".JsonConverter.Write(writer, value.")
+                    .Append(property)
+                    .AppendLine(".Value, options);");
+                code.AppendLineAt(5, "}");
+            }
             code.AppendLineAt(4, "}");
         }
 

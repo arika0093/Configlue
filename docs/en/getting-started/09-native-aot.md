@@ -18,7 +18,6 @@ using System.Text.Json.Serialization;
 using Configlue.Provider.Json;
 
 [JsonSerializable(typeof(AppSettings))]
-[JsonSerializable(typeof(AppSettings.Fragment))]
 internal partial class AppJsonContext : JsonSerializerContext;
 ```
 
@@ -28,16 +27,14 @@ Register the same generated options with or without DI:
 <TabItem label="Without DI">
 
 ```csharp
-conf.Add<AppSettings>(model =>
+conf.Add<AppSettings>(model => model.Sources(sources =>
 {
-    model.Sources(sources => sources.FromJsonFile(new()
-    {
-        Id = "settings",
-        Path = "settings.json",
-        SerializerOptions = AppJsonContext.Default.Options,
-    }));
-    model.WriteRoute = StateWriteRoute.To("settings");
-});
+    sources.JsonFile("settings.json")
+        .SerializerOptions(AppJsonContext.Default.Options);
+    sources.JsonFile("database.json")
+        .Mount(settings => settings.Database)
+        .SerializerOptions(AppJsonContext.Default.Options);
+}));
 ```
 
 </TabItem>
@@ -46,23 +43,21 @@ conf.Add<AppSettings>(model =>
 ```csharp
 builder.Services.AddConfiglue(conf =>
 {
-    conf.Add<AppSettings>(model =>
+    conf.Add<AppSettings>(model => model.Sources(sources =>
     {
-        model.Sources(sources => sources.FromJsonFile(new()
-        {
-            Id = "settings",
-            Path = "settings.json",
-            SerializerOptions = AppJsonContext.Default.Options,
-        }));
-        model.WriteRoute = StateWriteRoute.To("settings");
-    });
+        sources.JsonFile("settings.json")
+            .SerializerOptions(AppJsonContext.Default.Options);
+        sources.JsonFile("database.json")
+            .Mount(settings => settings.Database)
+            .SerializerOptions(AppJsonContext.Default.Options);
+    }));
 });
 ```
 
 </TabItem>
 </Tabs>
 
-`FromJsonFile`-style options share the same shape per format. XML follows the same pattern with its generated metadata.
+The provider uses generated converters for Configlue fragments, including mounted subtree fragments. The context covers the model's ordinary property types; it does not need to reference generated `Fragment` types. XML follows the same pattern with its generated metadata.
 
 ## Verify with the sample
 
