@@ -1301,18 +1301,20 @@ public sealed class StateRuntimeTests
 
         using var session = await options.BeginConfigureAsync(writePlan);
         session.Value.Enabled = false;
-        var rejected = false;
+        StateConflictException? rejection = null;
         try
         {
             await session.SaveAsync();
         }
-        catch (StateConflictException)
+        catch (StateConflictException exception)
         {
-            rejected = true;
+            rejection = exception;
         }
 
         var userAfter = await user.ReadAsync();
-        (rejected).ShouldBeTrue();
+        rejection.ShouldNotBeNull();
+        rejection.Message.ShouldContain("Enabled");
+        rejection.Message.ShouldContain("policy");
         (userAfter.Value!.Enabled.IsPresent).ShouldBeFalse();
         (userAfter.Revision).ShouldBe(userBefore.Revision);
     }

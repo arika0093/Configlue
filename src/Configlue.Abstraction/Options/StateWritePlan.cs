@@ -5,7 +5,8 @@ namespace Configlue;
 /// <summary>Routes changed model property paths to source-local write targets.</summary>
 /// <remarks>
 /// The most specific configured path applies. A route for a nested model also applies to its descendants;
-/// paths without a matching route use the options instance's configured write source.
+/// paths without a matching route use the options instance's configured write source. Registration routes
+/// can be combined with per-operation routes; per-operation routes replace registration routes for the same path.
 /// Nested changes can be split across routes. Replacing a nested value with null fails if a route exists below it.
 /// </remarks>
 public sealed class StateWritePlan
@@ -48,6 +49,24 @@ public sealed class StateWritePlan
 
     /// <summary>Configured model property paths and their target logical source IDs.</summary>
     public IReadOnlyDictionary<string, string> PropertyRoutes { get; }
+
+    /// <summary>Combines this registration plan with routes supplied for one operation.</summary>
+    /// <remarks>Operation routes replace registration routes with the same path. Longest-prefix matching still applies.</remarks>
+    public StateWritePlan OverrideWith(StateWritePlan overrides)
+    {
+        ArgumentNullException.ThrowIfNull(overrides);
+        var routes = PropertyRoutes.ToDictionary(
+            static route => route.Key,
+            static route => route.Value,
+            StringComparer.Ordinal
+        );
+        foreach (var (path, sourceId) in overrides.PropertyRoutes)
+        {
+            routes[path] = sourceId;
+        }
+
+        return routes.Count == 0 ? Empty : new StateWritePlan(routes);
+    }
 
     /// <summary>Resolves a path using the longest configured path prefix, or returns the fallback source ID.</summary>
     public string ResolveSourceId(string propertyPath, string fallbackSourceId)

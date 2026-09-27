@@ -70,6 +70,7 @@ public sealed class ConfiglueModelBuilder<TModel>
     private StateSource<ConfiglueProfileCatalog>? _profileCatalogSource;
     private string _defaultProfileName = "default";
     private StateWriteRoute _writeRoute;
+    private StateWritePlan _writePlan = StateWritePlan.Empty;
     private bool _validateDataAnnotations;
     private bool _enableDynamicOptions;
     private TimeSpan? _onChangeDebounce;
@@ -94,6 +95,18 @@ public sealed class ConfiglueModelBuilder<TModel>
         {
             EnsureMutable();
             _writeRoute = value;
+        }
+    }
+
+    /// <summary>Sets the default write owner for model property paths.</summary>
+    /// <remarks>Most-specific paths apply. Operation-level write plans replace routes with matching paths.</remarks>
+    public StateWritePlan WritePlan
+    {
+        get => _writePlan;
+        set
+        {
+            EnsureMutable();
+            _writePlan = value ?? throw new ArgumentNullException(nameof(value));
         }
     }
 
@@ -272,6 +285,7 @@ public sealed class ConfiglueModelBuilder<TModel>
         {
             OptionsName = optionsName,
             WriteRoute = _writeRoute,
+            WritePlan = _writePlan,
             ValidateDataAnnotations = _validateDataAnnotations,
             EnableDynamicOptions = _enableDynamicOptions,
             OnChangeDebounce = _onChangeDebounce,

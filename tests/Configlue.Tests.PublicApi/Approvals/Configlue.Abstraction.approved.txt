@@ -505,6 +505,7 @@ namespace Configlue
         public System.Collections.Generic.IReadOnlyDictionary<string, string> PropertyRoutes { get; }
         public static Configlue.StateWritePlan Empty { get; }
         public bool HasRouteBelow(string propertyPath) { }
+        public Configlue.StateWritePlan OverrideWith(Configlue.StateWritePlan overrides) { }
         public string ResolveSourceId(string propertyPath, string fallbackSourceId) { }
     }
     public readonly struct StateWriteRequest<T> : System.IEquatable<Configlue.StateWriteRequest<T>>

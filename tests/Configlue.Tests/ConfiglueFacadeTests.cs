@@ -44,6 +44,87 @@ public sealed class ConfiglueFacadeTests
     }
 
     [Test]
+    public async Task RegistrationWritePlanCreatesSparseOverridesForOrdinaryEdits()
+    {
+        var overlay = new InMemoryStateStore<AppSettings.Fragment>(new AppSettings.Fragment());
+        var sessionOverlay = new InMemoryStateStore<AppSettings.Fragment>(
+            new AppSettings.Fragment()
+        );
+        var defaults = new InMemoryStateStore<AppSettings.Fragment>(
+            new AppSettings.Fragment
+            {
+                RetryCount = Optional<int>.Present(3),
+                Label = Optional<string?>.Present("default-label"),
+            }
+        );
+        await using var context = Configlue.CreateContext(builder =>
+        {
+            builder.Add<AppSettings>(model =>
+            {
+                model.WritePlan = new StateWritePlan(
+                    new Dictionary<string, string>(StringComparer.Ordinal)
+                    {
+                        ["RetryCount"] = "user-overlay",
+                    }
+                );
+                model.Sources(sources =>
+                {
+                    sources.Add(
+                        new StateSource<AppSettings.Fragment>(
+                            "user-overlay",
+                            overlay,
+                            priority: 100,
+                            writer: overlay
+                        )
+                    );
+                    sources.Add(
+                        new StateSource<AppSettings.Fragment>("defaults", defaults, priority: 0)
+                    );
+                    sources.Add(
+                        new StateSource<AppSettings.Fragment>(
+                            "session-overlay",
+                            sessionOverlay,
+                            priority: 200,
+                            writer: sessionOverlay
+                        )
+                    );
+                });
+            });
+        });
+
+        var options = context.GetOptions<AppSettings>();
+        (await options.GetValueAsync()).RetryCount.ShouldBe(3);
+        await options.SaveAsync(value =>
+        {
+            value.RetryCount = 8;
+            return Task.CompletedTask;
+        });
+
+        var overlayFragment = (await overlay.ReadAsync()).Value!;
+        overlayFragment.RetryCount.Value.ShouldBe(8);
+        overlayFragment.Label.IsPresent.ShouldBeFalse();
+        var resolved = (await options.GetValueAsync());
+        resolved.RetryCount.ShouldBe(8);
+        resolved.Label.ShouldBe("default-label");
+
+        await options.SaveAsync(
+            value =>
+            {
+                value.RetryCount = 9;
+                return Task.CompletedTask;
+            },
+            new StateWritePlan(
+                new Dictionary<string, string>(StringComparer.Ordinal)
+                {
+                    ["RetryCount"] = "session-overlay",
+                }
+            )
+        );
+        (await sessionOverlay.ReadAsync()).Value!.RetryCount.Value.ShouldBe(9);
+        (await options.GetValueAsync()).RetryCount.ShouldBe(9);
+    }
+
+    [Test]
     public async Task DiFacadeUsesSameRegistrationForConfiglueAndMicrosoftOptions()
     {
         var services = new ServiceCollection();

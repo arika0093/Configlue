@@ -383,6 +383,7 @@ public sealed partial class ConfiglueGenerator
                 + ".ConfiglueSchema, serviceProvider, ownResource),"
         );
         code.AppendLineAt(3, "configuration.WriteRoute,");
+        code.AppendLineAt(3, "configuration.WritePlan,");
         code.AppendLineAt(
             3,
             "configuration.GetMigrations<" + modelType + ".Fragment>(serviceProvider),"

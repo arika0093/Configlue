@@ -20,6 +20,7 @@ public sealed class ConfiglueOptions<TModel, TFragment>
     private StateSource<TFragment>[] _activeSources;
     private TaskCompletionSource _sourceTopologyChanged = NewTopologySignal();
     private readonly StateWriteRoute _writeRoute;
+    private readonly StateWritePlan _defaultWritePlan;
     private readonly StateSchemaMigrationChain<TFragment> _migrationChain;
     private readonly IConfiglueValidator<TModel>[] _validators;
     private readonly string _optionsName;
@@ -44,11 +45,35 @@ public sealed class ConfiglueOptions<TModel, TFragment>
         TimeSpan? onChangeDebounce = null,
         string? optionsName = null
     )
+        : this(
+            sourceSet,
+            writeRoute,
+            StateWritePlan.Empty,
+            migrations,
+            validators,
+            validateDataAnnotations,
+            onChangeDebounce,
+            optionsName
+        ) { }
+
+    /// <summary>Creates options backed by sources and registration-level property write routes.</summary>
+    public ConfiglueOptions(
+        StateSourceSet<TFragment> sourceSet,
+        StateWriteRoute writeRoute,
+        StateWritePlan defaultWritePlan,
+        IEnumerable<IStateSchemaMigration<TFragment>>? migrations = null,
+        IEnumerable<IConfiglueValidator<TModel>>? validators = null,
+        bool validateDataAnnotations = false,
+        TimeSpan? onChangeDebounce = null,
+        string? optionsName = null
+    )
     {
         ArgumentNullException.ThrowIfNull(sourceSet);
+        ArgumentNullException.ThrowIfNull(defaultWritePlan);
         _sourceSet = sourceSet;
         _activeSources = sourceSet.Sources.ToArray();
         _writeRoute = writeRoute;
+        _defaultWritePlan = defaultWritePlan;
         _validators = validators?.ToArray() ?? [];
         _optionsName = optionsName ?? Options.DefaultName;
         _validateDataAnnotations = validateDataAnnotations;
@@ -311,9 +336,10 @@ public sealed class ConfiglueOptions<TModel, TFragment>
         }
 
         var source = SelectWriteSource();
-        if (writePlan is not null)
+        var effectiveWritePlan = _defaultWritePlan.OverrideWith(writePlan ?? StateWritePlan.Empty);
+        if (effectiveWritePlan.PropertyRoutes.Count > 0)
         {
-            ValidateWritePlan(writePlan);
+            ValidateWritePlan(effectiveWritePlan);
         }
 
         string? expectedRevision;
@@ -351,7 +377,7 @@ public sealed class ConfiglueOptions<TModel, TFragment>
                     );
                 }
 
-                if (writePlan is null || writePlan.PropertyRoutes.Count == 0)
+                if (effectiveWritePlan.PropertyRoutes.Count == 0)
                 {
                     return await WriteChangesToSourceAsync(
                             source,
@@ -371,7 +397,7 @@ public sealed class ConfiglueOptions<TModel, TFragment>
                         expectedRevision,
                         expectedRevisions,
                         resolvedState.Contributions,
-                        writePlan,
+                        effectiveWritePlan,
                         token
                     )
                     .ConfigureAwait(false);
@@ -835,11 +861,22 @@ public sealed class ConfiglueOptions<TModel, TFragment>
 
             if (
                 expectedResolvedModel is TModel expectedModel
-                && !TModel.Diff(proposed.Result.Value!, expectedModel).IsEmpty
+                && TModel.Diff(proposed.Result.Value!, expectedModel) is { IsEmpty: false } mismatch
             )
             {
+                var paths = GetChangedPropertyPaths(TModel.ConfiglueSchema, mismatch, []);
+                var readonlySources = proposed
+                    .Contributions.Where(static contribution => contribution.Source.Writer is null)
+                    .Select(static contribution => contribution.Source.Id)
+                    .Distinct(StringComparer.Ordinal)
+                    .ToArray();
+                var details = paths.Count == 0 ? "the requested values" : string.Join(", ", paths);
+                var shadowing =
+                    readonlySources.Length == 0
+                        ? string.Empty
+                        : $" Read-only source(s) contributing to the resolved state: '{string.Join("', '", readonlySources)}'.";
                 throw new StateConflictException(
-                    "The configured source routes cannot realize the requested edit."
+                    $"The configured source routes cannot realize the requested edit for '{details}'. A higher-priority contribution may shadow the write.{shadowing}"
                 );
             }
 
@@ -1978,6 +2015,37 @@ public sealed class ConfiglueOptions<TModel, TFragment>
             ? fallbackResult.Revision
             : result.Sources[0].Revision;
         return new StateWriteResult(revision) { MultiWriteResult = result };
+    }
+
+    private static List<string> GetChangedPropertyPaths(
+        ConfiglueModelSchema schema,
+        IConfiglueFragment changes,
+        List<string> path
+    )
+    {
+        var paths = new List<string>();
+        foreach (var change in changes.EnumeratePresentMembers())
+        {
+            var member = schema.Members.FirstOrDefault(candidate => candidate.Id == change.Id);
+            if (string.IsNullOrEmpty(member.Name))
+            {
+                continue;
+            }
+
+            path.Add(member.Name);
+            if (member.NestedSchemaFactory is not null && change.Value is IConfiglueFragment nested)
+            {
+                paths.AddRange(GetChangedPropertyPaths(member.NestedSchemaFactory(), nested, path));
+            }
+            else
+            {
+                paths.Add(string.Join('.', path));
+            }
+
+            path.RemoveAt(path.Count - 1);
+        }
+
+        return paths;
     }
 
     private static Dictionary<string, IConfiglueFragment> PartitionRoutedChanges(
