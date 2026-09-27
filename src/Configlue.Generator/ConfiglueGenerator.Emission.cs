@@ -402,7 +402,13 @@ public sealed partial class ConfiglueGenerator
         {
             var typeName = NonNullableTypeName(pocoType);
             var helperName =
-                "__Clone_" + GetStableTypeHash(pocoType.ToDisplayString(), code.CancellationToken);
+                "__Clone_"
+                + GetStableTypeHash(
+                    pocoType
+                        .WithNullableAnnotation(NullableAnnotation.NotAnnotated)
+                        .ToDisplayString(),
+                    code.CancellationToken
+                );
             code.AppendIndent(1)
                 .Append("private static ")
                 .Append(typeName)

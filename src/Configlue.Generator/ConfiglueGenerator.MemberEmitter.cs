@@ -29,8 +29,8 @@ public sealed partial class ConfiglueGenerator
         if (TryGetPocoCloneType(type, cancellationToken, out var pocoType))
         {
             return type.IsReferenceType
-                ? $"{access} is null ? default! : __Clone_{GetStableTypeHash(pocoType.ToDisplayString(), cancellationToken)}({access}, __configlue_clone_context)"
-                : $"__Clone_{GetStableTypeHash(pocoType.ToDisplayString(), cancellationToken)}({access}, __configlue_clone_context)";
+                ? $"{access} is null ? default! : __Clone_{GetStableTypeHash(pocoType.WithNullableAnnotation(NullableAnnotation.NotAnnotated).ToDisplayString(), cancellationToken)}({access}, __configlue_clone_context)"
+                : $"__Clone_{GetStableTypeHash(pocoType.WithNullableAnnotation(NullableAnnotation.NotAnnotated).ToDisplayString(), cancellationToken)}({access}, __configlue_clone_context)";
         }
 
         return access;
@@ -49,7 +49,7 @@ public sealed partial class ConfiglueGenerator
 
         if (TryGetPocoCloneType(member.Property.Type, cancellationToken, out var pocoType))
         {
-            return $"{access} is null ? null! : __Clone_{GetStableTypeHash(pocoType.ToDisplayString(), cancellationToken)}({access}, __configlue_clone_context)";
+            return $"{access} is null ? null! : __Clone_{GetStableTypeHash(pocoType.WithNullableAnnotation(NullableAnnotation.NotAnnotated).ToDisplayString(), cancellationToken)}({access}, __configlue_clone_context)";
         }
 
         var cloned = CloneCollectionExpression(member, access, cancellationToken);
@@ -71,7 +71,7 @@ public sealed partial class ConfiglueGenerator
 
         if (TryGetPocoCloneType(member.Property.Type, cancellationToken, out var pocoType))
         {
-            return $"{access} is null ? null : __Clone_{GetStableTypeHash(pocoType.ToDisplayString(), cancellationToken)}({access}!, __configlue_clone_context)";
+            return $"{access} is null ? null : __Clone_{GetStableTypeHash(pocoType.WithNullableAnnotation(NullableAnnotation.NotAnnotated).ToDisplayString(), cancellationToken)}({access}!, __configlue_clone_context)";
         }
 
         var cloned = CloneCollectionExpression(member, access + "!", cancellationToken);

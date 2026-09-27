@@ -28,6 +28,18 @@ Resources can expose a stable `ResourceId` separately from logical source IDs an
 
 For a fully hand-rolled source, implement `IStateReader<TFragment>` (plus `IStateWriter<TFragment>` / `IStateWatcher` as needed) and add it with `Sources(sources => sources.Add(existingSource))` or the DI `(provider, sources) => ...` overload with `sources.Add(id, reader, priority, fallbackCondition)`.
 
+### Combine multiple resources as one logical source
+
+Use `CompositeStateSource<TFragment>` when several read-only resources contribute sparse fragments but should appear as one logical source to the options runtime:
+
+```csharp
+var combined = new CompositeStateSource<AppSettings.Fragment>(
+    new StateSourceSet<AppSettings.Fragment>([globalSource, localSource]));
+model.Sources(sources => sources.Add(combined.CreateSource("common-files", priority: 100)));
+```
+
+The component sources merge from low to high priority. Each component's `fallbackCondition` controls whether a missing or unavailable fragment can be omitted. All successful components in one read must report matching schema metadata; the combined fragment is migrated once. Component revisions and watchers remain nested under the logical source revision. This composition is read-only and has no single `ResourceId`; keep writable ownership on separately registered sources and route edits there.
+
 ## Next steps
 
 * [Resolution and merge](../layering/resolution-and-merge.md).
