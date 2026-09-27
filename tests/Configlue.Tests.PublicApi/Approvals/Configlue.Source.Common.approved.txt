@@ -1,6 +1,12 @@
 [assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/arika0093/Configlue")]
 namespace Configlue.Source.Common
 {
+    public static class CommonSource
+    {
+        public static Configlue.Source.Common.CommonSourceSelector Global { get; }
+        public static Configlue.Source.Common.CommonSourceSelector Local { get; }
+        public static Configlue.Source.Common.CommonSourceSelector Specific { get; }
+    }
     public enum CommonSourceFileFormat
     {
         Auto = 0,
@@ -40,6 +46,11 @@ namespace Configlue.Source.Common
             where TModel : Configlue.IConfiglueFacadeModel<TModel> { }
         public static void UseCommonSources<TModel>(this Configlue.ConfiglueModelBuilder<TModel> model, string applicationId, string? specificFilePath = null, string? environmentPrefix = null, Configlue.Source.Common.CommonSourceWriteLayer writeLayer = 0)
             where TModel : Configlue.IConfiglueFacadeModel<TModel> { }
+    }
+    public sealed class CommonSourceSelector : System.IEquatable<Configlue.Source.Common.CommonSourceSelector> { }
+    public static class CommonSourceSelectorExtensions
+    {
+        public static Configlue.ConfiglueSourceHandle<TModel> Source<TModel>(this Configlue.IConfiglueOptions<TModel> options, Configlue.Source.Common.CommonSourceSelector selector) { }
     }
     public enum CommonSourceWriteLayer
     {

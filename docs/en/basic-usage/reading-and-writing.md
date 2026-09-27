@@ -92,6 +92,16 @@ await userSource.SaveAsync(patch => patch.Database.Host = "db.example.test");
 await userSource.ReplaceAsync(patch => patch.Database.Host = "db.example.test");
 ```
 
+The common preset exposes semantic selectors for its standard file layers, so those sources do not need application-defined keys:
+
+```csharp
+using Configlue.Source.Common;
+
+await options.Source(CommonSource.Local).SaveAsync(
+    new AppSettings.Patch { Name = FragmentOperation<string>.Set("local-name") }
+);
+```
+
 ## Next steps
 
 * [Application setup](./app-setup.md) for DI/non-DI lifetimes and ownership.

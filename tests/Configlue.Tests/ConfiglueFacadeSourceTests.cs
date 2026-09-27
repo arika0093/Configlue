@@ -737,6 +737,18 @@ public sealed class ConfiglueFacadeSourceTests
             var sequence = new ReadOnlySequence<byte>(selected);
             var selectedFragment = written.Deserialize(in sequence, default)!;
             (selectedFragment.Label.Value).ShouldBe("written-to-specific");
+            await options
+                .Source(CommonSource.Specific)
+                .SaveAsync(
+                    new AppSettings.Patch
+                    {
+                        Label = FragmentOperation<string?>.Set("explicit-selector-write"),
+                    }
+                );
+            selected = await File.ReadAllBytesAsync(specificPath);
+            sequence = new ReadOnlySequence<byte>(selected);
+            selectedFragment = written.Deserialize(in sequence, default)!;
+            (selectedFragment.Label.Value).ShouldBe("explicit-selector-write");
             await Should.ThrowAsync<StateConflictException>(async () =>
                 await options.SaveAsync(settings => settings.RetryCount = 8)
             );
