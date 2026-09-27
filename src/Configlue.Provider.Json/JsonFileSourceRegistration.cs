@@ -156,30 +156,19 @@ public static class JsonFileSourceRegistration
                     new StateCodecContext(null, null, options.SchemaReferenceBaseUri)
                 );
             var physicalResourceId = options.ResourceId ?? (file as IResourceIdentity)?.ResourceId;
-            var logicalDescriptor = options.SectionPath is null
-                ? "json-root"
-                : $"json:{options.SectionPath}";
-            return options.Id is { } id
-                ? new StateSource<TFragment>(
-                    id,
-                    stateReader,
-                    options.Priority,
-                    options.FallbackCondition,
-                    stateWriter,
-                    watcher,
-                    file.Path,
-                    physicalResourceId
-                )
-                : new StateSource<TFragment>(
-                    stateReader,
-                    options.Priority,
-                    options.FallbackCondition,
-                    stateWriter,
-                    watcher,
-                    file.Path,
-                    physicalResourceId,
-                    logicalDescriptor
-                );
+            var sourceId =
+                options.Id
+                ?? JsonFileSourceSelector.CreateSourceId(options.Path, options.SectionPath);
+            return new StateSource<TFragment>(
+                sourceId,
+                stateReader,
+                options.Priority,
+                options.FallbackCondition,
+                stateWriter,
+                watcher,
+                file.Path,
+                physicalResourceId
+            );
         }
     }
 }

@@ -102,6 +102,16 @@ await options.Source(CommonSource.Local).SaveAsync(
 );
 ```
 
+JSON file sources can also be selected by their normalized path, with an optional JSON document section:
+
+```csharp
+using Configlue.Provider.Json;
+
+await options.Source(JsonFileSource.At("./settings.json")).SaveAsync(patch);
+```
+
+This path-derived selector matches a source registered without `JsonFileSourceOptions.Id`. If you provide an explicit ID, select it with the corresponding `SourceKey<TModel>`.
+
 ## Next steps
 
 * [Application setup](./app-setup.md) for DI/non-DI lifetimes and ownership.
