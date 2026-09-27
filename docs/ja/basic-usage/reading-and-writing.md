@@ -14,7 +14,7 @@ Console.WriteLine($">> Name: {setting.Name}");
 
 読み取りは全ソースを優先度で解決し、ディープコピーを返します。DI では同期の `IOptions<T>.Value` / `IOptionsSnapshot<T>` / `IOptionsMonitor<T>` アダプターも使えますが、非同期フローでは async メソッドを使ってください。
 
-同期処理では `IConfiglueOptions<T>` の `CurrentValue` の初回アクセスでソースを解決し、ディープコピーを取得できます。以降はキャッシュ値の clone を返します。watcher による再読み込みが成功するとキャッシュを更新し、書き込み成功後はキャッシュを無効化して次回アクセスで再読み込みします。watcher がない場合、外部変更は自動検出されないため、最新値には `GetValueAsync` を使います。初回 getter は非同期 source の読み取り完了までブロックします。DI の `IOptionsMonitor<T>.CurrentValue` は独自の watcher 対応キャッシュを持ちます。
+Core の読み取り API は `ReadAsync` と `GetValueAsync` で、同期 `CurrentValue` property はありません。DI では opt-in の `Configlue.Extensions.MSOptions` package が `IOptions<T>`、`IOptionsSnapshot<T>`、`IOptionsMonitor<T>` adapter を提供します。同期 getter は非同期 source の読み取り中にブロックするため、非同期処理では `GetValueAsync` を使ってください。
 
 生成 clone は入れ子の Configlue model、一般的なコレクション、public parameterless constructor があり public instance state が public get/set property で構成される通常の POCO を複製します。POCO 間の共有参照と循環参照も維持します。public field・read-only property・constructor 引数・required/init-only property がある型、および未対応の collection に含まれる値は参照のまま残るため、そのような値を複製する場合は options runtime ごとに clone 戦略を設定します:
 
