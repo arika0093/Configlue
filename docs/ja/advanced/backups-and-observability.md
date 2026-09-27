@@ -17,6 +17,19 @@ var resource = new FileResource(
 
 `BackupMaxCount = 0` でバックアップ無効化です。不可分書き込み (一時ファイル+リネーム) と再試行つきアクセスで並行保存も安全です。
 
+自動復旧は既定で無効です。JSON file source では `ResourceOptions` から有効にできます。
+
+```csharp
+model.UseJsonFile(new JsonFileSourceOptions
+{
+    Id = "settings",
+    Path = "settings.json",
+    ResourceOptions = new FileResourceOptions { AutomaticBackupRecovery = true },
+});
+```
+
+ファイルがない場合や JSON が壊れている場合、最新バックアップを読み直してデコードでき、失敗した読み取りの後に元ファイルが変更されていない場合にだけ復元します。既定の JSON codec は不正な JSON を復旧対象として判定します。独自 codec の形式エラー復旧には `IStateCodecRecoveryPolicy` の実装が必要です。ファイル欠損からの復旧にはこの policy は要りません。
+
 ファイル書き込みは一時的な共有エラーを既定で最大 3 回再試行し、各試行の間に 100ms 待ちます。`RetryCount` と `RetryDelay` で変更できます。`RetryDelayFactory` を設定すると、1 始まりの再試行回数ごとに待ち時間を計算できます。
 
 ```csharp
