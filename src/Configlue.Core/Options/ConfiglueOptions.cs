@@ -527,7 +527,7 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
             );
         }
 
-        var source = SelectWriteSource();
+        var source = SelectWriteSource(allowPriorityFallback: true);
         var effectiveWritePlan = _defaultWritePlan.OverrideWith(writePlan ?? StateWritePlan.Empty);
         if (effectiveWritePlan.PropertyRoutes.Count > 0)
         {
@@ -2794,14 +2794,36 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
         public void Dispose() => Interlocked.Exchange(ref _owner, null)?.ExitOperation(frame);
     }
 
-    private StateSource<TFragment> SelectWriteSource()
+    private StateSource<TFragment> SelectWriteSource(bool allowPriorityFallback = false)
     {
         var activeSources = GetActiveSources();
-        var source = _writeRoute.SourceId is { } id
-            ? activeSources.FirstOrDefault(candidate =>
+        StateSource<TFragment>? source;
+        if (_writeRoute.SourceId is { } id)
+        {
+            source = activeSources.FirstOrDefault(candidate =>
                 string.Equals(candidate.Id, id, StringComparison.Ordinal)
-            )
-            : activeSources.FirstOrDefault(static candidate => candidate.Writer is not null);
+            );
+        }
+        else
+        {
+            source = null;
+            foreach (var candidate in activeSources)
+            {
+                if (candidate.Writer is null)
+                {
+                    continue;
+                }
+
+                if (source is not null && !allowPriorityFallback)
+                {
+                    throw new InvalidOperationException(
+                        "Multiple writable state sources are registered. Configure a default write route."
+                    );
+                }
+
+                source ??= candidate;
+            }
+        }
 
         if (source is null)
         {

@@ -17,6 +17,25 @@ public partial class ReplaceCollectionSettings
 public sealed class StateRuntimeTests
 {
     [Test]
+    public async Task PatchSaveRequiresAWriteRouteWhenMultipleSourcesAreWritable()
+    {
+        var first = new InMemoryStateStore<AppSettings.Fragment>();
+        var second = new InMemoryStateStore<AppSettings.Fragment>();
+        await using var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(
+            new StateSourceSet<AppSettings.Fragment>([
+                new StateSource<AppSettings.Fragment>("first", first, writer: first),
+                new StateSource<AppSettings.Fragment>("second", second, writer: second),
+            ])
+        );
+
+        await Should.ThrowAsync<InvalidOperationException>(async () =>
+            await options.SaveAsync(
+                new AppSettings.Patch { Label = FragmentOperation<string?>.Set("ambiguous") }
+            )
+        );
+    }
+
+    [Test]
     public async Task FallbackStateSource_UsesOneRepresentationAndWritesToTheSelectedCandidate()
     {
         var canonical = new InMemoryStateStore<string>();
@@ -2507,7 +2526,8 @@ public sealed class StateRuntimeTests
                     priority: -1,
                     writer: new FailOnceStateWriter<AppSettings.Fragment>(secondTarget)
                 ),
-            ])
+            ]),
+            writeRoute: StateWriteRoute.To("first-target")
         );
         var targets = new Dictionary<string, Func<IConfiglueFragment, IConfiglueFragment>>(
             StringComparer.Ordinal
