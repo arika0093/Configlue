@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Configlue;
 
 namespace Configlue.Source.Environment;
@@ -21,8 +22,11 @@ public sealed class EnvironmentSourceOptions
     /// <summary>Optional environment variable provider, useful for tests or custom hosts.</summary>
     public Func<IEnumerable<KeyValuePair<string, string?>>>? EnvironmentVariables { get; init; }
 
-    /// <summary>Optional scalar conversion override.</summary>
+    /// <summary>Optional scalar conversion override. Types it declines fall back to JSON.</summary>
     public Func<string, Type, object?>? ValueParser { get; init; }
+
+    /// <summary>JSON options used for members without a scalar conversion, such as collections.</summary>
+    public JsonSerializerOptions? JsonSerializerOptions { get; init; }
 }
 
 /// <summary>Registers environment variable sources through the one-arity facade.</summary>
@@ -57,7 +61,8 @@ public static class EnvironmentFacadeSourceRegistration
                     modelSchema,
                     options.Prefix,
                     options.EnvironmentVariables,
-                    options.ValueParser
+                    options.ValueParser,
+                    options.JsonSerializerOptions
                 ),
                 options.Priority,
                 options.FallbackCondition,

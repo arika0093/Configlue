@@ -2,6 +2,7 @@ using System.Collections;
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using Configlue;
 
 namespace Configlue.Source.Environment;
@@ -15,13 +16,15 @@ public sealed class EnvironmentStateReader<TFragment> : IStateReader<TFragment>
     private readonly string _prefix;
     private readonly Func<IEnumerable<KeyValuePair<string, string?>>> _environmentVariables;
     private readonly Func<string, Type, object?> _valueParser;
+    private readonly JsonSerializerOptions? _jsonOptions;
 
     /// <summary>Creates an environment reader for a generated model schema.</summary>
     public EnvironmentStateReader(
         ConfiglueModelSchema schema,
         string prefix,
         Func<IEnumerable<KeyValuePair<string, string?>>>? environmentVariables = null,
-        Func<string, Type, object?>? valueParser = null
+        Func<string, Type, object?>? valueParser = null,
+        JsonSerializerOptions? jsonSerializerOptions = null
     )
     {
         ArgumentNullException.ThrowIfNull(schema);
@@ -29,6 +32,7 @@ public sealed class EnvironmentStateReader<TFragment> : IStateReader<TFragment>
         _prefix = NormalizePrefix(prefix) + "__";
         _environmentVariables = environmentVariables ?? ReadProcessEnvironmentVariables;
         _valueParser = valueParser ?? ParseScalar;
+        _jsonOptions = jsonSerializerOptions;
     }
 
     /// <inheritdoc />
@@ -362,6 +366,12 @@ public sealed class EnvironmentStateReader<TFragment> : IStateReader<TFragment>
         {
             parsed = _valueParser(value, targetType);
         }
+        catch (NotSupportedException exception)
+        {
+            // A custom parser may decline types it does not handle. Fall back to JSON so
+            // collection and object members work without a custom parser for every type.
+            parsed = ParseJson(value, targetType, exception);
+        }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
             throw new FormatException(
@@ -429,7 +439,7 @@ public sealed class EnvironmentStateReader<TFragment> : IStateReader<TFragment>
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(builder.ToString())));
     }
 
-    private static object? ParseScalar(string value, Type targetType)
+    private object? ParseScalar(string value, Type targetType)
     {
         var nullableType = Nullable.GetUnderlyingType(targetType);
         var valueType = nullableType ?? targetType;
@@ -484,9 +494,29 @@ public sealed class EnvironmentStateReader<TFragment> : IStateReader<TFragment>
             return Convert.ChangeType(value, valueType, CultureInfo.InvariantCulture);
         }
 
-        throw new NotSupportedException(
-            $"Type '{targetType}' has no built-in environment conversion. Supply a value parser for this type."
-        );
+        return ParseJson(value, valueType, null);
+    }
+
+    /// <summary>Interprets an environment value as JSON for types without a scalar conversion.</summary>
+    /// <remarks>Collections and objects use JSON so values like <c>["nord","dracula"]</c> bind directly.</remarks>
+    private object? ParseJson(string value, Type valueType, Exception? declinedBy)
+    {
+        if (valueType == typeof(object))
+        {
+            return value;
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize(value, valueType, _jsonOptions);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            throw new FormatException(
+                $"The value is not valid JSON for type '{valueType}'. Supply a value parser for this type.",
+                declinedBy is null ? exception : new AggregateException(declinedBy, exception)
+            );
+        }
     }
 
     private static IEnumerable<KeyValuePair<string, string?>> ReadProcessEnvironmentVariables()
