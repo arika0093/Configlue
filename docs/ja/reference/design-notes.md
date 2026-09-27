@@ -29,8 +29,8 @@ Configlue は Configuration.Writable 向けに検討されたソース&フラグ
 
 * 異なるリソース間の書き込みはアトミックではありません。
 * ソース退役は現行オプション実体の範囲で裏データを残します。将来の起動向けにアプリ登録の更新が必要です。
-* プロバイダー固有のウォッチャーポリシーは未実装です。
-* 独自マージ方式の登録は未対応 — `todo/custom-merge-strategies.md` 参照。
-* 宣言的で再起動をまたぐ保存場所移行定義は未対応 — `todo/declarative-storage-migration.md` 参照。
+* オプション実体の source set は固定です。アプリ側で新しい context を構築して切り替えます。検証済み移行では現行実体から source を退役できます。
+* migration journal は進捗を永続化しますが、複数プロセス間の排他はしません。同じ migration ID はアプリ側で同時実行を避けてください。
+* watcher は無効化シグナルを通知します。ポーリング・再試行・再接続の方針は provider 側の責務です。
 
 現行 API は、Configuration.Writable の機能完全な置換というより土台のアーキテクチャです。
