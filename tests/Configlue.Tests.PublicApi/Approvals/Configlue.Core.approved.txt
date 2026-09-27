@@ -25,6 +25,7 @@ namespace Configlue
     public sealed class ConfiglueBuilder
     {
         public ConfiglueBuilder() { }
+        public System.Collections.Generic.IReadOnlyList<Configlue.ConfiglueModelSchema> ModelSchemas { get; }
         public void Add<TModel>(System.Action<Configlue.ConfiglueModelBuilder<TModel>> configure)
             where TModel : Configlue.IConfiglueFacadeModel<TModel> { }
         public Configlue.ConfiglueContext CreateContext(System.IServiceProvider? serviceProvider = null) { }
@@ -225,6 +226,7 @@ namespace Configlue
     public interface IConfiglueFacadeModel<TSelf>
         where TSelf : Configlue.IConfiglueFacadeModel<TSelf>
     {
+        Configlue.ConfiglueModelSchema GetConfiglueSchema();
         Configlue.IConfiglueProfiledOptions<TSelf> CreateConfiglueProfileManager(Configlue.IConfiglueOptionsRegistry<TSelf> registry, Configlue.StateSource<Configlue.ConfiglueProfileCatalog> catalogSource, string defaultProfileName);
         Configlue.IWritableOptions<TSelf> CreateConfiglueRuntime(Configlue.ConfiglueModelBuilder<TSelf> configuration, System.IServiceProvider? serviceProvider, System.Action<System.IDisposable> ownResource);
     }
@@ -280,4 +282,5 @@ namespace Configlue
 }
 // Compiled static interface member modifiers
 IConfiglueFacadeModel.CreateConfiglueProfileManager: static virtual
+IConfiglueFacadeModel.GetConfiglueSchema: static virtual
 IConfiglueFacadeModel.CreateConfiglueRuntime: static abstract virtual

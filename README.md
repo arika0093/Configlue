@@ -568,7 +568,7 @@ To adopt a `Configuration.Writable` JSON or YAML file, use `ConfigurationWritabl
 
 ### JSON Schema Support
 
-`JsonSchemaGenerator.Generate` and `Write` export versioned schemas from a model's generated `ConfiglueModelSchema`; pass a source-generated `IJsonTypeInfoResolver` for trimming and NativeAOT-friendly metadata. Supported DataAnnotations are mapped to schema constraints.
+`JsonSchemaGenerator.Generate` and `Write` export versioned schemas from a model's generated `ConfiglueSchema`; pass a source-generated `IJsonTypeInfoResolver` for trimming and NativeAOT-friendly metadata. `TryWriteFromCommandLine` handles the legacy `--cw-generate-json-schema <directory>` option and returns diagnostics without terminating the host. Supported DataAnnotations are mapped to schema constraints.
 
 ### Support NativeAOT
 

@@ -44,6 +44,22 @@ public sealed class ConfiglueBuilder
     public ConfiglueContext CreateContext(IServiceProvider? serviceProvider = null) =>
         ConfiglueContext.Create(_registrations, serviceProvider);
 
+    /// <summary>Gets the generated schemas for the models registered with this builder.</summary>
+    /// <remarks>Multiple named registrations of one model can return the same schema more than once.</remarks>
+    public IReadOnlyList<ConfiglueModelSchema> ModelSchemas
+    {
+        get
+        {
+            var schemas = new ConfiglueModelSchema[_registrations.Count];
+            for (var index = 0; index < _registrations.Count; index++)
+            {
+                schemas[index] = _registrations[index].ModelSchema;
+            }
+
+            return Array.AsReadOnly(schemas);
+        }
+    }
+
     internal IReadOnlyList<IConfiglueModelRegistration> Registrations => _registrations;
 
     internal void Seal() => _sealed = true;
@@ -852,6 +868,7 @@ public static class Configlue
 internal interface IConfiglueModelRegistration
 {
     Type ModelType { get; }
+    ConfiglueModelSchema ModelSchema { get; }
     string OptionsName { get; }
     bool EnableDynamicOptions { get; }
     bool EnableProfiles { get; }
@@ -876,6 +893,8 @@ internal sealed class ConfiglueModelRegistration<TModel>(ConfiglueModelBuilder<T
     where TModel : IConfiglueFacadeModel<TModel>
 {
     public Type ModelType => typeof(TModel);
+
+    public ConfiglueModelSchema ModelSchema => TModel.GetConfiglueSchema();
 
     public string OptionsName => builder.OptionsName;
 

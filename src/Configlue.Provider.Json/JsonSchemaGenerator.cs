@@ -282,6 +282,100 @@ public static class JsonSchemaGenerator
         where TFragment : class, IConfiglueFragment<TFragment> =>
         Write([TModel.ConfiglueSchema], outputDirectory, resolver, schemaBaseUri);
 
+    /// <summary>
+    /// Writes schemas when <c>--cw-generate-json-schema &lt;directory&gt;</c> is present in the
+    /// application arguments. The host process remains in control of its lifetime and exit code.
+    /// </summary>
+    /// <param name="arguments">The arguments passed to the application entry point.</param>
+    /// <param name="models">The registered generated model schemas.</param>
+    /// <param name="resolver">The JSON type-info resolver, preferably source-generated for trimming and NativeAOT.</param>
+    /// <param name="result">The write result when the option was present; otherwise <see langword="null"/>.</param>
+    /// <param name="schemaBaseUri">An optional absolute base URI for generated schema identifiers.</param>
+    /// <returns><see langword="true"/> when the command-line option was handled.</returns>
+    public static bool TryWriteFromCommandLine(
+        IReadOnlyList<string> arguments,
+        IEnumerable<ConfiglueModelSchema> models,
+        IJsonTypeInfoResolver resolver,
+        out JsonSchemaGenerationResult? result,
+        string? schemaBaseUri = null
+    )
+    {
+        ArgumentNullException.ThrowIfNull(arguments);
+
+        var outputDirectory = default(string);
+        var optionCount = 0;
+        var index = 0;
+        while (index < arguments.Count)
+        {
+            var argument = arguments[index++];
+            if (string.Equals(argument, "--cw-generate-json-schema", StringComparison.Ordinal))
+            {
+                optionCount++;
+                if (
+                    index < arguments.Count
+                    && !arguments[index].StartsWith("--", StringComparison.Ordinal)
+                )
+                {
+                    outputDirectory = arguments[index++];
+                }
+                else
+                {
+                    outputDirectory = null;
+                }
+
+                continue;
+            }
+
+            const string optionPrefix = "--cw-generate-json-schema=";
+            if (argument.StartsWith(optionPrefix, StringComparison.Ordinal))
+            {
+                optionCount++;
+                outputDirectory = argument[optionPrefix.Length..];
+            }
+        }
+
+        if (optionCount == 0)
+        {
+            result = null;
+            return false;
+        }
+
+        if (optionCount > 1)
+        {
+            result = CreateResult(
+                [],
+                [],
+                [
+                    new JsonSchemaGenerationDiagnostic(
+                        "CWSC013",
+                        "Specify --cw-generate-json-schema only once."
+                    ),
+                ]
+            );
+            return true;
+        }
+
+        if (string.IsNullOrWhiteSpace(outputDirectory))
+        {
+            result = CreateResult(
+                [],
+                [],
+                [
+                    new JsonSchemaGenerationDiagnostic(
+                        "CWSC013",
+                        "--cw-generate-json-schema requires an output directory."
+                    ),
+                ]
+            );
+            return true;
+        }
+
+        ArgumentNullException.ThrowIfNull(models);
+        ArgumentNullException.ThrowIfNull(resolver);
+        result = Write(models, outputDirectory, resolver, schemaBaseUri);
+        return true;
+    }
+
     private static List<ConfiglueModelSchema> ValidateModels(
         IEnumerable<ConfiglueModelSchema> models,
         List<JsonSchemaGenerationDiagnostic> diagnostics

@@ -14,13 +14,24 @@ public static class ConfiglueServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(configure);
+        var builder = new ConfiglueBuilder();
+        configure(builder);
+        return services.AddConfiglueBuilder(builder);
+    }
+
+    /// <summary>Registers definitions already collected by a Configlue builder.</summary>
+    public static IServiceCollection AddConfiglueBuilder(
+        this IServiceCollection services,
+        ConfiglueBuilder builder
+    )
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(builder);
         if (services.Any(descriptor => descriptor.ServiceType == typeof(ConfiglueContext)))
         {
             throw new InvalidOperationException("A Configlue context is already registered.");
         }
 
-        var builder = new ConfiglueBuilder();
-        configure(builder);
         builder.Seal();
         services.AddSingleton<ConfiglueContext>(provider => builder.CreateContext(provider));
         foreach (var registration in builder.Registrations)
