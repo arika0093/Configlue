@@ -55,6 +55,7 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
     private readonly string _optionsName;
     private readonly bool _validateDataAnnotations;
     private readonly ReadValidationMode _readValidationMode;
+    private readonly WriteConflictResolution _writeConflictResolution;
     private readonly TimeSpan _onChangeDebounce;
     private readonly ILogger? _logger;
     private readonly object _changeGate = new();
@@ -77,7 +78,8 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
         TimeSpan? onChangeDebounce = null,
         string? optionsName = null,
         ILogger? logger = null,
-        ReadValidationMode readValidationMode = ReadValidationMode.EffectiveThrow
+        ReadValidationMode readValidationMode = ReadValidationMode.EffectiveThrow,
+        WriteConflictResolution writeConflictResolution = WriteConflictResolution.FailOnConflict
     )
         : this(
             sourceSet,
@@ -89,7 +91,8 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
             onChangeDebounce,
             optionsName,
             logger,
-            readValidationMode: readValidationMode
+            readValidationMode: readValidationMode,
+            writeConflictResolution: writeConflictResolution
         ) { }
 
     /// <summary>Creates options backed by sources and registration-level property write routes.</summary>
@@ -103,7 +106,8 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
         TimeSpan? onChangeDebounce = null,
         string? optionsName = null,
         ILogger? logger = null,
-        ReadValidationMode readValidationMode = ReadValidationMode.EffectiveThrow
+        ReadValidationMode readValidationMode = ReadValidationMode.EffectiveThrow,
+        WriteConflictResolution writeConflictResolution = WriteConflictResolution.FailOnConflict
     )
         : this(
             sourceSet,
@@ -116,7 +120,8 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
             optionsName,
             logger,
             cloneStrategy: null,
-            readValidationMode: readValidationMode
+            readValidationMode: readValidationMode,
+            writeConflictResolution: writeConflictResolution
         ) { }
 
     /// <summary>Creates options with a custom model clone strategy.</summary>
@@ -131,7 +136,8 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
         string? optionsName,
         ILogger? logger,
         Func<TModel, TModel>? cloneStrategy,
-        ReadValidationMode readValidationMode = ReadValidationMode.EffectiveThrow
+        ReadValidationMode readValidationMode = ReadValidationMode.EffectiveThrow,
+        WriteConflictResolution writeConflictResolution = WriteConflictResolution.FailOnConflict
     )
     {
         ArgumentNullException.ThrowIfNull(sourceSet);
@@ -156,6 +162,12 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
         }
 
         _readValidationMode = readValidationMode;
+        if (!Enum.IsDefined(writeConflictResolution))
+        {
+            throw new ArgumentOutOfRangeException(nameof(writeConflictResolution));
+        }
+
+        _writeConflictResolution = writeConflictResolution;
         _onChangeDebounce = onChangeDebounce ?? TimeSpan.FromMilliseconds(300);
         if (_onChangeDebounce < TimeSpan.Zero)
         {

@@ -90,6 +90,8 @@ public sealed class ConfiglueModelBuilder<TModel>
     private StateWritePlan _writePlan = StateWritePlan.Empty;
     private bool _validateDataAnnotations = true;
     private ReadValidationMode _readValidationMode = ReadValidationMode.EffectiveThrow;
+    private WriteConflictResolution _writeConflictResolution =
+        WriteConflictResolution.FailOnConflict;
     private bool _enableDynamicOptions;
     private bool _registerAsSingleton;
     private TimeSpan? _onChangeDebounce;
@@ -198,6 +200,22 @@ public sealed class ConfiglueModelBuilder<TModel>
             }
 
             _readValidationMode = value;
+        }
+    }
+
+    /// <summary>Controls how edits are rebased when values change concurrently.</summary>
+    public WriteConflictResolution WriteConflictResolution
+    {
+        get => _writeConflictResolution;
+        set
+        {
+            EnsureMutable();
+            if (!Enum.IsDefined(value))
+            {
+                throw new ArgumentOutOfRangeException(nameof(value));
+            }
+
+            _writeConflictResolution = value;
         }
     }
 
@@ -433,6 +451,7 @@ public sealed class ConfiglueModelBuilder<TModel>
             WritePlan = _writePlan,
             ValidateDataAnnotations = _validateDataAnnotations,
             ReadValidationMode = _readValidationMode,
+            WriteConflictResolution = _writeConflictResolution,
             EnableDynamicOptions = _enableDynamicOptions,
             RegisterAsSingleton = _registerAsSingleton,
             OnChangeDebounce = _onChangeDebounce,

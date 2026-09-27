@@ -55,7 +55,8 @@ public static class ConfiglueServiceCollectionExtensions
         StateWriteRoute writeRoute = default,
         bool validateDataAnnotations = true,
         TimeSpan? onChangeDebounce = null,
-        ReadValidationMode readValidationMode = ReadValidationMode.EffectiveThrow
+        ReadValidationMode readValidationMode = ReadValidationMode.EffectiveThrow,
+        WriteConflictResolution writeConflictResolution = WriteConflictResolution.FailOnConflict
     )
         where TModel : IConfiglueModel<TModel, TFragment>
         where TFragment : class, IConfiglueFragment<TFragment>
@@ -72,7 +73,8 @@ public static class ConfiglueServiceCollectionExtensions
             writeRoute,
             validateDataAnnotations,
             onChangeDebounce,
-            readValidationMode
+            readValidationMode,
+            writeConflictResolution
         );
     }
 
@@ -83,7 +85,8 @@ public static class ConfiglueServiceCollectionExtensions
         StateWriteRoute writeRoute = default,
         bool validateDataAnnotations = true,
         TimeSpan? onChangeDebounce = null,
-        ReadValidationMode readValidationMode = ReadValidationMode.EffectiveThrow
+        ReadValidationMode readValidationMode = ReadValidationMode.EffectiveThrow,
+        WriteConflictResolution writeConflictResolution = WriteConflictResolution.FailOnConflict
     )
         where TModel : IConfiglueModel<TModel, TFragment>
         where TFragment : class, IConfiglueFragment<TFragment>
@@ -98,7 +101,8 @@ public static class ConfiglueServiceCollectionExtensions
             provider.GetServices<IConfiglueValidator<TModel>>(),
             validateDataAnnotations,
             onChangeDebounce,
-            readValidationMode: readValidationMode
+            readValidationMode: readValidationMode,
+            writeConflictResolution: writeConflictResolution
         ));
         services.AddSingleton<IReadOnlyOptions<TModel>>(provider =>
             provider.GetRequiredService<ConfiglueOptions<TModel, TFragment>>()
@@ -119,7 +123,8 @@ public static class ConfiglueServiceCollectionExtensions
         StateWriteRoute writeRoute = default,
         bool validateDataAnnotations = true,
         TimeSpan? onChangeDebounce = null,
-        ReadValidationMode readValidationMode = ReadValidationMode.EffectiveThrow
+        ReadValidationMode readValidationMode = ReadValidationMode.EffectiveThrow,
+        WriteConflictResolution writeConflictResolution = WriteConflictResolution.FailOnConflict
     )
         where TModel : IConfiglueModel<TModel, TFragment>
         where TFragment : class, IConfiglueFragment<TFragment>
@@ -130,7 +135,8 @@ public static class ConfiglueServiceCollectionExtensions
             writeRoute,
             validateDataAnnotations,
             onChangeDebounce,
-            readValidationMode
+            readValidationMode,
+            writeConflictResolution
         );
     }
 
@@ -142,7 +148,8 @@ public static class ConfiglueServiceCollectionExtensions
         StateWriteRoute writeRoute = default,
         bool validateDataAnnotations = true,
         TimeSpan? onChangeDebounce = null,
-        ReadValidationMode readValidationMode = ReadValidationMode.EffectiveThrow
+        ReadValidationMode readValidationMode = ReadValidationMode.EffectiveThrow,
+        WriteConflictResolution writeConflictResolution = WriteConflictResolution.FailOnConflict
     )
         where TModel : IConfiglueModel<TModel, TFragment>
         where TFragment : class, IConfiglueFragment<TFragment>
@@ -160,7 +167,8 @@ public static class ConfiglueServiceCollectionExtensions
             writeRoute,
             validateDataAnnotations,
             onChangeDebounce,
-            readValidationMode
+            readValidationMode,
+            writeConflictResolution
         );
     }
 
@@ -172,7 +180,8 @@ public static class ConfiglueServiceCollectionExtensions
         StateWriteRoute writeRoute = default,
         bool validateDataAnnotations = true,
         TimeSpan? onChangeDebounce = null,
-        ReadValidationMode readValidationMode = ReadValidationMode.EffectiveThrow
+        ReadValidationMode readValidationMode = ReadValidationMode.EffectiveThrow,
+        WriteConflictResolution writeConflictResolution = WriteConflictResolution.FailOnConflict
     )
         where TModel : IConfiglueModel<TModel, TFragment>
         where TFragment : class, IConfiglueFragment<TFragment>
@@ -192,7 +201,8 @@ public static class ConfiglueServiceCollectionExtensions
                     validateDataAnnotations,
                     onChangeDebounce,
                     optionsName: key as string ?? Options.DefaultName,
-                    readValidationMode: readValidationMode
+                    readValidationMode: readValidationMode,
+                    writeConflictResolution: writeConflictResolution
                 )
         );
         services.AddKeyedSingleton<IReadOnlyOptions<TModel>>(
@@ -226,7 +236,8 @@ public static class ConfiglueServiceCollectionExtensions
         StateWriteRoute writeRoute = default,
         bool validateDataAnnotations = true,
         TimeSpan? onChangeDebounce = null,
-        ReadValidationMode readValidationMode = ReadValidationMode.EffectiveThrow
+        ReadValidationMode readValidationMode = ReadValidationMode.EffectiveThrow,
+        WriteConflictResolution writeConflictResolution = WriteConflictResolution.FailOnConflict
     )
         where TModel : IConfiglueModel<TModel, TFragment>
         where TFragment : class, IConfiglueFragment<TFragment>
@@ -238,7 +249,8 @@ public static class ConfiglueServiceCollectionExtensions
             writeRoute,
             validateDataAnnotations,
             onChangeDebounce,
-            readValidationMode
+            readValidationMode,
+            writeConflictResolution
         );
     }
 
@@ -249,7 +261,8 @@ public static class ConfiglueServiceCollectionExtensions
         StateWriteRoute writeRoute = default,
         bool validateDataAnnotations = true,
         TimeSpan? onChangeDebounce = null,
-        ReadValidationMode readValidationMode = ReadValidationMode.EffectiveThrow
+        ReadValidationMode readValidationMode = ReadValidationMode.EffectiveThrow,
+        WriteConflictResolution writeConflictResolution = WriteConflictResolution.FailOnConflict
     )
         where TModel : IConfiglueModel<TModel, TFragment>
         where TFragment : class, IConfiglueFragment<TFragment>
@@ -267,7 +280,8 @@ public static class ConfiglueServiceCollectionExtensions
                     validateDataAnnotations,
                     onChangeDebounce,
                     optionsName: profileName,
-                    readValidationMode: readValidationMode
+                    readValidationMode: readValidationMode,
+                    writeConflictResolution: writeConflictResolution
                 )
             )
         );
