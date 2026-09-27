@@ -154,6 +154,8 @@ namespace Configlue
         public string BackupExtension { get; init; }
         public int BackupMaxCount { get; init; }
         public bool CreateBackup { get; init; }
+        public System.TimeSpan LockAcquireRetryDelay { get; init; }
+        public System.TimeSpan? LockAcquireTimeout { get; init; }
         public int RetryCount { get; init; }
         public System.TimeSpan RetryDelay { get; init; }
     }

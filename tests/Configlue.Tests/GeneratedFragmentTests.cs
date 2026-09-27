@@ -76,13 +76,13 @@ public partial class HistoricalSettings
     public bool Enabled { get; set; } = true;
 }
 
-[ConfiglueModel(1, Id = "inner-settings")]
+[ConfiglueModel("inner-settings", Version = 1)]
 public partial class InnerSettingsV1
 {
     public int Count { get; set; } = 1;
 }
 
-[ConfiglueModel(2, Id = "inner-settings")]
+[ConfiglueModel("inner-settings", Version = 2)]
 [ConfigluePreviousVersion(typeof(InnerSettingsV1))]
 public partial class InnerSettingsV2
 {
@@ -91,7 +91,7 @@ public partial class InnerSettingsV2
     public string? Note { get; set; } = "note";
 }
 
-[ConfiglueModel(1, Id = "nested-settings")]
+[ConfiglueModel("nested-settings", Version = 1)]
 public partial class NestedSettingsV1
 {
     public string? Label { get; set; } = "v1";
@@ -99,7 +99,7 @@ public partial class NestedSettingsV1
     public InnerSettingsV1? Inner { get; set; } = new();
 }
 
-[ConfiglueModel(2, Id = "nested-settings")]
+[ConfiglueModel("nested-settings", Version = 2)]
 [ConfigluePreviousVersion(typeof(NestedSettingsV1))]
 public partial class NestedSettings
 {
