@@ -17,6 +17,16 @@ var resource = new FileResource(
 
 `BackupMaxCount = 0` でバックアップ無効化です。不可分書き込み (一時ファイル+リネーム) と再試行つきアクセスで並行保存も安全です。
 
+`RetryDelay` は一時的な共有エラー間の固定待ち時間です。`RetryDelayFactory` を設定すると、1 始まりの再試行回数ごとに待ち時間を計算できます。
+
+```csharp
+var options = new FileResourceOptions
+{
+    RetryCount = 5,
+    RetryDelayFactory = attempt => TimeSpan.FromMilliseconds(100 * attempt),
+};
+```
+
 ## 出どころと診断
 
 * `IReadOnlyOptions<T>.ExplainAsync("Database.Host")` は実効値と優先度順の各存在ソース寄与を返します。設定 UI やトラブルシュートに使います。

@@ -17,6 +17,16 @@ var resource = new FileResource(
 
 Set `BackupMaxCount = 0` to disable backups. Atomic writes (temporary file plus rename) and retryable access keep concurrent saves safe.
 
+`RetryDelay` sets a fixed delay between transient sharing retries. Set `RetryDelayFactory` to calculate a delay for each one-based retry attempt, for example:
+
+```csharp
+var options = new FileResourceOptions
+{
+    RetryCount = 5,
+    RetryDelayFactory = attempt => TimeSpan.FromMilliseconds(100 * attempt),
+};
+```
+
 ## Provenance and diagnostics
 
 * `IReadOnlyOptions<T>.ExplainAsync("Database.Host")` returns the effective value and the present source contributions from highest to lowest priority. Use it in settings UIs and troubleshooting.

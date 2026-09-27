@@ -222,6 +222,7 @@ namespace Configlue
         public System.TimeSpan? LockAcquireTimeout { get; init; }
         public int RetryCount { get; init; }
         public System.TimeSpan RetryDelay { get; init; }
+        public System.Func<int, System.TimeSpan>? RetryDelayFactory { get; init; }
     }
     public interface IConfiglueFacadeModel<TSelf>
         where TSelf : Configlue.IConfiglueFacadeModel<TSelf>
