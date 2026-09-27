@@ -22,7 +22,7 @@ A missing file source just falls through. Present fields compose; fields missing
 
 ## The standard split (using the preset)
 
-You can build two layers by hand, but the standard shape has a preset. `UseCommonSources` from the `Configlue.Source.Common` package bundles shared, local, selected-file, environment, and command-line layers.
+You can build two layers by hand, but the standard shape has a preset. `UseCommonSources` from the `Configlue.Source.Common` package bundles shared, local, selected-file, and environment layers. Add command-line overrides separately from `Configlue.Source.CommandLine`.
 
 <Tabs syncKey="di">
 <TabItem label="Without DI">

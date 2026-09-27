@@ -81,5 +81,5 @@ DataAnnotations validation is enabled by default. Pass `validateDataAnnotations:
 
 ## Next steps
 
-* [Common layered sources](./common-sources.md) for the standard global/local/specific/env/cli stack.
+* [Common layered sources](./common-sources.md) for the standard global/local/specific/environment stack, with command-line overrides available as an opt-in.
 * [Files, formats, and sections](../sources/files-and-sections.md) for provider registrations.

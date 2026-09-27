@@ -8,6 +8,7 @@ using Configlue.Provider.Json;
 using Configlue.Provider.Xml;
 using Configlue.Provider.Yaml;
 using Configlue.Resource.Http;
+using Configlue.Source.CommandLine;
 using Configlue.Source.Common;
 using Configlue.Testing;
 using Microsoft.Extensions.DependencyInjection;
@@ -458,7 +459,6 @@ public sealed class ConfiglueFacadeSourceTests
                         EnableGlobalFile = false,
                         EnableLocalFile = false,
                         EnableEnvironment = false,
-                        EnableCommandLine = false,
                         FileResourceOptions = new FileResourceOptions { CreateBackup = false },
                     }
                 )
@@ -709,15 +709,19 @@ public sealed class ConfiglueFacadeSourceTests
                 EnvironmentPrefix = "CONFIGLUE_TEST",
                 EnvironmentVariables = () =>
                     [new KeyValuePair<string, string?>("CONFIGLUE_TEST__RetryCount", "4")],
-                CommandLineParseResult = parseResult,
-                ConfigureCommandLineMappings = mappings => mappings.Map(retryOption, "RetryCount"),
                 WriteLayer = CommonSourceWriteLayer.Specific,
                 FileResourceOptions = new FileResourceOptions { CreateBackup = false },
             };
 
             await using var context = Configlue.CreateContext(builder =>
             {
-                builder.Add<AppSettings>(model => model.UseCommonSources(commonOptions));
+                builder.Add<AppSettings>(model =>
+                    model.UseCommonSources(
+                        commonOptions,
+                        parseResult,
+                        mappings => mappings.Map(retryOption, "RetryCount")
+                    )
+                );
             });
             var options = (IConfiglueOptions<AppSettings>)context.GetOptions<AppSettings>();
             var value = await options.GetValueAsync();

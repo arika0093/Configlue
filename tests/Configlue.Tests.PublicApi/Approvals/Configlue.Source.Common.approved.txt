@@ -5,9 +5,6 @@ namespace Configlue.Source.Common
     {
         public CommonSourceOptions() { }
         public required string ApplicationId { get; init; }
-        public System.CommandLine.ParseResult? CommandLineParseResult { get; init; }
-        public System.Action<Configlue.Source.CommandLine.CommandLineMappingBuilder>? ConfigureCommandLineMappings { get; init; }
-        public bool EnableCommandLine { get; init; }
         public bool EnableEnvironment { get; init; }
         public bool EnableGlobalFile { get; init; }
         public bool EnableLocalFile { get; init; }

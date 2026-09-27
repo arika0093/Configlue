@@ -13,7 +13,7 @@ The functional guides are a dictionary, not a course. After the tutorial, start 
 | --- | --- |
 | Register with or without DI; lifetimes and ownership (configuration method) | [Application setup](../basic-usage/app-setup.md) |
 | Choose between reads, edit sessions, and patches | [Reading, sessions, and patches](../basic-usage/reading-and-writing.md) |
-| Use the standard shared/local/selected/environment/command-line shape (location presets) | [Common layered sources](../basic-usage/common-sources.md) |
+| Use the standard shared/local/selected/environment shape (location presets) | [Common layered sources](../basic-usage/common-sources.md) |
 
 ## Locations and formats
 
