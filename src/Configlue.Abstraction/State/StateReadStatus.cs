@@ -11,4 +11,7 @@ public enum StateReadStatus
 
     /// <summary>The source could not be reached temporarily.</summary>
     Unavailable,
+
+    /// <summary>The source returned a value that failed validation.</summary>
+    Invalid,
 }

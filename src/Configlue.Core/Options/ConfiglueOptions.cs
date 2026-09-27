@@ -1,5 +1,8 @@
 using System.Collections;
+using System.Collections.Concurrent;
 using System.ComponentModel.DataAnnotations;
+using System.Diagnostics.CodeAnalysis;
+using System.Reflection;
 using System.Runtime.CompilerServices;
 using Microsoft.Extensions.Logging;
 
@@ -31,6 +34,11 @@ public sealed class ConfiglueOptions<TModel, TFragment>
         1043,
         "ReloadFailureListenerFailure"
     );
+    private static readonly EventId ReadValidationEvent = new(1044, "ReadValidation");
+    private static readonly ConcurrentDictionary<
+        (Type ModelType, string MemberName),
+        ValidationAttribute[]
+    > MemberValidationAttributes = new();
 
     private readonly StateSourceSet<TFragment> _sourceSet;
     private readonly object _sourceGate = new();
@@ -44,6 +52,7 @@ public sealed class ConfiglueOptions<TModel, TFragment>
     private readonly IConfiglueValidator<TModel>[] _validators;
     private readonly string _optionsName;
     private readonly bool _validateDataAnnotations;
+    private readonly ReadValidationMode _readValidationMode;
     private readonly TimeSpan _onChangeDebounce;
     private readonly ILogger? _logger;
     private readonly object _changeGate = new();
@@ -68,7 +77,8 @@ public sealed class ConfiglueOptions<TModel, TFragment>
         bool validateDataAnnotations = true,
         TimeSpan? onChangeDebounce = null,
         string? optionsName = null,
-        ILogger? logger = null
+        ILogger? logger = null,
+        ReadValidationMode readValidationMode = ReadValidationMode.EffectiveThrow
     )
         : this(
             sourceSet,
@@ -79,7 +89,8 @@ public sealed class ConfiglueOptions<TModel, TFragment>
             validateDataAnnotations,
             onChangeDebounce,
             optionsName,
-            logger
+            logger,
+            readValidationMode: readValidationMode
         ) { }
 
     /// <summary>Creates options backed by sources and registration-level property write routes.</summary>
@@ -92,7 +103,8 @@ public sealed class ConfiglueOptions<TModel, TFragment>
         bool validateDataAnnotations = true,
         TimeSpan? onChangeDebounce = null,
         string? optionsName = null,
-        ILogger? logger = null
+        ILogger? logger = null,
+        ReadValidationMode readValidationMode = ReadValidationMode.EffectiveThrow
     )
         : this(
             sourceSet,
@@ -104,7 +116,8 @@ public sealed class ConfiglueOptions<TModel, TFragment>
             onChangeDebounce,
             optionsName,
             logger,
-            cloneStrategy: null
+            cloneStrategy: null,
+            readValidationMode: readValidationMode
         ) { }
 
     /// <summary>Creates options with a custom model clone strategy.</summary>
@@ -118,7 +131,8 @@ public sealed class ConfiglueOptions<TModel, TFragment>
         TimeSpan? onChangeDebounce,
         string? optionsName,
         ILogger? logger,
-        Func<TModel, TModel>? cloneStrategy
+        Func<TModel, TModel>? cloneStrategy,
+        ReadValidationMode readValidationMode = ReadValidationMode.EffectiveThrow
     )
     {
         ArgumentNullException.ThrowIfNull(sourceSet);
@@ -132,6 +146,7 @@ public sealed class ConfiglueOptions<TModel, TFragment>
         _optionsName = optionsName ?? string.Empty;
         _logger = logger;
         _validateDataAnnotations = validateDataAnnotations;
+        _readValidationMode = readValidationMode;
         _onChangeDebounce = onChangeDebounce ?? TimeSpan.FromMilliseconds(300);
         if (_onChangeDebounce < TimeSpan.Zero)
         {
@@ -441,6 +456,24 @@ public sealed class ConfiglueOptions<TModel, TFragment>
                         .ConfigureAwait(false);
                 }
 
+                // Read validation governs source state; proposal resolutions (replacements)
+                // are validated by their write paths instead.
+                if (replacements is null && _readValidationMode == ReadValidationMode.StrictThrow)
+                {
+                    ValidateContribution(source, fragment);
+                }
+                else if (
+                    replacements is null
+                    && _readValidationMode == ReadValidationMode.IgnoreValue
+                )
+                {
+                    var pruned = PruneInvalidMembers(source, fragment);
+                    if (pruned is TFragment prunedFragment)
+                    {
+                        fragment = prunedFragment;
+                    }
+                }
+
                 contributions.Add(
                     new ResolvedContribution(source, result with { Value = fragment })
                 );
@@ -501,6 +534,10 @@ public sealed class ConfiglueOptions<TModel, TFragment>
         }
 
         var model = TModel.FromFragment(merged);
+        if (replacements is null)
+        {
+            ValidateResolvedModel(model, merged);
+        }
         var active = contributions.FirstOrDefault();
         var resolvedResult = StateReadResult<TModel>.Success(
             model,
@@ -3973,6 +4010,15 @@ public sealed class ConfiglueOptions<TModel, TFragment>
 
     private void Validate(TModel value)
     {
+        var failures = CollectValidationFailures(value);
+        if (failures.Count > 0)
+        {
+            throw new ConfiglueValidationException(_optionsName, typeof(TModel), failures);
+        }
+    }
+
+    private List<string> CollectValidationFailures(TModel value)
+    {
         var failures = new List<string>();
         foreach (var validator in _validators)
         {
@@ -3995,11 +4041,192 @@ public sealed class ConfiglueOptions<TModel, TFragment>
             );
         }
 
-        if (failures.Count > 0)
+        return failures;
+    }
+
+    private void ValidateContribution(StateSource<TFragment> source, IConfiglueFragment fragment)
+    {
+        var failures = new List<string>();
+        CollectMemberFailures(fragment.Schema, fragment, string.Empty, failures);
+        if (failures.Count == 0)
         {
-            throw new ConfiglueValidationException(_optionsName, typeof(TModel), failures);
+            return;
+        }
+
+        _logger?.LogWarning(
+            ReadValidationEvent,
+            "Configuration source {SourceId} contributed invalid values for {ModelType} options {OptionsName}: {Failures}.",
+            source.Id,
+            typeof(TModel).FullName,
+            _optionsName,
+            string.Join("; ", failures)
+        );
+        throw new ConfiglueValidationException(
+            _optionsName,
+            typeof(TModel),
+            failures.Select(failure => $"Source '{source.Id}': {failure}")
+        );
+    }
+
+    private IConfiglueFragment PruneInvalidMembers(
+        StateSource<TFragment> source,
+        IConfiglueFragment fragment
+    )
+    {
+        var failures = new List<string>();
+        var invalidIds = new List<int>();
+        CollectMemberFailures(fragment.Schema, fragment, string.Empty, failures, invalidIds);
+        if (failures.Count == 0)
+        {
+            return fragment;
+        }
+
+        _logger?.LogWarning(
+            ReadValidationEvent,
+            "Ignoring invalid values from configuration source {SourceId} for {ModelType} options {OptionsName}: {Failures}.",
+            source.Id,
+            typeof(TModel).FullName,
+            _optionsName,
+            string.Join("; ", failures)
+        );
+        foreach (var memberId in invalidIds)
+        {
+            try
+            {
+                fragment = fragment.WithoutMember(memberId);
+            }
+            catch (NotSupportedException)
+            {
+                break;
+            }
+        }
+
+        return fragment;
+    }
+
+    private void ValidateResolvedModel(TModel model, IConfiglueFragment merged)
+    {
+        var failures = new List<string>();
+        CollectMemberFailures(merged.Schema, merged, string.Empty, failures);
+        failures.AddRange(CollectValidationFailures(model));
+        if (failures.Count == 0)
+        {
+            return;
+        }
+
+        _logger?.LogWarning(
+            ReadValidationEvent,
+            "Resolved configuration for {ModelType} options {OptionsName} failed validation: {Failures}.",
+            typeof(TModel).FullName,
+            _optionsName,
+            string.Join("; ", failures)
+        );
+        throw new ConfiglueValidationException(_optionsName, typeof(TModel), failures);
+    }
+
+    private static void CollectMemberFailures(
+        ConfiglueModelSchema schema,
+        IConfiglueFragment fragment,
+        string prefix,
+        List<string> failures,
+        List<int>? invalidMemberIds = null
+    )
+    {
+        if (!RuntimeFeature.IsDynamicCodeSupported)
+        {
+            return;
+        }
+
+        foreach (var present in fragment.EnumeratePresentMembers())
+        {
+            var member = schema
+                .Members.Where(candidate => candidate.Id == present.Id)
+                .Cast<ConfiglueMemberSchema?>()
+                .FirstOrDefault();
+            if (member is not { } found)
+            {
+                continue;
+            }
+
+            var path = prefix + found.Name;
+            if (found.NestedSchemaFactory is not null && present.Value is IConfiglueFragment nested)
+            {
+                var nestedCount = failures.Count;
+                CollectMemberFailures(
+                    found.NestedSchemaFactory(),
+                    nested,
+                    path + ".",
+                    failures,
+                    invalidMemberIds: null
+                );
+                if (failures.Count != nestedCount)
+                {
+                    invalidMemberIds?.Add(found.Id);
+                }
+
+                continue;
+            }
+
+            if (
+                CollectMemberAttributeFailures(
+                    schema.ModelType,
+                    found.Name,
+                    present.Value,
+                    out var message
+                )
+            )
+            {
+                failures.Add($"{path}: {message}");
+                invalidMemberIds?.Add(found.Id);
+            }
         }
     }
+
+    [RequiresUnreferencedCode(
+        "Member validation reflects over model properties that trimming may remove."
+    )]
+    [RequiresDynamicCode("Member validation inspects model properties at runtime.")]
+    private static bool CollectMemberAttributeFailures(
+        Type modelType,
+        string memberName,
+        object? value,
+        out string message
+    )
+    {
+        var failure = GetMemberValidationAttributes(modelType, memberName)
+            .Where(attribute => !attribute.IsValid(value))
+            .Select(attribute => attribute.FormatErrorMessage(memberName))
+            .FirstOrDefault();
+        if (failure is null)
+        {
+            message = string.Empty;
+            return false;
+        }
+
+        message = failure;
+        return true;
+    }
+
+    [RequiresUnreferencedCode(
+        "Member validation reflects over model properties that trimming may remove."
+    )]
+    [RequiresDynamicCode("Member validation inspects model properties at runtime.")]
+    private static ValidationAttribute[] GetMemberValidationAttributes(
+        Type modelType,
+        string memberName
+    ) =>
+        MemberValidationAttributes.GetOrAdd(
+            (modelType, memberName),
+            static key =>
+                key.ModelType.GetProperty(
+                        key.MemberName,
+                        BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase
+                    )
+                    ?.GetCustomAttributes(typeof(ValidationAttribute), inherit: true)
+                    .OfType<ValidationAttribute>()
+                    .ToArray()
+                ?? []
+        );
 
     private async ValueTask<TFragment> MigrateAsync(
         TFragment value,
@@ -4699,6 +4926,7 @@ public sealed class ConfiglueOptions<TModel, TFragment>
         {
             StateReadStatus.NotFound => (condition & StateFallbackCondition.NotFound) != 0,
             StateReadStatus.Unavailable => (condition & StateFallbackCondition.Unavailable) != 0,
+            StateReadStatus.Invalid => (condition & StateFallbackCondition.Invalid) != 0,
             _ => false,
         };
 }
