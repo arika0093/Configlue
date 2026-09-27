@@ -200,6 +200,7 @@ namespace Configlue
     }
     public static class ConfiglueStandardPaths
     {
+        public static string GetSharedLockDirectory() { }
         public static string GetStandardSaveDirectory(string applicationId) { }
     }
     public sealed class FallbackStateSource<T> : Configlue.IStateReader<T>, Configlue.IStateWatcher, Configlue.IStateWriter<T>
@@ -235,6 +236,7 @@ namespace Configlue
         public bool CreateBackup { get; init; }
         public System.TimeSpan LockAcquireRetryDelay { get; init; }
         public System.TimeSpan? LockAcquireTimeout { get; init; }
+        public string? LockDirectory { get; init; }
         public int RetryCount { get; init; }
         public System.TimeSpan RetryDelay { get; init; }
         public System.Func<int, System.TimeSpan>? RetryDelayFactory { get; init; }

@@ -307,10 +307,11 @@ public sealed class FileResourceTests
     {
         var directory = CreateTemporaryDirectory();
         var path = System.IO.Path.Combine(directory, "settings.json");
-        var lockPath = System.IO.Path.Combine(directory, ".settings.json.configlue.lock");
+        var lockPath = FileResource.ResolveLockPathForTests(path);
         try
         {
             using var resource = new FileResource(path);
+            lockPath = resource.LockPathForTests;
             await resource.WriteAsync(
                 new ResourceWriteRequest(Encoding.UTF8.GetBytes("{\"value\":1}"))
             );
@@ -323,6 +324,78 @@ public sealed class FileResourceTests
         finally
         {
             DeleteDirectory(directory);
+            DeleteFileIfExists(lockPath);
+        }
+    }
+
+    [Test]
+    public void FileResource_PlacesTheSidecarLockOutsideTheResourceDirectoryByDefault()
+    {
+        var directory = CreateTemporaryDirectory();
+        var path = System.IO.Path.Combine(directory, "settings.json");
+        try
+        {
+            using var resource = new FileResource(path);
+            var lockPath = resource.LockPathForTests;
+            lockPath.ShouldStartWith(
+                ConfiglueStandardPaths.GetSharedLockDirectory()
+                    + System.IO.Path.DirectorySeparatorChar
+            );
+            System.IO.Path.GetDirectoryName(lockPath).ShouldNotBe(directory);
+            File.Exists(System.IO.Path.Combine(directory, ".settings.json.configlue.lock"))
+                .ShouldBeFalse();
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+            DeleteFileIfExists(FileResource.ResolveLockPathForTests(path));
+        }
+    }
+
+    [Test]
+    public void FileResource_SupportsLegacyCoLocatedLocksWithSlashDirectory()
+    {
+        var directory = CreateTemporaryDirectory();
+        var path = System.IO.Path.Combine(directory, "settings.json");
+        try
+        {
+            using var resource = new FileResource(
+                path,
+                new FileResourceOptions { LockDirectory = "/" }
+            );
+            resource.LockPathForTests.ShouldBe(
+                System.IO.Path.Combine(directory, ".settings.json.configlue.lock")
+            );
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    [Test]
+    public void FileResource_HonorsCustomLockDirectories()
+    {
+        var directory = CreateTemporaryDirectory();
+        var customDirectory = CreateTemporaryDirectory();
+        var path = System.IO.Path.Combine(directory, "settings.json");
+        try
+        {
+            using var resource = new FileResource(
+                path,
+                new FileResourceOptions { LockDirectory = customDirectory }
+            );
+            resource.LockPathForTests.ShouldStartWith(
+                System.IO.Path.GetFullPath(customDirectory) + System.IO.Path.DirectorySeparatorChar
+            );
+            FileResource
+                .ResolveLockPathForTests(path, customDirectory)
+                .ShouldBe(resource.LockPathForTests);
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+            DeleteDirectory(customDirectory);
         }
     }
 
@@ -364,13 +437,17 @@ public sealed class FileResourceTests
     public async Task FileResource_WritesToDifferentPathsDoNotBlockEachOther()
     {
         var directory = CreateTemporaryDirectory();
-        var lockPath = System.IO.Path.Combine(directory, ".a.json.configlue.lock");
+        var targetPath = System.IO.Path.Combine(directory, "b.json");
+        var otherLockPath = FileResource.ResolveLockPathForTests(
+            System.IO.Path.Combine(directory, "a.json")
+        );
         try
         {
             Directory.CreateDirectory(directory);
+            Directory.CreateDirectory(System.IO.Path.GetDirectoryName(otherLockPath)!);
             using (
                 var _ = new FileStream(
-                    lockPath,
+                    otherLockPath,
                     FileMode.OpenOrCreate,
                     FileAccess.ReadWrite,
                     FileShare.None
@@ -378,7 +455,7 @@ public sealed class FileResourceTests
             )
             {
                 using var resource = new FileResource(
-                    System.IO.Path.Combine(directory, "b.json"),
+                    targetPath,
                     new FileResourceOptions { LockAcquireTimeout = TimeSpan.FromSeconds(10) }
                 );
                 await resource.WriteAsync(
@@ -386,11 +463,13 @@ public sealed class FileResourceTests
                 );
             }
 
-            File.Exists(System.IO.Path.Combine(directory, "b.json")).ShouldBeTrue();
+            File.Exists(targetPath).ShouldBeTrue();
         }
         finally
         {
             DeleteDirectory(directory);
+            DeleteFileIfExists(otherLockPath);
+            DeleteFileIfExists(FileResource.ResolveLockPathForTests(targetPath));
         }
     }
 
@@ -399,10 +478,11 @@ public sealed class FileResourceTests
     {
         var directory = CreateTemporaryDirectory();
         var path = System.IO.Path.Combine(directory, "settings.json");
-        var lockPath = System.IO.Path.Combine(directory, ".settings.json.configlue.lock");
+        var lockPath = FileResource.ResolveLockPathForTests(path);
         try
         {
             Directory.CreateDirectory(directory);
+            Directory.CreateDirectory(System.IO.Path.GetDirectoryName(lockPath)!);
             using (
                 var _ = new FileStream(
                     lockPath,
@@ -432,6 +512,7 @@ public sealed class FileResourceTests
         finally
         {
             DeleteDirectory(directory);
+            DeleteFileIfExists(lockPath);
         }
     }
 
@@ -440,10 +521,11 @@ public sealed class FileResourceTests
     {
         var directory = CreateTemporaryDirectory();
         var path = System.IO.Path.Combine(directory, "settings.json");
-        var lockPath = System.IO.Path.Combine(directory, ".settings.json.configlue.lock");
+        var lockPath = FileResource.ResolveLockPathForTests(path);
         try
         {
             Directory.CreateDirectory(directory);
+            Directory.CreateDirectory(System.IO.Path.GetDirectoryName(lockPath)!);
             using (
                 var _ = new FileStream(
                     lockPath,
@@ -472,6 +554,7 @@ public sealed class FileResourceTests
         finally
         {
             DeleteDirectory(directory);
+            DeleteFileIfExists(lockPath);
         }
     }
 
@@ -559,13 +642,9 @@ public sealed class FileResourceTests
             name = "." + name;
         }
 
-        name += "_" + DateTime.UtcNow.Ticks.ToString(
-            System.Globalization.CultureInfo.InvariantCulture
-        );
-        return System.IO.Path.Combine(
-            directory,
-            name + System.IO.Path.GetExtension(path) + ".bak"
-        );
+        name +=
+            "_" + DateTime.UtcNow.Ticks.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        return System.IO.Path.Combine(directory, name + System.IO.Path.GetExtension(path) + ".bak");
     }
 
     private static byte[] SerializeFragment(
@@ -584,6 +663,19 @@ public sealed class FileResourceTests
         {
             Directory.Delete(directory, recursive: true);
         }
+    }
+
+    private static void DeleteFileIfExists(string path)
+    {
+        try
+        {
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
+        }
+        catch (IOException) { }
+        catch (UnauthorizedAccessException) { }
     }
 
     private sealed class DirectoryCleanup(string directory) : IDisposable
