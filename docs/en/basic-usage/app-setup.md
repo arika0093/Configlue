@@ -44,6 +44,16 @@ using Configlue.Extensions.MSOptions;
 services.AddConfiglueMicrosoftOptions<UserSettings>();
 ```
 
+When a source path or provider comes from DI, use the provider-aware callback. Model registration still runs while `IServiceCollection` is mutable; this callback runs when the runtime source set is created:
+
+```csharp
+model.Sources((provider, sources) =>
+{
+    var paths = provider!.GetRequiredService<ISettingsPathProvider>();
+    sources.FromJsonFile(new JsonFileSourceOptions { Path = paths.SettingsFile });
+});
+```
+
 An already materialized `IOptionsSnapshot<T>` keeps its value for that scope, as snapshots normally do.
 
 For consumers that need the model itself, set `RegisterAsSingleton = true` on the default model registration. DI creates the model singleton from the current options value when the model is first resolved. The injected model keeps that snapshot after later source changes; use an options interface when a consumer needs current values or change notifications. This setting takes effect with `AddConfiglue` and requires the default options name.

@@ -149,6 +149,58 @@ public sealed class ConfiglueFacadeTests
     }
 
     [Test]
+    public async Task DiFacadeResolvesSourceConfigurationAfterStructuralRegistration()
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton(new SettingsSourceValue("from-provider"));
+        var sourceConfigurationCalls = 0;
+        services.AddConfiglue(builder =>
+        {
+            builder.Add<AppSettings>(model =>
+                model.Sources(
+                    (provider, sources) =>
+                    {
+                        sourceConfigurationCalls++;
+                        var sourceValue = provider!.GetRequiredService<SettingsSourceValue>();
+                        sources.Add(CreateSource("provider-source", sourceValue.Value));
+                    }
+                )
+            );
+        });
+
+        (sourceConfigurationCalls).ShouldBe(0);
+        await using var provider = services.BuildServiceProvider();
+        var options = provider.GetRequiredService<IReadOnlyOptions<AppSettings>>();
+
+        (sourceConfigurationCalls).ShouldBe(1);
+        (await options.GetValueAsync()).Label.ShouldBe("from-provider");
+        (sourceConfigurationCalls).ShouldBe(1);
+    }
+
+    [Test]
+    public async Task ProviderAwareSourcesSupportContextsWithoutDependencyInjection()
+    {
+        var receivedNullProvider = false;
+        await using var context = ConfiglueApp.CreateContext(builder =>
+        {
+            builder.Add<AppSettings>(model =>
+                model.Sources(
+                    (provider, sources) =>
+                    {
+                        receivedNullProvider = provider is null;
+                        sources.Add(CreateSource("non-di-provider-source", "without-provider"));
+                    }
+                )
+            );
+        });
+
+        (receivedNullProvider).ShouldBeTrue();
+        (await context.GetOptions<AppSettings>().GetValueAsync()).Label.ShouldBe(
+            "without-provider"
+        );
+    }
+
+    [Test]
     public async Task DiFacadeRegistersNamedInstancesAsKeyedAndMicrosoftOptions()
     {
         var services = new ServiceCollection();
@@ -594,4 +646,6 @@ public sealed class ConfiglueFacadeTests
         );
         return new StateSource<AppSettings.Fragment>(id, store, writer: store, watcher: store);
     }
+
+    private sealed record SettingsSourceValue(string Value);
 }

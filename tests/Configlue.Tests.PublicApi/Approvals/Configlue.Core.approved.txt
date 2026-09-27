@@ -79,7 +79,9 @@ namespace Configlue
             where TFragment :  class, Configlue.IConfiglueFragment<TFragment> { }
         public System.Collections.Generic.IReadOnlyList<Configlue.IConfiglueValidator<TModel>> GetValidators(System.IServiceProvider? serviceProvider) { }
         public void Sources(System.Action<Configlue.ConfiglueSourceSetBuilder> configure) { }
+        public void Sources(System.Action<System.IServiceProvider?, Configlue.ConfiglueSourceSetBuilder> configure) { }
         public void SourcesForOptions(System.Action<string, Configlue.ConfiglueSourceSetBuilder> configure) { }
+        public void SourcesForOptions(System.Action<string, System.IServiceProvider?, Configlue.ConfiglueSourceSetBuilder> configure) { }
         public void UseCloneStrategy(System.Func<TModel, TModel> cloneStrategy) { }
     }
     public sealed class ConfiglueOptionsRegistry<TModel, TFragment> : Configlue.IConfiglueOptionsRegistryNotificationDeferrer<TModel>, Configlue.IConfiglueOptionsRegistry<TModel>, System.IAsyncDisposable, System.IDisposable
