@@ -633,13 +633,17 @@ internal sealed class ConfiglueModelRegistration<TModel>(ConfiglueModelBuilder<T
                         {
                             ArgumentNullException.ThrowIfNull(resource);
                             if (resourceSet.Add(resource))
+                            {
                                 resources.Add(resource);
+                            }
                         }
                     );
                     if (runtime is not IDisposable || runtime is not IAsyncDisposable)
+                    {
                         throw new InvalidOperationException(
                             $"The generated runtime for model '{typeof(TModel)}' must support disposal."
                         );
+                    }
                     return (runtime, resources.ToArray());
                 }
                 catch (Exception creationException)
@@ -648,9 +652,13 @@ internal sealed class ConfiglueModelRegistration<TModel>(ConfiglueModelBuilder<T
                     try
                     {
                         if (runtime is IAsyncDisposable asyncDisposable)
+                        {
                             asyncDisposable.DisposeAsync().AsTask().GetAwaiter().GetResult();
+                        }
                         else if (runtime is IDisposable disposable)
+                        {
                             disposable.Dispose();
+                        }
                     }
                     catch (Exception cleanupException)
                     {

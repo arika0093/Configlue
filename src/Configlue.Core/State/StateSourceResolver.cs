@@ -140,7 +140,23 @@ public sealed class StateSourceResolver<T> : IStateReader<T>
             .ToArray();
     }
 
-    private sealed record Resolution(StateSource<T>? ActiveSource, StateRevisionVector Revisions);
+    private sealed record Resolution
+    {
+        public StateSource<T>? ActiveSource { get; init; }
+        public StateRevisionVector Revisions { get; init; }
+
+        public Resolution(StateSource<T>? ActiveSource, StateRevisionVector Revisions)
+        {
+            this.ActiveSource = ActiveSource;
+            this.Revisions = Revisions;
+        }
+
+        public void Deconstruct(out StateSource<T>? ActiveSource, out StateRevisionVector Revisions)
+        {
+            ActiveSource = this.ActiveSource;
+            Revisions = this.Revisions;
+        }
+    }
 
     private static bool CanFallBack(StateFallbackCondition condition, StateReadStatus status) =>
         status switch
@@ -152,7 +168,20 @@ public sealed class StateSourceResolver<T> : IStateReader<T>
         };
 }
 
-internal readonly record struct StateSourceWatchTarget<T>(
-    StateSource<T> Source,
-    string? ObservedRevision
-);
+internal readonly record struct StateSourceWatchTarget<T>
+{
+    public StateSource<T> Source { get; init; }
+    public string? ObservedRevision { get; init; }
+
+    public StateSourceWatchTarget(StateSource<T> Source, string? ObservedRevision)
+    {
+        this.Source = Source;
+        this.ObservedRevision = ObservedRevision;
+    }
+
+    public void Deconstruct(out StateSource<T> Source, out string? ObservedRevision)
+    {
+        Source = this.Source;
+        ObservedRevision = this.ObservedRevision;
+    }
+}

@@ -530,12 +530,55 @@ public static class HttpResourceEndpointRouteBuilderExtensions
         }
     }
 
-    private sealed record ValidatedOptions(
-        string GetPath,
-        string UpdatePath,
-        string ContentType,
-        string MediaType
-    );
+    private sealed record ValidatedOptions
+    {
+        public string GetPath { get; init; }
+        public string UpdatePath { get; init; }
+        public string ContentType { get; init; }
+        public string MediaType { get; init; }
 
-    private sealed record ParsedIfNoneMatch(bool Wildcard, string? Tag);
+        public ValidatedOptions(
+            string GetPath,
+            string UpdatePath,
+            string ContentType,
+            string MediaType
+        )
+        {
+            this.GetPath = GetPath;
+            this.UpdatePath = UpdatePath;
+            this.ContentType = ContentType;
+            this.MediaType = MediaType;
+        }
+
+        public void Deconstruct(
+            out string GetPath,
+            out string UpdatePath,
+            out string ContentType,
+            out string MediaType
+        )
+        {
+            GetPath = this.GetPath;
+            UpdatePath = this.UpdatePath;
+            ContentType = this.ContentType;
+            MediaType = this.MediaType;
+        }
+    }
+
+    private sealed record ParsedIfNoneMatch
+    {
+        public bool Wildcard { get; init; }
+        public string? Tag { get; init; }
+
+        public ParsedIfNoneMatch(bool Wildcard, string? Tag)
+        {
+            this.Wildcard = Wildcard;
+            this.Tag = Tag;
+        }
+
+        public void Deconstruct(out bool Wildcard, out string? Tag)
+        {
+            Wildcard = this.Wildcard;
+            Tag = this.Tag;
+        }
+    }
 }

@@ -283,13 +283,45 @@ public sealed class CommandLineMappingBuilder
         _mappings.Add(new Mapping(symbol, path, resolve));
     }
 
-    internal readonly record struct MappingValue(object? Value);
+    internal readonly record struct MappingValue
+    {
+        public object? Value { get; init; }
 
-    internal sealed record Mapping(
-        Symbol Symbol,
-        string PropertyPath,
-        Func<ParseResult, MappingValue?> Resolve
-    );
+        public MappingValue(object? Value)
+        {
+            this.Value = Value;
+        }
+
+        public void Deconstruct(out object? Value)
+        {
+            Value = this.Value;
+        }
+    }
+
+    internal sealed record Mapping
+    {
+        public Symbol Symbol { get; init; }
+        public string PropertyPath { get; init; }
+        public Func<ParseResult, MappingValue?> Resolve { get; init; }
+
+        public Mapping(Symbol Symbol, string PropertyPath, Func<ParseResult, MappingValue?> Resolve)
+        {
+            this.Symbol = Symbol;
+            this.PropertyPath = PropertyPath;
+            this.Resolve = Resolve;
+        }
+
+        public void Deconstruct(
+            out Symbol Symbol,
+            out string PropertyPath,
+            out Func<ParseResult, MappingValue?> Resolve
+        )
+        {
+            Symbol = this.Symbol;
+            PropertyPath = this.PropertyPath;
+            Resolve = this.Resolve;
+        }
+    }
 }
 
 /// <summary>Registers sparse sources from an existing System.CommandLine parse result.</summary>

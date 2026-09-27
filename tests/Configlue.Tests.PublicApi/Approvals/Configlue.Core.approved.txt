@@ -317,6 +317,7 @@ namespace Configlue
         public StateWriteRoute(string? SourceId = null) { }
         public string? SourceId { get; init; }
         public static Configlue.StateWriteRoute HighestPriorityWritable { get; }
+        public void Deconstruct(out string? SourceId) { }
         public static Configlue.StateWriteRoute To(string sourceId) { }
         public static Configlue.StateWriteRoute To<TModel>(Configlue.SourceKey<TModel> sourceKey) { }
     }

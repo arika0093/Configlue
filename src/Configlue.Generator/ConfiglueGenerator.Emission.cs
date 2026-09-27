@@ -487,9 +487,9 @@ public sealed partial class ConfiglueGenerator
             code.AppendLineAt(1, "{");
             code.AppendLineAt(
                 2,
-                "if (__configlue_clone_context.TryGetValue(value, out var existing)) return ("
+                "if (__configlue_clone_context.TryGetValue(value, out var existing)) { return ("
                     + typeName
-                    + ")existing;"
+                    + ")existing; }"
             );
             code.AppendIndent(2).Append("var clone = new ").Append(typeName).AppendLine("();");
             code.AppendLineAt(2, "__configlue_clone_context.Add(value, clone);");

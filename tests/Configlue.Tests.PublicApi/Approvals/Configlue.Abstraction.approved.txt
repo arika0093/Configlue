@@ -19,6 +19,7 @@ namespace Configlue
         public int Index { get; init; }
         public System.Collections.Generic.IReadOnlyList<int> SourceIndices { get; init; }
         public object? Value { get; init; }
+        public void Deconstruct(out int Index, out object? Value, out System.Collections.Generic.IReadOnlyList<int> SourceIndices) { }
     }
     [System.Diagnostics.DebuggerDisplay("{Value}")]
     public sealed class ConfigCollectionElementDetails<T>
@@ -104,6 +105,7 @@ namespace Configlue
         public int Id { get; init; }
         public string Name { get; init; }
         public object? Value { get; init; }
+        public void Deconstruct(out int Id, out string Name, out object? Value) { }
     }
     public static class ConfiglueMemberExtensions
     {
@@ -127,6 +129,7 @@ namespace Configlue
         public string Name { get; init; }
         public System.Func<Configlue.ConfiglueModelSchema>? NestedSchemaFactory { get; init; }
         public System.Type ValueType { get; init; }
+        public void Deconstruct(out int Id, out string Name, out System.Type ValueType, out Configlue.MergeMode MergeMode, out System.Func<object, object?>? GetValue, out System.Func<Configlue.ConfiglueModelSchema>? NestedSchemaFactory, out System.Func<System.Collections.Generic.IEnumerable<object?>, object?>? CollectionValueFactory, out string? EnvironmentVariableName, out Configlue.IConfiglueMergeStrategy? MergeStrategy) { }
     }
     [System.AttributeUsage(System.AttributeTargets.Property, Inherited=true)]
     public sealed class ConfiglueMergeAttribute : System.Attribute
@@ -147,12 +150,14 @@ namespace Configlue
         public ConfiglueMergeSourceValue(string SourceId, Configlue.Optional<object?> Value) { }
         public string SourceId { get; init; }
         public Configlue.Optional<object?> Value { get; init; }
+        public void Deconstruct(out string SourceId, out Configlue.Optional<object?> Value) { }
     }
     public readonly struct ConfiglueMergeSourceValue<T> : System.IEquatable<Configlue.ConfiglueMergeSourceValue<T>>
     {
         public ConfiglueMergeSourceValue(string SourceId, Configlue.Optional<T> Value) { }
         public string SourceId { get; init; }
         public Configlue.Optional<T> Value { get; init; }
+        public void Deconstruct(out string SourceId, out Configlue.Optional<T> Value) { }
     }
     public abstract class ConfiglueMergeStrategy<T> : Configlue.IConfiglueMergeStrategy
     {
@@ -521,6 +526,7 @@ namespace Configlue
         public string? Revision { get; init; }
         public Configlue.StateSchemaMetadata? Schema { get; init; }
         public Configlue.StateReadStatus Status { get; init; }
+        public void Deconstruct(out Configlue.StateReadStatus Status, out System.ReadOnlyMemory<byte> Content, out string? Revision, out Configlue.StateSchemaMetadata? Schema) { }
         public static Configlue.ResourceReadResult NotFound(string? revision = null) { }
         public static Configlue.ResourceReadResult Success(System.ReadOnlyMemory<byte> content, string? revision = null, Configlue.StateSchemaMetadata? schema = default) { }
         public static Configlue.ResourceReadResult Unavailable(string? revision = null) { }
@@ -544,6 +550,7 @@ namespace Configlue
         public System.ReadOnlyMemory<byte> Content { get; init; }
         public string? ExpectedRevision { get; init; }
         public Configlue.StateSchemaMetadata? Schema { get; init; }
+        public void Deconstruct(out System.ReadOnlyMemory<byte> Content, out string? ExpectedRevision, out Configlue.StateSchemaMetadata? Schema, out bool CheckRevision) { }
     }
     public readonly struct SourceKey<TModel> : System.IEquatable<Configlue.SourceKey<TModel>>
     {
@@ -595,6 +602,7 @@ namespace Configlue
         public string? SourceId { get; init; }
         public Configlue.StateReadStatus Status { get; init; }
         public T Value { get; init; }
+        public void Deconstruct(out Configlue.StateReadStatus Status, out T? Value, out string? Revision, out string? SourceId, out string? PhysicalOrigin, out Configlue.StateSchemaMetadata? Schema, out Configlue.StateRevisionVector? Revisions) { }
         public Configlue.StateReadResult<T> FromSource(string sourceId, string? physicalOrigin = null) { }
         public static Configlue.StateReadResult<T> Invalid(T? value, string? revision = null) { }
         public static Configlue.StateReadResult<T> NotFound(string? revision = null) { }
@@ -613,6 +621,7 @@ namespace Configlue
         public StateRevision(string SourceId, string? Revision) { }
         public string? Revision { get; init; }
         public string SourceId { get; init; }
+        public void Deconstruct(out string SourceId, out string? Revision) { }
     }
     public sealed class StateRevisionVector
     {
@@ -636,6 +645,7 @@ namespace Configlue
         public StateSchemaMetadata(string? ModelId, int Version) { }
         public string? ModelId { get; init; }
         public int Version { get; init; }
+        public void Deconstruct(out string? ModelId, out int Version) { }
     }
     public sealed class StateSchemaMigrationChain<T>
     {
@@ -655,6 +665,7 @@ namespace Configlue
         public string? SourceRevision { get; init; }
         public string TargetId { get; init; }
         public string? TargetRevision { get; init; }
+        public void Deconstruct(out string SourceId, out string TargetId, out string? SourceRevision, out string? TargetRevision) { }
     }
     public sealed class StateSourcePatch : System.IEquatable<Configlue.StateSourcePatch>
     {
@@ -684,6 +695,7 @@ namespace Configlue
         public Configlue.ResourceId? ResourceId { get; init; }
         public string? Revision { get; init; }
         public string SourceId { get; init; }
+        public void Deconstruct(out string SourceId, out Configlue.ResourceId? ResourceId, out string? Revision) { }
     }
     public sealed class StateSource<T>
     {
@@ -735,6 +747,7 @@ namespace Configlue
         public string TargetId { get; init; }
         public string? TargetRevision { get; init; }
         public bool WasAlreadyCurrent { get; init; }
+        public void Deconstruct(out string TargetId, out string? PreviousRevision, out string? TargetRevision, out bool WasAlreadyCurrent) { }
     }
     public sealed class StateStorageMigrationTarget<TFragment>
         where TFragment :  class, Configlue.IConfiglueFragment<TFragment>
@@ -749,6 +762,7 @@ namespace Configlue
         public Configlue.IResourceBatchWriter BatchWriter { get; init; }
         public Configlue.ResourceWriteMutation Mutation { get; init; }
         public Configlue.ResourceId ResourceId { get; init; }
+        public void Deconstruct(out Configlue.ResourceId ResourceId, out Configlue.IResourceBatchWriter BatchWriter, out Configlue.ResourceWriteMutation Mutation) { }
     }
     public sealed class StateWritePlan
     {
@@ -773,11 +787,13 @@ namespace Configlue
         public bool CheckRevision { get; init; }
         public string? ExpectedRevision { get; init; }
         public T Value { get; init; }
+        public void Deconstruct(out T Value, out string? ExpectedRevision, out bool CheckRevision) { }
     }
     public readonly struct StateWriteResult : System.IEquatable<Configlue.StateWriteResult>
     {
         public StateWriteResult(string? Revision) { }
         public Configlue.StateMultiWriteResult? MultiWriteResult { get; init; }
         public string? Revision { get; init; }
+        public void Deconstruct(out string? Revision) { }
     }
 }
