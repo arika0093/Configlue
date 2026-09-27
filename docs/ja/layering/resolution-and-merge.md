@@ -26,7 +26,8 @@ public partial class AppSettings
 
 * `Replace` — 優先度上位が全体で勝つ。
 * `Deep` — 入れ子メンバーを再帰マージ。
-* `Append` / `SetUnion` — コレクションを結合。編集は各対象ソースのコレクション断片にリベースされる。
+* `Append` — 順序付きコレクションを優先度の低い順につなぎ、重複を残す。set 型は重複と順序を保持できないため、generator がエラーにする。
+* `SetUnion` — 低優先度から結合し、既定の等価性で最初に現れた要素を残す。配列/list は順序を保ち、set 型の列挙順は未規定。編集は各対象ソースのコレクション断片にリベースされる。
 
 他ソース所有の値変更が必要な編集や、上位ソースに隠される編集は、黙って置換されず `StateConflictException` で失敗します。通常の編集はモデル型上の自然な C# のままです。生成メンバープロキシ (`builder.Value = 123`、`builder.Value.Set(123)`、`builder.Value.Unset()`、`builder.Value.CopyFrom(...)`) は上級のソースローカル表面です。
 

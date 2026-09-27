@@ -26,7 +26,8 @@ public partial class AppSettings
 
 * `Replace` — higher priority wins entirely.
 * `Deep` — nested members merge recursively.
-* `Append` / `SetUnion` — collections combine; edits are rebased onto each target source's collection segment.
+* `Append` — ordered collections concatenate from low to high priority and retain duplicates. The generator rejects set-typed members because sets cannot preserve duplicates or sequence order.
+* `SetUnion` — collections combine in low-to-high order and retain the first equal element. Arrays/lists preserve that order; set types have unspecified enumeration order. Edits are rebased onto each target source's collection segment.
 
 Edits that require changing values owned by another source or are hidden by a higher-priority source fail with `StateConflictException` instead of being silently replaced. Ordinary editing remains natural C# on the model type; the generated member proxies (`builder.Value = 123`, `builder.Value.Set(123)`, `builder.Value.Unset()`, `builder.Value.CopyFrom(...)`) are the advanced, source-local surface.
 
