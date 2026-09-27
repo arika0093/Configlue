@@ -1,13 +1,13 @@
 # Examples
 
-`Example.ConsoleApp` shows a generated settings model backed by a JSON file resource. Run it from the repository root:
+`Example.ConsoleApp` shows a generated settings model backed by a JSON file resource and registered through the Configlue facade context. Run it from the repository root:
 
 ```sh
 dotnet run --project example/Example.ConsoleApp
 dotnet run --project example/Example.ConsoleApp -- --set-name Ada
 ```
 
-The settings file is written beside the executable. The sample uses `IWritableOptions<T>` to read and save the generated model through the JSON state codec.
+The settings file is written beside the executable. The sample uses `IWritableOptions<T>` to read and save the generated model through the JSON state codec. It does not need a dependency injection container.
 
 `Example.SimpleApp` shows the same file-backed workflow without a dependency injection container. It constructs `ConfiglueOptions<TModel, TFragment>` directly:
 
