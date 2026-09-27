@@ -668,8 +668,8 @@ public sealed class ConfiglueOptions<TModel, TFragment>
                 }
 
                 if (
-                    !AreEditValuesEqual(beforeValue, currentValue)
-                    && !AreEditValuesEqual(desiredValue, currentValue)
+                    !AreEditValuesEqual(member, beforeValue, currentValue)
+                    && !AreEditValuesEqual(member, desiredValue, currentValue)
                 )
                 {
                     throw LogConflict(
@@ -704,8 +704,8 @@ public sealed class ConfiglueOptions<TModel, TFragment>
         )
         {
             if (
-                !AreEditValuesEqual(beforeValue, currentValue)
-                && !AreEditValuesEqual(desiredValue, currentValue)
+                !AreEditValuesEqual(member, beforeValue, currentValue)
+                && !AreEditValuesEqual(member, desiredValue, currentValue)
             )
             {
                 throw LogConflict(
@@ -723,7 +723,10 @@ public sealed class ConfiglueOptions<TModel, TFragment>
         {
             if (desired.Count < before.Count || !desired.Take(before.Count).SequenceEqual(before))
             {
-                if (!current.SequenceEqual(before) && !current.SequenceEqual(desired))
+                if (
+                    !AreEditValuesEqual(member, current, before)
+                    && !AreEditValuesEqual(member, current, desired)
+                )
                 {
                     throw LogConflict(
                         $"The configuration edit conflicts with a concurrent change to append-merged member '{propertyPath}'."
@@ -749,8 +752,8 @@ public sealed class ConfiglueOptions<TModel, TFragment>
             var removed = before.Where(value => !desired.Contains(value)).ToArray();
             if (
                 removed.Length > 0
-                && !current.SequenceEqual(before)
-                && !current.SequenceEqual(desired)
+                && !AreEditValuesEqual(member, current, before)
+                && !AreEditValuesEqual(member, current, desired)
             )
             {
                 throw LogConflict(
@@ -777,8 +780,8 @@ public sealed class ConfiglueOptions<TModel, TFragment>
         }
 
         if (
-            !AreEditValuesEqual(beforeValue, currentValue)
-            && !AreEditValuesEqual(desiredValue, currentValue)
+            !AreEditValuesEqual(member, beforeValue, currentValue)
+            && !AreEditValuesEqual(member, desiredValue, currentValue)
         )
         {
             throw LogConflict(
@@ -789,7 +792,11 @@ public sealed class ConfiglueOptions<TModel, TFragment>
         return null;
     }
 
-    private static bool AreEditValuesEqual(object? left, object? right)
+    private static bool AreEditValuesEqual(
+        ConfiglueMemberSchema member,
+        object? left,
+        object? right
+    )
     {
         if (ReferenceEquals(left, right))
         {
@@ -803,10 +810,30 @@ public sealed class ConfiglueOptions<TModel, TFragment>
             && right is not string
         )
         {
+            if (IsSetCollectionType(member.ValueType))
+            {
+                return new HashSet<object?>(leftValues.Cast<object?>()).SetEquals(
+                    rightValues.Cast<object?>()
+                );
+            }
+
             return leftValues.Cast<object?>().SequenceEqual(rightValues.Cast<object?>());
         }
 
         return Equals(left, right);
+    }
+
+    private static bool IsSetCollectionType(Type valueType)
+    {
+        if (!valueType.IsGenericType)
+        {
+            return false;
+        }
+
+        var definition = valueType.GetGenericTypeDefinition();
+        return definition == typeof(HashSet<>)
+            || definition == typeof(ISet<>)
+            || definition == typeof(IReadOnlySet<>);
     }
 
     /// <inheritdoc />

@@ -280,6 +280,18 @@ public sealed partial class ConfiglueGenerator : IIncrementalGenerator
                     )
                 );
             }
+
+            if (member.MergeMode == 2 && member.Collection.Kind == CollectionKind.Set)
+            {
+                diagnostics.Add(
+                    GeneratorDiagnosticInfo.Create(
+                        UnsupportedMerge,
+                        member.Property.Locations.FirstOrDefault(),
+                        "Append on set types (use an ordered collection or SetUnion)",
+                        member.Property.Name
+                    )
+                );
+            }
         }
 
         if (diagnostics.Count > 0)

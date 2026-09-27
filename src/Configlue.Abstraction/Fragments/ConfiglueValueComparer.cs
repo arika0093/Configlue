@@ -23,6 +23,12 @@ public static class ConfiglueValueComparer
             return false;
         }
 
+        if (IsSetType(typeof(T)))
+        {
+            var values = new HashSet<object?>(leftItems.Cast<object?>());
+            return values.SetEquals(rightItems.Cast<object?>());
+        }
+
         var leftEnumerator = leftItems.GetEnumerator();
         var rightEnumerator = rightItems.GetEnumerator();
         try
@@ -52,5 +58,18 @@ public static class ConfiglueValueComparer
             (leftEnumerator as IDisposable)?.Dispose();
             (rightEnumerator as IDisposable)?.Dispose();
         }
+    }
+
+    private static bool IsSetType(Type type)
+    {
+        if (!type.IsGenericType)
+        {
+            return false;
+        }
+
+        var definition = type.GetGenericTypeDefinition();
+        return definition == typeof(HashSet<>)
+            || definition == typeof(ISet<>)
+            || definition == typeof(IReadOnlySet<>);
     }
 }
