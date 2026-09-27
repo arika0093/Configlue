@@ -30,7 +30,7 @@ Configlue は Configuration.Writable 向けに検討されたソース&フラグ
 * 異なるリソース間の書き込みはアトミックではありません。
 * ソース退役は現行オプション実体の範囲で裏データを残します。将来の起動向けにアプリ登録の更新が必要です。
 * オプション実体の source set は固定です。動的オプションと永続プロファイルは、それぞれ独自の source set を持つ実体全体を作成/削除できます。アプリの構成を変更する場合は、新しい context を構築してアプリ側で切り替えます。検証済み移行では現行実体から source を退役できます。
-* migration journal は進捗を永続化しますが、複数プロセス間の排他はしません。同じ migration ID はアプリ側で同時実行を避けてください。
+* `FileStateStorageMigrationJournal` は migration ID ごとに実行全体のプロセス間 lease を保持します。`IStateStorageMigrationLeaseProvider` を実装しない独自 journal は、呼び出し側で同時実行を調整してください。
 * watcher は無効化シグナルを通知します。ポーリング・再試行・再接続の方針は provider 側の責務です。
 
 ## source 構成を実行時に変える場合の判断
