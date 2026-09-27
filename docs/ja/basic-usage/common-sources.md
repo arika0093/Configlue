@@ -18,7 +18,7 @@ config.Add<AppSettings>(model => model.UseCommonSources(new CommonSourceOptions
     EnvironmentPrefix = "EXAMPLE",
     CommandLineParseResult = parseResult,
     ConfigureCommandLineMappings = mappings => mappings.Map(portOption, "Server.Port"),
-    WriteLayer = CommonSourceWriteLayer.Global,
+    WriteLayer = CommonSourceWriteLayer.BestAvailable,
 }));
 ```
 
@@ -32,7 +32,7 @@ config.Add<AppSettings>(model => model.UseCommonSources(new CommonSourceOptions
 | `common.environment` | 400 | `EnableEnvironment` かつ `EnvironmentPrefix` 設定済み | 環境変数 | 不可 |
 | `common.commandLine` | 500 | `EnableCommandLine` かつ `CommandLineParseResult` 設定済み | 既存パース結果からのマッピング | 不可 |
 
-複数ソースに存在する項目は優先度が高い方が勝ちます。ファイルがない場合ファイルソースはフォールスルーし、それ以外の読み取り失敗は伝播します。`WriteLayer` で選んだファイルちょうど1つだけが書き込み可能で、無効・利用不可なファイル層を選ぶと登録時に例外になります。`SpecificFilePath` のコマンドライン選択は項目レベルのマッピングとは別物で、パース結果には `ConfigureCommandLineMappings` が必須です。層を省くには `Enable*` スイッチを、場所と保存先の変更には `LocalFilePath`・`SpecificFilePath`・`WriteLayer` を設定します。
+複数ソースに存在する項目は読み取り優先度が高い方を使います。ファイルがない場合ファイルソースはフォールスルーし、それ以外の読み取り失敗は伝播します。書き込み可能なファイルは1つです。`WriteLayer` の既定値は `Global` で、保存先を明示できます。`BestAvailable` は登録時に有効なファイル層から選びます。`*WritePriority` が高い層を先にし、次に既存の書き込み可能ファイル、書き込み可能な既存ディレクトリ、登録順 (global、local、specific) で決めます。既存ディレクトリの確認には終了時に削除される一時ファイルを使い、選択した保存先のディレクトリだけを作成します。選択は options runtime ごとに固定されます。後から権限が変わると書き込みに失敗する場合があります。読み取り優先度と書き込み先の選択は独立しています。`SpecificFilePath` のコマンドライン選択は項目レベルのマッピングとは別物で、パース結果には `ConfigureCommandLineMappings` が必須です。層を省くには `Enable*` スイッチを、場所と保存先の変更には `LocalFilePath`・`SpecificFilePath`・`WriteLayer`・`*WritePriority` を設定します。
 
 `ConfiglueStandardPaths.GetStandardSaveDirectory(applicationId)` はプラットフォーム標準のユーザー別構成ディレクトリにアプリ識別子を足したパスを返します。ファイル名はアプリが決めます。
 
