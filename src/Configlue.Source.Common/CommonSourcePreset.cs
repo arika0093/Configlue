@@ -145,33 +145,51 @@ public static class CommonSourcePreset
             ? null
             : Path.GetFullPath(options.SpecificFilePath);
 
-        var writeId = options.WriteLayer switch
+        var writeLayer = options.WriteLayer switch
         {
-            CommonSourceWriteLayer.Global => "common.global",
-            CommonSourceWriteLayer.Local => "common.local",
-            CommonSourceWriteLayer.Specific when specificPath is not null => "common.specific",
+            CommonSourceWriteLayer.Global => CommonSourceWriteLayer.Global,
+            CommonSourceWriteLayer.Local => CommonSourceWriteLayer.Local,
+            CommonSourceWriteLayer.Specific when specificPath is not null =>
+                CommonSourceWriteLayer.Specific,
             CommonSourceWriteLayer.Specific => throw new InvalidOperationException(
                 "The specific common source write layer requires a specific file path."
             ),
-            null when specificPath is not null => "common.specific",
-            null => "common.local",
+            null when specificPath is not null => CommonSourceWriteLayer.Specific,
+            null => CommonSourceWriteLayer.Local,
             _ => throw new ArgumentOutOfRangeException(nameof(options)),
         };
 
-        model.WriteRoute = StateWriteRoute.To(writeId);
         model.Sources(sources =>
         {
-            AddFile(sources, "common.global", globalPath, 100, options, options.GlobalFileFormat);
-            AddFile(sources, "common.local", localPath, 200, options, options.LocalFileFormat);
+            var priority = 0;
+            AddFile(
+                sources,
+                CommonSource.Global.SourceId,
+                globalPath,
+                priority++,
+                options,
+                options.GlobalFileFormat,
+                writeLayer != CommonSourceWriteLayer.Global
+            );
+            AddFile(
+                sources,
+                CommonSource.Local.SourceId,
+                localPath,
+                priority++,
+                options,
+                options.LocalFileFormat,
+                writeLayer != CommonSourceWriteLayer.Local
+            );
             if (specificPath is not null)
             {
                 AddFile(
                     sources,
-                    "common.specific",
+                    CommonSource.Specific.SourceId,
                     specificPath,
-                    300,
+                    priority++,
                     options,
-                    options.SpecificFileFormat
+                    options.SpecificFileFormat,
+                    writeLayer != CommonSourceWriteLayer.Specific
                 );
             }
 
@@ -180,9 +198,8 @@ public static class CommonSourcePreset
                 sources.FromEnvironment(
                     new EnvironmentSourceOptions
                     {
-                        Id = "common.environment",
                         Prefix = prefix,
-                        Priority = 400,
+                        Priority = priority,
                         FallbackCondition = StateFallbackCondition.NotFound,
                         EnvironmentVariables = options.EnvironmentVariables,
                     }
@@ -197,7 +214,8 @@ public static class CommonSourcePreset
         string path,
         int priority,
         CommonSourceOptions commonOptions,
-        CommonSourceFileFormat layerFormat
+        CommonSourceFileFormat layerFormat,
+        bool explicitOnly
     )
     {
         switch (ResolveFileFormat(layerFormat, commonOptions.FileFormat, path))
@@ -213,6 +231,7 @@ public static class CommonSourcePreset
                         PropertyNamingPolicy = commonOptions.YamlPropertyNamingPolicy,
                         SerializerOptions = commonOptions.YamlSerializerOptions,
                         ResourceOptions = commonOptions.FileResourceOptions,
+                        ExplicitOnly = explicitOnly,
                     }
                 );
                 break;
@@ -225,6 +244,7 @@ public static class CommonSourcePreset
                         Priority = priority,
                         FallbackCondition = StateFallbackCondition.NotFound,
                         ResourceOptions = commonOptions.FileResourceOptions,
+                        ExplicitOnly = explicitOnly,
                     }
                 );
                 break;
@@ -238,6 +258,7 @@ public static class CommonSourcePreset
                         FallbackCondition = StateFallbackCondition.NotFound,
                         SerializerOptions = commonOptions.SerializerOptions,
                         ResourceOptions = commonOptions.FileResourceOptions,
+                        ExplicitOnly = explicitOnly,
                     }
                 );
                 break;

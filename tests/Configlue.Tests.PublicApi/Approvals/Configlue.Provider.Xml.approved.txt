@@ -8,6 +8,7 @@ namespace Configlue.Provider.Xml
     public sealed class XmlFileSourceOptions
     {
         public XmlFileSourceOptions() { }
+        public bool ExplicitOnly { get; init; }
         public Configlue.StateFallbackCondition FallbackCondition { get; init; }
         public string? Id { get; init; }
         public required string Path { get; init; }

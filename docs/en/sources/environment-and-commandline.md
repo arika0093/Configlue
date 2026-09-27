@@ -26,13 +26,11 @@ Through the one-argument facade, the same source registers more concisely:
 ```csharp
 sources.FromEnvironment(new()
 {
-    Id = "environment",
     Prefix = "APP",
-    Priority = 400,
 });
 ```
 
-The facade options additionally accept `EnvironmentVariables` (useful for tests or custom hosts) and a `ValueParser` override for application-specific scalar conversion.
+The facade derives an opaque source ID from the normalized prefix. Set `Id` only when a stable custom identity is needed for advanced source selection. The options also accept `EnvironmentVariables` (useful for tests or custom hosts) and a `ValueParser` override for application-specific scalar conversion.
 
 ## Command line
 

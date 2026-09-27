@@ -24,13 +24,10 @@ model.Sources(sources =>
 1引数ファサードでは同じソースを簡潔に登録できます:
 
 ```csharp
-sources.FromEnvironment(new()
-{
-    Id = "environment",
-    Prefix = "APP",
-    Priority = 400,
-});
+sources.FromEnvironment(new() { Prefix = "APP" });
 ```
+
+source ID は正規化済み prefix から内部生成します。高度な source 選択用に安定 ID が必要な場合だけ `Id` を指定します。テストや独自 host 向けの `EnvironmentVariables` と、scalar 変換用の `ValueParser` も指定できます。
 
 ファサードのオプションはさらに `EnvironmentVariables` (テストや独自ホスト向け) と、アプリ固有スカラー変換用の `ValueParser` 上書きを受けます。
 

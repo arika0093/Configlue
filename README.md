@@ -322,18 +322,18 @@ config.Add<AppSettings>(model => model.UseCommonSources(
 
 `UseCommonSources` expands to these stable logical sources:
 
-| Source ID | Priority | Included when | Writable |
-| --- | ---: | --- | --- |
-| `common.global` | 100 | `EnableGlobalFile` | Only when selected by `WriteLayer` |
-| `common.local` | 200 | `EnableLocalFile` | Only when selected by `WriteLayer` |
-| `common.specific` | 300 | `EnableSpecificFile` and `SpecificFilePath` is set | Only when selected by `WriteLayer` |
-| `common.environment` | 400 | `EnableEnvironment` and `EnvironmentPrefix` is set | No |
+| Layer | Included when | Writable |
+| --- | --- | --- |
+| Global | Always | Through an explicit source handle, or ordinary writes when selected by `WriteLayer` |
+| Local | Always | Through an explicit source handle, or the default ordinary destination when no specific file is supplied |
+| Specific | `SpecificFilePath` is set | Through an explicit source handle, or the default ordinary destination when supplied |
+| Environment | `EnvironmentPrefix` is set | No |
 
-`ConfiglueStandardPaths.GetStandardSaveDirectory(applicationId)` returns the platform-standard per-user configuration directory plus the application identifier. Set the `Enable*` switches to omit layers, or set `LocalFilePath`, `SpecificFilePath`, and `WriteLayer` to change their locations and destination.
+The order in the table is the precedence order. `ConfiglueStandardPaths.GetStandardSaveDirectory(applicationId)` returns the platform-standard per-user configuration directory plus the application identifier. Set `LocalFilePath`, `SpecificFilePath`, and `WriteLayer` to change the file locations and ordinary write destination.
 
 ### Environment Variables
 
-`EnvironmentStateSource.FromEnvironment<TModel, TFragment>(id, prefix)` creates a read-only sparse source from process environment variables such as `APP__DATABASE__HOST`. Double underscores separate nested model members; member names are matched case-insensitively. A property annotated with `[ConfiglueEnvironment("ENV_NAME")]` reads that mapped variable name instead, including for nested model properties. The reader recalculates a content revision on each read; process environment variables do not provide a watcher. Through the one-argument facade, the same source registers as `sources.FromEnvironment(new() { Id = "environment", Prefix = "APP", Priority = 400 })`, with optional `EnvironmentVariables` and `ValueParser` overrides for tests and custom hosts.
+`EnvironmentStateSource.FromEnvironment<TModel, TFragment>(id, prefix)` creates a read-only sparse source from process environment variables such as `APP__DATABASE__HOST`. Double underscores separate nested model members; member names are matched case-insensitively. A property annotated with `[ConfiglueEnvironment("ENV_NAME")]` reads that mapped variable name instead, including for nested model properties. The reader recalculates a content revision on each read; process environment variables do not provide a watcher. Through the one-argument facade, the same source registers as `sources.FromEnvironment(new() { Prefix = "APP" })`; its logical ID is derived from the normalized prefix. Optional `EnvironmentVariables` and `ValueParser` overrides support tests and custom hosts.
 
 ### Command Line
 

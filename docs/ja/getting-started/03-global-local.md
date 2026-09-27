@@ -11,12 +11,12 @@ import { Tabs, TabItem } from '@astrojs/starlight/components';
 
 ## 優先度の約束
 
-複数ソースに同じ項目があるとき、`Priority` の数字が大きい方が勝ちます。数字自体に意味はなく、順番だけが大事です。
+Common preset の順序は Global < Local < Specific < Environment です。source set を手動で組む場合は `Priority` で同じ順序を指定します。数値そのものに意味はなく、順番だけが大事です。
 
-| ソース | 役割 | 優先度（例） |
-| --- | --- | ---: |
-| `common.global` | 出荷既定・全ユーザー共通 | 100 |
-| `common.local` | このマシンの上書き | 200 |
+| 層 | 役割 |
+| --- | --- |
+| Global | 出荷既定・全ユーザー共通 |
+| Local | このマシンの上書き |
 
 ファイルがない場合、ファイルソースは素通りします。ある項目だけが合成され、ない項目は下の層の値が残ります。
 
