@@ -39,6 +39,7 @@ public sealed class FileResource
     private readonly string _directory;
     private readonly string _fileName;
     private readonly string _backupDirectory;
+    private readonly string? _previousBackupDirectory;
     private readonly FileResourceOptions _options;
     private readonly object _watchGate = new();
     private FileSystemWatcher? _fileWatcher;
@@ -69,11 +70,15 @@ public sealed class FileResource
         if (backupDirectory is null)
         {
             backupDirectory = OperatingSystem.IsWindows() ? "backup" : ".backup";
+            _backupDirectory = System.IO.Path.GetFullPath(
+                System.IO.Path.Combine(_directory, backupDirectory)
+            );
+            _previousBackupDirectory = _directory;
         }
-
-        if (string.Equals(backupDirectory, "/", StringComparison.Ordinal))
+        else if (string.Equals(backupDirectory, "/", StringComparison.Ordinal))
         {
             _backupDirectory = _directory;
+            _previousBackupDirectory = null;
         }
         else
         {
@@ -82,6 +87,21 @@ public sealed class FileResource
                     ? backupDirectory
                     : System.IO.Path.Combine(_directory, backupDirectory)
             );
+            _previousBackupDirectory = System.IO.Path.IsPathRooted(backupDirectory)
+                ? null
+                : System.IO.Path.GetFullPath(backupDirectory);
+            if (
+                string.Equals(
+                    _previousBackupDirectory,
+                    _backupDirectory,
+                    OperatingSystem.IsWindows()
+                        ? StringComparison.OrdinalIgnoreCase
+                        : StringComparison.Ordinal
+                )
+            )
+            {
+                _previousBackupDirectory = null;
+            }
         }
         if (_options.BackupMaxCount < 0)
         {
@@ -614,7 +634,8 @@ public sealed class FileResource
             foreach (var existingBackupPath in existingBackupPaths)
             {
                 if (
-                    !TryGetCurrentBackupIndex(existingBackupPath, out var existingIndex)
+                    !IsInCurrentBackupDirectory(existingBackupPath)
+                    || !TryGetCurrentBackupIndex(existingBackupPath, out var existingIndex)
                     || existingIndex > retainedPreviousCount
                 )
                 {
@@ -647,37 +668,49 @@ public sealed class FileResource
     private List<string> GetExistingBackupPaths()
     {
         var backupPaths = new List<string>();
-        if (!Directory.Exists(_backupDirectory))
+        var currentBackups = new List<(int Index, int DirectoryPriority, string Path)>();
+        var legacyBackups = new List<FileInfo>();
+        for (var directoryIndex = 0; directoryIndex < 2; directoryIndex++)
         {
-            return backupPaths;
-        }
-
-        var currentBackups = new List<(int Index, string Path)>();
-        foreach (var path in Directory.EnumerateFiles(_backupDirectory))
-        {
-            if (TryGetCurrentBackupIndex(path, out var index))
+            var directory = directoryIndex == 0 ? _backupDirectory : _previousBackupDirectory;
+            if (directory is null || !Directory.Exists(directory))
             {
-                currentBackups.Add((index, path));
+                continue;
+            }
+
+            foreach (var path in Directory.EnumerateFiles(directory))
+            {
+                if (TryGetCurrentBackupIndex(path, out var index))
+                {
+                    currentBackups.Add((index, directoryIndex, path));
+                }
+            }
+
+            var legacyPrefix = System.IO.Path.GetFileNameWithoutExtension(_path);
+            if (!OperatingSystem.IsWindows())
+            {
+                legacyPrefix = "." + legacyPrefix;
+            }
+
+            var legacyPattern = legacyPrefix + "_*" + System.IO.Path.GetExtension(_path) + ".bak";
+            foreach (var path in Directory.EnumerateFiles(directory, legacyPattern))
+            {
+                legacyBackups.Add(new FileInfo(path));
             }
         }
 
-        currentBackups.Sort(static (left, right) => left.Index.CompareTo(right.Index));
+        currentBackups.Sort(
+            static (left, right) =>
+            {
+                var indexComparison = left.Index.CompareTo(right.Index);
+                return indexComparison != 0
+                    ? indexComparison
+                    : left.DirectoryPriority.CompareTo(right.DirectoryPriority);
+            }
+        );
         foreach (var backup in currentBackups)
         {
             backupPaths.Add(backup.Path);
-        }
-
-        var legacyPrefix = System.IO.Path.GetFileNameWithoutExtension(_path);
-        if (!OperatingSystem.IsWindows())
-        {
-            legacyPrefix = "." + legacyPrefix;
-        }
-
-        var legacyPattern = legacyPrefix + "_*" + System.IO.Path.GetExtension(_path) + ".bak";
-        var legacyBackups = new List<FileInfo>();
-        foreach (var path in Directory.EnumerateFiles(_backupDirectory, legacyPattern))
-        {
-            legacyBackups.Add(new FileInfo(path));
         }
 
         legacyBackups.Sort(
@@ -690,6 +723,15 @@ public sealed class FileResource
 
         return backupPaths;
     }
+
+    private bool IsInCurrentBackupDirectory(string path) =>
+        string.Equals(
+            System.IO.Path.GetDirectoryName(path),
+            _backupDirectory,
+            OperatingSystem.IsWindows()
+                ? StringComparison.OrdinalIgnoreCase
+                : StringComparison.Ordinal
+        );
 
     private bool TryGetCurrentBackupIndex(string path, out int index)
     {
