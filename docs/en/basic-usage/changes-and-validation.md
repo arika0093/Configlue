@@ -27,12 +27,12 @@ The callback receives watcher or reload exceptions. If a changed state resolves 
 
 ## Validation
 
-Validation runs on save. Set `ValidateDataAnnotations` on the model builder to enforce attribute rules:
+DataAnnotations validation runs on save by default. Set `ValidateDataAnnotations = false` to disable it. Configlue skips reflection-based DataAnnotations validation automatically when the runtime does not support dynamic code, such as NativeAOT; registered validators continue to run.
 
 ```csharp
 conf.Add<UserSetting>(model =>
 {
-    model.ValidateDataAnnotations = true;
+    model.ValidateDataAnnotations = false; // optional
     // ...sources...
 });
 ```

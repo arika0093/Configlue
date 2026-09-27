@@ -71,7 +71,7 @@ services.AddConfiglueOptions<AppConfig, AppConfig.Fragment>(
 services.AddConfiglueValidator<UserSetting>(new UserSettingValidator());
 ```
 
-or pass `validateDataAnnotations: true` when registering options. See [Changes and validation](./changes-and-validation.md).
+DataAnnotations validation is enabled by default. Pass `validateDataAnnotations: false` to disable it. See [Changes and validation](./changes-and-validation.md).
 
 ## Next steps
 

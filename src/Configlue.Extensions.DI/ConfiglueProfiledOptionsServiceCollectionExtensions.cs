@@ -12,7 +12,7 @@ public static class ConfiglueProfiledOptionsServiceCollectionExtensions
         Func<IServiceProvider, StateSource<ConfiglueProfileCatalog>> catalogSourceFactory,
         string defaultProfileName = "default",
         StateWriteRoute writeRoute = default,
-        bool validateDataAnnotations = false,
+        bool validateDataAnnotations = true,
         TimeSpan? onChangeDebounce = null
     )
         where TModel : IConfiglueModel<TModel, TFragment>

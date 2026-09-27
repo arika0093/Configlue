@@ -1,5 +1,6 @@
 using System.Collections;
 using System.ComponentModel.DataAnnotations;
+using System.Runtime.CompilerServices;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -62,7 +63,7 @@ public sealed class ConfiglueOptions<TModel, TFragment>
         StateWriteRoute writeRoute = default,
         IEnumerable<IStateSchemaMigration<TFragment>>? migrations = null,
         IEnumerable<IConfiglueValidator<TModel>>? validators = null,
-        bool validateDataAnnotations = false,
+        bool validateDataAnnotations = true,
         TimeSpan? onChangeDebounce = null,
         string? optionsName = null,
         ILogger? logger = null
@@ -86,7 +87,7 @@ public sealed class ConfiglueOptions<TModel, TFragment>
         StateWritePlan defaultWritePlan,
         IEnumerable<IStateSchemaMigration<TFragment>>? migrations = null,
         IEnumerable<IConfiglueValidator<TModel>>? validators = null,
-        bool validateDataAnnotations = false,
+        bool validateDataAnnotations = true,
         TimeSpan? onChangeDebounce = null,
         string? optionsName = null,
         ILogger? logger = null
@@ -3562,7 +3563,7 @@ public sealed class ConfiglueOptions<TModel, TFragment>
             failures.AddRange(validator.Validate(_optionsName, value));
         }
 
-        if (_validateDataAnnotations)
+        if (_validateDataAnnotations && RuntimeFeature.IsDynamicCodeSupported)
         {
             var validationResults = new List<ValidationResult>();
             Validator.TryValidateObject(
