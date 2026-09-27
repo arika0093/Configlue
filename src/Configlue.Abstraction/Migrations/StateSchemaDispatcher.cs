@@ -71,6 +71,7 @@ public sealed class StateSchemaDispatcher<T>
     /// <see langword="true"/> when a registered historical schema was decoded; otherwise,
     /// <see langword="false"/> when the payload already uses the target schema or another model ID.
     /// </returns>
+    /// <remarks>When <paramref name="sourceSchema"/> has no model ID, the dispatcher associates it with <see cref="TargetSchema"/>.</remarks>
     /// <exception cref="InvalidOperationException">
     /// The payload uses an unregistered revision for this model or a newer revision.
     /// </exception>
@@ -82,6 +83,11 @@ public sealed class StateSchemaDispatcher<T>
     )
     {
         value = default;
+        if (sourceSchema.ModelId is null)
+        {
+            sourceSchema = sourceSchema with { ModelId = TargetSchema.ModelId };
+        }
+
         if (!string.Equals(sourceSchema.ModelId, TargetSchema.ModelId, StringComparison.Ordinal))
         {
             return false;

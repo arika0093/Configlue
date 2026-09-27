@@ -74,11 +74,9 @@ Open `quicksettings.json` afterwards — it contains only the members this sourc
 
 ```json
 {
-  "$configlue": { "id": "example.quick-settings", "version": 1 },
-  "$value": {
-    "Name": "Ada",
-    "RunCount": 1
-  }
+  "$version": 1,
+  "Name": "Ada",
+  "RunCount": 1
 }
 ```
 

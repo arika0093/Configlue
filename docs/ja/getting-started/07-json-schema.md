@@ -47,7 +47,7 @@ Console.WriteLine($"書き出し: {string.Join(", ", result.WrittenFiles)}");
 </TabItem>
 </Tabs>
 
-`Write` が作るのはローカルの出力ディレクトリ内のファイルです。そのディレクトリを GitHub Pages などへ公開する処理は別途行います。`https://example.com/schemas/` のような絶対 `schemaBaseUri` を渡すと、生成文書の `$id` は基底 URI と版付きファイル名を結合した値になり、生成される設定スキーマにはルートの任意 `$schema` プロパティが含まれます。出力先ディレクトリは変わりません。出力は版付きなので、モデルの `Version` を上げたら出し直します。対応する DataAnnotations はスキーマの制約に写ります。出力スキーマは Configlue の保存形式を表します。`$configlue` がモデル ID と版を持ち、`$value` が疎な設定フラグメントを持ちます。
+`Write` が作るのはローカルの出力ディレクトリ内のファイルです。そのディレクトリを GitHub Pages などへ公開する処理は別途行います。`https://example.com/schemas/` のような絶対 `schemaBaseUri` を渡すと、生成文書の `$id` は基底 URI と版付きファイル名を結合した値になり、生成される設定スキーマにはルートの任意 `$schema` プロパティが含まれます。出力先ディレクトリは変わりません。出力は版付きなので、モデルの `Version` を上げたら出し直します。対応する DataAnnotations はスキーマの制約に写ります。既定では `$version` と疎な設定項目がルートに並ぶシンプル形式を表し、モデル ID は保存しません。
 
 ## エディターと CI で使う
 
@@ -62,15 +62,13 @@ sources.FromJsonFile(new()
 });
 ```
 
-保存される JSON のルートにスキーマ参照が加わります。設定本体は生成スキーマが表すエンベロープ内に保存されます。
+保存される JSON のルートにスキーマ参照が加わり、版と設定項目も同じルートに保存されます。
 
 ```json
 {
   "$schema": "./schemas/tutorial.settings.v1.json",
-  "$configlue": { "id": "tutorial.settings", "version": 1 },
-  "$value": {
-    "Server": { "Host": "localhost", "Port": 8080 }
-  }
+  "$version": 1,
+  "Server": { "Host": "localhost", "Port": 8080 }
 }
 ```
 
