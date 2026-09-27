@@ -58,7 +58,7 @@ edit.Update(value => value.SomeSetting = newValue);
 await edit.SaveAsync();
 ```
 
-`Value` と `CurrentValue` で編集途中の値を参照できます。`Update` はその値を直接編集します。リセット API は全体、または選択したメンバーだけを読み込み時点のスナップショットか新しいモデル既定値へ戻します。`BeginConfigureAsync` が返すセッションは両方の基準値を持ちます。2引数コンストラクターで直接生成したセッションにはモデル既定値がないため、`ResetToDefault` を使うには既定値を渡すオーバーロードが必要です。
+`Value` と `CurrentValue` で編集途中の値を参照できます。`Update` はその値を直接編集します。リセット API は全体、または選択したメンバーだけを読み込み時点のスナップショットか新しいモデル既定値へ戻します。保存に成功した後もセッションは再利用でき、次の保存では直前の成功以降の変更を記録します。`BeginConfigureAsync` が返すセッションは両方のリセット基準値を持ちます。2引数コンストラクターで直接生成したセッションにはモデル既定値がないため、`ResetToDefault` を使うには既定値を渡すオーバーロードが必要です。
 
 操作単位の `StateWritePlan` でセッションを複数ソースに分割できます — [書き込み経路指定](../layering/write-routing.md) 参照。
 
