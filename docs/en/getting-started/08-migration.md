@@ -54,7 +54,7 @@ After registering both source IDs as described in the storage guide, call the sa
 <TabItem label="Without DI">
 
 ```csharp
-var options = context.GetOptions<AppSettings>();
+var options = (IConfiglueOptions<AppSettings>)context.GetOptions<AppSettings>();
 var result = await options.MigrateSourceAsync("legacy-settings", "settings");
 Console.WriteLine($"Copied from {result.SourceId} to {result.TargetId}.");
 ```
@@ -63,7 +63,7 @@ Console.WriteLine($"Copied from {result.SourceId} to {result.TargetId}.");
 <TabItem label="With DI">
 
 ```csharp
-public sealed class SettingsMigrator(IWritableOptions<AppSettings> options)
+public sealed class SettingsMigrator(IConfiglueOptions<AppSettings> options)
 {
     public async Task MigrateAsync()
     {

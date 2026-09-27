@@ -9,7 +9,7 @@ Schema migration evolves shapes; storage migration moves contributions between s
 
 ## Single source copy
 
-`IWritableOptions<T>.MigrateSourceAsync(sourceId, targetId)` copies one source contribution, applies its schema migration chain, and writes it to a selected destination.
+`IConfiglueOptions<T>.MigrateSourceAsync(sourceId, targetId)` copies one source contribution, applies its schema migration chain, and writes it to a selected destination.
 
 ## Multi-target migration with retirement
 
@@ -27,7 +27,7 @@ var migration = new StateStorageMigrationDefinition<AppSettings.Fragment>(
     retireSources: true);
 
 var journal = new FileStateStorageMigrationJournal("./.configlue-migrations");
-var progress = await options.MigrateAsync(migration, journal);
+var progress = await ((IConfiglueOptions<AppSettings>)options).MigrateAsync(migration, journal);
 ```
 
 Before building options on the next startup, call `journal.ReadAsync(migration.Id)`. If `SourcesRetired` is true, omit the legacy JSON source from registration. Calling `MigrateAsync` with the same definition returns the retired progress without reading the old source. If migration stopped partway through, register the old source and resume with the same journal.

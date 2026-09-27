@@ -8,7 +8,7 @@ public static class StateStorageMigrationExtensions
     /// target. The caller supplies a durable journal and should prevent concurrent runs of the same migration.
     /// </summary>
     public static async ValueTask<StateStorageMigrationProgress> MigrateAsync<TModel, TFragment>(
-        this IWritableOptions<TModel> options,
+        this IConfiglueOptions<TModel> options,
         StateStorageMigrationDefinition<TFragment> definition,
         IStateStorageMigrationJournal journal,
         CancellationToken cancellationToken = default

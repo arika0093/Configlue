@@ -10,7 +10,7 @@ namespace Configlue;
 /// <typeparam name="TModel">The generated configuration model.</typeparam>
 /// <typeparam name="TFragment">The model's generated sparse fragment.</typeparam>
 public sealed class ConfiglueOptions<TModel, TFragment>
-    : IWritableOptions<TModel>,
+    : IConfiglueOptions<TModel>,
         IConfiglueValueCloneProvider<TModel>,
         IDisposable,
         IAsyncDisposable

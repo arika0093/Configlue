@@ -36,7 +36,7 @@ builder.Services.AddConfiglue(conf => conf.Add<UserSettings>(model =>
 }));
 ```
 
-コンテキストはサービスプロバイダーが所有します。`IReadOnlyOptions<T>` / `IWritableOptions<T>` を注入してください。クラスモデル向けの `IOptions<T>` / `IOptionsSnapshot<T>` / `IOptionsMonitor<T>` を使う場合は、`Configlue.Extension.MSOptions` を追加し、モデル登録後に明示的に登録します:
+コンテキストはサービスプロバイダーが所有します。`IReadOnlyOptions<T>` / `IWritableOptions<T>` を注入してください。クラスモデル向けの `IOptions<T>` / `IOptionsSnapshot<T>` / `IOptionsMonitor<T>` を使う場合は、`Configlue.Extensions.MSOptions` を追加し、モデル登録後に明示的に登録します:
 
 ```csharp
 services.AddConfiglueMicrosoftOptions<UserSettings>();

@@ -15,7 +15,14 @@ public static class WritableOptionsExtensions
             throw new ArgumentException("The source key is uninitialized.", nameof(sourceKey));
         }
 
-        return new ConfiglueSourceHandle<T>(options, sourceKey);
+        if (options is not IConfiglueOptions<T> advancedOptions)
+        {
+            throw new NotSupportedException(
+                "This options implementation does not expose source-local operations."
+            );
+        }
+
+        return new ConfiglueSourceHandle<T>(advancedOptions, sourceKey);
     }
 
     /// <summary>Begins editing the current value, blocking until asynchronous sources are read.</summary>

@@ -85,7 +85,7 @@ public sealed class NestedSourceBindingTests
             );
         });
 
-        var options = context.GetOptions<AppSettings>();
+        var options = (IConfiglueOptions<AppSettings>)context.GetOptions<AppSettings>();
         var value = await options.GetValueAsync();
         var host = await options.ExplainAsync("Database.Host");
         var port = await options.ExplainAsync("Database.Port");
@@ -448,7 +448,8 @@ public sealed class NestedSourceBindingTests
             );
         });
 
-        var options = context.GetOptions<RootWithNestedSettings>();
+        var options =
+            (IConfiglueOptions<RootWithNestedSettings>)context.GetOptions<RootWithNestedSettings>();
         var value = await options.GetValueAsync();
         var count = await options.ExplainAsync("Settings.Inner.Count");
 
@@ -502,7 +503,8 @@ public sealed class NestedSourceBindingTests
             );
         });
 
-        var options = context.GetOptions<RootWithNestedSettings>();
+        var options =
+            (IConfiglueOptions<RootWithNestedSettings>)context.GetOptions<RootWithNestedSettings>();
         var value = await options.GetValueAsync();
         var label = await options.ExplainAsync("Settings.Label");
         var count = await options.ExplainAsync("Settings.Inner.Count");

@@ -19,7 +19,7 @@ Configlue は Configuration.Writable 向けに検討されたソース&フラグ
 
 ## プロジェクト構成
 
-プロジェクトは `src/` 直下にあります。`Configlue` は Core・DI 統合・JSON プロバイダー・HTTP リソース・環境変数ソース・ソースジェネレーターアナライザーを束ねるアセンブリなしメタパッケージです。`Configlue.Abstraction` が契約、`Configlue.Core` が解決・永続化ランタイム (汎用ファイルリソース含む) を持ちます。`Configlue.Extensions.DI` に DI 登録があり、任意の `Configlue.Extension.MSOptions` に Microsoft options アダプターがあります。`Configlue.Generator` が疎フラグメントとパッチを生成します。`Configlue.Provider.Json`・`.Xml`・`.Yaml` に形式コーデック・セクションリソース・ファイル登録があります。`Configlue.Source.Environment` はプロセス変数をフラグメントに写像し、`Configlue.Source.CommandLine` は `System.CommandLine` パース結果を写像し、`Configlue.Source.Common` は定番の重ね合わせプリセットを合成します。`Configlue.Resource.Http` は ETag リビジョンでリソースバイトを運び、`Configlue.Resource.Http.AspNetCore` が配信し、`Configlue.Resource.Zip` がアーカイブ内エントリを公開します。`Configlue.Testing` はインメモリダブルです。
+プロジェクトは `src/` 直下にあります。`Configlue` は Core・DI 統合・JSON プロバイダー・HTTP リソース・環境変数ソース・ソースジェネレーターアナライザーを束ねるアセンブリなしメタパッケージです。`Configlue.Abstraction` が契約、`Configlue.Core` が解決・永続化ランタイム (汎用ファイルリソース含む) を持ちます。`Configlue.Extensions.DI` に DI 登録があり、任意の `Configlue.Extensions.MSOptions` に Microsoft options アダプターがあります。`Configlue.Generator` が疎フラグメントとパッチを生成します。`Configlue.Provider.Json`・`.Xml`・`.Yaml` に形式コーデック・セクションリソース・ファイル登録があります。`Configlue.Source.Environment` はプロセス変数をフラグメントに写像し、`Configlue.Source.CommandLine` は `System.CommandLine` パース結果を写像し、`Configlue.Source.Common` は定番の重ね合わせプリセットを合成します。`Configlue.Resource.Http` は ETag リビジョンでリソースバイトを運び、`Configlue.Resource.Http.AspNetCore` が配信し、`Configlue.Resource.Zip` がアーカイブ内エントリを公開します。`Configlue.Testing` はインメモリダブルです。
 
 ## 実装状況
 

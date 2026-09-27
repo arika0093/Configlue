@@ -13,7 +13,7 @@ Browse the [Configlue documentation site](https://arika0093.github.io/Configlue/
 * [Write back sparsely](#save-and-edit): route edits to a chosen source, split one edit across sources, or patch a single source contribution.
 * [Built-in](#file-sources) atomic file writing with backup generations and restore.
 * [Automatic detection](#change-detection) of external changes with debounced notifications.
-* Simple API for applications both [without](#simple-application-without-di) and [with](#host-application-with-di) DI. Microsoft `IOptions<T>` adapters are available from the optional `Configlue.Extension.MSOptions` package.
+* Simple API for applications both [without](#simple-application-without-di) and [with](#host-application-with-di) DI. Microsoft `IOptions<T>` adapters are available from the optional `Configlue.Extensions.MSOptions` package.
 * [Named profiles](#profiles) with a persisted catalog, and [runtime dynamic options](#dynamic-options) for multi-document scenarios.
 * [Schema and storage migration](#migration): versioned models, source-to-source copies, and adoption of existing `Configuration.Writable` files.
 * [JSON Schema export](#json-schema-support) from generated models.
@@ -159,7 +159,7 @@ Then inject `IReadOnlyOptions<T>` or `IWritableOptions<T>` to read and write set
 
 ```csharp
 // read config in your class
-// install Configlue.Extension.MSOptions and call AddConfiglueMicrosoftOptions<UserSetting>() to opt in to IOptions adapters
+// install Configlue.Extensions.MSOptions and call AddConfiglueMicrosoftOptions<UserSetting>() to opt in to IOptions adapters
 public class ConfigReadService(IReadOnlyOptions<UserSetting> options)
 {
     public async Task PrintAsync()
@@ -388,7 +388,7 @@ await options.ApplyPatchAsync(patch);
 
 Configure sessions compare the full source revision vector immediately before saving and fail with `StateConflictException` if any participating source changed. Generated `TModel.Patch` values can also be sent through `ApplyPatchesAsync` with `StateSourcePatch` entries for an explicit source-local multi-write; disjoint section updates sharing a `ResourceId` persist with one physical write.
 
-Use `IReadOnlyOptions<T>.ExplainAsync("Database.Host")` to inspect the effective value and the present source contributions from highest to lowest priority.
+Use `IConfiglueOptions<T>.ExplainAsync("Database.Host")` to inspect the effective value and the present source contributions from highest to lowest priority.
 
 ### Write Routing
 
@@ -442,7 +442,7 @@ builder.Services.AddConfiglue(conf =>
 });
 ```
 
-Microsoft options adapters are opt-in. Install `Configlue.Extension.MSOptions` and call `services.AddConfiglueMicrosoftOptions<UserSetting>()` after registering Configlue options to add `IOptions<T>`, scoped `IOptionsSnapshot<T>`, and `IOptionsMonitor<T>` for a class model. Their synchronous `Value` and `Get` calls read Configlue state synchronously; use `ReadAsync` or `GetValueAsync` in asynchronous application flows.
+Microsoft options adapters are opt-in. Install `Configlue.Extensions.MSOptions` and call `services.AddConfiglueMicrosoftOptions<UserSetting>()` after registering Configlue options to add `IOptions<T>`, scoped `IOptionsSnapshot<T>`, and `IOptionsMonitor<T>` for a class model. Their synchronous `Value` and `Get` calls read Configlue state synchronously; use `ReadAsync` or `GetValueAsync` in asynchronous application flows.
 
 ### Profiles
 
@@ -493,7 +493,7 @@ The source set is fixed for each options runtime. To replace a runtime's source 
 
 ### Diagnostics and Logging
 
-`IReadOnlyOptions<T>.GetDiagnostics()` returns an immutable snapshot of the configured source topology for that options runtime, including source ID, priority, fallback policy, read/write/watch capabilities, physical origin, resource identity, and retired status. It also reports the default and property-path write routes; `GetWriteSourceId("Database.Endpoint")` resolves a registration-level route. Per-operation write plans are specific to that operation and are not included. Use `ReadAsync` for the latest read result and revisions, `ExplainAsync(path)` for effective values and their contributing sources, and write results for completed writes. No configuration values are written to logs.
+`IConfiglueOptions<T>.GetDiagnostics()` returns an immutable snapshot of the configured source topology for that options runtime, including source ID, priority, fallback policy, read/write/watch capabilities, physical origin, resource identity, and retired status. It also reports the default and property-path write routes; `GetWriteSourceId("Database.Endpoint")` resolves a registration-level route. Per-operation write plans are specific to that operation and are not included. Use `ReadAsync` for the latest read result and revisions, `ExplainAsync(path)` for effective values and their contributing sources, and write results for completed writes. No configuration values are written to logs.
 
 ```csharp
 var diagnostics = options.GetDiagnostics();
@@ -548,7 +548,7 @@ Register `IStateSchemaMigration<TFragment>` implementations as services to migra
 
 ### Storage migration
 
-`IWritableOptions<T>.MigrateSourceAsync(sourceId, targetId)` copies one source contribution, applies its schema migration chain, and writes it to a selected destination. `MigrateSourcesToTargetsAsync(sourceIds, targetProjections)` merges selected contributions, revision-checks and verifies each target, and can retire the old sources after verification. Pass `retireSources: true` to remove the selected sources from that options instance after every target verifies and only when the effective model stays the same. Multi-target writes are not atomic; on retry, every target is rechecked against the current source contribution, and writes are skipped only for targets that already match. If a later target fails, rerun the migration to resume. Retired sources are removed from the running topology only — update the application's registration for future process starts.
+`IConfiglueOptions<T>.MigrateSourceAsync(sourceId, targetId)` copies one source contribution, applies its schema migration chain, and writes it to a selected destination. `MigrateSourcesToTargetsAsync(sourceIds, targetProjections)` merges selected contributions, revision-checks and verifies each target, and can retire the old sources after verification. Pass `retireSources: true` to remove the selected sources from that options instance after every target verifies and only when the effective model stays the same. Multi-target writes are not atomic; on retry, every target is rechecked against the current source contribution, and writes are skipped only for targets that already match. If a later target fails, rerun the migration to resume. Retired sources are removed from the running topology only — update the application's registration for future process starts.
 
 ### Adopting existing settings
 
@@ -576,11 +576,12 @@ Compose `SerializedStateSource.FromResource` over an `InMemoryResource` to test 
 
 ### Interfaces
 
-* `IReadOnlyOptions<T>` — `CurrentValue`, async reads (`GetValueAsync`/`ReadAsync`), `OnChange`, `ExplainAsync`, `GetDiagnostics`, and provider-independent metadata. `CurrentValue` returns a cached clone after its first read, refreshes from successful watcher notifications, and blocks while its initial asynchronous read completes. Use `GetValueAsync` for a fresh asynchronous read.
-* `IWritableOptions<T>` — adds `SaveAsync`, `OpenEditSessionAsync`, `ApplyPatchAsync`/`ApplyPatchesAsync`, and source/storage migration.
+* `IReadOnlyOptions<T>` — async reads (`GetValueAsync`/`ReadAsync`) and `OnChange`.
+* `IWritableOptions<T>` — adds saves and `OpenEditSessionAsync`.
+* `IConfiglueOptions<T>` — advanced diagnostics, source explanations, reload failures, source patch batches, and source/storage migration. It also exposes synchronous `CurrentValue`.
 * `IConfiglueOptionsRegistry<T>` — runtime `TryAdd`/`Get`/`TryRemoveAsync` for dynamic named options.
 * `IConfiglueProfiledOptions<T>` — persisted named profiles with active-profile selection.
-* Optional compatibility adapters — install `Configlue.Extension.MSOptions` and call `AddConfiglueMicrosoftOptions<T>()` to register `IOptions<T>`, `IOptionsSnapshot<T>`, and `IOptionsMonitor<T>` for class models. Dynamic names resolve through the registry and `IOptionsMonitor`, not keyed services.
+* Optional compatibility adapters — install `Configlue.Extensions.MSOptions` and call `AddConfiglueMicrosoftOptions<T>()` to register `IOptions<T>`, `IOptionsSnapshot<T>`, and `IOptionsMonitor<T>` for class models. Dynamic names resolve through the registry and `IOptionsMonitor`, not keyed services.
 
 ## Packages
 
@@ -590,7 +591,7 @@ Compose `SerializedStateSource.FromResource` over an `InMemoryResource` to test 
 | `Configlue.Abstraction` | Provider, codec, resource, and generated-model contracts. |
 | `Configlue.Core` | State resolution and persistence runtime. |
 | `Configlue.Extensions.DI` | Dependency-injection registration for Configlue options. |
-| `Configlue.Extension.MSOptions` | Optional Microsoft `IOptions<T>`, `IOptionsSnapshot<T>`, and `IOptionsMonitor<T>` adapters. |
+| `Configlue.Extensions.MSOptions` | Optional Microsoft `IOptions<T>`, `IOptionsSnapshot<T>`, and `IOptionsMonitor<T>` adapters. |
 | `Configlue.Generator` | Generated sparse model support (Roslyn analyzer). |
 | `Configlue.Testing` | In-memory resources and test doubles. |
 | `Configlue.Provider.Json` | JSON codec, section resources, file registrations, and JSON Schema export. |

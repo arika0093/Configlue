@@ -102,6 +102,9 @@ public static class ConfiglueServiceCollectionExtensions
         services.AddSingleton<IWritableOptions<TModel>>(provider =>
             provider.GetRequiredService<ConfiglueOptions<TModel, TFragment>>()
         );
+        services.AddSingleton<IConfiglueOptions<TModel>>(provider =>
+            provider.GetRequiredService<ConfiglueOptions<TModel, TFragment>>()
+        );
         return services;
     }
 
@@ -192,6 +195,11 @@ public static class ConfiglueServiceCollectionExtensions
             (provider, key) =>
                 provider.GetRequiredKeyedService<ConfiglueOptions<TModel, TFragment>>(key)
         );
+        services.AddKeyedSingleton<IConfiglueOptions<TModel>>(
+            serviceKey,
+            (provider, key) =>
+                provider.GetRequiredKeyedService<ConfiglueOptions<TModel, TFragment>>(key)
+        );
         if (serviceKey is string profileName && profileName != Options.DefaultName)
         {
             services.AddSingleton(new ConfiglueNamedOptionsProfile<TModel>(profileName));
@@ -258,10 +266,27 @@ public static class ConfiglueServiceCollectionExtensions
         public void Visit<TModel>(ConfiglueModelRegistration<TModel> registration)
             where TModel : IConfiglueFacadeModel<TModel>
         {
-            if (registration.OptionsName != Options.DefaultName && typeof(TModel).IsClass)
+            if (registration.OptionsName == Options.DefaultName)
             {
-                services.AddSingleton(
-                    new ConfiglueNamedOptionsProfile<TModel>(registration.OptionsName)
+                services.AddSingleton<IConfiglueOptions<TModel>>(provider =>
+                    (IConfiglueOptions<TModel>)
+                        provider.GetRequiredService<IWritableOptions<TModel>>()
+                );
+            }
+            else
+            {
+                if (typeof(TModel).IsClass)
+                {
+                    services.AddSingleton(
+                        new ConfiglueNamedOptionsProfile<TModel>(registration.OptionsName)
+                    );
+                }
+
+                services.AddKeyedSingleton<IConfiglueOptions<TModel>>(
+                    registration.OptionsName,
+                    (provider, key) =>
+                        (IConfiglueOptions<TModel>)
+                            provider.GetRequiredKeyedService<IWritableOptions<TModel>>(key)
                 );
             }
         }

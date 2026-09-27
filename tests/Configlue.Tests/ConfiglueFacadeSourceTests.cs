@@ -552,14 +552,14 @@ public sealed class ConfiglueFacadeSourceTests
             })
         )
         {
-            var result = await context
-                .GetOptions<AppSettings>()
-                .ApplyPatchesAsync([
-                    new StateSourcePatch(
-                        "writable-json-http",
-                        new AppSettings.Patch { RetryCount = FragmentOperation<int>.Set(3) }
-                    ),
-                ]);
+            var result = await (
+                (IConfiglueOptions<AppSettings>)context.GetOptions<AppSettings>()
+            ).ApplyPatchesAsync([
+                new StateSourcePatch(
+                    "writable-json-http",
+                    new AppSettings.Patch { RetryCount = FragmentOperation<int>.Set(3) }
+                ),
+            ]);
             (result.PhysicalWriteCount).ShouldBe(1);
             handler.RequestMethods.ShouldContain(HttpMethod.Put);
         }
@@ -656,14 +656,14 @@ public sealed class ConfiglueFacadeSourceTests
             );
         });
 
-        var result = await context
-            .GetOptions<AppSettings>()
-            .ApplyPatchesAsync([
-                new StateSourcePatch(
-                    "http-settings",
-                    new AppSettings.Patch { RetryCount = FragmentOperation<int>.Set(2) }
-                ),
-            ]);
+        var result = await (
+            (IConfiglueOptions<AppSettings>)context.GetOptions<AppSettings>()
+        ).ApplyPatchesAsync([
+            new StateSourcePatch(
+                "http-settings",
+                new AppSettings.Patch { RetryCount = FragmentOperation<int>.Set(2) }
+            ),
+        ]);
         (result.PhysicalWriteCount).ShouldBe(1);
         return result.Sources.Single().ResourceId;
     }
@@ -719,7 +719,7 @@ public sealed class ConfiglueFacadeSourceTests
             {
                 builder.Add<AppSettings>(model => model.UseCommonSources(commonOptions));
             });
-            var options = context.GetOptions<AppSettings>();
+            var options = (IConfiglueOptions<AppSettings>)context.GetOptions<AppSettings>();
             var value = await options.GetValueAsync();
             (value.RetryCount).ShouldBe(5);
             (value.Label).ShouldBe("local");

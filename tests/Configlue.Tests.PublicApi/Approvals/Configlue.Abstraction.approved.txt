@@ -231,6 +231,16 @@ namespace Configlue
         TSelf FromFragment(TFragment value);
         TFragment ToFragment(TSelf value);
     }
+    public interface IConfiglueOptions<T> : Configlue.IWritableOptions<T>
+    {
+        System.Threading.Tasks.ValueTask<Configlue.StateMultiWriteResult> ApplyPatchesAsync(System.Collections.Generic.IEnumerable<Configlue.StateSourcePatch> patches, System.Threading.CancellationToken cancellationToken = default);
+        T CurrentValue { get; }
+        System.Threading.Tasks.ValueTask<Configlue.ConfiglueValueExplanation> ExplainAsync(string propertyPath, System.Threading.CancellationToken cancellationToken = default);
+        Configlue.ConfiglueOptionsDiagnostics GetDiagnostics();
+        System.Threading.Tasks.ValueTask<Configlue.StateSourceMigrationResult> MigrateSourceAsync(string sourceId, string targetId, System.Threading.CancellationToken cancellationToken = default);
+        System.Threading.Tasks.ValueTask<Configlue.StateStorageMigrationResult> MigrateSourcesToTargetsAsync(System.Collections.Generic.IEnumerable<string> sourceIds, System.Collections.Generic.IReadOnlyDictionary<string, System.Func<Configlue.IConfiglueFragment, Configlue.IConfiglueFragment>> targetProjections, System.Threading.CancellationToken cancellationToken = default, bool retireSources = false);
+        System.IDisposable OnReloadFailed(System.Action<System.Exception> listener);
+    }
     public interface IConfiglueOptionsRegistryNotificationDeferral<T> : System.IDisposable
     {
         void Cancel(Configlue.IWritableOptions<T> runtime);
@@ -287,13 +297,19 @@ namespace Configlue
     }
     public interface IReadOnlyOptions<T>
     {
+        System.Threading.Tasks.ValueTask<T> GetValueAsync(System.Threading.CancellationToken cancellationToken = default);
+        System.IDisposable OnChange(System.Action<T> listener);
+        System.Threading.Tasks.ValueTask<Configlue.StateReadResult<T>> ReadAsync(System.Threading.CancellationToken cancellationToken = default);
+    }
+    public interface IConfiglueOptions<T> : Configlue.IWritableOptions<T>
+    {
+        System.Threading.Tasks.ValueTask<Configlue.StateMultiWriteResult> ApplyPatchesAsync(System.Collections.Generic.IEnumerable<Configlue.StateSourcePatch> patches, System.Threading.CancellationToken cancellationToken = default);
         T CurrentValue { get; }
         System.Threading.Tasks.ValueTask<Configlue.ConfiglueValueExplanation> ExplainAsync(string propertyPath, System.Threading.CancellationToken cancellationToken = default);
         Configlue.ConfiglueOptionsDiagnostics GetDiagnostics();
-        System.Threading.Tasks.ValueTask<T> GetValueAsync(System.Threading.CancellationToken cancellationToken = default);
-        System.IDisposable OnChange(System.Action<T> listener);
+        System.Threading.Tasks.ValueTask<Configlue.StateSourceMigrationResult> MigrateSourceAsync(string sourceId, string targetId, System.Threading.CancellationToken cancellationToken = default);
+        System.Threading.Tasks.ValueTask<Configlue.StateStorageMigrationResult> MigrateSourcesToTargetsAsync(System.Collections.Generic.IEnumerable<string> sourceIds, System.Collections.Generic.IReadOnlyDictionary<string, System.Func<Configlue.IConfiglueFragment, Configlue.IConfiglueFragment>> targetProjections, System.Threading.CancellationToken cancellationToken = default, bool retireSources = false);
         System.IDisposable OnReloadFailed(System.Action<System.Exception> listener);
-        System.Threading.Tasks.ValueTask<Configlue.StateReadResult<T>> ReadAsync(System.Threading.CancellationToken cancellationToken = default);
     }
     public interface IResourceBackupRecovery
     {
@@ -370,11 +386,8 @@ namespace Configlue
     public interface IWritableOptions<T> : Configlue.IReadOnlyOptions<T>
     {
         System.Threading.Tasks.ValueTask<Configlue.StateWriteResult> ApplyPatchAsync(Configlue.IConfigluePatch patch, System.Threading.CancellationToken cancellationToken = default);
-        System.Threading.Tasks.ValueTask<Configlue.StateMultiWriteResult> ApplyPatchesAsync(System.Collections.Generic.IEnumerable<Configlue.StateSourcePatch> patches, System.Threading.CancellationToken cancellationToken = default);
         System.Threading.Tasks.ValueTask<Configlue.EditSession<T>> OpenEditSessionAsync(System.Threading.CancellationToken cancellationToken = default);
         System.Threading.Tasks.ValueTask<Configlue.EditSession<T>> OpenEditSessionAsync(Configlue.StateWritePlan writePlan, System.Threading.CancellationToken cancellationToken = default);
-        System.Threading.Tasks.ValueTask<Configlue.StateSourceMigrationResult> MigrateSourceAsync(string sourceId, string targetId, System.Threading.CancellationToken cancellationToken = default);
-        System.Threading.Tasks.ValueTask<Configlue.StateStorageMigrationResult> MigrateSourcesToTargetsAsync(System.Collections.Generic.IEnumerable<string> sourceIds, System.Collections.Generic.IReadOnlyDictionary<string, System.Func<Configlue.IConfiglueFragment, Configlue.IConfiglueFragment>> targetProjections, System.Threading.CancellationToken cancellationToken = default, bool retireSources = false);
         System.Threading.Tasks.ValueTask<Configlue.StateWriteResult> SaveAsync(System.Action<T> update, System.Threading.CancellationToken cancellationToken = default);
         System.Threading.Tasks.ValueTask<Configlue.StateWriteResult> SaveAsync(System.Func<T, System.Threading.Tasks.Task> update, System.Threading.CancellationToken cancellationToken = default);
         System.Threading.Tasks.ValueTask<Configlue.StateWriteResult> SaveAsync(T value, System.Threading.CancellationToken cancellationToken = default);
