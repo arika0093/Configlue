@@ -182,6 +182,13 @@ namespace Configlue
         public System.Threading.Tasks.ValueTask WaitForChangeAsync(string? observedRevision, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask<Configlue.StateWriteResult> WriteAsync(Configlue.StateWriteRequest<T> request, System.Threading.CancellationToken cancellationToken = default) { }
     }
+    public sealed class FileStateStorageMigrationJournal : Configlue.IStateStorageMigrationJournal
+    {
+        public FileStateStorageMigrationJournal(string directoryPath, Configlue.FileResourceOptions? resourceOptions = null) { }
+        public string DirectoryPath { get; }
+        public System.Threading.Tasks.ValueTask<Configlue.StateStorageMigrationProgress?> ReadAsync(string migrationId, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask WriteAsync(Configlue.StateStorageMigrationProgress progress, System.Threading.CancellationToken cancellationToken = default) { }
+    }
     public sealed class FileResource : Configlue.IResourceBackupRecovery, Configlue.IResourceBatchWriter, Configlue.IResourceIdentity, Configlue.IResourceReader, Configlue.IResourceWriter, Configlue.IStateWatcher, System.IDisposable
     {
         public FileResource(string path, Configlue.FileResourceOptions? options = null, Configlue.ResourceId? resourceId = default) { }
