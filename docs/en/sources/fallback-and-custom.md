@@ -11,7 +11,7 @@ Use `FallbackStateSource<TFragment>` to group serialized representations of the 
 
 By default, writes go to the active writable candidate, or the highest-priority writable candidate when none is active; set `writeSourceId` to route edits to a fixed candidate such as the canonical file. This does not copy state on creation or delete the other representations, and the candidate sources and resources remain caller-owned.
 
-Copy the selected value to a missing, higher-priority writable candidate explicitly with `PromoteAsync("canonical")`. Promotion checks the selected source revision again and conditionally writes against the target's missing-state revision. If the target is already active, the call returns with `WasAlreadyPromoted` set. Existing target state is never overwritten, and promotion does not remove the source representation. Since the source and target may be separate resources, this operation cannot make their updates transactional; a source change immediately after the final revision check can still race with the copy.
+When state needs to move to a different logical source, use `IWritableOptions<T>.MigrateSourcesToTargetsAsync` with an explicit target projection. The migration API verifies target writes and supports retry after partial completion. `FallbackStateSource<T>` itself only selects between equivalent representations.
 
 ## Custom sources
 
