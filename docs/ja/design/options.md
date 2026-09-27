@@ -5,12 +5,13 @@ description: 読み書きの窓口。プロファイル・動的オプション�
 
 # 設計: Options（窓口）
 
-Options はアプリから見える窓口です。Source や Fragment の詳細は隠し、読み・保存・監視・説明・診断だけを見せます。
+Options はアプリから見える窓口です。通常の読み書きを小さく保ち、Source の管理には `IConfiglueOptions<T>` を使います。
 
 ## 読みと書きの窓口
 
-- `IReadOnlyOptions<T>`: 同期読みの `CurrentValue`、非同期の読み（`GetValueAsync` / `ReadAsync`）、`OnChange`、`ExplainAsync`、`GetDiagnostics`。`CurrentValue` は初回読み込み後にキャッシュし、watcher による再読み込み成功時に更新します。初回は非同期 source の完了までブロックするため、非同期処理では `GetValueAsync` を使います。
-- `IWritableOptions<T>`: 上に保存（`SaveAsync`・`OpenEditSessionAsync`）、`ApplyPatchAsync` / `ApplyPatchesAsync`、ソース間・保存場所の移行を足します。
+- `IReadOnlyOptions<T>`: 非同期読み（`GetValueAsync` / `ReadAsync`）と `OnChange`。
+- `IWritableOptions<T>`: 保存と `OpenEditSessionAsync` を追加します。
+- `IConfiglueOptions<T>`: Source の診断・説明、reload failure 通知、ソースローカル patch batch、ソース間・保存場所の移行を提供します。`CurrentValue` もこちらで使えますが、初回の非同期読み込み中はブロックします。
 
 保存の前には全 Source のリビジョンベクターを比べ、参加 Source が変わっていれば `StateConflictException` で止めます。読み取り専用に隠された値の変更もここで止まります。
 

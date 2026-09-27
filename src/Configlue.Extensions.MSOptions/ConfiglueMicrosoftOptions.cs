@@ -263,9 +263,10 @@ internal sealed class ConfiglueMicrosoftOptionsMonitor<TModel>
         {
             Options = options;
             _cloneProvider = options as IConfiglueValueCloneProvider<TModel>;
+            var diagnostics = (options as IConfiglueOptions<TModel>)?.GetDiagnostics();
             _cacheable =
                 _cloneProvider is not null
-                && options.GetDiagnostics().Sources.Any(static source => source.CanWatch);
+                && diagnostics?.Sources.Any(static source => source.CanWatch) == true;
             if (_cacheable)
             {
                 _subscription = options.OnChange(OnChanged);

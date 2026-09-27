@@ -5,12 +5,13 @@ description: The read/write facade. Profiles, dynamic options, DI adapters.
 
 # Design: Options (facade)
 
-Options is the facade apps see. Source and Fragment details stay hidden; only read, save, watch, explain, and diagnose show through.
+Options is the facade apps see. Regular reads and writes stay small; source administration is available through `IConfiglueOptions<T>`.
 
 ## Read and write facades
 
-- `IReadOnlyOptions<T>`: synchronous `CurrentValue`, async reads (`GetValueAsync`/`ReadAsync`), `OnChange`, `ExplainAsync`, and `GetDiagnostics`. `CurrentValue` caches after its first read and refreshes from successful watcher notifications; it blocks during that first read. Async application flows should use `GetValueAsync`.
-- `IWritableOptions<T>`: adds saves (`SaveAsync`, `OpenEditSessionAsync`), `ApplyPatchAsync`/`ApplyPatchesAsync`, and source/storage migration.
+- `IReadOnlyOptions<T>`: async reads (`GetValueAsync`/`ReadAsync`) and `OnChange`.
+- `IWritableOptions<T>`: adds saves and `OpenEditSessionAsync`.
+- `IConfiglueOptions<T>`: advanced source diagnostics and explanation, reload failures, source patch batches, and source/storage migration. `CurrentValue` is also available here; it blocks during its first asynchronous read.
 
 Before saving, the full source revision vector is compared; if any participating source changed, the save stops with `StateConflictException`. Edits shadowed by read-only values stop here too.
 

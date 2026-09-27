@@ -11,7 +11,7 @@ description: 等価な表現の束ねとリソース×コーデックの合成�
 
 既定では書き込みはアクティブな書き込み可能候補へ、無ければ最優先の書き込み可能候補へ行きます。正規ファイルのような固定候補に寄せるには `writeSourceId` を設定します。作成時に状態コピーも他表現の削除もしません。候補ソースとリソースは呼び出し側所有のままです。
 
-状態を別の論理ソースへ移す場合は、明示的な移行先 projection を指定して `IWritableOptions<T>.MigrateSourcesToTargetsAsync` を使います。この移行 API は書き込み先を検証し、部分完了後の再試行にも対応します。`FallbackStateSource<T>` は等価な表現の選択に専念します。
+状態を別の論理ソースへ移す場合は、明示的な移行先 projection を指定して `IConfiglueOptions<T>.MigrateSourcesToTargetsAsync` を使います。この移行 API は書き込み先を検証し、部分完了後の再試行にも対応します。`FallbackStateSource<T>` は等価な表現の選択に専念します。
 
 ## 独自ソース
 

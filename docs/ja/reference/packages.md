@@ -11,7 +11,7 @@ description: 機能ごとの NuGet パッケージを探す。
 | `Configlue.Abstraction` | プロバイダー・コーデック・リソース・生成モデルの契約。 |
 | `Configlue.Core` | 状態解決と永続化ランタイム。 |
 | `Configlue.Extensions.DI` | Configlue options の依存性注入登録。 |
-| `Configlue.Extension.MSOptions` | Microsoft options インターフェイス向けの任意アダプター。 |
+| `Configlue.Extensions.MSOptions` | Microsoft options インターフェイス向けの任意アダプター。 |
 | `Configlue.Generator` | 疎モデル生成サポート (Roslyn アナライザー)。 |
 | `Configlue.Testing` | インメモリリソースとテストダブル。 |
 | `Configlue.Provider.Json` | JSON コーデック、セクションリソース、ファイル登録、JSON Schema 出力。 |

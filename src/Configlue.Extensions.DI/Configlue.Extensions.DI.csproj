@@ -6,7 +6,7 @@
     <PackageDescription>Dependency injection registration for Configlue options.</PackageDescription>
   </PropertyGroup>
   <ItemGroup>
-    <InternalsVisibleTo Include="Configlue.Extension.MSOptions" />
+    <InternalsVisibleTo Include="Configlue.Extensions.MSOptions" />
     <ProjectReference Include="../Configlue.Abstraction/Configlue.Abstraction.csproj" />
     <ProjectReference Include="../Configlue.Core/Configlue.Core.csproj" />
     <ProjectReference Include="../Configlue.Provider.Json/Configlue.Provider.Json.csproj" />

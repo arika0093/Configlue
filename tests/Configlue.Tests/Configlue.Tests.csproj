@@ -9,7 +9,7 @@
   <ItemGroup>
     <ProjectReference Include="../../src/Configlue.Core/Configlue.Core.csproj" />
     <ProjectReference Include="../../src/Configlue.Extensions.DI/Configlue.Extensions.DI.csproj" />
-    <ProjectReference Include="../../src/Configlue.Extension.MSOptions/Configlue.Extension.MSOptions.csproj" />
+    <ProjectReference Include="../../src/Configlue.Extensions.MSOptions/Configlue.Extensions.MSOptions.csproj" />
     <ProjectReference
       Include="../../src/Configlue.Generator/Configlue.Generator.csproj"
       OutputItemType="Analyzer"

@@ -87,7 +87,7 @@ namespace Configlue
         public bool TryRemove(string profileName) { }
         public System.Threading.Tasks.ValueTask<bool> TryRemoveAsync(string profileName) { }
     }
-    public sealed class ConfiglueOptions<TModel, TFragment> : Configlue.IConfiglueValueCloneProvider<TModel>, Configlue.IReadOnlyOptions<TModel>, Configlue.IWritableOptions<TModel>, System.IAsyncDisposable, System.IDisposable
+    public sealed class ConfiglueOptions<TModel, TFragment> : Configlue.IConfiglueOptions<TModel>, Configlue.IConfiglueValueCloneProvider<TModel>, Configlue.IReadOnlyOptions<TModel>, Configlue.IWritableOptions<TModel>, System.IAsyncDisposable, System.IDisposable
         where TModel : Configlue.IConfiglueModel<TModel, TFragment>
         where TFragment :  class, Configlue.IConfiglueFragment<TFragment>
     {
@@ -274,7 +274,7 @@ namespace Configlue
     }
     public static class StateStorageMigrationExtensions
     {
-        public static System.Threading.Tasks.ValueTask<Configlue.StateStorageMigrationProgress> MigrateAsync<TModel, TFragment>(this Configlue.IWritableOptions<TModel> options, Configlue.StateStorageMigrationDefinition<TFragment> definition, Configlue.IStateStorageMigrationJournal journal, System.Threading.CancellationToken cancellationToken = default)
+        public static System.Threading.Tasks.ValueTask<Configlue.StateStorageMigrationProgress> MigrateAsync<TModel, TFragment>(this Configlue.IConfiglueOptions<TModel> options, Configlue.StateStorageMigrationDefinition<TFragment> definition, Configlue.IStateStorageMigrationJournal journal, System.Threading.CancellationToken cancellationToken = default)
             where TModel : Configlue.IConfiglueModel<TModel, TFragment>
             where TFragment :  class, Configlue.IConfiglueFragment<TFragment> { }
     }

@@ -54,7 +54,7 @@ public partial class AppSettings
 <TabItem label="DI なし">
 
 ```csharp
-var options = context.GetOptions<AppSettings>();
+var options = (IConfiglueOptions<AppSettings>)context.GetOptions<AppSettings>();
 var result = await options.MigrateSourceAsync("legacy-settings", "settings");
 Console.WriteLine($"{result.SourceId} から {result.TargetId} へコピーしました。");
 ```
@@ -63,7 +63,7 @@ Console.WriteLine($"{result.SourceId} から {result.TargetId} へコピーし�
 <TabItem label="DI あり">
 
 ```csharp
-public sealed class SettingsMigrator(IWritableOptions<AppSettings> options)
+public sealed class SettingsMigrator(IConfiglueOptions<AppSettings> options)
 {
     public async Task MigrateAsync()
     {

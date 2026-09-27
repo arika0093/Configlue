@@ -35,7 +35,7 @@ The generated member names, the `Optional<T>`/`FragmentOperation<T>` shapes, pre
 
 ## Provenance
 
-`IReadOnlyOptions<T>.ExplainAsync("Database.Host")` returns the effective value and the present source contributions from highest to lowest priority. Use it for troubleshooting layering and for surfacing "where did this come from" in settings UIs.
+`IConfiglueOptions<T>.ExplainAsync("Database.Host")` returns the effective value and the present source contributions from highest to lowest priority. Use it for troubleshooting layering and for surfacing "where did this come from" in settings UIs.
 
 ## Next steps
 
