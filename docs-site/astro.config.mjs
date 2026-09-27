@@ -23,7 +23,7 @@ export default defineConfig({
   integrations: [
     starlight({
       title: 'Configlue',
-      description: 'Typed configuration assembled from independent state sources.',
+      description: 'A typed configuration library that glues multiple setting sources together.',
       expressiveCode: true,
       editLink: {
         // Content entries are rooted in ../docs, so Starlight appends a ../ path.
@@ -63,55 +63,89 @@ export default defineConfig({
           ],
         },
         {
-          label: 'Basic usage',
-          translations: { ja: '基本的な使い方' },
+          label: 'Tutorial',
+          translations: { ja: 'チュートリアル' },
           items: [
-            'basic-usage/reading-and-writing',
-            'basic-usage/app-setup',
-            'basic-usage/common-sources',
-            'basic-usage/changes-and-validation',
+            'getting-started/01-first-file-app',
+            'getting-started/02-real-world-model',
+            'getting-started/03-global-local',
+            'getting-started/04-validation',
+            'getting-started/05-environment',
+            'getting-started/06-http-source',
+            'getting-started/07-json-schema',
+            'getting-started/08-migration',
+            'getting-started/09-native-aot',
+            'getting-started/10-yaml',
           ],
         },
         {
-          label: 'Sources',
-          translations: { ja: 'ソース' },
+          label: 'Guides',
+          translations: { ja: '機能ガイド' },
           items: [
-            'sources/files-and-sections',
-            'sources/environment-and-commandline',
-            'sources/http-and-zip',
-            'sources/fallback-and-custom',
+            {
+              label: 'Basic usage',
+              translations: { ja: '基本的な使い方' },
+              items: [
+                'basic-usage/reading-and-writing',
+                'basic-usage/app-setup',
+                'basic-usage/common-sources',
+                'basic-usage/changes-and-validation',
+              ],
+            },
+            {
+              label: 'Sources',
+              translations: { ja: 'ソース' },
+              items: [
+                'sources/files-and-sections',
+                'sources/environment-and-commandline',
+                'sources/http-and-zip',
+                'sources/fallback-and-custom',
+              ],
+            },
+            {
+              label: 'Layering',
+              translations: { ja: '重ね合わせ' },
+              items: [
+                'layering/resolution-and-merge',
+                'layering/write-routing',
+                'layering/mount-and-project',
+              ],
+            },
+            {
+              label: 'Profiles',
+              translations: { ja: 'プロファイル' },
+              items: ['profiles/profiles', 'profiles/dynamic-options'],
+            },
+            {
+              label: 'Migration',
+              translations: { ja: '移行' },
+              items: [
+                'migration/schema-migration',
+                'migration/storage-migration',
+                'migration/adopting-configuration-writable',
+              ],
+            },
+            {
+              label: 'Advanced',
+              translations: { ja: '応用' },
+              items: [
+                'advanced/native-aot',
+                'advanced/json-schema-and-testing',
+                'advanced/backups-and-observability',
+              ],
+            },
           ],
         },
         {
-          label: 'Layering',
-          translations: { ja: '重ね合わせ' },
+          label: 'Design',
+          translations: { ja: '設計' },
           items: [
-            'layering/resolution-and-merge',
-            'layering/write-routing',
-            'layering/mount-and-project',
-          ],
-        },
-        {
-          label: 'Profiles',
-          translations: { ja: 'プロファイル' },
-          items: ['profiles/profiles', 'profiles/dynamic-options'],
-        },
-        {
-          label: 'Migration',
-          translations: { ja: '移行' },
-          items: [
-            'migration/schema-migration',
-            'migration/storage-migration',
-            'migration/adopting-configuration-writable',
-          ],
-        },
-        {
-          label: 'Advanced',
-          translations: { ja: '応用' },
-          items: [
-            'advanced/native-aot',
-            'advanced/json-schema-and-testing',
-            'advanced/backups-and-observability',
+            'design/overview',
+            'design/resource',
+            'design/source',
+            'design/codec',
+            'design/fragment-patch',
+            'design/options',
           ],
         },
         {

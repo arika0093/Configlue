@@ -1,14 +1,14 @@
 ---
 title: Configlue
-description: 独立した複数のソースから型付き設定を組み立てる .NET ライブラリです。
+description: 複数の設定ソースをひとつに束ねる、型付き設定ライブラリです。
 template: splash
 hero:
-  tagline: "$ 設定の出どころを保ったまま組み合わせる。"
+  tagline: "設定ファイルを、糊づけするように束ねる。"
   actions:
     - text: はじめる
       link: /ja/getting-started/installation/
       icon: right-arrow
-    - text: クイックスタート
+    - text: 5分で動かす
       link: /ja/getting-started/quick-start/
       icon: rocket
       variant: minimal
@@ -20,39 +20,48 @@ hero:
 
 import { Card, CardGrid } from '@astrojs/starlight/components';
 
-Configlue は、独立したソースから型付き設定を読み込み、解決し、編集して保存するソースジェネレーター中心の .NET ライブラリです。各ソースは自分が持つ項目だけを提供するため、設定オブジェクト全体を置き換えずに値を重ねられます。
+## Configlue とは
 
-## 何ができるか
+Configlue は **Config + glue** を組み合わせた名前です。そのまま読めば「設定を糊（のり）のように繋げる」ライブラリです。
+
+アプリの設定は、ひとつのファイルに収まりません。出荷時の既定値、ユーザーごとの保存、会社で配るポリシー、コンテナの環境変数、デバッグ時のコマンドライン指定。置き場所も、持ち主も、寿命もバラバラです。Configlue はそれらを糊づけする役目を引き受けます。各ソースは自分が知っている項目だけを差し出し、実行時にひとつの型付きモデルとして束ねます。アプリケーションコードから見えるのは、普段どおりの C# のクラスだけです。
+
+## 設定は難しい
+
+設定のつらさは、読み書きのコード量ではありません。時間が経つほど、だいたい次のどれかに当たります。
+
+- 最初はひとつの JSON で足りていたのに、ユーザー別・環境別・配布ポリシーと増えていき、どの値がどこから来たのか分からなくなる。
+- ファイル全体を読み替える作りにしたせいで、一項目の保存がよその項目を壊す。コメントや書式も消える。
+- 環境変数やコマンドラインの上書きを足すたびに、優先順位のルールがコードの中に散らばる。
+- 項目を増やした・名前を変えた途端、古いファイルの扱いが決まらず、移行が「いつかやる」仕事になる。
+
+Configlue はこの「増えた後の設定」を前提にしています。出どころごとにソースを分け、存在する項目だけを重ね、書き込みは選んだ相手だけに戻す。そうしておけば、後からソースを足しても、古いファイルを捨てなくて済みます。
+
+## Configlue の特徴
 
 <CardGrid stagger>
-  <Card title="独立したソースを重ねる" icon="layers">
-    JSON・YAML・XML・環境変数・コマンドライン・HTTP リソースを優先度でマージします。各ソースは自分の項目だけを持ちます。
+  <Card title="全部は読み込まない" icon="layers">
+    設定を一度に丸ごと読むのではなく、各ソースが持つ項目だけを出し合って組み立てます。ない項目は「ないまま」扱うので、未設定と既定値を取り違えません。
   </Card>
-  <Card title="疎に編集する" icon="pencil">
-    1つのプロパティだけ保存、編集セッション、複数ソースへの振り分けに対応します。触っていない項目は保持されます。
+  <Card title="出どころごとに向き合う" icon="magnifier">
+    値は出どころとセットで扱います。`Database.Host` がどのソースから来たのかを辿れ、保存するときも相手を指定できます。触っていないソースには触りません。
   </Card>
-  <Card title="定義を使い回す" icon="puzzle">
-    同じモデル・ソース定義が DI あり/なしの両方で動き、`IOptions<T>` アダプターも付きます。
+  <Card title="統合と移行を見据える" icon="arrow-right">
+    ファイル分割、セクション共有、リモート参照、スキーマの版管理、保存場所の引っ越しまでを同じ考え方で扱います。設定の置き場所や形が変わっても、アプリ側の読み書きは変えずに済みます。
   </Card>
-  <Card title="値の出どころを説明" icon="magnifier">
-    `Database.Host` がどこから来たかを、優先度順の各ソース寄与とともに確認できます。
+  <Card title="DI の有無を選ばない" icon="puzzle">
+    同じモデル定義・ソース定義が、DI なしのコンソールやデスクトップアプリでも、DI ありの ASP.NET Core や Worker Service でも動きます。`IOptions<T>` として受け取ることもできます。
   </Card>
-  <Card title="プロファイルと動的オプション" icon="user">
-    永続化される名前付きプロファイルと、実行時に増減できるドキュメント単位のオプションに対応します。
+  <Card title="書き心地は普通の C#" icon="pencil">
+    読み書きするのは普通のクラスのインスタンスです。`SaveAsync(s => s.Name = "Ada")` のように書けば、裏側で差分だけが対象のソースに届きます。Source Generator が面倒な差分管理を引き受けます。
   </Card>
-  <Card title="安全に移行する" icon="arrow-right">
-    生成コードによるモデル版管理、検証つきソース間コピー、既存 `Configuration.Writable` ファイルの取り込みに対応します。
-  </Card>
-  <Card title="検証とスキーマ" icon="approve-check">
-    DataAnnotations または独自バリデーター、版つき JSON Schema 出力に対応します。
-  </Card>
-  <Card title="NativeAOT 対応" icon="rocket">
-    ソース生成されたシリアル化メタデータでトリミング安全に動作し、NativeAOT サンプルも同梱しています。
+  <Card title="運用の道具も揃える" icon="approve-check">
+    変更通知、バリデーション、バックアップ付きの安全な保存、JSON Schema の出力、NativeAOT 対応まで備えています。小さく始めて、そのまま本番の運用に持ち込めます。
   </Card>
 </CardGrid>
 
 ## 次のステップ
 
-* 初めての方は [Configlue とは](./getting-started/why-configlue.md) と [クイックスタート](./getting-started/quick-start.md) からどうぞ。
-* 動くコードは [サンプル集](./getting-started/examples.md) を参照してください。
-* 目的別にサイドバーから探せます: ソース、重ね合わせ、プロファイル、移行、パッケージリファレンス。
+- 初めての方は [Configlue とは](./getting-started/why-configlue.md) で考え方を掴み、[クイックスタート](./getting-started/quick-start.md) で手を動かしてみてください。
+- 段階的に学びたい方は [チュートリアル](./getting-started/01-first-file-app.md) がおすすめです。JSON の読み書きから、分割・検証・環境変数・HTTP・移行まで順番に進めます。
+- 参照として使うときは、サイドバーの「機能ガイド」と「設計」から目的の項目を探してください。
