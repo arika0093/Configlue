@@ -13,7 +13,8 @@ public static class ConfiglueProfiledOptionsServiceCollectionExtensions
         string defaultProfileName = "default",
         StateWriteRoute writeRoute = default,
         bool validateDataAnnotations = true,
-        TimeSpan? onChangeDebounce = null
+        TimeSpan? onChangeDebounce = null,
+        WriteConflictResolution writeConflictResolution = WriteConflictResolution.FailOnConflict
     )
         where TModel : IConfiglueModel<TModel, TFragment>
         where TFragment : class, IConfiglueFragment<TFragment>
@@ -39,7 +40,9 @@ public static class ConfiglueProfiledOptionsServiceCollectionExtensions
             profileSourceSetFactory,
             writeRoute,
             validateDataAnnotations,
-            onChangeDebounce
+            onChangeDebounce,
+            readValidationMode: ReadValidationMode.EffectiveThrow,
+            writeConflictResolution: writeConflictResolution
         );
         services.AddSingleton<IConfiglueProfiledOptions<TModel>>(
             provider => new ConfiglueProfiledOptions<TModel, TFragment>(

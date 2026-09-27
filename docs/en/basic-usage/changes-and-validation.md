@@ -33,6 +33,8 @@ Validation failures throw `ConfiglueValidationException`, which includes the opt
 
 Reads are validated too. `ReadValidationMode` selects how read-time failures are handled: `EffectiveThrow` (the default) throws when the finally resolved value is invalid, `StrictThrow` throws as soon as any source contributes an invalid value, and `IgnoreValue` drops invalid contributed members and resolves the remaining values. Sources that report an invalid value carry the `Invalid` read status through provenance and details diagnostics. A watcher reload that fails validation is reported to `OnReloadFailed` without notifying `OnChange` listeners.
 
+Edits reject conflicting changes to the same member by default. Set `WriteConflictResolution = WriteConflictResolution.LastWriteWins` on a model registration to prefer the edit session's value for members changed concurrently. Unrelated changes from the latest state are retained, and source writes still use revision checks.
+
 ## Configuration details
 
 `GetDetailsAsync()` returns a generated, strongly typed snapshot of one consistent resolution: effective values with per-source contributions, editability, and collection element provenance.
@@ -54,6 +56,7 @@ conf.Add<UserSetting>(model =>
 {
     model.ValidateDataAnnotations = false; // optional
     model.ReadValidationMode = ReadValidationMode.IgnoreValue; // optional
+    model.WriteConflictResolution = WriteConflictResolution.LastWriteWins; // optional
     // ...sources...
 });
 ```

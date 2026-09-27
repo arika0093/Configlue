@@ -33,6 +33,8 @@ DataAnnotations 検証は既定で保存時に実行されます。無効にす�
 
 読み取り時も検証されます。`ReadValidationMode` で読み取り失敗の扱いを選びます。`EffectiveThrow` (既定) は最終解決値が不正な場合に例外、`StrictThrow` はいずれかのソースが不正値を寄与した時点で例外、`IgnoreValue` は不正な寄与メンバーを除外して残りを解決します。不正値を報告したソースは `Invalid` 読み取りステータスで来歴・詳細診断に残ります。検証に失敗した watcher 再読み込みは `OnChange` listener に流さず `OnReloadFailed` に通知されます。
 
+同じメンバーへの競合編集は既定で拒否されます。モデル登録の `WriteConflictResolution = WriteConflictResolution.LastWriteWins` を設定すると、同時に変更されたメンバーには編集セッションの値を優先します。最新状態にある無関係な変更は保持し、source の書き込みでは引き続き revision を確認します。
+
 ## 設定の詳細
 
 `GetDetailsAsync()` は、実効値・ソース別寄与・編集可否・コレクション要素の出どころを持つ、生成された強い型のスナップショットを一度の解決から返します。
@@ -54,6 +56,7 @@ conf.Add<UserSetting>(model =>
 {
     model.ValidateDataAnnotations = false; // 必要な場合のみ
     model.ReadValidationMode = ReadValidationMode.IgnoreValue; // 必要な場合のみ
+    model.WriteConflictResolution = WriteConflictResolution.LastWriteWins; // 必要な場合のみ
     // ...sources...
 });
 ```

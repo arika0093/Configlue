@@ -226,10 +226,16 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
                         )
                     )
                     {
-                        throw LogConflict(
-                            reason
-                                ?? $"The custom merge strategy could not rebase the edit to '{string.Join('.', path)}'."
-                        );
+                        if (_writeConflictResolution == WriteConflictResolution.FailOnConflict)
+                        {
+                            throw LogConflict(
+                                reason
+                                    ?? $"The custom merge strategy could not rebase the edit to '{string.Join('.', path)}'."
+                            );
+                        }
+
+                        changes = changes.WithMember(member.Id, desiredValue);
+                        continue;
                     }
 
                     changes = changes.WithMember(member.Id, rebasedValue);
@@ -256,6 +262,7 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
                 if (
                     !AreEditValuesEqual(member, beforeValue, currentValue)
                     && !AreEditValuesEqual(member, desiredValue, currentValue)
+                    && _writeConflictResolution == WriteConflictResolution.FailOnConflict
                 )
                 {
                     throw LogConflict(
@@ -280,6 +287,11 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
         string propertyPath
     )
     {
+        if (_writeConflictResolution == WriteConflictResolution.LastWriteWins)
+        {
+            return desiredValue;
+        }
+
         if (
             beforeValue is not System.Collections.IEnumerable beforeEnumerable
             || beforeValue is string

@@ -796,4 +796,9 @@ namespace Configlue
         public string? Revision { get; init; }
         public void Deconstruct(out string? Revision) { }
     }
+    public enum WriteConflictResolution
+    {
+        FailOnConflict = 0,
+        LastWriteWins = 1,
+    }
 }
