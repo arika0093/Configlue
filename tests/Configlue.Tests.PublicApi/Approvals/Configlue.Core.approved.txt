@@ -121,12 +121,16 @@ namespace Configlue
         where TFragment :  class, Configlue.IConfiglueFragment<TFragment>
     {
         public ConfiglueProfiledOptions(Configlue.IConfiglueOptionsRegistry<TModel> registry, Configlue.StateSource<Configlue.ConfiglueProfileCatalog> catalogSource, string defaultProfileName = "default") { }
+        public TModel CurrentValue { get; }
         public string DefaultProfileName { get; }
         public event System.Action<string>? ActiveProfileChanged;
         public System.Threading.Tasks.ValueTask CreateProfileAsync(string profileName, string? copyFrom = null, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask<Configlue.IWritableOptions<TModel>> GetActiveProfileAsync(System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask<string> GetActiveProfileNameAsync(System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask<TModel> GetActiveValueAsync(System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Configlue.StateWriteResult> SaveAsync(System.Action<TModel> update, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Configlue.StateWriteResult> SaveAsync(System.Func<TModel, System.Threading.Tasks.Task> update, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Configlue.StateWriteResult> SaveAsync(TModel value, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask<Configlue.IWritableOptions<TModel>> GetProfileAsync(string profileName, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyCollection<string>> GetProfileNamesAsync(System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask RemoveProfileAsync(string profileName, System.Threading.CancellationToken cancellationToken = default) { }

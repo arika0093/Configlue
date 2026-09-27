@@ -20,10 +20,12 @@ var profiles = context.GetProfiledOptions<AppSettings>();
 await profiles.CreateProfileAsync("work", copyFrom: "default");
 await profiles.SetActiveProfileAsync("work");
 var active = await profiles.GetActiveValueAsync();
+await profiles.SaveAsync(settings => settings.RetryCount++);
+var current = profiles.CurrentValue; // synchronous; blocks while sources are read
 await profiles.RemoveProfileAsync("work");
 ```
 
-The profile catalog source must be writable and remains caller-owned. The catalog is stored through a normal writable `StateSource<ConfiglueProfileCatalog>`, so its provider can be chosen independently. `IConfiglueProfiledOptions<TModel>` lazily restores or creates the default profile on its first async operation, can copy a profile with `CreateProfileAsync`, and persists active-profile changes. Removing a profile removes it from the catalog and runtime; its backing state is retained.
+The profile facade can read and save the active profile directly; save overloads accept a full value, a synchronous update, or an asynchronous update. Its `CurrentValue` property blocks while sources are read, so prefer `GetActiveValueAsync` from asynchronous flows. The profile catalog source must be writable and remains caller-owned. The catalog is stored through a normal writable `StateSource<ConfiglueProfileCatalog>`, so its provider can be chosen independently. `IConfiglueProfiledOptions<TModel>` lazily restores or creates the default profile on its first async operation, can copy a profile with `CreateProfileAsync`, and persists active-profile changes. Removing a profile removes it from the catalog and runtime; its backing state is retained.
 
 For DI, use the same `EnableProfiles` and `SourcesForOptions` calls inside `services.AddConfiglue(...)`, then resolve `IConfiglueProfiledOptions<AppSettings>` from the provider. Profile names added after provider construction resolve through `IOptionsMonitor` and `IConfiglueOptionsRegistry`, not keyed services. The one-arity non-DI entry is `context.GetProfiledOptions<AppSettings>()` as shown above.
 

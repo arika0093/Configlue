@@ -20,10 +20,12 @@ var profiles = context.GetProfiledOptions<AppSettings>();
 await profiles.CreateProfileAsync("work", copyFrom: "default");
 await profiles.SetActiveProfileAsync("work");
 var active = await profiles.GetActiveValueAsync();
+await profiles.SaveAsync(settings => settings.RetryCount++);
+var current = profiles.CurrentValue; // 同期 API。source 読み込み中はブロックします
 await profiles.RemoveProfileAsync("work");
 ```
 
-プロファイルカタログソースは書き込み可能である必要があり、呼び出し側所有のままです。カタログは通常の書き込み可能 `StateSource<ConfiglueProfileCatalog>` で保存されるため、プロバイダーは独立に選べます。`IConfiglueProfiledOptions<TModel>` は最初の非同期操作で既定プロファイルを遅延復元/作成し、`CreateProfileAsync` で複写でき、有効プロファイル変更を永続化します。プロファイル削除はカタログとランタイムから除去しますが、裏の状態は残ります。
+プロファイル facade は active profile の読み取りと保存を直接行えます。保存 overload は値全体・同期 update・非同期 update を受け取ります。`CurrentValue` は source の読み込み中にブロックするため、非同期処理では `GetActiveValueAsync` を使ってください。プロファイルカタログソースは書き込み可能である必要があり、呼び出し側所有のままです。カタログは通常の書き込み可能 `StateSource<ConfiglueProfileCatalog>` で保存されるため、プロバイダーは独立に選べます。`IConfiglueProfiledOptions<TModel>` は最初の非同期操作で既定プロファイルを遅延復元/作成し、`CreateProfileAsync` で複写でき、有効プロファイル変更を永続化します。プロファイル削除はカタログとランタイムから除去しますが、裏の状態は残ります。
 
 DI では同じ `EnableProfiles`・`SourcesForOptions` 呼び出しを `services.AddConfiglue(...)` の中で行い、プロバイダーから `IConfiglueProfiledOptions<AppSettings>` を解決します。プロバイダー構築後に追加されたプロファイル名はキー付きサービスではなく `IOptionsMonitor` と `IConfiglueOptionsRegistry` で解決されます。非 DI の1引数入口は上記の `context.GetProfiledOptions<AppSettings>()` です。
 
