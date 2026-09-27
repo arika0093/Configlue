@@ -92,7 +92,7 @@ public static class StateSourceProjection
             reverseProjection,
             projectedSchema: projectedSchema ?? rootSchema.ToMetadata()
         );
-        return mounted;
+        return mounted.WithWriteOwnership(propertyPath);
     }
 
     private static IConfiglueFragment ExtractMountedFragment(
@@ -278,7 +278,7 @@ public static class StateSourceProjection
                     migrationChain
                 )
                 : null;
-        return new StateSource<TTarget>(
+        var projected = new StateSource<TTarget>(
             source.Id,
             reader,
             source.Priority,
@@ -288,6 +288,8 @@ public static class StateSourceProjection
             source.PhysicalOrigin,
             source.ResourceId
         );
+        source.CopyRoutingMetadataTo(projected);
+        return projected;
     }
 
     private sealed class ProjectedReader<TSource, TTarget>(

@@ -3,6 +3,8 @@ namespace Configlue;
 /// <summary>A logical source and its optional read, write, and watch capabilities.</summary>
 public sealed class StateSource<T>
 {
+    private string[] _ownedPropertyPaths = [];
+
     /// <summary>Creates a source with an automatically generated opaque logical identity.</summary>
     /// <remarks>
     /// When a resource identity or physical origin is available, the identity is stable for the same
@@ -17,7 +19,8 @@ public sealed class StateSource<T>
         IStateWatcher? watcher = null,
         string? physicalOrigin = null,
         ResourceId? resourceId = null,
-        string? logicalDescriptor = null
+        string? logicalDescriptor = null,
+        bool explicitOnly = false
     )
         : this(
             StateSourceIdentity.Create(
@@ -32,7 +35,8 @@ public sealed class StateSource<T>
             writer,
             watcher,
             physicalOrigin,
-            resourceId
+            resourceId,
+            explicitOnly
         ) { }
 
     /// <summary>Creates a source with at least a reader.</summary>
@@ -44,7 +48,8 @@ public sealed class StateSource<T>
         IStateWriter<T>? writer = null,
         IStateWatcher? watcher = null,
         string? physicalOrigin = null,
-        ResourceId? resourceId = null
+        ResourceId? resourceId = null,
+        bool explicitOnly = false
     )
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
@@ -68,6 +73,7 @@ public sealed class StateSource<T>
         PhysicalOrigin = physicalOrigin;
         ResourceId =
             resourceId ?? (reader as IResourceIdentity ?? writer as IResourceIdentity)?.ResourceId;
+        ExplicitOnly = explicitOnly;
     }
 
     /// <summary>The stable logical identifier of the source.</summary>
@@ -93,4 +99,40 @@ public sealed class StateSource<T>
 
     /// <summary>The optional identity of the physical resource backing this logical source.</summary>
     public ResourceId? ResourceId { get; }
+
+    /// <summary>Whether this source is excluded from ordinary inferred write routing.</summary>
+    public bool ExplicitOnly { get; private set; }
+
+    internal IReadOnlyList<string> OwnedPropertyPaths => _ownedPropertyPaths;
+
+    internal StateSource<T> WithWriteOwnership(string propertyPath)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(propertyPath);
+        string[] ownedPaths =
+            _ownedPropertyPaths.Length == 0
+                ? [propertyPath]
+                : _ownedPropertyPaths.Select(path => $"{propertyPath}.{path}").ToArray();
+        var clone = new StateSource<T>(
+            Id,
+            Reader,
+            Priority,
+            FallbackCondition,
+            Writer,
+            Watcher,
+            PhysicalOrigin,
+            ResourceId,
+            ExplicitOnly
+        )
+        {
+            _ownedPropertyPaths = ownedPaths,
+        };
+        return clone;
+    }
+
+    internal void CopyRoutingMetadataTo<TTarget>(StateSource<TTarget> target)
+    {
+        ArgumentNullException.ThrowIfNull(target);
+        target.ExplicitOnly = ExplicitOnly;
+        target._ownedPropertyPaths = [.. _ownedPropertyPaths];
+    }
 }

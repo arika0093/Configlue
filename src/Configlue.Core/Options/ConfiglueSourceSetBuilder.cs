@@ -46,7 +46,7 @@ public class ConfiglueSourceSetBuilder
                 var source =
                     sourceFactory(provider)
                     ?? throw new InvalidOperationException("A source factory returned null.");
-                return new StateSource<TFragment>(
+                var keyedSource = new StateSource<TFragment>(
                     sourceKey.Id,
                     source.Reader,
                     source.Priority,
@@ -56,6 +56,8 @@ public class ConfiglueSourceSetBuilder
                     source.PhysicalOrigin,
                     source.ResourceId
                 );
+                source.CopyRoutingMetadataTo(keyedSource);
+                return keyedSource;
             })
         );
     }

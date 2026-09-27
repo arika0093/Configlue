@@ -27,6 +27,9 @@ public sealed class JsonFileSourceOptions
     /// <summary>Whether the source is read-only.</summary>
     public bool ReadOnly { get; init; }
 
+    /// <summary>Whether this source is excluded from inferred ordinary write routing.</summary>
+    public bool ExplicitOnly { get; init; }
+
     /// <summary>Whether to watch the file for changes.</summary>
     public bool WatchChanges { get; init; } = true;
 
@@ -56,6 +59,8 @@ public sealed class JsonFileSourceOptions
     internal bool? WatchChangesOverride { get; set; }
 
     internal JsonSerializerOptions? SerializerOptionsOverride { get; set; }
+
+    internal bool? ExplicitOnlyOverride { get; set; }
 }
 
 /// <summary>Registers facade sources backed by JSON files.</summary>
@@ -211,6 +216,7 @@ public static class JsonFileSourceRegistration
             var watchChanges = options.WatchChangesOverride ?? options.WatchChanges;
             var sectionPath = options.SectionPathOverride ?? options.SectionPath;
             var priority = options.PriorityOverride ?? options.Priority;
+            var explicitOnly = options.ExplicitOnlyOverride ?? options.ExplicitOnly;
             var writer = readOnly ? null : (IResourceWriter)file;
             IResourceWriter? sourceWriter = writer;
             IResourceReader resource = file;
@@ -256,7 +262,8 @@ public static class JsonFileSourceRegistration
                 stateWriter,
                 watcher,
                 file.Path,
-                physicalResourceId
+                physicalResourceId,
+                explicitOnly
             );
         }
 
@@ -379,6 +386,14 @@ public sealed class JsonFileRegistration<TModel>
         EnsureMutable();
         ArgumentNullException.ThrowIfNull(serializerOptions);
         _options.SerializerOptionsOverride = serializerOptions;
+        return this;
+    }
+
+    /// <summary>Excludes this source from ordinary inferred write routing.</summary>
+    public JsonFileRegistration<TModel> ExplicitOnly(bool explicitOnly = true)
+    {
+        EnsureMutable();
+        _options.ExplicitOnlyOverride = explicitOnly;
         return this;
     }
 

@@ -115,9 +115,8 @@ public sealed class NestedSourceBindingTests
             "remote-updated.db"
         );
 
-        await Should.ThrowAsync<InvalidOperationException>(async () =>
-            await options.SaveAsync(settings => settings.Database!.Host = "updated.db")
-        );
+        await options.SaveAsync(settings => settings.Database!.Host = "updated.db");
+        (await remoteStore.ReadAsync()).Value!.Host.Value.ShouldBe("updated.db");
         using (
             var edit = await options.OpenEditSessionAsync(
                 new StateWritePlan(
@@ -201,6 +200,204 @@ public sealed class NestedSourceBindingTests
         (remoteValue.Host.Value).ShouldBe("updated.remote.db");
         (remoteValue.Port.Value).ShouldBe(7443);
         (await baseStore.ReadAsync()).Value!.Database.Value!.Host.Value.ShouldBe("default.db");
+    }
+
+    [Test]
+    public async Task OrdinaryPatchWritesAreRoutedToTheMountedSubtreeOwner()
+    {
+        var rootStore = new InMemoryStateStore<AppSettings.Fragment>(
+            new AppSettings.Fragment { RetryCount = Optional<int>.Present(3) }
+        );
+        var databaseStore = new InMemoryStateStore<DatabaseSettings.Fragment>(
+            new DatabaseSettings.Fragment
+            {
+                Host = Optional<string>.Present("remote.db"),
+                Port = Optional<int>.Present(7443),
+            }
+        );
+        var databaseSource = new StateSource<DatabaseSettings.Fragment>(
+            "database-owner",
+            databaseStore,
+            writer: databaseStore
+        );
+
+        await using var context = ConfiglueApp.CreateContext(builder =>
+        {
+            builder.Add<AppSettings>(model =>
+                model.Sources(sources =>
+                {
+                    sources.Add(
+                        new StateSource<AppSettings.Fragment>("root", rootStore, writer: rootStore)
+                    );
+                    sources.AddMounted<
+                        AppSettings,
+                        AppSettings.Fragment,
+                        DatabaseSettings,
+                        DatabaseSettings.Fragment
+                    >(databaseSource, settings => settings.Database);
+                })
+            );
+        });
+
+        var options = (IConfiglueOptions<AppSettings>)context.GetOptions<AppSettings>();
+        await options.SaveAsync(settings => settings.Database!.Host = "updated.remote.db");
+        await options.SaveAsync(settings => settings.RetryCount = 9);
+
+        var database = (await databaseStore.ReadAsync()).Value!;
+        (database.Host.Value).ShouldBe("updated.remote.db");
+        (database.Port.Value).ShouldBe(7443);
+        (await rootStore.ReadAsync()).Value!.RetryCount.Value.ShouldBe(9);
+    }
+
+    [Test]
+    public async Task MountedOwnerDoesNotRequireAnUnambiguousRootWriter()
+    {
+        var firstRootStore = new InMemoryStateStore<AppSettings.Fragment>();
+        var secondRootStore = new InMemoryStateStore<AppSettings.Fragment>();
+        var databaseStore = new InMemoryStateStore<DatabaseSettings.Fragment>(
+            new DatabaseSettings.Fragment { Host = Optional<string>.Present("remote.db") }
+        );
+
+        await using var context = ConfiglueApp.CreateContext(builder =>
+        {
+            builder.Add<AppSettings>(model =>
+                model.Sources(sources =>
+                {
+                    sources.Add(
+                        new StateSource<AppSettings.Fragment>(
+                            "first-root",
+                            firstRootStore,
+                            writer: firstRootStore
+                        )
+                    );
+                    sources.Add(
+                        new StateSource<AppSettings.Fragment>(
+                            "second-root",
+                            secondRootStore,
+                            writer: secondRootStore
+                        )
+                    );
+                    sources.AddMounted<
+                        AppSettings,
+                        AppSettings.Fragment,
+                        DatabaseSettings,
+                        DatabaseSettings.Fragment
+                    >(
+                        new StateSource<DatabaseSettings.Fragment>(
+                            "database-owner",
+                            databaseStore,
+                            writer: databaseStore
+                        ),
+                        settings => settings.Database
+                    );
+                })
+            );
+        });
+
+        var options = (IConfiglueOptions<AppSettings>)context.GetOptions<AppSettings>();
+        await options.SaveAsync(settings => settings.Database!.Host = "updated.remote.db");
+
+        (await databaseStore.ReadAsync()).Value!.Host.Value.ShouldBe("updated.remote.db");
+    }
+
+    [Test]
+    public async Task ExplicitOnlyMountedSourceIsNotAnOrdinaryWriteOwner()
+    {
+        var explicitStore = new InMemoryStateStore<DatabaseSettings.Fragment>(
+            new DatabaseSettings.Fragment { Host = Optional<string>.Present("explicit.db") }
+        );
+        var ordinaryStore = new InMemoryStateStore<DatabaseSettings.Fragment>(
+            new DatabaseSettings.Fragment { Host = Optional<string>.Present("ordinary.db") }
+        );
+        var explicitSource = new StateSource<DatabaseSettings.Fragment>(
+            "explicit-database",
+            explicitStore,
+            writer: explicitStore,
+            explicitOnly: true
+        );
+        var ordinarySource = new StateSource<DatabaseSettings.Fragment>(
+            "ordinary-database",
+            ordinaryStore,
+            priority: 100,
+            writer: ordinaryStore
+        );
+
+        await using var context = ConfiglueApp.CreateContext(builder =>
+        {
+            builder.Add<AppSettings>(model =>
+                model.Sources(sources =>
+                {
+                    sources.AddMounted<
+                        AppSettings,
+                        AppSettings.Fragment,
+                        DatabaseSettings,
+                        DatabaseSettings.Fragment
+                    >(explicitSource, settings => settings.Database);
+                    sources.AddMounted<
+                        AppSettings,
+                        AppSettings.Fragment,
+                        DatabaseSettings,
+                        DatabaseSettings.Fragment
+                    >(ordinarySource, settings => settings.Database);
+                })
+            );
+        });
+
+        var options = (IConfiglueOptions<AppSettings>)context.GetOptions<AppSettings>();
+        await options.SaveAsync(settings => settings.Database!.Host = "ordinary-updated.db");
+        (await ordinaryStore.ReadAsync()).Value!.Host.Value.ShouldBe("ordinary-updated.db");
+        (await explicitStore.ReadAsync()).Value!.Host.Value.ShouldBe("explicit.db");
+
+        var explicitPatch = new AppSettings.Patch();
+        explicitPatch.Database.Host = "explicit-updated.db";
+        await options
+            .Source(SourceKey<AppSettings>.FromId("explicit-database"))
+            .SaveAsync(explicitPatch);
+        (await explicitStore.ReadAsync()).Value!.Host.Value.ShouldBe("explicit-updated.db");
+    }
+
+    [Test]
+    public void DuplicateWritableMountedOwnersAreRejected()
+    {
+        var firstStore = new InMemoryStateStore<DatabaseSettings.Fragment>();
+        var secondStore = new InMemoryStateStore<DatabaseSettings.Fragment>();
+
+        Should.Throw<InvalidOperationException>(() =>
+            ConfiglueApp.CreateContext(builder =>
+            {
+                builder.Add<AppSettings>(model =>
+                    model.Sources(sources =>
+                    {
+                        sources.AddMounted<
+                            AppSettings,
+                            AppSettings.Fragment,
+                            DatabaseSettings,
+                            DatabaseSettings.Fragment
+                        >(
+                            new StateSource<DatabaseSettings.Fragment>(
+                                "first-database",
+                                firstStore,
+                                writer: firstStore
+                            ),
+                            settings => settings.Database
+                        );
+                        sources.AddMounted<
+                            AppSettings,
+                            AppSettings.Fragment,
+                            DatabaseSettings,
+                            DatabaseSettings.Fragment
+                        >(
+                            new StateSource<DatabaseSettings.Fragment>(
+                                "second-database",
+                                secondStore,
+                                writer: secondStore
+                            ),
+                            settings => settings.Database
+                        );
+                    })
+                );
+            })
+        );
     }
 
     [Test]
