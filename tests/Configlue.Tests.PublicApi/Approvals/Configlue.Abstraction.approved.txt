@@ -428,8 +428,15 @@ namespace Configlue
     public readonly struct StateCodecContext
     {
         public StateCodecContext(Configlue.StateSchemaMetadata? schema = default, System.IServiceProvider? services = null) { }
+        public StateCodecContext(Configlue.StateSchemaMetadata? schema, System.IServiceProvider? services, string? schemaReferenceBaseUri) { }
         public Configlue.StateSchemaMetadata? Schema { get; }
+        public string? SchemaReferenceBaseUri { get; }
         public System.IServiceProvider? Services { get; }
+    }
+    public static class StateSchemaReference
+    {
+        public static string CreateUri(string baseUri, Configlue.StateSchemaMetadata schema) { }
+        public static string GetFileName(string modelId, int version) { }
     }
     public sealed class StateConflictException : System.Exception
     {

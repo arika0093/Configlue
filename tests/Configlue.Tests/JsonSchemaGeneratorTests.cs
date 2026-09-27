@@ -90,23 +90,32 @@ public sealed class JsonSchemaGeneratorTests
         (result.Documents.Count).ShouldBe(1);
         var document = result.Documents[0];
         (document.FileName).ShouldBe("schema-settings.v2.json");
-        (document.Schema["$id"]!.GetValue<string>()).ShouldBe(document.FileName);
+        (document.Schema["$id"]!.GetValue<string>())
+            .ShouldBe("https://example.test/schemas/schema-settings.v2.json");
 
         var properties = document.Schema["properties"]!;
-        (properties["$version"]!["type"]!.GetValue<string>()).ShouldBe("integer");
         (properties["$schema"]!["type"]!.GetValue<string>()).ShouldBe("string");
-        (properties["MaxConnections"]!["minimum"]!.GetValue<decimal>()).ShouldBe(1m);
-        (properties["MaxConnections"]!["maximum"]!.GetValue<decimal>()).ShouldBe(1000m);
-        (properties["Name"]!["minLength"]!.GetValue<int>()).ShouldBe(3);
-        (properties["Email"]!["format"]!.GetValue<string>()).ShouldBe("email");
-        (properties["PublishedDate"]!["format"]!.GetValue<string>()).ShouldBe("date");
-        (properties["PublishedDate"]!["title"]!.GetValue<string>()).ShouldBe("Published date");
-        (properties["PublishedDate"]!["description"]!.GetValue<string>()).ShouldBe(
+        var metadataProperties = properties["$configlue"]!["properties"]!;
+        (metadataProperties["id"]!["const"]!.GetValue<string>()).ShouldBe("schema-settings");
+        (metadataProperties["version"]!["const"]!.GetValue<int>()).ShouldBe(2);
+        var valueSchema = properties["$value"]!;
+        (valueSchema["properties"]!["MaxConnections"]!["minimum"]!.GetValue<decimal>())
+            .ShouldBe(1m);
+        (valueSchema["properties"]!["MaxConnections"]!["maximum"]!.GetValue<decimal>())
+            .ShouldBe(1000m);
+        (valueSchema["properties"]!["Name"]!["minLength"]!.GetValue<int>()).ShouldBe(3);
+        (valueSchema["properties"]!["Email"]!["format"]!.GetValue<string>()).ShouldBe("email");
+        (valueSchema["properties"]!["PublishedDate"]!["format"]!.GetValue<string>())
+            .ShouldBe("date");
+        (valueSchema["properties"]!["PublishedDate"]!["title"]!.GetValue<string>())
+            .ShouldBe("Published date");
+        (valueSchema["properties"]!["PublishedDate"]!["description"]!.GetValue<string>())
+            .ShouldBe(
             "Date shown to users."
         );
         (
             (
-                properties["AllowedState"]!["enum"]!
+                valueSchema["properties"]!["AllowedState"]!["enum"]!
                     .AsArray()
                     .Select(static item => item!.GetValue<string>())
             )
@@ -115,7 +124,7 @@ public sealed class JsonSchemaGeneratorTests
             .ShouldBe((new[] { "red", "green" }).OrderBy(static item => item));
         (
             (
-                properties["CurrentState"]!["not"]!["enum"]!
+                valueSchema["properties"]!["CurrentState"]!["not"]!["enum"]!
                     .AsArray()
                     .Select(static item => item!.GetValue<string>())
             )
@@ -124,7 +133,8 @@ public sealed class JsonSchemaGeneratorTests
             .ShouldBe((new[] { "retired", "legacy" }).OrderBy(static item => item));
         ((document.Schema["required"]!.AsArray().Select(static item => item!.GetValue<string>())))
             .OrderBy(static item => item)
-            .ShouldBe((new[] { "Name", "Email" }).OrderBy(static item => item));
+            .ShouldBe((new[] { "$configlue", "$value" }).OrderBy(static item => item));
+        (valueSchema["required"]).ShouldBeNull();
     }
 
     [Test]

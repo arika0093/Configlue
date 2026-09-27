@@ -145,7 +145,12 @@ public static class JsonSchemaGenerator
                 var schemaId = normalizedSchemaBaseUri is null
                     ? fileName
                     : new Uri(normalizedSchemaBaseUri, fileName).AbsoluteUri;
-                AddLibraryProperties(schema, schemaId, schemaBaseUri is not null);
+                schema = CreatePersistedDocumentSchema(
+                    schema,
+                    model,
+                    schemaId,
+                    schemaBaseUri is not null
+                );
                 documents.Add(new JsonSchemaDocument(model, fileName, schema));
             }
             catch (Exception exception)
@@ -601,24 +606,83 @@ public static class JsonSchemaGenerator
             .OfType<TAttribute>()
         ?? [];
 
-    private static void AddLibraryProperties(
-        JsonNode schema,
+    private static JsonNode CreatePersistedDocumentSchema(
+        JsonNode exportedModelSchema,
+        ConfiglueModelSchema model,
         string schemaId,
         bool includeConfigurationSchema
     )
     {
-        if (schema is not JsonObject root)
-            throw new InvalidOperationException("The exported JSON schema root must be an object.");
-        root["$schema"] = "https://json-schema.org/draft/2020-12/schema";
-        root["$id"] = schemaId;
-        if (root["properties"] is not JsonObject properties)
+        if (exportedModelSchema is not JsonObject payload)
         {
-            properties = [];
-            root["properties"] = properties;
+            throw new InvalidOperationException("The exported JSON schema root must be an object.");
         }
-        properties["$version"] = new JsonObject { ["type"] = "integer" };
+
+        var definitions = payload["$defs"]?.DeepClone();
+        if (definitions is not null)
+        {
+            RemoveRequiredProperties(definitions);
+        }
+
+        payload.Remove("$schema");
+        payload.Remove("$id");
+        payload.Remove("$defs");
+        RemoveRequiredProperties(payload);
+
+        var properties = new JsonObject
+        {
+            ["$configlue"] = new JsonObject
+            {
+                ["type"] = "object",
+                ["properties"] = new JsonObject
+                {
+                    ["id"] = new JsonObject { ["const"] = model.Id },
+                    ["version"] = new JsonObject { ["const"] = model.Version },
+                },
+                ["required"] = new JsonArray("id", "version"),
+                ["additionalProperties"] = false,
+            },
+            ["$value"] = payload,
+        };
         if (includeConfigurationSchema)
+        {
             properties["$schema"] = new JsonObject { ["type"] = "string" };
+        }
+
+        var schema = new JsonObject
+        {
+            ["$schema"] = "https://json-schema.org/draft/2020-12/schema",
+            ["$id"] = schemaId,
+            ["type"] = "object",
+            ["properties"] = properties,
+            ["required"] = new JsonArray("$configlue", "$value"),
+            ["additionalProperties"] = false,
+        };
+        if (definitions is not null)
+        {
+            schema["$defs"] = definitions;
+        }
+
+        return schema;
+    }
+
+    private static void RemoveRequiredProperties(JsonNode node)
+    {
+        if (node is JsonObject jsonObject)
+        {
+            jsonObject.Remove("required");
+            foreach (var child in jsonObject.Where(static item => item.Value is not null))
+            {
+                RemoveRequiredProperties(child.Value!);
+            }
+        }
+        else if (node is JsonArray jsonArray)
+        {
+            foreach (var child in jsonArray.Where(static item => item is not null))
+            {
+                RemoveRequiredProperties(child!);
+            }
+        }
     }
 #endif
 }

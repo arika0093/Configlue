@@ -138,9 +138,11 @@ await options.SaveAsync(settings =>
 
 ```json
 {
-  "$version": 1,
-  "Name": "Ada",
-  "RunCount": 1
+  "$configlue": { "id": "tutorial.settings", "version": 1 },
+  "$value": {
+    "Name": "Ada",
+    "RunCount": 1
+  }
 }
 ```
 

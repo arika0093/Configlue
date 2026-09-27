@@ -138,9 +138,11 @@ The lambda passed to `SaveAsync` is a sparse edit: only touched members are save
 
 ```json
 {
-  "$version": 1,
-  "Name": "Ada",
-  "RunCount": 1
+  "$configlue": { "id": "tutorial.settings", "version": 1 },
+  "$value": {
+    "Name": "Ada",
+    "RunCount": 1
+  }
 }
 ```
 

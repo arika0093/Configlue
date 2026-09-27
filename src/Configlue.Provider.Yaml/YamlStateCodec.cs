@@ -77,6 +77,21 @@ public sealed class YamlStateCodec
         ArgumentNullException.ThrowIfNull(destination);
         var schema = GetSchema(value, _schema);
         var schemaMetadata = context.Schema ?? schema?.ToMetadata();
+        string? schemaReference = null;
+        if (context.SchemaReferenceBaseUri is { } schemaReferenceBaseUri)
+        {
+            if (schemaMetadata is not { } referencedSchema)
+            {
+                throw new InvalidOperationException(
+                    "A schema reference base URI requires schema metadata."
+                );
+            }
+
+            schemaReference = StateSchemaReference.CreateUri(
+                schemaReferenceBaseUri,
+                referencedSchema
+            );
+        }
         string yaml;
         if (value is IConfiglueFragment fragment)
         {
@@ -108,6 +123,11 @@ public sealed class YamlStateCodec
                     : value,
             };
             yaml = YamlSerializer.Serialize(envelope, envelope.GetType(), _options);
+        }
+
+        if (schemaReference is not null)
+        {
+            yaml = $"# yaml-language-server: $schema={schemaReference}{Environment.NewLine}{yaml}";
         }
 
         var bytes = Encoding.UTF8.GetBytes(yaml);

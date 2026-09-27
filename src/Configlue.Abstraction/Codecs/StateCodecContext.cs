@@ -8,6 +8,19 @@ public readonly struct StateCodecContext
     {
         Schema = schema;
         Services = services;
+        SchemaReferenceBaseUri = null;
+    }
+
+    /// <summary>Creates a codec context with a base URI for a versioned instance schema reference.</summary>
+    public StateCodecContext(
+        StateSchemaMetadata? schema,
+        IServiceProvider? services,
+        string? schemaReferenceBaseUri
+    )
+    {
+        Schema = schema;
+        Services = services;
+        SchemaReferenceBaseUri = schemaReferenceBaseUri;
     }
 
     /// <summary>The schema version associated with the payload.</summary>
@@ -15,4 +28,7 @@ public readonly struct StateCodecContext
 
     /// <summary>Services available to codecs that need application-specific converters.</summary>
     public IServiceProvider? Services { get; }
+
+    /// <summary>The optional base URI used by JSON or YAML codecs to emit an instance schema reference.</summary>
+    public string? SchemaReferenceBaseUri { get; }
 }
