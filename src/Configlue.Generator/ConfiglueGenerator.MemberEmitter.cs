@@ -35,7 +35,7 @@ public sealed partial class ConfiglueGenerator
         {
             var elementType = TypeName(member.Collection.ElementType);
             enumerated =
-                $"global::System.Linq.Enumerable.Select({access}, static item => item is null ? null : (({elementType})item).DeepClone())";
+                $"global::System.Linq.Enumerable.Select({access}, static item => item is null ? default! : (({elementType})item).DeepClone())";
         }
 
         return member.Collection.Kind switch
@@ -73,7 +73,7 @@ public sealed partial class ConfiglueGenerator
         {
             var elementType = TypeName(member.Collection.ElementType);
             enumerated =
-                $"global::System.Linq.Enumerable.Select({access}!, static item => item is null ? null : (({elementType})item).DeepClone())";
+                $"global::System.Linq.Enumerable.Select({access}!, static item => item is null ? default! : (({elementType})item).DeepClone())";
         }
 
         var cloned = member.Collection.Kind switch

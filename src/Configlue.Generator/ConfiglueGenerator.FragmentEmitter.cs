@@ -246,7 +246,7 @@ public sealed partial class ConfiglueGenerator
         {
             var access = "value." + EscapeIdentifier(member.Property.Name);
             var value = member.ChildModel is null
-                ? access
+                ? CloneModelExpression(member, access, code.CancellationToken)
                 : $"({access} is null ? null : {NonNullableTypeName(member.ChildModel)}.Fragment.From({access}))";
             code.AppendIndent(4)
                 .Append(EscapeIdentifier(member.Property.Name))

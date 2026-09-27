@@ -108,6 +108,24 @@ public partial class NestedSettings
     public InnerSettingsV2? Inner { get; set; } = new();
 }
 
+[ConfiglueModel("ownership-child", Version = 1)]
+public partial class OwnershipChild
+{
+    public string Name { get; set; } = "";
+}
+
+[ConfiglueModel("ownership-settings", Version = 1)]
+public partial class OwnershipSettings
+{
+    public string[] ArrayValues { get; set; } = [];
+
+    public List<string> ListValues { get; set; } = [];
+
+    public ISet<string> SetValues { get; set; } = new HashSet<string>();
+
+    public List<OwnershipChild> Children { get; set; } = [];
+}
+
 public sealed class GeneratedFragmentTests
 {
     [Test]
@@ -129,6 +147,43 @@ public sealed class GeneratedFragmentTests
         (value.Enabled).ShouldBeFalse();
         (value.RetryCount).ShouldBe(3);
         (value.Database!.Host).ShouldBe("localhost");
+    }
+
+    [Test]
+    public void FragmentFromModel_CopiesMutableCollectionMembers()
+    {
+        var plugins = new List<string> { "before-save" };
+        var model = new AppSettings { Plugins = plugins };
+
+        var fragment = AppSettings.Fragment.From(model);
+        plugins.Add("after-save");
+
+        fragment.Plugins.Value.ShouldBe(new[] { "before-save" });
+    }
+
+    [Test]
+    public void FragmentFromModel_DeepCopiesSupportedCollectionsAndGeneratedElements()
+    {
+        var child = new OwnershipChild { Name = "before-save" };
+        var model = new OwnershipSettings
+        {
+            ArrayValues = ["array-before"],
+            ListValues = ["list-before"],
+            SetValues = new HashSet<string> { "set-before" },
+            Children = [child],
+        };
+
+        var fragment = OwnershipSettings.Fragment.From(model);
+        model.ArrayValues[0] = "array-after";
+        model.ListValues.Add("list-after");
+        model.SetValues.Add("set-after");
+        model.Children.Add(new OwnershipChild { Name = "later" });
+        child.Name = "mutated-child";
+
+        fragment.ArrayValues.Value.ShouldBe(new[] { "array-before" });
+        fragment.ListValues.Value.ShouldBe(new[] { "list-before" });
+        fragment.SetValues.Value.ShouldBe(new HashSet<string> { "set-before" });
+        fragment.Children.Value!.Select(static item => item.Name).ShouldBe(["before-save"]);
     }
 
     [Test]

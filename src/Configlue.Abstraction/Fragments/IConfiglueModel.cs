@@ -10,7 +10,9 @@ public interface IConfiglueModel<TSelf, TFragment> : IConfiglueDeepCloneable<TSe
     /// <summary>Generated model schema metadata.</summary>
     static abstract ConfiglueModelSchema ConfiglueSchema { get; }
 
-    /// <summary>Creates a complete fragment from a model value.</summary>
+    /// <summary>
+    /// Creates a complete fragment from a model value, copying supported collections and generated model elements.
+    /// </summary>
     static abstract TFragment ToFragment(TSelf value);
 
     /// <summary>Creates a sparse semantic difference between two model values.</summary>

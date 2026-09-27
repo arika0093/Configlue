@@ -1204,6 +1204,21 @@ public sealed class StateRuntimeTests
     }
 
     [Test]
+    public async Task SaveAsync_DoesNotRetainCallerOwnedCollectionReferences()
+    {
+        var store = new InMemoryStateStore<AppSettings.Fragment>();
+        var sources = new StateSourceSet<AppSettings.Fragment>([new("user", store, writer: store)]);
+        await using var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(sources);
+        var plugins = new List<string> { "before-save" };
+
+        await options.SaveAsync(new AppSettings { Plugins = plugins });
+        plugins.Add("after-save");
+
+        var saved = await options.ReadAsync();
+        saved.Value!.Plugins.ShouldBe(new[] { "before-save" });
+    }
+
+    [Test]
     public async Task ConfigureSession_RebasesAfterAnUnrelatedSourceChanges()
     {
         var user = new InMemoryStateStore<AppSettings.Fragment>(
