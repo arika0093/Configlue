@@ -202,6 +202,7 @@ internal sealed class ConfiglueMicrosoftOptionsMonitor<TModel>
 
     private MonitorCacheEntry GetNamedCache(string name, IReadOnlyOptions<TModel> options)
     {
+        var isRegistryProfile = false;
         lock (_cacheGate)
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
@@ -210,6 +211,7 @@ internal sealed class ConfiglueMicrosoftOptionsMonitor<TModel>
                 if (_registry.TryGet(name, out var registered) && registered is not null)
                 {
                     options = registered;
+                    isRegistryProfile = true;
                 }
                 else if (!_namedProfileNames.Contains(name, StringComparer.Ordinal))
                 {
@@ -230,7 +232,7 @@ internal sealed class ConfiglueMicrosoftOptionsMonitor<TModel>
                 cached.Dispose();
             }
 
-            var created = new MonitorCacheEntry(options);
+            var created = new MonitorCacheEntry(options, allowCache: !isRegistryProfile);
             _namedCache.Add(name, created);
             return created;
         }
@@ -259,13 +261,14 @@ internal sealed class ConfiglueMicrosoftOptionsMonitor<TModel>
         private TModel? _value;
         private int _changeVersion;
 
-        public MonitorCacheEntry(IReadOnlyOptions<TModel> options)
+        public MonitorCacheEntry(IReadOnlyOptions<TModel> options, bool allowCache = true)
         {
             Options = options;
             _cloneProvider = options as IConfiglueValueCloneProvider<TModel>;
             var diagnostics = (options as IConfiglueOptions<TModel>)?.GetDiagnostics();
             _cacheable =
-                _cloneProvider is not null
+                allowCache
+                && _cloneProvider is not null
                 && diagnostics?.Sources.Any(static source => source.CanWatch) == true;
             if (_cacheable)
             {
