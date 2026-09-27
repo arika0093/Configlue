@@ -1,21 +1,10 @@
 [assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/arika0093/Configlue")]
 namespace Configlue.Provider.Json
 {
-    public sealed class ConfigurationWritableJsonStateCodec<T> : Configlue.IStateCodec<T>, Configlue.IStateSchemaMetadataReader
-    {
-        [System.Diagnostics.CodeAnalysis.RequiresDynamicCode("Reflection-based JSON serialization may require runtime code generation. Use the " +
-            "JsonTypeInfo constructor for NativeAOT.")]
-        [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Reflection-based JSON serialization may require types that trimming removes. Use " +
-            "the JsonTypeInfo constructor for trim-safe serialization.")]
-        public ConfigurationWritableJsonStateCodec(System.Text.Json.JsonSerializerOptions? options = null, string? modelId = null, string versionProperty = "$version", System.Collections.Generic.IEnumerable<string>? fallbackVersionProperties = null) { }
-        public ConfigurationWritableJsonStateCodec(System.Text.Json.Serialization.Metadata.JsonTypeInfo<T> typeInfo, string? modelId = null, string versionProperty = "$version", System.Collections.Generic.IEnumerable<string>? fallbackVersionProperties = null) { }
-        public T? Deserialize(in System.Buffers.ReadOnlySequence<byte> source, in Configlue.StateCodecContext context) { }
-        public Configlue.StateSchemaMetadata? ReadSchemaMetadata(in System.Buffers.ReadOnlySequence<byte> source) { }
-        public void Serialize(T? value, System.Buffers.IBufferWriter<byte> destination, in Configlue.StateCodecContext context) { }
-    }
     public sealed class JsonFileSourceOptions
     {
         public JsonFileSourceOptions() { }
+        public Configlue.DocumentLayoutOptions? DocumentLayout { get; init; }
         public Configlue.StateFallbackCondition FallbackCondition { get; init; }
         public string? Id { get; init; }
         public required string Path { get; init; }
@@ -44,6 +33,7 @@ namespace Configlue.Provider.Json
         public System.Net.Http.HttpClient? Client { get; init; }
         public System.Func<System.IServiceProvider?, System.Net.Http.HttpClient>? ClientFactory { get; init; }
         public Configlue.StateCodecContext CodecContext { get; init; }
+        public Configlue.DocumentLayoutOptions? DocumentLayout { get; init; }
         public required string EndPoint { get; init; }
         public Configlue.StateFallbackCondition FallbackCondition { get; init; }
         public string? Id { get; init; }
@@ -84,13 +74,13 @@ namespace Configlue.Provider.Json
     }
     public static class JsonSchemaGenerator
     {
-        public static Configlue.Provider.Json.JsonSchemaGenerationResult Generate(System.Collections.Generic.IEnumerable<Configlue.ConfiglueModelSchema> models, System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver resolver, string? schemaBaseUri = null) { }
-        public static Configlue.Provider.Json.JsonSchemaGenerationResult Generate<TModel, TFragment>(System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver resolver, string? schemaBaseUri = null)
+        public static Configlue.Provider.Json.JsonSchemaGenerationResult Generate(System.Collections.Generic.IEnumerable<Configlue.ConfiglueModelSchema> models, System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver resolver, string? schemaBaseUri = null, Configlue.DocumentLayoutOptions? documentLayout = null) { }
+        public static Configlue.Provider.Json.JsonSchemaGenerationResult Generate<TModel, TFragment>(System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver resolver, string? schemaBaseUri = null, Configlue.DocumentLayoutOptions? documentLayout = null)
             where TModel : Configlue.IConfiglueModel<TModel, TFragment>
             where TFragment :  class, Configlue.IConfiglueFragment<TFragment> { }
         public static bool TryWriteFromCommandLine(System.Collections.Generic.IReadOnlyList<string> arguments, System.Collections.Generic.IEnumerable<Configlue.ConfiglueModelSchema> models, System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver resolver, out Configlue.Provider.Json.JsonSchemaGenerationResult? result, string? schemaBaseUri = null) { }
-        public static Configlue.Provider.Json.JsonSchemaGenerationResult Write(System.Collections.Generic.IEnumerable<Configlue.ConfiglueModelSchema> models, string outputDirectory, System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver resolver, string? schemaBaseUri = null) { }
-        public static Configlue.Provider.Json.JsonSchemaGenerationResult Write<TModel, TFragment>(string outputDirectory, System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver resolver, string? schemaBaseUri = null)
+        public static Configlue.Provider.Json.JsonSchemaGenerationResult Write(System.Collections.Generic.IEnumerable<Configlue.ConfiglueModelSchema> models, string outputDirectory, System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver resolver, string? schemaBaseUri = null, Configlue.DocumentLayoutOptions? documentLayout = null) { }
+        public static Configlue.Provider.Json.JsonSchemaGenerationResult Write<TModel, TFragment>(string outputDirectory, System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver resolver, string? schemaBaseUri = null, Configlue.DocumentLayoutOptions? documentLayout = null)
             where TModel : Configlue.IConfiglueModel<TModel, TFragment>
             where TFragment :  class, Configlue.IConfiglueFragment<TFragment> { }
     }
@@ -122,7 +112,7 @@ namespace Configlue.Provider.Json
     }
     public sealed class JsonStateCodec : Configlue.IStateCodec, Configlue.IStateCodecRecoveryPolicy, Configlue.IStateSchemaMetadataReader
     {
-        public JsonStateCodec(System.Text.Json.JsonSerializerOptions? options = null) { }
+        public JsonStateCodec(System.Text.Json.JsonSerializerOptions? options = null, Configlue.DocumentLayoutOptions? documentLayout = null) { }
         public object? Deserialize(System.Type type, in System.Buffers.ReadOnlySequence<byte> source, in Configlue.StateCodecContext context) { }
         public bool IsRecoverableReadException(System.Exception exception) { }
         public Configlue.StateSchemaMetadata? ReadSchemaMetadata(in System.Buffers.ReadOnlySequence<byte> source) { }
@@ -134,8 +124,8 @@ namespace Configlue.Provider.Json
             "JsonTypeInfo constructor for NativeAOT.")]
         [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Reflection-based JSON serialization may require types that trimming removes. Use " +
             "the JsonTypeInfo constructor for trim-safe serialization.")]
-        public JsonStateCodec(System.Text.Json.JsonSerializerOptions? options = null) { }
-        public JsonStateCodec(System.Text.Json.Serialization.Metadata.JsonTypeInfo<T> typeInfo) { }
+        public JsonStateCodec(System.Text.Json.JsonSerializerOptions? options = null, Configlue.DocumentLayoutOptions? documentLayout = null) { }
+        public JsonStateCodec(System.Text.Json.Serialization.Metadata.JsonTypeInfo<T> typeInfo, Configlue.DocumentLayoutOptions? documentLayout = null) { }
         [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Aot", "IL3050", Justification="The options-based constructor carries this requirement. The JsonTypeInfo construc" +
             "tor sets _typeInfo and never enters the reflection fallback.")]
         [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2026", Justification="The options-based constructor carries this requirement. The JsonTypeInfo construc" +

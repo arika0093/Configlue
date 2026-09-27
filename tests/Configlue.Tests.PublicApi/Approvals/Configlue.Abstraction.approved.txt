@@ -163,6 +163,19 @@ namespace Configlue
         public string? HighestPrioritySourceId { get; }
         public string PropertyPath { get; }
     }
+    public enum DocumentLayout
+    {
+        Simple = 0,
+        Detailed = 1,
+    }
+    public sealed class DocumentLayoutOptions
+    {
+        public DocumentLayoutOptions() { }
+        public System.Collections.Generic.IReadOnlyList<string> FallbackVersionProperties { get; init; }
+        public Configlue.DocumentLayout Layout { get; init; }
+        public string? ModelId { get; init; }
+        public string VersionProperty { get; init; }
+    }
     public sealed class EditSession<T> : System.IDisposable
     {
         public EditSession(T value, System.Func<T, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<Configlue.StateWriteResult>> save) { }

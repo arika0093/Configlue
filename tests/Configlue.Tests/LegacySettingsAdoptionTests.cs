@@ -1,6 +1,7 @@
 using System.Buffers;
 using System.Text;
 using System.Text.Json;
+using Configlue;
 using Configlue.Provider.Json;
 using Configlue.Provider.Yaml;
 using Configlue.Testing;
@@ -15,8 +16,8 @@ public sealed class LegacySettingsAdoptionTests
         var json =
             "{\"$version\":1,\"RetryCount\":0,\"NullableLabel\":null,\"$schema\":\"legacy.json\"}";
         var content = Encoding.UTF8.GetBytes(json);
-        var codec = new ConfigurationWritableJsonStateCodec<HistoricalSettingsV1.Fragment>(
-            new JsonSerializerOptions
+        var codec = new JsonStateCodec<HistoricalSettingsV1.Fragment>(
+            options: new JsonSerializerOptions
             {
                 UnmappedMemberHandling = System
                     .Text
@@ -25,7 +26,7 @@ public sealed class LegacySettingsAdoptionTests
                     .JsonUnmappedMemberHandling
                     .Disallow,
             },
-            modelId: "historical-settings"
+            documentLayout: new DocumentLayoutOptions { ModelId = "historical-settings" }
         );
         var sequence = new ReadOnlySequence<byte>(content);
         var fragment = codec.Deserialize(in sequence, default)!;
@@ -38,9 +39,40 @@ public sealed class LegacySettingsAdoptionTests
         (codec.ReadSchemaMetadata(in sequence)).ShouldBe(
             new StateSchemaMetadata("historical-settings", 1)
         );
-        var destination = new ArrayBufferWriter<byte>();
-        Should.Throw<NotSupportedException>(() => codec.Serialize(fragment, destination, default));
         Encoding.UTF8.GetString(content).ShouldBe(json);
+    }
+
+    [Test]
+    public async Task SimpleJsonCodecWritesInlineVersionDocuments()
+    {
+        var codec = new JsonStateCodec<HistoricalSettingsV1.Fragment>(
+            documentLayout: new DocumentLayoutOptions { ModelId = "historical-settings" }
+        );
+        var fragment = new HistoricalSettingsV1.Fragment
+        {
+            RetryCount = Optional<int>.Present(0),
+            NullableLabel = Optional<string?>.Present(null),
+        };
+        var destination = new ArrayBufferWriter<byte>();
+        codec.Serialize(
+            fragment,
+            destination,
+            new StateCodecContext(new StateSchemaMetadata("historical-settings", 1))
+        );
+
+        using var written = JsonDocument.Parse(destination.WrittenMemory);
+        (written.RootElement.GetProperty("$version").GetInt32()).ShouldBe(1);
+        (written.RootElement.TryGetProperty("$configlue", out _)).ShouldBeFalse();
+        (written.RootElement.TryGetProperty("$value", out _)).ShouldBeFalse();
+        (written.RootElement.GetProperty("RetryCount").GetInt32()).ShouldBe(0);
+
+        var sequence = new ReadOnlySequence<byte>(destination.WrittenMemory.ToArray());
+        var reread = codec.Deserialize(in sequence, default)!;
+        (reread.RetryCount.Value).ShouldBe(0);
+        (reread.NullableLabel.IsPresent).ShouldBeTrue();
+        (codec.ReadSchemaMetadata(in sequence)).ShouldBe(
+            new StateSchemaMetadata("historical-settings", 1)
+        );
     }
 
     [Test]
@@ -49,10 +81,13 @@ public sealed class LegacySettingsAdoptionTests
         var content = Encoding.UTF8.GetBytes(
             "{\"schemaVersion\":2,\"retryCount\":7,\"nullableLabel\":null}"
         );
-        var codec = new ConfigurationWritableJsonStateCodec<HistoricalSettingsV1.Fragment>(
+        var codec = new JsonStateCodec<HistoricalSettingsV1.Fragment>(
             new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase },
-            modelId: "historical-settings",
-            versionProperty: "schemaVersion"
+            new DocumentLayoutOptions
+            {
+                ModelId = "historical-settings",
+                VersionProperty = "schemaVersion",
+            }
         );
         var sequence = new ReadOnlySequence<byte>(content);
 
@@ -71,7 +106,7 @@ public sealed class LegacySettingsAdoptionTests
     {
         var json = "{\"$schema\":\"legacy.json\",\"RetryCount\":3}";
         var content = Encoding.UTF8.GetBytes(json);
-        var codec = new ConfigurationWritableJsonStateCodec<HistoricalSettingsV1.Fragment>(
+        var codec = new JsonStateCodec<HistoricalSettingsV1.Fragment>(
             new JsonSerializerOptions
             {
                 UnmappedMemberHandling = System
@@ -81,7 +116,7 @@ public sealed class LegacySettingsAdoptionTests
                     .JsonUnmappedMemberHandling
                     .Disallow,
             },
-            modelId: "historical-settings"
+            new DocumentLayoutOptions { ModelId = "historical-settings" }
         );
         var sequence = new ReadOnlySequence<byte>(content);
 
@@ -107,9 +142,10 @@ public sealed class LegacySettingsAdoptionTests
         var content = Encoding.UTF8.GetBytes(
             "Version: 1\nretryCount: 0\nnullableLabel: null\n$schema: legacy.yaml\n"
         );
-        var codec = new ConfigurationWritableYamlStateCodec<HistoricalSettingsV1.Fragment>(
-            modelId: "historical-settings",
-            modelSchema: HistoricalSettingsV1.FragmentSchema
+        var codec = new YamlStateCodec<HistoricalSettingsV1.Fragment>(
+            namingPolicy: JsonNamingPolicy.CamelCase,
+            modelSchema: HistoricalSettingsV1.FragmentSchema,
+            documentLayout: new DocumentLayoutOptions { ModelId = "historical-settings" }
         );
         var sequence = new ReadOnlySequence<byte>(content);
         var fragment = codec.Deserialize(in sequence, default)!;
@@ -123,15 +159,23 @@ public sealed class LegacySettingsAdoptionTests
             new StateSchemaMetadata("historical-settings", 1)
         );
         var destination = new ArrayBufferWriter<byte>();
-        Should.Throw<NotSupportedException>(() => codec.Serialize(fragment, destination, default));
+        codec.Serialize(
+            fragment,
+            destination,
+            new StateCodecContext(new StateSchemaMetadata("historical-settings", 1))
+        );
+        var written = Encoding.UTF8.GetString(destination.WrittenMemory.ToArray());
+        (written.Contains("$version: 1", StringComparison.Ordinal)).ShouldBeTrue();
+        (written.Contains("$configlue", StringComparison.Ordinal)).ShouldBeFalse();
     }
 
     [Test]
     public async Task LegacyYamlCodecAcceptsEmptyInputAndBomDetectedEncodings()
     {
-        var codec = new ConfigurationWritableYamlStateCodec<AppSettings.Fragment>(
-            modelId: "app-settings",
-            modelSchema: AppSettings.FragmentSchema
+        var codec = new YamlStateCodec<AppSettings.Fragment>(
+            namingPolicy: JsonNamingPolicy.CamelCase,
+            modelSchema: AppSettings.FragmentSchema,
+            documentLayout: new DocumentLayoutOptions { ModelId = "app-settings" }
         );
         foreach (var content in new[] { Array.Empty<byte>(), Encoding.UTF8.GetBytes("  \r\n") })
         {
@@ -158,9 +202,10 @@ public sealed class LegacySettingsAdoptionTests
     {
         var content = Encoding.UTF8.GetBytes("$version:\n  nested: value\nretryCount: 0\n");
         var sequence = new ReadOnlySequence<byte>(content);
-        var codec = new ConfigurationWritableYamlStateCodec<AppSettings.Fragment>(
-            modelId: "app-settings",
-            modelSchema: AppSettings.FragmentSchema
+        var codec = new YamlStateCodec<AppSettings.Fragment>(
+            namingPolicy: JsonNamingPolicy.CamelCase,
+            modelSchema: AppSettings.FragmentSchema,
+            documentLayout: new DocumentLayoutOptions { ModelId = "app-settings" }
         );
 
         (codec.ReadSchemaMetadata(in sequence)).ShouldBe(
@@ -176,10 +221,10 @@ public sealed class LegacySettingsAdoptionTests
     {
         var content = Encoding.UTF8.GetBytes("retry_count: 6\nnullable_label: value\n");
         var sequence = new ReadOnlySequence<byte>(content);
-        var codec = new ConfigurationWritableYamlStateCodec<HistoricalSettingsV1.Fragment>(
+        var codec = new YamlStateCodec<HistoricalSettingsV1.Fragment>(
             namingPolicy: JsonNamingPolicy.SnakeCaseLower,
-            modelId: "historical-settings",
-            modelSchema: HistoricalSettingsV1.FragmentSchema
+            modelSchema: HistoricalSettingsV1.FragmentSchema,
+            documentLayout: new DocumentLayoutOptions { ModelId = "historical-settings" }
         );
 
         (codec.ReadSchemaMetadata(in sequence)).ShouldBe(
@@ -206,10 +251,11 @@ public sealed class LegacySettingsAdoptionTests
             sectionPath: "App:Settings",
             textEncoding: encoding
         );
-        var codec = new ConfigurationWritableYamlStateCodec<AppSettings.Fragment>(
-            modelId: "app-settings",
-            encoding: encoding,
-            modelSchema: AppSettings.FragmentSchema
+        var codec = new YamlStateCodec<AppSettings.Fragment>(
+            namingPolicy: JsonNamingPolicy.CamelCase,
+            modelSchema: AppSettings.FragmentSchema,
+            documentLayout: new DocumentLayoutOptions { ModelId = "app-settings" },
+            textEncoding: encoding
         );
         var source = SerializedStateSource.FromResource<AppSettings.Fragment>(
             "legacy-yaml",
@@ -259,11 +305,11 @@ public sealed class LegacySettingsAdoptionTests
         var section = new JsonSectionResource(resource, "Profile");
         var currentSchema = HistoricalSettings.ConfiglueSchema.ToMetadata();
         var legacyModelId = currentSchema.ModelId!;
-        var v1Codec = new ConfigurationWritableJsonStateCodec<HistoricalSettingsV1.Fragment>(
-            modelId: legacyModelId
+        var v1Codec = new JsonStateCodec<HistoricalSettingsV1.Fragment>(
+            documentLayout: new DocumentLayoutOptions { ModelId = legacyModelId }
         );
-        var v2Codec = new ConfigurationWritableJsonStateCodec<HistoricalSettingsV2.Fragment>(
-            modelId: legacyModelId
+        var v2Codec = new JsonStateCodec<HistoricalSettingsV2.Fragment>(
+            documentLayout: new DocumentLayoutOptions { ModelId = legacyModelId }
         );
         var dispatcher = new StateSchemaDispatcher<HistoricalSettings.Fragment>(currentSchema)
             .Add(
@@ -284,8 +330,8 @@ public sealed class LegacySettingsAdoptionTests
                 v2Codec,
                 static previous => HistoricalSettings.Fragment.FromPrevious(previous)
             );
-        var currentCodec = new ConfigurationWritableJsonStateCodec<HistoricalSettings.Fragment>(
-            modelId: legacyModelId
+        var currentCodec = new JsonStateCodec<HistoricalSettings.Fragment>(
+            documentLayout: new DocumentLayoutOptions { ModelId = legacyModelId }
         );
         var source = SerializedStateSource.FromResource<HistoricalSettings.Fragment>(
             "legacy-profile",
@@ -332,8 +378,8 @@ public sealed class LegacySettingsAdoptionTests
     [Test]
     public async Task LegacyCodecsRejectInvalidVersionsAndMalformedYaml()
     {
-        var jsonCodec = new ConfigurationWritableJsonStateCodec<AppSettings.Fragment>(
-            modelId: "app-settings"
+        var jsonCodec = new JsonStateCodec<AppSettings.Fragment>(
+            documentLayout: new DocumentLayoutOptions { ModelId = "app-settings" }
         );
         foreach (var version in new[] { "0", "-1", "1.5", "\"one\"" })
         {
@@ -343,9 +389,9 @@ public sealed class LegacySettingsAdoptionTests
             Should.Throw<JsonException>(() => jsonCodec.ReadSchemaMetadata(in sequence));
         }
 
-        var yamlCodec = new ConfigurationWritableYamlStateCodec<AppSettings.Fragment>(
-            modelId: "app-settings",
-            modelSchema: AppSettings.FragmentSchema
+        var yamlCodec = new YamlStateCodec<AppSettings.Fragment>(
+            modelSchema: AppSettings.FragmentSchema,
+            documentLayout: new DocumentLayoutOptions { ModelId = "app-settings" }
         );
         foreach (var version in new[] { "0", "-1", "1.5", "one", "true", "null" })
         {

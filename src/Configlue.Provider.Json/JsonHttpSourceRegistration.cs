@@ -41,6 +41,9 @@ public sealed class JsonHttpSourceOptions
     /// <summary>JSON serialization and property naming options.</summary>
     public JsonSerializerOptions? SerializerOptions { get; init; }
 
+    /// <summary>The persisted document structure. Reads accept both layouts; writes use the selected one.</summary>
+    public DocumentLayoutOptions? DocumentLayout { get; init; }
+
     /// <summary>Additional context passed to the codec.</summary>
     public StateCodecContext CodecContext { get; init; }
 
@@ -51,7 +54,7 @@ public sealed class JsonHttpSourceOptions
             EndPoint = EndPoint,
             Client = Client,
             ClientFactory = ClientFactory,
-            Codec = new JsonStateCodec(SerializerOptions),
+            Codec = new JsonStateCodec(SerializerOptions, DocumentLayout),
             Priority = Priority,
             FallbackCondition = FallbackCondition,
             Writable = Writable,

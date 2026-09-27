@@ -12,7 +12,7 @@ A Codec converts bytes to typed values and back, with no Resource I/O. It owns "
 - JSON: `JsonStateCodec`, combined with section resources, file registration, and JSON Schema export. Pass a source-generated `JsonSerializerContext` for trimming-safe, NativeAOT-friendly behavior.
 - XML: the XML Codec, with section resources and file registration.
 - YAML: the YAML Codec, with section resources and file registration. See `example/Example.ConsoleApp.Yaml` for camel-case naming.
-- Legacy: `ConfigurationWritableJsonStateCodec` / `ConfigurationWritableYamlStateCodec`, for reading `Configuration.Writable` files as read-only migration inputs. See the [adoption guide](../migration/adopting-configuration-writable.md).
+- Document layouts: the JSON and YAML codecs read both the simple layout (`{ "$version": 1, ... }`, the write default) and the detailed `$configlue`/`$value` envelope. Select the write layout with `DocumentLayoutOptions` on the codec or file options; legacy `Configuration.Writable` files read as simple documents. See the [adoption guide](../migration/adopting-configuration-writable.md).
 
 ## Choosing
 

@@ -1,16 +1,10 @@
 [assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/arika0093/Configlue")]
 namespace Configlue.Provider.Yaml
 {
-    public sealed class ConfigurationWritableYamlStateCodec<T> : Configlue.IStateCodec<T>, Configlue.IStateSchemaMetadataReader
-    {
-        public ConfigurationWritableYamlStateCodec(System.Text.Json.JsonNamingPolicy? namingPolicy = null, string? modelId = null, string versionProperty = "$version", System.Collections.Generic.IEnumerable<string>? fallbackVersionProperties = null, System.Text.Encoding? encoding = null, Configlue.ConfiglueModelSchema? modelSchema = null, SharpYaml.YamlSerializerOptions? serializerOptions = null) { }
-        public T? Deserialize(in System.Buffers.ReadOnlySequence<byte> source, in Configlue.StateCodecContext context) { }
-        public Configlue.StateSchemaMetadata? ReadSchemaMetadata(in System.Buffers.ReadOnlySequence<byte> source) { }
-        public void Serialize(T? value, System.Buffers.IBufferWriter<byte> destination, in Configlue.StateCodecContext context) { }
-    }
     public sealed class YamlFileSourceOptions
     {
         public YamlFileSourceOptions() { }
+        public Configlue.DocumentLayoutOptions? DocumentLayout { get; init; }
         public Configlue.StateFallbackCondition FallbackCondition { get; init; }
         public string? Id { get; init; }
         public required string Path { get; init; }
@@ -44,7 +38,7 @@ namespace Configlue.Provider.Yaml
     }
     public sealed class YamlStateCodec : Configlue.IStateCodec, Configlue.IStateCodecRecoveryPolicy, Configlue.IStateSchemaMetadataReader
     {
-        public YamlStateCodec(System.Text.Json.JsonNamingPolicy? namingPolicy = null, Configlue.ConfiglueModelSchema? modelSchema = null, SharpYaml.YamlSerializerOptions? serializerOptions = null) { }
+        public YamlStateCodec(System.Text.Json.JsonNamingPolicy? namingPolicy = null, Configlue.ConfiglueModelSchema? modelSchema = null, SharpYaml.YamlSerializerOptions? serializerOptions = null, Configlue.DocumentLayoutOptions? documentLayout = null, System.Text.Encoding? textEncoding = null) { }
         public object? Deserialize(System.Type type, in System.Buffers.ReadOnlySequence<byte> source, in Configlue.StateCodecContext context) { }
         public bool IsRecoverableReadException(System.Exception exception) { }
         public Configlue.StateSchemaMetadata? ReadSchemaMetadata(in System.Buffers.ReadOnlySequence<byte> source) { }
@@ -52,7 +46,7 @@ namespace Configlue.Provider.Yaml
     }
     public sealed class YamlStateCodec<T> : Configlue.IStateCodecRecoveryPolicy, Configlue.IStateCodec<T>, Configlue.IStateSchemaMetadataReader
     {
-        public YamlStateCodec(System.Text.Json.JsonNamingPolicy? namingPolicy = null, Configlue.ConfiglueModelSchema? modelSchema = null, SharpYaml.YamlSerializerOptions? serializerOptions = null) { }
+        public YamlStateCodec(System.Text.Json.JsonNamingPolicy? namingPolicy = null, Configlue.ConfiglueModelSchema? modelSchema = null, SharpYaml.YamlSerializerOptions? serializerOptions = null, Configlue.DocumentLayoutOptions? documentLayout = null, System.Text.Encoding? textEncoding = null) { }
         public T? Deserialize(in System.Buffers.ReadOnlySequence<byte> source, in Configlue.StateCodecContext context) { }
         public bool IsRecoverableReadException(System.Exception exception) { }
         public Configlue.StateSchemaMetadata? ReadSchemaMetadata(in System.Buffers.ReadOnlySequence<byte> source) { }

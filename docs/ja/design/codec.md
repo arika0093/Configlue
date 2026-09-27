@@ -12,7 +12,7 @@ Codec は Resource の I/O なしに、バイトと型付き値を相互変換�
 - JSON: `JsonStateCodec`。セクション Resource・ファイル登録・JSON Schema 出力と組み合わせます。ソース生成の `JsonSerializerContext` を渡すとトリミング安全・NativeAOT 対応になります。
 - XML: XML 用 Codec。セクション Resource とファイル登録があります。
 - YAML: YAML 用 Codec。セクション Resource とファイル登録があります。キャメルケース名の例は `example/Example.ConsoleApp.Yaml` を見てください。
-- 旧資産: `ConfigurationWritableJsonStateCodec` / `ConfigurationWritableYamlStateCodec`。`Configuration.Writable` のファイルを読み取り専用の移行入力として読むための Codec です。詳しくは[取り込みガイド](../migration/adopting-configuration-writable.md)を見てください。
+- ドキュメントレイアウト: JSON・YAML コーデックはシンプルレイアウト (`{ "$version": 1, ... }`、書き込み既定) と詳細 `$configlue`/`$value` エンベロープの両方を読みます。書き込みレイアウトはコーデックやファイルオプションの `DocumentLayoutOptions` で選びます。旧来 `Configuration.Writable` のファイルはシンプルドキュメントとして読みます。詳しくは[取り込みガイド](../migration/adopting-configuration-writable.md)を見てください。
 
 ## Codec の選び方
 

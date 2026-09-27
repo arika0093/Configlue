@@ -16,15 +16,21 @@ public sealed class YamlStateCodec
     private readonly YamlSerializerOptions _options;
     private readonly ConfiglueModelSchema? _schema;
     private readonly JsonNamingPolicy? _namingPolicy;
+    private readonly DocumentLayoutOptions? _layout;
+    private readonly Encoding? _textEncoding;
 
     /// <summary>Creates a codec using SharpYaml options and an optional generated model schema.</summary>
     public YamlStateCodec(
         JsonNamingPolicy? namingPolicy = null,
         ConfiglueModelSchema? modelSchema = null,
-        YamlSerializerOptions? serializerOptions = null
+        YamlSerializerOptions? serializerOptions = null,
+        DocumentLayoutOptions? documentLayout = null,
+        Encoding? textEncoding = null
     )
     {
         _schema = modelSchema;
+        _layout = documentLayout;
+        _textEncoding = textEncoding;
         var options = serializerOptions ?? YamlSerializerOptions.Default;
         _namingPolicy = namingPolicy ?? options.PropertyNamingPolicy;
         _options = options.TypeInfoResolver is YamlSerializerContext context
@@ -55,7 +61,14 @@ public sealed class YamlStateCodec
     )
     {
         ArgumentNullException.ThrowIfNull(type);
-        var yaml = YamlStateCodecOperations.GetPayload(source.ToArray(), _options, out _);
+        var yaml = YamlStateCodecOperations.GetPayload(
+            source.ToArray(),
+            _options,
+            _layout,
+            _namingPolicy,
+            _textEncoding,
+            out _
+        );
         if (yaml is null)
         {
             return null;
@@ -109,20 +122,7 @@ public sealed class YamlStateCodec
 
         if (schemaMetadata is { } metadata)
         {
-            var envelope = new Dictionary<string, object?>(StringComparer.Ordinal)
-            {
-                [YamlStateCodecOperations.MetadataKey] = YamlStateCodecOperations.WriteMetadata(
-                    metadata
-                ),
-                [YamlStateCodecOperations.PayloadKey] = value is IConfiglueFragment sparseFragment
-                    ? FragmentYamlConverterFactory.ToYamlValue(
-                        sparseFragment,
-                        schema ?? sparseFragment.Schema,
-                        _namingPolicy
-                    )
-                    : value,
-            };
-            yaml = YamlSerializer.Serialize(envelope, envelope.GetType(), _options);
+            yaml = WriteDocument(yaml, value, schema, metadata);
         }
 
         if (schemaReference is not null)
@@ -137,7 +137,64 @@ public sealed class YamlStateCodec
 
     /// <inheritdoc />
     public StateSchemaMetadata? ReadSchemaMetadata(in ReadOnlySequence<byte> source) =>
-        YamlStateCodecOperations.ReadSchemaMetadata(source.ToArray(), _options);
+        YamlStateCodecOperations.ReadSchemaMetadata(
+            source.ToArray(),
+            _options,
+            _layout,
+            _namingPolicy,
+            _textEncoding
+        );
+
+    private string WriteDocument(
+        string payloadYaml,
+        object? value,
+        ConfiglueModelSchema? schema,
+        StateSchemaMetadata metadata
+    )
+    {
+        if ((_layout?.Layout ?? DocumentLayout.Simple) == DocumentLayout.Simple)
+        {
+            var versionProperty = _layout?.VersionProperty ?? "$version";
+            object? payloadNode = value is IConfiglueFragment fragment
+                ? FragmentYamlConverterFactory.ToYamlValue(
+                    fragment,
+                    schema ?? fragment.Schema,
+                    _namingPolicy
+                )
+                : YamlSerializer.Deserialize<Dictionary<string, object?>>(payloadYaml, _options);
+            if (
+                payloadNode is IDictionary<string, object?> mapping
+                && !mapping.ContainsKey(versionProperty)
+            )
+            {
+                var document = new Dictionary<string, object?>(StringComparer.Ordinal)
+                {
+                    [versionProperty] = metadata.Version,
+                };
+                foreach (var pair in mapping)
+                {
+                    document.Add(pair.Key, pair.Value);
+                }
+
+                return YamlSerializer.Serialize(document, document.GetType(), _options);
+            }
+        }
+
+        var envelope = new Dictionary<string, object?>(StringComparer.Ordinal)
+        {
+            [YamlStateCodecOperations.MetadataKey] = YamlStateCodecOperations.WriteMetadata(
+                metadata
+            ),
+            [YamlStateCodecOperations.PayloadKey] = value is IConfiglueFragment sparseFragment
+                ? FragmentYamlConverterFactory.ToYamlValue(
+                    sparseFragment,
+                    schema ?? sparseFragment.Schema,
+                    _namingPolicy
+                )
+                : value,
+        };
+        return YamlSerializer.Serialize(envelope, envelope.GetType(), _options);
+    }
 
     /// <inheritdoc />
     public bool IsRecoverableReadException(Exception exception) =>
@@ -161,8 +218,17 @@ public sealed class YamlStateCodec<T>
     public YamlStateCodec(
         JsonNamingPolicy? namingPolicy = null,
         ConfiglueModelSchema? modelSchema = null,
-        YamlSerializerOptions? serializerOptions = null
-    ) => _inner = new YamlStateCodec(namingPolicy, modelSchema, serializerOptions);
+        YamlSerializerOptions? serializerOptions = null,
+        DocumentLayoutOptions? documentLayout = null,
+        Encoding? textEncoding = null
+    ) =>
+        _inner = new YamlStateCodec(
+            namingPolicy,
+            modelSchema,
+            serializerOptions,
+            documentLayout,
+            textEncoding
+        );
 
     /// <inheritdoc />
     public T? Deserialize(in ReadOnlySequence<byte> source, in StateCodecContext context) =>
@@ -184,270 +250,23 @@ public sealed class YamlStateCodec<T>
         _inner.IsRecoverableReadException(exception);
 }
 
-internal sealed class FragmentYamlConverterFactory(
-    ConfiglueModelSchema? rootSchema,
-    JsonNamingPolicy? namingPolicy
-) : YamlConverterFactory
-{
-    public override bool CanConvert(Type typeToConvert) =>
-        typeof(IConfiglueFragment).IsAssignableFrom(typeToConvert);
-
-    public override YamlConverter CreateConverter(
-        Type typeToConvert,
-        YamlSerializerOptions options
-    ) =>
-        new FragmentYamlConverter(
-            typeToConvert,
-            FindSchema(typeToConvert, rootSchema),
-            options,
-            namingPolicy ?? options.PropertyNamingPolicy
-        );
-
-    private static ConfiglueModelSchema? FindSchema(Type type, ConfiglueModelSchema? rootSchema)
-    {
-        if (rootSchema is not null)
-        {
-            var schema = FindSchema(type, rootSchema, new HashSet<string>(StringComparer.Ordinal));
-            if (schema is not null)
-            {
-                return schema;
-            }
-        }
-
-        throw new YamlException(
-            $"Generated fragment '{type}' cannot be resolved without its ConfiglueModelSchema. Pass the generated model schema to the codec."
-        );
-    }
-
-    private static ConfiglueModelSchema? FindSchema(
-        Type fragmentType,
-        ConfiglueModelSchema schema,
-        HashSet<string> visited
-    )
-    {
-        if (!visited.Add(schema.Id))
-        {
-            return null;
-        }
-
-        if (schema.CreateEmptyFragment().GetType() == fragmentType)
-        {
-            return schema;
-        }
-
-        foreach (var member in schema.Members)
-        {
-            if (member.NestedSchemaFactory?.Invoke() is { } nested)
-            {
-                var match = FindSchema(fragmentType, nested, visited);
-                if (match is not null)
-                {
-                    return match;
-                }
-            }
-        }
-
-        return null;
-    }
-
-    internal static object ToYamlValue(
-        IConfiglueFragment fragment,
-        ConfiglueModelSchema schema,
-        JsonNamingPolicy? namingPolicy
-    )
-    {
-        var result = new Dictionary<string, object?>(StringComparer.Ordinal);
-        foreach (var present in fragment.EnumeratePresentMembers())
-        {
-            var member = schema.Members.First(candidate => candidate.Id == present.Id);
-            var name = namingPolicy?.ConvertName(member.Name) ?? member.Name;
-            result.Add(name, ConvertValue(present.Value, member, namingPolicy));
-        }
-
-        return result;
-    }
-
-    private static object? ConvertValue(
-        object? value,
-        ConfiglueMemberSchema member,
-        JsonNamingPolicy? namingPolicy
-    )
-    {
-        if (value is not IConfiglueFragment child || member.NestedSchemaFactory is null)
-        {
-            if (value is System.Collections.IEnumerable sequence && value is not string)
-            {
-                var items = new List<object?>();
-                foreach (var item in sequence)
-                {
-                    items.Add(item);
-                }
-
-                return items;
-            }
-
-            return value;
-        }
-
-        return ToYamlValue(child, member.NestedSchemaFactory(), namingPolicy);
-    }
-}
-
-internal sealed class FragmentYamlConverter(
-    Type fragmentType,
-    ConfiglueModelSchema? schema,
-    YamlSerializerOptions options,
-    JsonNamingPolicy? namingPolicy
-) : YamlConverter
-{
-    public override bool CanConvert(Type typeToConvert) =>
-        typeToConvert == fragmentType && typeof(IConfiglueFragment).IsAssignableFrom(typeToConvert);
-
-    public override object Read(YamlReader reader, Type typeToConvert)
-    {
-        var node = YamlSerializer.Deserialize<Dictionary<string, object?>>(
-            YamlReader.BufferCurrentNodeToString(reader),
-            options
-        );
-        var fragmentSchema =
-            schema
-            ?? throw new YamlException(
-                $"Generated fragment '{typeToConvert}' cannot be resolved without its ConfiglueModelSchema. Pass the generated model schema to the codec."
-            );
-        if (node is not IDictionary<string, object?> mapping)
-        {
-            throw new YamlException("A Configlue fragment must be a YAML mapping.");
-        }
-
-        var fragment = fragmentSchema.CreateEmptyFragment();
-        var membersByName = fragmentSchema.Members.ToDictionary(
-            member => namingPolicy?.ConvertName(member.Name) ?? member.Name,
-            StringComparer.Ordinal
-        );
-        foreach (var pair in mapping)
-        {
-            if (!membersByName.TryGetValue(pair.Key, out var member))
-            {
-                continue;
-            }
-
-            var value = ConvertMember(pair.Value, member);
-            if (
-                value is null
-                && member.ValueType.IsValueType
-                && Nullable.GetUnderlyingType(member.ValueType) is null
-            )
-            {
-                throw new YamlException($"Non-nullable member '{member.Name}' cannot be null.");
-            }
-
-            fragment = fragment.WithMember(member.Id, value);
-        }
-
-        return fragment;
-    }
-
-    public override void Write(YamlWriter writer, object? value)
-    {
-        if (value is not IConfiglueFragment fragment)
-        {
-            throw new YamlException(
-                $"Value for generated fragment type '{fragmentType}' does not implement {nameof(IConfiglueFragment)}."
-            );
-        }
-
-        var fragmentSchema =
-            schema
-            ?? throw new YamlException(
-                $"Generated fragment '{fragmentType}' cannot be resolved without its ConfiglueModelSchema. Pass the generated model schema to the codec."
-            );
-        WriteObject(
-            writer,
-            FragmentYamlConverterFactory.ToYamlValue(fragment, fragmentSchema, namingPolicy)
-        );
-    }
-
-    private object? ConvertMember(object? value, ConfiglueMemberSchema member)
-    {
-        if (value is null)
-        {
-            return null;
-        }
-
-        if (member.NestedSchemaFactory is { } nestedSchemaFactory)
-        {
-            var nestedSchema = nestedSchemaFactory();
-            var nestedFragmentType = nestedSchema.CreateEmptyFragment().GetType();
-            var yaml = YamlSerializer.Serialize(value, value.GetType(), options);
-            return YamlSerializer.Deserialize(yaml, nestedFragmentType, options);
-        }
-
-        if (member.ValueType.IsInstanceOfType(value))
-        {
-            return value;
-        }
-
-        var dynamicOptions = YamlSerializerOptions.Default;
-        var normalizedValue = value is System.Collections.IEnumerable sequence and not string
-            ? sequence.Cast<object?>().ToList()
-            : value;
-        var valueNode = SharpYaml.Model.YamlNode.FromObject(
-            normalizedValue,
-            dynamicOptions,
-            normalizedValue.GetType()
-        );
-        return valueNode.ToObject(member.ValueType, options);
-    }
-
-    private void WriteObject(YamlWriter writer, object? value)
-    {
-        if (value is null)
-        {
-            writer.WriteNullValue();
-            return;
-        }
-
-        if (value is IDictionary<string, object?> mapping)
-        {
-            writer.WriteStartMapping();
-            foreach (var pair in mapping)
-            {
-                writer.WritePropertyName(pair.Key);
-                WriteObject(writer, pair.Value);
-            }
-
-            writer.WriteEndMapping();
-            return;
-        }
-
-        if (value is System.Collections.IEnumerable sequence && value is not string)
-        {
-            writer.WriteStartSequence();
-            foreach (var item in sequence)
-            {
-                WriteObject(writer, item);
-            }
-
-            writer.WriteEndSequence();
-            return;
-        }
-
-        writer.GetConverter(value.GetType()).Write(writer, value);
-    }
-}
-
 internal static class YamlStateCodecOperations
 {
     internal const string MetadataKey = "$configlue";
     internal const string PayloadKey = "$value";
+    private const string SchemaProperty = "$schema";
+    private const string DefaultVersionProperty = "$version";
 
     internal static object? GetPayload(
         byte[] content,
         YamlSerializerOptions options,
+        DocumentLayoutOptions? layout,
+        JsonNamingPolicy? namingPolicy,
+        Encoding? textEncoding,
         out StateSchemaMetadata? schema
     )
     {
-        var root = DeserializeRoot(content, options);
+        var root = DeserializeRoot(content, options, textEncoding);
         if (
             root is IDictionary<string, object?> mapping
             && mapping.TryGetValue(MetadataKey, out var metadataNode)
@@ -464,8 +283,34 @@ internal static class YamlStateCodecOperations
             return payload;
         }
 
-        schema = null;
-        return root;
+        schema = ReadSimpleVersion(root, layout, namingPolicy);
+        if (root is not IDictionary<string, object?> simpleMapping || simpleMapping.Count == 0)
+        {
+            return root;
+        }
+
+        var versionKey = FindKey(simpleMapping, layout, namingPolicy);
+        var schemaKey = FindSchemaKey(simpleMapping);
+        if (versionKey is null && schemaKey is null)
+        {
+            return root;
+        }
+
+        var stripped = new Dictionary<string, object?>(StringComparer.Ordinal);
+        foreach (var pair in simpleMapping)
+        {
+            if (
+                string.Equals(pair.Key, versionKey, StringComparison.Ordinal)
+                || string.Equals(pair.Key, schemaKey, StringComparison.Ordinal)
+            )
+            {
+                continue;
+            }
+
+            stripped.Add(pair.Key, pair.Value);
+        }
+
+        return stripped;
     }
 
     internal static Dictionary<string, object?> WriteMetadata(StateSchemaMetadata schema)
@@ -492,16 +337,133 @@ internal static class YamlStateCodecOperations
 
     internal static StateSchemaMetadata? ReadSchemaMetadata(
         byte[] content,
-        YamlSerializerOptions options
+        YamlSerializerOptions options,
+        DocumentLayoutOptions? layout,
+        JsonNamingPolicy? namingPolicy,
+        Encoding? textEncoding
     )
     {
-        var root = DeserializeRoot(content, options);
-        return
+        var root = DeserializeRoot(content, options, textEncoding);
+        if (
             root is IDictionary<string, object?> mapping
             && mapping.TryGetValue(MetadataKey, out var metadataNode)
-            ? ReadMetadata(metadataNode)
-            : null;
+        )
+        {
+            return ReadMetadata(metadataNode);
+        }
+
+        return ReadSimpleVersion(root, layout, namingPolicy);
     }
+
+    private static StateSchemaMetadata? ReadSimpleVersion(
+        object? root,
+        DocumentLayoutOptions? layout,
+        JsonNamingPolicy? namingPolicy
+    )
+    {
+        if (root is not IDictionary<string, object?> mapping || mapping.Count == 0)
+        {
+            return null;
+        }
+
+        var modelId = layout?.ModelId;
+        var versionKey = FindKey(mapping, layout, namingPolicy);
+        if (versionKey is null)
+        {
+            // A schema-annotated document without a version defaults to version 1. A document
+            // without any marker keeps the legacy bare behavior, unless a model ID opts the
+            // reader into legacy version attribution for migration.
+            return FindSchemaKey(mapping) is not null || modelId is not null
+                ? new StateSchemaMetadata(modelId, StateSchemaMetadata.InitialVersion)
+                : null;
+        }
+
+        var node = mapping[versionKey];
+        if (
+            node is string
+            || (
+                node is not IDictionary<string, object?>
+                && node is not System.Collections.IEnumerable
+            )
+        )
+        {
+            if (
+                !int.TryParse(
+                    Convert.ToString(node, System.Globalization.CultureInfo.InvariantCulture),
+                    System.Globalization.NumberStyles.Integer,
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    out var version
+                )
+                || version < StateSchemaMetadata.InitialVersion
+            )
+            {
+                throw new YamlException(
+                    $"The version property '{versionKey}' must be a positive integer."
+                );
+            }
+
+            return new StateSchemaMetadata(modelId, version);
+        }
+
+        return new StateSchemaMetadata(modelId, StateSchemaMetadata.InitialVersion);
+    }
+
+    private static string? FindKey(
+        IDictionary<string, object?> mapping,
+        DocumentLayoutOptions? layout,
+        JsonNamingPolicy? namingPolicy
+    )
+    {
+        if (
+            FindKey(mapping, layout?.VersionProperty ?? DefaultVersionProperty, namingPolicy) is
+            { } versionKey
+        )
+        {
+            return versionKey;
+        }
+
+        var fallbacks = layout?.FallbackVersionProperties ?? ["Version"];
+        foreach (var fallback in fallbacks)
+        {
+            if (FindKey(mapping, fallback, namingPolicy) is { } fallbackKey)
+            {
+                return fallbackKey;
+            }
+        }
+
+        return null;
+    }
+
+    private static string? FindKey(
+        IDictionary<string, object?> mapping,
+        string propertyName,
+        JsonNamingPolicy? namingPolicy
+    )
+    {
+        if (string.IsNullOrWhiteSpace(propertyName))
+        {
+            throw new ArgumentException(
+                "A version property cannot be empty.",
+                nameof(propertyName)
+            );
+        }
+
+        var convertedName = namingPolicy?.ConvertName(propertyName) ?? propertyName;
+        return mapping.Keys.FirstOrDefault(key =>
+            string.Equals(key, propertyName, StringComparison.Ordinal)
+            || string.Equals(key, convertedName, StringComparison.Ordinal)
+            || string.Equals(
+                key,
+                char.ToLowerInvariant(propertyName[0]) + propertyName[1..],
+                StringComparison.Ordinal
+            )
+        );
+    }
+
+    private static string? FindSchemaKey(IDictionary<string, object?> mapping) =>
+        mapping.Keys.FirstOrDefault(key =>
+            string.Equals(key, SchemaProperty, StringComparison.Ordinal)
+        );
 
     private static StateSchemaMetadata ReadMetadata(object? node)
     {
@@ -547,11 +509,58 @@ internal static class YamlStateCodecOperations
         return version >= StateSchemaMetadata.InitialVersion;
     }
 
-    private static object? DeserializeRoot(byte[] content, YamlSerializerOptions options)
+    private static object? DeserializeRoot(
+        byte[] content,
+        YamlSerializerOptions options,
+        Encoding? textEncoding
+    )
     {
-        var text = new UTF8Encoding(false, true).GetString(content);
+        var text = DecodeText(content, textEncoding);
         return string.IsNullOrWhiteSpace(text)
             ? new Dictionary<string, object?>(StringComparer.Ordinal)
             : YamlSerializer.Deserialize<Dictionary<string, object?>>(text, options);
+    }
+
+    private static readonly Encoding[] BomEncodings =
+    [
+        // Longer preambles first: UTF-32 LE shares its first two bytes with UTF-16 LE.
+        Encoding.UTF32,
+        Encoding.GetEncoding(12001),
+        Encoding.UTF8,
+        Encoding.Unicode,
+        Encoding.BigEndianUnicode,
+    ];
+
+    private static string DecodeText(byte[] content, Encoding? textEncoding)
+    {
+        if (textEncoding is not null)
+        {
+            using var stream = new MemoryStream(content, writable: false);
+            using var reader = new StreamReader(
+                stream,
+                textEncoding,
+                detectEncodingFromByteOrderMarks: true
+            );
+            return reader.ReadToEnd();
+        }
+
+        foreach (var encoding in BomEncodings)
+        {
+            var preamble = encoding.GetPreamble();
+            if (
+                preamble.Length > 0
+                && content.Length >= preamble.Length
+                && content.AsSpan(0, preamble.Length).SequenceEqual(preamble)
+            )
+            {
+                return encoding.GetString(
+                    content,
+                    preamble.Length,
+                    content.Length - preamble.Length
+                );
+            }
+        }
+
+        return new UTF8Encoding(false, true).GetString(content);
     }
 }
