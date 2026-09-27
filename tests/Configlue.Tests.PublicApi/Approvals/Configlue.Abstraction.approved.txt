@@ -647,4 +647,8 @@ namespace Configlue
         public Configlue.StateMultiWriteResult? MultiWriteResult { get; init; }
         public string? Revision { get; init; }
     }
+    public static class WritableOptionsExtensions
+    {
+        public static Configlue.ConfigureSession<T> BeginConfigure<T>(this Configlue.IWritableOptions<T> options) { }
+    }
 }
