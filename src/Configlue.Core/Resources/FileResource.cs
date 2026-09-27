@@ -21,12 +21,16 @@ public sealed class FileResource : IResourceReader, IStateWatcher, IResourceBatc
     private bool _disposed;
 
     /// <summary>Creates a file resource at the supplied path.</summary>
-    public FileResource(string path, FileResourceOptions? options = null)
+    public FileResource(
+        string path,
+        FileResourceOptions? options = null,
+        ResourceId? resourceId = null
+    )
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
         _path = System.IO.Path.GetFullPath(path);
         var identityPath = OperatingSystem.IsWindows() ? _path.ToUpperInvariant() : _path;
-        ResourceId = new ResourceId($"file:{identityPath}");
+        ResourceId = resourceId ?? new ResourceId($"file:{identityPath}");
         _directory = System.IO.Path.GetDirectoryName(_path)!;
         _fileName = System.IO.Path.GetFileName(_path);
         _options = options ?? new FileResourceOptions();

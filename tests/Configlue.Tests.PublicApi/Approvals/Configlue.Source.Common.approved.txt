@@ -1,0 +1,35 @@
+[assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/arika0093/Configlue")]
+namespace Configlue.Source.Common
+{
+    public enum CommonSourceWriteLayer
+    {
+        Global = 0,
+        Local = 1,
+        Specific = 2,
+    }
+    public sealed class CommonSourceOptions
+    {
+        public CommonSourceOptions() { }
+        public string? EnvironmentPrefix { get; init; }
+        public System.CommandLine.ParseResult? CommandLineParseResult { get; init; }
+        public System.Action<Configlue.Source.CommandLine.CommandLineMappingBuilder>? ConfigureCommandLineMappings { get; init; }
+        public bool EnableCommandLine { get; init; }
+        public System.Func<System.Collections.Generic.IEnumerable<System.Collections.Generic.KeyValuePair<string, string?>>>? EnvironmentVariables { get; init; }
+        public bool EnableEnvironment { get; init; }
+        public bool EnableGlobalFile { get; init; }
+        public bool EnableLocalFile { get; init; }
+        public bool EnableSpecificFile { get; init; }
+        public Configlue.FileResourceOptions? FileResourceOptions { get; init; }
+        public required string ApplicationId { get; init; }
+        public required string GlobalFileName { get; init; }
+        public string? LocalFilePath { get; init; }
+        public string? SpecificFilePath { get; init; }
+        public System.Text.Json.JsonSerializerOptions? SerializerOptions { get; init; }
+        public Configlue.Source.Common.CommonSourceWriteLayer WriteLayer { get; init; }
+    }
+    public static class CommonSourcePreset
+    {
+        public static void UseCommonSources<TModel>(this Configlue.ConfiglueModelBuilder<TModel> model, Configlue.Source.Common.CommonSourceOptions options)
+            where TModel : Configlue.IConfiglueFacadeModel<TModel> { }
+    }
+}

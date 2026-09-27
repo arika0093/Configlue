@@ -15,7 +15,10 @@ public interface IWritableOptions<T> : IReadOnlyOptions<T>
         CancellationToken cancellationToken = default
     );
 
-    /// <summary>Saves a complete configuration value to the configured write source.</summary>
+    /// <summary>
+    /// Replaces the configured write source's contribution with a complete configuration value.
+    /// Missing members in that source are not preserved; use an update delegate, configure session, or patch for sparse edits.
+    /// </summary>
     ValueTask<StateWriteResult> SaveAsync(T value, CancellationToken cancellationToken = default);
 
     /// <summary>Saves semantic changes to a model value using path-based source routing.</summary>

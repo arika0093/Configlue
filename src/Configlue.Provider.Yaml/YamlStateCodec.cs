@@ -230,6 +230,11 @@ internal sealed class CollectionInterfaceYamlTypeConverter : IYamlTypeConverter
 
 internal static class YamlStateCodecOperations
 {
+    private static readonly UTF8Encoding StrictUtf8 = new(
+        encoderShouldEmitUTF8Identifier: false,
+        throwOnInvalidBytes: true
+    );
+
     private const string MetadataKey = "$configlue";
     private const string PayloadKey = "$value";
 
@@ -323,7 +328,7 @@ internal static class YamlStateCodecOperations
 
     private static YamlNode ReadRoot(byte[] content)
     {
-        using var reader = new StringReader(Encoding.UTF8.GetString(content));
+        using var reader = new StringReader(StrictUtf8.GetString(content));
         var stream = new YamlStream();
         stream.Load(reader);
         if (stream.Documents.Count != 1)

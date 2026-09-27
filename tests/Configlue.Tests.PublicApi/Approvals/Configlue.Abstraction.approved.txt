@@ -145,16 +145,18 @@ namespace Configlue
         TSelf FromFragment(TFragment value);
         TFragment ToFragment(TSelf value);
     }
-    public interface IConfiglueOptionsRegistry<T> : System.IDisposable
+    public interface IConfiglueOptionsRegistry<T> : System.IDisposable, System.IAsyncDisposable
     {
         System.Collections.Generic.IReadOnlyCollection<string> ProfileNames { get; }
         event System.Action<string, Configlue.IWritableOptions<T>>? ProfileAdded;
         event System.Action<string>? ProfileRemoved;
         void Clear();
+        System.Threading.Tasks.ValueTask ClearAsync();
         Configlue.IWritableOptions<T> Get(string profileName);
         bool TryAdd(string profileName);
         bool TryGet(string profileName, out Configlue.IWritableOptions<T>? options);
         bool TryRemove(string profileName);
+        System.Threading.Tasks.ValueTask<bool> TryRemoveAsync(string profileName);
     }
     public interface IConfigluePatch
     {

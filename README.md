@@ -52,7 +52,97 @@ The static convenience class has the fully qualified name `global::Configlue.Con
 
 `ConfiglueStandardPaths.GetStandardSaveDirectory(applicationId)` returns the platform-standard per-user configuration directory plus the application identifier. The application chooses the file name. A property can map to a specific environment variable with `[ConfiglueEnvironment("ENV_NAME")]`; otherwise the environment source uses its configured prefix and double-underscore member paths.
 
-Register generated model options with a prioritized state-source set. Reads merge the present members from each source, and writes can target a source independently of read priority.
+Register generated model options with a prioritized state-source set. Reads merge the present members from each source, and writes can target a source independently of read priority. The optional `Configlue.Source.Common` package composes global, local, explicitly selected, and environment layers for either `CreateContext` or `services.AddConfiglue`:
+
+```csharp
+using Configlue.Source.Common;
+
+config.Add<AppSettings>(model => model.UseCommonSources(new CommonSourceOptions
+{
+    ApplicationId = "ExampleApp",
+    GlobalFileName = "settings.json",
+    SpecificFilePath = selectedPath, // selected file path, separate from member overrides
+    EnvironmentPrefix = "EXAMPLE",
+    CommandLineParseResult = parseResult,
+    ConfigureCommandLineMappings = mappings => mappings.Map(portOption, "Server.Port"),
+    WriteLayer = CommonSourceWriteLayer.Global,
+}));
+```
+
+Precedence is global, local, specific, environment, then command-line member overrides. Missing files are skipped; other read failures propagate. The selected file layer is the sole writable source; environment and command-line sources are read-only. Command-line selection of `SpecificFilePath` is separate from member-level overrides. Configure individual layers and the write layer explicitly when the defaults do not match the application.
+Provider packages add one-call source registrations to the shared `Sources` builder. File helpers work in non-DI and DI contexts; a generated file resource belongs to the context and is disposed after its watcher stops, while directly supplied HTTP clients remain owned by the caller or their factory.
+
+```csharp
+using Configlue.Provider.Json;
+using Configlue.Provider.Yaml;
+
+await using var context = global::Configlue.Configlue.CreateContext(config =>
+{
+    config.Add<AppSettings>(model =>
+    {
+        model.Sources(sources =>
+        {
+            sources.FromJsonFile(new()
+            {
+                Id = "user-json",
+                Path = "settings.json",
+                SectionPath = "Application:User",
+                Priority = 100,
+            });
+            sources.FromYamlFile(new()
+            {
+                Id = "defaults-yaml",
+                Path = "defaults.yaml",
+                Priority = 10,
+                ReadOnly = true,
+            });
+        });
+        model.WriteRoute = StateWriteRoute.To("user-json");
+    });
+});
+```
+
+Use the same `config.Add<AppSettings>(...)` definition inside `services.AddConfiglue(...)`. `FromXmlFile(new() { ... })` uses the same options for an XML file and optional element path. For HTTP, pass a direct `HttpClient` outside DI or set `ClientFactory = provider => provider!.GetRequiredService<IHttpClientFactory>().CreateClient("settings")` in DI. HTTP writes are disabled unless `Writable = true`; provide a codec such as `new JsonStateCodec()` explicitly. `Sources(sources => sources.Add(existingSource))` remains available when an application needs a custom reader, writer, watcher, or resource lifecycle.
+
+A model can opt in to dynamic named options with `model.EnableDynamicOptions = true`. The context exposes `GetOptionsRegistry<TModel>()`; `TryAdd(name)` creates the same source/model configuration under that `OptionsName`, and `TryRemoveAsync(name)` stops its watcher and disposes helper-created resources before returning. Fixed registration names are reserved. Removal prevents new operations from starting on that runtime, waits for operations already in progress and the watcher to stop, then disposes helper-created resources. New context lookups fail after removal. Previously returned handles become disposed; a configure session saved after its options were removed fails with `ObjectDisposedException`.
+
+```csharp
+config.Add<AppSettings>(model =>
+{
+    model.EnableDynamicOptions = true;
+    model.Sources(sources => sources.FromJsonFile(new()
+    {
+        Id = "tenant-settings",
+        Path = "settings.json",
+    }));
+});
+
+var registry = context.GetOptionsRegistry<AppSettings>();
+registry.TryAdd("tenant-a");
+var tenantOptions = context.GetOptions<AppSettings>("tenant-a");
+await registry.TryRemoveAsync("tenant-a");
+```
+
+In DI, `IOptionsMonitor<AppSettings>.Get("tenant-a")` follows additions and removals through the registry; `Get` throws after removal. Resolve dynamic writable options through `IConfiglueOptionsRegistry<AppSettings>.Get(name)`; keyed services are fixed when the provider is built and are not created for later names. An already materialized `IOptionsSnapshot<T>` keeps its value for that scope, as snapshots normally do. Dynamic named options are runtime-only; persisted profile catalogs are available separately through `EnableProfiles`. Profile names are also names in the options registry and must not collide with fixed `OptionsName` registrations. `SourcesForOptions` runs for each constructed named runtime, including the fixed registration itself, and receives that runtime's exact `OptionsName`. Use it to build profile-specific sources:
+
+```csharp
+model.EnableProfiles(profileCatalogSource, defaultProfileName: "default");
+model.SourcesForOptions((profileName, sources) =>
+    sources.FromJsonFile(new()
+    {
+        Id = "profile-state",
+        Path = Path.Combine(profileDirectory, profileName + ".json"),
+    }));
+
+var profiles = context.GetProfiledOptions<AppSettings>();
+await profiles.CreateProfileAsync("work", copyFrom: "default");
+await profiles.SetActiveProfileAsync("work");
+var active = await profiles.GetActiveValueAsync();
+await profiles.RemoveProfileAsync("work");
+```
+
+The profile catalog source must be writable and remains caller-owned. For DI, use the same `EnableProfiles` and `SourcesForOptions` calls inside `services.AddConfiglue(...)`, then resolve `IConfiglueProfiledOptions<AppSettings>` from the provider. Profile names added after provider construction resolve through `IOptionsMonitor` and `IConfiglueOptionsRegistry`, not keyed services. The one-arity non-DI entry is `context.GetProfiledOptions<AppSettings>()` as shown above.
+
 The source set is fixed for each options runtime. A dynamic named-options addition creates a separate runtime from its registration definition, and removal retires that whole runtime; neither operation changes another runtime's source topology. The storage-migration API can retire selected sources after verified migration. To replace a runtime's source set, build a replacement context from the new definitions and coordinate the handoff in the application: stop new operations through the old options, route callers to the replacement, drain in-flight operations, then dispose the old context. Handles already returned from the old context stay attached to its old runtime; dispose that context after callers stop using those handles. The handoff is application-coordinated and is not atomic across contexts.
 For DI-backed registration, the `(provider, sources) => ...` overload of `AddConfiglueOptions<TModel, TFragment>` resolves provider services and adds them with `sources.Add(id, reader, priority, fallbackCondition)`. Writer and watcher interfaces implemented by the reader are detected automatically; use `WithWriter` or `WithWatcher` for separate services. The callback runs when the options singleton is created. The builder is extensible, so provider packages can add their own source-registration extension methods.
 Register `IStateSchemaMigration<TFragment>` implementations as services to migrate older fragments with the same generated shape. For renamed or removed historical fields, declare earlier model types with `[ConfigluePreviousVersion(typeof(SettingsV1))]` on the current model and pass `Settings.CreateSchemaDispatcher(...)` to `SerializedStateSource.FromResource`; this decodes by schema metadata before current-fragment conversion and preserves sparse presence.
@@ -71,6 +161,31 @@ Resources can expose a stable `ResourceId` separately from logical source IDs an
 Change notifications are debounced by 300ms by default; pass `onChangeDebounce: TimeSpan.Zero` to a registration to disable it.
 `IWritableOptions<T>.MigrateSourceAsync(sourceId, targetId)` copies one source contribution, applies its schema migration chain, and writes it to a selected destination.
 `MigrateSourcesToTargetsAsync(sourceIds, targetProjections)` merges only the selected contributions, applies a fragment projection for each destination, and revision-checks and verifies each target. A completed target is skipped on retry; if a later target fails, rerun the migration to resume. Pass `retireSources: true` to remove the selected sources from that options instance after every target verifies and only when virtual resolution proves the effective model stays the same; the result lists them in `RetiredSourceIds`. This changes the running options topology; it does not delete backing data, so remove retired sources from the application's registration for future process starts. Multi-target writes are not atomic.
+To adopt a Configuration.Writable JSON or YAML file, use `ConfigurationWritableJsonStateCodec<TFragment>` or `ConfigurationWritableYamlStateCodec<TFragment>` as an opt-in legacy decoder. Select a nested section first with `JsonSectionResource` or `YamlSectionResource`, then wrap it in `SerializedStateReader<TFragment>` and a `StateSource<TFragment>` with no writer. The decoders recognize inline `$version` (and `Version` fallback), default an unmarked object or mapping to version 1, and can map that version to the current Configlue model ID for historical dispatch. `$schema` is ignored for decoding. Add the source as a read-only migration input and copy only its source ID to the writable target with `MigrateSourceAsync` or `MigrateSourcesToTargetsAsync`. Keep the original file until target verification succeeds; if migration fails, retry with the same source and target definitions. Remove the old file only through an explicit application decision.
+
+```csharp
+var oldFile = new FileResource("./old-settings.json");
+var oldSection = new JsonSectionResource(
+    oldFile,
+    writer: null,
+    sectionPath: "ApplicationSettings:Database",
+    watcher: null);
+var oldReader = new SerializedStateReader<AppSettings.Fragment>(
+    oldSection,
+    new ConfigurationWritableJsonStateCodec<AppSettings.Fragment>(
+        modelId: AppSettings.ConfiglueSchema.ModelId));
+var oldSource = new StateSource<AppSettings.Fragment>("legacy", oldReader);
+var currentSource = CreateCurrentSettingsSource(); // writable source using the normal Configlue codec
+
+await using var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(
+    new StateSourceSet<AppSettings.Fragment>([oldSource, currentSource]),
+    StateWriteRoute.To("current"));
+
+// Copy only the old contribution and leave oldFile available for retry/recovery.
+await options.MigrateSourceAsync("legacy", "current");
+```
+
+The file and section resource above remain application-owned. For a file with historical field shapes, pass a schema dispatcher to `SerializedStateReader<TFragment>` and register a matching legacy codec for each historical fragment.
 Configure sessions compare the full source revision vector immediately before saving and fail with `StateConflictException` if any participating source changed.
 `IReadOnlyOptions<T>.ExplainAsync("Database.Host")` returns the effective value and the present source contributions from highest to lowest priority.
 
@@ -79,9 +194,29 @@ Edits made through `BeginConfigureAsync` or the updater overloads use generated 
 Unchanged fields retain their existing sparse state. `Append` and `SetUnion` edits are rebased onto each target source's collection segment; edits that require changing values owned by another source or are hidden by a higher-priority source fail with `StateConflictException`.
 `JsonSectionResource` exposes a nested JSON path such as `App:Settings` as a separate resource and preserves its sibling values on writes.
 `XmlSectionResource` and `YamlSectionResource` provide the same nested-section view for XML elements and YAML mappings, including sibling preservation and whole-resource revision checks.
+Section edits require standard JSON or UTF-8 YAML. JSON comments/trailing-comma JSONC are not supported, and section writes reserialize the document: comment, whitespace, quoting, and scalar-style preservation is not guaranteed. YAML input with invalid UTF-8 now fails instead of being replacement-decoded and rewritten as UTF-8.
 `ZipEntryResource` exposes one archive entry as a logical resource while retaining the archive's physical identity and revision. Disjoint entry updates can share one batched archive write, and untouched entries remain intact.
 `HttpResourceReader` reads from `{root}/get` and can be composed with any state codec. Call `CreateWriter()` and pass the result as `writer:` to `SerializedStateSource.FromResource` only when the endpoint supports updates; HTTP requests use ETags for conditional writes and polling. The optional `Configlue.Resource.Http.AspNetCore` package maps the same protocol over user-provided resource handlers. See the [HTTP resource protocol](docs/en/reference/http-resource-protocol.md).
 `JsonSchemaGenerator.Generate` and `Write` export versioned schemas from a model's generated `ConfiglueModelSchema`; pass a source-generated `IJsonTypeInfoResolver` for trimming and NativeAOT-friendly metadata. Supported DataAnnotations are mapped to schema constraints.
+
+`Configlue.Source.CommandLine` accepts the application's existing parse result and explicit symbol-to-path mappings. Parser defaults do not become overrides unless the symbol was explicitly supplied; a parse result with errors fails the source read. Map root and selected subcommand symbols explicitly, and create a new source/context when command-line input changes.
+
+```csharp
+using Configlue.Source.CommandLine;
+using System.CommandLine;
+
+var commandLineSource = new CommandLineSourceOptions
+{
+    Id = "command-line",
+    ParseResult = parseResult,
+    Priority = 500,
+};
+model.Sources(sources => sources.FromCommandLine(commandLineSource, mappings =>
+{
+    mappings.Map(portOption, "Server.Port");
+    mappings.Map(verboseOption, "Diagnostics.Verbose");
+}));
+```
 
 `Configlue.Source.Environment.EnvironmentStateSource.FromEnvironment<AppConfig, AppConfig.Fragment>("environment", "APP")` creates a read-only sparse source from process environment variables such as `APP__DATABASE__HOST`. Double underscores separate nested model members; member names are matched case-insensitively. A property annotated with `[ConfiglueEnvironment("ENV_NAME")]` can instead read that mapped variable name case-insensitively, including for nested model properties. Common scalar values use invariant parsing, and a custom parser can handle application-specific types. The reader recalculates a content revision on each read; process environment variables do not provide a watcher.
 
@@ -137,6 +272,8 @@ await serviceProvider
     .GetRequiredService<IWritableOptions<AppConfig>>()
     .SaveAsync(settings => settings.SomeSetting = newValue);
 ```
+
+`SaveAsync(updatedConfig)` replaces the configured write source's complete contribution with that model value, including model defaults. It does not preserve members that were absent from that source. Use `SaveAsync(settings => ...)`, `BeginConfigureAsync`, or `ApplyPatchAsync` when the intent is a sparse edit that retains untouched members. The `SaveAsync(value, writePlan)` overload compares the value with the resolved baseline and routes only changed paths.
 
 Persistent named profiles use a separate writable source for their catalog. The profile source factory receives each profile name, which lets an application store profile values in separate files, sections, or other resources.
 

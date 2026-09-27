@@ -1,0 +1,23 @@
+[assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/arika0093/Configlue")]
+namespace Configlue.Source.CommandLine
+{
+    public sealed class CommandLineMappingBuilder
+    {
+        public CommandLineMappingBuilder() { }
+        public void Map<TValue>(System.CommandLine.Option<TValue> option, string propertyPath) { }
+        public void Map<TValue>(System.CommandLine.Argument<TValue> argument, string propertyPath) { }
+    }
+    public sealed class CommandLineSourceOptions
+    {
+        public CommandLineSourceOptions() { }
+        public required string Id { get; init; }
+        public required System.CommandLine.ParseResult ParseResult { get; init; }
+        public int Priority { get; init; }
+        public Configlue.StateFallbackCondition FallbackCondition { get; init; }
+        public System.Text.Json.JsonSerializerOptions? JsonSerializerOptions { get; init; }
+    }
+    public static class CommandLineSourceRegistration
+    {
+        public static void FromCommandLine(this Configlue.ConfiglueSourceSetBuilder sources, Configlue.Source.CommandLine.CommandLineSourceOptions options, System.Action<Configlue.Source.CommandLine.CommandLineMappingBuilder> configureMappings) { }
+    }
+}

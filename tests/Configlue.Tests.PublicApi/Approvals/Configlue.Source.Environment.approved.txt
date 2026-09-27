@@ -7,6 +7,20 @@ namespace Configlue.Source.Environment
         public EnvironmentStateReader(Configlue.ConfiglueModelSchema schema, string prefix, System.Func<System.Collections.Generic.IEnumerable<System.Collections.Generic.KeyValuePair<string, string?>>>? environmentVariables = null, System.Func<string, System.Type, object?>? valueParser = null) { }
         public System.Threading.Tasks.ValueTask<Configlue.StateReadResult<TFragment>> ReadAsync(System.Threading.CancellationToken cancellationToken = default) { }
     }
+    public sealed class EnvironmentSourceOptions
+    {
+        public EnvironmentSourceOptions() { }
+        public required string Id { get; init; }
+        public required string Prefix { get; init; }
+        public int Priority { get; init; }
+        public Configlue.StateFallbackCondition FallbackCondition { get; init; }
+        public System.Func<System.Collections.Generic.IEnumerable<System.Collections.Generic.KeyValuePair<string, string?>>>? EnvironmentVariables { get; init; }
+        public System.Func<string, System.Type, object?>? ValueParser { get; init; }
+    }
+    public static class EnvironmentFacadeSourceRegistration
+    {
+        public static void FromEnvironment(this Configlue.ConfiglueSourceSetBuilder sources, Configlue.Source.Environment.EnvironmentSourceOptions options) { }
+    }
     public static class EnvironmentStateSource
     {
         public static Configlue.StateSource<TFragment> FromEnvironment<TModel, TFragment>(string id, string prefix, int priority = 0, Configlue.StateFallbackCondition fallbackCondition = 1, System.Func<System.Collections.Generic.IEnumerable<System.Collections.Generic.KeyValuePair<string, string?>>>? environmentVariables = null, System.Func<string, System.Type, object?>? valueParser = null)

@@ -174,20 +174,43 @@ public sealed class ConfiglueProfiledOptions<TModel, TFragment> : IConfiglueProf
                 activeProfileChanged = profileName;
             }
 
-            await PersistCatalogAsync(updated, cancellationToken).ConfigureAwait(false);
-            if (!_registry.TryAdd(profileName) && !_registry.TryGet(profileName, out _))
+            if (!_registry.TryAdd(profileName))
             {
                 throw new InvalidOperationException(
-                    $"The profile '{profileName}' is already registered at runtime."
+                    $"The profile name '{profileName}' is already registered or reserved by a fixed OptionsName."
                 );
             }
-
-            if (hasSourceValue)
+            try
             {
-                await _registry
-                    .Get(profileName)
-                    .SaveAsync(sourceValue, cancellationToken)
-                    .ConfigureAwait(false);
+                if (hasSourceValue)
+                {
+                    await _registry
+                        .Get(profileName)
+                        .SaveAsync(sourceValue, cancellationToken)
+                        .ConfigureAwait(false);
+                }
+
+                await PersistCatalogAsync(updated, cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception creationException)
+            {
+                // A writer may fail after committing. Force the next manager operation to
+                // reread the catalog before trusting either the old or proposed state.
+                _initialized = false;
+                try
+                {
+                    await _registry.TryRemoveAsync(profileName).ConfigureAwait(false);
+                }
+                catch (Exception cleanupException)
+                {
+                    throw new AggregateException(
+                        $"Profile '{profileName}' could not be created and its runtime could not be cleaned up.",
+                        creationException,
+                        cleanupException
+                    );
+                }
+
+                throw;
             }
         }
         finally
@@ -220,26 +243,27 @@ public sealed class ConfiglueProfiledOptions<TModel, TFragment> : IConfiglueProf
             }
 
             var updated = Clone(_catalog!);
+            string? changedActiveProfile = null;
             updated.ProfileNames.RemoveAll(name =>
                 string.Equals(name, profileName, StringComparison.Ordinal)
             );
             if (string.Equals(updated.ActiveProfileName, profileName, StringComparison.Ordinal))
             {
                 updated.ActiveProfileName = updated.ProfileNames[0];
-                activeProfileChanged = updated.ActiveProfileName;
+                changedActiveProfile = updated.ActiveProfileName;
             }
 
             await PersistCatalogAsync(updated, cancellationToken).ConfigureAwait(false);
-            _registry.TryRemove(profileName);
+            activeProfileChanged = changedActiveProfile;
+            await _registry.TryRemoveAsync(profileName).ConfigureAwait(false);
         }
         finally
         {
             _gate.Release();
-        }
-
-        if (activeProfileChanged is not null)
-        {
-            NotifyActiveProfileChanged(activeProfileChanged);
+            if (activeProfileChanged is not null)
+            {
+                NotifyActiveProfileChanged(activeProfileChanged);
+            }
         }
     }
 
@@ -401,6 +425,13 @@ public sealed class ConfiglueProfiledOptions<TModel, TFragment> : IConfiglueProf
 
                 throw;
             }
+            catch
+            {
+                // A writer may report failure after the catalog reached durable storage.
+                // Re-read on the next operation before trusting the cached catalog.
+                _initialized = false;
+                throw;
+            }
         }
 
         throw new StateConflictException(
@@ -419,9 +450,15 @@ public sealed class ConfiglueProfiledOptions<TModel, TFragment> : IConfiglueProf
         var expected = new HashSet<string>(catalog.ProfileNames, StringComparer.Ordinal);
         foreach (var profileName in catalog.ProfileNames)
         {
-            if (!_registry.TryGet(profileName, out _))
+            if (
+                !_registry.TryGet(profileName, out _)
+                && !_registry.TryAdd(profileName)
+                && !_registry.TryGet(profileName, out _)
+            )
             {
-                _registry.TryAdd(profileName);
+                throw new InvalidDataException(
+                    $"Profile '{profileName}' conflicts with a fixed OptionsName or could not be registered."
+                );
             }
         }
 
@@ -429,7 +466,7 @@ public sealed class ConfiglueProfiledOptions<TModel, TFragment> : IConfiglueProf
             var registeredName in _registry.ProfileNames.Where(name => !expected.Contains(name))
         )
         {
-            _registry.TryRemove(registeredName);
+            await _registry.TryRemoveAsync(registeredName).ConfigureAwait(false);
         }
     }
 

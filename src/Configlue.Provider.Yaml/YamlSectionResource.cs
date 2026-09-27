@@ -11,6 +11,10 @@ public sealed class YamlSectionResource
         IResourceIdentity,
         IResourceBatchParticipant
 {
+    private static readonly UTF8Encoding StrictUtf8 = new(
+        encoderShouldEmitUTF8Identifier: false,
+        throwOnInvalidBytes: true
+    );
     private readonly IResourceReader _reader;
     private readonly IResourceWriter? _writer;
     private readonly IStateWatcher? _watcher;
@@ -247,7 +251,7 @@ public sealed class YamlSectionResource
 
     private static YamlNode LoadRoot(ReadOnlySpan<byte> content)
     {
-        using var reader = new StringReader(Encoding.UTF8.GetString(content));
+        using var reader = new StringReader(StrictUtf8.GetString(content));
         var stream = new YamlStream();
         stream.Load(reader);
         if (stream.Documents.Count != 1)
