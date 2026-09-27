@@ -16,6 +16,15 @@ File, HTTP (polling), and custom watcher sources push updates through the same c
 
 Change notifications are debounced by 300ms by default; pass `onChangeDebounce: TimeSpan.Zero` to a registration to disable it, or a larger value to coalesce high-frequency external edits.
 
+Subscribe to background reload failures separately from value changes:
+
+```csharp
+using var reloadFailureSubscription = options.OnReloadFailed(exception =>
+    logger.LogError(exception, "Configuration reload failed"));
+```
+
+The callback receives watcher or reload exceptions. If a changed state resolves to `NotFound` or `Unavailable`, it receives an `InvalidOperationException` describing that status. Explicit `ReadAsync` failures and exceptions thrown by `OnChange` listeners do not use this callback. A failing reload-failure listener is logged and does not stop other listeners or watcher retries.
+
 ## Validation
 
 Validation runs on save. Set `ValidateDataAnnotations` on the model builder to enforce attribute rules:

@@ -10,6 +10,10 @@ public interface IReadOnlyOptions<T>
     /// <summary>Subscribes to resolved values when watched state sources change.</summary>
     IDisposable OnChange(Action<T> listener);
 
+    /// <summary>Subscribes to failures while the background watcher reads changed state.</summary>
+    /// <remarks>Receives thrown watcher/reload exceptions and an <see cref="InvalidOperationException"/> when a changed state resolves to a non-success status. Failures from explicit read calls and change listeners are not reported here.</remarks>
+    IDisposable OnReloadFailed(Action<Exception> listener);
+
     /// <summary>Returns the configured source topology and registration-level write routing.</summary>
     ConfiglueOptionsDiagnostics GetDiagnostics();
 
