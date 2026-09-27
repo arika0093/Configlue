@@ -5,6 +5,7 @@ public static class StateSourceProjection
 {
     /// <summary>
     /// Mounts a generated subtree fragment into its matching nested member of a root fragment.
+    /// A writable source is reverse-projected automatically by extracting the sparse nested fragment.
     /// </summary>
     /// <typeparam name="TSource">The generated fragment for the nested model.</typeparam>
     /// <typeparam name="TTarget">The generated root fragment.</typeparam>
@@ -70,6 +71,13 @@ public static class StateSourceProjection
             sourceSchema.ModelType,
             propertyPath
         );
+        var reverseProjection = toSource;
+        if (reverseProjection is null && source.Writer is not null)
+        {
+            reverseProjection = fragment =>
+                (TSource)ExtractMountedFragment(rootSchema, path, 0, fragment, propertyPath);
+        }
+
         var mounted = Project(
             source,
             fragment =>
@@ -81,10 +89,95 @@ public static class StateSourceProjection
                     sourceSchema.ModelType,
                     propertyPath
                 ),
-            toSource,
+            reverseProjection,
             projectedSchema: projectedSchema ?? rootSchema.ToMetadata()
         );
         return mounted;
+    }
+
+    private static IConfiglueFragment ExtractMountedFragment(
+        ConfiglueModelSchema schema,
+        IReadOnlyList<string> path,
+        int pathIndex,
+        IConfiglueFragment fragment,
+        string propertyPath
+    )
+    {
+        var matches = schema
+            .Members.Where(member =>
+                string.Equals(member.Name, path[pathIndex], StringComparison.OrdinalIgnoreCase)
+            )
+            .ToArray();
+        if (matches.Length != 1)
+        {
+            throw new ArgumentException(
+                $"Mount path '{propertyPath}' has an unknown or ambiguous member '{path[pathIndex]}' in model '{schema.ModelType}'.",
+                nameof(propertyPath)
+            );
+        }
+
+        var member = matches[0];
+        var present = fragment
+            .EnumeratePresentMembers()
+            .Where(candidate => candidate.Id == member.Id)
+            .Select(static candidate => (ConfiglueFragmentMember?)candidate)
+            .FirstOrDefault();
+        if (present is null)
+        {
+            return GetSubtreeSchema(schema, path, pathIndex, propertyPath).CreateEmptyFragment();
+        }
+
+        var presentValue = present.Value.Value;
+        if (pathIndex == path.Count - 1)
+        {
+            if (presentValue is not IConfiglueFragment subtree)
+            {
+                throw new InvalidOperationException(
+                    $"Mounted subtree '{propertyPath}' is present with null or a value that is not a generated fragment, so it cannot be reverse-projected."
+                );
+            }
+
+            return subtree;
+        }
+
+        if (presentValue is not IConfiglueFragment nested)
+        {
+            throw new InvalidOperationException(
+                $"Mounted subtree path '{propertyPath}' contains a present-null member and cannot be reverse-projected."
+            );
+        }
+
+        return ExtractMountedFragment(
+            member.NestedSchemaFactory!(),
+            path,
+            pathIndex + 1,
+            nested,
+            propertyPath
+        );
+    }
+
+    private static ConfiglueModelSchema GetSubtreeSchema(
+        ConfiglueModelSchema schema,
+        IReadOnlyList<string> path,
+        int pathIndex,
+        string propertyPath
+    )
+    {
+        var member = schema.Members.SingleOrDefault(candidate =>
+            string.Equals(candidate.Name, path[pathIndex], StringComparison.OrdinalIgnoreCase)
+        );
+        var nested = member.NestedSchemaFactory?.Invoke();
+        if (nested is null)
+        {
+            throw new ArgumentException(
+                $"Mount path '{propertyPath}' continues through non-nested member '{member.Name}'.",
+                nameof(propertyPath)
+            );
+        }
+
+        return pathIndex == path.Count - 1
+            ? nested
+            : GetSubtreeSchema(nested, path, pathIndex + 1, propertyPath);
     }
 
     /// <summary>

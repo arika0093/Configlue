@@ -6,7 +6,7 @@ namespace Configlue;
 public static class ConfiglueSourceSetBuilderMountExtensions
 {
     /// <summary>Adds a nested source using a generated model member selector.</summary>
-    /// <remarks>The source remains caller-owned and the mounted source is read-only. Supply a reverse mapping to the writable overload to enable writes.</remarks>
+    /// <remarks>The source remains caller-owned. When it has a writer, the subtree fragment is extracted from writes automatically.</remarks>
     public static void AddMounted<TModel, TRootFragment, TSubtreeModel, TSubtreeFragment>(
         this ConfiglueSourceSetBuilder sources,
         StateSource<TSubtreeFragment> source,
@@ -43,7 +43,7 @@ public static class ConfiglueSourceSetBuilderMountExtensions
     }
 
     /// <summary>Adds a nested source factory using a generated model member selector.</summary>
-    /// <remarks>Factory-created sources remain caller-owned and the mounted source is read-only. Supply a reverse mapping to the writable overload to enable writes.</remarks>
+    /// <remarks>Factory-created sources remain caller-owned. When the returned source has a writer, the subtree fragment is extracted from writes automatically.</remarks>
     public static void AddMounted<TModel, TRootFragment, TSubtreeModel, TSubtreeFragment>(
         this ConfiglueSourceSetBuilder sources,
         Func<IServiceProvider?, StateSource<TSubtreeFragment>> sourceFactory,
@@ -81,7 +81,7 @@ public static class ConfiglueSourceSetBuilderMountExtensions
 
     /// <summary>
     /// Adds a nested source using its generated fragment type and a validated logical property path.
-    /// The source remains caller-owned. Without a reverse mapping, the mounted source is read-only.
+    /// The source remains caller-owned. When it has a writer, writes are automatically projected to the mounted subtree.
     /// </summary>
     public static void AddMounted<TRootFragment, TSubtreeFragment>(
         this ConfiglueSourceSetBuilder sources,
@@ -112,7 +112,7 @@ public static class ConfiglueSourceSetBuilderMountExtensions
 
     /// <summary>
     /// Adds a nested source factory using its generated fragment type and a validated logical path.
-    /// The factory-created source remains caller-owned. Without a reverse mapping, the mounted source is read-only.
+    /// The factory-created source remains caller-owned. When it has a writer, writes are automatically projected to the mounted subtree.
     /// </summary>
     public static void AddMounted<TRootFragment, TSubtreeFragment>(
         this ConfiglueSourceSetBuilder sources,
