@@ -95,7 +95,13 @@ public sealed class FormatSectionResourceTests
             },
         };
         var resource = new InMemoryResource();
-        await resource.WriteAsync(new ResourceWriteRequest(SerializeYaml(document)));
+        var yamlWithComments =
+            "# A surrounding comment is accepted; comment preservation is not promised.\n"
+            + Encoding.UTF8.GetString(SerializeYaml(document))
+            + "\n# A trailing comment.\n";
+        await resource.WriteAsync(
+            new ResourceWriteRequest(Encoding.UTF8.GetBytes(yamlWithComments))
+        );
         var section = new YamlSectionResource(resource, "App:Settings");
         var source = SerializedStateSource.FromResource<AppSettings.Fragment>(
             "settings",

@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using Configlue.Provider.Json;
+using Configlue.Testing;
 
 namespace Configlue.Tests;
 
@@ -125,5 +126,29 @@ public sealed class JsonSectionResourceTests
                 Directory.Delete(directory, recursive: true);
             }
         }
+    }
+
+    [Test]
+    public async Task SectionResource_RejectsJsoncComments()
+    {
+        var resource = new InMemoryResource();
+        await resource.WriteAsync(
+            new ResourceWriteRequest(
+                Encoding.UTF8.GetBytes("{\n  // JSONC comments are unsupported\n  \"App\": {}\n}")
+            )
+        );
+        var section = new JsonSectionResource(resource, "App:Settings");
+
+        var rejected = false;
+        try
+        {
+            await section.ReadAsync();
+        }
+        catch (JsonException)
+        {
+            rejected = true;
+        }
+
+        rejected.ShouldBeTrue();
     }
 }
