@@ -34,10 +34,10 @@ if (args.Length > 0)
         return 2;
     }
 
-    await writable.SaveAsync(value =>
+    await writable.SavePatchAsync(patch =>
     {
-        value.Name = args[1];
-        value.RunCount++;
+        patch.Name = args[1];
+        patch.RunCount = current.RunCount + 1;
     });
 
     var updated = await writable.GetValueAsync();

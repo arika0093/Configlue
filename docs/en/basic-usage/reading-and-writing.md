@@ -69,6 +69,9 @@ A per-operation `StateWritePlan` can split the session across sources — see [W
 Generated `TModel.Patch` values address members individually. `Unset` removes only the write source's contribution and exposes lower-priority values again:
 
 ```csharp
+await options.SavePatchAsync(patch => patch.Database.Host = "db.example.test");
+await options.SavePatchAsync(patch => patch.Database.Password.Unset());
+
 var patch = new AppSettings.Patch();
 patch.SomeSetting = newValue;   // set
 // patch.SomeSetting.Unset();   // withdraw this source's contribution

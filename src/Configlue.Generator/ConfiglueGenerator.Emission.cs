@@ -63,7 +63,35 @@ public sealed partial class ConfiglueGenerator
         AppendFacadeRuntimeBridge(code, modelType);
         AppendHistoricalDispatcherFactory(code, modelType, previousModels);
         code.AppendLine("}");
+        AppendTypedPatchExtensions(code, modelType);
         return code.ToString();
+    }
+
+    private static void AppendTypedPatchExtensions(IndentedStringBuilder code, string modelType)
+    {
+        var modelParts = modelType.Split('.');
+        var extensionType =
+            EscapeIdentifier(modelParts[modelParts.Length - 1]) + "PatchOptionsExtensions";
+        code.AppendLine("public static class " + extensionType);
+        code.AppendLine("{");
+        code.AppendLineAt(
+            1,
+            "public static global::System.Threading.Tasks.ValueTask<global::Configlue.StateWriteResult> SavePatchAsync("
+        );
+        code.AppendLineAt(2, "this global::Configlue.IWritableOptions<" + modelType + "> options,");
+        code.AppendLineAt(2, "global::System.Action<" + modelType + ".Patch> configure,");
+        code.AppendLineAt(
+            2,
+            "global::System.Threading.CancellationToken cancellationToken = default)"
+        );
+        code.AppendLineAt(1, "{");
+        code.AppendLineAt(2, "global::System.ArgumentNullException.ThrowIfNull(options);");
+        code.AppendLineAt(2, "global::System.ArgumentNullException.ThrowIfNull(configure);");
+        code.AppendLineAt(2, "var patch = new " + modelType + ".Patch();");
+        code.AppendLineAt(2, "configure(patch);");
+        code.AppendLineAt(2, "return options.ApplyPatchAsync(patch, cancellationToken);");
+        code.AppendLineAt(1, "}");
+        code.AppendLine("}");
     }
 
     private static void AppendCollectionCloneHelpers(IndentedStringBuilder code)
