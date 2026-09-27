@@ -147,6 +147,7 @@ public sealed class StateSourceResolver<T> : IStateReader<T>
         {
             StateReadStatus.NotFound => (condition & StateFallbackCondition.NotFound) != 0,
             StateReadStatus.Unavailable => (condition & StateFallbackCondition.Unavailable) != 0,
+            StateReadStatus.Invalid => (condition & StateFallbackCondition.Invalid) != 0,
             _ => false,
         };
 }

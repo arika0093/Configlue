@@ -26,6 +26,10 @@ public readonly record struct StateReadResult<T>(
     public static StateReadResult<T> Unavailable(string? revision = null) =>
         new(StateReadStatus.Unavailable, default, revision);
 
+    /// <summary>Creates a result for a value that failed validation.</summary>
+    public static StateReadResult<T> Invalid(T? value, string? revision = null) =>
+        new(StateReadStatus.Invalid, value, revision);
+
     /// <summary>
     /// Returns this result associated with its logical source. An existing physical origin is preserved;
     /// <paramref name="physicalOrigin"/> is used when the result does not already identify one.

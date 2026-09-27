@@ -561,7 +561,8 @@ public sealed partial class ConfiglueGenerator
         code.AppendLineAt(3, "configuration.OnChangeDebounce,");
         code.AppendLineAt(3, "configuration.OptionsName,");
         code.AppendLineAt(3, "configuration.GetLogger(serviceProvider),");
-        code.AppendLineAt(3, "configuration.CloneStrategy);");
+        code.AppendLineAt(3, "configuration.CloneStrategy,");
+        code.AppendLineAt(3, "configuration.ReadValidationMode);");
         code.AppendIndent(1)
             .Append("public static global::Configlue.IConfiglueProfiledOptions<")
             .Append(modelType)

@@ -23,7 +23,7 @@ using var reloadFailureSubscription = options.OnReloadFailed(exception =>
     logger.LogError(exception, "Configuration reload failed"));
 ```
 
-The callback receives watcher or reload exceptions. If a changed state resolves to `NotFound` or `Unavailable`, it receives an `InvalidOperationException` describing that status. Explicit `ReadAsync` failures and exceptions thrown by `OnChange` listeners do not use this callback. A failing reload-failure listener is logged and does not stop other listeners or watcher retries.
+The callback receives watcher or reload exceptions. If a changed state resolves to `NotFound`, `Unavailable`, or `Invalid`, it receives an `InvalidOperationException` describing that status. Explicit `ReadAsync` failures and exceptions thrown by `OnChange` listeners do not use this callback. A failing reload-failure listener is logged and does not stop other listeners or watcher retries.
 
 ## Validation
 
@@ -31,10 +31,13 @@ DataAnnotations validation runs on save by default. Set `ValidateDataAnnotations
 
 Validation failures throw `ConfiglueValidationException`, which includes the options name, options type, and all failure messages. This validation contract is part of Configlue Core and does not require `Microsoft.Extensions.Options`.
 
+Reads are validated too. `ReadValidationMode` selects how read-time failures are handled: `EffectiveThrow` (the default) throws when the finally resolved value is invalid, `StrictThrow` throws as soon as any source contributes an invalid value, and `IgnoreValue` drops invalid contributed members and resolves the remaining values. Sources that report an invalid value carry the `Invalid` read status through provenance and `ExplainAsync` diagnostics. A watcher reload that fails validation is reported to `OnReloadFailed` without notifying `OnChange` listeners.
+
 ```csharp
 conf.Add<UserSetting>(model =>
 {
     model.ValidateDataAnnotations = false; // optional
+    model.ReadValidationMode = ReadValidationMode.IgnoreValue; // optional
     // ...sources...
 });
 ```

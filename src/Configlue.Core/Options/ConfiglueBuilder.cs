@@ -88,6 +88,7 @@ public sealed class ConfiglueModelBuilder<TModel>
     private StateWriteRoute _writeRoute;
     private StateWritePlan _writePlan = StateWritePlan.Empty;
     private bool _validateDataAnnotations = true;
+    private ReadValidationMode _readValidationMode = ReadValidationMode.EffectiveThrow;
     private bool _enableDynamicOptions;
     private bool _registerAsSingleton;
     private TimeSpan? _onChangeDebounce;
@@ -180,6 +181,22 @@ public sealed class ConfiglueModelBuilder<TModel>
         {
             EnsureMutable();
             _validateDataAnnotations = value;
+        }
+    }
+
+    /// <summary>Gets or sets how validation failures are handled when configuration state is read.</summary>
+    public ReadValidationMode ReadValidationMode
+    {
+        get => _readValidationMode;
+        set
+        {
+            EnsureMutable();
+            if (!Enum.IsDefined(value))
+            {
+                throw new ArgumentOutOfRangeException(nameof(value));
+            }
+
+            _readValidationMode = value;
         }
     }
 
@@ -354,6 +371,7 @@ public sealed class ConfiglueModelBuilder<TModel>
             WriteRoute = _writeRoute,
             WritePlan = _writePlan,
             ValidateDataAnnotations = _validateDataAnnotations,
+            ReadValidationMode = _readValidationMode,
             EnableDynamicOptions = _enableDynamicOptions,
             RegisterAsSingleton = _registerAsSingleton,
             OnChangeDebounce = _onChangeDebounce,
