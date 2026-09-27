@@ -7,7 +7,7 @@ description: ファイルの世代バックアップと復元、ログ記録、�
 
 ## ファイルバックアップ
 
-ファイルリソースは既定で不可分な `.bak` を1世代保持します。`FileResourceOptions` で任意ディレクトリに複数世代を保持でき、`RestoreLatestBackupAsync` で最新世代を明示復元します。
+ファイルリソースは既定で不可分な `.bak` を1世代保持します。バックアップは Windows ではリソースファイルと同じ場所の `backup/`、その他の OS では `.backup/` に保存し、Windows ではディレクトリとファイルを隠し属性にします。`FileResourceOptions` で複数世代や保存先を変えられます。相対 `BackupDirectory` はリソースファイルのディレクトリを基準にします。`RestoreLatestBackupAsync` で最新世代を明示復元できます。
 
 ```csharp
 var resource = new FileResource(
@@ -28,7 +28,7 @@ model.UseJsonFile(new JsonFileSourceOptions
 });
 ```
 
-ファイルがない場合や JSON が壊れている場合、最新バックアップを読み直してデコードでき、失敗した読み取りの後に元ファイルが変更されていない場合にだけ復元します。既定の JSON codec は不正な JSON を復旧対象として判定します。独自 codec の形式エラー復旧には `IStateCodecRecoveryPolicy` の実装が必要です。ファイル欠損からの復旧にはこの policy は要りません。
+ファイルがない場合や JSON が壊れている場合、最新バックアップ (Linux/macOS なら `.backup/settings.json.bak`) を読み直してデコードでき、失敗した読み取りの後に元ファイルが変更されていない場合にだけ復元します。既定の JSON codec は不正な JSON を復旧対象として判定します。独自 codec の形式エラー復旧には `IStateCodecRecoveryPolicy` の実装が必要です。ファイル欠損からの復旧にはこの policy は要りません。
 
 ファイル書き込みは一時的な共有エラーを既定で最大 3 回再試行し、各試行の間に 100ms 待ちます。`RetryCount` と `RetryDelay` で変更できます。`RetryDelayFactory` を設定すると、1 始まりの再試行回数ごとに待ち時間を計算できます。
 

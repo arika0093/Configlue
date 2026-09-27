@@ -16,7 +16,8 @@ public sealed class FileResourceOptions
     /// <remarks>Disabled by default. Corrupt input recovery requires a codec that classifies format errors.</remarks>
     public bool AutomaticBackupRecovery { get; init; }
 
-    /// <summary>An optional directory for backup files. The resource directory is used when unset.</summary>
+    /// <summary>An optional backup directory. Relative paths use the resource file directory.</summary>
+    /// <remarks>When unset, Windows uses <c>backup</c> and other platforms use <c>.backup</c> beside the resource file.</remarks>
     public string? BackupDirectory { get; init; }
 
     /// <summary>How many transient sharing failures are retried.</summary>
