@@ -1,6 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 
 namespace Configlue;
 
@@ -83,7 +82,7 @@ public sealed class ConfiglueModelBuilder<TModel>
     private readonly List<object> _migrations = [];
     private readonly List<Action<string, ConfiglueSourceSetBuilder>> _namedSourceConfigurations =
     [];
-    private string _optionsName = Options.DefaultName;
+    private string _optionsName = string.Empty;
     private StateSource<ConfiglueProfileCatalog>? _profileCatalogSource;
     private string _defaultProfileName = "default";
     private StateWriteRoute _writeRoute;
@@ -600,7 +599,7 @@ public sealed class ConfiglueContext : IDisposable, IAsyncDisposable
     public IWritableOptions<TModel> GetOptions<TModel>(string? optionsName = null)
     {
         ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
-        var key = (typeof(TModel), optionsName ?? Options.DefaultName);
+        var key = (typeof(TModel), optionsName ?? string.Empty);
         if (_options.TryGetValue(key, out var options))
         {
             return (IWritableOptions<TModel>)options;
@@ -1052,7 +1051,7 @@ internal sealed class ConfiglueModelRegistration<TModel>(ConfiglueModelBuilder<T
                 provider.GetRequiredService<ConfiglueContext>().GetProfiledOptions<TModel>()
             );
         }
-        if (OptionsName == Options.DefaultName)
+        if (OptionsName.Length == 0)
         {
             services.AddSingleton<IReadOnlyOptions<TModel>>(provider =>
                 provider.GetRequiredService<ConfiglueContext>().GetOptions<TModel>(OptionsName)
@@ -1077,7 +1076,7 @@ internal sealed class ConfiglueModelRegistration<TModel>(ConfiglueModelBuilder<T
 
         if (builder.RegisterAsSingleton)
         {
-            if (OptionsName != Options.DefaultName)
+            if (OptionsName.Length != 0)
             {
                 throw new InvalidOperationException(
                     "Direct model singleton registration requires the default options name."

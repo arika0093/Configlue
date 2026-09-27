@@ -79,6 +79,13 @@ namespace Configlue
         public void SourcesForOptions(System.Action<string, Configlue.ConfiglueSourceSetBuilder> configure) { }
         public void UseCloneStrategy(System.Func<TModel, TModel> cloneStrategy) { }
     }
+    public sealed class ConfiglueValidationException : System.Exception
+    {
+        public ConfiglueValidationException(string optionsName, System.Type optionsType, System.Collections.Generic.IEnumerable<string> failures) { }
+        public System.Collections.Generic.IReadOnlyList<string> Failures { get; }
+        public string OptionsName { get; }
+        public System.Type OptionsType { get; }
+    }
     public sealed class ConfiglueOptionsRegistry<TModel, TFragment> : Configlue.IConfiglueOptionsRegistryNotificationDeferrer<TModel>, Configlue.IConfiglueOptionsRegistry<TModel>, System.IAsyncDisposable, System.IDisposable
         where TModel : Configlue.IConfiglueModel<TModel, TFragment>
         where TFragment :  class, Configlue.IConfiglueFragment<TFragment>

@@ -2,7 +2,6 @@ using System.Collections;
 using System.ComponentModel.DataAnnotations;
 using System.Runtime.CompilerServices;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 
 namespace Configlue;
 
@@ -130,7 +129,7 @@ public sealed class ConfiglueOptions<TModel, TFragment>
         _defaultWritePlan = defaultWritePlan;
         _cloneStrategy = cloneStrategy;
         _validators = validators?.ToArray() ?? [];
-        _optionsName = optionsName ?? Options.DefaultName;
+        _optionsName = optionsName ?? string.Empty;
         _logger = logger;
         _validateDataAnnotations = validateDataAnnotations;
         _onChangeDebounce = onChangeDebounce ?? TimeSpan.FromMilliseconds(300);
@@ -3998,7 +3997,7 @@ public sealed class ConfiglueOptions<TModel, TFragment>
 
         if (failures.Count > 0)
         {
-            throw new OptionsValidationException(_optionsName, typeof(TModel), failures);
+            throw new ConfiglueValidationException(_optionsName, typeof(TModel), failures);
         }
     }
 

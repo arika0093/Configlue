@@ -1652,13 +1652,13 @@ public sealed class StateRuntimeTests
         );
         using var serviceProvider = services.BuildServiceProvider();
         var writable = serviceProvider.GetRequiredService<IWritableOptions<AppSettings>>();
-        OptionsValidationException? validationFailure = null;
+        ConfiglueValidationException? validationFailure = null;
 
         try
         {
             await writable.SaveAsync(patch => patch.RetryCount = 101);
         }
-        catch (OptionsValidationException exception)
+        catch (ConfiglueValidationException exception)
         {
             validationFailure = exception;
         }
@@ -1681,7 +1681,7 @@ public sealed class StateRuntimeTests
         {
             await edit.CommitAsync();
         }
-        catch (OptionsValidationException)
+        catch (ConfiglueValidationException)
         {
             editWasRejected = true;
         }
@@ -2812,7 +2812,7 @@ public sealed class StateRuntimeTests
                 : ValidateOptionsResult.Success;
     }
 
-    private static async Task<OptionsValidationException> SaveInvalidAndCaptureAsync(
+    private static async Task<ConfiglueValidationException> SaveInvalidAndCaptureAsync(
         IWritableOptions<AppSettings> options
     )
     {
@@ -2820,7 +2820,7 @@ public sealed class StateRuntimeTests
         {
             await options.SaveAsync(patch => patch.RetryCount = 12);
         }
-        catch (OptionsValidationException exception)
+        catch (ConfiglueValidationException exception)
         {
             return exception;
         }
