@@ -30,7 +30,7 @@ model.UseJsonFile(new JsonFileSourceOptions
 
 When the file is missing or contains invalid JSON, Configlue checks the latest backup (for example, `.backup/settings.json.bak` on Linux and macOS) and restores it only if it can be decoded and the file has not changed since the failed read. It also recognizes timestamped backups made by Configuration.Writable and migrates retained generations into the current layout on the next save that creates a backup. The default JSON codec classifies malformed JSON for recovery. Custom codecs must implement `IStateCodecRecoveryPolicy` to recover from format errors; missing-file recovery does not require that policy.
 
-File writes retry transient sharing failures up to 3 times by default, waiting 100ms between attempts. `RetryCount` and `RetryDelay` change those defaults. Set `RetryDelayFactory` to calculate a delay for each one-based retry attempt, for example:
+File writes retry transient sharing failures twice by default (3 total attempts), waiting 100ms between attempts. `RetryCount` is the number of retries after the initial attempt; `RetryCount` and `RetryDelay` change those defaults. Set `RetryDelayFactory` to calculate a delay for each one-based retry attempt, for example:
 
 ```csharp
 var options = new FileResourceOptions
