@@ -34,13 +34,21 @@ public sealed class ProfiledOptionsTests
                 (await profiles.GetActiveProfileNameAsync()).ShouldBe("default");
 
                 var defaultProfile = await profiles.GetActiveProfileAsync();
-                await defaultProfile.SaveAsync(new AppSettings { RetryCount = 4, Label = "Light" });
+                await defaultProfile.SaveAsync(patch =>
+                {
+                    patch.RetryCount = 4;
+                    patch.Label = "Light";
+                });
                 await profiles.CreateProfileAsync("Work", copyFrom: "default");
                 await profiles.SetActiveProfileAsync("Work");
                 ((await profiles.GetActiveValueAsync()).Label).ShouldBe("Light");
 
                 var workProfile = await profiles.GetActiveProfileAsync();
-                await workProfile.SaveAsync(new AppSettings { RetryCount = 9, Label = "Dark" });
+                await workProfile.SaveAsync(patch =>
+                {
+                    patch.RetryCount = 9;
+                    patch.Label = "Dark";
+                });
                 var defaultValue = await (
                     await profiles.GetProfileAsync("default")
                 ).GetValueAsync();
@@ -331,8 +339,8 @@ public sealed class ProfiledOptionsTests
             new StateSource<ConfiglueProfileCatalog>("catalog", catalogStore, writer: catalogStore)
         );
         await profiles.GetProfileNamesAsync();
-        await (await profiles.GetProfileAsync("default")).SaveAsync(
-            new AppSettings { Label = "default-value" }
+        await (await profiles.GetProfileAsync("default")).SaveAsync(patch =>
+            patch.Label = "default-value"
         );
 
         var addedObservation = new TaskCompletionSource<(bool IsPublished, string? Value)>(

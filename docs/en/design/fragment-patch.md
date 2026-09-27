@@ -15,7 +15,7 @@ Resolution runs on Fragments: of every Source's contributed Fragment, only prese
 
 ## Patch: editing one field
 
-The generated `TModel.Patch` is a single-field edit fragment. `ApplyPatchAsync` edits one member; explicit destinations use `StateSourcePatch` entries with `ApplyPatchesAsync` for split writes across Sources. `Unset` removes only the write Source's contribution.
+The generated `TModel.Patch` is a single-field edit fragment. `SaveAsync` edits one member; explicit destinations use `StateSourcePatch` entries with `ApplyPatchesAsync` for split writes across Sources. `Unset` removes only the write Source's contribution.
 
 ## Merge behavior per member
 

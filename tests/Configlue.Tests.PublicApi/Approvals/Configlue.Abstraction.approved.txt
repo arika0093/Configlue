@@ -385,15 +385,9 @@ namespace Configlue
     }
     public interface IWritableOptions<T> : Configlue.IReadOnlyOptions<T>
     {
-        System.Threading.Tasks.ValueTask<Configlue.StateWriteResult> ApplyPatchAsync(Configlue.IConfigluePatch patch, System.Threading.CancellationToken cancellationToken = default);
         System.Threading.Tasks.ValueTask<Configlue.EditSession<T>> OpenEditSessionAsync(System.Threading.CancellationToken cancellationToken = default);
         System.Threading.Tasks.ValueTask<Configlue.EditSession<T>> OpenEditSessionAsync(Configlue.StateWritePlan writePlan, System.Threading.CancellationToken cancellationToken = default);
-        System.Threading.Tasks.ValueTask<Configlue.StateWriteResult> SaveAsync(System.Action<T> update, System.Threading.CancellationToken cancellationToken = default);
-        System.Threading.Tasks.ValueTask<Configlue.StateWriteResult> SaveAsync(System.Func<T, System.Threading.Tasks.Task> update, System.Threading.CancellationToken cancellationToken = default);
-        System.Threading.Tasks.ValueTask<Configlue.StateWriteResult> SaveAsync(T value, System.Threading.CancellationToken cancellationToken = default);
-        System.Threading.Tasks.ValueTask<Configlue.StateWriteResult> SaveAsync(System.Action<T> update, Configlue.StateWritePlan writePlan, System.Threading.CancellationToken cancellationToken = default);
-        System.Threading.Tasks.ValueTask<Configlue.StateWriteResult> SaveAsync(System.Func<T, System.Threading.Tasks.Task> update, Configlue.StateWritePlan writePlan, System.Threading.CancellationToken cancellationToken = default);
-        System.Threading.Tasks.ValueTask<Configlue.StateWriteResult> SaveAsync(T value, Configlue.StateWritePlan writePlan, System.Threading.CancellationToken cancellationToken = default);
+        System.Threading.Tasks.ValueTask<Configlue.StateWriteResult> SaveAsync(Configlue.IConfigluePatch patch, System.Threading.CancellationToken cancellationToken = default);
     }
     public enum MergeMode
     {

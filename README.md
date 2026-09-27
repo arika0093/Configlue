@@ -369,10 +369,10 @@ Use `FallbackStateSource<TFragment>` to group serialized representations of the 
 
 ### Save and Edit
 
-Ordinary editing is natural C# on the model type. Use `SaveAsync(Action<TModel>)`, `OpenEditSessionAsync`, or `ApplyPatchAsync` for sparse edits that retain untouched members. `SaveAsync(updatedConfig)` replaces the write source's complete contribution with that model value, including model defaults — it does not preserve members absent from that source.
+Use the generated `SaveAsync(patch => ...)` API for sparse edits. It changes only members specified by the Patch and leaves untouched source contributions alone. Use `OpenEditSessionAsync` for edits based on the resolved model and `Source(...).ReplaceAsync(patch => ...)` to withdraw unspecified members from one source.
 
 ```csharp
-// Update a deep clone of the current value without opening a session explicitly.
+// Save a sparse patch to the configured write source.
 await options.SaveAsync(settings => settings.SomeSetting = newValue);
 
 // Edit several values together; the session is in-memory until SaveAsync.
@@ -383,7 +383,7 @@ await edit.CommitAsync();
 // Patch a single member. Unset removes only the write source's contribution.
 var patch = new AppSettings.Patch();
 patch.SomeSetting = newValue;
-await options.ApplyPatchAsync(patch);
+await options.SaveAsync(patch);
 ```
 
 Configure sessions compare the full source revision vector immediately before saving and fail with `StateConflictException` if any participating source changed. Generated `TModel.Patch` values can also be sent through `ApplyPatchesAsync` with `StateSourcePatch` entries for an explicit source-local multi-write; disjoint section updates sharing a `ResourceId` persist with one physical write.
@@ -577,7 +577,7 @@ Compose `SerializedStateSource.FromResource` over an `InMemoryResource` to test 
 ### Interfaces
 
 * `IReadOnlyOptions<T>` — async reads (`GetValueAsync`/`ReadAsync`) and `OnChange`.
-* `IWritableOptions<T>` — adds saves and `OpenEditSessionAsync`.
+* `IWritableOptions<T>` — adds generated Patch saves and `OpenEditSessionAsync`.
 * `IConfiglueOptions<T>` — advanced diagnostics, source explanations, reload failures, source patch batches, and source/storage migration. It also exposes synchronous `CurrentValue`.
 * `IConfiglueOptionsRegistry<T>` — runtime `TryAdd`/`Get`/`TryRemoveAsync` for dynamic named options.
 * `IConfiglueProfiledOptions<T>` — persisted named profiles with active-profile selection.

@@ -96,7 +96,7 @@ public sealed class StateSourceSetBuilderTests
             TaskCreationOptions.RunContinuationsAsynchronously
         );
         using var subscription = options.OnChange(value => changed.TrySetResult(value.RetryCount));
-        await options.SaveAsync(new AppSettings { RetryCount = 9 });
+        await options.SaveAsync(patch => patch.RetryCount = 9);
         var savedUserState = await user.ReadAsync();
         var changedRetryCount = await changed.Task.WaitAsync(TimeSpan.FromSeconds(5));
 

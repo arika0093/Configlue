@@ -30,20 +30,22 @@ config.Add<AppSettings>(model =>
 });
 ```
 
-この戦略は公開 read の戻り値、編集セッションの draft と baseline、各変更通知の値を複製し、model 全体の保存では source fragment を作る前にも複製します。入力を変更せず、入力と別の model を返し、その可変メンバーも入力と共有しないようにしてください。省略時は生成 clone を使います。`ApplyPatchAsync` と `ApplyPatchesAsync` は fragment を直接受け取るため、fragment 内の独自可変値は呼び出し側で複製してください。
+この戦略は公開 read の戻り値、編集セッションの draft と baseline、各変更通知の値を複製します。入力を変更せず、入力と別の model を返し、その可変メンバーも入力と共有しないようにしてください。省略時は生成 clone を使います。`SaveAsync` と `ApplyPatchesAsync` は fragment を直接受け取るため、fragment 内の独自可変値は呼び出し側で複製してください。
 
 ## 疎に保存する
 
-updater オーバーロードは現在値のディープクローンを編集し、変更パスのみを意味的差分として書き込みます:
+生成された Patch オーバーロードは指定した項目だけを設定済み write source に書き込みます:
 
 ```csharp
 await options.SaveAsync(settings => settings.SomeSetting = newValue);
 ```
 
-触っていない項目は既存の疎状態を保ちます。対照的に、値全体オーバーロードは書き込み先の寄与全体を置換します (モデルの既定値を含み、そのソースに無かった項目は保持されません):
+触っていない項目は既存の疎状態を保ちます。ソース寄与を破壊的に置換する場合は、型付き source handle を使います:
 
 ```csharp
-await options.SaveAsync(updatedConfig); // 書き込み先の全体置換
+var replacement = new AppSettings.Patch();
+replacement.Name = "new-name";
+await options.Source(SourceKey<AppSettings>.FromId("user")).ReplaceAsync(replacement);
 ```
 
 ## 編集セッション
@@ -69,13 +71,13 @@ await edit.CommitAsync();
 生成された `TModel.Patch` 値は項目を個別に扱います。`Unset` は書き込みソースの寄与だけを取り下げ、下位の値を再び露出させます:
 
 ```csharp
-await options.SavePatchAsync(patch => patch.Database.Host = "db.example.test");
-await options.SavePatchAsync(patch => patch.Database.Password.Unset());
+await options.SaveAsync(patch => patch.Database.Host = "db.example.test");
+await options.SaveAsync(patch => patch.Database.Password.Unset());
 
 var patch = new AppSettings.Patch();
 patch.SomeSetting = newValue;   // 設定
 // patch.SomeSetting.Unset();   // このソースの寄与を取り下げ
-await options.ApplyPatchAsync(patch);
+await options.SaveAsync(patch);
 ```
 
 明示的なソースローカル複数書き込みには `StateSourcePatch` 付きの `ApplyPatchesAsync` を使います。`ResourceId` を共有する互いに重ならないセクション更新は1回の物理書き込みにまとめられ、重なる範囲は拒否されます。結果には各ソースのリビジョンと物理書き込み回数が報告されます。異なるリソース間の書き込みはアトミックではありません。

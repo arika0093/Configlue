@@ -5,7 +5,7 @@ description: WriteRoute defaults, per-path WritePlan, conflicts, and multi-write
 
 # Write routing
 
-Writes can target a source independently of read priority. Edits made through `OpenEditSessionAsync` or the updater overloads use generated semantic diffs.
+Writes can target a source independently of read priority. Edits made through `OpenEditSessionAsync` use generated semantic diffs. Generated Patch `SaveAsync` calls apply only the specified operations to the configured write source.
 
 ## Default route
 

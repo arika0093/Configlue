@@ -33,11 +33,12 @@ if (args.Length > 0)
         return 2;
     }
 
-    await settings.SaveAsync(value =>
+    using (var edit = await settings.OpenEditSessionAsync())
     {
-        value.Name = args[1];
-        value.RunCount++;
-    });
+        edit.Value.Name = args[1];
+        edit.Value.RunCount++;
+        await edit.CommitAsync();
+    }
 
     var updated = await settings.GetValueAsync();
     Console.WriteLine($"Saved: Hello, {updated.Name}. This is run {updated.RunCount}.");

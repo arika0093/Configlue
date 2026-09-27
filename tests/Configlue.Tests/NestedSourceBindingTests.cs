@@ -118,16 +118,18 @@ public sealed class NestedSourceBindingTests
             await options.SaveAsync(settings => settings.Database!.Host = "updated.db")
         );
         var readOnlyWrite = await Should.ThrowAsync<InvalidOperationException>(async () =>
-            await options.SaveAsync(
-                settings => settings.Database!.Host = "updated.db",
+        {
+            using var edit = await options.OpenEditSessionAsync(
                 new StateWritePlan(
                     new Dictionary<string, string>(StringComparer.Ordinal)
                     {
                         ["Database.Host"] = "remote-database",
                     }
                 )
-            )
-        );
+            );
+            edit.Value.Database!.Host = "updated.db";
+            await edit.CommitAsync();
+        });
         (readOnlyWrite.Message).ShouldContain("does not support writes");
         (await baseStore.ReadAsync()).Value!.Database.Value!.Host.Value.ShouldBe("default.db");
     }
@@ -178,15 +180,20 @@ public sealed class NestedSourceBindingTests
         });
 
         var options = context.GetOptions<AppSettings>();
-        await options.SaveAsync(
-            settings => settings.Database!.Host = "updated.remote.db",
-            new StateWritePlan(
-                new Dictionary<string, string>(StringComparer.Ordinal)
-                {
-                    ["Database.Host"] = "remote-database",
-                }
+        using (
+            var edit = await options.OpenEditSessionAsync(
+                new StateWritePlan(
+                    new Dictionary<string, string>(StringComparer.Ordinal)
+                    {
+                        ["Database.Host"] = "remote-database",
+                    }
+                )
             )
-        );
+        )
+        {
+            edit.Value.Database!.Host = "updated.remote.db";
+            await edit.CommitAsync();
+        }
 
         var remoteValue = (await remoteStore.ReadAsync()).Value!;
         (remoteValue.Host.Value).ShouldBe("updated.remote.db");
@@ -250,17 +257,22 @@ public sealed class NestedSourceBindingTests
             );
         });
 
-        await context
-            .GetOptions<AppSettings>()
-            .SaveAsync(
-                settings => settings.Database!.Host = "updated.remote.db",
-                new StateWritePlan(
-                    new Dictionary<string, string>(StringComparer.Ordinal)
-                    {
-                        ["Database.Host"] = "remote-contract",
-                    }
+        using (
+            var edit = await context
+                .GetOptions<AppSettings>()
+                .OpenEditSessionAsync(
+                    new StateWritePlan(
+                        new Dictionary<string, string>(StringComparer.Ordinal)
+                        {
+                            ["Database.Host"] = "remote-contract",
+                        }
+                    )
                 )
-            );
+        )
+        {
+            edit.Value.Database!.Host = "updated.remote.db";
+            await edit.CommitAsync();
+        }
 
         var result = (await sourceStore.ReadAsync()).Value!;
         (result.Endpoint.Value).ShouldBe("keep-this-endpoint");
@@ -270,7 +282,7 @@ public sealed class NestedSourceBindingTests
         var projectedOptions = new ConfiglueOptions<DatabaseSettings, DatabaseSettings.Fragment>(
             new StateSourceSet<DatabaseSettings.Fragment>([projected])
         );
-        await projectedOptions.ApplyPatchAsync(
+        await projectedOptions.SaveAsync(
             new DatabaseSettings.Patch { Host = FragmentOperation<string>.Unset }
         );
         var afterUnset = (await sourceStore.ReadAsync()).Value!;
@@ -327,14 +339,9 @@ public sealed class NestedSourceBindingTests
             );
         });
 
-        var result = await context
+        using var edit = await context
             .GetOptions<RootWithTwoSettings>()
-            .SaveAsync(
-                settings =>
-                {
-                    settings.Left!.Label = "left";
-                    settings.Right!.Label = "right";
-                },
+            .OpenEditSessionAsync(
                 new StateWritePlan(
                     new Dictionary<string, string>(StringComparer.Ordinal)
                     {
@@ -343,6 +350,9 @@ public sealed class NestedSourceBindingTests
                     }
                 )
             );
+        edit.Value.Left!.Label = "left";
+        edit.Value.Right!.Label = "right";
+        var result = await edit.CommitAsync();
 
         (result.MultiWriteResult!.PhysicalWriteCount).ShouldBe(1);
         (resource.WriteCount).ShouldBe(1);

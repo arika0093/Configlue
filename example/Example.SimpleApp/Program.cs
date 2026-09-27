@@ -34,7 +34,7 @@ if (args.Length > 0)
         return 2;
     }
 
-    await writable.SavePatchAsync(patch =>
+    await writable.SaveAsync(patch =>
     {
         patch.Name = args[1];
         patch.RunCount = current.RunCount + 1;
