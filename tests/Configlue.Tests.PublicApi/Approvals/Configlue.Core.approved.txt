@@ -255,10 +255,11 @@ namespace Configlue
         public System.TimeSpan RetryDelay { get; init; }
         public System.Func<int, System.TimeSpan>? RetryDelayFactory { get; init; }
     }
-    public sealed class FileStateStorageMigrationJournal : Configlue.IStateStorageMigrationJournal
+    public sealed class FileStateStorageMigrationJournal : Configlue.IStateStorageMigrationJournal, Configlue.IStateStorageMigrationLeaseProvider
     {
         public FileStateStorageMigrationJournal(string directoryPath, Configlue.FileResourceOptions? resourceOptions = null) { }
         public string DirectoryPath { get; }
+        public System.Threading.Tasks.ValueTask<System.IDisposable> AcquireMigrationLeaseAsync(string migrationId, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask<Configlue.StateStorageMigrationProgress?> ReadAsync(string migrationId, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask WriteAsync(Configlue.StateStorageMigrationProgress progress, System.Threading.CancellationToken cancellationToken = default) { }
     }

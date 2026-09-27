@@ -5,7 +5,8 @@ public static class StateStorageMigrationExtensions
 {
     /// <summary>
     /// Migrates the selected source contributions into their targets and persists progress after each verified
-    /// target. The caller supplies a durable journal and should prevent concurrent runs of the same migration.
+    /// target. Journals that implement <see cref="IStateStorageMigrationLeaseProvider"/> serialize runs with
+    /// the same migration ID; callers should coordinate concurrent runs when their journal lacks that capability.
     /// </summary>
     public static async ValueTask<StateStorageMigrationProgress> MigrateAsync<TModel, TFragment>(
         this IConfiglueOptions<TModel> options,
@@ -20,6 +21,12 @@ public static class StateStorageMigrationExtensions
         ArgumentNullException.ThrowIfNull(definition);
         ArgumentNullException.ThrowIfNull(journal);
         cancellationToken.ThrowIfCancellationRequested();
+
+        using var migrationLease = journal is IStateStorageMigrationLeaseProvider leaseProvider
+            ? await leaseProvider
+                .AcquireMigrationLeaseAsync(definition.Id, cancellationToken)
+                .ConfigureAwait(false)
+            : null;
 
         var savedProgress = await journal
             .ReadAsync(definition.Id, cancellationToken)

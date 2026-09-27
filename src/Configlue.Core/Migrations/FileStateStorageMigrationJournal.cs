@@ -11,7 +11,9 @@ namespace Configlue;
 /// <see cref="FileResource"/> revision checks; concurrent writers based on stale progress fail instead of
 /// silently replacing a newer journal entry.
 /// </remarks>
-public sealed class FileStateStorageMigrationJournal : IStateStorageMigrationJournal
+public sealed class FileStateStorageMigrationJournal
+    : IStateStorageMigrationJournal,
+        IStateStorageMigrationLeaseProvider
 {
     private readonly string _directoryPath;
     private readonly FileResourceOptions? _resourceOptions;
@@ -30,6 +32,22 @@ public sealed class FileStateStorageMigrationJournal : IStateStorageMigrationJou
 
     /// <summary>The normalized directory containing migration progress files.</summary>
     public string DirectoryPath => _directoryPath;
+
+    /// <inheritdoc />
+    public async ValueTask<IDisposable> AcquireMigrationLeaseAsync(
+        string migrationId,
+        CancellationToken cancellationToken = default
+    )
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(migrationId);
+        cancellationToken.ThrowIfCancellationRequested();
+        var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(migrationId)));
+        using var resource = new FileResource(
+            Path.Combine(_directoryPath, hash + ".lease"),
+            _resourceOptions
+        );
+        return await resource.AcquireExclusiveLockAsync(cancellationToken).ConfigureAwait(false);
+    }
 
     /// <inheritdoc />
     public async ValueTask<StateStorageMigrationProgress?> ReadAsync(

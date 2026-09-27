@@ -458,6 +458,10 @@ namespace Configlue
         System.Threading.Tasks.ValueTask<Configlue.StateStorageMigrationProgress?> ReadAsync(string migrationId, System.Threading.CancellationToken cancellationToken = default);
         System.Threading.Tasks.ValueTask WriteAsync(Configlue.StateStorageMigrationProgress progress, System.Threading.CancellationToken cancellationToken = default);
     }
+    public interface IStateStorageMigrationLeaseProvider
+    {
+        System.Threading.Tasks.ValueTask<System.IDisposable> AcquireMigrationLeaseAsync(string migrationId, System.Threading.CancellationToken cancellationToken = default);
+    }
     public interface IStateWatcher
     {
         System.Threading.Tasks.ValueTask WaitForChangeAsync(string? observedRevision, System.Threading.CancellationToken cancellationToken = default);
