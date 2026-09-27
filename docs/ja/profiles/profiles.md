@@ -42,5 +42,5 @@ services.AddConfiglueProfiledOptions<AppConfig, AppConfig.Fragment>(
 
 ## 次のステップ
 
-* 永続化なしの実行時限定の名前つき実体は [動的オプション](./dynamic-options.md)。
+* 永続化なしの実行時限定の名前つき実体は [名前付きインスタンスと動的オプション](./dynamic-options.md)。
 * [保存場所移行](../migration/storage-migration.md)。

@@ -50,5 +50,5 @@ Class-model registrations also provide `IOptions<T>`, scoped `IOptionsSnapshot<T
 
 ## Next steps
 
-* [Files and sections](../sources/files-and-sections.md) for provider registrations.
-* [Backups and observability](../advanced/backups-and-observability.md) for file safety and `ExplainAsync`.
+* [Files, formats, and sections](../sources/files-and-sections.md) for provider registrations.
+* [Backups, logging, and diagnostics](../advanced/backups-and-observability.md) for file safety and `ExplainAsync`.

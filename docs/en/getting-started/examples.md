@@ -63,4 +63,4 @@ dotnet run --project example/Example.ConsoleApp.Yaml -- --set-name Ada
 dotnet publish example/Example.ConsoleApp.NativeAot --configuration Release --runtime linux-x64 --self-contained true
 ```
 
-Each guide links back here where a runnable reference helps. Start with [Reading and writing](../basic-usage/reading-and-writing.md) for the edit patterns used across all samples.
+Each guide links back here where a runnable reference helps. Start with [Reading, sessions, and patches](../basic-usage/reading-and-writing.md) for the edit patterns used across all samples.

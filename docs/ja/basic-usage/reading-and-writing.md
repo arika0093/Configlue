@@ -1,9 +1,9 @@
 ---
-title: 読み書き
+title: 読み書き・編集セッション・パッチ
 description: GetValueAsync、SaveAsync、編集セッション、パッチ。
 ---
 
-# 読み書き
+# 読み書き・編集セッション・パッチ
 
 ## 現在値を読む
 

@@ -63,4 +63,4 @@ dotnet run --project example/Example.ConsoleApp.Yaml -- --set-name Ada
 dotnet publish example/Example.ConsoleApp.NativeAot --configuration Release --runtime linux-x64 --self-contained true
 ```
 
-各ガイドは実行可能な参照が役立つ箇所でここに戻ってきます。全サンプル共通の編集パターンは [読み書き](../basic-usage/reading-and-writing.md) からどうぞ。
+各ガイドは実行可能な参照が役立つ箇所でここに戻ってきます。全サンプル共通の編集パターンは [読み書き・編集セッション・パッチ](../basic-usage/reading-and-writing.md) からどうぞ。

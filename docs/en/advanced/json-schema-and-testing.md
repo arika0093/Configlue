@@ -32,5 +32,5 @@ dotnet add package Configlue.Testing
 
 ## Next steps
 
-* [Backups and observability](./backups-and-observability.md).
+* [Backups, logging, and diagnostics](./backups-and-observability.md).
 * [NativeAOT](./native-aot.md).

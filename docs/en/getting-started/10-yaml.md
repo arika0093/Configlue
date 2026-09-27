@@ -91,7 +91,7 @@ dotnet run --project example/Example.ConsoleApp.Yaml
 
 Ten STEPs covered read/write, splitting, validation, environment, HTTP, schema, migration, NativeAOT, and YAML. From here, use the docs as a dictionary:
 
-- "Guides" for how to use each feature (reading/writing, app setup, common sources, changes and validation, sources, layering, profiles, migration, advanced topics).
+- "Functional guides" for how to use each feature. Starting from what you want to do? See [About the functional guides](../guides/overview.md).
 - "Design" for how it works (Resource / Source / Codec / Fragment and Patch / Options, plus the overview).
 - [Examples](./examples.md) for runnable finished pieces.
 

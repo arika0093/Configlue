@@ -1,9 +1,9 @@
 ---
-title: Dynamic options
-description: Add and remove named options at runtime.
+title: Named instances and dynamic options
+description: OptionsName-based named instances with runtime add and remove.
 ---
 
-# Dynamic options
+# Named instances and dynamic options
 
 A model can opt in to dynamic named options with `model.EnableDynamicOptions = true`. The context exposes `GetOptionsRegistry<TModel>()`; `TryAdd(name)` creates the same source/model configuration under that `OptionsName`, and `TryRemoveAsync(name)` stops its watcher and disposes helper-created resources before returning.
 

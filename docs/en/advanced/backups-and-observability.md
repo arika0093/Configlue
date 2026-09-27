@@ -1,9 +1,9 @@
 ---
-title: Backups and observability
-description: File backup generations, restore, explanations, and diagnostics.
+title: Backups, logging, and diagnostics
+description: File backup generations and restore, logging, explanations, and diagnostics.
 ---
 
-# Backups and observability
+# Backups, logging, and diagnostics
 
 ## File backups
 

@@ -91,7 +91,7 @@ dotnet run --project example/Example.ConsoleApp.Yaml
 
 10 ステップで、読み書き・分割・検証・環境変数・HTTP・スキーマ・移行・NativeAOT・YAML を一通り触りました。ここから先は辞書的に使ってください。
 
-- 機能の詳しい使い方は「機能ガイド」（読み書き・アプリ構成・共通ソース・変更と検証・各種ソース・重ね合わせ・プロファイル・移行・応用）。
+- 機能の詳しい使い方は「機能説明」。やりたいことからは [機能説明について](../guides/overview.md) が近道です。
 - 仕組みの理解には「設計」（Resource / Source / Codec / Fragment・Patch / Options と全体像）。
 - 手元で試せる完成品は[サンプル集](./examples.md)。
 

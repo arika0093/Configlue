@@ -11,7 +11,7 @@ Source は「どの項目を、どの優先度で出すか」という論理的�
 
 複数 Source に同じ項目があるとき、数字の大きい `Priority` が勝ちます。`FallbackStateSource` は同じ論理状態の別表現（正規 JSON と旧 YAML など）を束ね、先に読めた候補をその Source の顔として出します。形式違いの値を重ねることはしません。
 
-ファイルがないときの素通りと、それ以外の読み取り失敗の伝播は Source の約束です。詳しい組み立ては[ファイルとセクション](../sources/files-and-sections.md)や[環境変数とコマンドライン](../sources/environment-and-commandline.md)を見てください。
+ファイルがないときの素通りと、それ以外の読み取り失敗の伝播は Source の約束です。詳しい組み立ては[ファイル・形式・セクション](../sources/files-and-sections.md)や[環境変数とコマンドライン](../sources/environment-and-commandline.md)を見てください。
 
 ## 読み取り専用という性質
 

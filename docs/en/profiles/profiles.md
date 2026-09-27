@@ -42,5 +42,5 @@ Profile names are also names in the options registry and must not collide with f
 
 ## Next steps
 
-* [Dynamic options](./dynamic-options.md) for runtime-only named instances without persistence.
+* [Named instances and dynamic options](./dynamic-options.md) for runtime-only named instances without persistence.
 * [Storage migration](../migration/storage-migration.md).
