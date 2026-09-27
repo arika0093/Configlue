@@ -23,8 +23,8 @@ namespace Configlue.Provider.Json
         public bool ReadOnly { get; init; }
         public Configlue.ResourceId? ResourceId { get; init; }
         public Configlue.FileResourceOptions? ResourceOptions { get; init; }
-        public string? SectionPath { get; init; }
         public string? SchemaReferenceBaseUri { get; init; }
+        public string? SectionPath { get; init; }
         public System.Text.Json.JsonSerializerOptions? SerializerOptions { get; init; }
         public bool WatchChanges { get; init; }
     }
@@ -88,11 +88,11 @@ namespace Configlue.Provider.Json
         public static Configlue.Provider.Json.JsonSchemaGenerationResult Generate<TModel, TFragment>(System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver resolver, string? schemaBaseUri = null)
             where TModel : Configlue.IConfiglueModel<TModel, TFragment>
             where TFragment :  class, Configlue.IConfiglueFragment<TFragment> { }
+        public static bool TryWriteFromCommandLine(System.Collections.Generic.IReadOnlyList<string> arguments, System.Collections.Generic.IEnumerable<Configlue.ConfiglueModelSchema> models, System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver resolver, out Configlue.Provider.Json.JsonSchemaGenerationResult? result, string? schemaBaseUri = null) { }
         public static Configlue.Provider.Json.JsonSchemaGenerationResult Write(System.Collections.Generic.IEnumerable<Configlue.ConfiglueModelSchema> models, string outputDirectory, System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver resolver, string? schemaBaseUri = null) { }
         public static Configlue.Provider.Json.JsonSchemaGenerationResult Write<TModel, TFragment>(string outputDirectory, System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver resolver, string? schemaBaseUri = null)
             where TModel : Configlue.IConfiglueModel<TModel, TFragment>
             where TFragment :  class, Configlue.IConfiglueFragment<TFragment> { }
-        public static bool TryWriteFromCommandLine(System.Collections.Generic.IReadOnlyList<string> arguments, System.Collections.Generic.IEnumerable<Configlue.ConfiglueModelSchema> models, System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver resolver, out Configlue.Provider.Json.JsonSchemaGenerationResult? result, string? schemaBaseUri = null) { }
     }
     [System.AttributeUsage(System.AttributeTargets.Property | System.AttributeTargets.Field, Inherited=true)]
     public sealed class JsonSchemaOneOfAttribute : System.Attribute

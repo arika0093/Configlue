@@ -6,6 +6,8 @@ namespace Configlue.Source.CommandLine
         public CommandLineMappingBuilder() { }
         public void Map<TValue>(System.CommandLine.Argument<TValue> argument, string propertyPath) { }
         public void Map<TValue>(System.CommandLine.Option<TValue> option, string propertyPath) { }
+        public void Map<TModel, TValue>(System.CommandLine.Argument<TValue> argument, System.Linq.Expressions.Expression<System.Func<TModel, TValue>> property) { }
+        public void Map<TModel, TValue>(System.CommandLine.Option<TValue> option, System.Linq.Expressions.Expression<System.Func<TModel, TValue>> property) { }
     }
     public sealed class CommandLineSourceOptions
     {

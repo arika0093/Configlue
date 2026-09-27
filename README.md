@@ -51,7 +51,7 @@ var options = context.GetOptions<SampleSetting>();
 var current = await options.GetValueAsync();
 Console.WriteLine($"Current Name: {current.Name}");
 
-await options.SaveAsync(setting => setting.Name = "Alice");
+await options.SaveAsync(patch => patch.Name = "Alice");
 Console.WriteLine($"Saved. New Name: {(await options.GetValueAsync()).Name}");
 ```
 
@@ -127,7 +127,7 @@ var setting = await options.GetValueAsync();
 Console.WriteLine($">> Name: {setting.Name}");
 
 // and save to storage (sparse edit: untouched members are preserved)
-await options.SaveAsync(s => s.Name = "new name");
+await options.SaveAsync(patch => patch.Name = "new name");
 ```
 
 After `using Configlue;`, `ConfiglueApp.Initialize(...)` and `ConfiglueApp.GetOptions<T>()` provide the process-wide default context; call `await ConfiglueApp.ShutdownAsync()` to dispose it. A `ConfiglueContext` owns the options and watcher tasks it creates. Source, reader, writer, and resource instances supplied by the application remain caller-owned.
@@ -174,7 +174,7 @@ public class ConfigReadWriteService(IWritableOptions<UserSetting> options)
 {
     public async Task UpdateAsync()
     {
-        await options.SaveAsync(setting => setting.Name = "new name");
+        await options.SaveAsync(patch => patch.Name = "new name");
     }
 }
 ```
@@ -373,7 +373,7 @@ Use the generated `SaveAsync(patch => ...)` API for sparse edits. It changes onl
 
 ```csharp
 // Save a sparse patch to the configured write source.
-await options.SaveAsync(settings => settings.SomeSetting = newValue);
+await options.SaveAsync(patch => patch.SomeSetting = newValue);
 
 // Edit several values together; the session is in-memory until SaveAsync.
 using var edit = await options.OpenEditSessionAsync();

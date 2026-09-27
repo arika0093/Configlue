@@ -85,15 +85,22 @@ Growing the model changes nothing about registration. Source definitions only sa
 ## Deep edits still read like plain C#
 
 ```csharp
-await options.SaveAsync(settings =>
+await options.SaveAsync(patch =>
 {
-    settings.Server.Port = 9000;
-    settings.Database.Host = "db.internal";
-    settings.EnabledFeatures.Add("audit-log");
+    patch.Server.Port = 9000;
+    patch.Database.Host = "db.internal";
 });
 ```
 
-Nested assignment and collection adds are just C#. Underneath, only changed fields reach the `settings` source; untouched ones stay put.
+The generated nested Patch keeps sparse member writes. Use an edit session when you want to mutate a collection based on its current resolved value:
+
+```csharp
+using var edit = await options.OpenEditSessionAsync();
+edit.Value.EnabledFeatures.Add("audit-log");
+await edit.CommitAsync();
+```
+
+Only the changed fields reach the `settings` source; untouched ones stay put.
 
 The saved `settings.json` looks like this:
 

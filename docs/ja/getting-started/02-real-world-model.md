@@ -85,15 +85,22 @@ builder.Services.AddConfiglue(conf =>
 ## 深い編集も普段どおりに書く
 
 ```csharp
-await options.SaveAsync(settings =>
+await options.SaveAsync(patch =>
 {
-    settings.Server.Port = 9000;
-    settings.Database.Host = "db.internal";
-    settings.EnabledFeatures.Add("audit-log");
+    patch.Server.Port = 9000;
+    patch.Database.Host = "db.internal";
 });
 ```
 
-入れ子の代入もコレクションの追加も、普段の C# です。裏側では変更のあった項目だけが `settings` ソースに届き、触っていない項目はそのまま残ります。
+生成された nested Patch は疎な member 書き込みを保ちます。現在の実効値を基準にコレクションを変更する場合は edit session を使います:
+
+```csharp
+using var edit = await options.OpenEditSessionAsync();
+edit.Value.EnabledFeatures.Add("audit-log");
+await edit.CommitAsync();
+```
+
+変更した項目だけが `settings` ソースに届き、触っていない項目はそのまま残ります。
 
 保存後の `settings.json` はこんな形です。
 

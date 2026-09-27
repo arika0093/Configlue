@@ -87,6 +87,30 @@ public sealed class CommonSourceOptions
 /// <summary>Composes the conventional layered source layout on a model registration.</summary>
 public static class CommonSourcePreset
 {
+    /// <summary>Registers the conventional global and local JSON files with optional overlays.</summary>
+    public static void UseCommonSources<TModel>(
+        this ConfiglueModelBuilder<TModel> model,
+        string applicationId,
+        string? specificFilePath = null,
+        string? environmentPrefix = null,
+        CommonSourceWriteLayer writeLayer = CommonSourceWriteLayer.Global
+    )
+        where TModel : IConfiglueFacadeModel<TModel>
+    {
+        ArgumentNullException.ThrowIfNull(model);
+        ArgumentException.ThrowIfNullOrWhiteSpace(applicationId);
+        model.UseCommonSources(
+            new CommonSourceOptions
+            {
+                ApplicationId = applicationId,
+                GlobalFileName = "settings.json",
+                SpecificFilePath = specificFilePath,
+                EnvironmentPrefix = environmentPrefix,
+                WriteLayer = writeLayer,
+            }
+        );
+    }
+
     /// <summary>Registers global, local, specific, then environment sources in precedence order.</summary>
     /// <remarks>The selected specific file path is a separate input from command-line member overrides.</remarks>
     public static void UseCommonSources<TModel>(

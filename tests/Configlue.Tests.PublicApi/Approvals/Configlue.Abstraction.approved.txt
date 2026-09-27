@@ -140,9 +140,14 @@ namespace Configlue
         public Configlue.StateFallbackCondition FallbackCondition { get; }
         public string Id { get; }
         public bool IsActive { get; }
-        public int Priority { get; }
         public string? PhysicalOrigin { get; }
+        public int Priority { get; }
         public Configlue.ResourceId? ResourceId { get; }
+    }
+    public sealed class ConfiglueSourceHandle<TModel>
+    {
+        public System.Threading.Tasks.ValueTask<Configlue.StateMultiWriteResult> ReplaceAsync(Configlue.IConfigluePatch patch, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Configlue.StateMultiWriteResult> SaveAsync(Configlue.IConfigluePatch patch, System.Threading.CancellationToken cancellationToken = default) { }
     }
     public static class ConfiglueValueComparer
     {
@@ -165,12 +170,12 @@ namespace Configlue
         public T CurrentValue { get; }
         public bool IsCommitted { get; }
         public T Value { get; set; }
+        public System.Threading.Tasks.ValueTask<Configlue.StateWriteResult> CommitAsync(System.Threading.CancellationToken cancellationToken = default) { }
         public void Dispose() { }
         public void ResetToDefault() { }
         public void ResetToDefault(System.Action<T, T> reset) { }
         public void ResetToLoaded() { }
         public void ResetToLoaded(System.Action<T, T> reset) { }
-        public System.Threading.Tasks.ValueTask<Configlue.StateWriteResult> CommitAsync(System.Threading.CancellationToken cancellationToken = default) { }
         public void Update(System.Action<T> updater) { }
     }
     public enum FragmentOperationKind
@@ -213,14 +218,18 @@ namespace Configlue
         TSelf ApplyChanges(TSelf changes);
         TSelf Merge(TSelf higher);
     }
+    public interface IConfiglueMemberPatch : Configlue.IConfigluePatch
+    {
+        Configlue.IConfigluePatch SelectMembers(System.ReadOnlySpan<int> memberIds);
+    }
     public interface IConfiglueMergeStrategy
     {
+        System.Type ValueType { get; }
         bool AreEqual(object? left, object? right);
         System.Collections.Generic.IReadOnlyList<Configlue.ConfiglueMergeElementProvenance> ExplainElements(object? effective, System.Collections.Generic.IReadOnlyList<Configlue.ConfiglueMergeSourceValue> sourceValuesLowToHigh);
         Configlue.Optional<object?> Merge(Configlue.Optional<object?> lowerPriority, Configlue.Optional<object?> higherPriority);
         bool TryPlanSourceContribution(System.Collections.Generic.IReadOnlyList<Configlue.ConfiglueMergeSourceValue> sourceValuesLowToHigh, string targetSourceId, object? desiredEffective, out Configlue.Optional<object?> targetContribution, out string? reason);
         bool TryRebase(object? editBase, object? desired, object? current, out object? rebased, out string? reason);
-        System.Type ValueType { get; }
     }
     public interface IConfiglueModel<TSelf, TFragment> : Configlue.IConfiglueDeepCloneable<TSelf>
         where TSelf : Configlue.IConfiglueModel<TSelf, TFragment>
@@ -230,16 +239,6 @@ namespace Configlue
         TFragment Diff(TSelf before, TSelf after);
         TSelf FromFragment(TFragment value);
         TFragment ToFragment(TSelf value);
-    }
-    public interface IConfiglueOptions<T> : Configlue.IWritableOptions<T>
-    {
-        System.Threading.Tasks.ValueTask<Configlue.StateMultiWriteResult> ApplyPatchesAsync(System.Collections.Generic.IEnumerable<Configlue.StateSourcePatch> patches, System.Threading.CancellationToken cancellationToken = default);
-        T CurrentValue { get; }
-        System.Threading.Tasks.ValueTask<Configlue.ConfiglueValueExplanation> ExplainAsync(string propertyPath, System.Threading.CancellationToken cancellationToken = default);
-        Configlue.ConfiglueOptionsDiagnostics GetDiagnostics();
-        System.Threading.Tasks.ValueTask<Configlue.StateSourceMigrationResult> MigrateSourceAsync(string sourceId, string targetId, System.Threading.CancellationToken cancellationToken = default);
-        System.Threading.Tasks.ValueTask<Configlue.StateStorageMigrationResult> MigrateSourcesToTargetsAsync(System.Collections.Generic.IEnumerable<string> sourceIds, System.Collections.Generic.IReadOnlyDictionary<string, System.Func<Configlue.IConfiglueFragment, Configlue.IConfiglueFragment>> targetProjections, System.Threading.CancellationToken cancellationToken = default, bool retireSources = false);
-        System.IDisposable OnReloadFailed(System.Action<System.Exception> listener);
     }
     public interface IConfiglueOptionsRegistryNotificationDeferral<T> : System.IDisposable
     {
@@ -262,6 +261,16 @@ namespace Configlue
         bool TryRemove(string profileName);
         System.Threading.Tasks.ValueTask<bool> TryRemoveAsync(string profileName);
     }
+    public interface IConfiglueOptions<T> : Configlue.IReadOnlyOptions<T>, Configlue.IWritableOptions<T>
+    {
+        T CurrentValue { get; }
+        System.Threading.Tasks.ValueTask<Configlue.StateMultiWriteResult> ApplyPatchesAsync(System.Collections.Generic.IEnumerable<Configlue.StateSourcePatch> patches, System.Threading.CancellationToken cancellationToken = default);
+        System.Threading.Tasks.ValueTask<Configlue.ConfiglueValueExplanation> ExplainAsync(string propertyPath, System.Threading.CancellationToken cancellationToken = default);
+        Configlue.ConfiglueOptionsDiagnostics GetDiagnostics();
+        System.Threading.Tasks.ValueTask<Configlue.StateSourceMigrationResult> MigrateSourceAsync(string sourceId, string targetId, System.Threading.CancellationToken cancellationToken = default);
+        System.Threading.Tasks.ValueTask<Configlue.StateStorageMigrationResult> MigrateSourcesToTargetsAsync(System.Collections.Generic.IEnumerable<string> sourceIds, System.Collections.Generic.IReadOnlyDictionary<string, System.Func<Configlue.IConfiglueFragment, Configlue.IConfiglueFragment>> targetProjections, System.Threading.CancellationToken cancellationToken = default, bool retireSources = false);
+        System.IDisposable OnReloadFailed(System.Action<System.Exception> listener);
+    }
     public interface IConfigluePatch
     {
         bool IsEmpty { get; }
@@ -270,21 +279,29 @@ namespace Configlue
     }
     public interface IConfiglueProfiledOptions<TModel>
     {
-        string DefaultProfileName { get; }
         TModel CurrentValue { get; }
+        string DefaultProfileName { get; }
         event System.Action<string>? ActiveProfileChanged;
-        System.IDisposable OnChange(System.Action<TModel> listener);
         System.Threading.Tasks.ValueTask CreateProfileAsync(string profileName, string? copyFrom = null, System.Threading.CancellationToken cancellationToken = default);
         System.Threading.Tasks.ValueTask<Configlue.IWritableOptions<TModel>> GetActiveProfileAsync(System.Threading.CancellationToken cancellationToken = default);
         System.Threading.Tasks.ValueTask<string> GetActiveProfileNameAsync(System.Threading.CancellationToken cancellationToken = default);
         System.Threading.Tasks.ValueTask<TModel> GetActiveValueAsync(System.Threading.CancellationToken cancellationToken = default);
         System.Threading.Tasks.ValueTask<Configlue.IWritableOptions<TModel>> GetProfileAsync(string profileName, System.Threading.CancellationToken cancellationToken = default);
         System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyCollection<string>> GetProfileNamesAsync(System.Threading.CancellationToken cancellationToken = default);
+        System.IDisposable OnChange(System.Action<TModel> listener);
         System.Threading.Tasks.ValueTask RemoveProfileAsync(string profileName, System.Threading.CancellationToken cancellationToken = default);
         System.Threading.Tasks.ValueTask<Configlue.StateWriteResult> SaveAsync(System.Action<TModel> update, System.Threading.CancellationToken cancellationToken = default);
         System.Threading.Tasks.ValueTask<Configlue.StateWriteResult> SaveAsync(System.Func<TModel, System.Threading.Tasks.Task> update, System.Threading.CancellationToken cancellationToken = default);
         System.Threading.Tasks.ValueTask<Configlue.StateWriteResult> SaveAsync(TModel value, System.Threading.CancellationToken cancellationToken = default);
         System.Threading.Tasks.ValueTask SetActiveProfileAsync(string profileName, System.Threading.CancellationToken cancellationToken = default);
+    }
+    public interface IConfiglueReplacementPatch : Configlue.IConfigluePatch
+    {
+        Configlue.IConfigluePatch WithUnspecifiedMembersUnset();
+    }
+    public interface IConfiglueRoutablePatch : Configlue.IConfiglueMemberPatch, Configlue.IConfigluePatch
+    {
+        System.Collections.Generic.IReadOnlyDictionary<string, Configlue.IConfigluePatch> Route(Configlue.StateWritePlan writePlan, string? fallbackSourceId);
     }
     public interface IConfiglueValidator<in T>
     {
@@ -300,16 +317,6 @@ namespace Configlue
         System.Threading.Tasks.ValueTask<T> GetValueAsync(System.Threading.CancellationToken cancellationToken = default);
         System.IDisposable OnChange(System.Action<T> listener);
         System.Threading.Tasks.ValueTask<Configlue.StateReadResult<T>> ReadAsync(System.Threading.CancellationToken cancellationToken = default);
-    }
-    public interface IConfiglueOptions<T> : Configlue.IWritableOptions<T>
-    {
-        System.Threading.Tasks.ValueTask<Configlue.StateMultiWriteResult> ApplyPatchesAsync(System.Collections.Generic.IEnumerable<Configlue.StateSourcePatch> patches, System.Threading.CancellationToken cancellationToken = default);
-        T CurrentValue { get; }
-        System.Threading.Tasks.ValueTask<Configlue.ConfiglueValueExplanation> ExplainAsync(string propertyPath, System.Threading.CancellationToken cancellationToken = default);
-        Configlue.ConfiglueOptionsDiagnostics GetDiagnostics();
-        System.Threading.Tasks.ValueTask<Configlue.StateSourceMigrationResult> MigrateSourceAsync(string sourceId, string targetId, System.Threading.CancellationToken cancellationToken = default);
-        System.Threading.Tasks.ValueTask<Configlue.StateStorageMigrationResult> MigrateSourcesToTargetsAsync(System.Collections.Generic.IEnumerable<string> sourceIds, System.Collections.Generic.IReadOnlyDictionary<string, System.Func<Configlue.IConfiglueFragment, Configlue.IConfiglueFragment>> targetProjections, System.Threading.CancellationToken cancellationToken = default, bool retireSources = false);
-        System.IDisposable OnReloadFailed(System.Action<System.Exception> listener);
     }
     public interface IResourceBackupRecovery
     {
@@ -450,6 +457,11 @@ namespace Configlue
         public string? ExpectedRevision { get; init; }
         public Configlue.StateSchemaMetadata? Schema { get; init; }
     }
+    public readonly struct SourceKey<TModel> : System.IEquatable<Configlue.SourceKey<TModel>>
+    {
+        public static Configlue.SourceKey<TModel> Create() { }
+        public static Configlue.SourceKey<TModel> FromId(string id) { }
+    }
     public readonly struct StateCodecContext
     {
         public StateCodecContext(Configlue.StateSchemaMetadata? schema = default, System.IServiceProvider? services = null) { }
@@ -457,11 +469,6 @@ namespace Configlue
         public Configlue.StateSchemaMetadata? Schema { get; }
         public string? SchemaReferenceBaseUri { get; }
         public System.IServiceProvider? Services { get; }
-    }
-    public static class StateSchemaReference
-    {
-        public static string CreateUri(string baseUri, Configlue.StateSchemaMetadata schema) { }
-        public static string GetFileName(string modelId, int version) { }
     }
     public sealed class StateConflictException : System.Exception
     {
@@ -474,6 +481,14 @@ namespace Configlue
         NotFound = 1,
         Unavailable = 2,
         NotFoundOrUnavailable = 3,
+    }
+    public sealed class StateMultiWriteException : System.Exception
+    {
+        public StateMultiWriteException(Configlue.StateMultiWriteResult completed, Configlue.ResourceId? failedResourceId, System.Collections.Generic.IEnumerable<string> failedSourceIds, System.Collections.Generic.IEnumerable<string> unattemptedSourceIds, System.Exception innerException) { }
+        public Configlue.StateMultiWriteResult Completed { get; }
+        public Configlue.ResourceId? FailedResourceId { get; }
+        public System.Collections.Generic.IReadOnlyList<string> FailedSourceIds { get; }
+        public System.Collections.Generic.IReadOnlyList<string> UnattemptedSourceIds { get; }
     }
     public sealed class StateMultiWriteResult
     {
@@ -536,6 +551,11 @@ namespace Configlue
         public StateSchemaMigrationChain(Configlue.StateSchemaMetadata targetSchema, System.Collections.Generic.IEnumerable<Configlue.IStateSchemaMigration<T>>? migrations = null) { }
         public Configlue.StateSchemaMetadata TargetSchema { get; }
         public System.Threading.Tasks.ValueTask<T> MigrateAsync(T value, Configlue.StateSchemaMetadata sourceSchema, System.Threading.CancellationToken cancellationToken = default) { }
+    }
+    public static class StateSchemaReference
+    {
+        public static string CreateUri(string baseUri, Configlue.StateSchemaMetadata schema) { }
+        public static string GetFileName(string modelId, int version) { }
     }
     public readonly struct StateSourceMigrationResult : System.IEquatable<Configlue.StateSourceMigrationResult>
     {
@@ -616,13 +636,6 @@ namespace Configlue
         public bool SourcesRetired { get; }
         public System.Collections.Generic.IReadOnlyList<Configlue.StateStorageMigrationTargetResult> Targets { get; }
     }
-    public sealed class StateStorageMigrationTarget<TFragment>
-        where TFragment :  class, Configlue.IConfiglueFragment<TFragment>
-    {
-        public StateStorageMigrationTarget(string targetSourceId, System.Func<TFragment, TFragment> project) { }
-        public System.Func<TFragment, TFragment> Project { get; }
-        public string TargetSourceId { get; }
-    }
     public readonly struct StateStorageMigrationTargetResult : System.IEquatable<Configlue.StateStorageMigrationTargetResult>
     {
         public StateStorageMigrationTargetResult(string TargetId, string? PreviousRevision, string? TargetRevision, bool WasAlreadyCurrent) { }
@@ -630,6 +643,13 @@ namespace Configlue
         public string TargetId { get; init; }
         public string? TargetRevision { get; init; }
         public bool WasAlreadyCurrent { get; init; }
+    }
+    public sealed class StateStorageMigrationTarget<TFragment>
+        where TFragment :  class, Configlue.IConfiglueFragment<TFragment>
+    {
+        public StateStorageMigrationTarget(string targetSourceId, System.Func<TFragment, TFragment> project) { }
+        public System.Func<TFragment, TFragment> Project { get; }
+        public string TargetSourceId { get; }
     }
     public readonly struct StateWriteBatchPlan : System.IEquatable<Configlue.StateWriteBatchPlan>
     {
@@ -646,6 +666,14 @@ namespace Configlue
         public bool HasRouteBelow(string propertyPath) { }
         public Configlue.StateWritePlan OverrideWith(Configlue.StateWritePlan overrides) { }
         public string ResolveSourceId(string propertyPath, string fallbackSourceId) { }
+        public string? ResolveSourceIdOrNull(string propertyPath, string? fallbackSourceId = null) { }
+        public static Configlue.StateWritePlanBuilder<TModel> For<TModel>() { }
+    }
+    public sealed class StateWritePlanBuilder<TModel>
+    {
+        public StateWritePlanBuilder() { }
+        public Configlue.StateWritePlan Build() { }
+        public Configlue.StateWritePlanBuilder<TModel> Route<TValue>(System.Linq.Expressions.Expression<System.Func<TModel, TValue>> property, Configlue.SourceKey<TModel> source) { }
     }
     public readonly struct StateWriteRequest<T> : System.IEquatable<Configlue.StateWriteRequest<T>>
     {
@@ -663,5 +691,6 @@ namespace Configlue
     public static class WritableOptionsExtensions
     {
         public static Configlue.EditSession<T> OpenEditSession<T>(this Configlue.IWritableOptions<T> options) { }
+        public static Configlue.ConfiglueSourceHandle<T> Source<T>(this Configlue.IWritableOptions<T> options, Configlue.SourceKey<T> sourceKey) { }
     }
 }

@@ -28,6 +28,8 @@ namespace Configlue.Source.Common
     {
         public static void UseCommonSources<TModel>(this Configlue.ConfiglueModelBuilder<TModel> model, Configlue.Source.Common.CommonSourceOptions options)
             where TModel : Configlue.IConfiglueFacadeModel<TModel> { }
+        public static void UseCommonSources<TModel>(this Configlue.ConfiglueModelBuilder<TModel> model, string applicationId, string? specificFilePath = null, string? environmentPrefix = null, Configlue.Source.Common.CommonSourceWriteLayer writeLayer = 0)
+            where TModel : Configlue.IConfiglueFacadeModel<TModel> { }
     }
     public enum CommonSourceWriteLayer
     {

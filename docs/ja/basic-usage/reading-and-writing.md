@@ -37,15 +37,16 @@ config.Add<AppSettings>(model =>
 生成された Patch オーバーロードは指定した項目だけを設定済み write source に書き込みます:
 
 ```csharp
-await options.SaveAsync(settings => settings.SomeSetting = newValue);
+await options.SaveAsync(patch => patch.SomeSetting = newValue);
 ```
 
 触っていない項目は既存の疎状態を保ちます。ソース寄与を破壊的に置換する場合は、型付き source handle を使います:
 
 ```csharp
+var userKey = SourceKey<AppSettings>.Create(); // reuse this key when registering the user source
 var replacement = new AppSettings.Patch();
 replacement.Name = "new-name";
-await options.Source(SourceKey<AppSettings>.FromId("user")).ReplaceAsync(replacement);
+await options.Source(userKey).ReplaceAsync(replacement);
 ```
 
 ## 編集セッション
@@ -85,7 +86,8 @@ await options.SaveAsync(patch);
 1つのソースには、型付きキーとハンドルを使えます。`SaveAsync` は指定されていない寄与を保持し、`ReplaceAsync` は明示的な Set を残したうえで未指定メンバーを取り下げます:
 
 ```csharp
-var userSource = options.Source(SourceKey<AppSettings>.FromId("user"));
+var userKey = SourceKey<AppSettings>.Create(); // same key used by source registration
+var userSource = options.Source(userKey);
 await userSource.SaveAsync(patch => patch.Database.Host = "db.example.test");
 await userSource.ReplaceAsync(patch => patch.Database.Host = "db.example.test");
 ```
