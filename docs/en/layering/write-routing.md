@@ -5,7 +5,7 @@ description: WriteRoute defaults, per-path WritePlan, conflicts, and multi-write
 
 # Write routing
 
-Writes can target a source independently of read priority. Edits made through `BeginConfigureAsync` or the updater overloads use generated semantic diffs.
+Writes can target a source independently of read priority. Edits made through `OpenEditSessionAsync` or the updater overloads use generated semantic diffs.
 
 ## Default route
 
@@ -28,9 +28,9 @@ var writePlan = new StateWritePlan(new Dictionary<string, string>
     ["Database"] = "database-settings",
     ["Database.Password"] = "secrets",
 });
-using var routedEdit = await options.BeginConfigureAsync(writePlan);
+using var routedEdit = await options.OpenEditSessionAsync(writePlan);
 routedEdit.Value.Database!.Password = "updated";
-var writeResult = await routedEdit.SaveAsync();
+var writeResult = await routedEdit.CommitAsync();
 var sourceWrites = writeResult.MultiWriteResult;
 ```
 

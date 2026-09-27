@@ -523,7 +523,7 @@ public sealed class ConfiglueFacadeSourceTests
         (await options.GetValueAsync()).RetryCount.ShouldBe(11);
         requestedUris.ShouldContain(new Uri("https://settings.example.test/json/get"));
         await Should.ThrowAsync<InvalidOperationException>(async () =>
-            await options.BeginConfigureAsync()
+            await options.OpenEditSessionAsync()
         );
     }
 
@@ -626,7 +626,7 @@ public sealed class ConfiglueFacadeSourceTests
         requestedUris.ShouldContain(new Uri("https://settings.example.test/secondary/get"));
         await Should.ThrowAsync<InvalidOperationException>(async () =>
         {
-            await options.BeginConfigureAsync();
+            await options.OpenEditSessionAsync();
         });
     }
 

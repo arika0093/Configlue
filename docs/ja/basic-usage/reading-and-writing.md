@@ -48,19 +48,19 @@ await options.SaveAsync(updatedConfig); // 書き込み先の全体置換
 
 ## 編集セッション
 
-設定画面で複数変更をまとめて適用する場合は `BeginConfigureAsync` を使います。セッションは `SaveAsync` までインメモリで、破棄すれば未保存の変更は捨てられます。保存中に破棄した場合、その保存は完了し、以後の編集や保存はできません。保存直前に全ソースのリビジョンベクターを比較し、参加ソースが変わっていれば `StateConflictException` で失敗します。
+設定画面で複数変更をまとめて適用する場合は `OpenEditSessionAsync` を使います。セッションは `CommitAsync` までインメモリで、破棄すれば未保存の変更は捨てられます。コミット中に破棄した場合、そのコミットは完了し、以後の編集やコミットはできません。コミット直前に全ソースのリビジョンベクターを比較し、参加ソースが変わっていれば `StateConflictException` で失敗します。
 
-同期処理からは `options.BeginConfigure()` も使えます。非同期 source の読み込み中は呼び出し元をブロックするため、非同期処理では `BeginConfigureAsync` を使ってください。
+同期処理からは `options.OpenEditSession()` も使えます。非同期 source の読み込み中は呼び出し元をブロックするため、非同期処理では `OpenEditSessionAsync` を使ってください。
 
 ```csharp
-using var edit = await options.BeginConfigureAsync();
+using var edit = await options.OpenEditSessionAsync();
 edit.Update(value => value.SomeSetting = newValue);
 // edit.ResetToLoaded();  // セッション開始時に読み込んだ値へ戻す
 // edit.ResetToDefault(); // モデルの既定値へ戻す
-await edit.SaveAsync();
+await edit.CommitAsync();
 ```
 
-`Value` と `CurrentValue` で編集途中の値を参照できます。`Update` はその値を直接編集します。リセット API は全体、または選択したメンバーだけを読み込み時点のスナップショットか新しいモデル既定値へ戻します。保存に成功した後もセッションは再利用でき、次の保存では直前の成功以降の変更を記録します。`BeginConfigureAsync` が返すセッションは両方のリセット基準値を持ちます。2引数コンストラクターで直接生成したセッションにはモデル既定値がないため、`ResetToDefault` を使うには既定値を渡すオーバーロードが必要です。
+`Value` と `CurrentValue` で編集途中の値を参照できます。`Update` はその値を直接編集します。リセット API は全体、または選択したメンバーだけを読み込み時点のスナップショットか新しいモデル既定値へ戻します。コミットに成功した後もセッションは再利用でき、次のコミットでは直前の成功以降の変更を記録します。`OpenEditSessionAsync` が返すセッションは両方のリセット基準値を持ちます。2引数コンストラクターで直接生成したセッションにはモデル既定値がないため、`ResetToDefault` を使うには既定値を渡すオーバーロードが必要です。
 
 操作単位の `StateWritePlan` でセッションを複数ソースに分割できます — [書き込み経路指定](../layering/write-routing.md) 参照。
 

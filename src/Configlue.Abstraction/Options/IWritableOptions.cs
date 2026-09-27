@@ -5,12 +5,10 @@ namespace Configlue;
 public interface IWritableOptions<T> : IReadOnlyOptions<T>
 {
     /// <summary>Begins editing a deep clone of the currently resolved configuration.</summary>
-    ValueTask<ConfigureSession<T>> BeginConfigureAsync(
-        CancellationToken cancellationToken = default
-    );
+    ValueTask<EditSession<T>> OpenEditSessionAsync(CancellationToken cancellationToken = default);
 
     /// <summary>Begins editing with path-based source routing for changed model members.</summary>
-    ValueTask<ConfigureSession<T>> BeginConfigureAsync(
+    ValueTask<EditSession<T>> OpenEditSessionAsync(
         StateWritePlan writePlan,
         CancellationToken cancellationToken = default
     );

@@ -986,7 +986,7 @@ public sealed class StateRuntimeTests
 
         var initial = await options.ReadAsync();
         var initialExplanation = await options.ExplainAsync("RetryCount");
-        using var staleSession = await options.BeginConfigureAsync();
+        using var staleSession = await options.OpenEditSessionAsync();
         staleSession.Value.RetryCount = 8;
         var changed = new TaskCompletionSource<int>(
             TaskCreationOptions.RunContinuationsAsynchronously
@@ -1014,7 +1014,7 @@ public sealed class StateRuntimeTests
         var conflictThrown = false;
         try
         {
-            await staleSession.SaveAsync();
+            await staleSession.CommitAsync();
         }
         catch (StateConflictException)
         {
@@ -1075,7 +1075,7 @@ public sealed class StateRuntimeTests
     }
 
     [Test]
-    public async Task ConfigureSession_SavesDraftAndRejectsAStaleRevision()
+    public async Task EditSession_SavesDraftAndRejectsAStaleRevision()
     {
         var store = new InMemoryStateStore<AppSettings.Fragment>(
             new AppSettings.Fragment { RetryCount = Optional<int>.Present(3) }
@@ -1084,22 +1084,22 @@ public sealed class StateRuntimeTests
             new("user", store, writer: store),
         ]);
         var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(sourceSet);
-        using var session = await options.BeginConfigureAsync();
+        using var session = await options.OpenEditSessionAsync();
         session.Value.RetryCount = 6;
-        var save = await session.SaveAsync();
+        var save = await session.CommitAsync();
         var saved = await store.ReadAsync();
 
         (session.IsCommitted).ShouldBeTrue();
         (save.Revision).ShouldBe("2");
         (saved.Value!.RetryCount.Value).ShouldBe(6);
 
-        using var stale = await options.BeginConfigureAsync();
+        using var stale = await options.OpenEditSessionAsync();
         stale.Value.RetryCount = 7;
         store.Set(new AppSettings.Fragment { RetryCount = Optional<int>.Present(8) });
         StateConflictException? conflict = null;
         try
         {
-            await stale.SaveAsync();
+            await stale.CommitAsync();
         }
         catch (StateConflictException exception)
         {
@@ -1112,7 +1112,7 @@ public sealed class StateRuntimeTests
     }
 
     [Test]
-    public async Task ConfigureSession_RebasesAChangeAfterAnUnrelatedPathChanges()
+    public async Task EditSession_RebasesAChangeAfterAnUnrelatedPathChanges()
     {
         var store = new InMemoryStateStore<AppSettings.Fragment>(
             new AppSettings.Fragment { RetryCount = Optional<int>.Present(3) }
@@ -1120,7 +1120,7 @@ public sealed class StateRuntimeTests
         var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([new("user", store, writer: store)])
         );
-        using var session = await options.BeginConfigureAsync();
+        using var session = await options.OpenEditSessionAsync();
         session.Value.RetryCount = 6;
         store.Set(
             new AppSettings.Fragment
@@ -1130,7 +1130,7 @@ public sealed class StateRuntimeTests
             }
         );
 
-        await session.SaveAsync();
+        await session.CommitAsync();
 
         var resolved = (await options.ReadAsync()).Value!;
         resolved.RetryCount.ShouldBe(6);
@@ -1138,7 +1138,7 @@ public sealed class StateRuntimeTests
     }
 
     [Test]
-    public async Task ConfigureSession_RebasesNestedDisjointChanges()
+    public async Task EditSession_RebasesNestedDisjointChanges()
     {
         var store = new InMemoryStateStore<AppSettings.Fragment>(
             new AppSettings.Fragment
@@ -1155,7 +1155,7 @@ public sealed class StateRuntimeTests
         var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([new("user", store, writer: store)])
         );
-        using var session = await options.BeginConfigureAsync();
+        using var session = await options.OpenEditSessionAsync();
         session.Value.Database!.Host = "session-host";
         store.Set(
             new AppSettings.Fragment
@@ -1170,7 +1170,7 @@ public sealed class StateRuntimeTests
             }
         );
 
-        await session.SaveAsync();
+        await session.CommitAsync();
 
         var resolved = (await options.ReadAsync()).Value!;
         resolved.Database!.Host.ShouldBe("session-host");
@@ -1227,7 +1227,7 @@ public sealed class StateRuntimeTests
     }
 
     [Test]
-    public async Task ConfigureSession_RebasesAfterAnUnrelatedSourceChanges()
+    public async Task EditSession_RebasesAfterAnUnrelatedSourceChanges()
     {
         var user = new InMemoryStateStore<AppSettings.Fragment>(
             new AppSettings.Fragment { Enabled = Optional<bool>.Present(true) }
@@ -1240,11 +1240,11 @@ public sealed class StateRuntimeTests
             new("defaults", defaults, priority: 0),
         ]);
         var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(sources);
-        using var session = await options.BeginConfigureAsync();
+        using var session = await options.OpenEditSessionAsync();
         session.Value.Enabled = false;
         defaults.Set(new AppSettings.Fragment { RetryCount = Optional<int>.Present(8) });
 
-        await session.SaveAsync();
+        await session.CommitAsync();
 
         var storedUser = await user.ReadAsync();
         var resolved = await options.ReadAsync();
@@ -1255,7 +1255,7 @@ public sealed class StateRuntimeTests
     }
 
     [Test]
-    public async Task ConfigureSession_WritesOnlySemanticChangesToTheSelectedContribution()
+    public async Task EditSession_WritesOnlySemanticChangesToTheSelectedContribution()
     {
         var defaults = new InMemoryStateStore<AppSettings.Fragment>(
             new AppSettings.Fragment
@@ -1285,10 +1285,10 @@ public sealed class StateRuntimeTests
         ]);
         var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(sources);
 
-        using var session = await options.BeginConfigureAsync();
+        using var session = await options.OpenEditSessionAsync();
         session.Value.RetryCount = 7;
         session.Value.Database!.Port = 7443;
-        await session.SaveAsync();
+        await session.CommitAsync();
 
         var storedUser = (await user.ReadAsync()).Value!;
         var resolved = (await options.ReadAsync()).Value!;
@@ -1302,7 +1302,7 @@ public sealed class StateRuntimeTests
     }
 
     [Test]
-    public async Task ConfigureSession_RoutesNestedChangesToTheMostSpecificSources()
+    public async Task EditSession_RoutesNestedChangesToTheMostSpecificSources()
     {
         var user = new InMemoryStateStore<AppSettings.Fragment>(new AppSettings.Fragment());
         var database = new InMemoryStateStore<AppSettings.Fragment>(
@@ -1341,11 +1341,11 @@ public sealed class StateRuntimeTests
             }
         );
 
-        using var session = await options.BeginConfigureAsync(writePlan);
+        using var session = await options.OpenEditSessionAsync(writePlan);
         session.Value.RetryCount = 7;
         session.Value.Database!.Host = "session.db";
         session.Value.Database.Port = 7443;
-        var result = await session.SaveAsync();
+        var result = await session.CommitAsync();
 
         var userFragment = (await user.ReadAsync()).Value!;
         var databaseFragment = (await database.ReadAsync()).Value!;
@@ -1366,7 +1366,7 @@ public sealed class StateRuntimeTests
     }
 
     [Test]
-    public async Task ConfigureSession_PathPlanRejectsEditsHiddenByAHigherPrioritySource()
+    public async Task EditSession_PathPlanRejectsEditsHiddenByAHigherPrioritySource()
     {
         var policy = new InMemoryStateStore<AppSettings.Fragment>(
             new AppSettings.Fragment { Enabled = Optional<bool>.Present(true) }
@@ -1383,12 +1383,12 @@ public sealed class StateRuntimeTests
             new Dictionary<string, string>(StringComparer.Ordinal) { ["Enabled"] = "user" }
         );
 
-        using var session = await options.BeginConfigureAsync(writePlan);
+        using var session = await options.OpenEditSessionAsync(writePlan);
         session.Value.Enabled = false;
         StateConflictException? rejection = null;
         try
         {
-            await session.SaveAsync();
+            await session.CommitAsync();
         }
         catch (StateConflictException exception)
         {
@@ -1404,7 +1404,7 @@ public sealed class StateRuntimeTests
     }
 
     [Test]
-    public async Task ConfigureSession_DoesNotWriteWhenTheModelWasNotChanged()
+    public async Task EditSession_DoesNotWriteWhenTheModelWasNotChanged()
     {
         var store = new InMemoryStateStore<AppSettings.Fragment>(
             new AppSettings.Fragment { RetryCount = Optional<int>.Present(3) }
@@ -1413,8 +1413,8 @@ public sealed class StateRuntimeTests
             new StateSourceSet<AppSettings.Fragment>([new("user", store, writer: store)])
         );
 
-        using var session = await options.BeginConfigureAsync();
-        var result = await session.SaveAsync();
+        using var session = await options.OpenEditSessionAsync();
+        var result = await session.CommitAsync();
 
         (session.IsCommitted).ShouldBeTrue();
         (result.Revision).ShouldBe("1");
@@ -1422,7 +1422,7 @@ public sealed class StateRuntimeTests
     }
 
     [Test]
-    public async Task ConfigureSession_RebasesAppendEditsOntoTheSelectedSourceSegment()
+    public async Task EditSession_RebasesAppendEditsOntoTheSelectedSourceSegment()
     {
         var defaults = new InMemoryStateStore<AppSettings.Fragment>(
             new AppSettings.Fragment { Plugins = Optional<IReadOnlyList<string>>.Present(["base"]) }
@@ -1437,9 +1437,9 @@ public sealed class StateRuntimeTests
             ])
         );
 
-        using var session = await options.BeginConfigureAsync();
+        using var session = await options.OpenEditSessionAsync();
         session.Value.Plugins = [.. session.Value.Plugins, "session"];
-        await session.SaveAsync();
+        await session.CommitAsync();
 
         var storedUser = (await user.ReadAsync()).Value!;
         var resolved = (await options.ReadAsync()).Value!;
@@ -1452,7 +1452,7 @@ public sealed class StateRuntimeTests
     }
 
     [Test]
-    public async Task ConfigureSession_RebasesConcurrentAppendAdditions()
+    public async Task EditSession_RebasesConcurrentAppendAdditions()
     {
         var defaults = new InMemoryStateStore<AppSettings.Fragment>(
             new AppSettings.Fragment { Plugins = Optional<IReadOnlyList<string>>.Present(["base"]) }
@@ -1466,7 +1466,7 @@ public sealed class StateRuntimeTests
                 new("defaults", defaults),
             ])
         );
-        using var session = await options.BeginConfigureAsync();
+        using var session = await options.OpenEditSessionAsync();
         session.Value.Plugins = [.. session.Value.Plugins, "session"];
         user.Set(
             new AppSettings.Fragment
@@ -1475,7 +1475,7 @@ public sealed class StateRuntimeTests
             }
         );
 
-        await session.SaveAsync();
+        await session.CommitAsync();
 
         var resolved = (await options.ReadAsync()).Value!;
         resolved
@@ -1486,7 +1486,7 @@ public sealed class StateRuntimeTests
     }
 
     [Test]
-    public async Task ConfigureSession_RebasesSetUnionEditsAndRejectsRemovingOtherSourceValues()
+    public async Task EditSession_RebasesSetUnionEditsAndRejectsRemovingOtherSourceValues()
     {
         var defaults = new InMemoryStateStore<SetUnionSettings.Fragment>(
             new SetUnionSettings.Fragment
@@ -1507,9 +1507,9 @@ public sealed class StateRuntimeTests
             ])
         );
 
-        using var session = await options.BeginConfigureAsync();
+        using var session = await options.OpenEditSessionAsync();
         session.Value.Tags = [.. session.Value.Tags, "session"];
-        await session.SaveAsync();
+        await session.CommitAsync();
 
         var storedUser = (await user.ReadAsync()).Value!;
         var resolved = (await options.ReadAsync()).Value!;
@@ -1520,14 +1520,14 @@ public sealed class StateRuntimeTests
             .OrderBy(static item => item)
             .ShouldBe((new[] { "base", "shared", "user", "session" }).OrderBy(static item => item));
 
-        using var removeLower = await options.BeginConfigureAsync();
+        using var removeLower = await options.OpenEditSessionAsync();
         removeLower.Value.Tags = removeLower
             .Value.Tags.Where(static tag => tag != "base")
             .ToArray();
         var rejected = false;
         try
         {
-            await removeLower.SaveAsync();
+            await removeLower.CommitAsync();
         }
         catch (StateConflictException)
         {
@@ -1539,7 +1539,7 @@ public sealed class StateRuntimeTests
     }
 
     [Test]
-    public async Task ConfigureSession_RebasesConcurrentSetUnionAdditions()
+    public async Task EditSession_RebasesConcurrentSetUnionAdditions()
     {
         var defaults = new InMemoryStateStore<SetUnionSettings.Fragment>(
             new SetUnionSettings.Fragment
@@ -1559,7 +1559,7 @@ public sealed class StateRuntimeTests
                 new("defaults", defaults),
             ])
         );
-        using var session = await options.BeginConfigureAsync();
+        using var session = await options.OpenEditSessionAsync();
         session.Value.Tags = [.. session.Value.Tags, "session"];
         user.Set(
             new SetUnionSettings.Fragment
@@ -1568,7 +1568,7 @@ public sealed class StateRuntimeTests
             }
         );
 
-        await session.SaveAsync();
+        await session.CommitAsync();
 
         var resolved = (await options.ReadAsync()).Value!;
         resolved
@@ -1579,7 +1579,7 @@ public sealed class StateRuntimeTests
     }
 
     [Test]
-    public async Task ConfigureSession_RejectsAWriteHiddenByHigherPriorityReadOnlySource()
+    public async Task EditSession_RejectsAWriteHiddenByHigherPriorityReadOnlySource()
     {
         var policy = new InMemoryStateStore<AppSettings.Fragment>(
             new AppSettings.Fragment { Enabled = Optional<bool>.Present(true) }
@@ -1592,12 +1592,12 @@ public sealed class StateRuntimeTests
             ])
         );
 
-        using var session = await options.BeginConfigureAsync();
+        using var session = await options.OpenEditSessionAsync();
         session.Value.Enabled = false;
         var rejected = false;
         try
         {
-            await session.SaveAsync();
+            await session.CommitAsync();
         }
         catch (StateConflictException)
         {
@@ -1673,12 +1673,12 @@ public sealed class StateRuntimeTests
         (stored.Value!.RetryCount.Value).ShouldBe(3);
         (stored.Revision).ShouldBe("1");
 
-        using var edit = await writable.BeginConfigureAsync();
+        using var edit = await writable.OpenEditSessionAsync();
         edit.Value.RetryCount = 101;
         var editWasRejected = false;
         try
         {
-            await edit.SaveAsync();
+            await edit.CommitAsync();
         }
         catch (OptionsValidationException)
         {
@@ -1686,7 +1686,7 @@ public sealed class StateRuntimeTests
         }
 
         edit.Value.RetryCount = 4;
-        await edit.SaveAsync();
+        await edit.CommitAsync();
         var validStored = await store.ReadAsync();
         (editWasRejected).ShouldBeTrue();
         (edit.IsCommitted).ShouldBeTrue();

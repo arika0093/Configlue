@@ -61,10 +61,10 @@ public sealed class ZipEntryResourceTests
             }
         );
 
-        using var session = await options.BeginConfigureAsync(plan);
+        using var session = await options.OpenEditSessionAsync(plan);
         session.Value.Label = "after";
         session.Value.RetryCount = 12;
-        var result = await session.SaveAsync();
+        var result = await session.CommitAsync();
 
         (archive.WriteCount).ShouldBe(2);
         (result.MultiWriteResult).ShouldNotBeNull();
