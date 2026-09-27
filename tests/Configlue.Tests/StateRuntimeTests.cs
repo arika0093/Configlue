@@ -1,3 +1,4 @@
+using Configlue.Extensions.MSOptions;
 using Configlue.Provider.Json;
 using Configlue.Provider.Xml;
 using Configlue.Provider.Yaml;

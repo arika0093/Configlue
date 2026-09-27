@@ -3,6 +3,7 @@ using System.Runtime.CompilerServices;
 using System.Runtime.Versioning;
 using System.Text;
 using Configlue;
+using Configlue.Extensions.MSOptions;
 using Configlue.Generator;
 using Configlue.Provider.Json;
 using Configlue.Provider.Xml;
@@ -123,6 +124,12 @@ public sealed class PublicApiCheckTest
     [Test]
     public void DependencyInjection() =>
         PublicApiCheck.CheckAssembly(typeof(ConfiglueServiceCollectionExtensions).Assembly);
+
+    [Test]
+    public void MicrosoftOptions() =>
+        PublicApiCheck.CheckAssembly(
+            typeof(ConfiglueMicrosoftOptionsServiceCollectionExtensions).Assembly
+        );
 
     [Test]
     public void Generator() => PublicApiCheck.Check<ConfiglueGenerator>();

@@ -2,7 +2,7 @@ using System.Collections.Concurrent;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
-namespace Configlue;
+namespace Configlue.Extensions.MSOptions;
 
 internal sealed class ConfiglueMicrosoftOptionsResolver<TModel>
 {

@@ -1,0 +1,8 @@
+[assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/arika0093/Configlue")]
+namespace Configlue.Extensions.MSOptions
+{
+    public static class ConfiglueMicrosoftOptionsServiceCollectionExtensions
+    {
+        public static Microsoft.Extensions.DependencyInjection.IServiceCollection AddConfiglueMicrosoftOptions<TModel>(this Microsoft.Extensions.DependencyInjection.IServiceCollection services) { }
+    }
+}

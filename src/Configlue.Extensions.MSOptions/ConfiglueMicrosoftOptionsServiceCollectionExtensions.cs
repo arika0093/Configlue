@@ -1,7 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
-namespace Configlue;
+namespace Configlue.Extensions.MSOptions;
 
 /// <summary>Registers opt-in adapters for Microsoft's options abstractions.</summary>
 public static class ConfiglueMicrosoftOptionsServiceCollectionExtensions

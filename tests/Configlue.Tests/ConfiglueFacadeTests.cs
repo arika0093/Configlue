@@ -1,3 +1,4 @@
+using Configlue.Extensions.MSOptions;
 using Configlue.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
