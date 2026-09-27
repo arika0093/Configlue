@@ -115,23 +115,24 @@ public sealed class NestedSourceBindingTests
             "remote-updated.db"
         );
 
-        await Should.ThrowAsync<StateConflictException>(async () =>
+        await Should.ThrowAsync<InvalidOperationException>(async () =>
             await options.SaveAsync(settings => settings.Database!.Host = "updated.db")
         );
-        var readOnlyWrite = await Should.ThrowAsync<InvalidOperationException>(async () =>
-        {
-            using var edit = await options.OpenEditSessionAsync(
+        using (
+            var edit = await options.OpenEditSessionAsync(
                 new StateWritePlan(
                     new Dictionary<string, string>(StringComparer.Ordinal)
                     {
                         ["Database.Host"] = "remote-database",
                     }
                 )
-            );
+            )
+        )
+        {
             edit.Value.Database!.Host = "updated.db";
             await edit.CommitAsync();
-        });
-        (readOnlyWrite.Message).ShouldContain("does not support writes");
+        }
+        (await remoteStore.ReadAsync()).Value!.Host.Value.ShouldBe("updated.db");
         (await baseStore.ReadAsync()).Value!.Database.Value!.Host.Value.ShouldBe("default.db");
     }
 
@@ -175,7 +176,7 @@ public sealed class NestedSourceBindingTests
                         AppSettings.Fragment,
                         DatabaseSettings,
                         DatabaseSettings.Fragment
-                    >(remote, model => model.Database, root => root.Database.Value!);
+                    >(remote, model => model.Database);
                 })
             );
         });

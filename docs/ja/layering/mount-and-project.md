@@ -5,7 +5,7 @@ description: ソースフラグメントを入れ子モデルに束縛する。�
 
 # マウントと投影
 
-ソースフラグメントが生成された入れ子モデルに一致する場合は、`StateSourceProjection.Mount<TSubtreeFragment, TRootFragment>(source, "Policy")` でマウントするか、型つきセレクター `sources.AddMounted<TModel, TRootFragment, TSubtreeModel, TSubtreeFragment>(source, model => model.Policy)` で登録します。セレクターはメンバーパスと部分木のモデル/フラグメント型の両方をコンパイル時に検査します。パスを動的生成する場合は文字列オーバーロードを使い、登録時に生成スキーマと照合します。
+ソースフラグメントが生成された入れ子モデルに一致する場合は、`StateSourceProjection.Mount<TSubtreeFragment, TRootFragment>(source, "Policy")` でマウントするか、型つきセレクター `sources.AddMounted<TModel, TRootFragment, TSubtreeModel, TSubtreeFragment>(source, model => model.Policy)` で登録します。セレクターはメンバーパスと部分木のモデル/フラグメント型の両方をコンパイル時に検査します。パスを動的生成する場合は文字列オーバーロードを使い、登録時に生成スキーマと照合します。ソースに writer があれば、書き込み時に sparse な部分木フラグメントを自動で取り出します。reader のみのソースは読み取り専用です。部分木全体を null にする操作は部分木フラグメントで表現できず、エラーになります。
 
 ```csharp
 model.Sources(sources =>
