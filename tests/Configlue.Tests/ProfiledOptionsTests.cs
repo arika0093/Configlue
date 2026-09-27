@@ -272,6 +272,49 @@ public sealed class ProfiledOptionsTests
     }
 
     [Test]
+    public async Task ProfileManagerReleasesItsGateWhenCustomNotificationDeferralFails()
+    {
+        var catalogStore = new InMemoryStateStore<ConfiglueProfileCatalog>(
+            new ConfiglueProfileCatalog
+            {
+                ProfileNames = ["default", "Work"],
+                ActiveProfileName = "default",
+            }
+        );
+        var innerRegistry = CreateProfileRegistry();
+        var registry = new ThrowingNotificationDeferralRegistry(innerRegistry);
+        var profiles = new ConfiglueProfiledOptions<AppSettings, AppSettings.Fragment>(
+            registry,
+            new StateSource<ConfiglueProfileCatalog>("catalog", catalogStore, writer: catalogStore)
+        );
+
+        registry.ThrowOnNextAcquisition();
+        await Should.ThrowAsync<InvalidOperationException>(async () =>
+            await profiles.GetProfileNamesAsync()
+        );
+        (await profiles.GetProfileNamesAsync()).ShouldContain("Work");
+
+        var activeNotification = new TaskCompletionSource<(string Published, string ReadBack)>(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        profiles.ActiveProfileChanged += name =>
+        {
+            var readBack = profiles.GetActiveProfileNameAsync().AsTask().GetAwaiter().GetResult();
+            activeNotification.TrySetResult((name, readBack));
+        };
+        registry.ThrowOnNextDisposal();
+        await Should.ThrowAsync<InvalidOperationException>(async () =>
+            await profiles.SetActiveProfileAsync("Work")
+        );
+
+        (await activeNotification.Task.WaitAsync(TimeSpan.FromSeconds(5))).ShouldBe(
+            ("Work", "Work")
+        );
+        (await profiles.GetActiveProfileNameAsync()).ShouldBe("Work");
+        await innerRegistry.DisposeAsync();
+    }
+
+    [Test]
     public async Task ProfileCatalogConflictRefreshRemovesStaleNamesFromEachRuntimeRegistry()
     {
         using var directory = new TemporaryDirectory();
@@ -420,6 +463,84 @@ public sealed class ProfiledOptionsTests
                 throw new IOException("The catalog writer failed after an ambiguous commit.");
             }
             return await inner.WriteAsync(request, cancellationToken);
+        }
+    }
+
+    private sealed class ThrowingNotificationDeferralRegistry(
+        IConfiglueOptionsRegistry<AppSettings> inner
+    )
+        : IConfiglueOptionsRegistry<AppSettings>,
+            IConfiglueOptionsRegistryNotificationDeferrer<AppSettings>
+    {
+        private int _throwOnAcquisition;
+        private int _throwOnDisposal;
+
+        public event Action<string, IWritableOptions<AppSettings>>? ProfileAdded
+        {
+            add => inner.ProfileAdded += value;
+            remove => inner.ProfileAdded -= value;
+        }
+
+        public event Action<string>? ProfileRemoved
+        {
+            add => inner.ProfileRemoved += value;
+            remove => inner.ProfileRemoved -= value;
+        }
+
+        public IReadOnlyCollection<string> ProfileNames => inner.ProfileNames;
+
+        public IWritableOptions<AppSettings> Get(string profileName) => inner.Get(profileName);
+
+        public bool TryGet(string profileName, out IWritableOptions<AppSettings>? options) =>
+            inner.TryGet(profileName, out options);
+
+        public bool TryAdd(string profileName) => inner.TryAdd(profileName);
+
+        public bool TryRemove(string profileName) => inner.TryRemove(profileName);
+
+        public ValueTask<bool> TryRemoveAsync(string profileName) =>
+            inner.TryRemoveAsync(profileName);
+
+        public void Clear() => inner.Clear();
+
+        public ValueTask ClearAsync() => inner.ClearAsync();
+
+        public void Dispose() => inner.Dispose();
+
+        public ValueTask DisposeAsync() => inner.DisposeAsync();
+
+        public void ThrowOnNextAcquisition() => Interlocked.Exchange(ref _throwOnAcquisition, 1);
+
+        public void ThrowOnNextDisposal() => Interlocked.Exchange(ref _throwOnDisposal, 1);
+
+        public IConfiglueOptionsRegistryNotificationDeferral<AppSettings> DeferNotifications()
+        {
+            if (Interlocked.Exchange(ref _throwOnAcquisition, 0) == 1)
+            {
+                throw new InvalidOperationException("Deferral acquisition failed.");
+            }
+
+            var innerScope = (
+                (IConfiglueOptionsRegistryNotificationDeferrer<AppSettings>)inner
+            ).DeferNotifications();
+            return new DeferralScope(innerScope, this);
+        }
+
+        private sealed class DeferralScope(
+            IConfiglueOptionsRegistryNotificationDeferral<AppSettings> innerScope,
+            ThrowingNotificationDeferralRegistry owner
+        ) : IConfiglueOptionsRegistryNotificationDeferral<AppSettings>
+        {
+            public void Cancel(IWritableOptions<AppSettings> runtime) => innerScope.Cancel(runtime);
+
+            public void Dispose()
+            {
+                innerScope.Dispose();
+                if (Interlocked.Exchange(ref owner._throwOnDisposal, 0) == 1)
+                {
+                    throw new InvalidOperationException("Deferral disposal failed.");
+                }
+            }
         }
     }
 }
