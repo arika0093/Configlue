@@ -3200,17 +3200,18 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
             if (
                 canSearchFallbackCandidates
                 && hasUnroutedChanges
-                && !await CanRealizePatchBatchAsync(
+                && await CanRealizePatchBatchAsync(
                         candidatePatches,
                         expectedBaselineRevisions,
                         after,
                         cancellationToken
                     )
                     .ConfigureAwait(false)
+                    is { } realizationFailure
             )
             {
                 lastFailure =
-                    $"Candidate source '{candidateId}' cannot realize the requested edit.";
+                    $"Candidate source '{candidateId}' cannot realize the requested edit. {realizationFailure}";
                 continue;
             }
 
@@ -3272,7 +3273,7 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
         return patches.ToArray();
     }
 
-    private async ValueTask<bool> CanRealizePatchBatchAsync(
+    private async ValueTask<string?> CanRealizePatchBatchAsync(
         StateSourcePatch[] patchRequests,
         StateRevisionVector? expectedBaselineRevisions,
         TModel expectedResolvedModel,
@@ -3312,7 +3313,7 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
             var current = await source.Reader.ReadAsync(cancellationToken).ConfigureAwait(false);
             if (current.Status == StateReadStatus.Unavailable)
             {
-                return false;
+                return $"Source '{source.Id}' is unavailable.";
             }
 
             if (
@@ -3364,7 +3365,7 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
             .ConfigureAwait(false);
         if (proposed.Result.Status != StateReadStatus.Success)
         {
-            return false;
+            return $"The proposal resolved to {proposed.Result.Status}.";
         }
 
         if (!HaveSameRevisions(baseline.Result.Revisions, proposed.Result.Revisions))
@@ -3372,13 +3373,25 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
             throw LogConflict("A state source changed while the write plan was being evaluated.");
         }
 
-        if (!TModel.Diff(proposed.Result.Value!, expectedResolvedModel).IsEmpty)
+        var mismatch = TModel.Diff(proposed.Result.Value!, expectedResolvedModel);
+        if (!mismatch.IsEmpty)
         {
-            return false;
+            var paths = GetReplaceMemberPaths(TModel.ConfiglueSchema, mismatch, []);
+            var readonlySources = proposed
+                .Contributions.Where(static contribution => contribution.Source.Writer is null)
+                .Select(static contribution => contribution.Source.Id)
+                .Distinct(StringComparer.Ordinal)
+                .ToArray();
+            var details = paths.Count == 0 ? string.Empty : $" for '{string.Join("', '", paths)}'";
+            var shadowing =
+                readonlySources.Length == 0
+                    ? string.Empty
+                    : $" Read-only source(s) contributing to the resolved state: '{string.Join("', '", readonlySources)}'. A higher-priority contribution may shadow the write.";
+            return $"The requested edit could not be realized{details}.{shadowing}";
         }
 
         Validate(proposed.Result.Value!);
-        return true;
+        return null;
     }
 
     private static List<string> GetChangedPropertyPaths(
