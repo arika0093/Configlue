@@ -314,16 +314,28 @@ public sealed class ReadValidationTests
 
     private static async Task WriteAllTextWithRetryAsync(string path, string content)
     {
-        for (var attempt = 0; ; attempt++)
+        var temporaryPath = path + $".{Guid.NewGuid():N}.tmp";
+        try
         {
-            try
+            await File.WriteAllTextAsync(temporaryPath, content);
+            for (var attempt = 0; ; attempt++)
             {
-                await File.WriteAllTextAsync(path, content);
-                return;
+                try
+                {
+                    File.Move(temporaryPath, path, overwrite: true);
+                    return;
+                }
+                catch (IOException) when (attempt < 50)
+                {
+                    await Task.Delay(TimeSpan.FromMilliseconds(100));
+                }
             }
-            catch (IOException) when (attempt < 50)
+        }
+        finally
+        {
+            if (File.Exists(temporaryPath))
             {
-                await Task.Delay(TimeSpan.FromMilliseconds(100));
+                File.Delete(temporaryPath);
             }
         }
     }
