@@ -787,63 +787,65 @@ public sealed class FileResource
         CancellationToken cancellationToken
     )
     {
-        var temporaryPath = destinationPath + "." + Guid.NewGuid().ToString("N") + ".tmp";
-        try
+        var attempt = 0;
+        while (true)
         {
-            await using (
-                var stream = new FileStream(
-                    temporaryPath,
-                    FileMode.CreateNew,
-                    FileAccess.Write,
-                    FileShare.None,
-                    bufferSize: 81920,
-                    FileOptions.Asynchronous | FileOptions.WriteThrough
-                )
-            )
+            cancellationToken.ThrowIfCancellationRequested();
+            var temporaryPath = destinationPath + "." + Guid.NewGuid().ToString("N") + ".tmp";
+            try
             {
-                await stream.WriteAsync(content, cancellationToken).ConfigureAwait(false);
-                await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
-                stream.Flush(flushToDisk: true);
-            }
+                await using (
+                    var stream = new FileStream(
+                        temporaryPath,
+                        FileMode.CreateNew,
+                        FileAccess.Write,
+                        FileShare.None,
+                        bufferSize: 81920,
+                        FileOptions.Asynchronous | FileOptions.WriteThrough
+                    )
+                )
+                {
+                    await stream.WriteAsync(content, cancellationToken).ConfigureAwait(false);
+                    await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
+                    stream.Flush(flushToDisk: true);
+                }
 
-            var attempt = 0;
-            while (true)
+                File.Move(temporaryPath, destinationPath, overwrite: true);
+                return;
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception) when (attempt < _options.RetryCount)
+            {
+                attempt++;
+                var retryDelayFactory = _options.RetryDelayFactory;
+                var retryDelay = _options.RetryDelay;
+                if (retryDelayFactory is not null)
+                {
+                    retryDelay = retryDelayFactory(attempt);
+                }
+
+                if (retryDelay < TimeSpan.Zero)
+                {
+                    throw new InvalidOperationException(
+                        "The retry delay factory returned a negative delay."
+                    );
+                }
+
+                await Task.Delay(retryDelay, cancellationToken).ConfigureAwait(false);
+            }
+            finally
             {
                 try
                 {
-                    File.Move(temporaryPath, destinationPath, overwrite: true);
-                    return;
+                    File.Delete(temporaryPath);
                 }
-                catch (IOException) when (attempt < _options.RetryCount)
+                catch (IOException)
                 {
-                    attempt++;
-                    var retryDelayFactory = _options.RetryDelayFactory;
-                    var retryDelay = _options.RetryDelay;
-                    if (retryDelayFactory is not null)
-                    {
-                        retryDelay = retryDelayFactory(attempt);
-                    }
-
-                    if (retryDelay < TimeSpan.Zero)
-                    {
-                        throw new InvalidOperationException(
-                            "The retry delay factory returned a negative delay."
-                        );
-                    }
-
-                    await Task.Delay(retryDelay, cancellationToken).ConfigureAwait(false);
+                    // A failed cleanup is harmless; the unique temporary name cannot shadow a later write.
                 }
-            }
-        }
-        finally
-        {
-            try
-            {
-                File.Delete(temporaryPath);
-            }
-            catch (IOException)
-            {
-                // A failed cleanup is harmless; the unique temporary name cannot shadow a later write.
             }
         }
     }

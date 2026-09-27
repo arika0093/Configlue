@@ -20,10 +20,10 @@ public sealed class FileResourceOptions
     /// <remarks>When unset, Windows uses <c>backup</c> and other platforms use <c>.backup</c> beside the resource file. The legacy value <c>/</c> selects the resource file directory itself.</remarks>
     public string? BackupDirectory { get; init; }
 
-    /// <summary>How many transient sharing failures are retried.</summary>
+    /// <summary>How many file write failures are retried, excluding cancellation.</summary>
     public int RetryCount { get; init; } = 2;
 
-    /// <summary>The delay between transient sharing failures.</summary>
+    /// <summary>The delay between file write attempts.</summary>
     public TimeSpan RetryDelay { get; init; } = TimeSpan.FromMilliseconds(100);
 
     /// <summary>Calculates the delay before a retry from its one-based attempt number.</summary>
@@ -34,8 +34,8 @@ public sealed class FileResourceOptions
     /// The maximum time to wait for the cross-process sidecar lock before a write fails with an
     /// <see cref="System.IO.IOException"/>. A <see langword="null"/> value (the default) waits until the
     /// operation's cancellation token is signaled. This policy is independent of
-    /// <see cref="RetryCount"/> and <see cref="RetryDelay"/>, which only govern transient sharing
-    /// failures while replacing a file.
+    /// <see cref="RetryCount"/> and <see cref="RetryDelay"/>, which govern failures while creating,
+    /// writing, flushing, and replacing the file.
     /// </summary>
     public TimeSpan? LockAcquireTimeout { get; init; }
 
