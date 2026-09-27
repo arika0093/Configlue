@@ -384,8 +384,9 @@ public sealed class FormatSectionResourceTests
         var updatedRoot = LoadYaml((await resource.ReadAsync()).Content.Span);
         var app = GetMapping(updatedRoot, "App");
         var settings = GetMapping(app, "Settings");
-        var values = GetMapping(settings, "$value");
-        GetNode(values, "RetryCount").ShouldBe(9);
+        // The default simple layout stores the version inline.
+        GetNode(settings, "$version").ShouldBe(2);
+        GetNode(settings, "RetryCount").ShouldBe(9);
         GetNode(GetMapping(app, "Other"), "Value").ShouldBe("keep-nested");
         GetNode(GetMapping(updatedRoot, "OtherSection"), "Value").ShouldBe("keep-root");
     }
@@ -409,7 +410,8 @@ public sealed class FormatSectionResourceTests
         );
 
         var updatedRoot = LoadYaml((await resource.ReadAsync()).Content.Span);
-        var values = GetMapping(GetMapping(GetMapping(updatedRoot, "App"), "Settings"), "$value");
+        var values = GetMapping(GetMapping(updatedRoot, "App"), "Settings");
+        GetNode(values, "$version").ShouldBe(2);
         GetNode(values, "RetryCount").ShouldBe(7);
     }
 
@@ -472,13 +474,9 @@ public sealed class FormatSectionResourceTests
             name = "." + name;
         }
 
-        name += "_" + DateTime.UtcNow.Ticks.ToString(
-            System.Globalization.CultureInfo.InvariantCulture
-        );
-        return System.IO.Path.Combine(
-            directory,
-            name + System.IO.Path.GetExtension(path) + ".bak"
-        );
+        name +=
+            "_" + DateTime.UtcNow.Ticks.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        return System.IO.Path.Combine(directory, name + System.IO.Path.GetExtension(path) + ".bak");
     }
 
     private static object? LoadYaml(ReadOnlySpan<byte> content) =>

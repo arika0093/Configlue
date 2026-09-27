@@ -553,7 +553,7 @@ Register `IStateSchemaMigration<TFragment>` implementations as services to migra
 
 ### Adopting existing settings
 
-To adopt a `Configuration.Writable` JSON or YAML file, use `ConfigurationWritableJsonStateCodec<TFragment>` or `ConfigurationWritableYamlStateCodec<TFragment>` as an opt-in legacy decoder. Add the legacy file as a read-only migration input, then copy only its source ID to the writable target with `MigrateSourceAsync`. Keep the original file until target verification succeeds. See [Adopting Configuration.Writable](https://arika0093.github.io/Configlue/en/migration/adopting-configuration-writable/) on the documentation site.
+To adopt a `Configuration.Writable` JSON or YAML file, read it with the default simple document layout and attribute its version to the current model ID via `DocumentLayoutOptions`. Add the legacy file as a read-only migration input, then copy only its source ID to the writable target with `MigrateSourceAsync`. Keep the original file until target verification succeeds. See [Adopting Configuration.Writable](https://arika0093.github.io/Configlue/en/migration/adopting-configuration-writable/) on the documentation site.
 
 ## Advanced Usage
 

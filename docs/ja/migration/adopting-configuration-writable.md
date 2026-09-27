@@ -7,11 +7,9 @@ description: 旧来のインライン版つきファイルを読んで移行入�
 
 [Configuration.Writable](https://github.com/arika0093/Configuration.Writable) が書いたファイルを残したまま Configlue を導入できます。旧来ファイルには触れず、Configlue は opt-in デコーダーで読んで、その寄与を通常の書き込み先にコピーします。
 
-## 旧来デコーダー
+## 旧来ドキュメント
 
-Configuration.Writable の JSON/YAML ファイルを取り込むには、opt-in の旧来デコーダー `ConfigurationWritableJsonStateCodec<TFragment>` / `ConfigurationWritableYamlStateCodec<TFragment>` を使います。まず `JsonSectionResource`・`YamlSectionResource` で入れ子セクションを選び、`SerializedStateReader<TFragment>` とライターなし `StateSource<TFragment>` で包みます。
-
-デコーダーはインライン `$version` (と `Version` フォールバック) を認識し、印のないオブジェクト/マッピングを版 1 とみなし、履歴配送向けに現行 Configlue モデル ID へ版を対応づけられます。`$schema` はメタデータとして剥がします。空・空白のみの YAML は空の疎フラグメントとして読みます。BOM つき YAML にはソース符号化をコーデックに渡し、入れ子セクション読みでは `YamlSectionResource` の `textEncoding` にも渡します。既定は厳密 UTF-8 のままです。
+Configuration.Writable の JSON/YAML ファイルを取り込むには、シンプルなドキュメントレイアウト (`DocumentLayout.Simple`、既定) で読みます。コーデックはインライン `$version` (と `Version` フォールバック) を認識し、版のないスキーマ注釈つきオブジェクト/マッピングを版 1 とみなし、履歴配送向けに現行 Configlue モデル ID へ版を対応づけられます。`$schema` はメタデータとして剥がします。空・空白のみの YAML は空の疎フラグメントとして読みます。BOM つき YAML の符号化は自動判定します。明示的な非 UTF-8 符号化で入れ子セクションを読む場合は、`YamlSectionResource` とコーデックの両方に `textEncoding` を渡します。まず `JsonSectionResource`・`YamlSectionResource` で入れ子セクションを選び、`SerializedStateReader<TFragment>` とライターなし `StateSource<TFragment>` で包みます。
 
 ```csharp
 var oldFile = new FileResource("./old-settings.json");
@@ -22,8 +20,11 @@ var oldSection = new JsonSectionResource(
     watcher: null);
 var oldReader = new SerializedStateReader<AppSettings.Fragment>(
     oldSection,
-    new ConfigurationWritableJsonStateCodec<AppSettings.Fragment>(
-        modelId: AppSettings.ConfiglueSchema.ModelId));
+    new JsonStateCodec<AppSettings.Fragment>(
+        documentLayout: new DocumentLayoutOptions
+        {
+            ModelId = AppSettings.ConfiglueSchema.ModelId,
+        }));
 var oldSource = new StateSource<AppSettings.Fragment>("legacy", oldReader);
 var currentSource = CreateCurrentSettingsSource(); // 通常 Configlue コーデックの書き込み可能ソース
 

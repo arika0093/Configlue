@@ -34,6 +34,9 @@ public sealed class YamlFileSourceOptions
     /// <summary>Optional SharpYaml serializer metadata and behavior.</summary>
     public YamlSerializerOptions? SerializerOptions { get; init; }
 
+    /// <summary>The persisted document structure. Reads accept both layouts; writes use the selected one.</summary>
+    public DocumentLayoutOptions? DocumentLayout { get; init; }
+
     /// <summary>Optional absolute or relative directory URI used for the YAML language-server schema directive.</summary>
     public string? SchemaReferenceBaseUri { get; init; }
 
@@ -111,7 +114,8 @@ public static class YamlFileSourceRegistration
             var codec = new YamlStateCodec(
                 options.PropertyNamingPolicy,
                 modelSchema,
-                options.SerializerOptions
+                options.SerializerOptions,
+                options.DocumentLayout
             );
             var stateReader = new SerializedStateReader<TFragment>(resource, codec);
             var stateWriter = sourceWriter is null

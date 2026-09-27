@@ -278,7 +278,8 @@ public sealed class GeneratedFragmentTests
         var decodedFragment = decoded!;
         var schema = codec.ReadSchemaMetadata(in sequence);
 
-        (encoded).ShouldContain("\"$configlue\"");
+        (encoded).ShouldContain("\"$version\":2");
+        (encoded).ShouldNotContain("$configlue");
         (encoded).ShouldContain("\"Label\":null");
         (encoded).ShouldNotContain("RetryCount");
         (decodedFragment.Enabled.IsPresent).ShouldBeTrue();
@@ -286,7 +287,24 @@ public sealed class GeneratedFragmentTests
         (decodedFragment.Label.IsPresent).ShouldBeTrue();
         (decodedFragment.Label.Value).ShouldBeNull();
         (decodedFragment.RetryCount.IsPresent).ShouldBeFalse();
-        (schema).ShouldBe(new StateSchemaMetadata("app-settings", 2));
+        (schema).ShouldBe(new StateSchemaMetadata(null, 2));
+
+        var detailed = new JsonStateCodec<AppSettings.Fragment>(
+            documentLayout: new DocumentLayoutOptions { Layout = DocumentLayout.Detailed }
+        );
+        var detailedBuffer = new System.Buffers.ArrayBufferWriter<byte>();
+        detailed.Serialize(fragment, detailedBuffer, in context);
+        var detailedEncoded = Encoding.UTF8.GetString(detailedBuffer.WrittenSpan);
+        var detailedSequence = new ReadOnlySequence<byte>(detailedBuffer.WrittenMemory);
+
+        (detailedEncoded).ShouldContain("\"$configlue\"");
+        (detailedEncoded).ShouldContain("\"$value\"");
+        (detailed.ReadSchemaMetadata(in detailedSequence)).ShouldBe(
+            new StateSchemaMetadata("app-settings", 2)
+        );
+        // Reads accept both layouts regardless of the configured write layout.
+        (detailed.Deserialize(in sequence, default)!.Enabled.Value).ShouldBeFalse();
+        (codec.Deserialize(in detailedSequence, default)!.Enabled.Value).ShouldBeFalse();
     }
 
     [Test]
@@ -554,7 +572,8 @@ public sealed class GeneratedFragmentTests
         );
         var sequence = new ReadOnlySequence<byte>(buffer.WrittenMemory);
 
-        (codec.ReadSchemaMetadata(in sequence)).ShouldBe(AppSettings.ConfiglueSchema.ToMetadata());
+        // The simple layout stores the version without a model ID.
+        (codec.ReadSchemaMetadata(in sequence)).ShouldBe(new StateSchemaMetadata(null, 2));
     }
 
     [Test]
@@ -643,9 +662,7 @@ public sealed class GeneratedFragmentTests
         ((decoded.Plugins.Value!))
             .OrderBy(static item => item)
             .ShouldBe((new[] { "admin" }).OrderBy(static item => item));
-        (codec.ReadSchemaMetadata(in sequence)).ShouldBe(
-            new StateSchemaMetadata("app-settings", 2)
-        );
+        (codec.ReadSchemaMetadata(in sequence)).ShouldBe(new StateSchemaMetadata(null, 2));
     }
 
     [Test]
@@ -687,9 +704,8 @@ public sealed class GeneratedFragmentTests
             .OrderBy(static item => item)
             .ShouldBe((new[] { "admin", "metrics" }).OrderBy(static item => item));
         (xml.ReadSchemaMetadata(in xmlSequence)).ShouldBe(AppSettings.ConfiglueSchema.ToMetadata());
-        (yaml.ReadSchemaMetadata(in yamlSequence)).ShouldBe(
-            AppSettings.ConfiglueSchema.ToMetadata()
-        );
+        // The simple YAML layout stores the version without a model ID.
+        (yaml.ReadSchemaMetadata(in yamlSequence)).ShouldBe(new StateSchemaMetadata(null, 2));
     }
 
     private static async Task<(

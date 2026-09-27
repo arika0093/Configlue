@@ -52,13 +52,10 @@ public sealed class JsonSectionResourceTests
             var root = document.RootElement;
 
             (before.Value!.RetryCount).ShouldBe(4);
-            (
-                root.GetProperty("App")
-                    .GetProperty("Settings")
-                    .GetProperty("$value")
-                    .GetProperty("RetryCount")
-                    .GetInt32()
-            ).ShouldBe(9);
+            var settings = root.GetProperty("App").GetProperty("Settings");
+            // The default simple layout stores the version inline.
+            (settings.GetProperty("$version").GetInt32()).ShouldBe(2);
+            (settings.GetProperty("RetryCount").GetInt32()).ShouldBe(9);
             (
                 root.GetProperty("App").GetProperty("Other").GetProperty("Value").GetString()
             ).ShouldBe("keep-nested");

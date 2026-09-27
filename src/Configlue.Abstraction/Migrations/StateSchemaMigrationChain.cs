@@ -55,6 +55,7 @@ public sealed class StateSchemaMigrationChain<T>
     public StateSchemaMetadata TargetSchema { get; }
 
     /// <summary>Migrates a value from <paramref name="sourceSchema"/> to the configured target schema.</summary>
+    /// <remarks>Documents without a model ID, such as simple-layout payloads, are attributed to the target model and dispatched by version.</remarks>
     public async ValueTask<T> MigrateAsync(
         T value,
         StateSchemaMetadata sourceSchema,
@@ -64,6 +65,11 @@ public sealed class StateSchemaMigrationChain<T>
         if (sourceSchema.Version < StateSchemaMetadata.InitialVersion)
         {
             throw new ArgumentOutOfRangeException(nameof(sourceSchema));
+        }
+
+        if (sourceSchema.ModelId is null)
+        {
+            sourceSchema = sourceSchema with { ModelId = TargetSchema.ModelId };
         }
 
         if (sourceSchema == TargetSchema)
