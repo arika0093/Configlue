@@ -27,6 +27,8 @@ await profiles.RemoveProfileAsync("work");
 
 プロファイル facade は active profile の読み取りと保存を直接行えます。保存 overload は値全体・同期 update・非同期 update を受け取ります。`CurrentValue` は source の読み込み中にブロックするため、非同期処理では `GetActiveValueAsync` を使ってください。プロファイルカタログソースは書き込み可能である必要があり、呼び出し側所有のままです。カタログは通常の書き込み可能 `StateSource<ConfiglueProfileCatalog>` で保存されるため、プロバイダーは独立に選べます。`IConfiglueProfiledOptions<TModel>` は最初の非同期操作で既定プロファイルを遅延復元/作成し、`CreateProfileAsync` で複写でき、有効プロファイル変更を永続化します。プロファイル削除はカタログとランタイムから除去しますが、裏の状態は残ります。
 
+`OnChange` は active profile を追跡し、値の変更とプロファイル切替後の新しい値を通知します。カタログ source が watcher を提供する場合は、外部からのカタログ変更も監視します。subscription を破棄するとその callback が止まります。manager の catalog watcher は所有 context の破棄時に停止します。直接生成した profile manager は呼び出し側で破棄してください。
+
 DI では同じ `EnableProfiles`・`SourcesForOptions` 呼び出しを `services.AddConfiglue(...)` の中で行い、プロバイダーから `IConfiglueProfiledOptions<AppSettings>` を解決します。プロバイダー構築後に追加されたプロファイル名はキー付きサービスではなく `IOptionsMonitor` と `IConfiglueOptionsRegistry` で解決されます。非 DI の1引数入口は上記の `context.GetProfiledOptions<AppSettings>()` です。
 
 ```csharp

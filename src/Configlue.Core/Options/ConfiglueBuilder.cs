@@ -737,6 +737,7 @@ public sealed class ConfiglueContext : IDisposable, IAsyncDisposable
                             .ToArray()
                     );
                     profileManagers.Add(registration.ModelType, manager);
+                    runtimes.Insert(0, manager);
                 }
             }
 
