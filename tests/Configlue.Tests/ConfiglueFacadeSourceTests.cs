@@ -19,6 +19,52 @@ namespace Configlue.Tests;
 public sealed class ConfiglueFacadeSourceTests
 {
     [Test]
+    public async Task FluentJsonFileRegistrationMountsAndWritesANestedModel()
+    {
+        using var directory = new TemporaryDirectory();
+        var rootPath = Path.Combine(directory.FullPath, "settings.json");
+        var databasePath = Path.Combine(directory.FullPath, "database.json");
+        await File.WriteAllTextAsync(rootPath, "{\"RetryCount\":3}");
+        await File.WriteAllTextAsync(databasePath, "{\"Host\":\"db.example.test\",\"Port\":7443}");
+
+        await using var context = Configlue.CreateContext(builder =>
+        {
+            builder.Add<AppSettings>(model =>
+                model.Sources(sources =>
+                {
+                    sources.JsonFile(rootPath).ReadOnly().WatchChanges(false);
+                    sources
+                        .JsonFile(databasePath)
+                        .Mount(settings => settings.Database)
+                        .Priority(100)
+                        .WatchChanges(false);
+                })
+            );
+        });
+
+        var options = (IConfiglueOptions<AppSettings>)context.GetOptions<AppSettings>();
+        var current = await options.GetValueAsync();
+        (current.RetryCount).ShouldBe(3);
+        (current.Database!.Host).ShouldBe("db.example.test");
+        (current.Database.Port).ShouldBe(7443);
+
+        await options.SaveAsync(settings => settings.Database!.Host = "updated.example.test");
+
+        var written = JsonNode.Parse(await File.ReadAllTextAsync(databasePath))!;
+        (written["Host"]!.GetValue<string>()).ShouldBe("updated.example.test");
+        (written["Port"]!.GetValue<int>()).ShouldBe(7443);
+
+        var explicitPatch = new AppSettings.Patch();
+        explicitPatch.Database.Host = "selected.example.test";
+        await options
+            .Source(JsonFileSource.At(databasePath, mountPath: "Database"))
+            .SaveAsync(explicitPatch);
+        (
+            JsonNode.Parse(await File.ReadAllTextAsync(databasePath))!["Host"]!.GetValue<string>()
+        ).ShouldBe("selected.example.test");
+    }
+
+    [Test]
     public async Task JsonFileSelectorResolvesThePathDerivedSourceIdentity()
     {
         using var directory = new TemporaryDirectory();

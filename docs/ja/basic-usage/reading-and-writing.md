@@ -100,7 +100,7 @@ using Configlue.Provider.Json;
 await options.Source(JsonFileSource.At("./settings.json")).SaveAsync(patch);
 ```
 
-このパス由来 selector は `JsonFileSourceOptions.Id` を指定せずに登録したソースに対応します。明示 ID を指定した場合は、対応する `SourceKey<TModel>` で選択します。
+このパス由来 selector は `JsonFileSourceOptions.Id` を指定せずに登録したソースに対応します。mount したソースでは `mountPath` にモデルパスを渡します (例: `JsonFileSource.At("./secrets.json", mountPath: "Secrets")`)。明示 ID を指定した場合は、対応する `SourceKey<TModel>` で選択します。
 
 ## 次のステップ
 

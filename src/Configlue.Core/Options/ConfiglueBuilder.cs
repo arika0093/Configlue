@@ -77,11 +77,11 @@ public sealed class ConfiglueBuilder
 public sealed class ConfiglueModelBuilder<TModel>
     where TModel : IConfiglueFacadeModel<TModel>
 {
-    private readonly ConfiglueSourceSetBuilder _sources = new();
+    private readonly ConfiglueSourceSetBuilder<TModel> _sources = new();
     private readonly List<IConfiglueValidator<TModel>> _validators = [];
     private readonly List<object> _migrations = [];
     private readonly List<
-        Action<string, IServiceProvider?, ConfiglueSourceSetBuilder>
+        Action<string, IServiceProvider?, ConfiglueSourceSetBuilder<TModel>>
     > _sourceConfigurations = [];
     private string _optionsName = string.Empty;
     private StateSource<ConfiglueProfileCatalog>? _profileCatalogSource;
@@ -225,9 +225,27 @@ public sealed class ConfiglueModelBuilder<TModel>
         configure(_sources);
     }
 
+    /// <summary>Adds sources shared by non-DI and DI contexts with model-typed provider helpers.</summary>
+    public void Sources(Action<ConfiglueSourceSetBuilder<TModel>> configure)
+    {
+        EnsureMutable();
+        ArgumentNullException.ThrowIfNull(configure);
+        configure(_sources);
+    }
+
     /// <summary>Adds sources using the service provider available when this model's runtime is created.</summary>
-    /// <remarks>The callback is recorded during model registration and invoked only after registrations have been added to the service collection. The provider is null in non-DI contexts.</remarks>
     public void Sources(Action<IServiceProvider?, ConfiglueSourceSetBuilder> configure)
+    {
+        EnsureMutable();
+        ArgumentNullException.ThrowIfNull(configure);
+        _sourceConfigurations.Add(
+            (_, serviceProvider, sources) => configure(serviceProvider, sources)
+        );
+    }
+
+    /// <summary>Adds sources using DI with model-typed provider helpers.</summary>
+    /// <remarks>The callback is recorded during model registration and invoked only after registrations have been added to the service collection. The provider is null in non-DI contexts.</remarks>
+    public void Sources(Action<IServiceProvider?, ConfiglueSourceSetBuilder<TModel>> configure)
     {
         EnsureMutable();
         ArgumentNullException.ThrowIfNull(configure);
@@ -244,9 +262,30 @@ public sealed class ConfiglueModelBuilder<TModel>
         _sourceConfigurations.Add((optionsName, _, sources) => configure(optionsName, sources));
     }
 
+    /// <summary>Adds sources with the named options instance and model-typed provider helpers.</summary>
+    public void SourcesForOptions(Action<string, ConfiglueSourceSetBuilder<TModel>> configure)
+    {
+        EnsureMutable();
+        ArgumentNullException.ThrowIfNull(configure);
+        _sourceConfigurations.Add((optionsName, _, sources) => configure(optionsName, sources));
+    }
+
     /// <summary>Adds sources using the service provider and named options instance available at runtime creation.</summary>
     public void SourcesForOptions(
         Action<string, IServiceProvider?, ConfiglueSourceSetBuilder> configure
+    )
+    {
+        EnsureMutable();
+        ArgumentNullException.ThrowIfNull(configure);
+        _sourceConfigurations.Add(
+            (optionsName, serviceProvider, sources) =>
+                configure(optionsName, serviceProvider, sources)
+        );
+    }
+
+    /// <summary>Adds sources using DI and the named options instance with model-typed provider helpers.</summary>
+    public void SourcesForOptions(
+        Action<string, IServiceProvider?, ConfiglueSourceSetBuilder<TModel>> configure
     )
     {
         EnsureMutable();
@@ -318,7 +357,7 @@ public sealed class ConfiglueModelBuilder<TModel>
         {
             return _sources.Build<TFragment>(modelSchema, serviceProvider, ownResource);
         }
-        var sources = new ConfiglueSourceSetBuilder();
+        var sources = new ConfiglueSourceSetBuilder<TModel>();
         sources.CopyFrom(_sources);
         foreach (var configure in _sourceConfigurations)
         {
@@ -425,461 +464,6 @@ public sealed class ConfiglueModelBuilder<TModel>
 }
 
 /// <summary>Collects typed state sources without requiring a Fragment type argument on the model API.</summary>
-public sealed class ConfiglueSourceSetBuilder
-{
-    private readonly List<IConfiglueSourceRegistration> _sources = [];
-    private bool _sealed;
-
-    /// <summary>Adds an already-created source. Its resource instances remain caller-owned.</summary>
-    public void Add<TFragment>(StateSource<TFragment> source)
-        where TFragment : class, IConfiglueFragment<TFragment>
-    {
-        EnsureMutable();
-        ArgumentNullException.ThrowIfNull(source);
-        _sources.Add(new ConfiglueSourceRegistration<TFragment>(_ => source));
-    }
-
-    /// <summary>Adds a source under a typed key, preserving its reader, writer, watcher, and resource identity.</summary>
-    public void Add<TModel, TFragment>(SourceKey<TModel> sourceKey, StateSource<TFragment> source)
-        where TFragment : class, IConfiglueFragment<TFragment>
-    {
-        ArgumentNullException.ThrowIfNull(source);
-        Add(sourceKey, _ => source);
-    }
-
-    /// <summary>Adds a provider-aware source factory under a typed key.</summary>
-    public void Add<TModel, TFragment>(
-        SourceKey<TModel> sourceKey,
-        Func<IServiceProvider?, StateSource<TFragment>> sourceFactory
-    )
-        where TFragment : class, IConfiglueFragment<TFragment>
-    {
-        EnsureMutable();
-        ArgumentNullException.ThrowIfNull(sourceFactory);
-        if (string.IsNullOrWhiteSpace(sourceKey.Id))
-        {
-            throw new ArgumentException("The source key is uninitialized.", nameof(sourceKey));
-        }
-
-        _sources.Add(
-            new ConfiglueSourceRegistration<TFragment>(provider =>
-            {
-                var source =
-                    sourceFactory(provider)
-                    ?? throw new InvalidOperationException("A source factory returned null.");
-                return new StateSource<TFragment>(
-                    sourceKey.Id,
-                    source.Reader,
-                    source.Priority,
-                    source.FallbackCondition,
-                    source.Writer,
-                    source.Watcher,
-                    source.PhysicalOrigin,
-                    source.ResourceId
-                );
-            })
-        );
-    }
-
-    /// <summary>Adds a source factory. The service provider is null in a non-DI context.</summary>
-    public void Add<TFragment>(Func<IServiceProvider?, StateSource<TFragment>> sourceFactory)
-        where TFragment : class, IConfiglueFragment<TFragment>
-    {
-        EnsureMutable();
-        ArgumentNullException.ThrowIfNull(sourceFactory);
-        _sources.Add(new ConfiglueSourceRegistration<TFragment>(sourceFactory));
-    }
-
-    /// <summary>Adds a provider-defined source using the generated model's fragment type.</summary>
-    public void Add(IConfiglueSourceDefinition definition)
-    {
-        EnsureMutable();
-        ArgumentNullException.ThrowIfNull(definition);
-        _sources.Add(new ConfiglueSourceDefinitionRegistration(definition));
-    }
-
-    internal StateSourceSet<TFragment> Build<TFragment>(IServiceProvider? serviceProvider)
-        where TFragment : class, IConfiglueFragment<TFragment> =>
-        Build<TFragment>(default!, serviceProvider, static _ => { });
-
-    internal StateSourceSet<TFragment> Build<TFragment>(
-        ConfiglueModelSchema? modelSchema,
-        IServiceProvider? serviceProvider,
-        Action<IDisposable> ownResource
-    )
-        where TFragment : class, IConfiglueFragment<TFragment>
-    {
-        if (modelSchema is null && _sources.Any(static source => source.RequiresGeneratedModel))
-        {
-            throw new InvalidOperationException(
-                "Provider source definitions require the generated facade to supply model metadata and resource ownership."
-            );
-        }
-
-        var sources = new List<StateSource<TFragment>>(_sources.Count);
-        foreach (var registration in _sources)
-        {
-            sources.Add(registration.Create<TFragment>(modelSchema, serviceProvider, ownResource));
-        }
-
-        return new StateSourceSet<TFragment>(sources);
-    }
-
-    internal void CopyFrom(ConfiglueSourceSetBuilder source)
-    {
-        if (_sealed)
-            throw new InvalidOperationException("The source registration has already been added.");
-        _sources.AddRange(source._sources);
-    }
-
-    internal void Seal() => _sealed = true;
-
-    private void EnsureMutable()
-    {
-        if (_sealed)
-        {
-            throw new InvalidOperationException("The source registration has already been added.");
-        }
-    }
-
-    private interface IConfiglueSourceRegistration
-    {
-        bool RequiresGeneratedModel { get; }
-
-        StateSource<TFragment> Create<TFragment>(
-            ConfiglueModelSchema? modelSchema,
-            IServiceProvider? serviceProvider,
-            Action<IDisposable> ownResource
-        )
-            where TFragment : class, IConfiglueFragment<TFragment>;
-    }
-
-    private sealed class ConfiglueSourceRegistration<TFragment>(
-        Func<IServiceProvider?, StateSource<TFragment>> sourceFactory
-    ) : IConfiglueSourceRegistration
-        where TFragment : class, IConfiglueFragment<TFragment>
-    {
-        public bool RequiresGeneratedModel => false;
-
-        public StateSource<TRequestedFragment> Create<TRequestedFragment>(
-            ConfiglueModelSchema? modelSchema,
-            IServiceProvider? serviceProvider,
-            Action<IDisposable> ownResource
-        )
-            where TRequestedFragment : class, IConfiglueFragment<TRequestedFragment>
-        {
-            if (typeof(TFragment) != typeof(TRequestedFragment))
-            {
-                throw new InvalidOperationException(
-                    $"A source for model fragment '{typeof(TFragment)}' cannot be used with '{typeof(TRequestedFragment)}'."
-                );
-            }
-
-            return (StateSource<TRequestedFragment>)
-                (object)(
-                    sourceFactory(serviceProvider)
-                    ?? throw new InvalidOperationException("A source factory returned null.")
-                );
-        }
-    }
-
-    private sealed class ConfiglueSourceDefinitionRegistration(
-        IConfiglueSourceDefinition definition
-    ) : IConfiglueSourceRegistration
-    {
-        public bool RequiresGeneratedModel => true;
-
-        public StateSource<TFragment> Create<TFragment>(
-            ConfiglueModelSchema? modelSchema,
-            IServiceProvider? serviceProvider,
-            Action<IDisposable> ownResource
-        )
-            where TFragment : class, IConfiglueFragment<TFragment> =>
-            definition.Create<TFragment>(
-                modelSchema
-                    ?? throw new InvalidOperationException(
-                        "Provider source definitions require generated model metadata."
-                    ),
-                serviceProvider,
-                ownResource
-            ) ?? throw new InvalidOperationException("A source definition returned null.");
-    }
-}
-
-/// <summary>An isolated, disposable set of registered configuration options.</summary>
-public sealed class ConfiglueContext : IDisposable, IAsyncDisposable
-{
-    private readonly Dictionary<(Type ModelType, string Name), object> _options;
-    private readonly Dictionary<Type, object> _registries;
-    private readonly Dictionary<Type, object> _profileManagers;
-    private readonly object[] _runtimes;
-    private readonly IDisposable[] _ownedResources;
-    private readonly object _disposeGate = new();
-    private Task? _disposeTask;
-    private int _disposed;
-
-    internal IReadOnlyList<IDisposable> OwnedResourcesForTests => _ownedResources;
-
-    private ConfiglueContext(
-        Dictionary<(Type ModelType, string Name), object> options,
-        Dictionary<Type, object> registries,
-        Dictionary<Type, object> profileManagers,
-        object[] runtimes,
-        IDisposable[] ownedResources
-    )
-    {
-        _options = options;
-        _registries = registries;
-        _profileManagers = profileManagers;
-        _runtimes = runtimes;
-        _ownedResources = ownedResources;
-    }
-
-    /// <summary>Gets the writable options for a model and optional named instance.</summary>
-    public IWritableOptions<TModel> GetOptions<TModel>(string? optionsName = null)
-    {
-        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
-        var key = (typeof(TModel), optionsName ?? string.Empty);
-        if (_options.TryGetValue(key, out var options))
-        {
-            return (IWritableOptions<TModel>)options;
-        }
-        if (
-            _registries.TryGetValue(typeof(TModel), out var registry)
-            && ((IConfiglueOptionsRegistry<TModel>)registry).TryGet(
-                key.Item2,
-                out var dynamicOptions
-            )
-            && dynamicOptions is not null
-        )
-        {
-            return dynamicOptions;
-        }
-        throw new KeyNotFoundException(
-            $"Model '{typeof(TModel)}' with options name '{key.Item2}' is not registered."
-        );
-    }
-
-    /// <summary>Gets the advanced options surface for source administration and edit sessions.</summary>
-    public IConfiglueOptions<TModel> GetAdvancedOptions<TModel>(string? optionsName = null) =>
-        (IConfiglueOptions<TModel>)GetOptions<TModel>(optionsName);
-
-    /// <summary>Gets the runtime registry for dynamic named options.</summary>
-    public IConfiglueOptionsRegistry<TModel> GetOptionsRegistry<TModel>()
-    {
-        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
-        return _registries.TryGetValue(typeof(TModel), out var registry)
-            ? (IConfiglueOptionsRegistry<TModel>)registry
-            : throw new InvalidOperationException(
-                $"Dynamic named options are not enabled for model '{typeof(TModel)}'."
-            );
-    }
-
-    /// <summary>Gets the persisted profile manager for a configured model.</summary>
-    public IConfiglueProfiledOptions<TModel> GetProfiledOptions<TModel>()
-    {
-        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
-        return _profileManagers.TryGetValue(typeof(TModel), out var manager)
-            ? (IConfiglueProfiledOptions<TModel>)manager
-            : throw new InvalidOperationException(
-                $"Persisted profiles are not enabled for model '{typeof(TModel)}'."
-            );
-    }
-
-    /// <summary>Disposes the options and watchers owned by this context.</summary>
-    public void Dispose() => DisposeAsync().AsTask().GetAwaiter().GetResult();
-
-    /// <summary>Asynchronously disposes the options and watchers owned by this context.</summary>
-    public ValueTask DisposeAsync()
-    {
-        TaskCompletionSource completion;
-        lock (_disposeGate)
-        {
-            if (_disposeTask is not null)
-            {
-                return new ValueTask(_disposeTask);
-            }
-
-            Volatile.Write(ref _disposed, 1);
-            completion = new TaskCompletionSource(
-                TaskCreationOptions.RunContinuationsAsynchronously
-            );
-            _disposeTask = completion.Task;
-        }
-
-        _ = FinishDisposeAsync(completion);
-        return new ValueTask(completion.Task);
-    }
-
-    private async Task FinishDisposeAsync(TaskCompletionSource completion)
-    {
-        var errors = new List<Exception>();
-        foreach (var runtime in _runtimes)
-        {
-            try
-            {
-                if (runtime is IAsyncDisposable asyncDisposable)
-                {
-                    await asyncDisposable.DisposeAsync().ConfigureAwait(false);
-                }
-                else if (runtime is IDisposable disposable)
-                {
-                    disposable.Dispose();
-                }
-            }
-            catch (Exception exception)
-            {
-                errors.Add(exception);
-            }
-        }
-
-        foreach (var resource in _ownedResources)
-        {
-            try
-            {
-                resource.Dispose();
-            }
-            catch (Exception exception)
-            {
-                errors.Add(exception);
-            }
-        }
-
-        if (errors.Count > 0)
-        {
-            completion.TrySetException(
-                new AggregateException("One or more Configlue resources failed to dispose.", errors)
-            );
-            return;
-        }
-
-        completion.TrySetResult();
-    }
-
-    internal static ConfiglueContext Create(
-        IReadOnlyList<IConfiglueModelRegistration> registrations,
-        IServiceProvider? serviceProvider
-    )
-    {
-        var options = new Dictionary<(Type ModelType, string Name), object>();
-        var registries = new Dictionary<Type, object>();
-        var profileManagers = new Dictionary<Type, object>();
-        var runtimes = new List<object>(registrations.Count);
-        var ownedResources = new List<IDisposable>();
-        var ownedResourceSet = new HashSet<IDisposable>(ReferenceEqualityComparer.Instance);
-
-        void OwnResource(IDisposable resource)
-        {
-            ArgumentNullException.ThrowIfNull(resource);
-            if (ownedResourceSet.Add(resource))
-            {
-                ownedResources.Add(resource);
-            }
-        }
-
-        try
-        {
-            foreach (var registration in registrations)
-            {
-                var runtime = registration.CreateRuntime(serviceProvider, OwnResource);
-                runtimes.Add(runtime);
-                if (runtime is not IDisposable || runtime is not IAsyncDisposable)
-                {
-                    throw new InvalidOperationException(
-                        $"The generated runtime for model '{registration.ModelType}' must support disposal."
-                    );
-                }
-
-                options.Add((registration.ModelType, registration.OptionsName), runtime);
-            }
-
-            foreach (var registration in registrations)
-            {
-                if (!registration.EnableDynamicOptions)
-                    continue;
-                if (registries.ContainsKey(registration.ModelType))
-                {
-                    throw new InvalidOperationException(
-                        $"Only one dynamic-options registration is allowed for model '{registration.ModelType}'."
-                    );
-                }
-                var registry = registration.CreateOptionsRegistry(
-                    serviceProvider,
-                    registrations
-                        .Where(candidate => candidate.ModelType == registration.ModelType)
-                        .Select(candidate => candidate.OptionsName)
-                        .ToArray()
-                );
-                registries.Add(registration.ModelType, registry);
-                runtimes.Add(registry);
-                if (registration.EnableProfiles)
-                {
-                    var manager = registration.CreateProfileManager(
-                        registry,
-                        registrations
-                            .Where(candidate => candidate.ModelType == registration.ModelType)
-                            .Select(candidate => candidate.OptionsName)
-                            .ToArray()
-                    );
-                    profileManagers.Add(registration.ModelType, manager);
-                    runtimes.Insert(0, manager);
-                }
-            }
-
-            return new ConfiglueContext(
-                options,
-                registries,
-                profileManagers,
-                runtimes.ToArray(),
-                ownedResources.ToArray()
-            );
-        }
-        catch (Exception creationException)
-        {
-            var errors = new List<Exception>();
-            foreach (var runtime in runtimes)
-            {
-                try
-                {
-                    if (runtime is IAsyncDisposable asyncDisposable)
-                    {
-                        asyncDisposable.DisposeAsync().AsTask().GetAwaiter().GetResult();
-                    }
-                    else if (runtime is IDisposable disposable)
-                    {
-                        disposable.Dispose();
-                    }
-                }
-                catch (Exception exception)
-                {
-                    errors.Add(exception);
-                }
-            }
-
-            foreach (var resource in ownedResources)
-            {
-                try
-                {
-                    resource.Dispose();
-                }
-                catch (Exception exception)
-                {
-                    errors.Add(exception);
-                }
-            }
-
-            if (errors.Count > 0)
-            {
-                errors.Insert(0, creationException);
-                throw new AggregateException("Context creation and cleanup both failed.", errors);
-            }
-
-            throw;
-        }
-    }
-}
-
-/// <summary>Provides process-wide convenience access to one default Configlue context.</summary>
 public static class Configlue
 {
     private static readonly object Gate = new();
