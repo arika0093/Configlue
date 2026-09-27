@@ -106,6 +106,6 @@ dotnet run --project example/Example.MultiSource
 
 `CONFIGLUE_POLICY_URL` にルートを設定するとリモート層が有効になります。
 
-保存の考え方は STEP 5 と同じです。HTTP 層が握っている項目をファイル側から変えようとすると競合になります。`ExplainAsync("Policy.AuditLogRequired")` で出どころを確かめてください。
+保存の考え方は STEP 5 と同じです。HTTP 層が握っている項目をファイル側から変えようとすると競合になります。`(await options.GetDetailsAsync()).Policy.AuditLogRequired` で出どころを確かめてください。
 
 次: [STEP 7: JSON Schema を出力する](./07-json-schema.md)。エディター補完と CI の検査に使います。

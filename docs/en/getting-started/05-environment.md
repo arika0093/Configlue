@@ -74,7 +74,7 @@ Pick one of these:
 - Save only fields the environment does not override.
 - For permanent overrides, treat the environment as truth and stop keeping that field in files.
 
-`ExplainAsync("Server.Port")` shows which layer holds the value. Checking before saving makes conflict reasons obvious.
+`(await options.GetDetailsAsync()).Server.Port` shows which layer holds the value. Checking before saving makes conflict reasons obvious.
 
 ## Swappable for tests
 

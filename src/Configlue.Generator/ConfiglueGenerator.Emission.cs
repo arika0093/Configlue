@@ -59,11 +59,13 @@ public sealed partial class ConfiglueGenerator
         AppendPocoCloneHelpers(code, pocoCloneTypes);
         AppendCollectionCloneHelpers(code);
         AppendFragment(code, modelType, members, previousModels, !pocoCloneTypes.IsEmpty);
+        AppendDetailsTree(code, modelType, members);
         AppendModelFragmentBridge(code, modelType);
         AppendFacadeRuntimeBridge(code, modelType);
         AppendHistoricalDispatcherFactory(code, modelType, previousModels);
         code.AppendLine("}");
         AppendTypedPatchExtensions(code, modelType, name);
+        AppendDetailsExtensions(code, modelType, name);
         return code.ToString();
     }
 

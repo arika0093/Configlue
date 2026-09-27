@@ -106,6 +106,6 @@ dotnet run --project example/Example.MultiSource
 
 Set `CONFIGLUE_POLICY_URL` to enable the remote layer.
 
-Saving follows STEP 5's logic: editing a field the HTTP layer holds from the file side causes a conflict. Check origins with `ExplainAsync("Policy.AuditLogRequired")`.
+Saving follows STEP 5's logic: editing a field the HTTP layer holds from the file side causes a conflict. Check origins with `(await options.GetDetailsAsync()).Policy.AuditLogRequired`.
 
 Next: [STEP 7: Export JSON Schema](./07-json-schema.md). Feed editor completion and CI checks.

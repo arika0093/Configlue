@@ -101,7 +101,7 @@ public sealed class CommonSourceFormatTests
 
             (value.RetryCount).ShouldBe(1);
             (value.Label).ShouldBe("yaml-local");
-            (await options.ExplainAsync("Label")).HighestPrioritySourceId.ShouldBe("common.local");
+            ((await options.GetDetailsAsync()).Label.Source?.Key).ShouldBe("common.local");
         }
         finally
         {

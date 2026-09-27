@@ -116,13 +116,13 @@ await edit.CommitAsync();
 
 ## 値の出どころを確かめる
 
-項目が増えると「この値、どこから来た？」が気になります。`ExplainAsync` で辿れます。
+項目が増えると「この値、どこから来た？」が気になります。`GetDetailsAsync` で辿れます。
 
 ```csharp
-var explanation = await options.ExplainAsync("Database.Host");
-Console.WriteLine(explanation);
+var details = await options.GetDetailsAsync();
+Console.WriteLine(details.Database.Host);
 ```
 
-実効値と、優先度順の各ソースの寄与が並びます。今はソースがひとつなので答えは単純ですが、STEP 3 で分割すると威力を発揮します。
+実効値と、優先度順の各ソースの寄与が編集可否つきで並びます。今はソースがひとつなので答えは単純ですが、STEP 3 で分割すると威力を発揮します。
 
 次: [STEP 3: 共通とローカルに分ける](./03-global-local.md)。ファイルを分割し、優先度と書き込み先の考え方を掴みます。

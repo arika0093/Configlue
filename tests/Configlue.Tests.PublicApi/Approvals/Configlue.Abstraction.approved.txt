@@ -1,12 +1,92 @@
 [assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/arika0093/Configlue")]
 namespace Configlue
 {
-    public sealed class ConfiglueCollectionElementExplanation
+    [System.Diagnostics.DebuggerDisplay("Count = {Value.Count}")]
+    public sealed class ConfigCollectionDetails<T>
     {
-        public ConfiglueCollectionElementExplanation(int index, object? value, System.Collections.Generic.IEnumerable<Configlue.ConfiglueSourceContribution> contributions) { }
-        public System.Collections.Generic.IReadOnlyList<Configlue.ConfiglueSourceContribution> Contributions { get; }
+        public ConfigCollectionDetails(System.Collections.Generic.IReadOnlyList<T> value, Configlue.ConfiglueEditability editability, Configlue.ConfigSourceDetails? source, System.Collections.Generic.IReadOnlyList<Configlue.ConfigSourceValueDetails<System.Collections.Generic.IReadOnlyList<T>?>> sources, System.Collections.Generic.IReadOnlyList<Configlue.ConfigCollectionElementDetails<T>> elements) { }
+        public Configlue.ConfiglueEditability Editability { get; }
+        public System.Collections.Generic.IReadOnlyList<Configlue.ConfigCollectionElementDetails<T>> Elements { get; }
+        public bool IsEditable { get; }
+        public Configlue.ConfigSourceDetails? Source { get; }
+        public System.Collections.Generic.IReadOnlyList<Configlue.ConfigSourceValueDetails<System.Collections.Generic.IReadOnlyList<T>?>> Sources { get; }
+        public System.Collections.Generic.IReadOnlyList<T> Value { get; }
+        public override string ToString() { }
+    }
+    public readonly struct ConfigCollectionElementData : System.IEquatable<Configlue.ConfigCollectionElementData>
+    {
+        public ConfigCollectionElementData(int Index, object? Value, System.Collections.Generic.IReadOnlyList<int> SourceIndices) { }
+        public int Index { get; init; }
+        public System.Collections.Generic.IReadOnlyList<int> SourceIndices { get; init; }
+        public object? Value { get; init; }
+    }
+    [System.Diagnostics.DebuggerDisplay("{Value}")]
+    public sealed class ConfigCollectionElementDetails<T>
+    {
+        public ConfigCollectionElementDetails(int index, T? value, System.Collections.Generic.IReadOnlyList<Configlue.ConfigSourceValueDetails<T?>> contributions) { }
+        public System.Collections.Generic.IReadOnlyList<Configlue.ConfigSourceValueDetails<T?>> Contributions { get; }
         public int Index { get; }
+        public T Value { get; }
+        public override string ToString() { }
+    }
+    public sealed class ConfigSourceDetails
+    {
+        public ConfigSourceDetails(string key, string kind, string displayName, string? locator, bool canWrite, bool canWatch) { }
+        public bool CanWatch { get; }
+        public bool CanWrite { get; }
+        public string DisplayName { get; }
+        public string Key { get; }
+        public string Kind { get; }
+        public string? Locator { get; }
+        public override string ToString() { }
+    }
+    public sealed class ConfigSourceValueDetails<T>
+    {
+        public ConfigSourceValueDetails(Configlue.ConfigSourceDetails source, Configlue.ConfigSourceValueState state, T? value) { }
+        public bool IsPresent { get; }
+        public bool IsShadowed { get; init; }
+        public Configlue.ConfigSourceDetails Source { get; }
+        public Configlue.ConfigSourceValueState State { get; }
+        public T Value { get; }
+        public override string ToString() { }
+    }
+    public enum ConfigSourceValueState
+    {
+        Present = 0,
+        Missing = 1,
+        Unavailable = 2,
+        Invalid = 3,
+    }
+    [System.Diagnostics.DebuggerDisplay("{Value}")]
+    public sealed class ConfigValueDetails<T>
+    {
+        public ConfigValueDetails(T? value, Configlue.ConfiglueEditability editability, Configlue.ConfigSourceDetails? source, System.Collections.Generic.IReadOnlyList<Configlue.ConfigSourceValueDetails<T?>> sources) { }
+        public Configlue.ConfiglueEditability Editability { get; }
+        public bool IsEditable { get; }
+        public Configlue.ConfigSourceDetails? Source { get; }
+        public System.Collections.Generic.IReadOnlyList<Configlue.ConfigSourceValueDetails<T?>> Sources { get; }
+        public T Value { get; }
+        public override string ToString() { }
+        public static T? op_Implicit(Configlue.ConfigValueDetails<T> details) { }
+    }
+    public sealed class ConfiglueDetailsSnapshot
+    {
+        public System.Func<string, System.Collections.Generic.IReadOnlyList<Configlue.ConfigCollectionElementData>> CollectionElements { get; }
+        public System.Func<string, Configlue.ConfiglueEditability> Editability { get; }
+        public Configlue.StateRevisionVector? Revisions { get; }
+        public Configlue.ConfiglueModelSchema Schema { get; }
+        public System.Collections.Generic.IReadOnlyList<Configlue.IConfiglueFragment?> SourceFragments { get; }
+        public System.Collections.Generic.IReadOnlyList<Configlue.StateReadStatus> SourceStatuses { get; }
+        public System.Collections.Generic.IReadOnlyList<Configlue.ConfigSourceDetails> Sources { get; }
         public object? Value { get; }
+        public static bool TryGetPathValue(Configlue.IConfiglueFragment? fragment, string[] segments, out object? value) { }
+    }
+    public enum ConfiglueEditability
+    {
+        Editable = 0,
+        ReadOnly = 1,
+        Shadowed = 2,
+        NoWriteTarget = 3,
     }
     [System.AttributeUsage(System.AttributeTargets.Property, Inherited=false)]
     public sealed class ConfiglueEnvironmentAttribute : System.Attribute
@@ -123,14 +203,6 @@ namespace Configlue
         public string? ActiveProfileName { get; set; }
         public System.Collections.Generic.List<string> ProfileNames { get; set; }
     }
-    public readonly struct ConfiglueSourceContribution : System.IEquatable<Configlue.ConfiglueSourceContribution>
-    {
-        public ConfiglueSourceContribution(string SourceId, string? PhysicalOrigin, string? Revision, object? Value) { }
-        public string? PhysicalOrigin { get; init; }
-        public string? Revision { get; init; }
-        public string SourceId { get; init; }
-        public object? Value { get; init; }
-    }
     public sealed class ConfiglueSourceDiagnostics
     {
         public ConfiglueSourceDiagnostics(string id, int priority, Configlue.StateFallbackCondition fallbackCondition, bool canRead, bool canWrite, bool canWatch, bool isActive, string? physicalOrigin, Configlue.ResourceId? resourceId) { }
@@ -152,16 +224,6 @@ namespace Configlue
     public static class ConfiglueValueComparer
     {
         public static bool AreEqual<T>(T? left, T? right) { }
-    }
-    public sealed class ConfiglueValueExplanation
-    {
-        public ConfiglueValueExplanation(string propertyPath, object? effectiveValue, System.Collections.Generic.IEnumerable<Configlue.ConfiglueSourceContribution> contributions) { }
-        public ConfiglueValueExplanation(string propertyPath, object? effectiveValue, System.Collections.Generic.IEnumerable<Configlue.ConfiglueSourceContribution> contributions, System.Collections.Generic.IEnumerable<Configlue.ConfiglueCollectionElementExplanation> collectionElements) { }
-        public System.Collections.Generic.IReadOnlyList<Configlue.ConfiglueCollectionElementExplanation> CollectionElements { get; }
-        public System.Collections.Generic.IReadOnlyList<Configlue.ConfiglueSourceContribution> Contributions { get; }
-        public object? EffectiveValue { get; }
-        public string? HighestPrioritySourceId { get; }
-        public string PropertyPath { get; }
     }
     public enum DocumentLayout
     {
@@ -278,7 +340,7 @@ namespace Configlue
     {
         T CurrentValue { get; }
         System.Threading.Tasks.ValueTask<Configlue.StateMultiWriteResult> ApplyPatchesAsync(System.Collections.Generic.IEnumerable<Configlue.StateSourcePatch> patches, System.Threading.CancellationToken cancellationToken = default);
-        System.Threading.Tasks.ValueTask<Configlue.ConfiglueValueExplanation> ExplainAsync(string propertyPath, System.Threading.CancellationToken cancellationToken = default);
+        System.Threading.Tasks.ValueTask<Configlue.ConfiglueDetailsSnapshot> GetDetailsSnapshotAsync(System.Threading.CancellationToken cancellationToken = default);
         Configlue.ConfiglueOptionsDiagnostics GetDiagnostics();
         System.Threading.Tasks.ValueTask<Configlue.StateSourceMigrationResult> MigrateSourceAsync(string sourceId, string targetId, System.Threading.CancellationToken cancellationToken = default);
         System.Threading.Tasks.ValueTask<Configlue.StateStorageMigrationResult> MigrateSourcesToTargetsAsync(System.Collections.Generic.IEnumerable<string> sourceIds, System.Collections.Generic.IReadOnlyDictionary<string, System.Func<Configlue.IConfiglueFragment, Configlue.IConfiglueFragment>> targetProjections, System.Threading.CancellationToken cancellationToken = default, bool retireSources = false);

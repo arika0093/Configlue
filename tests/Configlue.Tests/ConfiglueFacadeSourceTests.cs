@@ -728,7 +728,7 @@ public sealed class ConfiglueFacadeSourceTests
             (value.RetryCount).ShouldBe(5);
             (value.Label).ShouldBe("local");
             (value.Enabled).ShouldBeFalse();
-            (await options.ExplainAsync("RetryCount")).HighestPrioritySourceId.ShouldBe(
+            ((await options.GetDetailsAsync()).RetryCount.Source?.Key).ShouldBe(
                 "common.commandLine"
             );
 

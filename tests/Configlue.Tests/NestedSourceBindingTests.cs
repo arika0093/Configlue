@@ -87,16 +87,17 @@ public sealed class NestedSourceBindingTests
 
         var options = (IConfiglueOptions<AppSettings>)context.GetOptions<AppSettings>();
         var value = await options.GetValueAsync();
-        var host = await options.ExplainAsync("Database.Host");
-        var port = await options.ExplainAsync("Database.Port");
+        var database = (await options.GetDetailsAsync()).Database!;
+        var host = database.Host;
+        var port = database.Port;
 
         (value.RetryCount).ShouldBe(3);
         (value.Database!.Host).ShouldBe("remote.db");
         (value.Database.Port).ShouldBe(5432);
-        (host.HighestPrioritySourceId).ShouldBe("remote-database");
-        (host.Contributions[0].PhysicalOrigin).ShouldBe("database-row");
-        (host.Contributions[0].Revision).ShouldBe("1");
-        (port.HighestPrioritySourceId).ShouldBe("defaults");
+        (host.Source?.Key).ShouldBe("remote-database");
+        (host.Sources.First(item => item.IsPresent).Source.Locator).ShouldBe("database-row");
+        (host.Sources.First(item => item.IsPresent).Value).ShouldBe("remote.db");
+        (port.Source?.Key).ShouldBe("defaults");
 
         var changed = new TaskCompletionSource<AppSettings>(
             TaskCreationOptions.RunContinuationsAsynchronously
@@ -461,12 +462,12 @@ public sealed class NestedSourceBindingTests
         var options =
             (IConfiglueOptions<RootWithNestedSettings>)context.GetOptions<RootWithNestedSettings>();
         var value = await options.GetValueAsync();
-        var count = await options.ExplainAsync("Settings.Inner.Count");
+        var count = (await options.GetDetailsAsync()).Settings!.Inner!.Count;
 
         (value.Settings!.Label).ShouldBe("base-label");
         (value.Settings.Inner!.Count).ShouldBe(9);
         (value.Settings.Inner.Note).ShouldBe("base-note");
-        (count.HighestPrioritySourceId).ShouldBe("remote-inner");
+        (count.Source?.Key).ShouldBe("remote-inner");
     }
 
     [Test]
@@ -516,15 +517,20 @@ public sealed class NestedSourceBindingTests
         var options =
             (IConfiglueOptions<RootWithNestedSettings>)context.GetOptions<RootWithNestedSettings>();
         var value = await options.GetValueAsync();
-        var label = await options.ExplainAsync("Settings.Label");
-        var count = await options.ExplainAsync("Settings.Inner.Count");
+        var details = await options.GetDetailsAsync();
+        var label = details.Settings!.Label;
+        var count = details.Settings!.Inner!.Count;
 
         (value.Settings!.Label).ShouldBe("section-label");
         (value.Settings.Inner!.Count).ShouldBe(11);
-        (label.HighestPrioritySourceId).ShouldBe("settings-section");
-        (count.HighestPrioritySourceId).ShouldBe("inner-section");
-        (label.Contributions[0].PhysicalOrigin).ShouldBe("settings.json#Settings");
-        (count.Contributions[0].PhysicalOrigin).ShouldBe("settings.json#Settings:Inner");
+        (label.Source?.Key).ShouldBe("settings-section");
+        (count.Source?.Key).ShouldBe("inner-section");
+        (label.Sources.First(item => item.IsPresent).Source.Locator).ShouldBe(
+            "settings.json#Settings"
+        );
+        (count.Sources.First(item => item.IsPresent).Source.Locator).ShouldBe(
+            "settings.json#Settings:Inner"
+        );
     }
 
     [Test]

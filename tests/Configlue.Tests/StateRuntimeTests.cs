@@ -984,7 +984,7 @@ public sealed class StateRuntimeTests
         );
 
         var initial = await options.ReadAsync();
-        var initialExplanation = await options.ExplainAsync("RetryCount");
+        var initialDetails = await options.GetDetailsAsync();
         using var staleSession = await options.OpenEditSessionAsync();
         staleSession.Value.RetryCount = 8;
         var changed = new TaskCompletionSource<int>(
@@ -995,7 +995,9 @@ public sealed class StateRuntimeTests
         (initial.Value!.RetryCount).ShouldBe(4);
         (initial.Revision).ShouldBe("opaque");
         (initial.PhysicalOrigin).ShouldBe("fallback://settings");
-        (initialExplanation.Contributions.Single().PhysicalOrigin).ShouldBe("fallback://settings");
+        (initialDetails.RetryCount.Sources.Single(s => s.IsPresent).Source.Locator).ShouldBe(
+            "fallback://settings"
+        );
         initial.Revisions!.NestedRevisions.Count.ShouldBe(1);
         var initialNested = initial.Revisions.NestedRevisions["composite"];
         (initialNested.TryGetRevision("remote", out _)).ShouldBeTrue();
@@ -1022,12 +1024,16 @@ public sealed class StateRuntimeTests
 
         conflictThrown.ShouldBeTrue();
         var recovered = await options.ReadAsync();
-        var recoveredExplanation = await options.ExplainAsync("RetryCount");
+        var recoveredDetails = await options.GetDetailsAsync();
 
         (recovered.Revision).ShouldBe("opaque");
         (recovered.PhysicalOrigin).ShouldBe("primary://settings");
-        (recoveredExplanation.Contributions.Single().SourceId).ShouldBe("composite");
-        (recoveredExplanation.Contributions.Single().PhysicalOrigin).ShouldBe("primary://settings");
+        (recoveredDetails.RetryCount.Sources.Single(s => s.IsPresent).Source.Key).ShouldBe(
+            "composite"
+        );
+        (recoveredDetails.RetryCount.Sources.Single(s => s.IsPresent).Source.Locator).ShouldBe(
+            "primary://settings"
+        );
         recovered.Revisions!.NestedRevisions.Count.ShouldBe(1);
         var recoveredNested = recovered.Revisions.NestedRevisions["composite"];
         (recoveredNested.TryGetRevision("remote", out _)).ShouldBeTrue();
@@ -2226,21 +2232,19 @@ public sealed class StateRuntimeTests
         ]);
         var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(sourceSet);
 
-        var port = await options.ExplainAsync("Database.Port");
-        var host = await options.ExplainAsync("Database.Host");
-        var enabled = await options.ExplainAsync("Enabled");
+        var details = await options.GetDetailsAsync();
 
-        (port.EffectiveValue).ShouldBe(6432);
-        (port.HighestPrioritySourceId).ShouldBe("user");
-        ((port.Contributions.Select(item => item.SourceId)))
+        (details.Database!.Port.Value).ShouldBe(6432);
+        (details.Database.Port.Source?.Key).ShouldBe("user");
+        ((details.Database.Port.Sources.Select(item => item.Source.Key)))
             .OrderBy(static item => item)
             .ShouldBe((new[] { "user", "defaults" }).OrderBy(static item => item));
-        (port.Contributions[0].Value).ShouldBe(6432);
-        (port.Contributions[0].PhysicalOrigin).ShouldBe("user-settings.json");
-        (host.EffectiveValue).ShouldBe("default.db");
-        (host.HighestPrioritySourceId).ShouldBe("defaults");
-        ((bool)enabled.EffectiveValue!).ShouldBeTrue();
-        (enabled.Contributions).ShouldBeEmpty();
+        (details.Database.Port.Sources[0].Value).ShouldBe(6432);
+        (details.Database.Port.Sources[0].Source.Locator).ShouldBe("user-settings.json");
+        (details.Database.Host.Value).ShouldBe("default.db");
+        (details.Database.Host.Source?.Key).ShouldBe("defaults");
+        ((bool)details.Enabled.Value!).ShouldBeTrue();
+        (details.Enabled.Sources.All(item => !item.IsPresent)).ShouldBeTrue();
     }
 
     [Test]
@@ -2265,15 +2269,15 @@ public sealed class StateRuntimeTests
             ])
         );
 
-        var explanation = await options.ExplainAsync("Plugins");
-        var effective = (IReadOnlyList<string>)explanation.EffectiveValue!;
+        var details = await options.GetDetailsAsync();
+        var plugins = details.Plugins!;
 
-        effective.ShouldBe(["base", "shared", "user", "shared"]);
-        explanation.CollectionElements.Count.ShouldBe(4);
-        ShouldHaveElementSources(explanation, 0, "base", "defaults");
-        ShouldHaveElementSources(explanation, 1, "shared", "defaults");
-        ShouldHaveElementSources(explanation, 2, "user", "user");
-        ShouldHaveElementSources(explanation, 3, "shared", "user");
+        (plugins.Value).ShouldBe(["base", "shared", "user", "shared"]);
+        plugins.Elements.Count.ShouldBe(4);
+        ShouldHaveElementSources(plugins, 0, "base", "defaults");
+        ShouldHaveElementSources(plugins, 1, "shared", "defaults");
+        ShouldHaveElementSources(plugins, 2, "user", "user");
+        ShouldHaveElementSources(plugins, 3, "shared", "user");
     }
 
     [Test]
@@ -2298,14 +2302,14 @@ public sealed class StateRuntimeTests
             ])
         );
 
-        var explanation = await options.ExplainAsync("Tags");
-        var effective = (IReadOnlyList<string>)explanation.EffectiveValue!;
+        var details = await options.GetDetailsAsync();
+        var tags = details.Tags!;
 
-        effective.ShouldBe(["base", "shared", "user"]);
-        explanation.CollectionElements.Count.ShouldBe(3);
-        ShouldHaveElementSources(explanation, 0, "base", "defaults");
-        ShouldHaveElementSources(explanation, 1, "shared", "user", "defaults");
-        ShouldHaveElementSources(explanation, 2, "user", "user");
+        (tags.Value).ShouldBe(["base", "shared", "user"]);
+        tags.Elements.Count.ShouldBe(3);
+        ShouldHaveElementSources(tags, 0, "base", "defaults");
+        ShouldHaveElementSources(tags, 1, "shared", "user", "defaults");
+        ShouldHaveElementSources(tags, 2, "user", "user");
     }
 
     [Test]
@@ -2333,10 +2337,11 @@ public sealed class StateRuntimeTests
             ])
         );
 
-        var explanation = await options.ExplainAsync("Values");
+        var details = await options.GetDetailsAsync();
+        var values = details.Values!;
 
-        explanation.CollectionElements.Count.ShouldBe(1);
-        ShouldHaveElementSources(explanation, 0, "user", "user");
+        values.Elements.Count.ShouldBe(1);
+        ShouldHaveElementSources(values, 0, "user", "user");
     }
 
     [Test]
@@ -2789,19 +2794,19 @@ public sealed class StateRuntimeTests
     }
 
     private static void ShouldHaveElementSources(
-        ConfiglueValueExplanation explanation,
+        ConfigCollectionDetails<string> details,
         int index,
         object? value,
-        params string[] sourceIds
+        params string[] sourceKeys
     )
     {
-        var element = explanation.CollectionElements[index];
+        var element = details.Elements[index];
         element.Index.ShouldBe(index);
         element.Value.ShouldBe(value);
         element
-            .Contributions.Select(contribution => contribution.SourceId)
+            .Contributions.Select(contribution => contribution.Source.Key)
             .ToArray()
-            .ShouldBe(sourceIds);
+            .ShouldBe(sourceKeys);
     }
 
     private sealed class ProfileScopedRetryCountValidator : IValidateOptions<AppSettings>

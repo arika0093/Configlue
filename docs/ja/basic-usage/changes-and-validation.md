@@ -31,7 +31,23 @@ DataAnnotations 検証は既定で保存時に実行されます。無効にす�
 
 検証に失敗すると `ConfiglueValidationException` が送出され、options 名・型・すべての失敗メッセージを確認できます。この検証契約は Configlue Core に属し、`Microsoft.Extensions.Options` を必要としません。
 
-読み取り時も検証されます。`ReadValidationMode` で読み取り失敗の扱いを選びます。`EffectiveThrow` (既定) は最終解決値が不正な場合に例外、`StrictThrow` はいずれかのソースが不正値を寄与した時点で例外、`IgnoreValue` は不正な寄与メンバーを除外して残りを解決します。不正値を報告したソースは `Invalid` 読み取りステータスで来歴・`ExplainAsync` 診断に残ります。検証に失敗した watcher 再読み込みは `OnChange` listener に流さず `OnReloadFailed` に通知されます。
+読み取り時も検証されます。`ReadValidationMode` で読み取り失敗の扱いを選びます。`EffectiveThrow` (既定) は最終解決値が不正な場合に例外、`StrictThrow` はいずれかのソースが不正値を寄与した時点で例外、`IgnoreValue` は不正な寄与メンバーを除外して残りを解決します。不正値を報告したソースは `Invalid` 読み取りステータスで来歴・詳細診断に残ります。検証に失敗した watcher 再読み込みは `OnChange` listener に流さず `OnReloadFailed` に通知されます。
+
+## 設定の詳細
+
+`GetDetailsAsync()` は、実効値・ソース別寄与・編集可否・コレクション要素の出どころを持つ、生成された強い型のスナップショットを一度の解決から返します。
+
+```csharp
+var details = await options.GetDetailsAsync();
+
+string name = details.Name;
+bool editable = details.Name.IsEditable;
+var origin = details.Name.Source?.DisplayName;
+foreach (var source in details.Name.Sources)
+{
+    Console.WriteLine($"{source.Source.DisplayName}: {source.State} = {source.Value}");
+}
+```
 
 ```csharp
 conf.Add<UserSetting>(model =>
@@ -65,4 +81,4 @@ Microsoft Options アダプターは `Configlue.Extensions.MSOptions` の `servi
 ## 次のステップ
 
 * プロバイダー登録は [ファイル・形式・セクション](../sources/files-and-sections.md)。
-* ファイル安全と `ExplainAsync` は [バックアップ・ログ・診断](../advanced/backups-and-observability.md)。
+* ファイル安全と設定詳細は [バックアップ・ログ・診断](../advanced/backups-and-observability.md)。

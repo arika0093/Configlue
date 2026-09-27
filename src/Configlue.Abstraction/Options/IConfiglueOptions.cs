@@ -21,9 +21,8 @@ public interface IConfiglueOptions<T> : IWritableOptions<T>
     /// <summary>Returns the configured source topology and registration-level write routing.</summary>
     ConfiglueOptionsDiagnostics GetDiagnostics();
 
-    /// <summary>Explains a model property using its resolved value and present source contributions.</summary>
-    ValueTask<ConfiglueValueExplanation> ExplainAsync(
-        string propertyPath,
+    /// <summary>Reads one consistent resolution snapshot backing generated configuration details.</summary>
+    ValueTask<ConfiglueDetailsSnapshot> GetDetailsSnapshotAsync(
         CancellationToken cancellationToken = default
     );
 
