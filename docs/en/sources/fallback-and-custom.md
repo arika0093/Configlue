@@ -9,9 +9,9 @@ description: Group equivalent representations and compose resources with codecs.
 
 Use `FallbackStateSource<TFragment>` to group serialized representations of the same logical state, such as a canonical JSON file and a legacy YAML file. It reads the first successful candidate by priority, subject to each candidate's fallback condition, and exposes that candidate as one source — values from separate formats are never overlaid.
 
-By default, writes go to the active writable candidate, or the highest-priority writable candidate when none is active; set `writeSourceId` to route edits to a fixed candidate such as the canonical file. To copy a legacy representation into the canonical candidate when it is read, also set `promoteOnRead: true`. This requires `writeSourceId`, and that candidate must have the highest priority. The copy is serialized and revision-checked; the legacy representation is retained. Handle physical backup or deletion explicitly according to the backend. By default, state is not copied and alternate representations are not deleted. Candidate sources and resources remain caller-owned.
+By default, writes go to the active writable candidate, or the highest-priority writable candidate when none is active; set `writeSourceId` to route edits to a fixed candidate such as the canonical file. Reads never write or copy state. Candidate sources and resources remain caller-owned.
 
-When state needs to move to a different logical source, use `IConfiglueOptions<T>.MigrateSourcesToTargetsAsync` with an explicit target projection. The migration API verifies target writes and supports retry after partial completion. `FallbackStateSource<T>` promotion only copies state to the highest-priority candidate for the same logical state.
+When state needs to move to a different logical source or representation, use `IConfiglueOptions<T>.MigrateSourcesToTargetsAsync` with an explicit target projection. The migration API verifies target writes and supports retry after partial completion.
 
 ## Custom sources
 

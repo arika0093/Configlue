@@ -366,7 +366,7 @@ Host applications can register named clients with the standard `AddHttpClient` A
 
 ### Fallback Sources
 
-Use `FallbackStateSource<TFragment>` to group serialized representations of the same logical state, such as a canonical JSON file and a legacy YAML file. It reads the first successful candidate by priority and exposes that candidate as one source, so values from separate formats are never overlaid. By default, writes go to the active writable candidate; set `writeSourceId` to route edits to a fixed candidate such as the canonical file.
+Use `FallbackStateSource<TFragment>` to group serialized representations of the same logical state, such as a canonical JSON file and a legacy YAML file. It reads the first successful candidate by priority and exposes that candidate as one source, so values from separate formats are never overlaid. Reads never write or copy state. By default, writes go to the active writable candidate; set `writeSourceId` to route edits to a fixed candidate such as the canonical file.
 
 ### Save and Edit
 

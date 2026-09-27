@@ -138,68 +138,6 @@ public sealed partial class StateRuntimeTests
     }
 
     [Test]
-    public async Task FallbackStateSource_CanPromoteSelectedRepresentationOnRead()
-    {
-        var canonical = new InMemoryStateStore<AppSettings.Fragment>();
-        var legacyValue = new AppSettings.Fragment
-        {
-            RetryCount = Optional<int>.Present(11),
-            Label = Optional<string?>.Present("legacy"),
-        };
-        var legacy = new InMemoryStateStore<AppSettings.Fragment>(legacyValue);
-        var fallback = new FallbackStateSource<AppSettings.Fragment>(
-            new StateSourceSet<AppSettings.Fragment>([
-                new(
-                    "canonical",
-                    canonical,
-                    priority: 100,
-                    fallbackCondition: StateFallbackCondition.NotFoundOrUnavailable,
-                    writer: canonical,
-                    physicalOrigin: "settings.json"
-                ),
-                new("legacy", legacy, priority: 0, writer: legacy, physicalOrigin: "settings.yaml"),
-            ]),
-            writeSourceId: "canonical",
-            promoteOnRead: true
-        );
-
-        var promotedReads = await Task.WhenAll(
-            Enumerable.Range(0, 8).Select(_ => fallback.ReadAsync().AsTask())
-        );
-        var canonicalResult = await canonical.ReadAsync();
-        var legacyResult = await legacy.ReadAsync();
-
-        promotedReads.All(result => result.Status == StateReadStatus.Success).ShouldBeTrue();
-        promotedReads.All(result => result.SourceId == "canonical").ShouldBeTrue();
-        promotedReads.All(result => result.Value!.Label.Value == "legacy").ShouldBeTrue();
-        canonicalResult.Status.ShouldBe(StateReadStatus.Success);
-        canonicalResult.Value!.RetryCount.Value.ShouldBe(11);
-        canonicalResult.Value.Label.Value.ShouldBe("legacy");
-        legacyResult.Value.ShouldBe(legacyValue);
-        canonicalResult.Revision.ShouldBe("1");
-    }
-
-    [Test]
-    public async Task FallbackStateSource_RequiresHighestPriorityWriterForReadPromotion()
-    {
-        var canonical = new InMemoryStateStore<string>();
-        var fallback = new InMemoryStateStore<string>("fallback");
-
-        await Should.ThrowAsync<ArgumentException>(async () =>
-        {
-            _ = new FallbackStateSource<string>(
-                new StateSourceSet<string>([
-                    new("fallback", fallback, priority: 100, writer: fallback),
-                    new("canonical", canonical, priority: 0, writer: canonical),
-                ]),
-                writeSourceId: "canonical",
-                promoteOnRead: true
-            );
-            await Task.CompletedTask;
-        });
-    }
-
-    [Test]
     public async Task FallbackStateSource_WatchesForFailbackButIgnoresLowerPriorityChangesAfterSelection()
     {
         var canonical = new InMemoryStateStore<string>();

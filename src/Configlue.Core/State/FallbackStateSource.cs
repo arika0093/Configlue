@@ -10,9 +10,8 @@ namespace Configlue;
 /// Unlike adding every candidate directly to an options source set, this class does not overlay older
 /// representations with the selected value. Its watcher observes the selected representation and higher
 /// priority candidates so a recovered higher-priority representation can become active again. Writes update
-/// the active writable representation unless a fixed candidate is configured. Optional read promotion
-/// copies a selected lower-priority representation into the fixed highest-priority candidate and retains
-/// the original representation. Candidate resources remain owned by the caller.
+/// the active writable representation unless a fixed candidate is configured. Candidate resources remain
+/// owned by the caller.
 /// </remarks>
 public sealed class FallbackStateSource<T> : IStateReader<T>, IStateWriter<T>, IStateWatcher
 {
@@ -20,8 +19,6 @@ public sealed class FallbackStateSource<T> : IStateReader<T>, IStateWriter<T>, I
     private readonly StateSourceResolver<T> _reader;
     private readonly StateSourceWatcher<T> _watcher;
     private readonly string? _writeSourceId;
-    private readonly bool _promoteOnRead;
-    private readonly SemaphoreSlim _promotionGate = new(1, 1);
 
     /// <summary>Creates a first-available source from ordered candidate representations.</summary>
     /// <param name="candidates">Representations ordered by their priority and registration order.</param>
@@ -30,19 +27,6 @@ public sealed class FallbackStateSource<T> : IStateReader<T>, IStateWriter<T>, I
     /// falling back to the highest-priority writable candidate when the state is not currently readable.
     /// </param>
     public FallbackStateSource(StateSourceSet<T> candidates, string? writeSourceId = null)
-        : this(candidates, writeSourceId, promoteOnRead: false) { }
-
-    /// <summary>Creates a first-available source with optional promotion into a canonical candidate.</summary>
-    /// <param name="candidates">Representations ordered by their priority and registration order.</param>
-    /// <param name="writeSourceId">The fixed writable candidate that receives writes.</param>
-    /// <param name="promoteOnRead">
-    /// Whether to copy a selected fallback representation into the fixed highest-priority candidate when it is read.
-    /// </param>
-    public FallbackStateSource(
-        StateSourceSet<T> candidates,
-        string? writeSourceId,
-        bool promoteOnRead
-    )
     {
         ArgumentNullException.ThrowIfNull(candidates);
         StateSource<T>? writeSource = null;
@@ -69,27 +53,10 @@ public sealed class FallbackStateSource<T> : IStateReader<T>, IStateWriter<T>, I
             }
         }
 
-        if (promoteOnRead && writeSource is null)
-        {
-            throw new ArgumentException(
-                "Read promotion requires an explicit writable canonical source.",
-                nameof(writeSourceId)
-            );
-        }
-
-        if (promoteOnRead && !ReferenceEquals(candidates.Sources[0], writeSource))
-        {
-            throw new ArgumentException(
-                "The canonical source must be the highest-priority fallback candidate.",
-                nameof(writeSourceId)
-            );
-        }
-
         _candidates = candidates;
         _reader = new StateSourceResolver<T>(candidates);
         _watcher = new StateSourceWatcher<T>(_reader);
         _writeSourceId = writeSourceId;
-        _promoteOnRead = promoteOnRead;
     }
 
     /// <summary>The candidate that supplied the value in the most recent successful read, if any.</summary>
@@ -126,16 +93,10 @@ public sealed class FallbackStateSource<T> : IStateReader<T>, IStateWriter<T>, I
             return result;
         }
 
-        result = result with { Revision = CreateRevisionToken(result) };
-        if (
-            !_promoteOnRead
-            || string.Equals(result.SourceId, _writeSourceId, StringComparison.Ordinal)
-        )
+        return result with
         {
-            return result;
-        }
-
-        return await PromoteOnReadAsync(cancellationToken).ConfigureAwait(false);
+            Revision = CreateRevisionToken(result),
+        };
     }
 
     /// <inheritdoc />
@@ -210,96 +171,6 @@ public sealed class FallbackStateSource<T> : IStateReader<T>, IStateWriter<T>, I
 
         return _candidates.Sources.FirstOrDefault(static source => source.Writer is not null)
             ?? throw new InvalidOperationException("No fallback representation supports writes.");
-    }
-
-    private async ValueTask<StateReadResult<T>> PromoteOnReadAsync(
-        CancellationToken cancellationToken
-    )
-    {
-        await _promotionGate.WaitAsync(cancellationToken).ConfigureAwait(false);
-        try
-        {
-            var target = ResolveWriteSource(default);
-            for (var attempt = 0; attempt < 3; attempt++)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                var current = await _reader.ReadAsync(cancellationToken).ConfigureAwait(false);
-                if (current.Status != StateReadStatus.Success)
-                {
-                    return current;
-                }
-
-                if (string.Equals(current.SourceId, target.Id, StringComparison.Ordinal))
-                {
-                    return current with { Revision = CreateRevisionToken(current) };
-                }
-
-                var targetState = await target
-                    .Reader.ReadAsync(cancellationToken)
-                    .ConfigureAwait(false);
-                if (targetState.Status == StateReadStatus.Success)
-                {
-                    continue;
-                }
-
-                if (targetState.Status != StateReadStatus.NotFound)
-                {
-                    throw new InvalidOperationException(
-                        $"Cannot promote fallback state because canonical source '{target.Id}' returned {targetState.Status}."
-                    );
-                }
-
-                var confirmed = await _reader.ReadAsync(cancellationToken).ConfigureAwait(false);
-                if (
-                    confirmed.Status != StateReadStatus.Success
-                    || !string.Equals(
-                        confirmed.SourceId,
-                        current.SourceId,
-                        StringComparison.Ordinal
-                    )
-                    || !string.Equals(
-                        CreateRevisionToken(confirmed),
-                        CreateRevisionToken(current),
-                        StringComparison.Ordinal
-                    )
-                )
-                {
-                    continue;
-                }
-
-                await target
-                    .Writer!.WriteAsync(
-                        new StateWriteRequest<T>(
-                            confirmed.Value!,
-                            targetState.Revision,
-                            CheckRevision: true
-                        ),
-                        cancellationToken
-                    )
-                    .ConfigureAwait(false);
-
-                var promoted = await _reader.ReadAsync(cancellationToken).ConfigureAwait(false);
-                if (
-                    promoted.Status == StateReadStatus.Success
-                    && string.Equals(promoted.SourceId, target.Id, StringComparison.Ordinal)
-                )
-                {
-                    return promoted with { Revision = CreateRevisionToken(promoted) };
-                }
-
-                throw new StateConflictException(
-                    $"Fallback state was written to canonical source '{target.Id}', but it did not become the selected representation."
-                );
-            }
-
-            throw new StateConflictException(
-                "Fallback state changed repeatedly while it was being promoted."
-            );
-        }
-        finally
-        {
-            _promotionGate.Release();
-        }
     }
 
     private static string? GetRevisionToken(StateReadResult<T> result) =>
