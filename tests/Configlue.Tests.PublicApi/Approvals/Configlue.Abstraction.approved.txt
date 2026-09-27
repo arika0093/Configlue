@@ -275,6 +275,7 @@ namespace Configlue
         Configlue.ConfiglueOptionsDiagnostics GetDiagnostics();
         System.Threading.Tasks.ValueTask<T> GetValueAsync(System.Threading.CancellationToken cancellationToken = default);
         System.IDisposable OnChange(System.Action<T> listener);
+        System.IDisposable OnReloadFailed(System.Action<System.Exception> listener);
         System.Threading.Tasks.ValueTask<Configlue.StateReadResult<T>> ReadAsync(System.Threading.CancellationToken cancellationToken = default);
     }
     public interface IResourceBackupRecovery

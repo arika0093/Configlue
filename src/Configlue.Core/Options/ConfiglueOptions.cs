@@ -26,6 +26,10 @@ public sealed class ConfiglueOptions<TModel, TFragment>
     private static readonly EventId WatchFailureEvent = new(1040, "WatcherFailure");
     private static readonly EventId ListenerFailureEvent = new(1041, "ChangeListenerFailure");
     private static readonly EventId WatchReloadEvent = new(1042, "WatcherReload");
+    private static readonly EventId ReloadFailureListenerEvent = new(
+        1043,
+        "ReloadFailureListenerFailure"
+    );
 
     private readonly StateSourceSet<TFragment> _sourceSet;
     private readonly object _sourceGate = new();
@@ -43,6 +47,7 @@ public sealed class ConfiglueOptions<TModel, TFragment>
     private readonly ILogger? _logger;
     private readonly object _changeGate = new();
     private readonly List<Action<TModel>> _changeListeners = [];
+    private readonly List<Action<Exception>> _reloadFailureListeners = [];
     private CancellationTokenSource? _watchCancellation;
     private Task? _watchTask;
     private TaskCompletionSource _operationsDrained = CompletedOperationsSignal();
@@ -191,15 +196,24 @@ public sealed class ConfiglueOptions<TModel, TFragment>
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
             _changeListeners.Add(listener);
-            if (_watchTask is null || _watchTask.IsCompleted)
-            {
-                _watchCancellation?.Dispose();
-                _watchCancellation = new CancellationTokenSource();
-                _watchTask = WatchChangesAsync(_watchCancellation.Token);
-            }
+            EnsureWatcherStarted();
         }
 
         return new ChangeSubscription(this, listener);
+    }
+
+    /// <inheritdoc />
+    public IDisposable OnReloadFailed(Action<Exception> listener)
+    {
+        ArgumentNullException.ThrowIfNull(listener);
+        lock (_changeGate)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            _reloadFailureListeners.Add(listener);
+            EnsureWatcherStarted();
+        }
+
+        return new ReloadFailureSubscription(this, listener);
     }
 
     /// <inheritdoc />
@@ -2329,6 +2343,7 @@ public sealed class ConfiglueOptions<TModel, TFragment>
 
             _disposed = true;
             _changeListeners.Clear();
+            _reloadFailureListeners.Clear();
             _watchCancellation?.Cancel();
         }
     }
@@ -3617,6 +3632,11 @@ public sealed class ConfiglueOptions<TModel, TFragment>
                 }
                 else if (current.Status != StateReadStatus.Success)
                 {
+                    NotifyReloadFailed(
+                        new InvalidOperationException(
+                            $"Configuration reload resolved to state status '{current.Status}'."
+                        )
+                    );
                     await Task.Delay(TimeSpan.FromMilliseconds(250), cancellationToken)
                         .ConfigureAwait(false);
                 }
@@ -3646,6 +3666,7 @@ public sealed class ConfiglueOptions<TModel, TFragment>
                             .Select(static source => source.ResourceId!.Value.Value)
                     )
                 );
+                NotifyReloadFailed(exception);
                 try
                 {
                     await Task.Delay(TimeSpan.FromMilliseconds(250), cancellationToken)
@@ -3751,6 +3772,48 @@ public sealed class ConfiglueOptions<TModel, TFragment>
                     _optionsName
                 );
             }
+        }
+    }
+
+    private void NotifyReloadFailed(Exception exception)
+    {
+        Action<Exception>[] listeners;
+        lock (_changeGate)
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            listeners = _reloadFailureListeners.ToArray();
+        }
+
+        foreach (var listener in listeners)
+        {
+            try
+            {
+                listener(exception);
+            }
+            catch (Exception listenerException)
+            {
+                _logger?.LogError(
+                    ReloadFailureListenerEvent,
+                    listenerException,
+                    "A reload-failure listener failed for {ModelType} options {OptionsName}.",
+                    typeof(TModel).FullName,
+                    _optionsName
+                );
+            }
+        }
+    }
+
+    private void EnsureWatcherStarted()
+    {
+        if (_watchTask is null || _watchTask.IsCompleted)
+        {
+            _watchCancellation?.Dispose();
+            _watchCancellation = new CancellationTokenSource();
+            _watchTask = WatchChangesAsync(_watchCancellation.Token);
         }
     }
 
@@ -4110,6 +4173,14 @@ public sealed class ConfiglueOptions<TModel, TFragment>
         }
     }
 
+    private void RemoveReloadFailureListener(Action<Exception> listener)
+    {
+        lock (_changeGate)
+        {
+            _reloadFailureListeners.Remove(listener);
+        }
+    }
+
     private sealed class FragmentChangesPatch(TFragment changes) : IConfigluePatch
     {
         public ConfiglueModelSchema Schema => TModel.ConfiglueSchema;
@@ -4150,6 +4221,17 @@ public sealed class ConfiglueOptions<TModel, TFragment>
 
         public void Dispose() =>
             Interlocked.Exchange(ref _owner, null)?.RemoveChangeListener(listener);
+    }
+
+    private sealed class ReloadFailureSubscription(
+        ConfiglueOptions<TModel, TFragment> owner,
+        Action<Exception> listener
+    ) : IDisposable
+    {
+        private ConfiglueOptions<TModel, TFragment>? _owner = owner;
+
+        public void Dispose() =>
+            Interlocked.Exchange(ref _owner, null)?.RemoveReloadFailureListener(listener);
     }
 
     private static bool CanFallBack(StateFallbackCondition condition, StateReadStatus status) =>

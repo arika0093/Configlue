@@ -16,6 +16,15 @@ using var changeSubscription = options.OnChange(updated =>
 
 変更通知は既定で 300ms デバウンスされます。登録時に `onChangeDebounce: TimeSpan.Zero` を渡すと無効化でき、大きくすれば高頻度の外部編集をまとめられます。
 
+値変更とは別に、バックグラウンド再読み込みの失敗を購読できます:
+
+```csharp
+using var reloadFailureSubscription = options.OnReloadFailed(exception =>
+    logger.LogError(exception, "Configuration reload failed"));
+```
+
+watcher または再読み込みで発生した例外が通知されます。変更後の state が `NotFound` / `Unavailable` になった場合は、その status を示す `InvalidOperationException` が渡されます。明示的な `ReadAsync` の失敗や `OnChange` listener の例外はこの通知に含まれません。reload-failure listener が例外を投げてもログに記録し、他 listener と watcher の再試行は継続します。
+
 ## 検証
 
 検証は保存時に実行されます。モデルビルダーの `ValidateDataAnnotations` で属性ルールを強制します:

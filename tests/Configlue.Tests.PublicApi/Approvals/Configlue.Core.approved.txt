@@ -104,6 +104,7 @@ namespace Configlue
         public System.Threading.Tasks.ValueTask<Configlue.StateStorageMigrationResult> MigrateSourcesToTargetsAsync(System.Collections.Generic.IEnumerable<string> sourceIds, System.Collections.Generic.IReadOnlyDictionary<string, System.Func<Configlue.IConfiglueFragment, Configlue.IConfiglueFragment>> targetProjections, System.Threading.CancellationToken cancellationToken = default, bool retireSources = false) { }
         public System.Threading.Tasks.ValueTask<Configlue.StateStorageMigrationResult> MigrateSourcesToTargetsAsync(System.Collections.Generic.IEnumerable<string> sourceIds, System.Collections.Generic.IReadOnlyDictionary<string, System.Func<TFragment, TFragment>> targetProjections, System.Threading.CancellationToken cancellationToken = default, bool retireSources = false) { }
         public System.IDisposable OnChange(System.Action<TModel> listener) { }
+        public System.IDisposable OnReloadFailed(System.Action<System.Exception> listener) { }
         public System.Threading.Tasks.ValueTask<Configlue.StateReadResult<TModel>> ReadAsync(System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask<Configlue.StateWriteResult> SaveAsync(System.Action<TModel> update, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask<Configlue.StateWriteResult> SaveAsync(System.Func<TModel, System.Threading.Tasks.Task> update, System.Threading.CancellationToken cancellationToken = default) { }
