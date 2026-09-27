@@ -8,6 +8,11 @@ public readonly record struct StateRevision(string SourceId, string? Revision);
 /// <summary>Direct and nested revisions observed during one state resolution.</summary>
 public sealed class StateRevisionVector
 {
+    private static readonly IReadOnlyDictionary<string, StateRevisionVector> EmptyNestedRevisions =
+        new ReadOnlyDictionary<string, StateRevisionVector>(
+            new Dictionary<string, StateRevisionVector>(StringComparer.Ordinal)
+        );
+
     private readonly IReadOnlyDictionary<string, string?> _revisions;
     private readonly IReadOnlyDictionary<string, StateRevisionVector> _nestedRevisions;
 
@@ -38,11 +43,12 @@ public sealed class StateRevisionVector
             }
         }
 
-        var nestedValues = new Dictionary<string, StateRevisionVector>(StringComparer.Ordinal);
+        Dictionary<string, StateRevisionVector>? nestedValues = null;
         foreach (var item in nestedRevisions)
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(item.Key);
             ArgumentNullException.ThrowIfNull(item.Value);
+            nestedValues ??= new Dictionary<string, StateRevisionVector>(StringComparer.Ordinal);
             if (!nestedValues.TryAdd(item.Key, item.Value))
             {
                 throw new ArgumentException(
@@ -53,7 +59,9 @@ public sealed class StateRevisionVector
         }
 
         _revisions = new ReadOnlyDictionary<string, string?>(values);
-        _nestedRevisions = new ReadOnlyDictionary<string, StateRevisionVector>(nestedValues);
+        _nestedRevisions = nestedValues is null
+            ? EmptyNestedRevisions
+            : new ReadOnlyDictionary<string, StateRevisionVector>(nestedValues);
     }
 
     /// <summary>Direct revisions captured by the most recent source resolution.</summary>
