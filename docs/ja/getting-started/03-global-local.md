@@ -36,7 +36,6 @@ await using var context = ConfiglueApp.CreateContext(conf =>
     {
         ApplicationId = "ExampleApp",
         GlobalFileName = "settings.json",
-        WriteLayer = CommonSourceWriteLayer.Local,
     }));
 });
 ```
@@ -53,7 +52,6 @@ builder.Services.AddConfiglue(conf =>
     {
         ApplicationId = "ExampleApp",
         GlobalFileName = "settings.json",
-        WriteLayer = CommonSourceWriteLayer.Local,
     }));
 });
 ```
@@ -61,7 +59,7 @@ builder.Services.AddConfiglue(conf =>
 </TabItem>
 </Tabs>
 
-`ApplicationId` からプラットフォーム標準の保存ディレクトリが決まります（`ConfiglueStandardPaths.GetStandardSaveDirectory`）。共通ファイルはそこに、ローカルファイルは実行ディレクトリに置かれます。`WriteLayer` が「保存先はローカル」の宣言です。登録時に選べる宛先はひとつだけで、無効な層を選ぶと例外になります。
+`ApplicationId` からプラットフォーム標準の保存ディレクトリが決まります（`ConfiglueStandardPaths.GetStandardSaveDirectory`）。共通ファイルはそこに、ローカルファイルは current directory に置かれます。既定ではローカルファイルへ保存し、指定ファイルがあればそちらを既定の宛先にします。宛先を変更する場合だけ `WriteLayer` を設定します。
 
 ## 手で二層を組む
 

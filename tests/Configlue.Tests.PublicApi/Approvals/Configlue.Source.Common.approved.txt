@@ -18,25 +18,18 @@ namespace Configlue.Source.Common
     {
         public CommonSourceOptions() { }
         public required string ApplicationId { get; init; }
-        public bool EnableEnvironment { get; init; }
-        public bool EnableGlobalFile { get; init; }
-        public bool EnableLocalFile { get; init; }
-        public bool EnableSpecificFile { get; init; }
         public string? EnvironmentPrefix { get; init; }
         public System.Func<System.Collections.Generic.IEnumerable<System.Collections.Generic.KeyValuePair<string, string?>>>? EnvironmentVariables { get; init; }
         public Configlue.Source.Common.CommonSourceFileFormat FileFormat { get; init; }
         public Configlue.FileResourceOptions? FileResourceOptions { get; init; }
         public Configlue.Source.Common.CommonSourceFileFormat GlobalFileFormat { get; init; }
         public required string GlobalFileName { get; init; }
-        public int GlobalWritePriority { get; init; }
         public Configlue.Source.Common.CommonSourceFileFormat LocalFileFormat { get; init; }
         public string? LocalFilePath { get; init; }
-        public int LocalWritePriority { get; init; }
         public System.Text.Json.JsonSerializerOptions? SerializerOptions { get; init; }
         public Configlue.Source.Common.CommonSourceFileFormat SpecificFileFormat { get; init; }
         public string? SpecificFilePath { get; init; }
-        public int SpecificWritePriority { get; init; }
-        public Configlue.Source.Common.CommonSourceWriteLayer WriteLayer { get; init; }
+        public Configlue.Source.Common.CommonSourceWriteLayer? WriteLayer { get; init; }
         public System.Text.Json.JsonNamingPolicy? YamlPropertyNamingPolicy { get; init; }
         public SharpYaml.YamlSerializerOptions? YamlSerializerOptions { get; init; }
     }
@@ -44,7 +37,7 @@ namespace Configlue.Source.Common
     {
         public static void UseCommonSources<TModel>(this Configlue.ConfiglueModelBuilder<TModel> model, Configlue.Source.Common.CommonSourceOptions options)
             where TModel : Configlue.IConfiglueFacadeModel<TModel> { }
-        public static void UseCommonSources<TModel>(this Configlue.ConfiglueModelBuilder<TModel> model, string applicationId, string? specificFilePath = null, string? environmentPrefix = null, Configlue.Source.Common.CommonSourceWriteLayer writeLayer = 0)
+        public static void UseCommonSources<TModel>(this Configlue.ConfiglueModelBuilder<TModel> model, string applicationId, string? specificFilePath = null, string? environmentPrefix = null, Configlue.Source.Common.CommonSourceWriteLayer? writeLayer = default)
             where TModel : Configlue.IConfiglueFacadeModel<TModel> { }
     }
     public sealed class CommonSourceSelector : System.IEquatable<Configlue.Source.Common.CommonSourceSelector> { }
@@ -57,6 +50,5 @@ namespace Configlue.Source.Common
         Global = 0,
         Local = 1,
         Specific = 2,
-        BestAvailable = 3,
     }
 }

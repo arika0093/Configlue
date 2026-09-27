@@ -36,7 +36,6 @@ await using var context = ConfiglueApp.CreateContext(conf =>
     {
         ApplicationId = "ExampleApp",
         GlobalFileName = "settings.json",
-        WriteLayer = CommonSourceWriteLayer.Local,
     }));
 });
 ```
@@ -53,7 +52,6 @@ builder.Services.AddConfiglue(conf =>
     {
         ApplicationId = "ExampleApp",
         GlobalFileName = "settings.json",
-        WriteLayer = CommonSourceWriteLayer.Local,
     }));
 });
 ```
@@ -61,7 +59,7 @@ builder.Services.AddConfiglue(conf =>
 </TabItem>
 </Tabs>
 
-`ApplicationId` decides the platform-standard save directory (`ConfiglueStandardPaths.GetStandardSaveDirectory`). The shared file lives there, the local file next to the executable. `WriteLayer` declares "saves go to local". Exactly one destination is chosen at registration; picking a disabled layer throws.
+`ApplicationId` decides the platform-standard save directory (`ConfiglueStandardPaths.GetStandardSaveDirectory`). The shared file lives there and the local file lives in the current directory. Saves go to the local file by default; a supplied specific path becomes the default destination. Set `WriteLayer` only to choose a different destination.
 
 ## Building two layers by hand
 
