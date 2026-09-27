@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using Configlue.Testing;
 
 namespace Configlue.Tests;
@@ -60,6 +62,60 @@ public sealed class MigrationJournalTests
             firstLease.Dispose();
             using var secondLease = await secondJournal.AcquireMigrationLeaseAsync("migration");
             (await secondJournal.ReadAsync("migration")).ShouldNotBeNull();
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task FileJournalLeaseWaitsForInterprocessLockAndHonorsCancellation()
+    {
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "Configlue.Tests",
+            Guid.NewGuid().ToString("N")
+        );
+        var lockDirectory = Path.Combine(directory, "locks");
+        var options = new FileResourceOptions { LockDirectory = lockDirectory };
+        var journal = new FileStateStorageMigrationJournal(directory, options);
+        Directory.CreateDirectory(directory);
+
+        try
+        {
+            var hash = Convert.ToHexString(
+                SHA256.HashData(Encoding.UTF8.GetBytes("interprocess-migration"))
+            );
+            using var leaseResource = new FileResource(
+                Path.Combine(directory, hash + ".lease"),
+                options
+            );
+            var lockPath = leaseResource.LockPathForTests;
+            Directory.CreateDirectory(Path.GetDirectoryName(lockPath)!);
+
+            using (
+                new FileStream(
+                    lockPath,
+                    FileMode.OpenOrCreate,
+                    FileAccess.ReadWrite,
+                    FileShare.None
+                )
+            )
+            {
+                using var cancellation = new CancellationTokenSource(
+                    TimeSpan.FromMilliseconds(100)
+                );
+                await Should.ThrowAsync<OperationCanceledException>(async () =>
+                    await journal.AcquireMigrationLeaseAsync(
+                        "interprocess-migration",
+                        cancellation.Token
+                    )
+                );
+            }
+
+            using var lease = await journal.AcquireMigrationLeaseAsync("interprocess-migration");
+            (lease).ShouldNotBeNull();
         }
         finally
         {
