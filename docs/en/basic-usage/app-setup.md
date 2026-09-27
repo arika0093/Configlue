@@ -38,6 +38,16 @@ builder.Services.AddConfiglue(conf => conf.Add<UserSettings>(model =>
 
 The service provider owns the context. Inject `IReadOnlyOptions<T>` / `IWritableOptions<T>`, or the `IOptions<T>` / `IOptionsSnapshot<T>` / `IOptionsMonitor<T>` adapters for class models. An already materialized `IOptionsSnapshot<T>` keeps its value for that scope, as snapshots normally do.
 
+For consumers that need the model itself, set `RegisterAsSingleton = true` on the default model registration. DI creates the model singleton from the current options value when the model is first resolved. The injected model keeps that snapshot after later source changes; use an options interface when a consumer needs current values or change notifications. This setting takes effect with `AddConfiglue` and requires the default options name.
+
+```csharp
+builder.Services.AddConfiglue(conf => conf.Add<UserSettings>(model =>
+{
+    model.RegisterAsSingleton = true;
+    model.Sources(sources => sources.Add(CreateUserSettingsSource()));
+}));
+```
+
 For a custom source in DI, use the `(provider, sources) => ...` overload of `AddConfiglueOptions<TModel, TFragment>` to resolve services and add them with `sources.Add(id, reader, priority, fallbackCondition)`. Writer and watcher interfaces implemented by the reader are detected automatically; use `WithWriter` / `WithWatcher` for separate services. The callback runs when the options singleton is created, and `Sources(sources => sources.Add(existingSource))` remains available for fully custom lifecycles.
 
 ```csharp

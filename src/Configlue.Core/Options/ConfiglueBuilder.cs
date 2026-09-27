@@ -74,6 +74,7 @@ public sealed class ConfiglueModelBuilder<TModel>
     private StateWritePlan _writePlan = StateWritePlan.Empty;
     private bool _validateDataAnnotations;
     private bool _enableDynamicOptions;
+    private bool _registerAsSingleton;
     private TimeSpan? _onChangeDebounce;
     private ILogger? _logger;
     private Func<TModel, TModel>? _cloneStrategy;
@@ -121,6 +122,18 @@ public sealed class ConfiglueModelBuilder<TModel>
         {
             EnsureMutable();
             _enableDynamicOptions = value;
+        }
+    }
+
+    /// <summary>Registers the default model as a DI singleton snapshot for direct injection.</summary>
+    /// <remarks>The injected value is created on first resolution and does not follow later source changes. This setting applies only to DI registrations.</remarks>
+    public bool RegisterAsSingleton
+    {
+        get => _registerAsSingleton;
+        set
+        {
+            EnsureMutable();
+            _registerAsSingleton = value;
         }
     }
 
@@ -327,6 +340,7 @@ public sealed class ConfiglueModelBuilder<TModel>
             WritePlan = _writePlan,
             ValidateDataAnnotations = _validateDataAnnotations,
             EnableDynamicOptions = _enableDynamicOptions,
+            RegisterAsSingleton = _registerAsSingleton,
             OnChangeDebounce = _onChangeDebounce,
             Logger = _logger,
         };
@@ -996,6 +1010,36 @@ internal sealed class ConfiglueModelRegistration<TModel>(ConfiglueModelBuilder<T
                 OptionsName,
                 (provider, _) =>
                     provider.GetRequiredService<ConfiglueContext>().GetOptions<TModel>(OptionsName)
+            );
+        }
+
+        if (builder.RegisterAsSingleton)
+        {
+            if (OptionsName != Options.DefaultName)
+            {
+                throw new InvalidOperationException(
+                    "Direct model singleton registration requires the default options name."
+                );
+            }
+            if (typeof(TModel).IsValueType)
+            {
+                throw new InvalidOperationException(
+                    "Direct model singleton registration requires a reference type."
+                );
+            }
+
+            services.Add(
+                ServiceDescriptor.Singleton(
+                    typeof(TModel),
+                    provider =>
+                        provider
+                            .GetRequiredService<ConfiglueContext>()
+                            .GetOptions<TModel>(OptionsName)
+                            .GetValueAsync()
+                            .AsTask()
+                            .GetAwaiter()
+                            .GetResult()
+                )
             );
         }
     }

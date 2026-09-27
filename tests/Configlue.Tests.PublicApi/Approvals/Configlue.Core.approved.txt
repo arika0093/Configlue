@@ -46,6 +46,7 @@ namespace Configlue
         public Microsoft.Extensions.Logging.ILogger? Logger { get; set; }
         public System.TimeSpan? OnChangeDebounce { get; set; }
         public string OptionsName { get; set; }
+        public bool RegisterAsSingleton { get; set; }
         public bool ValidateDataAnnotations { get; set; }
         public Configlue.StateWritePlan WritePlan { get; set; }
         public Configlue.StateWriteRoute WriteRoute { get; set; }
