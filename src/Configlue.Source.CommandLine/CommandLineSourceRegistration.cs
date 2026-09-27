@@ -1,6 +1,8 @@
 using System.CommandLine;
 using System.CommandLine.Parsing;
 using System.Globalization;
+using System.Linq.Expressions;
+using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -46,6 +48,17 @@ public sealed class CommandLineMappingBuilder
         );
     }
 
+    /// <summary>Maps an option to a generated model property selector.</summary>
+    public void Map<TModel, TValue>(
+        Option<TValue> option,
+        Expression<Func<TModel, TValue>> property
+    )
+    {
+        ArgumentNullException.ThrowIfNull(option);
+        ArgumentNullException.ThrowIfNull(property);
+        Map(option, GetPropertyPath(property));
+    }
+
     /// <summary>Maps an argument to a dotted model property path.</summary>
     public void Map<TValue>(Argument<TValue> argument, string propertyPath)
     {
@@ -58,7 +71,58 @@ public sealed class CommandLineMappingBuilder
         );
     }
 
+    /// <summary>Maps an argument to a generated model property selector.</summary>
+    public void Map<TModel, TValue>(
+        Argument<TValue> argument,
+        Expression<Func<TModel, TValue>> property
+    )
+    {
+        ArgumentNullException.ThrowIfNull(argument);
+        ArgumentNullException.ThrowIfNull(property);
+        Map(argument, GetPropertyPath(property));
+    }
+
     internal IReadOnlyList<Mapping> Mappings => _mappings;
+
+    private static string GetPropertyPath<TModel, TValue>(Expression<Func<TModel, TValue>> selector)
+    {
+        Expression expression = selector.Body;
+        while (
+            expression
+                is UnaryExpression
+                {
+                    NodeType: ExpressionType.Convert or ExpressionType.ConvertChecked
+                } conversion
+        )
+        {
+            expression = conversion.Operand;
+        }
+
+        var members = new Stack<string>();
+        while (expression is MemberExpression memberExpression)
+        {
+            if (memberExpression.Member is not PropertyInfo)
+            {
+                throw new ArgumentException(
+                    "A command-line mapping must select model properties.",
+                    nameof(selector)
+                );
+            }
+
+            members.Push(memberExpression.Member.Name);
+            expression = memberExpression.Expression!;
+        }
+
+        if (expression != selector.Parameters[0] || members.Count == 0)
+        {
+            throw new ArgumentException(
+                "A command-line mapping must be a direct or nested model property selector.",
+                nameof(selector)
+            );
+        }
+
+        return string.Join('.', members);
+    }
 
     private void Add(
         Symbol symbol,

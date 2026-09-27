@@ -313,7 +313,7 @@ config.Add<AppSettings>(model => model.UseCommonSources(new CommonSourceOptions
     SpecificFilePath = selectedPath,
     EnvironmentPrefix = "EXAMPLE",
     CommandLineParseResult = parseResult,
-    ConfigureCommandLineMappings = mappings => mappings.Map(portOption, "Server.Port"),
+    ConfigureCommandLineMappings = mappings => mappings.Map<AppSettings, int>(portOption, settings => settings.Server!.Port),
     WriteLayer = CommonSourceWriteLayer.Global,
 }));
 ```
@@ -350,8 +350,8 @@ model.Sources(sources => sources.FromCommandLine(new CommandLineSourceOptions
 },
 mappings =>
 {
-    mappings.Map(portOption, "Server.Port");
-    mappings.Map(verboseOption, "Diagnostics.Verbose");
+    mappings.Map<AppSettings, int>(portOption, settings => settings.Server!.Port);
+    mappings.Map<AppSettings, bool>(verboseOption, settings => settings.Diagnostics!.Verbose);
 }));
 ```
 

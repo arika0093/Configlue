@@ -17,7 +17,7 @@ config.Add<AppSettings>(model => model.UseCommonSources(new CommonSourceOptions
     SpecificFilePath = selectedPath, // 選択ファイルパス。項目上書きとは別
     EnvironmentPrefix = "EXAMPLE",
     CommandLineParseResult = parseResult,
-    ConfigureCommandLineMappings = mappings => mappings.Map(portOption, "Server.Port"),
+    ConfigureCommandLineMappings = mappings => mappings.Map<AppSettings, int>(portOption, settings => settings.Server!.Port),
     WriteLayer = CommonSourceWriteLayer.BestAvailable,
 }));
 ```
