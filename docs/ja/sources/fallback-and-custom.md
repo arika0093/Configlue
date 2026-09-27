@@ -28,6 +28,18 @@ var currentSource = SerializedStateSource.FromResource<AppSettings.Fragment>(
 
 完全手組みのソースは `IStateReader<TFragment>` (必要に応じ `IStateWriter<TFragment>` / `IStateWatcher`) を実装し、`Sources(sources => sources.Add(existingSource))` か DI の `(provider, sources) => ...` オーバーロードで `sources.Add(id, reader, priority, fallbackCondition)` します。
 
+### 複数リソースを1つの論理ソースにまとめる
+
+複数の読み取り専用リソースが疎フラグメントを寄与し、options runtime には1つの論理ソースとして見せる場合は `CompositeStateSource<TFragment>` を使います:
+
+```csharp
+var combined = new CompositeStateSource<AppSettings.Fragment>(
+    new StateSourceSet<AppSettings.Fragment>([globalSource, localSource]));
+model.Sources(sources => sources.Add(combined.CreateSource("common-files", priority: 100)));
+```
+
+各 component は低優先度から高優先度へマージされます。component の `fallbackCondition` が、欠損または一時利用不可の fragment を省略できるか決めます。1回の読み取りで成功した component は同じ schema metadata を返す必要があり、結合後に schema migration を1回実行します。component の revision と watcher は論理ソースの revision の内側に保持されます。この合成は読み取り専用で、単一の `ResourceId` を持ちません。書き込み先は別途登録した source に保持し、編集をそこへ routing します。
+
 ## 次のステップ
 
 * [解決とマージ](../layering/resolution-and-merge.md)。
