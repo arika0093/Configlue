@@ -9,7 +9,7 @@ Writes can target a source independently of read priority. Edits made through `O
 
 ## Default route
 
-`WriteRoute` selects the default destination. Without an owner for a path, the write uses `WriteRoute` (or the highest-priority writable source):
+`WriteRoute` selects the default destination. If it is omitted, a patch save infers the destination only when exactly one active source is writable. Multiple writable sources require an explicit route:
 
 ```csharp
 var userSettings = SourceKey<AppSettings>.Create();
@@ -17,7 +17,7 @@ model.Sources(sources => sources.Add(userSettings, CreateUserSettingsSource()));
 model.WriteRoute = StateWriteRoute.To(userSettings);
 ```
 
-When no `WriteRoute` is configured, semantic edits evaluate writable sources in read-priority order for changed paths without an explicit path owner. Configlue simulates each candidate together with any explicitly routed patches against the full source set and uses the first candidate that realizes the requested effective model. Candidate evaluation does not write; the chosen sources are written only after the edit baseline revisions are checked again. A configured `WriteRoute` and explicit path routes remain fixed and fail with `StateConflictException` if they cannot realize the edit. A whole-model replacement Patch is applied to one selected source.
+When no `WriteRoute` is configured, semantic edit sessions evaluate writable sources in read-priority order for changed paths without an explicit path owner. Configlue simulates each candidate together with any explicitly routed patches against the full source set and uses the first candidate that realizes the requested effective model. Candidate evaluation does not write; the chosen sources are written only after the edit baseline revisions are checked again. A configured `WriteRoute` and explicit path routes remain fixed and fail with `StateConflictException` if they cannot realize the edit. A whole-model replacement Patch is applied to one selected source.
 
 ## Per-path plans
 
