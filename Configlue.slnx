@@ -26,6 +26,9 @@
     <Project Path="tests/Configlue.Tests/Configlue.Tests.csproj" />
     <Project Path="tests/Configlue.Tests.PublicApi/Configlue.Tests.PublicApi.csproj" />
   </Folder>
+  <Folder Name="/benchmarks/">
+    <Project Path="benchmarks/Configlue.Benchmarks/Configlue.Benchmarks.csproj" />
+  </Folder>
   <Folder Name="/example/">
     <File Path="example/Directory.Build.props" />
     <Project Path="example/Example.ConsoleApp/Example.ConsoleApp.csproj" />
