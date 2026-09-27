@@ -18,7 +18,7 @@ config.Add<AppSettings>(model => model.UseCommonSources(new CommonSourceOptions
     EnvironmentPrefix = "EXAMPLE",
     CommandLineParseResult = parseResult,
     ConfigureCommandLineMappings = mappings => mappings.Map(portOption, "Server.Port"),
-    WriteLayer = CommonSourceWriteLayer.Global,
+    WriteLayer = CommonSourceWriteLayer.BestAvailable,
 }));
 ```
 
@@ -32,7 +32,7 @@ config.Add<AppSettings>(model => model.UseCommonSources(new CommonSourceOptions
 | `common.environment` | 400 | `EnableEnvironment` and `EnvironmentPrefix` is set | Environment variables | No |
 | `common.commandLine` | 500 | `EnableCommandLine` and `CommandLineParseResult` is set | Mappings from the existing parse result | No |
 
-Higher priorities win for members present in more than one source. File sources fall through when the file is missing; other read failures propagate. Exactly the file selected by `WriteLayer` is writable, and selecting a disabled or unavailable file layer throws during registration. The command-line selection of `SpecificFilePath` is separate from member-level mappings; a parse result requires `ConfigureCommandLineMappings`. Set the `Enable*` switches to omit layers, or set `LocalFilePath`, `SpecificFilePath`, and `WriteLayer` to change their locations and destination.
+Higher priorities win for members present in more than one source. File sources fall through when the file is missing; other read failures propagate. Exactly one file is writable. `WriteLayer` defaults to `Global`, preserving an explicit destination. `BestAvailable` selects among enabled file layers at registration time: the highest `*WritePriority` wins first, then an existing writable file, then a writable existing directory, then registration order (global, local, specific). It probes existing directories with a temporary file that is deleted on close and creates only the selected destination directory. The selection is fixed for that options runtime; later permission changes can still make a write fail. Read priority remains independent from write selection. The command-line selection of `SpecificFilePath` is separate from member-level mappings; a parse result requires `ConfigureCommandLineMappings`. Set the `Enable*` switches to omit layers, or set `LocalFilePath`, `SpecificFilePath`, `WriteLayer`, and the `*WritePriority` values to change locations and destination.
 
 `ConfiglueStandardPaths.GetStandardSaveDirectory(applicationId)` returns the platform-standard per-user configuration directory plus the application identifier. The application chooses the file name.
 

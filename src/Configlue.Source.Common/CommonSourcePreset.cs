@@ -18,6 +18,9 @@ public enum CommonSourceWriteLayer
 
     /// <summary>Write to the explicitly selected file.</summary>
     Specific,
+
+    /// <summary>Selects a destination from enabled file layers by priority and current accessibility.</summary>
+    BestAvailable,
 }
 
 /// <summary>Options for the common global/local/explicit/environment source layout.</summary>
@@ -46,6 +49,15 @@ public sealed class CommonSourceOptions
 
     /// <summary>The selected writable file layer. Read-only layers remain overlays.</summary>
     public CommonSourceWriteLayer WriteLayer { get; init; } = CommonSourceWriteLayer.Global;
+
+    /// <summary>Explicit write-selection priority for the global file. Higher values win.</summary>
+    public int GlobalWritePriority { get; init; }
+
+    /// <summary>Explicit write-selection priority for the local file. Higher values win.</summary>
+    public int LocalWritePriority { get; init; }
+
+    /// <summary>Explicit write-selection priority for the specific file. Higher values win.</summary>
+    public int SpecificWritePriority { get; init; }
 
     /// <summary>JSON serialization and property naming options shared by the file layers.</summary>
     public JsonSerializerOptions? SerializerOptions { get; init; }
@@ -110,6 +122,12 @@ public static class CommonSourcePreset
 
         var writeId = options.WriteLayer switch
         {
+            CommonSourceWriteLayer.BestAvailable => SelectBestAvailableWriteLayer(
+                options,
+                globalPath,
+                localPath,
+                specificPath
+            ),
             CommonSourceWriteLayer.Global when options.EnableGlobalFile => "common.global",
             CommonSourceWriteLayer.Local when options.EnableLocalFile => "common.local",
             CommonSourceWriteLayer.Specific
@@ -171,6 +189,143 @@ public static class CommonSourcePreset
             }
         });
     }
+
+    private static string SelectBestAvailableWriteLayer(
+        CommonSourceOptions options,
+        string globalPath,
+        string localPath,
+        string? specificPath
+    )
+    {
+        var candidates = new List<(string Id, string Path, int Priority, int Index)>(3);
+        if (options.EnableGlobalFile)
+        {
+            candidates.Add(
+                ("common.global", globalPath, options.GlobalWritePriority, candidates.Count)
+            );
+        }
+        if (options.EnableLocalFile)
+        {
+            candidates.Add(
+                ("common.local", localPath, options.LocalWritePriority, candidates.Count)
+            );
+        }
+        if (options.EnableSpecificFile && specificPath is not null)
+        {
+            candidates.Add(
+                ("common.specific", specificPath, options.SpecificWritePriority, candidates.Count)
+            );
+        }
+
+        var selected = candidates
+            .Select(candidate =>
+                (
+                    candidate.Id,
+                    candidate.Path,
+                    candidate.Priority,
+                    candidate.Index,
+                    CanWriteFile: CanWriteFile(candidate.Path),
+                    CanWriteDirectory: CanWriteDirectory(candidate.Path)
+                )
+            )
+            .OrderByDescending(static candidate => candidate.Priority)
+            .ThenByDescending(static candidate => candidate.CanWriteFile)
+            .ThenByDescending(static candidate => candidate.CanWriteDirectory)
+            .ThenBy(static candidate => candidate.Index)
+            .FirstOrDefault();
+
+        if (selected.Id is null)
+        {
+            throw new InvalidOperationException(
+                "No file layer is enabled for the common source write destination."
+            );
+        }
+
+        EnsureSelectedDirectoryIsWritable(selected.Path);
+        return selected.Id;
+    }
+
+    private static bool CanWriteFile(string path)
+    {
+        if (!File.Exists(path))
+        {
+            return false;
+        }
+
+        try
+        {
+            using var stream = new FileStream(
+                path,
+                FileMode.Open,
+                FileAccess.Write,
+                FileShare.None
+            );
+            return true;
+        }
+        catch (IOException)
+        {
+            return false;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return false;
+        }
+    }
+
+    private static bool CanWriteDirectory(string path)
+    {
+        var directory = Path.GetDirectoryName(path);
+        if (string.IsNullOrEmpty(directory) || !Directory.Exists(directory))
+        {
+            return false;
+        }
+
+        try
+        {
+            using var probe = CreateWriteProbe(directory);
+            return true;
+        }
+        catch (IOException)
+        {
+            return false;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return false;
+        }
+    }
+
+    private static void EnsureSelectedDirectoryIsWritable(string path)
+    {
+        var directory = Path.GetDirectoryName(path);
+        if (string.IsNullOrEmpty(directory))
+        {
+            directory = System.Environment.CurrentDirectory;
+        }
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            using var probe = CreateWriteProbe(directory);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            throw new InvalidOperationException(
+                $"The selected common source write directory '{directory}' is not writable.",
+                exception
+            );
+        }
+    }
+
+    private static FileStream CreateWriteProbe(string directory) =>
+        new(
+            Path.Combine(directory, Path.GetRandomFileName()),
+            FileMode.CreateNew,
+            FileAccess.Write,
+            FileShare.None,
+            bufferSize: 1,
+            FileOptions.DeleteOnClose
+        );
 
     private static void AddFile(
         ConfiglueSourceSetBuilder sources,

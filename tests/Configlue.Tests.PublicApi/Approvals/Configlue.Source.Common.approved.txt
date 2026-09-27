@@ -16,9 +16,12 @@ namespace Configlue.Source.Common
         public System.Func<System.Collections.Generic.IEnumerable<System.Collections.Generic.KeyValuePair<string, string?>>>? EnvironmentVariables { get; init; }
         public Configlue.FileResourceOptions? FileResourceOptions { get; init; }
         public required string GlobalFileName { get; init; }
+        public int GlobalWritePriority { get; init; }
         public string? LocalFilePath { get; init; }
+        public int LocalWritePriority { get; init; }
         public System.Text.Json.JsonSerializerOptions? SerializerOptions { get; init; }
         public string? SpecificFilePath { get; init; }
+        public int SpecificWritePriority { get; init; }
         public Configlue.Source.Common.CommonSourceWriteLayer WriteLayer { get; init; }
     }
     public static class CommonSourcePreset
@@ -31,5 +34,6 @@ namespace Configlue.Source.Common
         Global = 0,
         Local = 1,
         Specific = 2,
+        BestAvailable = 3,
     }
 }
