@@ -400,6 +400,48 @@ public sealed class ConfiglueSourceSetBuilder
         _sources.Add(new ConfiglueSourceRegistration<TFragment>(_ => source));
     }
 
+    /// <summary>Adds a source under a typed key, preserving its reader, writer, watcher, and resource identity.</summary>
+    public void Add<TModel, TFragment>(SourceKey<TModel> sourceKey, StateSource<TFragment> source)
+        where TFragment : class, IConfiglueFragment<TFragment>
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        Add(sourceKey, _ => source);
+    }
+
+    /// <summary>Adds a provider-aware source factory under a typed key.</summary>
+    public void Add<TModel, TFragment>(
+        SourceKey<TModel> sourceKey,
+        Func<IServiceProvider?, StateSource<TFragment>> sourceFactory
+    )
+        where TFragment : class, IConfiglueFragment<TFragment>
+    {
+        EnsureMutable();
+        ArgumentNullException.ThrowIfNull(sourceFactory);
+        if (string.IsNullOrWhiteSpace(sourceKey.Id))
+        {
+            throw new ArgumentException("The source key is uninitialized.", nameof(sourceKey));
+        }
+
+        _sources.Add(
+            new ConfiglueSourceRegistration<TFragment>(provider =>
+            {
+                var source =
+                    sourceFactory(provider)
+                    ?? throw new InvalidOperationException("A source factory returned null.");
+                return new StateSource<TFragment>(
+                    sourceKey.Id,
+                    source.Reader,
+                    source.Priority,
+                    source.FallbackCondition,
+                    source.Writer,
+                    source.Watcher,
+                    source.PhysicalOrigin,
+                    source.ResourceId
+                );
+            })
+        );
+    }
+
     /// <summary>Adds a source factory. The service provider is null in a non-DI context.</summary>
     public void Add<TFragment>(Func<IServiceProvider?, StateSource<TFragment>> sourceFactory)
         where TFragment : class, IConfiglueFragment<TFragment>

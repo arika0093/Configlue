@@ -12,4 +12,15 @@ public readonly record struct StateWriteRoute(string? SourceId = null)
         ArgumentException.ThrowIfNullOrWhiteSpace(sourceId);
         return new StateWriteRoute(sourceId);
     }
+
+    /// <summary>Selects the source represented by a typed source key.</summary>
+    public static StateWriteRoute To<TModel>(SourceKey<TModel> sourceKey)
+    {
+        if (string.IsNullOrWhiteSpace(sourceKey.Id))
+        {
+            throw new ArgumentException("The source key is uninitialized.", nameof(sourceKey));
+        }
+
+        return new StateWriteRoute(sourceKey.Id);
+    }
 }

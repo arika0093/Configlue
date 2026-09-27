@@ -12,29 +12,32 @@ Writes can target a source independently of read priority. Edits made through `O
 `WriteRoute` selects the default destination. Without an owner for a path, the write uses `WriteRoute` (or the highest-priority writable source):
 
 ```csharp
-model.WriteRoute = StateWriteRoute.To("user-settings");
+var userSettings = SourceKey<AppSettings>.Create();
+model.Sources(sources => sources.Add(userSettings, CreateUserSettingsSource()));
+model.WriteRoute = StateWriteRoute.To(userSettings);
 ```
 
 When no `WriteRoute` is configured, semantic edits evaluate writable sources in read-priority order for changed paths without an explicit path owner. Configlue simulates each candidate together with any explicitly routed patches against the full source set and uses the first candidate that realizes the requested effective model. Candidate evaluation does not write; the chosen sources are written only after the edit baseline revisions are checked again. A configured `WriteRoute` and explicit path routes remain fixed and fail with `StateConflictException` if they cannot realize the edit. `SaveAsync(value)` still replaces the selected write source's complete contribution.
 
 ## Per-path plans
 
-Set `ConfiglueModelBuilder<T>.WritePlan` to declare default owners for paths or subtrees; for example, route `Database` to a writable user overlay while leaving unrelated values in lower-priority sources. The most specific path wins. A per-operation `StateWritePlan` replaces registration routes for matching paths and can split nested model changes across source fragments:
+Set `ConfiglueModelBuilder<T>.WritePlan` to declare default owners for paths or subtrees; for example, route `Database` to a writable user overlay while leaving unrelated values in lower-priority sources. The most specific path wins. Use typed `SourceKey<T>` values and property selectors to configure routes without string IDs or property paths. A per-operation `StateWritePlan` replaces registration routes for matching paths and can split nested model changes across source fragments:
 
 ```csharp
 // Route selected model paths to different writable sources for one edit.
-var writePlan = new StateWritePlan(new Dictionary<string, string>
-{
-    ["Database"] = "database-settings",
-    ["Database.Password"] = "secrets",
-});
+var database = SourceKey<AppSettings>.Create();
+var secrets = SourceKey<AppSettings>.Create();
+var writePlan = StateWritePlan.For<AppSettings>()
+    .Route(settings => settings.Database, database)
+    .Route(settings => settings.Database!.Password, secrets)
+    .Build();
 using var routedEdit = await options.OpenEditSessionAsync(writePlan);
 routedEdit.Value.Database!.Password = "updated";
 var writeResult = await routedEdit.CommitAsync();
 var sourceWrites = writeResult.MultiWriteResult;
 ```
 
-The `SaveAsync(value, writePlan)` overload compares the value with the resolved baseline and routes only changed paths.
+Generated patch saves follow registered top-level routes and subtrees owned by one source. Use an edit session when one nested patch needs to split across multiple sources.
 
 ## Verification and conflicts
 
