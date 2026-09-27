@@ -146,17 +146,10 @@ public sealed partial class ConfiglueGenerator
                 continue;
             }
 
-            foreach (var argument in attribute.NamedArguments)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                if (argument.Key == "Id")
-                {
-                    return argument.Value.Value as string ?? model.ToDisplayString();
-                }
-            }
+            return attribute.ConstructorArguments.FirstOrDefault().Value as string ?? string.Empty;
         }
 
-        return model.ToDisplayString();
+        return string.Empty;
     }
 
     private static string GetJsonPropertyName(
@@ -209,15 +202,24 @@ public sealed partial class ConfiglueGenerator
         foreach (var attribute in model.GetAttributes())
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (attribute.AttributeClass?.ToDisplayString() == ModelAttributeName)
+            if (attribute.AttributeClass?.ToDisplayString() != ModelAttributeName)
             {
-                return attribute.ConstructorArguments.FirstOrDefault().Value is int version
-                    ? version
-                    : 1;
+                continue;
             }
+
+            foreach (var argument in attribute.NamedArguments)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (argument.Key == "Version" && argument.Value.Value is int version)
+                {
+                    return version;
+                }
+            }
+
+            return InitialSchemaVersion;
         }
 
-        return 1;
+        return InitialSchemaVersion;
     }
 
     private static string EscapeIdentifier(string identifier) =>

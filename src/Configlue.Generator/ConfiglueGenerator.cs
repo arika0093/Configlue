@@ -16,6 +16,7 @@ public sealed partial class ConfiglueGenerator : IIncrementalGenerator
     private const string PreviousVersionAttributeName =
         "Configlue.ConfigluePreviousVersionAttribute";
     private const string MergeAttributeName = "Configlue.ConfiglueMergeAttribute";
+    private const int InitialSchemaVersion = 1;
     private static readonly SymbolDisplayFormat TypeFormat =
         SymbolDisplayFormat.FullyQualifiedFormat.WithMiscellaneousOptions(
             SymbolDisplayFormat.FullyQualifiedFormat.MiscellaneousOptions
@@ -66,6 +67,22 @@ public sealed partial class ConfiglueGenerator : IIncrementalGenerator
         "CFG006",
         "Invalid Configlue previous version",
         "Previous model '{0}' must declare a distinct lower version with the same schema ID as model '{1}'",
+        "Configlue",
+        DiagnosticSeverity.Error,
+        true
+    );
+    private static readonly DiagnosticDescriptor InvalidModelId = new(
+        "CFG007",
+        "Invalid Configlue model schema ID",
+        "Model '{0}' must declare a non-blank schema ID as the first ConfiglueModel attribute argument",
+        "Configlue",
+        DiagnosticSeverity.Error,
+        true
+    );
+    private static readonly DiagnosticDescriptor InvalidModelVersion = new(
+        "CFG008",
+        "Invalid Configlue model schema version",
+        "Model '{0}' must declare a schema version of 1 or greater",
         "Configlue",
         DiagnosticSeverity.Error,
         true
@@ -161,13 +178,24 @@ public sealed partial class ConfiglueGenerator : IIncrementalGenerator
         var diagnostics = ImmutableArray.CreateBuilder<GeneratorDiagnosticInfo>();
         var modelId = GetModelId(model, cancellationToken);
         var modelVersion = GetModelVersion(model, cancellationToken);
-        var previousModels = GetPreviousModels(
-            model,
-            modelId,
-            modelVersion,
-            cancellationToken,
-            diagnostics
-        );
+        var modelIdValid = !string.IsNullOrWhiteSpace(modelId);
+        var modelVersionValid = modelVersion >= InitialSchemaVersion;
+        if (!modelIdValid)
+        {
+            diagnostics.Add(GeneratorDiagnosticInfo.Create(InvalidModelId, location, model.Name));
+        }
+
+        if (!modelVersionValid)
+        {
+            diagnostics.Add(
+                GeneratorDiagnosticInfo.Create(InvalidModelVersion, location, model.Name)
+            );
+        }
+
+        var previousModels =
+            modelIdValid && modelVersionValid
+                ? GetPreviousModels(model, modelId, modelVersion, cancellationToken, diagnostics)
+                : ImmutableArray<PreviousModelInfo>.Empty;
         foreach (var member in members)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -368,12 +396,12 @@ public sealed partial class ConfiglueGenerator : IIncrementalGenerator
                 )
                 && HasConfiglueModelAttribute(previousModel, cancellationToken);
             var previousVersion = previousModel is null
-                ? 1
+                ? InitialSchemaVersion
                 : GetModelVersion(previousModel, cancellationToken);
             if (
                 !valid
                 || previousModel is null
-                || previousVersion < 1
+                || previousVersion < InitialSchemaVersion
                 || previousVersion >= modelVersion
                 || !string.Equals(
                     GetModelId(previousModel, cancellationToken),

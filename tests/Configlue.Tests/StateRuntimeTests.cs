@@ -7,7 +7,7 @@ using Microsoft.Extensions.Options;
 
 namespace Configlue.Tests;
 
-[ConfiglueModel(1, Id = "replace-collection-settings")]
+[ConfiglueModel("replace-collection-settings", Version = 1)]
 public partial class ReplaceCollectionSettings
 {
     public IReadOnlyList<string> Values { get; set; } = [];

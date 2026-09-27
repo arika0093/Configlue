@@ -2,7 +2,7 @@ using Configlue;
 
 namespace Example.MultiSource;
 
-[ConfiglueModel(1, Id = "example.multi-source-settings")]
+[ConfiglueModel("example.multi-source-settings", Version = 1)]
 public partial class SampleSetting
 {
     public string Name { get; set; } = "Global default";

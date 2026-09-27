@@ -7,7 +7,7 @@ using Configlue.Provider.Json;
 
 namespace Configlue.Tests;
 
-[ConfiglueModel(2, Id = "schema-settings")]
+[ConfiglueModel("schema-settings", Version = 2)]
 public partial class SchemaSettings
 {
     [Range(1, 1000)]
@@ -32,7 +32,7 @@ public partial class SchemaSettings
     public string CurrentState { get; set; } = "";
 }
 
-[ConfiglueModel(1, Id = "schema-one-of")]
+[ConfiglueModel("schema-one-of", Version = 1)]
 public partial class OneOfSchemaSettings
 {
     [JsonConverter(typeof(CoalescedValueJsonConverter))]
@@ -40,7 +40,7 @@ public partial class OneOfSchemaSettings
     public string FlexibleValue { get; set; } = "";
 }
 
-[ConfiglueModel(1, Id = "schema-invalid-override")]
+[ConfiglueModel("schema-invalid-override", Version = 1)]
 public partial class InvalidOverrideSettings
 {
     [JsonConverter(typeof(CoalescedValueJsonConverter))]

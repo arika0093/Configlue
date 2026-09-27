@@ -47,9 +47,9 @@ namespace Configlue
     [System.AttributeUsage(System.AttributeTargets.Class | System.AttributeTargets.Struct, Inherited=false)]
     public sealed class ConfiglueModelAttribute : System.Attribute
     {
-        public ConfiglueModelAttribute(int version = 1) { }
-        public string? Id { get; set; }
-        public int Version { get; }
+        public ConfiglueModelAttribute(string id) { }
+        public string Id { get; }
+        public int Version { get; set; }
     }
     public sealed class ConfiglueModelSchema
     {

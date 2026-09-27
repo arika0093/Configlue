@@ -2,7 +2,7 @@ using Configlue;
 
 namespace Example.ConsoleApp.Yaml;
 
-[ConfiglueModel(1, Id = "example.yaml-settings")]
+[ConfiglueModel("example.yaml-settings", Version = 1)]
 public partial class SampleSetting
 {
     public string Name { get; set; } = "World";

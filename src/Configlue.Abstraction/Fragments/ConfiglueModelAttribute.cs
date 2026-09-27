@@ -4,15 +4,33 @@ namespace Configlue;
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct, Inherited = false)]
 public sealed class ConfiglueModelAttribute : Attribute
 {
-    /// <summary>Creates model metadata with the initial schema version.</summary>
-    public ConfiglueModelAttribute(int version = StateSchemaMetadata.InitialVersion)
+    private int _version = StateSchemaMetadata.InitialVersion;
+
+    /// <summary>Creates model metadata for a stable schema identifier.</summary>
+    /// <param name="id">
+    /// The stable persisted schema identifier. It must not be null, empty, or whitespace.
+    /// </param>
+    public ConfiglueModelAttribute(string id)
     {
-        Version = version;
+        ArgumentException.ThrowIfNullOrWhiteSpace(id);
+        Id = id;
     }
 
-    /// <summary>The persisted schema version of this model.</summary>
-    public int Version { get; }
+    /// <summary>The stable persisted schema identifier.</summary>
+    public string Id { get; }
 
-    /// <summary>An optional stable schema identifier.</summary>
-    public string? Id { get; set; }
+    /// <summary>The persisted schema version of this model.</summary>
+    public int Version
+    {
+        get => _version;
+        set
+        {
+            if (value < StateSchemaMetadata.InitialVersion)
+            {
+                throw new ArgumentOutOfRangeException(nameof(value));
+            }
+
+            _version = value;
+        }
+    }
 }

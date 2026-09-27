@@ -9,7 +9,7 @@ using Configlue.Testing;
 
 namespace Configlue.Tests;
 
-[ConfiglueModel(2, Id = "app-settings")]
+[ConfiglueModel("app-settings", Version = 2)]
 public partial class AppSettings
 {
     public bool Enabled { get; set; } = true;
@@ -26,7 +26,7 @@ public partial class AppSettings
     public IReadOnlyList<string> Plugins { get; set; } = [];
 }
 
-[ConfiglueModel(2, Id = "database-settings")]
+[ConfiglueModel("database-settings", Version = 2)]
 public partial class DatabaseSettings
 {
     [ConfiglueEnvironment("DATABASE_HOST")]
@@ -35,14 +35,14 @@ public partial class DatabaseSettings
     public int Port { get; set; } = 5432;
 }
 
-[ConfiglueModel(1, Id = "set-union-settings")]
+[ConfiglueModel("set-union-settings", Version = 1)]
 public partial class SetUnionSettings
 {
     [ConfiglueMerge(MergeMode.SetUnion)]
     public IReadOnlyList<string> Tags { get; set; } = [];
 }
 
-[ConfiglueModel(1, Id = "historical-settings")]
+[ConfiglueModel("historical-settings", Version = 1)]
 public partial class HistoricalSettingsV1
 {
     public int RetryCount { get; set; } = 3;
@@ -52,7 +52,7 @@ public partial class HistoricalSettingsV1
     public string? OldName { get; set; } = "legacy-name";
 }
 
-[ConfiglueModel(2, Id = "historical-settings")]
+[ConfiglueModel("historical-settings", Version = 2)]
 public partial class HistoricalSettingsV2
 {
     public int RetryCount { get; set; } = 4;
@@ -62,7 +62,7 @@ public partial class HistoricalSettingsV2
     public string? NewName { get; set; } = "v2-name";
 }
 
-[ConfiglueModel(3, Id = "historical-settings")]
+[ConfiglueModel("historical-settings", Version = 3)]
 [ConfigluePreviousVersion(typeof(HistoricalSettingsV1))]
 [ConfigluePreviousVersion(typeof(HistoricalSettingsV2))]
 public partial class HistoricalSettings

@@ -2,7 +2,7 @@ using Configlue;
 
 namespace Example.ConsoleApp;
 
-[ConfiglueModel(1, Id = "example.console-settings")]
+[ConfiglueModel("example.console-settings", Version = 1)]
 public partial class SampleSetting
 {
     public string Name { get; set; } = "World";

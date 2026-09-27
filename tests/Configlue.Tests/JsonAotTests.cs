@@ -4,7 +4,7 @@ using Configlue.Testing;
 
 namespace Configlue.Tests;
 
-[ConfiglueModel(1, Id = "json-aot-settings")]
+[ConfiglueModel("json-aot-settings", Version = 1)]
 public partial class JsonAotSettings
 {
     public string Host { get; set; } = "localhost";
