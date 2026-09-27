@@ -544,17 +544,11 @@ public sealed partial class ConfiglueGenerator : IIncrementalGenerator
             )
         )
         {
-            foreach (
-                var property in GetMembers(named, cancellationToken)
-                    .Select(static member => member.Property)
-            )
+            var members = GetMembers(named, cancellationToken).ToArray();
+            if (members.Length == 0 || HasUnsupportedPocoMembers(named, cancellationToken))
             {
-                cancellationToken.ThrowIfCancellationRequested();
-                if (property.IsRequired || property.SetMethod?.IsInitOnly == true)
-                {
-                    pocoType = null!;
-                    return false;
-                }
+                pocoType = null!;
+                return false;
             }
 
             pocoType = named;
@@ -562,6 +556,72 @@ public sealed partial class ConfiglueGenerator : IIncrementalGenerator
         }
 
         pocoType = null!;
+        return false;
+    }
+
+    private static bool HasUnsupportedPocoMembers(
+        INamedTypeSymbol pocoType,
+        CancellationToken cancellationToken
+    )
+    {
+        var hierarchy = new Stack<INamedTypeSymbol>();
+        for (
+            var current = pocoType;
+            current is not null && current.SpecialType != SpecialType.System_Object;
+            current = current.BaseType
+        )
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            hierarchy.Push(current);
+        }
+
+        while (hierarchy.Count > 0)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var current = hierarchy.Pop();
+            foreach (var property in current.GetMembers().OfType<IPropertySymbol>())
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (property.IsStatic || property.IsIndexer)
+                {
+                    continue;
+                }
+
+                var hasPublicGetter =
+                    property.GetMethod?.DeclaredAccessibility == Accessibility.Public;
+                var hasPublicSetter =
+                    property.SetMethod?.DeclaredAccessibility == Accessibility.Public;
+                if (!hasPublicGetter && !hasPublicSetter)
+                {
+                    continue;
+                }
+
+                if (
+                    !hasPublicGetter
+                    || !hasPublicSetter
+                    || property.IsRequired
+                    || property.SetMethod?.IsInitOnly == true
+                )
+                {
+                    return true;
+                }
+            }
+
+            if (
+                current
+                    .GetMembers()
+                    .OfType<IFieldSymbol>()
+                    .Any(static field =>
+                        !field.IsStatic
+                        && !field.IsConst
+                        && field.DeclaredAccessibility == Accessibility.Public
+                    )
+            )
+            {
+                return true;
+            }
+        }
+
         return false;
     }
 
