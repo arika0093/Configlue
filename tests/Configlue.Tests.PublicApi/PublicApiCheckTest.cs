@@ -39,6 +39,7 @@ public static class PublicApiCheck
                 ],
             }
         );
+        publicApi += FormatFacadeModelStaticMemberModifiers(assembly);
 
         if (Environment.GetEnvironmentVariable(UpdateApprovalsEnvironmentVariable) == "1")
         {
@@ -62,6 +63,37 @@ public static class PublicApiCheck
             Path.Combine(AppContext.BaseDirectory, "Approvals", $"{assemblyName}.approved.txt")
         );
         publicApi.ShouldBe(approvedApi);
+    }
+
+    private static string FormatFacadeModelStaticMemberModifiers(Assembly assembly)
+    {
+        var contract = assembly.GetType("Configlue.IConfiglueFacadeModel`1");
+        if (contract is null)
+        {
+            return string.Empty;
+        }
+
+        var members = contract
+            .GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly)
+            .OrderBy(method => method.Name, StringComparer.Ordinal)
+            .Select(method =>
+            {
+                var modifiers = new List<string> { "static" };
+                if (method.IsAbstract)
+                {
+                    modifiers.Add("abstract");
+                }
+
+                if (method.IsVirtual)
+                {
+                    modifiers.Add("virtual");
+                }
+
+                var interfaceName = contract.Name[..contract.Name.IndexOf('`')];
+                return $"{interfaceName}.{method.Name}: {string.Join(' ', modifiers)}";
+            });
+
+        return $"{Environment.NewLine}// Compiled static interface member modifiers{Environment.NewLine}{string.Join(Environment.NewLine, members)}{Environment.NewLine}";
     }
 }
 

@@ -209,3 +209,6 @@ namespace Configlue
         public static Configlue.StateWriteRoute To(string sourceId) { }
     }
 }
+// Compiled static interface member modifiers
+IConfiglueFacadeModel.CreateConfiglueProfileManager: static virtual
+IConfiglueFacadeModel.CreateConfiglueRuntime: static abstract virtual
