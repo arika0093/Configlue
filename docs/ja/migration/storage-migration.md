@@ -13,7 +13,7 @@ description: 検証と退役つきでソース間に寄与をコピーする。
 
 ## 退役つき複数宛先移行
 
-`MigrateSourcesToTargetsAsync(sourceIds, targetProjections)` は選択寄与だけをマージし、宛先ごとにフラグメント投影を適用して、各宛先をリビジョンチェック・検証します。完了済み宛先は再試行でスキップされ、後段の宛先で失敗したら移行を再実行して再開します。複数宛先の書き込みはアトミックではありません。
+`MigrateSourcesToTargetsAsync(sourceIds, targetProjections)` は選択寄与だけをマージし、宛先ごとにフラグメント投影を適用して、各宛先をリビジョンチェック・検証します。再試行時は選択ソースを読み直し、journal に完了記録がある宛先も含めて再確認します。宛先が最新ソース寄与の投影と一致している場合だけ書き込みを省略します。前回の実行から source が変わっていれば、宛先を新しい寄与に合わせて再調整します。後段の宛先で失敗したら、移行を再実行して再開します。複数宛先の書き込みはアトミックではありません。
 
 複数宛先をプロセス再起動後も再開する場合は、`StateStorageMigrationDefinition<TFragment>` と `FileStateStorageMigrationJournal` を使います。journal は `StateStorageMigrationProgress` を migration ID ごとの JSON ファイルに永続化し、各宛先の検証後に更新します。ファイルは `FileResource` が revision check 付きで原子的に置換します。同じ migration ID を複数プロセスから同時実行しないでください。
 
