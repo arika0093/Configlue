@@ -1032,7 +1032,7 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
             );
         }
 
-        var expectedResolvedModel = TModel.FromFragment(requestedFragment);
+        var expectedResolvedModel = CloneModel(TModel.FromFragment(requestedFragment));
 
         if (_defaultWritePlan.PropertyRoutes.Count > 0)
         {
@@ -1406,6 +1406,8 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
                         );
                     }
 
+                    patchedComponent = CloneFragment(patchedComponent);
+
                     componentOverrides.Add(component.Id, patchedComponent);
                     var componentRequest = new StateWriteRequest<TFragment>(
                         patchedComponent,
@@ -1562,6 +1564,8 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
                     $"The patch for source '{source.Id}' returned an incompatible fragment."
                 );
             }
+
+            patchedFragment = CloneFragment(patchedFragment);
 
             if (source.Writer is null)
             {
@@ -4339,6 +4343,9 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
 
         return clone;
     }
+
+    private static TFragment CloneFragment(TFragment value) =>
+        value is IConfiglueDeepCloneable<TFragment> cloneable ? cloneable.DeepClone() : value;
 
     private void UpdateCurrentValueCache(TModel value)
     {

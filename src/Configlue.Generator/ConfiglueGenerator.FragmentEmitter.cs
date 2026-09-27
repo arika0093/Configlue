@@ -29,7 +29,7 @@ public sealed partial class ConfiglueGenerator
         );
         code.AppendLineAt(
             1,
-            "public sealed class Fragment : global::Configlue.IConfiglueFragment<Fragment>"
+            "public sealed class Fragment : global::Configlue.IConfiglueFragment<Fragment>, global::Configlue.IConfiglueDeepCloneable<Fragment>"
         );
         code.AppendLineAt(1, "{");
         foreach (var member in members)
