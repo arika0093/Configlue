@@ -15,6 +15,8 @@ internal sealed class ConfiglueFacadeOptionsRegistry<TModel>
         public IWritableOptions<TModel> Runtime { get; } = runtime;
         public Action Dispatch { get; } = dispatch;
         public bool IsCancelled { get; set; }
+        public TaskCompletionSource Completion { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
     }
 
     private readonly Func<string, Entry> _factory;
@@ -24,6 +26,8 @@ internal sealed class ConfiglueFacadeOptionsRegistry<TModel>
     private readonly HashSet<string> _retiringNames = new(StringComparer.Ordinal);
     private readonly HashSet<Task<Exception?>> _pendingRemovals = [];
     private readonly Queue<Notification> _notifications = new();
+    private readonly AsyncLocal<bool> _insideNotification = new();
+    private Notification? _activeNotification;
     private Task? _disposeTask;
     private bool _dispatchingNotifications;
     private int _notificationDeferralCount;
@@ -92,6 +96,8 @@ internal sealed class ConfiglueFacadeOptionsRegistry<TModel>
     {
         ValidateName(profileName);
         Entry entry;
+        Notification notification;
+        bool waitForNotifications;
         lock (_gate)
         {
             ThrowIfDisposed();
@@ -105,11 +111,15 @@ internal sealed class ConfiglueFacadeOptionsRegistry<TModel>
             }
             entry = _factory(profileName);
             _entries.Add(profileName, entry);
-            _notifications.Enqueue(
-                new Notification(entry.Runtime, () => NotifyAdded(profileName, entry.Runtime))
+            notification = new Notification(
+                entry.Runtime,
+                () => NotifyAdded(profileName, entry.Runtime)
             );
+            _notifications.Enqueue(notification);
+            waitForNotifications = !_insideNotification.Value && _notificationDeferralCount == 0;
         }
         DrainNotifications();
+        WaitForNotifications([notification], waitForNotifications).GetAwaiter().GetResult();
         return true;
     }
 
@@ -126,6 +136,8 @@ internal sealed class ConfiglueFacadeOptionsRegistry<TModel>
         var notificationReady = new TaskCompletionSource(
             TaskCreationOptions.RunContinuationsAsynchronously
         );
+        Notification notification;
+        bool waitForNotifications;
         lock (_gate)
         {
             ThrowIfDisposed();
@@ -133,16 +145,16 @@ internal sealed class ConfiglueFacadeOptionsRegistry<TModel>
                 return false;
             _retiringNames.Add(profileName);
             _pendingRemovals.Add(completed.Task);
-            _notifications.Enqueue(
-                new Notification(
-                    entry.Runtime,
-                    () =>
-                    {
-                        notificationReady.Task.GetAwaiter().GetResult();
-                        NotifyRemoved(profileName);
-                    }
-                )
+            notification = new Notification(
+                entry.Runtime,
+                () =>
+                {
+                    notificationReady.Task.GetAwaiter().GetResult();
+                    NotifyRemoved(profileName);
+                }
             );
+            _notifications.Enqueue(notification);
+            waitForNotifications = !_insideNotification.Value && _notificationDeferralCount == 0;
         }
         Exception? disposalError = null;
         try
@@ -164,6 +176,7 @@ internal sealed class ConfiglueFacadeOptionsRegistry<TModel>
             }
             DrainNotifications();
         }
+        await WaitForNotifications([notification], waitForNotifications).ConfigureAwait(false);
         if (disposalError is not null)
             ExceptionDispatchInfo.Capture(disposalError).Throw();
         return true;
@@ -175,6 +188,8 @@ internal sealed class ConfiglueFacadeOptionsRegistry<TModel>
     {
         KeyValuePair<string, Entry>[] removed;
         Task<Exception?>[] pendingBeforeClear;
+        bool waitForNotifications;
+        Notification[] notificationsToAwait;
         var completed = new TaskCompletionSource<Exception?>(
             TaskCreationOptions.RunContinuationsAsynchronously
         );
@@ -200,7 +215,9 @@ internal sealed class ConfiglueFacadeOptionsRegistry<TModel>
                     )
                 );
             }
-            pendingBeforeClear = _pendingRemovals.ToArray();
+            notificationsToAwait = CaptureQueuedNotificationsLocked();
+            waitForNotifications = !_insideNotification.Value && _notificationDeferralCount == 0;
+            pendingBeforeClear = _insideNotification.Value ? [] : _pendingRemovals.ToArray();
             if (removed.Length > 0)
                 _pendingRemovals.Add(completed.Task);
         }
@@ -218,6 +235,8 @@ internal sealed class ConfiglueFacadeOptionsRegistry<TModel>
                     );
                 }
             }
+            await WaitForNotifications(notificationsToAwait, waitForNotifications)
+                .ConfigureAwait(false);
             return;
         }
         List<Exception>? errors = null;
@@ -269,6 +288,8 @@ internal sealed class ConfiglueFacadeOptionsRegistry<TModel>
             }
             DrainNotifications();
         }
+        await WaitForNotifications(notificationsToAwait, waitForNotifications)
+            .ConfigureAwait(false);
         if (errors is not null)
         {
             throw new AggregateException(
@@ -286,10 +307,12 @@ internal sealed class ConfiglueFacadeOptionsRegistry<TModel>
         Task<Exception?>[] pendingRemovals;
         TaskCompletionSource completion;
         TaskCompletionSource notificationReady;
+        Notification[] notificationsToAwait;
+        bool waitForNotifications;
         lock (_gate)
         {
             if (_disposeTask is not null)
-                return new ValueTask(_disposeTask);
+                return new ValueTask(_insideNotification.Value ? Task.CompletedTask : _disposeTask);
             _disposed = true;
             removed = _entries.ToArray();
             _entries.Clear();
@@ -310,19 +333,30 @@ internal sealed class ConfiglueFacadeOptionsRegistry<TModel>
                     )
                 );
             }
-            pendingRemovals = _pendingRemovals.ToArray();
+            notificationsToAwait = CaptureQueuedNotificationsLocked();
+            waitForNotifications = !_insideNotification.Value && _notificationDeferralCount == 0;
+            pendingRemovals = _insideNotification.Value ? [] : _pendingRemovals.ToArray();
             completion = new TaskCompletionSource(
                 TaskCreationOptions.RunContinuationsAsynchronously
             );
             _disposeTask = completion.Task;
         }
-        _ = FinishDisposeAsync(pendingRemovals, removed, notificationReady, completion);
+        _ = FinishDisposeAsync(
+            pendingRemovals,
+            removed,
+            notificationsToAwait,
+            waitForNotifications,
+            notificationReady,
+            completion
+        );
         return new ValueTask(completion.Task);
     }
 
     private async Task FinishDisposeAsync(
         Task<Exception?>[] pendingRemovals,
         KeyValuePair<string, Entry>[] removed,
+        Notification[] notificationsToAwait,
+        bool waitForNotifications,
         TaskCompletionSource notificationReady,
         TaskCompletionSource completion
     )
@@ -375,6 +409,8 @@ internal sealed class ConfiglueFacadeOptionsRegistry<TModel>
                 );
             }
             DrainNotifications();
+            await WaitForNotifications(notificationsToAwait, waitForNotifications)
+                .ConfigureAwait(false);
         }
         catch (Exception exception)
         {
@@ -466,6 +502,8 @@ internal sealed class ConfiglueFacadeOptionsRegistry<TModel>
     private void ReleaseNotificationDeferral()
     {
         var shouldDrain = false;
+        Notification[] notificationsToAwait = [];
+        var waitForNotifications = false;
         lock (_gate)
         {
             if (_notificationDeferralCount <= 0)
@@ -474,10 +512,18 @@ internal sealed class ConfiglueFacadeOptionsRegistry<TModel>
             }
             _notificationDeferralCount--;
             shouldDrain = _notificationDeferralCount == 0;
+            if (shouldDrain)
+            {
+                notificationsToAwait = CaptureQueuedNotificationsLocked();
+                waitForNotifications = !_insideNotification.Value;
+            }
         }
         if (shouldDrain)
         {
             DrainNotifications();
+            WaitForNotifications(notificationsToAwait, waitForNotifications)
+                .GetAwaiter()
+                .GetResult();
         }
     }
 
@@ -574,16 +620,55 @@ internal sealed class ConfiglueFacadeOptionsRegistry<TModel>
                 if (_notifications.Count == 0 || _notificationDeferralCount > 0)
                 {
                     _dispatchingNotifications = false;
+                    _activeNotification = null;
                     return;
                 }
                 notification = _notifications.Dequeue();
+                _activeNotification = notification;
             }
-            if (!notification.IsCancelled)
+            try
             {
-                notification.Dispatch();
+                var wasInsideNotification = _insideNotification.Value;
+                _insideNotification.Value = true;
+                try
+                {
+                    if (!notification.IsCancelled)
+                    {
+                        notification.Dispatch();
+                    }
+                }
+                finally
+                {
+                    _insideNotification.Value = wasInsideNotification;
+                }
+            }
+            finally
+            {
+                lock (_gate)
+                {
+                    notification.Completion.TrySetResult();
+                    _activeNotification = null;
+                }
             }
         }
     }
+
+    private Notification[] CaptureQueuedNotificationsLocked() =>
+        (
+            _activeNotification is null
+                ? _notifications
+                : _notifications.Prepend(_activeNotification)
+        ).ToArray();
+
+    private static Task WaitForNotifications(
+        IEnumerable<Notification> notifications,
+        bool waitForNotifications
+    ) =>
+        waitForNotifications
+            ? Task.WhenAll(
+                notifications.Select(static notification => notification.Completion.Task)
+            )
+            : Task.CompletedTask;
 
     private static void ValidateName(string name) =>
         ArgumentException.ThrowIfNullOrWhiteSpace(name);

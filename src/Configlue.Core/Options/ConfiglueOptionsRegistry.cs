@@ -17,6 +17,8 @@ public sealed class ConfiglueOptionsRegistry<TModel, TFragment>
         public IWritableOptions<TModel> Runtime { get; } = runtime;
         public Action Dispatch { get; } = dispatch;
         public bool IsCancelled { get; set; }
+        public TaskCompletionSource Completion { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
     }
 
     private readonly Func<string, ConfiglueOptions<TModel, TFragment>> _factory;
@@ -27,6 +29,8 @@ public sealed class ConfiglueOptionsRegistry<TModel, TFragment>
     private readonly HashSet<string> _retiringProfiles = new(StringComparer.Ordinal);
     private readonly HashSet<Task<Exception?>> _pendingAsyncRemovals = [];
     private readonly Queue<Notification> _notifications = new();
+    private readonly AsyncLocal<bool> _insideNotification = new();
+    private Notification? _activeNotification;
     private bool _dispatchingNotifications;
     private int _notificationDeferralCount;
     private Task? _disposeTask;
@@ -95,6 +99,8 @@ public sealed class ConfiglueOptionsRegistry<TModel, TFragment>
     {
         ValidateName(profileName);
         ConfiglueOptions<TModel, TFragment> options;
+        Notification notification;
+        bool waitForNotifications;
         lock (_gate)
         {
             ThrowIfDisposed();
@@ -107,12 +113,13 @@ public sealed class ConfiglueOptionsRegistry<TModel, TFragment>
                 _factory(profileName)
                 ?? throw new InvalidOperationException("The profile factory returned null.");
             _profiles.Add(profileName, options);
-            _notifications.Enqueue(
-                new Notification(options, () => NotifyAdded(profileName, options))
-            );
+            notification = new Notification(options, () => NotifyAdded(profileName, options));
+            _notifications.Enqueue(notification);
+            waitForNotifications = !_insideNotification.Value && _notificationDeferralCount == 0;
         }
 
         DrainNotifications();
+        WaitForNotifications([notification], waitForNotifications).GetAwaiter().GetResult();
         return true;
     }
 
@@ -131,6 +138,8 @@ public sealed class ConfiglueOptionsRegistry<TModel, TFragment>
         var notificationReady = new TaskCompletionSource(
             TaskCreationOptions.RunContinuationsAsynchronously
         );
+        Notification notification;
+        bool waitForNotifications;
         lock (_gate)
         {
             ThrowIfDisposed();
@@ -141,16 +150,16 @@ public sealed class ConfiglueOptionsRegistry<TModel, TFragment>
 
             _retiringProfiles.Add(profileName);
             _pendingAsyncRemovals.Add(removalCompleted.Task);
-            _notifications.Enqueue(
-                new Notification(
-                    options,
-                    () =>
-                    {
-                        notificationReady.Task.GetAwaiter().GetResult();
-                        NotifyRemoved(profileName);
-                    }
-                )
+            notification = new Notification(
+                options,
+                () =>
+                {
+                    notificationReady.Task.GetAwaiter().GetResult();
+                    NotifyRemoved(profileName);
+                }
             );
+            _notifications.Enqueue(notification);
+            waitForNotifications = !_insideNotification.Value && _notificationDeferralCount == 0;
         }
 
         Exception? disposalError = null;
@@ -174,6 +183,8 @@ public sealed class ConfiglueOptionsRegistry<TModel, TFragment>
             DrainNotifications();
         }
 
+        await WaitForNotifications([notification], waitForNotifications).ConfigureAwait(false);
+
         if (disposalError is not null)
         {
             ExceptionDispatchInfo.Capture(disposalError).Throw();
@@ -189,6 +200,8 @@ public sealed class ConfiglueOptionsRegistry<TModel, TFragment>
     {
         KeyValuePair<string, ConfiglueOptions<TModel, TFragment>>[] removed;
         Task<Exception?>[] pendingBeforeClear;
+        Notification[] notificationsToAwait;
+        bool waitForNotifications;
         var clearCompleted = new TaskCompletionSource<Exception?>(
             TaskCreationOptions.RunContinuationsAsynchronously
         );
@@ -214,7 +227,9 @@ public sealed class ConfiglueOptionsRegistry<TModel, TFragment>
                     )
                 );
             }
-            pendingBeforeClear = _pendingAsyncRemovals.ToArray();
+            notificationsToAwait = CaptureQueuedNotificationsLocked();
+            waitForNotifications = !_insideNotification.Value && _notificationDeferralCount == 0;
+            pendingBeforeClear = _insideNotification.Value ? [] : _pendingAsyncRemovals.ToArray();
             if (removed.Length > 0)
             {
                 _pendingAsyncRemovals.Add(clearCompleted.Task);
@@ -276,6 +291,9 @@ public sealed class ConfiglueOptionsRegistry<TModel, TFragment>
             }
             DrainNotifications();
         }
+
+        await WaitForNotifications(notificationsToAwait, waitForNotifications)
+            .ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -288,11 +306,13 @@ public sealed class ConfiglueOptionsRegistry<TModel, TFragment>
         Task<Exception?>[] pendingRemovals;
         TaskCompletionSource notificationReady;
         TaskCompletionSource completion;
+        Notification[] notificationsToAwait;
+        bool waitForNotifications;
         lock (_gate)
         {
             if (_disposeTask is not null)
             {
-                return new ValueTask(_disposeTask);
+                return new ValueTask(_insideNotification.Value ? Task.CompletedTask : _disposeTask);
             }
 
             _disposed = true;
@@ -315,20 +335,31 @@ public sealed class ConfiglueOptionsRegistry<TModel, TFragment>
                     )
                 );
             }
-            pendingRemovals = _pendingAsyncRemovals.ToArray();
+            notificationsToAwait = CaptureQueuedNotificationsLocked();
+            waitForNotifications = !_insideNotification.Value && _notificationDeferralCount == 0;
+            pendingRemovals = _insideNotification.Value ? [] : _pendingAsyncRemovals.ToArray();
             completion = new TaskCompletionSource(
                 TaskCreationOptions.RunContinuationsAsynchronously
             );
             _disposeTask = completion.Task;
         }
 
-        _ = FinishDisposeAsync(removed, pendingRemovals, notificationReady, completion);
+        _ = FinishDisposeAsync(
+            removed,
+            pendingRemovals,
+            notificationsToAwait,
+            waitForNotifications,
+            notificationReady,
+            completion
+        );
         return new ValueTask(completion.Task);
     }
 
     private async Task FinishDisposeAsync(
         KeyValuePair<string, ConfiglueOptions<TModel, TFragment>>[] removed,
         Task<Exception?>[] pendingRemovals,
+        Notification[] notificationsToAwait,
+        bool waitForNotifications,
         TaskCompletionSource notificationReady,
         TaskCompletionSource completion
     )
@@ -386,6 +417,10 @@ public sealed class ConfiglueOptionsRegistry<TModel, TFragment>
             }
         }
 
+        DrainNotifications();
+        await WaitForNotifications(notificationsToAwait, waitForNotifications)
+            .ConfigureAwait(false);
+
         if (disposalFailure is null)
         {
             completion.TrySetResult();
@@ -394,7 +429,6 @@ public sealed class ConfiglueOptionsRegistry<TModel, TFragment>
         {
             completion.TrySetException(disposalFailure);
         }
-        DrainNotifications();
     }
 
     IConfiglueOptionsRegistryNotificationDeferral<TModel> IConfiglueOptionsRegistryNotificationDeferrer<TModel>.DeferNotifications()
@@ -424,6 +458,8 @@ public sealed class ConfiglueOptionsRegistry<TModel, TFragment>
     private void ReleaseNotificationDeferral()
     {
         var shouldDrain = false;
+        Notification[] notificationsToAwait = [];
+        var waitForNotifications = false;
         lock (_gate)
         {
             if (_notificationDeferralCount <= 0)
@@ -432,10 +468,18 @@ public sealed class ConfiglueOptionsRegistry<TModel, TFragment>
             }
             _notificationDeferralCount--;
             shouldDrain = _notificationDeferralCount == 0;
+            if (shouldDrain)
+            {
+                notificationsToAwait = CaptureQueuedNotificationsLocked();
+                waitForNotifications = !_insideNotification.Value;
+            }
         }
         if (shouldDrain)
         {
             DrainNotifications();
+            WaitForNotifications(notificationsToAwait, waitForNotifications)
+                .GetAwaiter()
+                .GetResult();
         }
     }
 
@@ -542,18 +586,57 @@ public sealed class ConfiglueOptionsRegistry<TModel, TFragment>
                 if (_notifications.Count == 0 || _notificationDeferralCount > 0)
                 {
                     _dispatchingNotifications = false;
+                    _activeNotification = null;
                     return;
                 }
 
                 notification = _notifications.Dequeue();
+                _activeNotification = notification;
             }
 
-            if (!notification.IsCancelled)
+            try
             {
-                notification.Dispatch();
+                var wasInsideNotification = _insideNotification.Value;
+                _insideNotification.Value = true;
+                try
+                {
+                    if (!notification.IsCancelled)
+                    {
+                        notification.Dispatch();
+                    }
+                }
+                finally
+                {
+                    _insideNotification.Value = wasInsideNotification;
+                }
+            }
+            finally
+            {
+                lock (_gate)
+                {
+                    notification.Completion.TrySetResult();
+                    _activeNotification = null;
+                }
             }
         }
     }
+
+    private Notification[] CaptureQueuedNotificationsLocked() =>
+        (
+            _activeNotification is null
+                ? _notifications
+                : _notifications.Prepend(_activeNotification)
+        ).ToArray();
+
+    private static Task WaitForNotifications(
+        IEnumerable<Notification> notifications,
+        bool waitForNotifications
+    ) =>
+        waitForNotifications
+            ? Task.WhenAll(
+                notifications.Select(static notification => notification.Completion.Task)
+            )
+            : Task.CompletedTask;
 
     private static void ValidateName(string profileName) =>
         ArgumentException.ThrowIfNullOrWhiteSpace(profileName);

@@ -601,10 +601,19 @@ public sealed class StateRuntimeTests
         );
 
         var removal = Task.Run(() => registry.TryRemove("runtime"));
+        Task<bool>? replacementAdd = null;
         try
         {
             await removalEntered.Task.WaitAsync(TimeSpan.FromSeconds(5));
-            (registry.TryAdd("runtime")).ShouldBeTrue();
+            replacementAdd = Task.Run(() => registry.TryAdd("runtime"));
+            (
+                await Task.Run(() =>
+                    SpinWait.SpinUntil(
+                        () => registry.TryGet("runtime", out _),
+                        TimeSpan.FromSeconds(5)
+                    )
+                )
+            ).ShouldBeTrue();
         }
         finally
         {
@@ -612,6 +621,7 @@ public sealed class StateRuntimeTests
         }
 
         (await removal).ShouldBeTrue();
+        (await replacementAdd!).ShouldBeTrue();
         stores["runtime"].Set(new AppSettings.Fragment { RetryCount = Optional<int>.Present(18) });
 
         (await replacementChanged.Task.WaitAsync(TimeSpan.FromSeconds(5))).ShouldBe(18);
@@ -1716,6 +1726,195 @@ public sealed class StateRuntimeTests
             .ShouldBe((new[] { "primary" }).OrderBy(static item => item));
         (removedPrimary).ShouldBeTrue();
         (removedAgain).ShouldBeFalse();
+    }
+
+    [Test]
+    public async Task RegistryAddClearAndDisposeWaitForQueuedNotifications()
+    {
+        var services = new ServiceCollection();
+        services.AddConfiglueOptionsRegistry<AppSettings, AppSettings.Fragment>(
+            (_, name) =>
+            {
+                var store = new InMemoryStateStore<AppSettings.Fragment>();
+                return new StateSourceSet<AppSettings.Fragment>([
+                    new(name, store, writer: store, watcher: store),
+                ]);
+            }
+        );
+        using var serviceProvider = services.BuildServiceProvider();
+        var registry = serviceProvider.GetRequiredService<IConfiglueOptionsRegistry<AppSettings>>();
+        var firstAdded = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        var releaseFirstAdded = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        var addOrder = new List<string>();
+        registry.ProfileAdded += (name, _) =>
+        {
+            if (name == "first")
+            {
+                firstAdded.TrySetResult();
+                releaseFirstAdded.Task.GetAwaiter().GetResult();
+            }
+            addOrder.Add(name);
+        };
+
+        var firstAdd = Task.Run(() => registry.TryAdd("first"));
+        await firstAdded.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var secondAdd = Task.Run(() => registry.TryAdd("second"));
+        try
+        {
+            (
+                await Task.Run(() =>
+                    SpinWait.SpinUntil(
+                        () => registry.TryGet("second", out _),
+                        TimeSpan.FromSeconds(5)
+                    )
+                )
+            ).ShouldBeTrue();
+            await Task.Delay(TimeSpan.FromMilliseconds(50));
+            (secondAdd.IsCompleted).ShouldBeFalse();
+        }
+        finally
+        {
+            releaseFirstAdded.TrySetResult();
+        }
+
+        (await Task.WhenAll(firstAdd, secondAdd)).ShouldBe(new[] { true, true });
+        (addOrder).ShouldBe(new[] { "first", "second" });
+
+        var firstRemoved = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        var releaseFirstRemoved = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        var removedNames = new List<string>();
+        registry.ProfileRemoved += name =>
+        {
+            if (name == "first")
+            {
+                firstRemoved.TrySetResult();
+                releaseFirstRemoved.Task.GetAwaiter().GetResult();
+            }
+            removedNames.Add(name);
+        };
+
+        var removeFirst = Task.Run(() => registry.TryRemove("first"));
+        await firstRemoved.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var clear = Task.Run(async () => await registry.ClearAsync());
+        try
+        {
+            (
+                await Task.Run(() =>
+                    SpinWait.SpinUntil(
+                        () => registry.ProfileNames.Count == 0,
+                        TimeSpan.FromSeconds(5)
+                    )
+                )
+            ).ShouldBeTrue();
+            await Task.Delay(TimeSpan.FromMilliseconds(50));
+            (clear.IsCompleted).ShouldBeFalse();
+        }
+        finally
+        {
+            releaseFirstRemoved.TrySetResult();
+        }
+
+        await Task.WhenAll(removeFirst, clear);
+        (removedNames).ShouldBe(new[] { "first", "second" });
+
+        registry.TryAdd("dispose").ShouldBeTrue();
+        var disposedNameRemoved = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        var releaseDisposeNotification = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        registry.ProfileRemoved += name =>
+        {
+            if (name == "dispose")
+            {
+                disposedNameRemoved.TrySetResult();
+                releaseDisposeNotification.Task.GetAwaiter().GetResult();
+            }
+        };
+
+        var dispose = Task.Run(async () => await registry.DisposeAsync());
+        try
+        {
+            await disposedNameRemoved.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            await Task.Delay(TimeSpan.FromMilliseconds(50));
+            (dispose.IsCompleted).ShouldBeFalse();
+        }
+        finally
+        {
+            releaseDisposeNotification.TrySetResult();
+        }
+
+        await dispose;
+    }
+
+    [Test]
+    public async Task RegistryNotificationsCanReenterClearAndDispose()
+    {
+        var services = new ServiceCollection();
+        services.AddConfiglueOptionsRegistry<AppSettings, AppSettings.Fragment>(
+            (_, name) =>
+            {
+                var store = new InMemoryStateStore<AppSettings.Fragment>();
+                return new StateSourceSet<AppSettings.Fragment>([
+                    new(name, store, writer: store, watcher: store),
+                ]);
+            }
+        );
+        using var serviceProvider = services.BuildServiceProvider();
+        var registry = serviceProvider.GetRequiredService<IConfiglueOptionsRegistry<AppSettings>>();
+        registry.TryAdd("clear").ShouldBeTrue();
+        registry.ProfileRemoved += name =>
+        {
+            if (name == "clear")
+            {
+                registry.Clear();
+            }
+        };
+
+        (
+            await Task.Run(() => registry.TryRemove("clear")).WaitAsync(TimeSpan.FromSeconds(5))
+        ).ShouldBeTrue();
+
+        var listenerAfterFailureWasCalled = false;
+        registry.ProfileAdded += (name, _) =>
+        {
+            if (name == "listener-error")
+            {
+                throw new InvalidOperationException("listener failure");
+            }
+        };
+        registry.ProfileAdded += (name, _) =>
+        {
+            if (name == "listener-error")
+            {
+                listenerAfterFailureWasCalled = true;
+            }
+        };
+        registry.TryAdd("listener-error").ShouldBeTrue();
+        (listenerAfterFailureWasCalled).ShouldBeTrue();
+        registry.TryRemove("listener-error").ShouldBeTrue();
+
+        registry.TryAdd("dispose").ShouldBeTrue();
+        registry.ProfileRemoved += name =>
+        {
+            if (name == "dispose")
+            {
+                registry.Dispose();
+            }
+        };
+
+        (
+            await Task.Run(() => registry.TryRemove("dispose")).WaitAsync(TimeSpan.FromSeconds(5))
+        ).ShouldBeTrue();
     }
 
     [Test]

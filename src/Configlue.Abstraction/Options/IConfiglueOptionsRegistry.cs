@@ -2,6 +2,13 @@ namespace Configlue;
 
 /// <summary>Manages named options profiles that can be added and removed at runtime.</summary>
 /// <typeparam name="T">The configuration model type.</typeparam>
+/// <remarks>
+/// Notifications are delivered in state-transition order. Built-in registries wait for callbacks
+/// associated with an operation's transitions before that operation completes. Calls made
+/// reentrantly from a callback, or while notifications are deferred, may complete before their
+/// queued callbacks; the active dispatcher or deferral scope delivers them afterward. A listener
+/// exception is logged and does not prevent other listeners from receiving the notification.
+/// </remarks>
 public interface IConfiglueOptionsRegistry<T> : IDisposable, IAsyncDisposable
 {
     /// <summary>The currently registered profile names.</summary>
@@ -14,23 +21,24 @@ public interface IConfiglueOptionsRegistry<T> : IDisposable, IAsyncDisposable
     bool TryGet(string profileName, out IWritableOptions<T>? options);
 
     /// <summary>Creates and registers a profile if its name is not already in use.</summary>
+    /// <remarks>Waits for its add notification unless called reentrantly or while notifications are deferred.</remarks>
     bool TryAdd(string profileName);
 
-    /// <summary>Removes a profile and synchronously waits for its runtime and watchers to stop.</summary>
+    /// <summary>Removes a profile and waits for its runtime, watchers, and notification to complete.</summary>
     bool TryRemove(string profileName);
 
     /// <summary>
-    /// Removes a profile and waits for its runtime and watchers to stop.
+    /// Removes a profile and waits for its runtime, watchers, and notification to complete.
     /// Implementations that do not provide asynchronous cleanup use the synchronous removal path.
     /// </summary>
     ValueTask<bool> TryRemoveAsync(string profileName) =>
         ValueTask.FromResult(TryRemove(profileName));
 
-    /// <summary>Removes every registered profile and synchronously waits for their runtimes and watchers to stop.</summary>
+    /// <summary>Removes every profile and waits for its runtimes, watchers, and notifications to complete.</summary>
     void Clear();
 
     /// <summary>
-    /// Removes every profile and waits for their runtimes and watchers to stop.
+    /// Removes every profile and waits for its runtimes, watchers, and notifications to complete.
     /// Implementations that do not provide asynchronous cleanup use the synchronous clear path.
     /// </summary>
     ValueTask ClearAsync()

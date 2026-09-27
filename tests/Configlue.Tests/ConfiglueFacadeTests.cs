@@ -134,13 +134,14 @@ public sealed class ConfiglueFacadeTests
             builder.Add<AppSettings>(model =>
             {
                 model.EnableProfiles(catalog);
-                model.SourcesForOptions((name, sources) =>
-                    sources.Add(_ =>
-                        CreateSource(
-                            string.IsNullOrEmpty(name) ? "default-source" : $"profile-{name}",
-                            $"{name}-value"
+                model.SourcesForOptions(
+                    (name, sources) =>
+                        sources.Add(_ =>
+                            CreateSource(
+                                string.IsNullOrEmpty(name) ? "default-source" : $"profile-{name}",
+                                $"{name}-value"
+                            )
                         )
-                    )
                 );
             });
         });
@@ -169,13 +170,14 @@ public sealed class ConfiglueFacadeTests
             builder.Add<AppSettings>(model =>
             {
                 model.EnableProfiles(catalog);
-                model.SourcesForOptions((name, sources) =>
-                    sources.Add(_ =>
-                        CreateSource(
-                            string.IsNullOrEmpty(name) ? "fixed" : $"profile-{name}",
-                            string.IsNullOrEmpty(name) ? "fixed-value" : $"{name}-value"
+                model.SourcesForOptions(
+                    (name, sources) =>
+                        sources.Add(_ =>
+                            CreateSource(
+                                string.IsNullOrEmpty(name) ? "fixed" : $"profile-{name}",
+                                string.IsNullOrEmpty(name) ? "fixed-value" : $"{name}-value"
+                            )
                         )
-                    )
                 );
             });
         });
@@ -183,15 +185,21 @@ public sealed class ConfiglueFacadeTests
         var profiles = context.GetProfiledOptions<AppSettings>();
         await profiles.GetProfileNamesAsync();
         await profiles.CreateProfileAsync("Work", copyFrom: "default");
-        (await context.GetOptions<AppSettings>("Work").GetValueAsync()).Label.ShouldBe("default-value");
+        (await context.GetOptions<AppSettings>("Work").GetValueAsync()).Label.ShouldBe(
+            "default-value"
+        );
         await profiles.SetActiveProfileAsync("Work");
         (await profiles.GetActiveValueAsync()).Label.ShouldBe("default-value");
 
         var removedHandle = context.GetOptions<AppSettings>("Work");
         await profiles.RemoveProfileAsync("Work");
-        await Should.ThrowAsync<ObjectDisposedException>(async () => await removedHandle.GetValueAsync());
+        await Should.ThrowAsync<ObjectDisposedException>(async () =>
+            await removedHandle.GetValueAsync()
+        );
         Should.Throw<KeyNotFoundException>(() => context.GetOptions<AppSettings>("Work"));
-        (await context.GetOptions<AppSettings>("default").GetValueAsync()).Label.ShouldBe("default-value");
+        (await context.GetOptions<AppSettings>("default").GetValueAsync()).Label.ShouldBe(
+            "default-value"
+        );
     }
 
     [Test]
@@ -203,8 +211,9 @@ public sealed class ConfiglueFacadeTests
             builder.Add<AppSettings>(model =>
             {
                 model.EnableDynamicOptions = true;
-                model.SourcesForOptions((name, sources) =>
-                    sources.Add(_ => CreateSource($"dynamic-{name}", $"{name}-value"))
+                model.SourcesForOptions(
+                    (name, sources) =>
+                        sources.Add(_ => CreateSource($"dynamic-{name}", $"{name}-value"))
                 );
             });
         });
@@ -239,13 +248,9 @@ public sealed class ConfiglueFacadeTests
             builder.Add<AppSettings>(model =>
             {
                 model.EnableProfiles(catalog);
-                model.SourcesForOptions((name, sources) =>
-                    sources.Add(_ =>
-                        CreateSource(
-                            $"di-profile-{name}",
-                            $"{name}-value"
-                        )
-                    )
+                model.SourcesForOptions(
+                    (name, sources) =>
+                        sources.Add(_ => CreateSource($"di-profile-{name}", $"{name}-value"))
                 );
             });
         });
@@ -262,6 +267,148 @@ public sealed class ConfiglueFacadeTests
         await profiles.RemoveProfileAsync("Work");
         Should.Throw<KeyNotFoundException>(() => monitor.Get("Work"));
         (await profiles.GetActiveProfileNameAsync()).ShouldBe("default");
+    }
+
+    [Test]
+    public async Task FacadeRegistryWaitsForOrderedConcurrentNotifications()
+    {
+        var registry = new ConfiglueFacadeOptionsRegistry<AppSettings>(
+            name =>
+            {
+                var store = new InMemoryStateStore<AppSettings.Fragment>();
+                var source = new StateSource<AppSettings.Fragment>(
+                    $"facade-{name}",
+                    store,
+                    writer: store,
+                    watcher: store
+                );
+                var runtime = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(
+                    new StateSourceSet<AppSettings.Fragment>([source])
+                );
+                return (runtime, []);
+            },
+            reservedNames: []
+        );
+        var added = new List<string>();
+        var firstAdded = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        var releaseFirstAdded = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        registry.ProfileAdded += (name, _) =>
+        {
+            if (name == "first")
+            {
+                firstAdded.TrySetResult();
+                releaseFirstAdded.Task.GetAwaiter().GetResult();
+            }
+            added.Add(name);
+        };
+
+        var firstAdd = Task.Run(() => registry.TryAdd("first"));
+        await firstAdded.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var secondAdd = Task.Run(() => registry.TryAdd("second"));
+        try
+        {
+            (
+                await Task.Run(() =>
+                    SpinWait.SpinUntil(
+                        () => registry.TryGet("second", out _),
+                        TimeSpan.FromSeconds(5)
+                    )
+                )
+            ).ShouldBeTrue();
+            await Task.Delay(TimeSpan.FromMilliseconds(50));
+            (secondAdd.IsCompleted).ShouldBeFalse();
+        }
+        finally
+        {
+            releaseFirstAdded.TrySetResult();
+        }
+
+        (await Task.WhenAll(firstAdd, secondAdd)).ShouldBe(new[] { true, true });
+        (added).ShouldBe(new[] { "first", "second" });
+
+        var firstRemoved = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        var releaseFirstRemoved = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        registry.ProfileRemoved += name =>
+        {
+            if (name == "first")
+            {
+                firstRemoved.TrySetResult();
+                releaseFirstRemoved.Task.GetAwaiter().GetResult();
+            }
+        };
+
+        var firstRemove = Task.Run(() => registry.TryRemoveAsync("first").AsTask());
+        await firstRemoved.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var clear = Task.Run(() => registry.ClearAsync().AsTask());
+        try
+        {
+            (
+                await Task.Run(() =>
+                    SpinWait.SpinUntil(
+                        () => registry.ProfileNames.Count == 0,
+                        TimeSpan.FromSeconds(5)
+                    )
+                )
+            ).ShouldBeTrue();
+            await Task.Delay(TimeSpan.FromMilliseconds(50));
+            (clear.IsCompleted).ShouldBeFalse();
+        }
+        finally
+        {
+            releaseFirstRemoved.TrySetResult();
+        }
+
+        await Task.WhenAll(firstRemove, clear);
+
+        registry.TryAdd("reentrant").ShouldBeTrue();
+        registry.ProfileRemoved += name =>
+        {
+            if (name == "reentrant")
+            {
+                registry.Clear();
+            }
+        };
+        (
+            await Task.Run(() => registry.TryRemove("reentrant")).WaitAsync(TimeSpan.FromSeconds(5))
+        ).ShouldBeTrue();
+
+        registry.TryAdd("dispose").ShouldBeTrue();
+        var disposeNotification = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        var releaseDisposeNotification = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        registry.ProfileRemoved += name =>
+        {
+            if (name == "dispose")
+            {
+                disposeNotification.TrySetResult();
+                releaseDisposeNotification.Task.GetAwaiter().GetResult();
+            }
+        };
+
+        var dispose = Task.Run(async () => await registry.DisposeAsync());
+        try
+        {
+            await disposeNotification.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            await Task.Delay(TimeSpan.FromMilliseconds(50));
+            (dispose.IsCompleted).ShouldBeFalse();
+        }
+        finally
+        {
+            releaseDisposeNotification.TrySetResult();
+        }
+
+        await dispose;
     }
 
     private static StateSource<AppSettings.Fragment> CreateSource(string id, string label)
