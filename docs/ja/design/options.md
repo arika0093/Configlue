@@ -15,6 +15,8 @@ Options はアプリから見える窓口です。通常の読み書きを小さ
 
 保存の前には全 Source のリビジョンベクターを比べ、参加 Source が変わっていれば `StateConflictException` で止めます。読み取り専用に隠された値の変更もここで止まります。
 
+ファイル・HTTP ソースは `Id` を省略すると、正規化したリソース記述子から安定した不透明 ID を生成します。移行や外部の provenance 参照で ID の継続性が必要な場合のみ明示してください。
+
 ## 名前付きの世界
 
 - 動的オプション: `model.EnableDynamicOptions = true` で実行時に名前付き実体を増減できます。`GetOptionsRegistry<T>()` の `TryAdd` / `TryRemoveAsync` が入り口です。テナント別などの多文書運用に向いています。

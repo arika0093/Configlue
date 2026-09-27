@@ -3,8 +3,8 @@ namespace Configlue.Resource.Http;
 /// <summary>Options for registering an HTTP-backed state source through the one-arity facade.</summary>
 public sealed class HttpSourceOptions
 {
-    /// <summary>The stable logical source ID used for provenance and write routing.</summary>
-    public required string Id { get; init; }
+    /// <summary>An optional stable logical source ID used for provenance and explicit routing.</summary>
+    public string? Id { get; init; }
 
     /// <summary>The HTTP resource endpoint root.</summary>
     public required string EndPoint { get; init; }
@@ -50,7 +50,6 @@ public static class HttpSourceRegistration
     {
         ArgumentNullException.ThrowIfNull(sources);
         ArgumentNullException.ThrowIfNull(options);
-        ArgumentException.ThrowIfNullOrWhiteSpace(options.Id);
         ArgumentException.ThrowIfNullOrWhiteSpace(options.EndPoint);
         if (!Uri.TryCreate(options.EndPoint, UriKind.Absolute, out var endpoint))
         {
@@ -117,16 +116,33 @@ public static class HttpSourceRegistration
                     options.CodecContext
                 )
                 : null;
-            return new StateSource<TFragment>(
-                options.Id,
-                new SerializedStateReader<TFragment>(resource, options.Codec, options.CodecContext),
-                options.Priority,
-                options.FallbackCondition,
-                writer,
-                options.WatchChanges ? resource : null,
-                endpoint.AbsoluteUri,
-                resourceId: options.ResourceId ?? resource.ResourceId
+            var reader = new SerializedStateReader<TFragment>(
+                resource,
+                options.Codec,
+                options.CodecContext
             );
+            var resourceId = options.ResourceId ?? resource.ResourceId;
+            var watcher = options.WatchChanges ? resource : null;
+            return options.Id is { } id
+                ? new StateSource<TFragment>(
+                    id,
+                    reader,
+                    options.Priority,
+                    options.FallbackCondition,
+                    writer,
+                    watcher,
+                    endpoint.AbsoluteUri,
+                    resourceId
+                )
+                : new StateSource<TFragment>(
+                    reader,
+                    options.Priority,
+                    options.FallbackCondition,
+                    writer,
+                    watcher,
+                    endpoint.AbsoluteUri,
+                    resourceId
+                );
         }
     }
 }

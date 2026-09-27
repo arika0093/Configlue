@@ -576,6 +576,7 @@ namespace Configlue
     }
     public sealed class StateSource<T>
     {
+        public StateSource(Configlue.IStateReader<T> reader, int priority = 0, Configlue.StateFallbackCondition fallbackCondition = 1, Configlue.IStateWriter<T>? writer = null, Configlue.IStateWatcher? watcher = null, string? physicalOrigin = null, Configlue.ResourceId? resourceId = default, string? logicalDescriptor = null) { }
         public StateSource(string id, Configlue.IStateReader<T> reader, int priority = 0, Configlue.StateFallbackCondition fallbackCondition = 1, Configlue.IStateWriter<T>? writer = null, Configlue.IStateWatcher? watcher = null, string? physicalOrigin = null, Configlue.ResourceId? resourceId = default) { }
         public Configlue.StateFallbackCondition FallbackCondition { get; }
         public string Id { get; }

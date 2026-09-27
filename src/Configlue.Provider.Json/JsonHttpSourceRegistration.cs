@@ -6,8 +6,8 @@ namespace Configlue.Provider.Json;
 /// <summary>Options for registering a JSON-over-HTTP source through the one-arity facade.</summary>
 public sealed class JsonHttpSourceOptions
 {
-    /// <summary>The stable logical source ID used for provenance and write routing.</summary>
-    public required string Id { get; init; }
+    /// <summary>An optional stable logical source ID used for provenance and explicit routing.</summary>
+    public string? Id { get; init; }
 
     /// <summary>The HTTP resource endpoint root.</summary>
     public required string EndPoint { get; init; }

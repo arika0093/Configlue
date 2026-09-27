@@ -15,21 +15,20 @@ model.Sources(sources =>
 {
     sources.FromJsonFile(new()
     {
-        Id = "user-json",
         Path = "settings.json",
         SectionPath = "Application:User",
         Priority = 100,
     });
     sources.FromYamlFile(new()
     {
-        Id = "defaults-yaml",
         Path = "defaults.yaml",
         Priority = 10,
         ReadOnly = true,
     });
 });
-model.WriteRoute = StateWriteRoute.To("user-json");
 ```
+
+File sources receive a stable opaque identity from their normalized resource and section. Set `Id` only when an advanced integration needs a stable diagnostic or migration identifier.
 
 `FromXmlFile(new() { ... })` uses the same options for an XML file and optional element path. File helpers work in non-DI and DI contexts; a generated file resource belongs to the context and is disposed after its watcher stops, while directly supplied clients remain owned by the caller.
 

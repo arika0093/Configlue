@@ -15,21 +15,20 @@ model.Sources(sources =>
 {
     sources.FromJsonFile(new()
     {
-        Id = "user-json",
         Path = "settings.json",
         SectionPath = "Application:User",
         Priority = 100,
     });
     sources.FromYamlFile(new()
     {
-        Id = "defaults-yaml",
         Path = "defaults.yaml",
         Priority = 10,
         ReadOnly = true,
     });
 });
-model.WriteRoute = StateWriteRoute.To("user-json");
 ```
+
+ファイルソースは正規化したリソースとセクションから安定した不透明 ID を受け取ります。高度な移行や診断で安定 ID が必要な場合のみ `Id` を指定してください。
 
 `FromXmlFile(new() { ... })` も XML ファイルと任意の要素パスに同じオプションを使います。ファイルヘルパーは非 DI・DI の両方で動き、生成されたファイルリソースはコンテキスト所有でウォッチャー停止後に破棄されます。直接渡したクライアントは呼び出し側所有のままです。
 

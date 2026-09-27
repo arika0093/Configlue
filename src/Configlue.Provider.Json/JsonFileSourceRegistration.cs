@@ -5,8 +5,8 @@ namespace Configlue.Provider.Json;
 /// <summary>Options for registering a JSON file source through the one-arity facade.</summary>
 public sealed class JsonFileSourceOptions
 {
-    /// <summary>The stable logical source ID used for provenance and write routing.</summary>
-    public required string Id { get; init; }
+    /// <summary>An optional stable logical source ID used for provenance and explicit routing.</summary>
+    public string? Id { get; init; }
 
     /// <summary>The JSON file path.</summary>
     public required string Path { get; init; }
@@ -51,7 +51,6 @@ public static class JsonFileSourceRegistration
         model.UseJsonFile(
             new JsonFileSourceOptions
             {
-                Id = "settings",
                 Path = Path.Combine(AppContext.BaseDirectory, "usersettings.json"),
             }
         );
@@ -67,9 +66,9 @@ public static class JsonFileSourceRegistration
         ArgumentNullException.ThrowIfNull(model);
         ArgumentNullException.ThrowIfNull(options);
         model.Sources(sources => sources.FromJsonFile(options));
-        if (!options.ReadOnly)
+        if (!options.ReadOnly && options.Id is { } id)
         {
-            model.WriteRoute = StateWriteRoute.To(options.Id);
+            model.WriteRoute = StateWriteRoute.To(id);
         }
     }
 
@@ -79,7 +78,7 @@ public static class JsonFileSourceRegistration
     {
         ArgumentNullException.ThrowIfNull(model);
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
-        model.UseJsonFile(new JsonFileSourceOptions { Id = "settings", Path = path });
+        model.UseJsonFile(new JsonFileSourceOptions { Path = path });
     }
 
     /// <summary>Adds a JSON file source. The facade owns the created resource and its watcher.</summary>
@@ -90,7 +89,6 @@ public static class JsonFileSourceRegistration
     {
         ArgumentNullException.ThrowIfNull(sources);
         ArgumentNullException.ThrowIfNull(options);
-        ArgumentException.ThrowIfNullOrWhiteSpace(options.Id);
         ArgumentException.ThrowIfNullOrWhiteSpace(options.Path);
         if (options.SectionPath is not null && string.IsNullOrWhiteSpace(options.SectionPath))
         {
@@ -154,16 +152,31 @@ public static class JsonFileSourceRegistration
                     codec,
                     new StateCodecContext(null, null, options.SchemaReferenceBaseUri)
                 );
-            return new StateSource<TFragment>(
-                options.Id,
-                stateReader,
-                options.Priority,
-                options.FallbackCondition,
-                stateWriter,
-                watcher,
-                file.Path,
-                options.ResourceId ?? (file as IResourceIdentity)?.ResourceId
-            );
+            var physicalResourceId = options.ResourceId ?? (file as IResourceIdentity)?.ResourceId;
+            var logicalDescriptor = options.SectionPath is null
+                ? "json-root"
+                : $"json:{options.SectionPath}";
+            return options.Id is { } id
+                ? new StateSource<TFragment>(
+                    id,
+                    stateReader,
+                    options.Priority,
+                    options.FallbackCondition,
+                    stateWriter,
+                    watcher,
+                    file.Path,
+                    physicalResourceId
+                )
+                : new StateSource<TFragment>(
+                    stateReader,
+                    options.Priority,
+                    options.FallbackCondition,
+                    stateWriter,
+                    watcher,
+                    file.Path,
+                    physicalResourceId,
+                    logicalDescriptor
+                );
         }
     }
 }
