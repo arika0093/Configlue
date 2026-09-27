@@ -3,6 +3,8 @@ using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Running;
 using Configlue;
 using Configlue.Testing;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 BenchmarkSwitcher.FromAssembly(typeof(OptionsRuntimeBenchmarks).Assembly).Run(args);
 
@@ -22,6 +24,8 @@ public class OptionsRuntimeBenchmarks
     private InMemoryStateStore<BenchmarkSettings.Fragment> _store = null!;
     private ConfiglueOptions<BenchmarkSettings, BenchmarkSettings.Fragment> _options = null!;
     private IReadOnlyOptions<BenchmarkSettings> _readOptions = null!;
+    private IOptionsMonitor<BenchmarkSettings> _monitor = null!;
+    private ServiceProvider _serviceProvider = null!;
     private IDisposable _subscription = null!;
     private readonly AsyncPulse _publishCompleted = new();
     private int _counter;
@@ -30,19 +34,29 @@ public class OptionsRuntimeBenchmarks
     public async Task SetupAsync()
     {
         _store = new InMemoryStateStore<BenchmarkSettings.Fragment>(CreateFragment(0));
-        _options = new ConfiglueOptions<BenchmarkSettings, BenchmarkSettings.Fragment>(
-            new StateSourceSet<BenchmarkSettings.Fragment>([
-                new StateSource<BenchmarkSettings.Fragment>(
-                    "benchmark",
-                    _store,
-                    writer: _store,
-                    watcher: _store
-                ),
-            ]),
+        var sourceSet = new StateSourceSet<BenchmarkSettings.Fragment>(
+        [
+            new StateSource<BenchmarkSettings.Fragment>(
+                "benchmark",
+                _store,
+                writer: _store,
+                watcher: _store
+            ),
+        ]
+        );
+        var services = new ServiceCollection();
+        services.AddConfiglueOptions<BenchmarkSettings, BenchmarkSettings.Fragment>(
+            sourceSet,
             onChangeDebounce: TimeSpan.Zero
         );
+        _serviceProvider = services.BuildServiceProvider();
+        _options = _serviceProvider.GetRequiredService<
+            ConfiglueOptions<BenchmarkSettings, BenchmarkSettings.Fragment>
+        >();
         _readOptions = _options;
+        _monitor = _serviceProvider.GetRequiredService<IOptionsMonitor<BenchmarkSettings>>();
         _ = await _readOptions.GetValueAsync().ConfigureAwait(false);
+        _ = _monitor.CurrentValue;
         _subscription = _options.OnChange(_ => _publishCompleted.Set());
     }
 
@@ -50,11 +64,14 @@ public class OptionsRuntimeBenchmarks
     public async Task CleanupAsync()
     {
         _subscription.Dispose();
-        await _options.DisposeAsync().ConfigureAwait(false);
+        await _serviceProvider.DisposeAsync().ConfigureAwait(false);
     }
 
     [Benchmark]
     public ValueTask<BenchmarkSettings> GetValueAsync() => _readOptions.GetValueAsync();
+
+    [Benchmark]
+    public BenchmarkSettings MonitorCurrentValue() => _monitor.CurrentValue;
 
     [Benchmark]
     public async Task PublishChangeAsync()

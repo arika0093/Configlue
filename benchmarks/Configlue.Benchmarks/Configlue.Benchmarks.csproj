@@ -8,6 +8,7 @@
   <ItemGroup>
     <PackageReference Include="BenchmarkDotNet" Version="0.15.8" />
     <ProjectReference Include="../../src/Configlue.Core/Configlue.Core.csproj" />
+    <ProjectReference Include="../../src/Configlue.Extensions.DI/Configlue.Extensions.DI.csproj" />
     <ProjectReference Include="../../src/Configlue.Testing/Configlue.Testing.csproj" />
     <ProjectReference
       Include="../../src/Configlue.Generator/Configlue.Generator.csproj"

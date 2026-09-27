@@ -10,6 +10,7 @@ namespace Configlue;
 /// <typeparam name="TFragment">The model's generated sparse fragment.</typeparam>
 public sealed class ConfiglueOptions<TModel, TFragment>
     : IWritableOptions<TModel>,
+        IConfiglueValueCloneProvider<TModel>,
         IDisposable,
         IAsyncDisposable
     where TModel : IConfiglueModel<TModel, TFragment>
@@ -3829,6 +3830,8 @@ public sealed class ConfiglueOptions<TModel, TFragment>
 
         return clone;
     }
+
+    TModel IConfiglueValueCloneProvider<TModel>.CloneValue(TModel value) => CloneModel(value);
 
     private static object? GetModelValue(
         ConfiglueModelSchema schema,

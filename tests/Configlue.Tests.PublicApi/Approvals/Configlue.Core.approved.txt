@@ -85,7 +85,7 @@ namespace Configlue
         public bool TryRemove(string profileName) { }
         public System.Threading.Tasks.ValueTask<bool> TryRemoveAsync(string profileName) { }
     }
-    public sealed class ConfiglueOptions<TModel, TFragment> : Configlue.IReadOnlyOptions<TModel>, Configlue.IWritableOptions<TModel>, System.IAsyncDisposable, System.IDisposable
+    public sealed class ConfiglueOptions<TModel, TFragment> : Configlue.IConfiglueValueCloneProvider<TModel>, Configlue.IReadOnlyOptions<TModel>, Configlue.IWritableOptions<TModel>, System.IAsyncDisposable, System.IDisposable
         where TModel : Configlue.IConfiglueModel<TModel, TFragment>
         where TFragment :  class, Configlue.IConfiglueFragment<TFragment>
     {

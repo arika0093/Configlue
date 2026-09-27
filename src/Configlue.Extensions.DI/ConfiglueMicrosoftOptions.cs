@@ -99,11 +99,20 @@ internal sealed class ConfiglueMicrosoftOptionsSnapshot<TModel> : IOptionsSnapsh
     }
 }
 
-internal sealed class ConfiglueMicrosoftOptionsMonitor<TModel> : IOptionsMonitor<TModel>
+internal sealed class ConfiglueMicrosoftOptionsMonitor<TModel>
+    : IOptionsMonitor<TModel>,
+        IDisposable
     where TModel : class
 {
     private readonly ConfiglueMicrosoftOptionsResolver<TModel> _resolver;
     private readonly string[] _namedProfileNames;
+    private readonly IConfiglueOptionsRegistry<TModel>? _registry;
+    private readonly object _cacheGate = new();
+    private readonly Dictionary<string, MonitorCacheEntry> _namedCache = new(
+        StringComparer.Ordinal
+    );
+    private MonitorCacheEntry? _defaultCache;
+    private bool _disposed;
 
     public ConfiglueMicrosoftOptionsMonitor(
         ConfiglueMicrosoftOptionsResolver<TModel> resolver,
@@ -111,6 +120,12 @@ internal sealed class ConfiglueMicrosoftOptionsMonitor<TModel> : IOptionsMonitor
     )
     {
         _resolver = resolver;
+        _registry = resolver.Registry;
+        if (_registry is not null)
+        {
+            _registry.ProfileRemoved += OnProfileRemoved;
+        }
+
         _namedProfileNames = namedProfiles
             .Select(profile =>
                 profile.ModelType == typeof(TModel)
@@ -123,23 +138,269 @@ internal sealed class ConfiglueMicrosoftOptionsMonitor<TModel> : IOptionsMonitor
             .ToArray();
     }
 
-    public TModel CurrentValue => Get(Options.DefaultName);
+    public TModel CurrentValue => GetDefaultCache().Value;
 
-    public TModel Get(string? name) =>
-        _resolver.Resolve(name).GetValueAsync().AsTask().GetAwaiter().GetResult();
+    public TModel Get(string? name)
+    {
+        var normalizedName = name ?? Options.DefaultName;
+        if (normalizedName == Options.DefaultName)
+        {
+            return GetDefaultCache().Value;
+        }
+
+        var options = _resolver.Resolve(normalizedName);
+        return GetNamedCache(normalizedName, options).Value;
+    }
+
+    public void Dispose()
+    {
+        MonitorCacheEntry[] entries;
+        lock (_cacheGate)
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            _disposed = true;
+            entries = _namedCache.Values.ToArray();
+            _namedCache.Clear();
+            if (_defaultCache is not null)
+            {
+                entries = [.. entries, _defaultCache];
+                _defaultCache = null;
+            }
+        }
+
+        if (_registry is not null)
+        {
+            _registry.ProfileRemoved -= OnProfileRemoved;
+        }
+
+        foreach (var entry in entries)
+        {
+            entry.Dispose();
+        }
+    }
+
+    private MonitorCacheEntry GetDefaultCache()
+    {
+        var cached = Volatile.Read(ref _defaultCache);
+        if (cached is not null)
+        {
+            return cached;
+        }
+
+        lock (_cacheGate)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            cached = _defaultCache;
+            if (cached is null)
+            {
+                cached = new MonitorCacheEntry(_resolver.Resolve(Options.DefaultName));
+                Volatile.Write(ref _defaultCache, cached);
+            }
+
+            return cached;
+        }
+    }
+
+    private MonitorCacheEntry GetNamedCache(string name, IReadOnlyOptions<TModel> options)
+    {
+        lock (_cacheGate)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            if (_registry is not null)
+            {
+                if (_registry.TryGet(name, out var registered) && registered is not null)
+                {
+                    options = registered;
+                }
+                else if (!_namedProfileNames.Contains(name, StringComparer.Ordinal))
+                {
+                    throw new KeyNotFoundException(
+                        $"No Configlue options profile named '{name}' is registered."
+                    );
+                }
+            }
+
+            if (_namedCache.TryGetValue(name, out var cached))
+            {
+                if (ReferenceEquals(cached.Options, options))
+                {
+                    return cached;
+                }
+
+                _namedCache.Remove(name);
+                cached.Dispose();
+            }
+
+            var created = new MonitorCacheEntry(options);
+            _namedCache.Add(name, created);
+            return created;
+        }
+    }
+
+    private void OnProfileRemoved(string name)
+    {
+        MonitorCacheEntry? removed = null;
+        lock (_cacheGate)
+        {
+            if (_namedCache.Remove(name, out var cached))
+            {
+                removed = cached;
+            }
+        }
+
+        removed?.Dispose();
+    }
+
+    private sealed class MonitorCacheEntry : IDisposable
+    {
+        private readonly object _gate = new();
+        private readonly IDisposable? _subscription;
+        private readonly bool _cacheable;
+        private readonly IConfiglueValueCloneProvider<TModel>? _cloneProvider;
+        private TModel? _value;
+        private int _changeVersion;
+
+        public MonitorCacheEntry(IReadOnlyOptions<TModel> options)
+        {
+            Options = options;
+            _cloneProvider = options as IConfiglueValueCloneProvider<TModel>;
+            _cacheable =
+                _cloneProvider is not null
+                && options.GetDiagnostics().Sources.Any(static source => source.CanWatch);
+            if (_cacheable)
+            {
+                _subscription = options.OnChange(OnChanged);
+            }
+        }
+
+        public IReadOnlyOptions<TModel> Options { get; }
+
+        public TModel Value
+        {
+            get
+            {
+                if (!_cacheable)
+                {
+                    return Read(Options);
+                }
+
+                var value = Volatile.Read(ref _value);
+                if (value is not null)
+                {
+                    return _cloneProvider!.CloneValue(value);
+                }
+
+                var changeVersion = Volatile.Read(ref _changeVersion);
+                var loaded = Read(Options);
+                lock (_gate)
+                {
+                    value = _value;
+                    if (value is not null)
+                    {
+                        return _cloneProvider!.CloneValue(value);
+                    }
+
+                    if (changeVersion != _changeVersion)
+                    {
+                        return _value!;
+                    }
+
+                    Volatile.Write(ref _value, loaded);
+                    return _cloneProvider!.CloneValue(loaded);
+                }
+            }
+        }
+
+        public void Dispose() => _subscription?.Dispose();
+
+        private static TModel Read(IReadOnlyOptions<TModel> options) =>
+            options.GetValueAsync().AsTask().GetAwaiter().GetResult();
+
+        private void OnChanged(TModel value)
+        {
+            lock (_gate)
+            {
+                _changeVersion++;
+                Volatile.Write(ref _value, value);
+            }
+        }
+    }
 
     public IDisposable? OnChange(Action<TModel, string?> listener)
     {
         ArgumentNullException.ThrowIfNull(listener);
-        var subscription = new ChangeSubscription(_resolver, listener, _namedProfileNames);
+        EnsureKnownCacheEntries();
+        var subscription = new ChangeSubscription(
+            _resolver,
+            listener,
+            _namedProfileNames,
+            EnsureCacheEntry
+        );
         subscription.Start();
         return subscription;
+    }
+
+    private void EnsureKnownCacheEntries()
+    {
+        try
+        {
+            _ = GetDefaultCache();
+        }
+        catch (KeyNotFoundException)
+        {
+            // A registry-only setup can expose named profiles without a default profile.
+        }
+
+        foreach (var name in _namedProfileNames)
+        {
+            try
+            {
+                var options = _resolver.Resolve(name);
+                _ = GetNamedCache(name, options);
+            }
+            catch (KeyNotFoundException)
+            {
+                // A registration may have been removed since the service provider was built.
+            }
+        }
+
+        if (_registry is not null)
+        {
+            foreach (var name in _registry.ProfileNames)
+            {
+                if (
+                    name != Options.DefaultName
+                    && _registry.TryGet(name, out var options)
+                    && options is not null
+                )
+                {
+                    _ = GetNamedCache(name, options);
+                }
+            }
+        }
+    }
+
+    private void EnsureCacheEntry(string name, IReadOnlyOptions<TModel> options)
+    {
+        if (name == Options.DefaultName)
+        {
+            _ = GetDefaultCache();
+        }
+        else
+        {
+            _ = GetNamedCache(name, options);
+        }
     }
 
     private sealed class ChangeSubscription : IDisposable
     {
         private readonly ConfiglueMicrosoftOptionsResolver<TModel> _resolver;
         private readonly Action<TModel, string?> _listener;
+        private readonly Action<string, IReadOnlyOptions<TModel>> _ensureCacheEntry;
         private readonly object _gate = new();
         private readonly Dictionary<string, ProfileSubscription> _subscriptions = new(
             StringComparer.Ordinal
@@ -160,11 +421,13 @@ internal sealed class ConfiglueMicrosoftOptionsMonitor<TModel> : IOptionsMonitor
         public ChangeSubscription(
             ConfiglueMicrosoftOptionsResolver<TModel> resolver,
             Action<TModel, string?> listener,
-            IEnumerable<string> namedProfileNames
+            IEnumerable<string> namedProfileNames,
+            Action<string, IReadOnlyOptions<TModel>> ensureCacheEntry
         )
         {
             _resolver = resolver;
             _listener = listener;
+            _ensureCacheEntry = ensureCacheEntry;
             _registry = resolver.Registry;
             NamedProfileNames = namedProfileNames.ToArray();
         }
@@ -338,6 +601,7 @@ internal sealed class ConfiglueMicrosoftOptionsMonitor<TModel> : IOptionsMonitor
             IDisposable subscription;
             try
             {
+                _ensureCacheEntry(name, options);
                 subscription = options.OnChange(value => _listener(value, name));
             }
             catch

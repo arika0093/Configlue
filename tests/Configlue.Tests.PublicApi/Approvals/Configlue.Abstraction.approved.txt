@@ -269,6 +269,10 @@ namespace Configlue
         System.Collections.Generic.IReadOnlyList<string> Validate(T value);
         System.Collections.Generic.IReadOnlyList<string> Validate(string? name, T value);
     }
+    public interface IConfiglueValueCloneProvider<T>
+    {
+        T CloneValue(T value);
+    }
     public interface IReadOnlyOptions<T>
     {
         System.Threading.Tasks.ValueTask<Configlue.ConfiglueValueExplanation> ExplainAsync(string propertyPath, System.Threading.CancellationToken cancellationToken = default);
