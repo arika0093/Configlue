@@ -16,7 +16,7 @@ Console.WriteLine($">> Name: {setting.Name}");
 
 同期処理では `options.CurrentValue` の初回アクセスでソースを解決し、ディープコピーを取得できます。以降はキャッシュ値の clone を返します。watcher による再読み込みが成功するとキャッシュを更新し、書き込み成功後はキャッシュを無効化して次回アクセスで再読み込みします。watcher がない場合、外部変更は自動検出されないため、最新値には `GetValueAsync` を使います。初回 getter は非同期 source の読み取り完了までブロックします。DI の `IOptionsMonitor<T>.CurrentValue` は独自の watcher 対応キャッシュを持ちます。
 
-生成 clone は入れ子の Configlue model と一般的なコレクションを複製します。独自の可変参照型を含み、コピー方法を指定したい場合は options runtime ごとに clone 戦略を設定します:
+生成 clone は入れ子の Configlue model、一般的なコレクション、public parameterless constructor と public setter を持つ通常の POCO を複製します。POCO 間の共有参照と循環参照も維持します。constructor 引数や required/init-only property が必要な型、および未対応の collection に含まれる値は参照のまま残るため、そのような値を複製する場合は options runtime ごとに clone 戦略を設定します:
 
 ```csharp
 config.Add<AppSettings>(model =>

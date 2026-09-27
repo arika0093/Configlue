@@ -280,6 +280,10 @@ public sealed partial class ConfiglueGenerator
             .AppendLine(" value)");
         code.AppendLineAt(2, "{");
         code.AppendLineAt(3, "global::System.ArgumentNullException.ThrowIfNull(value);");
+        code.AppendLineAt(
+            3,
+            "var __configlue_clone_context = new global::System.Collections.Generic.Dictionary<object, object>(global::System.Collections.Generic.ReferenceEqualityComparer.Instance);"
+        );
         code.AppendLineAt(3, "return new Fragment");
         code.AppendLineAt(3, "{");
         foreach (var member in members)
@@ -502,8 +506,14 @@ public sealed partial class ConfiglueGenerator
             2,
             "/// <summary>Copies the fragment and its generated nested values.</summary>"
         );
-        code.AppendLineAt(2, "public Fragment DeepClone() => new()");
+        code.AppendLineAt(2, "public Fragment DeepClone()");
         code.AppendLineAt(2, "{");
+        code.AppendLineAt(
+            3,
+            "var __configlue_clone_context = new global::System.Collections.Generic.Dictionary<object, object>(global::System.Collections.Generic.ReferenceEqualityComparer.Instance);"
+        );
+        code.AppendLineAt(3, "return new Fragment");
+        code.AppendLineAt(3, "{");
         foreach (var member in members)
         {
             var name = EscapeIdentifier(member.Property.Name);
@@ -513,7 +523,7 @@ public sealed partial class ConfiglueGenerator
                 "this." + name + ".Value",
                 code.CancellationToken
             );
-            code.AppendIndent(3)
+            code.AppendIndent(4)
                 .Append(name)
                 .Append(" = this.")
                 .Append(name)
@@ -525,7 +535,8 @@ public sealed partial class ConfiglueGenerator
                 .AppendLine();
         }
 
-        code.AppendLineAt(2, "};");
+        code.AppendLineAt(3, "};");
+        code.AppendLineAt(2, "}");
         code.AppendLine();
     }
 

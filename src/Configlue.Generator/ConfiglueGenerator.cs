@@ -517,6 +517,103 @@ public sealed partial class ConfiglueGenerator : IIncrementalGenerator
         return HasConfiglueModelAttribute(named, cancellationToken);
     }
 
+    private static bool TryGetPocoCloneType(
+        ITypeSymbol type,
+        CancellationToken cancellationToken,
+        out INamedTypeSymbol pocoType
+    )
+    {
+        if (
+            type
+                is INamedTypeSymbol
+                {
+                    TypeKind: TypeKind.Class,
+                    IsAbstract: false,
+                    Arity: 0,
+                    ContainingType: null,
+                } named
+            && named.SpecialType == SpecialType.None
+            && named.ContainingNamespace.ToDisplayString() != "System"
+            && !named
+                .ContainingNamespace.ToDisplayString()
+                .StartsWith("System.", StringComparison.Ordinal)
+            && !IsConfiglueModel(named, cancellationToken)
+            && named.InstanceConstructors.Any(static constructor =>
+                constructor.DeclaredAccessibility == Accessibility.Public
+                && constructor.Parameters.Length == 0
+            )
+        )
+        {
+            foreach (
+                var property in GetMembers(named, cancellationToken)
+                    .Select(static member => member.Property)
+            )
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (property.IsRequired || property.SetMethod?.IsInitOnly == true)
+                {
+                    pocoType = null!;
+                    return false;
+                }
+            }
+
+            pocoType = named;
+            return true;
+        }
+
+        pocoType = null!;
+        return false;
+    }
+
+    private static ImmutableArray<INamedTypeSymbol> GetPocoCloneTypes(
+        ImmutableArray<MemberModel> members,
+        CancellationToken cancellationToken
+    )
+    {
+        var result = ImmutableArray.CreateBuilder<INamedTypeSymbol>();
+        var seen = new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default);
+        var pending = new Stack<ITypeSymbol>();
+        foreach (var type in members.Select(static member => member.Property.Type))
+        {
+            pending.Push(type);
+        }
+
+        while (pending.Count > 0)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var type = pending.Pop();
+            var collection = GetCollectionInfo(type);
+            if (collection.CloneKind != CloneCollectionKind.Unsupported)
+            {
+                if (collection.ElementType is not null)
+                {
+                    pending.Push(collection.ElementType);
+                }
+                if (collection.ValueType is not null)
+                {
+                    pending.Push(collection.ValueType);
+                }
+                continue;
+            }
+
+            if (!TryGetPocoCloneType(type, cancellationToken, out var poco) || !seen.Add(poco))
+            {
+                continue;
+            }
+
+            result.Add(poco);
+            foreach (
+                var nestedType in GetMembers(poco, cancellationToken)
+                    .Select(static member => member.Property.Type)
+            )
+            {
+                pending.Push(nestedType);
+            }
+        }
+
+        return result.ToImmutable();
+    }
+
     private static bool HasConfiglueModelAttribute(
         INamedTypeSymbol model,
         CancellationToken cancellationToken
