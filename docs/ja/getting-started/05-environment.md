@@ -45,7 +45,7 @@ builder.Services.AddConfiglue(conf =>
         model.Sources(sources =>
         {
             sources.FromJsonFile(new() { Id = "settings", Path = "settings.json", Priority = 100 });
-            sources.FromEnvironment(new() { Id = "environment", Prefix = "EXAMPLE", Priority = 400 });
+            sources.FromEnvironment(new() { Prefix = "EXAMPLE", Priority = 400 });
         });
         model.WriteRoute = StateWriteRoute.To("settings");
     });

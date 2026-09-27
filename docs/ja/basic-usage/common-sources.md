@@ -21,16 +21,16 @@ config.Add<AppSettings>(model =>
 
 `UseCommonSources` は次の順にレイヤーを登録します:
 
-| 層 | 優先度 | 登録条件 | 場所・入力 | 書き込み先 |
-| --- | ---: | --- | --- | --- |
-| Global | 100 | 常に登録 | 標準 per-user directory と `GlobalFileName` | 明示選択可能 |
-| Local | 200 | 常に登録 | `LocalFilePath`、または current directory と `GlobalFileName` | 指定ファイルがなければ既定 |
-| Specific | 300 | `SpecificFilePath` が指定された場合 | 指定パス | 指定時の既定 |
-| Environment | 400 | `EnvironmentPrefix` が指定された場合 | 環境変数 | 読み取り専用 |
+| 層 | 登録条件 | 場所・入力 | 書き込み先 |
+| --- | --- | --- | --- |
+| Global | 常に登録 | 標準 per-user directory と `GlobalFileName` | 明示選択可能 |
+| Local | 常に登録 | `LocalFilePath`、または current directory と `GlobalFileName` | 指定ファイルがなければ既定 |
+| Specific | `SpecificFilePath` が指定された場合 | 指定パス | 指定時の既定 |
+| Environment | `EnvironmentPrefix` が指定された場合 | 環境変数 | 読み取り専用 |
 
-コマンドライン上書きを追加するには `Configlue.Source.CommandLine` をインストールし、既存のパース結果と明示的なマッピングを渡す `UseCommonSources` overload を使います。`common.commandLine` が優先度 500 で登録されます。
+表の順が優先順位です。コマンドライン上書きを追加するには `Configlue.Source.CommandLine` をインストールし、既存のパース結果と明示的なマッピングを渡す `UseCommonSources` overload を使います。
 
-プリセット内では安定した論理 ID を使います。source-local write には文字列キーを作らず、semantic selector を使えます:
+source-local write には文字列キーを作らず、semantic selector を使えます:
 
 ```csharp
 await options.Source(CommonSource.Local).SaveAsync(

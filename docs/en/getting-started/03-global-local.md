@@ -11,12 +11,12 @@ One file for everything mixes shipped defaults with user settings. Here we split
 
 ## The priority promise
 
-When the same field exists in several sources, the larger `Priority` number wins. The numbers mean nothing except order.
+The Common preset has a fixed order: Global < Local < Specific < Environment. When hand-building a source set, `Priority` controls the same ordering; its numeric values have no meaning beyond order.
 
-| Source | Role | Priority (example) |
-| --- | --- | ---: |
-| `common.global` | Shipped defaults, shared by all users | 100 |
-| `common.local` | Overrides on this machine | 200 |
+| Layer | Role |
+| --- | --- |
+| Global | Shipped defaults, shared by all users |
+| Local | Overrides on this machine |
 
 A missing file source just falls through. Present fields compose; fields missing above leave the lower layer's value intact.
 

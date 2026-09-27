@@ -21,16 +21,16 @@ This convention uses `settings.json` in the standard per-user directory and curr
 
 `UseCommonSources` registers these layers in precedence order:
 
-| Layer | Priority | Included when | Location or input | Writes |
-| --- | ---: | --- | --- | --- |
-| Global | 100 | Always | Standard per-user directory and `GlobalFileName` | Explicitly selectable |
-| Local | 200 | Always | `LocalFilePath`, or current directory and `GlobalFileName` | Default when no specific path is supplied |
-| Specific | 300 | `SpecificFilePath` is supplied | Selected path | Default when supplied |
-| Environment | 400 | `EnvironmentPrefix` is supplied | Environment variables | Read-only |
+| Layer | Included when | Location or input | Writes |
+| --- | --- | --- | --- |
+| Global | Always | Standard per-user directory and `GlobalFileName` | Explicitly selectable |
+| Local | Always | `LocalFilePath`, or current directory and `GlobalFileName` | Default when no specific path is supplied |
+| Specific | `SpecificFilePath` is supplied | Selected path | Default when supplied |
+| Environment | `EnvironmentPrefix` is supplied | Environment variables | Read-only |
 
-To add command-line overrides, install `Configlue.Source.CommandLine` and call its `UseCommonSources` overload with the existing parse result and explicit mappings. This registers `common.commandLine` at priority 500.
+The table order is the precedence order. To add command-line overrides, install `Configlue.Source.CommandLine` and call its `UseCommonSources` overload with the existing parse result and explicit mappings.
 
-The preset uses stable logical IDs internally. For source-local writes, use the semantic selector instead of creating a string-based key:
+For source-local writes, use the semantic selector instead of creating a string-based key:
 
 ```csharp
 await options.Source(CommonSource.Local).SaveAsync(

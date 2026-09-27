@@ -6,8 +6,8 @@ namespace Configlue.Source.Environment;
 /// <summary>Options for a facade environment variable source.</summary>
 public sealed class EnvironmentSourceOptions
 {
-    /// <summary>The stable logical source ID.</summary>
-    public required string Id { get; init; }
+    /// <summary>An optional stable logical source ID used for explicit routing.</summary>
+    public string? Id { get; init; }
 
     /// <summary>The environment variable prefix.</summary>
     public required string Prefix { get; init; }
@@ -40,7 +40,6 @@ public static class EnvironmentFacadeSourceRegistration
     {
         ArgumentNullException.ThrowIfNull(sources);
         ArgumentNullException.ThrowIfNull(options);
-        ArgumentException.ThrowIfNullOrWhiteSpace(options.Id);
         ArgumentException.ThrowIfNullOrWhiteSpace(options.Prefix);
         sources.Add(new Definition(options));
     }
@@ -55,19 +54,30 @@ public static class EnvironmentFacadeSourceRegistration
             where TFragment : class, IConfiglueFragment<TFragment>
         {
             ArgumentNullException.ThrowIfNull(modelSchema);
-            return new StateSource<TFragment>(
-                options.Id,
-                new EnvironmentStateReader<TFragment>(
-                    modelSchema,
-                    options.Prefix,
-                    options.EnvironmentVariables,
-                    options.ValueParser,
-                    options.JsonSerializerOptions
-                ),
-                options.Priority,
-                options.FallbackCondition,
-                physicalOrigin: $"environment:{EnvironmentStateReader<TFragment>.NormalizePrefix(options.Prefix)}"
+            var reader = new EnvironmentStateReader<TFragment>(
+                modelSchema,
+                options.Prefix,
+                options.EnvironmentVariables,
+                options.ValueParser,
+                options.JsonSerializerOptions
             );
+            var physicalOrigin =
+                $"environment:{EnvironmentStateReader<TFragment>.NormalizePrefix(options.Prefix)}";
+            return options.Id is { } id
+                ? new StateSource<TFragment>(
+                    id,
+                    reader,
+                    options.Priority,
+                    options.FallbackCondition,
+                    physicalOrigin: physicalOrigin
+                )
+                : new StateSource<TFragment>(
+                    reader,
+                    options.Priority,
+                    options.FallbackCondition,
+                    physicalOrigin: physicalOrigin,
+                    logicalDescriptor: "environment-prefix"
+                );
         }
     }
 }

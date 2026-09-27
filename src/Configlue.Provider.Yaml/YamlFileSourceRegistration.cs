@@ -25,6 +25,9 @@ public sealed class YamlFileSourceOptions
     /// <summary>Whether the source is read-only.</summary>
     public bool ReadOnly { get; init; }
 
+    /// <summary>Whether this source is excluded from inferred ordinary write routing.</summary>
+    public bool ExplicitOnly { get; init; }
+
     /// <summary>Whether to watch the file for changes.</summary>
     public bool WatchChanges { get; init; } = true;
 
@@ -135,7 +138,8 @@ public static class YamlFileSourceRegistration
                     stateWriter,
                     watcher,
                     file.Path,
-                    physicalResourceId
+                    physicalResourceId,
+                    explicitOnly: options.ExplicitOnly
                 )
                 : new StateSource<TFragment>(
                     YamlFileSourceSelector.CreateSourceId(file.Path, options.SectionPath),
@@ -145,7 +149,8 @@ public static class YamlFileSourceRegistration
                     stateWriter,
                     watcher,
                     file.Path,
-                    physicalResourceId
+                    physicalResourceId,
+                    explicitOnly: options.ExplicitOnly
                 );
         }
     }

@@ -28,7 +28,7 @@ public static class CommonCommandLineSourcePreset
                 {
                     Id = "common.commandLine",
                     ParseResult = parseResult,
-                    Priority = 500,
+                    Priority = 4,
                     FallbackCondition = StateFallbackCondition.NotFound,
                 },
                 configureMappings

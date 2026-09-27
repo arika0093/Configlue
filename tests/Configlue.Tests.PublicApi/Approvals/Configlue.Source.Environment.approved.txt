@@ -10,7 +10,7 @@ namespace Configlue.Source.Environment
         public EnvironmentSourceOptions() { }
         public System.Func<System.Collections.Generic.IEnumerable<System.Collections.Generic.KeyValuePair<string, string?>>>? EnvironmentVariables { get; init; }
         public Configlue.StateFallbackCondition FallbackCondition { get; init; }
-        public required string Id { get; init; }
+        public string? Id { get; init; }
         public System.Text.Json.JsonSerializerOptions? JsonSerializerOptions { get; init; }
         public required string Prefix { get; init; }
         public int Priority { get; init; }

@@ -12,6 +12,41 @@ namespace Configlue.Tests;
 public sealed class CommonSourceFormatTests
 {
     [Test]
+    public async Task CommonSources_UsesEnvironmentWithoutAnExplicitIdOrPriority()
+    {
+        using var directory = new TemporaryDirectory();
+        var appId = $"Configlue.Tests.{Guid.NewGuid():N}";
+        await using var context = Configlue.CreateContext(builder =>
+        {
+            builder.Add<AppSettings>(model =>
+                model.UseCommonSources(
+                    new CommonSourceOptions
+                    {
+                        ApplicationId = appId,
+                        GlobalFileName = "settings.json",
+                        LocalFilePath = Path.Combine(directory.FullPath, "local.json"),
+                        EnvironmentPrefix = "CONFIGLUE_TEST",
+                        EnvironmentVariables = () =>
+                            [new KeyValuePair<string, string?>("CONFIGLUE_TEST__RetryCount", "17")],
+                    }
+                )
+            );
+        });
+
+        var options = context.GetAdvancedOptions<AppSettings>();
+        (await options.GetValueAsync()).RetryCount.ShouldBe(17);
+        string.IsNullOrWhiteSpace(
+                options
+                    .GetDiagnostics()
+                    .Sources.Single(static source =>
+                        source.PhysicalOrigin?.StartsWith("environment:") == true
+                    )
+                    .Id
+            )
+            .ShouldBeFalse();
+    }
+
+    [Test]
     public async Task CommonSources_InfersYamlFromGlobalFileName()
     {
         var appId = $"Configlue.Tests.{Guid.NewGuid():N}";
@@ -44,6 +79,8 @@ public sealed class CommonSourceFormatTests
             var value = await options.GetValueAsync();
 
             (value.RetryCount).ShouldBe(11);
+            options.GetDiagnostics().DefaultUsesHighestPriorityWritable.ShouldBeTrue();
+            options.GetDiagnostics().Sources.All(static source => source.CanWrite).ShouldBeTrue();
 
             await options.SaveAsync(settings => settings.Label = "written-to-yaml");
             var written = await File.ReadAllTextAsync(globalPath);
