@@ -656,27 +656,80 @@ public sealed class ConfiglueProfiledOptions<TModel, TFragment>
 
     private async Task WatchCatalogAsync(CancellationToken cancellationToken)
     {
+        var refreshPending = false;
+        while (true)
+        {
+            if (!refreshPending)
+            {
+                try
+                {
+                    await _catalogSource
+                        .Watcher!.WaitForChangeAsync(_catalogRevision, cancellationToken)
+                        .ConfigureAwait(false);
+                    refreshPending = true;
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    return;
+                }
+                catch (ObjectDisposedException) when (Volatile.Read(ref _disposed) != 0)
+                {
+                    return;
+                }
+                catch (Exception exception)
+                {
+                    Trace.TraceError("Configlue profile catalog watcher failed: {0}", exception);
+                    var shouldRetry = await DelayCatalogWatcherRetryAsync(cancellationToken)
+                        .ConfigureAwait(false);
+                    if (!shouldRetry)
+                    {
+                        return;
+                    }
+
+                    refreshPending = true;
+                    continue;
+                }
+            }
+
+            try
+            {
+                await RefreshCatalogFromWatcherAsync(cancellationToken).ConfigureAwait(false);
+                refreshPending = false;
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                return;
+            }
+            catch (ObjectDisposedException) when (Volatile.Read(ref _disposed) != 0)
+            {
+                return;
+            }
+            catch (Exception exception)
+            {
+                Trace.TraceError("Configlue profile catalog refresh failed: {0}", exception);
+                var shouldRetry = await DelayCatalogWatcherRetryAsync(cancellationToken)
+                    .ConfigureAwait(false);
+                if (!shouldRetry)
+                {
+                    return;
+                }
+            }
+        }
+    }
+
+    private static async Task<bool> DelayCatalogWatcherRetryAsync(
+        CancellationToken cancellationToken
+    )
+    {
         try
         {
-            while (true)
-            {
-                await _catalogSource
-                    .Watcher!.WaitForChangeAsync(_catalogRevision, cancellationToken)
-                    .ConfigureAwait(false);
-                await RefreshCatalogFromWatcherAsync(cancellationToken).ConfigureAwait(false);
-            }
+            await Task.Delay(TimeSpan.FromMilliseconds(250), cancellationToken)
+                .ConfigureAwait(false);
+            return true;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            return;
-        }
-        catch (ObjectDisposedException) when (Volatile.Read(ref _disposed) != 0)
-        {
-            return;
-        }
-        catch (Exception exception)
-        {
-            Trace.TraceError("Configlue profile catalog watcher failed: {0}", exception);
+            return false;
         }
     }
 
