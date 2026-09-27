@@ -141,7 +141,7 @@ public sealed class LegacySettingsAdoptionTests
             (codec.ReadSchemaMetadata(in sequence)).ShouldBeNull();
         }
 
-        foreach (var encoding in new Encoding[] { Encoding.Unicode, Encoding.UTF32 })
+        foreach (var encoding in new Encoding[] { Encoding.UTF8, Encoding.Unicode, Encoding.UTF32 })
         {
             var text = "retryCount: 0\n";
             var content = encoding.GetPreamble().Concat(encoding.GetBytes(text)).ToArray();
@@ -222,6 +222,28 @@ public sealed class LegacySettingsAdoptionTests
         (result.Value!.RetryCount.IsPresent).ShouldBeTrue();
         (result.Value.RetryCount.Value).ShouldBe(2);
         (await resource.ReadAsync()).Content.ToArray().ShouldBe(original);
+    }
+
+    [Test]
+    public async Task EmptyYamlSectionIsNotFoundAndCanBeInitializedWithoutLosingSparseShape()
+    {
+        var resource = new InMemoryResource();
+        await resource.WriteAsync(new ResourceWriteRequest(Encoding.UTF8.GetBytes("  \r\n")));
+        var section = new YamlSectionResource(resource, "App:Settings");
+
+        (await section.ReadAsync()).Status.ShouldBe(StateReadStatus.NotFound);
+        await section.WriteAsync(
+            new ResourceWriteRequest(Encoding.UTF8.GetBytes("RetryCount: 0\n"))
+        );
+
+        var sectionResult = await section.ReadAsync();
+        (sectionResult.Status).ShouldBe(StateReadStatus.Success);
+        var codec = new YamlStateCodec<AppSettings.Fragment>();
+        var content = new ReadOnlySequence<byte>(sectionResult.Content);
+        var fragment = codec.Deserialize(in content, default)!;
+        (fragment.RetryCount.IsPresent).ShouldBeTrue();
+        (fragment.RetryCount.Value).ShouldBe(0);
+        (fragment.Label.IsPresent).ShouldBeFalse();
     }
 
     [Test]
