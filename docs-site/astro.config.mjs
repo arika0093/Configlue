@@ -51,6 +51,79 @@ export default defineConfig({
         './src/styles/custom.css',
       ],
       plugins: [starlightThemeNova(), starlightGithubAlerts()],
+      sidebar: [
+        {
+          label: 'Getting started',
+          translations: { ja: 'はじめる' },
+          items: [
+            'getting-started/why-configlue',
+            'getting-started/installation',
+            'getting-started/quick-start',
+            'getting-started/examples',
+          ],
+        },
+        {
+          label: 'Basic usage',
+          translations: { ja: '基本的な使い方' },
+          items: [
+            'basic-usage/reading-and-writing',
+            'basic-usage/app-setup',
+            'basic-usage/common-sources',
+            'basic-usage/changes-and-validation',
+          ],
+        },
+        {
+          label: 'Sources',
+          translations: { ja: 'ソース' },
+          items: [
+            'sources/files-and-sections',
+            'sources/environment-and-commandline',
+            'sources/http-and-zip',
+            'sources/fallback-and-custom',
+          ],
+        },
+        {
+          label: 'Layering',
+          translations: { ja: '重ね合わせ' },
+          items: [
+            'layering/resolution-and-merge',
+            'layering/write-routing',
+            'layering/mount-and-project',
+          ],
+        },
+        {
+          label: 'Profiles',
+          translations: { ja: 'プロファイル' },
+          items: ['profiles/profiles', 'profiles/dynamic-options'],
+        },
+        {
+          label: 'Migration',
+          translations: { ja: '移行' },
+          items: [
+            'migration/schema-migration',
+            'migration/storage-migration',
+            'migration/adopting-configuration-writable',
+          ],
+        },
+        {
+          label: 'Advanced',
+          translations: { ja: '応用' },
+          items: [
+            'advanced/native-aot',
+            'advanced/json-schema-and-testing',
+            'advanced/backups-and-observability',
+          ],
+        },
+        {
+          label: 'Reference',
+          translations: { ja: 'リファレンス' },
+          items: [
+            'reference/packages',
+            'reference/http-resource-protocol',
+            'reference/design-notes',
+          ],
+        },
+      ],
     }),
     mdx(),
   ],
