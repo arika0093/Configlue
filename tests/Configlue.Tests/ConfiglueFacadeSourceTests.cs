@@ -456,10 +456,6 @@ public sealed class ConfiglueFacadeSourceTests
                         ApplicationId = $"Configlue.Tests.{Guid.NewGuid():N}",
                         GlobalFileName = "settings.json",
                         SpecificFilePath = selectedPath,
-                        WriteLayer = CommonSourceWriteLayer.Specific,
-                        EnableGlobalFile = false,
-                        EnableLocalFile = false,
-                        EnableEnvironment = false,
                         FileResourceOptions = new FileResourceOptions { CreateBackup = false },
                     }
                 )
@@ -710,7 +706,6 @@ public sealed class ConfiglueFacadeSourceTests
                 EnvironmentPrefix = "CONFIGLUE_TEST",
                 EnvironmentVariables = () =>
                     [new KeyValuePair<string, string?>("CONFIGLUE_TEST__RetryCount", "4")],
-                WriteLayer = CommonSourceWriteLayer.Specific,
                 FileResourceOptions = new FileResourceOptions { CreateBackup = false },
             };
 
@@ -749,6 +744,18 @@ public sealed class ConfiglueFacadeSourceTests
             sequence = new ReadOnlySequence<byte>(selected);
             selectedFragment = written.Deserialize(in sequence, default)!;
             (selectedFragment.Label.Value).ShouldBe("explicit-selector-write");
+            await options
+                .Source(CommonSource.Global)
+                .SaveAsync(
+                    new AppSettings.Patch
+                    {
+                        Label = FragmentOperation<string?>.Set("explicit-global-write"),
+                    }
+                );
+            var globalBytes = await File.ReadAllBytesAsync(globalPath);
+            var globalSequence = new ReadOnlySequence<byte>(globalBytes);
+            var globalFragment = written.Deserialize(in globalSequence, default)!;
+            (globalFragment.Label.Value).ShouldBe("explicit-global-write");
             await Should.ThrowAsync<StateConflictException>(async () =>
                 await options.SaveAsync(settings => settings.RetryCount = 8)
             );

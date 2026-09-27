@@ -34,9 +34,7 @@ public sealed class CommonSourceFormatTests
                         {
                             ApplicationId = appId,
                             GlobalFileName = "settings.yaml",
-                            EnableLocalFile = false,
-                            EnableSpecificFile = false,
-                            EnableEnvironment = false,
+                            WriteLayer = CommonSourceWriteLayer.Global,
                             FileResourceOptions = new FileResourceOptions { CreateBackup = false },
                         }
                     )
@@ -88,9 +86,6 @@ public sealed class CommonSourceFormatTests
                             ApplicationId = appId,
                             GlobalFileName = "settings.json",
                             LocalFilePath = localPath,
-                            EnableSpecificFile = false,
-                            EnableEnvironment = false,
-                            WriteLayer = CommonSourceWriteLayer.Local,
                             FileResourceOptions = new FileResourceOptions { CreateBackup = false },
                         }
                     )
@@ -134,9 +129,6 @@ public sealed class CommonSourceFormatTests
                             ApplicationId = appId,
                             GlobalFileName = "settings.json",
                             FileFormat = CommonSourceFileFormat.Yaml,
-                            EnableLocalFile = false,
-                            EnableSpecificFile = false,
-                            EnableEnvironment = false,
                             FileResourceOptions = new FileResourceOptions { CreateBackup = false },
                         }
                     )
@@ -177,11 +169,7 @@ public sealed class CommonSourceFormatTests
                         {
                             ApplicationId = appId,
                             GlobalFileName = "settings.json",
-                            EnableGlobalFile = false,
-                            EnableLocalFile = false,
                             SpecificFilePath = specificPath,
-                            EnableEnvironment = false,
-                            WriteLayer = CommonSourceWriteLayer.Specific,
                             FileResourceOptions = new FileResourceOptions { CreateBackup = false },
                         }
                     )
