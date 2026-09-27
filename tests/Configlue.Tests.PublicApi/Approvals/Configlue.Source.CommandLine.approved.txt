@@ -22,4 +22,9 @@ namespace Configlue.Source.CommandLine
     {
         public static void FromCommandLine(this Configlue.ConfiglueSourceSetBuilder sources, Configlue.Source.CommandLine.CommandLineSourceOptions options, System.Action<Configlue.Source.CommandLine.CommandLineMappingBuilder> configureMappings) { }
     }
+    public static class CommonCommandLineSourcePreset
+    {
+        public static void UseCommonSources<TModel>(this Configlue.ConfiglueModelBuilder<TModel> model, Configlue.Source.Common.CommonSourceOptions options, System.CommandLine.ParseResult parseResult, System.Action<Configlue.Source.CommandLine.CommandLineMappingBuilder> configureMappings)
+            where TModel : Configlue.IConfiglueFacadeModel<TModel> { }
+    }
 }

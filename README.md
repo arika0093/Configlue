@@ -301,21 +301,23 @@ Disjoint section mounts that share one resource are combined into one physical w
 
 ### Common Layered Sources
 
-The `Configlue.Source.Common` package, included by `Configlue`, composes global, local, explicitly selected, and environment/command-line layers for either `CreateContext` or `AddConfiglue`:
+The `Configlue.Source.Common` package, included by `Configlue`, composes global, local, explicitly selected, and environment layers for either `CreateContext` or `AddConfiglue`. Command-line overrides are opt-in through `Configlue.Source.CommandLine`:
 
 ```csharp
 using Configlue.Source.Common;
+using Configlue.Source.CommandLine;
 
-config.Add<AppSettings>(model => model.UseCommonSources(new CommonSourceOptions
-{
-    ApplicationId = "ExampleApp",
-    GlobalFileName = "settings.json",
-    SpecificFilePath = selectedPath,
-    EnvironmentPrefix = "EXAMPLE",
-    CommandLineParseResult = parseResult,
-    ConfigureCommandLineMappings = mappings => mappings.Map<AppSettings, int>(portOption, settings => settings.Server!.Port),
-    WriteLayer = CommonSourceWriteLayer.Global,
-}));
+config.Add<AppSettings>(model => model.UseCommonSources(
+    new CommonSourceOptions
+    {
+        ApplicationId = "ExampleApp",
+        GlobalFileName = "settings.json",
+        SpecificFilePath = selectedPath,
+        EnvironmentPrefix = "EXAMPLE",
+        WriteLayer = CommonSourceWriteLayer.Global,
+    },
+    parseResult,
+    mappings => mappings.Map<AppSettings, int>(portOption, settings => settings.Server!.Port)));
 ```
 
 `UseCommonSources` expands to these stable logical sources:
@@ -326,7 +328,6 @@ config.Add<AppSettings>(model => model.UseCommonSources(new CommonSourceOptions
 | `common.local` | 200 | `EnableLocalFile` | Only when selected by `WriteLayer` |
 | `common.specific` | 300 | `EnableSpecificFile` and `SpecificFilePath` is set | Only when selected by `WriteLayer` |
 | `common.environment` | 400 | `EnableEnvironment` and `EnvironmentPrefix` is set | No |
-| `common.commandLine` | 500 | `EnableCommandLine` and `CommandLineParseResult` is set | No |
 
 `ConfiglueStandardPaths.GetStandardSaveDirectory(applicationId)` returns the platform-standard per-user configuration directory plus the application identifier. Set the `Enable*` switches to omit layers, or set `LocalFilePath`, `SpecificFilePath`, and `WriteLayer` to change their locations and destination.
 
@@ -598,8 +599,8 @@ Compose `SerializedStateSource.FromResource` over an `InMemoryResource` to test 
 | `Configlue.Provider.Xml` | XML codec with section resources and file registrations. |
 | `Configlue.Provider.Yaml` | YAML codec with section resources and file registrations. |
 | `Configlue.Source.Environment` | Read-only source backed by process environment variables. |
-| `Configlue.Source.CommandLine` | Read-only source backed by a `System.CommandLine` parse result. |
-| `Configlue.Source.Common` | Global/local/file/environment/command-line source presets. |
+| `Configlue.Source.CommandLine` | Read-only source backed by a `System.CommandLine` parse result, with opt-in common preset integration. |
+| `Configlue.Source.Common` | Global/local/file/environment source presets. |
 | `Configlue.Resource.Http` | HTTP read/write resources with ETag revisions and polling change detection. |
 | `Configlue.Resource.Http.AspNetCore` | ASP.NET Core endpoints for serving HTTP resources. |
 | `Configlue.Resource.Zip` | Resource view over one entry in a ZIP archive. |

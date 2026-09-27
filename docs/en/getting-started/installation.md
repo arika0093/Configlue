@@ -32,7 +32,7 @@ Add the capability packages you need on top:
 | YAML files | `Configlue.Provider.Yaml` |
 | XML files | `Configlue.Provider.Xml` |
 | `System.CommandLine` input | `Configlue.Source.CommandLine` |
-| Global/local/specific/env/cli presets | `Configlue` (includes `Configlue.Source.Common`) |
+| Global/local/specific/environment presets | `Configlue` (includes `Configlue.Source.Common`) |
 | Serve settings over HTTP (ASP.NET Core) | `Configlue.Resource.Http.AspNetCore` |
 | ZIP archive entries | `Configlue.Resource.Zip` |
 | In-memory doubles for tests | `Configlue.Testing` |

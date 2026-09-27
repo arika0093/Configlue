@@ -32,7 +32,7 @@ dotnet add package Configlue
 | YAML ファイル | `Configlue.Provider.Yaml` |
 | XML ファイル | `Configlue.Provider.Xml` |
 | `System.CommandLine` 入力 | `Configlue.Source.CommandLine` |
-| 共通/ローカル/指定/env/cli プリセット | `Configlue` (`Configlue.Source.Common` を含む) |
+| 共通/ローカル/指定/env プリセット | `Configlue` (`Configlue.Source.Common` を含む) |
 | 設定の HTTP 配信 (ASP.NET Core) | `Configlue.Resource.Http.AspNetCore` |
 | ZIP アーカイブ内エントリ | `Configlue.Resource.Zip` |
 | テスト用インメモリダブル | `Configlue.Testing` |

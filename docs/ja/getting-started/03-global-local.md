@@ -22,7 +22,7 @@ import { Tabs, TabItem } from '@astrojs/starlight/components';
 
 ## 定番の分け方（プリセットを使う）
 
-手で二層を組むこともできますが、定番形にはプリセットがあります。`Configlue.Source.Common` パッケージの `UseCommonSources` が、共通・ローカル・指定ファイル・環境変数・コマンドラインを束ねます。
+手で二層を組むこともできますが、定番形にはプリセットがあります。`Configlue.Source.Common` パッケージの `UseCommonSources` が、共通・ローカル・指定ファイル・環境変数を束ねます。コマンドライン上書きは `Configlue.Source.CommandLine` から別途追加します。
 
 <Tabs syncKey="di">
 <TabItem label="DI なし">

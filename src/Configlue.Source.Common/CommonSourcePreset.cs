@@ -1,8 +1,6 @@
-using System.CommandLine;
 using System.Text.Json;
 using Configlue;
 using Configlue.Provider.Json;
-using Configlue.Source.CommandLine;
 using Configlue.Source.Environment;
 
 namespace Configlue.Source.Common;
@@ -41,12 +39,6 @@ public sealed class CommonSourceOptions
     /// <summary>Environment prefix; a null value omits the environment layer.</summary>
     public string? EnvironmentPrefix { get; init; }
 
-    /// <summary>The application's existing parse result; null omits command-line member overrides.</summary>
-    public ParseResult? CommandLineParseResult { get; init; }
-
-    /// <summary>Maps command-line options and arguments to model paths.</summary>
-    public Action<CommandLineMappingBuilder>? ConfigureCommandLineMappings { get; init; }
-
     /// <summary>The selected writable file layer. Read-only layers remain overlays.</summary>
     public CommonSourceWriteLayer WriteLayer { get; init; } = CommonSourceWriteLayer.Global;
 
@@ -76,9 +68,6 @@ public sealed class CommonSourceOptions
 
     /// <summary>Disables the environment layer.</summary>
     public bool EnableEnvironment { get; init; } = true;
-
-    /// <summary>Disables command-line member overrides.</summary>
-    public bool EnableCommandLine { get; init; } = true;
 
     /// <summary>Environment variables provider override.</summary>
     public Func<IEnumerable<KeyValuePair<string, string?>>>? EnvironmentVariables { get; init; }
@@ -112,7 +101,6 @@ public static class CommonSourcePreset
     }
 
     /// <summary>Registers global, local, specific, then environment sources in precedence order.</summary>
-    /// <remarks>The selected specific file path is a separate input from command-line member overrides.</remarks>
     public static void UseCommonSources<TModel>(
         this ConfiglueModelBuilder<TModel> model,
         CommonSourceOptions options
@@ -190,25 +178,6 @@ public static class CommonSourcePreset
                         FallbackCondition = StateFallbackCondition.NotFound,
                         EnvironmentVariables = options.EnvironmentVariables,
                     }
-                );
-            }
-
-            if (options.EnableCommandLine && options.CommandLineParseResult is { } parseResult)
-            {
-                var configureMappings =
-                    options.ConfigureCommandLineMappings
-                    ?? throw new InvalidOperationException(
-                        "ConfigureCommandLineMappings is required when a parse result is supplied."
-                    );
-                sources.FromCommandLine(
-                    new CommandLineSourceOptions
-                    {
-                        Id = "common.commandLine",
-                        ParseResult = parseResult,
-                        Priority = 500,
-                        FallbackCondition = StateFallbackCondition.NotFound,
-                    },
-                    configureMappings
                 );
             }
         });

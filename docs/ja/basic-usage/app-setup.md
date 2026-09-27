@@ -81,5 +81,5 @@ DataAnnotations 検証は既定で有効です。無効にするには登録時�
 
 ## 次のステップ
 
-* 定番の共通/ローカル/指定/env/cli 構成は [共通レイヤーソース](./common-sources.md)。
+* 定番の共通/ローカル/指定/env 構成は [共通レイヤーソース](./common-sources.md)。コマンドライン上書きは明示的に追加できます。
 * プロバイダー登録は [ファイル・形式・セクション](../sources/files-and-sections.md)。
