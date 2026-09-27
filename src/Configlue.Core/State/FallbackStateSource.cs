@@ -11,8 +11,8 @@ namespace Configlue;
 /// representations with the selected value. Its watcher observes the selected representation and higher
 /// priority candidates so a recovered higher-priority representation can become active again. Writes update
 /// the active writable representation unless a fixed candidate is configured.
-/// This does not copy state on creation or delete other representations. Candidate resources remain owned by
-/// the caller.
+/// State is copied to another candidate only when <see cref="PromoteAsync"/> is called. Promotion does not
+/// delete other representations. Candidate resources remain owned by the caller.
 /// </remarks>
 public sealed class FallbackStateSource<T> : IStateReader<T>, IStateWriter<T>, IStateWatcher
 {
@@ -143,6 +143,158 @@ public sealed class FallbackStateSource<T> : IStateReader<T>, IStateWriter<T>, I
             .ConfigureAwait(false);
     }
 
+    /// <summary>Copies the selected state into a missing, higher-priority writable candidate.</summary>
+    /// <param name="targetSourceId">The candidate to promote into.</param>
+    /// <param name="cancellationToken">A token used to cancel the operation.</param>
+    /// <returns>The source and target revisions, or an already-promoted result when the target is active.</returns>
+    /// <remarks>
+    /// The target must precede the selected candidate in read priority and must return <see cref="StateReadStatus.NotFound"/>.
+    /// Its write is conditional on the observed missing-state revision. The selected source and the resolution
+    /// are re-read before writing, so detected changes fail with <see cref="StateConflictException"/>. This is
+    /// not a transaction across resources: a source can still change immediately after the final check.
+    /// </remarks>
+    public async ValueTask<StateFallbackPromotionResult> PromoteAsync(
+        string targetSourceId,
+        CancellationToken cancellationToken = default
+    )
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(targetSourceId);
+        var targetIndex = FindSourceIndex(targetSourceId);
+        var target = _candidates.Sources[targetIndex];
+        if (target.Writer is null)
+        {
+            throw new ArgumentException(
+                $"Target source '{targetSourceId}' does not support writes.",
+                nameof(targetSourceId)
+            );
+        }
+
+        var current = await _reader.ReadAsync(cancellationToken).ConfigureAwait(false);
+        if (current.Status != StateReadStatus.Success || current.SourceId is null)
+        {
+            throw new InvalidOperationException(
+                "Cannot promote fallback state because no candidate currently supplies a value."
+            );
+        }
+
+        if (string.Equals(current.SourceId, target.Id, StringComparison.Ordinal))
+        {
+            return new StateFallbackPromotionResult(
+                target.Id,
+                target.Id,
+                current.Revision,
+                current.Revision,
+                wasAlreadyPromoted: true
+            );
+        }
+
+        var sourceIndex = FindSourceIndex(current.SourceId);
+        if (targetIndex >= sourceIndex)
+        {
+            throw new ArgumentException(
+                $"Target source '{targetSourceId}' must have higher read priority than the selected source '{current.SourceId}'.",
+                nameof(targetSourceId)
+            );
+        }
+
+        var targetState = await target.Reader.ReadAsync(cancellationToken).ConfigureAwait(false);
+        if (targetState.Status == StateReadStatus.Unavailable)
+        {
+            throw new InvalidOperationException(
+                $"Cannot promote fallback state because target '{target.Id}' is unavailable."
+            );
+        }
+
+        if (targetState.Status == StateReadStatus.Success)
+        {
+            var latest = await _reader.ReadAsync(cancellationToken).ConfigureAwait(false);
+            if (latest.Status == StateReadStatus.Success && latest.SourceId == target.Id)
+            {
+                return new StateFallbackPromotionResult(
+                    target.Id,
+                    target.Id,
+                    latest.Revision,
+                    targetState.Revision,
+                    wasAlreadyPromoted: true
+                );
+            }
+
+            throw new StateConflictException(
+                $"Target source '{target.Id}' already contains state and is not the selected candidate."
+            );
+        }
+
+        var latestResolution = await _reader.ReadAsync(cancellationToken).ConfigureAwait(false);
+        if (
+            latestResolution.Status != StateReadStatus.Success
+            || !string.Equals(latestResolution.SourceId, current.SourceId, StringComparison.Ordinal)
+            || !string.Equals(
+                CreateRevisionToken(latestResolution),
+                CreateRevisionToken(current),
+                StringComparison.Ordinal
+            )
+        )
+        {
+            throw new StateConflictException(
+                "The selected fallback state changed before promotion."
+            );
+        }
+
+        var source = _candidates.Sources[sourceIndex];
+        var latestSourceState = await source
+            .Reader.ReadAsync(cancellationToken)
+            .ConfigureAwait(false);
+        if (
+            latestSourceState.Status != StateReadStatus.Success
+            || !string.Equals(
+                latestSourceState.Revision,
+                current.Revision,
+                StringComparison.Ordinal
+            )
+        )
+        {
+            throw new StateConflictException(
+                "The selected fallback source changed before promotion."
+            );
+        }
+
+        var write = await target
+            .Writer.WriteAsync(
+                new StateWriteRequest<T>(current.Value!, targetState.Revision, CheckRevision: true),
+                cancellationToken
+            )
+            .ConfigureAwait(false);
+
+        var confirmedTarget = await target
+            .Reader.ReadAsync(cancellationToken)
+            .ConfigureAwait(false);
+        if (
+            confirmedTarget.Status != StateReadStatus.Success
+            || (
+                write.Revision is not null
+                && confirmedTarget.Revision is not null
+                && !string.Equals(
+                    write.Revision,
+                    confirmedTarget.Revision,
+                    StringComparison.Ordinal
+                )
+            )
+        )
+        {
+            throw new StateConflictException(
+                $"Target source '{target.Id}' did not retain the promoted state at the written revision."
+            );
+        }
+
+        return new StateFallbackPromotionResult(
+            source.Id,
+            target.Id,
+            latestSourceState.Revision,
+            confirmedTarget.Revision ?? write.Revision,
+            wasAlreadyPromoted: false
+        );
+    }
+
     /// <inheritdoc />
     public ValueTask WaitForChangeAsync(
         string? observedRevision,
@@ -168,6 +320,22 @@ public sealed class FallbackStateSource<T> : IStateReader<T>, IStateWriter<T>, I
 
         return _candidates.Sources.FirstOrDefault(static source => source.Writer is not null)
             ?? throw new InvalidOperationException("No fallback representation supports writes.");
+    }
+
+    private int FindSourceIndex(string sourceId)
+    {
+        for (var index = 0; index < _candidates.Sources.Count; index++)
+        {
+            if (string.Equals(_candidates.Sources[index].Id, sourceId, StringComparison.Ordinal))
+            {
+                return index;
+            }
+        }
+
+        throw new ArgumentException(
+            $"Source '{sourceId}' is not registered among the fallback candidates.",
+            nameof(sourceId)
+        );
     }
 
     private static string? GetRevisionToken(StateReadResult<T> result) =>
