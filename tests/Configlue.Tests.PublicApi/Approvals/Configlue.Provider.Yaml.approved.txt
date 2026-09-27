@@ -1,10 +1,35 @@
 [assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/arika0093/Configlue")]
 namespace Configlue.Provider.Yaml
 {
+    public sealed class ConfigurationWritableYamlStateCodec<T> : Configlue.IStateCodec<T>, Configlue.IStateSchemaMetadataReader
+    {
+        public ConfigurationWritableYamlStateCodec(YamlDotNet.Serialization.INamingConvention? namingConvention = null, string? modelId = null, string versionProperty = "$version", System.Collections.Generic.IEnumerable<string>? fallbackVersionProperties = null, System.Text.Encoding? encoding = null) { }
+        public T? Deserialize(in System.Buffers.ReadOnlySequence<byte> source, in Configlue.StateCodecContext context) { }
+        public Configlue.StateSchemaMetadata? ReadSchemaMetadata(in System.Buffers.ReadOnlySequence<byte> source) { }
+        public void Serialize(T? value, System.Buffers.IBufferWriter<byte> destination, in Configlue.StateCodecContext context) { }
+    }
+    public sealed class YamlFileSourceOptions
+    {
+        public YamlFileSourceOptions() { }
+        public Configlue.StateFallbackCondition FallbackCondition { get; init; }
+        public required string Id { get; init; }
+        public YamlDotNet.Serialization.INamingConvention? NamingConvention { get; init; }
+        public required string Path { get; init; }
+        public int Priority { get; init; }
+        public bool ReadOnly { get; init; }
+        public Configlue.ResourceId? ResourceId { get; init; }
+        public Configlue.FileResourceOptions? ResourceOptions { get; init; }
+        public string? SectionPath { get; init; }
+        public bool WatchChanges { get; init; }
+    }
+    public static class YamlFileSourceRegistration
+    {
+        public static void FromYamlFile(this Configlue.ConfiglueSourceSetBuilder sources, Configlue.Provider.Yaml.YamlFileSourceOptions options) { }
+    }
     public sealed class YamlSectionResource : Configlue.IResourceBatchParticipant, Configlue.IResourceIdentity, Configlue.IResourceReader, Configlue.IResourceWriter, Configlue.IStateWatcher
     {
         public YamlSectionResource(Configlue.IResourceReader resource, string sectionPath) { }
-        public YamlSectionResource(Configlue.IResourceReader reader, Configlue.IResourceWriter? writer, string sectionPath, Configlue.IStateWatcher? watcher = null, Configlue.ResourceId? resourceId = default) { }
+        public YamlSectionResource(Configlue.IResourceReader reader, Configlue.IResourceWriter? writer, string sectionPath, Configlue.IStateWatcher? watcher = null, Configlue.ResourceId? resourceId = default, System.Text.Encoding? textEncoding = null) { }
         public Configlue.IResourceBatchWriter? BatchWriter { get; }
         public bool CanWrite { get; }
         public Configlue.ResourceId ResourceId { get; }

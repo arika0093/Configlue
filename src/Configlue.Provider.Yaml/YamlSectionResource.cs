@@ -11,11 +11,16 @@ public sealed class YamlSectionResource
         IResourceIdentity,
         IResourceBatchParticipant
 {
+    private static readonly UTF8Encoding StrictUtf8 = new(
+        encoderShouldEmitUTF8Identifier: false,
+        throwOnInvalidBytes: true
+    );
     private readonly IResourceReader _reader;
     private readonly IResourceWriter? _writer;
     private readonly IStateWatcher? _watcher;
     private readonly string[] _path;
     private readonly string _batchScope;
+    private readonly Encoding? _textEncoding;
 
     /// <summary>Creates a YAML section resource over a resource with inferred write and watch capabilities.</summary>
     public YamlSectionResource(IResourceReader resource, string sectionPath)
@@ -27,7 +32,8 @@ public sealed class YamlSectionResource
         IResourceWriter? writer,
         string sectionPath,
         IStateWatcher? watcher = null,
-        ResourceId? resourceId = null
+        ResourceId? resourceId = null,
+        Encoding? textEncoding = null
     )
     {
         ArgumentNullException.ThrowIfNull(reader);
@@ -35,6 +41,7 @@ public sealed class YamlSectionResource
         _reader = reader;
         _writer = writer;
         _watcher = watcher;
+        _textEncoding = textEncoding;
         ResourceId =
             resourceId
             ?? (writer as IResourceIdentity ?? reader as IResourceIdentity)?.ResourceId
@@ -245,9 +252,17 @@ public sealed class YamlSectionResource
         }
     }
 
-    private static YamlNode LoadRoot(ReadOnlySpan<byte> content)
+    private YamlNode LoadRoot(ReadOnlySpan<byte> content)
     {
-        using var reader = new StringReader(Encoding.UTF8.GetString(content));
+        var text = _textEncoding is null
+            ? StrictUtf8.GetString(content)
+            : DecodeWithEncoding(content, _textEncoding);
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return new YamlMappingNode();
+        }
+
+        using var reader = new StringReader(text);
         var stream = new YamlStream();
         stream.Load(reader);
         if (stream.Documents.Count != 1)
@@ -260,11 +275,22 @@ public sealed class YamlSectionResource
         return stream.Documents[0].RootNode;
     }
 
-    private static ReadOnlyMemory<byte> SerializeNode(YamlNode node)
+    private ReadOnlyMemory<byte> SerializeNode(YamlNode node)
     {
         var stream = new YamlStream(new YamlDocument(node));
         using var writer = new StringWriter(System.Globalization.CultureInfo.InvariantCulture);
         stream.Save(writer);
-        return Encoding.UTF8.GetBytes(writer.ToString());
+        return (_textEncoding ?? Encoding.UTF8).GetBytes(writer.ToString());
+    }
+
+    private static string DecodeWithEncoding(ReadOnlySpan<byte> content, Encoding encoding)
+    {
+        using var stream = new MemoryStream(content.ToArray(), writable: false);
+        using var reader = new StreamReader(
+            stream,
+            encoding,
+            detectEncodingFromByteOrderMarks: true
+        );
+        return reader.ReadToEnd();
     }
 }

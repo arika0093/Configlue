@@ -3,15 +3,13 @@ using System.Runtime.ExceptionServices;
 
 namespace Configlue;
 
-/// <summary>A thread-safe registry that creates and owns named Configlue options profiles.</summary>
-/// <typeparam name="TModel">The configuration model.</typeparam>
-/// <typeparam name="TFragment">The model's generated sparse fragment.</typeparam>
-public sealed class ConfiglueOptionsRegistry<TModel, TFragment>
+internal sealed class ConfiglueFacadeOptionsRegistry<TModel>
     : IConfiglueOptionsRegistry<TModel>,
         IConfiglueOptionsRegistryNotificationDeferrer<TModel>
-    where TModel : IConfiglueModel<TModel, TFragment>
-    where TFragment : class, IConfiglueFragment<TFragment>
+    where TModel : IConfiglueFacadeModel<TModel>
 {
+    private sealed record Entry(IWritableOptions<TModel> Runtime, IDisposable[] Resources);
+
     private sealed class Notification(IWritableOptions<TModel> runtime, Action dispatch)
     {
         public IWritableOptions<TModel> Runtime { get; } = runtime;
@@ -19,113 +17,110 @@ public sealed class ConfiglueOptionsRegistry<TModel, TFragment>
         public bool IsCancelled { get; set; }
     }
 
-    private readonly Func<string, ConfiglueOptions<TModel, TFragment>> _factory;
+    private readonly Func<string, Entry> _factory;
+    private readonly HashSet<string> _reservedNames;
     private readonly object _gate = new();
-    private readonly Dictionary<string, ConfiglueOptions<TModel, TFragment>> _profiles = new(
-        StringComparer.Ordinal
-    );
-    private readonly HashSet<string> _retiringProfiles = new(StringComparer.Ordinal);
-    private readonly HashSet<Task<Exception?>> _pendingAsyncRemovals = [];
+    private readonly Dictionary<string, Entry> _entries = new(StringComparer.Ordinal);
+    private readonly HashSet<string> _retiringNames = new(StringComparer.Ordinal);
+    private readonly HashSet<Task<Exception?>> _pendingRemovals = [];
     private readonly Queue<Notification> _notifications = new();
+    private Task? _disposeTask;
     private bool _dispatchingNotifications;
     private int _notificationDeferralCount;
-    private Task? _disposeTask;
     private bool _disposed;
 
-    /// <summary>Creates a registry using a factory that builds a profile from its name.</summary>
-    public ConfiglueOptionsRegistry(Func<string, ConfiglueOptions<TModel, TFragment>> factory)
+    public ConfiglueFacadeOptionsRegistry(
+        Func<string, (IWritableOptions<TModel> Runtime, IDisposable[] Resources)> factory,
+        IEnumerable<string> reservedNames
+    )
     {
         ArgumentNullException.ThrowIfNull(factory);
-        _factory = factory;
+        _factory = name =>
+        {
+            var created = factory(name);
+            return new Entry(created.Runtime, created.Resources);
+        };
+        _reservedNames = new HashSet<string>(reservedNames, StringComparer.Ordinal);
     }
 
-    /// <inheritdoc />
     public event Action<string, IWritableOptions<TModel>>? ProfileAdded;
-
-    /// <inheritdoc />
     public event Action<string>? ProfileRemoved;
 
-    /// <inheritdoc />
     public IReadOnlyCollection<string> ProfileNames
     {
         get
         {
             lock (_gate)
             {
-                return Array.AsReadOnly(_profiles.Keys.ToArray());
+                ThrowIfDisposed();
+                return Array.AsReadOnly(_entries.Keys.ToArray());
             }
         }
     }
 
-    /// <inheritdoc />
     public IWritableOptions<TModel> Get(string profileName)
     {
         ValidateName(profileName);
         lock (_gate)
         {
             ThrowIfDisposed();
-            return _profiles.TryGetValue(profileName, out var options)
-                ? options
+            return _entries.TryGetValue(profileName, out var entry)
+                ? entry.Runtime
                 : throw new KeyNotFoundException(
-                    $"Configlue profile '{profileName}' is not registered."
+                    $"Configlue options '{profileName}' is not registered dynamically."
                 );
         }
     }
 
-    /// <inheritdoc />
     public bool TryGet(string profileName, out IWritableOptions<TModel>? options)
     {
         ValidateName(profileName);
         lock (_gate)
         {
             ThrowIfDisposed();
-            if (_profiles.TryGetValue(profileName, out var registered))
+            if (_entries.TryGetValue(profileName, out var entry))
             {
-                options = registered;
+                options = entry.Runtime;
                 return true;
             }
-
             options = null;
             return false;
         }
     }
 
-    /// <inheritdoc />
     public bool TryAdd(string profileName)
     {
         ValidateName(profileName);
-        ConfiglueOptions<TModel, TFragment> options;
+        Entry entry;
         lock (_gate)
         {
             ThrowIfDisposed();
-            if (_profiles.ContainsKey(profileName) || _retiringProfiles.Contains(profileName))
+            if (
+                _reservedNames.Contains(profileName)
+                || _entries.ContainsKey(profileName)
+                || _retiringNames.Contains(profileName)
+            )
             {
                 return false;
             }
-
-            options =
-                _factory(profileName)
-                ?? throw new InvalidOperationException("The profile factory returned null.");
-            _profiles.Add(profileName, options);
+            entry = _factory(profileName);
+            _entries.Add(profileName, entry);
             _notifications.Enqueue(
-                new Notification(options, () => NotifyAdded(profileName, options))
+                new Notification(entry.Runtime, () => NotifyAdded(profileName, entry.Runtime))
             );
         }
-
         DrainNotifications();
         return true;
     }
 
-    /// <inheritdoc />
     public bool TryRemove(string profileName) =>
         TryRemoveAsync(profileName).AsTask().GetAwaiter().GetResult();
 
-    /// <inheritdoc />
     public async ValueTask<bool> TryRemoveAsync(string profileName)
     {
         ValidateName(profileName);
-        ConfiglueOptions<TModel, TFragment>? options;
-        var removalCompleted = new TaskCompletionSource<Exception?>(
+        Entry? entry;
+        var completed = new TaskCompletionSource<Exception?>(
             TaskCreationOptions.RunContinuationsAsynchronously
         );
         var notificationReady = new TaskCompletionSource(
@@ -134,16 +129,13 @@ public sealed class ConfiglueOptionsRegistry<TModel, TFragment>
         lock (_gate)
         {
             ThrowIfDisposed();
-            if (!_profiles.Remove(profileName, out options))
-            {
+            if (!_entries.Remove(profileName, out entry))
                 return false;
-            }
-
-            _retiringProfiles.Add(profileName);
-            _pendingAsyncRemovals.Add(removalCompleted.Task);
+            _retiringNames.Add(profileName);
+            _pendingRemovals.Add(completed.Task);
             _notifications.Enqueue(
                 new Notification(
-                    options,
+                    entry.Runtime,
                     () =>
                     {
                         notificationReady.Task.GetAwaiter().GetResult();
@@ -152,11 +144,10 @@ public sealed class ConfiglueOptionsRegistry<TModel, TFragment>
                 )
             );
         }
-
         Exception? disposalError = null;
         try
         {
-            await options.DisposeAsync().ConfigureAwait(false);
+            await DisposeEntryAsync(entry).ConfigureAwait(false);
         }
         catch (Exception exception)
         {
@@ -166,30 +157,25 @@ public sealed class ConfiglueOptionsRegistry<TModel, TFragment>
         {
             lock (_gate)
             {
-                _retiringProfiles.Remove(profileName);
-                _pendingAsyncRemovals.Remove(removalCompleted.Task);
+                _retiringNames.Remove(profileName);
+                _pendingRemovals.Remove(completed.Task);
                 notificationReady.TrySetResult();
-                removalCompleted.TrySetResult(disposalError);
+                completed.TrySetResult(disposalError);
             }
             DrainNotifications();
         }
-
         if (disposalError is not null)
-        {
             ExceptionDispatchInfo.Capture(disposalError).Throw();
-        }
         return true;
     }
 
-    /// <inheritdoc />
     public void Clear() => ClearAsync().AsTask().GetAwaiter().GetResult();
 
-    /// <inheritdoc />
     public async ValueTask ClearAsync()
     {
-        KeyValuePair<string, ConfiglueOptions<TModel, TFragment>>[] removed;
+        KeyValuePair<string, Entry>[] removed;
         Task<Exception?>[] pendingBeforeClear;
-        var clearCompleted = new TaskCompletionSource<Exception?>(
+        var completed = new TaskCompletionSource<Exception?>(
             TaskCreationOptions.RunContinuationsAsynchronously
         );
         var notificationReady = new TaskCompletionSource(
@@ -198,14 +184,14 @@ public sealed class ConfiglueOptionsRegistry<TModel, TFragment>
         lock (_gate)
         {
             ThrowIfDisposed();
-            removed = _profiles.ToArray();
-            _profiles.Clear();
-            foreach (var (name, options) in removed)
+            removed = _entries.ToArray();
+            _entries.Clear();
+            foreach (var (name, entry) in removed)
             {
-                _retiringProfiles.Add(name);
+                _retiringNames.Add(name);
                 _notifications.Enqueue(
                     new Notification(
-                        options,
+                        entry.Runtime,
                         () =>
                         {
                             notificationReady.Task.GetAwaiter().GetResult();
@@ -214,165 +200,54 @@ public sealed class ConfiglueOptionsRegistry<TModel, TFragment>
                     )
                 );
             }
-            pendingBeforeClear = _pendingAsyncRemovals.ToArray();
+            pendingBeforeClear = _pendingRemovals.ToArray();
             if (removed.Length > 0)
-            {
-                _pendingAsyncRemovals.Add(clearCompleted.Task);
-            }
+                _pendingRemovals.Add(completed.Task);
         }
-
-        var disposalErrors = new List<Exception>();
+        if (removed.Length == 0)
+        {
+            if (pendingBeforeClear.Length > 0)
+            {
+                var pendingErrors = await Task.WhenAll(pendingBeforeClear).ConfigureAwait(false);
+                var failures = pendingErrors.OfType<Exception>().ToArray();
+                if (failures.Length > 0)
+                {
+                    throw new AggregateException(
+                        "One or more dynamic Configlue options failed to clear.",
+                        failures
+                    );
+                }
+            }
+            return;
+        }
+        List<Exception>? errors = null;
         Exception? clearFailure = null;
         try
         {
-            try
-            {
-                var pendingErrors = await Task.WhenAll(pendingBeforeClear).ConfigureAwait(false);
-                foreach (var pendingError in pendingErrors.OfType<Exception>())
-                {
-                    AddCleanupError(disposalErrors, pendingError);
-                }
-            }
-            catch (Exception exception)
-            {
-                AddCleanupError(disposalErrors, exception);
-            }
-
-            foreach (var (_, options) in removed)
+            if (pendingBeforeClear.Length > 0)
             {
                 try
                 {
-                    await options.DisposeAsync().ConfigureAwait(false);
-                }
-                catch (Exception exception)
-                {
-                    AddCleanupError(disposalErrors, exception);
-                }
-            }
-
-            if (disposalErrors.Count > 0)
-            {
-                clearFailure = new AggregateException(
-                    "One or more Configlue runtimes failed to dispose.",
-                    disposalErrors
-                );
-                throw clearFailure;
-            }
-        }
-        finally
-        {
-            if (removed.Length > 0)
-            {
-                lock (_gate)
-                {
-                    foreach (var (name, _) in removed)
+                    var pendingErrors = await Task.WhenAll(pendingBeforeClear)
+                        .ConfigureAwait(false);
+                    foreach (var pendingError in pendingErrors.OfType<Exception>())
                     {
-                        _retiringProfiles.Remove(name);
+                        AddCleanupError(ref errors, pendingError);
                     }
-                    _pendingAsyncRemovals.Remove(clearCompleted.Task);
-                    notificationReady.TrySetResult();
-                    clearCompleted.TrySetResult(clearFailure);
-                }
-            }
-            DrainNotifications();
-        }
-    }
-
-    /// <inheritdoc />
-    public void Dispose() => DisposeAsync().AsTask().GetAwaiter().GetResult();
-
-    /// <inheritdoc />
-    public ValueTask DisposeAsync()
-    {
-        KeyValuePair<string, ConfiglueOptions<TModel, TFragment>>[] removed;
-        Task<Exception?>[] pendingRemovals;
-        TaskCompletionSource notificationReady;
-        TaskCompletionSource completion;
-        lock (_gate)
-        {
-            if (_disposeTask is not null)
-            {
-                return new ValueTask(_disposeTask);
-            }
-
-            _disposed = true;
-            removed = _profiles.ToArray();
-            _profiles.Clear();
-            notificationReady = new TaskCompletionSource(
-                TaskCreationOptions.RunContinuationsAsynchronously
-            );
-            foreach (var (name, options) in removed)
-            {
-                _retiringProfiles.Add(name);
-                _notifications.Enqueue(
-                    new Notification(
-                        options,
-                        () =>
-                        {
-                            notificationReady.Task.GetAwaiter().GetResult();
-                            NotifyRemoved(name);
-                        }
-                    )
-                );
-            }
-            pendingRemovals = _pendingAsyncRemovals.ToArray();
-            completion = new TaskCompletionSource(
-                TaskCreationOptions.RunContinuationsAsynchronously
-            );
-            _disposeTask = completion.Task;
-        }
-
-        _ = FinishDisposeAsync(removed, pendingRemovals, notificationReady, completion);
-        return new ValueTask(completion.Task);
-    }
-
-    private async Task FinishDisposeAsync(
-        KeyValuePair<string, ConfiglueOptions<TModel, TFragment>>[] removed,
-        Task<Exception?>[] pendingRemovals,
-        TaskCompletionSource notificationReady,
-        TaskCompletionSource completion
-    )
-    {
-        var disposalErrors = new List<Exception>();
-        Exception? disposalFailure = null;
-        try
-        {
-            foreach (var (_, options) in removed)
-            {
-                try
-                {
-                    await options.DisposeAsync().ConfigureAwait(false);
                 }
                 catch (Exception exception)
                 {
-                    AddCleanupError(disposalErrors, exception);
+                    AddCleanupError(ref errors, exception);
                 }
             }
-
             try
             {
-                var pendingErrors = await Task.WhenAll(pendingRemovals).ConfigureAwait(false);
-                foreach (var pendingError in pendingErrors.OfType<Exception>())
-                {
-                    AddCleanupError(disposalErrors, pendingError);
-                }
+                await DisposeEntriesAsync(removed).ConfigureAwait(false);
             }
             catch (Exception exception)
             {
-                AddCleanupError(disposalErrors, exception);
+                AddCleanupError(ref errors, exception);
             }
-
-            if (disposalErrors.Count > 0)
-            {
-                throw new AggregateException(
-                    "One or more Configlue runtimes failed to dispose.",
-                    disposalErrors
-                );
-            }
-        }
-        catch (Exception exception)
-        {
-            disposalFailure = exception;
         }
         finally
         {
@@ -380,21 +255,188 @@ public sealed class ConfiglueOptionsRegistry<TModel, TFragment>
             {
                 foreach (var (name, _) in removed)
                 {
-                    _retiringProfiles.Remove(name);
+                    _retiringNames.Remove(name);
+                }
+                _pendingRemovals.Remove(completed.Task);
+                notificationReady.TrySetResult();
+                clearFailure = errors is null
+                    ? null
+                    : new AggregateException(
+                        "One or more dynamic Configlue options failed to clear.",
+                        errors
+                    );
+                completed.TrySetResult(clearFailure);
+            }
+            DrainNotifications();
+        }
+        if (errors is not null)
+        {
+            throw new AggregateException(
+                "One or more dynamic Configlue options failed to clear.",
+                errors
+            );
+        }
+    }
+
+    public void Dispose() => DisposeAsync().AsTask().GetAwaiter().GetResult();
+
+    public ValueTask DisposeAsync()
+    {
+        KeyValuePair<string, Entry>[] removed;
+        Task<Exception?>[] pendingRemovals;
+        TaskCompletionSource completion;
+        TaskCompletionSource notificationReady;
+        lock (_gate)
+        {
+            if (_disposeTask is not null)
+                return new ValueTask(_disposeTask);
+            _disposed = true;
+            removed = _entries.ToArray();
+            _entries.Clear();
+            notificationReady = new TaskCompletionSource(
+                TaskCreationOptions.RunContinuationsAsynchronously
+            );
+            foreach (var (name, entry) in removed)
+            {
+                _retiringNames.Add(name);
+                _notifications.Enqueue(
+                    new Notification(
+                        entry.Runtime,
+                        () =>
+                        {
+                            notificationReady.Task.GetAwaiter().GetResult();
+                            NotifyRemoved(name);
+                        }
+                    )
+                );
+            }
+            pendingRemovals = _pendingRemovals.ToArray();
+            completion = new TaskCompletionSource(
+                TaskCreationOptions.RunContinuationsAsynchronously
+            );
+            _disposeTask = completion.Task;
+        }
+        _ = FinishDisposeAsync(pendingRemovals, removed, notificationReady, completion);
+        return new ValueTask(completion.Task);
+    }
+
+    private async Task FinishDisposeAsync(
+        Task<Exception?>[] pendingRemovals,
+        KeyValuePair<string, Entry>[] removed,
+        TaskCompletionSource notificationReady,
+        TaskCompletionSource completion
+    )
+    {
+        List<Exception>? errors = null;
+        try
+        {
+            if (pendingRemovals.Length > 0)
+            {
+                try
+                {
+                    var pendingErrors = await Task.WhenAll(pendingRemovals).ConfigureAwait(false);
+                    foreach (var pendingError in pendingErrors.OfType<Exception>())
+                    {
+                        AddCleanupError(ref errors, pendingError);
+                    }
+                }
+                catch (Exception exception)
+                {
+                    AddCleanupError(ref errors, exception);
+                }
+            }
+            try
+            {
+                await DisposeEntriesAsync(removed).ConfigureAwait(false);
+            }
+            catch (Exception exception)
+            {
+                AddCleanupError(ref errors, exception);
+            }
+            lock (_gate)
+            {
+                foreach (var (name, _) in removed)
+                {
+                    _retiringNames.Remove(name);
                 }
                 notificationReady.TrySetResult();
             }
+            if (errors is null)
+            {
+                completion.TrySetResult();
+            }
+            else
+            {
+                completion.TrySetException(
+                    new AggregateException(
+                        "One or more dynamic Configlue options failed to dispose.",
+                        errors
+                    )
+                );
+            }
+            DrainNotifications();
         }
+        catch (Exception exception)
+        {
+            completion.TrySetException(exception);
+        }
+    }
 
-        if (disposalFailure is null)
+    private static async ValueTask DisposeEntriesAsync(KeyValuePair<string, Entry>[] entries)
+    {
+        List<Exception>? errors = null;
+        foreach (var (_, entry) in entries)
         {
-            completion.TrySetResult();
+            try
+            {
+                await DisposeEntryAsync(entry).ConfigureAwait(false);
+            }
+            catch (Exception exception)
+            {
+                AddCleanupError(ref errors, exception);
+            }
         }
-        else
+        if (errors is not null)
         {
-            completion.TrySetException(disposalFailure);
+            throw new AggregateException(
+                "One or more dynamic Configlue options failed to dispose.",
+                errors
+            );
         }
-        DrainNotifications();
+    }
+
+    private static async ValueTask DisposeEntryAsync(Entry entry)
+    {
+        List<Exception>? errors = null;
+        try
+        {
+            if (entry.Runtime is IAsyncDisposable asyncDisposable)
+                await asyncDisposable.DisposeAsync().ConfigureAwait(false);
+            else if (entry.Runtime is IDisposable disposable)
+                disposable.Dispose();
+        }
+        catch (Exception exception)
+        {
+            AddCleanupError(ref errors, exception);
+        }
+        foreach (var resource in entry.Resources)
+        {
+            try
+            {
+                resource.Dispose();
+            }
+            catch (Exception exception)
+            {
+                AddCleanupError(ref errors, exception);
+            }
+        }
+        if (errors is not null)
+        {
+            throw new AggregateException(
+                "A dynamic Configlue options runtime failed to dispose.",
+                errors
+            );
+        }
     }
 
     IConfiglueOptionsRegistryNotificationDeferral<TModel> IConfiglueOptionsRegistryNotificationDeferrer<TModel>.DeferNotifications()
@@ -439,10 +481,10 @@ public sealed class ConfiglueOptionsRegistry<TModel, TFragment>
         }
     }
 
-    private sealed class NotificationScope(ConfiglueOptionsRegistry<TModel, TFragment> owner)
+    private sealed class NotificationScope(ConfiglueFacadeOptionsRegistry<TModel> owner)
         : IConfiglueOptionsRegistryNotificationDeferral<TModel>
     {
-        private ConfiglueOptionsRegistry<TModel, TFragment>? _owner = owner;
+        private ConfiglueFacadeOptionsRegistry<TModel>? _owner = owner;
 
         public void Cancel(IWritableOptions<TModel> runtime)
         {
@@ -459,14 +501,28 @@ public sealed class ConfiglueOptionsRegistry<TModel, TFragment>
             Interlocked.Exchange(ref _owner, null)?.ReleaseNotificationDeferral();
     }
 
-    private void NotifyAdded(string name, IWritableOptions<TModel> options)
+    private static void AddCleanupError(ref List<Exception>? errors, Exception exception)
     {
-        var handlers = ProfileAdded;
-        if (handlers is null)
+        if (exception is AggregateException aggregate)
         {
+            foreach (var innerException in aggregate.Flatten().InnerExceptions)
+            {
+                AddCleanupError(ref errors, innerException);
+            }
             return;
         }
 
+        errors ??= [];
+        if (!errors.Any(existing => ReferenceEquals(existing, exception)))
+        {
+            errors.Add(exception);
+        }
+    }
+
+    private void NotifyAdded(string name, IWritableOptions<TModel> options)
+    {
+        if (ProfileAdded is not { } handlers)
+            return;
         foreach (
             var handler in handlers
                 .GetInvocationList()
@@ -486,12 +542,8 @@ public sealed class ConfiglueOptionsRegistry<TModel, TFragment>
 
     private void NotifyRemoved(string name)
     {
-        var handlers = ProfileRemoved;
-        if (handlers is null)
-        {
+        if (ProfileRemoved is not { } handlers)
             return;
-        }
-
         foreach (var handler in handlers.GetInvocationList().Cast<Action<string>>())
         {
             try
@@ -505,32 +557,12 @@ public sealed class ConfiglueOptionsRegistry<TModel, TFragment>
         }
     }
 
-    private static void AddCleanupError(List<Exception> errors, Exception exception)
-    {
-        if (exception is AggregateException aggregate)
-        {
-            foreach (var innerException in aggregate.Flatten().InnerExceptions)
-            {
-                AddCleanupError(errors, innerException);
-            }
-            return;
-        }
-
-        if (!errors.Any(existing => ReferenceEquals(existing, exception)))
-        {
-            errors.Add(exception);
-        }
-    }
-
     private void DrainNotifications()
     {
         lock (_gate)
         {
             if (_dispatchingNotifications || _notificationDeferralCount > 0)
-            {
                 return;
-            }
-
             _dispatchingNotifications = true;
         }
 
@@ -544,10 +576,8 @@ public sealed class ConfiglueOptionsRegistry<TModel, TFragment>
                     _dispatchingNotifications = false;
                     return;
                 }
-
                 notification = _notifications.Dequeue();
             }
-
             if (!notification.IsCancelled)
             {
                 notification.Dispatch();
@@ -555,8 +585,8 @@ public sealed class ConfiglueOptionsRegistry<TModel, TFragment>
         }
     }
 
-    private static void ValidateName(string profileName) =>
-        ArgumentException.ThrowIfNullOrWhiteSpace(profileName);
+    private static void ValidateName(string name) =>
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
 
     private void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(_disposed, this);
 }

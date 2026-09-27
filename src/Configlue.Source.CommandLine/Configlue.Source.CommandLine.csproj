@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>Configlue.Source.CommandLine</AssemblyName>
+    <RootNamespace>Configlue.Source.CommandLine</RootNamespace>
+    <IsPackable>true</IsPackable>
+    <PackageDescription>System.CommandLine parse-result source for Configlue.</PackageDescription>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Configlue.Core/Configlue.Core.csproj" />
+    <ProjectReference Include="../Configlue.Source.Environment/Configlue.Source.Environment.csproj" />
+    <PackageReference Include="System.CommandLine" Version="2.0.12" />
+  </ItemGroup>
+</Project>

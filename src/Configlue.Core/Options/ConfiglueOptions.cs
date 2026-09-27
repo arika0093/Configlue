@@ -29,6 +29,9 @@ public sealed class ConfiglueOptions<TModel, TFragment>
     private readonly List<Action<TModel>> _changeListeners = [];
     private CancellationTokenSource? _watchCancellation;
     private Task? _watchTask;
+    private TaskCompletionSource _operationsDrained = CompletedOperationsSignal();
+    private readonly AsyncLocal<OperationFrame?> _operationFrame = new();
+    private int _activeOperations;
     private bool _disposed;
 
     /// <summary>Creates options backed by the supplied state sources.</summary>
@@ -102,6 +105,7 @@ public sealed class ConfiglueOptions<TModel, TFragment>
         CancellationToken cancellationToken = default
     )
     {
+        using var operation = EnterOperation();
         ArgumentException.ThrowIfNullOrWhiteSpace(propertyPath);
         var path = propertyPath.Split('.', StringSplitOptions.None);
         if (path.Any(string.IsNullOrWhiteSpace))
@@ -164,6 +168,7 @@ public sealed class ConfiglueOptions<TModel, TFragment>
         CancellationToken cancellationToken
     )
     {
+        using var operation = EnterOperation();
         var contributions = new List<ResolvedContribution>();
         var revisions = new List<StateRevision>();
         var nestedRevisions = new List<KeyValuePair<string, StateRevisionVector>>();
@@ -295,6 +300,7 @@ public sealed class ConfiglueOptions<TModel, TFragment>
         CancellationToken cancellationToken
     )
     {
+        using var operation = EnterOperation();
         var resolvedState = await ResolveCoreAsync(null, cancellationToken).ConfigureAwait(false);
         var resolved = resolvedState.Result;
         if (resolved.Status != StateReadStatus.Success)
@@ -379,6 +385,7 @@ public sealed class ConfiglueOptions<TModel, TFragment>
         CancellationToken cancellationToken = default
     )
     {
+        using var operation = EnterOperation();
         cancellationToken.ThrowIfCancellationRequested();
         var source = SelectWriteSource();
         var current = await source.Reader.ReadAsync(cancellationToken).ConfigureAwait(false);
@@ -400,6 +407,7 @@ public sealed class ConfiglueOptions<TModel, TFragment>
         CancellationToken cancellationToken = default
     )
     {
+        using var operation = EnterOperation();
         ArgumentNullException.ThrowIfNull(value);
         ArgumentNullException.ThrowIfNull(writePlan);
         using var session = await BeginConfigureAsync(writePlan, cancellationToken)
@@ -414,6 +422,7 @@ public sealed class ConfiglueOptions<TModel, TFragment>
         CancellationToken cancellationToken = default
     )
     {
+        using var operation = EnterOperation();
         ArgumentNullException.ThrowIfNull(update);
         using var session = await BeginConfigureAsync(cancellationToken).ConfigureAwait(false);
         var value = session.Value;
@@ -429,6 +438,7 @@ public sealed class ConfiglueOptions<TModel, TFragment>
         CancellationToken cancellationToken = default
     )
     {
+        using var operation = EnterOperation();
         ArgumentNullException.ThrowIfNull(update);
         ArgumentNullException.ThrowIfNull(writePlan);
         using var session = await BeginConfigureAsync(writePlan, cancellationToken)
@@ -445,6 +455,7 @@ public sealed class ConfiglueOptions<TModel, TFragment>
         CancellationToken cancellationToken = default
     )
     {
+        using var operation = EnterOperation();
         ArgumentNullException.ThrowIfNull(update);
         using var session = await BeginConfigureAsync(cancellationToken).ConfigureAwait(false);
         var value = session.Value;
@@ -460,6 +471,7 @@ public sealed class ConfiglueOptions<TModel, TFragment>
         CancellationToken cancellationToken = default
     )
     {
+        using var operation = EnterOperation();
         ArgumentNullException.ThrowIfNull(update);
         ArgumentNullException.ThrowIfNull(writePlan);
         using var session = await BeginConfigureAsync(writePlan, cancellationToken)
@@ -476,6 +488,7 @@ public sealed class ConfiglueOptions<TModel, TFragment>
         CancellationToken cancellationToken = default
     )
     {
+        using var operation = EnterOperation();
         ArgumentNullException.ThrowIfNull(patch);
         cancellationToken.ThrowIfCancellationRequested();
         var modelSchema = TModel.ConfiglueSchema;
@@ -583,6 +596,7 @@ public sealed class ConfiglueOptions<TModel, TFragment>
         CancellationToken cancellationToken
     )
     {
+        using var operation = EnterOperation();
         cancellationToken.ThrowIfCancellationRequested();
         if (patchRequests.Length == 0)
         {
@@ -943,6 +957,7 @@ public sealed class ConfiglueOptions<TModel, TFragment>
         CancellationToken cancellationToken = default
     )
     {
+        using var operation = EnterOperation();
         ArgumentException.ThrowIfNullOrWhiteSpace(sourceId);
         ArgumentException.ThrowIfNullOrWhiteSpace(targetId);
         cancellationToken.ThrowIfCancellationRequested();
@@ -1040,6 +1055,7 @@ public sealed class ConfiglueOptions<TModel, TFragment>
         bool retireSources = false
     )
     {
+        using var operation = EnterOperation();
         ArgumentNullException.ThrowIfNull(sourceIds);
         ArgumentNullException.ThrowIfNull(targetProjections);
         cancellationToken.ThrowIfCancellationRequested();
@@ -1645,17 +1661,101 @@ public sealed class ConfiglueOptions<TModel, TFragment>
     {
         Dispose();
         Task? watchTask;
+        Task operationsDrained;
         lock (_changeGate)
         {
             watchTask = _watchTask;
+            operationsDrained = _operationsDrained.Task;
         }
 
+        List<Exception>? errors = null;
         if (watchTask is not null)
         {
-            await watchTask.ConfigureAwait(false);
+            try
+            {
+                await watchTask.ConfigureAwait(false);
+            }
+            catch (Exception exception)
+            {
+                (errors ??= []).Add(exception);
+            }
         }
-
+        try
+        {
+            await operationsDrained.ConfigureAwait(false);
+        }
+        catch (Exception exception)
+        {
+            (errors ??= []).Add(exception);
+        }
         _watchCancellation?.Dispose();
+        if (errors is not null)
+            throw new AggregateException("Options shutdown failed.", errors);
+    }
+
+    private IDisposable EnterOperation()
+    {
+        for (var frame = _operationFrame.Value; frame is not null; frame = frame.Parent)
+        {
+            if (ReferenceEquals(frame.Owner, this) && Volatile.Read(ref frame.Active) != 0)
+            {
+                return new OperationLease(this, frame: null);
+            }
+        }
+        lock (_changeGate)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            if (_activeOperations++ == 0)
+            {
+                _operationsDrained = new TaskCompletionSource(
+                    TaskCreationOptions.RunContinuationsAsynchronously
+                );
+            }
+        }
+        var root = new OperationFrame(this, _operationFrame.Value);
+        _operationFrame.Value = root;
+        return new OperationLease(this, root);
+    }
+
+    private void ExitOperation(OperationFrame? root)
+    {
+        if (root is null)
+            return;
+        Volatile.Write(ref root.Active, 0);
+        if (ReferenceEquals(_operationFrame.Value, root))
+            _operationFrame.Value = root.Parent;
+        lock (_changeGate)
+        {
+            if (--_activeOperations == 0)
+                _operationsDrained.TrySetResult();
+        }
+    }
+
+    private static TaskCompletionSource CompletedOperationsSignal()
+    {
+        var signal = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        signal.SetResult();
+        return signal;
+    }
+
+    private sealed class OperationFrame(
+        ConfiglueOptions<TModel, TFragment> owner,
+        OperationFrame? parent
+    )
+    {
+        public ConfiglueOptions<TModel, TFragment> Owner { get; } = owner;
+        public OperationFrame? Parent { get; } = parent;
+        public int Active = 1;
+    }
+
+    private sealed class OperationLease(
+        ConfiglueOptions<TModel, TFragment> owner,
+        OperationFrame? frame
+    ) : IDisposable
+    {
+        private ConfiglueOptions<TModel, TFragment>? _owner = owner;
+
+        public void Dispose() => Interlocked.Exchange(ref _owner, null)?.ExitOperation(frame);
     }
 
     private StateSource<TFragment> SelectWriteSource()
@@ -1801,6 +1901,7 @@ public sealed class ConfiglueOptions<TModel, TFragment>
         CancellationToken cancellationToken
     )
     {
+        using var operation = EnterOperation();
         Validate(after);
         var changes = TModel.Diff(before, after);
         if (changes.IsEmpty)
@@ -1932,13 +2033,14 @@ public sealed class ConfiglueOptions<TModel, TFragment>
         return routed;
     }
 
-    private ValueTask<StateWriteResult> WriteToSourceAsync(
+    private async ValueTask<StateWriteResult> WriteToSourceAsync(
         StateSource<TFragment> source,
         TModel value,
         string? expectedRevision,
         CancellationToken cancellationToken
     )
     {
+        using var operation = EnterOperation();
         if (!IsSourceActive(source.Id))
         {
             throw new StateConflictException(
@@ -1947,14 +2049,16 @@ public sealed class ConfiglueOptions<TModel, TFragment>
         }
 
         Validate(value);
-        return source.Writer!.WriteAsync(
-            new StateWriteRequest<TFragment>(
-                TModel.ToFragment(value),
-                expectedRevision,
-                CheckRevision: true
-            ),
-            cancellationToken
-        );
+        return await source
+            .Writer!.WriteAsync(
+                new StateWriteRequest<TFragment>(
+                    TModel.ToFragment(value),
+                    expectedRevision,
+                    CheckRevision: true
+                ),
+                cancellationToken
+            )
+            .ConfigureAwait(false);
     }
 
     private async ValueTask<StateWriteResult> WriteChangesToSourceAsync(
@@ -1966,6 +2070,7 @@ public sealed class ConfiglueOptions<TModel, TFragment>
         CancellationToken cancellationToken
     )
     {
+        using var operation = EnterOperation();
         Validate(after);
         var changes = TModel.Diff(before, after);
         if (changes.IsEmpty)

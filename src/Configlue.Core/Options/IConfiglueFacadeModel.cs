@@ -8,6 +8,17 @@ public interface IConfiglueFacadeModel<TSelf>
     /// <summary>Creates the model's runtime using the fragment type fixed by source generation.</summary>
     static abstract IWritableOptions<TSelf> CreateConfiglueRuntime(
         ConfiglueModelBuilder<TSelf> configuration,
-        IServiceProvider? serviceProvider
+        IServiceProvider? serviceProvider,
+        Action<IDisposable> ownResource
     );
+
+    /// <summary>Creates the persisted profile manager with the fragment type fixed by source generation.</summary>
+    static virtual IConfiglueProfiledOptions<TSelf> CreateConfiglueProfileManager(
+        IConfiglueOptionsRegistry<TSelf> registry,
+        StateSource<ConfiglueProfileCatalog> catalogSource,
+        string defaultProfileName
+    ) =>
+        throw new NotSupportedException(
+            $"Generated profile support is unavailable for model '{typeof(TSelf)}'."
+        );
 }

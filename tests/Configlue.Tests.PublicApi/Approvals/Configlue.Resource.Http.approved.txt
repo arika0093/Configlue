@@ -26,4 +26,24 @@ namespace Configlue.Resource.Http
         public Configlue.ResourceId ResourceId { get; }
         public System.Threading.Tasks.ValueTask<Configlue.StateWriteResult> WriteAsync(Configlue.ResourceWriteRequest request, System.Threading.CancellationToken cancellationToken = default) { }
     }
+    public sealed class HttpSourceOptions
+    {
+        public HttpSourceOptions() { }
+        public System.Net.Http.HttpClient? Client { get; init; }
+        public System.Func<System.IServiceProvider?, System.Net.Http.HttpClient>? ClientFactory { get; init; }
+        public required object Codec { get; init; }
+        public Configlue.StateCodecContext CodecContext { get; init; }
+        public required string EndPoint { get; init; }
+        public Configlue.StateFallbackCondition FallbackCondition { get; init; }
+        public required string Id { get; init; }
+        public int Priority { get; init; }
+        public Configlue.ResourceId? ResourceId { get; init; }
+        public Configlue.Resource.Http.HttpResourceOptions? ResourceOptions { get; init; }
+        public bool WatchChanges { get; init; }
+        public bool Writable { get; init; }
+    }
+    public static class HttpSourceRegistration
+    {
+        public static void FromHttp(this Configlue.ConfiglueSourceSetBuilder sources, Configlue.Resource.Http.HttpSourceOptions options) { }
+    }
 }

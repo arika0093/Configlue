@@ -351,7 +351,8 @@ public sealed partial class ConfiglueGenerator
             2,
             "global::Configlue.ConfiglueModelBuilder<" + modelType + "> configuration,"
         );
-        code.AppendLineAt(2, "global::System.IServiceProvider? serviceProvider)");
+        code.AppendLineAt(2, "global::System.IServiceProvider? serviceProvider,");
+        code.AppendLineAt(2, "global::System.Action<global::System.IDisposable> ownResource)");
         code.AppendIndent(2)
             .Append("=> new global::Configlue.ConfiglueOptions<")
             .Append(modelType)
@@ -360,7 +361,11 @@ public sealed partial class ConfiglueGenerator
             .AppendLine(".Fragment>(");
         code.AppendLineAt(
             3,
-            "configuration.BuildSources<" + modelType + ".Fragment>(serviceProvider),"
+            "configuration.BuildSources<"
+                + modelType
+                + ".Fragment>("
+                + modelType
+                + ".ConfiglueSchema, serviceProvider, ownResource),"
         );
         code.AppendLineAt(3, "configuration.WriteRoute,");
         code.AppendLineAt(
@@ -371,5 +376,24 @@ public sealed partial class ConfiglueGenerator
         code.AppendLineAt(3, "configuration.ValidateDataAnnotations,");
         code.AppendLineAt(3, "configuration.OnChangeDebounce,");
         code.AppendLineAt(3, "configuration.OptionsName);");
+        code.AppendIndent(1)
+            .Append("public static global::Configlue.IConfiglueProfiledOptions<")
+            .Append(modelType)
+            .AppendLine("> CreateConfiglueProfileManager(");
+        code.AppendLineAt(
+            2,
+            "global::Configlue.IConfiglueOptionsRegistry<" + modelType + "> registry,"
+        );
+        code.AppendLineAt(
+            2,
+            "global::Configlue.StateSource<global::Configlue.ConfiglueProfileCatalog> catalogSource,"
+        );
+        code.AppendLineAt(2, "string defaultProfileName)");
+        code.AppendIndent(2)
+            .Append("=> new global::Configlue.ConfiglueProfiledOptions<")
+            .Append(modelType)
+            .Append(", ")
+            .Append(modelType)
+            .AppendLine(".Fragment>(registry, catalogSource, defaultProfileName);");
     }
 }

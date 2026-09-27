@@ -18,8 +18,12 @@ public sealed class ConfiglueProfiledOptions<TModel, TFragment> : IConfiglueProf
     private readonly IConfiglueOptionsRegistry<TModel> _registry;
     private readonly StateSource<ConfiglueProfileCatalog> _catalogSource;
     private readonly string _defaultProfileName;
+    private readonly HashSet<string> _catalogRuntimeNames = new(StringComparer.Ordinal);
     private readonly SemaphoreSlim _gate = new(1, 1);
+    private readonly object _activeProfileNotificationGate = new();
+    private readonly Queue<string> _pendingActiveProfileNotifications = new();
     private ConfiglueProfileCatalog? _catalog;
+    private bool _dispatchingActiveProfileNotifications;
     private bool _initialized;
 
     /// <summary>Creates a profile manager backed by the supplied catalog source.</summary>
@@ -57,14 +61,24 @@ public sealed class ConfiglueProfiledOptions<TModel, TFragment> : IConfiglueProf
     )
     {
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        IConfiglueOptionsRegistryNotificationDeferral<TModel>? notificationScope = null;
         try
         {
+            notificationScope = DeferRegistryNotifications();
             await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
             return Array.AsReadOnly(_catalog!.ProfileNames.ToArray());
         }
         finally
         {
             _gate.Release();
+            try
+            {
+                notificationScope?.Dispose();
+            }
+            finally
+            {
+                DrainPendingActiveProfileNotifications();
+            }
         }
     }
 
@@ -74,14 +88,24 @@ public sealed class ConfiglueProfiledOptions<TModel, TFragment> : IConfiglueProf
     )
     {
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        IConfiglueOptionsRegistryNotificationDeferral<TModel>? notificationScope = null;
         try
         {
+            notificationScope = DeferRegistryNotifications();
             await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
             return _catalog!.ActiveProfileName!;
         }
         finally
         {
             _gate.Release();
+            try
+            {
+                notificationScope?.Dispose();
+            }
+            finally
+            {
+                DrainPendingActiveProfileNotifications();
+            }
         }
     }
 
@@ -93,8 +117,10 @@ public sealed class ConfiglueProfiledOptions<TModel, TFragment> : IConfiglueProf
     {
         ValidateProfileName(profileName);
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        IConfiglueOptionsRegistryNotificationDeferral<TModel>? notificationScope = null;
         try
         {
+            notificationScope = DeferRegistryNotifications();
             await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
             EnsureProfileExists(profileName);
             return _registry.Get(profileName);
@@ -102,6 +128,14 @@ public sealed class ConfiglueProfiledOptions<TModel, TFragment> : IConfiglueProf
         finally
         {
             _gate.Release();
+            try
+            {
+                notificationScope?.Dispose();
+            }
+            finally
+            {
+                DrainPendingActiveProfileNotifications();
+            }
         }
     }
 
@@ -111,14 +145,24 @@ public sealed class ConfiglueProfiledOptions<TModel, TFragment> : IConfiglueProf
     )
     {
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        IConfiglueOptionsRegistryNotificationDeferral<TModel>? notificationScope = null;
         try
         {
+            notificationScope = DeferRegistryNotifications();
             await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
             return _registry.Get(_catalog!.ActiveProfileName!);
         }
         finally
         {
             _gate.Release();
+            try
+            {
+                notificationScope?.Dispose();
+            }
+            finally
+            {
+                DrainPendingActiveProfileNotifications();
+            }
         }
     }
 
@@ -144,10 +188,11 @@ public sealed class ConfiglueProfiledOptions<TModel, TFragment> : IConfiglueProf
             ValidateProfileName(copyFrom);
         }
 
-        string? activeProfileChanged = null;
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        IConfiglueOptionsRegistryNotificationDeferral<TModel>? notificationScope = null;
         try
         {
+            notificationScope = DeferRegistryNotifications();
             await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
             if (_catalog!.ProfileNames.Contains(profileName, StringComparer.Ordinal))
             {
@@ -166,38 +211,78 @@ public sealed class ConfiglueProfiledOptions<TModel, TFragment> : IConfiglueProf
                 hasSourceValue = true;
             }
 
+            var originalActiveProfileName = _catalog.ActiveProfileName;
             var updated = Clone(_catalog);
             updated.ProfileNames.Add(profileName);
             if (string.IsNullOrWhiteSpace(updated.ActiveProfileName))
             {
                 updated.ActiveProfileName = profileName;
-                activeProfileChanged = profileName;
             }
 
-            await PersistCatalogAsync(updated, cancellationToken).ConfigureAwait(false);
-            if (!_registry.TryAdd(profileName) && !_registry.TryGet(profileName, out _))
+            if (!_registry.TryAdd(profileName))
             {
                 throw new InvalidOperationException(
-                    $"The profile '{profileName}' is already registered at runtime."
+                    $"The profile name '{profileName}' is already registered or reserved by a fixed OptionsName."
                 );
             }
-
-            if (hasSourceValue)
+            var createdRuntime = _registry.Get(profileName);
+            try
             {
-                await _registry
-                    .Get(profileName)
-                    .SaveAsync(sourceValue, cancellationToken)
-                    .ConfigureAwait(false);
+                if (hasSourceValue)
+                {
+                    await _registry
+                        .Get(profileName)
+                        .SaveAsync(sourceValue, cancellationToken)
+                        .ConfigureAwait(false);
+                }
+
+                await PersistCatalogAsync(updated, cancellationToken).ConfigureAwait(false);
+                _catalogRuntimeNames.Add(profileName);
+                if (
+                    !string.Equals(
+                        originalActiveProfileName,
+                        updated.ActiveProfileName,
+                        StringComparison.Ordinal
+                    )
+                )
+                {
+                    EnqueueActiveProfileNotification(updated.ActiveProfileName);
+                }
+            }
+            catch (Exception creationException)
+            {
+                // A writer may fail after committing. Force the next manager operation to
+                // reread the catalog before trusting either the old or proposed state.
+                _initialized = false;
+                try
+                {
+                    await _registry.TryRemoveAsync(profileName).ConfigureAwait(false);
+                }
+                catch (Exception cleanupException)
+                {
+                    notificationScope?.Cancel(createdRuntime);
+                    throw new AggregateException(
+                        $"Profile '{profileName}' could not be created and its runtime could not be cleaned up.",
+                        creationException,
+                        cleanupException
+                    );
+                }
+                notificationScope?.Cancel(createdRuntime);
+
+                throw;
             }
         }
         finally
         {
             _gate.Release();
-        }
-
-        if (activeProfileChanged is not null)
-        {
-            NotifyActiveProfileChanged(activeProfileChanged);
+            try
+            {
+                notificationScope?.Dispose();
+            }
+            finally
+            {
+                DrainPendingActiveProfileNotifications();
+            }
         }
     }
 
@@ -208,10 +293,11 @@ public sealed class ConfiglueProfiledOptions<TModel, TFragment> : IConfiglueProf
     )
     {
         ValidateProfileName(profileName);
-        string? activeProfileChanged = null;
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        IConfiglueOptionsRegistryNotificationDeferral<TModel>? notificationScope = null;
         try
         {
+            notificationScope = DeferRegistryNotifications();
             await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
             EnsureProfileExists(profileName);
             if (string.Equals(profileName, _defaultProfileName, StringComparison.Ordinal))
@@ -220,26 +306,35 @@ public sealed class ConfiglueProfiledOptions<TModel, TFragment> : IConfiglueProf
             }
 
             var updated = Clone(_catalog!);
+            string? changedActiveProfile = null;
             updated.ProfileNames.RemoveAll(name =>
                 string.Equals(name, profileName, StringComparison.Ordinal)
             );
             if (string.Equals(updated.ActiveProfileName, profileName, StringComparison.Ordinal))
             {
                 updated.ActiveProfileName = updated.ProfileNames[0];
-                activeProfileChanged = updated.ActiveProfileName;
+                changedActiveProfile = updated.ActiveProfileName;
             }
 
             await PersistCatalogAsync(updated, cancellationToken).ConfigureAwait(false);
-            _registry.TryRemove(profileName);
+            if (changedActiveProfile is not null)
+            {
+                EnqueueActiveProfileNotification(changedActiveProfile);
+            }
+            await _registry.TryRemoveAsync(profileName).ConfigureAwait(false);
+            _catalogRuntimeNames.Remove(profileName);
         }
         finally
         {
             _gate.Release();
-        }
-
-        if (activeProfileChanged is not null)
-        {
-            NotifyActiveProfileChanged(activeProfileChanged);
+            try
+            {
+                notificationScope?.Dispose();
+            }
+            finally
+            {
+                DrainPendingActiveProfileNotifications();
+            }
         }
     }
 
@@ -250,10 +345,11 @@ public sealed class ConfiglueProfiledOptions<TModel, TFragment> : IConfiglueProf
     )
     {
         ValidateProfileName(profileName);
-        string? activeProfileChanged = null;
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        IConfiglueOptionsRegistryNotificationDeferral<TModel>? notificationScope = null;
         try
         {
+            notificationScope = DeferRegistryNotifications();
             await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
             EnsureProfileExists(profileName);
             if (string.Equals(profileName, _catalog!.ActiveProfileName, StringComparison.Ordinal))
@@ -264,16 +360,19 @@ public sealed class ConfiglueProfiledOptions<TModel, TFragment> : IConfiglueProf
             var updated = Clone(_catalog);
             updated.ActiveProfileName = profileName;
             await PersistCatalogAsync(updated, cancellationToken).ConfigureAwait(false);
-            activeProfileChanged = profileName;
+            EnqueueActiveProfileNotification(profileName);
         }
         finally
         {
             _gate.Release();
-        }
-
-        if (activeProfileChanged is not null)
-        {
-            NotifyActiveProfileChanged(activeProfileChanged);
+            try
+            {
+                notificationScope?.Dispose();
+            }
+            finally
+            {
+                DrainPendingActiveProfileNotifications();
+            }
         }
     }
 
@@ -283,6 +382,8 @@ public sealed class ConfiglueProfiledOptions<TModel, TFragment> : IConfiglueProf
         {
             return;
         }
+
+        var previousActiveProfileName = _catalog?.ActiveProfileName;
 
         for (var attempt = 0; attempt < 5; attempt++)
         {
@@ -335,9 +436,20 @@ public sealed class ConfiglueProfiledOptions<TModel, TFragment> : IConfiglueProf
                 }
             }
 
-            _catalog = catalog;
             await SynchronizeRegistryAsync(catalog).ConfigureAwait(false);
+            _catalog = catalog;
             _initialized = true;
+            if (
+                previousActiveProfileName is not null
+                && !string.Equals(
+                    previousActiveProfileName,
+                    catalog.ActiveProfileName,
+                    StringComparison.Ordinal
+                )
+            )
+            {
+                EnqueueActiveProfileNotification(catalog.ActiveProfileName!);
+            }
             return;
         }
 
@@ -401,6 +513,13 @@ public sealed class ConfiglueProfiledOptions<TModel, TFragment> : IConfiglueProf
 
                 throw;
             }
+            catch
+            {
+                // A writer may report failure after the catalog reached durable storage.
+                // Re-read on the next operation before trusting the cached catalog.
+                _initialized = false;
+                throw;
+            }
         }
 
         throw new StateConflictException(
@@ -419,17 +538,27 @@ public sealed class ConfiglueProfiledOptions<TModel, TFragment> : IConfiglueProf
         var expected = new HashSet<string>(catalog.ProfileNames, StringComparer.Ordinal);
         foreach (var profileName in catalog.ProfileNames)
         {
-            if (!_registry.TryGet(profileName, out _))
+            if (
+                !_registry.TryGet(profileName, out _)
+                && !_registry.TryAdd(profileName)
+                && !_registry.TryGet(profileName, out _)
+            )
             {
-                _registry.TryAdd(profileName);
+                throw new InvalidDataException(
+                    $"Profile '{profileName}' conflicts with a fixed OptionsName or could not be registered."
+                );
             }
+            _catalogRuntimeNames.Add(profileName);
         }
 
         foreach (
-            var registeredName in _registry.ProfileNames.Where(name => !expected.Contains(name))
+            var registeredName in _catalogRuntimeNames
+                .Where(name => !expected.Contains(name))
+                .ToArray()
         )
         {
-            _registry.TryRemove(registeredName);
+            await _registry.TryRemoveAsync(registeredName).ConfigureAwait(false);
+            _catalogRuntimeNames.Remove(registeredName);
         }
     }
 
@@ -500,6 +629,45 @@ public sealed class ConfiglueProfiledOptions<TModel, TFragment> : IConfiglueProf
     ) =>
         left.ProfileNames.SequenceEqual(right.ProfileNames, StringComparer.Ordinal)
         && string.Equals(left.ActiveProfileName, right.ActiveProfileName, StringComparison.Ordinal);
+
+    private IConfiglueOptionsRegistryNotificationDeferral<TModel>? DeferRegistryNotifications() =>
+        (_registry as IConfiglueOptionsRegistryNotificationDeferrer<TModel>)?.DeferNotifications();
+
+    private void EnqueueActiveProfileNotification(string profileName)
+    {
+        lock (_activeProfileNotificationGate)
+        {
+            _pendingActiveProfileNotifications.Enqueue(profileName);
+        }
+    }
+
+    private void DrainPendingActiveProfileNotifications()
+    {
+        lock (_activeProfileNotificationGate)
+        {
+            if (_dispatchingActiveProfileNotifications)
+            {
+                return;
+            }
+            _dispatchingActiveProfileNotifications = true;
+        }
+
+        while (true)
+        {
+            string profileName;
+            lock (_activeProfileNotificationGate)
+            {
+                if (_pendingActiveProfileNotifications.Count == 0)
+                {
+                    _dispatchingActiveProfileNotifications = false;
+                    return;
+                }
+                profileName = _pendingActiveProfileNotifications.Dequeue();
+            }
+
+            NotifyActiveProfileChanged(profileName);
+        }
+    }
 
     private static void ValidateProfileName(string profileName)
     {

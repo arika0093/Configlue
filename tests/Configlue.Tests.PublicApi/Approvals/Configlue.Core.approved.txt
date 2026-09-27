@@ -27,11 +27,14 @@ namespace Configlue
         public void Dispose() { }
         public System.Threading.Tasks.ValueTask DisposeAsync() { }
         public Configlue.IWritableOptions<TModel> GetOptions<TModel>(string? optionsName = null) { }
+        public Configlue.IConfiglueOptionsRegistry<TModel> GetOptionsRegistry<TModel>() { }
+        public Configlue.IConfiglueProfiledOptions<TModel> GetProfiledOptions<TModel>() { }
     }
     public sealed class ConfiglueModelBuilder<TModel>
         where TModel : Configlue.IConfiglueFacadeModel<TModel>
     {
         public ConfiglueModelBuilder() { }
+        public bool EnableDynamicOptions { get; set; }
         public System.TimeSpan? OnChangeDebounce { get; set; }
         public string OptionsName { get; set; }
         public bool ValidateDataAnnotations { get; set; }
@@ -41,12 +44,18 @@ namespace Configlue
         public void AddValidator(Configlue.IConfiglueValidator<TModel> validator) { }
         public Configlue.StateSourceSet<TFragment> BuildSources<TFragment>(System.IServiceProvider? serviceProvider)
             where TFragment :  class, Configlue.IConfiglueFragment<TFragment> { }
+        public Configlue.StateSourceSet<TFragment> BuildSources<TFragment>(System.IServiceProvider? serviceProvider, System.Action<System.IDisposable> ownResource)
+            where TFragment :  class, Configlue.IConfiglueFragment<TFragment> { }
+        public Configlue.StateSourceSet<TFragment> BuildSources<TFragment>(Configlue.ConfiglueModelSchema modelSchema, System.IServiceProvider? serviceProvider, System.Action<System.IDisposable> ownResource)
+            where TFragment :  class, Configlue.IConfiglueFragment<TFragment> { }
+        public void EnableProfiles(Configlue.StateSource<Configlue.ConfiglueProfileCatalog> catalogSource, string defaultProfileName = "default") { }
         public System.Collections.Generic.IReadOnlyList<Configlue.IStateSchemaMigration<TFragment>> GetMigrations<TFragment>(System.IServiceProvider? serviceProvider)
             where TFragment :  class, Configlue.IConfiglueFragment<TFragment> { }
         public System.Collections.Generic.IReadOnlyList<Configlue.IConfiglueValidator<TModel>> GetValidators(System.IServiceProvider? serviceProvider) { }
         public void Sources(System.Action<Configlue.ConfiglueSourceSetBuilder> configure) { }
+        public void SourcesForOptions(System.Action<string, Configlue.ConfiglueSourceSetBuilder> configure) { }
     }
-    public sealed class ConfiglueOptionsRegistry<TModel, TFragment> : Configlue.IConfiglueOptionsRegistry<TModel>, System.IDisposable
+    public sealed class ConfiglueOptionsRegistry<TModel, TFragment> : Configlue.IConfiglueOptionsRegistryNotificationDeferrer<TModel>, Configlue.IConfiglueOptionsRegistry<TModel>, System.IAsyncDisposable, System.IDisposable
         where TModel : Configlue.IConfiglueModel<TModel, TFragment>
         where TFragment :  class, Configlue.IConfiglueFragment<TFragment>
     {
@@ -55,11 +64,14 @@ namespace Configlue
         public event System.Action<string, Configlue.IWritableOptions<TModel>>? ProfileAdded;
         public event System.Action<string>? ProfileRemoved;
         public void Clear() { }
+        public System.Threading.Tasks.ValueTask ClearAsync() { }
         public void Dispose() { }
+        public System.Threading.Tasks.ValueTask DisposeAsync() { }
         public Configlue.IWritableOptions<TModel> Get(string profileName) { }
         public bool TryAdd(string profileName) { }
         public bool TryGet(string profileName, out Configlue.IWritableOptions<TModel>? options) { }
         public bool TryRemove(string profileName) { }
+        public System.Threading.Tasks.ValueTask<bool> TryRemoveAsync(string profileName) { }
     }
     public sealed class ConfiglueOptions<TModel, TFragment> : Configlue.IReadOnlyOptions<TModel>, Configlue.IWritableOptions<TModel>, System.IAsyncDisposable, System.IDisposable
         where TModel : Configlue.IConfiglueModel<TModel, TFragment>
@@ -104,6 +116,7 @@ namespace Configlue
     public sealed class ConfiglueSourceSetBuilder
     {
         public ConfiglueSourceSetBuilder() { }
+        public void Add(Configlue.IConfiglueSourceDefinition definition) { }
         public void Add<TFragment>(Configlue.StateSource<TFragment> source)
             where TFragment :  class, Configlue.IConfiglueFragment<TFragment> { }
         public void Add<TFragment>(System.Func<System.IServiceProvider?, Configlue.StateSource<TFragment>> sourceFactory)
@@ -124,7 +137,7 @@ namespace Configlue
     }
     public sealed class FileResource : Configlue.IResourceBatchWriter, Configlue.IResourceIdentity, Configlue.IResourceReader, Configlue.IResourceWriter, Configlue.IStateWatcher, System.IDisposable
     {
-        public FileResource(string path, Configlue.FileResourceOptions? options = null) { }
+        public FileResource(string path, Configlue.FileResourceOptions? options = null, Configlue.ResourceId? resourceId = default) { }
         public string Path { get; }
         public Configlue.ResourceId ResourceId { get; }
         public void Dispose() { }
@@ -147,7 +160,13 @@ namespace Configlue
     public interface IConfiglueFacadeModel<TSelf>
         where TSelf : Configlue.IConfiglueFacadeModel<TSelf>
     {
-        Configlue.IWritableOptions<TSelf> CreateConfiglueRuntime(Configlue.ConfiglueModelBuilder<TSelf> configuration, System.IServiceProvider? serviceProvider);
+        Configlue.IConfiglueProfiledOptions<TSelf> CreateConfiglueProfileManager(Configlue.IConfiglueOptionsRegistry<TSelf> registry, Configlue.StateSource<Configlue.ConfiglueProfileCatalog> catalogSource, string defaultProfileName);
+        Configlue.IWritableOptions<TSelf> CreateConfiglueRuntime(Configlue.ConfiglueModelBuilder<TSelf> configuration, System.IServiceProvider? serviceProvider, System.Action<System.IDisposable> ownResource);
+    }
+    public interface IConfiglueSourceDefinition
+    {
+        Configlue.StateSource<TFragment> Create<TFragment>(Configlue.ConfiglueModelSchema modelSchema, System.IServiceProvider? serviceProvider, System.Action<System.IDisposable> ownResource)
+            where TFragment :  class, Configlue.IConfiglueFragment<TFragment>;
     }
     public sealed class SerializedStateReader<T> : Configlue.IStateReader<T>
     {

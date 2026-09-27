@@ -1,6 +1,20 @@
 [assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/arika0093/Configlue")]
 namespace Configlue.Source.Environment
 {
+    public static class EnvironmentFacadeSourceRegistration
+    {
+        public static void FromEnvironment(this Configlue.ConfiglueSourceSetBuilder sources, Configlue.Source.Environment.EnvironmentSourceOptions options) { }
+    }
+    public sealed class EnvironmentSourceOptions
+    {
+        public EnvironmentSourceOptions() { }
+        public System.Func<System.Collections.Generic.IEnumerable<System.Collections.Generic.KeyValuePair<string, string?>>>? EnvironmentVariables { get; init; }
+        public Configlue.StateFallbackCondition FallbackCondition { get; init; }
+        public required string Id { get; init; }
+        public required string Prefix { get; init; }
+        public int Priority { get; init; }
+        public System.Func<string, System.Type, object?>? ValueParser { get; init; }
+    }
     public sealed class EnvironmentStateReader<TFragment> : Configlue.IStateReader<TFragment>
         where TFragment :  class, Configlue.IConfiglueFragment<TFragment>
     {

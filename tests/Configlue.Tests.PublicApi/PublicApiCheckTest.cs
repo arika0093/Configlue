@@ -10,6 +10,8 @@ using Configlue.Provider.Yaml;
 using Configlue.Resource.Http;
 using Configlue.Resource.Http.AspNetCore;
 using Configlue.Resource.Zip;
+using Configlue.Source.CommandLine;
+using Configlue.Source.Common;
 using Configlue.Source.Environment;
 using Configlue.Testing;
 using PublicApiGenerator;
@@ -72,6 +74,21 @@ public sealed class PublicApiCheckTest
     public void Core() => PublicApiCheck.CheckAssembly(typeof(ConfiglueOptions<,>).Assembly);
 
     [Test]
+    public void CoreFacadeModelStaticMemberModifiers()
+    {
+        var contract = typeof(IConfiglueFacadeModel<>);
+        var runtimeFactory = contract.GetMethod("CreateConfiglueRuntime")!;
+        var profileManagerFactory = contract.GetMethod("CreateConfiglueProfileManager")!;
+
+        (runtimeFactory.IsStatic).ShouldBeTrue();
+        (runtimeFactory.IsAbstract).ShouldBeTrue();
+        (runtimeFactory.IsVirtual).ShouldBeTrue();
+        (profileManagerFactory.IsStatic).ShouldBeTrue();
+        (profileManagerFactory.IsAbstract).ShouldBeFalse();
+        (profileManagerFactory.IsVirtual).ShouldBeTrue();
+    }
+
+    [Test]
     public void DependencyInjection() =>
         PublicApiCheck.CheckAssembly(typeof(ConfiglueServiceCollectionExtensions).Assembly);
 
@@ -90,6 +107,12 @@ public sealed class PublicApiCheckTest
     [Test]
     public void Environment() =>
         PublicApiCheck.CheckAssembly(typeof(EnvironmentStateSource).Assembly);
+
+    [Test]
+    public void CommonSources() => PublicApiCheck.Check<CommonSourceOptions>();
+
+    [Test]
+    public void CommandLineSources() => PublicApiCheck.Check<CommandLineSourceOptions>();
 
     [Test]
     public void Zip() => PublicApiCheck.Check<ZipEntryResource>();
