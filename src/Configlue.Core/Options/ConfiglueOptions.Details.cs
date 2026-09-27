@@ -18,9 +18,9 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
 
         var value = resolved.Result.Value;
         var activeSources = GetActiveSources();
-        var descriptors = new ConfigSourceDetails[activeSources.Length];
-        var fragments = new IConfiglueFragment?[activeSources.Length];
-        var statuses = new StateReadStatus[activeSources.Length];
+        var descriptors = new ConfigSourceDetails[activeSources.Length + 1];
+        var fragments = new IConfiglueFragment?[activeSources.Length + 1];
+        var statuses = new StateReadStatus[activeSources.Length + 1];
         var contributionsById = resolved.Contributions.ToDictionary(
             static contribution => contribution.Source.Id,
             static contribution => contribution,
@@ -58,6 +58,10 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
                 }
             }
         }
+
+        descriptors[^1] = DescribeModelDefaults();
+        fragments[^1] = _modelDefaultsFragment;
+        statuses[^1] = StateReadStatus.Success;
 
         var contributions = resolved.Contributions;
         return new ConfiglueDetailsSnapshot(
@@ -126,11 +130,17 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
                 && TryGetFragmentValue(contribution.Result.Value, parts, out _)
             )
             {
-                var contributionIndex = Array.FindIndex(
-                    activeSources,
-                    source =>
-                        string.Equals(source.Id, contribution.Source.Id, StringComparison.Ordinal)
-                );
+                var contributionIndex = contribution.IsModelDefaults
+                    ? activeSources.Length
+                    : Array.FindIndex(
+                        activeSources,
+                        source =>
+                            string.Equals(
+                                source.Id,
+                                contribution.Source.Id,
+                                StringComparison.Ordinal
+                            )
+                    );
                 return contributionIndex < targetIndex
                     ? ConfiglueEditability.Shadowed
                     : ConfiglueEditability.Editable;
@@ -214,6 +224,16 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
             return key;
         }
     }
+
+    private ConfigSourceDetails DescribeModelDefaults() =>
+        new(
+            GetDetailsSourceKey(_modelDefaultsSource.Id),
+            "model-defaults",
+            "Model defaults",
+            null,
+            canWrite: false,
+            canWatch: false
+        );
 
     private ConfigSourceDetails DescribeSource<T>(StateSource<T> source, string? origin)
     {

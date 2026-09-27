@@ -54,7 +54,9 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
             CollectMemberFailures(fragment.Schema, fragment, string.Empty, failures);
         }
 
-        failures.AddRange(CollectValidationFailures(TModel.FromFragment(fragment)));
+        failures.AddRange(
+            CollectValidationFailures(TModel.FromFragment(_modelDefaultsFragment.Merge(fragment)))
+        );
         failures = failures.Distinct(StringComparer.Ordinal).ToList();
         if (failures.Count == 0)
         {

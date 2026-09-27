@@ -51,7 +51,7 @@ public sealed class DetailsSnapshotTests
         (details.RetryCount.IsEditable).ShouldBeTrue();
         (details.RetryCount.Editability).ShouldBe(ConfiglueEditability.Editable);
         (details.RetryCount.Source?.Key).ShouldBe(overrideKey);
-        (details.RetryCount.Sources.Count).ShouldBe(2);
+        (details.RetryCount.Sources.Count).ShouldBe(3);
         (details.RetryCount.Sources[0].Source.Key).ShouldBe(overrideKey);
         (details.RetryCount.Sources[0].IsPresent).ShouldBeTrue();
         (details.RetryCount.Sources[0].Value).ShouldBe(8);
@@ -62,12 +62,56 @@ public sealed class DetailsSnapshotTests
         (details.Label.Value).ShouldBe("base");
         (details.Label.Source?.Key).ShouldBe(baseKey);
         (details.Label.Sources[0].State).ShouldBe(ConfigSourceValueState.Missing);
+        (details.RetryCount.Sources[2].Source.Kind).ShouldBe("model-defaults");
 
         string? name = details.Label;
         (name).ShouldBe("base");
 
         var nextDetails = await options.GetDetailsAsync();
         (nextDetails.RetryCount.Source?.Key).ShouldBe(overrideKey);
+    }
+
+    [Test]
+    public async Task GetDetailsAsync_ReportsModelDefaultsAsTheEditableBaseline()
+    {
+        var missing = new InMemoryStateStore<AppSettings.Fragment>();
+        await using var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(
+            new StateSourceSet<AppSettings.Fragment>([new("local", missing, writer: missing)])
+        );
+
+        var details = await options.GetDetailsAsync();
+
+        (details.RetryCount.Value).ShouldBe(3);
+        (details.RetryCount.Source?.Kind).ShouldBe("model-defaults");
+        (details.RetryCount.Source?.DisplayName).ShouldBe("Model defaults");
+        (details.RetryCount.Source?.CanWrite == false).ShouldBeTrue();
+        (details.RetryCount.Source?.CanWatch == false).ShouldBeTrue();
+        (details.RetryCount.IsEditable).ShouldBeTrue();
+        (details.RetryCount.Sources[^1].Value).ShouldBe(3);
+        (details.Enabled.Value).ShouldBeTrue();
+        (details.Label.Source?.Kind).ShouldBe("model-defaults");
+        (details.Label.Value).ShouldBe("default");
+    }
+
+    [Test]
+    public async Task GetDetailsAsync_IncludesImplicitClrDefaults()
+    {
+        await using var options = new ConfiglueOptions<
+            ClrDefaultSettings,
+            ClrDefaultSettings.Fragment
+        >(
+            new StateSourceSet<ClrDefaultSettings.Fragment>([
+                new("empty", new InMemoryStateStore<ClrDefaultSettings.Fragment>()),
+            ])
+        );
+
+        var details = await options.GetDetailsAsync();
+
+        (details.RetryCount.Value).ShouldBe(0);
+        (details.Enabled.Value).ShouldBeFalse();
+        (details.Name.Value).ShouldBeNull();
+        (details.RetryCount.Source?.Kind).ShouldBe("model-defaults");
+        (details.RetryCount.Sources.Count).ShouldBe(2);
     }
 
     [Test]
