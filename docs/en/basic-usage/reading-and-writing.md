@@ -102,15 +102,19 @@ await options.Source(CommonSource.Local).SaveAsync(
 );
 ```
 
-JSON file sources can also be selected by their normalized path, with an optional JSON document section:
+JSON, YAML, and XML file sources can also be selected by normalized path, with an optional document section:
 
 ```csharp
 using Configlue.Provider.Json;
+using Configlue.Provider.Xml;
+using Configlue.Provider.Yaml;
 
 await options.Source(JsonFileSource.At("./settings.json")).SaveAsync(patch);
+await options.Source(YamlFileSource.At("./settings.yaml", "App:Settings")).SaveAsync(patch);
+await options.Source(XmlFileSource.At("./settings.xml", "App:Settings")).SaveAsync(patch);
 ```
 
-This path-derived selector matches a source registered without `JsonFileSourceOptions.Id`. For a mounted source, pass its model path as `mountPath`, for example `JsonFileSource.At("./secrets.json", mountPath: "Secrets")`. If you provide an explicit ID, select it with the corresponding `SourceKey<TModel>`.
+These path-derived selectors match sources registered without an explicit `Id`. JSON selectors also accept the model path of a mounted source through `mountPath`, for example `JsonFileSource.At("./secrets.json", mountPath: "Secrets")`. If you provide an explicit ID, select it with the corresponding `SourceKey<TModel>`.
 
 ## Next steps
 

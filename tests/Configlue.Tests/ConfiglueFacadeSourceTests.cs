@@ -152,7 +152,6 @@ public sealed partial class ConfiglueFacadeSourceTests
                     sources.FromXmlFile(
                         new XmlFileSourceOptions
                         {
-                            Id = "xml-settings",
                             Path = path,
                             SectionPath = "App:Settings",
                             WatchChanges = false,
@@ -164,11 +163,17 @@ public sealed partial class ConfiglueFacadeSourceTests
         });
 
         await context.GetOptions<AppSettings>().SaveAsync(settings => settings.Label = "updated");
+        var options = context.GetAdvancedOptions<AppSettings>();
+        await options
+            .Source(XmlFileSource.At(path, "App:Settings"))
+            .SaveAsync(
+                new AppSettings.Patch { Label = FragmentOperation<string?>.Set("selected") }
+            );
 
         var document = XDocument.Load(path);
         (document.Root!.Element("App")!.Element("Other")!.Element("Value")!.Value).ShouldBe("keep");
         (document.Root!.Element("Root")!.Value).ShouldBe("keep");
-        (document.Descendants().Any(element => element.Value == "updated")).ShouldBeTrue();
+        (document.Descendants().Any(element => element.Value == "selected")).ShouldBeTrue();
     }
 
     [Test]
@@ -185,7 +190,6 @@ public sealed partial class ConfiglueFacadeSourceTests
                     sources.FromYamlFile(
                         new YamlFileSourceOptions
                         {
-                            Id = "yaml-settings",
                             Path = path,
                             SectionPath = "App:Settings",
                             WatchChanges = false,
@@ -197,10 +201,16 @@ public sealed partial class ConfiglueFacadeSourceTests
         });
 
         await context.GetOptions<AppSettings>().SaveAsync(settings => settings.Label = "updated");
+        var options = context.GetAdvancedOptions<AppSettings>();
+        await options
+            .Source(YamlFileSource.At(path, "App:Settings"))
+            .SaveAsync(
+                new AppSettings.Patch { Label = FragmentOperation<string?>.Set("selected") }
+            );
 
         var yaml = await File.ReadAllTextAsync(path);
         (yaml).ShouldContain("keep");
-        (yaml).ShouldContain("updated");
+        (yaml).ShouldContain("selected");
     }
 
     [Test]
