@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Configlue;
 
 namespace Configlue.Source.Environment;
@@ -9,13 +10,15 @@ public static class EnvironmentStateSource
     /// Creates a sparse fragment source from variables such as <c>APP__DATABASE__HOST</c>.
     /// Member names are matched without regard to case. The source has no writer or watcher.
     /// </summary>
+    /// <remarks>Members without a scalar conversion, such as collections, are read as JSON.</remarks>
     public static StateSource<TFragment> FromEnvironment<TModel, TFragment>(
         string id,
         string prefix,
         int priority = 0,
         StateFallbackCondition fallbackCondition = StateFallbackCondition.NotFound,
         Func<IEnumerable<KeyValuePair<string, string?>>>? environmentVariables = null,
-        Func<string, Type, object?>? valueParser = null
+        Func<string, Type, object?>? valueParser = null,
+        JsonSerializerOptions? jsonSerializerOptions = null
     )
         where TModel : IConfiglueModel<TModel, TFragment>
         where TFragment : class, IConfiglueFragment<TFragment>
@@ -24,7 +27,8 @@ public static class EnvironmentStateSource
             TModel.ConfiglueSchema,
             prefix,
             environmentVariables,
-            valueParser
+            valueParser,
+            jsonSerializerOptions
         );
         return new StateSource<TFragment>(
             id,
