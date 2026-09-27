@@ -13,12 +13,11 @@ model.Sources(sources =>
     sources.FromJsonFile(new() { Id = "settings", Path = "settings.json", Priority = 10 });
     sources.AddMounted<AppSettings, AppSettings.Fragment, PolicySettings, PolicySettings.Fragment>(
         policyHttpSource,
-        model => model.Policy,
-        root => root.Policy.Value!);
+        model => model.Policy);
 });
 ```
 
-JSON 全体ソースとマウントした HTTP ソースは `AppSettings.Policy` の別項目を分担でき、HTTP に無い項目は JSON にフォールスルーします。部分的なマウントフラグメントは存在項目だけ寄与します。マウントはソース ID・優先度・リビジョン・リソース同一性・物理出どころを保持します。`toSource` を渡さない限り読み取り専用で、渡すと疎ルート寄与をソースフラグメントに戻す写像になります。コールバックはソースフラグメントの部分的形状を保ってください。
+JSON 全体ソースとマウントした HTTP ソースは `AppSettings.Policy` の別項目を分担でき、HTTP に無い項目は JSON にフォールスルーします。部分的なマウントフラグメントは存在項目だけ寄与します。マウントはソース ID・優先度・リビジョン・リソース同一性・物理出どころを保持します。型付き model selector は生成 fragment path から逆変換を推論するため、書き込みも sparse のままです。ソース固有の変換が必要なら明示的な `toSource` overload を使います。writer が無い source は read-only です。
 
 異なるソース DTO には、まず `StateSourceProjection.Project` (ソーススキーマ移行を含め、書き込み可能にする場合は明示の逆投影つき) で入れ子モデルフラグメントに写像し、その投影ソースをマウントします。逆投影が投影外フィールド保持のために現行ソース契約を要する場合は `ProjectWithUpdate` を使います。コールバックは更新前後の投影値と現行ソース契約を受け取るため、unset と非投影を区別できます。現行認識つき書き込みはソースを再読・リビジョンチェックし、リソース対応時はバッチ変異を用意します。`Unset` 操作はソースの削除表現に写像するか、表現不能なら逆コールバックから例外にします。
 
