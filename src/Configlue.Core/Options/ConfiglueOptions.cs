@@ -191,6 +191,13 @@ public sealed class ConfiglueOptions<TModel, TFragment>
     }
 
     /// <inheritdoc />
+    public TModel CurrentValue =>
+        ((IReadOnlyOptions<TModel>)this)
+            .GetValueAsync(CancellationToken.None)
+            .GetAwaiter()
+            .GetResult();
+
+    /// <inheritdoc />
     public IDisposable OnChange(Action<TModel> listener)
     {
         ArgumentNullException.ThrowIfNull(listener);
