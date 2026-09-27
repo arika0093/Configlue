@@ -1638,7 +1638,10 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
                 patchedFragment,
                 current.Revision,
                 modelSchema.ToMetadata()
-            );
+            ) with
+            {
+                Revisions = current.Revisions,
+            };
             replacements.Add(source.Id, proposed);
             writePlans.Add(
                 (source, source.Writer, request, sourceResourceId, batchWriter, mutation)
