@@ -43,6 +43,45 @@ public sealed class JsonFileSourceOptions
 /// <summary>Registers facade sources backed by JSON files.</summary>
 public static class JsonFileSourceRegistration
 {
+    /// <summary>Registers the default JSON settings file beside the application executable.</summary>
+    public static void UseDefaultJsonFile<TModel>(this ConfiglueModelBuilder<TModel> model)
+        where TModel : IConfiglueFacadeModel<TModel>
+    {
+        ArgumentNullException.ThrowIfNull(model);
+        model.UseJsonFile(
+            new JsonFileSourceOptions
+            {
+                Id = "settings",
+                Path = Path.Combine(AppContext.BaseDirectory, "usersettings.json"),
+            }
+        );
+    }
+
+    /// <summary>Registers one JSON file source as the normal write destination for this model.</summary>
+    public static void UseJsonFile<TModel>(
+        this ConfiglueModelBuilder<TModel> model,
+        JsonFileSourceOptions options
+    )
+        where TModel : IConfiglueFacadeModel<TModel>
+    {
+        ArgumentNullException.ThrowIfNull(model);
+        ArgumentNullException.ThrowIfNull(options);
+        model.Sources(sources => sources.FromJsonFile(options));
+        if (!options.ReadOnly)
+        {
+            model.WriteRoute = StateWriteRoute.To(options.Id);
+        }
+    }
+
+    /// <summary>Registers one JSON file source at the supplied path as the normal write destination.</summary>
+    public static void UseJsonFile<TModel>(this ConfiglueModelBuilder<TModel> model, string path)
+        where TModel : IConfiglueFacadeModel<TModel>
+    {
+        ArgumentNullException.ThrowIfNull(model);
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        model.UseJsonFile(new JsonFileSourceOptions { Id = "settings", Path = path });
+    }
+
     /// <summary>Adds a JSON file source. The facade owns the created resource and its watcher.</summary>
     public static void FromJsonFile(
         this ConfiglueSourceSetBuilder sources,

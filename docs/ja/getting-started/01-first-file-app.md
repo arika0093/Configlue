@@ -39,12 +39,7 @@ await using var context = ConfiglueApp.CreateContext(conf =>
 {
     conf.Add<AppSettings>(model =>
     {
-        model.Sources(sources => sources.FromJsonFile(new()
-        {
-            Id = "settings",
-            Path = "settings.json",
-        }));
-        model.WriteRoute = StateWriteRoute.To("settings");
+        model.UseDefaultJsonFile();
     });
 });
 
@@ -63,12 +58,7 @@ builder.Services.AddConfiglue(conf =>
 {
     conf.Add<AppSettings>(model =>
     {
-        model.Sources(sources => sources.FromJsonFile(new()
-        {
-            Id = "settings",
-            Path = "settings.json",
-        }));
-        model.WriteRoute = StateWriteRoute.To("settings");
+        model.UseDefaultJsonFile();
     });
 });
 ```
@@ -90,7 +80,7 @@ public class Greeter(IWritableOptions<AppSettings> options)
 </TabItem>
 </Tabs>
 
-`Id = "settings"` はこのソースの名前です。読みの説明や書き込み先の指定で使います。`WriteRoute` は「保存するときはこのソースへ」という宣言です。読みは全ソースの合成、書きは宛先指定。この区別が Configlue の基本です。
+`UseDefaultJsonFile()` は実行ファイルの隣に書き込み可能な `settings` source を登録し、既定の `usersettings.json` を使います。`UseJsonFile("settings.json")` は現在のディレクトリからの相対パスを使います。完全な `JsonFileSourceOptions` を渡せば細かく設定できます。複数 source を重ねる場合は `Sources(...FromJsonFile...)` と `WriteRoute` を直接使ってください。
 
 ## 読む・監視する・保存する
 

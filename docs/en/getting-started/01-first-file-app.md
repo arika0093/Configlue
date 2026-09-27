@@ -39,12 +39,7 @@ await using var context = ConfiglueApp.CreateContext(conf =>
 {
     conf.Add<AppSettings>(model =>
     {
-        model.Sources(sources => sources.FromJsonFile(new()
-        {
-            Id = "settings",
-            Path = "settings.json",
-        }));
-        model.WriteRoute = StateWriteRoute.To("settings");
+        model.UseDefaultJsonFile();
     });
 });
 
@@ -63,12 +58,7 @@ builder.Services.AddConfiglue(conf =>
 {
     conf.Add<AppSettings>(model =>
     {
-        model.Sources(sources => sources.FromJsonFile(new()
-        {
-            Id = "settings",
-            Path = "settings.json",
-        }));
-        model.WriteRoute = StateWriteRoute.To("settings");
+        model.UseDefaultJsonFile();
     });
 });
 ```
@@ -90,7 +80,7 @@ public class Greeter(IWritableOptions<AppSettings> options)
 </TabItem>
 </Tabs>
 
-`Id = "settings"` names this source, used for explanations and write routing. `WriteRoute` declares "saves go to this source". Reads merge every source; writes target one. That split is the Configlue basic.
+`UseDefaultJsonFile()` registers a writable `settings` source at `usersettings.json` beside the application executable. Use `UseJsonFile("settings.json")` to choose a path relative to the current directory, or pass a complete `JsonFileSourceOptions` object for full control. Layered configurations can use `Sources(...FromJsonFile...)` and `WriteRoute` directly.
 
 ## Read, watch, save
 
