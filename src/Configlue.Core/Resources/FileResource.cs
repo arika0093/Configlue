@@ -71,11 +71,18 @@ public sealed class FileResource
             backupDirectory = OperatingSystem.IsWindows() ? "backup" : ".backup";
         }
 
-        _backupDirectory = System.IO.Path.GetFullPath(
-            System.IO.Path.IsPathRooted(backupDirectory)
-                ? backupDirectory
-                : System.IO.Path.Combine(_directory, backupDirectory)
-        );
+        if (string.Equals(backupDirectory, "/", StringComparison.Ordinal))
+        {
+            _backupDirectory = _directory;
+        }
+        else
+        {
+            _backupDirectory = System.IO.Path.GetFullPath(
+                System.IO.Path.IsPathRooted(backupDirectory)
+                    ? backupDirectory
+                    : System.IO.Path.Combine(_directory, backupDirectory)
+            );
+        }
         if (_options.BackupMaxCount < 0)
         {
             throw new ArgumentOutOfRangeException(

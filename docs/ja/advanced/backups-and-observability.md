@@ -7,7 +7,7 @@ description: ファイルの世代バックアップと復元、ログ記録、�
 
 ## ファイルバックアップ
 
-ファイルリソースは既定で不可分な `.bak` を1世代保持します。バックアップは Windows ではリソースファイルと同じ場所の `backup/`、その他の OS では `.backup/` に保存し、Windows ではディレクトリとファイルを隠し属性にします。`FileResourceOptions` で複数世代や保存先を変えられます。相対 `BackupDirectory` はリソースファイルのディレクトリを基準にします。`RestoreLatestBackupAsync` で最新世代を明示復元できます。
+ファイルリソースは既定で不可分な `.bak` を1世代保持します。バックアップは Windows ではリソースファイルと同じ場所の `backup/`、その他の OS では `.backup/` に保存し、Windows ではディレクトリとファイルを隠し属性にします。`FileResourceOptions` で複数世代や保存先を変えられます。相対 `BackupDirectory` はリソースファイルのディレクトリを基準にします。`/` を指定するとリソースファイルと同じディレクトリに保存します。`RestoreLatestBackupAsync` で最新世代を明示復元できます。
 
 ```csharp
 var resource = new FileResource(

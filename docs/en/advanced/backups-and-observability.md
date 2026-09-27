@@ -7,7 +7,7 @@ description: File backup generations and restore, logging, explanations, and dia
 
 ## File backups
 
-File resources keep one atomic `.bak` generation by default. Backups go under `backup/` beside the resource file on Windows and `.backup/` on other platforms; Windows marks the directory and files hidden. `FileResourceOptions` can retain more generations in a chosen directory, and `RestoreLatestBackupAsync` restores the newest one explicitly. Relative `BackupDirectory` values are resolved from the resource file directory.
+File resources keep one atomic `.bak` generation by default. Backups go under `backup/` beside the resource file on Windows and `.backup/` on other platforms; Windows marks the directory and files hidden. `FileResourceOptions` can retain more generations in a chosen directory, and `RestoreLatestBackupAsync` restores the newest one explicitly. Relative `BackupDirectory` values are resolved from the resource file directory; `/` selects the resource file directory itself.
 
 ```csharp
 var resource = new FileResource(
