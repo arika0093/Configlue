@@ -14,7 +14,7 @@ Console.WriteLine($">> Name: {setting.Name}");
 
 読み取りは全ソースを優先度で解決し、ディープコピーを返します。DI では同期の `IOptions<T>.Value` / `IOptionsSnapshot<T>` / `IOptionsMonitor<T>` アダプターも使えますが、非同期フローでは async メソッドを使ってください。
 
-同期処理では `options.CurrentValue` でソースを読み、ディープコピーを取得できます。source の読み取りが非同期の場合、この getter は完了までブロックします。DI では、watcher を持つ source の `IOptionsMonitor<T>.CurrentValue` は watcher 対応キャッシュを使います。
+同期処理では `options.CurrentValue` の初回アクセスでソースを解決し、ディープコピーを取得できます。以降はキャッシュ値の clone を返します。watcher による再読み込みが成功するとキャッシュを更新し、書き込み成功後はキャッシュを無効化して次回アクセスで再読み込みします。watcher がない場合、外部変更は自動検出されないため、最新値には `GetValueAsync` を使います。初回 getter は非同期 source の読み取り完了までブロックします。DI の `IOptionsMonitor<T>.CurrentValue` は独自の watcher 対応キャッシュを持ちます。
 
 生成 clone は入れ子の Configlue model と一般的なコレクションを複製します。独自の可変参照型を含み、コピー方法を指定したい場合は options runtime ごとに clone 戦略を設定します:
 

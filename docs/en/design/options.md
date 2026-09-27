@@ -9,7 +9,7 @@ Options is the facade apps see. Source and Fragment details stay hidden; only re
 
 ## Read and write facades
 
-- `IReadOnlyOptions<T>`: synchronous `CurrentValue`, async reads (`GetValueAsync`/`ReadAsync`), `OnChange`, `ExplainAsync`, and `GetDiagnostics`. `CurrentValue` blocks for async sources; async application flows should use `GetValueAsync`.
+- `IReadOnlyOptions<T>`: synchronous `CurrentValue`, async reads (`GetValueAsync`/`ReadAsync`), `OnChange`, `ExplainAsync`, and `GetDiagnostics`. `CurrentValue` caches after its first read and refreshes from successful watcher notifications; it blocks during that first read. Async application flows should use `GetValueAsync`.
 - `IWritableOptions<T>`: adds saves (`SaveAsync`, `BeginConfigureAsync`), `ApplyPatchAsync`/`ApplyPatchesAsync`, and source/storage migration.
 
 Before saving, the full source revision vector is compared; if any participating source changed, the save stops with `StateConflictException`. Edits shadowed by read-only values stop here too.
