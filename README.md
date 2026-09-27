@@ -440,14 +440,13 @@ File, HTTP (polling), and custom watcher sources push updates through the same `
 
 ### Validation
 
-Use `AddConfiglueValidator<T>(IValidateOptions<T>)` for a Microsoft options validator, or pass `validateDataAnnotations: true` when registering options.
+DataAnnotations validation runs on save by default. Pass `validateDataAnnotations: false` to disable it. Use `AddConfiglueValidator<T>(IValidateOptions<T>)` for a Microsoft options validator; reflection-based DataAnnotations validation is skipped automatically when dynamic code is unavailable.
 
 ```csharp
 builder.Services.AddConfiglue(conf =>
 {
     conf.Add<UserSetting>(model =>
     {
-        model.ValidateDataAnnotations = true;
         // ...sources...
     });
 });

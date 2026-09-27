@@ -7,7 +7,7 @@ import { Tabs, TabItem } from '@astrojs/starlight/components';
 
 # STEP 4: Add validation
 
-Once files split, the next fear is "weird values": an out-of-range port, a required field left empty. Configlue validates before reads surface and before saves land.
+Once files split, the next fear is "weird values": an out-of-range port, a required field left empty. Configlue validates model updates before saving them.
 
 ## Declare with DataAnnotations
 
@@ -27,7 +27,7 @@ public partial class AppSettings
 }
 ```
 
-Enable validation at registration:
+DataAnnotations validation is enabled by default, so the registration needs no extra setting:
 
 <Tabs syncKey="di">
 <TabItem label="Without DI">
@@ -35,7 +35,6 @@ Enable validation at registration:
 ```csharp
 conf.Add<AppSettings>(model =>
 {
-    model.ValidateDataAnnotations = true;
     model.Sources(sources => sources.FromJsonFile(new()
     {
         Id = "settings",
@@ -53,7 +52,6 @@ builder.Services.AddConfiglue(conf =>
 {
     conf.Add<AppSettings>(model =>
     {
-        model.ValidateDataAnnotations = true;
         model.Sources(sources => sources.FromJsonFile(new()
         {
             Id = "settings",

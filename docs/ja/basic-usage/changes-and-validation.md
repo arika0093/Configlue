@@ -27,12 +27,12 @@ watcher または再読み込みで発生した例外が通知されます。変
 
 ## 検証
 
-検証は保存時に実行されます。モデルビルダーの `ValidateDataAnnotations` で属性ルールを強制します:
+DataAnnotations 検証は既定で保存時に実行されます。無効にするには `ValidateDataAnnotations = false` を設定します。NativeAOT など実行環境が動的コードをサポートしない場合、リフレクションを使う DataAnnotations 検証は自動的にスキップされます。登録済みの独自バリデーターは引き続き実行されます。
 
 ```csharp
 conf.Add<UserSetting>(model =>
 {
-    model.ValidateDataAnnotations = true;
+    model.ValidateDataAnnotations = false; // 必要な場合のみ
     // ...sources...
 });
 ```

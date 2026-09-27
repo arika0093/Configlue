@@ -71,7 +71,7 @@ services.AddConfiglueOptions<AppConfig, AppConfig.Fragment>(
 services.AddConfiglueValidator<UserSetting>(new UserSettingValidator());
 ```
 
-または登録時に `validateDataAnnotations: true` を渡します。[変更と検証](./changes-and-validation.md) 参照。
+DataAnnotations 検証は既定で有効です。無効にするには登録時に `validateDataAnnotations: false` を渡します。[変更と検証](./changes-and-validation.md) 参照。
 
 ## 次のステップ
 

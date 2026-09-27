@@ -72,7 +72,7 @@ public sealed class ConfiglueModelBuilder<TModel>
     private string _defaultProfileName = "default";
     private StateWriteRoute _writeRoute;
     private StateWritePlan _writePlan = StateWritePlan.Empty;
-    private bool _validateDataAnnotations;
+    private bool _validateDataAnnotations = true;
     private bool _enableDynamicOptions;
     private bool _registerAsSingleton;
     private TimeSpan? _onChangeDebounce;
@@ -157,7 +157,7 @@ public sealed class ConfiglueModelBuilder<TModel>
         _cloneStrategy = cloneStrategy;
     }
 
-    /// <summary>Enables validation attributes on the model before writes.</summary>
+    /// <summary>Gets or sets whether DataAnnotations attributes are enforced before writes; enabled by default when dynamic code is supported.</summary>
     public bool ValidateDataAnnotations
     {
         get => _validateDataAnnotations;

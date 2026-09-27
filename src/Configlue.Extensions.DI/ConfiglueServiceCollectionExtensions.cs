@@ -42,7 +42,7 @@ public static class ConfiglueServiceCollectionExtensions
         this IServiceCollection services,
         Action<IServiceProvider, StateSourceSetBuilder<TFragment>> configureSources,
         StateWriteRoute writeRoute = default,
-        bool validateDataAnnotations = false,
+        bool validateDataAnnotations = true,
         TimeSpan? onChangeDebounce = null
     )
         where TModel : IConfiglueModel<TModel, TFragment>
@@ -68,7 +68,7 @@ public static class ConfiglueServiceCollectionExtensions
         this IServiceCollection services,
         Func<IServiceProvider, StateSourceSet<TFragment>> sourceSetFactory,
         StateWriteRoute writeRoute = default,
-        bool validateDataAnnotations = false,
+        bool validateDataAnnotations = true,
         TimeSpan? onChangeDebounce = null
     )
         where TModel : IConfiglueModel<TModel, TFragment>
@@ -100,7 +100,7 @@ public static class ConfiglueServiceCollectionExtensions
         this IServiceCollection services,
         StateSourceSet<TFragment> sourceSet,
         StateWriteRoute writeRoute = default,
-        bool validateDataAnnotations = false,
+        bool validateDataAnnotations = true,
         TimeSpan? onChangeDebounce = null
     )
         where TModel : IConfiglueModel<TModel, TFragment>
@@ -121,7 +121,7 @@ public static class ConfiglueServiceCollectionExtensions
         object serviceKey,
         Action<IServiceProvider, StateSourceSetBuilder<TFragment>> configureSources,
         StateWriteRoute writeRoute = default,
-        bool validateDataAnnotations = false,
+        bool validateDataAnnotations = true,
         TimeSpan? onChangeDebounce = null
     )
         where TModel : IConfiglueModel<TModel, TFragment>
@@ -149,7 +149,7 @@ public static class ConfiglueServiceCollectionExtensions
         object serviceKey,
         Func<IServiceProvider, StateSourceSet<TFragment>> sourceSetFactory,
         StateWriteRoute writeRoute = default,
-        bool validateDataAnnotations = false,
+        bool validateDataAnnotations = true,
         TimeSpan? onChangeDebounce = null
     )
         where TModel : IConfiglueModel<TModel, TFragment>
@@ -197,7 +197,7 @@ public static class ConfiglueServiceCollectionExtensions
         object serviceKey,
         StateSourceSet<TFragment> sourceSet,
         StateWriteRoute writeRoute = default,
-        bool validateDataAnnotations = false,
+        bool validateDataAnnotations = true,
         TimeSpan? onChangeDebounce = null
     )
         where TModel : IConfiglueModel<TModel, TFragment>
@@ -218,7 +218,7 @@ public static class ConfiglueServiceCollectionExtensions
         this IServiceCollection services,
         Func<IServiceProvider, string, StateSourceSet<TFragment>> sourceSetFactory,
         StateWriteRoute writeRoute = default,
-        bool validateDataAnnotations = false,
+        bool validateDataAnnotations = true,
         TimeSpan? onChangeDebounce = null
     )
         where TModel : IConfiglueModel<TModel, TFragment>

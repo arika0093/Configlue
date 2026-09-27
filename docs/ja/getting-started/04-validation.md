@@ -7,7 +7,7 @@ import { Tabs, TabItem } from '@astrojs/starlight/components';
 
 # STEP 4: バリデーションを付ける
 
-ファイルが分かれると、次に怖くなるのは「変な値」です。ポート番号が範囲外、必須項目が空。Configlue では保存と読み取りの手前で検証できます。
+ファイルが分かれると、次に怖くなるのは「変な値」です。ポート番号が範囲外、必須項目が空。Configlue はモデル更新を保存する前に検証します。
 
 ## DataAnnotations で宣言する
 
@@ -27,7 +27,7 @@ public partial class AppSettings
 }
 ```
 
-登録で検証を有効にします。
+DataAnnotations 検証は既定で有効なので、登録時の追加設定は不要です。
 
 <Tabs syncKey="di">
 <TabItem label="DI なし">
@@ -35,7 +35,6 @@ public partial class AppSettings
 ```csharp
 conf.Add<AppSettings>(model =>
 {
-    model.ValidateDataAnnotations = true;
     model.Sources(sources => sources.FromJsonFile(new()
     {
         Id = "settings",
@@ -53,7 +52,6 @@ builder.Services.AddConfiglue(conf =>
 {
     conf.Add<AppSettings>(model =>
     {
-        model.ValidateDataAnnotations = true;
         model.Sources(sources => sources.FromJsonFile(new()
         {
             Id = "settings",
