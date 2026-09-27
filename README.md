@@ -369,16 +369,16 @@ Use `FallbackStateSource<TFragment>` to group serialized representations of the 
 
 ### Save and Edit
 
-Ordinary editing is natural C# on the model type. Use `SaveAsync(Action<TModel>)`, `BeginConfigureAsync`, or `ApplyPatchAsync` for sparse edits that retain untouched members. `SaveAsync(updatedConfig)` replaces the write source's complete contribution with that model value, including model defaults — it does not preserve members absent from that source.
+Ordinary editing is natural C# on the model type. Use `SaveAsync(Action<TModel>)`, `OpenEditSessionAsync`, or `ApplyPatchAsync` for sparse edits that retain untouched members. `SaveAsync(updatedConfig)` replaces the write source's complete contribution with that model value, including model defaults — it does not preserve members absent from that source.
 
 ```csharp
 // Update a deep clone of the current value without opening a session explicitly.
 await options.SaveAsync(settings => settings.SomeSetting = newValue);
 
 // Edit several values together; the session is in-memory until SaveAsync.
-using var edit = await options.BeginConfigureAsync();
+using var edit = await options.OpenEditSessionAsync();
 edit.Value.SomeSetting = newValue;
-await edit.SaveAsync();
+await edit.CommitAsync();
 
 // Patch a single member. Unset removes only the write source's contribution.
 var patch = new AppSettings.Patch();
@@ -401,9 +401,9 @@ var writePlan = new StateWritePlan(new Dictionary<string, string>
     ["Database"] = "database-settings",
     ["Database.Password"] = "secrets",
 });
-using var routedEdit = await options.BeginConfigureAsync(writePlan);
+using var routedEdit = await options.OpenEditSessionAsync(writePlan);
 routedEdit.Value.Database!.Password = "updated";
-var writeResult = await routedEdit.SaveAsync();
+var writeResult = await routedEdit.CommitAsync();
 ```
 
 Plans validate paths and targets before editing, then verify the fully resolved model and all source revisions before writing. A read-only contribution that shadows the requested value causes a `StateConflictException`. Unchanged fields retain their existing sparse state. `Append` and `SetUnion` edits are rebased onto each target source's collection segment; edits hidden by a higher-priority source fail explicitly instead of being silently replaced. Customize built-in merging per member with `[ConfiglueMerge(MergeMode.Append)]` (or `Deep`, `Replace`, `SetUnion`).
@@ -577,7 +577,7 @@ Compose `SerializedStateSource.FromResource` over an `InMemoryResource` to test 
 ### Interfaces
 
 * `IReadOnlyOptions<T>` — `CurrentValue`, async reads (`GetValueAsync`/`ReadAsync`), `OnChange`, `ExplainAsync`, `GetDiagnostics`, and provider-independent metadata. `CurrentValue` returns a cached clone after its first read, refreshes from successful watcher notifications, and blocks while its initial asynchronous read completes. Use `GetValueAsync` for a fresh asynchronous read.
-* `IWritableOptions<T>` — adds `SaveAsync`, `BeginConfigureAsync`, `ApplyPatchAsync`/`ApplyPatchesAsync`, and source/storage migration.
+* `IWritableOptions<T>` — adds `SaveAsync`, `OpenEditSessionAsync`, `ApplyPatchAsync`/`ApplyPatchesAsync`, and source/storage migration.
 * `IConfiglueOptionsRegistry<T>` — runtime `TryAdd`/`Get`/`TryRemoveAsync` for dynamic named options.
 * `IConfiglueProfiledOptions<T>` — persisted named profiles with active-profile selection.
 * Optional compatibility adapters — install `Configlue.Extension.MSOptions` and call `AddConfiglueMicrosoftOptions<T>()` to register `IOptions<T>`, `IOptionsSnapshot<T>`, and `IOptionsMonitor<T>` for class models. Dynamic names resolve through the registry and `IOptionsMonitor`, not keyed services.

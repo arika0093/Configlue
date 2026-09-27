@@ -158,10 +158,10 @@ namespace Configlue
         public string? HighestPrioritySourceId { get; }
         public string PropertyPath { get; }
     }
-    public sealed class ConfigureSession<T> : System.IDisposable
+    public sealed class EditSession<T> : System.IDisposable
     {
-        public ConfigureSession(T value, System.Func<T, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<Configlue.StateWriteResult>> save) { }
-        public ConfigureSession(T value, System.Func<T, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<Configlue.StateWriteResult>> save, System.Func<T, T> clone, T loadedValue, T defaultValue) { }
+        public EditSession(T value, System.Func<T, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<Configlue.StateWriteResult>> save) { }
+        public EditSession(T value, System.Func<T, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<Configlue.StateWriteResult>> save, System.Func<T, T> clone, T loadedValue, T defaultValue) { }
         public T CurrentValue { get; }
         public bool IsCommitted { get; }
         public T Value { get; set; }
@@ -170,7 +170,7 @@ namespace Configlue
         public void ResetToDefault(System.Action<T, T> reset) { }
         public void ResetToLoaded() { }
         public void ResetToLoaded(System.Action<T, T> reset) { }
-        public System.Threading.Tasks.ValueTask<Configlue.StateWriteResult> SaveAsync(System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Configlue.StateWriteResult> CommitAsync(System.Threading.CancellationToken cancellationToken = default) { }
         public void Update(System.Action<T> updater) { }
     }
     public enum FragmentOperationKind
@@ -371,8 +371,8 @@ namespace Configlue
     {
         System.Threading.Tasks.ValueTask<Configlue.StateWriteResult> ApplyPatchAsync(Configlue.IConfigluePatch patch, System.Threading.CancellationToken cancellationToken = default);
         System.Threading.Tasks.ValueTask<Configlue.StateMultiWriteResult> ApplyPatchesAsync(System.Collections.Generic.IEnumerable<Configlue.StateSourcePatch> patches, System.Threading.CancellationToken cancellationToken = default);
-        System.Threading.Tasks.ValueTask<Configlue.ConfigureSession<T>> BeginConfigureAsync(System.Threading.CancellationToken cancellationToken = default);
-        System.Threading.Tasks.ValueTask<Configlue.ConfigureSession<T>> BeginConfigureAsync(Configlue.StateWritePlan writePlan, System.Threading.CancellationToken cancellationToken = default);
+        System.Threading.Tasks.ValueTask<Configlue.EditSession<T>> OpenEditSessionAsync(System.Threading.CancellationToken cancellationToken = default);
+        System.Threading.Tasks.ValueTask<Configlue.EditSession<T>> OpenEditSessionAsync(Configlue.StateWritePlan writePlan, System.Threading.CancellationToken cancellationToken = default);
         System.Threading.Tasks.ValueTask<Configlue.StateSourceMigrationResult> MigrateSourceAsync(string sourceId, string targetId, System.Threading.CancellationToken cancellationToken = default);
         System.Threading.Tasks.ValueTask<Configlue.StateStorageMigrationResult> MigrateSourcesToTargetsAsync(System.Collections.Generic.IEnumerable<string> sourceIds, System.Collections.Generic.IReadOnlyDictionary<string, System.Func<Configlue.IConfiglueFragment, Configlue.IConfiglueFragment>> targetProjections, System.Threading.CancellationToken cancellationToken = default, bool retireSources = false);
         System.Threading.Tasks.ValueTask<Configlue.StateWriteResult> SaveAsync(System.Action<T> update, System.Threading.CancellationToken cancellationToken = default);
@@ -654,6 +654,6 @@ namespace Configlue
     }
     public static class WritableOptionsExtensions
     {
-        public static Configlue.ConfigureSession<T> BeginConfigure<T>(this Configlue.IWritableOptions<T> options) { }
+        public static Configlue.EditSession<T> OpenEditSession<T>(this Configlue.IWritableOptions<T> options) { }
     }
 }

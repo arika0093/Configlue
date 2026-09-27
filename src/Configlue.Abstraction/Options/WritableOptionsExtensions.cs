@@ -19,10 +19,10 @@ public static class WritableOptionsExtensions
     }
 
     /// <summary>Begins editing the current value, blocking until asynchronous sources are read.</summary>
-    /// <remarks>Use <see cref="IWritableOptions{T}.BeginConfigureAsync(System.Threading.CancellationToken)"/> from asynchronous flows.</remarks>
-    public static ConfigureSession<T> BeginConfigure<T>(this IWritableOptions<T> options)
+    /// <remarks>Use <see cref="IWritableOptions{T}.OpenEditSessionAsync(System.Threading.CancellationToken)"/> from asynchronous flows.</remarks>
+    public static EditSession<T> OpenEditSession<T>(this IWritableOptions<T> options)
     {
         ArgumentNullException.ThrowIfNull(options);
-        return options.BeginConfigureAsync().GetAwaiter().GetResult();
+        return options.OpenEditSessionAsync().GetAwaiter().GetResult();
     }
 }

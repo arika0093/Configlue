@@ -528,21 +528,21 @@ public sealed class ConfiglueOptions<TModel, TFragment>
     }
 
     /// <inheritdoc />
-    public ValueTask<ConfigureSession<TModel>> BeginConfigureAsync(
+    public ValueTask<EditSession<TModel>> OpenEditSessionAsync(
         CancellationToken cancellationToken = default
-    ) => BeginConfigureCoreAsync(null, cancellationToken);
+    ) => OpenEditSessionCoreAsync(null, cancellationToken);
 
     /// <inheritdoc />
-    public ValueTask<ConfigureSession<TModel>> BeginConfigureAsync(
+    public ValueTask<EditSession<TModel>> OpenEditSessionAsync(
         StateWritePlan writePlan,
         CancellationToken cancellationToken = default
     )
     {
         ArgumentNullException.ThrowIfNull(writePlan);
-        return BeginConfigureCoreAsync(writePlan, cancellationToken);
+        return OpenEditSessionCoreAsync(writePlan, cancellationToken);
     }
 
-    private async ValueTask<ConfigureSession<TModel>> BeginConfigureCoreAsync(
+    private async ValueTask<EditSession<TModel>> OpenEditSessionCoreAsync(
         StateWritePlan? writePlan,
         CancellationToken cancellationToken
     )
@@ -585,7 +585,7 @@ public sealed class ConfiglueOptions<TModel, TFragment>
         var baseline = CloneModel(resolved.Value!);
         var defaultValue = CloneModel(TModel.FromFragment(TFragment.Empty));
         var expectedRevisions = resolved.Revisions;
-        return new ConfigureSession<TModel>(
+        return new EditSession<TModel>(
             draft,
             async (value, token) =>
             {
@@ -971,10 +971,10 @@ public sealed class ConfiglueOptions<TModel, TFragment>
         using var operation = EnterOperation();
         ArgumentNullException.ThrowIfNull(value);
         ArgumentNullException.ThrowIfNull(writePlan);
-        using var session = await BeginConfigureAsync(writePlan, cancellationToken)
+        using var session = await OpenEditSessionAsync(writePlan, cancellationToken)
             .ConfigureAwait(false);
         session.Value = value;
-        return await session.SaveAsync(cancellationToken).ConfigureAwait(false);
+        return await session.CommitAsync(cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -985,11 +985,11 @@ public sealed class ConfiglueOptions<TModel, TFragment>
     {
         using var operation = EnterOperation();
         ArgumentNullException.ThrowIfNull(update);
-        using var session = await BeginConfigureAsync(cancellationToken).ConfigureAwait(false);
+        using var session = await OpenEditSessionAsync(cancellationToken).ConfigureAwait(false);
         var value = session.Value;
         update(value);
         session.Value = value;
-        return await session.SaveAsync(cancellationToken).ConfigureAwait(false);
+        return await session.CommitAsync(cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -1002,12 +1002,12 @@ public sealed class ConfiglueOptions<TModel, TFragment>
         using var operation = EnterOperation();
         ArgumentNullException.ThrowIfNull(update);
         ArgumentNullException.ThrowIfNull(writePlan);
-        using var session = await BeginConfigureAsync(writePlan, cancellationToken)
+        using var session = await OpenEditSessionAsync(writePlan, cancellationToken)
             .ConfigureAwait(false);
         var value = session.Value;
         update(value);
         session.Value = value;
-        return await session.SaveAsync(cancellationToken).ConfigureAwait(false);
+        return await session.CommitAsync(cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -1018,11 +1018,11 @@ public sealed class ConfiglueOptions<TModel, TFragment>
     {
         using var operation = EnterOperation();
         ArgumentNullException.ThrowIfNull(update);
-        using var session = await BeginConfigureAsync(cancellationToken).ConfigureAwait(false);
+        using var session = await OpenEditSessionAsync(cancellationToken).ConfigureAwait(false);
         var value = session.Value;
         await update(value).ConfigureAwait(false);
         session.Value = value;
-        return await session.SaveAsync(cancellationToken).ConfigureAwait(false);
+        return await session.CommitAsync(cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -1035,12 +1035,12 @@ public sealed class ConfiglueOptions<TModel, TFragment>
         using var operation = EnterOperation();
         ArgumentNullException.ThrowIfNull(update);
         ArgumentNullException.ThrowIfNull(writePlan);
-        using var session = await BeginConfigureAsync(writePlan, cancellationToken)
+        using var session = await OpenEditSessionAsync(writePlan, cancellationToken)
             .ConfigureAwait(false);
         var value = session.Value;
         await update(value).ConfigureAwait(false);
         session.Value = value;
-        return await session.SaveAsync(cancellationToken).ConfigureAwait(false);
+        return await session.CommitAsync(cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc />

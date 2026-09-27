@@ -48,19 +48,19 @@ await options.SaveAsync(updatedConfig); // full replacement of the write target
 
 ## Edit sessions
 
-Use `BeginConfigureAsync` when a settings screen applies several changes together. The session is in-memory until `SaveAsync`; discard it to abandon changes. Disposing during a save lets that save finish and prevents further edits or saves. Sessions compare the full source revision vector immediately before saving and fail with `StateConflictException` if any participating source changed underneath.
+Use `OpenEditSessionAsync` when a settings screen applies several changes together. The session is in-memory until `CommitAsync`; discard it to abandon changes. Disposing during a commit lets it finish and prevents further edits or commits. Sessions compare the full source revision vector immediately before committing and fail with `StateConflictException` if any participating source changed underneath.
 
-Synchronous callers can use `options.BeginConfigure()`. It blocks while asynchronous sources are read; use `BeginConfigureAsync` from asynchronous code.
+Synchronous callers can use `options.OpenEditSession()`. It blocks while asynchronous sources are read; use `OpenEditSessionAsync` from asynchronous code.
 
 ```csharp
-using var edit = await options.BeginConfigureAsync();
+using var edit = await options.OpenEditSessionAsync();
 edit.Update(value => value.SomeSetting = newValue);
 // edit.ResetToLoaded();  // restore the value loaded when the session began
 // edit.ResetToDefault(); // restore model defaults
-await edit.SaveAsync();
+await edit.CommitAsync();
 ```
 
-`Value` and `CurrentValue` expose the draft directly. `Update` edits it in place; the reset helpers restore the whole draft or selected members from the loaded snapshot or a fresh model-default value. A successful save leaves the session reusable, and each later save records changes since the previous successful save. Sessions returned by `BeginConfigureAsync` know both reset baselines. A session constructed directly with the two-argument constructor has no model-default baseline, so `ResetToDefault` requires the overload that supplies one.
+`Value` and `CurrentValue` expose the draft directly. `Update` edits it in place; the reset helpers restore the whole draft or selected members from the loaded snapshot or a fresh model-default value. A successful commit leaves the session reusable, and each later commit records changes since the previous successful commit. Sessions returned by `OpenEditSessionAsync` know both reset baselines. A session constructed directly with the two-argument constructor has no model-default baseline, so `ResetToDefault` requires the overload that supplies one.
 
 A per-operation `StateWritePlan` can split the session across sources — see [Write routing](../layering/write-routing.md).
 

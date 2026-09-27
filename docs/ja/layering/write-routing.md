@@ -5,7 +5,7 @@ description: WriteRoute 既定、パス単位 WritePlan、競合、複数書き�
 
 # 書き込み経路指定
 
-書き込みは読み優先度と独立に宛先を選べます。`BeginConfigureAsync` や updater オーバーロードの編集は生成された意味的差分を使います。
+書き込みは読み優先度と独立に宛先を選べます。`OpenEditSessionAsync` や updater オーバーロードの編集は生成された意味的差分を使います。
 
 ## 既定経路
 
@@ -28,9 +28,9 @@ var writePlan = new StateWritePlan(new Dictionary<string, string>
     ["Database"] = "database-settings",
     ["Database.Password"] = "secrets",
 });
-using var routedEdit = await options.BeginConfigureAsync(writePlan);
+using var routedEdit = await options.OpenEditSessionAsync(writePlan);
 routedEdit.Value.Database!.Password = "updated";
-var writeResult = await routedEdit.SaveAsync();
+var writeResult = await routedEdit.CommitAsync();
 var sourceWrites = writeResult.MultiWriteResult;
 ```
 

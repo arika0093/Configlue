@@ -2,7 +2,7 @@ namespace Configlue;
 
 /// <summary>A staged configuration edit that can be saved multiple times.</summary>
 /// <typeparam name="T">The configuration model type.</typeparam>
-public sealed class ConfigureSession<T> : IDisposable
+public sealed class EditSession<T> : IDisposable
 {
     private const int SavingState = 1;
     private const int DisposedState = 2;
@@ -18,11 +18,11 @@ public sealed class ConfigureSession<T> : IDisposable
 
     /// <summary>Creates a configure session around a staged value and its save operation.</summary>
     /// <remarks>The initial value is the loaded baseline. Default resets require the baseline overload.</remarks>
-    public ConfigureSession(T value, Func<T, CancellationToken, ValueTask<StateWriteResult>> save)
+    public EditSession(T value, Func<T, CancellationToken, ValueTask<StateWriteResult>> save)
         : this(value, save, Clone, value, value, hasDefaultValue: false) { }
 
     /// <summary>Creates a configure session with independent loaded and default baselines.</summary>
-    public ConfigureSession(
+    public EditSession(
         T value,
         Func<T, CancellationToken, ValueTask<StateWriteResult>> save,
         Func<T, T> clone,
@@ -31,7 +31,7 @@ public sealed class ConfigureSession<T> : IDisposable
     )
         : this(value, save, clone, loadedValue, defaultValue, hasDefaultValue: true) { }
 
-    private ConfigureSession(
+    private EditSession(
         T value,
         Func<T, CancellationToken, ValueTask<StateWriteResult>> save,
         Func<T, T> clone,
@@ -103,8 +103,8 @@ public sealed class ConfigureSession<T> : IDisposable
         reset(Value, _clone(_defaultValue));
     }
 
-    /// <summary>Saves the edited value against the latest resolved source state.</summary>
-    public async ValueTask<StateWriteResult> SaveAsync(
+    /// <summary>Commits the edited value against the latest resolved source state.</summary>
+    public async ValueTask<StateWriteResult> CommitAsync(
         CancellationToken cancellationToken = default
     )
     {
