@@ -4,6 +4,9 @@ namespace Configlue;
 /// <typeparam name="T">The configuration model type.</typeparam>
 public sealed class ConfigureSession<T> : IDisposable
 {
+    private const int SavingState = 1;
+    private const int DisposedState = 2;
+
     private readonly Func<T, CancellationToken, ValueTask<StateWriteResult>> _save;
     private readonly Func<T, T> _clone;
     private readonly T _loadedValue;
@@ -105,7 +108,7 @@ public sealed class ConfigureSession<T> : IDisposable
         CancellationToken cancellationToken = default
     )
     {
-        if (Interlocked.CompareExchange(ref _state, 1, 0) != 0)
+        if (Interlocked.CompareExchange(ref _state, SavingState, 0) != 0)
         {
             throw new InvalidOperationException(
                 "This configure session is already saving or disposed."
@@ -116,18 +119,34 @@ public sealed class ConfigureSession<T> : IDisposable
         {
             var result = await _save(_clone(Value), cancellationToken).ConfigureAwait(false);
             Volatile.Write(ref _isCommitted, 1);
-            Volatile.Write(ref _state, 0);
+            CompleteSave();
             return result;
         }
         catch
         {
-            Volatile.Write(ref _state, 0);
+            CompleteSave();
             throw;
         }
     }
 
     /// <summary>Discards this session without saving it.</summary>
-    public void Dispose() => Interlocked.CompareExchange(ref _state, 3, 0);
+    /// <remarks>A save already in progress is allowed to finish, then the session becomes disposed.</remarks>
+    public void Dispose()
+    {
+        while (true)
+        {
+            var state = Volatile.Read(ref _state);
+            if ((state & DisposedState) != 0)
+            {
+                return;
+            }
+
+            if (Interlocked.CompareExchange(ref _state, state | DisposedState, state) == state)
+            {
+                return;
+            }
+        }
+    }
 
     private void EnsureEditable()
     {
@@ -156,6 +175,19 @@ public sealed class ConfigureSession<T> : IDisposable
             throw new InvalidOperationException(
                 "This configure session's loaded baseline could not be cloned."
             );
+        }
+    }
+
+    private void CompleteSave()
+    {
+        while (true)
+        {
+            var state = Volatile.Read(ref _state);
+            var completedState = state & ~SavingState;
+            if (Interlocked.CompareExchange(ref _state, completedState, state) == state)
+            {
+                return;
+            }
         }
     }
 
