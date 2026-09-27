@@ -41,4 +41,8 @@ public sealed class FileResourceOptions
 
     /// <summary>The delay between attempts to acquire the cross-process sidecar lock while another process holds it.</summary>
     public TimeSpan LockAcquireRetryDelay { get; init; } = TimeSpan.FromMilliseconds(40);
+
+    /// <summary>An optional directory for the persistent cross-process lock sidecar.</summary>
+    /// <remarks>When unset, the shared lock directory from <see cref="ConfiglueStandardPaths.GetSharedLockDirectory"/> is used so resource directories stay clean. The legacy value <c>/</c> selects the resource file directory itself.</remarks>
+    public string? LockDirectory { get; init; }
 }

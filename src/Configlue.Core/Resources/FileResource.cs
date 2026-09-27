@@ -8,13 +8,16 @@ namespace Configlue;
 /// <para>
 /// Writes to the same normalized path are serialized both within the process, by a reference-counted
 /// semaphore that is removed once the last owner or waiter leaves, and across processes, by a zero-byte
-/// sidecar file named <c>.&lt;filename&gt;.configlue.lock</c> opened with exclusive sharing.
+/// sidecar lock file opened with exclusive sharing.
 /// </para>
 /// <para>
 /// The sidecar file is intentionally persistent: it is created on first use and never deleted. Deleting
 /// it on release would let a second process recreate the same path as a different file while an earlier
 /// holder is still using it, bypassing the lock, so the marker is left in place. There is at most one
-/// sidecar per target path, so it does not grow with the number of writes.
+/// sidecar per target path, so it does not grow with the number of writes. By default the sidecar lives
+/// under <see cref="ConfiglueStandardPaths.GetSharedLockDirectory"/> instead of beside the target file;
+/// set <see cref="FileResourceOptions.LockDirectory"/> to <c>/</c> to restore the legacy co-located
+/// <c>.&lt;filename&gt;.configlue.lock</c> behavior.
 /// </para>
 /// <para>
 /// Cross-process lock contention waits until <see cref="FileResourceOptions.LockAcquireTimeout"/> elapses
@@ -38,6 +41,7 @@ public sealed class FileResource
     private readonly string _path;
     private readonly string _directory;
     private readonly string _fileName;
+    private readonly string _lockPath;
     private readonly string _backupDirectory;
     private readonly string? _previousBackupDirectory;
     private readonly FileResourceOptions _options;
@@ -147,10 +151,33 @@ public sealed class FileResource
         }
 
         ArgumentException.ThrowIfNullOrWhiteSpace(_options.BackupExtension);
+        var lockDirectory = _options.LockDirectory;
+        if (lockDirectory is not null)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(lockDirectory);
+        }
+
+        _lockPath = ResolveLockPath(_path, _directory, _fileName, lockDirectory);
     }
 
     /// <summary>The normalized file path.</summary>
     public string Path => _path;
+
+    /// <summary>The resolved persistent lock sidecar path. Exposed for tests.</summary>
+    internal string LockPathForTests => _lockPath;
+
+    /// <summary>Resolves the persistent lock sidecar path for a resource file.</summary>
+    internal static string ResolveLockPathForTests(
+        string resourcePath,
+        string? lockDirectory = null
+    )
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(resourcePath);
+        var fullPath = System.IO.Path.GetFullPath(resourcePath);
+        var directory = System.IO.Path.GetDirectoryName(fullPath)!;
+        var fileName = System.IO.Path.GetFileName(fullPath);
+        return ResolveLockPath(fullPath, directory, fileName, lockDirectory);
+    }
 
     /// <inheritdoc />
     public ResourceId ResourceId { get; }
@@ -533,11 +560,82 @@ public sealed class FileResource
         }
     }
 
+    private static string ResolveLockPath(
+        string fullPath,
+        string directory,
+        string fileName,
+        string? lockDirectory
+    )
+    {
+        if (string.Equals(lockDirectory, "/", StringComparison.Ordinal))
+        {
+            return System.IO.Path.Combine(directory, "." + fileName + ".configlue.lock");
+        }
+
+        string targetDirectory;
+        if (string.IsNullOrWhiteSpace(lockDirectory))
+        {
+            targetDirectory = ConfiglueStandardPaths.GetSharedLockDirectory();
+        }
+        else if (System.IO.Path.IsPathRooted(lockDirectory))
+        {
+            targetDirectory = System.IO.Path.GetFullPath(lockDirectory);
+        }
+        else
+        {
+            targetDirectory = System.IO.Path.GetFullPath(
+                System.IO.Path.Combine(directory, lockDirectory)
+            );
+        }
+
+        var identityPath = OperatingSystem.IsWindows() ? fullPath.ToUpperInvariant() : fullPath;
+        var hash = Convert.ToHexString(
+            SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(identityPath))
+        );
+        var sanitized = SanitizeLockFileSegment(fileName);
+        return System.IO.Path.Combine(targetDirectory, $"{sanitized}-{hash}.configlue.lock");
+    }
+
+    private static string SanitizeLockFileSegment(string fileName)
+    {
+        var builder = new System.Text.StringBuilder(fileName.Length);
+        foreach (var character in fileName)
+        {
+            if (char.IsLetterOrDigit(character) || character is '.' or '-' or '_')
+            {
+                builder.Append(character);
+            }
+            else
+            {
+                builder.Append('_');
+            }
+        }
+
+        var sanitized = builder.ToString().Trim('.');
+        if (sanitized.Length == 0)
+        {
+            sanitized = "resource";
+        }
+
+        const int maxSegmentLength = 48;
+        if (sanitized.Length > maxSegmentLength)
+        {
+            sanitized = sanitized.Substring(0, maxSegmentLength);
+        }
+
+        return sanitized;
+    }
+
     private async ValueTask<FileStream> AcquireInterprocessLockAsync(
         CancellationToken cancellationToken
     )
     {
-        var lockPath = System.IO.Path.Combine(_directory, "." + _fileName + ".configlue.lock");
+        var lockDirectory = System.IO.Path.GetDirectoryName(_lockPath);
+        if (!string.IsNullOrEmpty(lockDirectory))
+        {
+            Directory.CreateDirectory(lockDirectory);
+        }
+
         var timeout = _options.LockAcquireTimeout;
         var startTimestamp = Stopwatch.GetTimestamp();
         while (true)
@@ -546,7 +644,7 @@ public sealed class FileResource
             try
             {
                 return new FileStream(
-                    lockPath,
+                    _lockPath,
                     FileMode.OpenOrCreate,
                     FileAccess.ReadWrite,
                     FileShare.None,

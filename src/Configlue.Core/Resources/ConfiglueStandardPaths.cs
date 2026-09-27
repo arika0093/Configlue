@@ -46,6 +46,32 @@ public static class ConfiglueStandardPaths
         return Path.GetFullPath(Path.Combine(baseDirectory, applicationId));
     }
 
+    /// <summary>Gets the shared directory used for persistent cross-process lock sidecars.</summary>
+    /// <remarks>
+    /// The directory honors <c>XDG_RUNTIME_DIR</c> and <c>TMPDIR</c> before falling back to
+    /// <see cref="Path.GetTempPath"/>. Lock files are persistent markers, so they live under a
+    /// <c>configlue/locks</c> subdirectory instead of beside the protected resource file.
+    /// The lock file name embeds a hash of the protected path and the lock is held with exclusive
+    /// sharing, so a pre-created file only causes contention, not access to the resource itself.
+    /// </remarks>
+#pragma warning disable S5443
+    public static string GetSharedLockDirectory()
+    {
+        var runtimeDirectory = Environment.GetEnvironmentVariable("XDG_RUNTIME_DIR");
+        if (string.IsNullOrWhiteSpace(runtimeDirectory))
+        {
+            runtimeDirectory = Environment.GetEnvironmentVariable("TMPDIR");
+        }
+
+        if (string.IsNullOrWhiteSpace(runtimeDirectory))
+        {
+            runtimeDirectory = Path.GetTempPath();
+        }
+
+        return Path.GetFullPath(Path.Combine(runtimeDirectory, "configlue", "locks"));
+    }
+#pragma warning restore S5443
+
     private static string GetWindowsConfigDirectory()
     {
         var appData = Environment.GetEnvironmentVariable("APPDATA");
