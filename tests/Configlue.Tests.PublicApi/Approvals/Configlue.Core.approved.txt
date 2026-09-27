@@ -221,7 +221,6 @@ namespace Configlue
     public sealed class FallbackStateSource<T> : Configlue.IStateReader<T>, Configlue.IStateWatcher, Configlue.IStateWriter<T>
     {
         public FallbackStateSource(Configlue.StateSourceSet<T> candidates, string? writeSourceId = null) { }
-        public FallbackStateSource(Configlue.StateSourceSet<T> candidates, string? writeSourceId, bool promoteOnRead) { }
         public Configlue.StateSource<T>? SelectedSource { get; }
         public Configlue.StateSource<T> CreateSource(string id, int priority = 0, Configlue.StateFallbackCondition fallbackCondition = 1, string? physicalOrigin = null) { }
         public System.Threading.Tasks.ValueTask<Configlue.StateReadResult<T>> ReadAsync(System.Threading.CancellationToken cancellationToken = default) { }
