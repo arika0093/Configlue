@@ -40,54 +40,6 @@ public static class StateSourceProjection
         return MountCore(source, propertyPath, projectedSchema, toSource);
     }
 
-    internal static IConfiglueFragment ExtractMountedFragment(
-        IConfiglueFragment fragment,
-        string propertyPath
-    )
-    {
-        ArgumentNullException.ThrowIfNull(fragment);
-        ArgumentException.ThrowIfNullOrWhiteSpace(propertyPath);
-        var segments = propertyPath.Split('.', StringSplitOptions.None);
-        if (segments.Any(string.IsNullOrWhiteSpace))
-        {
-            throw new ArgumentException(
-                "A mount path cannot contain empty segments.",
-                nameof(propertyPath)
-            );
-        }
-
-        for (var index = 0; index < segments.Length; index++)
-        {
-            var member = fragment.Schema.Members.FirstOrDefault(candidate =>
-                string.Equals(candidate.Name, segments[index], StringComparison.Ordinal)
-            );
-            if (string.IsNullOrEmpty(member.Name) || member.NestedSchemaFactory is null)
-            {
-                throw new ArgumentException(
-                    $"Mount path '{propertyPath}' does not identify a nested model member.",
-                    nameof(propertyPath)
-                );
-            }
-
-            var nestedSchema = member.NestedSchemaFactory();
-            var value = fragment
-                .EnumeratePresentMembers()
-                .FirstOrDefault(candidate => candidate.Id == member.Id);
-            if (value.Name is null || value.Value is not IConfiglueFragment nestedFragment)
-            {
-                return nestedSchema.CreateEmptyFragment();
-            }
-
-            fragment = nestedFragment;
-            if (index == segments.Length - 1)
-            {
-                return fragment;
-            }
-        }
-
-        throw new InvalidOperationException("A mounted fragment path did not resolve.");
-    }
-
     private static StateSource<TTarget> MountCore<TSource, TTarget>(
         StateSource<TSource> source,
         string propertyPath,

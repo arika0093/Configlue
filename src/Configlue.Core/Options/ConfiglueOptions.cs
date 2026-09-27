@@ -1014,6 +1014,26 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
             return new StateWriteResult(current.Revision);
         }
 
+        var baseline = await ResolveCoreAsync(null, cancellationToken).ConfigureAwait(false);
+        if (baseline.Result.Status != StateReadStatus.Success)
+        {
+            throw new InvalidOperationException(
+                $"Configuration state could not be read: {baseline.Result.Status}."
+            );
+        }
+
+        if (
+            patch.Apply(TModel.ToFragment(baseline.Result.Value!))
+            is not TFragment requestedFragment
+        )
+        {
+            throw new InvalidOperationException(
+                "The patch returned an incompatible configuration fragment."
+            );
+        }
+
+        var expectedResolvedModel = TModel.FromFragment(requestedFragment);
+
         if (_defaultWritePlan.PropertyRoutes.Count > 0)
         {
             ValidateWritePlan(_defaultWritePlan);
@@ -1068,7 +1088,12 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
         var sourcePatches = patchesBySource
             .Select(static route => new StateSourcePatch(route.Key, route.Value))
             .ToArray();
-        var result = await ApplyPatchesCoreAsync(sourcePatches, null, null, cancellationToken)
+        var result = await ApplyPatchesCoreAsync(
+                sourcePatches,
+                baseline.Result.Revisions,
+                expectedResolvedModel,
+                cancellationToken
+            )
             .ConfigureAwait(false);
         var sourceResult = result.Sources.FirstOrDefault(route =>
             string.Equals(route.SourceId, source.Id, StringComparison.Ordinal)
@@ -1636,20 +1661,25 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
                 && TModel.Diff(proposed.Result.Value!, expectedModel) is { IsEmpty: false } mismatch
             )
             {
-                var paths = GetChangedPropertyPaths(TModel.ConfiglueSchema, mismatch, []);
-                var readonlySources = proposed
-                    .Contributions.Where(static contribution => contribution.Source.Writer is null)
-                    .Select(static contribution => contribution.Source.Id)
-                    .Distinct(StringComparer.Ordinal)
-                    .ToArray();
-                var details = paths.Count == 0 ? "the requested values" : string.Join(", ", paths);
-                var shadowing =
-                    readonlySources.Length == 0
-                        ? string.Empty
-                        : $" Read-only source(s) contributing to the resolved state: '{string.Join("', '", readonlySources)}'.";
-                throw LogConflict(
-                    $"The configured source routes cannot realize the requested edit for '{details}'. A higher-priority contribution may shadow the write.{shadowing}"
-                );
+                var paths = GetReplaceMemberPaths(TModel.ConfiglueSchema, mismatch, []);
+                if (paths.Count > 0)
+                {
+                    var readonlySources = proposed
+                        .Contributions.Where(static contribution =>
+                            contribution.Source.Writer is null
+                        )
+                        .Select(static contribution => contribution.Source.Id)
+                        .Distinct(StringComparer.Ordinal)
+                        .ToArray();
+                    var details = string.Join(", ", paths);
+                    var shadowing =
+                        readonlySources.Length == 0
+                            ? string.Empty
+                            : $" Read-only source(s) contributing to the resolved state: '{string.Join("', '", readonlySources)}'.";
+                    throw LogConflict(
+                        $"The configured source routes cannot realize the requested edit for '{details}'. A higher-priority contribution may shadow the write.{shadowing}"
+                    );
+                }
             }
 
             if (!HaveSameRevisions(baseline.Result.Revisions, proposed.Result.Revisions))
@@ -3369,6 +3399,43 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
                 paths.AddRange(GetChangedPropertyPaths(member.NestedSchemaFactory(), nested, path));
             }
             else
+            {
+                paths.Add(string.Join('.', path));
+            }
+
+            path.RemoveAt(path.Count - 1);
+        }
+
+        return paths;
+    }
+
+    private static List<string> GetReplaceMemberPaths(
+        ConfiglueModelSchema schema,
+        IConfiglueFragment changes,
+        List<string> path
+    )
+    {
+        var paths = new List<string>();
+        foreach (var change in changes.EnumeratePresentMembers())
+        {
+            var member = schema.Members.FirstOrDefault(candidate => candidate.Id == change.Id);
+            if (string.IsNullOrEmpty(member.Name))
+            {
+                continue;
+            }
+
+            path.Add(member.Name);
+            if (
+                member.MergeMode == MergeMode.Deep
+                && member.NestedSchemaFactory is not null
+                && change.Value is IConfiglueFragment nestedChanges
+            )
+            {
+                paths.AddRange(
+                    GetReplaceMemberPaths(member.NestedSchemaFactory(), nestedChanges, path)
+                );
+            }
+            else if (member.MergeMode == MergeMode.Replace)
             {
                 paths.Add(string.Join('.', path));
             }

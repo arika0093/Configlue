@@ -6,7 +6,7 @@ namespace Configlue;
 public static class ConfiglueSourceSetBuilderMountExtensions
 {
     /// <summary>Adds a nested source using a generated model member selector.</summary>
-    /// <remarks>The source remains caller-owned. The generated fragment path is used as the reverse mapping when the source supports writes.</remarks>
+    /// <remarks>The source remains caller-owned and the mounted source is read-only. Supply a reverse mapping to the writable overload to enable writes.</remarks>
     public static void AddMounted<TModel, TRootFragment, TSubtreeModel, TSubtreeFragment>(
         this ConfiglueSourceSetBuilder sources,
         StateSource<TSubtreeFragment> source,
@@ -20,12 +20,7 @@ public static class ConfiglueSourceSetBuilderMountExtensions
         ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(subtreeSelector);
         var propertyPath = GetPropertyPath(subtreeSelector);
-        AddMounted<TRootFragment, TSubtreeFragment>(
-            sources,
-            _ => source,
-            propertyPath,
-            root => ExtractMountedFragment<TRootFragment, TSubtreeFragment>(root, propertyPath)
-        );
+        AddMounted<TRootFragment, TSubtreeFragment>(sources, _ => source, propertyPath);
     }
 
     /// <summary>Adds a writable nested source using a generated model member selector.</summary>
@@ -48,7 +43,7 @@ public static class ConfiglueSourceSetBuilderMountExtensions
     }
 
     /// <summary>Adds a nested source factory using a generated model member selector.</summary>
-    /// <remarks>Factory-created sources remain caller-owned. The generated fragment path is used as the reverse mapping when the source supports writes.</remarks>
+    /// <remarks>Factory-created sources remain caller-owned and the mounted source is read-only. Supply a reverse mapping to the writable overload to enable writes.</remarks>
     public static void AddMounted<TModel, TRootFragment, TSubtreeModel, TSubtreeFragment>(
         this ConfiglueSourceSetBuilder sources,
         Func<IServiceProvider?, StateSource<TSubtreeFragment>> sourceFactory,
@@ -62,12 +57,7 @@ public static class ConfiglueSourceSetBuilderMountExtensions
         ArgumentNullException.ThrowIfNull(sourceFactory);
         ArgumentNullException.ThrowIfNull(subtreeSelector);
         var propertyPath = GetPropertyPath(subtreeSelector);
-        AddMounted<TRootFragment, TSubtreeFragment>(
-            sources,
-            sourceFactory,
-            propertyPath,
-            root => ExtractMountedFragment<TRootFragment, TSubtreeFragment>(root, propertyPath)
-        );
+        AddMounted<TRootFragment, TSubtreeFragment>(sources, sourceFactory, propertyPath);
     }
 
     /// <summary>Adds a writable nested source factory using a generated model member selector.</summary>
@@ -243,12 +233,4 @@ public static class ConfiglueSourceSetBuilderMountExtensions
 
         return string.Join('.', segments);
     }
-
-    private static TSubtreeFragment ExtractMountedFragment<TRootFragment, TSubtreeFragment>(
-        TRootFragment root,
-        string propertyPath
-    )
-        where TRootFragment : class, IConfiglueFragment<TRootFragment>
-        where TSubtreeFragment : class, IConfiglueFragment<TSubtreeFragment> =>
-        (TSubtreeFragment)StateSourceProjection.ExtractMountedFragment(root, propertyPath);
 }
