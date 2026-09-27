@@ -25,7 +25,7 @@ public sealed class CompositeStateSource<TFragment>
     /// <summary>Creates a logical read source from priority-ordered component sources.</summary>
     /// <param name="components">Component sources that return the same generated fragment type.</param>
     /// <param name="defaultWriteSourceId">Optional component that owns members without an explicit route.</param>
-    /// <param name="writePlan">Optional routes from top-level model member names to component source IDs.</param>
+    /// <param name="writePlan">Optional routes from model member paths to component source IDs.</param>
     public CompositeStateSource(
         StateSourceSet<TFragment> components,
         string? defaultWriteSourceId = null,
@@ -40,16 +40,8 @@ public sealed class CompositeStateSource<TFragment>
             GetWritableComponent(components, defaultWriteSourceId);
         }
 
-        foreach (var (path, sourceId) in _writePlan.PropertyRoutes)
+        foreach (var sourceId in _writePlan.PropertyRoutes.Values)
         {
-            if (path.Contains('.', StringComparison.Ordinal))
-            {
-                throw new ArgumentException(
-                    "Composite write routes must target top-level model members.",
-                    nameof(writePlan)
-                );
-            }
-
             GetWritableComponent(components, sourceId);
         }
 
@@ -81,17 +73,19 @@ public sealed class CompositeStateSource<TFragment>
 
     internal StateWritePlan WritePlan => _writePlan;
 
-    internal StateSource<TFragment> ResolveWriteComponent(string memberName)
+    internal StateSource<TFragment> ResolveWriteComponent(string propertyPath)
     {
         var componentId = _writePlan.ResolveSourceId(
-            memberName,
+            propertyPath,
             _defaultWriteSourceId
                 ?? throw new InvalidOperationException(
-                    $"Composite member '{memberName}' has no configured write owner."
+                    $"Composite property '{propertyPath}' has no configured write owner."
                 )
         );
         return GetWritableComponent(_components, componentId);
     }
+
+    internal bool HasWriteRouteBelow(string propertyPath) => _writePlan.HasRouteBelow(propertyPath);
 
     internal async ValueTask<StateReadResult<TFragment>> ReadWithOverridesAsync(
         IReadOnlyDictionary<string, TFragment> overrides,

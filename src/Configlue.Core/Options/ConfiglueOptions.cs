@@ -1279,19 +1279,6 @@ public sealed class ConfiglueOptions<TModel, TFragment>
 
             if (source.Reader is CompositeStateSource<TFragment> composite)
             {
-                var invalidMemberRoute = composite.WritePlan.PropertyRoutes.Keys.FirstOrDefault(
-                    memberRoute =>
-                        !modelSchema.Members.Any(member =>
-                            string.Equals(member.Name, memberRoute, StringComparison.Ordinal)
-                        )
-                );
-                if (invalidMemberRoute is not null)
-                {
-                    throw new InvalidOperationException(
-                        $"Composite write route '{invalidMemberRoute}' does not match a top-level model member."
-                    );
-                }
-
                 if (patchRequest.Patch is not IConfiglueMemberPatch memberPatch)
                 {
                     throw new NotSupportedException(
@@ -1299,26 +1286,71 @@ public sealed class ConfiglueOptions<TModel, TFragment>
                     );
                 }
 
-                var routed = new Dictionary<string, List<int>>(StringComparer.Ordinal);
-                foreach (var member in modelSchema.Members)
+                var invalidMemberRoute = composite.WritePlan.PropertyRoutes.Keys.FirstOrDefault(
+                    memberRoute => !IsValidMemberPath(modelSchema, memberRoute.Split('.'))
+                );
+                if (invalidMemberRoute is not null)
                 {
-                    var selected = memberPatch.SelectMembers([member.Id]);
-                    if (selected.IsEmpty)
-                    {
-                        continue;
-                    }
-
-                    var component = composite.ResolveWriteComponent(member.Name);
-                    if (!routed.TryGetValue(component.Id, out var memberIds))
-                    {
-                        memberIds = [];
-                        routed.Add(component.Id, memberIds);
-                    }
-
-                    memberIds.Add(member.Id);
+                    throw new InvalidOperationException(
+                        $"Composite write route '{invalidMemberRoute}' does not match a model member path."
+                    );
                 }
 
-                if (routed.Count == 0)
+                var routedPatches = new Dictionary<string, IConfigluePatch>(StringComparer.Ordinal);
+                if (patchRequest.Patch is FragmentChangesPatch fragmentPatch)
+                {
+                    var routedChanges = PartitionCompositeChanges(
+                        modelSchema,
+                        fragmentPatch.Changes,
+                        composite,
+                        []
+                    );
+                    foreach (var (componentId, componentChanges) in routedChanges)
+                    {
+                        routedPatches.Add(
+                            componentId,
+                            new FragmentChangesPatch((TFragment)componentChanges)
+                        );
+                    }
+                }
+                else
+                {
+                    var routedMemberIds = new Dictionary<string, List<int>>(StringComparer.Ordinal);
+                    foreach (var member in modelSchema.Members)
+                    {
+                        var selected = memberPatch.SelectMembers([member.Id]);
+                        if (selected.IsEmpty)
+                        {
+                            continue;
+                        }
+
+                        if (composite.HasWriteRouteBelow(member.Name))
+                        {
+                            throw new NotSupportedException(
+                                $"Patch for nested member '{member.Name}' must use a model edit so its nested changes can be routed."
+                            );
+                        }
+
+                        var component = composite.ResolveWriteComponent(member.Name);
+                        if (!routedMemberIds.TryGetValue(component.Id, out var memberIds))
+                        {
+                            memberIds = [];
+                            routedMemberIds.Add(component.Id, memberIds);
+                        }
+
+                        memberIds.Add(member.Id);
+                    }
+
+                    foreach (var (componentId, memberIds) in routedMemberIds)
+                    {
+                        routedPatches.Add(
+                            componentId,
+                            memberPatch.SelectMembers(memberIds.ToArray())
+                        );
+                    }
+                }
+
+                if (routedPatches.Count == 0)
                 {
                     noOpResults.Add(
                         source.Id,
@@ -1342,7 +1374,7 @@ public sealed class ConfiglueOptions<TModel, TFragment>
                 }
 
                 var componentOverrides = new Dictionary<string, TFragment>(StringComparer.Ordinal);
-                foreach (var (componentId, memberIds) in routed)
+                foreach (var (componentId, componentPatch) in routedPatches)
                 {
                     var component = composite.Components.First(item =>
                         string.Equals(item.Id, componentId, StringComparison.Ordinal)
@@ -1390,7 +1422,6 @@ public sealed class ConfiglueOptions<TModel, TFragment>
                             .ConfigureAwait(false);
                     }
 
-                    var componentPatch = memberPatch.SelectMembers(memberIds.ToArray());
                     if (componentPatch.Apply(componentFragment) is not TFragment patchedComponent)
                     {
                         throw new InvalidOperationException(
@@ -3472,6 +3503,105 @@ public sealed class ConfiglueOptions<TModel, TFragment>
         return routed;
     }
 
+    private Dictionary<string, IConfiglueFragment> PartitionCompositeChanges(
+        ConfiglueModelSchema schema,
+        IConfiglueFragment changes,
+        CompositeStateSource<TFragment> composite,
+        List<string> path
+    )
+    {
+        var routed = new Dictionary<string, IConfiglueFragment>(StringComparer.Ordinal);
+        foreach (var change in changes.EnumeratePresentMembers().ToArray())
+        {
+            var member = schema.Members.FirstOrDefault(candidate => candidate.Id == change.Id);
+            if (string.IsNullOrEmpty(member.Name))
+            {
+                throw new InvalidOperationException(
+                    $"Generated schema '{schema.Id}' has no member with id {change.Id}."
+                );
+            }
+
+            path.Add(member.Name);
+            try
+            {
+                var propertyPath = string.Join('.', path);
+                if (
+                    member.NestedSchemaFactory is not null
+                    && change.Value is IConfiglueFragment nestedChanges
+                    && composite.HasWriteRouteBelow(propertyPath)
+                )
+                {
+                    var nestedRouted = PartitionCompositeChanges(
+                        member.NestedSchemaFactory(),
+                        nestedChanges,
+                        composite,
+                        path
+                    );
+                    foreach (var (nestedComponentId, nestedFragment) in nestedRouted)
+                    {
+                        var componentChanges = routed.TryGetValue(
+                            nestedComponentId,
+                            out var existing
+                        )
+                            ? existing
+                            : schema.CreateEmptyFragment();
+                        routed[nestedComponentId] = componentChanges.WithMember(
+                            member.Id,
+                            nestedFragment
+                        );
+                    }
+
+                    continue;
+                }
+
+                if (
+                    member.NestedSchemaFactory is not null
+                    && composite.HasWriteRouteBelow(propertyPath)
+                )
+                {
+                    throw LogConflict(
+                        $"The edit replaces nested member '{propertyPath}' as a whole, so its more specific composite component routes cannot be applied."
+                    );
+                }
+
+                var targetComponentId = composite.ResolveWriteComponent(propertyPath).Id;
+                var targetChanges = routed.TryGetValue(targetComponentId, out var current)
+                    ? current
+                    : schema.CreateEmptyFragment();
+                routed[targetComponentId] = targetChanges.WithMember(member.Id, change.Value);
+            }
+            finally
+            {
+                path.RemoveAt(path.Count - 1);
+            }
+        }
+
+        return routed;
+    }
+
+    private static bool IsValidMemberPath(
+        ConfiglueModelSchema schema,
+        string[] segments,
+        int index = 0
+    )
+    {
+        var member = schema.Members.FirstOrDefault(candidate =>
+            string.Equals(candidate.Name, segments[index], StringComparison.Ordinal)
+        );
+        if (string.IsNullOrEmpty(member.Name))
+        {
+            return false;
+        }
+
+        if (index == segments.Length - 1)
+        {
+            return true;
+        }
+
+        return member.NestedSchemaFactory is not null
+            && IsValidMemberPath(member.NestedSchemaFactory(), segments, index + 1);
+    }
+
     private async ValueTask<StateWriteResult> WriteToSourceAsync(
         StateSource<TFragment> source,
         TModel value,
@@ -4599,6 +4729,8 @@ public sealed class ConfiglueOptions<TModel, TFragment>
 
     private sealed class FragmentChangesPatch(TFragment changes) : IConfiglueMemberPatch
     {
+        public TFragment Changes => changes;
+
         public ConfiglueModelSchema Schema => TModel.ConfiglueSchema;
 
         public bool IsEmpty => changes.IsEmpty;

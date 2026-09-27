@@ -30,7 +30,7 @@ For a fully hand-rolled source, implement `IStateReader<TFragment>` (plus `IStat
 
 ### Combine multiple resources as one logical source
 
-Use `CompositeStateSource<TFragment>` when several resources contribute sparse fragments but should appear as one logical source to the options runtime. Keep writes explicit by naming a default writable component and optional top-level member routes:
+Use `CompositeStateSource<TFragment>` when several resources contribute sparse fragments but should appear as one logical source to the options runtime. Keep writes explicit by naming a default writable component and optional member-path routes:
 
 ```csharp
 var combined = new CompositeStateSource<AppSettings.Fragment>(
@@ -38,12 +38,12 @@ var combined = new CompositeStateSource<AppSettings.Fragment>(
     defaultWriteSourceId: "local",
     writePlan: new StateWritePlan(new Dictionary<string, string>
     {
-        [nameof(AppSettings.Policy)] = "global",
+        ["Policy.Endpoint"] = "global",
     }));
 model.Sources(sources => sources.Add(combined.CreateSource("common-files", priority: 100)));
 ```
 
-The component sources merge from low to high priority. Each component's `fallbackCondition` controls whether a missing or unavailable fragment can be omitted. All successful components in one read must report matching schema metadata; the combined fragment is migrated once. Component revisions and watchers remain nested under the logical source revision. A patch sends each changed top-level member to its configured component as a sparse patch, so unsetting a member removes that component's contribution and reveals lower-priority values. Targets must be writable components. The composite has no single `ResourceId`; component writes use the existing resource batching rules. Writes across different resources are sequential and non-atomic. If a later resource fails, `StateMultiWriteException` carries completed source results, the failed resource and sources, unattempted source IDs, and the original exception in `InnerException`.
+The component sources merge from low to high priority. Each component's `fallbackCondition` controls whether a missing or unavailable fragment can be omitted. All successful components in one read must report matching schema metadata; the combined fragment is migrated once. Component revisions and watchers remain nested under the logical source revision. Model edits route changed nested members by the most-specific member path; unsetting a member removes its owner's contribution and reveals lower-priority values. Direct generated patches treat a nested member operation as atomic and cannot split it across descendant routes. Targets must be writable components. The composite has no single `ResourceId`; component writes use the existing resource batching rules. Writes across different resources are sequential and non-atomic. If a later resource fails, `StateMultiWriteException` carries completed source results, the failed resource and sources, unattempted source IDs, and the original exception in `InnerException`.
 
 ## Next steps
 
