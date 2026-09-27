@@ -1,3 +1,4 @@
+using Configlue.Provider.Json;
 using Configlue.Testing;
 
 namespace Configlue.Tests;
@@ -16,6 +17,14 @@ public partial class RemoteDatabaseContract
 public partial class RootWithNestedSettings
 {
     public NestedSettings? Settings { get; set; } = new();
+}
+
+[ConfiglueModel("root-with-two-settings", Version = 1)]
+public partial class RootWithTwoSettings
+{
+    public NestedSettings? Left { get; set; } = new();
+
+    public NestedSettings? Right { get; set; } = new();
 }
 
 public sealed class NestedSourceBindingTests
@@ -108,7 +117,237 @@ public sealed class NestedSourceBindingTests
         await Should.ThrowAsync<StateConflictException>(async () =>
             await options.SaveAsync(settings => settings.Database!.Host = "updated.db")
         );
+        var readOnlyWrite = await Should.ThrowAsync<InvalidOperationException>(async () =>
+            await options.SaveAsync(
+                settings => settings.Database!.Host = "updated.db",
+                new StateWritePlan(
+                    new Dictionary<string, string>(StringComparer.Ordinal)
+                    {
+                        ["Database.Host"] = "remote-database",
+                    }
+                )
+            )
+        );
+        (readOnlyWrite.Message).ShouldContain("does not support writes");
         (await baseStore.ReadAsync()).Value!.Database.Value!.Host.Value.ShouldBe("default.db");
+    }
+
+    [Test]
+    public async Task WritableMountedSourceAppliesSparseNestedChangesToItsExistingContribution()
+    {
+        var baseStore = new InMemoryStateStore<AppSettings.Fragment>(
+            new AppSettings.Fragment
+            {
+                Database = Optional<DatabaseSettings.Fragment?>.Present(
+                    new DatabaseSettings.Fragment
+                    {
+                        Host = Optional<string>.Present("default.db"),
+                        Port = Optional<int>.Present(5432),
+                    }
+                ),
+            }
+        );
+        var remoteStore = new InMemoryStateStore<DatabaseSettings.Fragment>(
+            new DatabaseSettings.Fragment
+            {
+                Host = Optional<string>.Present("remote.db"),
+                Port = Optional<int>.Present(7443),
+            }
+        );
+        var remote = new StateSource<DatabaseSettings.Fragment>(
+            "remote-database",
+            remoteStore,
+            priority: 100,
+            writer: remoteStore
+        );
+
+        await using var context = ConfiglueApp.CreateContext(builder =>
+        {
+            builder.Add<AppSettings>(model =>
+                model.Sources(sources =>
+                {
+                    sources.Add(new StateSource<AppSettings.Fragment>("defaults", baseStore));
+                    sources.AddMounted<
+                        AppSettings,
+                        AppSettings.Fragment,
+                        DatabaseSettings,
+                        DatabaseSettings.Fragment
+                    >(remote, model => model.Database, root => root.Database.Value!);
+                })
+            );
+        });
+
+        var options = context.GetOptions<AppSettings>();
+        await options.SaveAsync(
+            settings => settings.Database!.Host = "updated.remote.db",
+            new StateWritePlan(
+                new Dictionary<string, string>(StringComparer.Ordinal)
+                {
+                    ["Database.Host"] = "remote-database",
+                }
+            )
+        );
+
+        var remoteValue = (await remoteStore.ReadAsync()).Value!;
+        (remoteValue.Host.Value).ShouldBe("updated.remote.db");
+        (remoteValue.Port.Value).ShouldBe(7443);
+        (await baseStore.ReadAsync()).Value!.Database.Value!.Host.Value.ShouldBe("default.db");
+    }
+
+    [Test]
+    public async Task CurrentAwareReverseProjectionPreservesUnprojectedSourceFields()
+    {
+        var sourceStore = new InMemoryStateStore<RemoteDatabaseContract.Fragment>(
+            new RemoteDatabaseContract.Fragment
+            {
+                Endpoint = Optional<string>.Present("keep-this-endpoint"),
+                HostName = Optional<string>.Present("remote.db"),
+                Port = Optional<int>.Present(7443),
+            }
+        );
+        var source = new StateSource<RemoteDatabaseContract.Fragment>(
+            "remote-contract",
+            sourceStore,
+            priority: 100,
+            writer: sourceStore
+        );
+        var projected = StateSourceProjection.ProjectWithUpdate<
+            RemoteDatabaseContract.Fragment,
+            DatabaseSettings.Fragment
+        >(
+            source,
+            static current => new DatabaseSettings.Fragment
+            {
+                Host = current.HostName,
+                Port = current.Port,
+            },
+            static (previous, updated, current) =>
+                new RemoteDatabaseContract.Fragment
+                {
+                    Endpoint = current?.Endpoint ?? Optional<string>.Missing,
+                    HostName =
+                        previous?.Host.IsPresent == true && !updated.Host.IsPresent
+                            ? Optional<string>.Missing
+                        : updated.Host.IsPresent ? updated.Host
+                        : current?.HostName ?? Optional<string>.Missing,
+                    Port = updated.Port.IsPresent
+                        ? updated.Port
+                        : current?.Port ?? Optional<int>.Missing,
+                }
+        );
+
+        await using var context = ConfiglueApp.CreateContext(builder =>
+        {
+            builder.Add<AppSettings>(model =>
+                model.Sources(sources =>
+                    sources.AddMounted<
+                        AppSettings,
+                        AppSettings.Fragment,
+                        DatabaseSettings,
+                        DatabaseSettings.Fragment
+                    >(projected, model => model.Database, root => root.Database.Value!)
+                )
+            );
+        });
+
+        await context
+            .GetOptions<AppSettings>()
+            .SaveAsync(
+                settings => settings.Database!.Host = "updated.remote.db",
+                new StateWritePlan(
+                    new Dictionary<string, string>(StringComparer.Ordinal)
+                    {
+                        ["Database.Host"] = "remote-contract",
+                    }
+                )
+            );
+
+        var result = (await sourceStore.ReadAsync()).Value!;
+        (result.Endpoint.Value).ShouldBe("keep-this-endpoint");
+        (result.HostName.Value).ShouldBe("updated.remote.db");
+        (result.Port.Value).ShouldBe(7443);
+
+        var projectedOptions = new ConfiglueOptions<DatabaseSettings, DatabaseSettings.Fragment>(
+            new StateSourceSet<DatabaseSettings.Fragment>([projected])
+        );
+        await projectedOptions.ApplyPatchAsync(
+            new DatabaseSettings.Patch { Host = FragmentOperation<string>.Unset }
+        );
+        var afterUnset = (await sourceStore.ReadAsync()).Value!;
+        (afterUnset.HostName.IsPresent).ShouldBeFalse();
+        (afterUnset.Endpoint.Value).ShouldBe("keep-this-endpoint");
+        (afterUnset.Port.Value).ShouldBe(7443);
+    }
+
+    [Test]
+    public async Task WritableMountedSiblingSectionsBatchIntoOnePhysicalWrite()
+    {
+        var resource = new InMemoryResource();
+        var codec = new JsonStateCodec<NestedSettings.Fragment>();
+        var leftRawSource = SerializedStateSource.FromResource<NestedSettings.Fragment>(
+            "left-settings",
+            new JsonSectionResource(resource, "App:Left"),
+            codec,
+            priority: 10
+        );
+        var rightRawSource = SerializedStateSource.FromResource<NestedSettings.Fragment>(
+            "right-settings",
+            new JsonSectionResource(resource, "App:Right"),
+            codec,
+            priority: 10
+        );
+        var leftSource = StateSourceProjection.ProjectWithUpdate(
+            leftRawSource,
+            static fragment => fragment,
+            MergeNestedSettings
+        );
+        var rightSource = StateSourceProjection.ProjectWithUpdate(
+            rightRawSource,
+            static fragment => fragment,
+            MergeNestedSettings
+        );
+        await using var context = ConfiglueApp.CreateContext(builder =>
+        {
+            builder.Add<RootWithTwoSettings>(model =>
+                model.Sources(sources =>
+                {
+                    sources.AddMounted<
+                        RootWithTwoSettings,
+                        RootWithTwoSettings.Fragment,
+                        NestedSettings,
+                        NestedSettings.Fragment
+                    >(leftSource, model => model.Left, root => root.Left.Value!);
+                    sources.AddMounted<
+                        RootWithTwoSettings,
+                        RootWithTwoSettings.Fragment,
+                        NestedSettings,
+                        NestedSettings.Fragment
+                    >(rightSource, model => model.Right, root => root.Right.Value!);
+                })
+            );
+        });
+
+        var result = await context
+            .GetOptions<RootWithTwoSettings>()
+            .SaveAsync(
+                settings =>
+                {
+                    settings.Left!.Label = "left";
+                    settings.Right!.Label = "right";
+                },
+                new StateWritePlan(
+                    new Dictionary<string, string>(StringComparer.Ordinal)
+                    {
+                        ["Left.Label"] = "left-settings",
+                        ["Right.Label"] = "right-settings",
+                    }
+                )
+            );
+
+        (result.MultiWriteResult!.PhysicalWriteCount).ShouldBe(1);
+        (resource.WriteCount).ShouldBe(1);
+        ((await leftSource.Reader.ReadAsync()).Value!.Label.Value).ShouldBe("left");
+        ((await rightSource.Reader.ReadAsync()).Value!.Label.Value).ShouldBe("right");
     }
 
     [Test]
@@ -338,5 +577,20 @@ public sealed class NestedSourceBindingTests
         public ValueTask<StateReadResult<T>> ReadAsync(
             CancellationToken cancellationToken = default
         ) => ValueTask.FromResult(result);
+    }
+
+    private static NestedSettings.Fragment MergeNestedSettings(
+        NestedSettings.Fragment? previous,
+        NestedSettings.Fragment updated,
+        NestedSettings.Fragment? current
+    )
+    {
+        var merged = current ?? NestedSettings.Fragment.Empty;
+        foreach (var member in updated.EnumeratePresentMembers())
+        {
+            merged = (NestedSettings.Fragment)merged.WithMember(member.Id, member.Value);
+        }
+
+        return merged;
     }
 }

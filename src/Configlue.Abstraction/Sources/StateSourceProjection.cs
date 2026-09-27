@@ -5,7 +5,6 @@ public static class StateSourceProjection
 {
     /// <summary>
     /// Mounts a generated subtree fragment into its matching nested member of a root fragment.
-    /// The mounted source is read-only; reverse writes require an explicit binding contract.
     /// </summary>
     /// <typeparam name="TSource">The generated fragment for the nested model.</typeparam>
     /// <typeparam name="TTarget">The generated root fragment.</typeparam>
@@ -16,6 +15,36 @@ public static class StateSourceProjection
         StateSource<TSource> source,
         string propertyPath,
         StateSchemaMetadata? projectedSchema = null
+    )
+        where TSource : class, IConfiglueFragment<TSource>
+        where TTarget : class, IConfiglueFragment<TTarget> =>
+        MountCore<TSource, TTarget>(source, propertyPath, projectedSchema, null);
+
+    /// <summary>Mounts a generated subtree fragment with an explicit reverse projection.</summary>
+    /// <typeparam name="TSource">The generated fragment for the nested model.</typeparam>
+    /// <typeparam name="TTarget">The generated root fragment.</typeparam>
+    /// <param name="source">The nested source to mount.</param>
+    /// <param name="propertyPath">The dotted logical path to the nested model.</param>
+    /// <param name="toSource">Maps the sparse root contribution back to the source fragment.</param>
+    /// <param name="projectedSchema">Optional schema metadata for the root fragment.</param>
+    public static StateSource<TTarget> Mount<TSource, TTarget>(
+        StateSource<TSource> source,
+        string propertyPath,
+        Func<TTarget, TSource> toSource,
+        StateSchemaMetadata? projectedSchema = null
+    )
+        where TSource : class, IConfiglueFragment<TSource>
+        where TTarget : class, IConfiglueFragment<TTarget>
+    {
+        ArgumentNullException.ThrowIfNull(toSource);
+        return MountCore(source, propertyPath, projectedSchema, toSource);
+    }
+
+    private static StateSource<TTarget> MountCore<TSource, TTarget>(
+        StateSource<TSource> source,
+        string propertyPath,
+        StateSchemaMetadata? projectedSchema,
+        Func<TTarget, TSource>? toSource
     )
         where TSource : class, IConfiglueFragment<TSource>
         where TTarget : class, IConfiglueFragment<TTarget>
@@ -52,6 +81,7 @@ public static class StateSourceProjection
                     sourceSchema.ModelType,
                     propertyPath
                 ),
+            toSource,
             projectedSchema: projectedSchema ?? rootSchema.ToMetadata()
         );
         return mounted;
@@ -77,6 +107,51 @@ public static class StateSourceProjection
         StateSchemaMetadata? projectedSchema = null,
         IEnumerable<IStateSchemaMigration<TSource>>? sourceMigrations = null,
         StateSchemaMetadata? sourceSchema = null
+    ) =>
+        ProjectCore(
+            source,
+            toTarget,
+            toSource,
+            updateSource: null,
+            projectedSchema,
+            sourceMigrations,
+            sourceSchema
+        );
+
+    /// <summary>Projects a source and updates its current contract when reverse-mapping writes.</summary>
+    /// <remarks>The current-aware writer re-reads the source and asynchronously prepares batch mutations when the source supports batching. The callback must preserve unprojected data and reject unset operations the source cannot represent.</remarks>
+    /// <param name="source">The source to adapt.</param>
+    /// <param name="toTarget">Projects a source value into the target logical state.</param>
+    /// <param name="updateSource">Updates the current source contract from the previous projected value, the new projected value, and the current source contract.</param>
+    /// <param name="projectedSchema">Optional schema metadata for the projected target value.</param>
+    /// <param name="sourceMigrations">Optional migrations to apply to the source value before projection.</param>
+    /// <param name="sourceSchema">The target schema for source migrations.</param>
+    public static StateSource<TTarget> ProjectWithUpdate<TSource, TTarget>(
+        StateSource<TSource> source,
+        Func<TSource, TTarget> toTarget,
+        Func<TTarget?, TTarget, TSource?, TSource> updateSource,
+        StateSchemaMetadata? projectedSchema = null,
+        IEnumerable<IStateSchemaMigration<TSource>>? sourceMigrations = null,
+        StateSchemaMetadata? sourceSchema = null
+    ) =>
+        ProjectCore(
+            source,
+            toTarget,
+            toSource: null,
+            updateSource,
+            projectedSchema,
+            sourceMigrations,
+            sourceSchema
+        );
+
+    private static StateSource<TTarget> ProjectCore<TSource, TTarget>(
+        StateSource<TSource> source,
+        Func<TSource, TTarget> toTarget,
+        Func<TTarget, TSource>? toSource,
+        Func<TTarget?, TTarget, TSource?, TSource>? updateSource,
+        StateSchemaMetadata? projectedSchema,
+        IEnumerable<IStateSchemaMigration<TSource>>? sourceMigrations,
+        StateSchemaMetadata? sourceSchema
     )
     {
         ArgumentNullException.ThrowIfNull(source);
@@ -100,8 +175,15 @@ public static class StateSourceProjection
             migrationChain
         );
         IStateWriter<TTarget>? writer =
-            source.Writer is not null && toSource is not null
-                ? new ProjectedWriter<TSource, TTarget>(source.Writer, toSource)
+            source.Writer is not null && (toSource is not null || updateSource is not null)
+                ? new ProjectedWriter<TSource, TTarget>(
+                    source.Reader,
+                    source.Writer,
+                    toTarget,
+                    toSource,
+                    updateSource,
+                    migrationChain
+                )
                 : null;
         return new StateSource<TTarget>(
             source.Id,
@@ -230,22 +312,44 @@ public static class StateSourceProjection
     }
 
     private sealed class ProjectedWriter<TSource, TTarget>(
+        IStateReader<TSource> reader,
         IStateWriter<TSource> source,
-        Func<TTarget, TSource> toSource
-    ) : IStateWriter<TTarget>, IStateWriteBatchParticipant<TTarget>
+        Func<TSource, TTarget> toTarget,
+        Func<TTarget, TSource>? toSource,
+        Func<TTarget?, TTarget, TSource?, TSource>? updateSource,
+        StateSchemaMigrationChain<TSource>? migrationChain
+    )
+        : IStateWriter<TTarget>,
+            IStateWriteBatchParticipant<TTarget>,
+            IAsyncStateWriteBatchParticipant<TTarget>
     {
-        public ValueTask<StateWriteResult> WriteAsync(
+        public bool CanPrepareBatchWrite =>
+            source is IStateWriteBatchParticipant<TSource>
+            || source is IAsyncStateWriteBatchParticipant<TSource> { CanPrepareBatchWrite: true };
+
+        public async ValueTask<StateWriteResult> WriteAsync(
             StateWriteRequest<TTarget> request,
             CancellationToken cancellationToken = default
-        ) =>
-            source.WriteAsync(
-                new StateWriteRequest<TSource>(
-                    toSource(request.Value),
-                    request.ExpectedRevision,
-                    request.CheckRevision
-                ),
-                cancellationToken
-            );
+        )
+        {
+            var mapped = updateSource is null
+                ? toSource!(request.Value)
+                : await UpdateSourceAsync(request, cancellationToken).ConfigureAwait(false);
+            if (mapped is null)
+            {
+                throw new InvalidOperationException("The source projection returned a null value.");
+            }
+            return await source
+                .WriteAsync(
+                    new StateWriteRequest<TSource>(
+                        mapped,
+                        request.ExpectedRevision,
+                        request.CheckRevision
+                    ),
+                    cancellationToken
+                )
+                .ConfigureAwait(false);
+        }
 
         public bool TryCreateBatchWrite(
             StateWriteRequest<TTarget> request,
@@ -254,11 +358,19 @@ public static class StateSourceProjection
             out ResourceWriteMutation? mutation
         )
         {
+            if (updateSource is not null)
+            {
+                resourceId = default;
+                batchWriter = null;
+                mutation = null;
+                return false;
+            }
+
             if (source is IStateWriteBatchParticipant<TSource> participant)
             {
                 return participant.TryCreateBatchWrite(
                     new StateWriteRequest<TSource>(
-                        toSource(request.Value),
+                        toSource!(request.Value),
                         request.ExpectedRevision,
                         request.CheckRevision
                     ),
@@ -272,6 +384,124 @@ public static class StateSourceProjection
             batchWriter = null;
             mutation = null;
             return false;
+        }
+
+        public async ValueTask<StateWriteBatchPlan?> TryCreateBatchWriteAsync(
+            StateWriteRequest<TTarget> request,
+            CancellationToken cancellationToken = default
+        )
+        {
+            if (!CanPrepareBatchWrite)
+            {
+                return null;
+            }
+
+            var mapped = updateSource is null
+                ? toSource!(request.Value)
+                : await UpdateSourceAsync(request, cancellationToken).ConfigureAwait(false);
+            if (mapped is null)
+            {
+                throw new InvalidOperationException("The source projection returned a null value.");
+            }
+            var sourceRequest = new StateWriteRequest<TSource>(
+                mapped,
+                request.ExpectedRevision,
+                request.CheckRevision
+            );
+            if (source is IAsyncStateWriteBatchParticipant<TSource> asyncParticipant)
+            {
+                return await asyncParticipant
+                    .TryCreateBatchWriteAsync(sourceRequest, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+
+            if (
+                source is IStateWriteBatchParticipant<TSource> participant
+                && participant.TryCreateBatchWrite(
+                    sourceRequest,
+                    out var resourceId,
+                    out var batchWriter,
+                    out var mutation
+                )
+                && batchWriter is not null
+                && mutation is not null
+            )
+            {
+                return new StateWriteBatchPlan(resourceId, batchWriter, mutation);
+            }
+
+            return null;
+        }
+
+        private async ValueTask<TSource> UpdateSourceAsync(
+            StateWriteRequest<TTarget> request,
+            CancellationToken cancellationToken
+        )
+        {
+            var current = await reader.ReadAsync(cancellationToken).ConfigureAwait(false);
+            if (
+                request.CheckRevision
+                && !string.Equals(
+                    request.ExpectedRevision,
+                    current.Revision,
+                    StringComparison.Ordinal
+                )
+            )
+            {
+                throw new StateConflictException(
+                    "The projected source changed before its reverse update could be prepared."
+                );
+            }
+
+            if (current.Status == StateReadStatus.Unavailable)
+            {
+                throw new InvalidOperationException(
+                    "Cannot safely reverse-project a write because the source is unavailable."
+                );
+            }
+
+            var currentValue = current.Status switch
+            {
+                StateReadStatus.NotFound => default,
+                StateReadStatus.Success => current.Value
+                    ?? throw new InvalidOperationException(
+                        "The projected source returned a null value while preparing a reverse update."
+                    ),
+                _ => throw new InvalidOperationException(
+                    $"Cannot safely reverse-project a source with status '{current.Status}'."
+                ),
+            };
+            if (
+                current.Status == StateReadStatus.Success
+                && migrationChain is not null
+                && current.Schema is { } schema
+            )
+            {
+                currentValue = await migrationChain!
+                    .MigrateAsync(currentValue!, schema, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+
+            TTarget? previousProjected = default;
+            if (current.Status == StateReadStatus.Success)
+            {
+                previousProjected = toTarget(currentValue!);
+                if (previousProjected is null)
+                {
+                    throw new InvalidOperationException(
+                        "The source projection returned a null current value."
+                    );
+                }
+            }
+            var updated = updateSource!(previousProjected, request.Value, currentValue);
+            if (updated is null)
+            {
+                throw new InvalidOperationException(
+                    "The current-aware source update returned a null value."
+                );
+            }
+
+            return updated;
         }
     }
 }

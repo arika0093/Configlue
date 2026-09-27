@@ -755,37 +755,60 @@ public sealed class ConfiglueOptions<TModel, TFragment>
             var sourceResourceId = source.ResourceId;
             IResourceBatchWriter? batchWriter = null;
             ResourceWriteMutation? mutation = null;
+            ResourceId? participantResourceId = null;
             if (
+                source.Writer is IAsyncStateWriteBatchParticipant<TFragment>
+                {
+                    CanPrepareBatchWrite: true,
+                } asyncParticipant
+            )
+            {
+                var batchPlan = await asyncParticipant
+                    .TryCreateBatchWriteAsync(request, cancellationToken)
+                    .ConfigureAwait(false);
+                if (batchPlan is { } prepared)
+                {
+                    participantResourceId = prepared.ResourceId;
+                    batchWriter = prepared.BatchWriter;
+                    mutation = prepared.Mutation;
+                }
+            }
+            else if (
                 source.Writer is IStateWriteBatchParticipant<TFragment> participant
                 && participant.TryCreateBatchWrite(
                     request,
-                    out var participantResourceId,
+                    out var synchronousResourceId,
                     out batchWriter,
                     out mutation
                 )
             )
             {
+                participantResourceId = synchronousResourceId;
+            }
+
+            if (participantResourceId is { } resolvedResourceId)
+            {
                 if (
                     sourceResourceId is { } declaredResourceId
-                    && declaredResourceId != participantResourceId
+                    && declaredResourceId != resolvedResourceId
                 )
                 {
                     throw new InvalidOperationException(
-                        $"State source '{source.Id}' declares resource '{declaredResourceId}' but its writer targets '{participantResourceId}'."
+                        $"State source '{source.Id}' declares resource '{declaredResourceId}' but its writer targets '{resolvedResourceId}'."
                     );
                 }
 
                 if (
                     batchWriter is IResourceIdentity batchIdentity
-                    && batchIdentity.ResourceId != participantResourceId
+                    && batchIdentity.ResourceId != resolvedResourceId
                 )
                 {
                     throw new InvalidOperationException(
-                        $"State source '{source.Id}' prepares a mutation for '{participantResourceId}' but its batch writer targets '{batchIdentity.ResourceId}'."
+                        $"State source '{source.Id}' prepares a mutation for '{resolvedResourceId}' but its batch writer targets '{batchIdentity.ResourceId}'."
                     );
                 }
 
-                sourceResourceId = participantResourceId;
+                sourceResourceId = resolvedResourceId;
             }
 
             var proposed = StateReadResult<TFragment>.Success(

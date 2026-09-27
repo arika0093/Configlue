@@ -129,6 +129,11 @@ namespace Configlue
         public static Configlue.FragmentOperation<T> Set(T? value) { }
         public static Configlue.FragmentOperation<T> op_Implicit(T? value) { }
     }
+    public interface IAsyncStateWriteBatchParticipant<T>
+    {
+        bool CanPrepareBatchWrite { get; }
+        System.Threading.Tasks.ValueTask<Configlue.StateWriteBatchPlan?> TryCreateBatchWriteAsync(Configlue.StateWriteRequest<T> request, System.Threading.CancellationToken cancellationToken = default);
+    }
     public interface IConfiglueDeepCloneable<out T>
     {
         T DeepClone();
@@ -440,7 +445,11 @@ namespace Configlue
         public static Configlue.StateSource<TTarget> Mount<TSource, TTarget>(Configlue.StateSource<TSource> source, string propertyPath, Configlue.StateSchemaMetadata? projectedSchema = default)
             where TSource :  class, Configlue.IConfiglueFragment<TSource>
             where TTarget :  class, Configlue.IConfiglueFragment<TTarget> { }
+        public static Configlue.StateSource<TTarget> Mount<TSource, TTarget>(Configlue.StateSource<TSource> source, string propertyPath, System.Func<TTarget, TSource> toSource, Configlue.StateSchemaMetadata? projectedSchema = default)
+            where TSource :  class, Configlue.IConfiglueFragment<TSource>
+            where TTarget :  class, Configlue.IConfiglueFragment<TTarget> { }
         public static Configlue.StateSource<TTarget> Project<TSource, TTarget>(Configlue.StateSource<TSource> source, System.Func<TSource, TTarget> toTarget, System.Func<TTarget, TSource>? toSource = null, Configlue.StateSchemaMetadata? projectedSchema = default, System.Collections.Generic.IEnumerable<Configlue.IStateSchemaMigration<TSource>>? sourceMigrations = null, Configlue.StateSchemaMetadata? sourceSchema = default) { }
+        public static Configlue.StateSource<TTarget> ProjectWithUpdate<TSource, TTarget>(Configlue.StateSource<TSource> source, System.Func<TSource, TTarget> toTarget, System.Func<TTarget?, TTarget, TSource?, TSource> updateSource, Configlue.StateSchemaMetadata? projectedSchema = default, System.Collections.Generic.IEnumerable<Configlue.IStateSchemaMigration<TSource>>? sourceMigrations = null, Configlue.StateSchemaMetadata? sourceSchema = default) { }
     }
     public sealed class StateSourceSet<T>
     {
@@ -482,6 +491,13 @@ namespace Configlue
         public string TargetId { get; init; }
         public string? TargetRevision { get; init; }
         public bool WasAlreadyCurrent { get; init; }
+    }
+    public readonly struct StateWriteBatchPlan : System.IEquatable<Configlue.StateWriteBatchPlan>
+    {
+        public StateWriteBatchPlan(Configlue.ResourceId ResourceId, Configlue.IResourceBatchWriter BatchWriter, Configlue.ResourceWriteMutation Mutation) { }
+        public Configlue.IResourceBatchWriter BatchWriter { get; init; }
+        public Configlue.ResourceWriteMutation Mutation { get; init; }
+        public Configlue.ResourceId ResourceId { get; init; }
     }
     public sealed class StateWritePlan
     {
