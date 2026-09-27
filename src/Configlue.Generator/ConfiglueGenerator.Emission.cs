@@ -52,12 +52,13 @@ public sealed partial class ConfiglueGenerator
             .Append(modelType)
             .AppendLine(">");
         code.AppendLine("{");
+        var pocoCloneTypes = GetPocoCloneTypes(members, cancellationToken);
         AppendModelSchema(code, modelType, modelId, version, members);
         AppendFragmentSchema(code, modelType, modelId, version, members);
-        AppendDeepClone(code, modelType, members);
-        AppendPocoCloneHelpers(code, GetPocoCloneTypes(members, cancellationToken));
+        AppendDeepClone(code, modelType, members, !pocoCloneTypes.IsEmpty);
+        AppendPocoCloneHelpers(code, pocoCloneTypes);
         AppendCollectionCloneHelpers(code);
-        AppendFragment(code, modelType, members, previousModels);
+        AppendFragment(code, modelType, members, previousModels, !pocoCloneTypes.IsEmpty);
         AppendModelFragmentBridge(code, modelType);
         AppendFacadeRuntimeBridge(code, modelType);
         AppendHistoricalDispatcherFactory(code, modelType, previousModels);
@@ -358,15 +359,19 @@ public sealed partial class ConfiglueGenerator
     private static void AppendDeepClone(
         IndentedStringBuilder code,
         string modelType,
-        ImmutableArray<MemberModel> members
+        ImmutableArray<MemberModel> members,
+        bool usesPocoCloning
     )
     {
         code.AppendIndent(1).Append("public ").Append(modelType).AppendLine(" DeepClone()");
         code.AppendLineAt(1, "{");
-        code.AppendLineAt(
-            2,
-            "var __configlue_clone_context = new global::System.Collections.Generic.Dictionary<object, object>(global::System.Collections.Generic.ReferenceEqualityComparer.Instance);"
-        );
+        if (usesPocoCloning)
+        {
+            code.AppendLineAt(
+                2,
+                "var __configlue_clone_context = new global::System.Collections.Generic.Dictionary<object, object>(global::System.Collections.Generic.ReferenceEqualityComparer.Instance);"
+            );
+        }
         code.AppendIndent(2).Append("return new ").Append(modelType).AppendLine();
         code.AppendLineAt(1, "{");
         foreach (var member in members)

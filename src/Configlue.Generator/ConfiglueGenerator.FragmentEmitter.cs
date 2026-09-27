@@ -15,7 +15,8 @@ public sealed partial class ConfiglueGenerator
         IndentedStringBuilder code,
         string modelType,
         ImmutableArray<MemberModel> members,
-        ImmutableArray<PreviousModelInfo> previousModels
+        ImmutableArray<PreviousModelInfo> previousModels,
+        bool usesPocoCloning
     )
     {
         code.AppendLineAt(
@@ -78,12 +79,12 @@ public sealed partial class ConfiglueGenerator
             .AppendLine(";");
         code.AppendLine();
         AppendFragmentDescriptor(code, modelType, members);
-        AppendFromModel(code, modelType, members);
+        AppendFromModel(code, modelType, members, usesPocoCloning);
         AppendToModel(code, modelType, members);
         AppendMerge(code, members);
         AppendApplyChanges(code, members);
         AppendDiff(code, modelType, members);
-        AppendFragmentClone(code, members);
+        AppendFragmentClone(code, members, usesPocoCloning);
         AppendPatchSupport(code, members);
         AppendJsonConverter(code, members);
         AppendPreviousMappings(code, members, previousModels);
@@ -271,7 +272,8 @@ public sealed partial class ConfiglueGenerator
     private static void AppendFromModel(
         IndentedStringBuilder code,
         string modelType,
-        ImmutableArray<MemberModel> members
+        ImmutableArray<MemberModel> members,
+        bool usesPocoCloning
     )
     {
         code.AppendIndent(2)
@@ -280,10 +282,13 @@ public sealed partial class ConfiglueGenerator
             .AppendLine(" value)");
         code.AppendLineAt(2, "{");
         code.AppendLineAt(3, "global::System.ArgumentNullException.ThrowIfNull(value);");
-        code.AppendLineAt(
-            3,
-            "var __configlue_clone_context = new global::System.Collections.Generic.Dictionary<object, object>(global::System.Collections.Generic.ReferenceEqualityComparer.Instance);"
-        );
+        if (usesPocoCloning)
+        {
+            code.AppendLineAt(
+                3,
+                "var __configlue_clone_context = new global::System.Collections.Generic.Dictionary<object, object>(global::System.Collections.Generic.ReferenceEqualityComparer.Instance);"
+            );
+        }
         code.AppendLineAt(3, "return new Fragment");
         code.AppendLineAt(3, "{");
         foreach (var member in members)
@@ -499,7 +504,8 @@ public sealed partial class ConfiglueGenerator
 
     private static void AppendFragmentClone(
         IndentedStringBuilder code,
-        ImmutableArray<MemberModel> members
+        ImmutableArray<MemberModel> members,
+        bool usesPocoCloning
     )
     {
         code.AppendLineAt(
@@ -508,10 +514,13 @@ public sealed partial class ConfiglueGenerator
         );
         code.AppendLineAt(2, "public Fragment DeepClone()");
         code.AppendLineAt(2, "{");
-        code.AppendLineAt(
-            3,
-            "var __configlue_clone_context = new global::System.Collections.Generic.Dictionary<object, object>(global::System.Collections.Generic.ReferenceEqualityComparer.Instance);"
-        );
+        if (usesPocoCloning)
+        {
+            code.AppendLineAt(
+                3,
+                "var __configlue_clone_context = new global::System.Collections.Generic.Dictionary<object, object>(global::System.Collections.Generic.ReferenceEqualityComparer.Instance);"
+            );
+        }
         code.AppendLineAt(3, "return new Fragment");
         code.AppendLineAt(3, "{");
         foreach (var member in members)
