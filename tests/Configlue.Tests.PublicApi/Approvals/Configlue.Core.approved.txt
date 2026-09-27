@@ -15,6 +15,13 @@ namespace Configlue
         public static void Initialize(System.Action<Configlue.ConfiglueBuilder> configure) { }
         public static System.Threading.Tasks.ValueTask ShutdownAsync() { }
     }
+    public static class ConfiglueApp
+    {
+        public static Configlue.ConfiglueContext CreateContext(System.Action<Configlue.ConfiglueBuilder> configure) { }
+        public static Configlue.IWritableOptions<TModel> GetOptions<TModel>(string? optionsName = null) { }
+        public static void Initialize(System.Action<Configlue.ConfiglueBuilder> configure) { }
+        public static System.Threading.Tasks.ValueTask ShutdownAsync() { }
+    }
     public sealed class ConfiglueBuilder
     {
         public ConfiglueBuilder() { }

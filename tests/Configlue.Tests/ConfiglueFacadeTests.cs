@@ -11,7 +11,7 @@ public sealed class ConfiglueFacadeTests
     {
         var source = CreateSource("context", "context-value");
         await using (
-            var context = Configlue.CreateContext(builder =>
+            var context = ConfiglueApp.CreateContext(builder =>
             {
                 builder.Add<AppSettings>(model => model.Sources(sources => sources.Add(source)));
             })
@@ -21,7 +21,7 @@ public sealed class ConfiglueFacadeTests
             (value.Label).ShouldBe("context-value");
         }
 
-        Configlue.Initialize(builder =>
+        ConfiglueApp.Initialize(builder =>
         {
             builder.Add<AppSettings>(model =>
                 model.Sources(sources => sources.Add(CreateSource("static", "static-value")))
@@ -31,12 +31,15 @@ public sealed class ConfiglueFacadeTests
         {
             var value = await Configlue.GetOptions<AppSettings>().GetValueAsync();
             (value.Label).ShouldBe("static-value");
+            (await ConfiglueApp.GetOptions<AppSettings>().GetValueAsync()).Label.ShouldBe(
+                "static-value"
+            );
 
             Should.Throw<InvalidOperationException>(() => Configlue.Initialize(_ => { }));
         }
         finally
         {
-            await Configlue.ShutdownAsync();
+            await ConfiglueApp.ShutdownAsync();
         }
     }
 

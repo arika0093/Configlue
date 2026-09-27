@@ -18,7 +18,7 @@ var settingsSource = StateSourceProjection.Project(
     projectedSchema: SampleSetting.ConfiglueSchema.ToMetadata()
 );
 
-await using var context = global::Configlue.Configlue.CreateContext(builder =>
+await using var context = ConfiglueApp.CreateContext(builder =>
 {
     builder.Add<SampleSetting>(settings =>
     {

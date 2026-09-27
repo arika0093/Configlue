@@ -36,7 +36,9 @@ dotnet test --solution Configlue.slnx --configuration Release
 The generated-model facade provides a one-type-argument registration for both dependency injection and non-DI use. Non-DI applications can create an owned context or initialize one process-wide default; both expose asynchronous reads and writes.
 
 ```csharp
-await using var context = global::Configlue.Configlue.CreateContext(conf =>
+using Configlue;
+
+await using var context = ConfiglueApp.CreateContext(conf =>
 {
     conf.Add<UserSettings>(settings =>
     {
@@ -50,7 +52,7 @@ var current = await options.GetValueAsync();
 await options.SaveAsync(settings => settings.Name = "new name");
 ```
 
-The static convenience class has the fully qualified name `global::Configlue.Configlue` because it shares a name with the root namespace. `global::Configlue.Configlue.Initialize(...)` and `global::Configlue.Configlue.GetOptions<T>()` provide a process-wide default context; call `await global::Configlue.Configlue.ShutdownAsync()` to dispose it. A `ConfiglueContext` owns the options and watcher tasks it creates. Source, reader, writer, and resource instances supplied by the application remain caller-owned. The DI equivalent is `services.AddConfiglue(conf => conf.Add<UserSettings>(...))`; it uses the same model and source definitions, and the service provider owns the context. Set `OptionsName` in the model callback for a named instance.
+After `using Configlue;`, `ConfiglueApp.Initialize(...)` and `ConfiglueApp.GetOptions<T>()` provide a process-wide default context; call `await ConfiglueApp.ShutdownAsync()` to dispose it. `ConfiglueApp.CreateContext(...)` creates an independent lifetime-managed context. These methods share the same default context as the older `Configlue` static class. A `ConfiglueContext` owns the options and watcher tasks it creates. Source, reader, writer, and resource instances supplied by the application remain caller-owned. The DI equivalent is `services.AddConfiglue(conf => conf.Add<UserSettings>(...))`; it uses the same model and source definitions, and the service provider owns the context. Set `OptionsName` in the model callback for a named instance.
 
 `ConfiglueStandardPaths.GetStandardSaveDirectory(applicationId)` returns the platform-standard per-user configuration directory plus the application identifier. The application chooses the file name. A property can map to a specific environment variable with `[ConfiglueEnvironment("ENV_NAME")]`; otherwise the environment source uses its configured prefix and double-underscore member paths.
 
@@ -85,10 +87,11 @@ Higher priorities win for members present in more than one source. File sources 
 Provider packages add one-call source registrations to the shared `Sources` builder. File helpers work in non-DI and DI contexts; a generated file resource belongs to the context and is disposed after its watcher stops, while directly supplied HTTP clients remain owned by the caller or their factory.
 
 ```csharp
+using Configlue;
 using Configlue.Provider.Json;
 using Configlue.Provider.Yaml;
 
-await using var context = global::Configlue.Configlue.CreateContext(config =>
+await using var context = ConfiglueApp.CreateContext(config =>
 {
     config.Add<AppSettings>(model =>
     {
