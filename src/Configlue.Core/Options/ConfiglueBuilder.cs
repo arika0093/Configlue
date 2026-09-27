@@ -452,6 +452,8 @@ public sealed class ConfiglueContext : IDisposable, IAsyncDisposable
     private Task? _disposeTask;
     private int _disposed;
 
+    internal IReadOnlyList<IDisposable> OwnedResourcesForTests => _ownedResources;
+
     private ConfiglueContext(
         Dictionary<(Type ModelType, string Name), object> options,
         Dictionary<Type, object> registries,

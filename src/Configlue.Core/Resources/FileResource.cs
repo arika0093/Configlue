@@ -39,6 +39,7 @@ public sealed class FileResource : IResourceReader, IStateWatcher, IResourceBatc
     private FileSystemWatcher? _fileWatcher;
     private TaskCompletionSource _changed = NewChangeSignal();
     private bool _disposed;
+    private int _disposeCallCount;
 
     /// <summary>Creates a file resource at the supplied path.</summary>
     public FileResource(
@@ -108,6 +109,30 @@ public sealed class FileResource : IResourceReader, IStateWatcher, IResourceBatc
 
     /// <inheritdoc />
     public ResourceId ResourceId { get; }
+
+    internal bool IsDisposedForTests
+    {
+        get
+        {
+            lock (_watchGate)
+            {
+                return _disposed;
+            }
+        }
+    }
+
+    internal bool HasActiveWatcherForTests
+    {
+        get
+        {
+            lock (_watchGate)
+            {
+                return _fileWatcher is not null;
+            }
+        }
+    }
+
+    internal int DisposeCallCountForTests => Volatile.Read(ref _disposeCallCount);
 
     /// <inheritdoc />
     public async ValueTask<ResourceReadResult> ReadAsync(
@@ -283,6 +308,7 @@ public sealed class FileResource : IResourceReader, IStateWatcher, IResourceBatc
     /// <inheritdoc />
     public void Dispose()
     {
+        Interlocked.Increment(ref _disposeCallCount);
         lock (_watchGate)
         {
             if (_disposed)

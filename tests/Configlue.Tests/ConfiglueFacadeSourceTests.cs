@@ -1,9 +1,9 @@
 using System.Buffers;
+using System.CommandLine;
+using System.Net;
 using System.Text;
 using System.Text.Json.Nodes;
 using System.Xml.Linq;
-using System.Net;
-using System.CommandLine;
 using Configlue.Provider.Json;
 using Configlue.Provider.Xml;
 using Configlue.Provider.Yaml;
@@ -22,7 +22,10 @@ public sealed class ConfiglueFacadeSourceTests
     {
         using var directory = new TemporaryDirectory();
         var path = Path.Combine(directory.FullPath, "settings.json");
-        await File.WriteAllTextAsync(path, "{\"App\":{\"Other\":{\"Value\":\"keep\"}},\"Root\":\"keep\"}");
+        await File.WriteAllTextAsync(
+            path,
+            "{\"App\":{\"Other\":{\"Value\":\"keep\"}},\"Root\":\"keep\"}"
+        );
 
         await using var context = Configlue.CreateContext(builder =>
         {
@@ -47,7 +50,9 @@ public sealed class ConfiglueFacadeSourceTests
         var document = JsonNode.Parse(await File.ReadAllTextAsync(path))!.AsObject();
         (document["App"]!["Other"]!["Value"]!.GetValue<string>()).ShouldBe("keep");
         (document["Root"]!.GetValue<string>()).ShouldBe("keep");
-        (FindJsonProperty(document["App"]!["Settings"]!, "Label")!.GetValue<string>()).ShouldBe("updated");
+        (FindJsonProperty(document["App"]!["Settings"]!, "Label")!.GetValue<string>()).ShouldBe(
+            "updated"
+        );
     }
 
     [Test]
@@ -55,7 +60,10 @@ public sealed class ConfiglueFacadeSourceTests
     {
         using var directory = new TemporaryDirectory();
         var path = Path.Combine(directory.FullPath, "settings.xml");
-        await File.WriteAllTextAsync(path, "<root><App><Other><Value>keep</Value></Other></App><Root>keep</Root></root>");
+        await File.WriteAllTextAsync(
+            path,
+            "<root><App><Other><Value>keep</Value></Other></App><Root>keep</Root></root>"
+        );
 
         await using var context = Configlue.CreateContext(builder =>
         {
@@ -178,8 +186,11 @@ public sealed class ConfiglueFacadeSourceTests
         });
 
         await using var provider = services.BuildServiceProvider();
-        (provider.GetRequiredService<Microsoft.Extensions.Options.IOptionsMonitor<AppSettings>>().CurrentValue.Label)
-            .ShouldBe("di-file");
+        (
+            provider
+                .GetRequiredService<Microsoft.Extensions.Options.IOptionsMonitor<AppSettings>>()
+                .CurrentValue.Label
+        ).ShouldBe("di-file");
     }
 
     [Test]
@@ -200,10 +211,7 @@ public sealed class ConfiglueFacadeSourceTests
                                 Id = "first-file",
                                 Path = path,
                                 WatchChanges = true,
-                                ResourceOptions = new FileResourceOptions
-                                {
-                                    CreateBackup = false,
-                                },
+                                ResourceOptions = new FileResourceOptions { CreateBackup = false },
                             }
                         );
                         sources.Add<AppSettings.Fragment>(_ =>
@@ -214,9 +222,71 @@ public sealed class ConfiglueFacadeSourceTests
             })
         );
 
-        await File.WriteAllTextAsync(path, "{}" );
+        await File.WriteAllTextAsync(path, "{}");
         File.Delete(path);
         (Directory.Exists(directory.FullPath)).ShouldBeTrue();
+    }
+
+    [Test]
+    public async Task ContextShutdownStopsAndDisposesHelperCreatedFileWatcherOnce()
+    {
+        using var directory = new TemporaryDirectory();
+        var path = Path.Combine(directory.FullPath, "watched.json");
+        var context = Configlue.CreateContext(builder =>
+        {
+            builder.Add<AppSettings>(model =>
+                model.Sources(sources =>
+                    sources.FromJsonFile(
+                        new JsonFileSourceOptions
+                        {
+                            Id = "watched-json",
+                            Path = path,
+                            WatchChanges = true,
+                            ReadOnly = true,
+                        }
+                    )
+                )
+            );
+        });
+        var resource = context.OwnedResourcesForTests.OfType<FileResource>().Single();
+        using var subscription = context.GetOptions<AppSettings>().OnChange(static _ => { });
+
+        await WaitUntilAsync(() => resource.HasActiveWatcherForTests);
+        var firstDisposal = context.DisposeAsync().AsTask();
+        var secondDisposal = context.DisposeAsync().AsTask();
+        await Task.WhenAll(firstDisposal, secondDisposal);
+
+        firstDisposal.ShouldBeSameAs(secondDisposal);
+        (resource.IsDisposedForTests).ShouldBeTrue();
+        (resource.HasActiveWatcherForTests).ShouldBeFalse();
+        (resource.DisposeCallCountForTests).ShouldBe(1);
+    }
+
+    [Test]
+    public async Task ContextShutdownLeavesCallerSuppliedFileResourceOwnedByCaller()
+    {
+        using var directory = new TemporaryDirectory();
+        var resource = new FileResource(Path.Combine(directory.FullPath, "caller.json"));
+        var source = SerializedStateSource.FromResource<AppSettings.Fragment>(
+            "caller-json",
+            resource,
+            new JsonStateCodec<AppSettings.Fragment>()
+        );
+        var context = Configlue.CreateContext(builder =>
+        {
+            builder.Add<AppSettings>(model => model.Sources(sources => sources.Add(source)));
+        });
+        using var subscription = context.GetOptions<AppSettings>().OnChange(static _ => { });
+
+        await WaitUntilAsync(() => resource.HasActiveWatcherForTests);
+        await context.DisposeAsync();
+
+        (resource.IsDisposedForTests).ShouldBeFalse();
+        (resource.HasActiveWatcherForTests).ShouldBeTrue();
+        (resource.DisposeCallCountForTests).ShouldBe(0);
+
+        resource.Dispose();
+        (resource.IsDisposedForTests).ShouldBeTrue();
     }
 
     [Test]
@@ -250,8 +320,11 @@ public sealed class ConfiglueFacadeSourceTests
         });
 
         await using var provider = services.BuildServiceProvider();
-        (provider.GetRequiredService<Microsoft.Extensions.Options.IOptionsMonitor<AppSettings>>().CurrentValue.Label)
-            .ShouldBe("selected-di");
+        (
+            provider
+                .GetRequiredService<Microsoft.Extensions.Options.IOptionsMonitor<AppSettings>>()
+                .CurrentValue.Label
+        ).ShouldBe("selected-di");
     }
 
     [Test]
@@ -294,14 +367,14 @@ public sealed class ConfiglueFacadeSourceTests
             );
         });
 
-        var result = await context.GetOptions<AppSettings>().ApplyPatchesAsync(
-            [
+        var result = await context
+            .GetOptions<AppSettings>()
+            .ApplyPatchesAsync([
                 new StateSourcePatch(
                     "http-settings",
                     new AppSettings.Patch { RetryCount = FragmentOperation<int>.Set(2) }
                 ),
-            ]
-        );
+            ]);
         (result.PhysicalWriteCount).ShouldBe(1);
         return result.Sources.Single().ResourceId;
     }
@@ -319,25 +392,25 @@ public sealed class ConfiglueFacadeSourceTests
         var specificPath = Path.Combine(directory.FullPath, "selected.json");
         try
         {
-            await WriteFragmentAsync(globalPath, new AppSettings.Fragment
-            {
-                RetryCount = Optional<int>.Present(1),
-            });
-            await WriteFragmentAsync(localPath, new AppSettings.Fragment
-            {
-                Label = Optional<string?>.Present("local"),
-            });
-            await WriteFragmentAsync(specificPath, new AppSettings.Fragment
-            {
-                Enabled = Optional<bool>.Present(false),
-        });
+            await WriteFragmentAsync(
+                globalPath,
+                new AppSettings.Fragment { RetryCount = Optional<int>.Present(1) }
+            );
+            await WriteFragmentAsync(
+                localPath,
+                new AppSettings.Fragment { Label = Optional<string?>.Present("local") }
+            );
+            await WriteFragmentAsync(
+                specificPath,
+                new AppSettings.Fragment { Enabled = Optional<bool>.Present(false) }
+            );
 
-        var retryOption = new Option<int>("--retry");
-        var settingsFileOption = new Option<string>("--settings");
-        var rootCommand = new RootCommand();
-        rootCommand.Options.Add(retryOption);
-        rootCommand.Options.Add(settingsFileOption);
-        var parseResult = rootCommand.Parse(["--settings", specificPath, "--retry", "5"]);
+            var retryOption = new Option<int>("--retry");
+            var settingsFileOption = new Option<string>("--settings");
+            var rootCommand = new RootCommand();
+            rootCommand.Options.Add(retryOption);
+            rootCommand.Options.Add(settingsFileOption);
+            var parseResult = rootCommand.Parse(["--settings", specificPath, "--retry", "5"]);
             var commonOptions = new CommonSourceOptions
             {
                 ApplicationId = appId,
@@ -345,9 +418,8 @@ public sealed class ConfiglueFacadeSourceTests
                 LocalFilePath = localPath,
                 SpecificFilePath = specificPath,
                 EnvironmentPrefix = "CONFIGLUE_TEST",
-                EnvironmentVariables = () => [
-                    new KeyValuePair<string, string?>("CONFIGLUE_TEST__RetryCount", "4"),
-            ],
+                EnvironmentVariables = () =>
+                    [new KeyValuePair<string, string?>("CONFIGLUE_TEST__RetryCount", "4")],
                 CommandLineParseResult = parseResult,
                 ConfigureCommandLineMappings = mappings => mappings.Map(retryOption, "RetryCount"),
                 WriteLayer = CommonSourceWriteLayer.Specific,
@@ -429,11 +501,24 @@ public sealed class ConfiglueFacadeSourceTests
         return null;
     }
 
+    private static async Task WaitUntilAsync(Func<bool> condition)
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        while (!condition())
+        {
+            await Task.Delay(TimeSpan.FromMilliseconds(10), timeout.Token);
+        }
+    }
+
     private sealed class TemporaryDirectory : IDisposable
     {
         public TemporaryDirectory()
         {
-            FullPath = Path.Combine(Path.GetTempPath(), "Configlue.Tests", Guid.NewGuid().ToString("N"));
+            FullPath = Path.Combine(
+                Path.GetTempPath(),
+                "Configlue.Tests",
+                Guid.NewGuid().ToString("N")
+            );
             Directory.CreateDirectory(FullPath);
         }
 
@@ -453,10 +538,11 @@ public sealed class ConfiglueFacadeSourceTests
         protected override Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request,
             CancellationToken cancellationToken
-        ) => Task.FromResult(
-            request.Method == HttpMethod.Get
-                ? new HttpResponseMessage(HttpStatusCode.NotFound)
-                : new HttpResponseMessage(HttpStatusCode.NoContent)
-        );
+        ) =>
+            Task.FromResult(
+                request.Method == HttpMethod.Get
+                    ? new HttpResponseMessage(HttpStatusCode.NotFound)
+                    : new HttpResponseMessage(HttpStatusCode.NoContent)
+            );
     }
 }
