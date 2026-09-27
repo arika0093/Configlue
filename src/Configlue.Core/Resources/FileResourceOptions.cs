@@ -20,4 +20,16 @@ public sealed class FileResourceOptions
 
     /// <summary>The delay between transient sharing failures.</summary>
     public TimeSpan RetryDelay { get; init; } = TimeSpan.FromMilliseconds(40);
+
+    /// <summary>
+    /// The maximum time to wait for the cross-process sidecar lock before a write fails with an
+    /// <see cref="System.IO.IOException"/>. A <see langword="null"/> value (the default) waits until the
+    /// operation's cancellation token is signaled. This policy is independent of
+    /// <see cref="RetryCount"/> and <see cref="RetryDelay"/>, which only govern transient sharing
+    /// failures while replacing a file.
+    /// </summary>
+    public TimeSpan? LockAcquireTimeout { get; init; }
+
+    /// <summary>The delay between attempts to acquire the cross-process sidecar lock while another process holds it.</summary>
+    public TimeSpan LockAcquireRetryDelay { get; init; } = TimeSpan.FromMilliseconds(40);
 }

@@ -1,12 +1,32 @@
-using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Security.Cryptography;
 
 namespace Configlue;
 
 /// <summary>A local file resource with atomic replacement, revision checks, backups, and change notifications.</summary>
+/// <remarks>
+/// <para>
+/// Writes to the same normalized path are serialized both within the process, by a reference-counted
+/// semaphore that is removed once the last owner or waiter leaves, and across processes, by a zero-byte
+/// sidecar file named <c>.&lt;filename&gt;.configlue.lock</c> opened with exclusive sharing.
+/// </para>
+/// <para>
+/// The sidecar file is intentionally persistent: it is created on first use and never deleted. Deleting
+/// it on release would let a second process recreate the same path as a different file while an earlier
+/// holder is still using it, bypassing the lock, so the marker is left in place. There is at most one
+/// sidecar per target path, so it does not grow with the number of writes.
+/// </para>
+/// <para>
+/// Cross-process lock contention waits until <see cref="FileResourceOptions.LockAcquireTimeout"/> elapses
+/// or the operation's cancellation token is signaled; it is not limited by the transient-I/O retry
+/// settings. The default timeout waits indefinitely so a healthy same-path writer is never failed
+/// spuriously.
+/// </para>
+/// </remarks>
 public sealed class FileResource : IResourceReader, IStateWatcher, IResourceBatchWriter, IDisposable
 {
-    private static readonly ConcurrentDictionary<string, SemaphoreSlim> ProcessLocks = new(
+    private static readonly object ProcessLockGate = new();
+    private static readonly Dictionary<string, ProcessLockEntry> ProcessLocks = new(
         OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal
     );
 
@@ -61,6 +81,25 @@ public sealed class FileResource : IResourceReader, IStateWatcher, IResourceBatc
             );
         }
 
+        if (
+            _options.LockAcquireTimeout.HasValue
+            && _options.LockAcquireTimeout.Value < TimeSpan.Zero
+        )
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(options),
+                "LockAcquireTimeout cannot be negative."
+            );
+        }
+
+        if (_options.LockAcquireRetryDelay < TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(options),
+                "LockAcquireRetryDelay cannot be negative."
+            );
+        }
+
         ArgumentException.ThrowIfNullOrWhiteSpace(_options.BackupExtension);
     }
 
@@ -111,8 +150,8 @@ public sealed class FileResource : IResourceReader, IStateWatcher, IResourceBatc
         ResourceWriteMutation.ValidateBatch(mutations);
         Directory.CreateDirectory(_directory);
 
-        var processLock = ProcessLocks.GetOrAdd(_path, static _ => new SemaphoreSlim(1, 1));
-        await processLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        var processLock = await AcquireProcessLockAsync(_path, cancellationToken)
+            .ConfigureAwait(false);
         try
         {
             await using var interprocessLock = await AcquireInterprocessLockAsync(cancellationToken)
@@ -146,7 +185,7 @@ public sealed class FileResource : IResourceReader, IStateWatcher, IResourceBatc
         }
         finally
         {
-            processLock.Release();
+            processLock.Dispose();
         }
     }
 
@@ -176,8 +215,8 @@ public sealed class FileResource : IResourceReader, IStateWatcher, IResourceBatc
     {
         cancellationToken.ThrowIfCancellationRequested();
         Directory.CreateDirectory(_directory);
-        var processLock = ProcessLocks.GetOrAdd(_path, static _ => new SemaphoreSlim(1, 1));
-        await processLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        var processLock = await AcquireProcessLockAsync(_path, cancellationToken)
+            .ConfigureAwait(false);
         try
         {
             await using var interprocessLock = await AcquireInterprocessLockAsync(cancellationToken)
@@ -190,7 +229,7 @@ public sealed class FileResource : IResourceReader, IStateWatcher, IResourceBatc
         }
         finally
         {
-            processLock.Release();
+            processLock.Dispose();
         }
     }
 
@@ -258,12 +297,102 @@ public sealed class FileResource : IResourceReader, IStateWatcher, IResourceBatc
         }
     }
 
+    /// <summary>
+    /// Acquires the in-process per-path lock. The entry is reference counted so that it can be removed
+    /// from <see cref="ProcessLocks"/> once the last owner or waiter leaves, keeping the dictionary
+    /// bounded by the number of paths in flight rather than the number of paths ever seen.
+    /// </summary>
+    /// <remarks>
+    /// Every owner and waiter increments the count while holding <see cref="ProcessLockGate"/> before it
+    /// touches the semaphore, and only decrements after it has released (or failed to acquire) it.
+    /// Removal happens under the same gate and only when the count reaches zero, so a concurrent acquirer
+    /// either observes the removed entry and creates a fresh one or has already incremented the count and
+    /// keeps the entry alive. No waiter can be left holding a semaphore that is no longer reachable from
+    /// the dictionary.
+    /// </remarks>
+    private static async ValueTask<ProcessLockLease> AcquireProcessLockAsync(
+        string path,
+        CancellationToken cancellationToken
+    )
+    {
+        ProcessLockEntry entry;
+        lock (ProcessLockGate)
+        {
+            if (!ProcessLocks.TryGetValue(path, out entry!))
+            {
+                entry = new ProcessLockEntry();
+                ProcessLocks.Add(path, entry);
+            }
+
+            entry.ReferenceCount++;
+        }
+
+        try
+        {
+            await entry.Semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch
+        {
+            ReleaseProcessLock(path, entry, releaseSemaphore: false);
+            throw;
+        }
+
+        return new ProcessLockLease(path, entry);
+    }
+
+    private static void ReleaseProcessLock(
+        string path,
+        ProcessLockEntry entry,
+        bool releaseSemaphore
+    )
+    {
+        lock (ProcessLockGate)
+        {
+            entry.ReferenceCount--;
+            if (
+                entry.ReferenceCount == 0
+                && ProcessLocks.TryGetValue(path, out var current)
+                && ReferenceEquals(current, entry)
+            )
+            {
+                ProcessLocks.Remove(path);
+            }
+        }
+
+        if (releaseSemaphore)
+        {
+            entry.Semaphore.Release();
+        }
+    }
+
+    /// <summary>The number of live per-path lock entries. Exposed for tests to assert bounded growth.</summary>
+    internal static int ProcessLockCount
+    {
+        get
+        {
+            lock (ProcessLockGate)
+            {
+                return ProcessLocks.Count;
+            }
+        }
+    }
+
+    /// <summary>Whether a lock entry still exists for the supplied normalized path. Exposed for tests.</summary>
+    internal static bool HasProcessLockFor(string path)
+    {
+        lock (ProcessLockGate)
+        {
+            return ProcessLocks.ContainsKey(path);
+        }
+    }
+
     private async ValueTask<FileStream> AcquireInterprocessLockAsync(
         CancellationToken cancellationToken
     )
     {
         var lockPath = System.IO.Path.Combine(_directory, "." + _fileName + ".configlue.lock");
-        var attempt = 0;
+        var timeout = _options.LockAcquireTimeout;
+        var startTimestamp = Stopwatch.GetTimestamp();
         while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -278,10 +407,11 @@ public sealed class FileResource : IResourceReader, IStateWatcher, IResourceBatc
                     FileOptions.Asynchronous | FileOptions.WriteThrough
                 );
             }
-            catch (IOException) when (attempt < _options.RetryCount)
+            catch (IOException)
+                when (timeout is null || Stopwatch.GetElapsedTime(startTimestamp) < timeout.Value)
             {
-                attempt++;
-                await Task.Delay(_options.RetryDelay, cancellationToken).ConfigureAwait(false);
+                await Task.Delay(_options.LockAcquireRetryDelay, cancellationToken)
+                    .ConfigureAwait(false);
             }
         }
     }
@@ -501,4 +631,27 @@ public sealed class FileResource : IResourceReader, IStateWatcher, IResourceBatc
 
     private static TaskCompletionSource NewChangeSignal() =>
         new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    /// <summary>A per-path lock entry with the number of current owners and waiters.</summary>
+    private sealed class ProcessLockEntry
+    {
+        public SemaphoreSlim Semaphore { get; } = new(1, 1);
+
+        public int ReferenceCount { get; set; }
+    }
+
+    /// <summary>Releases the reference counted per-path lock when the operation completes.</summary>
+    private readonly struct ProcessLockLease : IDisposable
+    {
+        private readonly string _path;
+        private readonly ProcessLockEntry _entry;
+
+        public ProcessLockLease(string path, ProcessLockEntry entry)
+        {
+            _path = path;
+            _entry = entry;
+        }
+
+        public void Dispose() => ReleaseProcessLock(_path, _entry, releaseSemaphore: true);
+    }
 }

@@ -120,4 +120,272 @@ public sealed class FileResourceTests
             }
         }
     }
+
+    [Test]
+    [NotInParallel]
+    public async Task FileResource_RemovesProcessLockEntriesAfterOperationsFinish()
+    {
+        var directory = CreateTemporaryDirectory();
+        var baseline = FileResource.ProcessLockCount;
+        try
+        {
+            for (var index = 0; index < 64; index++)
+            {
+                var path = System.IO.Path.Combine(directory, $"settings-{index}.json");
+                using var resource = new FileResource(path);
+                await resource.WriteAsync(
+                    new ResourceWriteRequest(Encoding.UTF8.GetBytes("{\"value\":1}"))
+                );
+                FileResource.HasProcessLockFor(System.IO.Path.GetFullPath(path)).ShouldBeFalse();
+            }
+
+            FileResource.ProcessLockCount.ShouldBe(baseline);
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    [Test]
+    public async Task FileResource_KeepsTheSidecarLockFilePersistent()
+    {
+        var directory = CreateTemporaryDirectory();
+        var path = System.IO.Path.Combine(directory, "settings.json");
+        var lockPath = System.IO.Path.Combine(directory, ".settings.json.configlue.lock");
+        try
+        {
+            using var resource = new FileResource(path);
+            await resource.WriteAsync(
+                new ResourceWriteRequest(Encoding.UTF8.GetBytes("{\"value\":1}"))
+            );
+            File.Exists(lockPath).ShouldBeTrue();
+            await resource.WriteAsync(
+                new ResourceWriteRequest(Encoding.UTF8.GetBytes("{\"value\":2}"))
+            );
+            File.Exists(lockPath).ShouldBeTrue();
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    [Test]
+    public async Task FileResource_SerializesConditionalWritesAcrossInstancesForTheSameNormalizedPath()
+    {
+        var directory = CreateTemporaryDirectory();
+        var nested = System.IO.Path.Combine(directory, "nested");
+        var path = System.IO.Path.Combine(directory, "settings.json");
+        var alternate = System.IO.Path.Combine(nested, "..", "settings.json");
+        try
+        {
+            Directory.CreateDirectory(nested);
+            using var first = new FileResource(path);
+            using var second = new FileResource(alternate);
+            second.Path.ShouldBe(first.Path);
+
+            var initial = await first.WriteAsync(
+                new ResourceWriteRequest(
+                    Encoding.UTF8.GetBytes("{\"value\":0}"),
+                    CheckRevision: true
+                )
+            );
+
+            var conflicts = await Task.WhenAll(
+                Task.Run(() => WriteWithRevisionAsync(first, "{\"value\":1}", initial.Revision)),
+                Task.Run(() => WriteWithRevisionAsync(second, "{\"value\":2}", initial.Revision))
+            );
+
+            conflicts.Count(static conflict => conflict).ShouldBe(1);
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    [Test]
+    public async Task FileResource_WritesToDifferentPathsDoNotBlockEachOther()
+    {
+        var directory = CreateTemporaryDirectory();
+        var lockPath = System.IO.Path.Combine(directory, ".a.json.configlue.lock");
+        try
+        {
+            Directory.CreateDirectory(directory);
+            using (
+                var _ = new FileStream(
+                    lockPath,
+                    FileMode.OpenOrCreate,
+                    FileAccess.ReadWrite,
+                    FileShare.None
+                )
+            )
+            {
+                using var resource = new FileResource(
+                    System.IO.Path.Combine(directory, "b.json"),
+                    new FileResourceOptions { LockAcquireTimeout = TimeSpan.FromSeconds(10) }
+                );
+                await resource.WriteAsync(
+                    new ResourceWriteRequest(Encoding.UTF8.GetBytes("{\"value\":2}"))
+                );
+            }
+
+            File.Exists(System.IO.Path.Combine(directory, "b.json")).ShouldBeTrue();
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    [Test]
+    public async Task FileResource_HonorsCancellationWhileWaitingForTheLock()
+    {
+        var directory = CreateTemporaryDirectory();
+        var path = System.IO.Path.Combine(directory, "settings.json");
+        var lockPath = System.IO.Path.Combine(directory, ".settings.json.configlue.lock");
+        try
+        {
+            Directory.CreateDirectory(directory);
+            using (
+                var _ = new FileStream(
+                    lockPath,
+                    FileMode.OpenOrCreate,
+                    FileAccess.ReadWrite,
+                    FileShare.None
+                )
+            )
+            {
+                using var resource = new FileResource(
+                    path,
+                    new FileResourceOptions { LockAcquireTimeout = TimeSpan.FromSeconds(30) }
+                );
+                using var cancellation = new CancellationTokenSource();
+                var write = resource
+                    .WriteAsync(
+                        new ResourceWriteRequest(Encoding.UTF8.GetBytes("{}")),
+                        cancellation.Token
+                    )
+                    .AsTask();
+                await Task.Delay(TimeSpan.FromMilliseconds(100));
+                cancellation.Cancel();
+
+                await Should.ThrowAsync<OperationCanceledException>(async () => await write);
+            }
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    [Test]
+    public async Task FileResource_FailsWhenTheLockAcquireTimeoutExpires()
+    {
+        var directory = CreateTemporaryDirectory();
+        var path = System.IO.Path.Combine(directory, "settings.json");
+        var lockPath = System.IO.Path.Combine(directory, ".settings.json.configlue.lock");
+        try
+        {
+            Directory.CreateDirectory(directory);
+            using (
+                var _ = new FileStream(
+                    lockPath,
+                    FileMode.OpenOrCreate,
+                    FileAccess.ReadWrite,
+                    FileShare.None
+                )
+            )
+            {
+                using var resource = new FileResource(
+                    path,
+                    new FileResourceOptions
+                    {
+                        LockAcquireTimeout = TimeSpan.FromMilliseconds(150),
+                        LockAcquireRetryDelay = TimeSpan.FromMilliseconds(10),
+                    }
+                );
+
+                await Should.ThrowAsync<IOException>(async () =>
+                    await resource.WriteAsync(
+                        new ResourceWriteRequest(Encoding.UTF8.GetBytes("{}"))
+                    )
+                );
+            }
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    [Test]
+    public async Task FileResource_ReleasesTheProcessLockEntryAfterAFailedWrite()
+    {
+        var directory = CreateTemporaryDirectory();
+        var path = System.IO.Path.Combine(directory, "settings.json");
+        try
+        {
+            Directory.CreateDirectory(directory);
+            using (var seed = new FileResource(path))
+            {
+                await seed.WriteAsync(
+                    new ResourceWriteRequest(Encoding.UTF8.GetBytes("{\"value\":1}"))
+                );
+            }
+
+            using (var resource = new FileResource(path))
+            {
+                await Should.ThrowAsync<StateConflictException>(async () =>
+                    await resource.WriteAsync(
+                        new ResourceWriteRequest(
+                            Encoding.UTF8.GetBytes("{\"value\":2}"),
+                            "stale-revision"
+                        )
+                    )
+                );
+            }
+
+            FileResource.HasProcessLockFor(System.IO.Path.GetFullPath(path)).ShouldBeFalse();
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    private static async Task<bool> WriteWithRevisionAsync(
+        FileResource resource,
+        string content,
+        string? revision
+    )
+    {
+        try
+        {
+            await resource.WriteAsync(
+                new ResourceWriteRequest(Encoding.UTF8.GetBytes(content), revision)
+            );
+            return false;
+        }
+        catch (StateConflictException)
+        {
+            return true;
+        }
+    }
+
+    private static string CreateTemporaryDirectory() =>
+        System.IO.Path.Combine(
+            System.IO.Path.GetTempPath(),
+            "Configlue.Tests",
+            Guid.NewGuid().ToString("N")
+        );
+
+    private static void DeleteDirectory(string directory)
+    {
+        if (Directory.Exists(directory))
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
 }
