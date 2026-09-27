@@ -1,6 +1,13 @@
 [assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/arika0093/Configlue")]
 namespace Configlue.Source.Common
 {
+    public enum CommonSourceFileFormat
+    {
+        Auto = 0,
+        Json = 1,
+        Yaml = 2,
+        Xml = 3,
+    }
     public sealed class CommonSourceOptions
     {
         public CommonSourceOptions() { }
@@ -11,15 +18,21 @@ namespace Configlue.Source.Common
         public bool EnableSpecificFile { get; init; }
         public string? EnvironmentPrefix { get; init; }
         public System.Func<System.Collections.Generic.IEnumerable<System.Collections.Generic.KeyValuePair<string, string?>>>? EnvironmentVariables { get; init; }
+        public Configlue.Source.Common.CommonSourceFileFormat FileFormat { get; init; }
         public Configlue.FileResourceOptions? FileResourceOptions { get; init; }
+        public Configlue.Source.Common.CommonSourceFileFormat GlobalFileFormat { get; init; }
         public required string GlobalFileName { get; init; }
         public int GlobalWritePriority { get; init; }
+        public Configlue.Source.Common.CommonSourceFileFormat LocalFileFormat { get; init; }
         public string? LocalFilePath { get; init; }
         public int LocalWritePriority { get; init; }
         public System.Text.Json.JsonSerializerOptions? SerializerOptions { get; init; }
+        public Configlue.Source.Common.CommonSourceFileFormat SpecificFileFormat { get; init; }
         public string? SpecificFilePath { get; init; }
         public int SpecificWritePriority { get; init; }
         public Configlue.Source.Common.CommonSourceWriteLayer WriteLayer { get; init; }
+        public System.Text.Json.JsonNamingPolicy? YamlPropertyNamingPolicy { get; init; }
+        public SharpYaml.YamlSerializerOptions? YamlSerializerOptions { get; init; }
     }
     public static class CommonSourcePreset
     {

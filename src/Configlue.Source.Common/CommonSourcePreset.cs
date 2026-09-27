@@ -1,9 +1,28 @@
 using System.Text.Json;
 using Configlue;
 using Configlue.Provider.Json;
+using Configlue.Provider.Xml;
+using Configlue.Provider.Yaml;
 using Configlue.Source.Environment;
+using SharpYaml;
 
 namespace Configlue.Source.Common;
+
+/// <summary>The file format used by a common file layer.</summary>
+public enum CommonSourceFileFormat
+{
+    /// <summary>Infer the format from the file extension (<c>.yaml</c>/<c>.yml</c>, <c>.xml</c>, otherwise JSON).</summary>
+    Auto,
+
+    /// <summary>JavaScript Object Notation.</summary>
+    Json,
+
+    /// <summary>YAML Ain't Markup Language.</summary>
+    Yaml,
+
+    /// <summary>Extensible Markup Language.</summary>
+    Xml,
+}
 
 /// <summary>The layer selected as the normal write destination.</summary>
 public enum CommonSourceWriteLayer
@@ -53,6 +72,24 @@ public sealed class CommonSourceOptions
 
     /// <summary>JSON serialization and property naming options shared by the file layers.</summary>
     public JsonSerializerOptions? SerializerOptions { get; init; }
+
+    /// <summary>The default file format for layers without an explicit format. Auto infers from each path.</summary>
+    public CommonSourceFileFormat FileFormat { get; init; } = CommonSourceFileFormat.Auto;
+
+    /// <summary>The global file format. Auto falls back to <see cref="FileFormat"/> and then the path.</summary>
+    public CommonSourceFileFormat GlobalFileFormat { get; init; } = CommonSourceFileFormat.Auto;
+
+    /// <summary>The local file format. Auto falls back to <see cref="FileFormat"/> and then the path.</summary>
+    public CommonSourceFileFormat LocalFileFormat { get; init; } = CommonSourceFileFormat.Auto;
+
+    /// <summary>The specific file format. Auto falls back to <see cref="FileFormat"/> and then the path.</summary>
+    public CommonSourceFileFormat SpecificFileFormat { get; init; } = CommonSourceFileFormat.Auto;
+
+    /// <summary>Property naming policy shared by the YAML file layers.</summary>
+    public JsonNamingPolicy? YamlPropertyNamingPolicy { get; init; }
+
+    /// <summary>SharpYaml serializer metadata and behavior shared by the YAML file layers.</summary>
+    public YamlSerializerOptions? YamlSerializerOptions { get; init; }
 
     /// <summary>Backup and retry settings shared by the helper-created file resources.</summary>
     public FileResourceOptions? FileResourceOptions { get; init; }
@@ -154,17 +191,41 @@ public static class CommonSourcePreset
         {
             if (options.EnableGlobalFile)
             {
-                AddFile(sources, "common.global", globalPath, 100, writeId, options);
+                AddFile(
+                    sources,
+                    "common.global",
+                    globalPath,
+                    100,
+                    writeId,
+                    options,
+                    options.GlobalFileFormat
+                );
             }
 
             if (options.EnableLocalFile)
             {
-                AddFile(sources, "common.local", localPath, 200, writeId, options);
+                AddFile(
+                    sources,
+                    "common.local",
+                    localPath,
+                    200,
+                    writeId,
+                    options,
+                    options.LocalFileFormat
+                );
             }
 
             if (options.EnableSpecificFile && specificPath is not null)
             {
-                AddFile(sources, "common.specific", specificPath, 300, writeId, options);
+                AddFile(
+                    sources,
+                    "common.specific",
+                    specificPath,
+                    300,
+                    writeId,
+                    options,
+                    options.SpecificFileFormat
+                );
             }
 
             if (options.EnableEnvironment && options.EnvironmentPrefix is { } prefix)
@@ -326,20 +387,90 @@ public static class CommonSourcePreset
         string path,
         int priority,
         string writeId,
-        CommonSourceOptions commonOptions
-    ) =>
-        sources.FromJsonFile(
-            new JsonFileSourceOptions
-            {
-                Id = id,
-                Path = path,
-                Priority = priority,
-                FallbackCondition = StateFallbackCondition.NotFound,
-                ReadOnly = !string.Equals(id, writeId, StringComparison.Ordinal),
-                SerializerOptions = commonOptions.SerializerOptions,
-                ResourceOptions = commonOptions.FileResourceOptions,
-            }
-        );
+        CommonSourceOptions commonOptions,
+        CommonSourceFileFormat layerFormat
+    )
+    {
+        var readOnly = !string.Equals(id, writeId, StringComparison.Ordinal);
+        switch (ResolveFileFormat(layerFormat, commonOptions.FileFormat, path))
+        {
+            case CommonSourceFileFormat.Yaml:
+                sources.FromYamlFile(
+                    new YamlFileSourceOptions
+                    {
+                        Id = id,
+                        Path = path,
+                        Priority = priority,
+                        FallbackCondition = StateFallbackCondition.NotFound,
+                        ReadOnly = readOnly,
+                        PropertyNamingPolicy = commonOptions.YamlPropertyNamingPolicy,
+                        SerializerOptions = commonOptions.YamlSerializerOptions,
+                        ResourceOptions = commonOptions.FileResourceOptions,
+                    }
+                );
+                break;
+            case CommonSourceFileFormat.Xml:
+                sources.FromXmlFile(
+                    new XmlFileSourceOptions
+                    {
+                        Id = id,
+                        Path = path,
+                        Priority = priority,
+                        FallbackCondition = StateFallbackCondition.NotFound,
+                        ReadOnly = readOnly,
+                        ResourceOptions = commonOptions.FileResourceOptions,
+                    }
+                );
+                break;
+            default:
+                sources.FromJsonFile(
+                    new JsonFileSourceOptions
+                    {
+                        Id = id,
+                        Path = path,
+                        Priority = priority,
+                        FallbackCondition = StateFallbackCondition.NotFound,
+                        ReadOnly = readOnly,
+                        SerializerOptions = commonOptions.SerializerOptions,
+                        ResourceOptions = commonOptions.FileResourceOptions,
+                    }
+                );
+                break;
+        }
+    }
+
+    private static CommonSourceFileFormat ResolveFileFormat(
+        CommonSourceFileFormat layerFormat,
+        CommonSourceFileFormat defaultFormat,
+        string path
+    )
+    {
+        if (layerFormat != CommonSourceFileFormat.Auto)
+        {
+            return layerFormat;
+        }
+
+        if (defaultFormat != CommonSourceFileFormat.Auto)
+        {
+            return defaultFormat;
+        }
+
+        var extension = Path.GetExtension(path);
+        if (
+            extension.Equals(".yaml", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".yml", StringComparison.OrdinalIgnoreCase)
+        )
+        {
+            return CommonSourceFileFormat.Yaml;
+        }
+
+        if (extension.Equals(".xml", StringComparison.OrdinalIgnoreCase))
+        {
+            return CommonSourceFileFormat.Xml;
+        }
+
+        return CommonSourceFileFormat.Json;
+    }
 
     private static void ValidateFileName(string value)
     {
