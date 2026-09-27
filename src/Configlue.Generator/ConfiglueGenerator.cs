@@ -538,10 +538,16 @@ public sealed partial class ConfiglueGenerator : IIncrementalGenerator
     {
         if (type is IArrayTypeSymbol array)
         {
-            return new CollectionInfo(CollectionKind.Array, array.ElementType, null);
+            return new CollectionInfo(
+                CollectionKind.Array,
+                CloneCollectionKind.Array,
+                array.ElementType,
+                null,
+                null
+            );
         }
 
-        if (type is not INamedTypeSymbol named || named.TypeArguments.Length != 1)
+        if (type is not INamedTypeSymbol named || named.TypeArguments.Length is < 1 or > 2)
         {
             return CollectionInfo.Unsupported;
         }
@@ -560,7 +566,42 @@ public sealed partial class ConfiglueGenerator : IIncrementalGenerator
             _ => CollectionKind.Unsupported,
         };
 
-        return new CollectionInfo(kind, elementType, named);
+        var cloneKind = definition switch
+        {
+            "System.Collections.Generic.List<T>" => CloneCollectionKind.List,
+            "System.Collections.Generic.IEnumerable<T>"
+            or "System.Collections.Generic.IReadOnlyCollection<T>"
+            or "System.Collections.Generic.IReadOnlyList<T>" => CloneCollectionKind.Array,
+            "System.Collections.Generic.HashSet<T>"
+            or "System.Collections.Generic.ISet<T>"
+            or "System.Collections.Generic.IReadOnlySet<T>" => CloneCollectionKind.Set,
+            "System.Collections.Generic.Dictionary<TKey, TValue>"
+            or "System.Collections.Generic.IDictionary<TKey, TValue>"
+            or "System.Collections.Generic.IReadOnlyDictionary<TKey, TValue>" =>
+                CloneCollectionKind.Dictionary,
+            "System.Collections.Generic.Queue<T>" => CloneCollectionKind.Queue,
+            "System.Collections.Generic.Stack<T>" => CloneCollectionKind.Stack,
+            "System.Collections.Generic.LinkedList<T>" => CloneCollectionKind.LinkedList,
+            "System.Collections.Generic.SortedSet<T>" => CloneCollectionKind.SortedSet,
+            "System.Collections.ObjectModel.ObservableCollection<T>" =>
+                CloneCollectionKind.ObservableCollection,
+            "System.Collections.ObjectModel.ReadOnlyCollection<T>" =>
+                CloneCollectionKind.ReadOnlyCollection,
+            "System.Collections.Immutable.ImmutableArray<T>" => CloneCollectionKind.ImmutableArray,
+            "System.Collections.Immutable.ImmutableList<T>" => CloneCollectionKind.ImmutableList,
+            "System.Collections.Immutable.ImmutableHashSet<T>" => CloneCollectionKind.ImmutableSet,
+            "System.Collections.Immutable.ImmutableDictionary<TKey, TValue>" =>
+                CloneCollectionKind.ImmutableDictionary,
+            _ => CloneCollectionKind.Unsupported,
+        };
+
+        return new CollectionInfo(
+            kind,
+            cloneKind,
+            elementType,
+            named.TypeArguments.Length == 2 ? named.TypeArguments[1] : null,
+            named
+        );
     }
 
     private static bool IsValidMergeStrategy(
@@ -645,15 +686,19 @@ public sealed partial class ConfiglueGenerator : IIncrementalGenerator
 
     private sealed class CollectionInfo(
         CollectionKind kind,
+        CloneCollectionKind cloneKind,
         ITypeSymbol elementType,
+        ITypeSymbol? valueType,
         INamedTypeSymbol? namedType
     )
     {
         public CollectionKind Kind { get; } = kind;
+        public CloneCollectionKind CloneKind { get; } = cloneKind;
         public ITypeSymbol ElementType { get; } = elementType;
+        public ITypeSymbol? ValueType { get; } = valueType;
         public INamedTypeSymbol? NamedType { get; } = namedType;
         public static CollectionInfo Unsupported { get; } =
-            new(CollectionKind.Unsupported, null!, null);
+            new(CollectionKind.Unsupported, CloneCollectionKind.Unsupported, null!, null, null);
     }
 
     private enum CollectionKind
@@ -662,6 +707,25 @@ public sealed partial class ConfiglueGenerator : IIncrementalGenerator
         Array,
         List,
         Set,
+    }
+
+    private enum CloneCollectionKind
+    {
+        Unsupported,
+        Array,
+        List,
+        Set,
+        Dictionary,
+        Queue,
+        Stack,
+        LinkedList,
+        SortedSet,
+        ObservableCollection,
+        ReadOnlyCollection,
+        ImmutableArray,
+        ImmutableList,
+        ImmutableSet,
+        ImmutableDictionary,
     }
 
     private sealed class GenerationResult : IEquatable<GenerationResult>

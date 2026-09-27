@@ -24,29 +24,10 @@ public sealed partial class ConfiglueGenerator
             return $"{access} is null ? null! : {access}.DeepClone()";
         }
 
-        if (member.Collection.Kind == CollectionKind.Unsupported)
-        {
-            return access;
-        }
-
-        var elementModel = IsConfiglueModel(member.Collection.ElementType, cancellationToken);
-        var enumerated = access;
-        if (elementModel)
-        {
-            var elementType = TypeName(member.Collection.ElementType);
-            enumerated =
-                $"global::System.Linq.Enumerable.Select({access}, static item => item is null ? default! : (({elementType})item).DeepClone())";
-        }
-
-        return member.Collection.Kind switch
-        {
-            CollectionKind.Array => $"global::System.Linq.Enumerable.ToArray({enumerated})",
-            CollectionKind.List =>
-                $"new global::System.Collections.Generic.List<{TypeName(member.Collection.ElementType)}>({enumerated})",
-            CollectionKind.Set =>
-                $"new global::System.Collections.Generic.HashSet<{TypeName(member.Collection.ElementType)}>({enumerated})",
-            _ => access,
-        };
+        var cloned = CloneCollectionExpression(member, access, cancellationToken);
+        return member.Property.Type.IsReferenceType
+            ? $"{access} is null ? null! : {cloned}"
+            : cloned;
     }
 
     private static string CloneFragmentExpression(
@@ -60,32 +41,119 @@ public sealed partial class ConfiglueGenerator
             return $"{access}?.DeepClone()";
         }
 
-        var elementModel =
-            member.Collection.Kind != CollectionKind.Unsupported
-            && IsConfiglueModel(member.Collection.ElementType, cancellationToken);
-        if (member.Collection.Kind == CollectionKind.Unsupported)
+        var cloned = CloneCollectionExpression(member, access + "!", cancellationToken);
+        return $"(object?){access} is null ? default : {cloned}";
+    }
+
+    private static string CloneCollectionExpression(
+        MemberModel member,
+        string access,
+        CancellationToken cancellationToken
+    )
+    {
+        var collection = member.Collection;
+        if (collection.CloneKind == CloneCollectionKind.Unsupported)
         {
             return access;
         }
 
-        var enumerated = access;
-        if (elementModel)
+        var elementType = TypeName(collection.ElementType);
+        var elements = access;
+        if (IsConfiglueModel(collection.ElementType, cancellationToken))
         {
-            var elementType = TypeName(member.Collection.ElementType);
-            enumerated =
-                $"global::System.Linq.Enumerable.Select({access}!, static item => item is null ? default! : (({elementType})item).DeepClone())";
+            elements =
+                $"global::System.Linq.Enumerable.Select({access}, static item => item is null ? default! : (({elementType})item).DeepClone())";
         }
 
-        var cloned = member.Collection.Kind switch
+        var valueType = collection.ValueType is null ? null : TypeName(collection.ValueType);
+        if (collection.ValueType is not null)
         {
-            CollectionKind.Array => $"global::System.Linq.Enumerable.ToArray({enumerated})",
-            CollectionKind.List =>
-                $"new global::System.Collections.Generic.List<{TypeName(member.Collection.ElementType)}>({enumerated})",
-            CollectionKind.Set =>
-                $"new global::System.Collections.Generic.HashSet<{TypeName(member.Collection.ElementType)}>({enumerated})",
+            if (collection.CloneKind == CloneCollectionKind.Dictionary)
+            {
+                var isConcreteDictionary =
+                    collection.NamedType?.ConstructedFrom.ToDisplayString()
+                    == "System.Collections.Generic.Dictionary<TKey, TValue>";
+                var comparer = isConcreteDictionary ? access + ".Comparer" : null;
+                var keySelector = IsConfiglueModel(collection.ElementType, cancellationToken)
+                    ? $"static pair => pair.Key is null ? default! : (({elementType})pair.Key).DeepClone()"
+                    : "static pair => pair.Key";
+                var valueSelector = IsConfiglueModel(collection.ValueType, cancellationToken)
+                    ? $"static pair => pair.Value is null ? default! : (({valueType})pair.Value).DeepClone()"
+                    : "static pair => pair.Value";
+                return comparer is null
+                    ? $"global::System.Linq.Enumerable.ToDictionary({access}, {keySelector}, {valueSelector})"
+                    : $"global::System.Linq.Enumerable.ToDictionary({access}, {keySelector}, {valueSelector}, {comparer})";
+            }
+
+            if (collection.CloneKind == CloneCollectionKind.ImmutableDictionary)
+            {
+                var keySelector = IsConfiglueModel(collection.ElementType, cancellationToken)
+                    ? $"static pair => pair.Key is null ? default! : (({elementType})pair.Key).DeepClone()"
+                    : "static pair => pair.Key";
+                var valueSelector = IsConfiglueModel(collection.ValueType, cancellationToken)
+                    ? $"static pair => pair.Value is null ? default! : (({valueType})pair.Value).DeepClone()"
+                    : "static pair => pair.Value";
+                return $"global::System.Collections.Immutable.ImmutableDictionary.ToImmutableDictionary({access}, {keySelector}, {valueSelector}, {access}.KeyComparer, {access}.ValueComparer)";
+            }
+
+            return access;
+        }
+
+        return collection.CloneKind switch
+        {
+            CloneCollectionKind.Array => $"global::System.Linq.Enumerable.ToArray({elements})",
+            CloneCollectionKind.List =>
+                $"new global::System.Collections.Generic.List<{elementType}>({elements})",
+            CloneCollectionKind.Set => CloneSetExpression(
+                collection,
+                access,
+                elements,
+                elementType
+            ),
+            CloneCollectionKind.ImmutableSet => CloneSetExpression(
+                collection,
+                access,
+                elements,
+                elementType
+            ),
+            CloneCollectionKind.Queue =>
+                $"new global::System.Collections.Generic.Queue<{elementType}>({elements})",
+            CloneCollectionKind.Stack =>
+                $"new global::System.Collections.Generic.Stack<{elementType}>(global::System.Linq.Enumerable.Reverse({elements}))",
+            CloneCollectionKind.LinkedList =>
+                $"new global::System.Collections.Generic.LinkedList<{elementType}>({elements})",
+            CloneCollectionKind.SortedSet =>
+                $"new global::System.Collections.Generic.SortedSet<{elementType}>({elements}, {access}.Comparer)",
+            CloneCollectionKind.ObservableCollection =>
+                $"new global::System.Collections.ObjectModel.ObservableCollection<{elementType}>({elements})",
+            CloneCollectionKind.ReadOnlyCollection =>
+                $"new global::System.Collections.ObjectModel.ReadOnlyCollection<{elementType}>(new global::System.Collections.Generic.List<{elementType}>({elements}))",
+            CloneCollectionKind.ImmutableArray =>
+                $"{access}.IsDefault ? {access} : global::System.Collections.Immutable.ImmutableArray.CreateRange({elements})",
+            CloneCollectionKind.ImmutableList =>
+                $"global::System.Collections.Immutable.ImmutableList.CreateRange({elements})",
             _ => access,
         };
-        return $"(object?){access} is null ? default : {cloned}";
+    }
+
+    private static string CloneSetExpression(
+        CollectionInfo collection,
+        string access,
+        string elements,
+        string elementType
+    )
+    {
+        var definition = collection.NamedType?.ConstructedFrom.ToDisplayString();
+        return definition switch
+        {
+            "System.Collections.Generic.HashSet<T>" =>
+                $"new global::System.Collections.Generic.HashSet<{elementType}>({elements}, {access}.Comparer)",
+            "System.Collections.Generic.SortedSet<T>" =>
+                $"new global::System.Collections.Generic.SortedSet<{elementType}>({elements}, {access}.Comparer)",
+            "System.Collections.Immutable.ImmutableHashSet<T>" =>
+                $"global::System.Collections.Immutable.ImmutableHashSet.CreateRange({access}.KeyComparer, {elements})",
+            _ => $"new global::System.Collections.Generic.HashSet<{elementType}>({elements})",
+        };
     }
 
     private static string BuildCollectionMerge(MemberModel member, string lower, string higher)
