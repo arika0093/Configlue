@@ -62,9 +62,9 @@ namespace Configlue
         public Configlue.ReadValidationMode ReadValidationMode { get; set; }
         public bool RegisterAsSingleton { get; set; }
         public bool ValidateDataAnnotations { get; set; }
+        public Configlue.WriteConflictResolution WriteConflictResolution { get; set; }
         public Configlue.StateWritePlan WritePlan { get; set; }
         public Configlue.StateWriteRoute WriteRoute { get; set; }
-        public Configlue.WriteConflictResolution WriteConflictResolution { get; set; }
         public void AddMigration<TFragment>(Configlue.IStateSchemaMigration<TFragment> migration)
             where TFragment :  class, Configlue.IConfiglueFragment<TFragment> { }
         public void AddValidator(Configlue.IConfiglueValidator<TModel> validator) { }
