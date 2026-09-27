@@ -17,7 +17,7 @@ public sealed class FileResourceOptions
     public bool AutomaticBackupRecovery { get; init; }
 
     /// <summary>An optional backup directory. Relative paths use the resource file directory.</summary>
-    /// <remarks>When unset, Windows uses <c>backup</c> and other platforms use <c>.backup</c> beside the resource file.</remarks>
+    /// <remarks>When unset, Windows uses <c>backup</c> and other platforms use <c>.backup</c> beside the resource file. The legacy value <c>/</c> selects the resource file directory itself.</remarks>
     public string? BackupDirectory { get; init; }
 
     /// <summary>How many transient sharing failures are retried.</summary>
