@@ -76,6 +76,38 @@ public partial class HistoricalSettings
     public bool Enabled { get; set; } = true;
 }
 
+[ConfiglueModel(1, Id = "inner-settings")]
+public partial class InnerSettingsV1
+{
+    public int Count { get; set; } = 1;
+}
+
+[ConfiglueModel(2, Id = "inner-settings")]
+[ConfigluePreviousVersion(typeof(InnerSettingsV1))]
+public partial class InnerSettingsV2
+{
+    public int Count { get; set; } = 2;
+
+    public string? Note { get; set; } = "note";
+}
+
+[ConfiglueModel(1, Id = "nested-settings")]
+public partial class NestedSettingsV1
+{
+    public string? Label { get; set; } = "v1";
+
+    public InnerSettingsV1? Inner { get; set; } = new();
+}
+
+[ConfiglueModel(2, Id = "nested-settings")]
+[ConfigluePreviousVersion(typeof(NestedSettingsV1))]
+public partial class NestedSettings
+{
+    public string? Label { get; set; } = "v2";
+
+    public InnerSettingsV2? Inner { get; set; } = new();
+}
+
 public sealed class GeneratedFragmentTests
 {
     [Test]
@@ -219,6 +251,127 @@ public sealed class GeneratedFragmentTests
         (migrated.NullableLabel.Value).ShouldBeNull();
         (migrated.NewName.IsPresent).ShouldBeFalse();
         (migrated.ToModel().Enabled).ShouldBeTrue();
+    }
+
+    [Test]
+    public async Task FragmentBuilder_CopyFromUnsetAndSetPreservePresence()
+    {
+        var previous = new HistoricalSettingsV1.Fragment
+        {
+            RetryCount = Optional<int>.Present(0),
+            NullableLabel = Optional<string?>.Present(null),
+            OldName = Optional<string?>.Present("renamed"),
+        };
+        var builder = HistoricalSettings.Fragment.FromPrevious(previous).ToBuilder();
+
+        builder.NewName.CopyFrom(previous.OldName);
+        builder.RetryCount.Set(12);
+        builder.NullableLabel.Unset();
+
+        var migrated = builder.Build();
+
+        (migrated.NewName.IsPresent).ShouldBeTrue();
+        (migrated.NewName.Value).ShouldBe("renamed");
+        (migrated.RetryCount.IsPresent).ShouldBeTrue();
+        (migrated.RetryCount.Value).ShouldBe(12);
+        (migrated.NullableLabel.IsPresent).ShouldBeFalse();
+    }
+
+    [Test]
+    public async Task FragmentBuilder_CopyFromMissingStaysMissingAndNullStaysPresentNull()
+    {
+        var builder = new HistoricalSettings.Fragment
+        {
+            RetryCount = Optional<int>.Present(3),
+            NullableLabel = Optional<string?>.Present("value"),
+        }.ToBuilder();
+        var missing = new HistoricalSettingsV1.Fragment();
+        var presentNull = new HistoricalSettingsV1.Fragment
+        {
+            RetryCount = Optional<int>.Present(0),
+            NullableLabel = Optional<string?>.Present(null),
+        };
+
+        builder.RetryCount.CopyFrom(missing.RetryCount);
+        builder.NullableLabel.CopyFrom(presentNull.NullableLabel);
+
+        (builder.RetryCount.IsPresent).ShouldBeFalse();
+        (builder.NullableLabel.IsPresent).ShouldBeTrue();
+        (builder.NullableLabel.Value).ShouldBeNull();
+    }
+
+    [Test]
+    public async Task Patch_AssignmentHelpersMatchExplicitOperations()
+    {
+        var current = new AppSettings.Fragment
+        {
+            Enabled = Optional<bool>.Present(true),
+            Label = Optional<string?>.Present("old"),
+        };
+        var patch = new AppSettings.Patch();
+        patch.Enabled = false;
+        patch.Label.Unset();
+
+        var patched = current.Apply(patch);
+        var disabled = FragmentOperation<bool>.Set(true);
+        disabled.Unset();
+
+        (patched.Enabled.IsPresent).ShouldBeTrue();
+        (patched.Enabled.Value).ShouldBeFalse();
+        (patched.Label.IsPresent).ShouldBeFalse();
+        (disabled.Kind).ShouldBe(FragmentOperationKind.Unset);
+    }
+
+    [Test]
+    public async Task FromPrevious_NestedMemberMigrationPreservesPresence()
+    {
+        var value = new NestedSettingsV1.Fragment
+        {
+            Label = Optional<string?>.Present("kept"),
+            Inner = Optional<InnerSettingsV1.Fragment?>.Present(
+                new InnerSettingsV1.Fragment { Count = Optional<int>.Present(0) }
+            ),
+        };
+        var presentNull = new NestedSettingsV1.Fragment
+        {
+            Inner = Optional<InnerSettingsV1.Fragment?>.Present(null),
+        };
+        var missing = new NestedSettingsV1.Fragment();
+
+        var migratedValue = NestedSettings.Fragment.FromPrevious(value);
+        var migratedNull = NestedSettings.Fragment.FromPrevious(presentNull);
+        var migratedMissing = NestedSettings.Fragment.FromPrevious(missing);
+
+        (migratedValue.Label.IsPresent).ShouldBeTrue();
+        (migratedValue.Label.Value).ShouldBe("kept");
+        (migratedValue.Inner.IsPresent).ShouldBeTrue();
+        (migratedValue.Inner.Value).ShouldNotBeNull();
+        (migratedValue.Inner.Value!.Count.IsPresent).ShouldBeTrue();
+        (migratedValue.Inner.Value!.Count.Value).ShouldBe(0);
+        (migratedValue.Inner.Value!.Note.IsPresent).ShouldBeFalse();
+
+        (migratedNull.Inner.IsPresent).ShouldBeTrue();
+        (migratedNull.Inner.Value).ShouldBeNull();
+
+        (migratedMissing.Inner.IsPresent).ShouldBeFalse();
+    }
+
+    [Test]
+    public async Task FromPrevious_NestedMigrationReachesMaterializedModel()
+    {
+        var value = new NestedSettingsV1.Fragment
+        {
+            Inner = Optional<InnerSettingsV1.Fragment?>.Present(
+                new InnerSettingsV1.Fragment { Count = Optional<int>.Present(42) }
+            ),
+        };
+
+        var model = NestedSettings.Fragment.FromPrevious(value).ToModel();
+
+        (model.Inner).ShouldNotBeNull();
+        (model.Inner!.Count).ShouldBe(42);
+        (model.Inner.Note).ShouldBe("note");
+        (model.Label).ShouldBe("v2");
     }
 
     [Test]

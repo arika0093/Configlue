@@ -103,25 +103,58 @@ public sealed partial class ConfiglueGenerator
             code.AppendLineAt(3, "global::System.ArgumentNullException.ThrowIfNull(value);");
             code.AppendLineAt(3, "return new Fragment");
             code.AppendLineAt(3, "{");
-            foreach (var property in members.Select(static member => member.Property))
+            foreach (var member in members)
             {
-                if (
-                    !previousMembers.TryGetValue(property.Name, out var previousMember)
-                    || !SymbolEqualityComparer.Default.Equals(
-                        previousMember.Property.Type,
-                        property.Type
-                    )
-                )
+                if (!previousMembers.TryGetValue(member.Property.Name, out var previousMember))
                 {
                     continue;
                 }
 
-                var name = EscapeIdentifier(property.Name);
-                code.AppendIndent(4)
-                    .Append(name)
-                    .Append(" = value.")
-                    .Append(EscapeIdentifier(previousMember.Property.Name))
-                    .AppendLine(",");
+                var name = EscapeIdentifier(member.Property.Name);
+                var previousName = EscapeIdentifier(previousMember.Property.Name);
+                if (
+                    SymbolEqualityComparer.Default.Equals(
+                        previousMember.Property.Type,
+                        member.Property.Type
+                    )
+                )
+                {
+                    code.AppendIndent(4)
+                        .Append(name)
+                        .Append(" = value.")
+                        .Append(previousName)
+                        .AppendLine(",");
+                    continue;
+                }
+
+                if (
+                    member.ChildModel is not null
+                    && previousMember.ChildModel is not null
+                    && HasPreviousVersion(
+                        member.ChildModel,
+                        previousMember.ChildModel,
+                        code.CancellationToken
+                    )
+                )
+                {
+                    var childValueType = NonNullableTypeName(member.ChildModel) + ".Fragment?";
+                    var previousAccess = "value." + previousName;
+                    code.AppendIndent(4)
+                        .Append(name)
+                        .Append(" = ")
+                        .Append(previousAccess)
+                        .Append(".IsPresent ? global::Configlue.Optional<")
+                        .Append(childValueType)
+                        .Append(">.Present(")
+                        .Append(previousAccess)
+                        .Append(".Value is null ? null : ")
+                        .Append(NonNullableTypeName(member.ChildModel))
+                        .Append(".Fragment.FromPrevious(")
+                        .Append(previousAccess)
+                        .Append(".Value!)) : global::Configlue.Optional<")
+                        .Append(childValueType)
+                        .AppendLine(">.Missing,");
+                }
             }
 
             code.AppendLineAt(3, "};");
@@ -645,12 +678,22 @@ public sealed partial class ConfiglueGenerator
         code.AppendLineAt(1, "{");
         foreach (var member in members)
         {
+            var name = EscapeIdentifier(member.Property.Name);
+            var field = MemberBackingField(member);
             code.AppendIndent(2)
-                .Append("public global::Configlue.Optional<")
+                .Append("private global::Configlue.Optional<")
                 .Append(FragmentValueType(member))
                 .Append("> ")
-                .Append(EscapeIdentifier(member.Property.Name))
-                .AppendLine(" { get; set; }");
+                .Append(field)
+                .AppendLine(";");
+            code.AppendIndent(2)
+                .Append("public ref global::Configlue.Optional<")
+                .Append(FragmentValueType(member))
+                .Append("> ")
+                .Append(name)
+                .Append(" => ref ")
+                .Append(field)
+                .AppendLine(";");
         }
 
         code.AppendLineAt(2, "public FragmentBuilder() { }");
@@ -693,12 +736,22 @@ public sealed partial class ConfiglueGenerator
             .AppendLine(".ConfiglueSchema;");
         foreach (var member in members)
         {
+            var name = EscapeIdentifier(member.Property.Name);
+            var field = MemberBackingField(member);
             code.AppendIndent(2)
-                .Append("public global::Configlue.FragmentOperation<")
+                .Append("private global::Configlue.FragmentOperation<")
                 .Append(FragmentValueType(member))
                 .Append("> ")
-                .Append(EscapeIdentifier(member.Property.Name))
-                .AppendLine(" { get; set; }");
+                .Append(field)
+                .AppendLine(";");
+            code.AppendIndent(2)
+                .Append("public ref global::Configlue.FragmentOperation<")
+                .Append(FragmentValueType(member))
+                .Append("> ")
+                .Append(name)
+                .Append(" => ref ")
+                .Append(field)
+                .AppendLine(";");
         }
 
         code.AppendLineAt(2, "public Patch() { }");

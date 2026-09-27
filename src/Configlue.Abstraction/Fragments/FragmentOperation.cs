@@ -39,6 +39,10 @@ public readonly struct FragmentOperation<T>
     /// <summary>Sets the source member to a present value.</summary>
     public static FragmentOperation<T> Set(T? value) => new(FragmentOperationKind.Set, value);
 
+    /// <summary>Creates a set operation from a value, so a patch member can be assigned directly.</summary>
+    /// <param name="value">The value to set, including an explicit null or default.</param>
+    public static implicit operator FragmentOperation<T>(T? value) => Set(value);
+
     /// <summary>Removes the source member contribution.</summary>
     public static FragmentOperation<T> Unset => new(FragmentOperationKind.Unset, default);
 

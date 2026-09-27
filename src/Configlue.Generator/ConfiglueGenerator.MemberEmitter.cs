@@ -117,6 +117,42 @@ public sealed partial class ConfiglueGenerator
         return NonNullableTypeName(member.ChildModel) + ".Fragment?";
     }
 
+    private static string MemberBackingField(MemberModel member) =>
+        "__configlue_member_" + member.Property.Name;
+
+    private static bool HasPreviousVersion(
+        INamedTypeSymbol current,
+        INamedTypeSymbol previous,
+        CancellationToken cancellationToken
+    )
+    {
+        foreach (var attribute in current.GetAttributes())
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (attribute.AttributeClass?.ToDisplayString() != PreviousVersionAttributeName)
+            {
+                continue;
+            }
+
+            if (
+                attribute.ConstructorArguments.FirstOrDefault().Value is INamedTypeSymbol target
+                && SymbolEqualityComparer.Default.Equals(target, previous)
+                && GetModelVersion(previous, cancellationToken)
+                    < GetModelVersion(current, cancellationToken)
+                && string.Equals(
+                    GetModelId(previous, cancellationToken),
+                    GetModelId(current, cancellationToken),
+                    StringComparison.Ordinal
+                )
+            )
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private static string FragmentRuntimeValueType(MemberModel member) =>
         member.ChildModel is null
             ? member.Property.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)
