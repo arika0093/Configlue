@@ -159,7 +159,7 @@ public static class JsonFileSourceRegistration
 
             var path = options.MountPath.Split('.', StringSplitOptions.None);
             var subtreeSchema = GetNestedSchema(modelSchema, path, 0, options.MountPath);
-            var fragmentType = GetFragmentType(subtreeSchema.ModelType);
+            var fragmentType = subtreeSchema.CreateEmptyFragment().GetType();
             var method = typeof(JsonFileSourceDefinition)
                 .GetMethod(
                     nameof(CreateMountedSource),
@@ -234,8 +234,10 @@ public static class JsonFileSourceRegistration
                 sourceWriter = writer is null ? null : section;
             }
             IStateWatcher? watcher = watchChanges ? file : null;
-            var codec = new JsonStateCodec(
-                options.SerializerOptionsOverride ?? options.SerializerOptions,
+            var serializerOptions = options.SerializerOptionsOverride ?? options.SerializerOptions;
+            var codec = new JsonStateCodec<TFragment>(
+                serializerOptions,
+                TFragment.JsonConverter,
                 options.DocumentLayout
             );
             var stateReader = new SerializedStateReader<TFragment>(resource, codec);
@@ -265,17 +267,6 @@ public static class JsonFileSourceRegistration
                 physicalResourceId,
                 explicitOnly
             );
-        }
-
-        private static Type GetFragmentType(Type modelType)
-        {
-            var modelContract = modelType
-                .GetInterfaces()
-                .Single(contract =>
-                    contract.IsGenericType
-                    && contract.GetGenericTypeDefinition() == typeof(IConfiglueModel<,>)
-                );
-            return modelContract.GetGenericArguments()[1];
         }
 
         private static ConfiglueModelSchema GetNestedSchema(

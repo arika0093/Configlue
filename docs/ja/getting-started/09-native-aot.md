@@ -18,7 +18,6 @@ using System.Text.Json.Serialization;
 using Configlue.Provider.Json;
 
 [JsonSerializable(typeof(AppSettings))]
-[JsonSerializable(typeof(AppSettings.Fragment))]
 internal partial class AppJsonContext : JsonSerializerContext;
 ```
 
@@ -28,16 +27,14 @@ internal partial class AppJsonContext : JsonSerializerContext;
 <TabItem label="DI なし">
 
 ```csharp
-conf.Add<AppSettings>(model =>
+conf.Add<AppSettings>(model => model.Sources(sources =>
 {
-    model.Sources(sources => sources.FromJsonFile(new()
-    {
-        Id = "settings",
-        Path = "settings.json",
-        SerializerOptions = AppJsonContext.Default.Options,
-    }));
-    model.WriteRoute = StateWriteRoute.To("settings");
-});
+    sources.JsonFile("settings.json")
+        .SerializerOptions(AppJsonContext.Default.Options);
+    sources.JsonFile("database.json")
+        .Mount(settings => settings.Database)
+        .SerializerOptions(AppJsonContext.Default.Options);
+}));
 ```
 
 </TabItem>
@@ -46,23 +43,21 @@ conf.Add<AppSettings>(model =>
 ```csharp
 builder.Services.AddConfiglue(conf =>
 {
-    conf.Add<AppSettings>(model =>
+    conf.Add<AppSettings>(model => model.Sources(sources =>
     {
-        model.Sources(sources => sources.FromJsonFile(new()
-        {
-            Id = "settings",
-            Path = "settings.json",
-            SerializerOptions = AppJsonContext.Default.Options,
-        }));
-        model.WriteRoute = StateWriteRoute.To("settings");
-    });
+        sources.JsonFile("settings.json")
+            .SerializerOptions(AppJsonContext.Default.Options);
+        sources.JsonFile("database.json")
+            .Mount(settings => settings.Database)
+            .SerializerOptions(AppJsonContext.Default.Options);
+    }));
 });
 ```
 
 </TabItem>
 </Tabs>
 
-`FromJsonFile` のオプション名は形式ごとに同じ形です。XML も同様に、対応する生成メタデータを使います。
+Configlue fragment は provider の生成 converter を使い、mounted subtree fragment も同様に扱います。context はモデルの通常 property 型を含め、生成 `Fragment` 型を参照する必要はありません。XML も同様に対応する生成メタデータを使います。
 
 ## 動く例で確かめる
 

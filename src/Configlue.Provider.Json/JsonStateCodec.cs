@@ -1,6 +1,7 @@
 using System.Buffers;
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
 
 namespace Configlue.Provider.Json;
@@ -86,6 +87,7 @@ public sealed class JsonStateCodec<T>
 {
     private readonly JsonSerializerOptions _options;
     private readonly JsonTypeInfo<T>? _typeInfo;
+    private readonly JsonConverter<T>? _converter;
     private readonly DocumentLayoutOptions? _layout;
 
     /// <summary>Creates a reflection-based codec that uses the supplied options.</summary>
@@ -116,6 +118,47 @@ public sealed class JsonStateCodec<T>
         _layout = documentLayout;
     }
 
+    internal JsonStateCodec(
+        JsonSerializerOptions? options,
+        JsonConverter<T>? converter,
+        DocumentLayoutOptions? documentLayout
+    )
+    {
+        _options = options is null
+            ? new JsonSerializerOptions()
+            : new JsonSerializerOptions(options);
+        EnsureTypeInfoResolver(_options);
+        _converter = converter;
+        _layout = documentLayout;
+    }
+
+    [UnconditionalSuppressMessage(
+        "Trimming",
+        "IL2026",
+        Justification = "The reflection resolver is created only when reflection-based serialization is enabled. NativeAOT applications must supply a source-generated resolver, which bypasses this branch."
+    )]
+    [UnconditionalSuppressMessage(
+        "Aot",
+        "IL3050",
+        Justification = "The reflection resolver is created only when reflection-based serialization is enabled. NativeAOT applications must supply a source-generated resolver, which bypasses this branch."
+    )]
+    private static void EnsureTypeInfoResolver(JsonSerializerOptions options)
+    {
+        if (options.TypeInfoResolver is not null)
+        {
+            return;
+        }
+
+        if (!JsonSerializer.IsReflectionEnabledByDefault)
+        {
+            throw new InvalidOperationException(
+                "A source-generated JsonSerializerContext must be supplied for JSON facade sources when reflection-based JSON serialization is disabled."
+            );
+        }
+
+        options.TypeInfoResolver = new DefaultJsonTypeInfoResolver();
+    }
+
     /// <inheritdoc />
     [UnconditionalSuppressMessage(
         "Trimming",
@@ -131,6 +174,21 @@ public sealed class JsonStateCodec<T>
     {
         var payload = JsonStateCodecOperations.GetPayload(in source, _layout, _options, out _);
         var reader = new Utf8JsonReader(payload);
+        if (_converter is not null)
+        {
+            if (!reader.Read())
+            {
+                throw new JsonException("The JSON payload is empty.");
+            }
+
+            if (reader.TokenType == JsonTokenType.Null && !_converter.HandleNull)
+            {
+                return default;
+            }
+
+            return _converter.Read(ref reader, typeof(T), _options);
+        }
+
         return _typeInfo is null
             ? JsonSerializer.Deserialize<T>(ref reader, _options)
             : JsonSerializer.Deserialize(ref reader, _typeInfo);
@@ -153,7 +211,18 @@ public sealed class JsonStateCodec<T>
         var raw = new ArrayBufferWriter<byte>();
         using (var writer = new Utf8JsonWriter(raw))
         {
-            if (_typeInfo is null)
+            if (_converter is not null)
+            {
+                if (value is null && !_converter.HandleNull)
+                {
+                    writer.WriteNullValue();
+                }
+                else
+                {
+                    _converter.Write(writer, value!, _options);
+                }
+            }
+            else if (_typeInfo is null)
             {
                 JsonSerializer.Serialize(writer, value, _options);
             }
