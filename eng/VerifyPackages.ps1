@@ -111,7 +111,14 @@ if ($unexpectedPackageIds.Count -gt 0) {
     throw "Unexpected NuGet package IDs: $($unexpectedPackageIds -join ', ')."
 }
 
-$requiredMetaDependencies = @('Configlue.Core', 'Configlue.Extensions.DI')
+$requiredMetaDependencies = @(
+    'Configlue.Abstraction',
+    'Configlue.Core',
+    'Configlue.Extensions.DI',
+    'Configlue.Provider.Json',
+    'Configlue.Resource.Http',
+    'Configlue.Source.Environment'
+)
 $missingMetaDependencies = @(
     $requiredMetaDependencies | Where-Object { -not $configlueDependencies.Contains($_) }
 )

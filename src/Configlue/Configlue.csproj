@@ -4,13 +4,17 @@
     <RootNamespace>Configlue</RootNamespace>
     <IsPackable>true</IsPackable>
     <IncludeBuildOutput>false</IncludeBuildOutput>
-    <PackageDescription>Convenience package for Configlue Core, dependency injection, and source generation.</PackageDescription>
+    <PackageDescription>Convenience package for Configlue Core, the Abstraction contracts, dependency injection, the JSON provider, HTTP resources, the environment source, and source generation. Configlue.Abstraction is referenced directly so the complete requested set appears in this package's dependency list instead of only transitively through Core.</PackageDescription>
     <!-- This package intentionally contains dependencies and an analyzer but no lib assembly. -->
     <NoWarn>$(NoWarn);NU5128</NoWarn>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../Configlue.Core/Configlue.Core.csproj" />
+    <ProjectReference Include="../Configlue.Abstraction/Configlue.Abstraction.csproj" />
     <ProjectReference Include="../Configlue.Extensions.DI/Configlue.Extensions.DI.csproj" />
+    <ProjectReference Include="../Configlue.Provider.Json/Configlue.Provider.Json.csproj" />
+    <ProjectReference Include="../Configlue.Resource.Http/Configlue.Resource.Http.csproj" />
+    <ProjectReference Include="../Configlue.Source.Environment/Configlue.Source.Environment.csproj" />
     <ProjectReference
       Include="../Configlue.Generator/Configlue.Generator.csproj"
       OutputItemType="Analyzer"
