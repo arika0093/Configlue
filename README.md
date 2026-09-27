@@ -68,13 +68,13 @@ Saved. New Name: Alice
 
 ### Setup
 
-Install `Configlue` from NuGet. This meta-package brings in the abstraction contracts, the core runtime, DI integration, the JSON provider, HTTP resources, the environment source, and the source generator.
+Install `Configlue` from NuGet. This meta-package brings in the abstraction contracts, the core runtime, DI integration, the JSON provider, HTTP resources, common layered sources, the environment source, and the source generator.
 
 ```bash
 dotnet add package Configlue
 ```
 
-Add format or source packages only when you need them (`Configlue.Provider.Yaml`, `Configlue.Provider.Xml`, `Configlue.Source.CommandLine`, `Configlue.Source.Common`, `Configlue.Resource.Zip`, `Configlue.Testing`, …). See [Packages](#packages) for the full list.
+Add other format or source packages only when you need them (`Configlue.Provider.Yaml`, `Configlue.Provider.Xml`, `Configlue.Source.CommandLine`, `Configlue.Resource.Zip`, `Configlue.Testing`, …). See [Packages](#packages) for the full list.
 
 Requires the .NET 10 SDK:
 
@@ -301,7 +301,7 @@ Disjoint section mounts that share one resource are combined into one physical w
 
 ### Common Layered Sources
 
-The optional `Configlue.Source.Common` package composes global, local, explicitly selected, and environment/command-line layers for either `CreateContext` or `AddConfiglue`:
+The `Configlue.Source.Common` package, included by `Configlue`, composes global, local, explicitly selected, and environment/command-line layers for either `CreateContext` or `AddConfiglue`:
 
 ```csharp
 using Configlue.Source.Common;
@@ -587,7 +587,7 @@ Compose `SerializedStateSource.FromResource` over an `InMemoryResource` to test 
 
 | Package | Purpose |
 | --- | --- |
-| `Configlue` | User-facing meta-package: Core, DI integration, JSON provider, HTTP resources, environment source, and the generator analyzer. Contains no implementation assembly of its own. |
+| `Configlue` | User-facing meta-package: Core, DI integration, JSON provider, HTTP resources, common layered sources, environment source, and the generator analyzer. Contains no implementation assembly of its own. |
 | `Configlue.Abstraction` | Provider, codec, resource, and generated-model contracts. |
 | `Configlue.Core` | State resolution and persistence runtime. |
 | `Configlue.Extensions.DI` | Dependency-injection registration for Configlue options. |

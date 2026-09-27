@@ -19,7 +19,7 @@ dotnet test --solution Configlue.slnx --configuration Release
 
 ## Packages
 
-Install the `Configlue` meta-package. It brings in the abstraction contracts, the core runtime, DI integration, the JSON provider, HTTP resources, the environment source, and the source-generator analyzer. It contains no implementation assembly of its own.
+Install the `Configlue` meta-package. It brings in the abstraction contracts, the core runtime, DI integration, the JSON provider, HTTP resources, common layered sources, the environment source, and the source-generator analyzer. It contains no implementation assembly of its own.
 
 ```bash
 dotnet add package Configlue
@@ -32,7 +32,7 @@ Add the capability packages you need on top:
 | YAML files | `Configlue.Provider.Yaml` |
 | XML files | `Configlue.Provider.Xml` |
 | `System.CommandLine` input | `Configlue.Source.CommandLine` |
-| Global/local/specific/env/cli presets | `Configlue.Source.Common` |
+| Global/local/specific/env/cli presets | `Configlue` (includes `Configlue.Source.Common`) |
 | Serve settings over HTTP (ASP.NET Core) | `Configlue.Resource.Http.AspNetCore` |
 | ZIP archive entries | `Configlue.Resource.Zip` |
 | In-memory doubles for tests | `Configlue.Testing` |

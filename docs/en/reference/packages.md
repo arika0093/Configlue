@@ -7,7 +7,7 @@ description: Find the NuGet package for each Configlue capability.
 
 | Package | Purpose |
 | --- | --- |
-| `Configlue` | User-facing meta-package: Core, DI integration, JSON provider, HTTP resources, environment source, and the generator analyzer. Contains no implementation assembly of its own. |
+| `Configlue` | User-facing meta-package: Core, DI integration, JSON provider, HTTP resources, common layered sources, environment source, and the generator analyzer. Contains no implementation assembly of its own. |
 | `Configlue.Abstraction` | Provider, codec, resource, and generated-model contracts. |
 | `Configlue.Core` | State resolution and persistence runtime. |
 | `Configlue.Extensions.DI` | Dependency-injection registration for Configlue options. |
@@ -19,7 +19,7 @@ description: Find the NuGet package for each Configlue capability.
 | `Configlue.Provider.Yaml` | YAML codec with section resources and file registrations. |
 | `Configlue.Source.Environment` | Read-only source backed by process environment variables. |
 | `Configlue.Source.CommandLine` | Read-only source backed by a `System.CommandLine` parse result. |
-| `Configlue.Source.Common` | Global/local/file/environment/command-line source presets. |
+| `Configlue.Source.Common` | Global/local/file/environment/command-line source presets, included by the `Configlue` meta-package. |
 | `Configlue.Resource.Http` | HTTP read/write resources with ETag revisions and polling change detection. |
 | `Configlue.Resource.Http.AspNetCore` | ASP.NET Core endpoints for serving HTTP resources. |
 | `Configlue.Resource.Zip` | Resource view over one entry in a ZIP archive. |

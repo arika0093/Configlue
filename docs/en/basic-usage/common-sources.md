@@ -5,7 +5,7 @@ description: Global, local, specific, environment, and command-line presets.
 
 # Common layered sources
 
-The optional `Configlue.Source.Common` package composes the standard application stack — global file, local file, explicitly selected file, environment variables, command line — for either `CreateContext` or `services.AddConfiglue`:
+The `Configlue.Source.Common` package, included by `Configlue`, composes the standard application stack — global file, local file, explicitly selected file, environment variables, command line — for either `CreateContext` or `services.AddConfiglue`:
 
 ```csharp
 using Configlue.Source.Common;

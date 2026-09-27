@@ -5,7 +5,7 @@ description: 共通・ローカル・指定・環境変数・コマンドライ�
 
 # 共通レイヤーソース
 
-任意パッケージ `Configlue.Source.Common` は定番のアプリ構成 (共通ファイル・ローカルファイル・明示指定ファイル・環境変数・コマンドライン) を組み立てます。`CreateContext` と `services.AddConfiglue` のどちらでも使えます:
+`Configlue` に含まれる `Configlue.Source.Common` パッケージは定番のアプリ構成 (共通ファイル・ローカルファイル・明示指定ファイル・環境変数・コマンドライン) を組み立てます。`CreateContext` と `services.AddConfiglue` のどちらでも使えます:
 
 ```csharp
 using Configlue.Source.Common;
