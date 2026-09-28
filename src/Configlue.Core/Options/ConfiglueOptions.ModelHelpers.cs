@@ -437,7 +437,7 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
         }
     }
 
-    private sealed record ResolvedState
+    private readonly record struct ResolvedState
     {
         public StateReadResult<TModel> Result { get; init; }
         public IReadOnlyList<ResolvedContribution> Contributions { get; init; }

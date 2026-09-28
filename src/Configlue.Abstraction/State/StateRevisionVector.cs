@@ -43,6 +43,8 @@ public sealed class StateRevisionVector
             new Dictionary<string, StateRevisionVector>(StringComparer.Ordinal)
         );
 
+    private const int SmallDictionaryThreshold = 4;
+
     private readonly IReadOnlyDictionary<string, string?> _revisions;
     private readonly IReadOnlyDictionary<string, StateRevisionVector> _nestedRevisions;
 
@@ -96,6 +98,31 @@ public sealed class StateRevisionVector
             return new SingleEntryReadOnlyDictionary<string?>(first.SourceId, first.Revision);
         }
 
+        if (revisions.Length <= SmallDictionaryThreshold)
+        {
+            var entries = new KeyValuePair<string, string?>[revisions.Length];
+            entries[0] = new KeyValuePair<string, string?>(first.SourceId, first.Revision);
+            for (var index = 1; index < revisions.Length; index++)
+            {
+                var item = revisions[index];
+                ArgumentException.ThrowIfNullOrWhiteSpace(item.SourceId);
+                for (var existing = 0; existing < index; existing++)
+                {
+                    if (StringComparer.Ordinal.Equals(entries[existing].Key, item.SourceId))
+                    {
+                        throw new ArgumentException(
+                            $"Source '{item.SourceId}' occurs more than once in the revision vector.",
+                            nameof(revisions)
+                        );
+                    }
+                }
+
+                entries[index] = new KeyValuePair<string, string?>(item.SourceId, item.Revision);
+            }
+
+            return new SmallReadOnlyDictionary<string?>(entries);
+        }
+
         var values = new Dictionary<string, string?>(revisions.Length, StringComparer.Ordinal)
         {
             [first.SourceId] = first.Revision,
@@ -131,6 +158,35 @@ public sealed class StateRevisionVector
         if (nestedRevisions.Length == 1)
         {
             return new SingleEntryReadOnlyDictionary<StateRevisionVector>(first.Key, first.Value);
+        }
+
+        if (nestedRevisions.Length <= SmallDictionaryThreshold)
+        {
+            var entries = new KeyValuePair<string, StateRevisionVector>[nestedRevisions.Length];
+            entries[0] = new KeyValuePair<string, StateRevisionVector>(first.Key, first.Value);
+            for (var index = 1; index < nestedRevisions.Length; index++)
+            {
+                var item = nestedRevisions[index];
+                ArgumentException.ThrowIfNullOrWhiteSpace(item.Key);
+                ArgumentNullException.ThrowIfNull(item.Value);
+                for (var existing = 0; existing < index; existing++)
+                {
+                    if (StringComparer.Ordinal.Equals(entries[existing].Key, item.Key))
+                    {
+                        throw new ArgumentException(
+                            $"Source '{item.Key}' occurs more than once in the nested revision vectors.",
+                            nameof(nestedRevisions)
+                        );
+                    }
+                }
+
+                entries[index] = new KeyValuePair<string, StateRevisionVector>(
+                    item.Key,
+                    item.Value
+                );
+            }
+
+            return new SmallReadOnlyDictionary<StateRevisionVector>(entries);
         }
 
         var values = new Dictionary<string, StateRevisionVector>(
@@ -297,5 +353,73 @@ public sealed class StateRevisionVector
         {
             yield return storedValue;
         }
+    }
+
+    private sealed class SmallReadOnlyDictionary<TValue>(KeyValuePair<string, TValue>[] entries)
+        : IReadOnlyDictionary<string, TValue>
+    {
+        public TValue this[string key] =>
+            TryGetValue(key, out var entry)
+                ? entry
+                : throw new KeyNotFoundException($"Key '{key}' was not present in the dictionary.");
+
+        public IEnumerable<string> Keys
+        {
+            get
+            {
+                foreach (var entry in entries)
+                {
+                    yield return entry.Key;
+                }
+            }
+        }
+
+        public IEnumerable<TValue> Values
+        {
+            get
+            {
+                foreach (var entry in entries)
+                {
+                    yield return entry.Value;
+                }
+            }
+        }
+
+        public int Count => entries.Length;
+
+        public bool ContainsKey(string key)
+        {
+            ArgumentNullException.ThrowIfNull(key);
+            for (var index = 0; index < entries.Length; index++)
+            {
+                if (string.Equals(entries[index].Key, key, StringComparison.Ordinal))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        public bool TryGetValue(string key, out TValue value)
+        {
+            ArgumentNullException.ThrowIfNull(key);
+            for (var index = 0; index < entries.Length; index++)
+            {
+                if (string.Equals(entries[index].Key, key, StringComparison.Ordinal))
+                {
+                    value = entries[index].Value;
+                    return true;
+                }
+            }
+
+            value = default!;
+            return false;
+        }
+
+        public IEnumerator<KeyValuePair<string, TValue>> GetEnumerator() =>
+            ((IEnumerable<KeyValuePair<string, TValue>>)entries).GetEnumerator();
+
+        IEnumerator IEnumerable.GetEnumerator() => entries.GetEnumerator();
     }
 }

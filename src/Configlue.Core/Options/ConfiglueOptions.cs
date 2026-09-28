@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Concurrent;
 using System.ComponentModel.DataAnnotations;
+using System.Runtime.InteropServices;
 using Microsoft.Extensions.Logging;
 
 namespace Configlue;
@@ -354,7 +355,8 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
             ? null
             : new TFragment[activeSources.Length + 1];
         List<ResolvedFailure>? failures = null;
-        var revisions = new List<StateRevision>(activeSources.Length);
+        var revisions = new StateRevision[activeSources.Length];
+        var revisionCount = 0;
         List<KeyValuePair<string, StateRevisionVector>>? nestedRevisions = null;
         StateReadResult<TFragment> lastFailure = default;
         StateSource<TFragment>? activeSource = null;
@@ -423,7 +425,7 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
                 source.PhysicalOrigin,
                 source.ResourceId?.Value
             );
-            revisions.Add(new StateRevision(source.Id, result.Revision));
+            revisions[revisionCount++] = new StateRevision(source.Id, result.Revision);
             if (sourceResult.Revisions is { } nestedVector)
             {
                 (nestedRevisions ??= []).Add(
@@ -521,11 +523,7 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
                         result.SourceId,
                         result.PhysicalOrigin,
                         result.Schema,
-                        new StateRevisionVector(
-                            revisions,
-                            (IEnumerable<KeyValuePair<string, StateRevisionVector>>?)nestedRevisions
-                                ?? Array.Empty<KeyValuePair<string, StateRevisionVector>>()
-                        )
+                        CreateRevisionVector(revisions, revisionCount, nestedRevisions)
                     ),
                     (IReadOnlyList<ResolvedContribution>?)contributions
                         ?? Array.Empty<ResolvedContribution>(),
@@ -603,11 +601,7 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
         {
             SourceId = activeSource?.Id,
             PhysicalOrigin = activeSource is null ? null : activeResult.PhysicalOrigin,
-            Revisions = new StateRevisionVector(
-                revisions,
-                (IEnumerable<KeyValuePair<string, StateRevisionVector>>?)nestedRevisions
-                    ?? Array.Empty<KeyValuePair<string, StateRevisionVector>>()
-            ),
+            Revisions = CreateRevisionVector(revisions, revisionCount, nestedRevisions),
         };
         if (activeSource is not null)
         {
@@ -628,4 +622,16 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
             (IReadOnlyList<ResolvedFailure>?)failures ?? Array.Empty<ResolvedFailure>()
         );
     }
+
+    private static StateRevisionVector CreateRevisionVector(
+        StateRevision[] revisions,
+        int revisionCount,
+        List<KeyValuePair<string, StateRevisionVector>>? nestedRevisions
+    ) =>
+        nestedRevisions is null
+            ? StateRevisionVector.FromSpan(revisions.AsSpan(0, revisionCount))
+            : StateRevisionVector.FromSpan(
+                revisions.AsSpan(0, revisionCount),
+                CollectionsMarshal.AsSpan(nestedRevisions)
+            );
 }
