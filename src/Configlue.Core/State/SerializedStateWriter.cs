@@ -101,6 +101,9 @@ public sealed class SerializedStateWriter<T> : IStateWriter<T>, IStateWriteBatch
             request.ExpectedRevision,
             schema,
             request.CheckRevision
-        );
+        )
+        {
+            ContentIsOwned = true,
+        };
     }
 }

@@ -47,20 +47,24 @@ public sealed class ResourceWriteMutation
     /// <summary>Whether this mutation can safely compose with other disjoint scoped mutations.</summary>
     public bool CanCompose { get; }
 
+    internal bool HasStableContent { get; private set; }
+
     /// <summary>Applies the mutation to the current physical resource content.</summary>
     public ReadOnlyMemory<byte> Apply(ResourceReadResult current) => _apply(current);
 
     /// <summary>Creates a full-resource replacement mutation.</summary>
     public static ResourceWriteMutation Replace(ResourceWriteRequest request)
     {
-        var content = request.Content.ToArray();
-        return new ResourceWriteMutation(
+        var content = request.ContentIsOwned ? request.Content : request.Content.ToArray();
+        var mutation = new ResourceWriteMutation(
             request.ExpectedRevision,
             request.CheckRevision,
             request.Schema,
             _ => content,
             canCompose: false
         );
+        mutation.HasStableContent = true;
+        return mutation;
     }
 
     /// <summary>Validates that a set of mutations can be applied in one physical write.</summary>

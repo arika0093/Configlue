@@ -15,6 +15,8 @@ public readonly record struct ResourceWriteRequest
     /// <summary>Gets or initializes the <see cref="CheckRevision"/> value.</summary>
     public bool CheckRevision { get; init; }
 
+    internal bool ContentIsOwned { get; init; }
+
     /// <summary>Initializes a new instance of this record.</summary>
     /// <param name="Content">The initial value for the <see cref="Content"/> property.</param>
     /// <param name="ExpectedRevision">The initial value for the <see cref="ExpectedRevision"/> property.</param>
