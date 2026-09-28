@@ -118,9 +118,10 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
                 );
             }
 
-            var current = (
-                await source.Reader.ReadAsync(cancellationToken).ConfigureAwait(false)
-            ).FromSource(source.Id, source.PhysicalOrigin);
+            var current =
+                TryGetPatchBaselineSourceResult(baseline, source)
+                ?? await source.Reader.ReadAsync(cancellationToken).ConfigureAwait(false);
+            current = current.FromSource(source.Id, source.PhysicalOrigin);
             if (current.Status == StateReadStatus.Unavailable)
             {
                 throw new InvalidOperationException(
@@ -616,5 +617,47 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
                 exception
             );
         }
+    }
+
+    private StateReadResult<TFragment>? TryGetPatchBaselineSourceResult(
+        ResolvedState baseline,
+        StateSource<TFragment> source
+    )
+    {
+        if (source.Reader is CompositeStateSource<TFragment>)
+        {
+            return null;
+        }
+
+        for (var index = 0; index < baseline.Contributions.Count; index++)
+        {
+            var contribution = baseline.Contributions[index];
+            if (!string.Equals(contribution.Source.Id, source.Id, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            if (_readValidationMode == ReadValidationMode.IgnoreValue)
+            {
+                return null;
+            }
+
+            // Contributions have already been migrated while resolving the baseline.
+            return contribution.Result with
+            {
+                Schema = null,
+            };
+        }
+
+        for (var index = 0; index < baseline.Failures.Count; index++)
+        {
+            var failure = baseline.Failures[index];
+            if (string.Equals(failure.Source.Id, source.Id, StringComparison.Ordinal))
+            {
+                return failure.Result;
+            }
+        }
+
+        return null;
     }
 }

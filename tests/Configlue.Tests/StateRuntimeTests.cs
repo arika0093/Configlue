@@ -36,6 +36,61 @@ public sealed partial class StateRuntimeTests
     }
 
     [Test]
+    public async Task PatchSaveReusesResolvedBaselineForItsSourceRead()
+    {
+        var store = new InMemoryStateStore<AppSettings.Fragment>(
+            new AppSettings.Fragment { Label = Optional<string?>.Present("before") }
+        );
+        var reader = new CountingStateReader<AppSettings.Fragment>(store);
+        await using var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(
+            new StateSourceSet<AppSettings.Fragment>([
+                new StateSource<AppSettings.Fragment>("settings", reader, writer: store),
+            ])
+        );
+
+        await options.SaveAsync(
+            new AppSettings.Patch { Label = FragmentOperation<string?>.Set("after") }
+        );
+
+        (reader.ReadCount).ShouldBe(2);
+        ((await store.ReadAsync()).Value!.Label.Value).ShouldBe("after");
+    }
+
+    [Test]
+    public async Task PatchSaveStillChecksRevisionAtTheWriterAfterItsFinalRead()
+    {
+        var store = new InMemoryStateStore<AppSettings.Fragment>(
+            new AppSettings.Fragment { Label = Optional<string?>.Present("before") }
+        );
+        var reader = new CountingStateReader<AppSettings.Fragment>(
+            store,
+            afterRead: count =>
+            {
+                if (count == 2)
+                {
+                    store.Set(
+                        new AppSettings.Fragment { Label = Optional<string?>.Present("concurrent") }
+                    );
+                }
+            }
+        );
+        await using var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(
+            new StateSourceSet<AppSettings.Fragment>([
+                new StateSource<AppSettings.Fragment>("settings", reader, writer: store),
+            ])
+        );
+
+        await Should.ThrowAsync<StateConflictException>(async () =>
+            await options.SaveAsync(
+                new AppSettings.Patch { Label = FragmentOperation<string?>.Set("after") }
+            )
+        );
+
+        (reader.ReadCount).ShouldBe(2);
+        ((await store.ReadAsync()).Value!.Label.Value).ShouldBe("concurrent");
+    }
+
+    [Test]
     public async Task FallbackStateSource_UsesOneRepresentationAndWritesToTheSelectedCandidate()
     {
         var canonical = new InMemoryStateStore<string>();
@@ -624,5 +679,23 @@ public sealed partial class StateRuntimeTests
         throw new InvalidOperationException(
             "The profile-specific validator did not reject the value."
         );
+    }
+
+    private sealed class CountingStateReader<T>(
+        IStateReader<T> inner,
+        Action<int>? afterRead = null
+    ) : IStateReader<T>
+    {
+        public int ReadCount { get; private set; }
+
+        public async ValueTask<StateReadResult<T>> ReadAsync(
+            CancellationToken cancellationToken = default
+        )
+        {
+            var result = await inner.ReadAsync(cancellationToken).ConfigureAwait(false);
+            var readCount = ++ReadCount;
+            afterRead?.Invoke(readCount);
+            return result;
+        }
     }
 }
