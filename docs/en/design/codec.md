@@ -34,4 +34,4 @@ var source = SerializedStateSource.FromResource<AppSettings.Fragment>(
 
 ## Choosing
 
-When in doubt, match the file format. Add one Codec per format you read, and narrow writes to one destination (STEP 10's YAML-first, JSON-second shape is typical). Mixing formats changes nothing about Source priority or `WriteRoute`.
+When in doubt, match the file format. Add one Codec per format you read, and narrow writes to one destination (STEP 11's YAML-first, JSON-second shape is typical). Mixing formats changes nothing about Source priority or `WriteRoute`.
