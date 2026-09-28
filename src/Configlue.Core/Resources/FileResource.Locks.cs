@@ -1,6 +1,6 @@
 using System.Diagnostics;
 
-namespace Configlue;
+namespace Configlue.Resources;
 
 public sealed partial class FileResource
 {

@@ -1,4 +1,4 @@
-namespace Configlue;
+namespace Configlue.Codecs;
 
 /// <summary>The persisted document structure used by the JSON and YAML state codecs.</summary>
 public enum DocumentLayout

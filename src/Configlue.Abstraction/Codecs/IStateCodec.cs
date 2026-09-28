@@ -1,6 +1,6 @@
 using System.Buffers;
 
-namespace Configlue;
+namespace Configlue.Codecs;
 
 /// <summary>Serializes arbitrary state values at the byte-buffer boundary.</summary>
 public interface IStateCodec

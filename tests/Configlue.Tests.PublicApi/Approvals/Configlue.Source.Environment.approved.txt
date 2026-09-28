@@ -9,22 +9,22 @@ namespace Configlue.Source.Environment
     {
         public EnvironmentSourceOptions() { }
         public System.Func<System.Collections.Generic.IEnumerable<System.Collections.Generic.KeyValuePair<string, string?>>>? EnvironmentVariables { get; init; }
-        public Configlue.StateFallbackCondition FallbackCondition { get; init; }
+        public Configlue.Sources.StateFallbackCondition FallbackCondition { get; init; }
         public string? Id { get; init; }
         public System.Text.Json.JsonSerializerOptions? JsonSerializerOptions { get; init; }
         public required string Prefix { get; init; }
         public int Priority { get; init; }
         public System.Func<string, System.Type, object?>? ValueParser { get; init; }
     }
-    public sealed class EnvironmentStateReader<TFragment> : Configlue.IStateReader<TFragment>
+    public sealed class EnvironmentStateReader<TFragment> : Configlue.State.IStateReader<TFragment>
         where TFragment :  class, Configlue.IConfiglueFragment<TFragment>
     {
         public EnvironmentStateReader(Configlue.ConfiglueModelSchema schema, string prefix, System.Func<System.Collections.Generic.IEnumerable<System.Collections.Generic.KeyValuePair<string, string?>>>? environmentVariables = null, System.Func<string, System.Type, object?>? valueParser = null, System.Text.Json.JsonSerializerOptions? jsonSerializerOptions = null) { }
-        public System.Threading.Tasks.ValueTask<Configlue.StateReadResult<TFragment>> ReadAsync(System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Configlue.State.StateReadResult<TFragment>> ReadAsync(System.Threading.CancellationToken cancellationToken = default) { }
     }
     public static class EnvironmentStateSource
     {
-        public static Configlue.StateSource<TFragment> FromEnvironment<TModel, TFragment>(string id, string prefix, int priority = 0, Configlue.StateFallbackCondition fallbackCondition = 1, System.Func<System.Collections.Generic.IEnumerable<System.Collections.Generic.KeyValuePair<string, string?>>>? environmentVariables = null, System.Func<string, System.Type, object?>? valueParser = null, System.Text.Json.JsonSerializerOptions? jsonSerializerOptions = null)
+        public static Configlue.Sources.StateSource<TFragment> FromEnvironment<TModel, TFragment>(string id, string prefix, int priority = 0, Configlue.Sources.StateFallbackCondition fallbackCondition = 1, System.Func<System.Collections.Generic.IEnumerable<System.Collections.Generic.KeyValuePair<string, string?>>>? environmentVariables = null, System.Func<string, System.Type, object?>? valueParser = null, System.Text.Json.JsonSerializerOptions? jsonSerializerOptions = null)
             where TModel : Configlue.IConfiglueModel<TModel, TFragment>
             where TFragment :  class, Configlue.IConfiglueFragment<TFragment> { }
     }

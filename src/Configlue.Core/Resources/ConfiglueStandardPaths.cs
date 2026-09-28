@@ -1,4 +1,4 @@
-namespace Configlue;
+namespace Configlue.Resources;
 
 /// <summary>Returns platform-standard directories for application configuration files.</summary>
 public static class ConfiglueStandardPaths

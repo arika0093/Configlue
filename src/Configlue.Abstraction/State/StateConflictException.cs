@@ -1,4 +1,4 @@
-namespace Configlue;
+namespace Configlue.State;
 
 /// <summary>Raised when a conditional state write targets a stale backend revision.</summary>
 public sealed class StateConflictException : Exception

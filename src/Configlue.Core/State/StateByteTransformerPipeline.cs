@@ -1,4 +1,4 @@
-namespace Configlue;
+namespace Configlue.State;
 
 internal static class StateByteTransformerPipeline
 {

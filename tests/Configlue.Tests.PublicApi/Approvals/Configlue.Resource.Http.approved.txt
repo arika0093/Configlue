@@ -9,24 +9,24 @@ namespace Configlue.Resource.Http
         public System.TimeSpan PollingInterval { get; init; }
         public string UpdatePath { get; init; }
     }
-    public sealed class HttpResourceReader : Configlue.IPipelineResourceReader, Configlue.IResourceIdentity, Configlue.IResourceReader, Configlue.IStateWatcher
+    public sealed class HttpResourceReader : Configlue.Resources.IResourceIdentity, Configlue.Resources.IResourceReader, Configlue.State.IPipelineResourceReader, Configlue.State.IStateWatcher
     {
         public const string SchemaIdHeaderName = "Configlue-Schema-Id";
         public const string SchemaVersionHeaderName = "Configlue-Schema-Version";
-        public HttpResourceReader(System.Net.Http.HttpClient httpClient, System.Uri endpointRoot, Configlue.Resource.Http.HttpResourceOptions? options = null, Configlue.ResourceId? resourceId = default) { }
+        public HttpResourceReader(System.Net.Http.HttpClient httpClient, System.Uri endpointRoot, Configlue.Resource.Http.HttpResourceOptions? options = null, Configlue.Resources.ResourceId? resourceId = default) { }
         public System.Uri GetUri { get; }
         public bool IsPipelineReadPreferred { get; }
-        public Configlue.ResourceId ResourceId { get; }
+        public Configlue.Resources.ResourceId ResourceId { get; }
         public Configlue.Resource.Http.HttpResourceWriter CreateWriter() { }
-        public System.Threading.Tasks.ValueTask<Configlue.ResourceReadResult> ReadAsync(System.Threading.CancellationToken cancellationToken = default) { }
-        public System.Threading.Tasks.ValueTask<Configlue.PipelineResourceReadResult> ReadPipelineAsync(System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Configlue.Resources.ResourceReadResult> ReadAsync(System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Configlue.Resources.PipelineResourceReadResult> ReadPipelineAsync(System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask WaitForChangeAsync(string? observedRevision, System.Threading.CancellationToken cancellationToken = default) { }
     }
-    public sealed class HttpResourceWriter : Configlue.IResourceIdentity, Configlue.IResourceWriter
+    public sealed class HttpResourceWriter : Configlue.Resources.IResourceIdentity, Configlue.Resources.IResourceWriter
     {
         public HttpResourceWriter(Configlue.Resource.Http.HttpResourceReader reader) { }
-        public Configlue.ResourceId ResourceId { get; }
-        public System.Threading.Tasks.ValueTask<Configlue.StateWriteResult> WriteAsync(Configlue.ResourceWriteRequest request, System.Threading.CancellationToken cancellationToken = default) { }
+        public Configlue.Resources.ResourceId ResourceId { get; }
+        public System.Threading.Tasks.ValueTask<Configlue.State.StateWriteResult> WriteAsync(Configlue.Resources.ResourceWriteRequest request, System.Threading.CancellationToken cancellationToken = default) { }
     }
     public sealed class HttpSourceOptions
     {
@@ -34,12 +34,12 @@ namespace Configlue.Resource.Http
         public System.Net.Http.HttpClient? Client { get; init; }
         public System.Func<System.IServiceProvider?, System.Net.Http.HttpClient>? ClientFactory { get; init; }
         public required object Codec { get; init; }
-        public Configlue.StateCodecContext CodecContext { get; init; }
+        public Configlue.Codecs.StateCodecContext CodecContext { get; init; }
         public required string EndPoint { get; init; }
-        public Configlue.StateFallbackCondition FallbackCondition { get; init; }
+        public Configlue.Sources.StateFallbackCondition FallbackCondition { get; init; }
         public string? Id { get; init; }
         public int Priority { get; init; }
-        public Configlue.ResourceId? ResourceId { get; init; }
+        public Configlue.Resources.ResourceId? ResourceId { get; init; }
         public Configlue.Resource.Http.HttpResourceOptions? ResourceOptions { get; init; }
         public bool WatchChanges { get; init; }
         public bool Writable { get; init; }

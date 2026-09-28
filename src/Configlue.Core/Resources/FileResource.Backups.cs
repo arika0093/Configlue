@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using System.Security.Cryptography;
 
-namespace Configlue;
+namespace Configlue.Resources;
 
 public sealed partial class FileResource
 {

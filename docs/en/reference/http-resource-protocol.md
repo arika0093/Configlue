@@ -12,6 +12,8 @@ description: Serve Configlue byte resources over HTTP and use them as state sour
 Install `Configlue.Resource.Http.AspNetCore` in an ASP.NET Core application and pass it an `IResourceReader`. Pass an `IResourceWriter` only when the resource may be changed through HTTP:
 
 ```csharp
+using Configlue.Resources;
+using Configlue.State;
 using Configlue.Resource.Http.AspNetCore;
 
 var app = WebApplication.CreateBuilder(args).Build();

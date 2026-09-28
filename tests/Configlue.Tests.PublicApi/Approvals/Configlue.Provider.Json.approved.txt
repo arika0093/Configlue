@@ -5,7 +5,7 @@ namespace Configlue.Provider.Json
         where TModel : Configlue.IConfiglueFacadeModel<TModel>
     {
         public Configlue.Provider.Json.JsonFileRegistration<TModel> ExplicitOnly(bool explicitOnly = true) { }
-        public Configlue.Provider.Json.JsonFileRegistration<TModel> FallbackWhen(Configlue.StateFallbackCondition condition) { }
+        public Configlue.Provider.Json.JsonFileRegistration<TModel> FallbackWhen(Configlue.Sources.StateFallbackCondition condition) { }
         public Configlue.Provider.Json.JsonFileRegistration<TModel> Mount<TSubtreeModel>(System.Linq.Expressions.Expression<System.Func<TModel, TSubtreeModel?>> subtreeSelector) { }
         public Configlue.Provider.Json.JsonFileRegistration<TModel> Named(Configlue.SourceKey<TModel> sourceKey) { }
         public Configlue.Provider.Json.JsonFileRegistration<TModel> Named(string name) { }
@@ -23,15 +23,15 @@ namespace Configlue.Provider.Json
     public sealed class JsonFileSourceOptions
     {
         public JsonFileSourceOptions() { }
-        public Configlue.DocumentLayoutOptions? DocumentLayout { get; init; }
+        public Configlue.Codecs.DocumentLayoutOptions? DocumentLayout { get; init; }
         public bool ExplicitOnly { get; init; }
-        public Configlue.StateFallbackCondition FallbackCondition { get; init; }
+        public Configlue.Sources.StateFallbackCondition FallbackCondition { get; init; }
         public string? Id { get; init; }
         public required string Path { get; init; }
         public int Priority { get; init; }
         public bool ReadOnly { get; init; }
-        public Configlue.ResourceId? ResourceId { get; init; }
-        public Configlue.FileResourceOptions? ResourceOptions { get; init; }
+        public Configlue.Resources.ResourceId? ResourceId { get; init; }
+        public Configlue.Resources.FileResourceOptions? ResourceOptions { get; init; }
         public string? SchemaReferenceBaseUri { get; init; }
         public string? SectionPath { get; init; }
         public System.Text.Json.JsonSerializerOptions? SerializerOptions { get; init; }
@@ -59,13 +59,13 @@ namespace Configlue.Provider.Json
         public JsonHttpSourceOptions() { }
         public System.Net.Http.HttpClient? Client { get; init; }
         public System.Func<System.IServiceProvider?, System.Net.Http.HttpClient>? ClientFactory { get; init; }
-        public Configlue.StateCodecContext CodecContext { get; init; }
-        public Configlue.DocumentLayoutOptions? DocumentLayout { get; init; }
+        public Configlue.Codecs.StateCodecContext CodecContext { get; init; }
+        public Configlue.Codecs.DocumentLayoutOptions? DocumentLayout { get; init; }
         public required string EndPoint { get; init; }
-        public Configlue.StateFallbackCondition FallbackCondition { get; init; }
+        public Configlue.Sources.StateFallbackCondition FallbackCondition { get; init; }
         public string? Id { get; init; }
         public int Priority { get; init; }
-        public Configlue.ResourceId? ResourceId { get; init; }
+        public Configlue.Resources.ResourceId? ResourceId { get; init; }
         public Configlue.Resource.Http.HttpResourceOptions? ResourceOptions { get; init; }
         public System.Text.Json.JsonSerializerOptions? SerializerOptions { get; init; }
         public bool WatchChanges { get; init; }
@@ -75,51 +75,51 @@ namespace Configlue.Provider.Json
     {
         public static Configlue.ConfiglueSourceRegistration FromJsonHttp(this Configlue.ConfiglueSourceSetBuilder sources, Configlue.Provider.Json.JsonHttpSourceOptions options) { }
     }
-    public sealed class JsonSectionResource : Configlue.IPipelineResourceReader, Configlue.IResourceBackupRecovery, Configlue.IResourceBatchParticipant, Configlue.IResourceIdentity, Configlue.IResourceReader, Configlue.IResourceWriter, Configlue.IStateWatcher
+    public sealed class JsonSectionResource : Configlue.Resources.IResourceBackupRecovery, Configlue.Resources.IResourceBatchParticipant, Configlue.Resources.IResourceIdentity, Configlue.Resources.IResourceReader, Configlue.Resources.IResourceWriter, Configlue.State.IPipelineResourceReader, Configlue.State.IStateWatcher
     {
-        public JsonSectionResource(Configlue.IResourceReader resource, string sectionPath, System.Text.Json.JsonSerializerOptions? serializerOptions = null, Configlue.ResourceId? resourceId = default) { }
-        public JsonSectionResource(Configlue.IResourceReader reader, Configlue.IResourceWriter? writer, string sectionPath, Configlue.IStateWatcher? watcher = null, System.Text.Json.JsonSerializerOptions? serializerOptions = null, Configlue.ResourceId? resourceId = default) { }
+        public JsonSectionResource(Configlue.Resources.IResourceReader resource, string sectionPath, System.Text.Json.JsonSerializerOptions? serializerOptions = null, Configlue.Resources.ResourceId? resourceId = default) { }
+        public JsonSectionResource(Configlue.Resources.IResourceReader reader, Configlue.Resources.IResourceWriter? writer, string sectionPath, Configlue.State.IStateWatcher? watcher = null, System.Text.Json.JsonSerializerOptions? serializerOptions = null, Configlue.Resources.ResourceId? resourceId = default) { }
         public bool AutomaticBackupRecoveryEnabled { get; }
-        public Configlue.IResourceBatchWriter? BatchWriter { get; }
+        public Configlue.Resources.IResourceBatchWriter? BatchWriter { get; }
         public bool CanWrite { get; }
         public bool IsPipelineReadPreferred { get; }
-        public Configlue.ResourceId ResourceId { get; }
-        public Configlue.ResourceWriteMutation CreateMutation(Configlue.ResourceWriteRequest request) { }
-        public System.Threading.Tasks.ValueTask<Configlue.ResourceReadResult> ReadAsync(System.Threading.CancellationToken cancellationToken = default) { }
-        public System.Threading.Tasks.ValueTask<Configlue.PipelineResourceReadResult> ReadPipelineAsync(System.Threading.CancellationToken cancellationToken = default) { }
-        public System.Threading.Tasks.ValueTask<Configlue.ResourceReadResult?> TryRecoverLatestBackupAsync(string? expectedRevision, bool expectedMissing, System.Func<Configlue.ResourceReadResult, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<bool>> validate, System.Threading.CancellationToken cancellationToken = default) { }
+        public Configlue.Resources.ResourceId ResourceId { get; }
+        public Configlue.Resources.ResourceWriteMutation CreateMutation(Configlue.Resources.ResourceWriteRequest request) { }
+        public System.Threading.Tasks.ValueTask<Configlue.Resources.ResourceReadResult> ReadAsync(System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Configlue.Resources.PipelineResourceReadResult> ReadPipelineAsync(System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Configlue.Resources.ResourceReadResult?> TryRecoverLatestBackupAsync(string? expectedRevision, bool expectedMissing, System.Func<Configlue.Resources.ResourceReadResult, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<bool>> validate, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask WaitForChangeAsync(string? observedRevision, System.Threading.CancellationToken cancellationToken = default) { }
-        public System.Threading.Tasks.ValueTask<Configlue.StateWriteResult> WriteAsync(Configlue.ResourceWriteRequest request, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Configlue.State.StateWriteResult> WriteAsync(Configlue.Resources.ResourceWriteRequest request, System.Threading.CancellationToken cancellationToken = default) { }
     }
-    public sealed class JsonStateCodec : Configlue.IStateCodec, Configlue.IStateCodecRecoveryPolicy, Configlue.IStateSchemaMetadataReader
+    public sealed class JsonStateCodec : Configlue.Codecs.IStateCodec, Configlue.Codecs.IStateCodecRecoveryPolicy, Configlue.Codecs.IStateSchemaMetadataReader
     {
-        public JsonStateCodec(System.Text.Json.JsonSerializerOptions? options = null, Configlue.DocumentLayoutOptions? documentLayout = null) { }
-        public object? Deserialize(System.Type type, in System.Buffers.ReadOnlySequence<byte> source, in Configlue.StateCodecContext context) { }
+        public JsonStateCodec(System.Text.Json.JsonSerializerOptions? options = null, Configlue.Codecs.DocumentLayoutOptions? documentLayout = null) { }
+        public object? Deserialize(System.Type type, in System.Buffers.ReadOnlySequence<byte> source, in Configlue.Codecs.StateCodecContext context) { }
         public bool IsRecoverableReadException(System.Exception exception) { }
-        public Configlue.StateSchemaMetadata? ReadSchemaMetadata(in System.Buffers.ReadOnlySequence<byte> source) { }
-        public void Serialize(System.Type type, object? value, System.Buffers.IBufferWriter<byte> destination, in Configlue.StateCodecContext context) { }
+        public Configlue.State.StateSchemaMetadata? ReadSchemaMetadata(in System.Buffers.ReadOnlySequence<byte> source) { }
+        public void Serialize(System.Type type, object? value, System.Buffers.IBufferWriter<byte> destination, in Configlue.Codecs.StateCodecContext context) { }
     }
-    public sealed class JsonStateCodec<T> : Configlue.IPipelineStateCodec<T>, Configlue.IStateCodecRecoveryPolicy, Configlue.IStateCodec<T>, Configlue.IStateSchemaMetadataReader
+    public sealed class JsonStateCodec<T> : Configlue.Codecs.IStateCodecRecoveryPolicy, Configlue.Codecs.IStateCodec<T>, Configlue.Codecs.IStateSchemaMetadataReader, Configlue.State.IPipelineStateCodec<T>
     {
         [System.Diagnostics.CodeAnalysis.RequiresDynamicCode("Reflection-based JSON serialization may require runtime code generation. Use the " +
             "JsonTypeInfo constructor for NativeAOT.")]
         [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Reflection-based JSON serialization may require types that trimming removes. Use " +
             "the JsonTypeInfo constructor for trim-safe serialization.")]
-        public JsonStateCodec(System.Text.Json.JsonSerializerOptions? options = null, Configlue.DocumentLayoutOptions? documentLayout = null) { }
-        public JsonStateCodec(System.Text.Json.Serialization.Metadata.JsonTypeInfo<T> typeInfo, Configlue.DocumentLayoutOptions? documentLayout = null) { }
+        public JsonStateCodec(System.Text.Json.JsonSerializerOptions? options = null, Configlue.Codecs.DocumentLayoutOptions? documentLayout = null) { }
+        public JsonStateCodec(System.Text.Json.Serialization.Metadata.JsonTypeInfo<T> typeInfo, Configlue.Codecs.DocumentLayoutOptions? documentLayout = null) { }
         public bool UseAsyncStreamDecoding { get; init; }
         [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Aot", "IL3050", Justification="The options-based constructor carries this requirement. The JsonTypeInfo construc" +
             "tor sets _typeInfo and never enters the reflection fallback.")]
         [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2026", Justification="The options-based constructor carries this requirement. The JsonTypeInfo construc" +
             "tor sets _typeInfo and never enters the reflection fallback.")]
-        public T? Deserialize(in System.Buffers.ReadOnlySequence<byte> source, in Configlue.StateCodecContext context) { }
-        public System.Threading.Tasks.ValueTask<Configlue.StateReadResult<T>> DeserializeAsync(System.IO.Pipelines.PipeReader content, Configlue.StateCodecContext context, Configlue.StateSchemaMetadata? resourceSchema, System.Threading.CancellationToken cancellationToken = default) { }
+        public T? Deserialize(in System.Buffers.ReadOnlySequence<byte> source, in Configlue.Codecs.StateCodecContext context) { }
+        public System.Threading.Tasks.ValueTask<Configlue.State.StateReadResult<T>> DeserializeAsync(System.IO.Pipelines.PipeReader content, Configlue.Codecs.StateCodecContext context, Configlue.State.StateSchemaMetadata? resourceSchema, System.Threading.CancellationToken cancellationToken = default) { }
         public bool IsRecoverableReadException(System.Exception exception) { }
-        public Configlue.StateSchemaMetadata? ReadSchemaMetadata(in System.Buffers.ReadOnlySequence<byte> source) { }
+        public Configlue.State.StateSchemaMetadata? ReadSchemaMetadata(in System.Buffers.ReadOnlySequence<byte> source) { }
         [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Aot", "IL3050", Justification="The options-based constructor carries this requirement. The JsonTypeInfo construc" +
             "tor sets _typeInfo and never enters the reflection fallback.")]
         [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2026", Justification="The options-based constructor carries this requirement. The JsonTypeInfo construc" +
             "tor sets _typeInfo and never enters the reflection fallback.")]
-        public void Serialize(T? value, System.Buffers.IBufferWriter<byte> destination, in Configlue.StateCodecContext context) { }
+        public void Serialize(T? value, System.Buffers.IBufferWriter<byte> destination, in Configlue.Codecs.StateCodecContext context) { }
     }
 }

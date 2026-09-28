@@ -1,4 +1,4 @@
-namespace Configlue;
+namespace Configlue.Resources;
 
 /// <summary>Reads bytes and backend metadata from a physical resource.</summary>
 public interface IResourceReader

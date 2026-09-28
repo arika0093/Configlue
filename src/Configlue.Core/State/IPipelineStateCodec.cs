@@ -1,6 +1,6 @@
 using System.IO.Pipelines;
 
-namespace Configlue;
+namespace Configlue.State;
 
 /// <summary>Optionally decodes state directly from a pipeline-backed resource.</summary>
 /// <typeparam name="T">The state value type.</typeparam>

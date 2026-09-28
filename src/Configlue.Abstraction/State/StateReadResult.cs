@@ -1,4 +1,4 @@
-namespace Configlue;
+namespace Configlue.State;
 
 /// <summary>A value returned from a state reader.</summary>
 public readonly record struct StateReadResult<T>

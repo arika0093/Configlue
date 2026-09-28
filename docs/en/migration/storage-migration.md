@@ -20,6 +20,8 @@ For retries across process restarts, use `StateStorageMigrationDefinition<TFragm
 For a JSON-to-YAML file migration, both sources decode to the same generated Fragment; the target writer handles the format change:
 
 ```csharp
+using Configlue.Migrations;
+
 var migration = new StateStorageMigrationDefinition<AppSettings.Fragment>(
     "settings-json-to-yaml-v1",
     ["legacy-json"],
@@ -35,6 +37,8 @@ Before building options on the next startup, call `journal.ReadAsync(migration.I
 For a split into multiple files, declare a projection for each target. Only the selected source contribution is merged before each subtree is projected:
 
 ```csharp
+using Configlue.Migrations;
+
 var migration = new StateStorageMigrationDefinition<AppSettings.Fragment>(
     "settings-json-to-split-files-v1",
     ["legacy-json"],

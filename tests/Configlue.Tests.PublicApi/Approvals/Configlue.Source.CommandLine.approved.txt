@@ -16,7 +16,7 @@ namespace Configlue.Source.CommandLine
     public sealed class CommandLineSourceOptions
     {
         public CommandLineSourceOptions() { }
-        public Configlue.StateFallbackCondition FallbackCondition { get; init; }
+        public Configlue.Sources.StateFallbackCondition FallbackCondition { get; init; }
         public required string Id { get; init; }
         public required System.CommandLine.ParseResult ParseResult { get; init; }
         public int Priority { get; init; }

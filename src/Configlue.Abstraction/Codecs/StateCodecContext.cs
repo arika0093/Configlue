@@ -1,4 +1,4 @@
-namespace Configlue;
+namespace Configlue.Codecs;
 
 /// <summary>Options and metadata supplied to a codec operation.</summary>
 public readonly struct StateCodecContext

@@ -1,4 +1,4 @@
-namespace Configlue;
+namespace Configlue.Sources;
 
 /// <summary>A logical source and its optional read, write, and watch capabilities.</summary>
 public sealed class StateSource<T>

@@ -12,6 +12,8 @@ description: Configlue バイトリソースを HTTP 配信し、状態ソース
 ASP.NET Core アプリに `Configlue.Resource.Http.AspNetCore` を入れ、`IResourceReader` を渡します。HTTP 経由で変更してよいリソースにだけ `IResourceWriter` を渡します:
 
 ```csharp
+using Configlue.Resources;
+using Configlue.State;
 using Configlue.Resource.Http.AspNetCore;
 
 var app = WebApplication.CreateBuilder(args).Build();

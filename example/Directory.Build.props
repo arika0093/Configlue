@@ -8,6 +8,12 @@
     <IsPackable>false</IsPackable>
   </PropertyGroup>
   <ItemGroup>
+    <Using Include="Configlue.Codecs" />
+    <Using Include="Configlue.Migrations" />
+    <Using Include="Configlue.Resources" />
+    <Using Include="Configlue.Sources" />
+    <Using Include="Configlue.State" />
+    <Using Include="Configlue.Transformers" />
     <ProjectReference Include="../../src/Configlue.Core/Configlue.Core.csproj" />
     <ProjectReference
       Include="../../src/Configlue.Generator/Configlue.Generator.csproj"

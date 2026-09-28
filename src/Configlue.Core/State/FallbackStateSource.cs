@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace Configlue;
+namespace Configlue.State;
 
 /// <summary>
 /// Combines ordered representations of one logical state and exposes only the first successful representation.

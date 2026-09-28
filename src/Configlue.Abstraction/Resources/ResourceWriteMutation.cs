@@ -1,4 +1,4 @@
-namespace Configlue;
+namespace Configlue.Resources;
 
 /// <summary>A deferred change to physical resource content used by a single-resource batch write.</summary>
 public sealed class ResourceWriteMutation

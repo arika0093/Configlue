@@ -1,7 +1,7 @@
 using System.Buffers;
 using System.IO.Pipelines;
 
-namespace Configlue;
+namespace Configlue.State;
 
 /// <summary>Reads a typed state value by composing a resource and a codec.</summary>
 public sealed class SerializedStateReader<T> : IStateReader<T>

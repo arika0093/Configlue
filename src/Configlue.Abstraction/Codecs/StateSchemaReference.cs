@@ -1,4 +1,4 @@
-namespace Configlue;
+namespace Configlue.Codecs;
 
 /// <summary>Builds references to versioned JSON Schema files.</summary>
 public static class StateSchemaReference

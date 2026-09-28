@@ -19,6 +19,8 @@ description: 等価な表現の束ねとリソース×コーデックの合成�
 読み取り時の暗黙昇格は行いません。選択中の旧表現を正規候補へ明示的に materialize する場合は、固定書き込み先を指定したうえで読み取り結果を同じ fallback writer に渡します。revision check が選択状態と書き込み先候補の変更を検出します:
 
 ```csharp
+using Configlue.State;
+
 var snapshot = await fallback.ReadAsync();
 if (snapshot.Status == StateReadStatus.Success)
 {
@@ -40,6 +42,11 @@ if (snapshot.Status == StateReadStatus.Success)
 ライターとウォッチャーは自動検出されます。
 
 ```csharp
+using Configlue.Codecs;
+using Configlue.Resources;
+using Configlue.State;
+using Configlue.Provider.Json;
+
 var currentSource = SerializedStateSource.FromResource<AppSettings.Fragment>(
     "current",
     fileResource,
@@ -58,6 +65,9 @@ var currentSource = SerializedStateSource.FromResource<AppSettings.Fragment>(
 書き込み先は既定のコンポーネントとメンバーパスごとのルーティングで明示します。
 
 ```csharp
+using Configlue.Sources;
+using Configlue.State;
+
 var combined = new CompositeStateSource<AppSettings.Fragment>(
     new StateSourceSet<AppSettings.Fragment>([globalSource, localSource]),
     defaultWriteSourceId: "local",

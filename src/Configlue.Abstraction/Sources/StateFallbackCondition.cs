@@ -1,4 +1,4 @@
-namespace Configlue;
+namespace Configlue.Sources;
 
 /// <summary>Read outcomes that allow resolution to continue to a lower-priority source.</summary>
 [Flags]

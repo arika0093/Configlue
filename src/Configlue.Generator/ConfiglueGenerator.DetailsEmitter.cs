@@ -284,16 +284,16 @@ public sealed partial class ConfiglueGenerator
     {
         code.AppendLineAt(
             1,
-            "private static global::Configlue.ConfigSourceValueState MapStatus(global::Configlue.StateReadStatus status) => status switch"
+            "private static global::Configlue.ConfigSourceValueState MapStatus(global::Configlue.State.StateReadStatus status) => status switch"
         );
         code.AppendLineAt(1, "{");
         code.AppendLineAt(
             2,
-            "global::Configlue.StateReadStatus.Unavailable => global::Configlue.ConfigSourceValueState.Unavailable,"
+            "global::Configlue.State.StateReadStatus.Unavailable => global::Configlue.ConfigSourceValueState.Unavailable,"
         );
         code.AppendLineAt(
             2,
-            "global::Configlue.StateReadStatus.Invalid => global::Configlue.ConfigSourceValueState.Invalid,"
+            "global::Configlue.State.StateReadStatus.Invalid => global::Configlue.ConfigSourceValueState.Invalid,"
         );
         code.AppendLineAt(2, "_ => global::Configlue.ConfigSourceValueState.Missing,");
         code.AppendLineAt(1, "};");

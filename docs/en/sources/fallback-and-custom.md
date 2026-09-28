@@ -14,6 +14,8 @@ By default, writes go to the active writable candidate, or the highest-priority 
 Reads never promote implicitly. To explicitly materialize the selected legacy representation into a canonical candidate, configure that fixed write target and pass the read result back to the same fallback writer. The revision check detects changes to the selected state and the target candidate:
 
 ```csharp
+using Configlue.State;
+
 var snapshot = await fallback.ReadAsync();
 if (snapshot.Status == StateReadStatus.Success)
 {
@@ -34,6 +36,11 @@ When state needs to move to a different logical source or representation, use `I
 Use `SerializedStateSource.FromResource<T>` to compose a resource and a codec into a typed source with automatic writer and watcher detection:
 
 ```csharp
+using Configlue.Codecs;
+using Configlue.Resources;
+using Configlue.State;
+using Configlue.Provider.Json;
+
 var currentSource = SerializedStateSource.FromResource<AppSettings.Fragment>(
     "current",
     fileResource,
@@ -49,6 +56,9 @@ For a fully hand-rolled source, implement `IStateReader<TFragment>` (plus `IStat
 Use `CompositeStateSource<TFragment>` when several resources contribute sparse fragments but should appear as one logical source to the options runtime. Keep writes explicit by naming a default writable component and optional member-path routes:
 
 ```csharp
+using Configlue.Sources;
+using Configlue.State;
+
 var combined = new CompositeStateSource<AppSettings.Fragment>(
     new StateSourceSet<AppSettings.Fragment>([globalSource, localSource]),
     defaultWriteSourceId: "local",

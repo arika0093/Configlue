@@ -1,4 +1,4 @@
-namespace Configlue;
+namespace Configlue.State;
 
 /// <summary>Writes state to a backend that supports updates.</summary>
 public interface IStateWriter<T>

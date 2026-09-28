@@ -1,7 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 
-namespace Configlue;
+namespace Configlue.Sources;
 
 internal static class StateSourceIdentity
 {

@@ -10,6 +10,8 @@ description: ファイルの世代バックアップと復元、ログ記録、�
 ファイルリソースは既定で不可分な `.bak` を1世代保持します。バックアップは Windows ではリソースファイルと同じ場所の `backup/`、その他の OS では `.backup/` に保存し、Windows ではディレクトリとファイルを隠し属性にします。`FileResourceOptions` で複数世代や保存先を変えられます。相対 `BackupDirectory` はリソースファイルのディレクトリを基準にします。`/` を指定するとリソースファイルと同じディレクトリに保存します。`RestoreLatestBackupAsync` で最新世代を明示復元できます。
 
 ```csharp
+using Configlue.Resources;
+
 var resource = new FileResource(
     "settings.json",
     new FileResourceOptions { BackupMaxCount = 5, BackupDirectory = "my-backups" });
@@ -20,6 +22,8 @@ var resource = new FileResource(
 自動復旧は既定で無効です。JSON file source では `ResourceOptions` から有効にできます。
 
 ```csharp
+using Configlue.Resources;
+
 model.UseJsonFile(new JsonFileSourceOptions
 {
     Id = "settings",

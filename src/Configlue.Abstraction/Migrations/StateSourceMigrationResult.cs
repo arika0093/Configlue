@@ -1,4 +1,4 @@
-namespace Configlue;
+namespace Configlue.Migrations;
 
 /// <summary>The revisions observed and written during a source-to-source migration.</summary>
 public readonly record struct StateSourceMigrationResult

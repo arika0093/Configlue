@@ -2,6 +2,9 @@ using System.Text.Json;
 using BenchmarkDotNet.Attributes;
 using Configlue;
 using Configlue.Provider.Json;
+using Configlue.Resources;
+using Configlue.Sources;
+using Configlue.State;
 using Configlue.Testing;
 using Configuration.Writable;
 

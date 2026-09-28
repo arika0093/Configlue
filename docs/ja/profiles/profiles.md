@@ -32,6 +32,8 @@ await profiles.RemoveProfileAsync("work");
 DI では同じ `EnableProfiles`・`SourcesForOptions` 呼び出しを `services.AddConfiglue(...)` の中で行い、プロバイダーから `IConfiglueProfiledOptions<AppSettings>` を解決します。プロバイダー構築後に追加されたプロファイル名はキー付きサービスではなく `IOptionsMonitor` と `IConfiglueOptionsRegistry` で解決されます。非 DI の1引数入口は上記の `context.GetProfiledOptions<AppSettings>()` です。
 
 ```csharp
+using Configlue.Sources;
+
 services.AddSingleton<ProfileCatalogStore>();
 services.AddConfiglueProfiledOptions<AppConfig, AppConfig.Fragment>(
     (provider, profileName) => CreateProfileSources(provider, profileName),

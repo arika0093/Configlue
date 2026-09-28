@@ -1,4 +1,4 @@
-namespace Configlue;
+namespace Configlue.Migrations;
 
 /// <summary>Durable progress for one declared storage migration.</summary>
 public sealed class StateStorageMigrationProgress

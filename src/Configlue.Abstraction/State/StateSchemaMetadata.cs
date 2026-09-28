@@ -1,4 +1,4 @@
-namespace Configlue;
+namespace Configlue.State;
 
 /// <summary>Identifies the logical schema used to encode a state payload.</summary>
 public readonly record struct StateSchemaMetadata

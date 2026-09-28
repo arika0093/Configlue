@@ -1,4 +1,4 @@
-namespace Configlue;
+namespace Configlue.Resources;
 
 /// <summary>Writes bytes to a physical resource.</summary>
 public interface IResourceWriter

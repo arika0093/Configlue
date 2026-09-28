@@ -21,7 +21,7 @@ namespace Configlue.Source.Common
         public string? EnvironmentPrefix { get; init; }
         public System.Func<System.Collections.Generic.IEnumerable<System.Collections.Generic.KeyValuePair<string, string?>>>? EnvironmentVariables { get; init; }
         public Configlue.Source.Common.CommonSourceFileFormat FileFormat { get; init; }
-        public Configlue.FileResourceOptions? FileResourceOptions { get; init; }
+        public Configlue.Resources.FileResourceOptions? FileResourceOptions { get; init; }
         public Configlue.Source.Common.CommonSourceFileFormat GlobalFileFormat { get; init; }
         public required string GlobalFileName { get; init; }
         public Configlue.Source.Common.CommonSourceFileFormat LocalFileFormat { get; init; }

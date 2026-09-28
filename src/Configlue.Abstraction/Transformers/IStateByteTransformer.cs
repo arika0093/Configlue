@@ -1,4 +1,4 @@
-namespace Configlue;
+namespace Configlue.Transformers;
 
 /// <summary>Transforms serialized state bytes between a resource and a state codec.</summary>
 /// <remarks>

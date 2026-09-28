@@ -21,6 +21,8 @@ Codec は Resource の I/O なしに、バイトと型付き値を相互変換�
 Codec の後には `IStateMiddleware<T>` を置けます。これは型付き reader/writer を包み、監査・検証・正規化などを実装します。`middlewares` の先頭が外側になります。middleware が writer を包む場合、batch write にも参加させるなら、戻り値の writer で `IStateWriteBatchParticipant<T>` を引き継いでください。
 
 ```csharp
+using Configlue.Codecs;
+using Configlue.State;
 using Configlue.Transformer.AES;
 
 using var encryption = new AesGcmStateByteTransformer(key);

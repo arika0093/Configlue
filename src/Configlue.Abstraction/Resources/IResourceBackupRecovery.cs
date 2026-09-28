@@ -1,4 +1,4 @@
-namespace Configlue;
+namespace Configlue.Resources;
 
 /// <summary>Provides opt-in recovery of a resource from a validated backup.</summary>
 public interface IResourceBackupRecovery

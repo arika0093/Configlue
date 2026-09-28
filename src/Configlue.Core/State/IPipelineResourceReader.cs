@@ -1,4 +1,4 @@
-namespace Configlue;
+namespace Configlue.State;
 
 /// <summary>Optionally reads resource content through a segmented pipeline.</summary>
 public interface IPipelineResourceReader

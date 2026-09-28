@@ -1,7 +1,7 @@
 using System.Collections;
 using System.Collections.ObjectModel;
 
-namespace Configlue;
+namespace Configlue.State;
 
 /// <summary>A backend revision associated with one logical source identifier.</summary>
 public readonly record struct StateRevision
