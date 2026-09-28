@@ -4,6 +4,7 @@ namespace Configlue;
 public sealed class ResourceWriteMutation
 {
     private readonly Func<ResourceReadResult, ReadOnlyMemory<byte>> _apply;
+    private readonly byte[]? _ownedReplacementContent;
 
     /// <summary>Creates a resource mutation.</summary>
     public ResourceWriteMutation(
@@ -13,6 +14,17 @@ public sealed class ResourceWriteMutation
         Func<ResourceReadResult, ReadOnlyMemory<byte>> apply,
         string? scope = null,
         bool canCompose = false
+    )
+        : this(expectedRevision, checkRevision, schema, apply, scope, canCompose, null) { }
+
+    private ResourceWriteMutation(
+        string? expectedRevision,
+        bool checkRevision,
+        StateSchemaMetadata? schema,
+        Func<ResourceReadResult, ReadOnlyMemory<byte>> apply,
+        string? scope,
+        bool canCompose,
+        byte[]? ownedReplacementContent
     )
     {
         ArgumentNullException.ThrowIfNull(apply);
@@ -30,6 +42,7 @@ public sealed class ResourceWriteMutation
         _apply = apply;
         Scope = scope;
         CanCompose = canCompose;
+        _ownedReplacementContent = ownedReplacementContent;
     }
 
     /// <summary>The revision on which this mutation is based.</summary>
@@ -52,6 +65,18 @@ public sealed class ResourceWriteMutation
     /// <summary>Applies the mutation to the current physical resource content.</summary>
     public ReadOnlyMemory<byte> Apply(ResourceReadResult current) => _apply(current);
 
+    internal bool TryGetOwnedReplacementContent(out ReadOnlyMemory<byte> content)
+    {
+        if (_ownedReplacementContent is not null)
+        {
+            content = _ownedReplacementContent;
+            return true;
+        }
+
+        content = default;
+        return false;
+    }
+
     /// <summary>Creates a full-resource replacement mutation.</summary>
     public static ResourceWriteMutation Replace(ResourceWriteRequest request)
     {
@@ -61,7 +86,9 @@ public sealed class ResourceWriteMutation
             request.CheckRevision,
             request.Schema,
             _ => content,
-            canCompose: false
+            scope: null,
+            canCompose: false,
+            ownedReplacementContent: content
         );
         mutation.HasStableContent = true;
         return mutation;
