@@ -42,8 +42,7 @@ public sealed class DaprStateResourceTests
         var result = await resource.WriteAsync(
             new ResourceWriteRequest(
                 new byte[] { 4, 5 },
-                ExpectedRevision: "revision-1",
-                CheckRevision: true
+                Condition: RevisionCondition.FromRevision("revision-1")
             )
         );
 
@@ -57,8 +56,7 @@ public sealed class DaprStateResourceTests
             await resource.WriteAsync(
                 new ResourceWriteRequest(
                     new byte[] { 6 },
-                    ExpectedRevision: "stale",
-                    CheckRevision: true
+                    Condition: RevisionCondition.FromRevision("stale")
                 )
             )
         );
@@ -71,7 +69,7 @@ public sealed class DaprStateResourceTests
         var resource = new DaprStateResource(client, "state", "settings");
 
         await resource.WriteAsync(
-            new ResourceWriteRequest(new byte[] { 1 }, ExpectedRevision: null, CheckRevision: true)
+            new ResourceWriteRequest(new byte[] { 1 }, Condition: RevisionCondition.MustNotExist)
         );
 
         client.LastETag.ShouldBe(string.Empty);

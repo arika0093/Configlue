@@ -9,7 +9,7 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
     where TModel : IConfiglueModel<TModel, TFragment>
     where TFragment : class, IConfiglueFragment<TFragment>
 {
-    private async ValueTask<StateWriteResult> WriteChangesToSourceAsync(
+    private async ValueTask<StateWriteReceipt> WriteChangesToSourceAsync(
         StateSource<TFragment> source,
         TModel before,
         TModel after,
@@ -25,7 +25,7 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
         var requestedChanges = TModel.Diff(before, after);
         if (requestedChanges.IsEmpty)
         {
-            return new StateWriteResult(expectedRevision);
+            return StateWriteReceipt.Empty;
         }
 
         var searchCandidates = _writeRoute.SourceId is null;
@@ -161,18 +161,21 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
                 );
             }
 
-            return await WriteStateAsync(
+            var written = await WriteStateAsync(
                     candidate,
                     candidate.Writer!,
                     new StateWriteRequest<TFragment>(
                         updated,
-                        current.Revision,
-                        CheckRevision: true
+                        Condition: RevisionCondition.FromRevision(current.Revision)
                     ),
                     "save",
                     cancellationToken
                 )
                 .ConfigureAwait(false);
+            return new StateWriteReceipt(
+                [new StateSourceWriteResult(candidate.Id, candidate.ResourceId, written.Revision)],
+                1
+            );
         }
 
         throw LogConflict(

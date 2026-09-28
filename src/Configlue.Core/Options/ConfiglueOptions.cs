@@ -327,10 +327,7 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
             _cloneStrategy is not null
             && result.Status == StateReadStatus.Success
             && result.Value is not null
-            ? result with
-            {
-                Value = CloneModel(result.Value),
-            }
+            ? result.WithValue(CloneModel(result.Value))
             : result;
     }
 
@@ -477,7 +474,7 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
                 if (captureContributions)
                 {
                     contributions!.Add(
-                        new ResolvedContribution(source, result with { Value = fragment })
+                        new ResolvedContribution(source, result.WithValue(fragment))
                     );
                 }
                 else
@@ -488,7 +485,7 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
                 if (activeSource is null)
                 {
                     activeSource = source;
-                    activeResult = result with { Value = fragment };
+                    activeResult = result.WithValue(fragment);
                 }
                 successfulCount++;
                 continue;
@@ -514,7 +511,7 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
                 }
 
                 return new ResolvedState(
-                    new StateReadResult<TModel>(
+                    StateReadResult<TModel>.Create(
                         result.Status,
                         default,
                         result.Revision,
@@ -543,7 +540,7 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
         if (successfulCount == 0 && lastFailure.Status == StateReadStatus.Unavailable)
         {
             return new ResolvedState(
-                new StateReadResult<TModel>(
+                StateReadResult<TModel>.Create(
                     lastFailure.Status,
                     default,
                     lastFailure.Revision,

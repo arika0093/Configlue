@@ -101,9 +101,8 @@ public sealed class SerializedStateWriter<T> : IStateWriter<T>, IStateWriteBatch
             ?? (request.Value is IConfiglueFragment fragment ? fragment.Schema.ToMetadata() : null);
         return new ResourceWriteRequest(
             StateByteTransformerPipeline.TransformWrite(destination.WrittenMemory, _transformers),
-            request.ExpectedRevision,
-            schema,
-            request.CheckRevision
+            Condition: request.Condition,
+            Schema: schema
         )
         {
             ContentIsOwned = true,

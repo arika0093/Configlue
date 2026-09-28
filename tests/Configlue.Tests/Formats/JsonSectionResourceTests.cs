@@ -98,8 +98,7 @@ public sealed class JsonSectionResourceTests
                 await section.WriteAsync(
                     new ResourceWriteRequest(
                         Encoding.UTF8.GetBytes("{\"value\":2}"),
-                        sectionRead.Revision,
-                        CheckRevision: true
+                        Condition: RevisionCondition.FromRevision(sectionRead.Revision)
                     )
                 );
             }

@@ -258,7 +258,7 @@ public sealed partial class NestedSourceBindingTests
         edit.Value.Right!.Label = "right";
         var result = await edit.CommitAsync();
 
-        (result.MultiWriteResult!.PhysicalWriteCount).ShouldBe(1);
+        (result.PhysicalWriteCount).ShouldBe(1);
         (resource.WriteCount).ShouldBe(1);
         ((await leftSource.Reader.ReadAsync()).Value!.Label.Value).ShouldBe("left");
         ((await rightSource.Reader.ReadAsync()).Value!.Label.Value).ShouldBe("right");

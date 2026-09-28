@@ -28,7 +28,14 @@ public sealed class InMemoryStateStore<T> : IStateReader<T>, IStateWriter<T>, IS
         cancellationToken.ThrowIfCancellationRequested();
         lock (_gate)
         {
-            return ValueTask.FromResult(new StateReadResult<T>(_status, _value, _revision));
+            return ValueTask.FromResult(
+                _status switch
+                {
+                    StateReadStatus.Success => StateReadResult<T>.Success(_value, _revision),
+                    StateReadStatus.NotFound => StateReadResult<T>.NotFound(_revision),
+                    _ => StateReadResult<T>.Unavailable(_revision),
+                }
+            );
         }
     }
 
@@ -43,10 +50,7 @@ public sealed class InMemoryStateStore<T> : IStateReader<T>, IStateWriter<T>, IS
         string revision;
         lock (_gate)
         {
-            if (
-                (request.CheckRevision || request.ExpectedRevision is not null)
-                && !string.Equals(request.ExpectedRevision, _revision, StringComparison.Ordinal)
-            )
+            if (!request.Condition.IsSatisfiedBy(_revision, _status != StateReadStatus.NotFound))
             {
                 throw new StateConflictException("The in-memory state changed after it was read.");
             }

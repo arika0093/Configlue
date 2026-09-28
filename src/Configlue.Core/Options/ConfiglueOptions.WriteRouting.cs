@@ -9,11 +9,10 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
     where TModel : IConfiglueModel<TModel, TFragment>
     where TFragment : class, IConfiglueFragment<TFragment>
 {
-    private async ValueTask<StateWriteResult> WriteChangesToSourcesAsync(
+    private async ValueTask<StateWriteReceipt> WriteChangesToSourcesAsync(
         StateSource<TFragment> fallbackSource,
         TModel before,
         TModel after,
-        string? expectedFallbackRevision,
         StateRevisionVector? expectedBaselineRevisions,
         IReadOnlyList<ResolvedContribution> baselineContributions,
         StateWritePlan writePlan,
@@ -26,7 +25,7 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
         var changes = TModel.Diff(before, after);
         if (changes.IsEmpty)
         {
-            return new StateWriteResult(expectedFallbackRevision);
+            return StateWriteReceipt.Empty;
         }
 
         var canSearchFallbackCandidates = _writeRoute.SourceId is null;
@@ -61,7 +60,6 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
             );
         }
         StateSourcePatch[]? patches = null;
-        var selectedFallbackSourceId = fallbackSource.Id;
         string? lastFailure = null;
         foreach (var candidateId in fallbackCandidateIds)
         {
@@ -94,7 +92,7 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
 
             if (candidatePatches.Length == 0)
             {
-                return new StateWriteResult(expectedFallbackRevision);
+                return StateWriteReceipt.Empty;
             }
 
             if (
@@ -116,7 +114,6 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
             }
 
             patches = candidatePatches;
-            selectedFallbackSourceId = candidateId;
             break;
         }
 
@@ -136,13 +133,7 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
                 cancellationToken
             )
             .ConfigureAwait(false);
-        var fallbackResult = result.Sources.FirstOrDefault(source =>
-            string.Equals(source.SourceId, selectedFallbackSourceId, StringComparison.Ordinal)
-        );
-        var revision = fallbackResult.SourceId is not null
-            ? fallbackResult.Revision
-            : result.Sources[0].Revision;
-        return new StateWriteResult(revision) { MultiWriteResult = result };
+        return result;
     }
 
     private StateSourcePatch[] CreateRoutedPatches(

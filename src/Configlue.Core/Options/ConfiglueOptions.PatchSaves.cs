@@ -10,7 +10,7 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
     where TFragment : class, IConfiglueFragment<TFragment>
 {
     /// <inheritdoc />
-    public async ValueTask<StateWriteResult> SaveAsync(
+    public async ValueTask<StateWriteReceipt> SaveAsync(
         IConfigluePatch patch,
         CancellationToken cancellationToken = default
     )
@@ -44,7 +44,7 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
                 );
             }
 
-            return new StateWriteResult(current.Revision);
+            return StateWriteReceipt.Empty;
         }
 
         var fallbackSource = TrySelectDefaultWriteSource();
@@ -151,16 +151,6 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
                 baseline
             )
             .ConfigureAwait(false);
-        var sourceResult = fallbackSource is null
-            ? default
-            : result.Sources.FirstOrDefault(route =>
-                string.Equals(route.SourceId, fallbackSource.Id, StringComparison.Ordinal)
-            );
-        var revision = sourceResult.SourceId is null
-            ? result.Sources[0].Revision
-            : sourceResult.Revision;
-        return result.Sources.Count == 1
-            ? new StateWriteResult(revision)
-            : new StateWriteResult(revision) { MultiWriteResult = result };
+        return result;
     }
 }

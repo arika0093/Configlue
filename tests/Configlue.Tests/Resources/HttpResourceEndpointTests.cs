@@ -35,7 +35,11 @@ public sealed class HttpResourceEndpointTests
         var schema = new StateSchemaMetadata("AppSettings", 3);
         var firstContent = Encoding.UTF8.GetBytes("{\"RetryCount\":5}");
         var firstWrite = await writer.WriteAsync(
-            new ResourceWriteRequest(firstContent, Schema: schema, CheckRevision: true)
+            new ResourceWriteRequest(
+                firstContent,
+                Condition: RevisionCondition.MustNotExist,
+                Schema: schema
+            )
         );
 
         firstWrite.Revision.ShouldNotBeNull();
@@ -60,16 +64,19 @@ public sealed class HttpResourceEndpointTests
         var secondWrite = await writer.WriteAsync(
             new ResourceWriteRequest(
                 secondContent,
-                ExpectedRevision: firstRead.Revision,
-                Schema: schema,
-                CheckRevision: true
+                Condition: RevisionCondition.FromRevision(firstRead.Revision),
+                Schema: schema
             )
         );
         secondWrite.Revision.ShouldNotBe(firstRead.Revision);
 
         var unconditionalContent = Encoding.UTF8.GetBytes("{\"RetryCount\":8}");
         var unconditionalWrite = await writer.WriteAsync(
-            new ResourceWriteRequest(unconditionalContent, Schema: schema)
+            new ResourceWriteRequest(
+                unconditionalContent,
+                Condition: RevisionCondition.None,
+                Schema: schema
+            )
         );
         unconditionalWrite.Revision.ShouldNotBe(secondWrite.Revision);
 
@@ -78,9 +85,8 @@ public sealed class HttpResourceEndpointTests
             await writer.WriteAsync(
                 new ResourceWriteRequest(
                     firstContent,
-                    ExpectedRevision: firstRead.Revision,
-                    Schema: schema,
-                    CheckRevision: true
+                    Condition: RevisionCondition.FromRevision(firstRead.Revision),
+                    Schema: schema
                 )
             );
         });

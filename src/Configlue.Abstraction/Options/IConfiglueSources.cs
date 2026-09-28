@@ -43,7 +43,7 @@ public interface IConfiglueSources<T>
     );
 
     /// <summary>Applies explicit source-local patches and groups compatible writes by physical resource identity.</summary>
-    ValueTask<StateMultiWriteResult> ApplyPatchesAsync(
+    ValueTask<StateWriteReceipt> ApplyPatchesAsync(
         IEnumerable<StateSourcePatch> patches,
         CancellationToken cancellationToken = default
     );

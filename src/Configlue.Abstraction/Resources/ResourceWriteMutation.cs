@@ -8,18 +8,16 @@ public sealed class ResourceWriteMutation
 
     /// <summary>Creates a resource mutation.</summary>
     public ResourceWriteMutation(
-        string? expectedRevision,
-        bool checkRevision,
+        RevisionCondition condition,
         StateSchemaMetadata? schema,
         Func<ResourceReadResult, ReadOnlyMemory<byte>> apply,
         string? scope = null,
         bool canCompose = false
     )
-        : this(expectedRevision, checkRevision, schema, apply, scope, canCompose, null) { }
+        : this(condition, schema, apply, scope, canCompose, null) { }
 
     private ResourceWriteMutation(
-        string? expectedRevision,
-        bool checkRevision,
+        RevisionCondition condition,
         StateSchemaMetadata? schema,
         Func<ResourceReadResult, ReadOnlyMemory<byte>> apply,
         string? scope,
@@ -36,8 +34,7 @@ public sealed class ResourceWriteMutation
             );
         }
 
-        ExpectedRevision = expectedRevision;
-        CheckRevision = checkRevision;
+        Condition = condition;
         Schema = schema;
         _apply = apply;
         Scope = scope;
@@ -45,11 +42,8 @@ public sealed class ResourceWriteMutation
         _ownedReplacementContent = ownedReplacementContent;
     }
 
-    /// <summary>The revision on which this mutation is based.</summary>
-    public string? ExpectedRevision { get; }
-
-    /// <summary>Whether the expected revision must be checked even when it is null.</summary>
-    public bool CheckRevision { get; }
+    /// <summary>The explicit concurrency precondition for this mutation.</summary>
+    public RevisionCondition Condition { get; }
 
     /// <summary>The schema metadata, if this mutation replaces a typed resource.</summary>
     public StateSchemaMetadata? Schema { get; }
@@ -82,8 +76,7 @@ public sealed class ResourceWriteMutation
     {
         var content = request.ContentIsOwned ? request.Content : request.Content.ToArray();
         var mutation = new ResourceWriteMutation(
-            request.ExpectedRevision,
-            request.CheckRevision,
+            request.Condition,
             request.Schema,
             _ => content,
             scope: null,
@@ -111,16 +104,8 @@ public sealed class ResourceWriteMutation
             );
         }
 
-        var expectedRevision = mutations[0].ExpectedRevision;
-        if (
-            mutations.Any(mutation =>
-                !string.Equals(
-                    mutation.ExpectedRevision,
-                    expectedRevision,
-                    StringComparison.Ordinal
-                )
-            )
-        )
+        var condition = mutations[0].Condition;
+        if (mutations.Any(mutation => mutation.Condition != condition))
         {
             throw new StateConflictException(
                 "Mutations for one resource were prepared from different revisions."

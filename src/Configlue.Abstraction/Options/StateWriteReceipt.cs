@@ -35,14 +35,17 @@ public readonly record struct StateSourceWriteResult
     }
 }
 
-/// <summary>The completed per-source results and physical write count of a multi-source patch operation.</summary>
-public sealed class StateMultiWriteResult
+/// <summary>The complete logical source outcomes and physical write count of an application write.</summary>
+public sealed class StateWriteReceipt
 {
-    /// <summary>Creates a multi-source write result.</summary>
-    public StateMultiWriteResult(
-        IEnumerable<StateSourceWriteResult> sources,
-        int physicalWriteCount
-    )
+    /// <summary>An operation that performed no writes.</summary>
+    public static StateWriteReceipt Empty { get; } = new([], 0);
+
+    /// <summary>The revision when exactly one source was written; otherwise null.</summary>
+    public string? Revision => Sources.Count == 1 ? Sources[0].Revision : null;
+
+    /// <summary>Creates an application write receipt.</summary>
+    public StateWriteReceipt(IEnumerable<StateSourceWriteResult> sources, int physicalWriteCount)
     {
         ArgumentNullException.ThrowIfNull(sources);
         if (physicalWriteCount < 0)

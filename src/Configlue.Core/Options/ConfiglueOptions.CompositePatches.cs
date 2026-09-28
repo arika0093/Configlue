@@ -14,7 +14,6 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
         ResolvedState baseline,
         ConfiglueModelSchema modelSchema,
         Dictionary<string, StateReadResult<TFragment>> replacements,
-        Dictionary<string, StateSourceWriteResult> noOpResults,
         List<(
             StateSource<TFragment> Source,
             IStateWriter<TFragment> Writer,
@@ -108,10 +107,6 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
 
         if (routedPatches.Count == 0)
         {
-            noOpResults.Add(
-                source.Id,
-                new StateSourceWriteResult(source.Id, source.ResourceId, current.Revision)
-            );
             return;
         }
 
@@ -187,8 +182,7 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
             componentOverrides.Add(component.Id, patchedComponent);
             var componentRequest = new StateWriteRequest<TFragment>(
                 patchedComponent,
-                componentCurrent.Revision,
-                CheckRevision: true
+                Condition: RevisionCondition.FromRevision(componentCurrent.Revision)
             );
             var componentResourceId = component.ResourceId;
             IResourceBatchWriter? componentBatchWriter = null;

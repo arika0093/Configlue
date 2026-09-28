@@ -129,9 +129,8 @@ public sealed class TransformingResource
             writer.WriteAsync(
                 new ResourceWriteRequest(
                     owner.TransformWrite(request.Content),
-                    request.ExpectedRevision,
-                    request.Schema,
-                    request.CheckRevision
+                    Condition: request.Condition,
+                    Schema: request.Schema
                 ),
                 cancellationToken
             );
@@ -166,8 +165,7 @@ public sealed class TransformingResource
             {
                 var mutation = mutations[index];
                 transformedMutations[index] = new ResourceWriteMutation(
-                    mutation.ExpectedRevision,
-                    mutation.CheckRevision,
+                    mutation.Condition,
                     mutation.Schema,
                     current =>
                     {
@@ -180,8 +178,8 @@ public sealed class TransformingResource
                                 : current;
                         return _owner.TransformWrite(mutation.Apply(decoded));
                     },
-                    mutation.Scope,
-                    mutation.CanCompose
+                    scope: mutation.Scope,
+                    canCompose: mutation.CanCompose
                 );
             }
 

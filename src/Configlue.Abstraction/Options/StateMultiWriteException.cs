@@ -5,7 +5,7 @@ public sealed class StateMultiWriteException : Exception
 {
     /// <summary>Creates a partial write failure with completed and pending source identities.</summary>
     public StateMultiWriteException(
-        StateMultiWriteResult completed,
+        StateWriteReceipt completed,
         ResourceId? failedResourceId,
         IEnumerable<string> failedSourceIds,
         IEnumerable<string> unattemptedSourceIds,
@@ -24,7 +24,7 @@ public sealed class StateMultiWriteException : Exception
     }
 
     /// <summary>The source results that completed before the failure.</summary>
-    public StateMultiWriteResult Completed { get; }
+    public StateWriteReceipt Completed { get; }
 
     /// <summary>The physical resource whose write failed, if it had an identity.</summary>
     public ResourceId? FailedResourceId { get; }
