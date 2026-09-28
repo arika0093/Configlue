@@ -58,10 +58,8 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
             );
         }
 
-        if (
-            patch.Apply(TModel.ToFragment(baseline.Result.Value!))
-            is not TFragment requestedFragment
-        )
+        var baselineFragment = baseline.MergedFragment ?? TModel.ToFragment(baseline.Result.Value!);
+        if (patch.Apply(baselineFragment) is not TFragment requestedFragment)
         {
             throw new InvalidOperationException(
                 "The patch returned an incompatible configuration fragment."
@@ -80,7 +78,16 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
         }
 
         IReadOnlyDictionary<string, IConfigluePatch> patchesBySource;
-        if (patch is IConfiglueRoutablePatch routablePatch)
+        if (_defaultWritePlan.PropertyRoutes.Count == 0 && fallbackSource is not null)
+        {
+            // With a single default writable source every member routes to it, so the
+            // per-member routing work can be skipped entirely.
+            patchesBySource = new Dictionary<string, IConfigluePatch>(StringComparer.Ordinal)
+            {
+                [fallbackSource.Id] = patch,
+            };
+        }
+        else if (patch is IConfiglueRoutablePatch routablePatch)
         {
             patchesBySource = routablePatch.Route(_defaultWritePlan, fallbackSource?.Id);
         }
