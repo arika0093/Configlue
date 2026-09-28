@@ -109,7 +109,7 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
                     saveValue = RebaseConfigurationEdit(baseline, value, saveBaseline);
                 }
 
-                StateWriteResult writeResult;
+                StateWriteReceipt writeResult;
                 if (effectiveWritePlan.PropertyRoutes.Count == 0)
                 {
                     writeResult = await WriteChangesToSourceAsync(
@@ -129,7 +129,6 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
                             source,
                             saveBaseline,
                             saveValue,
-                            saveExpectedRevision,
                             saveRevisions,
                             saveContributions,
                             effectiveWritePlan,

@@ -138,9 +138,7 @@ public static class HttpResourceEndpointRouteBuilderExtensions
             return;
         }
 
-        if (
-            !TryReadWriteCondition(context.Request, out var expectedRevision, out var checkRevision)
-        )
+        if (!TryReadWriteCondition(context.Request, out var condition))
         {
             context.Response.StatusCode = StatusCodes.Status400BadRequest;
             return;
@@ -202,9 +200,8 @@ public static class HttpResourceEndpointRouteBuilderExtensions
                 .WriteAsync(
                     new ResourceWriteRequest(
                         content.GetBuffer().AsMemory(0, checked((int)content.Length)),
-                        expectedRevision,
-                        schema,
-                        checkRevision
+                        Condition: condition,
+                        Schema: schema
                     ),
                     context.RequestAborted
                 )
@@ -275,14 +272,9 @@ public static class HttpResourceEndpointRouteBuilderExtensions
         return true;
     }
 
-    private static bool TryReadWriteCondition(
-        HttpRequest request,
-        out string? expectedRevision,
-        out bool checkRevision
-    )
+    private static bool TryReadWriteCondition(HttpRequest request, out RevisionCondition condition)
     {
-        expectedRevision = null;
-        checkRevision = false;
+        condition = RevisionCondition.None;
         var ifMatchValues = request.Headers.IfMatch;
         var ifNoneMatchValues = request.Headers.IfNoneMatch;
         if (ifMatchValues.Count == 0 && ifNoneMatchValues.Count == 0)
@@ -313,13 +305,13 @@ public static class HttpResourceEndpointRouteBuilderExtensions
                 || !EntityTagHeaderValue.TryParse(value, out var entityTag)
                 || entityTag is null
                 || entityTag.IsWeak
-                || !TryDecodeRevision(entityTag.Tag, out expectedRevision)
+                || !TryDecodeRevision(entityTag.Tag, out var expectedRevision)
             )
             {
                 return false;
             }
 
-            checkRevision = true;
+            condition = RevisionCondition.Match(expectedRevision!);
             return true;
         }
 
@@ -328,7 +320,7 @@ public static class HttpResourceEndpointRouteBuilderExtensions
             var rawValue = ifNoneMatchValues[0];
             if (rawValue?.Trim() == "*")
             {
-                checkRevision = true;
+                condition = RevisionCondition.MustNotExist;
                 return true;
             }
         }

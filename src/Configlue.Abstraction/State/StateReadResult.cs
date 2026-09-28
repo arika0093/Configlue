@@ -3,11 +3,13 @@ namespace Configlue.State;
 /// <summary>A value returned from a state reader.</summary>
 public readonly record struct StateReadResult<T>
 {
-    /// <summary>Gets or initializes the <see cref="Status"/> value.</summary>
-    public StateReadStatus Status { get; init; }
+    private readonly StateReadStatus? _status;
 
-    /// <summary>Gets or initializes the <see cref="Value"/> value.</summary>
-    public T? Value { get; init; }
+    /// <summary>The read outcome selected by its factory.</summary>
+    public StateReadStatus Status => _status ?? StateReadStatus.NotFound;
+
+    /// <summary>The successful or invalid value; missing and unavailable results carry no value.</summary>
+    public T? Value { get; }
 
     /// <summary>Gets or initializes the <see cref="Revision"/> value.</summary>
     public string? Revision { get; init; }
@@ -32,7 +34,7 @@ public readonly record struct StateReadResult<T>
     /// <param name="PhysicalOrigin">The initial value for the <see cref="PhysicalOrigin"/> property.</param>
     /// <param name="Schema">The initial value for the <see cref="Schema"/> property.</param>
     /// <param name="Revisions">The initial value for the <see cref="Revisions"/> property.</param>
-    public StateReadResult(
+    private StateReadResult(
         StateReadStatus Status,
         T? Value,
         string? Revision = null,
@@ -42,14 +44,46 @@ public readonly record struct StateReadResult<T>
         StateRevisionVector? Revisions = null
     )
     {
-        this.Status = Status;
-        this.Value = Value;
+        if (!Enum.IsDefined(Status))
+        {
+            throw new ArgumentOutOfRangeException(nameof(Status));
+        }
+        if (Status == StateReadStatus.Success)
+        {
+            ArgumentNullException.ThrowIfNull(Value);
+        }
+        _status = Status == StateReadStatus.NotFound ? null : Status;
+        this.Value = Status is StateReadStatus.NotFound or StateReadStatus.Unavailable
+            ? default
+            : Value;
         this.Revision = Revision;
         this.SourceId = SourceId;
         this.PhysicalOrigin = PhysicalOrigin;
         this.Schema = Schema;
         this.Revisions = Revisions;
     }
+
+    internal static StateReadResult<T> Create(
+        StateReadStatus Status,
+        T? Value,
+        string? Revision = null,
+        string? SourceId = null,
+        string? PhysicalOrigin = null,
+        StateSchemaMetadata? Schema = null,
+        StateRevisionVector? Revisions = null
+    ) =>
+        new(
+            Status,
+            Status is StateReadStatus.NotFound or StateReadStatus.Unavailable ? default : Value,
+            Revision,
+            SourceId,
+            PhysicalOrigin,
+            Schema,
+            Revisions
+        );
+
+    internal StateReadResult<T> WithValue(T value) =>
+        new(Status, value, Revision, SourceId, PhysicalOrigin, Schema, Revisions);
 
     /// <summary>Deconstructs this record into its property values.</summary>
     /// <param name="Status">Receives the current <see cref="Status"/> value.</param>

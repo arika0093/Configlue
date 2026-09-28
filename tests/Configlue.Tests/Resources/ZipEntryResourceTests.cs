@@ -67,8 +67,8 @@ public sealed class ZipEntryResourceTests
         var result = await session.CommitAsync();
 
         (archive.WriteCount).ShouldBe(2);
-        (result.MultiWriteResult).ShouldNotBeNull();
-        (result.MultiWriteResult!.PhysicalWriteCount).ShouldBe(1);
+        (result).ShouldNotBeNull();
+        (result.PhysicalWriteCount).ShouldBe(1);
         var resolved = (await options.ReadAsync()).Value!;
         (resolved.Label).ShouldBe("after");
         (resolved.RetryCount).ShouldBe(12);
@@ -98,7 +98,10 @@ public sealed class ZipEntryResourceTests
 
         (before.Status).ShouldBe(StateReadStatus.NotFound);
         await entry.WriteAsync(
-            new ResourceWriteRequest(new byte[] { 6, 7 }, before.Revision, CheckRevision: true)
+            new ResourceWriteRequest(
+                new byte[] { 6, 7 },
+                Condition: RevisionCondition.FromRevision(before.Revision)
+            )
         );
 
         var after = await entry.ReadAsync();
@@ -122,10 +125,16 @@ public sealed class ZipEntryResourceTests
 
         (firstRead.Revision).ShouldBe(secondRead.Revision);
         await firstEntry.WriteAsync(
-            new ResourceWriteRequest(new byte[] { 2 }, firstRead.Revision, CheckRevision: true)
+            new ResourceWriteRequest(
+                new byte[] { 2 },
+                Condition: RevisionCondition.FromRevision(firstRead.Revision)
+            )
         );
         await secondEntry.WriteAsync(
-            new ResourceWriteRequest(new byte[] { 3 }, secondRead.Revision, CheckRevision: true)
+            new ResourceWriteRequest(
+                new byte[] { 3 },
+                Condition: RevisionCondition.FromRevision(secondRead.Revision)
+            )
         );
 
         (await firstEntry.ReadAsync()).Content.ToArray().ShouldBe([2]);
@@ -135,14 +144,16 @@ public sealed class ZipEntryResourceTests
         var staleRead = await firstEntry.ReadAsync();
         var conflictingRead = await conflictingEntry.ReadAsync();
         await firstEntry.WriteAsync(
-            new ResourceWriteRequest(new byte[] { 4 }, staleRead.Revision, CheckRevision: true)
+            new ResourceWriteRequest(
+                new byte[] { 4 },
+                Condition: RevisionCondition.FromRevision(staleRead.Revision)
+            )
         );
         await Should.ThrowAsync<StateConflictException>(async () =>
             await conflictingEntry.WriteAsync(
                 new ResourceWriteRequest(
                     new byte[] { 6 },
-                    conflictingRead.Revision,
-                    CheckRevision: true
+                    Condition: RevisionCondition.FromRevision(conflictingRead.Revision)
                 )
             )
         );

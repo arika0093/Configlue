@@ -141,7 +141,10 @@ public sealed partial class StateRuntimeTests
 
         var resolved = await source.Reader.ReadAsync();
         await source.Writer!.WriteAsync(
-            new StateWriteRequest<string>(resolved.Value!, resolved.Revision, CheckRevision: true)
+            new StateWriteRequest<string>(
+                resolved.Value!,
+                Condition: RevisionCondition.FromRevision(resolved.Revision)
+            )
         );
         var legacyAfterWrite = await legacy.ReadAsync();
         var canonicalAfterWrite = await canonical.ReadAsync();
@@ -241,7 +244,10 @@ public sealed partial class StateRuntimeTests
         (legacyBeforeWrite.Value).ShouldBe("legacy");
 
         await fallback.WriteAsync(
-            new StateWriteRequest<string>(snapshot.Value!, snapshot.Revision, CheckRevision: true)
+            new StateWriteRequest<string>(
+                snapshot.Value!,
+                Condition: RevisionCondition.FromRevision(snapshot.Revision)
+            )
         );
 
         var canonicalAfterWrite = await canonical.ReadAsync();
@@ -316,7 +322,10 @@ public sealed partial class StateRuntimeTests
 
         await Should.ThrowAsync<StateConflictException>(async () =>
             await fallback.WriteAsync(
-                new StateWriteRequest<string>("stale write", initial.Revision, CheckRevision: true)
+                new StateWriteRequest<string>(
+                    "stale write",
+                    Condition: RevisionCondition.FromRevision(initial.Revision)
+                )
             )
         );
 
@@ -350,7 +359,10 @@ public sealed partial class StateRuntimeTests
 
         var resolved = await runtime.Reader.ReadAsync();
         await runtime.Writer.WriteAsync(
-            new StateWriteRequest<string>("edited locally", resolved.Revision)
+            new StateWriteRequest<string>(
+                "edited locally",
+                Condition: RevisionCondition.FromRevision(resolved.Revision)
+            )
         );
         var localAfterWrite = await fallback.ReadAsync();
         var failbackWait = runtime.Watcher.WaitForChangeAsync(localAfterWrite.Revision).AsTask();
@@ -497,12 +509,18 @@ public sealed partial class StateRuntimeTests
             T? value = default,
             string? physicalOrigin = null
         ) =>
-            _result = new StateReadResult<T>(
-                status,
-                value,
-                Revision,
-                PhysicalOrigin: physicalOrigin
-            );
+            _result = (
+                status switch
+                {
+                    StateReadStatus.Success => StateReadResult<T>.Success(value, Revision),
+                    StateReadStatus.Invalid => StateReadResult<T>.Invalid(value, Revision),
+                    StateReadStatus.Unavailable => StateReadResult<T>.Unavailable(Revision),
+                    _ => StateReadResult<T>.NotFound(Revision),
+                }
+            ) with
+            {
+                PhysicalOrigin = physicalOrigin,
+            };
 
         public Task WatchStarted => _watchStarted.Task;
 
@@ -542,12 +560,10 @@ public sealed partial class StateRuntimeTests
             TaskCompletionSource changed;
             lock (_gate)
             {
-                _result = new StateReadResult<T>(
-                    StateReadStatus.Success,
-                    value,
-                    Revision,
-                    PhysicalOrigin: physicalOrigin
-                );
+                _result = StateReadResult<T>.Success(value, Revision) with
+                {
+                    PhysicalOrigin = physicalOrigin,
+                };
                 changed = _changed;
                 _changed = NewSignal();
             }

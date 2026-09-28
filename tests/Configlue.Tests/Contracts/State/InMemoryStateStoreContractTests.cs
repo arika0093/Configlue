@@ -31,14 +31,20 @@ public sealed class InMemoryStateStoreContractTests
         var initial = await store.ReadAsync();
 
         var written = await writer.WriteAsync(
-            new StateWriteRequest<string>("updated", initial.Revision, CheckRevision: true)
+            new StateWriteRequest<string>(
+                "updated",
+                Condition: RevisionCondition.FromRevision(initial.Revision)
+            )
         );
 
         written.Revision.ShouldNotBe(initial.Revision);
         (await store.ReadAsync()).Value.ShouldBe("updated");
         await Should.ThrowAsync<StateConflictException>(async () =>
             await writer.WriteAsync(
-                new StateWriteRequest<string>("stale", initial.Revision, CheckRevision: true)
+                new StateWriteRequest<string>(
+                    "stale",
+                    Condition: RevisionCondition.FromRevision(initial.Revision)
+                )
             )
         );
         (await store.ReadAsync()).Value.ShouldBe("updated");

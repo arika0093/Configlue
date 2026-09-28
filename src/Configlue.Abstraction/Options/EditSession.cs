@@ -7,7 +7,7 @@ public sealed class EditSession<T> : IDisposable
     private const int SavingState = 1;
     private const int DisposedState = 2;
 
-    private readonly Func<T, CancellationToken, ValueTask<StateWriteResult>> _save;
+    private readonly Func<T, CancellationToken, ValueTask<StateWriteReceipt>> _save;
     private readonly Func<T, T> _clone;
     private readonly T _loadedValue;
     private readonly T _defaultValue;
@@ -18,13 +18,13 @@ public sealed class EditSession<T> : IDisposable
 
     /// <summary>Creates a configure session around a staged value and its save operation.</summary>
     /// <remarks>The initial value is the loaded baseline. Default resets require the baseline overload.</remarks>
-    public EditSession(T value, Func<T, CancellationToken, ValueTask<StateWriteResult>> save)
+    public EditSession(T value, Func<T, CancellationToken, ValueTask<StateWriteReceipt>> save)
         : this(value, save, Clone, value, value, hasDefaultValue: false) { }
 
     /// <summary>Creates a configure session with independent loaded and default baselines.</summary>
     public EditSession(
         T value,
-        Func<T, CancellationToken, ValueTask<StateWriteResult>> save,
+        Func<T, CancellationToken, ValueTask<StateWriteReceipt>> save,
         Func<T, T> clone,
         T loadedValue,
         T defaultValue
@@ -33,7 +33,7 @@ public sealed class EditSession<T> : IDisposable
 
     private EditSession(
         T value,
-        Func<T, CancellationToken, ValueTask<StateWriteResult>> save,
+        Func<T, CancellationToken, ValueTask<StateWriteReceipt>> save,
         Func<T, T> clone,
         T loadedValue,
         T defaultValue,
@@ -104,7 +104,7 @@ public sealed class EditSession<T> : IDisposable
     }
 
     /// <summary>Commits the edited value against the latest resolved source state.</summary>
-    public async ValueTask<StateWriteResult> CommitAsync(
+    public async ValueTask<StateWriteReceipt> CommitAsync(
         CancellationToken cancellationToken = default
     )
     {

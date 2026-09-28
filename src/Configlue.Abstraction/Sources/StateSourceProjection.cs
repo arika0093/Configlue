@@ -306,7 +306,7 @@ public static class StateSourceProjection
             var result = await source.ReadAsync(cancellationToken).ConfigureAwait(false);
             if (result.Status != StateReadStatus.Success)
             {
-                return new StateReadResult<TTarget>(
+                return StateReadResult<TTarget>.Create(
                     result.Status,
                     default,
                     result.Revision,
@@ -338,7 +338,7 @@ public static class StateSourceProjection
                 throw new InvalidOperationException("The source projection returned a null value.");
             }
 
-            return new StateReadResult<TTarget>(
+            return StateReadResult<TTarget>.Create(
                 StateReadStatus.Success,
                 projected,
                 result.Revision,
@@ -436,11 +436,7 @@ public static class StateSourceProjection
             }
             return await source
                 .WriteAsync(
-                    new StateWriteRequest<TSource>(
-                        mapped,
-                        request.ExpectedRevision,
-                        request.CheckRevision
-                    ),
+                    new StateWriteRequest<TSource>(mapped, Condition: request.Condition),
                     cancellationToken
                 )
                 .ConfigureAwait(false);
@@ -466,8 +462,7 @@ public static class StateSourceProjection
                 return participant.TryCreateBatchWrite(
                     new StateWriteRequest<TSource>(
                         toSource!(request.Value),
-                        request.ExpectedRevision,
-                        request.CheckRevision
+                        Condition: request.Condition
                     ),
                     out resourceId,
                     out batchWriter,
@@ -500,8 +495,7 @@ public static class StateSourceProjection
             }
             var sourceRequest = new StateWriteRequest<TSource>(
                 mapped,
-                request.ExpectedRevision,
-                request.CheckRevision
+                Condition: request.Condition
             );
             if (source is IAsyncStateWriteBatchParticipant<TSource> asyncParticipant)
             {
@@ -535,11 +529,9 @@ public static class StateSourceProjection
         {
             var current = await reader.ReadAsync(cancellationToken).ConfigureAwait(false);
             if (
-                request.CheckRevision
-                && !string.Equals(
-                    request.ExpectedRevision,
+                !request.Condition.IsSatisfiedBy(
                     current.Revision,
-                    StringComparison.Ordinal
+                    current.Status != StateReadStatus.NotFound
                 )
             )
             {

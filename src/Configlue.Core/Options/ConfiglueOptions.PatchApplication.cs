@@ -10,7 +10,7 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
     where TFragment : class, IConfiglueFragment<TFragment>
 {
     /// <inheritdoc />
-    public ValueTask<StateMultiWriteResult> ApplyPatchesAsync(
+    public ValueTask<StateWriteReceipt> ApplyPatchesAsync(
         IEnumerable<StateSourcePatch> patches,
         CancellationToken cancellationToken = default
     )
@@ -20,7 +20,7 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
         return ApplyPatchesCoreAsync(patches.ToArray(), null, null, cancellationToken);
     }
 
-    private async ValueTask<StateMultiWriteResult> ApplyPatchesCoreAsync(
+    private async ValueTask<StateWriteReceipt> ApplyPatchesCoreAsync(
         StateSourcePatch[] patchRequests,
         StateRevisionVector? expectedBaselineRevisions,
         object? expectedResolvedModel,
@@ -96,7 +96,6 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
         var replacements = new Dictionary<string, StateReadResult<TFragment>>(
             StringComparer.Ordinal
         );
-        var noOpResults = new Dictionary<string, StateSourceWriteResult>(StringComparer.Ordinal);
         var writePlans =
             new List<(
                 StateSource<TFragment> Source,
@@ -142,10 +141,6 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
 
             if (patchRequest.Patch.IsEmpty)
             {
-                noOpResults.Add(
-                    source.Id,
-                    new StateSourceWriteResult(source.Id, source.ResourceId, current.Revision)
-                );
                 continue;
             }
 
@@ -159,7 +154,6 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
                         baseline,
                         modelSchema,
                         replacements,
-                        noOpResults,
                         writePlans,
                         cancellationToken
                     )
@@ -202,8 +196,7 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
 
             var request = new StateWriteRequest<TFragment>(
                 patchedFragment,
-                current.Revision,
-                CheckRevision: true
+                Condition: RevisionCondition.FromRevision(current.Revision)
             );
             var sourceResourceId = source.ResourceId;
             IResourceBatchWriter? batchWriter = null;
@@ -399,10 +392,7 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
             }
         }
 
-        var results = new Dictionary<string, StateSourceWriteResult>(
-            noOpResults,
-            StringComparer.Ordinal
-        );
+        var results = new Dictionary<string, StateSourceWriteResult>(StringComparer.Ordinal);
         var physicalWriteCount = 0;
         for (var groupIndex = 0; groupIndex < writeGroups.Length; groupIndex++)
         {
@@ -586,7 +576,7 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
             );
         }
 
-        return new StateMultiWriteResult(results.Values, physicalWriteCount);
+        return new StateWriteReceipt(results.Values, physicalWriteCount);
 
         static StateMultiWriteException CreatePartialWriteException(
             Exception exception,
@@ -614,7 +604,7 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
         {
             var failedPlan = failedGroup[0];
             return new StateMultiWriteException(
-                new StateMultiWriteResult(completed, completedPhysicalWrites),
+                new StateWriteReceipt(completed, completedPhysicalWrites),
                 failedPlan.ResourceId,
                 failedGroup.Select(static plan => plan.Source.Id),
                 remainingGroups.SelectMany(static group => group.Select(plan => plan.Source.Id)),

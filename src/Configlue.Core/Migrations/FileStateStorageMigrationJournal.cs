@@ -128,7 +128,10 @@ public sealed class FileStateStorageMigrationJournal
         );
         await resource
             .WriteAsync(
-                new ResourceWriteRequest(content, current.Revision, CheckRevision: true),
+                new ResourceWriteRequest(
+                    content,
+                    Condition: RevisionCondition.FromRevision(current.Revision)
+                ),
                 cancellationToken
             )
             .ConfigureAwait(false);

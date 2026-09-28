@@ -194,7 +194,7 @@ public sealed class SerializedStateReader<T> : IStateReader<T>
     {
         if (result.Status != StateReadStatus.Success)
         {
-            return new StateReadResult<T>(
+            return StateReadResult<T>.Create(
                 result.Status,
                 default,
                 result.Revision,
@@ -217,7 +217,7 @@ public sealed class SerializedStateReader<T> : IStateReader<T>
             .ConfigureAwait(false);
         if (result.Status != StateReadStatus.Success)
         {
-            return new StateReadResult<T>(
+            return StateReadResult<T>.Create(
                 result.Status,
                 default,
                 result.Revision,
@@ -295,6 +295,11 @@ public sealed class SerializedStateReader<T> : IStateReader<T>
             };
         }
 
-        return StateReadResult<T>.Success(value, revision, schema);
+        return value is null
+            ? StateReadResult<T>.Invalid(default, revision) with
+            {
+                Schema = schema,
+            }
+            : StateReadResult<T>.Success(value, revision, schema);
     }
 }
