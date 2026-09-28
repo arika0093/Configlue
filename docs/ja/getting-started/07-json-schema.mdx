@@ -1,0 +1,85 @@
+---
+title: "STEP 7: JSON Schema を出力する"
+description: 生成モデルからスキーマを出力し、エディター補完や CI 検査に活用します。
+---
+
+import { Steps } from '@astrojs/starlight/components';
+
+# STEP 7: JSON Schema を出力する
+
+設定ファイルの記述ミスを実行前に検知するために、Configlue は生成モデル（`ConfiglueModelSchema`）から JSON Schema を出力する機能を備えています。
+VS Code などのエディター補完や CI パイプラインでの静的検査に活用できます。
+
+スキーマ生成はビルド時や事前生成ツールで実行する機能であり、DI の有無には依存しません。
+
+<Steps>
+
+1. ### シリアライザーコンテキストを宣言する
+
+   AOT やトリミング環境にも対応するため、`System.Text.Json` のソース生成コンテキストを定義します。
+
+   ```csharp
+   using System.Text.Json.Serialization;
+   using Configlue.Provider.Json;
+
+   [JsonSerializable(typeof(AppSettings))]
+   [JsonSerializable(typeof(AppSettings.Fragment))]
+   internal partial class AppJsonContext : JsonSerializerContext
+   {
+   }
+   ```
+
+2. ### スキーマを書き出す
+
+   `JsonSchemaGenerator.Write` メソッドを呼び出すと、指定したフォルダーにバージョン付きスキーマファイルが出力されます。
+
+   ```csharp
+   using Configlue.Provider.Json;
+
+   var result = JsonSchemaGenerator.Write<AppSettings, AppSettings.Fragment>(
+       "schemas",
+       AppJsonContext.Default);
+
+   Console.WriteLine($"出力完了: {string.Join(", ", result.WrittenFiles)}");
+   ```
+
+   モデルに `[ConfiglueModel("tutorial.settings", Version = 1)]` と指定している場合、`schemas/tutorial.settings.v1.json` が生成されます。
+   モデルに付与した DataAnnotations の制約（`Range` や `Required` など）もスキーマ定義に反映されます。
+
+3. ### 設定ファイルにスキーマ参照を埋め込む
+
+   CommonSource や JSON ファイルソースの登録時に `SchemaReferenceBaseUri` を指定すると、保存時に `$schema` プロパティが自動付与されます。
+
+   ```csharp
+   model.UseCommonSources(new CommonSourceOptions
+   {
+       ApplicationId = "TutorialApp",
+       GlobalFileName = "settings.json",
+       SerializerOptions = new()
+       {
+           TypeInfoResolver = AppJsonContext.Default,
+       },
+   });
+   ```
+
+   保存された `settings.json` の例:
+
+   ```json
+   {
+     "$schema": "./schemas/tutorial.settings.v1.json",
+     "$version": 1,
+     "Name": "ExampleApp",
+     "Server": {
+       "Host": "localhost",
+       "Port": 8080
+     }
+   }
+   ```
+
+   エディターでこの JSON を開くと、スキーマに基づいた入力補完やエラー検出が有効になります。
+
+</Steps>
+
+---
+
+次のステップ: [STEP 8: 版を上げて移行する](./08-migration.md) では、モデルのバージョンアップと古い設定ファイルからの移行手順を学びます。

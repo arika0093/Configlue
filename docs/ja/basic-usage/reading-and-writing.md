@@ -12,11 +12,16 @@ var setting = await options.GetValueAsync();
 Console.WriteLine($">> Name: {setting.Name}");
 ```
 
-読み取りは全ソースを優先度で解決し、ディープコピーを返します。DI では同期の `IOptions<T>.Value` / `IOptionsSnapshot<T>` / `IOptionsMonitor<T>` アダプターも使えますが、非同期フローでは async メソッドを使ってください。
+読み取りは全ソースを優先度順に解決し、ディープコピーを返します。
+DI では同期の `IOptions<T>.Value` / `IOptionsSnapshot<T>` / `IOptionsMonitor<T>` アダプターも使えますが、非同期フローでは async メソッドを使ってください。
 
-Core の読み取り API は `ReadAsync` と `GetValueAsync` で、同期 `CurrentValue` property はありません。DI では opt-in の `Configlue.Extensions.MSOptions` package が `IOptions<T>`、`IOptionsSnapshot<T>`、`IOptionsMonitor<T>` adapter を提供します。同期 getter は非同期 source の読み取り中にブロックするため、非同期処理では `GetValueAsync` を使ってください。
+Core の読み取り API は `ReadAsync` と `GetValueAsync` であり、同期 `CurrentValue` プロパティはありません。
+DI では opt-in の `Configlue.Extensions.MSOptions` パッケージが `IOptions<T>`、`IOptionsSnapshot<T>`、`IOptionsMonitor<T>` アダプターを提供します。
+同期 getter は非同期ソースの読み取り中にブロックするため、非同期処理では `GetValueAsync` を使用してください。
 
-生成 clone は入れ子の Configlue model、一般的なコレクション、public parameterless constructor があり public instance state が public get/set property で構成される通常の POCO を複製します。POCO 間の共有参照と循環参照も維持します。public field・read-only property・constructor 引数・required/init-only property がある型、および未対応の collection に含まれる値は参照のまま残るため、そのような値を複製する場合は options runtime ごとに clone 戦略を設定します:
+自動生成される clone は、入れ子の Configlue モデル、一般的なコレクション、引数なし public コンストラクターを持ち public プロパティで構成される通常の POCO を複製します。
+POCO 間の共有参照と循環参照も維持します。
+public フィールド・読み取り専用プロパティ・コンストラクター引数・required/init-only プロパティがある型、および未対応のコレクションに含まれる値は参照のまま残るため、そのような値を複製する場合は options ランタイムごとに clone 戦略を設定します。
 
 ```csharp
 config.Add<AppSettings>(model =>
@@ -30,20 +35,24 @@ config.Add<AppSettings>(model =>
 });
 ```
 
-この戦略は公開 read の戻り値、編集セッションの draft と baseline、各変更通知の値を複製します。入力を変更せず、入力と別の model を返し、その可変メンバーも入力と共有しないようにしてください。省略時は生成 clone を使います。`SaveAsync` と `ApplyPatchesAsync` は fragment を直接受け取るため、fragment 内の独自可変値は呼び出し側で複製してください。
+この戦略は公開 read の戻り値、編集セッションの draft と baseline、各変更通知の値を複製します。
+入力を変更せず、入力と別のモデルを返し、その可変メンバーも入力と共有しないようにしてください。
+省略時は自動生成された clone を使用します。
+`SaveAsync` と `ApplyPatchesAsync` はフラグメントを直接受け取るため、フラグメント内の独自可変値は呼び出し側で複製してください。
 
 ## 疎に保存する
 
-生成された Patch オーバーロードは指定した項目だけを設定済み write source に書き込みます:
+生成された Patch オーバーロードは、指定した項目だけを設定済み write ソースに書き込みます。
 
 ```csharp
 await options.SaveAsync(patch => patch.SomeSetting = newValue);
 ```
 
-触っていない項目は既存の疎状態を保ちます。ソース寄与を破壊的に置換する場合は、型付き source handle を使います:
+触っていない項目は既存の疎状態を保ちます。
+ソースの寄与を破壊的に置換する場合は、型付きソースハンドルを使います。
 
 ```csharp
-var userKey = SourceKey<AppSettings>.Create(); // reuse this key when registering the user source
+var userKey = SourceKey<AppSettings>.Create(); // ユーザーソース登録時に再利用
 var replacement = new AppSettings.Patch();
 replacement.Name = "new-name";
 await options.Source(userKey).ReplaceAsync(replacement);
@@ -51,9 +60,18 @@ await options.Source(userKey).ReplaceAsync(replacement);
 
 ## 編集セッション
 
-設定画面で複数変更をまとめて適用する場合は `IConfiglueOptions<T>` の `OpenEditSessionAsync` を使います。`IWritableOptions<T>` は Patch 保存に絞っています。セッションは `CommitAsync` までインメモリで、破棄すれば未保存の変更は捨てられます。コミット中に破棄した場合、そのコミットは完了し、以後の編集やコミットはできません。書き込み前に最新状態を解決し、開始時の基準値からセッションの変更を rebase します。互いに異なる項目への変更は保持されます。同じ項目への同時変更は既定では競合として拒否し、モデル登録の `WriteConflictResolution = WriteConflictResolution.LastWriteWins` で競合項目にセッション側の値を優先できます。書き込み時にも宛先 revision を確認するため、最新読み取り後に宛先が変わると `StateConflictException` が発生することがあります。
+設定画面で複数変更をまとめて適用する場合は、`IConfiglueOptions<T>` の `OpenEditSessionAsync` を使います。
+`IWritableOptions<T>` は Patch 保存に特化しています。
+セッションは `CommitAsync` までインメモリで管理され、破棄すれば未保存の変更は破棄されます。
+コミット中に破棄した場合、そのコミットは完了し、以後の編集やコミットはできません。
+書き込み前に最新状態を解決し、開始時の基準値からセッションの変更を rebase します。
+互いに異なる項目への変更は保持されます。
+同じ項目への同時変更は既定では競合として拒否されます。
+モデル登録で `WriteConflictResolution = WriteConflictResolution.LastWriteWins` を設定すると、競合した項目にはセッション側の値を優先できます。
+書き込み時にも宛先の revision を確認するため、最新状態の読み取り後に宛先が変わると `StateConflictException` が発生することがあります。
 
-同期処理からは `options.OpenEditSession()` も使えます。非同期 source の読み込み中は呼び出し元をブロックするため、非同期処理では `OpenEditSessionAsync` を使ってください。
+同期処理からは `options.OpenEditSession()` も使えます。
+非同期ソースの読み込み中は呼び出し元をブロックするため、非同期処理では `OpenEditSessionAsync` を使ってください。
 
 ```csharp
 using var edit = await options.OpenEditSessionAsync();

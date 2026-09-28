@@ -5,11 +5,14 @@ description: 非 DI コンテキスト、DI 登録、所有権、名前付きイ
 
 # アプリケーション構成
 
-`conf.Add<TModel>(...)` は1つのモデルを定義します: ソース、書き込み経路、バリデーター、オプション名。同じ定義が下記の両構成で動きます。
+`conf.Add<TModel>(...)` は 1 つのモデルを定義します（ソース、書き込み経路、バリデーター、オプション名）。
+同じ定義が下記の両構成で動作します。
 
 ## DI なし
 
-`ConfiglueApp.CreateContext(...)` は独立した寿命管理つきコンテキストを作ります。`ConfiglueApp.Initialize(...)` + `ConfiglueApp.GetOptions<T>()` はプロセス全体の既定コンテキストを共有します (旧 `Configlue` 静的クラスと同じ既定)。破棄は `await ConfiglueApp.ShutdownAsync()` です。
+`ConfiglueApp.CreateContext(...)` は、独立したライフサイクル管理付きコンテキストを作成します。
+`ConfiglueApp.Initialize(...)` と `ConfiglueApp.GetOptions<T>()` は、プロセス全体の既定コンテキストを共有します（旧 `Configlue` 静的クラスと同じ既定動作）。
+破棄は `await ConfiglueApp.ShutdownAsync()` を呼び出します。
 
 ```csharp
 await using var context = ConfiglueApp.CreateContext(conf =>
@@ -24,7 +27,10 @@ await using var context = ConfiglueApp.CreateContext(conf =>
 var options = context.GetOptions<UserSettings>();
 ```
 
-`ConfiglueContext` は作ったオプションとウォッチャータスクを所有します。アプリが渡したソース・リーダー・ライター・リソースのインスタンスは呼び出し側所有のままです — ただし `FromJsonFile` などのプロバイダー登録ヘルパーが作ったリソースはコンテキスト所有で、ウォッチャー停止後に破棄されます。名前付きインスタンスにはモデルコールバックで `OptionsName` を設定します。
+`ConfiglueContext` は作成したオプションとウォッチャータスクを所有します。
+アプリが渡したソース・リーダー・ライター・リソースのインスタンスは呼び出し側所有のまま維持されます。
+ただし `FromJsonFile` などのプロバイダー登録ヘルパーが作成したリソースはコンテキスト所有となり、ウォッチャー停止後に破棄されます。
+名前付きインスタンスを扱う場合は、モデルコールバックで `OptionsName` を設定します。
 
 ## DI あり
 
@@ -36,15 +42,18 @@ builder.Services.AddConfiglue(conf => conf.Add<UserSettings>(model =>
 }));
 ```
 
-コンテキストはサービスプロバイダーが所有します。`IReadOnlyOptions<T>` / `IWritableOptions<T>` を注入してください。クラスモデル向けの `IOptions<T>` / `IOptionsSnapshot<T>` / `IOptionsMonitor<T>` を使う場合は、`Configlue.Extensions.MSOptions` を追加し、モデル登録後に明示的に登録します:
+コンテキストはサービスプロバイダーが所有します。
+コンポーネントには `IReadOnlyOptions<T>` または `IWritableOptions<T>` を注入してください。
+クラスモデル向けの `IOptions<T>` / `IOptionsSnapshot<T>` / `IOptionsMonitor<T>` を使う場合は、`Configlue.Extensions.MSOptions` パッケージを追加し、モデル登録後に明示的に登録します。
 
 ```csharp
 services.AddConfiglueMicrosoftOptions<UserSettings>();
 ```
 
-この拡張メソッドは `Configlue.Extensions.MSOptions` namespace にあります。
+この拡張メソッドは `Configlue.Extensions.MSOptions` 名前空間に配置されています。
 
-保存先や provider を DI から取得する場合は provider 対応 callback を使えます。モデル登録そのものは `IServiceCollection` が変更可能なうちに行い、callback は runtime source set の作成時に実行します:
+保存先やプロバイダーを DI から取得する場合は、プロバイダー対応コールバックを使用できます。
+モデル登録そのものは `IServiceCollection` が変更可能なうちに行い、コールバックはランタイムソースセットの作成時に実行されます。
 
 ```csharp
 model.Sources((provider, sources) =>
@@ -54,9 +63,13 @@ model.Sources((provider, sources) =>
 });
 ```
 
-既に実体化された `IOptionsSnapshot<T>` は通常のスナップショット通り、そのスコープの値を保ちます。
+既に実体化された `IOptionsSnapshot<T>` は通常のスナップショット通り、そのスコープの値を保持します。
 
-モデル自体を使う場合は、既定モデルの登録で `RegisterAsSingleton = true` を設定します。DI はモデルが初めて解決された時点の options 値からモデル singleton を作ります。その後ソースが変わっても注入済みモデルはこのスナップショットを保ちます。最新値や変更通知が必要な利用側には options インターフェイスを使います。この設定は `AddConfiglue` で有効になり、既定のオプション名が必要です。
+モデル自体を直接 DI で注入する場合は、既定モデルの登録で `RegisterAsSingleton = true` を設定します。
+DI はモデルが初めて解決された時点の options 値からモデルシングルトンを構築します。
+その後ソースが変わっても注入済みモデルはこのスナップショットを保持します。
+最新値や変更通知が必要な利用側には options インターフェイスを使用してください。
+この設定は `AddConfiglue` で有効になり、既定のオプション名が必要です。
 
 ```csharp
 builder.Services.AddConfiglue(conf => conf.Add<UserSettings>(model =>

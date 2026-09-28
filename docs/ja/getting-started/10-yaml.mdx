@@ -1,0 +1,115 @@
+---
+title: "STEP 10: YAML も受け付ける"
+description: YAML を主としつつ既存の JSON も読み込み、複数形式を併用します。
+---
+
+import { Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+
+# STEP 10: YAML も受け付ける
+
+チュートリアルの仕上げとして、複数の異なるフォーマットを組み合わせる方法を学びます。
+メインの保存先を YAML ファイルにしつつ、既存の JSON ファイルも読み取り専用のフォールバックとして併用します。
+
+フォーマットが異なっていても、Configlue のソースとレイヤーの基本ルールは共通です。
+
+<Steps>
+
+1. ### YAML プロバイダーパッケージを追加する
+
+   ```bash
+   dotnet add package Configlue.Provider.Yaml
+   ```
+
+2. ### YAML と JSON を組み合わせる
+
+   CommonSource では `FileFormat` オプションで既定の形式を変更できます。
+   また、`model.Sources(...)` を直接使用して、YAML（主）と JSON（従）の優先度を設定することも可能です。
+
+   <Tabs syncKey="di">
+   <TabItem label="DI なし">
+
+   ```csharp
+   using Configlue;
+   using Configlue.Provider.Json;
+   using Configlue.Provider.Yaml;
+
+   conf.Add<AppSettings>(model =>
+   {
+       model.Sources(sources =>
+       {
+           // 主：YAML ファイル（優先度高・書き込み先）
+           sources.FromYamlFile(new()
+           {
+               Id = "settings-yaml",
+               Path = "settings.yaml",
+               Priority = 200,
+           });
+
+           // 従：既存の JSON ファイル（優先度低・読み取り専用）
+           sources.FromJsonFile(new()
+           {
+               Id = "settings-json",
+               Path = "settings.json",
+               Priority = 100,
+               ReadOnly = true, // 明示的に読み取り専用に設定
+           });
+       });
+
+       model.WriteRoute = StateWriteRoute.To("settings-yaml");
+   });
+   ```
+
+   </TabItem>
+   <TabItem label="DI あり">
+
+   ```csharp
+   using Configlue;
+   using Configlue.Provider.Json;
+   using Configlue.Provider.Yaml;
+
+   builder.Services.AddConfiglue(conf =>
+   {
+       conf.Add<AppSettings>(model =>
+       {
+           model.Sources(sources =>
+           {
+               sources.FromYamlFile(new()
+               {
+                   Id = "settings-yaml",
+                   Path = "settings.yaml",
+                   Priority = 200,
+               });
+
+               sources.FromJsonFile(new()
+               {
+                   Id = "settings-json",
+                   Path = "settings.json",
+                   Priority = 100,
+                   ReadOnly = true,
+               });
+           });
+
+           model.WriteRoute = StateWriteRoute.To("settings-yaml");
+       });
+   });
+   ```
+
+   </TabItem>
+   </Tabs>
+
+3. ### 読み取りと保存の挙動
+
+   - **読み取り**: 両方のファイルが合成されます。YAML に存在するプロパティは YAML が優先され、YAML に存在しないプロパティは JSON の値が維持されます。
+   - **保存**: `WriteRoute` で指定した `settings-yaml` にのみ保存されます。既存の JSON ファイルは変更されません。
+
+</Steps>
+
+## チュートリアル完走の後は
+
+全 10 ステップのチュートリアルを通じて、CommonSource による基本構成から、入れ子・バリデーション・環境変数・HTTP・スキーマ・移行・NativeAOT・YAML までを順に体験しました。
+
+今後の開発では、目的や必要に応じて以下のドキュメントを参照してください。
+
+- **機能の詳しい仕様**: サイドバーの「機能説明」カテゴリ。目的から探す場合は [機能説明について](../guides/overview.md) を参照してください。
+- **アーキテクチャの理解**: 「設計」カテゴリ（Resource / Source / Codec / Fragment・Patch / Options）。
+- **実際に動作するサンプル**: [サンプル集](./examples.md) に完成したサンプルコードが揃っています。

@@ -1,0 +1,115 @@
+---
+title: "STEP 10: Accept YAML Too"
+description: Make YAML the primary configuration format while continuing to read existing JSON files.
+---
+
+import { Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+
+# STEP 10: Accept YAML Too
+
+To conclude the tutorial, you will learn how to combine different file formats.
+We will configure a YAML file as our primary configuration destination while keeping an existing JSON file as a read-only fallback.
+
+Even when formats differ, the fundamental source and layering concepts in Configlue remain identical.
+
+<Steps>
+
+1. ### Add the YAML provider package
+
+   ```bash
+   dotnet add package Configlue.Provider.Yaml
+   ```
+
+2. ### Combine YAML and JSON sources
+
+   In `CommonSourceOptions`, you can set the `FileFormat` option to change the default file format.
+   Alternatively, you can configure sources directly with `model.Sources(...)` to specify priorities between YAML (primary) and JSON (fallback):
+
+   <Tabs syncKey="di">
+   <TabItem label="Without DI">
+
+   ```csharp
+   using Configlue;
+   using Configlue.Provider.Json;
+   using Configlue.Provider.Yaml;
+
+   conf.Add<AppSettings>(model =>
+   {
+       model.Sources(sources =>
+       {
+           // Primary: YAML file (higher priority, writable)
+           sources.FromYamlFile(new()
+           {
+               Id = "settings-yaml",
+               Path = "settings.yaml",
+               Priority = 200,
+           });
+
+           // Fallback: Existing JSON file (lower priority, read-only)
+           sources.FromJsonFile(new()
+           {
+               Id = "settings-json",
+               Path = "settings.json",
+               Priority = 100,
+               ReadOnly = true, // Explicitly read-only
+           });
+       });
+
+       model.WriteRoute = StateWriteRoute.To("settings-yaml");
+   });
+   ```
+
+   </TabItem>
+   <TabItem label="With DI">
+
+   ```csharp
+   using Configlue;
+   using Configlue.Provider.Json;
+   using Configlue.Provider.Yaml;
+
+   builder.Services.AddConfiglue(conf =>
+   {
+       conf.Add<AppSettings>(model =>
+       {
+           model.Sources(sources =>
+           {
+               sources.FromYamlFile(new()
+               {
+                   Id = "settings-yaml",
+                   Path = "settings.yaml",
+                   Priority = 200,
+               });
+
+               sources.FromJsonFile(new()
+               {
+                   Id = "settings-json",
+                   Path = "settings.json",
+                   Priority = 100,
+                   ReadOnly = true,
+               });
+           });
+
+           model.WriteRoute = StateWriteRoute.To("settings-yaml");
+       });
+   });
+   ```
+
+   </TabItem>
+   </Tabs>
+
+3. ### Reading and saving behavior
+
+   - **Reading**: Both files are merged. Any property present in YAML takes precedence; properties missing in YAML fall back to the JSON values.
+   - **Saving**: Changes are written only to `settings-yaml` as routed by `WriteRoute`. The existing JSON file is never modified.
+
+</Steps>
+
+## After Completing the Tutorial
+
+Across all 10 tutorial steps, you progressed from standard configuration with `CommonSource` through nested objects, validation, environment overrides, remote HTTP layers, schema generation, migration, NativeAOT, and multi-format integration.
+
+To continue exploring Configlue:
+
+- **Detailed Features**: Browse the "Features" category in the sidebar. See [Features Overview](../guides/overview.md) to explore by use case.
+- **Architecture**: Browse the "Architecture" category (Resource / Source / Codec / Fragment & Patch / Options).
+- **Working Examples**: Find runnable sample projects under [Sample Applications](./examples.md).
