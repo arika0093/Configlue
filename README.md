@@ -1,18 +1,119 @@
 # Configlue
 
-Typed configuration assembled from independent state sources.
+*Make easy configuration management.*
 
-Configlue is a source-generator-first .NET library for reading, resolving, editing, and persisting typed configuration. Each source contributes only the fields it owns, so values can be layered — JSON files, environment variables, command-line options, HTTP resources — without replacing an entire settings object.
+Configlue is a .NET library that handles tedious configuration management for you.
 
-Browse the [Configlue documentation site](https://arika0093.github.io/Configlue/) for comprehensive guides, tutorials, and API concepts.
+## Why Configlue?
+### Configurations are easy ... until they aren't.
 
-## Key Features
+You might think that handling configuration files is straightforward and there's no need to use a library.
+In fact, if you just need to save and load configuration from a JSON file, it's quite simple.
 
-* **Sparse Generated Fragments**: Read, resolve, and update only the fields you touch, leaving other settings and files intact.
-* **Standard-by-Default Architecture**: Use `CommonSource` out of the box to manage global (per-user) settings, local overrides, and environment variables with zero boilerplate.
-* **Extensible Layering**: Start with `CommonSource` and seamlessly extend with command-line arguments, remote HTTP policies, or custom sources via `model.Sources(...)`.
-* **Safe Persistence**: Built-in atomic file writes with automatic backups, conflict detection, and debounce-enabled change notifications.
-* **Universal .NET Support**: Works with or without DI (Console, Desktop, ASP.NET Core, Worker Services) and supports NativeAOT.
+```cs
+// load
+var file = File.ReadAllText("settings.json");
+var config = JsonSerializer.Deserialize<AppSettings>(file);
+// save
+var json = JsonSerializer.Serialize(config);
+File.WriteAllText("settings.json", json);
+```
+
+…until it's not.
+
+### Configurations checklist
+
+Consider the following (detailed, yet important) use cases that you'll probably want to avoid dealing with manually:
+
+* Configuration comes from multiple locations.
+  * Global configuration (`%XDG_CONFIG_HOME%/MyApp/settings.json`)
+  * Per-runtime folder configuration (`./myapp.json`, etc.)
+  * Environment variable overrides
+  * Command-line argument overrides
+  * Encrypted credentials (only part of the configuration)
+  * Sometimes not local at all. For example, corporate policies or HTTP APIs for centralized management.
+* You want to receive notifications when settings are updated.
+  * When a configuration file is rewritten, you want it reflected without restarting the application.
+* Think about when you write configuration files.
+  * When reading from multiple sources, you want to automatically choose the right place to write.
+  * When reading values from environment variables, you'd want to raise a write error.
+* Configuration files are sometimes written by humans.
+  * They contain comments. Don't remove them.
+  * You want JSON schema support (since humans write them, you obviously want it!)
+  * What if there's a broken configuration file?
+* If the value is still at its default, don't write it to the configuration file.
+  * We don't want to write `foo: null, bar: null`.
+  * But if the user writes `foo: null`, we need to respect that.
+* You want to version up configuration files.
+  * Single values might become arrays, multiple items might be grouped or separated.
+  * In such cases, you want to automatically convert old configurations to the new format.
+* You want backups too.
+  * When rewriting configuration files, you want to automatically backup old settings.
+  * It would be nice if backups were automatically cleaned up, removing old ones.
+* File writes are done safely.
+  * Ensure atomicity so the file doesn't get corrupted if the app crashes during writing.
+  * If another process rewrites the same file during writing, detect the conflict and raise an error (or auto-merge).
+  * Automatically retry on failure.
+
+Implementing all of these yourself is, frankly, tedious.
+
+### Configlue's Approach
+
+Configlue simplifies complex configuration management by keeping track of the source of each configuration and combining them at the end.
+For example, like this:
+
+```jsonc
+{
+  "Name": "Alice",   // This value comes from global.
+  "RunCount": 42,    // This value only exists in local.
+  "Theme": "Dark",   // This value exists in both global and local, but local takes precedence.
+  "Server": {
+    "Host": "localhost:8080",  // This configuration was set via command-line arguments (-h localhost:8080).
+    "Username": "alice",       // This value comes from an environment variable (MYAPP__SERVER__USERNAME).
+    "Password": "secret"       // This value was decrypted from encrypted credentials.
+  },
+  "Features": {
+    "EnableFeatureX": true,  // These settings come from a remote-managed HTTP policy.
+    "EnableFeatureY": false  // (of course, they can't be written)
+  }
+}
+```
+
+*Configlue* joins (**glues**) separate sources of **configuration** into one model.
+
+### Check where values come from and save updates
+
+Read the combined value with `GetValueAsync`. Use `GetDetailsAsync` to inspect its contributing sources:
+
+```csharp
+var options = context.GetOptions<AppSettings>();
+// 1. Get the current value (merged from all sources)
+var current = await options.GetValueAsync();
+Console.WriteLine($"Hello, {current.Name}! (Run #{current.RunCount})");
+
+// 2. Get the details of where each value came from
+var details = await options.GetDetailsAsync();
+// Values can be referenced normally.
+Console.WriteLine($"Name came from {details.Name.Source?.Locator}");
+Console.WriteLine($"Can write Name? {details.Name.IsEditable}");
+foreach (var contribution in details.Name.Sources)
+{
+    var source = contribution.Source;
+    Console.WriteLine(
+        $"  {source.Kind} | {source.Locator} | writable: {source.CanWrite} | state: {contribution.State}"
+    );
+}
+```
+
+Save a patch to update only the members it specifies. `Unset` removes that source's contribution so a lower-priority source can provide the value:
+
+```csharp
+await options.SaveAsync(patch =>
+{
+    patch.Name = "Bob"; // Specify only the items you want to change
+    patch.RunCount.Unset(); // Remove this source's value; a lower-priority source may provide one.
+});
+```
 
 ## Quick Start
 
