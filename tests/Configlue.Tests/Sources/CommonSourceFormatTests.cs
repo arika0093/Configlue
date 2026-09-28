@@ -25,7 +25,7 @@ public sealed partial class CommonSourceFormatTests
             })
         );
 
-        var options = context.GetAdvancedOptions<AppSettings>();
+        var options = context.GetRuntimeOptions<AppSettings>();
         (await options.GetValueAsync()).RetryCount.ShouldBe(17);
         options.GetDiagnostics().Sources.Single().CanWrite.ShouldBeFalse();
     }
@@ -70,7 +70,7 @@ public sealed partial class CommonSourceFormatTests
                     sources.Add<AppSettings>();
                 })
             );
-            var options = context.GetAdvancedOptions<AppSettings>();
+            var options = context.GetRuntimeOptions<AppSettings>();
 
             (await options.GetValueAsync()).RetryCount.ShouldBe(4);
             ((await options.GetDetailsAsync()).RetryCount.Source?.Kind).ShouldBe("Environment");
@@ -94,7 +94,7 @@ public sealed partial class CommonSourceFormatTests
                 sources.Add<AppSettings>();
             })
         );
-        var options = (IConfiglueOptions<AppSettings>)context.GetOptions<AppSettings>();
+        var options = (IConfiglueRuntimeOptions<AppSettings>)context.GetOptions<AppSettings>();
 
         await options.SaveAsync(settings => settings.Label = "written-to-local");
 
@@ -128,7 +128,7 @@ public sealed partial class CommonSourceFormatTests
                     sources.Add<AppSettings>();
                 })
             );
-            var options = (IConfiglueOptions<AppSettings>)context.GetOptions<AppSettings>();
+            var options = (IConfiglueRuntimeOptions<AppSettings>)context.GetOptions<AppSettings>();
 
             (await options.GetValueAsync()).RetryCount.ShouldBe(11);
             options.GetDiagnostics().DefaultUsesHighestPriorityWritable.ShouldBeTrue();
@@ -217,7 +217,7 @@ public sealed partial class CommonSourceFormatTests
                 sources.Add<AppSettings>();
             })
         );
-        var options = (IConfiglueOptions<AppSettings>)context.GetOptions<AppSettings>();
+        var options = (IConfiglueRuntimeOptions<AppSettings>)context.GetOptions<AppSettings>();
 
         await options
             .Source(CommonSource.Local)

@@ -53,7 +53,7 @@ namespace Configlue.Provider.Json
     public sealed class JsonFileSourceSelector : System.IEquatable<Configlue.Provider.Json.JsonFileSourceSelector> { }
     public static class JsonFileSourceSelectorExtensions
     {
-        public static Configlue.ConfiglueSourceHandle<TModel> Source<TModel>(this Configlue.IConfiglueOptions<TModel> options, Configlue.Provider.Json.JsonFileSourceSelector selector) { }
+        public static Configlue.ConfiglueSourceHandle<TModel> Source<TModel>(this Configlue.IConfiglueSources<TModel> options, Configlue.Provider.Json.JsonFileSourceSelector selector) { }
     }
     public sealed class JsonHttpSourceOptions
     {

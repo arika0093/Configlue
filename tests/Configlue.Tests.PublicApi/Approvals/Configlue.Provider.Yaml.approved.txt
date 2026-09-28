@@ -31,7 +31,7 @@ namespace Configlue.Provider.Yaml
     public sealed class YamlFileSourceSelector : System.IEquatable<Configlue.Provider.Yaml.YamlFileSourceSelector> { }
     public static class YamlFileSourceSelectorExtensions
     {
-        public static Configlue.ConfiglueSourceHandle<TModel> Source<TModel>(this Configlue.IConfiglueOptions<TModel> options, Configlue.Provider.Yaml.YamlFileSourceSelector selector) { }
+        public static Configlue.ConfiglueSourceHandle<TModel> Source<TModel>(this Configlue.IConfiglueSources<TModel> options, Configlue.Provider.Yaml.YamlFileSourceSelector selector) { }
     }
     public sealed class YamlSectionResource : Configlue.Resources.IResourceBackupRecovery, Configlue.Resources.IResourceBatchParticipant, Configlue.Resources.IResourceIdentity, Configlue.Resources.IResourceReader, Configlue.Resources.IResourceWriter, Configlue.State.IPipelineResourceReader, Configlue.State.IStateWatcher
     {

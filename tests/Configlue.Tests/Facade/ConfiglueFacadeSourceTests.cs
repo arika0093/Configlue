@@ -292,7 +292,7 @@ public sealed partial class ConfiglueFacadeSourceTests
         });
 
         var result = await (
-            (IConfiglueOptions<AppSettings>)context.GetOptions<AppSettings>()
+            (IConfiglueRuntimeOptions<AppSettings>)context.GetOptions<AppSettings>()
         ).ApplyPatchesAsync([
             new StateSourcePatch(
                 "http-settings",

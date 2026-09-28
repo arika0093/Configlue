@@ -4,8 +4,11 @@ namespace Configlue
     public static class ConfiglueApp
     {
         public static Configlue.ConfiglueContext CreateContext(System.Action<Configlue.ConfiglueBuilder> configure) { }
-        public static Configlue.IConfiglueOptions<TModel> GetAdvancedOptions<TModel>(string? optionsName = null) { }
+        public static Configlue.IConfiglueDiagnostics<TModel> GetDiagnostics<TModel>(string? optionsName = null) { }
+        public static Configlue.IConfiglueEditSessions<TModel> GetEditSessions<TModel>(string? optionsName = null) { }
+        public static Configlue.IConfiglueInspection<TModel> GetInspection<TModel>(string? optionsName = null) { }
         public static Configlue.IWritableOptions<TModel> GetOptions<TModel>(string? optionsName = null) { }
+        public static Configlue.IConfiglueSources<TModel> GetSources<TModel>(string? optionsName = null) { }
         public static void Initialize(System.Action<Configlue.ConfiglueBuilder> configure) { }
         public static System.Threading.Tasks.ValueTask ShutdownAsync() { }
     }
@@ -21,10 +24,13 @@ namespace Configlue
     {
         public void Dispose() { }
         public System.Threading.Tasks.ValueTask DisposeAsync() { }
-        public Configlue.IConfiglueOptions<TModel> GetAdvancedOptions<TModel>(string? optionsName = null) { }
+        public Configlue.IConfiglueDiagnostics<TModel> GetDiagnostics<TModel>(string? optionsName = null) { }
+        public Configlue.IConfiglueEditSessions<TModel> GetEditSessions<TModel>(string? optionsName = null) { }
+        public Configlue.IConfiglueInspection<TModel> GetInspection<TModel>(string? optionsName = null) { }
         public Configlue.IWritableOptions<TModel> GetOptions<TModel>(string? optionsName = null) { }
         public Configlue.IConfiglueOptionsRegistry<TModel> GetOptionsRegistry<TModel>() { }
         public Configlue.IConfiglueProfiledOptions<TModel> GetProfiledOptions<TModel>() { }
+        public Configlue.IConfiglueSources<TModel> GetSources<TModel>(string? optionsName = null) { }
     }
     public sealed class ConfiglueModelBuilder<TModel>
         where TModel : Configlue.IConfiglueFacadeModel<TModel>
@@ -78,7 +84,7 @@ namespace Configlue
         public bool TryRemove(string profileName) { }
         public System.Threading.Tasks.ValueTask<bool> TryRemoveAsync(string profileName) { }
     }
-    public sealed class ConfiglueOptions<TModel, TFragment> : Configlue.IConfiglueOptions<TModel>, Configlue.IConfiglueValueCloneProvider<TModel>, Configlue.IReadOnlyOptions<TModel>, Configlue.IWritableOptions<TModel>, System.IAsyncDisposable, System.IDisposable
+    public sealed class ConfiglueOptions<TModel, TFragment> : Configlue.IConfiglueDiagnostics<TModel>, Configlue.IConfiglueEditSessions<TModel>, Configlue.IConfiglueInspection<TModel>, Configlue.IConfiglueSources<TModel>, Configlue.IConfiglueValueCloneProvider<TModel>, Configlue.IReadOnlyOptions<TModel>, Configlue.IWritableOptions<TModel>, System.IAsyncDisposable, System.IDisposable
         where TModel : Configlue.IConfiglueModel<TModel, TFragment>
         where TFragment :  class, Configlue.IConfiglueFragment<TFragment>
     {
@@ -174,7 +180,7 @@ namespace Configlue
     }
     public static class StateStorageMigrationExtensions
     {
-        public static System.Threading.Tasks.ValueTask<Configlue.Migrations.StateStorageMigrationProgress> MigrateAsync<TModel, TFragment>(this Configlue.IConfiglueOptions<TModel> options, Configlue.Migrations.StateStorageMigrationDefinition<TFragment> definition, Configlue.Migrations.IStateStorageMigrationJournal journal, System.Threading.CancellationToken cancellationToken = default)
+        public static System.Threading.Tasks.ValueTask<Configlue.Migrations.StateStorageMigrationProgress> MigrateAsync<TModel, TFragment>(this Configlue.IConfiglueSources<TModel> options, Configlue.Migrations.StateStorageMigrationDefinition<TFragment> definition, Configlue.Migrations.IStateStorageMigrationJournal journal, System.Threading.CancellationToken cancellationToken = default)
             where TModel : Configlue.IConfiglueModel<TModel, TFragment>
             where TFragment :  class, Configlue.IConfiglueFragment<TFragment> { }
     }

@@ -29,7 +29,7 @@ await profiles.RemoveProfileAsync("work");
 
 `OnChange` は active profile を追跡し、値の変更とプロファイル切替後の新しい値を通知します。カタログ source が watcher を提供する場合は、外部からのカタログ変更も監視します。subscription を破棄するとその callback が止まります。manager の catalog watcher は所有 context の破棄時に停止します。直接生成した profile manager は呼び出し側で破棄してください。
 
-DI では同じ `EnableProfiles`・`SourcesForOptions` 呼び出しを `services.AddConfiglue(...)` の中で行い、プロバイダーから `IConfiglueProfiledOptions<AppSettings>` を解決します。プロバイダー構築後に追加されたプロファイル名はキー付きサービスではなく `IOptionsMonitor` と `IConfiglueOptionsRegistry` で解決されます。非 DI の1引数入口は上記の `context.GetProfiledOptions<AppSettings>()` です。
+DI では同じ `EnableProfiles`・`SourcesForOptions` 呼び出しを `services.AddConfiglue(...)` の中で行い、プロバイダーから `IConfiglueProfiledOptions<AppSettings>` を解決します。プロバイダー構築後に追加されたプロファイル名はキー付きサービスではなく `IOptionsMonitor` と `IConfiglueInspectionRegistry` で解決されます。非 DI の1引数入口は上記の `context.GetProfiledOptions<AppSettings>()` です。
 
 ```csharp
 using Configlue.Sources;

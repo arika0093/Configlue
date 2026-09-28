@@ -317,7 +317,7 @@ public sealed partial class ConfiglueGenerator
         code.AppendLineAt(2, "global::System.ArgumentNullException.ThrowIfNull(options);");
         code.AppendLineAt(
             2,
-            "if (options is not global::Configlue.IConfiglueOptions<" + modelType + "> advanced)"
+            "if (options is not global::Configlue.IConfiglueInspection<" + modelType + "> advanced)"
         );
         code.AppendLineAt(2, "{");
         code.AppendLineAt(

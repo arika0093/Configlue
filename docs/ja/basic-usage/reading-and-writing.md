@@ -15,7 +15,7 @@ Console.WriteLine($">> Name: {setting.Name}");
 読み取りは全ソースを優先度順に解決し、ディープコピーを返します。
 DI では同期の `IOptions<T>.Value` / `IOptionsSnapshot<T>` / `IOptionsMonitor<T>` アダプターも使えますが、非同期フローでは async メソッドを使ってください。
 
-`IReadOnlyOptions<T>` の通常の読み取り API は `GetValueAsync` と `OnChange` です。高度な利用者は `IConfiglueOptions<T>` の `ReadAsync` から状態とリビジョンのメタデータを取得できます。Core に同期 `CurrentValue` プロパティはありません。
+`IReadOnlyOptions<T>` の通常の読み取り API は `GetValueAsync` と `OnChange` です。高度な利用者は `IConfiglueInspection<T>` の `ReadAsync` から状態とリビジョンのメタデータを取得できます。Core に同期 `CurrentValue` プロパティはありません。
 DI では opt-in の `Configlue.Extensions.MSOptions` パッケージが `IOptions<T>`、`IOptionsSnapshot<T>`、`IOptionsMonitor<T>` アダプターを提供します。
 同期 getter は非同期ソースの読み取り中にブロックするため、非同期処理では `GetValueAsync` を使用してください。
 
@@ -60,7 +60,7 @@ await options.Source(userKey).ReplaceAsync(replacement);
 
 ## 編集セッション
 
-設定画面で複数変更をまとめて適用する場合は、`IConfiglueOptions<T>` の `OpenEditSessionAsync` を使います。
+設定画面で複数変更をまとめて適用する場合は、`IConfiglueInspection<T>` の `OpenEditSessionAsync` を使います。
 `IWritableOptions<T>` は Patch 保存に特化しています。
 セッションは `CommitAsync` までインメモリで管理され、破棄すれば未保存の変更は破棄されます。
 コミット中に破棄した場合、そのコミットは完了し、以後の編集やコミットはできません。

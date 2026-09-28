@@ -9,7 +9,7 @@ description: 検証と退役つきでソース間に寄与をコピーする。
 
 ## 単一ソースのコピー
 
-`IConfiglueOptions<T>.MigrateSourceAsync(sourceKey, targetKey)` は1つのソース寄与をコピーし、スキーマ移行連鎖を適用して選択先に書き込みます。安定したアプリケーション定義の論理名には `SourceKey<T>.Named("legacy")` と `SourceKey<T>.Named("current")` を使います。provider が生成する不透明 ID は診断に便利ですが、通常のアプリケーション呼び出しでは不要です。
+`IConfiglueSources<T>.MigrateSourceAsync(sourceKey, targetKey)` は1つのソース寄与をコピーし、スキーマ移行連鎖を適用して選択先に書き込みます。安定したアプリケーション定義の論理名には `SourceKey<T>.Named("legacy")` と `SourceKey<T>.Named("current")` を使います。provider が生成する不透明 ID は診断に便利ですが、通常のアプリケーション呼び出しでは不要です。
 
 ## 退役つき複数宛先移行
 
@@ -29,7 +29,7 @@ var migration = new StateStorageMigrationDefinition<AppSettings.Fragment>(
     retireSources: true);
 
 var journal = new FileStateStorageMigrationJournal("./.configlue-migrations");
-var progress = await ((IConfiglueOptions<AppSettings>)options).MigrateAsync(migration, journal);
+var progress = await ((IConfiglueSources<AppSettings>)options).MigrateAsync(migration, journal);
 ```
 
 再起動時は options を組み立てる前に `journal.ReadAsync(migration.Id)` を呼び、`SourcesRetired` が true なら旧 JSON source を登録から省きます。定義と同じ ID で `MigrateAsync` を呼ぶと、journal が退役済み状態を返すため旧 source は不要です。移行途中なら旧 source を登録して再開します。

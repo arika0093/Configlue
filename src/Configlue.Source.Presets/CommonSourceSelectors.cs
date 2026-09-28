@@ -32,7 +32,7 @@ public static class CommonSourceSelectorExtensions
 {
     /// <summary>Gets a write handle for one selected Common source layer.</summary>
     public static ConfiglueSourceHandle<TModel> Source<TModel>(
-        this IConfiglueOptions<TModel> options,
+        this IConfiglueSources<TModel> options,
         CommonSourceSelector selector
     )
     {

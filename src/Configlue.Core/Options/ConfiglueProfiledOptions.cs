@@ -547,8 +547,10 @@ public sealed partial class ConfiglueProfiledOptions<TModel, TFragment>
     private IConfiglueOptionsRegistryNotificationDeferral<TModel>? DeferRegistryNotifications() =>
         (_registry as IConfiglueOptionsRegistryNotificationDeferrer<TModel>)?.DeferNotifications();
 
-    private static IConfiglueOptions<TModel> AsAdvancedOptions(IWritableOptions<TModel> options) =>
-        options as IConfiglueOptions<TModel>
+    private static IConfiglueEditSessions<TModel> AsAdvancedOptions(
+        IWritableOptions<TModel> options
+    ) =>
+        options as IConfiglueEditSessions<TModel>
         ?? throw new InvalidOperationException(
             "The profile registry returned options without edit-session support."
         );

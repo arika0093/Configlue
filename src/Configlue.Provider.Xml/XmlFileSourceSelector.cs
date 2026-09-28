@@ -52,7 +52,7 @@ public static class XmlFileSourceSelectorExtensions
 {
     /// <summary>Gets a write handle for the selected XML file source.</summary>
     public static ConfiglueSourceHandle<TModel> Source<TModel>(
-        this IConfiglueOptions<TModel> options,
+        this IConfiglueSources<TModel> options,
         XmlFileSourceSelector selector
     )
     {

@@ -265,7 +265,7 @@ internal sealed class ConfiglueMicrosoftOptionsMonitor<TModel>
         {
             Options = options;
             _cloneProvider = options as IConfiglueValueCloneProvider<TModel>;
-            var diagnostics = (options as IConfiglueOptions<TModel>)?.GetDiagnostics();
+            var diagnostics = (options as IConfiglueDiagnostics<TModel>)?.GetDiagnostics();
             _cacheable =
                 allowCache
                 && _cloneProvider is not null

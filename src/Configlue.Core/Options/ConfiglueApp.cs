@@ -43,10 +43,23 @@ public static class ConfiglueApp
     public static IWritableOptions<TModel> GetOptions<TModel>(string? optionsName = null) =>
         GetDefaultContext().GetOptions<TModel>(optionsName);
 
-    /// <summary>Gets the advanced options surface from the process-wide default context.</summary>
-    public static IConfiglueOptions<TModel> GetAdvancedOptions<TModel>(
+    /// <summary>Reads resolved state and generated provenance details.</summary>
+    public static IConfiglueInspection<TModel> GetInspection<TModel>(string? optionsName = null) =>
+        (IConfiglueInspection<TModel>)GetDefaultContext().GetOptions<TModel>(optionsName);
+
+    /// <summary>Opens long-lived drafts of resolved configuration.</summary>
+    public static IConfiglueEditSessions<TModel> GetEditSessions<TModel>(
         string? optionsName = null
-    ) => GetDefaultContext().GetAdvancedOptions<TModel>(optionsName);
+    ) => (IConfiglueEditSessions<TModel>)GetDefaultContext().GetOptions<TModel>(optionsName);
+
+    /// <summary>Reports source topology and background reload failures.</summary>
+    public static IConfiglueDiagnostics<TModel> GetDiagnostics<TModel>(
+        string? optionsName = null
+    ) => (IConfiglueDiagnostics<TModel>)GetDefaultContext().GetOptions<TModel>(optionsName);
+
+    /// <summary>Administers source-local writes and source migrations.</summary>
+    public static IConfiglueSources<TModel> GetSources<TModel>(string? optionsName = null) =>
+        (IConfiglueSources<TModel>)GetDefaultContext().GetOptions<TModel>(optionsName);
 
     /// <summary>Disposes the initialized process-wide context and clears it for later initialization.</summary>
     public static async ValueTask ShutdownAsync()

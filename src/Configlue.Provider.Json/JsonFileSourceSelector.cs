@@ -69,7 +69,7 @@ public static class JsonFileSourceSelectorExtensions
 {
     /// <summary>Gets a write handle for the selected JSON file source.</summary>
     public static ConfiglueSourceHandle<TModel> Source<TModel>(
-        this IConfiglueOptions<TModel> options,
+        this IConfiglueSources<TModel> options,
         JsonFileSourceSelector selector
     )
     {
