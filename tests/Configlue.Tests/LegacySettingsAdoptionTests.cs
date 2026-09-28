@@ -43,6 +43,37 @@ public sealed class LegacySettingsAdoptionTests
     }
 
     [Test]
+    public void LegacyJsonCodecReadsSimpleAndEnvelopePayloadsFromSegmentedInput()
+    {
+        var codec = new JsonStateCodec<HistoricalSettingsV1.Fragment>();
+        var documents = new[]
+        {
+            (
+                "{\"$version\":1,\"RetryCount\":0,\"NullableLabel\":null,\"$schema\":\"legacy.json\"}",
+                0
+            ),
+            (
+                "{\"$configlue\":{\"id\":\"historical-settings\",\"version\":1},\"$value\":{\"RetryCount\":9}}",
+                9
+            ),
+        };
+
+        foreach (var (json, expectedRetryCount) in documents)
+        {
+            var content = Encoding.UTF8.GetBytes(json);
+            var split = content.Length / 2;
+            var first = new ByteSequenceSegment(content.AsMemory(0, split));
+            var last = first.Append(content.AsMemory(split));
+            var sequence = new ReadOnlySequence<byte>(first, 0, last, last.Memory.Length);
+            var fragment = codec.Deserialize(in sequence, default)!;
+
+            (fragment.RetryCount.IsPresent).ShouldBeTrue();
+            (fragment.RetryCount.Value).ShouldBe(expectedRetryCount);
+            sequence.ToArray().ShouldBe(content);
+        }
+    }
+
+    [Test]
     public async Task SimpleJsonCodecWritesInlineVersionDocuments()
     {
         var codec = new JsonStateCodec<HistoricalSettingsV1.Fragment>(
@@ -121,6 +152,20 @@ public sealed class LegacySettingsAdoptionTests
         (fragment.NullableLabel.IsPresent).ShouldBeTrue();
         (fragment.NullableLabel.Value).ShouldBeNull();
         (fragment.OldName.IsPresent).ShouldBeFalse();
+    }
+
+    [Test]
+    public void LegacyJsonCodecStripsCaseInsensitiveVersionProperty()
+    {
+        var content = new ReadOnlySequence<byte>(
+            Encoding.UTF8.GetBytes("{\"$VERSION\":3,\"RetryCount\":7}")
+        );
+        var codec = new JsonStateCodec<HistoricalSettingsV1.Fragment>(
+            new JsonSerializerOptions { PropertyNameCaseInsensitive = true }
+        );
+
+        (codec.ReadSchemaMetadata(in content)).ShouldBe(new StateSchemaMetadata(null, 3));
+        (codec.Deserialize(in content, default)!.RetryCount.Value).ShouldBe(7);
     }
 
     [Test]
@@ -426,5 +471,20 @@ public sealed class LegacySettingsAdoptionTests
         }
         var malformed = new ReadOnlySequence<byte>(Encoding.UTF8.GetBytes("a: [\n"));
         Should.Throw<SharpYaml.YamlException>(() => yamlCodec.Deserialize(in malformed, default));
+    }
+
+    private sealed class ByteSequenceSegment : ReadOnlySequenceSegment<byte>
+    {
+        public ByteSequenceSegment(ReadOnlyMemory<byte> memory) => Memory = memory;
+
+        public ByteSequenceSegment Append(ReadOnlyMemory<byte> memory)
+        {
+            var next = new ByteSequenceSegment(memory)
+            {
+                RunningIndex = RunningIndex + Memory.Length,
+            };
+            Next = next;
+            return next;
+        }
     }
 }
