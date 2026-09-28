@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Security.Cryptography;
 
 namespace Configlue;
 
@@ -303,13 +302,15 @@ public sealed partial class FileResource
             return mutations[0].Apply(current).ToArray();
         }
 
-        foreach (var mutation in mutations)
+        var content = mutations[0].Apply(current).ToArray();
+        current = ResourceReadResult.Success(content, revision);
+        for (var index = 1; index < mutations.Count; index++)
         {
-            var content = mutation.Apply(current).ToArray();
+            content = mutations[index].Apply(current).ToArray();
             current = ResourceReadResult.Success(content, revision);
         }
 
-        return current.Content.ToArray();
+        return content;
     }
 
     /// <summary>Restores the latest backup without creating another backup generation.</summary>
@@ -674,7 +675,7 @@ public sealed partial class FileResource
     }
 
     private static string GetRevision(ReadOnlySpan<byte> content) =>
-        Convert.ToHexString(SHA256.HashData(content));
+        ConfiglueHashing.GetXxHash3Hex(content);
 
     private static TaskCompletionSource NewChangeSignal() =>
         new(TaskCreationOptions.RunContinuationsAsynchronously);

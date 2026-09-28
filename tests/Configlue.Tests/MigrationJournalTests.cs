@@ -1,5 +1,3 @@
-using System.Security.Cryptography;
-using System.Text;
 using Configlue.Testing;
 
 namespace Configlue.Tests;
@@ -84,15 +82,8 @@ public sealed class MigrationJournalTests
 
         try
         {
-            var hash = Convert.ToHexString(
-                SHA256.HashData(Encoding.UTF8.GetBytes("interprocess-migration"))
-            );
-            using var leaseResource = new FileResource(
-                Path.Combine(directory, hash + ".lease"),
-                options
-            );
-            var lockPath = leaseResource.LockPathForTests;
-            Directory.CreateDirectory(Path.GetDirectoryName(lockPath)!);
+            using (await journal.AcquireMigrationLeaseAsync("interprocess-migration")) { }
+            var lockPath = Directory.EnumerateFiles(lockDirectory, "*.configlue.lock").Single();
 
             using (
                 new FileStream(

@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.ObjectModel;
 
 namespace Configlue;
@@ -33,6 +34,10 @@ public readonly record struct StateRevision
 /// <summary>Direct and nested revisions observed during one state resolution.</summary>
 public sealed class StateRevisionVector
 {
+    private static readonly IReadOnlyDictionary<string, string?> EmptyRevisions =
+        new ReadOnlyDictionary<string, string?>(
+            new Dictionary<string, string?>(StringComparer.Ordinal)
+        );
     private static readonly IReadOnlyDictionary<string, StateRevisionVector> EmptyNestedRevisions =
         new ReadOnlyDictionary<string, StateRevisionVector>(
             new Dictionary<string, StateRevisionVector>(StringComparer.Ordinal)
@@ -55,9 +60,32 @@ public sealed class StateRevisionVector
     {
         ArgumentNullException.ThrowIfNull(revisions);
         ArgumentNullException.ThrowIfNull(nestedRevisions);
-        var values = new Dictionary<string, string?>(StringComparer.Ordinal);
-        foreach (var item in revisions)
+        _revisions = CreateRevisionMap(revisions);
+        _nestedRevisions = CreateNestedRevisionMap(nestedRevisions);
+    }
+
+    private static IReadOnlyDictionary<string, string?> CreateRevisionMap(
+        IEnumerable<StateRevision> revisions
+    )
+    {
+        using var enumerator = revisions.GetEnumerator();
+        if (!enumerator.MoveNext())
         {
+            return EmptyRevisions;
+        }
+
+        var first = enumerator.Current;
+        ArgumentException.ThrowIfNullOrWhiteSpace(first.SourceId);
+        if (!enumerator.MoveNext())
+        {
+            return new SingleEntryReadOnlyDictionary<string?>(first.SourceId, first.Revision);
+        }
+
+        var values = new Dictionary<string, string?>(StringComparer.Ordinal);
+        values.Add(first.SourceId, first.Revision);
+        do
+        {
+            var item = enumerator.Current;
             ArgumentException.ThrowIfNullOrWhiteSpace(item.SourceId);
             if (!values.TryAdd(item.SourceId, item.Revision))
             {
@@ -66,27 +94,48 @@ public sealed class StateRevisionVector
                     nameof(revisions)
                 );
             }
+        } while (enumerator.MoveNext());
+
+        return new ReadOnlyDictionary<string, string?>(values);
+    }
+
+    private static IReadOnlyDictionary<string, StateRevisionVector> CreateNestedRevisionMap(
+        IEnumerable<KeyValuePair<string, StateRevisionVector>> nestedRevisions
+    )
+    {
+        using var enumerator = nestedRevisions.GetEnumerator();
+        if (!enumerator.MoveNext())
+        {
+            return EmptyNestedRevisions;
         }
 
-        Dictionary<string, StateRevisionVector>? nestedValues = null;
-        foreach (var item in nestedRevisions)
+        var first = enumerator.Current;
+        ArgumentException.ThrowIfNullOrWhiteSpace(first.Key);
+        ArgumentNullException.ThrowIfNull(first.Value);
+        if (!enumerator.MoveNext())
         {
+            return new SingleEntryReadOnlyDictionary<StateRevisionVector>(first.Key, first.Value);
+        }
+
+        var values = new Dictionary<string, StateRevisionVector>(StringComparer.Ordinal)
+        {
+            [first.Key] = first.Value,
+        };
+        do
+        {
+            var item = enumerator.Current;
             ArgumentException.ThrowIfNullOrWhiteSpace(item.Key);
             ArgumentNullException.ThrowIfNull(item.Value);
-            nestedValues ??= new Dictionary<string, StateRevisionVector>(StringComparer.Ordinal);
-            if (!nestedValues.TryAdd(item.Key, item.Value))
+            if (!values.TryAdd(item.Key, item.Value))
             {
                 throw new ArgumentException(
                     $"Source '{item.Key}' occurs more than once in the nested revision vectors.",
                     nameof(nestedRevisions)
                 );
             }
-        }
+        } while (enumerator.MoveNext());
 
-        _revisions = new ReadOnlyDictionary<string, string?>(values);
-        _nestedRevisions = nestedValues is null
-            ? EmptyNestedRevisions
-            : new ReadOnlyDictionary<string, StateRevisionVector>(nestedValues);
+        return new ReadOnlyDictionary<string, StateRevisionVector>(values);
     }
 
     /// <summary>Direct revisions captured by the most recent source resolution.</summary>
@@ -105,4 +154,55 @@ public sealed class StateRevisionVector
     /// <summary>Gets the nested revision vector for a logical source.</summary>
     public bool TryGetNestedRevisions(string sourceId, out StateRevisionVector? revisions) =>
         _nestedRevisions.TryGetValue(sourceId, out revisions);
+
+    private sealed class SingleEntryReadOnlyDictionary<TValue>(string key, TValue storedValue)
+        : IReadOnlyDictionary<string, TValue>
+    {
+        public TValue this[string key] =>
+            TryGetValue(key, out var entry)
+                ? entry
+                : throw new KeyNotFoundException($"Key '{key}' was not present in the dictionary.");
+
+        public IEnumerable<string> Keys => EnumerateKeys();
+
+        public IEnumerable<TValue> Values => EnumerateValues();
+
+        public int Count => 1;
+
+        public bool ContainsKey(string candidate)
+        {
+            ArgumentNullException.ThrowIfNull(candidate);
+            return string.Equals(candidate, key, StringComparison.Ordinal);
+        }
+
+        public bool TryGetValue(string candidate, out TValue value)
+        {
+            ArgumentNullException.ThrowIfNull(candidate);
+            if (string.Equals(candidate, key, StringComparison.Ordinal))
+            {
+                value = storedValue;
+                return true;
+            }
+
+            value = default!;
+            return false;
+        }
+
+        public IEnumerator<KeyValuePair<string, TValue>> GetEnumerator()
+        {
+            yield return new KeyValuePair<string, TValue>(key, storedValue);
+        }
+
+        IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+
+        private IEnumerable<string> EnumerateKeys()
+        {
+            yield return key;
+        }
+
+        private IEnumerable<TValue> EnumerateValues()
+        {
+            yield return storedValue;
+        }
+    }
 }

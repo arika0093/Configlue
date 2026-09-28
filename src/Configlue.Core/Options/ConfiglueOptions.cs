@@ -331,13 +331,14 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
     )
     {
         using var operation = EnterOperation();
-        var contributions = new List<ResolvedContribution>();
+        var activeSources = GetActiveSources();
+        var contributions = new List<ResolvedContribution>(activeSources.Length + 1);
         var failures = new List<ResolvedFailure>();
-        var revisions = new List<StateRevision>();
+        var revisions = new List<StateRevision>(activeSources.Length);
         var nestedRevisions = new List<KeyValuePair<string, StateRevisionVector>>();
         StateReadResult<TFragment> lastFailure = default;
 
-        foreach (var source in GetActiveSources())
+        foreach (var source in activeSources)
         {
             cancellationToken.ThrowIfCancellationRequested();
             StateReadResult<TFragment> sourceResult;

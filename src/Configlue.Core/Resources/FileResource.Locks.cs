@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Security.Cryptography;
 
 namespace Configlue;
 
@@ -129,9 +128,7 @@ public sealed partial class FileResource
         }
 
         var identityPath = OperatingSystem.IsWindows() ? fullPath.ToUpperInvariant() : fullPath;
-        var hash = Convert.ToHexString(
-            SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(identityPath))
-        );
+        var hash = ConfiglueHashing.GetXxHash3Hex(identityPath);
         var sanitized = SanitizeLockFileSegment(fileName);
         return System.IO.Path.Combine(targetDirectory, $"{sanitized}-{hash}.configlue.lock");
     }

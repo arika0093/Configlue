@@ -228,3 +228,79 @@ public class LayeredResolutionBenchmarks
     public ValueTask<BenchmarkSettings> ResolveSourcesAsync() =>
         ((Configlue.IReadOnlyOptions<BenchmarkSettings>)_options).GetValueAsync();
 }
+
+[MemoryDiagnoser]
+public class FileResourceReadBenchmarks
+{
+    private string _directory = null!;
+    private FileResource _resource = null!;
+
+    [Params(1024, 65536, 1048576)]
+    public int ContentSize { get; set; }
+
+    [GlobalSetup]
+    public void Setup()
+    {
+        _directory = Path.Combine(Path.GetTempPath(), $"configlue-read-bench-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(_directory);
+
+        var path = Path.Combine(_directory, "content.bin");
+        File.WriteAllBytes(path, new byte[ContentSize]);
+        _resource = new FileResource(
+            path,
+            new FileResourceOptions { CreateBackup = false, BackupMaxCount = 0 }
+        );
+    }
+
+    [GlobalCleanup]
+    public void Cleanup()
+    {
+        _resource.Dispose();
+        Directory.Delete(_directory, recursive: true);
+    }
+
+    [Benchmark]
+    public ValueTask<ResourceReadResult> ReadAsync() => _resource.ReadAsync();
+}
+
+[MemoryDiagnoser]
+public class FileResourceWriteBenchmarks
+{
+    private string _directory = null!;
+    private FileResource _resource = null!;
+    private byte[] _content = null!;
+
+    [Params(1024, 65536, 1048576)]
+    public int ContentSize { get; set; }
+
+    [GlobalSetup]
+    public void Setup()
+    {
+        _directory = Path.Combine(Path.GetTempPath(), $"configlue-write-bench-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(_directory);
+
+        var path = Path.Combine(_directory, "content.bin");
+        _content = new byte[ContentSize];
+        File.WriteAllBytes(path, _content);
+        _resource = new FileResource(
+            path,
+            new FileResourceOptions
+            {
+                CreateBackup = false,
+                BackupMaxCount = 0,
+                LockDirectory = "/",
+            }
+        );
+    }
+
+    [GlobalCleanup]
+    public void Cleanup()
+    {
+        _resource.Dispose();
+        Directory.Delete(_directory, recursive: true);
+    }
+
+    [Benchmark]
+    public ValueTask<StateWriteResult> WriteAsync() =>
+        _resource.WriteAsync(new ResourceWriteRequest(_content));
+}

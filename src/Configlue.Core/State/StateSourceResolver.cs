@@ -28,9 +28,10 @@ public sealed class StateSourceResolver<T> : IStateReader<T>
     )
     {
         StateReadResult<T> lastResult = default;
-        var revisions = new List<StateRevision>();
+        var sources = _sourceSet.Sources;
+        var revisions = new List<StateRevision>(sources.Count);
         var nestedRevisions = new List<KeyValuePair<string, StateRevisionVector>>();
-        foreach (var source in _sourceSet.Sources)
+        foreach (var source in sources)
         {
             cancellationToken.ThrowIfCancellationRequested();
             _logger?.LogTrace(
