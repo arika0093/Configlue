@@ -11,6 +11,8 @@ description: Find the NuGet package for each Configlue capability.
 | `Configlue.Extensibility` | Provider SDK: serialization helpers, transformed resources, and mounted source registration. |
 | `Configlue.Extensions.DI` | Dependency-injection registration for Configlue options. |
 | `Configlue.Extensions.MSOptions` | Optional adapters for Microsoft's options interfaces. |
+| `Configlue.Extensions.R3` | Optional R3 observables for composing values, profiles, and reload signals. |
+| `Configlue.Extensions.Reactive` | Optional Rx.NET observables for composing values, profiles, and reload signals. |
 | `Configlue.Generator` | Generated sparse model support (Roslyn analyzer). |
 | `Configlue.Testing` | In-memory resources and test doubles. |
 | `Configlue.Provider.Json` | JSON codec, section resources, and file registrations. |
