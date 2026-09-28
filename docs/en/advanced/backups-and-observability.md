@@ -7,17 +7,26 @@ description: File backup generations and restore, logging, explanations, and dia
 
 ## File backups
 
-File resources keep one atomic `.bak` generation by default. Backups go under `backup/` beside the resource file on Windows and `.backup/` on other platforms; Windows marks the directory and files hidden. `FileResourceOptions` can retain more generations in a chosen directory, and `RestoreLatestBackupAsync` restores the newest one explicitly. Relative `BackupDirectory` values are resolved from the resource file directory; `/` selects the resource file directory itself.
+Model-backed JSON, XML, and YAML file sources keep one atomic `.bak` generation by default under the persistent per-user state directory: `%LOCALAPPDATA%` on Windows, `~/Library/Application Support` on macOS, and `$XDG_STATE_HOME` or `~/.local/state` on Linux. The default layout is `configlue-backups/{ModelId}.v{Version}/`; backup filenames include a stable hash of the resource path so files with the same name do not overwrite one another. Windows marks the backup directory and files hidden. Standalone `FileResource` instances without model metadata retain the legacy `backup/` (Windows) or `.backup/` (other platforms) location.
+
+`FileResourceOptions` controls the location and retention. Change only the `configlue-backups` directory name with `BackupDirectoryName`, set `BackupRootDirectory` to use a different persistent root (relative paths use the resource file directory), set `IncludeModelVersionInBackupDirectory = false` for a flat layout, or set `BackupDirectoryMode = FileBackupDirectoryMode.ResourceDirectory` to keep backups beside the resource file. `BackupDirectory` remains an exact-directory override; relative values are resolved from the resource file directory, and `/` selects the resource file directory itself. Standalone `FileResource` callers can pass `backupSchema` to its constructor to enable model-version organization. `BackupMaxCount` includes the latest generation; zero disables backups. `RestoreLatestBackupAsync` restores the newest backup explicitly.
 
 ```csharp
+using Configlue.Provider.Json;
 using Configlue.Resources;
 
-var resource = new FileResource(
-    "settings.json",
-    new FileResourceOptions { BackupMaxCount = 5, BackupDirectory = "my-backups" });
+model.UseJsonFile(new JsonFileSourceOptions
+{
+    Path = "settings.json",
+    ResourceOptions = new FileResourceOptions
+    {
+        BackupDirectoryName = "my-backups",
+        BackupMaxCount = 5,
+    },
+});
 ```
 
-Set `BackupMaxCount = 0` to disable backups. Atomic writes (temporary file plus rename) and retryable access keep concurrent saves safe.
+To use a custom root and a flat layout, set `BackupRootDirectory` and `IncludeModelVersionInBackupDirectory = false`. Atomic writes (temporary file plus rename) and retryable access keep concurrent saves safe.
 
 Automatic recovery is opt-in. For JSON file sources, enable it through `ResourceOptions`:
 
@@ -32,7 +41,7 @@ model.UseJsonFile(new JsonFileSourceOptions
 });
 ```
 
-When the file is missing or contains invalid JSON, Configlue checks the latest backup (for example, `.backup/settings.json.bak` on Linux and macOS) and restores it only if it can be decoded and the file has not changed since the failed read. It also recognizes Configuration.Writable timestamped backups and backups from the previous Configlue layout (beside the resource file, or under the old current-directory-relative custom path). Retained generations move into the current layout on the next save that creates a backup. The default JSON codec classifies malformed JSON for recovery. Custom codecs must implement `IStateCodecRecoveryPolicy` to recover from format errors; missing-file recovery does not require that policy.
+When the file is missing or contains invalid JSON, Configlue checks the latest backup and restores it only if it can be decoded and the file has not changed since the failed read. It also recognizes backups from the previous resource-directory layout, the old current-directory-relative custom path, and Configuration.Writable timestamped backups. Retained generations move into the current layout on the next save that creates a backup. The default JSON codec classifies malformed JSON for recovery. Custom codecs must implement `IStateCodecRecoveryPolicy` to recover from format errors; missing-file recovery does not require that policy.
 
 File writes retry failures while creating, writing, flushing, or replacing the file twice by default (3 total attempts), waiting 100ms between attempts. Cancellation is not retried. `RetryCount` is the number of retries after the initial attempt; `RetryCount` and `RetryDelay` change those defaults. Set `RetryDelayFactory` to calculate a delay for each one-based retry attempt, for example:
 

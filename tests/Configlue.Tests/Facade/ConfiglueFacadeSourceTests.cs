@@ -73,6 +73,39 @@ public sealed partial class ConfiglueFacadeSourceTests
     }
 
     [Test]
+    public async Task JsonFileSourceUsesThePersistentModelVersionBackupDirectory()
+    {
+        using var directory = new TemporaryDirectory();
+        var path = Path.Combine(directory.FullPath, "settings.json");
+        var backupRoot = Path.Combine(directory.FullPath, "user-state");
+        await File.WriteAllTextAsync(path, "{\"Label\":\"before\"}");
+
+        await using var context = Configlue.CreateContext(builder =>
+        {
+            builder.Add<AppSettings>(model =>
+                model.UseJsonFile(
+                    new JsonFileSourceOptions
+                    {
+                        Path = path,
+                        WatchChanges = false,
+                        ResourceOptions = new FileResourceOptions
+                        {
+                            BackupRootDirectory = backupRoot,
+                        },
+                    }
+                )
+            );
+        });
+
+        var options = (IConfiglueOptions<AppSettings>)context.GetOptions<AppSettings>();
+        await options.SaveAsync(settings => settings.Label = "after");
+
+        var backupDirectory = Path.Combine(backupRoot, "configlue-backups", "app-settings.v2");
+        var backupPath = Directory.GetFiles(backupDirectory, "settings.json.*.bak").Single();
+        (await File.ReadAllTextAsync(backupPath)).ShouldBe("{\"Label\":\"before\"}");
+    }
+
+    [Test]
     public async Task JsonFileSelectorResolvesThePathDerivedSourceIdentity()
     {
         using var directory = new TemporaryDirectory();

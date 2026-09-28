@@ -248,12 +248,19 @@ namespace Configlue.Resources
 {
     public static class ConfiglueStandardPaths
     {
+        public static string GetPersistentUserDataDirectory() { }
         public static string GetSharedLockDirectory() { }
         public static string GetStandardSaveDirectory(string applicationId) { }
+    }
+    public enum FileBackupDirectoryMode
+    {
+        PersistentUserDirectory = 0,
+        ResourceDirectory = 1,
     }
     public sealed class FileResource : Configlue.Resources.IResourceBackupRecovery, Configlue.Resources.IResourceBatchWriter, Configlue.Resources.IResourceIdentity, Configlue.Resources.IResourceReader, Configlue.Resources.IResourceWriter, Configlue.State.IPipelineResourceReader, Configlue.State.IStateWatcher, System.IDisposable
     {
         public FileResource(string path, Configlue.Resources.FileResourceOptions? options = null, Configlue.Resources.ResourceId? resourceId = default) { }
+        public FileResource(string path, Configlue.State.StateSchemaMetadata backupSchema, Configlue.Resources.FileResourceOptions? options = null, Configlue.Resources.ResourceId? resourceId = default) { }
         public bool AutomaticBackupRecoveryEnabled { get; }
         public bool IsPipelineReadPreferred { get; }
         public string Path { get; }
@@ -272,9 +279,13 @@ namespace Configlue.Resources
         public FileResourceOptions() { }
         public bool AutomaticBackupRecovery { get; init; }
         public string? BackupDirectory { get; init; }
+        public Configlue.Resources.FileBackupDirectoryMode? BackupDirectoryMode { get; init; }
+        public string BackupDirectoryName { get; init; }
         public string BackupExtension { get; init; }
         public int BackupMaxCount { get; init; }
+        public string? BackupRootDirectory { get; init; }
         public bool CreateBackup { get; init; }
+        public bool IncludeModelVersionInBackupDirectory { get; init; }
         public System.TimeSpan LockAcquireRetryDelay { get; init; }
         public System.TimeSpan? LockAcquireTimeout { get; init; }
         public string? LockDirectory { get; init; }

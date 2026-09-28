@@ -1,6 +1,6 @@
 namespace Configlue.Resources;
 
-/// <summary>Returns platform-standard directories for application configuration files.</summary>
+/// <summary>Returns platform-standard directories for per-user application data.</summary>
 public static class ConfiglueStandardPaths
 {
     /// <summary>Gets the standard per-user save directory for the supplied application identifier.</summary>
@@ -44,6 +44,44 @@ public static class ConfiglueStandardPaths
         }
 
         return Path.GetFullPath(Path.Combine(baseDirectory, applicationId));
+    }
+
+    /// <summary>Gets the persistent per-user state directory used for shared Configlue data.</summary>
+    /// <remarks>
+    /// Windows uses <c>%LOCALAPPDATA%</c>. macOS uses
+    /// <c>~/Library/Application Support</c>. Linux honors <c>XDG_STATE_HOME</c> and otherwise uses
+    /// <c>~/.local/state</c>.
+    /// </remarks>
+    public static string GetPersistentUserDataDirectory()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            var localAppData = Environment.GetEnvironmentVariable("LOCALAPPDATA");
+            if (!string.IsNullOrWhiteSpace(localAppData))
+            {
+                return Path.GetFullPath(localAppData);
+            }
+
+            var specialFolder = Environment.GetFolderPath(
+                Environment.SpecialFolder.LocalApplicationData
+            );
+            return string.IsNullOrWhiteSpace(specialFolder)
+                ? throw new InvalidOperationException(
+                    "The current user's local application data directory is unavailable."
+                )
+                : Path.GetFullPath(specialFolder);
+        }
+
+        var profile = GetUserProfileDirectory();
+        if (OperatingSystem.IsMacOS())
+        {
+            return Path.GetFullPath(Path.Combine(profile, "Library", "Application Support"));
+        }
+
+        var xdgStateHome = Environment.GetEnvironmentVariable("XDG_STATE_HOME");
+        return string.IsNullOrWhiteSpace(xdgStateHome)
+            ? Path.GetFullPath(Path.Combine(profile, ".local", "state"))
+            : Path.GetFullPath(xdgStateHome);
     }
 
     /// <summary>Gets the shared directory used for persistent cross-process lock sidecars.</summary>

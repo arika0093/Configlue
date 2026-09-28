@@ -95,7 +95,12 @@ public static class YamlFileSourceRegistration
                 );
             }
 
-            var file = new FileResource(options.Path, options.ResourceOptions, options.ResourceId);
+            var file = new FileResource(
+                options.Path,
+                modelSchema.ToMetadata(),
+                options.ResourceOptions,
+                options.ResourceId
+            );
             ownResource(file);
 
             var writer = options.ReadOnly ? null : (IResourceWriter)file;

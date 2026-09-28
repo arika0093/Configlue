@@ -213,7 +213,12 @@ public static class JsonFileSourceRegistration
                 );
             }
 
-            var file = new FileResource(options.Path, options.ResourceOptions, options.ResourceId);
+            var file = new FileResource(
+                options.Path,
+                modelSchema.ToMetadata(),
+                options.ResourceOptions,
+                options.ResourceId
+            );
             ownResource(file);
 
             var readOnly = options.ReadOnlyOverride ?? options.ReadOnly;
