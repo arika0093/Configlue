@@ -131,6 +131,7 @@ public sealed class JsonStateCodec<T>
         _options = options is null
             ? new JsonSerializerOptions()
             : new JsonSerializerOptions(options);
+        EnsureTypeInfoResolver(_options);
         _pipelineOptions = CreatePipelineOptions(_options);
         _layout = documentLayout;
         _versionPropertyCandidates = JsonStateCodecOperations.GetVersionPropertyCandidates(
@@ -276,9 +277,17 @@ public sealed class JsonStateCodec<T>
                     ? JsonStateCodecOperations.GetFilteredPayload(payload, _layout, _options)
                     : null;
             var strictValue = filteredPayload.HasValue
-                ? JsonSerializer.Deserialize<T>(filteredPayload.Value.Span, _pipelineOptions)
-                : payload.Deserialize<T>(_pipelineOptions);
-            return StateReadResult<T>.Success(strictValue, schema: strictSchema);
+                ? JsonSerializer.Deserialize(
+                    filteredPayload.Value.Span,
+                    (JsonTypeInfo<T>)_pipelineOptions.GetTypeInfo(typeof(T))
+                )
+                : payload.Deserialize((JsonTypeInfo<T>)_pipelineOptions.GetTypeInfo(typeof(T)));
+            return strictValue is null
+                ? StateReadResult<T>.Invalid(default) with
+                {
+                    Schema = strictSchema,
+                }
+                : StateReadResult<T>.Success(strictValue, schema: strictSchema);
         }
 
         await using var source = content.AsStream(leaveOpen: true);
@@ -288,7 +297,11 @@ public sealed class JsonStateCodec<T>
         try
         {
             value = await JsonSerializer
-                .DeserializeAsync<T>(capturingStream, _pipelineOptions, cancellationToken)
+                .DeserializeAsync(
+                    capturingStream,
+                    (JsonTypeInfo<T>)_pipelineOptions.GetTypeInfo(typeof(T)),
+                    cancellationToken
+                )
                 .ConfigureAwait(false);
         }
         catch (JsonException exception)
@@ -329,7 +342,12 @@ public sealed class JsonStateCodec<T>
             ExceptionDispatchInfo.Capture(deserializeException).Throw();
         }
 
-        return StateReadResult<T>.Success(value, schema: schema);
+        return value is null
+            ? StateReadResult<T>.Invalid(default) with
+            {
+                Schema = schema,
+            }
+            : StateReadResult<T>.Success(value, schema: schema);
     }
 
     private sealed class CapturingJsonStream : Stream

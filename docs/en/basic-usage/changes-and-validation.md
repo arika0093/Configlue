@@ -3,8 +3,6 @@ title: Changes and validation
 description: Change notifications, debounce, DataAnnotations, and custom validators.
 ---
 
-# Changes and validation
-
 ## Change detection
 
 ```csharp

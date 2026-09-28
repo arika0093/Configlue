@@ -2,7 +2,7 @@
 namespace Configlue.Provider.Json
 {
     public sealed class JsonFileRegistration<TModel>
-        where TModel : Configlue.IConfiglueFacadeModel<TModel>
+        where TModel : Configlue.CompilerServices.IConfiglueFacadeModel<TModel>
     {
         public Configlue.Provider.Json.JsonFileRegistration<TModel> ExplicitOnly(bool explicitOnly = true) { }
         public Configlue.Provider.Json.JsonFileRegistration<TModel> FallbackWhen(Configlue.Sources.StateFallbackCondition condition) { }
@@ -42,18 +42,18 @@ namespace Configlue.Provider.Json
     {
         public static Configlue.ConfiglueSourceRegistration FromJsonFile(this Configlue.ConfiglueSourceSetBuilder sources, Configlue.Provider.Json.JsonFileSourceOptions options) { }
         public static Configlue.Provider.Json.JsonFileRegistration<TModel> JsonFile<TModel>(this Configlue.ConfiglueSourceSetBuilder<TModel> sources, string path)
-            where TModel : Configlue.IConfiglueFacadeModel<TModel> { }
+            where TModel : Configlue.CompilerServices.IConfiglueFacadeModel<TModel> { }
         public static void UseDefaultJsonFile<TModel>(this Configlue.ConfiglueModelBuilder<TModel> model)
-            where TModel : Configlue.IConfiglueFacadeModel<TModel> { }
+            where TModel : Configlue.CompilerServices.IConfiglueFacadeModel<TModel> { }
         public static void UseJsonFile<TModel>(this Configlue.ConfiglueModelBuilder<TModel> model, Configlue.Provider.Json.JsonFileSourceOptions options)
-            where TModel : Configlue.IConfiglueFacadeModel<TModel> { }
+            where TModel : Configlue.CompilerServices.IConfiglueFacadeModel<TModel> { }
         public static void UseJsonFile<TModel>(this Configlue.ConfiglueModelBuilder<TModel> model, string path)
-            where TModel : Configlue.IConfiglueFacadeModel<TModel> { }
+            where TModel : Configlue.CompilerServices.IConfiglueFacadeModel<TModel> { }
     }
     public sealed class JsonFileSourceSelector : System.IEquatable<Configlue.Provider.Json.JsonFileSourceSelector> { }
     public static class JsonFileSourceSelectorExtensions
     {
-        public static Configlue.ConfiglueSourceHandle<TModel> Source<TModel>(this Configlue.IConfiglueOptions<TModel> options, Configlue.Provider.Json.JsonFileSourceSelector selector) { }
+        public static Configlue.ConfiglueSourceHandle<TModel> Source<TModel>(this Configlue.IConfiglueSources<TModel> options, Configlue.Provider.Json.JsonFileSourceSelector selector) { }
     }
     public sealed class JsonHttpSourceOptions
     {

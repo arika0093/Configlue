@@ -25,7 +25,7 @@ namespace Configlue.Source.Environment
     public static class EnvironmentStateSource
     {
         public static Configlue.Sources.StateSource<TFragment> FromEnvironment<TModel, TFragment>(string id, string prefix, int priority = 0, Configlue.Sources.StateFallbackCondition fallbackCondition = 1, System.Func<System.Collections.Generic.IEnumerable<System.Collections.Generic.KeyValuePair<string, string?>>>? environmentVariables = null, System.Func<string, System.Type, object?>? valueParser = null, System.Text.Json.JsonSerializerOptions? jsonSerializerOptions = null)
-            where TModel : Configlue.IConfiglueModel<TModel, TFragment>
+            where TModel : Configlue.CompilerServices.IConfiglueModel<TModel, TFragment>
             where TFragment :  class, Configlue.IConfiglueFragment<TFragment> { }
     }
 }

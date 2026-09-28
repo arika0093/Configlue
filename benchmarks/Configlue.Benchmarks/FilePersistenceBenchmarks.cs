@@ -1,6 +1,7 @@
 using System.Text.Json;
 using BenchmarkDotNet.Attributes;
 using Configlue;
+using Configlue.Extensibility;
 using Configlue.Provider.Json;
 using Configlue.Resources;
 using Configlue.Sources;

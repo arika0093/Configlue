@@ -95,7 +95,7 @@ public sealed class DaprStateResource
         CancellationToken cancellationToken = default
     )
     {
-        var checkRevision = request.CheckRevision || request.ExpectedRevision is not null;
+        var checkRevision = !request.Condition.IsNone;
         if (!checkRevision)
         {
             await _client
@@ -111,7 +111,7 @@ public sealed class DaprStateResource
             return new StateWriteResult(null);
         }
 
-        var expectedRevision = request.ExpectedRevision ?? string.Empty;
+        var expectedRevision = request.Condition.Revision ?? string.Empty;
         var saved = await _client
             .TrySaveByteStateAsync(
                 StoreName,

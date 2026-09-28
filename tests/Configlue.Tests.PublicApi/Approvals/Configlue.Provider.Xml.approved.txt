@@ -27,7 +27,7 @@ namespace Configlue.Provider.Xml
     public sealed class XmlFileSourceSelector : System.IEquatable<Configlue.Provider.Xml.XmlFileSourceSelector> { }
     public static class XmlFileSourceSelectorExtensions
     {
-        public static Configlue.ConfiglueSourceHandle<TModel> Source<TModel>(this Configlue.IConfiglueOptions<TModel> options, Configlue.Provider.Xml.XmlFileSourceSelector selector) { }
+        public static Configlue.ConfiglueSourceHandle<TModel> Source<TModel>(this Configlue.IConfiglueSources<TModel> options, Configlue.Provider.Xml.XmlFileSourceSelector selector) { }
     }
     public sealed class XmlSectionResource : Configlue.Resources.IResourceBackupRecovery, Configlue.Resources.IResourceBatchParticipant, Configlue.Resources.IResourceIdentity, Configlue.Resources.IResourceReader, Configlue.Resources.IResourceWriter, Configlue.State.IPipelineResourceReader, Configlue.State.IStateWatcher
     {

@@ -5,6 +5,7 @@ using System.Text;
 using BenchmarkDotNet.Attributes;
 using Configlue;
 using Configlue.Codecs;
+using Configlue.Extensibility;
 using Configlue.Provider.Json;
 using Configlue.Resources;
 using Configlue.Source.CommandLine;
@@ -569,7 +570,8 @@ public class EnvironmentSourceBenchmarks
 [MemoryDiagnoser]
 public class CommandLineSourceBenchmarks
 {
-    private StateSourceResolver<OptimizationBenchmarkSettings.Fragment> _resolver = null!;
+    private ConfiglueContext _context = null!;
+    private IWritableOptions<OptimizationBenchmarkSettings> _options = null!;
 
     [GlobalSetup]
     public void Setup()
@@ -579,24 +581,29 @@ public class CommandLineSourceBenchmarks
         root.Options.Add(counterOption);
         var parseResult = root.Parse(["--counter", "7"]);
 
-        var builder = new ConfiglueModelBuilder<OptimizationBenchmarkSettings>();
-        builder.Sources(sources =>
-            sources.FromCommandLine(
-                new CommandLineSourceOptions { Id = "command-line", ParseResult = parseResult },
-                mappings => mappings.Map(counterOption, "Counter")
-            )
-        );
-        var sourceSet = builder.BuildSources<OptimizationBenchmarkSettings.Fragment>(
-            OptimizationBenchmarkSettings.ConfiglueSchema,
-            serviceProvider: null,
-            static _ => { }
-        );
-        _resolver = new StateSourceResolver<OptimizationBenchmarkSettings.Fragment>(sourceSet);
+        _context = ConfiglueApp.CreateContext(builder =>
+        {
+            builder.Add<OptimizationBenchmarkSettings>(model =>
+                model.Sources(sources =>
+                    sources.FromCommandLine(
+                        new CommandLineSourceOptions
+                        {
+                            Id = "command-line",
+                            ParseResult = parseResult,
+                        },
+                        mappings => mappings.Map(counterOption, "Counter")
+                    )
+                )
+            );
+        });
+        _options = _context.GetOptions<OptimizationBenchmarkSettings>();
     }
 
+    [GlobalCleanup]
+    public void Cleanup() => _context.Dispose();
+
     [Benchmark]
-    public ValueTask<StateReadResult<OptimizationBenchmarkSettings.Fragment>> ReadAsync() =>
-        _resolver.ReadAsync();
+    public ValueTask<OptimizationBenchmarkSettings> ReadAsync() => _options.GetValueAsync();
 }
 
 [MemoryDiagnoser]

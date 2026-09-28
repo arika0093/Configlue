@@ -507,9 +507,10 @@ public sealed partial class StateRuntimeTests
         (resolved.RetryCount).ShouldBe(7);
         (resolved.Database!.Host).ShouldBe("session.db");
         (resolved.Database.Port).ShouldBe(7443);
-        (result.MultiWriteResult).ShouldNotBeNull();
-        (result.MultiWriteResult!.PhysicalWriteCount).ShouldBe(2);
-        ((result.MultiWriteResult.Sources.Select(static source => source.SourceId)))
+        (result).ShouldNotBeNull();
+        (result.PhysicalWriteCount).ShouldBe(2);
+        result.Revision.ShouldBeNull();
+        ((result.Sources.Select(static source => source.SourceId)))
             .OrderBy(static item => item)
             .ShouldBe((new[] { "user", "database" }).OrderBy(static item => item));
     }
@@ -566,7 +567,9 @@ public sealed partial class StateRuntimeTests
         var result = await session.CommitAsync();
 
         (session.IsCommitted).ShouldBeTrue();
-        (result.Revision).ShouldBe("1");
+        result.Revision.ShouldBeNull();
+        result.Sources.ShouldBeEmpty();
+        result.PhysicalWriteCount.ShouldBe(0);
         ((await store.ReadAsync()).Revision).ShouldBe("1");
     }
 

@@ -51,7 +51,7 @@ public sealed partial class CommonSourceFormatTests
                     sources.Add<AppSettings>();
                 })
             );
-            var options = context.GetAdvancedOptions<AppSettings>();
+            var options = context.GetRuntimeOptions<AppSettings>();
 
             (await options.GetValueAsync()).RetryCount.ShouldBe(2);
             options
@@ -82,7 +82,7 @@ public sealed partial class CommonSourceFormatTests
                 sources.Add<AppSettings>();
             })
         );
-        var options = context.GetAdvancedOptions<AppSettings>();
+        var options = context.GetRuntimeOptions<AppSettings>();
 
         (await options.GetValueAsync()).RetryCount.ShouldBe(23);
         var diagnostics = options.GetDiagnostics().Sources;
@@ -113,7 +113,7 @@ public sealed partial class CommonSourceFormatTests
                 sources.Add<AppSettings>();
             })
         );
-        var options = context.GetAdvancedOptions<AppSettings>();
+        var options = context.GetRuntimeOptions<AppSettings>();
 
         (await options.GetValueAsync()).RetryCount.ShouldBe(31);
         var commandLine = options

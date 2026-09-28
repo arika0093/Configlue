@@ -9,7 +9,7 @@
     <NoWarn>$(NoWarn);NU5128</NoWarn>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="../Configlue.Core/Configlue.Core.csproj" />
+    <ProjectReference Include="../Configlue.Extensibility/Configlue.Extensibility.csproj" />
     <ProjectReference Include="../Configlue.Abstraction/Configlue.Abstraction.csproj" />
     <ProjectReference Include="../Configlue.Extensions.DI/Configlue.Extensions.DI.csproj" />
     <ProjectReference Include="../Configlue.Provider.Json/Configlue.Provider.Json.csproj" />

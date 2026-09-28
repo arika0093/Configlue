@@ -63,6 +63,7 @@ internal sealed class ConfiglueMicrosoftOptionsValue<TModel> : IOptions<TModel>
     private static TModel Read(
         ConfiglueMicrosoftOptionsResolver<TModel> optionsResolver,
         string name
+    // Microsoft Options exposes synchronous getters; this opt-in framework adapter deliberately blocks for its snapshot.
     ) => optionsResolver.Resolve(name).GetValueAsync().AsTask().GetAwaiter().GetResult();
 }
 
@@ -86,6 +87,7 @@ internal sealed class ConfiglueMicrosoftOptionsSnapshot<TModel> : IOptionsSnapsh
             .GetOrAdd(
                 normalizedName,
                 key => new Lazy<TModel>(
+                    // Microsoft Options exposes synchronous getters; this opt-in framework adapter deliberately blocks for its snapshot.
                     () => _resolver.Resolve(key).GetValueAsync().AsTask().GetAwaiter().GetResult(),
                     LazyThreadSafetyMode.ExecutionAndPublication
                 )
@@ -267,7 +269,7 @@ internal sealed class ConfiglueMicrosoftOptionsMonitor<TModel>
         {
             Options = options;
             _cloneProvider = options as IConfiglueValueCloneProvider<TModel>;
-            var diagnostics = (options as IConfiglueOptions<TModel>)?.GetDiagnostics();
+            var diagnostics = (options as IConfiglueDiagnostics<TModel>)?.GetDiagnostics();
             _cacheable =
                 allowCache
                 && _cloneProvider is not null
@@ -319,6 +321,7 @@ internal sealed class ConfiglueMicrosoftOptionsMonitor<TModel>
         public void Dispose() => _subscription?.Dispose();
 
         private static TModel Read(IReadOnlyOptions<TModel> options) =>
+            // Microsoft Options exposes synchronous getters; this opt-in framework adapter deliberately blocks for its snapshot.
             options.GetValueAsync().AsTask().GetAwaiter().GetResult();
 
         private void OnChanged(TModel value)

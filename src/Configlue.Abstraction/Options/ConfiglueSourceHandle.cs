@@ -4,17 +4,17 @@ namespace Configlue;
 /// <typeparam name="TModel">The configuration model type.</typeparam>
 public sealed class ConfiglueSourceHandle<TModel>
 {
-    private readonly IConfiglueOptions<TModel> _options;
+    private readonly IConfiglueSources<TModel> _options;
     private readonly SourceKey<TModel> _sourceKey;
 
-    internal ConfiglueSourceHandle(IConfiglueOptions<TModel> options, SourceKey<TModel> sourceKey)
+    internal ConfiglueSourceHandle(IConfiglueSources<TModel> options, SourceKey<TModel> sourceKey)
     {
         _options = options;
         _sourceKey = sourceKey;
     }
 
     /// <summary>Applies only the Set and Unset operations in the patch to this source.</summary>
-    public ValueTask<StateMultiWriteResult> SaveAsync(
+    public ValueTask<StateWriteReceipt> SaveAsync(
         IConfigluePatch patch,
         CancellationToken cancellationToken = default
     )
@@ -27,7 +27,7 @@ public sealed class ConfiglueSourceHandle<TModel>
     }
 
     /// <summary>Replaces this source contribution; unspecified generated patch members become Unset.</summary>
-    public ValueTask<StateMultiWriteResult> ReplaceAsync(
+    public ValueTask<StateWriteReceipt> ReplaceAsync(
         IConfigluePatch patch,
         CancellationToken cancellationToken = default
     )

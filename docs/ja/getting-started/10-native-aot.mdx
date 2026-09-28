@@ -5,8 +5,6 @@ description: ソース生成メタデータを用いて NativeAOT やトリミ�
 
 import { Steps, Tabs, TabItem } from '@astrojs/starlight/components';
 
-# STEP 10: NativeAOT に対応する
-
 単一ファイル配布や起動速度向上のために NativeAOT を利用する場合、リフレクションに依存したシリアライザーは動作しません。
 Configlue は、`System.Text.Json` のソース生成コンテキスト（`JsonSerializerContext`）を渡すことで NativeAOT に対応します。
 
@@ -71,6 +69,8 @@ Configlue は、`System.Text.Json` のソース生成コンテキスト（`JsonS
 
    > [!NOTE]
    > YAML プロバイダー（`Configlue.Provider.Yaml`）を利用する場合は、生成されたフラグメントスキーマとシリアライザーオプションを渡すことでトリミングに対応します。XML プロバイダーは `XmlSerializer` を内部で使用するため、現時点では完全な AOT トリミングには制約があります。
+
+   YAML シリアライザーコンテキスト、`JsonTypeInfo` ベースのコーデックコンストラクター、XML のトリミング制約については [NativeAOT](../advanced/native-aot.md) を参照してください。
 
 3. ### サンプルプロジェクトで動作を検証する
 

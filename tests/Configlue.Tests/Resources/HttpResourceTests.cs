@@ -177,9 +177,8 @@ public sealed class HttpResourceTests
         var result = await writer.WriteAsync(
             new ResourceWriteRequest(
                 Encoding.UTF8.GetBytes("{\"RetryCount\":7}"),
-                ExpectedRevision: "\"revision-1\"",
-                Schema: new StateSchemaMetadata("AppSettings", 3),
-                CheckRevision: true
+                Condition: RevisionCondition.FromRevision("\"revision-1\""),
+                Schema: new StateSchemaMetadata("AppSettings", 3)
             )
         );
 
@@ -216,8 +215,7 @@ public sealed class HttpResourceTests
             .WriteAsync(
                 new ResourceWriteRequest(
                     Encoding.UTF8.GetBytes("{}"),
-                    ExpectedRevision: null,
-                    CheckRevision: true
+                    Condition: RevisionCondition.MustNotExist
                 )
             );
         capturedRequest.ShouldNotBeNull();
@@ -238,8 +236,7 @@ public sealed class HttpResourceTests
                 .WriteAsync(
                     new ResourceWriteRequest(
                         Encoding.UTF8.GetBytes("{}"),
-                        ExpectedRevision: "\"stale\"",
-                        CheckRevision: true
+                        Condition: RevisionCondition.FromRevision("\"stale\"")
                     )
                 );
         });
@@ -251,8 +248,7 @@ public sealed class HttpResourceTests
                 .WriteAsync(
                     new ResourceWriteRequest(
                         Encoding.UTF8.GetBytes("{}"),
-                        ExpectedRevision: "W/\"weak\"",
-                        CheckRevision: true
+                        Condition: RevisionCondition.FromRevision("W/\"weak\"")
                     )
                 );
         });

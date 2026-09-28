@@ -3,8 +3,6 @@ title: NativeAOT
 description: ソース生成されたシリアル化メタデータによるトリム安全な構成。
 ---
 
-# NativeAOT
-
 ソース生成された JSON メタデータとフラグメントスキーマで、Configlue は NativeAOT 環境で動きます。コーデックに `JsonSerializerContext` を渡し、YAML には生成されたシリアライザーオプションとフラグメントスキーマを渡します。
 
 ```csharp
@@ -21,6 +19,8 @@ dotnet publish example/Example.ConsoleApp.NativeAot --configuration Release --ru
 トリムするアプリではリフレクションベースのオーバーロードより `JsonTypeInfo` ベースのコンストラクター ([旧来デコーダー](../migration/adopting-configuration-writable.md) も同様) を使ってください。`JsonSchemaGenerator.Generate` もソース生成の `IJsonTypeInfoResolver` を取ります — [JSON Schema とテスト](./json-schema-and-testing.md) 参照。
 
 `XmlStateCodec` は `XmlSerializer` のリフレクションと実行時コード生成を使います。コーデックメソッドにはトリミングと動的コードの要件を注釈し、トリム対象や NativeAOT アプリケーションから呼ぶとアナライザー警告が出るようにしています。現在、XML の生成コード経路はありません。
+
+チュートリアル形式で進める場合は [STEP 10: NativeAOT に対応する](../getting-started/10-native-aot.md) を参照してください。
 
 ## 次のステップ
 

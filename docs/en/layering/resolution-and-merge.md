@@ -3,9 +3,11 @@ title: Resolution and merge
 description: Priority reads, presence, merge modes, and provenance explanations.
 ---
 
-# Resolution and merge
-
 Register generated model options with a prioritized state-source set. Reads merge the present members from each source, and writes can target a source independently of read priority.
+
+## Source precedence
+
+Precedence is deterministic and part of the public contract. Sources are ordered by descending numeric `Priority`, so a higher number wins. Sources with equal priority keep registration order, and the earlier registered source wins the tie. Resolution considers members rather than whole sources: a missing member continues to the next source in priority order, and an `Unset` removes the selected contribution to reveal the next lower-priority source. Write routes are chosen independently of read priority, so an edit can target a lower-priority overlay while a higher-priority source keeps shadowing the value. See [Lifetime and source precedence](../../lifetime-and-precedence.md).
 
 ## Presence and merge modes
 

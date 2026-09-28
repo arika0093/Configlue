@@ -273,18 +273,12 @@ public sealed class JsonSectionResource
             _writer ?? throw new NotSupportedException("This JSON section resource is read-only.");
         var current = await _reader.ReadAsync(cancellationToken).ConfigureAwait(false);
         var updatedDocument = CreateMutation(request).Apply(current);
-        var expectedRevision = request.ExpectedRevision ?? current.Revision;
-        var checkRevision =
-            request.CheckRevision
-            || request.ExpectedRevision is not null
-            || current.Revision is not null;
         return await writer
             .WriteAsync(
                 new ResourceWriteRequest(
                     updatedDocument,
-                    expectedRevision,
-                    request.Schema,
-                    checkRevision
+                    Condition: RevisionCondition.FromRevision(current.Revision),
+                    Schema: request.Schema
                 ),
                 cancellationToken
             )
@@ -296,11 +290,26 @@ public sealed class JsonSectionResource
     {
         var content = request.Content.ToArray();
         return new ResourceWriteMutation(
-            request.ExpectedRevision,
-            request.CheckRevision,
+            request.Condition.IsMustNotExist ? RevisionCondition.None : request.Condition,
             request.Schema,
-            current => ApplyToResource(current, content),
-            _batchScope,
+            current =>
+            {
+                if (!request.Condition.IsNone)
+                {
+                    var section = ExtractSection(current);
+                    if (
+                        !request.Condition.IsSatisfiedBy(
+                            section.Revision,
+                            section.Status != StateReadStatus.NotFound
+                        )
+                    )
+                    {
+                        throw new StateConflictException("The section changed after it was read.");
+                    }
+                }
+                return ApplyToResource(current, content);
+            },
+            scope: _batchScope,
             canCompose: true
         );
     }

@@ -1,0 +1,29 @@
+namespace Configlue.CompilerServices;
+
+/// <summary>The static generated contract used by Configlue's typed runtime.</summary>
+/// <typeparam name="TSelf">The configuration model.</typeparam>
+/// <typeparam name="TFragment">The model's generated sparse fragment.</typeparam>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
+public interface IConfiglueModel<TSelf, TFragment> : IConfiglueDeepCloneable<TSelf>, IConfiglueModel
+    where TSelf : IConfiglueModel<TSelf, TFragment>
+    where TFragment : class, IConfiglueFragment<TFragment>
+{
+    /// <summary>
+    /// Creates a complete fragment from a model value, copying supported collections and generated model elements.
+    /// </summary>
+    static abstract TFragment ToFragment(TSelf value);
+
+    /// <summary>Creates a sparse semantic difference between two model values.</summary>
+    static abstract TFragment Diff(TSelf before, TSelf after);
+
+    /// <summary>Creates a model value from a merged fragment.</summary>
+    static abstract TSelf FromFragment(TFragment value);
+}
+
+/// <summary>The generated schema identity needed by typed registration selectors.</summary>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
+public interface IConfiglueModel
+{
+    /// <summary>Generated root model metadata.</summary>
+    static abstract ConfiglueModelSchema ConfiglueSchema { get; }
+}

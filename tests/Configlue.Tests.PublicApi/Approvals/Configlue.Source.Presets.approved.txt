@@ -44,7 +44,7 @@ namespace Configlue.Source.Presets
     public sealed class CommonSourceBuilder
     {
         public void Add<TModel>(System.Action<Configlue.ConfiglueModelBuilder<TModel>>? configure = null)
-            where TModel : Configlue.IConfiglueFacadeModel<TModel> { }
+            where TModel : Configlue.CompilerServices.IConfiglueFacadeModel<TModel> { }
         public Configlue.Source.Presets.CommonSourceBuilder DefaultWriteLayer(Configlue.Source.Presets.CommonSourceLayer layer) { }
         public Configlue.Source.Presets.CommonCustomSourceBuilder WithCustom(Configlue.Source.Presets.CommonSourceLayer afterLayer, System.Func<Configlue.ConfiglueSourceSetBuilder, Configlue.ConfiglueSourceRegistration> register) { }
         public Configlue.Source.Presets.CommonEnvironmentSourceBuilder WithEnvironment(string prefix) { }
@@ -70,12 +70,12 @@ namespace Configlue.Source.Presets
     public sealed class CommonSourceSelector : System.IEquatable<Configlue.Source.Presets.CommonSourceSelector> { }
     public static class CommonSourceSelectorExtensions
     {
-        public static Configlue.ConfiglueSourceHandle<TModel> Source<TModel>(this Configlue.IConfiglueOptions<TModel> options, Configlue.Source.Presets.CommonSourceSelector selector) { }
+        public static Configlue.ConfiglueSourceHandle<TModel> Source<TModel>(this Configlue.IConfiglueSources<TModel> options, Configlue.Source.Presets.CommonSourceSelector selector) { }
     }
     public sealed class SingleBinaryBuilder
     {
         public void Add<TModel>(System.Action<Configlue.ConfiglueModelBuilder<TModel>>? configure = null, string? storageKey = null)
-            where TModel : Configlue.IConfiglueFacadeModel<TModel> { }
+            where TModel : Configlue.CompilerServices.IConfiglueFacadeModel<TModel> { }
         public Configlue.Source.Presets.SingleBinaryBuilder FileResourceOptions(Configlue.Resources.FileResourceOptions options) { }
         public Configlue.Source.Presets.SingleBinaryBuilder Priority(int priority) { }
         public Configlue.Source.Presets.SingleBinaryBuilder WithAesKey(System.ReadOnlyMemory<byte> key) { }

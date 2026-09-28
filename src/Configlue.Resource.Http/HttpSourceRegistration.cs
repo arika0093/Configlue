@@ -96,10 +96,16 @@ public static class HttpSourceRegistration
     private sealed class HttpSourceDefinition(HttpSourceOptions options)
         : IConfiglueSourceDefinition
     {
-        public StateSource<TFragment> Create<TFragment>(
-            ConfiglueModelSchema modelSchema,
-            IServiceProvider? serviceProvider,
-            Action<IDisposable> ownResource
+        public ConfiglueSourceCreation<TFragment> Create<TFragment>(
+            ConfiglueSourceCreationContext context
+        )
+            where TFragment : class, IConfiglueFragment<TFragment>
+        {
+            return context.Complete(CreateSourceCore<TFragment>(context.Services));
+        }
+
+        private StateSource<TFragment> CreateSourceCore<TFragment>(
+            IServiceProvider? serviceProvider
         )
             where TFragment : class, IConfiglueFragment<TFragment>
         {

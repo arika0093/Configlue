@@ -376,7 +376,6 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
                         .Sources.Where(source => !_retiredSourceIds.Contains(source.Id))
                         .ToArray()
                 );
-                Volatile.Write(ref _defaultWritePlanValidated, false);
                 topologyChanged = _sourceTopologyChanged;
                 _sourceTopologyChanged = NewTopologySignal();
             }
@@ -387,31 +386,8 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
 
     private void ValidateWritePlan(StateWritePlan writePlan)
     {
-        foreach (var (propertyPath, sourceId) in writePlan.PropertyRoutes)
+        foreach (var sourceId in writePlan.PropertyRoutes.Values)
         {
-            var path = propertyPath.Split('.', StringSplitOptions.None);
-            var schema = TModel.ConfiglueSchema;
-            for (var index = 0; index < path.Length; index++)
-            {
-                if (!TryGetMemberByName(schema, path[index], out var member))
-                {
-                    throw new ArgumentException(
-                        $"Write plan path '{propertyPath}' refers to unknown member '{path[index]}' in '{schema.Id}'.",
-                        nameof(writePlan)
-                    );
-                }
-
-                if (index < path.Length - 1)
-                {
-                    schema =
-                        member.NestedSchemaFactory?.Invoke()
-                        ?? throw new ArgumentException(
-                            $"Write plan path '{propertyPath}' continues through non-nested member '{member.Name}'.",
-                            nameof(writePlan)
-                        );
-                }
-            }
-
             var source = FindSource(sourceId);
             if (!IsSourceActive(source.Id))
             {

@@ -100,7 +100,7 @@ public sealed class S3ObjectResource
         CancellationToken cancellationToken = default
     )
     {
-        var checkRevision = request.CheckRevision || request.ExpectedRevision is not null;
+        var checkRevision = !request.Condition.IsNone;
         try
         {
             var result = await _client
@@ -108,8 +108,8 @@ public sealed class S3ObjectResource
                     BucketName,
                     Key,
                     request.Content,
-                    checkRevision ? request.ExpectedRevision : null,
-                    checkRevision && request.ExpectedRevision is null,
+                    checkRevision ? request.Condition.Revision : null,
+                    checkRevision && request.Condition.Revision is null,
                     cancellationToken
                 )
                 .ConfigureAwait(false);

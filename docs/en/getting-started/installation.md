@@ -3,8 +3,6 @@ title: Installation
 description: SDK requirements and NuGet packages for Configlue.
 ---
 
-# Installation
-
 ## Requirements
 
 * .NET 10 SDK.
@@ -31,6 +29,9 @@ Add the capability packages you need on top:
 | --- | --- |
 | YAML files | `Configlue.Provider.Yaml` |
 | XML files | `Configlue.Provider.Xml` |
+| YAML in common preset layers | `Configlue.Source.Presets.Yaml` |
+| XML in common preset layers | `Configlue.Source.Presets.Xml` |
+| Build a custom provider | `Configlue.Extensibility` |
 | JSON Schema export only | `Configlue.JsonSchema` |
 | `System.CommandLine` input | `Configlue.Source.CommandLine` |
 | Global/local/specific/environment presets | `Configlue` (includes `Configlue.Source.Presets`) |

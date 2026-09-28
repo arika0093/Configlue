@@ -85,7 +85,7 @@ public sealed partial class NestedSourceBindingTests
             );
         });
 
-        var options = (IConfiglueOptions<AppSettings>)context.GetOptions<AppSettings>();
+        var options = (IConfiglueRuntimeOptions<AppSettings>)context.GetOptions<AppSettings>();
         var value = await options.GetValueAsync();
         var database = (await options.GetDetailsAsync()).Database!;
         var host = database.Host;
@@ -180,7 +180,7 @@ public sealed partial class NestedSourceBindingTests
             );
         });
 
-        var options = context.GetAdvancedOptions<AppSettings>();
+        var options = context.GetRuntimeOptions<AppSettings>();
         using (
             var edit = await options.OpenEditSessionAsync(
                 new StateWritePlan(
@@ -239,7 +239,7 @@ public sealed partial class NestedSourceBindingTests
             );
         });
 
-        var options = (IConfiglueOptions<AppSettings>)context.GetOptions<AppSettings>();
+        var options = (IConfiglueRuntimeOptions<AppSettings>)context.GetOptions<AppSettings>();
         await options.SaveAsync(settings => settings.Database!.Host = "updated.remote.db");
         await options.SaveAsync(settings => settings.RetryCount = 9);
 
@@ -294,7 +294,7 @@ public sealed partial class NestedSourceBindingTests
             );
         });
 
-        var options = (IConfiglueOptions<AppSettings>)context.GetOptions<AppSettings>();
+        var options = (IConfiglueRuntimeOptions<AppSettings>)context.GetOptions<AppSettings>();
         await options.SaveAsync(settings => settings.Database!.Host = "updated.remote.db");
 
         (await databaseStore.ReadAsync()).Value!.Host.Value.ShouldBe("updated.remote.db");

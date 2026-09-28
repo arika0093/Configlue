@@ -3,8 +3,6 @@ title: Profiles
 description: Persisted named profiles with an active-profile catalog.
 ---
 
-# Profiles
-
 Persistent named profiles use a separate writable source for their catalog. The profile source factory receives each profile name, which lets an application store profile values in separate files, sections, or other resources.
 
 ```csharp
@@ -29,7 +27,7 @@ The profile facade manages profile selection and lifetime; write through the `IW
 
 `OnChange` follows the active profile: it reports value changes and emits the newly active value after a profile switch. When the catalog source provides a watcher, the manager observes external catalog changes too. Dispose the subscription to stop its callbacks. The manager's catalog watcher stops when the owning context is disposed; dispose a directly constructed profile manager yourself.
 
-For DI, use the same `EnableProfiles` and `SourcesForOptions` calls inside `services.AddConfiglue(...)`, then resolve `IConfiglueProfiledOptions<AppSettings>` from the provider. Profile names added after provider construction resolve through `IOptionsMonitor` and `IConfiglueOptionsRegistry`, not keyed services. The one-arity non-DI entry is `context.GetProfiledOptions<AppSettings>()` as shown above.
+For DI, use the same `EnableProfiles` and `SourcesForOptions` calls inside `services.AddConfiglue(...)`, then resolve `IConfiglueProfiledOptions<AppSettings>` from the provider. Profile names added after provider construction resolve through `IOptionsMonitor` and `IConfiglueInspectionRegistry`, not keyed services. The one-arity non-DI entry is `context.GetProfiledOptions<AppSettings>()` as shown above.
 
 ```csharp
 using Configlue.Sources;

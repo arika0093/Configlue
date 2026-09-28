@@ -56,8 +56,7 @@ public sealed partial class ConfiglueProfiledOptions<TModel, TFragment>
                         .Writer!.WriteAsync(
                             new StateWriteRequest<ConfiglueProfileCatalog>(
                                 catalog,
-                                result.Revision,
-                                CheckRevision: true
+                                Condition: RevisionCondition.FromRevision(result.Revision)
                             ),
                             cancellationToken
                         )
@@ -129,8 +128,7 @@ public sealed partial class ConfiglueProfiledOptions<TModel, TFragment>
                     .Writer!.WriteAsync(
                         new StateWriteRequest<ConfiglueProfileCatalog>(
                             catalog,
-                            current.Revision,
-                            CheckRevision: true
+                            Condition: RevisionCondition.FromRevision(current.Revision)
                         ),
                         cancellationToken
                     )

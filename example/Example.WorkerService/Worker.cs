@@ -4,8 +4,11 @@ using Microsoft.Extensions.Logging;
 
 namespace Example.WorkerService;
 
-internal sealed class Worker(IConfiglueOptions<SampleSetting> settings, ILogger<Worker> logger)
-    : BackgroundService
+internal sealed class Worker(
+    IWritableOptions<SampleSetting> settings,
+    IConfiglueEditSessions<SampleSetting> editSessions,
+    ILogger<Worker> logger
+) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -27,7 +30,7 @@ internal sealed class Worker(IConfiglueOptions<SampleSetting> settings, ILogger<
                 current.RunCount
             );
 
-            using var edit = await settings.OpenEditSessionAsync(stoppingToken);
+            using var edit = await editSessions.OpenEditSessionAsync(stoppingToken);
             edit.Value.RunCount++;
             await edit.CommitAsync(stoppingToken);
             await timer.WaitForNextTickAsync(stoppingToken);

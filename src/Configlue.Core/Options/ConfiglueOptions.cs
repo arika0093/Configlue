@@ -10,7 +10,7 @@ namespace Configlue;
 /// <typeparam name="TModel">The generated configuration model.</typeparam>
 /// <typeparam name="TFragment">The model's generated sparse fragment.</typeparam>
 public sealed partial class ConfiglueOptions<TModel, TFragment>
-    : IConfiglueOptions<TModel>,
+    : IConfiglueRuntimeOptions<TModel>,
         IConfiglueValueCloneProvider<TModel>,
         IDisposable,
         IAsyncDisposable
@@ -50,7 +50,6 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
     private TaskCompletionSource _sourceTopologyChanged = NewTopologySignal();
     private readonly StateWriteRoute _writeRoute;
     private readonly StateWritePlan _defaultWritePlan;
-    private bool _defaultWritePlanValidated;
     private readonly Func<TModel, TModel>? _cloneStrategy;
     private readonly StateSchemaMigrationChain<TFragment> _migrationChain;
     private readonly IConfiglueValidator<TModel>[] _validators;
@@ -152,8 +151,6 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
         );
         _writeRoute = writeRoute;
         _defaultWritePlan = BuildWritePlanWithMountedOwners(_activeSources, defaultWritePlan);
-        ValidateWritePlan(_defaultWritePlan);
-        _defaultWritePlanValidated = true;
         _cloneStrategy = cloneStrategy;
         _validators = validators?.ToArray() ?? [];
         _optionsName = optionsName ?? string.Empty;
@@ -226,7 +223,7 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
 
         var inferredWritePlan =
             owners.Count == 0 ? StateWritePlan.Empty : new StateWritePlan(owners);
-        return inferredWritePlan.OverrideWith(configuredWritePlan);
+        return inferredWritePlan.OverrideWith(configuredWritePlan).Bind(TModel.ConfiglueSchema);
 
         static bool HasOverlappingOwnershipPaths(List<(string Path, string SourceId)> paths)
         {
@@ -398,10 +395,7 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
             _cloneStrategy is not null
             && result.Status == StateReadStatus.Success
             && result.Value is not null
-            ? result with
-            {
-                Value = CloneModel(result.Value),
-            }
+            ? result.WithValue(CloneModel(result.Value))
             : result;
     }
 
@@ -549,7 +543,7 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
                 if (captureContributions)
                 {
                     contributions!.Add(
-                        new ResolvedContribution(source, result with { Value = fragment })
+                        new ResolvedContribution(source, result.WithValue(fragment))
                     );
                 }
                 else
@@ -560,7 +554,7 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
                 if (activeSource is null)
                 {
                     activeSource = source;
-                    activeResult = result with { Value = fragment };
+                    activeResult = result.WithValue(fragment);
                 }
                 successfulCount++;
                 continue;
@@ -586,7 +580,7 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
                 }
 
                 return new ResolvedState(
-                    new StateReadResult<TModel>(
+                    StateReadResult<TModel>.Create(
                         result.Status,
                         default,
                         result.Revision,
@@ -611,7 +605,7 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
         if (successfulCount == 0 && lastFailure.Status == StateReadStatus.Unavailable)
         {
             return new ResolvedState(
-                new StateReadResult<TModel>(
+                StateReadResult<TModel>.Create(
                     lastFailure.Status,
                     default,
                     lastFailure.Revision,

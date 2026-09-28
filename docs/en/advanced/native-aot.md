@@ -3,8 +3,6 @@ title: NativeAOT
 description: Trim-safe configuration with source-generated serialization metadata.
 ---
 
-# NativeAOT
-
 With source-generated JSON metadata and the fragment schema, Configlue works in NativeAOT environments. Pass a `JsonSerializerContext` to the codec and, for YAML, generated serializer options with the fragment schema.
 
 ```csharp
@@ -21,6 +19,8 @@ dotnet publish example/Example.ConsoleApp.NativeAot --configuration Release --ru
 Prefer the `JsonTypeInfo`-based codec constructors (also used by the [legacy decoders](../migration/adopting-configuration-writable.md)) over the reflection-based overloads in trimmed applications. `JsonSchemaGenerator.Generate` likewise takes a source-generated `IJsonTypeInfoResolver` — see [JSON Schema and testing](./json-schema-and-testing.md).
 
 `XmlStateCodec` uses `XmlSerializer` reflection and runtime code generation. Its codec methods are annotated with trimming and dynamic-code requirements, so calls from trimmed or NativeAOT applications produce analyzer warnings; there is currently no generated XML codec path.
+
+To follow this as a guided tutorial, see [STEP 10: Support NativeAOT](../getting-started/10-native-aot.md).
 
 ## Next steps
 

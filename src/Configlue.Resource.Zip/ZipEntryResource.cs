@@ -211,13 +211,26 @@ public sealed class ZipEntryResource
     public ResourceWriteMutation CreateMutation(ResourceWriteRequest request)
     {
         var content = request.Content.ToArray();
-        var hasSnapshot = TryGetSnapshot(request.ExpectedRevision, out var expectedSnapshot);
+        var expectedSnapshot = string.Empty;
+        var hasSnapshot =
+            request.Condition.IsMatch
+            && TryGetSnapshot(request.Condition.Revision, out expectedSnapshot);
         return new ResourceWriteMutation(
-            hasSnapshot ? null : request.ExpectedRevision,
-            !hasSnapshot && request.CheckRevision,
+            hasSnapshot || request.Condition.IsMustNotExist
+                ? RevisionCondition.None
+                : request.Condition,
             request.Schema,
             current =>
             {
+                if (
+                    request.Condition.IsMustNotExist
+                    && GetCurrentEntryFingerprint(current, _entryName) != MissingEntryFingerprint
+                )
+                {
+                    throw new StateConflictException(
+                        $"The ZIP entry '{_entryName}' already exists."
+                    );
+                }
                 if (
                     hasSnapshot
                     && !string.Equals(

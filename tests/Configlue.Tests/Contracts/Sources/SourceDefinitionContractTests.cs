@@ -5,6 +5,62 @@ namespace Configlue.Tests;
 public sealed class SourceDefinitionContractTests
 {
     [Test]
+    public void SourceCreationFailureDisposesResourcesAllocatedBeforeTheFailure()
+    {
+        var resource = new DisposableProbe();
+        Should.Throw<InvalidOperationException>(() =>
+            ConfiglueApp.CreateContext(builder =>
+                builder.Add<AppSettings>(model =>
+                    model.Sources(sources => sources.Add(new FailingSourceDefinition(resource)))
+                )
+            )
+        );
+        resource.DisposeCallCount.ShouldBe(1);
+    }
+
+    [Test]
+    public async Task SourceCreationResultKeepsApplicationResourcesBorrowed()
+    {
+        var resource = new DisposableProbe();
+        await using var context = ConfiglueApp.CreateContext(builder =>
+            builder.Add<AppSettings>(model =>
+                model.Sources(sources => sources.Add(new BorrowedSourceDefinition(resource)))
+            )
+        );
+        await context.DisposeAsync();
+        resource.DisposeCallCount.ShouldBe(0);
+    }
+
+    private sealed class FailingSourceDefinition(DisposableProbe resource)
+        : IConfiglueSourceDefinition
+    {
+        public ConfiglueSourceCreation<TFragment> Create<TFragment>(
+            ConfiglueSourceCreationContext context
+        )
+            where TFragment : class, IConfiglueFragment<TFragment>
+        {
+            context.Own(resource);
+            throw new InvalidOperationException("Provider creation failed.");
+        }
+    }
+
+    private sealed class BorrowedSourceDefinition(DisposableProbe resource)
+        : IConfiglueSourceDefinition
+    {
+        public ConfiglueSourceCreation<TFragment> Create<TFragment>(
+            ConfiglueSourceCreationContext context
+        )
+            where TFragment : class, IConfiglueFragment<TFragment>
+        {
+            _ = resource;
+            var store = new InMemoryStateStore<TFragment>();
+            return new ConfiglueSourceCreation<TFragment>(
+                new StateSource<TFragment>("borrowed", store)
+            );
+        }
+    }
+
+    [Test]
     public async Task IConfiglueSourceDefinition_ReportsHelperCreatedResourcesToTheContext()
     {
         var ownedResource = new DisposableProbe();
@@ -31,9 +87,16 @@ public sealed class SourceDefinitionContractTests
 
         public string? CreatedModelSchemaId { get; private set; }
 
-        public StateSource<TFragment> Create<TFragment>(
+        public ConfiglueSourceCreation<TFragment> Create<TFragment>(
+            ConfiglueSourceCreationContext context
+        )
+            where TFragment : class, IConfiglueFragment<TFragment>
+        {
+            return context.Complete(CreateSourceCore<TFragment>(context.ModelSchema, context.Own));
+        }
+
+        private StateSource<TFragment> CreateSourceCore<TFragment>(
             ConfiglueModelSchema modelSchema,
-            IServiceProvider? serviceProvider,
             Action<IDisposable> ownResource
         )
             where TFragment : class, IConfiglueFragment<TFragment>

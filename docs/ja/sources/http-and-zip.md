@@ -3,8 +3,6 @@ title: HTTP と ZIP
 description: HTTP 越しのリモートポリシーソースとアーカイブ内エントリのリソース化。
 ---
 
-# HTTP と ZIP
-
 ## HTTP リソース
 
 `HttpResourceReader` は `{root}/get` から読み、任意の状態コーデックと組み合わせられます。HTTP リクエストは条件つき書き込みとポーリング (既定5秒間隔) に ETag を使います。

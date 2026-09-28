@@ -9,7 +9,7 @@ public static class StateStorageMigrationExtensions
     /// the same migration ID; callers should coordinate concurrent runs when their journal lacks that capability.
     /// </summary>
     public static async ValueTask<StateStorageMigrationProgress> MigrateAsync<TModel, TFragment>(
-        this IConfiglueOptions<TModel> options,
+        this IConfiglueSources<TModel> options,
         StateStorageMigrationDefinition<TFragment> definition,
         IStateStorageMigrationJournal journal,
         CancellationToken cancellationToken = default

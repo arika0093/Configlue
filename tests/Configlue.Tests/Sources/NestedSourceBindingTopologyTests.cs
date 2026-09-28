@@ -48,7 +48,7 @@ public sealed partial class NestedSourceBindingTests
             );
         });
 
-        var options = (IConfiglueOptions<AppSettings>)context.GetOptions<AppSettings>();
+        var options = (IConfiglueRuntimeOptions<AppSettings>)context.GetOptions<AppSettings>();
         await options.SaveAsync(settings => settings.Database!.Host = "ordinary-updated.db");
         (await ordinaryStore.ReadAsync()).Value!.Host.Value.ShouldBe("ordinary-updated.db");
         (await explicitStore.ReadAsync()).Value!.Host.Value.ShouldBe("explicit.db");
@@ -163,7 +163,7 @@ public sealed partial class NestedSourceBindingTests
 
         using (
             var edit = await context
-                .GetAdvancedOptions<AppSettings>()
+                .GetRuntimeOptions<AppSettings>()
                 .OpenEditSessionAsync(
                     new StateWritePlan(
                         new Dictionary<string, string>(StringComparer.Ordinal)
@@ -244,7 +244,7 @@ public sealed partial class NestedSourceBindingTests
         });
 
         using var edit = await context
-            .GetAdvancedOptions<RootWithTwoSettings>()
+            .GetRuntimeOptions<RootWithTwoSettings>()
             .OpenEditSessionAsync(
                 new StateWritePlan(
                     new Dictionary<string, string>(StringComparer.Ordinal)
@@ -258,7 +258,7 @@ public sealed partial class NestedSourceBindingTests
         edit.Value.Right!.Label = "right";
         var result = await edit.CommitAsync();
 
-        (result.MultiWriteResult!.PhysicalWriteCount).ShouldBe(1);
+        (result.PhysicalWriteCount).ShouldBe(1);
         (resource.WriteCount).ShouldBe(1);
         ((await leftSource.Reader.ReadAsync()).Value!.Label.Value).ShouldBe("left");
         ((await rightSource.Reader.ReadAsync()).Value!.Label.Value).ShouldBe("right");
@@ -363,7 +363,8 @@ public sealed partial class NestedSourceBindingTests
         });
 
         var options =
-            (IConfiglueOptions<RootWithNestedSettings>)context.GetOptions<RootWithNestedSettings>();
+            (IConfiglueRuntimeOptions<RootWithNestedSettings>)
+                context.GetOptions<RootWithNestedSettings>();
         var value = await options.GetValueAsync();
         var count = (await options.GetDetailsAsync()).Settings!.Inner!.Count;
 
@@ -418,7 +419,8 @@ public sealed partial class NestedSourceBindingTests
         });
 
         var options =
-            (IConfiglueOptions<RootWithNestedSettings>)context.GetOptions<RootWithNestedSettings>();
+            (IConfiglueRuntimeOptions<RootWithNestedSettings>)
+                context.GetOptions<RootWithNestedSettings>();
         var value = await options.GetValueAsync();
         var details = await options.GetDetailsAsync();
         var label = details.Settings!.Label;

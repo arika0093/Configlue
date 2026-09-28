@@ -65,13 +65,14 @@ internal sealed class SingleBinaryEntryResource
         CancellationToken cancellationToken = default
     )
     {
-        var archiveRevision = ResolveArchiveRevision(request.ExpectedRevision);
+        var archiveRevision = ResolveArchiveRevision(request.Condition.Revision);
         return WriteEntryAsync(
             new ResourceWriteRequest(
                 request.Content,
-                archiveRevision,
-                request.Schema,
-                request.CheckRevision
+                Condition: request.Condition.IsMatch
+                    ? RevisionCondition.FromRevision(archiveRevision)
+                    : request.Condition,
+                Schema: request.Schema
             ),
             request.Content,
             cancellationToken
@@ -167,12 +168,15 @@ internal sealed class SingleBinaryEntryResource
             current.Status == StateReadStatus.NotFound
                 ? MissingEntryRevision
                 : GetEntryRevision(current.Content.Span);
-        var expectedRevision = request.ExpectedRevision ?? MissingEntryRevision;
+        var expectedRevision = request.Condition.Revision ?? MissingEntryRevision;
         var expectedRevisionMatches =
             string.Equals(expectedRevision, currentRevision, StringComparison.Ordinal)
             || string.Equals(expectedRevision, current.Revision, StringComparison.Ordinal)
-            || HasUnchangedEntryAtRevision(request.ExpectedRevision, currentRevision);
-        if (request.CheckRevision && !expectedRevisionMatches)
+            || HasUnchangedEntryAtRevision(request.Condition.Revision, currentRevision);
+        if (
+            request.Condition.IsMatch && !expectedRevisionMatches
+            || request.Condition.IsMustNotExist && current.Status != StateReadStatus.NotFound
+        )
         {
             throw new StateConflictException(
                 $"The ZIP entry '{_entry.EntryName}' changed after the configuration state was read."
@@ -183,9 +187,8 @@ internal sealed class SingleBinaryEntryResource
             .WriteAsync(
                 new ResourceWriteRequest(
                     content,
-                    current.Revision,
-                    request.Schema,
-                    CheckRevision: true
+                    Condition: RevisionCondition.FromRevision(current.Revision),
+                    Schema: request.Schema
                 ),
                 cancellationToken
             )

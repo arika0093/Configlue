@@ -3,8 +3,6 @@ title: フォールバックと独自ソース
 description: 等価な表現の束ねとリソース×コーデックの合成。
 ---
 
-# フォールバックと独自ソース
-
 ## フォールバックソース
 
 同じ論理状態の直列化表現を束ねるには、`FallbackStateSource<TFragment>` を使います（例: 正規の JSON ファイルと旧仕様の YAML ファイル）。
@@ -34,7 +32,7 @@ if (snapshot.Status == StateReadStatus.Success)
 
 `writeSourceId` の候補は fallback 順で選択元より前に置いてください。書き込み後も旧候補は残り、正規候補が後で利用できなくなれば failback に使われます。別リソース間の操作は原子的ではなく、書き込み先の検証は writer の契約に従います。
 
-状態を別の論理ソースや表現へ移す場合は、明示的な移行先 projection を指定して `IConfiglueOptions<T>.MigrateSourcesToTargetsAsync` を使います。この移行 API は書き込み先を検証し、部分完了後の再試行にも対応します。
+状態を別の論理ソースや表現へ移す場合は、明示的な移行先 projection を指定して `IConfiglueSources<T>.MigrateSourcesToTargetsAsync` を使います。この移行 API は書き込み先を検証し、部分完了後の再試行にも対応します。
 
 ## 独自ソース
 

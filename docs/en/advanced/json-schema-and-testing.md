@@ -3,8 +3,6 @@ title: JSON Schema and testing
 description: Export versioned schemas and test with in-memory doubles.
 ---
 
-# JSON Schema and testing
-
 ## JSON Schema export
 
 `JsonSchemaGenerator.Generate` and `Write` live in the separate `Configlue.JsonSchema` package and `Configlue.JsonSchema` namespace; the `Configlue` meta-package includes it. They export versioned schemas from a model's generated `ConfiglueModelSchema`; pass a source-generated `IJsonTypeInfoResolver` for trimming and NativeAOT-friendly metadata. Supported DataAnnotations are mapped to schema constraints.
@@ -16,6 +14,8 @@ var result = JsonSchemaGenerator.Generate(
 ```
 
 `Generate` builds the documents in memory; `Write` persists them. Check the result diagnostics for generation and file-output issues. Host the files wherever fits — a `main`-branch folder, a CDN, or release assets — and point editors at them.
+
+For a guided walkthrough, see [STEP 8: Export JSON Schema](../getting-started/08-json-schema.md).
 
 To restore the legacy `--cw-generate-json-schema <directory>` startup path, collect registrations in a `ConfiglueBuilder` and call `TryWriteFromCommandLine` before building the application. The helper returns a result and leaves process exit behavior to the host:
 

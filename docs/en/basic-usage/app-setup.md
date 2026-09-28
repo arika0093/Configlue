@@ -3,13 +3,13 @@ title: Application setup
 description: Non-DI contexts, DI registration, ownership, and named instances.
 ---
 
-# Application setup
-
 `conf.Add<TModel>(...)` defines one model: its sources, write route, validators, and options name. The same definition works in both setups below.
 
 ## Without DI
 
-`ConfiglueApp.CreateContext(...)` creates an independent lifetime-managed context. `ConfiglueApp.Initialize(...)` plus `ConfiglueApp.GetOptions<T>()` share one process-wide default context instead (the same default the older `Configlue` static class uses); call `await ConfiglueApp.ShutdownAsync()` to dispose it.
+`ConfiglueApp.CreateContext(...)` creates an independent lifetime-managed context. `ConfiglueApp.Initialize(...)` plus `ConfiglueApp.GetOptions<T>()` share one process-wide default context instead; call `await ConfiglueApp.ShutdownAsync()` to dispose it. `Initialize` is configuration only and does not block on source I/O; reads and writes remain asynchronous.
+
+The process-wide lifecycle is strict and test friendly. `GetOptions<T>()` before `Initialize` throws `InvalidOperationException`, and initializing while a default context is active throws as well. `ShutdownAsync` is idempotent and clears the default context, so it can be followed by another `Initialize` to build a fresh context. Use `CreateContext` when you need several contexts at once, DI, or scoped lifetimes. Source precedence and equal-priority tie behavior are documented in [Resolution and merge](../layering/resolution-and-merge.md).
 
 ```csharp
 using Configlue.Sources;
@@ -91,11 +91,14 @@ services.AddConfiglueOptions<AppConfig, AppConfig.Fragment>(
 
 ## Custom validators
 
+DataAnnotations validation is enabled by default; pass `validateDataAnnotations: false` when registering the model to disable it. For code-based rules, adapt a Microsoft `IValidateOptions<T>` with `AddConfiglueValidator`, or implement `IConfiglueValidator<T>` directly and register it as a DI singleton:
+
 ```csharp
 services.AddConfiglueValidator<UserSetting>(new UserSettingValidator());
+services.AddSingleton<IConfiglueValidator<UserSetting>, UserSettingValidator2>();
 ```
 
-DataAnnotations validation is enabled by default. Pass `validateDataAnnotations: false` to disable it. See [Changes and validation](./changes-and-validation.md).
+See [Changes and validation](./changes-and-validation.md).
 
 ## Next steps
 
