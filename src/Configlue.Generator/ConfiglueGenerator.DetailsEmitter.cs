@@ -19,6 +19,7 @@ public sealed partial class ConfiglueGenerator
         ImmutableArray<MemberModel> members
     )
     {
+        code.CancellationToken.ThrowIfCancellationRequested();
         code.AppendLine("public sealed class Details");
         code.AppendLine("{");
         code.AppendLineAt(

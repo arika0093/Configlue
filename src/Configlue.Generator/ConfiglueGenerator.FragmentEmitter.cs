@@ -19,6 +19,7 @@ public sealed partial class ConfiglueGenerator
         bool usesPocoCloning
     )
     {
+        code.CancellationToken.ThrowIfCancellationRequested();
         code.AppendLineAt(
             1,
             "/// <summary>A sparse, presence-aware representation of this model.</summary>"
@@ -103,6 +104,7 @@ public sealed partial class ConfiglueGenerator
         ImmutableArray<PreviousModelInfo> previousModels
     )
     {
+        code.CancellationToken.ThrowIfCancellationRequested();
         foreach (var previousModel in previousModels)
         {
             code.AppendLineAt(
@@ -168,7 +170,8 @@ public sealed partial class ConfiglueGenerator
         ImmutableArray<MemberModel> members
     )
     {
-        code.AppendLineAt(2, "public static Fragment Empty => new();");
+        code.CancellationToken.ThrowIfCancellationRequested();
+        code.AppendLineAt(2, "public static Fragment Empty { get; } = new();");
         code.AppendIndent(2)
             .Append("public global::Configlue.ConfiglueModelSchema Schema => ")
             .Append(modelType)
@@ -261,6 +264,7 @@ public sealed partial class ConfiglueGenerator
         bool usesPocoCloning
     )
     {
+        code.CancellationToken.ThrowIfCancellationRequested();
         code.AppendIndent(2)
             .Append("public static Fragment From(")
             .Append(modelType)
@@ -302,6 +306,7 @@ public sealed partial class ConfiglueGenerator
         ImmutableArray<MemberModel> members
     )
     {
+        code.CancellationToken.ThrowIfCancellationRequested();
         code.AppendIndent(2).Append("public ").Append(modelType).AppendLine(" ToModel()");
         code.AppendLineAt(2, "{");
         if (!members.IsEmpty)
@@ -357,6 +362,27 @@ public sealed partial class ConfiglueGenerator
 
     private static void AppendMerge(IndentedStringBuilder code, ImmutableArray<MemberModel> members)
     {
+        code.CancellationToken.ThrowIfCancellationRequested();
+        var hasCustomMergeStrategy = false;
+        var replaceOnly = members.Length > 0;
+        foreach (var member in members)
+        {
+            if (member.MergeStrategyType is not null)
+            {
+                hasCustomMergeStrategy = true;
+                replaceOnly = false;
+                continue;
+            }
+
+            if (
+                (member.MergeMode == 1 && member.ChildModel is not null)
+                || member.MergeMode is 2 or 3
+            )
+            {
+                replaceOnly = false;
+            }
+        }
+
         code.AppendLineAt(
             2,
             "/// <summary>Merges a higher-priority fragment over this fragment.</summary>"
@@ -364,6 +390,39 @@ public sealed partial class ConfiglueGenerator
         code.AppendLineAt(2, "public Fragment Merge(Fragment higherPriority)");
         code.AppendLineAt(2, "{");
         code.AppendLineAt(3, "global::System.ArgumentNullException.ThrowIfNull(higherPriority);");
+        if (!hasCustomMergeStrategy)
+        {
+            code.AppendLineAt(3, "if (higherPriority.IsEmpty)");
+            code.AppendLineAt(3, "{");
+            code.AppendLineAt(4, "return this;");
+            code.AppendLineAt(3, "}");
+            code.AppendLineAt(3, "if (IsEmpty)");
+            code.AppendLineAt(3, "{");
+            code.AppendLineAt(4, "return higherPriority;");
+            code.AppendLineAt(3, "}");
+        }
+
+        if (replaceOnly)
+        {
+            code.AppendIndent(3).Append("if (");
+            for (var index = 0; index < members.Length; index++)
+            {
+                if (index > 0)
+                {
+                    code.Append(" && ");
+                }
+
+                code.Append("higherPriority.")
+                    .Append(EscapeIdentifier(members[index].Property.Name))
+                    .Append(".IsPresent");
+            }
+
+            code.AppendLine(")");
+            code.AppendLineAt(3, "{");
+            code.AppendLineAt(4, "return higherPriority;");
+            code.AppendLineAt(3, "}");
+        }
+
         code.AppendLineAt(3, "return new Fragment");
         code.AppendLineAt(3, "{");
         foreach (var member in members)
@@ -405,6 +464,7 @@ public sealed partial class ConfiglueGenerator
         ImmutableArray<MemberModel> members
     )
     {
+        code.CancellationToken.ThrowIfCancellationRequested();
         code.AppendLineAt(
             2,
             "/// <summary>Applies a sparse semantic diff to this source-local contribution.</summary>"
@@ -435,6 +495,7 @@ public sealed partial class ConfiglueGenerator
         ImmutableArray<MemberModel> members
     )
     {
+        code.CancellationToken.ThrowIfCancellationRequested();
         foreach (var member in members.Where(static member => member.ChildModel is not null))
         {
             var type = member.ChildModel!.Value.NonNullableName;
@@ -521,6 +582,7 @@ public sealed partial class ConfiglueGenerator
         bool usesPocoCloning
     )
     {
+        code.CancellationToken.ThrowIfCancellationRequested();
         code.AppendLineAt(
             2,
             "/// <summary>Copies the fragment and its generated nested values.</summary>"
@@ -567,6 +629,7 @@ public sealed partial class ConfiglueGenerator
         ImmutableArray<MemberModel> members
     )
     {
+        code.CancellationToken.ThrowIfCancellationRequested();
         code.AppendLineAt(
             2,
             "/// <summary>Applies source-local set and unset operations to this fragment.</summary>"
