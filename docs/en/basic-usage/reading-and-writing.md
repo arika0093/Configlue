@@ -51,7 +51,7 @@ await options.Source(userKey).ReplaceAsync(replacement);
 
 ## Edit sessions
 
-Use `OpenEditSessionAsync` on `IConfiglueOptions<T>` when a settings screen applies several changes together. `IWritableOptions<T>` stays focused on patch saves. The session is in-memory until `CommitAsync`; discard it to abandon changes. Disposing during a commit lets it finish and prevents further edits or commits. Sessions compare the full source revision vector immediately before committing and fail with `StateConflictException` if any participating source changed underneath.
+Use `OpenEditSessionAsync` on `IConfiglueOptions<T>` when a settings screen applies several changes together. `IWritableOptions<T>` stays focused on patch saves. The session is in-memory until `CommitAsync`; discard it to abandon changes. Disposing during a commit lets it finish and prevents further edits or commits. Before writing, the session resolves the latest state and rebases the draft changes from the original baseline. Non-overlapping changes are preserved. Concurrent changes to the same member fail by default; set `WriteConflictResolution = WriteConflictResolution.LastWriteWins` on the model registration to prefer the draft for those conflicts. The destination revision is still checked on write, so a change after the latest read can raise `StateConflictException`.
 
 Synchronous callers can use `options.OpenEditSession()`. It blocks while asynchronous sources are read; use `OpenEditSessionAsync` from asynchronous code.
 
