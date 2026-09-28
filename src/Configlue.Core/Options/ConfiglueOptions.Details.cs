@@ -4,8 +4,8 @@ namespace Configlue;
 public sealed partial class ConfiglueOptions<TModel, TFragment>
 {
     /// <inheritdoc />
-    public async ValueTask<ConfiglueDetailsSnapshot> GetDetailsSnapshotAsync(
-        CancellationToken cancellationToken = default
+    async ValueTask<ConfiglueDetailsSnapshot> IConfiglueDetailsRuntime.GetDetailsSnapshotAsync(
+        CancellationToken cancellationToken
     )
     {
         var resolved = await ResolveCoreAsync(null, cancellationToken, captureContributions: true)

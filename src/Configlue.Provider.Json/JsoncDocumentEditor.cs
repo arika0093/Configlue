@@ -124,10 +124,12 @@ internal sealed class JsoncDocumentEditor
             buffer,
             new StateCodecContext(schema.ToMetadata(), null, schemaReferenceBaseUri)
         );
-        var document =
-            JsonNode.Parse(buffer.WrittenMemory.Span)?.AsObject()
-            ?? throw new JsonException("The generated JSON schema shape must be an object.");
-        return JsonSerializer.SerializeToUtf8Bytes(document);
+        using var document = JsonDocument.Parse(buffer.WrittenMemory);
+        if (document.RootElement.ValueKind != JsonValueKind.Object)
+        {
+            throw new JsonException("The generated JSON schema shape must be an object.");
+        }
+        return buffer.WrittenSpan.ToArray();
     }
 
     private static byte[] WrapProperty(
@@ -171,9 +173,7 @@ internal sealed class JsoncDocumentEditor
             }
             else
             {
-                value = member.ValueType.IsValueType
-                    ? Activator.CreateInstance(member.ValueType)
-                    : null;
+                value = member.DefaultValueFactory?.Invoke();
             }
 
             fragment = fragment.WithMember(member.Id, value);
@@ -189,9 +189,14 @@ internal sealed class JsoncDocumentEditor
             throw new JsonException("A JSON section's containing value must be an object.");
         }
 
-        var propertyName = JsonSerializer.SerializeToUtf8Bytes(name);
+        var nameBuffer = new ArrayBufferWriter<byte>();
+        using (var writer = new Utf8JsonWriter(nameBuffer))
+        {
+            writer.WriteStringValue(name);
+        }
+        var propertyName = nameBuffer.WrittenSpan;
         var property = new byte[propertyName.Length + 1 + value.Length];
-        propertyName.CopyTo(property, 0);
+        propertyName.CopyTo(property);
         property[propertyName.Length] = (byte)':';
         value.CopyTo(property, propertyName.Length + 1);
         var existingProperties = parent.Properties!;

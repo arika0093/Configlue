@@ -29,6 +29,10 @@ public sealed partial class ConfiglueGenerator
         );
         code.AppendLineAt(
             1,
+            "[global::System.ComponentModel.EditorBrowsable(global::System.ComponentModel.EditorBrowsableState.Never)]"
+        );
+        code.AppendLineAt(
+            1,
             "public sealed class Fragment : global::Configlue.IConfiglueFragment<Fragment>, global::Configlue.IConfiglueDeepCloneable<Fragment>"
         );
         code.AppendLineAt(1, "{");

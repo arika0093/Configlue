@@ -1,6 +1,7 @@
-namespace Configlue;
+namespace Configlue.CompilerServices;
 
 /// <summary>Per-element provenance transport for one effective collection element.</summary>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
 public readonly record struct ConfigCollectionElementData
 {
     /// <summary>Gets or initializes the <see cref="Index"/> value.</summary>
@@ -37,6 +38,7 @@ public readonly record struct ConfigCollectionElementData
 
 /// <summary>One internally consistent resolution snapshot backing generated configuration details.</summary>
 /// <remarks>Created by the options runtime; consumed by generated details trees without further source reads.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
 public sealed class ConfiglueDetailsSnapshot
 {
     internal ConfiglueDetailsSnapshot(

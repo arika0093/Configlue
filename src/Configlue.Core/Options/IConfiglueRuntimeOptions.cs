@@ -6,4 +6,5 @@ internal interface IConfiglueRuntimeOptions<T>
         IConfiglueInspection<T>,
         IConfiglueEditSessions<T>,
         IConfiglueDiagnostics<T>,
-        IConfiglueSources<T> { }
+        IConfiglueSources<T>,
+        IConfiglueDetailsRuntime { }

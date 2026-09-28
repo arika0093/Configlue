@@ -322,12 +322,12 @@ public sealed class ConfiglueModelBuilder<TModel>
     }
 
     /// <summary>Builds the typed source set using the generated model's closed fragment type.</summary>
-    public StateSourceSet<TFragment> BuildSources<TFragment>(IServiceProvider? serviceProvider)
+    internal StateSourceSet<TFragment> BuildSources<TFragment>(IServiceProvider? serviceProvider)
         where TFragment : class, IConfiglueFragment<TFragment> =>
         BuildSources<TFragment>(default!, serviceProvider, static _ => { });
 
     /// <summary>Builds the source set and reports resources created by helper definitions.</summary>
-    public StateSourceSet<TFragment> BuildSources<TFragment>(
+    internal StateSourceSet<TFragment> BuildSources<TFragment>(
         IServiceProvider? serviceProvider,
         Action<IDisposable> ownResource
     )
@@ -335,7 +335,7 @@ public sealed class ConfiglueModelBuilder<TModel>
         BuildSources<TFragment>(default!, serviceProvider, ownResource);
 
     /// <summary>Builds the source set and reports resources created by helper definitions.</summary>
-    public StateSourceSet<TFragment> BuildSources<TFragment>(
+    internal StateSourceSet<TFragment> BuildSources<TFragment>(
         ConfiglueModelSchema modelSchema,
         IServiceProvider? serviceProvider,
         Action<IDisposable> ownResource
@@ -357,7 +357,7 @@ public sealed class ConfiglueModelBuilder<TModel>
     }
 
     /// <summary>Gets explicit and dependency-injected migrations for the generated fragment type.</summary>
-    public IReadOnlyList<IStateSchemaMigration<TFragment>> GetMigrations<TFragment>(
+    internal IReadOnlyList<IStateSchemaMigration<TFragment>> GetMigrations<TFragment>(
         IServiceProvider? serviceProvider
     )
         where TFragment : class, IConfiglueFragment<TFragment>
@@ -382,7 +382,7 @@ public sealed class ConfiglueModelBuilder<TModel>
     }
 
     /// <summary>Gets explicit and dependency-injected validators for this model.</summary>
-    public IReadOnlyList<IConfiglueValidator<TModel>> GetValidators(
+    internal IReadOnlyList<IConfiglueValidator<TModel>> GetValidators(
         IServiceProvider? serviceProvider
     )
     {
@@ -409,10 +409,10 @@ public sealed class ConfiglueModelBuilder<TModel>
     internal string DefaultProfileName => _defaultProfileName;
 
     /// <summary>The optional custom clone strategy configured for this model.</summary>
-    public Func<TModel, TModel>? CloneStrategy => _cloneStrategy;
+    internal Func<TModel, TModel>? CloneStrategy => _cloneStrategy;
 
     /// <summary>Gets the explicitly configured logger or creates one from the service provider.</summary>
-    public ILogger? GetLogger(IServiceProvider? serviceProvider)
+    internal ILogger? GetLogger(IServiceProvider? serviceProvider)
     {
         if (_logger is not null)
         {
@@ -499,7 +499,7 @@ internal sealed class ConfiglueModelRegistration<TModel>(ConfiglueModelBuilder<T
 {
     public Type ModelType => typeof(TModel);
 
-    public ConfiglueModelSchema ModelSchema => TModel.GetConfiglueSchema();
+    public ConfiglueModelSchema ModelSchema => TModel.Descriptor.Schema;
 
     public string OptionsName => builder.OptionsName;
 
@@ -510,7 +510,7 @@ internal sealed class ConfiglueModelRegistration<TModel>(ConfiglueModelBuilder<T
     public object CreateRuntime(
         IServiceProvider? serviceProvider,
         Action<IDisposable> ownResource
-    ) => TModel.CreateConfiglueRuntime(builder, serviceProvider, ownResource);
+    ) => TModel.Descriptor.CreateRuntime(builder, serviceProvider, ownResource);
 
     public object CreateProfileManager(
         object registry,
@@ -537,7 +537,7 @@ internal sealed class ConfiglueModelRegistration<TModel>(ConfiglueModelBuilder<T
                 $"Default profile '{builder.DefaultProfileName}' conflicts with a fixed OptionsName."
             );
         }
-        return TModel.CreateConfiglueProfileManager(
+        return TModel.Descriptor.CreateProfiles(
             (IConfiglueOptionsRegistry<TModel>)registry,
             catalogSource,
             builder.DefaultProfileName
@@ -557,7 +557,7 @@ internal sealed class ConfiglueModelRegistration<TModel>(ConfiglueModelBuilder<T
                 try
                 {
                     var dynamicBuilder = builder.CloneForOptionsName(name);
-                    runtime = TModel.CreateConfiglueRuntime(
+                    runtime = TModel.Descriptor.CreateRuntime(
                         dynamicBuilder,
                         serviceProvider,
                         resource =>

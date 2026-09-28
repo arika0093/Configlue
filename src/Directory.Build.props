@@ -41,4 +41,7 @@
     <Using Include="Configlue.State" />
     <Using Include="Configlue.Transformers" />
   </ItemGroup>
+  <ItemGroup Condition="'$(MSBuildProjectName)' != 'Configlue.Generator'">
+    <Using Include="Configlue.CompilerServices" />
+  </ItemGroup>
 </Project>
