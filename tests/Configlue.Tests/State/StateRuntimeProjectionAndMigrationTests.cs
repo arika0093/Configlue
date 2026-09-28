@@ -354,7 +354,7 @@ public sealed partial class StateRuntimeTests
                     RetryCount = ((AppSettings.Fragment)fragment).RetryCount,
                 },
         };
-        IConfiglueOptions<AppSettings> writableOptions = options;
+        IConfiglueRuntimeOptions<AppSettings> writableOptions = options;
 
         var firstRun = await writableOptions.MigrateSourcesToTargetsAsync(
             [SourceKey<AppSettings>.Named("legacy"), SourceKey<AppSettings>.Named("user")],
@@ -415,7 +415,7 @@ public sealed partial class StateRuntimeTests
             ["first-target"] = static fragment => fragment,
             ["second-target"] = static fragment => fragment,
         };
-        IConfiglueOptions<AppSettings> writableOptions = options;
+        IConfiglueRuntimeOptions<AppSettings> writableOptions = options;
         var failed = false;
         try
         {
@@ -478,7 +478,7 @@ public sealed partial class StateRuntimeTests
                 new("target", target, priority: 0, writer: target),
             ])
         );
-        IConfiglueOptions<AppSettings> writableOptions = options;
+        IConfiglueRuntimeOptions<AppSettings> writableOptions = options;
         var projections = new Dictionary<string, Func<IConfiglueFragment, IConfiglueFragment>>(
             StringComparer.Ordinal
         )

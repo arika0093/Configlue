@@ -24,9 +24,9 @@ var tenantOptions = context.GetOptions<AppSettings>("tenant-a");
 await registry.TryRemoveAsync("tenant-a");
 ```
 
-DI では `IOptionsMonitor<AppSettings>.Get("tenant-a")` が登録簿経由で追加・削除を追従します。削除後の `Get` は例外になります。動的な書き込み可能オプションは `IConfiglueOptionsRegistry<AppSettings>.Get(name)` で解決します。キー付きサービスはプロバイダー構築時に固定され、後からの名前には作られません。実体化済みの `IOptionsSnapshot<T>` は通常のスナップショット通りそのスコープの値を保ちます。
+DI では `IOptionsMonitor<AppSettings>.Get("tenant-a")` が登録簿経由で追加・削除を追従します。削除後の `Get` は例外になります。動的な書き込み可能オプションは `IConfiglueInspectionRegistry<AppSettings>.Get(name)` で解決します。キー付きサービスはプロバイダー構築時に固定され、後からの名前には作られません。実体化済みの `IOptionsSnapshot<T>` は通常のスナップショット通りそのスコープの値を保ちます。
 
-動的な名前付きオプションは実行時限定です。永続化されるプロファイルカタログは別途 `EnableProfiles` で利用できます。実行中に作る実行時プロファイルには `AddConfiglueOptionsRegistry<TModel, TModel.Fragment>(...)` を登録し、`IConfiglueOptionsRegistry<TModel>.TryAdd`・`Get`・`TryRemove` を使います。
+動的な名前付きオプションは実行時限定です。永続化されるプロファイルカタログは別途 `EnableProfiles` で利用できます。実行中に作る実行時プロファイルには `AddConfiglueOptionsRegistry<TModel, TModel.Fragment>(...)` を登録し、`IConfiglueInspectionRegistry<TModel>.TryAdd`・`Get`・`TryRemove` を使います。
 
 固定登録の名前は予約済みです。削除はそのランタイムでの新規操作開始を止め、進行中操作とウォッチャー停止を待ってからヘルパー生成リソースを破棄します。削除後の新規コンテキスト検索は失敗します。既返却のハンドルは破棄済みになり、削除済みオプションの構成セッション保存は `ObjectDisposedException` で失敗します。
 

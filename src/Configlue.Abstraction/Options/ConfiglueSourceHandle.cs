@@ -4,10 +4,10 @@ namespace Configlue;
 /// <typeparam name="TModel">The configuration model type.</typeparam>
 public sealed class ConfiglueSourceHandle<TModel>
 {
-    private readonly IConfiglueOptions<TModel> _options;
+    private readonly IConfiglueSources<TModel> _options;
     private readonly SourceKey<TModel> _sourceKey;
 
-    internal ConfiglueSourceHandle(IConfiglueOptions<TModel> options, SourceKey<TModel> sourceKey)
+    internal ConfiglueSourceHandle(IConfiglueSources<TModel> options, SourceKey<TModel> sourceKey)
     {
         _options = options;
         _sourceKey = sourceKey;

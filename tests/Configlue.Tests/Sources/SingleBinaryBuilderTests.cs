@@ -217,8 +217,8 @@ public sealed class SingleBinaryBuilderTests
             })
         );
 
-        var app = context.GetAdvancedOptions<AppSettings>();
-        var database = context.GetAdvancedOptions<DatabaseSettings>();
+        var app = context.GetRuntimeOptions<AppSettings>();
+        var database = context.GetRuntimeOptions<DatabaseSettings>();
         await app.SaveAsync(settings => settings.RetryCount = 60);
         using var appEdit = await app.OpenEditSessionAsync();
         using var databaseEdit = await database.OpenEditSessionAsync();

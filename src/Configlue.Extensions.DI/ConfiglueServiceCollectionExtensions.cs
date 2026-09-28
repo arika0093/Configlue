@@ -110,7 +110,16 @@ public static class ConfiglueServiceCollectionExtensions
         services.AddSingleton<IWritableOptions<TModel>>(provider =>
             provider.GetRequiredService<ConfiglueOptions<TModel, TFragment>>()
         );
-        services.AddSingleton<IConfiglueOptions<TModel>>(provider =>
+        services.AddSingleton<IConfiglueInspection<TModel>>(provider =>
+            provider.GetRequiredService<ConfiglueOptions<TModel, TFragment>>()
+        );
+        services.AddSingleton<IConfiglueEditSessions<TModel>>(provider =>
+            provider.GetRequiredService<ConfiglueOptions<TModel, TFragment>>()
+        );
+        services.AddSingleton<IConfiglueDiagnostics<TModel>>(provider =>
+            provider.GetRequiredService<ConfiglueOptions<TModel, TFragment>>()
+        );
+        services.AddSingleton<IConfiglueSources<TModel>>(provider =>
             provider.GetRequiredService<ConfiglueOptions<TModel, TFragment>>()
         );
         return services;
@@ -215,7 +224,22 @@ public static class ConfiglueServiceCollectionExtensions
             (provider, key) =>
                 provider.GetRequiredKeyedService<ConfiglueOptions<TModel, TFragment>>(key)
         );
-        services.AddKeyedSingleton<IConfiglueOptions<TModel>>(
+        services.AddKeyedSingleton<IConfiglueInspection<TModel>>(
+            serviceKey,
+            (provider, key) =>
+                provider.GetRequiredKeyedService<ConfiglueOptions<TModel, TFragment>>(key)
+        );
+        services.AddKeyedSingleton<IConfiglueEditSessions<TModel>>(
+            serviceKey,
+            (provider, key) =>
+                provider.GetRequiredKeyedService<ConfiglueOptions<TModel, TFragment>>(key)
+        );
+        services.AddKeyedSingleton<IConfiglueDiagnostics<TModel>>(
+            serviceKey,
+            (provider, key) =>
+                provider.GetRequiredKeyedService<ConfiglueOptions<TModel, TFragment>>(key)
+        );
+        services.AddKeyedSingleton<IConfiglueSources<TModel>>(
             serviceKey,
             (provider, key) =>
                 provider.GetRequiredKeyedService<ConfiglueOptions<TModel, TFragment>>(key)
@@ -296,8 +320,20 @@ public static class ConfiglueServiceCollectionExtensions
         {
             if (registration.OptionsName == Options.DefaultName)
             {
-                services.AddSingleton<IConfiglueOptions<TModel>>(provider =>
-                    (IConfiglueOptions<TModel>)
+                services.AddSingleton<IConfiglueInspection<TModel>>(provider =>
+                    (IConfiglueInspection<TModel>)
+                        provider.GetRequiredService<IWritableOptions<TModel>>()
+                );
+                services.AddSingleton<IConfiglueEditSessions<TModel>>(provider =>
+                    (IConfiglueEditSessions<TModel>)
+                        provider.GetRequiredService<IWritableOptions<TModel>>()
+                );
+                services.AddSingleton<IConfiglueDiagnostics<TModel>>(provider =>
+                    (IConfiglueDiagnostics<TModel>)
+                        provider.GetRequiredService<IWritableOptions<TModel>>()
+                );
+                services.AddSingleton<IConfiglueSources<TModel>>(provider =>
+                    (IConfiglueSources<TModel>)
                         provider.GetRequiredService<IWritableOptions<TModel>>()
                 );
             }
@@ -310,10 +346,28 @@ public static class ConfiglueServiceCollectionExtensions
                     );
                 }
 
-                services.AddKeyedSingleton<IConfiglueOptions<TModel>>(
+                services.AddKeyedSingleton<IConfiglueInspection<TModel>>(
                     registration.OptionsName,
                     (provider, key) =>
-                        (IConfiglueOptions<TModel>)
+                        (IConfiglueInspection<TModel>)
+                            provider.GetRequiredKeyedService<IWritableOptions<TModel>>(key)
+                );
+                services.AddKeyedSingleton<IConfiglueEditSessions<TModel>>(
+                    registration.OptionsName,
+                    (provider, key) =>
+                        (IConfiglueEditSessions<TModel>)
+                            provider.GetRequiredKeyedService<IWritableOptions<TModel>>(key)
+                );
+                services.AddKeyedSingleton<IConfiglueDiagnostics<TModel>>(
+                    registration.OptionsName,
+                    (provider, key) =>
+                        (IConfiglueDiagnostics<TModel>)
+                            provider.GetRequiredKeyedService<IWritableOptions<TModel>>(key)
+                );
+                services.AddKeyedSingleton<IConfiglueSources<TModel>>(
+                    registration.OptionsName,
+                    (provider, key) =>
+                        (IConfiglueSources<TModel>)
                             provider.GetRequiredKeyedService<IWritableOptions<TModel>>(key)
                 );
             }

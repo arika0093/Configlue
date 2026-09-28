@@ -1,39 +1,9 @@
 namespace Configlue;
 
-/// <summary>Exposes source administration and diagnostics beyond the regular options API.</summary>
-/// <typeparam name="T">The configuration model type.</typeparam>
-public interface IConfiglueOptions<T> : IWritableOptions<T>
+/// <summary>Administers source-local writes and source migrations.</summary>
+/// <typeparam name="T">The configuration model.</typeparam>
+public interface IConfiglueSources<T>
 {
-    /// <summary>Reads the resolved value together with state and revision metadata.</summary>
-    ValueTask<StateReadResult<T>> ReadAsync(CancellationToken cancellationToken = default);
-
-    /// <summary>Begins editing a deep clone of the currently resolved configuration.</summary>
-    ValueTask<EditSession<T>> OpenEditSessionAsync(CancellationToken cancellationToken = default);
-
-    /// <summary>Begins editing with path-based source routing for changed model members.</summary>
-    ValueTask<EditSession<T>> OpenEditSessionAsync(
-        StateWritePlan writePlan,
-        CancellationToken cancellationToken = default
-    );
-
-    /// <summary>Subscribes to failures while the background watcher reads changed state.</summary>
-    /// <remarks>Receives thrown watcher/reload exceptions and an <see cref="InvalidOperationException"/> when a changed state resolves to a non-success status. Failures from explicit read calls and change listeners are not reported here.</remarks>
-    IDisposable OnReloadFailed(Action<Exception> listener)
-    {
-        ArgumentNullException.ThrowIfNull(listener);
-        throw new NotSupportedException(
-            "This options implementation does not support reload-failure notifications."
-        );
-    }
-
-    /// <summary>Returns the configured source topology and registration-level write routing.</summary>
-    ConfiglueOptionsDiagnostics GetDiagnostics();
-
-    /// <summary>Reads one consistent resolution snapshot backing generated configuration details.</summary>
-    ValueTask<ConfiglueDetailsSnapshot> GetDetailsSnapshotAsync(
-        CancellationToken cancellationToken = default
-    );
-
     /// <summary>Migrates one source's contribution into another writable source without merging unrelated sources.</summary>
     ValueTask<StateSourceMigrationResult> MigrateSourceAsync(
         string sourceId,

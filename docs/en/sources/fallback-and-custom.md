@@ -29,7 +29,7 @@ if (snapshot.Status == StateReadStatus.Success)
 
 Place the `writeSourceId` candidate before the selected source in fallback order. The legacy candidate remains available after the write and can serve as a failback if the canonical candidate later becomes unavailable. Writes across separate resources are not atomic; verification follows the writer contract.
 
-When state needs to move to a different logical source or representation, use `IConfiglueOptions<T>.MigrateSourcesToTargetsAsync` with an explicit target projection. The migration API verifies target writes and supports retry after partial completion.
+When state needs to move to a different logical source or representation, use `IConfiglueSources<T>.MigrateSourcesToTargetsAsync` with an explicit target projection. The migration API verifies target writes and supports retry after partial completion.
 
 ## Custom sources
 

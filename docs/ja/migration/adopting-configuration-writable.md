@@ -61,10 +61,10 @@ await options.MigrateSourceAsync("legacy", "current");
 | `WritableOptions.Initialize(...)` | `ConfiglueApp.CreateContext(...)`。既定の共有 context が必要なら `ConfiglueApp.Initialize(...)` と `GetOptions<T>()`。 |
 | `WritableOptions.GetOptions<T>()` | `context.GetOptions<T>()` または `ConfiglueApp.GetOptions<T>()`。 |
 | `CurrentValue` | `await options.GetValueAsync()`。Configlue の基本 API は非同期です。同期 `IOptions<T>` adapter が必要な DI アプリは `Configlue.Extensions.MSOptions` を明示的に登録します。 |
-| `SaveAsync(value => ...)` | `await options.SaveAsync(patch => ...)`。指定した項目だけを保存します。解決済みモデル全体を編集する場合は `context.GetAdvancedOptions<T>().OpenEditSessionAsync()` を使います。 |
-| `OnChange(...)` / `OnReloadFailed(...)` | `options.OnChange(...)` と `context.GetAdvancedOptions<T>().OnReloadFailed(...)`。返された subscription は不要になった時点で破棄します。 |
+| `SaveAsync(value => ...)` | `await options.SaveAsync(patch => ...)`。指定した項目だけを保存します。解決済みモデル全体を編集する場合は `context.GetEditSessions<T>().OpenEditSessionAsync()` を使います。 |
+| `OnChange(...)` / `OnReloadFailed(...)` | `options.OnChange(...)` と `context.GetDiagnostics<T>().OnReloadFailed(...)`。返された subscription は不要になった時点で破棄します。 |
 | `InstanceName` / named options | 固定名は登録時の `OptionsName`、実行時に追加・削除する名前は `EnableDynamicOptions` と `GetOptionsRegistry<T>()`。永続化された profile catalog が必要なら `EnableProfiles(...)` を使います。 |
-| `ConfigurationInfo` | topology と write route は `context.GetAdvancedOptions<T>().GetDiagnostics()`、値や各項目の出所は `context.GetAdvancedOptions<T>().GetDetailsSnapshotAsync()`。 |
+| `ConfigurationInfo` | topology と write route は `context.GetDiagnostics<T>().GetDiagnostics()`、値や各項目の出所は `context.GetInspection<T>().GetDetailsSnapshotAsync()`。 |
 | `AddWritableOptions(...)` | `services.AddConfiglue(...)`。`IOptions<T>` なども必要な場合は `AddConfiglueMicrosoftOptions<T>()` を追加します。 |
 
 独立した非 DI context の例です:

@@ -66,7 +66,7 @@ In Configlue, breaking changes are handled by incrementing the model's **Version
    <TabItem label="Without DI">
 
    ```csharp
-   var options = (IConfiglueOptions<AppSettings>)context.GetOptions<AppSettings>();
+   var options = (IConfiglueSources<AppSettings>)context.GetOptions<AppSettings>();
    var result = await options.MigrateSourceAsync("legacy-settings", "settings");
    Console.WriteLine($"Copied from {result.SourceId} to {result.TargetId}.");
    ```
@@ -75,7 +75,7 @@ In Configlue, breaking changes are handled by incrementing the model's **Version
    <TabItem label="With DI">
 
    ```csharp
-   public sealed class SettingsMigrator(IConfiglueOptions<AppSettings> options)
+   public sealed class SettingsMigrator(IConfiglueSources<AppSettings> options)
    {
        public async Task MigrateAsync()
        {

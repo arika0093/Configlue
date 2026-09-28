@@ -75,7 +75,9 @@ public sealed partial class StateRuntimeTests
         (stored.Value!.RetryCount.Value).ShouldBe(3);
         (stored.Revision).ShouldBe("1");
 
-        var advanced = serviceProvider.GetRequiredService<IConfiglueOptions<AppSettings>>();
+        var advanced =
+            (IConfiglueRuntimeOptions<AppSettings>)
+                serviceProvider.GetRequiredService<IWritableOptions<AppSettings>>();
         using var edit = await advanced.OpenEditSessionAsync();
         edit.Value.RetryCount = 101;
         var editWasRejected = false;

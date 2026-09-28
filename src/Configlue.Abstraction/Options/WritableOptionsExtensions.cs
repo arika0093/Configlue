@@ -5,7 +5,7 @@ public static class ConfiglueOptionsExtensions
 {
     /// <summary>Gets a handle that saves patches to one source.</summary>
     public static ConfiglueSourceHandle<T> Source<T>(
-        this IConfiglueOptions<T> options,
+        this IConfiglueSources<T> options,
         SourceKey<T> sourceKey
     )
     {
@@ -19,8 +19,8 @@ public static class ConfiglueOptionsExtensions
     }
 
     /// <summary>Begins editing the current value, blocking until asynchronous sources are read.</summary>
-    /// <remarks>Use <see cref="IConfiglueOptions{T}.OpenEditSessionAsync(System.Threading.CancellationToken)"/> from asynchronous flows.</remarks>
-    public static EditSession<T> OpenEditSession<T>(this IConfiglueOptions<T> options)
+    /// <remarks>Use <see cref="IConfiglueEditSessions{T}.OpenEditSessionAsync(System.Threading.CancellationToken)"/> from asynchronous flows.</remarks>
+    public static EditSession<T> OpenEditSession<T>(this IConfiglueEditSessions<T> options)
     {
         ArgumentNullException.ThrowIfNull(options);
         return options.OpenEditSessionAsync().GetAwaiter().GetResult();
