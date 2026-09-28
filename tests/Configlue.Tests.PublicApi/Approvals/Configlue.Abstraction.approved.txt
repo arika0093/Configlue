@@ -484,9 +484,11 @@ namespace Configlue
         public Configlue.StateWritePlan OverrideWith(Configlue.StateWritePlan overrides) { }
         public string ResolveSourceId(string propertyPath, string fallbackSourceId) { }
         public string? ResolveSourceIdOrNull(string propertyPath, string? fallbackSourceId = null) { }
-        public static Configlue.StateWritePlanBuilder<TModel> For<TModel>() { }
+        public static Configlue.StateWritePlanBuilder<TModel> For<TModel>()
+            where TModel : Configlue.CompilerServices.IConfiglueModel { }
     }
     public sealed class StateWritePlanBuilder<TModel>
+        where TModel : Configlue.CompilerServices.IConfiglueModel
     {
         public StateWritePlanBuilder() { }
         public Configlue.StateWritePlan Build() { }

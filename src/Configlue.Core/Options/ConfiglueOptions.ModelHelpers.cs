@@ -27,61 +27,6 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
 
     TModel IConfiglueValueCloneProvider<TModel>.CloneValue(TModel value) => CloneModel(value);
 
-    private static object? GetModelValue(
-        ConfiglueModelSchema schema,
-        object model,
-        IReadOnlyList<string> path,
-        string propertyPath,
-        out ConfiglueMemberSchema leafMember
-    )
-    {
-        leafMember = default;
-        object? current = model;
-        for (var index = 0; index < path.Count; index++)
-        {
-            var member = schema.Members.FirstOrDefault(candidate =>
-                string.Equals(candidate.Name, path[index], StringComparison.Ordinal)
-            );
-            if (string.IsNullOrEmpty(member.Name))
-            {
-                throw new ArgumentException(
-                    $"Model '{schema.ModelType}' has no member named '{path[index]}' in property path '{propertyPath}'.",
-                    nameof(propertyPath)
-                );
-            }
-
-            object? value = null;
-            if (current is not null)
-            {
-                var getter =
-                    member.GetValue
-                    ?? throw new InvalidOperationException(
-                        $"Generated getter metadata is missing for '{schema.ModelType}.{member.Name}'."
-                    );
-                value = getter(current);
-            }
-
-            if (index == path.Count - 1)
-            {
-                leafMember = member;
-                return value;
-            }
-
-            if (member.NestedSchemaFactory is null)
-            {
-                throw new ArgumentException(
-                    $"Member '{schema.ModelType}.{member.Name}' is not a generated nested model.",
-                    nameof(propertyPath)
-                );
-            }
-
-            schema = member.NestedSchemaFactory();
-            current = value;
-        }
-
-        throw new ArgumentException("The property path is empty.", nameof(propertyPath));
-    }
-
     private sealed record CollectionElementProvenance
     {
         public int Index { get; init; }
@@ -115,7 +60,8 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
             .Select(static _ => new List<int>())
             .ToArray();
 
-        if (member.MergeStrategy is { } mergeStrategy)
+        var mergeStrategy = member.MergeStrategy;
+        if (mergeStrategy is not null)
         {
             var sourcePriority = sourceContributions
                 .Select((source, index) => (source.SourceId, index))

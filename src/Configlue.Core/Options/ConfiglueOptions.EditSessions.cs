@@ -40,7 +40,9 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
         }
 
         var source = SelectWriteSource(allowPriorityFallback: true);
-        var effectiveWritePlan = _defaultWritePlan.OverrideWith(writePlan ?? StateWritePlan.Empty);
+        var effectiveWritePlan = _defaultWritePlan
+            .OverrideWith(writePlan ?? StateWritePlan.Empty)
+            .Bind(TModel.ConfiglueSchema);
         if (effectiveWritePlan.PropertyRoutes.Count > 0)
         {
             ValidateWritePlan(effectiveWritePlan);
