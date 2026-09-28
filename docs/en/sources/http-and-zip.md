@@ -46,6 +46,8 @@ Host applications can register named clients with the standard `AddHttpClient` A
 
 `ZipEntryResource` exposes one archive entry as a logical resource while retaining the archive's physical identity and revision. Disjoint entry updates can share one batched archive write, and untouched entries remain intact.
 
+When the archive resource implements `IStateWatcher` (for example, `FileResource`), entry change monitoring delegates to that watcher and reacts to archive file edits. Only archive resources without a watcher use revision polling, every 250 ms by default; pass a `pollingInterval` to `ZipEntryResource` to configure that fallback.
+
 ## Next steps
 
 * [Fallback and custom sources](./fallback-and-custom.md).

@@ -26,10 +26,15 @@ internal sealed class ConfiglueFacadeOptionsRegistry<TModel>
         }
     }
 
-    private sealed class Notification(IWritableOptions<TModel> runtime, Action dispatch)
+    private sealed class Notification(
+        IWritableOptions<TModel> runtime,
+        Action dispatch,
+        Task? ready = null
+    )
     {
         public IWritableOptions<TModel> Runtime { get; } = runtime;
         public Action Dispatch { get; } = dispatch;
+        public Task Ready { get; } = ready ?? Task.CompletedTask;
         public bool IsCancelled { get; set; }
         public TaskCompletionSource Completion { get; } =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -178,11 +183,8 @@ internal sealed class ConfiglueFacadeOptionsRegistry<TModel>
             _pendingRemovals.Add(completed.Task);
             notification = new Notification(
                 entry.Runtime,
-                () =>
-                {
-                    notificationReady.Task.GetAwaiter().GetResult();
-                    NotifyRemoved(profileName);
-                }
+                () => NotifyRemoved(profileName),
+                notificationReady.Task
             );
             _notifications.Enqueue(notification);
             waitForNotifications = !_insideNotification.Value && _notificationDeferralCount == 0;
@@ -240,11 +242,8 @@ internal sealed class ConfiglueFacadeOptionsRegistry<TModel>
                 _notifications.Enqueue(
                     new Notification(
                         entry.Runtime,
-                        () =>
-                        {
-                            notificationReady.Task.GetAwaiter().GetResult();
-                            NotifyRemoved(name);
-                        }
+                        () => NotifyRemoved(name),
+                        notificationReady.Task
                     )
                 );
             }
@@ -362,11 +361,8 @@ internal sealed class ConfiglueFacadeOptionsRegistry<TModel>
                 _notifications.Enqueue(
                     new Notification(
                         entry.Runtime,
-                        () =>
-                        {
-                            notificationReady.Task.GetAwaiter().GetResult();
-                            NotifyRemoved(name);
-                        }
+                        () => NotifyRemoved(name),
+                        notificationReady.Task
                     )
                 );
             }
@@ -670,6 +666,16 @@ internal sealed class ConfiglueFacadeOptionsRegistry<TModel>
                     _activeNotification = null;
                     return;
                 }
+
+                if (!_notifications.Peek().Ready.IsCompleted)
+                {
+                    var ready = _notifications.Peek().Ready;
+                    _dispatchingNotifications = false;
+                    _activeNotification = null;
+                    ready.GetAwaiter().OnCompleted(DrainNotifications);
+                    return;
+                }
+
                 notification = _notifications.Dequeue();
                 _activeNotification = notification;
             }

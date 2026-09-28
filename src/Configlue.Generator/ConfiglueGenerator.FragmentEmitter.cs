@@ -60,7 +60,7 @@ public sealed partial class ConfiglueGenerator
                 .Append("__configlue_merge_strategy_")
                 .Append(member.Id)
                 .Append(" = new ")
-                .Append(TypeName(member.MergeStrategyType!))
+                .Append(TypeName(member.MergeStrategyType!.Value))
                 .AppendLine("();");
         }
 
@@ -92,7 +92,7 @@ public sealed partial class ConfiglueGenerator
         AppendFragmentClone(code, members, usesPocoCloning);
         AppendPatchSupport(code, members);
         AppendJsonConverter(code, members);
-        AppendPreviousMappings(code, members, previousModels);
+        AppendPreviousMappings(code, previousModels);
         code.AppendLineAt(1, "}");
         AppendBuilder(code, members);
         AppendPatch(code, modelType, members);
@@ -100,43 +100,30 @@ public sealed partial class ConfiglueGenerator
 
     private static void AppendPreviousMappings(
         IndentedStringBuilder code,
-        ImmutableArray<MemberModel> members,
         ImmutableArray<PreviousModelInfo> previousModels
     )
     {
         foreach (var previousModel in previousModels)
         {
-            var previousMembers = previousModel.Members.ToDictionary(
-                static member => member.Property.Name,
-                StringComparer.Ordinal
-            );
             code.AppendLineAt(
                 2,
                 "/// <summary>Transfers compatible members from a declared previous schema version.</summary>"
             );
             code.AppendIndent(2)
                 .Append("public static Fragment FromPrevious(")
-                .Append(NonNullableTypeName(previousModel.Model))
+                .Append(previousModel.Model.ModelTypeName)
                 .AppendLine(".Fragment value)");
             code.AppendLineAt(2, "{");
             code.AppendLineAt(3, "global::System.ArgumentNullException.ThrowIfNull(value);");
             code.AppendLineAt(3, "return new Fragment");
             code.AppendLineAt(3, "{");
-            foreach (var member in members)
+            foreach (var mapping in previousModel.Mappings)
             {
-                if (!previousMembers.TryGetValue(member.Property.Name, out var previousMember))
-                {
-                    continue;
-                }
-
+                var member = mapping.CurrentMember;
+                var previousMember = mapping.PreviousMember;
                 var name = EscapeIdentifier(member.Property.Name);
                 var previousName = EscapeIdentifier(previousMember.Property.Name);
-                if (
-                    SymbolEqualityComparer.Default.Equals(
-                        previousMember.Property.Type,
-                        member.Property.Type
-                    )
-                )
+                if (mapping.HasSameType)
                 {
                     code.AppendIndent(4)
                         .Append(name)
@@ -146,17 +133,10 @@ public sealed partial class ConfiglueGenerator
                     continue;
                 }
 
-                if (
-                    member.ChildModel is not null
-                    && previousMember.ChildModel is not null
-                    && HasPreviousVersion(
-                        member.ChildModel,
-                        previousMember.ChildModel,
-                        code.CancellationToken
-                    )
-                )
+                if (mapping.CanMigrateChild)
                 {
-                    var childValueType = NonNullableTypeName(member.ChildModel) + ".Fragment?";
+                    var childType = member.ChildModel!.Value.NonNullableName;
+                    var childValueType = childType + ".Fragment?";
                     var previousAccess = "value." + previousName;
                     code.AppendIndent(4)
                         .Append(name)
@@ -167,7 +147,7 @@ public sealed partial class ConfiglueGenerator
                         .Append(">.Present(")
                         .Append(previousAccess)
                         .Append(".Value is null ? null : ")
-                        .Append(NonNullableTypeName(member.ChildModel))
+                        .Append(childType)
                         .Append(".Fragment.FromPrevious(")
                         .Append(previousAccess)
                         .Append(".Value!)) : global::Configlue.Optional<")
@@ -301,7 +281,7 @@ public sealed partial class ConfiglueGenerator
             var access = "value." + EscapeIdentifier(member.Property.Name);
             var value = member.ChildModel is null
                 ? CloneModelExpression(member, access, code.CancellationToken)
-                : $"({access} is null ? null : {NonNullableTypeName(member.ChildModel)}.Fragment.From({access}))";
+                : $"({access} is null ? null : {member.ChildModel.Value.NonNullableName}.Fragment.From({access}))";
             code.AppendIndent(4)
                 .Append(EscapeIdentifier(member.Property.Name))
                 .Append(" = global::Configlue.Optional<")
@@ -457,7 +437,7 @@ public sealed partial class ConfiglueGenerator
     {
         foreach (var member in members.Where(static member => member.ChildModel is not null))
         {
-            var type = NonNullableTypeName(member.ChildModel!);
+            var type = member.ChildModel!.Value.NonNullableName;
             var name = EscapeIdentifier(member.Property.Name);
             code.AppendIndent(2)
                 .Append("private static global::Configlue.Optional<")

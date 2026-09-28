@@ -1,13 +1,19 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
+using System.Text.Encodings.Web;
 using Configlue;
 using Configlue.Resource.Http;
 using Configlue.Resource.Http.AspNetCore;
 using Configlue.Testing;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Configlue.Tests;
 
@@ -203,6 +209,42 @@ public sealed class HttpResourceEndpointTests
         );
     }
 
+    [Test]
+    public async Task Endpoint_RequiresAuthorizationByDefault()
+    {
+        var resource = new InMemoryResource();
+        await using var app = await StartAppAsync(
+            endpoints => endpoints.MapConfiglueHttpResource("/config", resource),
+            allowAuthorization: false
+        );
+        using var httpClient = app.GetTestClient();
+
+        using var response = await httpClient.GetAsync("http://localhost/config/get");
+
+        response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+    }
+
+    [Test]
+    public async Task Endpoint_RejectsOversizedRequestBodies()
+    {
+        var resource = new InMemoryResource();
+        await using var app = await StartAppAsync(endpoints =>
+            endpoints.MapConfiglueHttpResource(
+                "/config",
+                resource,
+                resource,
+                new HttpResourceEndpointOptions { MaximumRequestBodySize = 1 }
+            )
+        );
+        using var httpClient = app.GetTestClient();
+        using var request = CreateWriteRequest(new Uri("http://localhost/config/update"));
+
+        using var response = await httpClient.SendAsync(request);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.RequestEntityTooLarge);
+        resource.WriteCount.ShouldBe(0);
+    }
+
     private static HttpRequestMessage CreateWriteRequest(Uri endpoint)
     {
         var request = new HttpRequestMessage(HttpMethod.Put, endpoint)
@@ -214,15 +256,34 @@ public sealed class HttpResourceEndpointTests
     }
 
     private static async Task<WebApplication> StartAppAsync(
-        Action<Microsoft.AspNetCore.Routing.IEndpointRouteBuilder> mapEndpoints
+        Action<Microsoft.AspNetCore.Routing.IEndpointRouteBuilder> mapEndpoints,
+        bool allowAuthorization = true
     )
     {
         var builder = WebApplication.CreateBuilder();
         builder.WebHost.UseTestServer();
+        builder
+            .Services.AddAuthentication("test")
+            .AddScheme<AuthenticationSchemeOptions, TestAuthenticationHandler>("test", _ => { });
+        builder.Services.AddAuthorization(options =>
+            options.DefaultPolicy = new AuthorizationPolicyBuilder()
+                .RequireAssertion(_ => allowAuthorization)
+                .Build()
+        );
         var app = builder.Build();
         mapEndpoints(app);
         await app.StartAsync();
         return app;
+    }
+
+    private sealed class TestAuthenticationHandler(
+        IOptionsMonitor<AuthenticationSchemeOptions> options,
+        ILoggerFactory logger,
+        UrlEncoder encoder
+    ) : AuthenticationHandler<AuthenticationSchemeOptions>(options, logger, encoder)
+    {
+        protected override Task<AuthenticateResult> HandleAuthenticateAsync() =>
+            Task.FromResult(AuthenticateResult.NoResult());
     }
 
     private sealed class FixedResourceReader(ResourceReadResult result) : IResourceReader

@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Globalization;
 using System.Net.Http.Headers;
 using System.Security.Cryptography;
@@ -39,6 +40,11 @@ public static class HttpResourceEndpointRouteBuilderExtensions
         ValidateRouteRoot(routeRoot);
 
         var group = endpoints.MapGroup(routeRoot);
+        if (validatedOptions.RequireAuthorization)
+        {
+            group.RequireAuthorization();
+        }
+
         group.MapGet(
             validatedOptions.GetPath,
             context => HandleReadAsync(reader, validatedOptions, context)
@@ -146,10 +152,48 @@ public static class HttpResourceEndpointRouteBuilderExtensions
             return;
         }
 
+        if (
+            options.MaximumRequestBodySize is { } maximumSize
+            && context.Request.ContentLength is { } contentLength
+            && contentLength > maximumSize
+        )
+        {
+            context.Response.StatusCode = StatusCodes.Status413PayloadTooLarge;
+            return;
+        }
+
         using var content = new MemoryStream();
-        await context
-            .Request.Body.CopyToAsync(content, context.RequestAborted)
-            .ConfigureAwait(false);
+        var buffer = ArrayPool<byte>.Shared.Rent(81920);
+        try
+        {
+            while (true)
+            {
+                var bytesRead = await context
+                    .Request.Body.ReadAsync(buffer, context.RequestAborted)
+                    .ConfigureAwait(false);
+                if (bytesRead == 0)
+                {
+                    break;
+                }
+
+                if (
+                    options.MaximumRequestBodySize is { } limit
+                    && content.Length > limit - bytesRead
+                )
+                {
+                    context.Response.StatusCode = StatusCodes.Status413PayloadTooLarge;
+                    return;
+                }
+
+                await content
+                    .WriteAsync(buffer.AsMemory(0, bytesRead), context.RequestAborted)
+                    .ConfigureAwait(false);
+            }
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(buffer, clearArray: true);
+        }
 
         StateWriteResult result;
         try
@@ -157,7 +201,7 @@ public static class HttpResourceEndpointRouteBuilderExtensions
             result = await writer
                 .WriteAsync(
                     new ResourceWriteRequest(
-                        content.ToArray(),
+                        content.GetBuffer().AsMemory(0, checked((int)content.Length)),
                         expectedRevision,
                         schema,
                         checkRevision
@@ -457,11 +501,21 @@ public static class HttpResourceEndpointRouteBuilderExtensions
             throw new ArgumentException("ContentType must be a valid media type.", nameof(options));
         }
 
+        if (options.MaximumRequestBodySize is <= 0 or > int.MaxValue)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(options),
+                "MaximumRequestBodySize must be between one and Int32.MaxValue bytes or null."
+            );
+        }
+
         return new ValidatedOptions(
             options.GetPath,
             options.UpdatePath,
             contentType.ToString(),
-            mediaType
+            mediaType,
+            options.RequireAuthorization,
+            options.MaximumRequestBodySize
         );
     }
 
@@ -536,31 +590,41 @@ public static class HttpResourceEndpointRouteBuilderExtensions
         public string UpdatePath { get; init; }
         public string ContentType { get; init; }
         public string MediaType { get; init; }
+        public bool RequireAuthorization { get; init; }
+        public long? MaximumRequestBodySize { get; init; }
 
         public ValidatedOptions(
             string GetPath,
             string UpdatePath,
             string ContentType,
-            string MediaType
+            string MediaType,
+            bool RequireAuthorization,
+            long? MaximumRequestBodySize
         )
         {
             this.GetPath = GetPath;
             this.UpdatePath = UpdatePath;
             this.ContentType = ContentType;
             this.MediaType = MediaType;
+            this.RequireAuthorization = RequireAuthorization;
+            this.MaximumRequestBodySize = MaximumRequestBodySize;
         }
 
         public void Deconstruct(
             out string GetPath,
             out string UpdatePath,
             out string ContentType,
-            out string MediaType
+            out string MediaType,
+            out bool RequireAuthorization,
+            out long? MaximumRequestBodySize
         )
         {
             GetPath = this.GetPath;
             UpdatePath = this.UpdatePath;
             ContentType = this.ContentType;
             MediaType = this.MediaType;
+            RequireAuthorization = this.RequireAuthorization;
+            MaximumRequestBodySize = this.MaximumRequestBodySize;
         }
     }
 

@@ -5,6 +5,8 @@ namespace Configlue.Resource.Zip
     {
         public ZipEntryResource(Configlue.Resources.IResourceReader archiveReader, string entryName, Configlue.State.IStateWatcher? archiveWatcher = null, Configlue.Resources.ResourceId? resourceId = default) { }
         public ZipEntryResource(Configlue.Resources.IResourceReader archiveReader, Configlue.Resources.IResourceBatchWriter? archiveWriter, string entryName, Configlue.State.IStateWatcher? archiveWatcher = null, Configlue.Resources.ResourceId? resourceId = default) { }
+        public ZipEntryResource(Configlue.Resources.IResourceReader archiveReader, string entryName, System.TimeSpan pollingInterval, Configlue.State.IStateWatcher? archiveWatcher = null, Configlue.Resources.ResourceId? resourceId = default) { }
+        public ZipEntryResource(Configlue.Resources.IResourceReader archiveReader, Configlue.Resources.IResourceBatchWriter? archiveWriter, string entryName, System.TimeSpan pollingInterval, Configlue.State.IStateWatcher? archiveWatcher = null, Configlue.Resources.ResourceId? resourceId = default) { }
         public Configlue.Resources.IResourceBatchWriter? BatchWriter { get; }
         public string EntryName { get; }
         public bool IsPipelineReadPreferred { get; }

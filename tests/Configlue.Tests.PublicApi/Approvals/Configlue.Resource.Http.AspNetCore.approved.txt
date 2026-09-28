@@ -6,6 +6,8 @@ namespace Configlue.Resource.Http.AspNetCore
         public HttpResourceEndpointOptions() { }
         public string ContentType { get; init; }
         public string GetPath { get; init; }
+        public long? MaximumRequestBodySize { get; init; }
+        public bool RequireAuthorization { get; init; }
         public string UpdatePath { get; init; }
     }
     public static class HttpResourceEndpointRouteBuilderExtensions

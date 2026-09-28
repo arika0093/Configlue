@@ -46,6 +46,8 @@ sources.FromHttp(new HttpSourceOptions
 
 `ZipEntryResource` はアーカイブ内の1エントリを論理リソースとして公開しつつ、アーカイブの物理同一性とリビジョンを保ちます。互いに重ならないエントリ更新は1回のアーカイブ書き込みにまとめられ、無関係のエントリは無傷です。
 
+アーカイブリソースが `IStateWatcher` を実装する場合 (例: `FileResource`)、エントリの変更監視はその watcher に委譲され、アーカイブファイルの編集を検知します。watcher がないリソースだけリビジョンを既定250ms間隔でポーリングします。`ZipEntryResource` の `pollingInterval` でこのフォールバック間隔を変更できます。
+
 ## 次のステップ
 
 * [フォールバックと独自ソース](./fallback-and-custom.md)。

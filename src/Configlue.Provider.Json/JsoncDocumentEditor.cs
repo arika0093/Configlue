@@ -354,19 +354,14 @@ internal sealed class JsoncDocumentEditor
                     ? indent + GetIndentationUnit()
                     : GetIndentation(Source, array.Items[0].Start);
             var newline = FindNewline(Source);
-            var content = string.Join(
-                newline + itemIndent,
-                additions.Select(static addition => Encoding.UTF8.GetString(addition))
+            return (
+                lineStart,
+                JoinUtf8Fragments(additions, itemIndent, newline + itemIndent, newline)
             );
-            return (lineStart, Encoding.UTF8.GetBytes(itemIndent + content + newline));
         }
 
         var prefix = array.Items!.Count == 0 ? "" : " ";
-        var inline = string.Join(
-            ", ",
-            additions.Select(static addition => Encoding.UTF8.GetString(addition))
-        );
-        return (array.CloseStart, Encoding.UTF8.GetBytes(prefix + inline));
+        return (array.CloseStart, JoinUtf8Fragments(additions, prefix, ", ", ""));
     }
 
     private void AddArrayItemRemoval(JsoncValueNode array, int index)
@@ -477,19 +472,59 @@ internal sealed class JsoncDocumentEditor
                     ? closeIndent + GetIndentationUnit()
                     : GetIndentation(Source, retainedProperties[0].NameStart);
             var newline = FindNewline(Source);
-            var content = string.Join(
-                "," + newline + propertyIndent,
-                additions.Select(static property => Encoding.UTF8.GetString(property.KeyAndValue))
+            return (
+                lineStart,
+                JoinUtf8Fragments(
+                    additions.Select(static property => property.KeyAndValue).ToArray(),
+                    propertyIndent,
+                    "," + newline + propertyIndent,
+                    newline
+                )
             );
-            return (lineStart, Encoding.UTF8.GetBytes(propertyIndent + content + newline));
         }
 
         var prefix = retainedProperties.Count == 0 ? "" : " ";
-        var inline = string.Join(
-            ", ",
-            additions.Select(static property => Encoding.UTF8.GetString(property.KeyAndValue))
+        return (
+            value.CloseStart,
+            JoinUtf8Fragments(
+                additions.Select(static property => property.KeyAndValue).ToArray(),
+                prefix,
+                ", ",
+                ""
+            )
         );
-        return (value.CloseStart, Encoding.UTF8.GetBytes(prefix + inline));
+    }
+
+    private static byte[] JoinUtf8Fragments(
+        IReadOnlyList<byte[]> fragments,
+        string prefix,
+        string separator,
+        string suffix
+    )
+    {
+        var output = new ArrayBufferWriter<byte>();
+        WriteUtf8(output, prefix);
+        for (var index = 0; index < fragments.Count; index++)
+        {
+            if (index > 0)
+            {
+                WriteUtf8(output, separator);
+            }
+
+            var fragment = fragments[index];
+            fragment.CopyTo(output.GetSpan(fragment.Length));
+            output.Advance(fragment.Length);
+        }
+
+        WriteUtf8(output, suffix);
+        return output.WrittenSpan.ToArray();
+    }
+
+    private static void WriteUtf8(ArrayBufferWriter<byte> output, string value)
+    {
+        var destination = output.GetSpan(Encoding.UTF8.GetMaxByteCount(value.Length));
+        var written = Encoding.UTF8.GetBytes(value.AsSpan(), destination);
+        output.Advance(written);
     }
 
     private void AddReplacement(

@@ -30,6 +30,12 @@ public sealed class JsonStateCodec
     }
 
     /// <inheritdoc />
+    [RequiresUnreferencedCode(
+        "Reflection-based JSON serialization may require types that trimming removes. Use JsonStateCodec<T> with JsonTypeInfo<T> for trim-safe serialization."
+    )]
+    [RequiresDynamicCode(
+        "Reflection-based JSON serialization may require runtime code generation. Use JsonStateCodec<T> with JsonTypeInfo<T> for NativeAOT."
+    )]
     public object? Deserialize(
         Type type,
         in ReadOnlySequence<byte> source,
@@ -43,6 +49,12 @@ public sealed class JsonStateCodec
     }
 
     /// <inheritdoc />
+    [RequiresUnreferencedCode(
+        "Reflection-based JSON serialization may require types that trimming removes. Use JsonStateCodec<T> with JsonTypeInfo<T> for trim-safe serialization."
+    )]
+    [RequiresDynamicCode(
+        "Reflection-based JSON serialization may require runtime code generation. Use JsonStateCodec<T> with JsonTypeInfo<T> for NativeAOT."
+    )]
     public void Serialize(
         Type type,
         object? value,

@@ -14,23 +14,25 @@ namespace Configlue.Generator;
 public sealed partial class ConfiglueGenerator
 {
     private static string CloneValueExpression(
-        ITypeSymbol type,
+        TypeModel type,
         string access,
         CancellationToken cancellationToken
     )
     {
-        if (IsConfiglueModel(type, cancellationToken))
+        cancellationToken.ThrowIfCancellationRequested();
+        if (type.IsConfiglueType)
         {
             return type.IsReferenceType
-                ? $"{access} is null ? default! : (({TypeName(type)}){access}).DeepClone()"
-                : $"(({TypeName(type)}){access}).DeepClone()";
+                ? $"{access} is null ? default! : (({type.Name}){access}).DeepClone()"
+                : $"(({type.Name}){access}).DeepClone()";
         }
 
-        if (TryGetPocoCloneType(type, cancellationToken, out var pocoType))
+        var cloneHelperName = type.PocoCloneHelperName;
+        if (cloneHelperName is not null)
         {
             return type.IsReferenceType
-                ? $"{access} is null ? default! : __Clone_{GetStableTypeHash(pocoType.WithNullableAnnotation(NullableAnnotation.NotAnnotated).ToDisplayString(), cancellationToken)}({access}, __configlue_clone_context)"
-                : $"__Clone_{GetStableTypeHash(pocoType.WithNullableAnnotation(NullableAnnotation.NotAnnotated).ToDisplayString(), cancellationToken)}({access}, __configlue_clone_context)";
+                ? $"{access} is null ? default! : {cloneHelperName}({access}, __configlue_clone_context)"
+                : $"{cloneHelperName}({access}, __configlue_clone_context)";
         }
 
         return access;
@@ -47,9 +49,10 @@ public sealed partial class ConfiglueGenerator
             return $"{access} is null ? null! : {access}.DeepClone()";
         }
 
-        if (TryGetPocoCloneType(member.Property.Type, cancellationToken, out var pocoType))
+        var cloneHelperName = member.Property.Type.PocoCloneHelperName;
+        if (cloneHelperName is not null)
         {
-            return $"{access} is null ? null! : __Clone_{GetStableTypeHash(pocoType.WithNullableAnnotation(NullableAnnotation.NotAnnotated).ToDisplayString(), cancellationToken)}({access}, __configlue_clone_context)";
+            return $"{access} is null ? null! : {cloneHelperName}({access}, __configlue_clone_context)";
         }
 
         var cloned = CloneCollectionExpression(member, access, cancellationToken);
@@ -69,9 +72,10 @@ public sealed partial class ConfiglueGenerator
             return $"{access}?.DeepClone()";
         }
 
-        if (TryGetPocoCloneType(member.Property.Type, cancellationToken, out var pocoType))
+        var cloneHelperName = member.Property.Type.PocoCloneHelperName;
+        if (cloneHelperName is not null)
         {
-            return $"{access} is null ? null : __Clone_{GetStableTypeHash(pocoType.WithNullableAnnotation(NullableAnnotation.NotAnnotated).ToDisplayString(), cancellationToken)}({access}!, __configlue_clone_context)";
+            return $"{access} is null ? null : {cloneHelperName}({access}!, __configlue_clone_context)";
         }
 
         var cloned = CloneCollectionExpression(member, access + "!", cancellationToken);
@@ -90,11 +94,11 @@ public sealed partial class ConfiglueGenerator
             return access;
         }
 
-        var elementType = TypeName(collection.ElementType);
+        var elementType = collection.ElementType.Name;
         var elements = access;
         if (
-            IsConfiglueModel(collection.ElementType, cancellationToken)
-            || TryGetPocoCloneType(collection.ElementType, cancellationToken, out _)
+            collection.ElementType.IsConfiglueType
+            || collection.ElementType.PocoCloneHelperName is not null
         )
         {
             elements =
@@ -105,14 +109,14 @@ public sealed partial class ConfiglueGenerator
         {
             if (collection.CloneKind == CloneCollectionKind.PriorityQueue)
             {
-                var priorityType = TypeName(collection.ValueType);
+                var priorityType = collection.ValueType.Value.Name;
                 var elementSelector = CloneValueExpression(
                     collection.ElementType,
                     "item.Element",
                     cancellationToken
                 );
                 var prioritySelector = CloneValueExpression(
-                    collection.ValueType,
+                    collection.ValueType.Value,
                     "item.Priority",
                     cancellationToken
                 );
@@ -124,13 +128,13 @@ public sealed partial class ConfiglueGenerator
             if (collection.CloneKind == CloneCollectionKind.Dictionary)
             {
                 var isConcreteDictionary =
-                    collection.NamedType?.ConstructedFrom.ToDisplayString()
+                    collection.NamedTypeDefinition
                     == "System.Collections.Generic.Dictionary<TKey, TValue>";
                 var comparer = isConcreteDictionary ? access + ".Comparer" : null;
                 var keySelector =
                     $"pair => {CloneValueExpression(collection.ElementType, "pair.Key", cancellationToken)}";
                 var valueSelector =
-                    $"pair => {CloneValueExpression(collection.ValueType, "pair.Value", cancellationToken)}";
+                    $"pair => {CloneValueExpression(collection.ValueType.Value, "pair.Value", cancellationToken)}";
                 return comparer is null
                     ? $"global::System.Linq.Enumerable.ToDictionary({access}, {keySelector}, {valueSelector})"
                     : $"global::System.Linq.Enumerable.ToDictionary({access}, {keySelector}, {valueSelector}, {comparer})";
@@ -141,7 +145,7 @@ public sealed partial class ConfiglueGenerator
                 var keySelector =
                     $"pair => {CloneValueExpression(collection.ElementType, "pair.Key", cancellationToken)}";
                 var valueSelector =
-                    $"pair => {CloneValueExpression(collection.ValueType, "pair.Value", cancellationToken)}";
+                    $"pair => {CloneValueExpression(collection.ValueType.Value, "pair.Value", cancellationToken)}";
                 return $"global::System.Collections.Immutable.ImmutableDictionary.ToImmutableDictionary({access}, {keySelector}, {valueSelector}, {access}.KeyComparer, {access}.ValueComparer)";
             }
 
@@ -198,7 +202,7 @@ public sealed partial class ConfiglueGenerator
         string elementType
     )
     {
-        var definition = collection.NamedType?.ConstructedFrom.ToDisplayString();
+        var definition = collection.NamedTypeDefinition;
         return definition switch
         {
             "System.Collections.Generic.HashSet<T>" =>
@@ -213,7 +217,7 @@ public sealed partial class ConfiglueGenerator
 
     private static string BuildCollectionMerge(MemberModel member, string lower, string higher)
     {
-        var elementType = TypeName(member.Collection.ElementType);
+        var elementType = member.Collection.ElementType.Name;
         var combined = $"global::System.Linq.Enumerable.Concat({lower}, {higher})";
         if (member.MergeMode == 3)
         {
@@ -237,10 +241,10 @@ public sealed partial class ConfiglueGenerator
     {
         if (member.ChildModel is null)
         {
-            return TypeName(member.Property.Type);
+            return member.Property.Type.Name;
         }
 
-        return NonNullableTypeName(member.ChildModel) + ".Fragment?";
+        return member.ChildModel.Value.NonNullableName + ".Fragment?";
     }
 
     private static string MemberBackingField(MemberModel member) =>
@@ -281,10 +285,12 @@ public sealed partial class ConfiglueGenerator
 
     private static string FragmentRuntimeValueType(MemberModel member) =>
         member.ChildModel is null
-            ? member.Property.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)
-            : NonNullableTypeName(member.ChildModel) + ".Fragment";
+            ? member.Property.Type.RuntimeName
+            : member.ChildModel.Value.NonNullableName + ".Fragment";
 
     private static string TypeName(ITypeSymbol type) => type.ToDisplayString(TypeFormat);
+
+    private static string TypeName(TypeModel type) => type.Name;
 
     private static string NonNullableTypeName(ITypeSymbol type) =>
         type.WithNullableAnnotation(NullableAnnotation.NotAnnotated).ToDisplayString(TypeFormat);

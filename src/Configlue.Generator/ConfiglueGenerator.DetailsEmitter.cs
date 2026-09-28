@@ -58,10 +58,7 @@ public sealed partial class ConfiglueGenerator
     private static void AppendDetailsMember(IndentedStringBuilder code, MemberModel member)
     {
         var name = EscapeIdentifier(member.Property.Name);
-        if (
-            member.Collection.Kind != CollectionKind.Unsupported
-            && member.Collection.ElementType is not null
-        )
+        if (member.Collection.Kind != CollectionKind.Unsupported)
         {
             var elementType = TypeName(member.Collection.ElementType);
             code.AppendIndent(2)
@@ -86,7 +83,7 @@ public sealed partial class ConfiglueGenerator
 
         if (member.ChildModel is not null)
         {
-            var childType = NonNullableTypeName(member.ChildModel);
+            var childType = member.ChildModel.Value.NonNullableName;
             code.AppendIndent(2)
                 .Append("this.")
                 .Append(name)
@@ -119,10 +116,7 @@ public sealed partial class ConfiglueGenerator
     private static void AppendDetailsProperty(IndentedStringBuilder code, MemberModel member)
     {
         var name = EscapeIdentifier(member.Property.Name);
-        if (
-            member.Collection.Kind != CollectionKind.Unsupported
-            && member.Collection.ElementType is not null
-        )
+        if (member.Collection.Kind != CollectionKind.Unsupported)
         {
             code.AppendIndent(1)
                 .Append("public global::Configlue.ConfigCollectionDetails<")
@@ -137,7 +131,7 @@ public sealed partial class ConfiglueGenerator
         {
             code.AppendIndent(1)
                 .Append("public ")
-                .Append(NonNullableTypeName(member.ChildModel))
+                .Append(member.ChildModel.Value.NonNullableName)
                 .Append(".Details? ")
                 .Append(name)
                 .AppendLine(" { get; }");

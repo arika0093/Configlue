@@ -130,7 +130,7 @@ public sealed partial class ConfiglueGenerator
     }
 
     private static ImmutableArray<INamedTypeSymbol> GetPocoCloneTypes(
-        ImmutableArray<MemberModel> members,
+        ImmutableArray<SymbolMemberModel> members,
         CancellationToken cancellationToken
     )
     {

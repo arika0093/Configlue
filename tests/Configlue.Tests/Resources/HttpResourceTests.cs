@@ -114,6 +114,14 @@ public sealed class HttpResourceTests
         var timedOutReader = new HttpResourceReader(timedOutHttpClient, EndpointRoot);
         (await timedOutReader.ReadAsync()).Status.ShouldBe(StateReadStatus.Unavailable);
 
+        using var requestTimeoutClient = new HttpClient(new BlockingHttpMessageHandler());
+        var requestTimeoutReader = new HttpResourceReader(
+            requestTimeoutClient,
+            EndpointRoot,
+            new HttpResourceOptions { RequestTimeout = TimeSpan.FromMilliseconds(25) }
+        );
+        (await requestTimeoutReader.ReadAsync()).Status.ShouldBe(StateReadStatus.Unavailable);
+
         using var callerHttpClient = new HttpClient(new BlockingHttpMessageHandler());
         var callerReader = new HttpResourceReader(callerHttpClient, EndpointRoot);
         using var cancellation = new CancellationTokenSource(TimeSpan.FromMilliseconds(25));
@@ -121,6 +129,31 @@ public sealed class HttpResourceTests
         {
             await callerReader.ReadAsync(cancellation.Token);
         });
+    }
+
+    [Test]
+    public void Reader_RejectsInvalidRequestTimeoutAndPollingBackoff()
+    {
+        using var httpClient = new HttpClient(new BlockingHttpMessageHandler());
+
+        Should.Throw<ArgumentOutOfRangeException>(() =>
+            new HttpResourceReader(
+                httpClient,
+                EndpointRoot,
+                new HttpResourceOptions { RequestTimeout = TimeSpan.Zero }
+            )
+        );
+        Should.Throw<ArgumentOutOfRangeException>(() =>
+            new HttpResourceReader(
+                httpClient,
+                EndpointRoot,
+                new HttpResourceOptions
+                {
+                    PollingInterval = TimeSpan.FromSeconds(2),
+                    MaximumPollingInterval = TimeSpan.FromSeconds(1),
+                }
+            )
+        );
     }
 
     [Test]

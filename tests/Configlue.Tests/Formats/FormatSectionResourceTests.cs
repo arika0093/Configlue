@@ -352,11 +352,25 @@ public sealed class FormatSectionResourceTests
             OtherSection:
               Value: keep-root
             # Keep the trailing comment.
-            """;
-        await resource.WriteAsync(
-            new ResourceWriteRequest(Encoding.UTF8.GetBytes(yamlWithComments))
+            """.Replace("\r\n", "\n", StringComparison.Ordinal).Replace(
+            "\n",
+            "\r\n",
+            StringComparison.Ordinal
         );
-        var section = new YamlSectionResource(resource, "App:Settings");
+        var textEncoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: true);
+        var preamble = textEncoding.GetPreamble();
+        var originalBytes = new byte[
+            preamble.Length + Encoding.UTF8.GetByteCount(yamlWithComments)
+        ];
+        preamble.CopyTo(originalBytes, 0);
+        Encoding.UTF8.GetBytes(yamlWithComments, originalBytes.AsSpan(preamble.Length));
+        await resource.WriteAsync(new ResourceWriteRequest(originalBytes));
+        var section = new YamlSectionResource(
+            resource,
+            resource,
+            "App:Settings",
+            textEncoding: textEncoding
+        );
         var source = SerializedStateSource.FromResource<AppSettings.Fragment>(
             "settings",
             section,
@@ -370,7 +384,11 @@ public sealed class FormatSectionResourceTests
             new AppSettings.Patch { RetryCount = FragmentOperation<int>.Set(9) }
         );
 
-        var updatedRoot = LoadYaml((await resource.ReadAsync()).Content.Span);
+        var updatedBytes = (await resource.ReadAsync()).Content.ToArray();
+        updatedBytes.AsSpan(0, preamble.Length).SequenceEqual(preamble).ShouldBeTrue();
+        var updatedText = Encoding.UTF8.GetString(updatedBytes.AsSpan(preamble.Length));
+        updatedText.Replace("\r\n", "", StringComparison.Ordinal).ShouldNotContain("\n");
+        var updatedRoot = LoadYaml(Encoding.UTF8.GetBytes(updatedText));
         var app = GetMapping(updatedRoot, "App");
         var settings = GetMapping(app, "Settings");
         // The default simple layout stores the version inline.
@@ -378,7 +396,6 @@ public sealed class FormatSectionResourceTests
         GetNode(settings, "RetryCount").ShouldBe(9);
         GetNode(GetMapping(app, "Other"), "Value").ShouldBe("keep-nested");
         GetNode(GetMapping(updatedRoot, "OtherSection"), "Value").ShouldBe("keep-root");
-        var updatedText = Encoding.UTF8.GetString((await resource.ReadAsync()).Content.Span);
         updatedText.ShouldContain("# Keep the root comment.");
         updatedText.ShouldContain("# Keep the section comment.");
         updatedText.ShouldContain("# Keep the inline comment.");
