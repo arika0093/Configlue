@@ -222,6 +222,64 @@ public sealed class CommonSourceFormatTests
         }
     }
 
+    [Test]
+    public async Task CommonSources_NonDefaultLocalLayerRemainsWritableThroughItsSelector()
+    {
+        using var directory = new TemporaryDirectory();
+        var appId = $"Configlue.Tests.{Guid.NewGuid():N}";
+        var localPath = Path.Combine(directory.FullPath, "local.json");
+        var specificPath = Path.Combine(directory.FullPath, "selected.json");
+        var globalPath = Path.Combine(
+            ConfiglueStandardPaths.GetStandardSaveDirectory(appId),
+            "settings.json"
+        );
+
+        try
+        {
+            await using var context = Configlue.CreateContext(builder =>
+            {
+                builder.Add<AppSettings>(model =>
+                    model.UseCommonSources(
+                        new CommonSourceOptions
+                        {
+                            ApplicationId = appId,
+                            GlobalFileName = "settings.json",
+                            LocalFilePath = localPath,
+                            SpecificFilePath = specificPath,
+                            FileResourceOptions = new FileResourceOptions { CreateBackup = false },
+                        }
+                    )
+                );
+            });
+            var options = (IConfiglueOptions<AppSettings>)context.GetOptions<AppSettings>();
+
+            await options
+                .Source(CommonSource.Local)
+                .SaveAsync(
+                    new AppSettings.Patch
+                    {
+                        Label = FragmentOperation<string?>.Set("explicit-local-write"),
+                    }
+                );
+
+            var bytes = await File.ReadAllBytesAsync(localPath);
+            var document = new ReadOnlySequence<byte>(bytes);
+            var fragment = new JsonStateCodec<AppSettings.Fragment>().Deserialize(
+                in document,
+                default
+            )!;
+            (fragment.Label.Value).ShouldBe("explicit-local-write");
+            options
+                .GetDiagnostics()
+                .Sources.Single(source => source.PhysicalOrigin == Path.GetFullPath(localPath))
+                .CanWrite.ShouldBeTrue();
+        }
+        finally
+        {
+            DeleteStandardFile(globalPath);
+        }
+    }
+
     private static async Task WriteJsonFragmentAsync(string path, AppSettings.Fragment fragment)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
