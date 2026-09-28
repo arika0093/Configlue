@@ -50,6 +50,7 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
     private TaskCompletionSource _sourceTopologyChanged = NewTopologySignal();
     private readonly StateWriteRoute _writeRoute;
     private readonly StateWritePlan _defaultWritePlan;
+    private bool _defaultWritePlanValidated;
     private readonly Func<TModel, TModel>? _cloneStrategy;
     private readonly StateSchemaMigrationChain<TFragment> _migrationChain;
     private readonly IConfiglueValidator<TModel>[] _validators;
@@ -151,6 +152,8 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
         );
         _writeRoute = writeRoute;
         _defaultWritePlan = BuildWritePlanWithMountedOwners(_activeSources, defaultWritePlan);
+        ValidateWritePlan(_defaultWritePlan);
+        _defaultWritePlanValidated = true;
         _cloneStrategy = cloneStrategy;
         _validators = validators?.ToArray() ?? [];
         _optionsName = optionsName ?? string.Empty;

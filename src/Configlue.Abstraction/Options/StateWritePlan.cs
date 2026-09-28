@@ -84,21 +84,55 @@ public sealed class StateWritePlan
     public string? ResolveSourceIdOrNull(string propertyPath, string? fallbackSourceId = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(propertyPath);
-        var route = _routes
-            .Where(candidate =>
-                string.Equals(propertyPath, candidate.Key, StringComparison.Ordinal)
-                || propertyPath.StartsWith(candidate.Key + ".", StringComparison.Ordinal)
-            )
-            .OrderByDescending(static candidate => candidate.Key.Length)
-            .FirstOrDefault();
-        return route.Key is null ? fallbackSourceId : route.Value;
+        string? bestSourceId = null;
+        var bestLength = -1;
+        for (var index = 0; index < _routes.Length; index++)
+        {
+            var route = _routes[index];
+            if (!IsPathOrDescendant(propertyPath, route.Key) || route.Key.Length <= bestLength)
+            {
+                continue;
+            }
+
+            bestSourceId = route.Value;
+            bestLength = route.Key.Length;
+        }
+
+        return bestLength < 0 ? fallbackSourceId : bestSourceId;
     }
 
     /// <summary>Whether a more specific configured path exists beneath the supplied path.</summary>
     public bool HasRouteBelow(string propertyPath)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(propertyPath);
-        var prefix = propertyPath + ".";
-        return _routes.Any(route => route.Key.StartsWith(prefix, StringComparison.Ordinal));
+        for (var index = 0; index < _routes.Length; index++)
+        {
+            var routeKey = _routes[index].Key;
+            if (
+                routeKey.Length > propertyPath.Length
+                && routeKey[propertyPath.Length] == '.'
+                && routeKey.AsSpan(0, propertyPath.Length).SequenceEqual(propertyPath.AsSpan())
+            )
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool IsPathOrDescendant(string propertyPath, string routeKey)
+    {
+        if (propertyPath.Length < routeKey.Length)
+        {
+            return false;
+        }
+
+        if (!propertyPath.AsSpan(0, routeKey.Length).SequenceEqual(routeKey.AsSpan()))
+        {
+            return false;
+        }
+
+        return propertyPath.Length == routeKey.Length || propertyPath[routeKey.Length] == '.';
     }
 }
