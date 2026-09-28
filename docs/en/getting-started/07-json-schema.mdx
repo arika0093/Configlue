@@ -1,0 +1,69 @@
+---
+title: "STEP 7: Export JSON Schema"
+description: Generate schemas from models for editor autocompletion and CI validation.
+---
+
+import { Steps } from '@astrojs/starlight/components';
+
+# STEP 7: Export JSON Schema
+
+To catch configuration typos before runtime, Configlue exports JSON Schema from a model's generated `ConfiglueModelSchema`.
+This enables rich autocompletion in editors such as VS Code and static validation in CI workflows.
+
+Schema export runs as a build-time or offline task and does not depend on dependency injection.
+
+<Steps>
+
+1. ### Declare a serializer context
+
+   Declare a `System.Text.Json` source generator context to ensure trimming-safe and NativeAOT-ready schema metadata:
+
+   ```csharp
+   using System.Text.Json.Serialization;
+   using Configlue.Provider.Json;
+
+   [JsonSerializable(typeof(AppSettings))]
+   [JsonSerializable(typeof(AppSettings.Fragment))]
+   internal partial class AppJsonContext : JsonSerializerContext
+   {
+   }
+   ```
+
+2. ### Write the schema
+
+   Call `JsonSchemaGenerator.Write` to output versioned schema documents into a target directory:
+
+   ```csharp
+   using Configlue.Provider.Json;
+
+   var result = JsonSchemaGenerator.Write<AppSettings, AppSettings.Fragment>(
+       "schemas",
+       AppJsonContext.Default);
+
+   Console.WriteLine($"Wrote: {string.Join(", ", result.WrittenFiles)}");
+   ```
+
+   For a model declared with `Version = 1`, this writes `schemas/tutorial.settings.v1.json`.
+   DataAnnotations rules (such as `[Range]` and `[Required]`) map directly to JSON Schema constraints.
+
+3. ### Reference the schema in settings
+
+   When serializing settings, configure a serializer or source with schema reference capabilities so that a `$schema` property is added to the root document:
+
+   ```json
+   {
+     "$schema": "./schemas/tutorial.settings.v1.json",
+     "$version": 1,
+     "Name": "ExampleApp",
+     "Server": {
+       "Host": "localhost",
+       "Port": 8080
+     }
+   }
+   ```
+
+</Steps>
+
+---
+
+Next: [STEP 8: Version and migrate](./08-migration.md) introduces model versioning and migration strategies.

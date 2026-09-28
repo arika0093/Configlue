@@ -1,0 +1,157 @@
+---
+title: "STEP 4: Add validation"
+description: Reject bad values using DataAnnotations and custom validators before persistence.
+---
+
+import { Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+
+# STEP 4: Add validation
+
+As settings grow or split across multiple files, preventing invalid values (such as an out-of-range port number) becomes essential.
+Configlue validates configuration both when reading values and before persisting updates.
+
+<Steps>
+
+1. ### Declare validation rules with DataAnnotations
+
+   The most direct way to validate settings is by adding standard `System.ComponentModel.DataAnnotations` attributes to your model properties.
+   Extend the `AppSettings` model from STEP 2:
+
+   ```csharp
+   using System.ComponentModel.DataAnnotations;
+   using Configlue;
+
+   [ConfiglueModel("tutorial.settings", Version = 1)]
+   public partial class AppSettings
+   {
+       [Required, MinLength(1)]
+       public string Name { get; set; } = "ExampleApp";
+
+       public ServerSettings Server { get; set; } = new();
+       public DatabaseSettings Database { get; set; } = new();
+       public List<string> EnabledFeatures { get; set; } = [];
+   }
+
+   public class ServerSettings
+   {
+       public string Host { get; set; } = "localhost";
+
+       [Range(1, 65535)]
+       public int Port { get; set; } = 8080;
+   }
+
+   public class DatabaseSettings
+   {
+       public string Host { get; set; } = "localhost";
+
+       [Range(1, 65535)]
+       public int Port { get; set; } = 5432;
+
+       public string? Password { get; set; }
+   }
+   ```
+
+2. ### Registration remains standard
+
+   DataAnnotations validation is enabled by default.
+   The standard CommonSource setup requires no extra configuration:
+
+   <Tabs syncKey="di">
+   <TabItem label="Without DI">
+
+   ```csharp
+   using Configlue;
+   using Configlue.Source.Common;
+
+   await using var context = ConfiglueApp.CreateContext(conf =>
+   {
+       conf.Add<AppSettings>(model =>
+       {
+           model.UseCommonSources("TutorialApp");
+       });
+   });
+
+   var options = context.GetOptions<AppSettings>();
+   ```
+
+   </TabItem>
+   <TabItem label="With DI">
+
+   ```csharp
+   using Configlue;
+   using Configlue.Source.Common;
+
+   builder.Services.AddConfiglue(conf =>
+   {
+       conf.Add<AppSettings>(model =>
+       {
+           model.UseCommonSources("TutorialApp");
+       });
+   });
+   ```
+
+   </TabItem>
+   </Tabs>
+
+3. ### Add a custom validator
+
+   For cross-property rules that attributes cannot represent, implement `IConfiglueValidator<T>`:
+
+   ```csharp
+   using Configlue;
+
+   public sealed class AppSettingsValidator : IConfiglueValidator<AppSettings>
+   {
+       public IReadOnlyList<string> Validate(AppSettings value)
+       {
+           if (value.Server.Port == value.Database.Port)
+           {
+               return ["Server.Port and Database.Port cannot share the same port number."];
+           }
+
+           return [];
+       }
+   }
+   ```
+
+   Register the validator in your context:
+
+   <Tabs syncKey="di">
+   <TabItem label="Without DI">
+
+   ```csharp
+   conf.Add<AppSettings>(model =>
+   {
+       model.UseCommonSources("TutorialApp");
+       model.AddValidator(new AppSettingsValidator());
+   });
+   ```
+
+   </TabItem>
+   <TabItem label="With DI">
+
+   ```csharp
+   builder.Services.AddSingleton<IConfiglueValidator<AppSettings>, AppSettingsValidator>();
+   ```
+
+   </TabItem>
+   </Tabs>
+
+4. ### When validation runs
+
+   Validation executes automatically during both reads (`GetValueAsync`) and saves (`SaveAsync`).
+   Attempting to save an invalid value throws a `ConfiglueValidationException` before any file write occurs:
+
+   ```csharp
+   // Saving an out-of-range value fails before touching storage
+   await options.SaveAsync(patch =>
+   {
+       patch.Server.Port = 99999;
+   });
+   ```
+
+</Steps>
+
+---
+
+Next: [STEP 5: Environment variables](./05-environment.md) covers overlaying environment variables.

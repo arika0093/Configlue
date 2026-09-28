@@ -1,0 +1,100 @@
+---
+title: "STEP 9: Support NativeAOT"
+description: Configure source-generated metadata for trimming-safe NativeAOT deployment.
+---
+
+import { Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+
+# STEP 9: Support NativeAOT
+
+When targeting single-file deployment or ultra-fast startup with NativeAOT, reflection-based serialization will fail at runtime.
+Configlue supports NativeAOT by accepting `System.Text.Json` source generator contexts (`JsonSerializerContext`).
+
+<Steps>
+
+1. ### Define the serializer context
+
+   Declare a `JsonSerializerContext` registering your settings model and its generated fragment:
+
+   ```csharp
+   using System.Text.Json.Serialization;
+   using Configlue.Provider.Json;
+
+   [JsonSerializable(typeof(AppSettings))]
+   [JsonSerializable(typeof(AppSettings.Fragment))]
+   internal partial class AppJsonContext : JsonSerializerContext
+   {
+   }
+   ```
+
+2. ### Pass serializer options to CommonSource
+
+   Configure `SerializerOptions` in `CommonSourceOptions` using the generated `TypeInfoResolver`:
+
+   <Tabs syncKey="di">
+   <TabItem label="Without DI">
+
+   ```csharp
+   using Configlue;
+   using Configlue.Source.Common;
+
+   await using var context = ConfiglueApp.CreateContext(conf =>
+   {
+       conf.Add<AppSettings>(model =>
+       {
+           model.UseCommonSources(new CommonSourceOptions
+           {
+               ApplicationId = "TutorialApp",
+               GlobalFileName = "settings.json",
+               SerializerOptions = new()
+               {
+                   TypeInfoResolver = AppJsonContext.Default,
+               },
+           });
+       });
+   });
+   ```
+
+   </TabItem>
+   <TabItem label="With DI">
+
+   ```csharp
+   using Configlue;
+   using Configlue.Source.Common;
+
+   builder.Services.AddConfiglue(conf =>
+   {
+       conf.Add<AppSettings>(model =>
+       {
+           model.UseCommonSources(new CommonSourceOptions
+           {
+               ApplicationId = "TutorialApp",
+               GlobalFileName = "settings.json",
+               SerializerOptions = new()
+               {
+                   TypeInfoResolver = AppJsonContext.Default,
+               },
+           });
+       });
+   });
+   ```
+
+   </TabItem>
+   </Tabs>
+
+   > [!NOTE]
+   > The YAML provider (`Configlue.Provider.Yaml`) supports trimming when supplied with generated fragment schemas and options. The XML provider uses `XmlSerializer` internally, which has NativeAOT trimming constraints.
+
+3. ### Verify with the sample project
+
+   Publish and run the included sample project to verify trimming compatibility:
+
+   ```bash
+   dotnet publish example/Example.ConsoleApp.NativeAot --configuration Release
+   ```
+
+</Steps>
+
+---
+
+Next: [STEP 10: Accept YAML too](./10-yaml.md) demonstrates mixing YAML and JSON formats.

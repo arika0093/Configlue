@@ -1,0 +1,157 @@
+---
+title: "STEP 4: バリデーションを付ける"
+description: DataAnnotations と独自バリデーターを使って不正な値の保存を防ぎます。
+---
+
+import { Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+
+# STEP 4: バリデーションを付ける
+
+設定項目が増えたりファイルが分かれたりすると、範囲外のポート番号や空文字のパスワードといった「不正な値」の混入を防ぐ必要が出てきます。
+Configlue は、設定を保存する前や読み取る際に自動的に検証を行います。
+
+<Steps>
+
+1. ### DataAnnotations で検証ルールを宣言する
+
+   もっとも手軽な検証方法は、標準の `System.ComponentModel.DataAnnotations` 属性をモデルのプロパティに付与することです。
+   STEP 2 で定義した `AppSettings` の入れ子プロパティに属性を付けます。
+
+   ```csharp
+   using System.ComponentModel.DataAnnotations;
+   using Configlue;
+
+   [ConfiglueModel("tutorial.settings", Version = 1)]
+   public partial class AppSettings
+   {
+       [Required, MinLength(1)]
+       public string Name { get; set; } = "ExampleApp";
+
+       public ServerSettings Server { get; set; } = new();
+       public DatabaseSettings Database { get; set; } = new();
+       public List<string> EnabledFeatures { get; set; } = [];
+   }
+
+   public class ServerSettings
+   {
+       public string Host { get; set; } = "localhost";
+
+       [Range(1, 65535)]
+       public int Port { get; set; } = 8080;
+   }
+
+   public class DatabaseSettings
+   {
+       public string Host { get; set; } = "localhost";
+
+       [Range(1, 65535)]
+       public int Port { get; set; } = 5432;
+
+       public string? Password { get; set; }
+   }
+   ```
+
+2. ### コンテキストの登録
+
+   DataAnnotations による検証は既定で有効になっています。
+   CommonSource の基本登録コードをそのまま使用できます。
+
+   <Tabs syncKey="di">
+   <TabItem label="DI なし">
+
+   ```csharp
+   using Configlue;
+   using Configlue.Source.Common;
+
+   await using var context = ConfiglueApp.CreateContext(conf =>
+   {
+       conf.Add<AppSettings>(model =>
+       {
+           model.UseCommonSources("TutorialApp");
+       });
+   });
+
+   var options = context.GetOptions<AppSettings>();
+   ```
+
+   </TabItem>
+   <TabItem label="DI あり">
+
+   ```csharp
+   using Configlue;
+   using Configlue.Source.Common;
+
+   builder.Services.AddConfiglue(conf =>
+   {
+       conf.Add<AppSettings>(model =>
+       {
+           model.UseCommonSources("TutorialApp");
+       });
+   });
+   ```
+
+   </TabItem>
+   </Tabs>
+
+3. ### 独自バリデーターを追加する
+
+   属性だけでは表現しきれない複雑な相関検証などは、`IConfiglueValidator<T>` インターフェースを実装して追加します。
+
+   ```csharp
+   using Configlue;
+
+   public sealed class AppSettingsValidator : IConfiglueValidator<AppSettings>
+   {
+       public IReadOnlyList<string> Validate(AppSettings value)
+       {
+           if (value.Server.Port == value.Database.Port)
+           {
+               return ["Server の Port と Database の Port に同一の値は指定できません。"];
+           }
+
+           return [];
+       }
+   }
+   ```
+
+   作成したバリデーターをモデル登録時に追加します。
+
+   <Tabs syncKey="di">
+   <TabItem label="DI なし">
+
+   ```csharp
+   conf.Add<AppSettings>(model =>
+   {
+       model.UseCommonSources("TutorialApp");
+       model.AddValidator(new AppSettingsValidator());
+   });
+   ```
+
+   </TabItem>
+   <TabItem label="DI あり">
+
+   ```csharp
+   builder.Services.AddSingleton<IConfiglueValidator<AppSettings>, AppSettingsValidator>();
+   ```
+
+   </TabItem>
+   </Tabs>
+
+4. ### 検証が実行されるタイミング
+
+   検証は、読み取り時（`GetValueAsync`）と保存時（`SaveAsync`）の両方で自動実行されます。
+   無効な値を保存しようとした場合、ファイルに書き込まれる前に検証例外（`ConfiglueValidationException`）が発生して処理を中断します。
+
+   ```csharp
+   // 範囲外の値を保存しようとすると、保存前に例外が発生します
+   await options.SaveAsync(patch =>
+   {
+       patch.Server.Port = 99999; // 1〜65535 以外なので失敗
+   });
+   ```
+
+</Steps>
+
+---
+
+次のステップ: [STEP 5: 環境変数に対応する](./05-environment.md) では、コンテナや CI 環境で便利な環境変数レイヤーの重ね合わせを学びます。
