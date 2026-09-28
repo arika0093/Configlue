@@ -22,6 +22,7 @@ public sealed class YamlSectionResource
     private readonly string[] _path;
     private readonly string _batchScope;
     private readonly Encoding? _textEncoding;
+    private readonly byte[] _schemaShape;
 
     /// <summary>Creates a YAML section resource over a resource with inferred write and watch capabilities.</summary>
     public YamlSectionResource(IResourceReader resource, string sectionPath)
@@ -36,21 +37,68 @@ public sealed class YamlSectionResource
         ResourceId? resourceId = null,
         Encoding? textEncoding = null
     )
+        : this(reader, writer, ParseSectionPath(sectionPath), watcher, resourceId, textEncoding, [])
+    { }
+
+    internal YamlSectionResource(
+        IResourceReader reader,
+        IResourceWriter? writer,
+        string sectionPath,
+        IStateWatcher? watcher,
+        ResourceId? resourceId,
+        Encoding? textEncoding,
+        byte[] schemaShape
+    )
+        : this(
+            reader,
+            writer,
+            ParseSectionPath(sectionPath),
+            watcher,
+            resourceId,
+            textEncoding,
+            schemaShape
+        ) { }
+
+    private YamlSectionResource(
+        IResourceReader reader,
+        IResourceWriter? writer,
+        string[] path,
+        IStateWatcher? watcher,
+        ResourceId? resourceId,
+        Encoding? textEncoding,
+        byte[] schemaShape
+    )
     {
         ArgumentNullException.ThrowIfNull(reader);
-        ArgumentException.ThrowIfNullOrWhiteSpace(sectionPath);
         _reader = reader;
         _writer = writer;
         _watcher = watcher;
         _textEncoding = textEncoding;
+        _path = path;
+        _schemaShape = schemaShape;
         ResourceId =
             resourceId
             ?? (writer as IResourceIdentity ?? reader as IResourceIdentity)?.ResourceId
             ?? new ResourceId($"section:{Guid.NewGuid():N}");
-        _path = sectionPath
+        _batchScope = "yaml/" + string.Join("/", _path.Select(Uri.EscapeDataString));
+    }
+
+    internal static YamlSectionResource CreateRoot(
+        IResourceReader reader,
+        IResourceWriter? writer,
+        IStateWatcher? watcher,
+        ResourceId? resourceId,
+        Encoding? textEncoding,
+        byte[] schemaShape
+    ) => new(reader, writer, [], watcher, resourceId, textEncoding, schemaShape);
+
+    private static string[] ParseSectionPath(string sectionPath)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sectionPath);
+        var path = sectionPath
             .Replace("__", ":", StringComparison.Ordinal)
             .Split(':', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        if (_path.Length == 0)
+        if (path.Length == 0)
         {
             throw new ArgumentException(
                 "The section path must contain at least one mapping key.",
@@ -58,7 +106,7 @@ public sealed class YamlSectionResource
             );
         }
 
-        _batchScope = "yaml/" + string.Join("/", _path.Select(Uri.EscapeDataString));
+        return path;
     }
 
     /// <summary>Whether a physical writer was supplied.</summary>
@@ -149,6 +197,11 @@ public sealed class YamlSectionResource
         }
 
         var current = LoadRoot(resource.Content.Span);
+        if (_path.Length == 0)
+        {
+            return resource;
+        }
+
         foreach (var name in _path)
         {
             if (current is not YamlMapping mapping)
@@ -210,52 +263,20 @@ public sealed class YamlSectionResource
         ReadOnlyMemory<byte> sectionContent
     )
     {
-        YamlElement root;
-        if (current.Status == StateReadStatus.Success)
-        {
-            root = LoadRoot(current.Content.Span);
-        }
-        else if (current.Status == StateReadStatus.NotFound)
-        {
-            root = new YamlMapping();
-        }
-        else
+        if (current.Status is not (StateReadStatus.Success or StateReadStatus.NotFound))
         {
             throw new IOException("The YAML resource is unavailable and cannot be updated safely.");
         }
 
-        if (root is not YamlMapping rootMapping)
-        {
-            throw new SharpYaml.YamlException(
-                "A YAML section resource must be contained in a root mapping."
-            );
-        }
-
-        var container = rootMapping;
-        for (var index = 0; index < _path.Length - 1; index++)
-        {
-            var name = _path[index];
-            if (!TryGet(container, name, out var child))
-            {
-                var created = new YamlMapping();
-                container[name] = created;
-                container = created;
-            }
-            else if (child is YamlMapping nested)
-            {
-                container = nested;
-            }
-            else
-            {
-                throw new SharpYaml.YamlException(
-                    $"Section path '{string.Join(':', _path)}' crosses a non-mapping value at '{name}'."
-                );
-            }
-        }
-
-        var updatedSection = LoadRoot(sectionContent.Span);
-        container[_path[^1]] = updatedSection;
-        return SerializeNode(rootMapping);
+        return YamlDocumentEditor.Update(
+            current.Status == StateReadStatus.Success
+                ? current.Content
+                : ReadOnlyMemory<byte>.Empty,
+            sectionContent,
+            _path,
+            _schemaShape,
+            _textEncoding
+        );
     }
 
     /// <inheritdoc />

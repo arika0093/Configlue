@@ -126,26 +126,50 @@ public sealed class JsonSectionResourceTests
     }
 
     [Test]
-    public async Task SectionResource_RejectsJsoncComments()
+    public async Task SectionResource_AcceptsJsoncAndPreservesCommentsAndFormatting()
     {
         var resource = new InMemoryResource();
-        await resource.WriteAsync(
-            new ResourceWriteRequest(
-                Encoding.UTF8.GetBytes("{\n  // JSONC comments are unsupported\n  \"App\": {}\n}")
-            )
-        );
+        var source = """
+            {
+              // Keep this root comment.
+              "App": {
+                "Settings": {
+                  // Keep this section comment.
+                  "value": 1,
+                },
+                "Other": { "value": "keep" },
+              },
+              "Root": true,
+            }
+            """;
+        await resource.WriteAsync(new ResourceWriteRequest(Encoding.UTF8.GetBytes(source)));
         var section = new JsonSectionResource(resource, "App:Settings");
 
-        var rejected = false;
-        try
-        {
-            await section.ReadAsync();
-        }
-        catch (JsonException)
-        {
-            rejected = true;
-        }
+        var read = await section.ReadAsync();
+        read.Status.ShouldBe(StateReadStatus.Success);
+        await section.WriteAsync(
+            new ResourceWriteRequest(Encoding.UTF8.GetBytes("""{"value":2}"""))
+        );
 
-        rejected.ShouldBeTrue();
+        var written = Encoding.UTF8.GetString((await resource.ReadAsync()).Content.Span);
+        written.ShouldContain("// Keep this root comment.");
+        written.ShouldContain("// Keep this section comment.");
+        written.ShouldContain("\"Other\": { \"value\": \"keep\" }");
+        written.ShouldContain("\"value\": 2");
+
+        using var document = JsonDocument.Parse(
+            written,
+            new JsonDocumentOptions
+            {
+                AllowTrailingCommas = true,
+                CommentHandling = JsonCommentHandling.Skip,
+            }
+        );
+        document
+            .RootElement.GetProperty("App")
+            .GetProperty("Settings")
+            .GetProperty("value")
+            .GetInt32()
+            .ShouldBe(2);
     }
 }

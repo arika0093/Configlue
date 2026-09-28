@@ -217,24 +217,35 @@ public static class JsonFileSourceRegistration
             var sectionPath = options.SectionPathOverride ?? options.SectionPath;
             var priority = options.PriorityOverride ?? options.Priority;
             var explicitOnly = options.ExplicitOnlyOverride ?? options.ExplicitOnly;
+            var serializerOptions = options.SerializerOptionsOverride ?? options.SerializerOptions;
+            var schemaShape = JsoncDocumentEditor.CreateSchemaShape<TFragment>(
+                modelSchema,
+                serializerOptions,
+                options.DocumentLayout,
+                options.SchemaReferenceBaseUri
+            );
             var writer = readOnly ? null : (IResourceWriter)file;
-            IResourceWriter? sourceWriter = writer;
-            IResourceReader resource = file;
-            if (sectionPath is not null)
-            {
-                var section = new JsonSectionResource(
+            IStateWatcher? resourceWatcher = watchChanges ? file : null;
+            var section = sectionPath is null
+                ? JsonSectionResource.CreateRoot(
+                    file,
+                    writer,
+                    resourceWatcher,
+                    serializerOptions,
+                    options.ResourceId,
+                    schemaShape
+                )
+                : new JsonSectionResource(
                     file,
                     writer,
                     sectionPath,
-                    watchChanges ? file : null,
-                    options.SerializerOptions,
-                    options.ResourceId
+                    resourceWatcher,
+                    serializerOptions,
+                    options.ResourceId,
+                    schemaShape
                 );
-                resource = section;
-                sourceWriter = writer is null ? null : section;
-            }
-            IStateWatcher? watcher = watchChanges ? file : null;
-            var serializerOptions = options.SerializerOptionsOverride ?? options.SerializerOptions;
+            IResourceReader resource = section;
+            IResourceWriter? sourceWriter = writer is null ? null : section;
             var codec = new JsonStateCodec<TFragment>(
                 serializerOptions,
                 TFragment.JsonConverter,
@@ -262,7 +273,7 @@ public static class JsonFileSourceRegistration
                 priority,
                 options.FallbackCondition,
                 stateWriter,
-                watcher,
+                resourceWatcher,
                 file.Path,
                 physicalResourceId,
                 explicitOnly
