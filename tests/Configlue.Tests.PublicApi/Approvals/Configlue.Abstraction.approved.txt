@@ -111,6 +111,7 @@ namespace Configlue
     {
         public static void CopyFrom<T>(ref this Configlue.FragmentOperation<T> operation, Configlue.Optional<T> source) { }
         public static void CopyFrom<T>(ref this Configlue.Optional<T> member, Configlue.Optional<T> source) { }
+        public static void CopyFrom<TSource, TDestination>(ref this Configlue.FragmentOperation<TDestination> operation, Configlue.Optional<TSource> source, System.Func<TSource, TDestination> convert) { }
         public static void CopyFrom<TSource, TDestination>(ref this Configlue.Optional<TDestination> member, Configlue.Optional<TSource> source, System.Func<TSource, TDestination> convert) { }
         public static void Set<T>(ref this Configlue.FragmentOperation<T> operation, T? value) { }
         public static void Set<T>(ref this Configlue.Optional<T> member, T? value) { }
