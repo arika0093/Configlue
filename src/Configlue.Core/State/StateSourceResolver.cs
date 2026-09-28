@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using Microsoft.Extensions.Logging;
 
 namespace Configlue.State;
@@ -27,6 +28,12 @@ public sealed class StateSourceResolver<T> : IStateReader<T>
         CancellationToken cancellationToken = default
     )
     {
+        if (_sourceSet.Count == 1)
+        {
+            return await ReadSingleSourceAsync(_sourceSet[0], cancellationToken)
+                .ConfigureAwait(false);
+        }
+
         StateReadResult<T> lastResult = default;
         var revisions = new StateRevision[_sourceSet.Count];
         var revisionCount = 0;
@@ -35,39 +42,9 @@ public sealed class StateSourceResolver<T> : IStateReader<T>
         {
             var source = _sourceSet[index];
             cancellationToken.ThrowIfCancellationRequested();
-            _logger?.LogTrace(
-                ReadEvent,
-                "Reading state source {SourceId} at {PhysicalOrigin} ({ResourceId}).",
-                source.Id,
-                source.PhysicalOrigin,
-                source.ResourceId?.Value
-            );
-            StateReadResult<T> result;
-            try
-            {
-                result = await source.Reader.ReadAsync(cancellationToken).ConfigureAwait(false);
-            }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-            {
-                throw;
-            }
-            // Preserve the source reader's exception type for provider recovery handling.
-#pragma warning disable S2139
-            catch (Exception exception)
-            {
-                _logger?.LogError(
-                    ReadEvent,
-                    exception,
-                    "Reading state source {SourceId} failed at {PhysicalOrigin} ({ResourceId}).",
-                    source.Id,
-                    source.PhysicalOrigin,
-                    source.ResourceId?.Value
-                );
-                throw;
-            }
-#pragma warning restore S2139
-
-            result = result.FromSource(source.Id, source.PhysicalOrigin);
+            var result = (
+                await ReadSourceAsync(source, cancellationToken).ConfigureAwait(false)
+            ).FromSource(source.Id, source.PhysicalOrigin);
             _logger?.LogDebug(
                 ReadEvent,
                 "State source {SourceId} returned {ReadStatus} at {PhysicalOrigin} ({ResourceId}).",
@@ -122,6 +99,87 @@ public sealed class StateSourceResolver<T> : IStateReader<T>
         var finalVector = CreateRevisionVector(revisions, revisionCount, nestedRevisions);
         Volatile.Write(ref _resolution, new Resolution(null, finalVector));
         return lastResult with { Revisions = finalVector };
+    }
+
+    private async ValueTask<StateReadResult<T>> ReadSingleSourceAsync(
+        StateSource<T> source,
+        CancellationToken cancellationToken
+    )
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var result = (
+            await ReadSourceAsync(source, cancellationToken).ConfigureAwait(false)
+        ).FromSource(source.Id, source.PhysicalOrigin);
+        _logger?.LogDebug(
+            ReadEvent,
+            "State source {SourceId} returned {ReadStatus} at {PhysicalOrigin} ({ResourceId}).",
+            source.Id,
+            result.Status,
+            source.PhysicalOrigin,
+            source.ResourceId?.Value
+        );
+        var revision = new StateRevision(source.Id, result.Revision);
+        StateRevisionVector revisionVector;
+        if (result.Revisions is { } nestedVector)
+        {
+            var nestedEntry = new KeyValuePair<string, StateRevisionVector>(
+                source.Id,
+                nestedVector
+            );
+            revisionVector = StateRevisionVector.FromSpan(
+                MemoryMarshal.CreateReadOnlySpan(ref revision, 1),
+                MemoryMarshal.CreateReadOnlySpan(ref nestedEntry, 1)
+            );
+        }
+        else
+        {
+            revisionVector = StateRevisionVector.FromSpan(
+                MemoryMarshal.CreateReadOnlySpan(ref revision, 1)
+            );
+        }
+
+        Volatile.Write(
+            ref _resolution,
+            new Resolution(result.Status == StateReadStatus.Success ? source : null, revisionVector)
+        );
+        return result with { Revisions = revisionVector };
+    }
+
+    private async ValueTask<StateReadResult<T>> ReadSourceAsync(
+        StateSource<T> source,
+        CancellationToken cancellationToken
+    )
+    {
+        _logger?.LogTrace(
+            ReadEvent,
+            "Reading state source {SourceId} at {PhysicalOrigin} ({ResourceId}).",
+            source.Id,
+            source.PhysicalOrigin,
+            source.ResourceId?.Value
+        );
+        try
+        {
+            return await source.Reader.ReadAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        // Preserve the source reader's exception type for provider recovery handling.
+#pragma warning disable S2139
+        catch (Exception exception)
+        {
+            _logger?.LogError(
+                ReadEvent,
+                exception,
+                "Reading state source {SourceId} failed at {PhysicalOrigin} ({ResourceId}).",
+                source.Id,
+                source.PhysicalOrigin,
+                source.ResourceId?.Value
+            );
+            throw;
+        }
+#pragma warning restore S2139
     }
 
     internal IReadOnlyList<StateSourceWatchTarget<T>> GetSourcesForWatch(string? fallbackRevision)
