@@ -15,6 +15,12 @@ public partial class PersistenceBenchmarkSettings
     public bool Enabled { get; set; }
 }
 
+[ConfiglueModel("configlue-json-read-benchmark-settings", Version = 1)]
+public partial class SerializedReadBenchmarkSettings
+{
+    public string Payload { get; set; } = string.Empty;
+}
+
 [OptionsModel(Id = "writable-file-benchmark-settings", Version = 1)]
 public partial class WritablePersistenceBenchmarkSettings
 {
@@ -261,6 +267,52 @@ public class FileResourceReadBenchmarks
 
     [Benchmark]
     public ValueTask<ResourceReadResult> ReadAsync() => _resource.ReadAsync();
+}
+
+[MemoryDiagnoser]
+public class SerializedFileReadBenchmarks
+{
+    private string _directory = null!;
+    private SerializedStateReader<SerializedReadBenchmarkSettings.Fragment> _reader = null!;
+    private FileResource _resource = null!;
+
+    [Params(1024, 65536, 1048576)]
+    public int ContentSize { get; set; }
+
+    [GlobalSetup]
+    public void Setup()
+    {
+        _directory = Path.Combine(
+            Path.GetTempPath(),
+            $"configlue-json-read-bench-{Guid.NewGuid():N}"
+        );
+        Directory.CreateDirectory(_directory);
+
+        var path = Path.Combine(_directory, "content.json");
+        File.WriteAllText(
+            path,
+            $$"""{"$version":1,"Payload":"{{new string('x', ContentSize)}}"}"""
+        );
+        _resource = new FileResource(
+            path,
+            new FileResourceOptions { CreateBackup = false, BackupMaxCount = 0 }
+        );
+        _reader = new SerializedStateReader<SerializedReadBenchmarkSettings.Fragment>(
+            _resource,
+            new JsonStateCodec<SerializedReadBenchmarkSettings.Fragment>()
+        );
+    }
+
+    [GlobalCleanup]
+    public void Cleanup()
+    {
+        _resource.Dispose();
+        Directory.Delete(_directory, recursive: true);
+    }
+
+    [Benchmark]
+    public ValueTask<StateReadResult<SerializedReadBenchmarkSettings.Fragment>> ReadAsync() =>
+        _reader.ReadAsync();
 }
 
 [MemoryDiagnoser]
