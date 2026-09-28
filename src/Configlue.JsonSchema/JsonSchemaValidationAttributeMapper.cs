@@ -1,4 +1,3 @@
-#if NET9_0_OR_GREATER
 using System;
 using System.ComponentModel.DataAnnotations;
 using System.Globalization;
@@ -401,4 +400,3 @@ internal static class JsonSchemaValidationAttributeMapper
         schema[keyword] = bound;
     }
 }
-#endif

@@ -20,7 +20,7 @@ dotnet test --solution Configlue.slnx --configuration Release
 ## パッケージ
 
 `Configlue` メタパッケージをインストールします。
-抽象契約・コアランタイム・DI 統合・JSON プロバイダー・HTTP リソース・共通レイヤーソース・環境変数ソース・ソースジェネレーターのアナライザーが含まれます。
+抽象契約・コアランタイム・DI 統合・JSON プロバイダー・JSON Schema 出力・HTTP リソース・共通レイヤーソース・環境変数ソース・ソースジェネレーターのアナライザーが含まれます。
 このパッケージ自体に実装アセンブリはありません。
 
 ```bash
@@ -33,6 +33,7 @@ dotnet add package Configlue
 | --- | --- |
 | YAML ファイル | `Configlue.Provider.Yaml` |
 | XML ファイル | `Configlue.Provider.Xml` |
+| JSON Schema 出力のみ | `Configlue.JsonSchema` |
 | `System.CommandLine` 入力 | `Configlue.Source.CommandLine` |
 | 共通/ローカル/指定/env プリセット | `Configlue` (`Configlue.Source.Common` を含む) |
 | 設定の HTTP 配信 (ASP.NET Core) | `Configlue.Resource.Http.AspNetCore` |
