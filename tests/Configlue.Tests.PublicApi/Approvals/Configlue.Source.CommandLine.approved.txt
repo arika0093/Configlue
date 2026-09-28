@@ -13,6 +13,11 @@ namespace Configlue.Source.CommandLine
         public void Map<TModel, TValue, TMember>(System.CommandLine.Argument<TValue> argument, System.Linq.Expressions.Expression<System.Func<TModel, TMember>> property, System.Func<TValue?, TMember?> convert) { }
         public void Map<TModel, TValue, TMember>(System.CommandLine.Option<TValue> option, System.Linq.Expressions.Expression<System.Func<TModel, TMember>> property, System.Func<TValue?, TMember?> convert) { }
     }
+    public sealed class CommandLineSourceBuilder
+    {
+        public Configlue.Source.CommandLine.CommandLineSourceBuilder FallbackWhen(Configlue.Sources.StateFallbackCondition condition) { }
+        public Configlue.Source.CommandLine.CommandLineSourceBuilder Priority(int priority) { }
+    }
     public sealed class CommandLineSourceOptions
     {
         public CommandLineSourceOptions() { }
@@ -23,11 +28,13 @@ namespace Configlue.Source.CommandLine
     }
     public static class CommandLineSourceRegistration
     {
+        public static Configlue.Source.CommandLine.CommandLineSourceBuilder CommandLine(this Configlue.ConfiglueSourceSetBuilder sources, System.CommandLine.ParseResult parseResult, System.Action<Configlue.Source.CommandLine.CommandLineMappingBuilder> configureMappings, string id = "command-line") { }
         public static Configlue.ConfiglueSourceRegistration FromCommandLine(this Configlue.ConfiglueSourceSetBuilder sources, Configlue.Source.CommandLine.CommandLineSourceOptions options, System.Action<Configlue.Source.CommandLine.CommandLineMappingBuilder> configureMappings) { }
     }
     public static class CommonCommandLineSourcePreset
     {
         public static void UseCommonSources<TModel>(this Configlue.ConfiglueModelBuilder<TModel> model, Configlue.Source.Common.CommonSourceOptions options, System.CommandLine.ParseResult parseResult, System.Action<Configlue.Source.CommandLine.CommandLineMappingBuilder> configureMappings)
             where TModel : Configlue.IConfiglueFacadeModel<TModel> { }
+        public static Configlue.Source.Presets.CommonCustomSourceBuilder WithCommandLine(this Configlue.Source.Presets.CommonSourceBuilder sources, System.CommandLine.ParseResult parseResult, System.Action<Configlue.Source.CommandLine.CommandLineMappingBuilder> configureMappings, string id = "common.commandLine") { }
     }
 }

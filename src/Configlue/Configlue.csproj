@@ -16,7 +16,7 @@
     <ProjectReference Include="../Configlue.JsonSchema/Configlue.JsonSchema.csproj" />
     <ProjectReference Include="../Configlue.Resource.Http/Configlue.Resource.Http.csproj" />
     <ProjectReference Include="../Configlue.Source.Environment/Configlue.Source.Environment.csproj" />
-    <ProjectReference Include="../Configlue.Source.Common/Configlue.Source.Common.csproj" />
+    <ProjectReference Include="../Configlue.Source.Presets/Configlue.Source.Presets.csproj" />
     <ProjectReference
       Include="../Configlue.Generator/Configlue.Generator.csproj"
       OutputItemType="Analyzer"

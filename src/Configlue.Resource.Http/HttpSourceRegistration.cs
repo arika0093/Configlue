@@ -40,6 +40,9 @@ public sealed class HttpSourceOptions
 
     /// <summary>Additional context passed to the codec.</summary>
     public StateCodecContext CodecContext { get; init; }
+
+    /// <summary>Byte transformers applied when reading and writing this source.</summary>
+    public IReadOnlyList<IStateByteTransformer>? Transformers { get; init; }
 }
 
 /// <summary>Registers facade sources backed by the Configlue HTTP resource protocol.</summary>
@@ -116,13 +119,15 @@ public static class HttpSourceRegistration
                 ? new SerializedStateWriter<TFragment>(
                     resource.CreateWriter(),
                     options.Codec,
-                    options.CodecContext
+                    options.CodecContext,
+                    options.Transformers
                 )
                 : null;
             var reader = new SerializedStateReader<TFragment>(
                 resource,
                 options.Codec,
-                options.CodecContext
+                options.CodecContext,
+                transformers: options.Transformers
             );
             var resourceId = options.ResourceId ?? resource.ResourceId;
             var watcher = options.WatchChanges ? resource : null;

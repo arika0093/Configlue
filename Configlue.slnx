@@ -16,7 +16,7 @@
   </Folder>
   <Folder Name="/src/Sources/">
     <Project Path="src/Configlue.Source.Environment/Configlue.Source.Environment.csproj" />
-    <Project Path="src/Configlue.Source.Common/Configlue.Source.Common.csproj" />
+    <Project Path="src/Configlue.Source.Presets/Configlue.Source.Presets.csproj" />
     <Project Path="src/Configlue.Source.CommandLine/Configlue.Source.CommandLine.csproj" />
   </Folder>
   <Folder Name="/src/Resources/">

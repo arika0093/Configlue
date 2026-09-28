@@ -9,7 +9,7 @@ using Configlue.Testing;
 
 namespace Configlue.Tests;
 
-public sealed class CommonSourceFormatTests
+public sealed partial class CommonSourceFormatTests
 {
     [Test]
     public async Task CommonSources_UsesEnvironmentWithoutAnExplicitIdOrPriority()

@@ -327,6 +327,24 @@ public sealed class CommandLineMappingBuilder
 /// <summary>Registers sparse sources from an existing System.CommandLine parse result.</summary>
 public static class CommandLineSourceRegistration
 {
+    /// <summary>Begins a fluent command-line registration with the supplied mappings.</summary>
+    public static CommandLineSourceBuilder CommandLine(
+        this ConfiglueSourceSetBuilder sources,
+        ParseResult parseResult,
+        Action<CommandLineMappingBuilder> configureMappings,
+        string id = "command-line"
+    )
+    {
+        ArgumentNullException.ThrowIfNull(parseResult);
+        ArgumentNullException.ThrowIfNull(configureMappings);
+        ArgumentException.ThrowIfNullOrWhiteSpace(id);
+        var registration = sources.FromCommandLine(
+            new CommandLineSourceOptions { Id = id, ParseResult = parseResult },
+            configureMappings
+        );
+        return new CommandLineSourceBuilder(registration);
+    }
+
     /// <summary>Adds a read-only command-line source using explicit symbol-to-member mappings.</summary>
     public static ConfiglueSourceRegistration FromCommandLine(
         this ConfiglueSourceSetBuilder sources,
@@ -422,5 +440,30 @@ public static class CommandLineSourceRegistration
                 }
             }
         }
+    }
+}
+
+/// <summary>Configures common routing behavior for a registered command-line source.</summary>
+public sealed class CommandLineSourceBuilder
+{
+    private readonly ConfiglueSourceRegistration _registration;
+
+    internal CommandLineSourceBuilder(ConfiglueSourceRegistration registration)
+    {
+        _registration = registration;
+    }
+
+    /// <summary>Sets the read priority for this command-line source.</summary>
+    public CommandLineSourceBuilder Priority(int priority)
+    {
+        _registration.Priority(priority);
+        return this;
+    }
+
+    /// <summary>Sets the statuses that allow resolution to fall back to lower-priority sources.</summary>
+    public CommandLineSourceBuilder FallbackWhen(StateFallbackCondition condition)
+    {
+        _registration.FallbackWhen(condition);
+        return this;
     }
 }

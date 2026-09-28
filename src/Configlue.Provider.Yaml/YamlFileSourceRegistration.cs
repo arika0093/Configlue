@@ -46,6 +46,9 @@ public sealed class YamlFileSourceOptions
     /// <summary>Backup and retry settings for the helper-created file resource.</summary>
     public FileResourceOptions? ResourceOptions { get; init; }
 
+    /// <summary>Byte transformers applied when reading and writing this source.</summary>
+    public IReadOnlyList<IStateByteTransformer>? Transformers { get; init; }
+
     /// <summary>An optional stable physical identity; by default the normalized file path is used.</summary>
     public ResourceId? ResourceId { get; init; }
 }
@@ -103,7 +106,14 @@ public static class YamlFileSourceRegistration
             );
             ownResource(file);
 
-            var writer = options.ReadOnly ? null : (IResourceWriter)file;
+            IResourceReader resource = file;
+            IResourceWriter? writer = options.ReadOnly ? null : file;
+            if (options.Transformers is { Count: > 0 })
+            {
+                var transformed = new TransformingResource(file, options.Transformers);
+                resource = transformed;
+                writer = options.ReadOnly ? null : transformed.Writer;
+            }
             var schemaShape = YamlDocumentEditor.CreateSchemaShape(
                 modelSchema,
                 options.PropertyNamingPolicy,
@@ -113,7 +123,7 @@ public static class YamlFileSourceRegistration
             IStateWatcher? resourceWatcher = options.WatchChanges ? file : null;
             var section = options.SectionPath is null
                 ? YamlSectionResource.CreateRoot(
-                    file,
+                    resource,
                     writer,
                     resourceWatcher,
                     options.ResourceId,
@@ -121,7 +131,7 @@ public static class YamlFileSourceRegistration
                     schemaShape
                 )
                 : new YamlSectionResource(
-                    file,
+                    resource,
                     writer,
                     options.SectionPath,
                     resourceWatcher,
@@ -129,7 +139,7 @@ public static class YamlFileSourceRegistration
                     null,
                     schemaShape
                 );
-            IResourceReader resource = section;
+            resource = section;
             IResourceWriter? sourceWriter = writer is null ? null : section;
             var codec = new YamlStateCodec(
                 options.PropertyNamingPolicy,

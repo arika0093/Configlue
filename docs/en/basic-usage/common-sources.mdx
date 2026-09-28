@@ -34,6 +34,28 @@ CommonSource organizes four layers in increasing priority:
 The preset assigns source identities and numeric priorities internally. Ordinary `SaveAsync` targets the Specific file when configured, otherwise Local; all file layers remain writable through explicit semantic selectors.
 ## Basic Usage
 
+To apply one preset to multiple models, use the scoped builder from `Configlue.Source.Presets`. Only declared sources are enabled, and precedence is fixed: Global < Local < Explicit < Environment < Arguments < HTTP.
+
+```csharp
+using Configlue;
+using Configlue.Source.Presets;
+using System.Text.Json;
+
+await using var context = Configlue.CreateContext(conf =>
+    conf.UseCommonSources(sources =>
+{
+    sources.WithGlobal("ExampleApp", filename: "settings.yaml")
+        .Yaml()
+        .FileResourceOptions(new FileResourceOptions { CreateBackup = false });
+    sources.WithLocal().Json(new JsonSerializerOptions());
+    sources.WithEnvironment("EXAMPLE");
+    sources.Add<AppSettings>();
+    })
+);
+```
+
+Use `WithCustom(CommonSourceLayer.Global, ...)` to insert a custom source between built-in layers. Provider serializer/resource settings and the CommandLine mapping API remain available through their provider-specific APIs.
+
 The simplest invocation requires only an application ID:
 
 <Tabs syncKey="di">

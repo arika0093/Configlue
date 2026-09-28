@@ -38,6 +38,28 @@ source identity と数値の優先度はプリセット内部で割り当てら�
 すべてのファイル層は semantic selector から明示的に書き込み可能です。
 ## 基本的な使い方
 
+複数モデルに同じプリセットを適用する場合は、`Configlue.Source.Presets` のスコープビルダーを使います。宣言したソースだけが有効になり、優先順位は Global < Local < Explicit < Environment < Arguments < HTTP で固定です。
+
+```csharp
+using Configlue;
+using Configlue.Source.Presets;
+using System.Text.Json;
+
+await using var context = Configlue.CreateContext(conf =>
+    conf.UseCommonSources(sources =>
+{
+    sources.WithGlobal("ExampleApp", filename: "settings.yaml")
+        .Yaml()
+        .FileResourceOptions(new FileResourceOptions { CreateBackup = false });
+    sources.WithLocal().Json(new JsonSerializerOptions());
+    sources.WithEnvironment("EXAMPLE");
+    sources.Add<AppSettings>();
+    })
+);
+```
+
+`WithCustom(CommonSourceLayer.Global, ...)` のように指定すると、組み込みレイヤーの間にカスタムソースを追加できます。各 Provider のシリアライザー・リソース設定と、CommandLine のマッピング API を利用できます。
+
 もっとも手軽な形式は、アプリケーション名を渡す呼び出しです。
 
 <Tabs syncKey="di">

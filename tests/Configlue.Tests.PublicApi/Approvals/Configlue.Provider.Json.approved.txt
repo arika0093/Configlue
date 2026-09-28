@@ -35,6 +35,7 @@ namespace Configlue.Provider.Json
         public string? SchemaReferenceBaseUri { get; init; }
         public string? SectionPath { get; init; }
         public System.Text.Json.JsonSerializerOptions? SerializerOptions { get; init; }
+        public System.Collections.Generic.IReadOnlyList<Configlue.Transformers.IStateByteTransformer>? Transformers { get; init; }
         public bool WatchChanges { get; init; }
     }
     public static class JsonFileSourceRegistration
@@ -68,6 +69,7 @@ namespace Configlue.Provider.Json
         public Configlue.Resources.ResourceId? ResourceId { get; init; }
         public Configlue.Resource.Http.HttpResourceOptions? ResourceOptions { get; init; }
         public System.Text.Json.JsonSerializerOptions? SerializerOptions { get; init; }
+        public System.Collections.Generic.IReadOnlyList<Configlue.Transformers.IStateByteTransformer>? Transformers { get; init; }
         public bool WatchChanges { get; init; }
         public bool Writable { get; init; }
     }

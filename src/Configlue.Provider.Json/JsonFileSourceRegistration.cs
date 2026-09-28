@@ -45,6 +45,9 @@ public sealed class JsonFileSourceOptions
     /// <summary>Backup and retry settings for the helper-created file resource.</summary>
     public FileResourceOptions? ResourceOptions { get; init; }
 
+    /// <summary>Byte transformers applied when reading and writing this source.</summary>
+    public IReadOnlyList<IStateByteTransformer>? Transformers { get; init; }
+
     /// <summary>An optional stable physical identity; by default the normalized file path is used.</summary>
     public ResourceId? ResourceId { get; init; }
 
@@ -234,11 +237,18 @@ public static class JsonFileSourceRegistration
                 options.DocumentLayout,
                 options.SchemaReferenceBaseUri
             );
-            var writer = readOnly ? null : (IResourceWriter)file;
+            IResourceReader resource = file;
+            IResourceWriter? writer = readOnly ? null : file;
             IStateWatcher? resourceWatcher = watchChanges ? file : null;
+            if (options.Transformers is { Count: > 0 })
+            {
+                var transformed = new TransformingResource(file, options.Transformers);
+                resource = transformed;
+                writer = readOnly ? null : transformed.Writer;
+            }
             var section = sectionPath is null
                 ? JsonSectionResource.CreateRoot(
-                    file,
+                    resource,
                     writer,
                     resourceWatcher,
                     serializerOptions,
@@ -246,7 +256,7 @@ public static class JsonFileSourceRegistration
                     schemaShape
                 )
                 : new JsonSectionResource(
-                    file,
+                    resource,
                     writer,
                     sectionPath,
                     resourceWatcher,
@@ -254,7 +264,7 @@ public static class JsonFileSourceRegistration
                     options.ResourceId,
                     schemaShape
                 );
-            IResourceReader resource = section;
+            resource = section;
             IResourceWriter? sourceWriter = writer is null ? null : section;
             var codec = new JsonStateCodec<TFragment>(
                 serializerOptions,
