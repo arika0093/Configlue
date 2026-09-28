@@ -49,6 +49,16 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
         }
     }
 
+    [UnconditionalSuppressMessage(
+        "Trimming",
+        "IL2026",
+        Justification = "This reflection path runs only when dynamic code is supported."
+    )]
+    [UnconditionalSuppressMessage(
+        "Trimming",
+        "IL2067",
+        Justification = "This reflection path runs only when dynamic code is supported."
+    )]
     private static bool HasValidationMetadata(Type modelType) =>
         ModelValidationMetadata.GetOrAdd(
             modelType,
@@ -220,6 +230,16 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
             _ => HasMemberValidationMetadata(schema, [])
         );
 
+    [UnconditionalSuppressMessage(
+        "Trimming",
+        "IL2026",
+        Justification = "Callers guard member metadata inspection on dynamic code support."
+    )]
+    [UnconditionalSuppressMessage(
+        "AOT",
+        "IL3050",
+        Justification = "Callers guard member metadata inspection on dynamic code support."
+    )]
     private static bool HasMemberValidationMetadata(
         ConfiglueModelSchema schema,
         HashSet<Type> visited
