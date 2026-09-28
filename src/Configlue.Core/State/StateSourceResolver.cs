@@ -28,11 +28,11 @@ public sealed class StateSourceResolver<T> : IStateReader<T>
     )
     {
         StateReadResult<T> lastResult = default;
-        var sources = _sourceSet.Sources;
-        var revisions = new List<StateRevision>(sources.Count);
-        var nestedRevisions = new List<KeyValuePair<string, StateRevisionVector>>();
-        foreach (var source in sources)
+        var revisions = new List<StateRevision>(_sourceSet.Count);
+        List<KeyValuePair<string, StateRevisionVector>>? nestedRevisions = null;
+        for (var index = 0; index < _sourceSet.Count; index++)
         {
+            var source = _sourceSet[index];
             cancellationToken.ThrowIfCancellationRequested();
             _logger?.LogTrace(
                 ReadEvent,
@@ -78,6 +78,7 @@ public sealed class StateSourceResolver<T> : IStateReader<T>
             revisions.Add(new StateRevision(source.Id, result.Revision));
             if (result.Revisions is { } nestedVector)
             {
+                nestedRevisions ??= [];
                 nestedRevisions.Add(
                     new KeyValuePair<string, StateRevisionVector>(source.Id, nestedVector)
                 );
@@ -85,7 +86,7 @@ public sealed class StateSourceResolver<T> : IStateReader<T>
 
             if (result.Status == StateReadStatus.Success)
             {
-                var revisionVector = new StateRevisionVector(revisions, nestedRevisions);
+                var revisionVector = CreateRevisionVector(revisions, nestedRevisions);
                 Volatile.Write(ref _resolution, new Resolution(source, revisionVector));
                 return result with { Revisions = revisionVector };
             }
@@ -101,7 +102,7 @@ public sealed class StateSourceResolver<T> : IStateReader<T>
             );
             if (!canFallBack)
             {
-                var revisionVector = new StateRevisionVector(revisions, nestedRevisions);
+                var revisionVector = CreateRevisionVector(revisions, nestedRevisions);
                 Volatile.Write(ref _resolution, new Resolution(null, revisionVector));
                 return result with { Revisions = revisionVector };
             }
@@ -109,36 +110,52 @@ public sealed class StateSourceResolver<T> : IStateReader<T>
             lastResult = result;
         }
 
-        var finalVector = new StateRevisionVector(revisions, nestedRevisions);
+        var finalVector = CreateRevisionVector(revisions, nestedRevisions);
         Volatile.Write(ref _resolution, new Resolution(null, finalVector));
         return lastResult with { Revisions = finalVector };
     }
+
+    private static StateRevisionVector CreateRevisionVector(
+        List<StateRevision> revisions,
+        List<KeyValuePair<string, StateRevisionVector>>? nestedRevisions
+    ) =>
+        nestedRevisions is null
+            ? new StateRevisionVector(revisions)
+            : new StateRevisionVector(revisions, nestedRevisions);
 
     internal IReadOnlyList<StateSourceWatchTarget<T>> GetSourcesForWatch(string? fallbackRevision)
     {
         var resolution = Volatile.Read(ref _resolution);
         var active = resolution?.ActiveSource;
-        return _sourceSet
-            .Sources.Where(source =>
-                resolution is null
-                || resolution.Revisions.TryGetRevision(source.Id, out _)
-                    && (active is null || source.Priority >= active.Priority)
+        var sources = new List<StateSourceWatchTarget<T>>(_sourceSet.Count);
+        for (var index = 0; index < _sourceSet.Count; index++)
+        {
+            var source = _sourceSet[index];
+            if (
+                resolution is not null
+                && (
+                    !resolution.Revisions.TryGetRevision(source.Id, out _)
+                    || (active is not null && source.Priority < active.Priority)
+                )
             )
-            .Select(source =>
             {
-                string? revision = null;
-                if (resolution is not null)
-                {
-                    resolution.Revisions.TryGetRevision(source.Id, out revision);
-                }
-                if (resolution is null && source.Id == _sourceSet.Sources[0].Id)
-                {
-                    revision = fallbackRevision;
-                }
+                continue;
+            }
 
-                return new StateSourceWatchTarget<T>(source, revision);
-            })
-            .ToArray();
+            string? revision = null;
+            if (resolution is not null)
+            {
+                resolution.Revisions.TryGetRevision(source.Id, out revision);
+            }
+            else if (index == 0)
+            {
+                revision = fallbackRevision;
+            }
+
+            sources.Add(new StateSourceWatchTarget<T>(source, revision));
+        }
+
+        return sources;
     }
 
     private sealed record Resolution

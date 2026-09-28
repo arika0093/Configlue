@@ -3,6 +3,7 @@ namespace Configlue;
 /// <summary>An immutable priority-ordered set of logical state sources.</summary>
 public sealed class StateSourceSet<T>
 {
+    private readonly StateSource<T>[] _sources;
     private readonly IReadOnlyList<StateSource<T>> _sourceView;
 
     /// <summary>Creates a source set ordered by descending priority.</summary>
@@ -40,9 +41,16 @@ public sealed class StateSourceSet<T>
             .ThenBy(static item => item.index)
             .Select(static item => item.source)
             .ToArray();
+        _sources = orderedSources;
         _sourceView = Array.AsReadOnly(orderedSources);
     }
 
     /// <summary>The sources in read-priority order.</summary>
     public IReadOnlyList<StateSource<T>> Sources => _sourceView;
+
+    /// <summary>The number of sources in the set.</summary>
+    public int Count => _sources.Length;
+
+    /// <summary>Gets a source by its read-priority position.</summary>
+    public StateSource<T> this[int index] => _sources[index];
 }

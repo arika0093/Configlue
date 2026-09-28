@@ -71,7 +71,8 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
             draft,
             async (value, token) =>
             {
-                var latestState = await ResolveCoreAsync(null, token).ConfigureAwait(false);
+                var latestState = await ResolveCoreAsync(null, token, captureContributions: true)
+                    .ConfigureAwait(false);
                 var latest = latestState.Result;
                 if (latest.Status != StateReadStatus.Success)
                 {

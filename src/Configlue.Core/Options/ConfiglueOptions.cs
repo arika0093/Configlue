@@ -63,7 +63,7 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
     private readonly List<Action<Exception>> _reloadFailureListeners = [];
     private CancellationTokenSource? _watchCancellation;
     private Task? _watchTask;
-    private TaskCompletionSource _operationsDrained = CompletedOperationsSignal();
+    private TaskCompletionSource? _operationsDrained;
     private readonly AsyncLocal<OperationFrame?> _operationFrame = new();
     private int _activeOperations;
     private bool _disposed;
@@ -327,16 +327,25 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
 
     private async ValueTask<ResolvedState> ResolveCoreAsync(
         IReadOnlyDictionary<string, StateReadResult<TFragment>>? replacements,
-        CancellationToken cancellationToken
+        CancellationToken cancellationToken,
+        bool captureContributions = false
     )
     {
         using var operation = EnterOperation();
         var activeSources = GetActiveSources();
-        var contributions = new List<ResolvedContribution>(activeSources.Length + 1);
-        var failures = new List<ResolvedFailure>();
+        List<ResolvedContribution>? contributions = captureContributions
+            ? new List<ResolvedContribution>(activeSources.Length + 1)
+            : null;
+        TFragment[]? fragments = captureContributions
+            ? null
+            : new TFragment[activeSources.Length + 1];
+        List<ResolvedFailure>? failures = null;
         var revisions = new List<StateRevision>(activeSources.Length);
-        var nestedRevisions = new List<KeyValuePair<string, StateRevisionVector>>();
+        List<KeyValuePair<string, StateRevisionVector>>? nestedRevisions = null;
         StateReadResult<TFragment> lastFailure = default;
+        StateSource<TFragment>? activeSource = null;
+        StateReadResult<TFragment> activeResult = default;
+        var successfulCount = 0;
 
         foreach (var source in activeSources)
         {
@@ -403,7 +412,7 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
             revisions.Add(new StateRevision(source.Id, result.Revision));
             if (sourceResult.Revisions is { } nestedVector)
             {
-                nestedRevisions.Add(
+                (nestedRevisions ??= []).Add(
                     new KeyValuePair<string, StateRevisionVector>(source.Id, nestedVector)
                 );
             }
@@ -451,9 +460,23 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
                     }
                 }
 
-                contributions.Add(
-                    new ResolvedContribution(source, result with { Value = fragment })
-                );
+                if (captureContributions)
+                {
+                    contributions!.Add(
+                        new ResolvedContribution(source, result with { Value = fragment })
+                    );
+                }
+                else
+                {
+                    fragments![successfulCount] = fragment;
+                }
+
+                if (activeSource is null)
+                {
+                    activeSource = source;
+                    activeResult = result with { Value = fragment };
+                }
+                successfulCount++;
                 continue;
             }
 
@@ -471,6 +494,11 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
             );
             if (!canFallBack)
             {
+                if (captureContributions)
+                {
+                    (failures ??= []).Add(new ResolvedFailure(source, result));
+                }
+
                 return new ResolvedState(
                     new StateReadResult<TModel>(
                         result.Status,
@@ -479,18 +507,26 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
                         result.SourceId,
                         result.PhysicalOrigin,
                         result.Schema,
-                        new StateRevisionVector(revisions, nestedRevisions)
+                        new StateRevisionVector(
+                            revisions,
+                            (IEnumerable<KeyValuePair<string, StateRevisionVector>>?)nestedRevisions
+                                ?? Array.Empty<KeyValuePair<string, StateRevisionVector>>()
+                        )
                     ),
-                    contributions,
+                    (IReadOnlyList<ResolvedContribution>?)contributions
+                        ?? Array.Empty<ResolvedContribution>(),
                     null,
-                    [.. failures, new ResolvedFailure(source, result)]
+                    (IReadOnlyList<ResolvedFailure>?)failures ?? Array.Empty<ResolvedFailure>()
                 );
             }
 
-            failures.Add(new ResolvedFailure(source, result));
+            if (captureContributions)
+            {
+                (failures ??= []).Add(new ResolvedFailure(source, result));
+            }
         }
 
-        if (contributions.Count == 0 && lastFailure.Status == StateReadStatus.Unavailable)
+        if (successfulCount == 0 && lastFailure.Status == StateReadStatus.Unavailable)
         {
             return new ResolvedState(
                 new StateReadResult<TModel>(
@@ -500,25 +536,44 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
                     lastFailure.SourceId,
                     lastFailure.PhysicalOrigin,
                     lastFailure.Schema,
-                    new StateRevisionVector(revisions, nestedRevisions)
+                    new StateRevisionVector(
+                        revisions,
+                        (IEnumerable<KeyValuePair<string, StateRevisionVector>>?)nestedRevisions
+                            ?? Array.Empty<KeyValuePair<string, StateRevisionVector>>()
+                    )
                 ),
-                contributions,
+                (IReadOnlyList<ResolvedContribution>?)contributions
+                    ?? Array.Empty<ResolvedContribution>(),
                 null,
-                failures
+                (IReadOnlyList<ResolvedFailure>?)failures ?? Array.Empty<ResolvedFailure>()
             );
         }
 
-        contributions.Add(
-            new ResolvedContribution(
-                _modelDefaultsSource,
-                StateReadResult<TFragment>.Success(_modelDefaultsFragment),
-                IsModelDefaults: true
-            )
-        );
-        var merged = contributions[^1].Result.Value!;
-        for (var index = contributions.Count - 2; index >= 0; index--)
+        if (captureContributions)
         {
-            merged = merged.Merge(contributions[index].Result.Value!);
+            contributions!.Add(
+                new ResolvedContribution(
+                    _modelDefaultsSource,
+                    StateReadResult<TFragment>.Success(_modelDefaultsFragment),
+                    IsModelDefaults: true
+                )
+            );
+        }
+        else
+        {
+            fragments![successfulCount] = _modelDefaultsFragment;
+        }
+
+        var contributionCount = successfulCount + 1;
+        var merged = captureContributions
+            ? contributions![^1].Result.Value!
+            : fragments![successfulCount];
+        for (var index = contributionCount - 2; index >= 0; index--)
+        {
+            var fragment = captureContributions
+                ? contributions![index].Result.Value!
+                : fragments![index];
+            merged = merged.Merge(fragment);
         }
 
         var model = TModel.FromFragment(merged);
@@ -526,30 +581,37 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
         {
             ValidateResolvedModel(model, merged);
         }
-        var active = contributions.FirstOrDefault(static contribution =>
-            !contribution.IsModelDefaults
-        );
         var resolvedResult = StateReadResult<TModel>.Success(
             model,
-            active?.Result.Revision,
+            activeSource is null ? null : activeResult.Revision,
             TModel.ConfiglueSchema.ToMetadata()
         ) with
         {
-            SourceId = active?.Source.Id,
-            PhysicalOrigin = active?.Result.PhysicalOrigin,
-            Revisions = new StateRevisionVector(revisions, nestedRevisions),
+            SourceId = activeSource?.Id,
+            PhysicalOrigin = activeSource is null ? null : activeResult.PhysicalOrigin,
+            Revisions = new StateRevisionVector(
+                revisions,
+                (IEnumerable<KeyValuePair<string, StateRevisionVector>>?)nestedRevisions
+                    ?? Array.Empty<KeyValuePair<string, StateRevisionVector>>()
+            ),
         };
-        if (active is not null)
+        if (activeSource is not null)
         {
             _logger?.LogDebug(
                 SourceSelectedEvent,
                 "Configuration source {SourceId} is the highest-priority contributor for {ModelType} options {OptionsName}.",
-                active.Source.Id,
+                activeSource.Id,
                 typeof(TModel).FullName,
                 _optionsName
             );
         }
 
-        return new ResolvedState(resolvedResult, contributions, merged, failures);
+        return new ResolvedState(
+            resolvedResult,
+            (IReadOnlyList<ResolvedContribution>?)contributions
+                ?? Array.Empty<ResolvedContribution>(),
+            merged,
+            (IReadOnlyList<ResolvedFailure>?)failures ?? Array.Empty<ResolvedFailure>()
+        );
     }
 }
