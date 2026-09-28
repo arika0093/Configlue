@@ -23,6 +23,7 @@ public static class ConfiglueOptionsExtensions
     public static EditSession<T> OpenEditSession<T>(this IConfiglueEditSessions<T> options)
     {
         ArgumentNullException.ThrowIfNull(options);
+        // Explicit synchronous edit convenience boundary; asynchronous callers use OpenEditSessionAsync.
         return options.OpenEditSessionAsync().GetAwaiter().GetResult();
     }
 }

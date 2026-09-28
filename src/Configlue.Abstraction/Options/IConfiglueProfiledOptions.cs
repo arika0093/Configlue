@@ -11,6 +11,7 @@ public interface IConfiglueProfiledOptions<TModel>
     event Action<string>? ActiveProfileChanged;
 
     /// <summary>Subscribes to changes in the active profile value and active-profile selection.</summary>
+    /// <remarks>Binding starts asynchronously and does not emit an initial value. Profile switches asynchronously read the selected value; a newer selection or value notification supersedes pending reads. Dispose detaches listeners and cancels pending reads. Read failures are logged. Read the initial value with GetActiveValueAsync when needed.</remarks>
     IDisposable OnChange(Action<TModel> listener);
 
     /// <summary>Gets the persisted profile names in display order.</summary>
