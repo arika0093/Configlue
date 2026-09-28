@@ -47,6 +47,38 @@ public sealed class CommonSourceFormatTests
     }
 
     [Test]
+    public async Task CommonSources_DefaultsOrdinaryWritesToLocalWhenSpecificFileIsOmitted()
+    {
+        using var directory = new TemporaryDirectory();
+        var localPath = Path.Combine(directory.FullPath, "local.json");
+        await using var context = Configlue.CreateContext(builder =>
+        {
+            builder.Add<AppSettings>(model =>
+                model.UseCommonSources(
+                    new CommonSourceOptions
+                    {
+                        ApplicationId = $"Configlue.Tests.{Guid.NewGuid():N}",
+                        GlobalFileName = "settings.json",
+                        LocalFilePath = localPath,
+                        FileResourceOptions = new FileResourceOptions { CreateBackup = false },
+                    }
+                )
+            );
+        });
+        var options = (IConfiglueOptions<AppSettings>)context.GetOptions<AppSettings>();
+
+        await options.SaveAsync(settings => settings.Label = "written-to-local");
+
+        var bytes = await File.ReadAllBytesAsync(localPath);
+        var sequence = new ReadOnlySequence<byte>(bytes);
+        var fragment = new JsonStateCodec<AppSettings.Fragment>().Deserialize(
+            in sequence,
+            default
+        )!;
+        (fragment.Label.Value).ShouldBe("written-to-local");
+    }
+
+    [Test]
     public async Task CommonSources_InfersYamlFromGlobalFileName()
     {
         var appId = $"Configlue.Tests.{Guid.NewGuid():N}";

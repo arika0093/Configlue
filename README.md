@@ -320,7 +320,7 @@ config.Add<AppSettings>(model => model.UseCommonSources(
     mappings => mappings.Map<AppSettings, int>(portOption, settings => settings.Server!.Port)));
 ```
 
-`UseCommonSources` expands to these stable logical sources:
+`UseCommonSources` registers semantic layers with fixed precedence; its opaque source identities and generated numeric priorities are implementation details. Use `CommonSource.Global`, `CommonSource.Local`, or `CommonSource.Specific` for source-local operations rather than routing by string ID. Ordinary writes are inferred from the selected writable layer:
 
 | Layer | Included when | Writable |
 | --- | --- | --- |
