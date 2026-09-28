@@ -17,21 +17,34 @@ internal sealed class JsoncSyntaxTree
     internal ReadOnlyMemory<byte> GetRawText(JsoncValueNode node) =>
         Source.AsMemory(node.Start, node.End - node.Start);
 
-    internal JsoncValueNode? GetPath(IReadOnlyList<string> path)
+    internal JsoncValueNode? GetPath(IReadOnlyList<string> path) => GetPath(path, path.Count);
+
+    internal JsoncValueNode? GetPath(IReadOnlyList<string> path, int length)
     {
         var current = Root;
-        foreach (var segment in path)
+        for (var index = 0; index < length; index++)
         {
+            var segment = path[index];
             if (current.Kind != JsonValueKind.Object)
             {
                 throw new JsonException(
-                    $"JSON section path '{string.Join(':', path)}' crosses a non-object value at '{segment}'."
+                    $"JSON section path '{string.Join(':', path.Take(length).ToArray())}' crosses a non-object value at '{segment}'."
                 );
             }
 
-            var property = current.Properties!.SingleOrDefault(candidate =>
-                string.Equals(candidate.Name, segment, StringComparison.Ordinal)
-            );
+            var properties = current.Properties!;
+            JsoncPropertyNode? property = null;
+            for (var propertyIndex = 0; propertyIndex < properties.Count; propertyIndex++)
+            {
+                if (
+                    string.Equals(properties[propertyIndex].Name, segment, StringComparison.Ordinal)
+                )
+                {
+                    property = properties[propertyIndex];
+                    break;
+                }
+            }
+
             if (property is null)
             {
                 return null;
@@ -172,10 +185,17 @@ internal sealed class JsoncSyntaxTree
     private static void SetCommas(JsoncValueNode value, byte[] source)
     {
         var count = value.Properties?.Count ?? value.Items!.Count;
-        var names = new HashSet<string>(StringComparer.Ordinal);
+        var names =
+            value.Properties is not null && count > 1
+                ? new HashSet<string>(StringComparer.Ordinal)
+                : null;
         for (var index = 0; index < count; index++)
         {
-            if (value.Properties is not null && !names.Add(value.Properties[index].Name))
+            if (
+                value.Properties is not null
+                && names is not null
+                && !names.Add(value.Properties[index].Name)
+            )
             {
                 throw new JsonException(
                     $"The JSON object contains duplicate property '{value.Properties[index].Name}'."
