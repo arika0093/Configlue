@@ -1,4 +1,4 @@
-namespace Configlue.State;
+namespace Configlue.Extensibility;
 
 /// <summary>Creates typed state sources by composing a resource, byte transformers, a codec, and middleware.</summary>
 public static class SerializedStateSource

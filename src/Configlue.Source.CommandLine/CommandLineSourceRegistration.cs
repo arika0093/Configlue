@@ -375,11 +375,15 @@ public static class CommandLineSourceRegistration
         IReadOnlyList<CommandLineMappingBuilder.Mapping> mappings
     ) : IConfiglueSourceDefinition
     {
-        public StateSource<TFragment> Create<TFragment>(
-            ConfiglueModelSchema modelSchema,
-            IServiceProvider? serviceProvider,
-            Action<IDisposable> ownResource
+        public ConfiglueSourceCreation<TFragment> Create<TFragment>(
+            ConfiglueSourceCreationContext context
         )
+            where TFragment : class, IConfiglueFragment<TFragment>
+        {
+            return context.Complete(CreateSourceCore<TFragment>(context.ModelSchema));
+        }
+
+        private StateSource<TFragment> CreateSourceCore<TFragment>(ConfiglueModelSchema modelSchema)
             where TFragment : class, IConfiglueFragment<TFragment>
         {
             ValidateMappings(modelSchema, mappings.Select(mapping => mapping.PropertyPath));

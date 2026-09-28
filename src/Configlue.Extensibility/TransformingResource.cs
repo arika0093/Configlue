@@ -1,4 +1,4 @@
-namespace Configlue;
+namespace Configlue.Extensibility;
 
 /// <summary>Applies byte transformers around a resource before provider-specific document processing.</summary>
 public sealed class TransformingResource

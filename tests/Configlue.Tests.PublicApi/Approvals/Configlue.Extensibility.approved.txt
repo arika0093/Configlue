@@ -1,0 +1,64 @@
+[assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/arika0093/Configlue")]
+namespace Configlue.Extensibility
+{
+    public static class ConfiglueSourceSetBuilderMountExtensions
+    {
+        public static void AddMounted<TRootFragment, TSubtreeFragment>(this Configlue.ConfiglueSourceSetBuilder sources, Configlue.Sources.StateSource<TSubtreeFragment> source, string propertyPath)
+            where TRootFragment :  class, Configlue.IConfiglueFragment<TRootFragment>
+            where TSubtreeFragment :  class, Configlue.IConfiglueFragment<TSubtreeFragment> { }
+        public static void AddMounted<TRootFragment, TSubtreeFragment>(this Configlue.ConfiglueSourceSetBuilder sources, System.Func<System.IServiceProvider?, Configlue.Sources.StateSource<TSubtreeFragment>> sourceFactory, string propertyPath)
+            where TRootFragment :  class, Configlue.IConfiglueFragment<TRootFragment>
+            where TSubtreeFragment :  class, Configlue.IConfiglueFragment<TSubtreeFragment> { }
+        public static void AddMounted<TRootFragment, TSubtreeFragment>(this Configlue.ConfiglueSourceSetBuilder sources, Configlue.Sources.StateSource<TSubtreeFragment> source, string propertyPath, System.Func<TRootFragment, TSubtreeFragment> toSource)
+            where TRootFragment :  class, Configlue.IConfiglueFragment<TRootFragment>
+            where TSubtreeFragment :  class, Configlue.IConfiglueFragment<TSubtreeFragment> { }
+        public static void AddMounted<TRootFragment, TSubtreeFragment>(this Configlue.ConfiglueSourceSetBuilder sources, System.Func<System.IServiceProvider?, Configlue.Sources.StateSource<TSubtreeFragment>> sourceFactory, string propertyPath, System.Func<TRootFragment, TSubtreeFragment> toSource)
+            where TRootFragment :  class, Configlue.IConfiglueFragment<TRootFragment>
+            where TSubtreeFragment :  class, Configlue.IConfiglueFragment<TSubtreeFragment> { }
+        public static void AddMounted<TModel, TRootFragment, TSubtreeModel, TSubtreeFragment>(this Configlue.ConfiglueSourceSetBuilder sources, Configlue.Sources.StateSource<TSubtreeFragment> source, System.Linq.Expressions.Expression<System.Func<TModel, TSubtreeModel?>> subtreeSelector)
+            where TModel : Configlue.IConfiglueModel<TModel, TRootFragment>
+            where TRootFragment :  class, Configlue.IConfiglueFragment<TRootFragment>
+            where TSubtreeModel :  class, Configlue.IConfiglueModel<TSubtreeModel, TSubtreeFragment>
+            where TSubtreeFragment :  class, Configlue.IConfiglueFragment<TSubtreeFragment> { }
+        public static void AddMounted<TModel, TRootFragment, TSubtreeModel, TSubtreeFragment>(this Configlue.ConfiglueSourceSetBuilder sources, System.Func<System.IServiceProvider?, Configlue.Sources.StateSource<TSubtreeFragment>> sourceFactory, System.Linq.Expressions.Expression<System.Func<TModel, TSubtreeModel?>> subtreeSelector)
+            where TModel : Configlue.IConfiglueModel<TModel, TRootFragment>
+            where TRootFragment :  class, Configlue.IConfiglueFragment<TRootFragment>
+            where TSubtreeModel :  class, Configlue.IConfiglueModel<TSubtreeModel, TSubtreeFragment>
+            where TSubtreeFragment :  class, Configlue.IConfiglueFragment<TSubtreeFragment> { }
+        public static void AddMounted<TModel, TRootFragment, TSubtreeModel, TSubtreeFragment>(this Configlue.ConfiglueSourceSetBuilder sources, Configlue.Sources.StateSource<TSubtreeFragment> source, System.Linq.Expressions.Expression<System.Func<TModel, TSubtreeModel?>> subtreeSelector, System.Func<TRootFragment, TSubtreeFragment> toSource)
+            where TModel : Configlue.IConfiglueModel<TModel, TRootFragment>
+            where TRootFragment :  class, Configlue.IConfiglueFragment<TRootFragment>
+            where TSubtreeModel :  class, Configlue.IConfiglueModel<TSubtreeModel, TSubtreeFragment>
+            where TSubtreeFragment :  class, Configlue.IConfiglueFragment<TSubtreeFragment> { }
+        public static void AddMounted<TModel, TRootFragment, TSubtreeModel, TSubtreeFragment>(this Configlue.ConfiglueSourceSetBuilder sources, System.Func<System.IServiceProvider?, Configlue.Sources.StateSource<TSubtreeFragment>> sourceFactory, System.Linq.Expressions.Expression<System.Func<TModel, TSubtreeModel?>> subtreeSelector, System.Func<TRootFragment, TSubtreeFragment> toSource)
+            where TModel : Configlue.IConfiglueModel<TModel, TRootFragment>
+            where TRootFragment :  class, Configlue.IConfiglueFragment<TRootFragment>
+            where TSubtreeModel :  class, Configlue.IConfiglueModel<TSubtreeModel, TSubtreeFragment>
+            where TSubtreeFragment :  class, Configlue.IConfiglueFragment<TSubtreeFragment> { }
+    }
+    public sealed class SerializedStateReader<T> : Configlue.State.IStateReader<T>
+    {
+        public SerializedStateReader(Configlue.Resources.IResourceReader resource, object codec, Configlue.Codecs.StateCodecContext context = default, Configlue.Migrations.StateSchemaDispatcher<T>? schemaDispatcher = null, System.Collections.Generic.IEnumerable<Configlue.Transformers.IStateByteTransformer>? transformers = null) { }
+        public System.Threading.Tasks.ValueTask<Configlue.State.StateReadResult<T>> ReadAsync(System.Threading.CancellationToken cancellationToken = default) { }
+    }
+    public static class SerializedStateSource
+    {
+        public static Configlue.Sources.StateSource<T> FromResource<T>(string id, Configlue.Resources.IResourceReader resource, object codec, int priority = 0, Configlue.Sources.StateFallbackCondition fallbackCondition = 1, Configlue.Resources.IResourceWriter? writer = null, Configlue.State.IStateWatcher? watcher = null, string? physicalOrigin = null, Configlue.Codecs.StateCodecContext context = default, Configlue.Resources.ResourceId? resourceId = default, Configlue.Migrations.StateSchemaDispatcher<T>? schemaDispatcher = null, System.Collections.Generic.IEnumerable<Configlue.Transformers.IStateByteTransformer>? transformers = null, System.Collections.Generic.IEnumerable<Configlue.State.IStateMiddleware<T>>? middlewares = null) { }
+    }
+    public sealed class SerializedStateWriter<T> : Configlue.State.IStateWriteBatchParticipant<T>, Configlue.State.IStateWriter<T>
+    {
+        public SerializedStateWriter(Configlue.Resources.IResourceWriter resource, object codec, Configlue.Codecs.StateCodecContext context = default, System.Collections.Generic.IEnumerable<Configlue.Transformers.IStateByteTransformer>? transformers = null) { }
+        public bool TryCreateBatchWrite(Configlue.State.StateWriteRequest<T> request, out Configlue.Resources.ResourceId resourceId, out Configlue.Resources.IResourceBatchWriter? batchWriter, out Configlue.Resources.ResourceWriteMutation? mutation) { }
+        public System.Threading.Tasks.ValueTask<Configlue.State.StateWriteResult> WriteAsync(Configlue.State.StateWriteRequest<T> request, System.Threading.CancellationToken cancellationToken = default) { }
+    }
+    public sealed class TransformingResource : Configlue.Resources.IResourceBackupRecovery, Configlue.Resources.IResourceIdentity, Configlue.Resources.IResourceReader
+    {
+        public TransformingResource(Configlue.Resources.IResourceReader resource, System.Collections.Generic.IEnumerable<Configlue.Transformers.IStateByteTransformer> transformers, Configlue.Resources.ResourceId? resourceId = default) { }
+        public bool AutomaticBackupRecoveryEnabled { get; }
+        public Configlue.Resources.ResourceId ResourceId { get; }
+        public Configlue.State.IStateWatcher? Watcher { get; }
+        public Configlue.Resources.IResourceWriter? Writer { get; }
+        public System.Threading.Tasks.ValueTask<Configlue.Resources.ResourceReadResult> ReadAsync(System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Configlue.Resources.ResourceReadResult?> TryRecoverLatestBackupAsync(string? expectedRevision, bool expectedMissing, System.Func<Configlue.Resources.ResourceReadResult, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<bool>> validate, System.Threading.CancellationToken cancellationToken = default) { }
+    }
+}

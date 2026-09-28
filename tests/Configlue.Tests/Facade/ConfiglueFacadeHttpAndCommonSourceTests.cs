@@ -244,15 +244,12 @@ public sealed partial class ConfiglueFacadeSourceTests
                     sources
                         .WithEnvironment("CONFIGLUE_TEST")
                         .EnvironmentVariables(() =>
-                            [
-                                new KeyValuePair<string, string?>(
-                                    "CONFIGLUE_TEST__RetryCount",
-                                    "4"
-                                ),
-                            ]
+                            [new KeyValuePair<string, string?>("CONFIGLUE_TEST__RetryCount", "4")]
                         );
-                    sources
-                        .WithCommandLine(parseResult, mappings => mappings.Map(retryOption, "RetryCount"));
+                    sources.WithCommandLine(
+                        parseResult,
+                        mappings => mappings.Map(retryOption, "RetryCount")
+                    );
                     sources
                         .WithExplicit(specificPath)
                         .FileResourceOptions(new FileResourceOptions { CreateBackup = false });

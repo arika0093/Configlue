@@ -157,14 +157,13 @@ public sealed class ConfiglueFacadeTests
         services.AddConfiglue(builder =>
         {
             builder.Add<AppSettings>(model =>
-                model.Sources(
-                    (provider, sources) =>
-                    {
-                        sourceConfigurationCalls++;
-                        var sourceValue = provider!.GetRequiredService<SettingsSourceValue>();
-                        sources.Add(CreateSource("provider-source", sourceValue.Value));
-                    }
-                )
+                model.ConfigureSources(registration =>
+                {
+                    sourceConfigurationCalls++;
+                    var sourceValue =
+                        registration.Services!.GetRequiredService<SettingsSourceValue>();
+                    registration.Sources.Add(CreateSource("provider-source", sourceValue.Value));
+                })
             );
         });
 
@@ -184,13 +183,13 @@ public sealed class ConfiglueFacadeTests
         await using var context = ConfiglueApp.CreateContext(builder =>
         {
             builder.Add<AppSettings>(model =>
-                model.Sources(
-                    (provider, sources) =>
-                    {
-                        receivedNullProvider = provider is null;
-                        sources.Add(CreateSource("non-di-provider-source", "without-provider"));
-                    }
-                )
+                model.ConfigureSources(registration =>
+                {
+                    receivedNullProvider = registration.Services is null;
+                    registration.Sources.Add(
+                        CreateSource("non-di-provider-source", "without-provider")
+                    );
+                })
             );
         });
 
@@ -274,14 +273,15 @@ public sealed class ConfiglueFacadeTests
             builder.Add<AppSettings>(model =>
             {
                 model.EnableProfiles(catalog);
-                model.SourcesForOptions(
-                    (name, sources) =>
-                        sources.Add(_ =>
-                            CreateSource(
-                                string.IsNullOrEmpty(name) ? "default-source" : $"profile-{name}",
-                                $"{name}-value"
-                            )
+                model.ConfigureSources(registration =>
+                    registration.Sources.Add(_ =>
+                        CreateSource(
+                            string.IsNullOrEmpty(registration.OptionsName)
+                                ? "default-source"
+                                : $"profile-{registration.OptionsName}",
+                            $"{registration.OptionsName}-value"
                         )
+                    )
                 );
             });
         });
@@ -310,14 +310,17 @@ public sealed class ConfiglueFacadeTests
             builder.Add<AppSettings>(model =>
             {
                 model.EnableProfiles(catalog);
-                model.SourcesForOptions(
-                    (name, sources) =>
-                        sources.Add(_ =>
-                            CreateSource(
-                                string.IsNullOrEmpty(name) ? "fixed" : $"profile-{name}",
-                                string.IsNullOrEmpty(name) ? "fixed-value" : $"{name}-value"
-                            )
+                model.ConfigureSources(registration =>
+                    registration.Sources.Add(_ =>
+                        CreateSource(
+                            string.IsNullOrEmpty(registration.OptionsName)
+                                ? "fixed"
+                                : $"profile-{registration.OptionsName}",
+                            string.IsNullOrEmpty(registration.OptionsName)
+                                ? "fixed-value"
+                                : $"{registration.OptionsName}-value"
                         )
+                    )
                 );
             });
         });
@@ -357,14 +360,15 @@ public sealed class ConfiglueFacadeTests
             builder.Add<AppSettings>(model =>
             {
                 model.EnableProfiles(catalog);
-                model.SourcesForOptions(
-                    (name, sources) =>
-                        sources.Add(_ =>
-                            CreateSource(
-                                string.IsNullOrEmpty(name) ? "default-source" : $"profile-{name}",
-                                $"{name}-value"
-                            )
+                model.ConfigureSources(registration =>
+                    registration.Sources.Add(_ =>
+                        CreateSource(
+                            string.IsNullOrEmpty(registration.OptionsName)
+                                ? "default-source"
+                                : $"profile-{registration.OptionsName}",
+                            $"{registration.OptionsName}-value"
                         )
+                    )
                 );
             });
         });
@@ -438,9 +442,13 @@ public sealed class ConfiglueFacadeTests
             builder.Add<AppSettings>(model =>
             {
                 model.EnableDynamicOptions = true;
-                model.SourcesForOptions(
-                    (name, sources) =>
-                        sources.Add(_ => CreateSource($"dynamic-{name}", $"{name}-value"))
+                model.ConfigureSources(registration =>
+                    registration.Sources.Add(_ =>
+                        CreateSource(
+                            $"dynamic-{registration.OptionsName}",
+                            $"{registration.OptionsName}-value"
+                        )
+                    )
                 );
             });
         });
@@ -476,9 +484,13 @@ public sealed class ConfiglueFacadeTests
             builder.Add<AppSettings>(model =>
             {
                 model.EnableProfiles(catalog);
-                model.SourcesForOptions(
-                    (name, sources) =>
-                        sources.Add(_ => CreateSource($"di-profile-{name}", $"{name}-value"))
+                model.ConfigureSources(registration =>
+                    registration.Sources.Add(_ =>
+                        CreateSource(
+                            $"di-profile-{registration.OptionsName}",
+                            $"{registration.OptionsName}-value"
+                        )
+                    )
                 );
             });
         });

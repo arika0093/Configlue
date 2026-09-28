@@ -25,6 +25,7 @@ namespace Configlue.Tests.PublicApi;
 
 public static class PublicApiCheck
 {
+    private static readonly object ApprovalUpdateGate = new();
     private const string UpdateApprovalsEnvironmentVariable = "CONFIGLUE_UPDATE_PUBLIC_API";
 
     public static void Check<T>() => Check(typeof(T).Assembly);
@@ -56,11 +57,14 @@ public static class PublicApiCheck
                 )
             );
             Directory.CreateDirectory(Path.GetDirectoryName(sourceApproval)!);
-            File.WriteAllText(
-                sourceApproval,
-                publicApi,
-                new UTF8Encoding(encoderShouldEmitUTF8Identifier: false)
-            );
+            lock (ApprovalUpdateGate)
+            {
+                File.WriteAllText(
+                    sourceApproval,
+                    publicApi,
+                    new UTF8Encoding(encoderShouldEmitUTF8Identifier: false)
+                );
+            }
             return;
         }
 
@@ -106,6 +110,9 @@ public sealed class PublicApiCheckTest
 {
     [Test]
     public void Abstraction() => PublicApiCheck.Check<ConfiglueModelAttribute>();
+
+    [Test]
+    public void Extensibility() => PublicApiCheck.Check<SerializedStateReader<object>>();
 
     [Test]
     public void Core() => PublicApiCheck.CheckAssembly(typeof(ConfiglueOptions<,>).Assembly);

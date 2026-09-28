@@ -523,6 +523,27 @@ namespace Configlue
         LastWriteWins = 1,
     }
 }
+namespace Configlue.Extensibility
+{
+    public sealed class ConfiglueSourceCreationContext
+    {
+        public Configlue.ConfiglueModelSchema ModelSchema { get; }
+        public System.IServiceProvider? Services { get; }
+        public Configlue.Extensibility.ConfiglueSourceCreation<T> Complete<T>(Configlue.Sources.StateSource<T> source) { }
+        public void Own(System.IDisposable resource) { }
+    }
+    public sealed class ConfiglueSourceCreation<T>
+    {
+        public ConfiglueSourceCreation(Configlue.Sources.StateSource<T> source, System.Collections.Generic.IReadOnlyList<System.IDisposable>? ownedResources = null) { }
+        public System.Collections.Generic.IReadOnlyList<System.IDisposable> OwnedResources { get; }
+        public Configlue.Sources.StateSource<T> Source { get; }
+    }
+    public interface IConfiglueSourceDefinition
+    {
+        Configlue.Extensibility.ConfiglueSourceCreation<TFragment> Create<TFragment>(Configlue.Extensibility.ConfiglueSourceCreationContext context)
+            where TFragment :  class, Configlue.IConfiglueFragment<TFragment>;
+    }
+}
 namespace Configlue.Migrations
 {
     public interface IStateSchemaMigration<T>

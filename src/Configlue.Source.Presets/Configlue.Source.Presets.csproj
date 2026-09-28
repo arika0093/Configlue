@@ -6,7 +6,7 @@
     <PackageDescription>Common layered and single-binary source presets for Configlue.</PackageDescription>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="../Configlue.Core/Configlue.Core.csproj" />
+    <ProjectReference Include="../Configlue.Extensibility/Configlue.Extensibility.csproj" />
     <ProjectReference Include="../Configlue.Provider.Json/Configlue.Provider.Json.csproj" />
     <ProjectReference Include="../Configlue.Source.Environment/Configlue.Source.Environment.csproj" />
     <ProjectReference Include="../Configlue.Resource.Http/Configlue.Resource.Http.csproj" />
