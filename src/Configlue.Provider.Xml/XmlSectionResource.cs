@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Xml;
 using System.Xml.Linq;
@@ -19,6 +20,10 @@ public sealed class XmlSectionResource
     private readonly IStateWatcher? _watcher;
     private readonly string[] _path;
     private readonly string _batchScope;
+    private readonly object _sectionCacheGate = new();
+    private string? _cachedSectionRevision;
+    private ResourceReadResult _cachedSection;
+    private bool _hasCachedSection;
 
     /// <summary>Creates an XML section resource over a resource with inferred write and watch capabilities.</summary>
     public XmlSectionResource(IResourceReader resource, string sectionPath)
@@ -138,7 +143,38 @@ public sealed class XmlSectionResource
             return new ResourceReadResult(resource.Status, default, resource.Revision);
         }
 
-        var document = LoadDocument(resource.Content.Span);
+        var revision = resource.Revision;
+        if (revision is not null)
+        {
+            lock (_sectionCacheGate)
+            {
+                if (
+                    _hasCachedSection
+                    && string.Equals(_cachedSectionRevision, revision, StringComparison.Ordinal)
+                )
+                {
+                    return _cachedSection;
+                }
+            }
+        }
+
+        var result = ExtractSectionCore(resource);
+        if (revision is not null)
+        {
+            lock (_sectionCacheGate)
+            {
+                _cachedSectionRevision = revision;
+                _cachedSection = result;
+                _hasCachedSection = true;
+            }
+        }
+
+        return result;
+    }
+
+    private ResourceReadResult ExtractSectionCore(ResourceReadResult resource)
+    {
+        var document = LoadDocument(resource.Content);
         var current =
             document.Root ?? throw new XmlException("The XML resource has no root element.");
         foreach (var name in _path)
@@ -218,7 +254,7 @@ public sealed class XmlSectionResource
         XDocument document;
         if (current.Status == StateReadStatus.Success)
         {
-            document = LoadDocument(current.Content.Span);
+            document = LoadDocument(current.Content);
         }
         else if (current.Status == StateReadStatus.NotFound)
         {
@@ -328,13 +364,23 @@ public sealed class XmlSectionResource
             : path;
     }
 
-    private static XDocument LoadDocument(ReadOnlySpan<byte> content)
+    private static XDocument LoadDocument(ReadOnlyMemory<byte> content)
     {
-        using var memory = new MemoryStream(content.ToArray(), writable: false);
+        using var memory = CreateReadOnlyStream(content);
         using var reader = XmlReader.Create(
             memory,
             new XmlReaderSettings { DtdProcessing = DtdProcessing.Prohibit, XmlResolver = null }
         );
         return XDocument.Load(reader, LoadOptions.PreserveWhitespace);
+    }
+
+    private static MemoryStream CreateReadOnlyStream(ReadOnlyMemory<byte> content)
+    {
+        if (MemoryMarshal.TryGetArray(content, out var segment) && segment.Array is not null)
+        {
+            return new MemoryStream(segment.Array, segment.Offset, segment.Count, writable: false);
+        }
+
+        return new MemoryStream(content.ToArray(), writable: false);
     }
 }
