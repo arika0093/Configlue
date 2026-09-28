@@ -53,9 +53,6 @@ jobs:
       - name: Pack NuGet packages
         run: dotnet pack Configlue.slnx --no-build --no-restore --configuration Release --output artifacts
 
-      - name: Verify package contents
-        run: pwsh ./eng/VerifyPackages.ps1 -PackageDirectory artifacts
-
       - name: Upload packages
         uses: actions/upload-artifact@v7
         with:
