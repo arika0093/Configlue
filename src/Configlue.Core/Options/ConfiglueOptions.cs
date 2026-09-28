@@ -199,7 +199,7 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
         StateWritePlan configuredWritePlan
     )
     {
-        var owners = new Dictionary<string, string>(StringComparer.Ordinal);
+        var ownedPaths = new List<(string Path, string SourceId)>();
         foreach (var source in sources)
         {
             if (source.Writer is null || source.ExplicitOnly)
@@ -209,7 +209,79 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
 
             foreach (var path in source.OwnedPropertyPaths)
             {
-                var existingOwner = owners.FirstOrDefault(owner =>
+                ownedPaths.Add((path, source.Id));
+            }
+        }
+
+        if (ownedPaths.Count > 1 && HasOverlappingOwnershipPaths(ownedPaths))
+        {
+            ThrowOverlappingOwnership(ownedPaths);
+        }
+
+        var owners = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var (path, sourceId) in ownedPaths)
+        {
+            owners.Add(path, sourceId);
+        }
+
+        var inferredWritePlan =
+            owners.Count == 0 ? StateWritePlan.Empty : new StateWritePlan(owners);
+        return inferredWritePlan.OverrideWith(configuredWritePlan);
+
+        static bool HasOverlappingOwnershipPaths(List<(string Path, string SourceId)> paths)
+        {
+            var sorted = new string[paths.Count];
+            for (var index = 0; index < paths.Count; index++)
+            {
+                sorted[index] = paths[index].Path;
+            }
+
+            Array.Sort(sorted, static (first, second) => CompareOwnedPathOrder(first, second));
+            for (var index = 1; index < sorted.Length; index++)
+            {
+                if (PathsOverlap(sorted[index - 1], sorted[index]))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        static int CompareOwnedPathOrder(string first, string second)
+        {
+            var length = Math.Min(first.Length, second.Length);
+            for (var index = 0; index < length; index++)
+            {
+                var comparison = OwnedPathCharOrder(first[index])
+                    .CompareTo(OwnedPathCharOrder(second[index]));
+                if (comparison != 0)
+                {
+                    return comparison;
+                }
+            }
+
+            return first.Length.CompareTo(second.Length);
+        }
+
+        static int OwnedPathCharOrder(char value) => value == '.' ? 0 : value + 1;
+
+        static bool PathsOverlap(string first, string second) =>
+            string.Equals(first, second, StringComparison.Ordinal)
+            || IsAncestorOwnedPath(first, second)
+            || IsAncestorOwnedPath(second, first);
+
+        static bool IsAncestorOwnedPath(string ancestor, string descendant) =>
+            descendant.Length > ancestor.Length
+            && descendant[ancestor.Length] == '.'
+            && descendant.AsSpan(0, ancestor.Length).SequenceEqual(ancestor.AsSpan());
+
+        static void ThrowOverlappingOwnership(List<(string Path, string SourceId)> paths)
+        {
+            var seenOwners = new Dictionary<string, string>(StringComparer.Ordinal);
+            foreach (var (path, sourceId) in paths)
+            {
+                var existingOwner = seenOwners.FirstOrDefault(owner =>
                     string.Equals(owner.Key, path, StringComparison.Ordinal)
                     || owner.Key.StartsWith(path + ".", StringComparison.Ordinal)
                     || path.StartsWith(owner.Key + ".", StringComparison.Ordinal)
@@ -217,17 +289,13 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
                 if (!string.IsNullOrEmpty(existingOwner.Key))
                 {
                     throw new InvalidOperationException(
-                        $"Writable sources '{existingOwner.Value}' and '{source.Id}' have overlapping ownership paths '{existingOwner.Key}' and '{path}'. Configure one source as explicit-only."
+                        $"Writable sources '{existingOwner.Value}' and '{sourceId}' have overlapping ownership paths '{existingOwner.Key}' and '{path}'. Configure one source as explicit-only."
                     );
                 }
 
-                owners.Add(path, source.Id);
+                seenOwners.Add(path, sourceId);
             }
         }
-
-        var inferredWritePlan =
-            owners.Count == 0 ? StateWritePlan.Empty : new StateWritePlan(owners);
-        return inferredWritePlan.OverrideWith(configuredWritePlan);
     }
 
     /// <inheritdoc />
