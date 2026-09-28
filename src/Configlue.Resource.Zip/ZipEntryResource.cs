@@ -5,6 +5,7 @@ namespace Configlue.Resource.Zip;
 /// <summary>A logical resource view over one entry in a shared ZIP archive resource.</summary>
 public sealed class ZipEntryResource
     : IResourceReader,
+        IPipelineResourceReader,
         IResourceWriter,
         IStateWatcher,
         IResourceIdentity,
@@ -61,6 +62,20 @@ public sealed class ZipEntryResource
 
     /// <summary>The normalized entry path inside the archive.</summary>
     public string EntryName => _entryName;
+
+    /// <inheritdoc />
+    public bool IsPipelineReadPreferred => false;
+
+    /// <inheritdoc />
+    public async ValueTask<PipelineResourceReadResult> ReadPipelineAsync(
+        CancellationToken cancellationToken = default
+    )
+    {
+        var result = await ReadAsync(cancellationToken).ConfigureAwait(false);
+        return await PipelineResourceReader
+            .FromMemoryAsync(result, cancellationToken)
+            .ConfigureAwait(false);
+    }
 
     /// <inheritdoc />
     public async ValueTask<ResourceReadResult> ReadAsync(

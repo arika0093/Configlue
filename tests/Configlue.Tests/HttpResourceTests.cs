@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
@@ -9,6 +10,32 @@ namespace Configlue.Tests;
 public sealed class HttpResourceTests
 {
     private static readonly Uri EndpointRoot = new("https://settings.example.test/config/");
+
+    [Test]
+    public async Task PipelineReader_StreamsContentAndPreservesResponseMetadata()
+    {
+        var response = ContentResponse(HttpStatusCode.OK, "{\"RetryCount\":5}", "\"revision-1\"");
+        response.Headers.TryAddWithoutValidation(
+            HttpResourceReader.SchemaIdHeaderName,
+            "AppSettings"
+        );
+        response.Headers.TryAddWithoutValidation(HttpResourceReader.SchemaVersionHeaderName, "3");
+        using var httpClient = new HttpClient(
+            new DelegateHttpMessageHandler((_, _) => Task.FromResult(response))
+        );
+        var reader = new HttpResourceReader(httpClient, EndpointRoot);
+
+        await using var result = await reader.ReadPipelineAsync();
+        var content = await result.ReadAllAsync();
+        var bytes = content.ToArray();
+        result.Content!.AdvanceTo(content.End);
+
+        reader.IsPipelineReadPreferred.ShouldBeTrue();
+        result.Status.ShouldBe(StateReadStatus.Success);
+        Encoding.UTF8.GetString(bytes).ShouldBe("{\"RetryCount\":5}");
+        result.Revision.ShouldBe("\"revision-1\"");
+        result.Schema.ShouldBe(new StateSchemaMetadata("AppSettings", 3));
+    }
 
     [Test]
     public async Task Reader_ReturnsContentEtagAndSchemaMetadata()

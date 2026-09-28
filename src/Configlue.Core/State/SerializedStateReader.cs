@@ -1,4 +1,5 @@
 using System.Buffers;
+using System.IO.Pipelines;
 
 namespace Configlue;
 
@@ -42,6 +43,24 @@ public sealed class SerializedStateReader<T> : IStateReader<T>
         CancellationToken cancellationToken = default
     )
     {
+        if (
+            _schemaDispatcher is null
+            && _transformers.Length == 0
+            && _resource is IPipelineResourceReader { IsPipelineReadPreferred: true } pipelineReader
+            && _resource is not IResourceBackupRecovery { AutomaticBackupRecoveryEnabled: true }
+        )
+        {
+            try
+            {
+                return await ReadPipelineAsync(pipelineReader, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            catch (IOException) when (!cancellationToken.IsCancellationRequested)
+            {
+                return StateReadResult<T>.Unavailable();
+            }
+        }
+
         ResourceReadResult result;
         try
         {
@@ -185,8 +204,49 @@ public sealed class SerializedStateReader<T> : IStateReader<T>
 
         var content = StateByteTransformerPipeline.TransformRead(result.Content, _transformers);
         var bytes = new ReadOnlySequence<byte>(content);
+        return DeserializeContent(in bytes, result.Revision, result.Schema);
+    }
+
+    private async ValueTask<StateReadResult<T>> ReadPipelineAsync(
+        IPipelineResourceReader pipelineReader,
+        CancellationToken cancellationToken
+    )
+    {
+        var result = await pipelineReader
+            .ReadPipelineAsync(cancellationToken)
+            .ConfigureAwait(false);
+        if (result.Status != StateReadStatus.Success)
+        {
+            return new StateReadResult<T>(
+                result.Status,
+                default,
+                result.Revision,
+                Schema: result.Schema
+            );
+        }
+
+        await using (result.ConfigureAwait(false))
+        {
+            var content = await result.ReadAllAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                return DeserializeContent(in content, result.Revision, result.Schema);
+            }
+            finally
+            {
+                result.Content!.AdvanceTo(content.End);
+            }
+        }
+    }
+
+    private StateReadResult<T> DeserializeContent(
+        in ReadOnlySequence<byte> bytes,
+        string? revision,
+        StateSchemaMetadata? resourceSchema
+    )
+    {
         var schema =
-            result.Schema
+            resourceSchema
             ?? (
                 _codec is IStateSchemaMetadataReader metadataReader
                     ? metadataReader.ReadSchemaMetadata(in bytes)
@@ -218,6 +278,6 @@ public sealed class SerializedStateReader<T> : IStateReader<T>
             };
         }
 
-        return StateReadResult<T>.Success(value, result.Revision, schema);
+        return StateReadResult<T>.Success(value, revision, schema);
     }
 }

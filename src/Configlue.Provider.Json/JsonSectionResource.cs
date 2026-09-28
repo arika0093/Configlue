@@ -5,6 +5,7 @@ namespace Configlue.Provider.Json;
 /// <summary>Exposes a nested JSON object as an independently revisioned resource view.</summary>
 public sealed class JsonSectionResource
     : IResourceReader,
+        IPipelineResourceReader,
         IResourceWriter,
         IStateWatcher,
         IResourceIdentity,
@@ -138,6 +139,20 @@ public sealed class JsonSectionResource
 
     /// <inheritdoc />
     public IResourceBatchWriter? BatchWriter => _writer as IResourceBatchWriter;
+
+    /// <inheritdoc />
+    public bool IsPipelineReadPreferred => false;
+
+    /// <inheritdoc />
+    public async ValueTask<PipelineResourceReadResult> ReadPipelineAsync(
+        CancellationToken cancellationToken = default
+    )
+    {
+        var result = await ReadAsync(cancellationToken).ConfigureAwait(false);
+        return await PipelineResourceReader
+            .FromMemoryAsync(result, cancellationToken)
+            .ConfigureAwait(false);
+    }
 
     /// <inheritdoc />
     public bool AutomaticBackupRecoveryEnabled =>

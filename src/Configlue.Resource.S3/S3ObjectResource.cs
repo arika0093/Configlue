@@ -11,7 +11,11 @@ namespace Configlue.Resource.S3;
 /// Object ETags are exposed as revisions and used for conditional writes. S3-compatible
 /// implementations may not provide the same ETag or conditional-request guarantees.
 /// </remarks>
-public sealed class S3ObjectResource : IResourceReader, IResourceWriter, IResourceIdentity
+public sealed class S3ObjectResource
+    : IResourceReader,
+        IPipelineResourceReader,
+        IResourceWriter,
+        IResourceIdentity
 {
     private readonly IS3ObjectClient _client;
 
@@ -49,6 +53,27 @@ public sealed class S3ObjectResource : IResourceReader, IResourceWriter, IResour
 
     /// <inheritdoc />
     public ResourceId ResourceId { get; }
+
+    /// <inheritdoc />
+    public bool IsPipelineReadPreferred => true;
+
+    /// <inheritdoc />
+    public async ValueTask<PipelineResourceReadResult> ReadPipelineAsync(
+        CancellationToken cancellationToken = default
+    )
+    {
+        try
+        {
+            var result = await _client
+                .GetObjectStreamAsync(BucketName, Key, cancellationToken)
+                .ConfigureAwait(false);
+            return PipelineResourceReader.FromStream(result.Content, result.ETag, owner: result);
+        }
+        catch (AmazonS3Exception exception) when (IsMissingObject(exception))
+        {
+            return PipelineResourceReadResult.NotFound();
+        }
+    }
 
     /// <inheritdoc />
     public async ValueTask<ResourceReadResult> ReadAsync(
@@ -142,6 +167,18 @@ public sealed class S3ObjectResource : IResourceReader, IResourceWriter, IResour
             return new S3ObjectReadResult(content.ToArray(), response.ETag);
         }
 
+        public async Task<S3ObjectStreamResult> GetObjectStreamAsync(
+            string bucketName,
+            string key,
+            CancellationToken cancellationToken
+        )
+        {
+            var response = await _client
+                .GetObjectAsync(bucketName, key, cancellationToken)
+                .ConfigureAwait(false);
+            return new S3ObjectStreamResult(response.ResponseStream, response.ETag, response);
+        }
+
         public async Task<S3ObjectWriteResult> PutObjectAsync(
             string bucketName,
             string key,
@@ -176,6 +213,19 @@ internal interface IS3ObjectClient
         CancellationToken cancellationToken
     );
 
+    async Task<S3ObjectStreamResult> GetObjectStreamAsync(
+        string bucketName,
+        string key,
+        CancellationToken cancellationToken
+    )
+    {
+        var result = await GetObjectAsync(bucketName, key, cancellationToken).ConfigureAwait(false);
+        return new S3ObjectStreamResult(
+            new MemoryStream(result.Content.ToArray(), writable: false),
+            result.ETag
+        );
+    }
+
     Task<S3ObjectWriteResult> PutObjectAsync(
         string bucketName,
         string key,
@@ -184,6 +234,34 @@ internal interface IS3ObjectClient
         bool requireMissing,
         CancellationToken cancellationToken
     );
+}
+
+internal sealed class S3ObjectStreamResult : IDisposable
+{
+    private readonly IDisposable? _owner;
+
+    public S3ObjectStreamResult(Stream content, string? eTag, IDisposable? owner = null)
+    {
+        Content = content;
+        ETag = eTag;
+        _owner = owner;
+    }
+
+    public Stream Content { get; }
+
+    public string? ETag { get; }
+
+    public void Dispose()
+    {
+        if (_owner is not null)
+        {
+            _owner.Dispose();
+        }
+        else
+        {
+            Content.Dispose();
+        }
+    }
 }
 
 internal sealed record S3ObjectReadResult

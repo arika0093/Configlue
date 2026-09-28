@@ -9,15 +9,17 @@ namespace Configlue.Resource.Http
         public System.TimeSpan PollingInterval { get; init; }
         public string UpdatePath { get; init; }
     }
-    public sealed class HttpResourceReader : Configlue.IResourceIdentity, Configlue.IResourceReader, Configlue.IStateWatcher
+    public sealed class HttpResourceReader : Configlue.IPipelineResourceReader, Configlue.IResourceIdentity, Configlue.IResourceReader, Configlue.IStateWatcher
     {
         public const string SchemaIdHeaderName = "Configlue-Schema-Id";
         public const string SchemaVersionHeaderName = "Configlue-Schema-Version";
         public HttpResourceReader(System.Net.Http.HttpClient httpClient, System.Uri endpointRoot, Configlue.Resource.Http.HttpResourceOptions? options = null, Configlue.ResourceId? resourceId = default) { }
         public System.Uri GetUri { get; }
+        public bool IsPipelineReadPreferred { get; }
         public Configlue.ResourceId ResourceId { get; }
         public Configlue.Resource.Http.HttpResourceWriter CreateWriter() { }
         public System.Threading.Tasks.ValueTask<Configlue.ResourceReadResult> ReadAsync(System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Configlue.PipelineResourceReadResult> ReadPipelineAsync(System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask WaitForChangeAsync(string? observedRevision, System.Threading.CancellationToken cancellationToken = default) { }
     }
     public sealed class HttpResourceWriter : Configlue.IResourceIdentity, Configlue.IResourceWriter

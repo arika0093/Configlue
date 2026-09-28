@@ -227,14 +227,16 @@ namespace Configlue
         public System.Threading.Tasks.ValueTask WaitForChangeAsync(string? observedRevision, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask<Configlue.StateWriteResult> WriteAsync(Configlue.StateWriteRequest<T> request, System.Threading.CancellationToken cancellationToken = default) { }
     }
-    public sealed class FileResource : Configlue.IResourceBackupRecovery, Configlue.IResourceBatchWriter, Configlue.IResourceIdentity, Configlue.IResourceReader, Configlue.IResourceWriter, Configlue.IStateWatcher, System.IDisposable
+    public sealed class FileResource : Configlue.IPipelineResourceReader, Configlue.IResourceBackupRecovery, Configlue.IResourceBatchWriter, Configlue.IResourceIdentity, Configlue.IResourceReader, Configlue.IResourceWriter, Configlue.IStateWatcher, System.IDisposable
     {
         public FileResource(string path, Configlue.FileResourceOptions? options = null, Configlue.ResourceId? resourceId = default) { }
         public bool AutomaticBackupRecoveryEnabled { get; }
+        public bool IsPipelineReadPreferred { get; }
         public string Path { get; }
         public Configlue.ResourceId ResourceId { get; }
         public void Dispose() { }
         public System.Threading.Tasks.ValueTask<Configlue.ResourceReadResult> ReadAsync(System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Configlue.PipelineResourceReadResult> ReadPipelineAsync(System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask<Configlue.StateWriteResult> RestoreLatestBackupAsync(System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask<Configlue.ResourceReadResult?> TryRecoverLatestBackupAsync(string? expectedRevision, bool expectedMissing, System.Func<Configlue.ResourceReadResult, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<bool>> validate, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask WaitForChangeAsync(string? observedRevision, System.Threading.CancellationToken cancellationToken = default) { }
@@ -275,6 +277,29 @@ namespace Configlue
     {
         Configlue.StateSource<TFragment> Create<TFragment>(Configlue.ConfiglueModelSchema modelSchema, System.IServiceProvider? serviceProvider, System.Action<System.IDisposable> ownResource)
             where TFragment :  class, Configlue.IConfiglueFragment<TFragment>;
+    }
+    public interface IPipelineResourceReader
+    {
+        bool IsPipelineReadPreferred { get; }
+        System.Threading.Tasks.ValueTask<Configlue.PipelineResourceReadResult> ReadPipelineAsync(System.Threading.CancellationToken cancellationToken = default);
+    }
+    public sealed class PipelineResourceReadResult : System.IAsyncDisposable
+    {
+        public System.IO.Pipelines.PipeReader? Content { get; }
+        public string? Revision { get; }
+        public Configlue.StateSchemaMetadata? Schema { get; }
+        public Configlue.StateReadStatus Status { get; }
+        public System.Threading.Tasks.ValueTask DisposeAsync() { }
+        public System.Threading.Tasks.ValueTask<System.Buffers.ReadOnlySequence<byte>> ReadAllAsync(System.Threading.CancellationToken cancellationToken = default) { }
+        public static Configlue.PipelineResourceReadResult NotFound(string? revision = null) { }
+        public static Configlue.PipelineResourceReadResult Success(System.IO.Pipelines.PipeReader content, string? revision = null, Configlue.StateSchemaMetadata? schema = default) { }
+        public static Configlue.PipelineResourceReadResult Unavailable(string? revision = null) { }
+    }
+    public static class PipelineResourceReader
+    {
+        public static System.IO.Pipelines.Pipe CreatePipe() { }
+        public static System.Threading.Tasks.ValueTask<Configlue.PipelineResourceReadResult> FromMemoryAsync(Configlue.ResourceReadResult result, System.Threading.CancellationToken cancellationToken = default) { }
+        public static Configlue.PipelineResourceReadResult FromStream(System.IO.Stream source, string? revision = null, Configlue.StateSchemaMetadata? schema = default, bool computeXxHash3Revision = false, System.IDisposable? owner = null, System.Action<System.Buffers.ReadOnlySequence<byte>>? contentReadCompleted = null) { }
     }
     public sealed class SerializedStateReader<T> : Configlue.IStateReader<T>
     {

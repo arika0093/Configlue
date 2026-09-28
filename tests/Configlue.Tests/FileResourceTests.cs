@@ -9,6 +9,50 @@ namespace Configlue.Tests;
 public sealed class FileResourceTests
 {
     [Test]
+    public async Task FileResource_PipelineReadMatchesMemoryRead()
+    {
+        var directory = CreateTemporaryDirectory();
+        Directory.CreateDirectory(directory);
+        using var cleanup = new DirectoryCleanup(directory);
+        var path = System.IO.Path.Combine(directory, "pipeline-content.bin");
+        var content = Encoding.UTF8.GetBytes(new string('x', 256 * 1024));
+        await File.WriteAllBytesAsync(path, content);
+        using var resource = new FileResource(path);
+
+        var expected = await resource.ReadAsync();
+        await using var pipelineResult = await resource.ReadPipelineAsync();
+        var actual = await pipelineResult.ReadAllAsync();
+        var copied = new byte[content.Length];
+        actual.CopyTo(copied);
+        pipelineResult.Content!.AdvanceTo(actual.End);
+
+        pipelineResult.Status.ShouldBe(expected.Status);
+        pipelineResult.Revision.ShouldBe(expected.Revision);
+        copied.ShouldBe(content);
+    }
+
+    [Test]
+    public async Task SerializedStateReader_PrefersPipelineResourceReads()
+    {
+        var directory = CreateTemporaryDirectory();
+        Directory.CreateDirectory(directory);
+        using var cleanup = new DirectoryCleanup(directory);
+        var path = System.IO.Path.Combine(directory, "settings.json");
+        await File.WriteAllTextAsync(path, """{"$version":2,"RetryCount":42}""");
+        using var resource = new FileResource(path);
+        var reader = new SerializedStateReader<AppSettings.Fragment>(
+            resource,
+            new JsonStateCodec<AppSettings.Fragment>()
+        );
+
+        var result = await reader.ReadAsync();
+
+        result.Status.ShouldBe(StateReadStatus.Success);
+        result.Value!.RetryCount.Value.ShouldBe(42);
+        result.Revision.ShouldNotBeNull();
+    }
+
+    [Test]
     public async Task FileResource_UsesAtomicRevisionsBackupsAndConditionalWrites()
     {
         var directory = System.IO.Path.Combine(

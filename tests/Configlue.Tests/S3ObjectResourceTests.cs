@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Net;
 using Amazon.S3;
 using Configlue.Resource.S3;
@@ -6,6 +7,27 @@ namespace Configlue.Tests;
 
 public sealed class S3ObjectResourceTests
 {
+    [Test]
+    public async Task ReadPipelineAsync_ReturnsContentAndETag()
+    {
+        var client = new FakeS3ObjectClient
+        {
+            ReadResult = new S3ObjectReadResult(new byte[] { 1, 2, 3 }, "\"revision-1\""),
+        };
+        var resource = new S3ObjectResource(client, "bucket", "settings.json");
+
+        await using var result = await resource.ReadPipelineAsync();
+        var content = await result.ReadAllAsync();
+        var bytes = new byte[3];
+        content.CopyTo(bytes);
+        result.Content!.AdvanceTo(content.End);
+
+        resource.IsPipelineReadPreferred.ShouldBeTrue();
+        result.Status.ShouldBe(StateReadStatus.Success);
+        bytes.ShouldBe(new byte[] { 1, 2, 3 });
+        result.Revision.ShouldBe("\"revision-1\"");
+    }
+
     [Test]
     public async Task ReadAsync_ReturnsContentAndETag()
     {

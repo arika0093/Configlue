@@ -274,6 +274,7 @@ public class SerializedFileReadBenchmarks
 {
     private string _directory = null!;
     private SerializedStateReader<SerializedReadBenchmarkSettings.Fragment> _reader = null!;
+    private SerializedStateReader<SerializedReadBenchmarkSettings.Fragment> _memoryReader = null!;
     private FileResource _resource = null!;
 
     [Params(1024, 65536, 1048576)]
@@ -301,6 +302,10 @@ public class SerializedFileReadBenchmarks
             _resource,
             new JsonStateCodec<SerializedReadBenchmarkSettings.Fragment>()
         );
+        _memoryReader = new SerializedStateReader<SerializedReadBenchmarkSettings.Fragment>(
+            new MemoryOnlyResourceReader(_resource),
+            new JsonStateCodec<SerializedReadBenchmarkSettings.Fragment>()
+        );
     }
 
     [GlobalCleanup]
@@ -313,6 +318,18 @@ public class SerializedFileReadBenchmarks
     [Benchmark]
     public ValueTask<StateReadResult<SerializedReadBenchmarkSettings.Fragment>> ReadAsync() =>
         _reader.ReadAsync();
+
+    [Benchmark]
+    public ValueTask<
+        StateReadResult<SerializedReadBenchmarkSettings.Fragment>
+    > ReadMemoryFallbackAsync() => _memoryReader.ReadAsync();
+
+    private sealed class MemoryOnlyResourceReader(IResourceReader inner) : IResourceReader
+    {
+        public ValueTask<ResourceReadResult> ReadAsync(
+            CancellationToken cancellationToken = default
+        ) => inner.ReadAsync(cancellationToken);
+    }
 }
 
 [MemoryDiagnoser]
