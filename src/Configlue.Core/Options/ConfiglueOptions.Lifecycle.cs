@@ -337,6 +337,18 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
         return Volatile.Read(ref _activeSources);
     }
 
+    private StateSource<TFragment>[] GetReversedActiveSources()
+    {
+        var activeSources = GetActiveSources();
+        var reversed = new StateSource<TFragment>[activeSources.Length];
+        for (var index = 0; index < activeSources.Length; index++)
+        {
+            reversed[index] = activeSources[activeSources.Length - 1 - index];
+        }
+
+        return reversed;
+    }
+
     private bool IsSourceActive(string sourceId)
     {
         lock (_sourceGate)
@@ -364,6 +376,7 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
                         .Sources.Where(source => !_retiredSourceIds.Contains(source.Id))
                         .ToArray()
                 );
+                Volatile.Write(ref _defaultWritePlanValidated, false);
                 topologyChanged = _sourceTopologyChanged;
                 _sourceTopologyChanged = NewTopologySignal();
             }
@@ -380,10 +393,7 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
             var schema = TModel.ConfiglueSchema;
             for (var index = 0; index < path.Length; index++)
             {
-                var member = schema.Members.FirstOrDefault(candidate =>
-                    string.Equals(candidate.Name, path[index], StringComparison.Ordinal)
-                );
-                if (string.IsNullOrEmpty(member.Name))
+                if (!TryGetMemberByName(schema, path[index], out var member))
                 {
                     throw new ArgumentException(
                         $"Write plan path '{propertyPath}' refers to unknown member '{path[index]}' in '{schema.Id}'.",

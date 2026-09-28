@@ -70,9 +70,13 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
 
         var expectedResolvedModel = CloneModel(TModel.FromFragment(requestedFragment));
 
-        if (_defaultWritePlan.PropertyRoutes.Count > 0)
+        if (
+            _defaultWritePlan.PropertyRoutes.Count > 0
+            && !Volatile.Read(ref _defaultWritePlanValidated)
+        )
         {
             ValidateWritePlan(_defaultWritePlan);
+            Volatile.Write(ref _defaultWritePlanValidated, true);
         }
 
         IReadOnlyDictionary<string, IConfigluePatch> patchesBySource;

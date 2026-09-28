@@ -32,6 +32,8 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
         var candidates = searchCandidates
             ? GetActiveSources().Where(static candidate => candidate.Writer is not null).ToArray()
             : [source];
+        var needsSourceOrder = NeedsSourceOrder(TModel.ConfiglueSchema, requestedChanges);
+        StateSource<TFragment>[]? reversedActiveSources = null;
         string? lastFailure = null;
         foreach (var candidate in candidates)
         {
@@ -102,7 +104,8 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
                     after,
                     [],
                     candidate.Id,
-                    baselineContributions
+                    baselineContributions,
+                    needsSourceOrder ? reversedActiveSources ??= GetReversedActiveSources() : null
                 );
             }
             catch (StateConflictException exception) when (searchCandidates)
@@ -182,19 +185,54 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
         );
     }
 
+    private static bool NeedsSourceOrder(ConfiglueModelSchema schema, IConfiglueFragment changes)
+    {
+        foreach (var change in changes.EnumeratePresentMembers())
+        {
+            if (!TryGetMember(schema, change.Id, out var member))
+            {
+                continue;
+            }
+
+            if (member.MergeStrategy is not null)
+            {
+                return true;
+            }
+
+            if (
+                member.CollectionValueFactory is not null
+                && (member.MergeMode == MergeMode.Append || member.MergeMode == MergeMode.SetUnion)
+            )
+            {
+                return true;
+            }
+
+            if (
+                member.NestedSchemaFactory is not null
+                && change.Value is IConfiglueFragment nested
+                && NeedsSourceOrder(member.NestedSchemaFactory(), nested)
+            )
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private IConfiglueFragment PlanMergeAwareChanges(
         ConfiglueModelSchema schema,
         IConfiglueFragment changes,
         object? afterModel,
         List<string> path,
         string targetSourceId,
-        IReadOnlyList<ResolvedContribution> contributions
+        IReadOnlyList<ResolvedContribution> contributions,
+        StateSource<TFragment>[]? sourceOrder
     )
     {
-        foreach (var change in changes.EnumeratePresentMembers().ToArray())
+        foreach (var change in changes.EnumeratePresentMembers())
         {
-            var member = schema.Members.FirstOrDefault(candidate => candidate.Id == change.Id);
-            if (string.IsNullOrEmpty(member.Name))
+            if (!TryGetMember(schema, change.Id, out var member))
             {
                 throw new InvalidOperationException(
                     $"Generated schema '{schema.Id}' has no member with id {change.Id}."
@@ -219,7 +257,8 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
                             afterValue,
                             path,
                             targetSourceId,
-                            contributions
+                            contributions,
+                            sourceOrder
                         )
                     );
                     continue;
@@ -227,11 +266,11 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
 
                 if (member.MergeStrategy is { } mergeStrategy)
                 {
-                    var strategySourceOrder = GetActiveSources().Reverse().ToArray();
-                    var strategyValues = new ConfiglueMergeSourceValue[strategySourceOrder.Length];
-                    for (var index = 0; index < strategySourceOrder.Length; index++)
+                    var strategySources = sourceOrder!;
+                    var strategyValues = new ConfiglueMergeSourceValue[strategySources.Length];
+                    for (var index = 0; index < strategySources.Length; index++)
                     {
-                        var source = strategySourceOrder[index];
+                        var source = strategySources[index];
                         var value = Optional<object?>.Missing;
                         foreach (var contribution in contributions)
                         {
@@ -286,9 +325,9 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
 
                 var desired = desiredValues.Cast<object?>().ToList();
                 var valuesBySource = GetCollectionContributions(path, contributions);
-                var sourceOrder = GetActiveSources().Reverse().ToArray();
+                var orderedSources = sourceOrder!;
                 var targetIndex = Array.FindIndex(
-                    sourceOrder,
+                    orderedSources,
                     candidate =>
                         string.Equals(candidate.Id, targetSourceId, StringComparison.Ordinal)
                 );
@@ -302,14 +341,14 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
                 var targetValues = member.MergeMode switch
                 {
                     MergeMode.Append => PlanAppendContribution(
-                        sourceOrder,
+                        orderedSources,
                         targetIndex,
                         valuesBySource,
                         desired,
                         member.Name
                     ),
                     MergeMode.SetUnion => PlanSetUnionContribution(
-                        sourceOrder,
+                        orderedSources,
                         targetIndex,
                         valuesBySource,
                         desired,
@@ -380,21 +419,50 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
             }
         }
 
-        if (
-            desired.Count < prefix.Count + suffix.Count
-            || !desired.Take(prefix.Count).SequenceEqual(prefix)
-            || !desired.Skip(desired.Count - suffix.Count).SequenceEqual(suffix)
-        )
+        if (desired.Count < prefix.Count + suffix.Count)
         {
             throw LogConflict(
                 $"The edit to append-merged member '{memberName}' cannot be represented by source '{sourceOrder[targetIndex].Id}' while preserving other source contributions."
             );
         }
 
-        return desired
-            .Skip(prefix.Count)
-            .Take(desired.Count - prefix.Count - suffix.Count)
-            .ToList();
+        var comparer = EqualityComparer<object?>.Default;
+        var prefixMatches = true;
+        for (var index = 0; index < prefix.Count; index++)
+        {
+            if (!comparer.Equals(desired[index], prefix[index]))
+            {
+                prefixMatches = false;
+                break;
+            }
+        }
+
+        var suffixMatches = true;
+        var suffixOffset = desired.Count - suffix.Count;
+        for (var index = 0; index < suffix.Count; index++)
+        {
+            if (!comparer.Equals(desired[suffixOffset + index], suffix[index]))
+            {
+                suffixMatches = false;
+                break;
+            }
+        }
+
+        if (!prefixMatches || !suffixMatches)
+        {
+            throw LogConflict(
+                $"The edit to append-merged member '{memberName}' cannot be represented by source '{sourceOrder[targetIndex].Id}' while preserving other source contributions."
+            );
+        }
+
+        var contributionCount = desired.Count - prefix.Count - suffix.Count;
+        var targetValues = new List<object?>(contributionCount);
+        for (var index = 0; index < contributionCount; index++)
+        {
+            targetValues.Add(desired[prefix.Count + index]);
+        }
+
+        return targetValues;
     }
 
     private List<object?> PlanSetUnionContribution(
@@ -405,27 +473,48 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
         ConfiglueMemberSchema member
     )
     {
-        var otherValues = new List<object?>();
-        foreach (
-            var values in sourceOrder
-                .Where(
-                    (source, index) => index != targetIndex && valuesBySource.ContainsKey(source.Id)
-                )
-                .Select(source => valuesBySource[source.Id])
-        )
+        var comparer = EqualityComparer<object?>.Default;
+        var otherValues = new HashSet<object?>(comparer);
+        for (var index = 0; index < sourceOrder.Count; index++)
         {
-            otherValues.AddRange(values.Where(value => !otherValues.Contains(value)));
+            if (
+                index == targetIndex
+                || !valuesBySource.TryGetValue(sourceOrder[index].Id, out var otherSourceValues)
+            )
+            {
+                continue;
+            }
+
+            for (var valueIndex = 0; valueIndex < otherSourceValues.Count; valueIndex++)
+            {
+                otherValues.Add(otherSourceValues[valueIndex]);
+            }
         }
 
-        if (otherValues.Any(value => !desired.Contains(value)))
+        var desiredSet = new HashSet<object?>(comparer);
+        for (var index = 0; index < desired.Count; index++)
+        {
+            desiredSet.Add(desired[index]);
+        }
+
+        if (otherValues.Any(value => !desiredSet.Contains(value)))
         {
             throw LogConflict(
                 $"The edit to set-union member '{member.Name}' removes a value contributed by another source."
             );
         }
 
-        var targetValues = desired.Where(value => !otherValues.Contains(value)).ToList();
+        var targetValues = new List<object?>();
+        for (var index = 0; index < desired.Count; index++)
+        {
+            if (!otherValues.Contains(desired[index]))
+            {
+                targetValues.Add(desired[index]);
+            }
+        }
+
         var merged = new List<object?>();
+        var mergedSet = new HashSet<object?>(comparer);
         for (var index = 0; index < sourceOrder.Count; index++)
         {
             IEnumerable<object?> values;
@@ -442,7 +531,7 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
                 values = [];
             }
 
-            merged.AddRange(values.Where(value => !merged.Contains(value)));
+            merged.AddRange(values.Where(value => mergedSet.Add(value)));
         }
 
         var isSet =
@@ -453,7 +542,7 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
                 || member.ValueType.GetGenericTypeDefinition() == typeof(HashSet<>)
             );
         var matchesDesired = isSet
-            ? merged.Count == desired.Distinct().Count() && merged.All(desired.Contains)
+            ? merged.Count == desiredSet.Count && merged.All(desiredSet.Contains)
             : merged.SequenceEqual(desired);
         if (!matchesDesired)
         {

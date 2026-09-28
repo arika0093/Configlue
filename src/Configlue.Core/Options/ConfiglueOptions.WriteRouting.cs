@@ -152,6 +152,7 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
     )
     {
         var patches = new List<StateSourcePatch>(routedChanges.Count);
+        StateSource<TFragment>[]? reversedActiveSources = null;
         foreach (var (sourceId, sourceChanges) in routedChanges)
         {
             var plannedChanges = (TFragment)PlanMergeAwareChanges(
@@ -160,7 +161,10 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
                 after,
                 [],
                 sourceId,
-                baselineContributions
+                baselineContributions,
+                NeedsSourceOrder(TModel.ConfiglueSchema, sourceChanges)
+                    ? reversedActiveSources ??= GetReversedActiveSources()
+                    : null
             );
             if (!plannedChanges.IsEmpty)
             {
@@ -307,8 +311,7 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
         var paths = new List<string>();
         foreach (var change in changes.EnumeratePresentMembers())
         {
-            var member = schema.Members.FirstOrDefault(candidate => candidate.Id == change.Id);
-            if (string.IsNullOrEmpty(member.Name))
+            if (!TryGetMember(schema, change.Id, out var member))
             {
                 continue;
             }
@@ -338,8 +341,7 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
         var paths = new List<string>();
         foreach (var change in changes.EnumeratePresentMembers())
         {
-            var member = schema.Members.FirstOrDefault(candidate => candidate.Id == change.Id);
-            if (string.IsNullOrEmpty(member.Name))
+            if (!TryGetMember(schema, change.Id, out var member))
             {
                 continue;
             }
@@ -378,8 +380,7 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
         var routed = new Dictionary<string, IConfiglueFragment>(StringComparer.Ordinal);
         foreach (var change in changes.EnumeratePresentMembers())
         {
-            var member = schema.Members.FirstOrDefault(candidate => candidate.Id == change.Id);
-            if (string.IsNullOrEmpty(member.Name))
+            if (!TryGetMember(schema, change.Id, out var member))
             {
                 throw new InvalidOperationException(
                     $"Generated schema '{schema.Id}' has no member with id {change.Id}."
@@ -452,8 +453,7 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
         var routed = new Dictionary<string, IConfiglueFragment>(StringComparer.Ordinal);
         foreach (var change in changes.EnumeratePresentMembers().ToArray())
         {
-            var member = schema.Members.FirstOrDefault(candidate => candidate.Id == change.Id);
-            if (string.IsNullOrEmpty(member.Name))
+            if (!TryGetMember(schema, change.Id, out var member))
             {
                 throw new InvalidOperationException(
                     $"Generated schema '{schema.Id}' has no member with id {change.Id}."
@@ -524,10 +524,7 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
         int index = 0
     )
     {
-        var member = schema.Members.FirstOrDefault(candidate =>
-            string.Equals(candidate.Name, segments[index], StringComparison.Ordinal)
-        );
-        if (string.IsNullOrEmpty(member.Name))
+        if (!TryGetMemberByName(schema, segments[index], out var member))
         {
             return false;
         }

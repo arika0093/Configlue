@@ -376,7 +376,7 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
         }
     }
 
-    private sealed record ResolvedContribution
+    private readonly record struct ResolvedContribution
     {
         public StateSource<TFragment> Source { get; init; }
         public StateReadResult<TFragment> Result { get; init; }
@@ -416,7 +416,7 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
         }
     }
 
-    private sealed record ResolvedFailure
+    private readonly record struct ResolvedFailure
     {
         public StateSource<TFragment> Source { get; init; }
         public StateReadResult<TFragment> Result { get; init; }

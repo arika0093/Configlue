@@ -40,10 +40,24 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
         }
 
         var source = SelectWriteSource(allowPriorityFallback: true);
-        var effectiveWritePlan = _defaultWritePlan.OverrideWith(writePlan ?? StateWritePlan.Empty);
-        if (effectiveWritePlan.PropertyRoutes.Count > 0)
+        var hasDynamicWritePlan = writePlan is not null && writePlan.PropertyRoutes.Count > 0;
+        var effectiveWritePlan = hasDynamicWritePlan
+            ? _defaultWritePlan.OverrideWith(writePlan!)
+            : _defaultWritePlan;
+        if (hasDynamicWritePlan)
+        {
+            if (effectiveWritePlan.PropertyRoutes.Count > 0)
+            {
+                ValidateWritePlan(effectiveWritePlan);
+            }
+        }
+        else if (
+            effectiveWritePlan.PropertyRoutes.Count > 0
+            && !Volatile.Read(ref _defaultWritePlanValidated)
+        )
         {
             ValidateWritePlan(effectiveWritePlan);
+            Volatile.Write(ref _defaultWritePlanValidated, true);
         }
 
         string? expectedRevision;
@@ -179,10 +193,9 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
         List<string> path
     )
     {
-        foreach (var change in changes.EnumeratePresentMembers().ToArray())
+        foreach (var change in changes.EnumeratePresentMembers())
         {
-            var member = schema.Members.FirstOrDefault(candidate => candidate.Id == change.Id);
-            if (string.IsNullOrEmpty(member.Name))
+            if (!TryGetMember(schema, change.Id, out var member))
             {
                 throw new InvalidOperationException(
                     $"Generated schema '{schema.Id}' has no member with id {change.Id}."
