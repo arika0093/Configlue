@@ -4,6 +4,10 @@ namespace Configlue.Resources;
 
 public sealed partial class FileResource
 {
+    private const int MaxPooledProcessLockEntries = 256;
+
+    private static readonly Stack<ProcessLockEntry> ProcessLockPool = new();
+
     internal async ValueTask<IDisposable> AcquireExclusiveLockAsync(
         CancellationToken cancellationToken
     )
@@ -23,6 +27,19 @@ public sealed partial class FileResource
         }
     }
 
+    /// <summary>
+    /// Acquires the in-process per-path lock. The entry is reference counted so that it can be removed
+    /// from <see cref="ProcessLocks"/> once the last owner or waiter leaves, keeping the dictionary
+    /// bounded by the number of paths in flight rather than the number of paths ever seen.
+    /// </summary>
+    /// <remarks>
+    /// Every owner and waiter increments the count while holding <see cref="ProcessLockGate"/> before it
+    /// touches the semaphore, and only decrements after it has released (or failed to acquire) it.
+    /// Removal happens under the same gate and only when the count reaches zero, so a concurrent acquirer
+    /// either observes the removed entry and creates a fresh one or has already incremented the count and
+    /// keeps the entry alive. No waiter can be left holding a semaphore that is no longer reachable from
+    /// the dictionary. Released entries are pooled so the uncontended path does not allocate a semaphore.
+    /// </remarks>
     private static async ValueTask<ProcessLockLease> AcquireProcessLockAsync(
         string path,
         CancellationToken cancellationToken
@@ -33,7 +50,7 @@ public sealed partial class FileResource
         {
             if (!ProcessLocks.TryGetValue(path, out entry!))
             {
-                entry = new ProcessLockEntry();
+                entry = RentProcessLockEntry();
                 ProcessLocks.Add(path, entry);
             }
 
@@ -59,6 +76,7 @@ public sealed partial class FileResource
         bool releaseSemaphore
     )
     {
+        var removed = false;
         lock (ProcessLockGate)
         {
             entry.ReferenceCount--;
@@ -69,12 +87,31 @@ public sealed partial class FileResource
             )
             {
                 ProcessLocks.Remove(path);
+                removed = true;
             }
         }
 
         if (releaseSemaphore)
         {
             entry.Semaphore.Release();
+            if (removed)
+            {
+                ReturnProcessLockEntry(entry);
+            }
+        }
+    }
+
+    private static ProcessLockEntry RentProcessLockEntry() =>
+        ProcessLockPool.Count > 0 ? ProcessLockPool.Pop() : new ProcessLockEntry();
+
+    private static void ReturnProcessLockEntry(ProcessLockEntry entry)
+    {
+        lock (ProcessLockGate)
+        {
+            if (ProcessLockPool.Count < MaxPooledProcessLockEntries)
+            {
+                ProcessLockPool.Push(entry);
+            }
         }
     }
 

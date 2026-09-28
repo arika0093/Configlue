@@ -49,11 +49,6 @@ public sealed partial class FileResource
     private readonly string _backupDirectory;
     private readonly string[] _previousBackupDirectories;
     private readonly FileResourceOptions _options;
-    private readonly object _watchGate = new();
-    private FileSystemWatcher? _fileWatcher;
-    private TaskCompletionSource _changed = NewChangeSignal();
-    private bool _disposed;
-    private int _disposeCallCount;
 
     /// <summary>Creates a file resource at the supplied path.</summary>
     /// <param name="path">The path of the file resource.</param>
@@ -373,30 +368,6 @@ public sealed partial class FileResource
     /// <inheritdoc />
     public bool AutomaticBackupRecoveryEnabled => _options.AutomaticBackupRecovery;
 
-    internal bool IsDisposedForTests
-    {
-        get
-        {
-            lock (_watchGate)
-            {
-                return _disposed;
-            }
-        }
-    }
-
-    internal bool HasActiveWatcherForTests
-    {
-        get
-        {
-            lock (_watchGate)
-            {
-                return _fileWatcher is not null;
-            }
-        }
-    }
-
-    internal int DisposeCallCountForTests => Volatile.Read(ref _disposeCallCount);
-
     /// <inheritdoc />
     public async ValueTask<ResourceReadResult> ReadAsync(
         CancellationToken cancellationToken = default
@@ -621,84 +592,6 @@ public sealed partial class FileResource
         }
     }
 
-    /// <inheritdoc />
-    public async ValueTask WaitForChangeAsync(
-        string? observedRevision,
-        CancellationToken cancellationToken = default
-    )
-    {
-        ObjectDisposedException.ThrowIf(_disposed, this);
-        if (
-            !string.Equals(
-                await GetCurrentRevisionAsync(cancellationToken).ConfigureAwait(false),
-                observedRevision,
-                StringComparison.Ordinal
-            )
-        )
-        {
-            return;
-        }
-
-        EnsureFileWatcher();
-        Task waitTask;
-        lock (_watchGate)
-        {
-            ObjectDisposedException.ThrowIf(_disposed, this);
-            waitTask = _changed.Task;
-        }
-
-        if (
-            !string.Equals(
-                await GetCurrentRevisionAsync(cancellationToken).ConfigureAwait(false),
-                observedRevision,
-                StringComparison.Ordinal
-            )
-        )
-        {
-            return;
-        }
-
-        if (_fileWatcher is null)
-        {
-            await PollUntilChangedAsync(observedRevision, waitTask, cancellationToken)
-                .ConfigureAwait(false);
-            return;
-        }
-
-        await waitTask.WaitAsync(cancellationToken).ConfigureAwait(false);
-    }
-
-    /// <inheritdoc />
-    public void Dispose()
-    {
-        Interlocked.Increment(ref _disposeCallCount);
-        lock (_watchGate)
-        {
-            if (_disposed)
-            {
-                return;
-            }
-
-            _disposed = true;
-            _fileWatcher?.Dispose();
-            _fileWatcher = null;
-            _changed.TrySetCanceled();
-        }
-    }
-
-    /// <summary>
-    /// Acquires the in-process per-path lock. The entry is reference counted so that it can be removed
-    /// from <see cref="ProcessLocks"/> once the last owner or waiter leaves, keeping the dictionary
-    /// bounded by the number of paths in flight rather than the number of paths ever seen.
-    /// </summary>
-    /// <remarks>
-    /// Every owner and waiter increments the count while holding <see cref="ProcessLockGate"/> before it
-    /// touches the semaphore, and only decrements after it has released (or failed to acquire) it.
-    /// Removal happens under the same gate and only when the count reaches zero, so a concurrent acquirer
-    /// either observes the removed entry and creates a fresh one or has already incremented the count and
-    /// keeps the entry alive. No waiter can be left holding a semaphore that is no longer reachable from
-    /// the dictionary.
-    /// </remarks>
     private async ValueTask<byte[]?> TryReadForWriteAsync(CancellationToken cancellationToken)
     {
         try
@@ -781,122 +674,6 @@ public sealed partial class FileResource
         }
     }
 
-    private void EnsureFileWatcher()
-    {
-        lock (_watchGate)
-        {
-            ObjectDisposedException.ThrowIf(_disposed, this);
-            if (_fileWatcher is not null || !Directory.Exists(_directory))
-            {
-                return;
-            }
-
-            var watcher = new FileSystemWatcher(_directory, _fileName)
-            {
-                NotifyFilter =
-                    NotifyFilters.FileName
-                    | NotifyFilters.LastWrite
-                    | NotifyFilters.Size
-                    | NotifyFilters.CreationTime,
-                IncludeSubdirectories = false,
-                EnableRaisingEvents = true,
-            };
-            watcher.Changed += OnFileChanged;
-            watcher.Created += OnFileChanged;
-            watcher.Deleted += OnFileChanged;
-            watcher.Renamed += OnFileRenamed;
-            watcher.Error += OnWatcherError;
-            _fileWatcher = watcher;
-        }
-    }
-
-    private async Task PollUntilChangedAsync(
-        string? observedRevision,
-        Task signal,
-        CancellationToken cancellationToken
-    )
-    {
-        while (true)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            if (
-                signal.IsCompleted
-                || !string.Equals(
-                    await GetCurrentRevisionAsync(cancellationToken).ConfigureAwait(false),
-                    observedRevision,
-                    StringComparison.Ordinal
-                )
-            )
-            {
-                return;
-            }
-
-            await Task.Delay(TimeSpan.FromMilliseconds(250), cancellationToken)
-                .ConfigureAwait(false);
-        }
-    }
-
-    private async ValueTask<string?> GetCurrentRevisionAsync(CancellationToken cancellationToken)
-    {
-        try
-        {
-            var content = await File.ReadAllBytesAsync(_path, cancellationToken)
-                .ConfigureAwait(false);
-            return GetRevision(content);
-        }
-        catch (FileNotFoundException)
-        {
-            return null;
-        }
-        catch (DirectoryNotFoundException)
-        {
-            return null;
-        }
-        catch (IOException)
-        {
-            return null;
-        }
-    }
-
-    private void OnFileChanged(object sender, FileSystemEventArgs args) => SignalChange();
-
-    private void OnFileRenamed(object sender, RenamedEventArgs args) => SignalChange();
-
-    private void OnWatcherError(object sender, ErrorEventArgs args)
-    {
-        lock (_watchGate)
-        {
-            if (_disposed || !ReferenceEquals(_fileWatcher, sender))
-            {
-                return;
-            }
-
-            _fileWatcher.Dispose();
-            _fileWatcher = null;
-            var previous = _changed;
-            _changed = NewChangeSignal();
-            previous.TrySetResult();
-        }
-    }
-
-    private void SignalChange()
-    {
-        lock (_watchGate)
-        {
-            if (_disposed)
-            {
-                return;
-            }
-
-            var previous = _changed;
-            _changed = NewChangeSignal();
-            previous.TrySetResult();
-        }
-    }
-
     private static string GetRevision(ReadOnlySpan<byte> content) =>
         ConfiglueHashing.GetXxHash3Hex(content);
-
-    private static TaskCompletionSource NewChangeSignal() =>
-        new(TaskCreationOptions.RunContinuationsAsynchronously);
 }
