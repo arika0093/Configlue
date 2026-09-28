@@ -1,92 +1,18 @@
 # Configlue
 
-**Make configuration management easier.**
+Typed configuration assembled from independent state sources.
 
-Configlue combines typed settings from files, environment variables, command-line arguments, HTTP resources, and other sources. It keeps track of where values come from, so an update can change one setting without replacing unrelated settings.
+Configlue is a source-generator-first .NET library for reading, resolving, editing, and persisting typed configuration. Each source contributes only the fields it owns, so values can be layered — JSON files, environment variables, command-line options, HTTP resources — without replacing an entire settings object.
 
-## Why Configlue?
-### Configurations are easy ... until they aren't.
+Browse the [Configlue documentation site](https://arika0093.github.io/Configlue/) for comprehensive guides, tutorials, and API concepts.
 
-Saving and loading a single JSON file is straightforward:
+## Key Features
 
-```cs
-// load
-var file = File.ReadAllText("settings.json");
-var config = JsonSerializer.Deserialize<AppSettings>(file);
-// save
-var json = JsonSerializer.Serialize(config);
-File.WriteAllText("settings.json", json);
-```
-
-…until it's not.
-
-### Configurations checklist
-
-As an application grows, you may need to:
-
-* Store per-user defaults in the OS-standard configuration directory.
-* Keep project-specific overrides in files in the current working directory.
-* Add environment-variable overrides for containers or CI/CD when needed.
-* Use command-line arguments for debugging or quick experiments.
-
-`UseCommonSources` sets up the global and local file layers. Environment variables are opt-in through an environment prefix, and command-line values can be added with `Configlue.Source.CommandLine`. Additional sources can be registered with `model.Sources(...)`.
-
-### Configlue's Approach
-
-Configlue combines values contributed by independent sources into one typed model. This example illustrates the idea; each source must be configured by the application:
-
-```jsonc
-{
-  "Name": "Alice",   // This value comes from global.
-  "RunCount": 42,    // This value only exists in local.
-  "Theme": "Dark",   // This value exists in both global and local, but local takes precedence.
-  "Server": {
-    "Host": "localhost:8080",  // This configuration was set via command-line arguments (-h localhost:8080).
-    "Username": "alice",       // This value comes from an environment variable (MYAPP__SERVER__USERNAME).
-    "Password": "secret"       // This value was decrypted from encrypted credentials.
-  },
-  "Features": {
-    "EnableFeatureX": true,  // These settings come from a remote-managed HTTP policy.
-    "EnableFeatureY": false  // This example's remote source is read-only.
-  }
-}
-```
-
-*Configlue* joins (**glues**) separate sources of **configuration** into one model.
-
-### Check where values come from and save updates
-
-Read the combined value with `GetValueAsync`. Use `GetDetailsAsync` to inspect its contributing sources:
-
-```csharp
-var options = context.GetOptions<AppSettings>();
-// 1. Get the current value (merged from all sources)
-var current = await options.GetValueAsync();
-Console.WriteLine($"Hello, {current.Name}! (Run #{current.RunCount})");
-
-// 2. Get the details of where each value came from
-var details = await options.GetDetailsAsync();
-// Values can be referenced normally.
-Console.WriteLine($"Name came from {details.Name.Source?.Locator}");
-Console.WriteLine($"Can write Name? {details.Name.IsEditable}");
-foreach (var contribution in details.Name.Sources)
-{
-    var source = contribution.Source;
-    Console.WriteLine(
-        $"  {source.Kind} | {source.Locator} | writable: {source.CanWrite} | state: {contribution.State}"
-    );
-}
-```
-
-Save a patch to update only the members it specifies. `Unset` removes that source's contribution so a lower-priority source can provide the value:
-
-```csharp
-await options.SaveAsync(patch =>
-{
-    patch.Name = "Bob"; // Specify only the items you want to change
-    patch.RunCount.Unset(); // Remove this source's value; a lower-priority source may provide one.
-});
-```
+* **Sparse Generated Fragments**: Read, resolve, and update only the fields you touch, leaving other settings and files intact.
+* **Standard-by-Default Architecture**: Use `CommonSource` out of the box to manage global (per-user) settings, local overrides, and environment variables with zero boilerplate.
+* **Extensible Layering**: Start with `CommonSource` and seamlessly extend with command-line arguments, remote HTTP policies, or custom sources via `model.Sources(...)`.
+* **Safe Persistence**: Built-in atomic file writes with automatic backups, conflict detection, and debounce-enabled change notifications.
+* **Universal .NET Support**: Works with or without DI (Console, Desktop, ASP.NET Core, Worker Services) and supports NativeAOT.
 
 ## Quick Start
 
@@ -136,11 +62,7 @@ var updated = await options.GetValueAsync();
 Console.WriteLine($"Saved. Hello, {updated.Name}! (Run #{updated.RunCount})");
 ```
 
-`UseCommonSources` layers a file in the OS-standard per-user configuration directory and `settings.json` in the current working directory. Environment variables are not enabled unless you provide a prefix; here, `SAMPLE__NAME` overrides `Name`.
-
-By default, `SaveAsync` writes to the local file. If you provide a specific file, that becomes the default write destination. Environment variables are read-only.
-
-For command-line overrides, install `Configlue.Source.CommandLine` and map values from the `System.CommandLine` parse result. For complete examples and options, see the [CommonSource guide](https://arika0093.github.io/Configlue/en/basic-usage/common-sources/) and [tutorials](https://arika0093.github.io/Configlue/en/getting-started/quick-start/).
+For more details, see the [tutorials](https://arika0093.github.io/Configlue/en/getting-started/quick-start/).
 
 ## FAQ
 ### Why not just use `IConfiguration`?
