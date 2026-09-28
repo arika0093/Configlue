@@ -28,7 +28,8 @@ public sealed class StateSourceResolver<T> : IStateReader<T>
     )
     {
         StateReadResult<T> lastResult = default;
-        var revisions = new List<StateRevision>(_sourceSet.Count);
+        var revisions = new StateRevision[_sourceSet.Count];
+        var revisionCount = 0;
         List<KeyValuePair<string, StateRevisionVector>>? nestedRevisions = null;
         for (var index = 0; index < _sourceSet.Count; index++)
         {
@@ -75,7 +76,7 @@ public sealed class StateSourceResolver<T> : IStateReader<T>
                 source.PhysicalOrigin,
                 source.ResourceId?.Value
             );
-            revisions.Add(new StateRevision(source.Id, result.Revision));
+            revisions[revisionCount++] = new StateRevision(source.Id, result.Revision);
             if (result.Revisions is { } nestedVector)
             {
                 nestedRevisions ??= [];
@@ -86,7 +87,11 @@ public sealed class StateSourceResolver<T> : IStateReader<T>
 
             if (result.Status == StateReadStatus.Success)
             {
-                var revisionVector = CreateRevisionVector(revisions, nestedRevisions);
+                var revisionVector = CreateRevisionVector(
+                    revisions,
+                    revisionCount,
+                    nestedRevisions
+                );
                 Volatile.Write(ref _resolution, new Resolution(source, revisionVector));
                 return result with { Revisions = revisionVector };
             }
@@ -102,7 +107,11 @@ public sealed class StateSourceResolver<T> : IStateReader<T>
             );
             if (!canFallBack)
             {
-                var revisionVector = CreateRevisionVector(revisions, nestedRevisions);
+                var revisionVector = CreateRevisionVector(
+                    revisions,
+                    revisionCount,
+                    nestedRevisions
+                );
                 Volatile.Write(ref _resolution, new Resolution(null, revisionVector));
                 return result with { Revisions = revisionVector };
             }
@@ -110,18 +119,10 @@ public sealed class StateSourceResolver<T> : IStateReader<T>
             lastResult = result;
         }
 
-        var finalVector = CreateRevisionVector(revisions, nestedRevisions);
+        var finalVector = CreateRevisionVector(revisions, revisionCount, nestedRevisions);
         Volatile.Write(ref _resolution, new Resolution(null, finalVector));
         return lastResult with { Revisions = finalVector };
     }
-
-    private static StateRevisionVector CreateRevisionVector(
-        List<StateRevision> revisions,
-        List<KeyValuePair<string, StateRevisionVector>>? nestedRevisions
-    ) =>
-        nestedRevisions is null
-            ? new StateRevisionVector(revisions)
-            : new StateRevisionVector(revisions, nestedRevisions);
 
     internal IReadOnlyList<StateSourceWatchTarget<T>> GetSourcesForWatch(string? fallbackRevision)
     {
@@ -184,6 +185,18 @@ public sealed class StateSourceResolver<T> : IStateReader<T>
             StateReadStatus.Invalid => (condition & StateFallbackCondition.Invalid) != 0,
             _ => false,
         };
+
+    private static StateRevisionVector CreateRevisionVector(
+        StateRevision[] revisions,
+        int revisionCount,
+        List<KeyValuePair<string, StateRevisionVector>>? nestedRevisions
+    ) =>
+        nestedRevisions is null
+            ? StateRevisionVector.FromSpan(revisions.AsSpan(0, revisionCount))
+            : StateRevisionVector.FromSpan(
+                revisions.AsSpan(0, revisionCount),
+                System.Runtime.InteropServices.CollectionsMarshal.AsSpan(nestedRevisions)
+            );
 }
 
 internal readonly record struct StateSourceWatchTarget<T>
