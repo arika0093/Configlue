@@ -61,9 +61,16 @@ public static class XmlFileSourceRegistration
     private sealed class XmlFileSourceDefinition(XmlFileSourceOptions options)
         : IConfiglueSourceDefinition
     {
-        public StateSource<TFragment> Create<TFragment>(
+        public ConfiglueSourceCreation<TFragment> Create<TFragment>(
+            ConfiglueSourceCreationContext context
+        )
+            where TFragment : class, IConfiglueFragment<TFragment>
+        {
+            return context.Complete(CreateSourceCore<TFragment>(context.ModelSchema, context.Own));
+        }
+
+        private StateSource<TFragment> CreateSourceCore<TFragment>(
             ConfiglueModelSchema modelSchema,
-            IServiceProvider? serviceProvider,
             Action<IDisposable> ownResource
         )
             where TFragment : class, IConfiglueFragment<TFragment>

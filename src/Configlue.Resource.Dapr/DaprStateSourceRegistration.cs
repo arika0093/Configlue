@@ -73,10 +73,19 @@ public static class DaprStateSourceRegistration
     private sealed class DaprStateSourceDefinition(DaprStateSourceOptions options)
         : IConfiglueSourceDefinition
     {
-        public StateSource<TFragment> Create<TFragment>(
+        public ConfiglueSourceCreation<TFragment> Create<TFragment>(
+            ConfiglueSourceCreationContext context
+        )
+            where TFragment : class, IConfiglueFragment<TFragment>
+        {
+            return context.Complete(
+                CreateSourceCore<TFragment>(context.ModelSchema, context.Services)
+            );
+        }
+
+        private StateSource<TFragment> CreateSourceCore<TFragment>(
             ConfiglueModelSchema modelSchema,
-            IServiceProvider? serviceProvider,
-            Action<IDisposable> ownResource
+            IServiceProvider? serviceProvider
         )
             where TFragment : class, IConfiglueFragment<TFragment>
         {

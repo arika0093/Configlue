@@ -6,7 +6,7 @@
     <PackageDescription>System.CommandLine parse-result source and opt-in common preset integration for Configlue.</PackageDescription>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="../Configlue.Core/Configlue.Core.csproj" />
+    <ProjectReference Include="../Configlue.Extensibility/Configlue.Extensibility.csproj" />
     <ProjectReference Include="../Configlue.Source.Presets/Configlue.Source.Presets.csproj" />
     <PackageReference Include="System.CommandLine" Version="$(ConfiglueSystemCommandLineVersion)" />
   </ItemGroup>

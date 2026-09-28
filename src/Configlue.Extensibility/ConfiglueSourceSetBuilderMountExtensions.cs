@@ -1,6 +1,6 @@
 using System.Linq.Expressions;
 
-namespace Configlue;
+namespace Configlue.Extensibility;
 
 /// <summary>Mounts source-specific generated fragments into a root model's nested member.</summary>
 public static class ConfiglueSourceSetBuilderMountExtensions
@@ -165,10 +165,16 @@ public static class ConfiglueSourceSetBuilderMountExtensions
         where TRootFragment : class, IConfiglueFragment<TRootFragment>
         where TSubtreeFragment : class, IConfiglueFragment<TSubtreeFragment>
     {
-        public StateSource<TFragment> Create<TFragment>(
-            ConfiglueModelSchema modelSchema,
-            IServiceProvider? serviceProvider,
-            Action<IDisposable> ownResource
+        public ConfiglueSourceCreation<TFragment> Create<TFragment>(
+            ConfiglueSourceCreationContext context
+        )
+            where TFragment : class, IConfiglueFragment<TFragment>
+        {
+            return context.Complete(CreateSourceCore<TFragment>(context.Services));
+        }
+
+        private StateSource<TFragment> CreateSourceCore<TFragment>(
+            IServiceProvider? serviceProvider
         )
             where TFragment : class, IConfiglueFragment<TFragment>
         {

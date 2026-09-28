@@ -572,7 +572,7 @@ public static class StateSourceProjection
                 && current.Schema is { } schema
             )
             {
-                currentValue = await migrationChain!
+                currentValue = await migrationChain
                     .MigrateAsync(currentValue!, schema, cancellationToken)
                     .ConfigureAwait(false);
             }

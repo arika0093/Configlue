@@ -240,15 +240,7 @@ public sealed class ConfiglueModelBuilder<TModel>
         }
     }
 
-    /// <summary>Adds sources shared by non-DI and DI contexts.</summary>
-    public void Sources(Action<ConfiglueSourceSetBuilder> configure)
-    {
-        EnsureMutable();
-        ArgumentNullException.ThrowIfNull(configure);
-        configure(_sources);
-    }
-
-    /// <summary>Adds sources shared by non-DI and DI contexts with model-typed provider helpers.</summary>
+    /// <summary>Adds sources with strongly typed provider helpers during registration.</summary>
     public void Sources(Action<ConfiglueSourceSetBuilder<TModel>> configure)
     {
         EnsureMutable();
@@ -256,64 +248,15 @@ public sealed class ConfiglueModelBuilder<TModel>
         configure(_sources);
     }
 
-    /// <summary>Adds sources using the service provider available when this model's runtime is created.</summary>
-    public void Sources(Action<IServiceProvider?, ConfiglueSourceSetBuilder> configure)
+    /// <summary>Configures sources when the runtime is created, with its name and application services.</summary>
+    public void ConfigureSources(Action<ConfiglueSourceRegistrationContext<TModel>> configure)
     {
         EnsureMutable();
         ArgumentNullException.ThrowIfNull(configure);
         _sourceConfigurations.Add(
-            (_, serviceProvider, sources) => configure(serviceProvider, sources)
+            (name, services, sources) =>
+                configure(new ConfiglueSourceRegistrationContext<TModel>(name, services, sources))
         );
-    }
-
-    /// <summary>Adds sources using DI with model-typed provider helpers.</summary>
-    /// <remarks>The callback is recorded during model registration and invoked only after registrations have been added to the service collection. The provider is null in non-DI contexts.</remarks>
-    public void Sources(Action<IServiceProvider?, ConfiglueSourceSetBuilder<TModel>> configure)
-    {
-        EnsureMutable();
-        ArgumentNullException.ThrowIfNull(configure);
-        _sourceConfigurations.Add(
-            (_, serviceProvider, sources) => configure(serviceProvider, sources)
-        );
-    }
-
-    /// <summary>Adds sources whose definitions depend on this named options instance.</summary>
-    public void SourcesForOptions(Action<string, ConfiglueSourceSetBuilder> configure)
-    {
-        EnsureMutable();
-        ArgumentNullException.ThrowIfNull(configure);
-        _sourceConfigurations.Add((optionsName, _, sources) => configure(optionsName, sources));
-    }
-
-    /// <summary>Adds sources with the named options instance and model-typed provider helpers.</summary>
-    public void SourcesForOptions(Action<string, ConfiglueSourceSetBuilder<TModel>> configure)
-    {
-        EnsureMutable();
-        ArgumentNullException.ThrowIfNull(configure);
-        _sourceConfigurations.Add((optionsName, _, sources) => configure(optionsName, sources));
-    }
-
-    /// <summary>Adds sources using the service provider and named options instance available at runtime creation.</summary>
-    public void SourcesForOptions(
-        Action<string, IServiceProvider?, ConfiglueSourceSetBuilder> configure
-    )
-    {
-        EnsureMutable();
-        ArgumentNullException.ThrowIfNull(configure);
-        _sourceConfigurations.Add(
-            (optionsName, serviceProvider, sources) =>
-                configure(optionsName, serviceProvider, sources)
-        );
-    }
-
-    /// <summary>Adds sources using DI and the named options instance with model-typed provider helpers.</summary>
-    public void SourcesForOptions(
-        Action<string, IServiceProvider?, ConfiglueSourceSetBuilder<TModel>> configure
-    )
-    {
-        EnsureMutable();
-        ArgumentNullException.ThrowIfNull(configure);
-        _sourceConfigurations.Add(configure);
     }
 
     /// <summary>Enables a persisted profile catalog backed by a writable state source.</summary>
