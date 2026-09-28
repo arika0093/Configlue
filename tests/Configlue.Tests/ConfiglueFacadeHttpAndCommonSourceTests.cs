@@ -300,6 +300,18 @@ public sealed partial class ConfiglueFacadeSourceTests
             var globalSequence = new ReadOnlySequence<byte>(globalBytes);
             var globalFragment = written.Deserialize(in globalSequence, default)!;
             (globalFragment.Label.Value).ShouldBe("explicit-global-write");
+            await options
+                .Source(CommonSource.Local)
+                .SaveAsync(
+                    new AppSettings.Patch
+                    {
+                        Label = FragmentOperation<string?>.Set("explicit-local-write"),
+                    }
+                );
+            var localBytes = await File.ReadAllBytesAsync(localPath);
+            var localSequence = new ReadOnlySequence<byte>(localBytes);
+            var localFragment = written.Deserialize(in localSequence, default)!;
+            (localFragment.Label.Value).ShouldBe("explicit-local-write");
             await Should.ThrowAsync<StateConflictException>(async () =>
                 await options.SaveAsync(settings => settings.RetryCount = 8)
             );
