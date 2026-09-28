@@ -406,6 +406,39 @@ public sealed class GeneratedFragmentTests
     }
 
     [Test]
+    public void PatchCopyFrom_PreservesMissingNullDefaultAndCollectionValues()
+    {
+        var current = new AppSettings.Fragment
+        {
+            RetryCount = Optional<int>.Present(8),
+            Label = Optional<string?>.Present("old"),
+            Plugins = Optional<IReadOnlyList<string>>.Present(["old"]),
+        };
+        var source = new AppSettings.Fragment
+        {
+            RetryCount = Optional<int>.Present(0),
+            Label = Optional<string?>.Present(null),
+            Plugins = Optional<IReadOnlyList<string>>.Present(["new"]),
+        };
+        var patch = new AppSettings.Patch();
+
+        patch.Enabled.CopyFrom(Optional<bool>.Present(false));
+        patch.RetryCount.CopyFrom(source.RetryCount);
+        patch.Label.CopyFrom(source.Label);
+        patch.Plugins.CopyFrom(source.Plugins);
+        patch.Database.Unset();
+
+        var patched = current.Apply(patch);
+
+        patched.Enabled.Value.ShouldBeFalse();
+        patched.RetryCount.Value.ShouldBe(0);
+        patched.Label.IsPresent.ShouldBeTrue();
+        patched.Label.Value.ShouldBeNull();
+        patched.Plugins.Value.ShouldBe(new[] { "new" });
+        patched.Database.IsPresent.ShouldBeFalse();
+    }
+
+    [Test]
     public async Task FromPrevious_NestedMemberMigrationPreservesPresence()
     {
         var value = new NestedSettingsV1.Fragment
