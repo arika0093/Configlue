@@ -3,7 +3,11 @@ using System.Security.Cryptography;
 namespace Configlue.Testing;
 
 /// <summary>An in-memory resource with conditional writes and change notifications.</summary>
-public sealed class InMemoryResource : IResourceReader, IStateWatcher, IResourceBatchWriter
+public sealed class InMemoryResource
+    : IResourceReader,
+        IPipelineResourceReader,
+        IStateWatcher,
+        IResourceBatchWriter
 {
     private readonly object _gate = new();
     private byte[]? _content;
@@ -20,6 +24,20 @@ public sealed class InMemoryResource : IResourceReader, IStateWatcher, IResource
 
     /// <summary>The number of successful physical write operations.</summary>
     public long WriteCount => Interlocked.Read(ref _writeCount);
+
+    /// <inheritdoc />
+    public bool IsPipelineReadPreferred => false;
+
+    /// <inheritdoc />
+    public async ValueTask<PipelineResourceReadResult> ReadPipelineAsync(
+        CancellationToken cancellationToken = default
+    )
+    {
+        var result = await ReadAsync(cancellationToken).ConfigureAwait(false);
+        return await PipelineResourceReader
+            .FromMemoryAsync(result, cancellationToken)
+            .ConfigureAwait(false);
+    }
 
     /// <inheritdoc />
     public ValueTask<ResourceReadResult> ReadAsync(CancellationToken cancellationToken = default)

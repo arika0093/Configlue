@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Globalization;
 using System.Net;
 using System.Net.Http.Headers;
@@ -7,7 +8,11 @@ using System.Text;
 namespace Configlue.Resource.Http;
 
 /// <summary>Reads and watches a byte resource exposed through the Configlue HTTP resource protocol.</summary>
-public sealed class HttpResourceReader : IResourceReader, IStateWatcher, IResourceIdentity
+public sealed class HttpResourceReader
+    : IResourceReader,
+        IPipelineResourceReader,
+        IStateWatcher,
+        IResourceIdentity
 {
     /// <summary>Response and request header carrying the source schema identifier.</summary>
     public const string SchemaIdHeaderName = "Configlue-Schema-Id";
@@ -87,6 +92,81 @@ public sealed class HttpResourceReader : IResourceReader, IStateWatcher, IResour
 
     /// <summary>The GET endpoint used to read the resource.</summary>
     public Uri GetUri => _getUri;
+
+    /// <inheritdoc />
+    public bool IsPipelineReadPreferred => true;
+
+    /// <inheritdoc />
+    public async ValueTask<PipelineResourceReadResult> ReadPipelineAsync(
+        CancellationToken cancellationToken = default
+    )
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, _getUri);
+        HttpResponseMessage? response = null;
+        var responseOwnershipTransferred = false;
+        try
+        {
+            response = await _httpClient
+                .SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
+                .ConfigureAwait(false);
+            var revision = response.Headers.ETag?.ToString();
+            if (response.StatusCode == HttpStatusCode.NotFound)
+            {
+                var missing = ResourceReadResult.NotFound(revision);
+                SetLastSnapshot(Snapshot(missing));
+                return PipelineResourceReadResult.NotFound(revision);
+            }
+
+            if (IsTemporarilyUnavailable(response.StatusCode))
+            {
+                var unavailable = ResourceReadResult.Unavailable(revision);
+                SetLastSnapshot(Snapshot(unavailable));
+                return PipelineResourceReadResult.Unavailable(revision);
+            }
+
+            response.EnsureSuccessStatusCode();
+            var schema = ReadSchemaMetadata(response.Headers);
+            var stream = await response
+                .Content.ReadAsStreamAsync(cancellationToken)
+                .ConfigureAwait(false);
+            var ownedResponse = response;
+            var pipelineResult = PipelineResourceReader.FromStream(
+                stream,
+                revision,
+                schema,
+                owner: ownedResponse,
+                contentReadCompleted: content =>
+                    SetLastSnapshot(
+                        HttpResourceSnapshot.Success(
+                            revision,
+                            GetContentFingerprint(in content),
+                            schema
+                        )
+                    )
+            );
+            responseOwnershipTransferred = true;
+            return pipelineResult;
+        }
+        catch (HttpRequestException exception) when (exception.StatusCode is null)
+        {
+            var unavailable = ResourceReadResult.Unavailable();
+            SetLastSnapshot(Snapshot(unavailable));
+            return PipelineResourceReadResult.Unavailable();
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            var unavailable = ResourceReadResult.Unavailable();
+            SetLastSnapshot(Snapshot(unavailable));
+            return PipelineResourceReadResult.Unavailable();
+        }
+        finally
+        {
+            if (!responseOwnershipTransferred)
+            {
+                response?.Dispose();
+            }
+        }
+    }
 
     /// <summary>Creates the optional write capability for this resource.</summary>
     public HttpResourceWriter CreateWriter() => new(this);
@@ -376,6 +456,17 @@ public sealed class HttpResourceReader : IResourceReader, IStateWatcher, IResour
 
     private static string GetContentFingerprint(ReadOnlySpan<byte> content) =>
         Convert.ToHexString(SHA256.HashData(content));
+
+    private static string GetContentFingerprint(in ReadOnlySequence<byte> content)
+    {
+        using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        foreach (var segment in content)
+        {
+            hash.AppendData(segment.Span);
+        }
+
+        return Convert.ToHexString(hash.GetHashAndReset());
+    }
 
     private static Uri EnsureTrailingSlash(Uri endpointRoot)
     {

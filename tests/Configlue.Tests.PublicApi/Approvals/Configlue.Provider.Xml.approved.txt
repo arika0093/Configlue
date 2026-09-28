@@ -28,16 +28,18 @@ namespace Configlue.Provider.Xml
     {
         public static Configlue.ConfiglueSourceHandle<TModel> Source<TModel>(this Configlue.IConfiglueOptions<TModel> options, Configlue.Provider.Xml.XmlFileSourceSelector selector) { }
     }
-    public sealed class XmlSectionResource : Configlue.IResourceBackupRecovery, Configlue.IResourceBatchParticipant, Configlue.IResourceIdentity, Configlue.IResourceReader, Configlue.IResourceWriter, Configlue.IStateWatcher
+    public sealed class XmlSectionResource : Configlue.IPipelineResourceReader, Configlue.IResourceBackupRecovery, Configlue.IResourceBatchParticipant, Configlue.IResourceIdentity, Configlue.IResourceReader, Configlue.IResourceWriter, Configlue.IStateWatcher
     {
         public XmlSectionResource(Configlue.IResourceReader resource, string sectionPath) { }
         public XmlSectionResource(Configlue.IResourceReader reader, Configlue.IResourceWriter? writer, string sectionPath, Configlue.IStateWatcher? watcher = null, Configlue.ResourceId? resourceId = default) { }
         public bool AutomaticBackupRecoveryEnabled { get; }
         public Configlue.IResourceBatchWriter? BatchWriter { get; }
         public bool CanWrite { get; }
+        public bool IsPipelineReadPreferred { get; }
         public Configlue.ResourceId ResourceId { get; }
         public Configlue.ResourceWriteMutation CreateMutation(Configlue.ResourceWriteRequest request) { }
         public System.Threading.Tasks.ValueTask<Configlue.ResourceReadResult> ReadAsync(System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Configlue.PipelineResourceReadResult> ReadPipelineAsync(System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask<Configlue.ResourceReadResult?> TryRecoverLatestBackupAsync(string? expectedRevision, bool expectedMissing, System.Func<Configlue.ResourceReadResult, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<bool>> validate, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask WaitForChangeAsync(string? observedRevision, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask<Configlue.StateWriteResult> WriteAsync(Configlue.ResourceWriteRequest request, System.Threading.CancellationToken cancellationToken = default) { }

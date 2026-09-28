@@ -7,6 +7,7 @@ namespace Configlue.Provider.Xml;
 /// <summary>Exposes a nested XML element as a resource while preserving sibling elements.</summary>
 public sealed class XmlSectionResource
     : IResourceReader,
+        IPipelineResourceReader,
         IResourceWriter,
         IStateWatcher,
         IResourceIdentity,
@@ -53,6 +54,20 @@ public sealed class XmlSectionResource
 
     /// <inheritdoc />
     public IResourceBatchWriter? BatchWriter => _writer as IResourceBatchWriter;
+
+    /// <inheritdoc />
+    public bool IsPipelineReadPreferred => false;
+
+    /// <inheritdoc />
+    public async ValueTask<PipelineResourceReadResult> ReadPipelineAsync(
+        CancellationToken cancellationToken = default
+    )
+    {
+        var result = await ReadAsync(cancellationToken).ConfigureAwait(false);
+        return await PipelineResourceReader
+            .FromMemoryAsync(result, cancellationToken)
+            .ConfigureAwait(false);
+    }
 
     /// <inheritdoc />
     public bool AutomaticBackupRecoveryEnabled =>

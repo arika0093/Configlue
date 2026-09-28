@@ -10,7 +10,11 @@ namespace Configlue.Resource.Dapr;
 /// conditional writes pass Configlue's expected revision back to Dapr and report ETag mismatches
 /// as <see cref="StateConflictException"/>.
 /// </remarks>
-public sealed class DaprStateResource : IResourceReader, IResourceWriter, IResourceIdentity
+public sealed class DaprStateResource
+    : IResourceReader,
+        IPipelineResourceReader,
+        IResourceWriter,
+        IResourceIdentity
 {
     private readonly IDaprStateClient _client;
     private readonly DaprStateResourceOptions _options;
@@ -50,6 +54,20 @@ public sealed class DaprStateResource : IResourceReader, IResourceWriter, IResou
 
     /// <inheritdoc />
     public ResourceId ResourceId { get; }
+
+    /// <inheritdoc />
+    public bool IsPipelineReadPreferred => false;
+
+    /// <inheritdoc />
+    public async ValueTask<PipelineResourceReadResult> ReadPipelineAsync(
+        CancellationToken cancellationToken = default
+    )
+    {
+        var result = await ReadAsync(cancellationToken).ConfigureAwait(false);
+        return await PipelineResourceReader
+            .FromMemoryAsync(result, cancellationToken)
+            .ConfigureAwait(false);
+    }
 
     /// <inheritdoc />
     public async ValueTask<ResourceReadResult> ReadAsync(

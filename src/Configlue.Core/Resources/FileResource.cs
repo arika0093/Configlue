@@ -28,6 +28,7 @@ namespace Configlue;
 /// </remarks>
 public sealed partial class FileResource
     : IResourceReader,
+        IPipelineResourceReader,
         IStateWatcher,
         IResourceBatchWriter,
         IResourceBackupRecovery,
@@ -181,6 +182,46 @@ public sealed partial class FileResource
 
     /// <inheritdoc />
     public ResourceId ResourceId { get; }
+
+    /// <inheritdoc />
+    public bool IsPipelineReadPreferred => true;
+
+    /// <inheritdoc />
+    public ValueTask<PipelineResourceReadResult> ReadPipelineAsync(
+        CancellationToken cancellationToken = default
+    )
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        try
+        {
+            var stream = new FileStream(
+                _path,
+                new FileStreamOptions
+                {
+                    Mode = FileMode.Open,
+                    Access = FileAccess.Read,
+                    Share = FileShare.Read,
+                    BufferSize = 81920,
+                    Options = FileOptions.Asynchronous | FileOptions.SequentialScan,
+                }
+            );
+            return ValueTask.FromResult(
+                PipelineResourceReader.FromStream(stream, computeXxHash3Revision: true)
+            );
+        }
+        catch (FileNotFoundException)
+        {
+            return ValueTask.FromResult(PipelineResourceReadResult.NotFound());
+        }
+        catch (DirectoryNotFoundException)
+        {
+            return ValueTask.FromResult(PipelineResourceReadResult.NotFound());
+        }
+        catch (IOException)
+        {
+            return ValueTask.FromResult(PipelineResourceReadResult.Unavailable());
+        }
+    }
 
     /// <inheritdoc />
     public bool AutomaticBackupRecoveryEnabled => _options.AutomaticBackupRecovery;

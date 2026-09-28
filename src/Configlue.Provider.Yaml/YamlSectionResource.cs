@@ -6,6 +6,7 @@ namespace Configlue.Provider.Yaml;
 /// <summary>Exposes a nested YAML mapping as a resource while preserving sibling nodes.</summary>
 public sealed class YamlSectionResource
     : IResourceReader,
+        IPipelineResourceReader,
         IResourceWriter,
         IStateWatcher,
         IResourceIdentity,
@@ -117,6 +118,20 @@ public sealed class YamlSectionResource
 
     /// <inheritdoc />
     public IResourceBatchWriter? BatchWriter => _writer as IResourceBatchWriter;
+
+    /// <inheritdoc />
+    public bool IsPipelineReadPreferred => false;
+
+    /// <inheritdoc />
+    public async ValueTask<PipelineResourceReadResult> ReadPipelineAsync(
+        CancellationToken cancellationToken = default
+    )
+    {
+        var result = await ReadAsync(cancellationToken).ConfigureAwait(false);
+        return await PipelineResourceReader
+            .FromMemoryAsync(result, cancellationToken)
+            .ConfigureAwait(false);
+    }
 
     /// <inheritdoc />
     public bool AutomaticBackupRecoveryEnabled =>
