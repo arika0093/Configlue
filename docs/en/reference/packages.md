@@ -22,6 +22,9 @@ description: Find the NuGet package for each Configlue capability.
 | `Configlue.Source.Common` | Global/local/file/environment source presets, included by the `Configlue` meta-package. |
 | `Configlue.Resource.Http` | HTTP read/write resources with ETag revisions and polling change detection. |
 | `Configlue.Resource.Http.AspNetCore` | ASP.NET Core endpoints for serving HTTP resources. |
+| `Configlue.Resource.Dapr` | Optional byte resources and source registration for Dapr State Management. |
 | `Configlue.Resource.Zip` | Resource view over one entry in a ZIP archive. |
 
 The package references and versions in the project files are the source of truth. Install optional provider packages directly when you need them. Start with [Installation](../getting-started/installation.md).
+
+For Dapr state persistence and the object-storage provider boundary, see [Dapr State Management resource](./dapr-state-resource.md).
