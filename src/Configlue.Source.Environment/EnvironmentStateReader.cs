@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Collections;
 using System.Globalization;
 using System.Security.Cryptography;
@@ -17,6 +18,8 @@ public sealed class EnvironmentStateReader<TFragment> : IStateReader<TFragment>
     private readonly Func<IEnumerable<KeyValuePair<string, string?>>> _environmentVariables;
     private readonly Func<string, Type, object?> _valueParser;
     private readonly JsonSerializerOptions? _jsonOptions;
+    private readonly IReadOnlyDictionary<string, IReadOnlyList<EnvironmentMapping>> _mappings;
+    private readonly IReadOnlyDictionary<ConfiglueModelSchema, SchemaMemberLookup> _lookups;
 
     /// <summary>Creates an environment reader for a generated model schema.</summary>
     public EnvironmentStateReader(
@@ -33,6 +36,17 @@ public sealed class EnvironmentStateReader<TFragment> : IStateReader<TFragment>
         _environmentVariables = environmentVariables ?? ReadProcessEnvironmentVariables;
         _valueParser = valueParser ?? ParseScalar;
         _jsonOptions = jsonSerializerOptions;
+        var collectedMappings = new Dictionary<string, List<EnvironmentMapping>>(
+            StringComparer.OrdinalIgnoreCase
+        );
+        var lookups = new Dictionary<ConfiglueModelSchema, SchemaMemberLookup>();
+        CollectEnvironmentMappings(schema, [], new HashSet<Type>(), collectedMappings, lookups);
+        _mappings = collectedMappings.ToDictionary(
+            static pair => pair.Key,
+            static pair => (IReadOnlyList<EnvironmentMapping>)pair.Value,
+            StringComparer.OrdinalIgnoreCase
+        );
+        _lookups = lookups;
     }
 
     /// <inheritdoc />
@@ -41,14 +55,13 @@ public sealed class EnvironmentStateReader<TFragment> : IStateReader<TFragment>
     )
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var mappings = GetEnvironmentMappings(_schema);
-        var values = new SortedDictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         foreach (var pair in _environmentVariables())
         {
             cancellationToken.ThrowIfCancellationRequested();
             if (
                 !pair.Key.StartsWith(_prefix, StringComparison.OrdinalIgnoreCase)
-                && !mappings.ContainsKey(pair.Key)
+                && !_mappings.ContainsKey(pair.Key)
             )
             {
                 continue;
@@ -62,7 +75,9 @@ public sealed class EnvironmentStateReader<TFragment> : IStateReader<TFragment>
             }
         }
 
-        var revision = CreateRevision(values, cancellationToken);
+        var keys = new List<string>(values.Keys);
+        keys.Sort(StringComparer.OrdinalIgnoreCase);
+        var revision = CreateRevision(values, keys, cancellationToken);
         if (values.Count == 0)
         {
             return ValueTask.FromResult(StateReadResult<TFragment>.NotFound(revision));
@@ -71,61 +86,63 @@ public sealed class EnvironmentStateReader<TFragment> : IStateReader<TFragment>
         var assignments = new Dictionary<string, EnvironmentAssignment>(
             StringComparer.OrdinalIgnoreCase
         );
-        foreach (var pair in values)
+        foreach (var key in keys)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var targets = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            if (pair.Key.StartsWith(_prefix, StringComparison.OrdinalIgnoreCase))
+            var value = values[key];
+            string[]? targetPath = null;
+            string? target = null;
+            if (key.StartsWith(_prefix, StringComparison.OrdinalIgnoreCase))
             {
-                var path = pair.Key[_prefix.Length..];
+                var path = key[_prefix.Length..];
                 if (path.Length > 0)
                 {
                     var segments = path.Split(["__"], StringSplitOptions.None);
                     if (segments.Any(string.IsNullOrWhiteSpace))
                     {
                         throw new FormatException(
-                            $"Environment variable '{pair.Key}' contains an empty path segment."
+                            $"Environment variable '{key}' contains an empty path segment."
                         );
                     }
 
-                    if (ResolveCanonicalPath(_schema, segments, pair.Key) is { } canonicalPath)
+                    targetPath = ResolveCanonicalPath(_schema, segments, key);
+                    if (targetPath is not null)
                     {
-                        targets.Add(canonicalPath);
+                        target = string.Join('.', targetPath);
                     }
                 }
             }
 
-            if (mappings.TryGetValue(pair.Key, out var explicitMappings))
+            if (_mappings.TryGetValue(key, out var explicitMappings))
             {
                 foreach (var mapping in explicitMappings)
                 {
-                    targets.Add(mapping.PropertyPath);
+                    if (target is null)
+                    {
+                        target = mapping.PropertyPath;
+                        targetPath = mapping.PropertyPathSegments;
+                    }
+                    else if (
+                        !string.Equals(
+                            target,
+                            mapping.PropertyPath,
+                            StringComparison.OrdinalIgnoreCase
+                        )
+                    )
+                    {
+                        throw new FormatException(
+                            $"Environment variable '{key}' maps to more than one model property."
+                        );
+                    }
                 }
             }
 
-            if (targets.Count > 1)
-            {
-                throw new FormatException(
-                    $"Environment variable '{pair.Key}' maps to more than one model property."
-                );
-            }
-
-            if (targets.Count == 0)
+            if (target is null || targetPath is null)
             {
                 continue;
             }
 
-            var target = targets.Single();
-            if (
-                !assignments.TryAdd(
-                    target,
-                    new EnvironmentAssignment(
-                        target.Split('.', StringSplitOptions.None),
-                        pair.Value,
-                        pair.Key
-                    )
-                )
-            )
+            if (!assignments.TryAdd(target, new EnvironmentAssignment(targetPath, value, key)))
             {
                 throw new InvalidOperationException(
                     $"More than one environment variable maps to model property '{target}'."
@@ -162,27 +179,12 @@ public sealed class EnvironmentStateReader<TFragment> : IStateReader<TFragment>
         );
     }
 
-    private static IReadOnlyDictionary<
-        string,
-        IReadOnlyList<EnvironmentMapping>
-    > GetEnvironmentMappings(ConfiglueModelSchema schema)
-    {
-        var mappings = new Dictionary<string, List<EnvironmentMapping>>(
-            StringComparer.OrdinalIgnoreCase
-        );
-        CollectEnvironmentMappings(schema, [], new HashSet<Type>(), mappings);
-        return mappings.ToDictionary(
-            static pair => pair.Key,
-            static pair => (IReadOnlyList<EnvironmentMapping>)pair.Value,
-            StringComparer.OrdinalIgnoreCase
-        );
-    }
-
     private static void CollectEnvironmentMappings(
         ConfiglueModelSchema schema,
         IReadOnlyList<string> parentPath,
         HashSet<Type> ancestors,
-        Dictionary<string, List<EnvironmentMapping>> mappings
+        Dictionary<string, List<EnvironmentMapping>> mappings,
+        Dictionary<ConfiglueModelSchema, SchemaMemberLookup> lookups
     )
     {
         if (!ancestors.Add(schema.ModelType))
@@ -190,6 +192,7 @@ public sealed class EnvironmentStateReader<TFragment> : IStateReader<TFragment>
             return;
         }
 
+        lookups[schema] = SchemaMemberLookup.Create(schema);
         foreach (var member in schema.Members)
         {
             var path = parentPath.Append(member.Name).ToArray();
@@ -201,56 +204,49 @@ public sealed class EnvironmentStateReader<TFragment> : IStateReader<TFragment>
                     mappings.Add(environmentName, matches);
                 }
 
-                matches.Add(new EnvironmentMapping(string.Join('.', path)));
+                matches.Add(new EnvironmentMapping(string.Join('.', path), path));
             }
 
             if (member.NestedSchemaFactory is not null)
             {
-                CollectEnvironmentMappings(member.NestedSchemaFactory(), path, ancestors, mappings);
+                CollectEnvironmentMappings(
+                    member.NestedSchemaFactory(),
+                    path,
+                    ancestors,
+                    mappings,
+                    lookups
+                );
             }
         }
 
         ancestors.Remove(schema.ModelType);
     }
 
-    private static string? ResolveCanonicalPath(
+    private string[]? ResolveCanonicalPath(
         ConfiglueModelSchema schema,
         IReadOnlyList<string> path,
         string environmentKey
     )
     {
-        var canonicalPath = new List<string>(path.Count);
+        var canonicalPath = new string[path.Count];
         for (var index = 0; index < path.Count; index++)
         {
-            ConfiglueMemberSchema member = default;
-            var found = false;
-            foreach (var candidate in schema.Members)
+            if (!_lookups[schema].TryResolve(path[index], out var member, out var isAmbiguous))
             {
-                if (!string.Equals(candidate.Name, path[index], StringComparison.OrdinalIgnoreCase))
-                {
-                    continue;
-                }
-
-                if (found)
+                if (isAmbiguous)
                 {
                     throw new FormatException(
                         $"Environment path segment '{path[index]}' is ambiguous in schema '{schema.Id}'."
                     );
                 }
 
-                member = candidate;
-                found = true;
-            }
-
-            if (!found)
-            {
                 return null;
             }
 
-            canonicalPath.Add(member.Name);
+            canonicalPath[index] = member.Name;
             if (index == path.Count - 1)
             {
-                return string.Join('.', canonicalPath);
+                return canonicalPath;
             }
 
             if (member.NestedSchemaFactory is null)
@@ -292,27 +288,15 @@ public sealed class EnvironmentStateReader<TFragment> : IStateReader<TFragment>
     )
     {
         cancellationToken.ThrowIfCancellationRequested();
-        ConfiglueMemberSchema member = default;
-        var found = false;
-        foreach (var candidate in schema.Members)
+        if (!_lookups[schema].TryResolve(path[pathIndex], out var member, out var isAmbiguous))
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            if (string.Equals(candidate.Name, path[pathIndex], StringComparison.OrdinalIgnoreCase))
+            if (isAmbiguous)
             {
-                if (found)
-                {
-                    throw new FormatException(
-                        $"Environment path segment '{path[pathIndex]}' is ambiguous in schema '{schema.Id}'."
-                    );
-                }
-
-                member = candidate;
-                found = true;
+                throw new FormatException(
+                    $"Environment path segment '{path[pathIndex]}' is ambiguous in schema '{schema.Id}'."
+                );
             }
-        }
 
-        if (!found)
-        {
             return new AppliedFragment(fragment, false);
         }
 
@@ -417,26 +401,67 @@ public sealed class EnvironmentStateReader<TFragment> : IStateReader<TFragment>
     }
 
     private static string CreateRevision(
-        SortedDictionary<string, string> values,
+        IReadOnlyDictionary<string, string> values,
+        List<string> keys,
         CancellationToken cancellationToken
     )
     {
-        var builder = new StringBuilder();
-        foreach (var pair in values)
+        using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        foreach (var pair in keys)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var key = pair.Key.ToUpperInvariant();
-            builder
-                .Append(key.Length.ToString(CultureInfo.InvariantCulture))
-                .Append(':')
-                .Append(key)
-                .Append(pair.Value.Length.ToString(CultureInfo.InvariantCulture))
-                .Append(':')
-                .Append(pair.Value);
+            AppendHashedString(hash, pair.ToUpperInvariant());
+            AppendHashedString(hash, values[pair]);
         }
 
         cancellationToken.ThrowIfCancellationRequested();
-        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(builder.ToString())));
+        return Convert.ToHexString(hash.GetHashAndReset());
+    }
+
+    private static void AppendHashedString(IncrementalHash hash, string value)
+    {
+        Span<byte> prefix = stackalloc byte[12];
+        var prefixLength = WriteLengthPrefix(prefix, value.Length);
+        hash.AppendData(prefix[..prefixLength]);
+        var byteCount = Encoding.UTF8.GetByteCount(value);
+        if (byteCount == 0)
+        {
+            return;
+        }
+
+        var buffer = ArrayPool<byte>.Shared.Rent(byteCount);
+        try
+        {
+            var written = Encoding.UTF8.GetBytes(value, buffer);
+            hash.AppendData(buffer.AsSpan(0, written));
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(buffer);
+        }
+    }
+
+    private static int WriteLengthPrefix(Span<byte> buffer, int length)
+    {
+        var digits = 0;
+        var remaining = length;
+        do
+        {
+            digits++;
+            remaining /= 10;
+        } while (remaining != 0);
+
+        var index = digits;
+        remaining = length;
+        do
+        {
+            index--;
+            buffer[index] = (byte)('0' + (remaining % 10));
+            remaining /= 10;
+        } while (remaining != 0);
+
+        buffer[digits] = (byte)':';
+        return digits + 1;
     }
 
     private object? ParseScalar(string value, Type targetType)
@@ -575,15 +600,18 @@ public sealed class EnvironmentStateReader<TFragment> : IStateReader<TFragment>
     private sealed record EnvironmentMapping
     {
         public string PropertyPath { get; init; }
+        public string[] PropertyPathSegments { get; init; }
 
-        public EnvironmentMapping(string PropertyPath)
+        public EnvironmentMapping(string PropertyPath, string[] PropertyPathSegments)
         {
             this.PropertyPath = PropertyPath;
+            this.PropertyPathSegments = PropertyPathSegments;
         }
 
-        public void Deconstruct(out string PropertyPath)
+        public void Deconstruct(out string PropertyPath, out string[] PropertyPathSegments)
         {
             PropertyPath = this.PropertyPath;
+            PropertyPathSegments = this.PropertyPathSegments;
         }
     }
 
