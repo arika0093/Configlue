@@ -15,7 +15,7 @@ var result = JsonSchemaGenerator.Generate(
     SampleSettingJsonContext.Default);
 ```
 
-`Generate` はメモリ上に文書を作り、`Write` は永続化します。結果の診断を確認してください (`CWSC001` は `System.Text.Json` のスキーマ出力に対応しない framework の報告です)。ファイルの置き場所は自由です — `main` ブランチのフォルダ、CDN、リリース資産など — エディターに指し示してください。
+`Generate` はメモリ上に文書を作り、`Write` は永続化します。生成やファイル出力の診断を確認してください。ファイルの置き場所は自由です — `main` ブランチのフォルダ、CDN、リリース資産など — エディターに指し示してください。
 
 旧来の `--cw-generate-json-schema <directory>` 起動経路を使うには、`ConfiglueBuilder` に登録を集め、アプリを構築する前に `TryWriteFromCommandLine` を呼びます。helper は通常の結果を返し、プロセスの終了方法はホスト側に委ねます:
 

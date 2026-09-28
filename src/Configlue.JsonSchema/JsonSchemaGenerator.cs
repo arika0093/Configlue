@@ -7,11 +7,9 @@ using System.Linq;
 using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.Json.Schema;
 using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
-#if NET9_0_OR_GREATER
-using System.Text.Json.Schema;
-#endif
 
 namespace Configlue.JsonSchema;
 
@@ -184,25 +182,12 @@ public static partial class JsonSchemaGenerator
             return CreateResult([], [], diagnostics);
         }
 
-#if NET9_0_OR_GREATER
         var candidates = ValidateModels(models, diagnostics);
-#else
-        _ = ValidateModels(models, diagnostics);
-#endif
         if (diagnostics.Count > 0)
         {
             return CreateResult([], [], diagnostics);
         }
 
-#if !NET9_0_OR_GREATER
-        diagnostics.Add(
-            new JsonSchemaGenerationDiagnostic(
-                "CWSC001",
-                "JSON Schema export requires a target framework with System.Text.Json schema export support."
-            )
-        );
-        return CreateResult([], [], diagnostics);
-#else
         var documents = new List<JsonSchemaDocument>(candidates.Count);
         var jsonOptions = resolver is JsonSerializerContext context
             ? context.Options
@@ -275,7 +260,6 @@ public static partial class JsonSchemaGenerator
         return diagnostics.Count == 0
             ? CreateResult(documents, [], diagnostics)
             : CreateResult([], [], diagnostics);
-#endif
     }
 
     /// <summary>Generates a schema for one source-generated Configlue model.</summary>

@@ -11,6 +11,7 @@ import { Steps } from '@astrojs/starlight/components';
 VS Code などのエディター補完や CI パイプラインでの静的検査に活用できます。
 
 スキーマ生成はビルド時や事前生成ツールで実行する機能であり、DI の有無には依存しません。
+API は `Configlue.JsonSchema` パッケージ・名前空間にあり、`Configlue` メタパッケージにも含まれます。
 
 <Steps>
 
@@ -20,7 +21,7 @@ VS Code などのエディター補完や CI パイプラインでの静的検�
 
    ```csharp
    using System.Text.Json.Serialization;
-   using Configlue.Provider.Json;
+   using Configlue.JsonSchema;
 
    [JsonSerializable(typeof(AppSettings))]
    [JsonSerializable(typeof(AppSettings.Fragment))]
@@ -34,7 +35,7 @@ VS Code などのエディター補完や CI パイプラインでの静的検�
    `JsonSchemaGenerator.Write` メソッドを呼び出すと、指定したフォルダーにバージョン付きスキーマファイルが出力されます。
 
    ```csharp
-   using Configlue.Provider.Json;
+   using Configlue.JsonSchema;
 
    var result = JsonSchemaGenerator.Write<AppSettings, AppSettings.Fragment>(
        "schemas",

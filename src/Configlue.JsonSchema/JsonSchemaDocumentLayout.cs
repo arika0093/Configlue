@@ -6,16 +6,13 @@ using System.Linq;
 using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using System.Text.Json.Serialization.Metadata;
-#if NET9_0_OR_GREATER
 using System.Text.Json.Schema;
-#endif
+using System.Text.Json.Serialization.Metadata;
 
 namespace Configlue.JsonSchema;
 
 public static partial class JsonSchemaGenerator
 {
-#if NET9_0_OR_GREATER
     private sealed class JsonSchemaNodeTransformer
     {
         private readonly IJsonTypeInfoResolver _resolver;
@@ -341,5 +338,4 @@ public static partial class JsonSchemaGenerator
             }
         }
     }
-#endif
 }

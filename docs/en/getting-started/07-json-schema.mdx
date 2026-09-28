@@ -11,6 +11,7 @@ To catch configuration typos before runtime, Configlue exports JSON Schema from 
 This enables rich autocompletion in editors such as VS Code and static validation in CI workflows.
 
 Schema export runs as a build-time or offline task and does not depend on dependency injection.
+The API is in the `Configlue.JsonSchema` package and namespace; the `Configlue` meta-package includes it.
 
 <Steps>
 
@@ -20,7 +21,7 @@ Schema export runs as a build-time or offline task and does not depend on depend
 
    ```csharp
    using System.Text.Json.Serialization;
-   using Configlue.Provider.Json;
+   using Configlue.JsonSchema;
 
    [JsonSerializable(typeof(AppSettings))]
    [JsonSerializable(typeof(AppSettings.Fragment))]
@@ -34,7 +35,7 @@ Schema export runs as a build-time or offline task and does not depend on depend
    Call `JsonSchemaGenerator.Write` to output versioned schema documents into a target directory:
 
    ```csharp
-   using Configlue.Provider.Json;
+   using Configlue.JsonSchema;
 
    var result = JsonSchemaGenerator.Write<AppSettings, AppSettings.Fragment>(
        "schemas",

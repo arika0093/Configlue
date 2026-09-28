@@ -15,7 +15,7 @@ var result = JsonSchemaGenerator.Generate(
     SampleSettingJsonContext.Default);
 ```
 
-`Generate` builds the documents in memory; `Write` persists them. Check the result diagnostics (`CWSC001` reports frameworks without `System.Text.Json` schema-export support). Host the files wherever fits — a `main`-branch folder, a CDN, or release assets — and point editors at them.
+`Generate` builds the documents in memory; `Write` persists them. Check the result diagnostics for generation and file-output issues. Host the files wherever fits — a `main`-branch folder, a CDN, or release assets — and point editors at them.
 
 To restore the legacy `--cw-generate-json-schema <directory>` startup path, collect registrations in a `ConfiglueBuilder` and call `TryWriteFromCommandLine` before building the application. The helper returns a result and leaves process exit behavior to the host:
 
