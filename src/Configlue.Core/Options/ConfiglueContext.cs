@@ -99,6 +99,7 @@ public sealed class ConfiglueContext : IDisposable, IAsyncDisposable
     }
 
     /// <summary>Disposes the options and watchers owned by this context.</summary>
+    // Synchronous construction-failure cleanup or IDisposable boundary; normal source I/O stays asynchronous.
     public void Dispose() => DisposeAsync().AsTask().GetAwaiter().GetResult();
 
     /// <summary>Asynchronously disposes the options and watchers owned by this context.</summary>
@@ -259,6 +260,7 @@ public sealed class ConfiglueContext : IDisposable, IAsyncDisposable
                 {
                     if (runtime is IAsyncDisposable asyncDisposable)
                     {
+                        // Synchronous construction-failure cleanup or IDisposable boundary; normal source I/O stays asynchronous.
                         asyncDisposable.DisposeAsync().AsTask().GetAwaiter().GetResult();
                     }
                     else if (runtime is IDisposable disposable)

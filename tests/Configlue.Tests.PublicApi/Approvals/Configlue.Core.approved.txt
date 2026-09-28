@@ -41,7 +41,6 @@ namespace Configlue
         public System.TimeSpan? OnChangeDebounce { get; set; }
         public string OptionsName { get; set; }
         public Configlue.ReadValidationMode ReadValidationMode { get; set; }
-        public bool RegisterAsSingleton { get; set; }
         public bool ValidateDataAnnotations { get; set; }
         public Configlue.WriteConflictResolution WriteConflictResolution { get; set; }
         public Configlue.StateWritePlan WritePlan { get; set; }

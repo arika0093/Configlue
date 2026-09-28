@@ -90,6 +90,7 @@ public sealed partial class ConfiglueProfiledOptions<TModel, TFragment>
     }
 
     /// <inheritdoc />
+    // IDisposable is a synchronous cleanup boundary; prefer DisposeAsync when asynchronous resources are owned.
     public void Dispose() => DisposeAsync().AsTask().GetAwaiter().GetResult();
 
     /// <inheritdoc />
@@ -105,12 +106,8 @@ public sealed partial class ConfiglueProfiledOptions<TModel, TFragment>
 
             Volatile.Write(ref _disposed, 1);
             _watcherCancellation.Cancel();
-            foreach (var subscription in _subscriptions.ToArray())
-            {
-                subscription.Dispose();
-            }
-            _subscriptions.Clear();
-            disposeTask = DisposeCoreAsync(_catalogWatchTask);
+            var subscriptions = _subscriptions.ToArray();
+            disposeTask = DisposeCoreAsync(_catalogWatchTask, subscriptions);
             _disposeTask = disposeTask;
         }
 
