@@ -1,0 +1,160 @@
+---
+title: "STEP 1: Your first settings app"
+description: Learn the basics of reading, saving, and watching settings using CommonSource.
+---
+
+import { Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+
+# STEP 1: Your first settings app
+
+This tutorial progresses step-by-step.
+STEP 1 introduces Configlue's standard **CommonSource** preset to establish reading, saving, and change-notification behavior.
+
+<Tabs syncKey="di">
+<TabItem label="Without DI (Console / Desktop)">
+Initialize an independent context using `ConfiglueApp.CreateContext`.
+</TabItem>
+<TabItem label="With DI (ASP.NET Core / Worker)">
+Register settings into the Microsoft Dependency Injection container using `services.AddConfiglue`.
+</TabItem>
+</Tabs>
+
+<Steps>
+
+1. ### Declare a model
+
+   Define a settings container class, annotate it with `[ConfiglueModel]`, and mark it `partial`.
+
+   ```csharp
+   using Configlue;
+
+   [ConfiglueModel("tutorial.settings", Version = 1)]
+   public partial class AppSettings
+   {
+       public string Name { get; set; } = "World";
+       public int RunCount { get; set; }
+   }
+   ```
+
+2. ### Create a context
+
+   Use `UseCommonSources` to configure standard settings layers:
+
+   <Tabs syncKey="di">
+   <TabItem label="Without DI">
+
+   ```csharp
+   using Configlue;
+   using Configlue.Source.Common;
+
+   await using var context = ConfiglueApp.CreateContext(conf =>
+   {
+       conf.Add<AppSettings>(model =>
+       {
+           model.UseCommonSources("TutorialApp");
+       });
+   });
+
+   var options = context.GetOptions<AppSettings>();
+   ```
+
+   </TabItem>
+   <TabItem label="With DI">
+
+   ```csharp
+   // Program.cs
+   using Configlue;
+   using Configlue.Source.Common;
+
+   builder.Services.AddConfiglue(conf =>
+   {
+       conf.Add<AppSettings>(model =>
+       {
+           model.UseCommonSources("TutorialApp");
+       });
+   });
+   ```
+
+   ```csharp
+   // Consumer
+   using Configlue;
+
+   public class Greeter(IWritableOptions<AppSettings> options)
+   {
+       public async Task RunAsync()
+       {
+           var settings = await options.GetValueAsync();
+           Console.WriteLine($"Hello, {settings.Name}!");
+       }
+   }
+   ```
+
+   </TabItem>
+   </Tabs>
+
+   `UseCommonSources("TutorialApp")` prepares:
+   - **User-level global settings**: In the platform-standard folder (e.g. `%APPDATA%/TutorialApp` or `~/.config/TutorialApp`).
+   - **Local settings**: In the current working directory (`settings.json`).
+
+3. ### Read, watch, and save
+
+   <Tabs syncKey="di">
+   <TabItem label="Without DI">
+
+   ```csharp
+   var current = await options.GetValueAsync();
+   Console.WriteLine($"Hello, {current.Name}! (Run #{current.RunCount})");
+
+   using var subscription = options.OnChange(updated =>
+       Console.WriteLine($"Settings changed: {updated.Name}"));
+
+   await options.SaveAsync(patch =>
+   {
+       patch.Name = "Ada";
+       patch.RunCount = current.RunCount + 1;
+   });
+   ```
+
+   </TabItem>
+   <TabItem label="With DI">
+
+   ```csharp
+   var current = await options.GetValueAsync();
+   Console.WriteLine($"Hello, {current.Name}! (Run #{current.RunCount})");
+
+   using var subscription = options.OnChange(updated =>
+       Console.WriteLine($"Settings changed: {updated.Name}"));
+
+   await options.SaveAsync(patch =>
+   {
+       patch.Name = "Ada";
+       patch.RunCount = current.RunCount + 1;
+   });
+   ```
+
+   </TabItem>
+   </Tabs>
+
+   `SaveAsync` performs a sparse patch write: only assigned members are persisted, while untouched members retain their existing values.
+
+   Saved `settings.json`:
+
+   ```json
+   {
+     "$version": 1,
+     "Name": "Ada",
+     "RunCount": 1
+   }
+   ```
+
+</Steps>
+
+## Key Points
+
+- **`partial` keyword**: Required on models so the source generator can produce companion types.
+- **Register before resolve**: Always call `conf.Add<T>` before calling `GetOptions`.
+- **Default write target**: `UseCommonSources` writes to `settings.json` in the current working directory by default.
+
+---
+
+Next: [STEP 2: Grow a realistic model](./02-real-world-model.md) adds nested models and collections.

@@ -10,10 +10,13 @@ export default function rewriteDocLinks() {
       if (node.type === 'link' && typeof node.url === 'string') {
         const match = node.url.match(/^((?:\.\.?\/)+)([^#?]+)([?#].*)?$/);
         if (match) {
-          const targetBase = path.resolve(path.dirname(file.path), match[1] + match[2]);
-          const targets = /\.(?:md|mdx)$/i.test(match[2])
-            ? [targetBase]
-            : [`${targetBase}.md`, `${targetBase}.mdx`];
+          const rawTarget = match[2].replace(/\.(?:md|mdx)$/i, '');
+          const targetBase = path.resolve(path.dirname(file.path), match[1] + rawTarget);
+          const targets = [
+            path.resolve(path.dirname(file.path), match[1] + match[2]),
+            `${targetBase}.md`,
+            `${targetBase}.mdx`,
+          ];
           const target = targets.find((candidate) => fs.existsSync(candidate));
           if (!target) return;
 

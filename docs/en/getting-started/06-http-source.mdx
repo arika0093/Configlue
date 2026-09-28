@@ -1,0 +1,115 @@
+---
+title: "STEP 6: Remote HTTP sources"
+description: Layer remote HTTP policy configurations on top of the CommonSource foundation.
+---
+
+import { Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+
+# STEP 6: Remote HTTP sources
+
+For organization-wide policies or centralized server configurations, settings can be delivered over HTTP.
+Here we add an **HTTP source** on top of the standard **CommonSource** architecture.
+
+<Steps>
+
+1. ### Add remote properties to the model
+
+   ```csharp
+   using Configlue;
+
+   [ConfiglueModel("tutorial.settings", Version = 1)]
+   public partial class AppSettings
+   {
+       public string Name { get; set; } = "ExampleApp";
+       public ServerSettings Server { get; set; } = new();
+       public PolicySettings? Policy { get; set; } // Supplied via HTTP
+   }
+
+   public class PolicySettings
+   {
+       public bool AuditLogRequired { get; set; }
+       public int MaxLoginAttempts { get; set; } = 5;
+   }
+   ```
+
+2. ### Layer an HTTP source over CommonSource
+
+   Configure CommonSource first, then append the HTTP source via `model.Sources(...)`:
+
+   <Tabs syncKey="di">
+   <TabItem label="Without DI">
+
+   ```csharp
+   using Configlue;
+   using Configlue.Provider.Json;
+   using Configlue.Source.Common;
+
+   var httpClient = new HttpClient { BaseAddress = new Uri("https://policy.example.com/") };
+
+   conf.Add<AppSettings>(model =>
+   {
+       // 1. Standard common sources
+       model.UseCommonSources("TutorialApp");
+
+       // 2. Additional HTTP source with higher priority
+       model.Sources(sources =>
+       {
+           sources.FromJsonHttp(new()
+           {
+               Id = "policy",
+               EndPoint = "https://policy.example.com/api/policy",
+               Client = httpClient,
+               Priority = 300, // Higher than CommonSource layers (0-3)
+               FallbackCondition = StateFallbackCondition.NotFoundOrUnavailable,
+           });
+       });
+   });
+   ```
+
+   </TabItem>
+   <TabItem label="With DI">
+
+   ```csharp
+   using Configlue;
+   using Configlue.Provider.Json;
+   using Configlue.Source.Common;
+
+   builder.Services.AddHttpClient("policy", client =>
+   {
+       client.BaseAddress = new Uri("https://policy.example.com/");
+   });
+
+   builder.Services.AddConfiglue(conf =>
+   {
+       conf.Add<AppSettings>(model =>
+       {
+           model.UseCommonSources("TutorialApp");
+
+           model.Sources(sources =>
+           {
+               sources.FromJsonHttpClientFactory("policy", new()
+               {
+                   Id = "policy",
+                   EndPoint = "https://policy.example.com/api/policy",
+                   Priority = 300,
+                   FallbackCondition = StateFallbackCondition.NotFoundOrUnavailable,
+               });
+           });
+       });
+   });
+   ```
+
+   </TabItem>
+   </Tabs>
+
+3. ### Offline and fallback behavior
+
+   With `FallbackCondition = StateFallbackCondition.NotFoundOrUnavailable`, network errors or unavailable endpoints do not crash your application.
+   The layer is skipped, and local defaults remain active.
+   Once the endpoint recovers, updates are automatically detected and applied.
+
+</Steps>
+
+---
+
+Next: [STEP 7: Generate JSON Schemas](./07-json-schema.md) introduces JSON Schema export for validation and IDE tooling.

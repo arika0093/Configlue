@@ -1,0 +1,127 @@
+---
+title: "STEP 6: HTTP ソースに対応する"
+description: CommonSource を土台として、リモートから配信される設定レイヤーを追加します。
+---
+
+import { Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+
+# STEP 6: HTTP ソースに対応する
+
+組織全体の配布ポリシーやクラウド上の設定など、リモートサーバーから配信される設定を取り込みたいケースがあります。
+ここでは、基本構成である **CommonSource** の上に、追加レイヤーとして **HTTP ソース** を重ねる方法を学びます。
+
+<Steps>
+
+1. ### モデルにリモート用のプロパティを追加する
+
+   全社共通のセキュリティポリシーなど、リモートから供給される設定項目をモデルに追加します。
+
+   ```csharp
+   using Configlue;
+
+   [ConfiglueModel("tutorial.settings", Version = 1)]
+   public partial class AppSettings
+   {
+       public string Name { get; set; } = "ExampleApp";
+       public ServerSettings Server { get; set; } = new();
+       public PolicySettings? Policy { get; set; } // リモートから供給されるポリシー
+   }
+
+   public class PolicySettings
+   {
+       public bool AuditLogRequired { get; set; }
+       public int MaxLoginAttempts { get; set; } = 5;
+   }
+   ```
+
+2. ### CommonSource の上に追加ソースを重ねる
+
+   `UseCommonSources` に続けて `model.Sources(...)` を呼び出し、HTTP ソースを登録します。
+
+   <Tabs syncKey="di">
+   <TabItem label="DI なし">
+
+   ```csharp
+   using Configlue;
+   using Configlue.Provider.Json;
+   using Configlue.Source.Common;
+
+   var httpClient = new HttpClient { BaseAddress = new Uri("https://policy.example.com/") };
+
+   conf.Add<AppSettings>(model =>
+   {
+       // 1. 基本のファイル構成
+       model.UseCommonSources("TutorialApp");
+
+       // 2. 追加のリモート HTTP ソースを登録
+       model.Sources(sources =>
+       {
+           sources.FromJsonHttp(new()
+           {
+               Id = "policy",
+               EndPoint = "https://policy.example.com/api/policy",
+               Client = httpClient,
+               Priority = 300, // CommonSource（優先度 0〜3）より上位に配置
+               FallbackCondition = StateFallbackCondition.NotFoundOrUnavailable,
+           });
+       });
+   });
+   ```
+
+   </TabItem>
+   <TabItem label="DI あり">
+
+   ```csharp
+   using Configlue;
+   using Configlue.Provider.Json;
+   using Configlue.Source.Common;
+
+   // HttpClient を DI に登録
+   builder.Services.AddHttpClient("policy", client =>
+   {
+       client.BaseAddress = new Uri("https://policy.example.com/");
+   });
+
+   builder.Services.AddConfiglue(conf =>
+   {
+       conf.Add<AppSettings>(model =>
+       {
+           model.UseCommonSources("TutorialApp");
+
+           model.Sources(sources =>
+           {
+               sources.FromJsonHttpClientFactory("policy", new()
+               {
+                   Id = "policy",
+                   EndPoint = "https://policy.example.com/api/policy",
+                   Priority = 300,
+                   FallbackCondition = StateFallbackCondition.NotFoundOrUnavailable,
+               });
+           });
+       });
+   });
+   ```
+
+   </TabItem>
+   </Tabs>
+
+   HTTP ソースは既定で読み取り専用として動作します。
+   `Priority = 300` と指定することで、CommonSource のファイル群（優先度 0〜1）よりも上位で評価されます。
+
+3. ### リモートサーバーに接続できないときの挙動
+
+   `FallbackCondition = StateFallbackCondition.NotFoundOrUnavailable` を指定しているため、ネットワーク障害やサーバーダウンが発生しても例外でプロセスが停止することはありません。
+   HTTP レイヤーは自動的にスキップ（フォールスルー）され、下位のローカルファイルやモデルの初期値が使われます。
+
+   復旧後にリモートから設定が取得できた場合、Configlue のポーリング監視によって自動的に最新値がマージされます。
+
+4. ### 保存時の注意点
+
+   STEP 5 の環境変数と同様に、HTTP ソースから提供されている項目をローカルから書き換えようとすると競合が発生します。
+   リモート値に干渉しないプロパティ（`Server.Port` など）は、通常通り `SaveAsync` でローカルファイルに保存できます。
+
+</Steps>
+
+---
+
+次のステップ: [STEP 7: JSON Schema を出力する](./07-json-schema.md) では、エディターでの入力補完や CI でのバリデーションに役立つ JSON スキーマの生成方法を学びます。

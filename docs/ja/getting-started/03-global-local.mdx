@@ -1,0 +1,125 @@
+---
+title: "STEP 3: 共通とローカルに分ける"
+description: ユーザー共通設定とローカル設定の階層化、優先度、保存先の切り替えを学びます。
+---
+
+import { Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+
+# STEP 3: 共通とローカルに分ける
+
+1 つの設定ファイルにすべてを保存すると、開発マシン共通の初期値と、プロジェクト固有の設定が混ざってしまいます。
+Configlue では、設定を「全プロジェクト共通（Global）」と「カレントディレクトリ固有（Local）」の 2 つの層に分けて管理します。
+
+## CommonSource が構成する 2 つの層
+
+`UseCommonSources("TutorialApp")` を呼び出すと、内部で次の 2 つのファイルソースが自動的に登録されます。
+
+| 層 | 保存場所 | 役割 | 優先度 |
+| --- | --- | --- | :---: |
+| **Global（共通）** | OS 標準のユーザー設定フォルダー | ユーザー全体のデフォルト値 | 低 |
+| **Local（ローカル）** | カレントディレクトリの `settings.json` | プロジェクトごとの上書き値 | 高 |
+
+### 読み取りのルール（重ね合わせ）
+
+- **優先度順のマージ**: 両方のファイルに同一のプロパティが存在する場合、優先度の高い `Local` の値が採用されます。
+- **欠損の素通り**: `Local` に書かれていないプロパティは、自動的に `Global` の値が使われます。
+- **ファイルの不在**: どちらかのファイルが存在しなくてもエラーにはならず、存在するファイルとモデルの初期値から設定が組み立てられます。
+
+## 保存先のコントロール
+
+既定では、`options.SaveAsync` による保存はすべて **Local（カレントディレクトリ）** に書き込まれます。
+共通設定（Global）に保存したい場合は、次の 2 通りの方法があります。
+
+### 方法 1: 一時的に保存先を指定する（セマンティックセレクター）
+
+特定の操作だけを共通設定に書き込みたい場合は、`CommonSource.Global` セレクターを使ってソースハンドルを取得します。
+
+```csharp
+using Configlue.Source.Common;
+
+// ユーザー共通設定（Global）に保存
+await options.Source(CommonSource.Global).SaveAsync(patch =>
+{
+    patch.Name = "GlobalDefaultName";
+});
+
+// 通常の保存（既定の Local に保存）
+await options.SaveAsync(patch =>
+{
+    patch.Name = "LocalOverrideName";
+});
+```
+
+### 方法 2: 既定の保存先を Global に切り替える
+
+初期化時に `CommonSourceOptions` を渡し、`WriteLayer` を指定することで、既定の保存先を Global に変更できます。
+
+<Tabs syncKey="di">
+<TabItem label="DI なし">
+
+```csharp
+using Configlue.Source.Common;
+
+await using var context = ConfiglueApp.CreateContext(conf =>
+{
+    conf.Add<AppSettings>(model =>
+    {
+        model.UseCommonSources(new CommonSourceOptions
+        {
+            ApplicationId = "TutorialApp",
+            GlobalFileName = "settings.json",
+            WriteLayer = CommonSourceWriteLayer.Global, // 既定の保存先を Global に変更
+        });
+    });
+});
+```
+
+</TabItem>
+<TabItem label="DI あり">
+
+```csharp
+using Configlue.Source.Common;
+
+builder.Services.AddConfiglue(conf =>
+{
+    conf.Add<AppSettings>(model =>
+    {
+        model.UseCommonSources(new CommonSourceOptions
+        {
+            ApplicationId = "TutorialApp",
+            GlobalFileName = "settings.json",
+            WriteLayer = CommonSourceWriteLayer.Global,
+        });
+    });
+});
+```
+
+</TabItem>
+</Tabs>
+
+## 内部の仕組み（参考: 手動での階層構成）
+
+`UseCommonSources` が行っている処理は、低レベル API を用いて手動で組み立てることも可能です。
+
+```csharp
+using Configlue.Provider.Json;
+
+conf.Add<AppSettings>(model =>
+{
+    model.Sources(sources =>
+    {
+        // 優先度 100 で共通ファイルを登録
+        sources.FromJsonFile(new() { Id = "global", Path = globalPath, Priority = 100 });
+        // 優先度 200 でローカルファイルを登録
+        sources.FromJsonFile(new() { Id = "local", Path = "settings.json", Priority = 200 });
+    });
+    // 既定の保存先を local に指定
+    model.WriteRoute = StateWriteRoute.To("local");
+});
+```
+
+低レベル API を直接呼ぶ構成に比べ、`UseCommonSources` を利用すると OS ごとの標準パスの解決や安全なセレクターによる保存先指定が自動的に組み込まれます。
+
+---
+
+次のステップ: [STEP 4: バリデーションを付ける](./04-validation.md) では、不正な値が保存されるのを防ぐ検証ルールを追加します。

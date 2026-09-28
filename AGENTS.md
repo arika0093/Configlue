@@ -1,5 +1,7 @@
 # Repository Instructions
 
+* DO NOT PUSH
+
 ## Coding Guidelines
 
 * Prefer explicit record declarations with init-only properties. Do not use positional record syntax such as `record Item(string Name, int Count)`.

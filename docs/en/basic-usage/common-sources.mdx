@@ -1,0 +1,158 @@
+---
+title: Common Layered Sources
+description: How to use the standard CommonSource preset and extend it with additional sources and command-line arguments.
+---
+
+import { Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+
+# Common Layered Sources
+
+The **CommonSource** (`UseCommonSources`) feature is the recommended foundation for application configuration in Configlue.
+Rather than configuring file paths and precedence manually, it establishes the standard layers required by real-world applications: global defaults, local overrides, command-line specific files, and environment variables.
+
+## Why CommonSource as the Default?
+
+Production applications rarely store all settings in a single file:
+- Shipped machine-wide or user-wide defaults.
+- Local overrides for development or specific workspaces.
+- Dynamic environment variable injections in containers and CI/CD.
+- Ad-hoc configuration files selected at startup.
+
+`UseCommonSources` provides these layers with predictable, safe precedence out of the box.
+
+## Layer Precedence Order
+
+CommonSource organizes four layers in increasing priority:
+
+| Layer | Condition | Location / Source | Writes |
+| --- | --- | --- | :---: |
+| **Global** | Always | OS-standard per-user configuration folder | Selectable via handle or options |
+| **Local** | Always | Current directory (`settings.json`) | Default destination when no specific file is set |
+| **Specific** | Path provided | User-supplied path via options/args | Default destination when set |
+| **Environment** | Prefix provided | Process environment variables | Read-only |
+
+## Basic Usage
+
+The simplest invocation requires only an application ID:
+
+<Tabs syncKey="di">
+<TabItem label="Without DI">
+
+```csharp
+using Configlue;
+using Configlue.Source.Common;
+
+await using var context = ConfiglueApp.CreateContext(conf =>
+{
+    conf.Add<AppSettings>(model =>
+    {
+        model.UseCommonSources("ExampleApp");
+    });
+});
+```
+
+</TabItem>
+<TabItem label="With DI">
+
+```csharp
+using Configlue;
+using Configlue.Source.Common;
+
+builder.Services.AddConfiglue(conf =>
+{
+    conf.Add<AppSettings>(model =>
+    {
+        model.UseCommonSources("ExampleApp");
+    });
+});
+```
+
+</TabItem>
+</Tabs>
+
+This automatically prepares:
+- **Global**: `settings.json` under `ConfiglueStandardPaths.GetStandardSaveDirectory("ExampleApp")`.
+- **Local**: `settings.json` in the current working directory.
+
+## Customizing with CommonSourceOptions
+
+Pass `CommonSourceOptions` when you need specific file names, environment variable prefixes, or custom file paths:
+
+```csharp
+model.UseCommonSources(new CommonSourceOptions
+{
+    ApplicationId = "ExampleApp",
+    GlobalFileName = "appsettings.json",
+    EnvironmentPrefix = "EXAMPLE",          // Reads EXAMPLE__SERVER__PORT, etc.
+    SpecificFilePath = userSpecifiedPath,   // Optional path supplied via CLI
+    WriteLayer = CommonSourceWriteLayer.Local, // Explicit default save target
+});
+```
+
+## Explicit Writes with Semantic Selectors
+
+While `SaveAsync` writes to the default writable layer (typically Local), you can explicitly target a specific layer using type-safe selectors:
+
+```csharp
+// Persist to user-wide Global configuration
+await options.Source(CommonSource.Global).SaveAsync(patch =>
+{
+    patch.Theme = "Dark";
+});
+
+// Persist to project-level Local configuration
+await options.Source(CommonSource.Local).SaveAsync(patch =>
+{
+    patch.Port = 8080;
+});
+```
+
+## Extension Patterns
+
+CommonSource serves as the foundation for more advanced requirements:
+
+### Pattern 1: Command-line overrides
+
+Add `Configlue.Source.CommandLine` to seamlessly integrate `System.CommandLine` parse results:
+
+```csharp
+using Configlue.Source.Common;
+using Configlue.Source.CommandLine;
+
+model.UseCommonSources(
+    commonOptions,
+    parseResult,
+    mappings =>
+    {
+        mappings.Map<AppSettings, int>(portOption, s => s.Server.Port);
+        mappings.Map<AppSettings, bool>(verboseOption, s => s.Verbose);
+    });
+```
+
+### Pattern 2: Remote policies and additional custom sources
+
+Append additional sources using `model.Sources(...)` directly after `UseCommonSources`:
+
+```csharp
+model.UseCommonSources(new CommonSourceOptions
+{
+    ApplicationId = "ExampleApp",
+    GlobalFileName = "settings.json",
+});
+
+model.Sources(sources =>
+{
+    sources.FromJsonHttp(new()
+    {
+        Id = "remote-policy",
+        EndPoint = "https://policy.example.internal/api/config",
+        Priority = 500, // Evaluated with higher priority than CommonSource (0-3)
+        FallbackCondition = StateFallbackCondition.NotFoundOrUnavailable,
+    });
+});
+```
+
+## Next Steps
+
+- For environment variable details, see [Environment and command line](../sources/environment-and-commandline.md).
+- To partition properties to different destination files, see [Write routing](../layering/write-routing.md).

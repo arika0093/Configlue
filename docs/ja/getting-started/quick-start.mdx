@@ -1,0 +1,105 @@
+---
+title: クイックスタート
+description: CommonSource を使って、重ね合わせ設定の読み書きを 5 分で体験します。
+---
+
+import { Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+
+# クイックスタート
+
+このガイドでは、Configlue の標準機能である **CommonSource** を使い、設定の読み込み・監視・保存を体験します。
+外部ライブラリへの依存（DI コンテナーなど）なしで、最小限のコードで動かします。
+
+<Steps>
+
+1. ### モデルを宣言する
+
+   設定を保持する C# のクラスを作成します。
+   クラスに `[ConfiglueModel]` 属性を付与し、`partial` 修飾子を付けます。
+   ソースジェネレーターが、差分管理用のコードを自動生成します。
+
+   ```csharp
+   using Configlue;
+
+   [ConfiglueModel("example.quick-settings", Version = 1)]
+   public partial class QuickSettings
+   {
+       public string Name { get; set; } = "World";
+       public int RunCount { get; set; }
+   }
+   ```
+
+2. ### CommonSource でコンテキストを作る
+
+   `UseCommonSources` を呼び出して設定コンテキストを生成します。
+   この 1 行で、OS 標準のユーザー共通フォルダーとローカルフォルダーの 2 層構成が自動で整います。
+
+   ```csharp
+   using Configlue;
+   using Configlue.Source.Common;
+
+   await using var context = ConfiglueApp.CreateContext(conf =>
+   {
+       conf.Add<QuickSettings>(model =>
+       {
+           // アプリケーション名を指定するだけで、標準の階層構造を構成します
+           model.UseCommonSources("QuickApp");
+       });
+   });
+
+   var options = context.GetOptions<QuickSettings>();
+   ```
+
+   CommonSource は、次の順序（優先度の低い順）で自動的に設定を重ね合わせます。
+
+   - **ユーザー共通設定 (Global)**: OS のユーザーフォルダー配下（未作成でも動作します）
+   - **ローカル設定 (Local)**: 実行時のカレントディレクトリの `settings.json`
+
+3. ### 読み取り・外部変更の監視・保存を行う
+
+   ```csharp
+   // 1. 現在の実効値を読み取ります
+   var current = await options.GetValueAsync();
+   Console.WriteLine($"Hello, {current.Name}! (run #{current.RunCount})");
+
+   // 2. ファイルが外部から書き換えられたときの通知を受け取ります
+   using var subscription = options.OnChange(updated =>
+       Console.WriteLine($"設定が更新されました: {updated.Name}"));
+
+   // 3. 変更したい項目だけを指定して保存します（疎なパッチ保存）
+   await options.SaveAsync(patch =>
+   {
+       patch.Name = "Ada";
+       patch.RunCount = current.RunCount + 1;
+   });
+   ```
+
+   保存を実行すると、カレントディレクトリに `settings.json` が作成されます。
+   保存対象として指定した項目のみが記録されます。
+
+   ```json
+   {
+     "$version": 1,
+     "Name": "Ada",
+     "RunCount": 1
+   }
+   ```
+
+4. ### 値の出どころを確認する
+
+   複数の層が重なっているとき、各値がどのソースに由来しているかを `GetDetailsAsync` で調べられます。
+
+   ```csharp
+   var details = await options.GetDetailsAsync();
+   Console.WriteLine(details.Name);
+   ```
+
+   実効値に加え、各ソースが提供した値と編集可否が優先度順に並んで出力されます。
+
+</Steps>
+
+## 次のステップ
+
+- DI（ASP.NET Core や Worker Service）と組み合わせる方法は、[アプリケーション構成](../basic-usage/app-setup.md) で解説しています。
+- 順を追って理解を深めたい場合は、[チュートリアル STEP 1](../getting-started/01-first-file-app.md) を進めてください。
+- CommonSource の詳しいカスタマイズ方法は、[共通レイヤーソース](../basic-usage/common-sources.md) を参照してください。

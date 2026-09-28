@@ -1,0 +1,176 @@
+---
+title: "STEP 1: はじめての設定アプリ"
+description: CommonSource を使った設定の読み書きと、変更通知の基本を学びます。
+---
+
+import { Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+
+# STEP 1: はじめての設定アプリ
+
+このチュートリアルでは、段階的に設定アプリを構築していきます。
+STEP 1 では、Configlue の標準プリセットである **CommonSource** を使い、設定の読み込み・保存・外部変更通知の基本を学びます。
+
+<Tabs syncKey="di">
+<TabItem label="DI なし (コンソール・デスクトップ)">
+DI コンテナーを使わず、`ConfiglueApp.CreateContext` を使ってコンテキストを初期化します。
+</TabItem>
+<TabItem label="DI あり (ASP.NET Core・Worker)">
+`services.AddConfiglue` を使い、依存性注入（DI）コンテナーに設定を登録します。
+</TabItem>
+</Tabs>
+
+<Steps>
+
+1. ### モデルを宣言する
+
+   設定の器となるクラスを宣言します。
+   `[ConfiglueModel]` 属性を付与し、クラスに `partial` 修飾子を付けます。
+
+   ```csharp
+   using Configlue;
+
+   [ConfiglueModel("tutorial.settings", Version = 1)]
+   public partial class AppSettings
+   {
+       public string Name { get; set; } = "World";
+       public int RunCount { get; set; }
+   }
+   ```
+
+   属性の第 1 引数は、設定の識別子（スキーマ ID）です。
+   アプリケーション内で一意になる文字列を指定します。
+
+2. ### コンテキストを作る
+
+   設定の読み書きを管理するコンテキストを生成します。
+   Configlue では、標準レイヤーを自動構成する `UseCommonSources` の利用を推奨しています。
+
+   <Tabs syncKey="di">
+   <TabItem label="DI なし">
+
+   ```csharp
+   using Configlue;
+   using Configlue.Source.Common;
+
+   await using var context = ConfiglueApp.CreateContext(conf =>
+   {
+       conf.Add<AppSettings>(model =>
+       {
+           model.UseCommonSources("TutorialApp");
+       });
+   });
+
+   var options = context.GetOptions<AppSettings>();
+   ```
+
+   </TabItem>
+   <TabItem label="DI あり">
+
+   ```csharp
+   // Program.cs
+   using Configlue;
+   using Configlue.Source.Common;
+
+   builder.Services.AddConfiglue(conf =>
+   {
+       conf.Add<AppSettings>(model =>
+       {
+           model.UseCommonSources("TutorialApp");
+       });
+   });
+   ```
+
+   ```csharp
+   // 利用側のサービスクラス
+   using Configlue;
+
+   public class Greeter(IWritableOptions<AppSettings> options)
+   {
+       public async Task RunAsync()
+       {
+           var settings = await options.GetValueAsync();
+           Console.WriteLine($"Hello, {settings.Name}!");
+       }
+   }
+   ```
+
+   </TabItem>
+   </Tabs>
+
+   `UseCommonSources("TutorialApp")` を指定すると、次の構成が自動的に有効になります。
+
+   - **ユーザー共通設定**: OS 標準の保存先（Windows: `%APPDATA%/TutorialApp`, macOS/Linux: `~/.config/TutorialApp`）
+   - **ローカル設定**: プロジェクトのカレントディレクトリの `settings.json`
+
+   > [!NOTE]
+   > 単一のローカルファイルのみを直接扱いたい場合は、代替手段として `model.UseDefaultJsonFile()` や `model.UseJsonFile("settings.json")` も指定できます。
+
+3. ### 読み取り・監視・保存を行う
+
+   <Tabs syncKey="di">
+   <TabItem label="DI なし">
+
+   ```csharp
+   // 1. 現在の設定を読み取ります
+   var current = await options.GetValueAsync();
+   Console.WriteLine($"Hello, {current.Name}! (run #{current.RunCount})");
+
+   // 2. 外部からファイルが書き換えられたときの変更通知を登録します
+   using var subscription = options.OnChange(updated =>
+       Console.WriteLine($"ファイルが更新されました: {updated.Name}"));
+
+   // 3. 変更したい項目だけを指定して保存します
+   await options.SaveAsync(patch =>
+   {
+       patch.Name = "Ada";
+       patch.RunCount = current.RunCount + 1;
+   });
+   ```
+
+   </TabItem>
+   <TabItem label="DI あり">
+
+   ```csharp
+   // DI コンテナーから IWritableOptions<AppSettings> を注入して実行します
+   var current = await options.GetValueAsync();
+   Console.WriteLine($"Hello, {current.Name}! (run #{current.RunCount})");
+
+   using var subscription = options.OnChange(updated =>
+       Console.WriteLine($"ファイルが更新されました: {updated.Name}"));
+
+   await options.SaveAsync(patch =>
+   {
+       patch.Name = "Ada";
+       patch.RunCount = current.RunCount + 1;
+   });
+   ```
+
+   </TabItem>
+   </Tabs>
+
+   `SaveAsync` に渡すパッチは「疎（スパース）な変更」です。
+   指定したプロパティのみが保存対象となり、指定していないプロパティは既存の値をそのまま維持します。
+
+   保存を実行すると、カレントディレクトリに `settings.json` が生成されます。
+
+   ```json
+   {
+     "$version": 1,
+     "Name": "Ada",
+     "RunCount": 1
+   }
+   ```
+
+   初回実行時などで設定ファイルが存在しない場合、例外は発生せず、モデルに定義した初期値が使われます。
+
+</Steps>
+
+## つまずきやすい点
+
+- **`partial` キーワードの付け忘れ**: クラスに `partial` が付いていないと、ソースジェネレーターによるコード生成が行われません。
+- **登録前の `GetOptions` 呼び出し**: `GetOptions` を呼ぶ前に、必ず `conf.Add<T>` でモデルを登録してください。
+- **保存先のルール**: `UseCommonSources` を使っている場合、既定の保存先はカレントディレクトリの `settings.json`（ローカル設定）になります。
+
+---
+
+次のステップ: [STEP 2: 現実的なモデルに育てる](./02-real-world-model.md) では、入れ子構造やコレクションを追加し、実用的な設定クラスを定義します。
