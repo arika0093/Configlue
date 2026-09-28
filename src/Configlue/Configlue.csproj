@@ -13,6 +13,7 @@
     <ProjectReference Include="../Configlue.Abstraction/Configlue.Abstraction.csproj" />
     <ProjectReference Include="../Configlue.Extensions.DI/Configlue.Extensions.DI.csproj" />
     <ProjectReference Include="../Configlue.Provider.Json/Configlue.Provider.Json.csproj" />
+    <ProjectReference Include="../Configlue.JsonSchema/Configlue.JsonSchema.csproj" />
     <ProjectReference Include="../Configlue.Resource.Http/Configlue.Resource.Http.csproj" />
     <ProjectReference Include="../Configlue.Source.Environment/Configlue.Source.Environment.csproj" />
     <ProjectReference Include="../Configlue.Source.Common/Configlue.Source.Common.csproj" />

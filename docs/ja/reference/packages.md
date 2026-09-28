@@ -7,14 +7,15 @@ description: 機能ごとの NuGet パッケージを探す。
 
 | パッケージ | 用途 |
 | --- | --- |
-| `Configlue` | ユーザー向けメタパッケージ: Core・DI 統合・JSON プロバイダー・HTTP リソース・共通レイヤーソース・環境変数ソース・ジェネレーターアナライザー。実装アセンブリ自体はありません。 |
+| `Configlue` | ユーザー向けメタパッケージ: Core・DI 統合・JSON プロバイダー・JSON Schema 出力・HTTP リソース・共通レイヤーソース・環境変数ソース・ジェネレーターアナライザー。実装アセンブリ自体はありません。 |
 | `Configlue.Abstraction` | プロバイダー・コーデック・リソース・生成モデルの契約。 |
 | `Configlue.Core` | 状態解決と永続化ランタイム。 |
 | `Configlue.Extensions.DI` | Configlue options の依存性注入登録。 |
 | `Configlue.Extensions.MSOptions` | Microsoft options インターフェイス向けの任意アダプター。 |
 | `Configlue.Generator` | 疎モデル生成サポート (Roslyn アナライザー)。 |
 | `Configlue.Testing` | インメモリリソースとテストダブル。 |
-| `Configlue.Provider.Json` | JSON コーデック、セクションリソース、ファイル登録、JSON Schema 出力。 |
+| `Configlue.Provider.Json` | JSON コーデック、セクションリソース、ファイル登録。 |
+| `Configlue.JsonSchema` | Configlue モデルから JSON Schema を生成・出力。`Configlue` メタパッケージに含まれます。 |
 | `Configlue.Provider.Xml` | セクションリソースとファイル登録つき XML コーデック。 |
 | `Configlue.Provider.Yaml` | セクションリソースとファイル登録つき YAML コーデック。 |
 | `Configlue.Source.Environment` | プロセス環境変数に支えられた読み取り専用ソース。 |

@@ -2,6 +2,7 @@
   <Folder Name="/src/">
     <Project Path="src/Configlue.Abstraction/Configlue.Abstraction.csproj" />
     <Project Path="src/Configlue.Core/Configlue.Core.csproj" />
+    <Project Path="src/Configlue.JsonSchema/Configlue.JsonSchema.csproj" />
     <Project Path="src/Configlue.Generator/Configlue.Generator.csproj" />
     <Project Path="src/Configlue.Extensions.DI/Configlue.Extensions.DI.csproj" />
     <Project Path="src/Configlue.Extensions.MSOptions/Configlue.Extensions.MSOptions.csproj" />

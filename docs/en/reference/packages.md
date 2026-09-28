@@ -7,14 +7,15 @@ description: Find the NuGet package for each Configlue capability.
 
 | Package | Purpose |
 | --- | --- |
-| `Configlue` | User-facing meta-package: Core, DI integration, JSON provider, HTTP resources, common layered sources, environment source, and the generator analyzer. Contains no implementation assembly of its own. |
+| `Configlue` | User-facing meta-package: Core, DI integration, JSON provider, JSON Schema export, HTTP resources, common layered sources, environment source, and the generator analyzer. Contains no implementation assembly of its own. |
 | `Configlue.Abstraction` | Provider, codec, resource, and generated-model contracts. |
 | `Configlue.Core` | State resolution and persistence runtime. |
 | `Configlue.Extensions.DI` | Dependency-injection registration for Configlue options. |
 | `Configlue.Extensions.MSOptions` | Optional adapters for Microsoft's options interfaces. |
 | `Configlue.Generator` | Generated sparse model support (Roslyn analyzer). |
 | `Configlue.Testing` | In-memory resources and test doubles. |
-| `Configlue.Provider.Json` | JSON codec, section resources, file registrations, and JSON Schema export. |
+| `Configlue.Provider.Json` | JSON codec, section resources, and file registrations. |
+| `Configlue.JsonSchema` | JSON Schema generation and export for Configlue models; included by the `Configlue` meta-package. |
 | `Configlue.Provider.Xml` | XML codec with section resources and file registrations. |
 | `Configlue.Provider.Yaml` | YAML codec with section resources and file registrations. |
 | `Configlue.Source.Environment` | Read-only source backed by process environment variables. |

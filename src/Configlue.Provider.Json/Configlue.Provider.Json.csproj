@@ -3,7 +3,7 @@
     <AssemblyName>Configlue.Provider.Json</AssemblyName>
     <RootNamespace>Configlue.Provider.Json</RootNamespace>
     <IsPackable>true</IsPackable>
-    <PackageDescription>JSON codec and schema export for Configlue resources.</PackageDescription>
+    <PackageDescription>JSON codec and resource integration for Configlue.</PackageDescription>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../Configlue.Abstraction/Configlue.Abstraction.csproj" />

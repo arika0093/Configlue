@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>Configlue.JsonSchema</AssemblyName>
+    <RootNamespace>Configlue.JsonSchema</RootNamespace>
+    <IsPackable>true</IsPackable>
+    <PackageDescription>JSON Schema generation for Configlue models.</PackageDescription>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Configlue.Abstraction/Configlue.Abstraction.csproj" />
+  </ItemGroup>
+</Project>

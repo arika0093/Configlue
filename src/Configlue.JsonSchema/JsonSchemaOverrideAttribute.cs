@@ -1,6 +1,6 @@
 using System;
 
-namespace Configlue.Provider.Json;
+namespace Configlue.JsonSchema;
 
 /// <summary>
 /// Supplies a JSON Schema for a property whose custom JSON converter exports a boolean schema.
