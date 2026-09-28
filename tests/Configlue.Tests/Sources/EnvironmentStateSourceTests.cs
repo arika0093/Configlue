@@ -121,6 +121,28 @@ public sealed class EnvironmentStateSourceTests
     }
 
     [Test]
+    public async Task EnvironmentSource_RevisionMatchesLegacyDeterministicEncoding()
+    {
+        var variables = new Dictionary<string, string?>(StringComparer.Ordinal)
+        {
+            ["APP__UNKNOWN"] = "ignored",
+            ["OTHER__ENABLED"] = "true",
+        };
+        var source = EnvironmentStateSource.FromEnvironment<AppSettings, AppSettings.Fragment>(
+            "environment",
+            "APP",
+            environmentVariables: () => variables
+        );
+
+        var read = await source.Reader.ReadAsync();
+
+        // SHA256 of the length-prefixed, upper-cased "12:APP__UNKNOWN7:ignored" payload.
+        (read.Revision).ShouldBe(
+            "F93D39285281CD8BC940C179D5FBCCA53F73DF6D26EF6F45428B9C2B2358A498"
+        );
+    }
+
+    [Test]
     public async Task EnvironmentSource_UsesCallerParserForApplicationSpecificTypes()
     {
         var variables = new Dictionary<string, string?>(StringComparer.Ordinal)

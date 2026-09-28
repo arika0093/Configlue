@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Collections;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
@@ -15,6 +16,9 @@ internal sealed class CommandLineStateReader<TFragment> : IStateReader<TFragment
     private readonly ConfiglueModelSchema _schema;
     private readonly CommandLineSourceOptions _options;
     private readonly IReadOnlyList<CommandLineMappingBuilder.Mapping> _mappings;
+    private readonly object _cacheLock = new();
+    private StateReadResult<TFragment> _cachedResult;
+    private volatile bool _hasCachedResult;
 
     public CommandLineStateReader(
         ConfiglueModelSchema schema,
@@ -35,6 +39,23 @@ internal sealed class CommandLineStateReader<TFragment> : IStateReader<TFragment
     )
     {
         cancellationToken.ThrowIfCancellationRequested();
+        if (!_hasCachedResult)
+        {
+            lock (_cacheLock)
+            {
+                if (!_hasCachedResult)
+                {
+                    _cachedResult = ReadCore(cancellationToken);
+                    _hasCachedResult = true;
+                }
+            }
+        }
+
+        return ValueTask.FromResult(_cachedResult);
+    }
+
+    private StateReadResult<TFragment> ReadCore(CancellationToken cancellationToken)
+    {
         var parseResult = _options.ParseResult;
         if (parseResult.Errors.Count > 0)
         {
@@ -64,7 +85,7 @@ internal sealed class CommandLineStateReader<TFragment> : IStateReader<TFragment
 
             // Later mappings win when several symbols target one member.
             assignments[mapping.PropertyPath] = new AssignedValue(
-                mapping.PropertyPath.Split('.', StringSplitOptions.None),
+                mapping.PropertyPathSegments,
                 value.Value,
                 mapping.Symbol.Name
             );
@@ -73,7 +94,7 @@ internal sealed class CommandLineStateReader<TFragment> : IStateReader<TFragment
         var revision = CreateRevision(assignments, cancellationToken);
         if (assignments.Count == 0)
         {
-            return ValueTask.FromResult(StateReadResult<TFragment>.NotFound(revision));
+            return StateReadResult<TFragment>.NotFound(revision);
         }
 
         IConfiglueFragment fragment = _schema.CreateEmptyFragment();
@@ -90,8 +111,10 @@ internal sealed class CommandLineStateReader<TFragment> : IStateReader<TFragment
             );
         }
 
-        return ValueTask.FromResult(
-            StateReadResult<TFragment>.Success((TFragment)fragment, revision, _schema.ToMetadata())
+        return StateReadResult<TFragment>.Success(
+            (TFragment)fragment,
+            revision,
+            _schema.ToMetadata()
         );
     }
 
@@ -104,26 +127,34 @@ internal sealed class CommandLineStateReader<TFragment> : IStateReader<TFragment
         string symbolName
     )
     {
-        var matches = schema
-            .Members.Where(candidate =>
-                string.Equals(candidate.Name, path[pathIndex], StringComparison.OrdinalIgnoreCase)
-            )
-            .ToArray();
-        if (matches.Length > 1)
+        var members = schema.Members;
+        ConfiglueMemberSchema member = default;
+        var matches = 0;
+        for (var index = 0; index < members.Count; index++)
+        {
+            var candidate = members[index];
+            if (!string.Equals(candidate.Name, path[pathIndex], StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            matches++;
+            member = candidate;
+        }
+
+        if (matches > 1)
         {
             throw new FormatException(
                 $"Command-line path segment '{path[pathIndex]}' is ambiguous in schema '{schema.Id}'."
             );
         }
 
-        if (matches.Length == 0)
+        if (matches == 0)
         {
             throw new FormatException(
                 $"Command-line path segment '{path[pathIndex]}' is unknown in schema '{schema.Id}'."
             );
         }
-
-        var member = matches[0];
 
         if (pathIndex == path.Length - 1)
         {
@@ -171,23 +202,65 @@ internal sealed class CommandLineStateReader<TFragment> : IStateReader<TFragment
         CancellationToken cancellationToken
     )
     {
-        var builder = new StringBuilder();
-        foreach (var path in assignments.Keys.Order(StringComparer.Ordinal))
+        var keys = new List<string>(assignments.Keys);
+        keys.Sort(StringComparer.Ordinal);
+        using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        foreach (var path in keys)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var assignment = assignments[path];
-            var rendered = CommandLineValueConverter.Render(assignment.Value);
-            builder
-                .Append(path.Length.ToString(CultureInfo.InvariantCulture))
-                .Append(':')
-                .Append(path)
-                .Append(rendered.Length.ToString(CultureInfo.InvariantCulture))
-                .Append(':')
-                .Append(rendered);
+            var rendered = CommandLineValueConverter.Render(assignments[path].Value);
+            AppendHashedString(hash, path);
+            AppendHashedString(hash, rendered);
         }
 
         cancellationToken.ThrowIfCancellationRequested();
-        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(builder.ToString())));
+        return Convert.ToHexString(hash.GetHashAndReset());
+    }
+
+    private static void AppendHashedString(IncrementalHash hash, string value)
+    {
+        Span<byte> prefix = stackalloc byte[12];
+        var prefixLength = WriteLengthPrefix(prefix, value.Length);
+        hash.AppendData(prefix[..prefixLength]);
+        var byteCount = Encoding.UTF8.GetByteCount(value);
+        if (byteCount == 0)
+        {
+            return;
+        }
+
+        var buffer = ArrayPool<byte>.Shared.Rent(byteCount);
+        try
+        {
+            var written = Encoding.UTF8.GetBytes(value, buffer);
+            hash.AppendData(buffer.AsSpan(0, written));
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(buffer);
+        }
+    }
+
+    private static int WriteLengthPrefix(Span<byte> buffer, int length)
+    {
+        var digits = 0;
+        var remaining = length;
+        do
+        {
+            digits++;
+            remaining /= 10;
+        } while (remaining != 0);
+
+        var index = digits;
+        remaining = length;
+        do
+        {
+            index--;
+            buffer[index] = (byte)('0' + (remaining % 10));
+            remaining /= 10;
+        } while (remaining != 0);
+
+        buffer[digits] = (byte)':';
+        return digits + 1;
     }
 
     private sealed record AssignedValue

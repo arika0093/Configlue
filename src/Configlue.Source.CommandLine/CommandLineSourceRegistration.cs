@@ -280,7 +280,7 @@ public sealed class CommandLineMappingBuilder
             );
         }
 
-        _mappings.Add(new Mapping(symbol, path, resolve));
+        _mappings.Add(new Mapping(symbol, path, segments, resolve));
     }
 
     internal readonly record struct MappingValue
@@ -302,23 +302,32 @@ public sealed class CommandLineMappingBuilder
     {
         public Symbol Symbol { get; init; }
         public string PropertyPath { get; init; }
+        public string[] PropertyPathSegments { get; init; }
         public Func<ParseResult, MappingValue?> Resolve { get; init; }
 
-        public Mapping(Symbol Symbol, string PropertyPath, Func<ParseResult, MappingValue?> Resolve)
+        public Mapping(
+            Symbol Symbol,
+            string PropertyPath,
+            string[] PropertyPathSegments,
+            Func<ParseResult, MappingValue?> Resolve
+        )
         {
             this.Symbol = Symbol;
             this.PropertyPath = PropertyPath;
+            this.PropertyPathSegments = PropertyPathSegments;
             this.Resolve = Resolve;
         }
 
         public void Deconstruct(
             out Symbol Symbol,
             out string PropertyPath,
+            out string[] PropertyPathSegments,
             out Func<ParseResult, MappingValue?> Resolve
         )
         {
             Symbol = this.Symbol;
             PropertyPath = this.PropertyPath;
+            PropertyPathSegments = this.PropertyPathSegments;
             Resolve = this.Resolve;
         }
     }
