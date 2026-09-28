@@ -1,0 +1,663 @@
+using System.Buffers;
+using System.CommandLine;
+using System.ComponentModel.DataAnnotations;
+using System.Text;
+using BenchmarkDotNet.Attributes;
+using Configlue;
+using Configlue.Codecs;
+using Configlue.Provider.Json;
+using Configlue.Resources;
+using Configlue.Source.CommandLine;
+using Configlue.Source.Environment;
+using Configlue.Sources;
+using Configlue.State;
+using Configlue.Testing;
+
+[ConfiglueModel("bench-optimization-settings", Version = 1)]
+public partial class OptimizationBenchmarkSettings
+{
+    [Range(0, 100)]
+    public int Counter { get; set; } = 3;
+
+    public string Name { get; set; } = "default";
+
+    public bool Enabled { get; set; } = true;
+}
+
+[ConfiglueModel("bench-optimization-nested", Version = 1)]
+public partial class OptimizationNestedSettings
+{
+    public string Label { get; set; } = "nested";
+
+    public int Port { get; set; } = 5432;
+}
+
+[ConfiglueModel("bench-optimization-root", Version = 1)]
+public partial class OptimizationRootSettings
+{
+    public string Name { get; set; } = "root";
+
+    public OptimizationNestedSettings? Nested { get; set; } = new();
+}
+
+[ConfiglueModel("bench-append-collection", Version = 1)]
+public partial class AppendCollectionSettings
+{
+    [ConfiglueMerge(MergeMode.Append)]
+    public IReadOnlyList<string> Items { get; set; } = [];
+}
+
+[ConfiglueModel("bench-set-union-collection", Version = 1)]
+public partial class SetUnionCollectionSettings
+{
+    [ConfiglueMerge(MergeMode.SetUnion)]
+    public IReadOnlyList<string> Items { get; set; } = [];
+}
+
+[ConfiglueModel("bench-save-routing", Version = 1)]
+public partial class SaveRoutingBenchmarkSettings
+{
+    public int Counter { get; set; }
+
+    public string Name { get; set; } = string.Empty;
+}
+
+[MemoryDiagnoser]
+public class ReadValidationBenchmarks
+{
+    private ConfiglueOptions<
+        OptimizationBenchmarkSettings,
+        OptimizationBenchmarkSettings.Fragment
+    > _options = null!;
+
+    [Params(false, true)]
+    public bool Validate { get; set; }
+
+    [GlobalSetup]
+    public void Setup()
+    {
+        var store = new InMemoryStateStore<OptimizationBenchmarkSettings.Fragment>(
+            new OptimizationBenchmarkSettings.Fragment
+            {
+                Counter = Optional<int>.Present(10),
+                Name = Optional<string>.Present("benchmark"),
+                Enabled = Optional<bool>.Present(true),
+            }
+        );
+        var sourceSet = new StateSourceSet<OptimizationBenchmarkSettings.Fragment>([
+            new StateSource<OptimizationBenchmarkSettings.Fragment>("benchmark", store),
+        ]);
+        _options = Validate
+            ? new ConfiglueOptions<
+                OptimizationBenchmarkSettings,
+                OptimizationBenchmarkSettings.Fragment
+            >(sourceSet, validators: [new MarkerValidator()], validateDataAnnotations: true)
+            : new ConfiglueOptions<
+                OptimizationBenchmarkSettings,
+                OptimizationBenchmarkSettings.Fragment
+            >(sourceSet, validateDataAnnotations: false);
+    }
+
+    [GlobalCleanup]
+    public ValueTask CleanupAsync() => _options.DisposeAsync();
+
+    [Benchmark]
+    public ValueTask<OptimizationBenchmarkSettings> GetValueAsync() => _options.GetValueAsync();
+
+    private sealed class MarkerValidator : IConfiglueValidator<OptimizationBenchmarkSettings>
+    {
+        public IReadOnlyList<string> Validate(OptimizationBenchmarkSettings value) =>
+            value.Counter < 0 ? ["counter"] : [];
+    }
+}
+
+[MemoryDiagnoser]
+public class LayeredResolutionFallbackBenchmarks
+{
+    private ConfiglueOptions<
+        OptimizationBenchmarkSettings,
+        OptimizationBenchmarkSettings.Fragment
+    > _options = null!;
+
+    [Params(1, 4, 16)]
+    public int SourceCount { get; set; }
+
+    [Params(false, true)]
+    public bool TopSourceNotFound { get; set; }
+
+    [GlobalSetup]
+    public void Setup()
+    {
+        var sources = Enumerable
+            .Range(0, SourceCount)
+            .Select(index =>
+            {
+                var store =
+                    TopSourceNotFound && index == 0
+                        ? new InMemoryStateStore<OptimizationBenchmarkSettings.Fragment>()
+                        : new InMemoryStateStore<OptimizationBenchmarkSettings.Fragment>(
+                            new OptimizationBenchmarkSettings.Fragment
+                            {
+                                Counter = Optional<int>.Present(index),
+                                Name = Optional<string>.Present($"Layer {index}"),
+                                Enabled = Optional<bool>.Present(index % 2 == 0),
+                            }
+                        );
+                return new StateSource<OptimizationBenchmarkSettings.Fragment>(
+                    $"layer-{index}",
+                    store,
+                    priority: SourceCount - index,
+                    fallbackCondition: StateFallbackCondition.NotFound
+                );
+            })
+            .ToArray();
+        _options = new ConfiglueOptions<
+            OptimizationBenchmarkSettings,
+            OptimizationBenchmarkSettings.Fragment
+        >(new StateSourceSet<OptimizationBenchmarkSettings.Fragment>(sources));
+    }
+
+    [GlobalCleanup]
+    public ValueTask CleanupAsync() => _options.DisposeAsync();
+
+    [Benchmark]
+    public ValueTask<OptimizationBenchmarkSettings> ResolveSourcesAsync() =>
+        _options.GetValueAsync();
+}
+
+[MemoryDiagnoser]
+public class FragmentMergeBenchmarks
+{
+    private OptimizationBenchmarkSettings.Fragment _base = null!;
+    private OptimizationBenchmarkSettings.Fragment _overlay = null!;
+
+    [Params(1, 3)]
+    public int PresentMemberCount { get; set; }
+
+    [GlobalSetup]
+    public void Setup()
+    {
+        _base = new OptimizationBenchmarkSettings.Fragment { Counter = Optional<int>.Present(1) };
+        if (PresentMemberCount == 1)
+        {
+            _overlay = new OptimizationBenchmarkSettings.Fragment
+            {
+                Counter = Optional<int>.Present(2),
+            };
+        }
+        else
+        {
+            _overlay = new OptimizationBenchmarkSettings.Fragment
+            {
+                Counter = Optional<int>.Present(2),
+                Name = Optional<string>.Present("overlay"),
+                Enabled = Optional<bool>.Present(false),
+            };
+        }
+    }
+
+    [Benchmark]
+    public OptimizationBenchmarkSettings.Fragment Merge() => _base.Merge(_overlay);
+
+    [Benchmark]
+    public OptimizationBenchmarkSettings ToModel() => _overlay.ToModel();
+}
+
+[MemoryDiagnoser]
+public class NestedModelReadBenchmarks
+{
+    private ConfiglueOptions<OptimizationRootSettings, OptimizationRootSettings.Fragment> _options =
+        null!;
+
+    [GlobalSetup]
+    public void Setup()
+    {
+        var store = new InMemoryStateStore<OptimizationRootSettings.Fragment>(
+            new OptimizationRootSettings.Fragment
+            {
+                Name = Optional<string>.Present("root"),
+                Nested = Optional<OptimizationNestedSettings.Fragment?>.Present(
+                    new OptimizationNestedSettings.Fragment
+                    {
+                        Label = Optional<string>.Present("nested"),
+                        Port = Optional<int>.Present(6432),
+                    }
+                ),
+            }
+        );
+        _options = new ConfiglueOptions<
+            OptimizationRootSettings,
+            OptimizationRootSettings.Fragment
+        >(
+            new StateSourceSet<OptimizationRootSettings.Fragment>([
+                new StateSource<OptimizationRootSettings.Fragment>("nested", store),
+            ])
+        );
+    }
+
+    [GlobalCleanup]
+    public ValueTask CleanupAsync() => _options.DisposeAsync();
+
+    [Benchmark]
+    public ValueTask<OptimizationRootSettings> GetValueAsync() => _options.GetValueAsync();
+}
+
+[MemoryDiagnoser]
+public class CollectionMergeBenchmarks
+{
+    private ConfiglueOptions<AppendCollectionSettings, AppendCollectionSettings.Fragment> _append =
+        null!;
+    private ConfiglueOptions<
+        SetUnionCollectionSettings,
+        SetUnionCollectionSettings.Fragment
+    > _setUnion = null!;
+
+    [Params(2, 8)]
+    public int SourceCount { get; set; }
+
+    [GlobalSetup]
+    public void Setup()
+    {
+        _append = new ConfiglueOptions<AppendCollectionSettings, AppendCollectionSettings.Fragment>(
+            new StateSourceSet<AppendCollectionSettings.Fragment>(CreateAppendSources())
+        );
+        _setUnion = new ConfiglueOptions<
+            SetUnionCollectionSettings,
+            SetUnionCollectionSettings.Fragment
+        >(new StateSourceSet<SetUnionCollectionSettings.Fragment>(CreateSetUnionSources()));
+    }
+
+    [GlobalCleanup]
+    public async ValueTask CleanupAsync()
+    {
+        await _append.DisposeAsync().ConfigureAwait(false);
+        await _setUnion.DisposeAsync().ConfigureAwait(false);
+    }
+
+    [Benchmark]
+    public ValueTask<AppendCollectionSettings> AppendResolveAsync() => _append.GetValueAsync();
+
+    [Benchmark]
+    public ValueTask<SetUnionCollectionSettings> SetUnionResolveAsync() =>
+        _setUnion.GetValueAsync();
+
+    private StateSource<AppendCollectionSettings.Fragment>[] CreateAppendSources() =>
+        Enumerable
+            .Range(0, SourceCount)
+            .Select(index =>
+            {
+                var store = new InMemoryStateStore<AppendCollectionSettings.Fragment>(
+                    new AppendCollectionSettings.Fragment
+                    {
+                        Items = Optional<IReadOnlyList<string>>.Present([
+                            $"item-{index}",
+                            "shared",
+                        ]),
+                    }
+                );
+                return new StateSource<AppendCollectionSettings.Fragment>(
+                    $"append-{index}",
+                    store,
+                    priority: SourceCount - index
+                );
+            })
+            .ToArray();
+
+    private StateSource<SetUnionCollectionSettings.Fragment>[] CreateSetUnionSources() =>
+        Enumerable
+            .Range(0, SourceCount)
+            .Select(index =>
+            {
+                var store = new InMemoryStateStore<SetUnionCollectionSettings.Fragment>(
+                    new SetUnionCollectionSettings.Fragment
+                    {
+                        Items = Optional<IReadOnlyList<string>>.Present([
+                            $"item-{index}",
+                            "shared",
+                        ]),
+                    }
+                );
+                return new StateSource<SetUnionCollectionSettings.Fragment>(
+                    $"union-{index}",
+                    store,
+                    priority: SourceCount - index
+                );
+            })
+            .ToArray();
+}
+
+[MemoryDiagnoser]
+public class SaveRoutingBenchmarks
+{
+    private ConfiglueOptions<
+        SaveRoutingBenchmarkSettings,
+        SaveRoutingBenchmarkSettings.Fragment
+    > _single = null!;
+    private ConfiglueOptions<
+        SaveRoutingBenchmarkSettings,
+        SaveRoutingBenchmarkSettings.Fragment
+    > _multi = null!;
+    private StateWritePlan _writePlan = null!;
+    private int _counter;
+
+    [GlobalSetup]
+    public void Setup()
+    {
+        var singleStore = new InMemoryStateStore<SaveRoutingBenchmarkSettings.Fragment>(
+            new SaveRoutingBenchmarkSettings.Fragment
+            {
+                Counter = Optional<int>.Present(0),
+                Name = Optional<string>.Present("single"),
+            }
+        );
+        _single = new ConfiglueOptions<
+            SaveRoutingBenchmarkSettings,
+            SaveRoutingBenchmarkSettings.Fragment
+        >(
+            new StateSourceSet<SaveRoutingBenchmarkSettings.Fragment>([
+                new StateSource<SaveRoutingBenchmarkSettings.Fragment>(
+                    "single",
+                    singleStore,
+                    writer: singleStore
+                ),
+            ])
+        );
+
+        var left = new InMemoryStateStore<SaveRoutingBenchmarkSettings.Fragment>(
+            new SaveRoutingBenchmarkSettings.Fragment
+            {
+                Counter = Optional<int>.Present(0),
+                Name = Optional<string>.Present("left"),
+            }
+        );
+        var right = new InMemoryStateStore<SaveRoutingBenchmarkSettings.Fragment>(
+            new SaveRoutingBenchmarkSettings.Fragment { Name = Optional<string>.Present("right") }
+        );
+        _multi = new ConfiglueOptions<
+            SaveRoutingBenchmarkSettings,
+            SaveRoutingBenchmarkSettings.Fragment
+        >(
+            new StateSourceSet<SaveRoutingBenchmarkSettings.Fragment>([
+                new StateSource<SaveRoutingBenchmarkSettings.Fragment>(
+                    "left",
+                    left,
+                    priority: 100,
+                    writer: left
+                ),
+                new StateSource<SaveRoutingBenchmarkSettings.Fragment>(
+                    "right",
+                    right,
+                    priority: 50,
+                    writer: right
+                ),
+            ])
+        );
+        _writePlan = new StateWritePlan(
+            new Dictionary<string, string>(StringComparer.Ordinal) { ["Name"] = "right" }
+        );
+    }
+
+    [GlobalCleanup]
+    public async ValueTask CleanupAsync()
+    {
+        await _single.DisposeAsync().ConfigureAwait(false);
+        await _multi.DisposeAsync().ConfigureAwait(false);
+    }
+
+    [Benchmark]
+    public async Task SaveSingleSourceAsync()
+    {
+        var next = Interlocked.Increment(ref _counter);
+        await _single.SaveAsync(patch => patch.Counter = 1 + (next % 90)).ConfigureAwait(false);
+    }
+
+    [Benchmark]
+    public async Task SaveMultiSourceRoutedAsync()
+    {
+        var next = Interlocked.Increment(ref _counter);
+        using var session = await _multi.OpenEditSessionAsync(_writePlan).ConfigureAwait(false);
+        session.Value.Counter = 1 + (next % 90);
+        session.Value.Name = $"name-{next}";
+        await session.CommitAsync().ConfigureAwait(false);
+    }
+}
+
+[MemoryDiagnoser]
+public class JsonCodecLayoutBenchmarks
+{
+    private JsonStateCodec<OptimizationBenchmarkSettings.Fragment> _codec = null!;
+    private StateCodecContext _context;
+    private OptimizationBenchmarkSettings.Fragment _fragment = null!;
+    private ArrayBufferWriter<byte> _buffer = null!;
+    private ReadOnlySequence<byte> _sequence;
+
+    [Params(DocumentLayout.Simple, DocumentLayout.Detailed)]
+    public DocumentLayout Layout { get; set; }
+
+    [GlobalSetup]
+    public void Setup()
+    {
+        _codec = new JsonStateCodec<OptimizationBenchmarkSettings.Fragment>(
+            documentLayout: new DocumentLayoutOptions { Layout = Layout }
+        );
+        _context = new StateCodecContext(new StateSchemaMetadata("bench-optimization-settings", 1));
+        _fragment = new OptimizationBenchmarkSettings.Fragment
+        {
+            Counter = Optional<int>.Present(10),
+            Name = Optional<string>.Present("benchmark"),
+            Enabled = Optional<bool>.Present(true),
+        };
+        _buffer = new ArrayBufferWriter<byte>();
+        _codec.Serialize(_fragment, _buffer, in _context);
+        _sequence = new ReadOnlySequence<byte>(_buffer.WrittenMemory.ToArray());
+    }
+
+    [Benchmark]
+    public void Serialize()
+    {
+        _buffer.Clear();
+        _codec.Serialize(_fragment, _buffer, in _context);
+    }
+
+    [Benchmark]
+    public OptimizationBenchmarkSettings.Fragment? Deserialize() =>
+        _codec.Deserialize(in _sequence, in _context);
+}
+
+[MemoryDiagnoser]
+public class JsonSectionBenchmarks
+{
+    private string _directory = null!;
+    private FileResource _file = null!;
+    private SerializedStateReader<OptimizationBenchmarkSettings.Fragment> _reader = null!;
+    private ConfiglueOptions<
+        OptimizationBenchmarkSettings,
+        OptimizationBenchmarkSettings.Fragment
+    > _options = null!;
+    private int _counter;
+
+    [GlobalSetup]
+    public async Task SetupAsync()
+    {
+        _directory = Path.Combine(
+            Path.GetTempPath(),
+            $"configlue-section-bench-{Guid.NewGuid():N}"
+        );
+        Directory.CreateDirectory(_directory);
+        var path = Path.Combine(_directory, "appsettings.json");
+        await File.WriteAllTextAsync(
+                path,
+                """
+                {
+                  "App": {
+                    "Settings": { "$version": 1, "Counter": 5 },
+                    "Other": { "Value": "keep-nested" }
+                  },
+                  "OtherSection": { "Value": "keep-root" }
+                }
+                """
+            )
+            .ConfigureAwait(false);
+        _file = new FileResource(path, new FileResourceOptions { CreateBackup = false });
+        var section = new JsonSectionResource(_file, "App:Settings");
+        var codec = new JsonStateCodec<OptimizationBenchmarkSettings.Fragment>();
+        _reader = new SerializedStateReader<OptimizationBenchmarkSettings.Fragment>(section, codec);
+        var writer = new SerializedStateWriter<OptimizationBenchmarkSettings.Fragment>(
+            section,
+            codec
+        );
+        _options = new ConfiglueOptions<
+            OptimizationBenchmarkSettings,
+            OptimizationBenchmarkSettings.Fragment
+        >(
+            new StateSourceSet<OptimizationBenchmarkSettings.Fragment>([
+                new StateSource<OptimizationBenchmarkSettings.Fragment>(
+                    "section",
+                    _reader,
+                    writer: writer,
+                    watcher: section
+                ),
+            ])
+        );
+    }
+
+    [GlobalCleanup]
+    public async Task CleanupAsync()
+    {
+        await _options.DisposeAsync().ConfigureAwait(false);
+        _file.Dispose();
+        Directory.Delete(_directory, recursive: true);
+    }
+
+    [Benchmark]
+    public ValueTask<StateReadResult<OptimizationBenchmarkSettings.Fragment>> ReadAsync() =>
+        _reader.ReadAsync();
+
+    [Benchmark]
+    public async Task SaveAsync()
+    {
+        var next = Interlocked.Increment(ref _counter);
+        await _options.SaveAsync(patch => patch.Counter = 1 + (next % 90)).ConfigureAwait(false);
+    }
+}
+
+[MemoryDiagnoser]
+public class EnvironmentSourceBenchmarks
+{
+    private StateSource<OptimizationBenchmarkSettings.Fragment> _source = null!;
+
+    [GlobalSetup]
+    public void Setup()
+    {
+        var variables = new Dictionary<string, string?>(StringComparer.Ordinal)
+        {
+            ["APP__COUNTER"] = "7",
+            ["APP__NAME"] = "environment",
+            ["APP__ENABLED"] = "true",
+        };
+        _source = EnvironmentStateSource.FromEnvironment<
+            OptimizationBenchmarkSettings,
+            OptimizationBenchmarkSettings.Fragment
+        >("environment", "APP", environmentVariables: () => variables);
+    }
+
+    [Benchmark]
+    public ValueTask<StateReadResult<OptimizationBenchmarkSettings.Fragment>> ReadAsync() =>
+        _source.Reader.ReadAsync();
+}
+
+[MemoryDiagnoser]
+public class CommandLineSourceBenchmarks
+{
+    private StateSourceResolver<OptimizationBenchmarkSettings.Fragment> _resolver = null!;
+
+    [GlobalSetup]
+    public void Setup()
+    {
+        var counterOption = new Option<int>("--counter");
+        var root = new RootCommand();
+        root.Options.Add(counterOption);
+        var parseResult = root.Parse(["--counter", "7"]);
+
+        var builder = new ConfiglueModelBuilder<OptimizationBenchmarkSettings>();
+        builder.Sources(sources =>
+            sources.FromCommandLine(
+                new CommandLineSourceOptions { Id = "command-line", ParseResult = parseResult },
+                mappings => mappings.Map(counterOption, "Counter")
+            )
+        );
+        var sourceSet = builder.BuildSources<OptimizationBenchmarkSettings.Fragment>(
+            OptimizationBenchmarkSettings.ConfiglueSchema,
+            serviceProvider: null,
+            static _ => { }
+        );
+        _resolver = new StateSourceResolver<OptimizationBenchmarkSettings.Fragment>(sourceSet);
+    }
+
+    [Benchmark]
+    public ValueTask<StateReadResult<OptimizationBenchmarkSettings.Fragment>> ReadAsync() =>
+        _resolver.ReadAsync();
+}
+
+[MemoryDiagnoser]
+public class FileBackupBenchmarks
+{
+    private string _directory = null!;
+    private FileResource _resource = null!;
+    private ConfiglueOptions<
+        OptimizationBenchmarkSettings,
+        OptimizationBenchmarkSettings.Fragment
+    > _options = null!;
+    private int _counter;
+
+    [Params(1, 3, 10)]
+    public int BackupMaxCount { get; set; }
+
+    [GlobalSetup]
+    public async Task SetupAsync()
+    {
+        _directory = Path.Combine(Path.GetTempPath(), $"configlue-backup-bench-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(_directory);
+        var path = Path.Combine(_directory, "settings.json");
+        _resource = new FileResource(
+            path,
+            new FileResourceOptions
+            {
+                CreateBackup = true,
+                BackupMaxCount = BackupMaxCount,
+                BackupDirectory = "/",
+                LockDirectory = "/",
+            }
+        );
+        var source = SerializedStateSource.FromResource<OptimizationBenchmarkSettings.Fragment>(
+            "backup",
+            _resource,
+            new JsonStateCodec<OptimizationBenchmarkSettings.Fragment>(),
+            physicalOrigin: path
+        );
+        _options = new ConfiglueOptions<
+            OptimizationBenchmarkSettings,
+            OptimizationBenchmarkSettings.Fragment
+        >(new StateSourceSet<OptimizationBenchmarkSettings.Fragment>([source]));
+        await _resource
+            .WriteAsync(
+                new ResourceWriteRequest(Encoding.UTF8.GetBytes("""{"$version":1,"Counter":0}"""))
+            )
+            .ConfigureAwait(false);
+    }
+
+    [GlobalCleanup]
+    public async Task CleanupAsync()
+    {
+        await _options.DisposeAsync().ConfigureAwait(false);
+        _resource.Dispose();
+        Directory.Delete(_directory, recursive: true);
+    }
+
+    [Benchmark]
+    public async Task SaveAsync()
+    {
+        var next = Interlocked.Increment(ref _counter);
+        await _options.SaveAsync(patch => patch.Counter = 1 + (next % 90)).ConfigureAwait(false);
+    }
+}
