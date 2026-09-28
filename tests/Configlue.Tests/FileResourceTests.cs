@@ -42,7 +42,7 @@ public sealed class FileResourceTests
         using var resource = new FileResource(path);
         var reader = new SerializedStateReader<AppSettings.Fragment>(
             resource,
-            new JsonStateCodec<AppSettings.Fragment>()
+            new JsonStateCodec<AppSettings.Fragment> { UseAsyncStreamDecoding = true }
         );
 
         var result = await reader.ReadAsync();
@@ -50,6 +50,7 @@ public sealed class FileResourceTests
         result.Status.ShouldBe(StateReadStatus.Success);
         result.Value!.RetryCount.Value.ShouldBe(42);
         result.Revision.ShouldNotBeNull();
+        result.Revision.ShouldBe((await resource.ReadAsync()).Revision);
     }
 
     [Test]

@@ -277,7 +277,7 @@ public class SerializedFileReadBenchmarks
     private SerializedStateReader<SerializedReadBenchmarkSettings.Fragment> _memoryReader = null!;
     private FileResource _resource = null!;
 
-    [Params(1024, 65536, 1048576)]
+    [Params(1024, 65536, 1048576, 4194304)]
     public int ContentSize { get; set; }
 
     [GlobalSetup]
@@ -300,7 +300,10 @@ public class SerializedFileReadBenchmarks
         );
         _reader = new SerializedStateReader<SerializedReadBenchmarkSettings.Fragment>(
             _resource,
-            new JsonStateCodec<SerializedReadBenchmarkSettings.Fragment>()
+            new JsonStateCodec<SerializedReadBenchmarkSettings.Fragment>
+            {
+                UseAsyncStreamDecoding = true,
+            }
         );
         _memoryReader = new SerializedStateReader<SerializedReadBenchmarkSettings.Fragment>(
             new MemoryOnlyResourceReader(_resource),

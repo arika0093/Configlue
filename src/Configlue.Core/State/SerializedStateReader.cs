@@ -227,6 +227,23 @@ public sealed class SerializedStateReader<T> : IStateReader<T>
 
         await using (result.ConfigureAwait(false))
         {
+            if (
+                _transformers.Length == 0
+                && _codec
+                    is IPipelineStateCodec<T> { IsPipelineDecodePreferred: true } pipelineCodec
+            )
+            {
+                var decoded = await pipelineCodec
+                    .DeserializeAsync(result.Content!, _context, result.Schema, cancellationToken)
+                    .ConfigureAwait(false);
+                await result.DrainAsync(cancellationToken).ConfigureAwait(false);
+                return decoded with
+                {
+                    Revision = result.Revision,
+                    Schema = decoded.Schema ?? result.Schema ?? _context.Schema,
+                };
+            }
+
             var content = await result.ReadAllAsync(cancellationToken).ConfigureAwait(false);
             try
             {

@@ -3,6 +3,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
 using Configlue;
+using Configlue.Provider.Json;
 using Configlue.Resource.Http;
 
 namespace Configlue.Tests;
@@ -291,6 +292,41 @@ public sealed class HttpResourceTests
             .AsTask()
             .WaitAsync(TimeSpan.FromSeconds(2));
 
+        responseIndex.ShouldBe(2);
+    }
+
+    [Test]
+    public async Task AsyncPipelineDecode_FinalizesHttpContentFingerprintForWatching()
+    {
+        var responseIndex = 0;
+        using var httpClient = new HttpClient(
+            new DelegateHttpMessageHandler(
+                (_, _) =>
+                {
+                    responseIndex++;
+                    return Task.FromResult(
+                        ContentResponse(HttpStatusCode.OK, $$"""{"RetryCount":{{responseIndex}}}""")
+                    );
+                }
+            )
+        );
+        var resource = new HttpResourceReader(
+            httpClient,
+            EndpointRoot,
+            new HttpResourceOptions { PollingInterval = TimeSpan.FromMilliseconds(2) }
+        );
+        var stateReader = new SerializedStateReader<AppSettings.Fragment>(
+            resource,
+            new JsonStateCodec<AppSettings.Fragment> { UseAsyncStreamDecoding = true }
+        );
+
+        var initial = await stateReader.ReadAsync();
+        await resource
+            .WaitForChangeAsync(initial.Revision)
+            .AsTask()
+            .WaitAsync(TimeSpan.FromSeconds(2));
+
+        initial.Value!.RetryCount.Value.ShouldBe(1);
         responseIndex.ShouldBe(2);
     }
 

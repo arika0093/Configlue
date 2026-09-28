@@ -1,6 +1,7 @@
 using System.Buffers;
 using System.IO.Hashing;
 using System.IO.Pipelines;
+using System.Security.Cryptography;
 
 namespace Configlue;
 
@@ -9,8 +10,8 @@ public sealed class PipelineResourceReadResult : IAsyncDisposable
 {
     private readonly PipeReader? _content;
     private readonly IAsyncDisposable? _owner;
-    private readonly bool _computeXxHash3Revision;
     private readonly Action<ReadOnlySequence<byte>>? _contentReadCompleted;
+    private readonly ObservedReadStream? _observedStream;
 
     internal PipelineResourceReadResult(
         StateReadStatus status,
@@ -18,8 +19,8 @@ public sealed class PipelineResourceReadResult : IAsyncDisposable
         string? revision,
         StateSchemaMetadata? schema,
         IAsyncDisposable? owner = null,
-        bool computeXxHash3Revision = false,
-        Action<ReadOnlySequence<byte>>? contentReadCompleted = null
+        Action<ReadOnlySequence<byte>>? contentReadCompleted = null,
+        ObservedReadStream? observedStream = null
     )
     {
         if (status == StateReadStatus.Success && content is null)
@@ -38,8 +39,8 @@ public sealed class PipelineResourceReadResult : IAsyncDisposable
         Status = status;
         _content = content;
         _owner = owner;
-        _computeXxHash3Revision = computeXxHash3Revision;
         _contentReadCompleted = contentReadCompleted;
+        _observedStream = observedStream;
         Revision = revision;
         Schema = schema;
     }
@@ -49,13 +50,19 @@ public sealed class PipelineResourceReadResult : IAsyncDisposable
 
     /// <summary>
     /// The pipeline reader for successful content; valid until this result is disposed. Use
-    /// <see cref="ReadAllAsync(CancellationToken)"/> to finalize byte-derived revision data and provider
-    /// completion callbacks.
+    /// <see cref="ReadAllAsync(CancellationToken)"/> or consume the reader to the end to finalize byte-derived
+    /// revision data and provider completion callbacks.
     /// </summary>
     public PipeReader? Content => _content;
 
     /// <summary>The physical resource revision, finalized after reading content when computed from bytes.</summary>
-    public string? Revision { get; private set; }
+    public string? Revision
+    {
+        get => _observedStream?.Revision ?? _revision;
+        private set => _revision = value;
+    }
+
+    private string? _revision;
 
     /// <summary>Optional schema metadata supplied by the physical resource.</summary>
     public StateSchemaMetadata? Schema { get; }
@@ -77,10 +84,22 @@ public sealed class PipelineResourceReadResult : IAsyncDisposable
         StateSchemaMetadata? schema = null,
         IAsyncDisposable? owner = null,
         bool computeXxHash3Revision = false,
-        Action<ReadOnlySequence<byte>>? contentReadCompleted = null
+        Action<ReadOnlySequence<byte>>? contentReadCompleted = null,
+        Action<string>? contentFingerprintCompleted = null
     )
     {
         ArgumentNullException.ThrowIfNull(content);
+        ObservedReadStream? observedStream = null;
+        if (computeXxHash3Revision || contentFingerprintCompleted is not null)
+        {
+            observedStream = new ObservedReadStream(
+                content,
+                computeXxHash3Revision,
+                contentFingerprintCompleted
+            );
+            content = observedStream;
+        }
+
         var reader = PipeReader.Create(
             content,
             new StreamPipeReaderOptions(bufferSize: 81920, minimumReadSize: 4096, leaveOpen: true)
@@ -90,9 +109,9 @@ public sealed class PipelineResourceReadResult : IAsyncDisposable
             reader,
             revision,
             schema,
-            owner ?? content as IAsyncDisposable,
-            computeXxHash3Revision,
-            contentReadCompleted
+            owner ?? (observedStream is null ? content as IAsyncDisposable : null),
+            contentReadCompleted,
+            observedStream
         );
     }
 
@@ -127,24 +146,33 @@ public sealed class PipelineResourceReadResult : IAsyncDisposable
 
             if (read.IsCompleted)
             {
-                if (_computeXxHash3Revision)
-                {
-                    var hasher = new XxHash3();
-                    foreach (var segment in buffer)
-                    {
-                        hasher.Append(segment.Span);
-                    }
-
-                    Span<byte> hash = stackalloc byte[sizeof(ulong)];
-                    hasher.GetCurrentHash(hash);
-                    Revision = Convert.ToHexString(hash);
-                }
-
                 _contentReadCompleted?.Invoke(buffer);
                 return buffer;
             }
 
             reader.AdvanceTo(buffer.Start, buffer.End);
+        }
+    }
+
+    /// <summary>Consumes any remaining pipeline data and finalizes byte-derived observers.</summary>
+    internal async ValueTask DrainAsync(CancellationToken cancellationToken = default)
+    {
+        var reader = _content ?? throw new InvalidOperationException("The result has no content.");
+        while (true)
+        {
+            var read = await reader.ReadAsync(cancellationToken).ConfigureAwait(false);
+            var buffer = read.Buffer;
+            reader.AdvanceTo(buffer.End);
+            if (read.IsCanceled)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                throw new OperationCanceledException("The pipeline read was canceled.");
+            }
+
+            if (read.IsCompleted)
+            {
+                return;
+            }
         }
     }
 
@@ -160,10 +188,151 @@ public sealed class PipelineResourceReadResult : IAsyncDisposable
         }
         finally
         {
-            if (_owner is not null)
+            try
             {
-                await _owner.DisposeAsync().ConfigureAwait(false);
+                if (_observedStream is not null)
+                {
+                    await _observedStream.DisposeAsync().ConfigureAwait(false);
+                }
             }
+            finally
+            {
+                if (_owner is not null)
+                {
+                    await _owner.DisposeAsync().ConfigureAwait(false);
+                }
+            }
+        }
+    }
+
+    internal sealed class ObservedReadStream : Stream
+    {
+        private readonly Stream _source;
+        private readonly XxHash3? _revisionHasher;
+        private readonly IncrementalHash? _fingerprintHasher;
+        private readonly Action<string>? _fingerprintCompleted;
+        private bool _completed;
+        private string? _revision;
+
+        public ObservedReadStream(
+            Stream source,
+            bool computeXxHash3Revision,
+            Action<string>? fingerprintCompleted
+        )
+        {
+            _source = source;
+            _revisionHasher = computeXxHash3Revision ? new XxHash3() : null;
+            _fingerprintHasher = fingerprintCompleted is null
+                ? null
+                : IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+            _fingerprintCompleted = fingerprintCompleted;
+        }
+
+        public string? Revision => _revision;
+
+        public override bool CanRead => _source.CanRead;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+        public override long Position
+        {
+            get => throw new NotSupportedException();
+            set => throw new NotSupportedException();
+        }
+
+        public override int Read(byte[] buffer, int offset, int count)
+        {
+            var read = _source.Read(buffer, offset, count);
+            Observe(buffer.AsSpan(offset, read), read);
+            return read;
+        }
+
+        public override int Read(Span<byte> buffer)
+        {
+            var read = _source.Read(buffer);
+            Observe(buffer[..read], read);
+            return read;
+        }
+
+        public override async ValueTask<int> ReadAsync(
+            Memory<byte> buffer,
+            CancellationToken cancellationToken = default
+        )
+        {
+            var read = await _source.ReadAsync(buffer, cancellationToken).ConfigureAwait(false);
+            Observe(buffer.Span[..read], read);
+            return read;
+        }
+
+        public override async Task<int> ReadAsync(
+            byte[] buffer,
+            int offset,
+            int count,
+            CancellationToken cancellationToken
+        )
+        {
+            var read = await _source
+                .ReadAsync(buffer, offset, count, cancellationToken)
+                .ConfigureAwait(false);
+            Observe(buffer.AsSpan(offset, read), read);
+            return read;
+        }
+
+        private void Observe(ReadOnlySpan<byte> content, int read)
+        {
+            if (read > 0)
+            {
+                _revisionHasher?.Append(content);
+                _fingerprintHasher?.AppendData(content);
+                return;
+            }
+
+            if (_completed)
+            {
+                return;
+            }
+
+            _completed = true;
+            if (_revisionHasher is not null)
+            {
+                Span<byte> hash = stackalloc byte[sizeof(ulong)];
+                _revisionHasher.GetCurrentHash(hash);
+                _revision = Convert.ToHexString(hash);
+            }
+
+            if (_fingerprintHasher is not null)
+            {
+                _fingerprintCompleted!(Convert.ToHexString(_fingerprintHasher.GetHashAndReset()));
+                _fingerprintHasher.Dispose();
+            }
+        }
+
+        public override void Flush() => throw new NotSupportedException();
+
+        public override long Seek(long offset, SeekOrigin origin) =>
+            throw new NotSupportedException();
+
+        public override void SetLength(long value) => throw new NotSupportedException();
+
+        public override void Write(byte[] buffer, int offset, int count) =>
+            throw new NotSupportedException();
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                _fingerprintHasher?.Dispose();
+                _source.Dispose();
+            }
+
+            base.Dispose(disposing);
+        }
+
+        public override async ValueTask DisposeAsync()
+        {
+            _fingerprintHasher?.Dispose();
+            await _source.DisposeAsync().ConfigureAwait(false);
+            GC.SuppressFinalize(this);
         }
     }
 }
@@ -240,7 +409,8 @@ public static class PipelineResourceReader
         StateSchemaMetadata? schema = null,
         bool computeXxHash3Revision = false,
         IDisposable? owner = null,
-        Action<ReadOnlySequence<byte>>? contentReadCompleted = null
+        Action<ReadOnlySequence<byte>>? contentReadCompleted = null,
+        Action<string>? contentFingerprintCompleted = null
     )
     {
         ArgumentNullException.ThrowIfNull(source);
@@ -250,7 +420,8 @@ public static class PipelineResourceReader
             schema,
             owner: owner is null ? null : new AsyncDisposableAdapter(owner),
             computeXxHash3Revision: computeXxHash3Revision,
-            contentReadCompleted: contentReadCompleted
+            contentReadCompleted: contentReadCompleted,
+            contentFingerprintCompleted: contentFingerprintCompleted
         );
     }
 
