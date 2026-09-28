@@ -1,7 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace Configlue;
+namespace Configlue.Migrations;
 
 /// <summary>Stores migration progress as one atomically replaced JSON file per migration ID.</summary>
 /// <remarks>

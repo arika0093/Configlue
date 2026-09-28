@@ -1,6 +1,6 @@
 using System.Linq;
 
-namespace Configlue;
+namespace Configlue.State;
 
 /// <summary>Combines sparse fragments from multiple physical sources as one logical read source.</summary>
 /// <typeparam name="TFragment">The generated fragment type shared by the component sources.</typeparam>

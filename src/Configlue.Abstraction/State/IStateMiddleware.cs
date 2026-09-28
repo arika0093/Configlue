@@ -1,4 +1,4 @@
-namespace Configlue;
+namespace Configlue.State;
 
 /// <summary>Wraps a typed state reader and writer with application-specific behavior.</summary>
 /// <typeparam name="T">The state value type.</typeparam>

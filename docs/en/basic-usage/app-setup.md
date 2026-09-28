@@ -12,6 +12,8 @@ description: Non-DI contexts, DI registration, ownership, and named instances.
 `ConfiglueApp.CreateContext(...)` creates an independent lifetime-managed context. `ConfiglueApp.Initialize(...)` plus `ConfiglueApp.GetOptions<T>()` share one process-wide default context instead (the same default the older `Configlue` static class uses); call `await ConfiglueApp.ShutdownAsync()` to dispose it.
 
 ```csharp
+using Configlue.Sources;
+
 await using var context = ConfiglueApp.CreateContext(conf =>
 {
     conf.Add<UserSettings>(model =>
@@ -29,6 +31,8 @@ A `ConfiglueContext` owns the options and watcher tasks it creates. Source, read
 ## With DI
 
 ```csharp
+using Configlue.Sources;
+
 builder.Services.AddConfiglue(conf => conf.Add<UserSettings>(model =>
 {
     model.Sources(sources => sources.Add(CreateUserSettingsSource()));
@@ -69,6 +73,8 @@ builder.Services.AddConfiglue(conf => conf.Add<UserSettings>(model =>
 For a custom source in DI, use the `(provider, sources) => ...` overload of `AddConfiglueOptions<TModel, TFragment>` to resolve services and add them with `sources.Add(id, reader, priority, fallbackCondition)`. Writer and watcher interfaces implemented by the reader are detected automatically; use `WithWriter` / `WithWatcher` for separate services. The callback runs when the options singleton is created, and `Sources(sources => sources.Add(existingSource))` remains available for fully custom lifecycles.
 
 ```csharp
+using Configlue.Sources;
+
 services.AddSingleton<UserSettingsSource>();
 services.AddConfiglueOptions<AppConfig, AppConfig.Fragment>(
     (provider, sources) =>

@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 
-namespace Configlue;
+namespace Configlue.Resources;
 
 /// <summary>A local file resource with atomic replacement, revision checks, backups, and change notifications.</summary>
 /// <remarks>

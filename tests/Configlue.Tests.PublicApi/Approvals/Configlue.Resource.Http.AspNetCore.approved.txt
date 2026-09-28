@@ -10,6 +10,6 @@ namespace Configlue.Resource.Http.AspNetCore
     }
     public static class HttpResourceEndpointRouteBuilderExtensions
     {
-        public static Microsoft.AspNetCore.Routing.RouteGroupBuilder MapConfiglueHttpResource(this Microsoft.AspNetCore.Routing.IEndpointRouteBuilder endpoints, string routeRoot, Configlue.IResourceReader reader, Configlue.IResourceWriter? writer = null, Configlue.Resource.Http.AspNetCore.HttpResourceEndpointOptions? options = null) { }
+        public static Microsoft.AspNetCore.Routing.RouteGroupBuilder MapConfiglueHttpResource(this Microsoft.AspNetCore.Routing.IEndpointRouteBuilder endpoints, string routeRoot, Configlue.Resources.IResourceReader reader, Configlue.Resources.IResourceWriter? writer = null, Configlue.Resource.Http.AspNetCore.HttpResourceEndpointOptions? options = null) { }
     }
 }

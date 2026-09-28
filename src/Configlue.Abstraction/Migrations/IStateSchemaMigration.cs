@@ -1,4 +1,4 @@
-namespace Configlue;
+namespace Configlue.Migrations;
 
 /// <summary>Migrates one persisted state schema revision to another.</summary>
 /// <typeparam name="T">The state value type.</typeparam>

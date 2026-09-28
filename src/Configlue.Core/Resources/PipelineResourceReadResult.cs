@@ -3,7 +3,7 @@ using System.IO.Hashing;
 using System.IO.Pipelines;
 using System.Security.Cryptography;
 
-namespace Configlue;
+namespace Configlue.Resources;
 
 /// <summary>A resource result whose successful content is held in a disposable pipeline.</summary>
 public sealed class PipelineResourceReadResult : IAsyncDisposable

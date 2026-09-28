@@ -1,4 +1,4 @@
-namespace Configlue;
+namespace Configlue.State;
 
 /// <summary>Describes the outcome of reading a state source.</summary>
 public enum StateReadStatus

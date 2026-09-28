@@ -3,6 +3,8 @@ using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Running;
 using Configlue;
 using Configlue.Extensions.MSOptions;
+using Configlue.Sources;
+using Configlue.State;
 using Configlue.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;

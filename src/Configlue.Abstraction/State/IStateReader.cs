@@ -1,4 +1,4 @@
-namespace Configlue;
+namespace Configlue.State;
 
 /// <summary>Reads the current logical state from a backend.</summary>
 public interface IStateReader<T>

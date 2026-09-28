@@ -1,4 +1,4 @@
-namespace Configlue;
+namespace Configlue.Migrations;
 
 /// <summary>Applies a validated sequence of migrations to one target schema.</summary>
 /// <typeparam name="T">The state or source-contract type being migrated.</typeparam>

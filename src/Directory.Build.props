@@ -32,4 +32,12 @@
     </PackageReference>
     <None Include="$(MSBuildThisFileDirectory)../README.md" Pack="true" PackagePath="/" />
   </ItemGroup>
+  <ItemGroup Condition="'$(MSBuildProjectName)' != 'Configlue.Generator'">
+    <Using Include="Configlue.Codecs" />
+    <Using Include="Configlue.Migrations" />
+    <Using Include="Configlue.Resources" />
+    <Using Include="Configlue.Sources" />
+    <Using Include="Configlue.State" />
+    <Using Include="Configlue.Transformers" />
+  </ItemGroup>
 </Project>

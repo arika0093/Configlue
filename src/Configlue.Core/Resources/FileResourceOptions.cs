@@ -1,4 +1,4 @@
-namespace Configlue;
+namespace Configlue.Resources;
 
 /// <summary>Controls retry and backup behavior for a file-backed resource.</summary>
 public sealed class FileResourceOptions

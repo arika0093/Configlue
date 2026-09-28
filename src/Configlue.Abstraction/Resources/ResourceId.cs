@@ -1,4 +1,4 @@
-namespace Configlue;
+namespace Configlue.Resources;
 
 /// <summary>Identifies a physical resource independently of the logical sources that expose it.</summary>
 public readonly record struct ResourceId

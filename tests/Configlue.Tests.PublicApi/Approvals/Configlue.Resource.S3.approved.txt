@@ -1,21 +1,21 @@
 [assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/arika0093/Configlue")]
 namespace Configlue.Resource.S3
 {
-    public sealed class S3ObjectResource : Configlue.IPipelineResourceReader, Configlue.IResourceIdentity, Configlue.IResourceReader, Configlue.IResourceWriter
+    public sealed class S3ObjectResource : Configlue.Resources.IResourceIdentity, Configlue.Resources.IResourceReader, Configlue.Resources.IResourceWriter, Configlue.State.IPipelineResourceReader
     {
         public S3ObjectResource(Amazon.S3.IAmazonS3 client, string bucketName, string key, Configlue.Resource.S3.S3ObjectResourceOptions? options = null) { }
         public string BucketName { get; }
         public bool IsPipelineReadPreferred { get; }
         public string Key { get; }
-        public Configlue.ResourceId ResourceId { get; }
-        public System.Threading.Tasks.ValueTask<Configlue.ResourceReadResult> ReadAsync(System.Threading.CancellationToken cancellationToken = default) { }
-        public System.Threading.Tasks.ValueTask<Configlue.PipelineResourceReadResult> ReadPipelineAsync(System.Threading.CancellationToken cancellationToken = default) { }
-        public System.Threading.Tasks.ValueTask<Configlue.StateWriteResult> WriteAsync(Configlue.ResourceWriteRequest request, System.Threading.CancellationToken cancellationToken = default) { }
+        public Configlue.Resources.ResourceId ResourceId { get; }
+        public System.Threading.Tasks.ValueTask<Configlue.Resources.ResourceReadResult> ReadAsync(System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Configlue.Resources.PipelineResourceReadResult> ReadPipelineAsync(System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Configlue.State.StateWriteResult> WriteAsync(Configlue.Resources.ResourceWriteRequest request, System.Threading.CancellationToken cancellationToken = default) { }
     }
     public sealed class S3ObjectResourceOptions
     {
         public S3ObjectResourceOptions() { }
-        public Configlue.ResourceId? ResourceId { get; init; }
+        public Configlue.Resources.ResourceId? ResourceId { get; init; }
     }
     public sealed class S3ObjectSourceOptions
     {
@@ -24,8 +24,8 @@ namespace Configlue.Resource.S3
         public Amazon.S3.IAmazonS3? Client { get; init; }
         public System.Func<System.IServiceProvider?, Amazon.S3.IAmazonS3>? ClientFactory { get; init; }
         public required object Codec { get; init; }
-        public Configlue.StateCodecContext CodecContext { get; init; }
-        public Configlue.StateFallbackCondition FallbackCondition { get; init; }
+        public Configlue.Codecs.StateCodecContext CodecContext { get; init; }
+        public Configlue.Sources.StateFallbackCondition FallbackCondition { get; init; }
         public string? Id { get; init; }
         public required string Key { get; init; }
         public int Priority { get; init; }

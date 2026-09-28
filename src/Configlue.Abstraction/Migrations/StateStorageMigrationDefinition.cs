@@ -1,4 +1,4 @@
-namespace Configlue;
+namespace Configlue.Migrations;
 
 /// <summary>Declares a retryable migration from selected sources into projected targets.</summary>
 public sealed class StateStorageMigrationDefinition<TFragment>

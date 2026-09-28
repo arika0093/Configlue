@@ -15,6 +15,8 @@ description: 非 DI コンテキスト、DI 登録、所有権、名前付きイ
 破棄は `await ConfiglueApp.ShutdownAsync()` を呼び出します。
 
 ```csharp
+using Configlue.Sources;
+
 await using var context = ConfiglueApp.CreateContext(conf =>
 {
     conf.Add<UserSettings>(model =>
@@ -35,6 +37,8 @@ var options = context.GetOptions<UserSettings>();
 ## DI あり
 
 ```csharp
+using Configlue.Sources;
+
 builder.Services.AddConfiglue(conf => conf.Add<UserSettings>(model =>
 {
     model.Sources(sources => sources.Add(CreateUserSettingsSource()));
@@ -82,6 +86,8 @@ builder.Services.AddConfiglue(conf => conf.Add<UserSettings>(model =>
 DI で独自ソースを使う場合は `AddConfiglueOptions<TModel, TFragment>` の `(provider, sources) => ...` オーバーロードでサービスを解決し、`sources.Add(id, reader, priority, fallbackCondition)` で追加します。リーダーが実装するライター/ウォッチャーインターフェイスは自動検出され、分離型には `WithWriter` / `WithWatcher` を使います。コールバックはオプションシングルトン生成時に実行され、完全独自ライフサイクルには `Sources(sources => sources.Add(existingSource))` も使えます。
 
 ```csharp
+using Configlue.Sources;
+
 services.AddSingleton<UserSettingsSource>();
 services.AddConfiglueOptions<AppConfig, AppConfig.Fragment>(
     (provider, sources) =>

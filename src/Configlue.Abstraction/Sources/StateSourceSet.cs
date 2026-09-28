@@ -1,4 +1,4 @@
-namespace Configlue;
+namespace Configlue.Sources;
 
 /// <summary>An immutable priority-ordered set of logical state sources.</summary>
 public sealed class StateSourceSet<T>

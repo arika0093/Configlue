@@ -1,4 +1,4 @@
-namespace Configlue;
+namespace Configlue.Migrations;
 
 /// <summary>Provides an exclusive lease for one durable storage migration ID.</summary>
 /// <remarks>

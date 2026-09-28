@@ -80,7 +80,7 @@ public sealed partial class ConfiglueGenerator
         code.AppendLine("{");
         code.AppendLineAt(
             1,
-            "public static global::System.Threading.Tasks.ValueTask<global::Configlue.StateWriteResult> SaveAsync("
+            "public static global::System.Threading.Tasks.ValueTask<global::Configlue.State.StateWriteResult> SaveAsync("
         );
         code.AppendLineAt(2, "this global::Configlue.IWritableOptions<" + modelType + "> options,");
         code.AppendLineAt(2, "global::System.Action<" + modelType + ".Patch> configure,");
@@ -178,7 +178,7 @@ public sealed partial class ConfiglueGenerator
             var previousType = NonNullableTypeName(previousModel) + ".Fragment";
             var codecName = "previousV" + version + "Codec";
             parameters.Add(
-                "        global::Configlue.IStateCodec<" + previousType + "> " + codecName
+                "        global::Configlue.Codecs.IStateCodec<" + previousType + "> " + codecName
             );
             parameterDocs.Add(
                 "/// <param name=\""
@@ -227,7 +227,7 @@ public sealed partial class ConfiglueGenerator
             : "public";
         code.AppendIndent(1)
             .Append(accessibility)
-            .Append(" static global::Configlue.StateSchemaDispatcher<")
+            .Append(" static global::Configlue.Migrations.StateSchemaDispatcher<")
             .Append(modelType)
             .AppendLine(".Fragment> CreateSchemaDispatcher(");
         for (var index = 0; index < parameters.Count; index++)
@@ -242,7 +242,7 @@ public sealed partial class ConfiglueGenerator
         code.AppendLineAt(1, ")");
         code.AppendLineAt(1, "{");
         code.AppendIndent(2)
-            .Append("var dispatcher = new global::Configlue.StateSchemaDispatcher<")
+            .Append("var dispatcher = new global::Configlue.Migrations.StateSchemaDispatcher<")
             .Append(modelType)
             .AppendLine(".Fragment>(ConfiglueSchema.ToMetadata());");
         foreach (var previousModel in previousModels.Select(static previous => previous.Model))
@@ -576,7 +576,7 @@ public sealed partial class ConfiglueGenerator
         );
         code.AppendLineAt(
             2,
-            "global::Configlue.StateSource<global::Configlue.ConfiglueProfileCatalog> catalogSource,"
+            "global::Configlue.Sources.StateSource<global::Configlue.ConfiglueProfileCatalog> catalogSource,"
         );
         code.AppendLineAt(2, "string defaultProfileName)");
         code.AppendIndent(2)

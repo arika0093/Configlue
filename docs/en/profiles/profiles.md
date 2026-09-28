@@ -32,6 +32,8 @@ The profile facade manages profile selection and lifetime; write through the `IW
 For DI, use the same `EnableProfiles` and `SourcesForOptions` calls inside `services.AddConfiglue(...)`, then resolve `IConfiglueProfiledOptions<AppSettings>` from the provider. Profile names added after provider construction resolve through `IOptionsMonitor` and `IConfiglueOptionsRegistry`, not keyed services. The one-arity non-DI entry is `context.GetProfiledOptions<AppSettings>()` as shown above.
 
 ```csharp
+using Configlue.Sources;
+
 services.AddSingleton<ProfileCatalogStore>();
 services.AddConfiglueProfiledOptions<AppConfig, AppConfig.Fragment>(
     (provider, profileName) => CreateProfileSources(provider, profileName),

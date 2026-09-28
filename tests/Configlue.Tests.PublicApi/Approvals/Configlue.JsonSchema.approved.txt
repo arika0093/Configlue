@@ -29,13 +29,13 @@ namespace Configlue.JsonSchema
     }
     public static class JsonSchemaGenerator
     {
-        public static Configlue.JsonSchema.JsonSchemaGenerationResult Generate(System.Collections.Generic.IEnumerable<Configlue.ConfiglueModelSchema> models, System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver resolver, string? schemaBaseUri = null, Configlue.DocumentLayoutOptions? documentLayout = null) { }
-        public static Configlue.JsonSchema.JsonSchemaGenerationResult Generate<TModel, TFragment>(System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver resolver, string? schemaBaseUri = null, Configlue.DocumentLayoutOptions? documentLayout = null)
+        public static Configlue.JsonSchema.JsonSchemaGenerationResult Generate(System.Collections.Generic.IEnumerable<Configlue.ConfiglueModelSchema> models, System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver resolver, string? schemaBaseUri = null, Configlue.Codecs.DocumentLayoutOptions? documentLayout = null) { }
+        public static Configlue.JsonSchema.JsonSchemaGenerationResult Generate<TModel, TFragment>(System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver resolver, string? schemaBaseUri = null, Configlue.Codecs.DocumentLayoutOptions? documentLayout = null)
             where TModel : Configlue.IConfiglueModel<TModel, TFragment>
             where TFragment :  class, Configlue.IConfiglueFragment<TFragment> { }
         public static bool TryWriteFromCommandLine(System.Collections.Generic.IReadOnlyList<string> arguments, System.Collections.Generic.IEnumerable<Configlue.ConfiglueModelSchema> models, System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver resolver, out Configlue.JsonSchema.JsonSchemaGenerationResult? result, string? schemaBaseUri = null) { }
-        public static Configlue.JsonSchema.JsonSchemaGenerationResult Write(System.Collections.Generic.IEnumerable<Configlue.ConfiglueModelSchema> models, string outputDirectory, System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver resolver, string? schemaBaseUri = null, Configlue.DocumentLayoutOptions? documentLayout = null) { }
-        public static Configlue.JsonSchema.JsonSchemaGenerationResult Write<TModel, TFragment>(string outputDirectory, System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver resolver, string? schemaBaseUri = null, Configlue.DocumentLayoutOptions? documentLayout = null)
+        public static Configlue.JsonSchema.JsonSchemaGenerationResult Write(System.Collections.Generic.IEnumerable<Configlue.ConfiglueModelSchema> models, string outputDirectory, System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver resolver, string? schemaBaseUri = null, Configlue.Codecs.DocumentLayoutOptions? documentLayout = null) { }
+        public static Configlue.JsonSchema.JsonSchemaGenerationResult Write<TModel, TFragment>(string outputDirectory, System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver resolver, string? schemaBaseUri = null, Configlue.Codecs.DocumentLayoutOptions? documentLayout = null)
             where TModel : Configlue.IConfiglueModel<TModel, TFragment>
             where TFragment :  class, Configlue.IConfiglueFragment<TFragment> { }
     }

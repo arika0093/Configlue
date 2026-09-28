@@ -21,6 +21,8 @@ A Codec converts bytes to typed values and back, with no Resource I/O. It owns "
 After the Codec, `IStateMiddleware<T>` wraps typed readers and writers for auditing, validation, normalization, and similar behavior. The first registered middleware is outermost. A middleware that wraps a writer and needs batch writes must preserve `IStateWriteBatchParticipant<T>` on its returned writer.
 
 ```csharp
+using Configlue.Codecs;
+using Configlue.State;
 using Configlue.Transformer.AES;
 
 using var encryption = new AesGcmStateByteTransformer(key);

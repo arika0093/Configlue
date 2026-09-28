@@ -1,6 +1,6 @@
 using System.Buffers;
 
-namespace Configlue;
+namespace Configlue.State;
 
 /// <summary>Writes a typed state value by composing a codec and a resource.</summary>
 public sealed class SerializedStateWriter<T> : IStateWriter<T>, IStateWriteBatchParticipant<T>

@@ -10,6 +10,8 @@ description: File backup generations and restore, logging, explanations, and dia
 File resources keep one atomic `.bak` generation by default. Backups go under `backup/` beside the resource file on Windows and `.backup/` on other platforms; Windows marks the directory and files hidden. `FileResourceOptions` can retain more generations in a chosen directory, and `RestoreLatestBackupAsync` restores the newest one explicitly. Relative `BackupDirectory` values are resolved from the resource file directory; `/` selects the resource file directory itself.
 
 ```csharp
+using Configlue.Resources;
+
 var resource = new FileResource(
     "settings.json",
     new FileResourceOptions { BackupMaxCount = 5, BackupDirectory = "my-backups" });
@@ -20,6 +22,8 @@ Set `BackupMaxCount = 0` to disable backups. Atomic writes (temporary file plus 
 Automatic recovery is opt-in. For JSON file sources, enable it through `ResourceOptions`:
 
 ```csharp
+using Configlue.Resources;
+
 model.UseJsonFile(new JsonFileSourceOptions
 {
     Id = "settings",

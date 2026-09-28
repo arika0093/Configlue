@@ -1,4 +1,4 @@
-namespace Configlue;
+namespace Configlue.Resources;
 
 /// <summary>The bytes to persist and the revision on which the write is based.</summary>
 public readonly record struct ResourceWriteRequest

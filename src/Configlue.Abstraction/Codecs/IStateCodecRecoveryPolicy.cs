@@ -1,4 +1,4 @@
-namespace Configlue;
+namespace Configlue.Codecs;
 
 /// <summary>Classifies serialized input failures that may be recovered from a validated file backup.</summary>
 /// <remarks>

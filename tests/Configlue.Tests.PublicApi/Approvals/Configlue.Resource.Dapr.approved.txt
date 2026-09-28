@@ -1,23 +1,23 @@
 [assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/arika0093/Configlue")]
 namespace Configlue.Resource.Dapr
 {
-    public sealed class DaprStateResource : Configlue.IPipelineResourceReader, Configlue.IResourceIdentity, Configlue.IResourceReader, Configlue.IResourceWriter
+    public sealed class DaprStateResource : Configlue.Resources.IResourceIdentity, Configlue.Resources.IResourceReader, Configlue.Resources.IResourceWriter, Configlue.State.IPipelineResourceReader
     {
         public DaprStateResource(Dapr.Client.DaprClient client, string storeName, string key, Configlue.Resource.Dapr.DaprStateResourceOptions? options = null) { }
         public bool IsPipelineReadPreferred { get; }
         public string Key { get; }
-        public Configlue.ResourceId ResourceId { get; }
+        public Configlue.Resources.ResourceId ResourceId { get; }
         public string StoreName { get; }
-        public System.Threading.Tasks.ValueTask<Configlue.ResourceReadResult> ReadAsync(System.Threading.CancellationToken cancellationToken = default) { }
-        public System.Threading.Tasks.ValueTask<Configlue.PipelineResourceReadResult> ReadPipelineAsync(System.Threading.CancellationToken cancellationToken = default) { }
-        public System.Threading.Tasks.ValueTask<Configlue.StateWriteResult> WriteAsync(Configlue.ResourceWriteRequest request, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Configlue.Resources.ResourceReadResult> ReadAsync(System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Configlue.Resources.PipelineResourceReadResult> ReadPipelineAsync(System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Configlue.State.StateWriteResult> WriteAsync(Configlue.Resources.ResourceWriteRequest request, System.Threading.CancellationToken cancellationToken = default) { }
     }
     public sealed class DaprStateResourceOptions
     {
         public DaprStateResourceOptions() { }
         public Dapr.Client.ConsistencyMode? ConsistencyMode { get; init; }
         public System.Collections.Generic.IReadOnlyDictionary<string, string>? Metadata { get; init; }
-        public Configlue.ResourceId? ResourceId { get; init; }
+        public Configlue.Resources.ResourceId? ResourceId { get; init; }
     }
     public sealed class DaprStateSourceOptions
     {
@@ -25,8 +25,8 @@ namespace Configlue.Resource.Dapr
         public Dapr.Client.DaprClient? Client { get; init; }
         public System.Func<System.IServiceProvider?, Dapr.Client.DaprClient>? ClientFactory { get; init; }
         public required object Codec { get; init; }
-        public Configlue.StateCodecContext CodecContext { get; init; }
-        public Configlue.StateFallbackCondition FallbackCondition { get; init; }
+        public Configlue.Codecs.StateCodecContext CodecContext { get; init; }
+        public Configlue.Sources.StateFallbackCondition FallbackCondition { get; init; }
         public string? Id { get; init; }
         public required string Key { get; init; }
         public int Priority { get; init; }

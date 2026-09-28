@@ -1,4 +1,4 @@
-namespace Configlue;
+namespace Configlue.Migrations;
 
 /// <summary>Persists migration progress so an application can resume after a process restart.</summary>
 public interface IStateStorageMigrationJournal

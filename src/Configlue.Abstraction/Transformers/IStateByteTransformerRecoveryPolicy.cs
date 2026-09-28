@@ -1,4 +1,4 @@
-namespace Configlue;
+namespace Configlue.Transformers;
 
 /// <summary>Classifies byte transformation failures that may be recovered from a validated backup.</summary>
 public interface IStateByteTransformerRecoveryPolicy

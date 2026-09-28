@@ -1,4 +1,4 @@
-namespace Configlue;
+namespace Configlue.State;
 
 /// <summary>Waits for an upstream invalidation signal.</summary>
 public interface IStateWatcher

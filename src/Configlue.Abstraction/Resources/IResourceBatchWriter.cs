@@ -1,4 +1,4 @@
-namespace Configlue;
+namespace Configlue.Resources;
 
 /// <summary>Persists several disjoint logical resource mutations with one physical resource write.</summary>
 public interface IResourceBatchWriter : IResourceWriter, IResourceIdentity

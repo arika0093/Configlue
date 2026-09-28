@@ -1,4 +1,4 @@
-namespace Configlue;
+namespace Configlue.State;
 
 /// <summary>Exposes the composed read, write, and watch capabilities for a source set.</summary>
 public sealed class CompositeStateRuntime<T>

@@ -1,6 +1,6 @@
 using System.Buffers;
 
-namespace Configlue;
+namespace Configlue.Codecs;
 
 /// <summary>Reads an embedded schema identifier from a serialized payload.</summary>
 public interface IStateSchemaMetadataReader

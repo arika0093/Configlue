@@ -1,4 +1,51 @@
 [assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/arika0093/Configlue")]
+namespace Configlue.Codecs
+{
+    public enum DocumentLayout
+    {
+        Simple = 0,
+        Detailed = 1,
+    }
+    public sealed class DocumentLayoutOptions
+    {
+        public DocumentLayoutOptions() { }
+        public System.Collections.Generic.IReadOnlyList<string> FallbackVersionProperties { get; init; }
+        public Configlue.Codecs.DocumentLayout Layout { get; init; }
+        public string? ModelId { get; init; }
+        public string VersionProperty { get; init; }
+    }
+    public interface IStateCodec
+    {
+        object? Deserialize(System.Type type, in System.Buffers.ReadOnlySequence<byte> source, in Configlue.Codecs.StateCodecContext context);
+        void Serialize(System.Type type, object? value, System.Buffers.IBufferWriter<byte> destination, in Configlue.Codecs.StateCodecContext context);
+    }
+    public interface IStateCodecRecoveryPolicy
+    {
+        bool IsRecoverableReadException(System.Exception exception);
+    }
+    public interface IStateCodec<T>
+    {
+        T? Deserialize(in System.Buffers.ReadOnlySequence<byte> source, in Configlue.Codecs.StateCodecContext context);
+        void Serialize(T? value, System.Buffers.IBufferWriter<byte> destination, in Configlue.Codecs.StateCodecContext context);
+    }
+    public interface IStateSchemaMetadataReader
+    {
+        Configlue.State.StateSchemaMetadata? ReadSchemaMetadata(in System.Buffers.ReadOnlySequence<byte> source);
+    }
+    public readonly struct StateCodecContext
+    {
+        public StateCodecContext(Configlue.State.StateSchemaMetadata? schema = default, System.IServiceProvider? services = null) { }
+        public StateCodecContext(Configlue.State.StateSchemaMetadata? schema, System.IServiceProvider? services, string? schemaReferenceBaseUri) { }
+        public Configlue.State.StateSchemaMetadata? Schema { get; }
+        public string? SchemaReferenceBaseUri { get; }
+        public System.IServiceProvider? Services { get; }
+    }
+    public static class StateSchemaReference
+    {
+        public static string CreateUri(string baseUri, Configlue.State.StateSchemaMetadata schema) { }
+        public static string GetFileName(string modelId, int version) { }
+    }
+}
 namespace Configlue
 {
     [System.Diagnostics.DebuggerDisplay("Count = {Value.Count}")]
@@ -76,7 +123,7 @@ namespace Configlue
         public System.Func<string, Configlue.ConfiglueEditability> Editability { get; }
         public Configlue.ConfiglueModelSchema Schema { get; }
         public System.Collections.Generic.IReadOnlyList<Configlue.IConfiglueFragment?> SourceFragments { get; }
-        public System.Collections.Generic.IReadOnlyList<Configlue.StateReadStatus> SourceStatuses { get; }
+        public System.Collections.Generic.IReadOnlyList<Configlue.State.StateReadStatus> SourceStatuses { get; }
         public System.Collections.Generic.IReadOnlyList<Configlue.ConfigSourceDetails> Sources { get; }
         public object? Value { get; }
         public static bool TryGetPathValue(Configlue.IConfiglueFragment? fragment, string[] segments, out object? value) { }
@@ -184,7 +231,7 @@ namespace Configlue
         public System.Type ModelType { get; }
         public int Version { get; }
         public Configlue.IConfiglueFragment CreateEmptyFragment() { }
-        public Configlue.StateSchemaMetadata ToMetadata() { }
+        public Configlue.State.StateSchemaMetadata ToMetadata() { }
     }
     public sealed class ConfiglueOptionsDiagnostics
     {
@@ -215,16 +262,16 @@ namespace Configlue
     }
     public sealed class ConfiglueSourceDiagnostics
     {
-        public ConfiglueSourceDiagnostics(string id, int priority, Configlue.StateFallbackCondition fallbackCondition, bool canRead, bool canWrite, bool canWatch, bool isActive, string? physicalOrigin, Configlue.ResourceId? resourceId) { }
+        public ConfiglueSourceDiagnostics(string id, int priority, Configlue.Sources.StateFallbackCondition fallbackCondition, bool canRead, bool canWrite, bool canWatch, bool isActive, string? physicalOrigin, Configlue.Resources.ResourceId? resourceId) { }
         public bool CanRead { get; }
         public bool CanWatch { get; }
         public bool CanWrite { get; }
-        public Configlue.StateFallbackCondition FallbackCondition { get; }
+        public Configlue.Sources.StateFallbackCondition FallbackCondition { get; }
         public string Id { get; }
         public bool IsActive { get; }
         public string? PhysicalOrigin { get; }
         public int Priority { get; }
-        public Configlue.ResourceId? ResourceId { get; }
+        public Configlue.Resources.ResourceId? ResourceId { get; }
     }
     public sealed class ConfiglueSourceHandle<TModel>
     {
@@ -235,27 +282,14 @@ namespace Configlue
     {
         public static bool AreEqual<T>(T? left, T? right) { }
     }
-    public enum DocumentLayout
-    {
-        Simple = 0,
-        Detailed = 1,
-    }
-    public sealed class DocumentLayoutOptions
-    {
-        public DocumentLayoutOptions() { }
-        public System.Collections.Generic.IReadOnlyList<string> FallbackVersionProperties { get; init; }
-        public Configlue.DocumentLayout Layout { get; init; }
-        public string? ModelId { get; init; }
-        public string VersionProperty { get; init; }
-    }
     public sealed class EditSession<T> : System.IDisposable
     {
-        public EditSession(T value, System.Func<T, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<Configlue.StateWriteResult>> save) { }
-        public EditSession(T value, System.Func<T, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<Configlue.StateWriteResult>> save, System.Func<T, T> clone, T loadedValue, T defaultValue) { }
+        public EditSession(T value, System.Func<T, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<Configlue.State.StateWriteResult>> save) { }
+        public EditSession(T value, System.Func<T, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<Configlue.State.StateWriteResult>> save, System.Func<T, T> clone, T loadedValue, T defaultValue) { }
         public T CurrentValue { get; }
         public bool IsCommitted { get; }
         public T Value { get; set; }
-        public System.Threading.Tasks.ValueTask<Configlue.StateWriteResult> CommitAsync(System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Configlue.State.StateWriteResult> CommitAsync(System.Threading.CancellationToken cancellationToken = default) { }
         public void Dispose() { }
         public void ResetToDefault() { }
         public void ResetToDefault(System.Action<T, T> reset) { }
@@ -278,11 +312,6 @@ namespace Configlue
         public Configlue.Optional<T> Apply(Configlue.Optional<T> current) { }
         public static Configlue.FragmentOperation<T> Set(T? value) { }
         public static Configlue.FragmentOperation<T> op_Implicit(T? value) { }
-    }
-    public interface IAsyncStateWriteBatchParticipant<T>
-    {
-        bool CanPrepareBatchWrite { get; }
-        System.Threading.Tasks.ValueTask<Configlue.StateWriteBatchPlan?> TryCreateBatchWriteAsync(Configlue.StateWriteRequest<T> request, System.Threading.CancellationToken cancellationToken = default);
     }
     public interface IConfiglueDeepCloneable<out T>
     {
@@ -352,14 +381,14 @@ namespace Configlue
         System.Threading.Tasks.ValueTask<Configlue.StateMultiWriteResult> ApplyPatchesAsync(System.Collections.Generic.IEnumerable<Configlue.StateSourcePatch> patches, System.Threading.CancellationToken cancellationToken = default);
         System.Threading.Tasks.ValueTask<Configlue.ConfiglueDetailsSnapshot> GetDetailsSnapshotAsync(System.Threading.CancellationToken cancellationToken = default);
         Configlue.ConfiglueOptionsDiagnostics GetDiagnostics();
-        System.Threading.Tasks.ValueTask<Configlue.StateSourceMigrationResult> MigrateSourceAsync(Configlue.SourceKey<T> sourceKey, Configlue.SourceKey<T> targetKey, System.Threading.CancellationToken cancellationToken = default);
-        System.Threading.Tasks.ValueTask<Configlue.StateSourceMigrationResult> MigrateSourceAsync(string sourceId, string targetId, System.Threading.CancellationToken cancellationToken = default);
-        System.Threading.Tasks.ValueTask<Configlue.StateStorageMigrationResult> MigrateSourcesToTargetsAsync(System.Collections.Generic.IEnumerable<Configlue.SourceKey<T>> sourceKeys, System.Collections.Generic.IReadOnlyDictionary<Configlue.SourceKey<T>, System.Func<Configlue.IConfiglueFragment, Configlue.IConfiglueFragment>> targetProjections, System.Threading.CancellationToken cancellationToken = default, bool retireSources = false);
-        System.Threading.Tasks.ValueTask<Configlue.StateStorageMigrationResult> MigrateSourcesToTargetsAsync(System.Collections.Generic.IEnumerable<string> sourceIds, System.Collections.Generic.IReadOnlyDictionary<string, System.Func<Configlue.IConfiglueFragment, Configlue.IConfiglueFragment>> targetProjections, System.Threading.CancellationToken cancellationToken = default, bool retireSources = false);
+        System.Threading.Tasks.ValueTask<Configlue.Migrations.StateSourceMigrationResult> MigrateSourceAsync(Configlue.SourceKey<T> sourceKey, Configlue.SourceKey<T> targetKey, System.Threading.CancellationToken cancellationToken = default);
+        System.Threading.Tasks.ValueTask<Configlue.Migrations.StateSourceMigrationResult> MigrateSourceAsync(string sourceId, string targetId, System.Threading.CancellationToken cancellationToken = default);
+        System.Threading.Tasks.ValueTask<Configlue.Migrations.StateStorageMigrationResult> MigrateSourcesToTargetsAsync(System.Collections.Generic.IEnumerable<Configlue.SourceKey<T>> sourceKeys, System.Collections.Generic.IReadOnlyDictionary<Configlue.SourceKey<T>, System.Func<Configlue.IConfiglueFragment, Configlue.IConfiglueFragment>> targetProjections, System.Threading.CancellationToken cancellationToken = default, bool retireSources = false);
+        System.Threading.Tasks.ValueTask<Configlue.Migrations.StateStorageMigrationResult> MigrateSourcesToTargetsAsync(System.Collections.Generic.IEnumerable<string> sourceIds, System.Collections.Generic.IReadOnlyDictionary<string, System.Func<Configlue.IConfiglueFragment, Configlue.IConfiglueFragment>> targetProjections, System.Threading.CancellationToken cancellationToken = default, bool retireSources = false);
         System.IDisposable OnReloadFailed(System.Action<System.Exception> listener);
         System.Threading.Tasks.ValueTask<Configlue.EditSession<T>> OpenEditSessionAsync(System.Threading.CancellationToken cancellationToken = default);
         System.Threading.Tasks.ValueTask<Configlue.EditSession<T>> OpenEditSessionAsync(Configlue.StateWritePlan writePlan, System.Threading.CancellationToken cancellationToken = default);
-        System.Threading.Tasks.ValueTask<Configlue.StateReadResult<T>> ReadAsync(System.Threading.CancellationToken cancellationToken = default);
+        System.Threading.Tasks.ValueTask<Configlue.State.StateReadResult<T>> ReadAsync(System.Threading.CancellationToken cancellationToken = default);
     }
     public interface IConfigluePatch
     {
@@ -403,99 +432,9 @@ namespace Configlue
         System.Threading.Tasks.ValueTask<T> GetValueAsync(System.Threading.CancellationToken cancellationToken = default);
         System.IDisposable OnChange(System.Action<T> listener);
     }
-    public interface IResourceBackupRecovery
-    {
-        bool AutomaticBackupRecoveryEnabled { get; }
-        System.Threading.Tasks.ValueTask<Configlue.ResourceReadResult?> TryRecoverLatestBackupAsync(string? expectedRevision, bool expectedMissing, System.Func<Configlue.ResourceReadResult, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<bool>> validate, System.Threading.CancellationToken cancellationToken = default);
-    }
-    public interface IResourceBatchParticipant
-    {
-        Configlue.IResourceBatchWriter? BatchWriter { get; }
-        Configlue.ResourceId ResourceId { get; }
-        Configlue.ResourceWriteMutation CreateMutation(Configlue.ResourceWriteRequest request);
-    }
-    public interface IResourceBatchWriter : Configlue.IResourceIdentity, Configlue.IResourceWriter
-    {
-        System.Threading.Tasks.ValueTask<Configlue.StateWriteResult> WriteBatchAsync(System.Collections.Generic.IReadOnlyList<Configlue.ResourceWriteMutation> mutations, System.Threading.CancellationToken cancellationToken = default);
-    }
-    public interface IResourceIdentity
-    {
-        Configlue.ResourceId ResourceId { get; }
-    }
-    public interface IResourceReader
-    {
-        System.Threading.Tasks.ValueTask<Configlue.ResourceReadResult> ReadAsync(System.Threading.CancellationToken cancellationToken = default);
-    }
-    public interface IResourceWriter
-    {
-        System.Threading.Tasks.ValueTask<Configlue.StateWriteResult> WriteAsync(Configlue.ResourceWriteRequest request, System.Threading.CancellationToken cancellationToken = default);
-    }
-    public interface IStateByteTransformer
-    {
-        System.ReadOnlyMemory<byte> TransformRead(System.ReadOnlyMemory<byte> source);
-        System.ReadOnlyMemory<byte> TransformWrite(System.ReadOnlyMemory<byte> source);
-    }
-    public interface IStateByteTransformerRecoveryPolicy
-    {
-        bool IsRecoverableReadException(System.Exception exception);
-    }
-    public interface IStateCodec
-    {
-        object? Deserialize(System.Type type, in System.Buffers.ReadOnlySequence<byte> source, in Configlue.StateCodecContext context);
-        void Serialize(System.Type type, object? value, System.Buffers.IBufferWriter<byte> destination, in Configlue.StateCodecContext context);
-    }
-    public interface IStateCodecRecoveryPolicy
-    {
-        bool IsRecoverableReadException(System.Exception exception);
-    }
-    public interface IStateCodec<T>
-    {
-        T? Deserialize(in System.Buffers.ReadOnlySequence<byte> source, in Configlue.StateCodecContext context);
-        void Serialize(T? value, System.Buffers.IBufferWriter<byte> destination, in Configlue.StateCodecContext context);
-    }
-    public interface IStateMiddleware<T>
-    {
-        Configlue.IStateReader<T> WrapReader(Configlue.IStateReader<T> next);
-        Configlue.IStateWriter<T> WrapWriter(Configlue.IStateWriter<T> next);
-    }
-    public interface IStateReader<T>
-    {
-        System.Threading.Tasks.ValueTask<Configlue.StateReadResult<T>> ReadAsync(System.Threading.CancellationToken cancellationToken = default);
-    }
-    public interface IStateSchemaMetadataReader
-    {
-        Configlue.StateSchemaMetadata? ReadSchemaMetadata(in System.Buffers.ReadOnlySequence<byte> source);
-    }
-    public interface IStateSchemaMigration<T>
-    {
-        Configlue.StateSchemaMetadata SourceSchema { get; }
-        Configlue.StateSchemaMetadata TargetSchema { get; }
-        System.Threading.Tasks.ValueTask<T> MigrateAsync(T value, System.Threading.CancellationToken cancellationToken = default);
-    }
-    public interface IStateStorageMigrationJournal
-    {
-        System.Threading.Tasks.ValueTask<Configlue.StateStorageMigrationProgress?> ReadAsync(string migrationId, System.Threading.CancellationToken cancellationToken = default);
-        System.Threading.Tasks.ValueTask WriteAsync(Configlue.StateStorageMigrationProgress progress, System.Threading.CancellationToken cancellationToken = default);
-    }
-    public interface IStateStorageMigrationLeaseProvider
-    {
-        System.Threading.Tasks.ValueTask<System.IDisposable> AcquireMigrationLeaseAsync(string migrationId, System.Threading.CancellationToken cancellationToken = default);
-    }
-    public interface IStateWatcher
-    {
-        System.Threading.Tasks.ValueTask WaitForChangeAsync(string? observedRevision, System.Threading.CancellationToken cancellationToken = default);
-    }
-    public interface IStateWriteBatchParticipant<T>
-    {
-        bool TryCreateBatchWrite(Configlue.StateWriteRequest<T> request, out Configlue.ResourceId resourceId, out Configlue.IResourceBatchWriter? batchWriter, out Configlue.ResourceWriteMutation? mutation);
-    }
-    public interface IStateWriter<T>
-    {
-        System.Threading.Tasks.ValueTask<Configlue.StateWriteResult> WriteAsync(Configlue.StateWriteRequest<T> request, System.Threading.CancellationToken cancellationToken = default);
-    }
     public interface IWritableOptions<T> : Configlue.IReadOnlyOptions<T>
     {
-        System.Threading.Tasks.ValueTask<Configlue.StateWriteResult> SaveAsync(Configlue.IConfigluePatch patch, System.Threading.CancellationToken cancellationToken = default);
+        System.Threading.Tasks.ValueTask<Configlue.State.StateWriteResult> SaveAsync(Configlue.IConfigluePatch patch, System.Threading.CancellationToken cancellationToken = default);
     }
     public enum MergeMode
     {
@@ -527,77 +466,17 @@ namespace Configlue
         StrictThrow = 1,
         IgnoreValue = 2,
     }
-    public readonly struct ResourceId : System.IEquatable<Configlue.ResourceId>
-    {
-        public ResourceId(string value) { }
-        public string Value { get; }
-        public override string ToString() { }
-    }
-    public readonly struct ResourceReadResult : System.IEquatable<Configlue.ResourceReadResult>
-    {
-        public ResourceReadResult(Configlue.StateReadStatus Status, System.ReadOnlyMemory<byte> Content, string? Revision = null, Configlue.StateSchemaMetadata? Schema = default) { }
-        public System.ReadOnlyMemory<byte> Content { get; init; }
-        public string? Revision { get; init; }
-        public Configlue.StateSchemaMetadata? Schema { get; init; }
-        public Configlue.StateReadStatus Status { get; init; }
-        public void Deconstruct(out Configlue.StateReadStatus Status, out System.ReadOnlyMemory<byte> Content, out string? Revision, out Configlue.StateSchemaMetadata? Schema) { }
-        public static Configlue.ResourceReadResult NotFound(string? revision = null) { }
-        public static Configlue.ResourceReadResult Success(System.ReadOnlyMemory<byte> content, string? revision = null, Configlue.StateSchemaMetadata? schema = default) { }
-        public static Configlue.ResourceReadResult Unavailable(string? revision = null) { }
-    }
-    public sealed class ResourceWriteMutation
-    {
-        public ResourceWriteMutation(string? expectedRevision, bool checkRevision, Configlue.StateSchemaMetadata? schema, System.Func<Configlue.ResourceReadResult, System.ReadOnlyMemory<byte>> apply, string? scope = null, bool canCompose = false) { }
-        public bool CanCompose { get; }
-        public bool CheckRevision { get; }
-        public string? ExpectedRevision { get; }
-        public Configlue.StateSchemaMetadata? Schema { get; }
-        public string? Scope { get; }
-        public System.ReadOnlyMemory<byte> Apply(Configlue.ResourceReadResult current) { }
-        public static Configlue.ResourceWriteMutation Replace(Configlue.ResourceWriteRequest request) { }
-        public static void ValidateBatch(System.Collections.Generic.IReadOnlyList<Configlue.ResourceWriteMutation> mutations) { }
-    }
-    public readonly struct ResourceWriteRequest : System.IEquatable<Configlue.ResourceWriteRequest>
-    {
-        public ResourceWriteRequest(System.ReadOnlyMemory<byte> Content, string? ExpectedRevision = null, Configlue.StateSchemaMetadata? Schema = default, bool CheckRevision = false) { }
-        public bool CheckRevision { get; init; }
-        public System.ReadOnlyMemory<byte> Content { get; init; }
-        public string? ExpectedRevision { get; init; }
-        public Configlue.StateSchemaMetadata? Schema { get; init; }
-        public void Deconstruct(out System.ReadOnlyMemory<byte> Content, out string? ExpectedRevision, out Configlue.StateSchemaMetadata? Schema, out bool CheckRevision) { }
-    }
     public readonly struct SourceKey<TModel> : System.IEquatable<Configlue.SourceKey<TModel>>
     {
         public string Name { get; }
         public static Configlue.SourceKey<TModel> Create() { }
         public static Configlue.SourceKey<TModel> Named(string name) { }
     }
-    public readonly struct StateCodecContext
-    {
-        public StateCodecContext(Configlue.StateSchemaMetadata? schema = default, System.IServiceProvider? services = null) { }
-        public StateCodecContext(Configlue.StateSchemaMetadata? schema, System.IServiceProvider? services, string? schemaReferenceBaseUri) { }
-        public Configlue.StateSchemaMetadata? Schema { get; }
-        public string? SchemaReferenceBaseUri { get; }
-        public System.IServiceProvider? Services { get; }
-    }
-    public sealed class StateConflictException : System.Exception
-    {
-        public StateConflictException(string message) { }
-    }
-    [System.Flags]
-    public enum StateFallbackCondition
-    {
-        None = 0,
-        NotFound = 1,
-        Unavailable = 2,
-        NotFoundOrUnavailable = 3,
-        Invalid = 4,
-    }
     public sealed class StateMultiWriteException : System.Exception
     {
-        public StateMultiWriteException(Configlue.StateMultiWriteResult completed, Configlue.ResourceId? failedResourceId, System.Collections.Generic.IEnumerable<string> failedSourceIds, System.Collections.Generic.IEnumerable<string> unattemptedSourceIds, System.Exception innerException) { }
+        public StateMultiWriteException(Configlue.StateMultiWriteResult completed, Configlue.Resources.ResourceId? failedResourceId, System.Collections.Generic.IEnumerable<string> failedSourceIds, System.Collections.Generic.IEnumerable<string> unattemptedSourceIds, System.Exception innerException) { }
         public Configlue.StateMultiWriteResult Completed { get; }
-        public Configlue.ResourceId? FailedResourceId { get; }
+        public Configlue.Resources.ResourceId? FailedResourceId { get; }
         public System.Collections.Generic.IReadOnlyList<string> FailedSourceIds { get; }
         public System.Collections.Generic.IReadOnlyList<string> UnattemptedSourceIds { get; }
     }
@@ -607,180 +486,19 @@ namespace Configlue
         public int PhysicalWriteCount { get; }
         public System.Collections.Generic.IReadOnlyList<Configlue.StateSourceWriteResult> Sources { get; }
     }
-    public readonly struct StateReadResult<T> : System.IEquatable<Configlue.StateReadResult<T>>
-    {
-        public StateReadResult(Configlue.StateReadStatus Status, T? Value, string? Revision = null, string? SourceId = null, string? PhysicalOrigin = null, Configlue.StateSchemaMetadata? Schema = default, Configlue.StateRevisionVector? Revisions = null) { }
-        public string? PhysicalOrigin { get; init; }
-        public string? Revision { get; init; }
-        public Configlue.StateRevisionVector? Revisions { get; init; }
-        public Configlue.StateSchemaMetadata? Schema { get; init; }
-        public string? SourceId { get; init; }
-        public Configlue.StateReadStatus Status { get; init; }
-        public T Value { get; init; }
-        public void Deconstruct(out Configlue.StateReadStatus Status, out T? Value, out string? Revision, out string? SourceId, out string? PhysicalOrigin, out Configlue.StateSchemaMetadata? Schema, out Configlue.StateRevisionVector? Revisions) { }
-        public Configlue.StateReadResult<T> FromSource(string sourceId, string? physicalOrigin = null) { }
-        public static Configlue.StateReadResult<T> Invalid(T? value, string? revision = null) { }
-        public static Configlue.StateReadResult<T> NotFound(string? revision = null) { }
-        public static Configlue.StateReadResult<T> Success(T? value, string? revision = null, Configlue.StateSchemaMetadata? schema = default) { }
-        public static Configlue.StateReadResult<T> Unavailable(string? revision = null) { }
-    }
-    public enum StateReadStatus
-    {
-        Success = 0,
-        NotFound = 1,
-        Unavailable = 2,
-        Invalid = 3,
-    }
-    public readonly struct StateRevision : System.IEquatable<Configlue.StateRevision>
-    {
-        public StateRevision(string SourceId, string? Revision) { }
-        public string? Revision { get; init; }
-        public string SourceId { get; init; }
-        public void Deconstruct(out string SourceId, out string? Revision) { }
-    }
-    public sealed class StateRevisionVector
-    {
-        public StateRevisionVector(System.Collections.Generic.IEnumerable<Configlue.StateRevision> revisions) { }
-        public StateRevisionVector(System.Collections.Generic.IEnumerable<Configlue.StateRevision> revisions, System.Collections.Generic.IEnumerable<System.Collections.Generic.KeyValuePair<string, Configlue.StateRevisionVector>> nestedRevisions) { }
-        public System.Collections.Generic.IReadOnlyDictionary<string, Configlue.StateRevisionVector> NestedRevisions { get; }
-        public System.Collections.Generic.IReadOnlyDictionary<string, string?> Revisions { get; }
-        public bool TryGetNestedRevisions(string sourceId, out Configlue.StateRevisionVector? revisions) { }
-        public bool TryGetRevision(string sourceId, out string? revision) { }
-        public static Configlue.StateRevisionVector FromSpan(System.ReadOnlySpan<Configlue.StateRevision> revisions, System.ReadOnlySpan<System.Collections.Generic.KeyValuePair<string, Configlue.StateRevisionVector>> nestedRevisions = default) { }
-    }
-    public sealed class StateSchemaDispatcher<T>
-    {
-        public StateSchemaDispatcher(Configlue.StateSchemaMetadata targetSchema) { }
-        public Configlue.StateSchemaMetadata TargetSchema { get; }
-        public Configlue.StateSchemaDispatcher<T> Add<THistorical>(Configlue.StateSchemaMetadata sourceSchema, Configlue.IStateCodec<THistorical> codec, System.Func<THistorical, T> migrate) { }
-        public bool TryDeserialize(Configlue.StateSchemaMetadata sourceSchema, in System.Buffers.ReadOnlySequence<byte> source, System.IServiceProvider? services, out T? value) { }
-    }
-    public readonly struct StateSchemaMetadata : System.IEquatable<Configlue.StateSchemaMetadata>
-    {
-        public const int InitialVersion = 1;
-        public StateSchemaMetadata(string? ModelId, int Version) { }
-        public string? ModelId { get; init; }
-        public int Version { get; init; }
-        public void Deconstruct(out string? ModelId, out int Version) { }
-    }
-    public sealed class StateSchemaMigrationChain<T>
-    {
-        public StateSchemaMigrationChain(Configlue.StateSchemaMetadata targetSchema, System.Collections.Generic.IEnumerable<Configlue.IStateSchemaMigration<T>>? migrations = null) { }
-        public Configlue.StateSchemaMetadata TargetSchema { get; }
-        public System.Threading.Tasks.ValueTask<T> MigrateAsync(T value, Configlue.StateSchemaMetadata sourceSchema, System.Threading.CancellationToken cancellationToken = default) { }
-    }
-    public static class StateSchemaReference
-    {
-        public static string CreateUri(string baseUri, Configlue.StateSchemaMetadata schema) { }
-        public static string GetFileName(string modelId, int version) { }
-    }
-    public readonly struct StateSourceMigrationResult : System.IEquatable<Configlue.StateSourceMigrationResult>
-    {
-        public StateSourceMigrationResult(string SourceId, string TargetId, string? SourceRevision, string? TargetRevision) { }
-        public string SourceId { get; init; }
-        public string? SourceRevision { get; init; }
-        public string TargetId { get; init; }
-        public string? TargetRevision { get; init; }
-        public void Deconstruct(out string SourceId, out string TargetId, out string? SourceRevision, out string? TargetRevision) { }
-    }
     public sealed class StateSourcePatch : System.IEquatable<Configlue.StateSourcePatch>
     {
         public StateSourcePatch(string sourceId, Configlue.IConfigluePatch patch) { }
         public Configlue.IConfigluePatch Patch { get; }
         public string SourceId { get; }
     }
-    public static class StateSourceProjection
-    {
-        public static Configlue.StateSource<TTarget> Mount<TSource, TTarget>(Configlue.StateSource<TSource> source, string propertyPath, Configlue.StateSchemaMetadata? projectedSchema = default)
-            where TSource :  class, Configlue.IConfiglueFragment<TSource>
-            where TTarget :  class, Configlue.IConfiglueFragment<TTarget> { }
-        public static Configlue.StateSource<TTarget> Mount<TSource, TTarget>(Configlue.StateSource<TSource> source, string propertyPath, System.Func<TTarget, TSource> toSource, Configlue.StateSchemaMetadata? projectedSchema = default)
-            where TSource :  class, Configlue.IConfiglueFragment<TSource>
-            where TTarget :  class, Configlue.IConfiglueFragment<TTarget> { }
-        public static Configlue.StateSource<TTarget> Project<TSource, TTarget>(Configlue.StateSource<TSource> source, System.Func<TSource, TTarget> toTarget, System.Func<TTarget, TSource>? toSource = null, Configlue.StateSchemaMetadata? projectedSchema = default, System.Collections.Generic.IEnumerable<Configlue.IStateSchemaMigration<TSource>>? sourceMigrations = null, Configlue.StateSchemaMetadata? sourceSchema = default) { }
-        public static Configlue.StateSource<TTarget> ProjectWithUpdate<TSource, TTarget>(Configlue.StateSource<TSource> source, System.Func<TSource, TTarget> toTarget, System.Func<TTarget?, TTarget, TSource?, TSource> updateSource, Configlue.StateSchemaMetadata? projectedSchema = default, System.Collections.Generic.IEnumerable<Configlue.IStateSchemaMigration<TSource>>? sourceMigrations = null, Configlue.StateSchemaMetadata? sourceSchema = default) { }
-    }
-    public sealed class StateSourceSet<T>
-    {
-        public StateSourceSet(System.Collections.Generic.IEnumerable<Configlue.StateSource<T>> sources) { }
-        public int Count { get; }
-        public Configlue.StateSource<T> this[int index] { get; }
-        public System.Collections.Generic.IReadOnlyList<Configlue.StateSource<T>> Sources { get; }
-    }
     public readonly struct StateSourceWriteResult : System.IEquatable<Configlue.StateSourceWriteResult>
     {
-        public StateSourceWriteResult(string SourceId, Configlue.ResourceId? ResourceId, string? Revision) { }
-        public Configlue.ResourceId? ResourceId { get; init; }
+        public StateSourceWriteResult(string SourceId, Configlue.Resources.ResourceId? ResourceId, string? Revision) { }
+        public Configlue.Resources.ResourceId? ResourceId { get; init; }
         public string? Revision { get; init; }
         public string SourceId { get; init; }
-        public void Deconstruct(out string SourceId, out Configlue.ResourceId? ResourceId, out string? Revision) { }
-    }
-    public sealed class StateSource<T>
-    {
-        public StateSource(Configlue.IStateReader<T> reader, int priority = 0, Configlue.StateFallbackCondition fallbackCondition = 1, Configlue.IStateWriter<T>? writer = null, Configlue.IStateWatcher? watcher = null, string? physicalOrigin = null, Configlue.ResourceId? resourceId = default, string? logicalDescriptor = null, bool explicitOnly = false) { }
-        public StateSource(string id, Configlue.IStateReader<T> reader, int priority = 0, Configlue.StateFallbackCondition fallbackCondition = 1, Configlue.IStateWriter<T>? writer = null, Configlue.IStateWatcher? watcher = null, string? physicalOrigin = null, Configlue.ResourceId? resourceId = default, bool explicitOnly = false) { }
-        public bool ExplicitOnly { get; }
-        public Configlue.StateFallbackCondition FallbackCondition { get; }
-        public string Id { get; }
-        public string? PhysicalOrigin { get; }
-        public int Priority { get; }
-        public Configlue.IStateReader<T> Reader { get; }
-        public Configlue.ResourceId? ResourceId { get; }
-        public Configlue.IStateWatcher? Watcher { get; }
-        public Configlue.IStateWriter<T>? Writer { get; }
-    }
-    public sealed class StateStorageMigrationDefinition<TFragment>
-        where TFragment :  class, Configlue.IConfiglueFragment<TFragment>
-    {
-        public StateStorageMigrationDefinition(string id, System.Collections.Generic.IEnumerable<string> sourceIds, System.Collections.Generic.IEnumerable<Configlue.StateStorageMigrationTarget<TFragment>> targets, bool retireSources = false) { }
-        public string Id { get; }
-        public bool RetireSources { get; }
-        public System.Collections.Generic.IReadOnlyList<string> SourceIds { get; }
-        public System.Collections.Generic.IReadOnlyList<Configlue.StateStorageMigrationTarget<TFragment>> Targets { get; }
-    }
-    public sealed class StateStorageMigrationProgress
-    {
-        public StateStorageMigrationProgress(string migrationId, System.Collections.Generic.IEnumerable<string> sourceIds, System.Collections.Generic.IEnumerable<string> targetSourceIds, System.Collections.Generic.IEnumerable<string>? completedTargetSourceIds = null, bool retireSources = false, bool sourcesRetired = false) { }
-        public bool AllTargetsCompleted { get; }
-        public System.Collections.Generic.IReadOnlyList<string> CompletedTargetSourceIds { get; }
-        public string MigrationId { get; }
-        public bool RetireSources { get; }
-        public System.Collections.Generic.IReadOnlyList<string> SourceIds { get; }
-        public bool SourcesRetired { get; }
-        public System.Collections.Generic.IReadOnlyList<string> TargetSourceIds { get; }
-    }
-    public sealed class StateStorageMigrationResult
-    {
-        public StateStorageMigrationResult(System.Collections.Generic.IEnumerable<string> sourceIds, Configlue.StateRevisionVector sourceRevisions, System.Collections.Generic.IEnumerable<Configlue.StateStorageMigrationTargetResult> targets, System.Collections.Generic.IEnumerable<string>? retiredSourceIds = null) { }
-        public System.Collections.Generic.IReadOnlyList<string> RetiredSourceIds { get; }
-        public System.Collections.Generic.IReadOnlyList<string> SourceIds { get; }
-        public Configlue.StateRevisionVector SourceRevisions { get; }
-        public bool SourcesRetired { get; }
-        public System.Collections.Generic.IReadOnlyList<Configlue.StateStorageMigrationTargetResult> Targets { get; }
-    }
-    public readonly struct StateStorageMigrationTargetResult : System.IEquatable<Configlue.StateStorageMigrationTargetResult>
-    {
-        public StateStorageMigrationTargetResult(string TargetId, string? PreviousRevision, string? TargetRevision, bool WasAlreadyCurrent) { }
-        public string? PreviousRevision { get; init; }
-        public string TargetId { get; init; }
-        public string? TargetRevision { get; init; }
-        public bool WasAlreadyCurrent { get; init; }
-        public void Deconstruct(out string TargetId, out string? PreviousRevision, out string? TargetRevision, out bool WasAlreadyCurrent) { }
-    }
-    public sealed class StateStorageMigrationTarget<TFragment>
-        where TFragment :  class, Configlue.IConfiglueFragment<TFragment>
-    {
-        public StateStorageMigrationTarget(string targetSourceId, System.Func<TFragment, TFragment> project) { }
-        public System.Func<TFragment, TFragment> Project { get; }
-        public string TargetSourceId { get; }
-    }
-    public readonly struct StateWriteBatchPlan : System.IEquatable<Configlue.StateWriteBatchPlan>
-    {
-        public StateWriteBatchPlan(Configlue.ResourceId ResourceId, Configlue.IResourceBatchWriter BatchWriter, Configlue.ResourceWriteMutation Mutation) { }
-        public Configlue.IResourceBatchWriter BatchWriter { get; init; }
-        public Configlue.ResourceWriteMutation Mutation { get; init; }
-        public Configlue.ResourceId ResourceId { get; init; }
-        public void Deconstruct(out Configlue.ResourceId ResourceId, out Configlue.IResourceBatchWriter BatchWriter, out Configlue.ResourceWriteMutation Mutation) { }
+        public void Deconstruct(out string SourceId, out Configlue.Resources.ResourceId? ResourceId, out string? Revision) { }
     }
     public sealed class StateWritePlan
     {
@@ -799,7 +517,300 @@ namespace Configlue
         public Configlue.StateWritePlan Build() { }
         public Configlue.StateWritePlanBuilder<TModel> Route<TValue>(System.Linq.Expressions.Expression<System.Func<TModel, TValue>> property, Configlue.SourceKey<TModel> source) { }
     }
-    public readonly struct StateWriteRequest<T> : System.IEquatable<Configlue.StateWriteRequest<T>>
+    public enum WriteConflictResolution
+    {
+        FailOnConflict = 0,
+        LastWriteWins = 1,
+    }
+}
+namespace Configlue.Migrations
+{
+    public interface IStateSchemaMigration<T>
+    {
+        Configlue.State.StateSchemaMetadata SourceSchema { get; }
+        Configlue.State.StateSchemaMetadata TargetSchema { get; }
+        System.Threading.Tasks.ValueTask<T> MigrateAsync(T value, System.Threading.CancellationToken cancellationToken = default);
+    }
+    public interface IStateStorageMigrationJournal
+    {
+        System.Threading.Tasks.ValueTask<Configlue.Migrations.StateStorageMigrationProgress?> ReadAsync(string migrationId, System.Threading.CancellationToken cancellationToken = default);
+        System.Threading.Tasks.ValueTask WriteAsync(Configlue.Migrations.StateStorageMigrationProgress progress, System.Threading.CancellationToken cancellationToken = default);
+    }
+    public interface IStateStorageMigrationLeaseProvider
+    {
+        System.Threading.Tasks.ValueTask<System.IDisposable> AcquireMigrationLeaseAsync(string migrationId, System.Threading.CancellationToken cancellationToken = default);
+    }
+    public sealed class StateSchemaDispatcher<T>
+    {
+        public StateSchemaDispatcher(Configlue.State.StateSchemaMetadata targetSchema) { }
+        public Configlue.State.StateSchemaMetadata TargetSchema { get; }
+        public Configlue.Migrations.StateSchemaDispatcher<T> Add<THistorical>(Configlue.State.StateSchemaMetadata sourceSchema, Configlue.Codecs.IStateCodec<THistorical> codec, System.Func<THistorical, T> migrate) { }
+        public bool TryDeserialize(Configlue.State.StateSchemaMetadata sourceSchema, in System.Buffers.ReadOnlySequence<byte> source, System.IServiceProvider? services, out T? value) { }
+    }
+    public sealed class StateSchemaMigrationChain<T>
+    {
+        public StateSchemaMigrationChain(Configlue.State.StateSchemaMetadata targetSchema, System.Collections.Generic.IEnumerable<Configlue.Migrations.IStateSchemaMigration<T>>? migrations = null) { }
+        public Configlue.State.StateSchemaMetadata TargetSchema { get; }
+        public System.Threading.Tasks.ValueTask<T> MigrateAsync(T value, Configlue.State.StateSchemaMetadata sourceSchema, System.Threading.CancellationToken cancellationToken = default) { }
+    }
+    public readonly struct StateSourceMigrationResult : System.IEquatable<Configlue.Migrations.StateSourceMigrationResult>
+    {
+        public StateSourceMigrationResult(string SourceId, string TargetId, string? SourceRevision, string? TargetRevision) { }
+        public string SourceId { get; init; }
+        public string? SourceRevision { get; init; }
+        public string TargetId { get; init; }
+        public string? TargetRevision { get; init; }
+        public void Deconstruct(out string SourceId, out string TargetId, out string? SourceRevision, out string? TargetRevision) { }
+    }
+    public sealed class StateStorageMigrationDefinition<TFragment>
+        where TFragment :  class, Configlue.IConfiglueFragment<TFragment>
+    {
+        public StateStorageMigrationDefinition(string id, System.Collections.Generic.IEnumerable<string> sourceIds, System.Collections.Generic.IEnumerable<Configlue.Migrations.StateStorageMigrationTarget<TFragment>> targets, bool retireSources = false) { }
+        public string Id { get; }
+        public bool RetireSources { get; }
+        public System.Collections.Generic.IReadOnlyList<string> SourceIds { get; }
+        public System.Collections.Generic.IReadOnlyList<Configlue.Migrations.StateStorageMigrationTarget<TFragment>> Targets { get; }
+    }
+    public sealed class StateStorageMigrationProgress
+    {
+        public StateStorageMigrationProgress(string migrationId, System.Collections.Generic.IEnumerable<string> sourceIds, System.Collections.Generic.IEnumerable<string> targetSourceIds, System.Collections.Generic.IEnumerable<string>? completedTargetSourceIds = null, bool retireSources = false, bool sourcesRetired = false) { }
+        public bool AllTargetsCompleted { get; }
+        public System.Collections.Generic.IReadOnlyList<string> CompletedTargetSourceIds { get; }
+        public string MigrationId { get; }
+        public bool RetireSources { get; }
+        public System.Collections.Generic.IReadOnlyList<string> SourceIds { get; }
+        public bool SourcesRetired { get; }
+        public System.Collections.Generic.IReadOnlyList<string> TargetSourceIds { get; }
+    }
+    public sealed class StateStorageMigrationResult
+    {
+        public StateStorageMigrationResult(System.Collections.Generic.IEnumerable<string> sourceIds, Configlue.State.StateRevisionVector sourceRevisions, System.Collections.Generic.IEnumerable<Configlue.Migrations.StateStorageMigrationTargetResult> targets, System.Collections.Generic.IEnumerable<string>? retiredSourceIds = null) { }
+        public System.Collections.Generic.IReadOnlyList<string> RetiredSourceIds { get; }
+        public System.Collections.Generic.IReadOnlyList<string> SourceIds { get; }
+        public Configlue.State.StateRevisionVector SourceRevisions { get; }
+        public bool SourcesRetired { get; }
+        public System.Collections.Generic.IReadOnlyList<Configlue.Migrations.StateStorageMigrationTargetResult> Targets { get; }
+    }
+    public readonly struct StateStorageMigrationTargetResult : System.IEquatable<Configlue.Migrations.StateStorageMigrationTargetResult>
+    {
+        public StateStorageMigrationTargetResult(string TargetId, string? PreviousRevision, string? TargetRevision, bool WasAlreadyCurrent) { }
+        public string? PreviousRevision { get; init; }
+        public string TargetId { get; init; }
+        public string? TargetRevision { get; init; }
+        public bool WasAlreadyCurrent { get; init; }
+        public void Deconstruct(out string TargetId, out string? PreviousRevision, out string? TargetRevision, out bool WasAlreadyCurrent) { }
+    }
+    public sealed class StateStorageMigrationTarget<TFragment>
+        where TFragment :  class, Configlue.IConfiglueFragment<TFragment>
+    {
+        public StateStorageMigrationTarget(string targetSourceId, System.Func<TFragment, TFragment> project) { }
+        public System.Func<TFragment, TFragment> Project { get; }
+        public string TargetSourceId { get; }
+    }
+}
+namespace Configlue.Resources
+{
+    public interface IResourceBackupRecovery
+    {
+        bool AutomaticBackupRecoveryEnabled { get; }
+        System.Threading.Tasks.ValueTask<Configlue.Resources.ResourceReadResult?> TryRecoverLatestBackupAsync(string? expectedRevision, bool expectedMissing, System.Func<Configlue.Resources.ResourceReadResult, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<bool>> validate, System.Threading.CancellationToken cancellationToken = default);
+    }
+    public interface IResourceBatchParticipant
+    {
+        Configlue.Resources.IResourceBatchWriter? BatchWriter { get; }
+        Configlue.Resources.ResourceId ResourceId { get; }
+        Configlue.Resources.ResourceWriteMutation CreateMutation(Configlue.Resources.ResourceWriteRequest request);
+    }
+    public interface IResourceBatchWriter : Configlue.Resources.IResourceIdentity, Configlue.Resources.IResourceWriter
+    {
+        System.Threading.Tasks.ValueTask<Configlue.State.StateWriteResult> WriteBatchAsync(System.Collections.Generic.IReadOnlyList<Configlue.Resources.ResourceWriteMutation> mutations, System.Threading.CancellationToken cancellationToken = default);
+    }
+    public interface IResourceIdentity
+    {
+        Configlue.Resources.ResourceId ResourceId { get; }
+    }
+    public interface IResourceReader
+    {
+        System.Threading.Tasks.ValueTask<Configlue.Resources.ResourceReadResult> ReadAsync(System.Threading.CancellationToken cancellationToken = default);
+    }
+    public interface IResourceWriter
+    {
+        System.Threading.Tasks.ValueTask<Configlue.State.StateWriteResult> WriteAsync(Configlue.Resources.ResourceWriteRequest request, System.Threading.CancellationToken cancellationToken = default);
+    }
+    public readonly struct ResourceId : System.IEquatable<Configlue.Resources.ResourceId>
+    {
+        public ResourceId(string value) { }
+        public string Value { get; }
+        public override string ToString() { }
+    }
+    public readonly struct ResourceReadResult : System.IEquatable<Configlue.Resources.ResourceReadResult>
+    {
+        public ResourceReadResult(Configlue.State.StateReadStatus Status, System.ReadOnlyMemory<byte> Content, string? Revision = null, Configlue.State.StateSchemaMetadata? Schema = default) { }
+        public System.ReadOnlyMemory<byte> Content { get; init; }
+        public string? Revision { get; init; }
+        public Configlue.State.StateSchemaMetadata? Schema { get; init; }
+        public Configlue.State.StateReadStatus Status { get; init; }
+        public void Deconstruct(out Configlue.State.StateReadStatus Status, out System.ReadOnlyMemory<byte> Content, out string? Revision, out Configlue.State.StateSchemaMetadata? Schema) { }
+        public static Configlue.Resources.ResourceReadResult NotFound(string? revision = null) { }
+        public static Configlue.Resources.ResourceReadResult Success(System.ReadOnlyMemory<byte> content, string? revision = null, Configlue.State.StateSchemaMetadata? schema = default) { }
+        public static Configlue.Resources.ResourceReadResult Unavailable(string? revision = null) { }
+    }
+    public sealed class ResourceWriteMutation
+    {
+        public ResourceWriteMutation(string? expectedRevision, bool checkRevision, Configlue.State.StateSchemaMetadata? schema, System.Func<Configlue.Resources.ResourceReadResult, System.ReadOnlyMemory<byte>> apply, string? scope = null, bool canCompose = false) { }
+        public bool CanCompose { get; }
+        public bool CheckRevision { get; }
+        public string? ExpectedRevision { get; }
+        public Configlue.State.StateSchemaMetadata? Schema { get; }
+        public string? Scope { get; }
+        public System.ReadOnlyMemory<byte> Apply(Configlue.Resources.ResourceReadResult current) { }
+        public static Configlue.Resources.ResourceWriteMutation Replace(Configlue.Resources.ResourceWriteRequest request) { }
+        public static void ValidateBatch(System.Collections.Generic.IReadOnlyList<Configlue.Resources.ResourceWriteMutation> mutations) { }
+    }
+    public readonly struct ResourceWriteRequest : System.IEquatable<Configlue.Resources.ResourceWriteRequest>
+    {
+        public ResourceWriteRequest(System.ReadOnlyMemory<byte> Content, string? ExpectedRevision = null, Configlue.State.StateSchemaMetadata? Schema = default, bool CheckRevision = false) { }
+        public bool CheckRevision { get; init; }
+        public System.ReadOnlyMemory<byte> Content { get; init; }
+        public string? ExpectedRevision { get; init; }
+        public Configlue.State.StateSchemaMetadata? Schema { get; init; }
+        public void Deconstruct(out System.ReadOnlyMemory<byte> Content, out string? ExpectedRevision, out Configlue.State.StateSchemaMetadata? Schema, out bool CheckRevision) { }
+    }
+}
+namespace Configlue.Sources
+{
+    [System.Flags]
+    public enum StateFallbackCondition
+    {
+        None = 0,
+        NotFound = 1,
+        Unavailable = 2,
+        NotFoundOrUnavailable = 3,
+        Invalid = 4,
+    }
+    public static class StateSourceProjection
+    {
+        public static Configlue.Sources.StateSource<TTarget> Mount<TSource, TTarget>(Configlue.Sources.StateSource<TSource> source, string propertyPath, Configlue.State.StateSchemaMetadata? projectedSchema = default)
+            where TSource :  class, Configlue.IConfiglueFragment<TSource>
+            where TTarget :  class, Configlue.IConfiglueFragment<TTarget> { }
+        public static Configlue.Sources.StateSource<TTarget> Mount<TSource, TTarget>(Configlue.Sources.StateSource<TSource> source, string propertyPath, System.Func<TTarget, TSource> toSource, Configlue.State.StateSchemaMetadata? projectedSchema = default)
+            where TSource :  class, Configlue.IConfiglueFragment<TSource>
+            where TTarget :  class, Configlue.IConfiglueFragment<TTarget> { }
+        public static Configlue.Sources.StateSource<TTarget> Project<TSource, TTarget>(Configlue.Sources.StateSource<TSource> source, System.Func<TSource, TTarget> toTarget, System.Func<TTarget, TSource>? toSource = null, Configlue.State.StateSchemaMetadata? projectedSchema = default, System.Collections.Generic.IEnumerable<Configlue.Migrations.IStateSchemaMigration<TSource>>? sourceMigrations = null, Configlue.State.StateSchemaMetadata? sourceSchema = default) { }
+        public static Configlue.Sources.StateSource<TTarget> ProjectWithUpdate<TSource, TTarget>(Configlue.Sources.StateSource<TSource> source, System.Func<TSource, TTarget> toTarget, System.Func<TTarget?, TTarget, TSource?, TSource> updateSource, Configlue.State.StateSchemaMetadata? projectedSchema = default, System.Collections.Generic.IEnumerable<Configlue.Migrations.IStateSchemaMigration<TSource>>? sourceMigrations = null, Configlue.State.StateSchemaMetadata? sourceSchema = default) { }
+    }
+    public sealed class StateSourceSet<T>
+    {
+        public StateSourceSet(System.Collections.Generic.IEnumerable<Configlue.Sources.StateSource<T>> sources) { }
+        public int Count { get; }
+        public Configlue.Sources.StateSource<T> this[int index] { get; }
+        public System.Collections.Generic.IReadOnlyList<Configlue.Sources.StateSource<T>> Sources { get; }
+    }
+    public sealed class StateSource<T>
+    {
+        public StateSource(Configlue.State.IStateReader<T> reader, int priority = 0, Configlue.Sources.StateFallbackCondition fallbackCondition = 1, Configlue.State.IStateWriter<T>? writer = null, Configlue.State.IStateWatcher? watcher = null, string? physicalOrigin = null, Configlue.Resources.ResourceId? resourceId = default, string? logicalDescriptor = null, bool explicitOnly = false) { }
+        public StateSource(string id, Configlue.State.IStateReader<T> reader, int priority = 0, Configlue.Sources.StateFallbackCondition fallbackCondition = 1, Configlue.State.IStateWriter<T>? writer = null, Configlue.State.IStateWatcher? watcher = null, string? physicalOrigin = null, Configlue.Resources.ResourceId? resourceId = default, bool explicitOnly = false) { }
+        public bool ExplicitOnly { get; }
+        public Configlue.Sources.StateFallbackCondition FallbackCondition { get; }
+        public string Id { get; }
+        public string? PhysicalOrigin { get; }
+        public int Priority { get; }
+        public Configlue.State.IStateReader<T> Reader { get; }
+        public Configlue.Resources.ResourceId? ResourceId { get; }
+        public Configlue.State.IStateWatcher? Watcher { get; }
+        public Configlue.State.IStateWriter<T>? Writer { get; }
+    }
+}
+namespace Configlue.State
+{
+    public interface IAsyncStateWriteBatchParticipant<T>
+    {
+        bool CanPrepareBatchWrite { get; }
+        System.Threading.Tasks.ValueTask<Configlue.State.StateWriteBatchPlan?> TryCreateBatchWriteAsync(Configlue.State.StateWriteRequest<T> request, System.Threading.CancellationToken cancellationToken = default);
+    }
+    public interface IStateMiddleware<T>
+    {
+        Configlue.State.IStateReader<T> WrapReader(Configlue.State.IStateReader<T> next);
+        Configlue.State.IStateWriter<T> WrapWriter(Configlue.State.IStateWriter<T> next);
+    }
+    public interface IStateReader<T>
+    {
+        System.Threading.Tasks.ValueTask<Configlue.State.StateReadResult<T>> ReadAsync(System.Threading.CancellationToken cancellationToken = default);
+    }
+    public interface IStateWatcher
+    {
+        System.Threading.Tasks.ValueTask WaitForChangeAsync(string? observedRevision, System.Threading.CancellationToken cancellationToken = default);
+    }
+    public interface IStateWriteBatchParticipant<T>
+    {
+        bool TryCreateBatchWrite(Configlue.State.StateWriteRequest<T> request, out Configlue.Resources.ResourceId resourceId, out Configlue.Resources.IResourceBatchWriter? batchWriter, out Configlue.Resources.ResourceWriteMutation? mutation);
+    }
+    public interface IStateWriter<T>
+    {
+        System.Threading.Tasks.ValueTask<Configlue.State.StateWriteResult> WriteAsync(Configlue.State.StateWriteRequest<T> request, System.Threading.CancellationToken cancellationToken = default);
+    }
+    public sealed class StateConflictException : System.Exception
+    {
+        public StateConflictException(string message) { }
+    }
+    public readonly struct StateReadResult<T> : System.IEquatable<Configlue.State.StateReadResult<T>>
+    {
+        public StateReadResult(Configlue.State.StateReadStatus Status, T? Value, string? Revision = null, string? SourceId = null, string? PhysicalOrigin = null, Configlue.State.StateSchemaMetadata? Schema = default, Configlue.State.StateRevisionVector? Revisions = null) { }
+        public string? PhysicalOrigin { get; init; }
+        public string? Revision { get; init; }
+        public Configlue.State.StateRevisionVector? Revisions { get; init; }
+        public Configlue.State.StateSchemaMetadata? Schema { get; init; }
+        public string? SourceId { get; init; }
+        public Configlue.State.StateReadStatus Status { get; init; }
+        public T Value { get; init; }
+        public void Deconstruct(out Configlue.State.StateReadStatus Status, out T? Value, out string? Revision, out string? SourceId, out string? PhysicalOrigin, out Configlue.State.StateSchemaMetadata? Schema, out Configlue.State.StateRevisionVector? Revisions) { }
+        public Configlue.State.StateReadResult<T> FromSource(string sourceId, string? physicalOrigin = null) { }
+        public static Configlue.State.StateReadResult<T> Invalid(T? value, string? revision = null) { }
+        public static Configlue.State.StateReadResult<T> NotFound(string? revision = null) { }
+        public static Configlue.State.StateReadResult<T> Success(T? value, string? revision = null, Configlue.State.StateSchemaMetadata? schema = default) { }
+        public static Configlue.State.StateReadResult<T> Unavailable(string? revision = null) { }
+    }
+    public enum StateReadStatus
+    {
+        Success = 0,
+        NotFound = 1,
+        Unavailable = 2,
+        Invalid = 3,
+    }
+    public readonly struct StateRevision : System.IEquatable<Configlue.State.StateRevision>
+    {
+        public StateRevision(string SourceId, string? Revision) { }
+        public string? Revision { get; init; }
+        public string SourceId { get; init; }
+        public void Deconstruct(out string SourceId, out string? Revision) { }
+    }
+    public sealed class StateRevisionVector
+    {
+        public StateRevisionVector(System.Collections.Generic.IEnumerable<Configlue.State.StateRevision> revisions) { }
+        public StateRevisionVector(System.Collections.Generic.IEnumerable<Configlue.State.StateRevision> revisions, System.Collections.Generic.IEnumerable<System.Collections.Generic.KeyValuePair<string, Configlue.State.StateRevisionVector>> nestedRevisions) { }
+        public System.Collections.Generic.IReadOnlyDictionary<string, Configlue.State.StateRevisionVector> NestedRevisions { get; }
+        public System.Collections.Generic.IReadOnlyDictionary<string, string?> Revisions { get; }
+        public bool TryGetNestedRevisions(string sourceId, out Configlue.State.StateRevisionVector? revisions) { }
+        public bool TryGetRevision(string sourceId, out string? revision) { }
+        public static Configlue.State.StateRevisionVector FromSpan(System.ReadOnlySpan<Configlue.State.StateRevision> revisions, System.ReadOnlySpan<System.Collections.Generic.KeyValuePair<string, Configlue.State.StateRevisionVector>> nestedRevisions = default) { }
+    }
+    public readonly struct StateSchemaMetadata : System.IEquatable<Configlue.State.StateSchemaMetadata>
+    {
+        public const int InitialVersion = 1;
+        public StateSchemaMetadata(string? ModelId, int Version) { }
+        public string? ModelId { get; init; }
+        public int Version { get; init; }
+        public void Deconstruct(out string? ModelId, out int Version) { }
+    }
+    public readonly struct StateWriteBatchPlan : System.IEquatable<Configlue.State.StateWriteBatchPlan>
+    {
+        public StateWriteBatchPlan(Configlue.Resources.ResourceId ResourceId, Configlue.Resources.IResourceBatchWriter BatchWriter, Configlue.Resources.ResourceWriteMutation Mutation) { }
+        public Configlue.Resources.IResourceBatchWriter BatchWriter { get; init; }
+        public Configlue.Resources.ResourceWriteMutation Mutation { get; init; }
+        public Configlue.Resources.ResourceId ResourceId { get; init; }
+        public void Deconstruct(out Configlue.Resources.ResourceId ResourceId, out Configlue.Resources.IResourceBatchWriter BatchWriter, out Configlue.Resources.ResourceWriteMutation Mutation) { }
+    }
+    public readonly struct StateWriteRequest<T> : System.IEquatable<Configlue.State.StateWriteRequest<T>>
     {
         public StateWriteRequest(T Value, string? ExpectedRevision = null, bool CheckRevision = false) { }
         public bool CheckRevision { get; init; }
@@ -807,16 +818,23 @@ namespace Configlue
         public T Value { get; init; }
         public void Deconstruct(out T Value, out string? ExpectedRevision, out bool CheckRevision) { }
     }
-    public readonly struct StateWriteResult : System.IEquatable<Configlue.StateWriteResult>
+    public readonly struct StateWriteResult : System.IEquatable<Configlue.State.StateWriteResult>
     {
         public StateWriteResult(string? Revision) { }
         public Configlue.StateMultiWriteResult? MultiWriteResult { get; init; }
         public string? Revision { get; init; }
         public void Deconstruct(out string? Revision) { }
     }
-    public enum WriteConflictResolution
+}
+namespace Configlue.Transformers
+{
+    public interface IStateByteTransformer
     {
-        FailOnConflict = 0,
-        LastWriteWins = 1,
+        System.ReadOnlyMemory<byte> TransformRead(System.ReadOnlyMemory<byte> source);
+        System.ReadOnlyMemory<byte> TransformWrite(System.ReadOnlyMemory<byte> source);
+    }
+    public interface IStateByteTransformerRecoveryPolicy
+    {
+        bool IsRecoverableReadException(System.Exception exception);
     }
 }

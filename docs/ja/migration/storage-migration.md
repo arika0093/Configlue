@@ -20,6 +20,8 @@ description: 検証と退役つきでソース間に寄与をコピーする。
 JSON ファイルから YAML ファイルへ形式を移す例です。両ソースの codec は同じ生成 Fragment に変換されるため、形式変換はターゲット source の writer が行います。
 
 ```csharp
+using Configlue.Migrations;
+
 var migration = new StateStorageMigrationDefinition<AppSettings.Fragment>(
     "settings-json-to-yaml-v1",
     ["legacy-json"],
@@ -35,6 +37,8 @@ var progress = await ((IConfiglueOptions<AppSettings>)options).MigrateAsync(migr
 複数ファイルへ分割する場合はターゲットごとに投影を宣言します。選択元だけを先にマージし、それぞれの target に必要な subtree を渡します。
 
 ```csharp
+using Configlue.Migrations;
+
 var migration = new StateStorageMigrationDefinition<AppSettings.Fragment>(
     "settings-json-to-split-files-v1",
     ["legacy-json"],

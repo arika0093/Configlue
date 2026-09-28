@@ -1,4 +1,4 @@
-namespace Configlue;
+namespace Configlue.State;
 
 /// <summary>The result of writing state.</summary>
 public readonly record struct StateWriteResult

@@ -1,4 +1,4 @@
-namespace Configlue;
+namespace Configlue.State;
 
 /// <summary>Prepares a typed source write for batching with other sources sharing one physical resource.</summary>
 public interface IStateWriteBatchParticipant<T>

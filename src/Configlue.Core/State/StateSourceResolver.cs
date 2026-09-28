@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Logging;
 
-namespace Configlue;
+namespace Configlue.State;
 
 /// <summary>Reads the first successful state from a priority-ordered set of sources.</summary>
 public sealed class StateSourceResolver<T> : IStateReader<T>

@@ -1,4 +1,4 @@
-namespace Configlue;
+namespace Configlue.Resources;
 
 /// <summary>The bytes and metadata returned by a resource reader.</summary>
 public readonly record struct ResourceReadResult

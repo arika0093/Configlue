@@ -1,4 +1,4 @@
-namespace Configlue;
+namespace Configlue.State;
 
 /// <summary>Routes writes independently from read-source selection.</summary>
 public sealed class StateSourceWriter<T> : IStateWriter<T>

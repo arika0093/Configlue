@@ -1,4 +1,4 @@
-namespace Configlue;
+namespace Configlue.Migrations;
 
 /// <summary>The result of preparing one target in a retryable storage migration.</summary>
 public readonly record struct StateStorageMigrationTargetResult

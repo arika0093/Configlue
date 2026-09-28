@@ -1,4 +1,4 @@
-namespace Configlue;
+namespace Configlue.Migrations;
 
 /// <summary>Declares one projected target in a storage migration.</summary>
 public sealed class StateStorageMigrationTarget<TFragment>

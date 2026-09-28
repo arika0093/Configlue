@@ -1,6 +1,6 @@
 using System.Buffers;
 
-namespace Configlue;
+namespace Configlue.Migrations;
 
 /// <summary>Decodes historical state fragments and converts them to one current state type.</summary>
 /// <typeparam name="T">The current state value type.</typeparam>

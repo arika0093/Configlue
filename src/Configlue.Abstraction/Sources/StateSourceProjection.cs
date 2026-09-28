@@ -1,4 +1,4 @@
-namespace Configlue;
+namespace Configlue.Sources;
 
 /// <summary>Projects a source-specific state contract into a logical model fragment.</summary>
 public static class StateSourceProjection
