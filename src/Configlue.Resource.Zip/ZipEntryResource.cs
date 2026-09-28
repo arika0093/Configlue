@@ -1,4 +1,5 @@
 using System.IO.Compression;
+using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 
 namespace Configlue.Resource.Zip;
@@ -32,6 +33,7 @@ public sealed class ZipEntryResource
 
     private const int ReadSnapshotLimit = 8;
     private const string MissingEntryFingerprint = "missing";
+    private const string PresentEntryFingerprintPrefix = "present:";
     private readonly IResourceReader _archiveReader;
     private readonly IResourceBatchWriter? _archiveWriter;
     private readonly IStateWatcher? _archiveWatcher;
@@ -173,7 +175,7 @@ public sealed class ZipEntryResource
             return ResourceReadResult.Unavailable(archiveResult.Revision);
         }
 
-        using var content = new MemoryStream(archiveResult.Content.ToArray(), writable: false);
+        using var content = CreateReadOnlyStream(archiveResult.Content);
         using var archive = new ZipArchive(content, ZipArchiveMode.Read);
         var entry = archive.GetEntry(_entryName);
         if (entry is null)
@@ -185,10 +187,12 @@ public sealed class ZipEntryResource
         await using var entryStream = await entry
             .OpenAsync(cancellationToken)
             .ConfigureAwait(false);
-        using var destination = new MemoryStream();
-        await entryStream.CopyToAsync(destination, cancellationToken).ConfigureAwait(false);
-        var entryContent = destination.ToArray();
-        var entryRevision = GetEntryFingerprint(entryContent);
+        var (entryContent, entryRevision) = await ReadEntryAsync(
+                entryStream,
+                entry.Length,
+                cancellationToken
+            )
+            .ConfigureAwait(false);
         StoreSnapshot(archiveResult.Revision, entryRevision);
         return ResourceReadResult.Success(entryContent, archiveResult.Revision);
     }
@@ -365,7 +369,59 @@ public sealed class ZipEntryResource
     }
 
     private static string GetEntryFingerprint(ReadOnlySpan<byte> content) =>
-        "present:" + Convert.ToHexString(SHA256.HashData(content));
+        PresentEntryFingerprintPrefix + Convert.ToHexString(SHA256.HashData(content));
+
+    private static async ValueTask<(byte[] Content, string Fingerprint)> ReadEntryAsync(
+        Stream entryStream,
+        long length,
+        CancellationToken cancellationToken
+    )
+    {
+        if (length is < 0 or > int.MaxValue)
+        {
+            using var destination = new MemoryStream();
+            await entryStream.CopyToAsync(destination, cancellationToken).ConfigureAwait(false);
+            var fallback = destination.ToArray();
+            return (fallback, GetEntryFingerprint(fallback));
+        }
+
+        var content = new byte[(int)length];
+        using var hasher = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        var offset = 0;
+        while (offset < content.Length)
+        {
+            var read = await entryStream
+                .ReadAsync(content.AsMemory(offset), cancellationToken)
+                .ConfigureAwait(false);
+            if (read == 0)
+            {
+                break;
+            }
+
+            hasher.AppendData(content, offset, read);
+            offset += read;
+        }
+
+        if (offset != content.Length)
+        {
+            Array.Resize(ref content, offset);
+        }
+
+        return (
+            content,
+            PresentEntryFingerprintPrefix + Convert.ToHexString(hasher.GetHashAndReset())
+        );
+    }
+
+    private static MemoryStream CreateReadOnlyStream(ReadOnlyMemory<byte> content)
+    {
+        if (MemoryMarshal.TryGetArray(content, out var segment) && segment.Array is not null)
+        {
+            return new MemoryStream(segment.Array, segment.Offset, segment.Count, writable: false);
+        }
+
+        return new MemoryStream(content.ToArray(), writable: false);
+    }
 
     private static string NormalizeEntryName(string entryName)
     {

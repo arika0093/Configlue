@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using System.Text;
 using SharpYaml.Model;
 
@@ -24,6 +25,10 @@ public sealed class YamlSectionResource
     private readonly string _batchScope;
     private readonly Encoding? _textEncoding;
     private readonly byte[] _schemaShape;
+    private readonly object _sectionCacheGate = new();
+    private string? _cachedSectionRevision;
+    private ResourceReadResult _cachedSection;
+    private bool _hasCachedSection;
 
     /// <summary>Creates a YAML section resource over a resource with inferred write and watch capabilities.</summary>
     public YamlSectionResource(IResourceReader resource, string sectionPath)
@@ -211,7 +216,38 @@ public sealed class YamlSectionResource
             return new ResourceReadResult(resource.Status, default, resource.Revision);
         }
 
-        var current = LoadRoot(resource.Content.Span);
+        var revision = resource.Revision;
+        if (revision is not null)
+        {
+            lock (_sectionCacheGate)
+            {
+                if (
+                    _hasCachedSection
+                    && string.Equals(_cachedSectionRevision, revision, StringComparison.Ordinal)
+                )
+                {
+                    return _cachedSection;
+                }
+            }
+        }
+
+        var result = ExtractSectionCore(resource);
+        if (revision is not null)
+        {
+            lock (_sectionCacheGate)
+            {
+                _cachedSectionRevision = revision;
+                _cachedSection = result;
+                _hasCachedSection = true;
+            }
+        }
+
+        return result;
+    }
+
+    private ResourceReadResult ExtractSectionCore(ResourceReadResult resource)
+    {
+        var current = LoadRoot(resource.Content);
         if (_path.Length == 0)
         {
             return resource;
@@ -322,10 +358,10 @@ public sealed class YamlSectionResource
         }
     }
 
-    private YamlElement LoadRoot(ReadOnlySpan<byte> content)
+    private YamlElement LoadRoot(ReadOnlyMemory<byte> content)
     {
         var text = _textEncoding is null
-            ? StrictUtf8.GetString(content)
+            ? StrictUtf8.GetString(content.Span)
             : DecodeWithEncoding(content, _textEncoding);
         if (string.IsNullOrWhiteSpace(text))
         {
@@ -395,14 +431,24 @@ public sealed class YamlSectionResource
         return (_textEncoding ?? Encoding.UTF8).GetBytes(writer.ToString());
     }
 
-    private static string DecodeWithEncoding(ReadOnlySpan<byte> content, Encoding encoding)
+    private static string DecodeWithEncoding(ReadOnlyMemory<byte> content, Encoding encoding)
     {
-        using var stream = new MemoryStream(content.ToArray(), writable: false);
+        using var stream = CreateReadOnlyStream(content);
         using var reader = new StreamReader(
             stream,
             encoding,
             detectEncodingFromByteOrderMarks: true
         );
         return reader.ReadToEnd();
+    }
+
+    private static MemoryStream CreateReadOnlyStream(ReadOnlyMemory<byte> content)
+    {
+        if (MemoryMarshal.TryGetArray(content, out var segment) && segment.Array is not null)
+        {
+            return new MemoryStream(segment.Array, segment.Offset, segment.Count, writable: false);
+        }
+
+        return new MemoryStream(content.ToArray(), writable: false);
     }
 }

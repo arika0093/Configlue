@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Net;
 using System.Net.Http.Headers;
+using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -269,7 +270,7 @@ public sealed class HttpResourceReader
     {
         using var request = new HttpRequestMessage(HttpMethod.Put, _updateUri)
         {
-            Content = new ByteArrayContent(resourceRequest.Content.ToArray()),
+            Content = CreateContent(resourceRequest.Content),
         };
         request.Content.Headers.ContentType = MediaTypeHeaderValue.Parse(_contentType);
         AddSchemaHeaders(request, resourceRequest.Schema);
@@ -304,7 +305,7 @@ public sealed class HttpResourceReader
         SetLastSnapshot(
             HttpResourceSnapshot.Success(
                 revision,
-                GetContentFingerprint(resourceRequest.Content.Span),
+                revision is null ? GetContentFingerprint(resourceRequest.Content.Span) : null,
                 resourceRequest.Schema
             )
         );
@@ -427,13 +428,19 @@ public sealed class HttpResourceReader
             return null;
         }
 
-        var materialized = values.ToArray();
-        if (materialized.Length != 1 || string.IsNullOrWhiteSpace(materialized[0]))
+        using var enumerator = values.GetEnumerator();
+        if (!enumerator.MoveNext())
         {
             throw new FormatException($"The HTTP resource returned an invalid {name} header.");
         }
 
-        return materialized[0];
+        var value = enumerator.Current;
+        if (string.IsNullOrWhiteSpace(value) || enumerator.MoveNext())
+        {
+            throw new FormatException($"The HTTP resource returned an invalid {name} header.");
+        }
+
+        return value;
     }
 
     private static void AddSchemaHeaders(HttpRequestMessage request, StateSchemaMetadata? schema)
@@ -471,7 +478,7 @@ public sealed class HttpResourceReader
         new(
             result.Status,
             result.Revision,
-            result.Status == StateReadStatus.Success
+            result.Status == StateReadStatus.Success && result.Revision is null
                 ? GetContentFingerprint(result.Content.Span)
                 : null,
             result.Schema
@@ -501,6 +508,21 @@ public sealed class HttpResourceReader
 
     private static string GetContentFingerprint(ReadOnlySpan<byte> content) =>
         Convert.ToHexString(SHA256.HashData(content));
+
+    private static HttpContent CreateContent(ReadOnlyMemory<byte> content)
+    {
+        if (
+            MemoryMarshal.TryGetArray(content, out var segment)
+            && segment.Array is byte[] array
+            && segment.Offset == 0
+            && segment.Count == array.Length
+        )
+        {
+            return new ByteArrayContent(array);
+        }
+
+        return new MemoryContent(content);
+    }
 
     private static Uri EnsureTrailingSlash(Uri endpointRoot)
     {
@@ -601,7 +623,7 @@ public sealed class HttpResourceReader
 
         public static HttpResourceSnapshot Success(
             string? revision,
-            string fingerprint,
+            string? fingerprint,
             StateSchemaMetadata? schema
         ) => new(StateReadStatus.Success, revision, fingerprint, schema);
     }
@@ -647,6 +669,28 @@ public sealed class HttpResourceReader
         {
             response.Dispose();
             requestCancellation.Dispose();
+        }
+    }
+
+    private sealed class MemoryContent : HttpContent
+    {
+        private readonly ReadOnlyMemory<byte> _content;
+
+        public MemoryContent(ReadOnlyMemory<byte> content) => _content = content;
+
+        protected override Task SerializeToStreamAsync(Stream stream, TransportContext? context) =>
+            stream.WriteAsync(_content).AsTask();
+
+        protected override Task SerializeToStreamAsync(
+            Stream stream,
+            TransportContext? context,
+            CancellationToken cancellationToken
+        ) => stream.WriteAsync(_content, cancellationToken).AsTask();
+
+        protected override bool TryComputeLength(out long length)
+        {
+            length = _content.Length;
+            return true;
         }
     }
 }

@@ -1,4 +1,5 @@
 using System.Buffers;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
 using SharpYaml;
@@ -22,14 +23,14 @@ internal static class YamlDocumentEditor
         Encoding? textEncoding
     )
     {
-        var currentText = current.IsEmpty ? "" : Decode(current.Span, textEncoding);
-        var updatedText = Decode(updated.Span, textEncoding);
+        var currentText = current.IsEmpty ? "" : Decode(current, textEncoding);
+        var updatedText = Decode(updated, textEncoding);
         var newline = FindNewline(currentText);
         var currentDocument = YamlTextDocument.Parse(currentText);
         var updatedDocument = YamlTextDocument.Parse(updatedText);
         var shapeDocument = schemaShape.IsEmpty
             ? null
-            : YamlTextDocument.Parse(Decode(schemaShape.Span, textEncoding));
+            : YamlTextDocument.Parse(Decode(schemaShape, textEncoding));
         var editor = new Editor(currentDocument);
 
         if (path.Count == 0)
@@ -129,20 +130,30 @@ internal static class YamlDocumentEditor
         return key + ":" + newline + Indent(value, "  ", newline);
     }
 
-    private static string Decode(ReadOnlySpan<byte> content, Encoding? textEncoding)
+    private static string Decode(ReadOnlyMemory<byte> content, Encoding? textEncoding)
     {
         if (textEncoding is null)
         {
-            return StrictUtf8.GetString(content);
+            return StrictUtf8.GetString(content.Span);
         }
 
-        using var stream = new MemoryStream(content.ToArray(), writable: false);
+        using var stream = CreateReadOnlyStream(content);
         using var reader = new StreamReader(
             stream,
             textEncoding,
             detectEncodingFromByteOrderMarks: true
         );
         return reader.ReadToEnd();
+    }
+
+    private static MemoryStream CreateReadOnlyStream(ReadOnlyMemory<byte> content)
+    {
+        if (MemoryMarshal.TryGetArray(content, out var segment) && segment.Array is not null)
+        {
+            return new MemoryStream(segment.Array, segment.Offset, segment.Count, writable: false);
+        }
+
+        return new MemoryStream(content.ToArray(), writable: false);
     }
 
     private static byte[] Encode(

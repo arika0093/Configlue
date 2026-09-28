@@ -1,4 +1,5 @@
 using System.Net;
+using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 using Amazon.S3;
@@ -151,6 +152,21 @@ public sealed class S3ObjectResource
             _client = client;
         }
 
+        private static MemoryStream CreateReadOnlyStream(ReadOnlyMemory<byte> content)
+        {
+            if (MemoryMarshal.TryGetArray(content, out var segment) && segment.Array is not null)
+            {
+                return new MemoryStream(
+                    segment.Array,
+                    segment.Offset,
+                    segment.Count,
+                    writable: false
+                );
+            }
+
+            return new MemoryStream(content.ToArray(), writable: false);
+        }
+
         public async Task<S3ObjectReadResult> GetObjectAsync(
             string bucketName,
             string key,
@@ -160,6 +176,16 @@ public sealed class S3ObjectResource
             using var response = await _client
                 .GetObjectAsync(bucketName, key, cancellationToken)
                 .ConfigureAwait(false);
+            var length = response.ContentLength;
+            if (length is > 0 and <= int.MaxValue)
+            {
+                var buffer = new byte[(int)length];
+                await response
+                    .ResponseStream.ReadExactlyAsync(buffer, cancellationToken)
+                    .ConfigureAwait(false);
+                return new S3ObjectReadResult(buffer, response.ETag);
+            }
+
             using var content = new MemoryStream();
             await response
                 .ResponseStream.CopyToAsync(content, cancellationToken)
@@ -188,7 +214,7 @@ public sealed class S3ObjectResource
             CancellationToken cancellationToken
         )
         {
-            using var input = new MemoryStream(content.ToArray(), writable: false);
+            using var input = CreateReadOnlyStream(content);
             var request = new PutObjectRequest
             {
                 BucketName = bucketName,
@@ -220,10 +246,11 @@ internal interface IS3ObjectClient
     )
     {
         var result = await GetObjectAsync(bucketName, key, cancellationToken).ConfigureAwait(false);
-        return new S3ObjectStreamResult(
-            new MemoryStream(result.Content.ToArray(), writable: false),
-            result.ETag
-        );
+        var content =
+            MemoryMarshal.TryGetArray(result.Content, out var segment) && segment.Array is not null
+                ? new MemoryStream(segment.Array, segment.Offset, segment.Count, writable: false)
+                : new MemoryStream(result.Content.ToArray(), writable: false);
+        return new S3ObjectStreamResult(content, result.ETag);
     }
 
     Task<S3ObjectWriteResult> PutObjectAsync(
