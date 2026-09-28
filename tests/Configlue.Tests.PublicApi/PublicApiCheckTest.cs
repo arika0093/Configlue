@@ -158,6 +158,14 @@ public sealed class PublicApiCheckTest
     public void CommonSources() => PublicApiCheck.Check<CommonSourceBuilder>();
 
     [Test]
+    public void CommonXmlSources() =>
+        PublicApiCheck.CheckAssembly(typeof(CommonXmlFileSourceExtensions).Assembly);
+
+    [Test]
+    public void CommonYamlSources() =>
+        PublicApiCheck.CheckAssembly(typeof(CommonYamlFileSourceExtensions).Assembly);
+
+    [Test]
     public void CommandLineSources() => PublicApiCheck.Check<CommandLineSourceOptions>();
 
     [Test]

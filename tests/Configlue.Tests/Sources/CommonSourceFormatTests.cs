@@ -59,9 +59,11 @@ public sealed partial class CommonSourceFormatTests
             await using var context = ConfiglueApp.CreateContext(builder =>
                 builder.UseCommonSources(sources =>
                 {
-                    sources.WithEnvironment("CONFIGLUE_TEST").EnvironmentVariables(() =>
-                        [new KeyValuePair<string, string?>("CONFIGLUE_TEST__RetryCount", "4")]
-                    );
+                    sources
+                        .WithEnvironment("CONFIGLUE_TEST")
+                        .EnvironmentVariables(() =>
+                            [new KeyValuePair<string, string?>("CONFIGLUE_TEST__RetryCount", "4")]
+                        );
                     sources.WithExplicit(explicitPath);
                     sources.WithGlobal(appId);
                     sources.WithLocal(localPath);
@@ -98,7 +100,10 @@ public sealed partial class CommonSourceFormatTests
 
         var bytes = await File.ReadAllBytesAsync(localPath);
         var sequence = new ReadOnlySequence<byte>(bytes);
-        var fragment = new JsonStateCodec<AppSettings.Fragment>().Deserialize(in sequence, default)!;
+        var fragment = new JsonStateCodec<AppSettings.Fragment>().Deserialize(
+            in sequence,
+            default
+        )!;
         fragment.Label.Value.ShouldBe("written-to-local");
     }
 
@@ -119,7 +124,7 @@ public sealed partial class CommonSourceFormatTests
             await using var context = ConfiglueApp.CreateContext(builder =>
                 builder.UseCommonSources(sources =>
                 {
-                    sources.WithGlobal(appId, "settings.yaml").Yaml();
+                    sources.WithGlobal(appId, "settings.yaml").Yaml().YamlSerializerOptions(new());
                     sources.Add<AppSettings>();
                 })
             );
@@ -214,13 +219,18 @@ public sealed partial class CommonSourceFormatTests
         );
         var options = (IConfiglueOptions<AppSettings>)context.GetOptions<AppSettings>();
 
-        await options.Source(CommonSource.Local).SaveAsync(
-            new AppSettings.Patch { Label = FragmentOperation<string?>.Set("local-write") }
-        );
+        await options
+            .Source(CommonSource.Local)
+            .SaveAsync(
+                new AppSettings.Patch { Label = FragmentOperation<string?>.Set("local-write") }
+            );
 
         var bytes = await File.ReadAllBytesAsync(localPath);
         var sequence = new ReadOnlySequence<byte>(bytes);
-        var fragment = new JsonStateCodec<AppSettings.Fragment>().Deserialize(in sequence, default)!;
+        var fragment = new JsonStateCodec<AppSettings.Fragment>().Deserialize(
+            in sequence,
+            default
+        )!;
         fragment.Label.Value.ShouldBe("local-write");
         options
             .GetDiagnostics()

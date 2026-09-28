@@ -1,0 +1,9 @@
+[assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/arika0093/Configlue")]
+namespace Configlue.Source.Presets
+{
+    public static class CommonYamlFileSourceExtensions
+    {
+        public static Configlue.Source.Presets.CommonFileSourceBuilder Yaml(this Configlue.Source.Presets.CommonFileSourceBuilder source, SharpYaml.YamlSerializerOptions? serializerOptions = null, System.Text.Json.JsonNamingPolicy? propertyNamingPolicy = null) { }
+        public static Configlue.Source.Presets.CommonFileSourceBuilder YamlSerializerOptions(this Configlue.Source.Presets.CommonFileSourceBuilder source, SharpYaml.YamlSerializerOptions options) { }
+    }
+}

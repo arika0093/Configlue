@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>Configlue.Source.Presets.Xml</AssemblyName>
+    <RootNamespace>Configlue.Source.Presets</RootNamespace>
+    <IsPackable>true</IsPackable>
+    <PackageDescription>XML file source integration for Configlue common source presets.</PackageDescription>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Configlue.Provider.Xml/Configlue.Provider.Xml.csproj" />
+    <ProjectReference Include="../Configlue.Source.Presets/Configlue.Source.Presets.csproj" />
+  </ItemGroup>
+</Project>

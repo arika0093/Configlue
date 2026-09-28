@@ -41,17 +41,19 @@ source identity と優先度（0、100、200、300、400、500）はプリセッ
 ## 基本的な使い方
 
 複数モデルに同じプリセットを適用する場合は、`Configlue.Source.Presets` のスコープビルダーを使います。宣言したソースだけが有効になり、優先順位は Global < Local < Explicit < Environment < Arguments < HTTP で固定です。
+YAML または XML を共通ファイル層で使う場合は、`Configlue.Source.Presets.Yaml` または `Configlue.Source.Presets.Xml` パッケージを追加します。これらは個別の任意依存であり、使用しない形式の Provider は不要です。
 
 ```csharp
 using Configlue;
 using Configlue.Source.Presets;
+using SharpYaml;
 using System.Text.Json;
 
 await using var context = ConfiglueApp.CreateContext(conf =>
     conf.UseCommonSources(sources =>
 {
     sources.WithGlobal("ExampleApp", filename: "settings.yaml")
-        .Yaml()
+        .Yaml(serializerOptions: new YamlSerializerOptions())
         .FileResourceOptions(new FileResourceOptions { CreateBackup = false });
     sources.WithLocal().Json(new JsonSerializerOptions());
     sources.WithEnvironment("EXAMPLE");
