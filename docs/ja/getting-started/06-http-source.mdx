@@ -61,7 +61,7 @@ import { Steps, Tabs, TabItem } from '@astrojs/starlight/components';
                Id = "policy",
                EndPoint = "https://policy.example.com/api/policy",
                Client = httpClient,
-               Priority = 300, // CommonSource（優先度 0〜3）より上位に配置
+               Priority = 300, // CommonSource プリセットより上位に配置
                FallbackCondition = StateFallbackCondition.NotFoundOrUnavailable,
            });
        });
@@ -106,7 +106,7 @@ import { Steps, Tabs, TabItem } from '@astrojs/starlight/components';
    </Tabs>
 
    HTTP ソースは既定で読み取り専用として動作します。
-   `Priority = 300` と指定することで、CommonSource のファイル群（優先度 0〜1）よりも上位で評価されます。
+   `Priority = 300` と指定することで、CommonSource のファイル群よりも上位で評価されます。プリセット内部の source identity と優先度は実装詳細です。
 
 3. ### リモートサーバーに接続できないときの挙動
 

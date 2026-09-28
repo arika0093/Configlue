@@ -147,7 +147,7 @@ model.Sources(sources =>
     {
         Id = "remote-policy",
         EndPoint = "https://policy.example.internal/api/config",
-        Priority = 500, // Evaluated with higher priority than CommonSource (0-3)
+        Priority = 500, // Higher priority than the CommonSource preset
         FallbackCondition = StateFallbackCondition.NotFoundOrUnavailable,
     });
 });
