@@ -1,11 +1,11 @@
 ---
-title: "STEP 6: HTTP ソースに対応する"
+title: "STEP 7: HTTP ソースに対応する"
 description: CommonSource を土台として、リモートから配信される設定レイヤーを追加します。
 ---
 
 import { Steps, Tabs, TabItem } from '@astrojs/starlight/components';
 
-# STEP 6: HTTP ソースに対応する
+# STEP 7: HTTP ソースに対応する
 
 組織全体の配布ポリシーやクラウド上の設定など、リモートサーバーから配信される設定を取り込みたいケースがあります。
 ここでは、基本構成である **CommonSource** の上に、追加レイヤーとして **HTTP ソース** を重ねる方法を学びます。
@@ -117,11 +117,11 @@ import { Steps, Tabs, TabItem } from '@astrojs/starlight/components';
 
 4. ### 保存時の注意点
 
-   STEP 5 の環境変数と同様に、HTTP ソースから提供されている項目をローカルから書き換えようとすると競合が発生します。
+   STEP 6 の環境変数と同様に、HTTP ソースから提供されている項目をローカルから書き換えようとすると競合が発生します。
    リモート値に干渉しないプロパティ（`Server.Port` など）は、通常通り `SaveAsync` でローカルファイルに保存できます。
 
 </Steps>
 
 ---
 
-次のステップ: [STEP 7: JSON Schema を出力する](./07-json-schema.md) では、エディターでの入力補完や CI でのバリデーションに役立つ JSON スキーマの生成方法を学びます。
+次のステップ: [STEP 8: JSON Schema を出力する](./08-json-schema.md) では、エディターでの入力補完や CI でのバリデーションに役立つ JSON スキーマの生成方法を学びます。

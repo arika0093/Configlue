@@ -34,4 +34,4 @@ var source = SerializedStateSource.FromResource<AppSettings.Fragment>(
 
 ## Codec の選び方
 
-迷ったら、ファイルの形式に合わせるだけで構いません。読みたい形式ごとに Codec を足し、書き込み先はひとつに絞ります（STEP 10 の YAML 主・JSON 従の形が典型です）。形式を混ぜても、Source の優先度と `WriteRoute` の考え方は変わりません。
+迷ったら、ファイルの形式に合わせるだけで構いません。読みたい形式ごとに Codec を足し、書き込み先はひとつに絞ります（STEP 11 の YAML 主・JSON 従の形が典型です）。形式を混ぜても、Source の優先度と `WriteRoute` の考え方は変わりません。

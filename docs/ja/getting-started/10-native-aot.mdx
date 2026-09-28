@@ -1,11 +1,11 @@
 ---
-title: "STEP 9: NativeAOT に対応する"
+title: "STEP 10: NativeAOT に対応する"
 description: ソース生成メタデータを用いて NativeAOT やトリミング環境で安全に動作させます。
 ---
 
 import { Steps, Tabs, TabItem } from '@astrojs/starlight/components';
 
-# STEP 9: NativeAOT に対応する
+# STEP 10: NativeAOT に対応する
 
 単一ファイル配布や起動速度向上のために NativeAOT を利用する場合、リフレクションに依存したシリアライザーは動作しません。
 Configlue は、`System.Text.Json` のソース生成コンテキスト（`JsonSerializerContext`）を渡すことで NativeAOT に対応します。
@@ -98,4 +98,4 @@ Configlue は、`System.Text.Json` のソース生成コンテキスト（`JsonS
 
 ---
 
-次のステップ: [STEP 10: YAML も受け付ける](./10-yaml.md) では、JSON に加えて YAML 形式のソースを組み合わせる方法を学びます。
+次のステップ: [STEP 11: YAML も受け付ける](./11-yaml.md) では、JSON に加えて YAML 形式のソースを組み合わせる方法を学びます。

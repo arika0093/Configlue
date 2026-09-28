@@ -1,11 +1,11 @@
 ---
-title: "STEP 9: Support NativeAOT"
+title: "STEP 10: Support NativeAOT"
 description: Configure source-generated metadata for trimming-safe NativeAOT deployment.
 ---
 
 import { Steps, Tabs, TabItem } from '@astrojs/starlight/components';
 
-# STEP 9: Support NativeAOT
+# STEP 10: Support NativeAOT
 
 When targeting single-file deployment or ultra-fast startup with NativeAOT, reflection-based serialization will fail at runtime.
 Configlue supports NativeAOT by accepting `System.Text.Json` source generator contexts (`JsonSerializerContext`).
@@ -97,4 +97,4 @@ Configlue supports NativeAOT by accepting `System.Text.Json` source generator co
 
 ---
 
-Next: [STEP 10: Accept YAML too](./10-yaml.md) demonstrates mixing YAML and JSON formats.
+Next: [STEP 11: Accept YAML too](./11-yaml.md) demonstrates mixing YAML and JSON formats.
