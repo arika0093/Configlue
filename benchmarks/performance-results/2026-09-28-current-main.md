@@ -60,3 +60,15 @@ A focused comparison found that the save pipeline itself allocates 8,168 B/op wi
 | `Configuration.Writable` save | 12.93 KB | 13,306 B |
 
 The after measurements used BenchmarkDotNet 0.15.8 ShortRun on the same Windows machine. Default-backup save allocated 84% less and backup-disabled save allocated 76% less than the preceding focused run. Latencies were 3.987 ms with backups, 2.331 ms without backups, 1.953 us for in-memory save, and 2.270 ms for `Configuration.Writable`. A 1 MiB file-resource write test verifies exact bytes and revision after replacement.
+
+## Stable replacement content
+
+`FileResourceWriteBenchmarks.WriteAsync` now compares the same resource-write path at three payload sizes. The serialized writer marks its private completed buffer as owned; public `ResourceWriteRequest` content is still snapshotted synchronously, preserving its caller-mutation guarantee. A single stable replacement can then pass through `FileResource` without another copy. Arbitrary and composed mutations retain their defensive copies.
+
+| Payload | Before | After | Saved |
+| ---: | ---: | ---: | ---: |
+| 1 KiB | 6.01 KB | 5.01 KB | 1.00 KB |
+| 64 KiB | 195.01 KB | 131.01 KB | 64.00 KB |
+| 1 MiB | 3,077.97 KB | 2,053.14 KB | 1,024.83 KB |
+
+The large-payload allocation reduction is approximately one payload copy. The 1 MiB ShortRun latency was 2.598 ms, but its confidence interval was too wide to support a latency conclusion. The file-persistence benchmark still allocates 27.49 KB/op with backups and 22.89 KB/op without backups; the corresponding baseline on the same harness was 27.61 KB and 23.02 KB. For these small JSON documents, the removed content copy has little effect, and the remaining no-backup allocation gap to `Configuration.Writable` (12.93 KB/op) is retained as a separate profiling task.

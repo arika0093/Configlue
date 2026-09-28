@@ -280,7 +280,7 @@ public sealed partial class FileResource
             }
 
             await WriteAtomicAsync(_path, content, cancellationToken).ConfigureAwait(false);
-            return new StateWriteResult(GetRevision(content));
+            return new StateWriteResult(GetRevision(content.Span));
         }
         finally
         {
@@ -288,7 +288,7 @@ public sealed partial class FileResource
         }
     }
 
-    private static byte[] ApplyMutations(
+    private static ReadOnlyMemory<byte> ApplyMutations(
         IReadOnlyList<ResourceWriteMutation> mutations,
         byte[]? previousContent,
         string? revision
@@ -299,7 +299,9 @@ public sealed partial class FileResource
             : ResourceReadResult.Success(previousContent, revision);
         if (mutations.Count == 1)
         {
-            return mutations[0].Apply(current).ToArray();
+            var mutation = mutations[0];
+            var singleContent = mutation.Apply(current);
+            return mutation.HasStableContent ? singleContent : singleContent.ToArray();
         }
 
         var content = mutations[0].Apply(current).ToArray();
@@ -508,7 +510,7 @@ public sealed partial class FileResource
 
     private async ValueTask WriteAtomicAsync(
         string destinationPath,
-        byte[] content,
+        ReadOnlyMemory<byte> content,
         CancellationToken cancellationToken
     )
     {

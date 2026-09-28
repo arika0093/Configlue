@@ -118,6 +118,41 @@ public sealed class FileResourceTests
     }
 
     [Test]
+    public async Task FileResource_WriteAsyncSnapshotsCallerMemoryBeforeAwaiting()
+    {
+        var directory = System.IO.Path.Combine(
+            System.IO.Path.GetTempPath(),
+            "Configlue.Tests",
+            Guid.NewGuid().ToString("N")
+        );
+        var path = System.IO.Path.Combine(directory, "settings.bin");
+        using var resource = new FileResource(
+            path,
+            new FileResourceOptions { CreateBackup = false, BackupMaxCount = 0 }
+        );
+        var content = new byte[] { 1, 2, 3 };
+
+        try
+        {
+            var write = resource.WriteAsync(new ResourceWriteRequest(content));
+            content[0] = 9;
+            await write;
+
+            var saved = await resource.ReadAsync();
+
+            saved.Content.ToArray().ShouldBe(new byte[] { 1, 2, 3 });
+        }
+        finally
+        {
+            resource.Dispose();
+            if (Directory.Exists(directory))
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+        }
+    }
+
+    [Test]
     public async Task FileResource_RotatesBackupsAndRestoresTheLatestFromConfiguredDirectory()
     {
         var directory = System.IO.Path.Combine(
