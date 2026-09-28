@@ -42,16 +42,20 @@ public static partial class JsonSchemaGenerator
                 )
                 .FirstOrDefault();
             if (schemaOverride is not null && oneOf is not null)
+            {
                 throw new JsonException(
                     "A property cannot declare both a JSON Schema override and a oneOf schema."
                 );
+            }
 
             var isBooleanSchema =
                 node is JsonValue converterSchema && converterSchema.TryGetValue<bool>(out _);
             if ((schemaOverride is not null || oneOf is not null) && !isBooleanSchema)
+            {
                 throw new JsonException(
                     "JSON Schema override attributes can only be used with properties that export a boolean schema."
                 );
+            }
 
             if (isBooleanSchema)
             {
@@ -65,9 +69,12 @@ public static partial class JsonSchemaGenerator
                             || !replacementValue.TryGetValue<bool>(out _)
                         )
                     )
+                    {
                         throw new JsonException(
                             "A JSON Schema override must be a JSON object or boolean schema."
                         );
+                    }
+
                     node = replacement;
                 }
                 else if (oneOf is not null)
@@ -77,9 +84,11 @@ public static partial class JsonSchemaGenerator
                         || oneOf.Types.Any(type => type is null)
                         || oneOf.Types.Distinct().Count() != oneOf.Types.Length
                     )
+                    {
                         throw new JsonException(
                             "A oneOf schema must specify distinct, non-null types."
                         );
+                    }
 
                     var alternatives = new JsonArray();
                     foreach (var alternativeType in oneOf.Types)
@@ -92,16 +101,21 @@ public static partial class JsonSchemaGenerator
                             ? CreatePrimitiveSchema(alternativeType)
                             : JsonSchemaExporter.GetJsonSchemaAsNode(alternativeTypeInfo, Options);
                         if (alternativeSchema is null)
+                        {
                             throw new JsonException(
                                 $"The configured JSON type-info resolver does not provide metadata for oneOf type '{alternativeType.FullName}', and the type is not a supported primitive."
                             );
+                        }
 
                         if (
                             alternativeSchema is JsonObject alternativeObject
                             && alternativeObject["$defs"] is JsonObject
                         )
+                        {
                             alternativeObject["$id"] ??=
                                 $"urn:configlue:oneof:{_nextEmbeddedSchemaId++}";
+                        }
+
                         alternatives.Add(alternativeSchema);
                     }
                     node = new JsonObject { ["oneOf"] = alternatives };
@@ -111,7 +125,9 @@ public static partial class JsonSchemaGenerator
             if (node is not JsonObject schema)
             {
                 if (node is not JsonValue value || !value.TryGetValue<bool>(out var booleanSchema))
+                {
                     return node;
+                }
 
                 schema = booleanSchema
                     ? new JsonObject()
@@ -123,7 +139,9 @@ public static partial class JsonSchemaGenerator
                 )
                 .FirstOrDefault();
             if (description is not null)
+            {
                 schema["description"] = description.Description;
+            }
             else
             {
                 var displayDescription = GetAttributes<DisplayAttribute>(
@@ -132,7 +150,9 @@ public static partial class JsonSchemaGenerator
                     .FirstOrDefault()
                     ?.Description;
                 if (displayDescription is not null)
+                {
                     schema["description"] = displayDescription;
+                }
             }
 
             var displayName = GetAttributes<DisplayAttribute>(
@@ -141,7 +161,9 @@ public static partial class JsonSchemaGenerator
                 .FirstOrDefault()
                 ?.Name;
             if (displayName is not null)
+            {
                 schema["title"] = displayName;
+            }
 
             JsonSchemaValidationAttributeMapper.AddRequiredProperties(schema, context.TypeInfo);
             foreach (
@@ -149,7 +171,10 @@ public static partial class JsonSchemaGenerator
                     context.PropertyInfo?.AttributeProvider
                 )
             )
+            {
                 JsonSchemaValidationAttributeMapper.Apply(schema, attribute, context.TypeInfo);
+            }
+
             return schema;
         }
 
@@ -157,10 +182,14 @@ public static partial class JsonSchemaGenerator
         {
             var nullableType = Nullable.GetUnderlyingType(type);
             if (nullableType is not null)
+            {
                 type = nullableType;
+            }
 
             if (type.IsEnum)
+            {
                 return null;
+            }
 
             var schemaType = Type.GetTypeCode(type) switch
             {
@@ -178,11 +207,16 @@ public static partial class JsonSchemaGenerator
                 _ => null,
             };
             if (schemaType is null)
+            {
                 return null;
+            }
 
             var schema = new JsonObject { ["type"] = schemaType };
             if (nullableType is not null)
+            {
                 schema["type"] = new JsonArray(schemaType, "null");
+            }
+
             return schema;
         }
     }

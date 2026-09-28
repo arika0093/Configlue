@@ -17,7 +17,9 @@ internal static class JsonSchemaValidationAttributeMapper
             typeInfo.Kind != JsonTypeInfoKind.Object
             || schema["properties"] is not JsonObject properties
         )
+        {
             return;
+        }
 
         var required = schema["required"] as JsonArray ?? [];
         foreach (
@@ -38,7 +40,9 @@ internal static class JsonSchemaValidationAttributeMapper
         }
 
         if (required.Count > 0)
+        {
             schema["required"] = required;
+        }
     }
 
     public static void Apply(
@@ -52,10 +56,14 @@ internal static class JsonSchemaValidationAttributeMapper
             case RequiredAttribute required:
                 AddNotSchema(schema, new JsonObject { ["type"] = "null" });
                 if (typeInfo.Type == typeof(string) && !required.AllowEmptyStrings)
+                {
                     ApplyToSchemaType(schema, "string", item => AddPattern(item, "\\S"));
+                }
+
                 break;
             case RangeAttribute range:
                 if (TryGetNumericBound(range.Minimum, out var minimum))
+                {
                     ApplyToNumericSchema(
                         schema,
                         item =>
@@ -66,7 +74,10 @@ internal static class JsonSchemaValidationAttributeMapper
                                 isMinimum: true
                             )
                     );
+                }
+
                 if (TryGetNumericBound(range.Maximum, out var maximum))
+                {
                     ApplyToNumericSchema(
                         schema,
                         item =>
@@ -77,6 +88,8 @@ internal static class JsonSchemaValidationAttributeMapper
                                 isMinimum: false
                             )
                     );
+                }
+
                 break;
             case StringLengthAttribute stringLength:
                 ApplyToSchemaType(
@@ -107,11 +120,14 @@ internal static class JsonSchemaValidationAttributeMapper
                 break;
             case RegularExpressionAttribute expression:
                 if (IsJsonSchemaRegularExpression(expression.Pattern))
+                {
                     ApplyToSchemaType(
                         schema,
                         "string",
                         item => AddPattern(item, expression.Pattern)
                     );
+                }
+
                 break;
             case EmailAddressAttribute:
                 ApplyToSchemaType(schema, "string", item => SetFormat(item, "email"));
@@ -142,7 +158,9 @@ internal static class JsonSchemaValidationAttributeMapper
             _ => null,
         };
         if (format is not null)
+        {
             SetFormat(schema, format);
+        }
     }
 
     private static void SetFormat(JsonObject schema, string format) => schema["format"] ??= format;
@@ -184,10 +202,14 @@ internal static class JsonSchemaValidationAttributeMapper
         foreach (var keyword in new[] { "anyOf", "oneOf", "allOf" })
         {
             if (schema[keyword] is not JsonArray alternatives)
+            {
                 continue;
+            }
 
             foreach (var alternative in alternatives.OfType<JsonObject>())
+            {
                 ApplyToSchemaType(alternative, type, apply);
+            }
         }
     }
 
@@ -199,7 +221,9 @@ internal static class JsonSchemaValidationAttributeMapper
                 && existingValue.TryGetValue<int>(out var existingLength)
                 && (isMinimum ? existingLength >= length : existingLength <= length)
         )
+        {
             return;
+        }
 
         schema[keyword] = length;
     }
@@ -228,7 +252,9 @@ internal static class JsonSchemaValidationAttributeMapper
         }
 
         if (existingPattern.TryGetValue<string>(out var existing) && existing == pattern)
+        {
             return;
+        }
 
         var allOf = schema["allOf"] as JsonArray ?? [];
         allOf.Add(new JsonObject { ["pattern"] = pattern });
@@ -249,7 +275,9 @@ internal static class JsonSchemaValidationAttributeMapper
                 && pattern[index + 1] == '?'
                 && (index + 2 >= pattern.Length || pattern[index + 2] is not (':' or '=' or '!'))
             )
+            {
                 return false;
+            }
 
             if (pattern[index] != '\\')
             {
@@ -259,18 +287,27 @@ internal static class JsonSchemaValidationAttributeMapper
                     && index + 1 < pattern.Length
                     && pattern[index + 1] == '['
                 )
+                {
                     return false;
+                }
 
                 if (pattern[index] == '[')
+                {
                     inCharacterClass = true;
+                }
                 else if (pattern[index] == ']')
+                {
                     inCharacterClass = false;
+                }
+
                 index++;
                 continue;
             }
             index++;
             if (index >= pattern.Length)
+            {
                 return false;
+            }
 
             var escaped = pattern[index];
             if (escaped is 'x' or 'u')
@@ -280,14 +317,20 @@ internal static class JsonSchemaValidationAttributeMapper
                     index + digitCount >= pattern.Length
                     || !pattern.AsSpan(index + 1, digitCount).ToString().All(Uri.IsHexDigit)
                 )
+                {
                     return false;
+                }
+
                 index += digitCount;
                 index++;
                 continue;
             }
 
             if ("\\^$.*+?()[]{}|/-fnrtv".IndexOf(escaped) < 0)
+            {
                 return false;
+            }
+
             index++;
         }
 
@@ -395,7 +438,9 @@ internal static class JsonSchemaValidationAttributeMapper
             )
             && (isMinimum ? existingBound >= bound : existingBound <= bound)
         )
+        {
             return;
+        }
 
         schema[keyword] = bound;
     }

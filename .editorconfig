@@ -1,0 +1,34 @@
+# EditorConfig is awesome: https://EditorConfig.org
+# C# coding rules live here so editors and analyzers can enforce them.
+
+root = true
+
+[*.cs]
+indent_style = space
+indent_size = 4
+insert_final_newline = true
+
+# Write braces for every control-flow body, including single-statement branches.
+csharp_prefer_braces = true:error
+dotnet_diagnostic.IDE0011.severity = error
+
+# Keep the Allman brace layout that CSharpier emits.
+csharp_new_line_before_open_brace = all
+csharp_new_line_before_else = true
+csharp_new_line_before_catch = true
+csharp_new_line_before_finally = true
+
+# Prefer file-scoped namespaces.
+csharp_style_namespace_declarations = file_scoped:error
+
+# The following conventions are project rules that no analyzer expresses:
+# - Prefer explicit record declarations with init-only properties. Do not use
+#   positional record syntax such as `record Item(string Name, int Count)`.
+# - Do not use the empty property pattern `x is {}`.
+# - Keep each source file below 800 lines. Split large files by responsibility
+#   before they reach that limit.
+# - Favor low-allocation, efficient code while keeping the implementation
+#   straightforward and maintainable.
+# - Format C# changes with CSharpier and verify them with
+#   `dotnet csharpier check`.
+# - Update public API approval files when a public API change requires it.

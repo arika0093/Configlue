@@ -47,7 +47,11 @@ public sealed class SingleBinaryBuilder
         EnsureMutable();
         ArgumentNullException.ThrowIfNull(transformer);
         var synchronized = new SingleBinarySynchronizedTransformer(transformer);
-        _encryption = new SingleBinaryEncryption(() => synchronized, OwnsTransformer: false);
+        _encryption = new SingleBinaryEncryption
+        {
+            CreateTransformer = () => synchronized,
+            OwnsTransformer = false,
+        };
         return this;
     }
 
@@ -67,10 +71,11 @@ public sealed class SingleBinaryBuilder
             );
         }
 
-        _encryption = new SingleBinaryEncryption(
-            () => new AesGcmStateByteTransformer(key.Span),
-            OwnsTransformer: true
-        );
+        _encryption = new SingleBinaryEncryption
+        {
+            CreateTransformer = () => new AesGcmStateByteTransformer(key.Span),
+            OwnsTransformer = true,
+        };
         return this;
     }
 
@@ -84,10 +89,11 @@ public sealed class SingleBinaryBuilder
             throw new ArgumentException("A passphrase cannot be empty.", nameof(passphrase));
         }
 
-        _encryption = new SingleBinaryEncryption(
-            () => new AesGcmPassphraseStateByteTransformer(passphrase),
-            OwnsTransformer: true
-        );
+        _encryption = new SingleBinaryEncryption
+        {
+            CreateTransformer = () => new AesGcmPassphraseStateByteTransformer(passphrase),
+            OwnsTransformer = true,
+        };
         return this;
     }
 
@@ -252,10 +258,11 @@ public static class SingleBinaryBuilderExtensions
     }
 }
 
-internal sealed record SingleBinaryEncryption(
-    Func<IStateByteTransformer> CreateTransformer,
-    bool OwnsTransformer
-);
+internal sealed record SingleBinaryEncryption
+{
+    public required Func<IStateByteTransformer> CreateTransformer { get; init; }
+    public required bool OwnsTransformer { get; init; }
+}
 
 [JsonSerializable(typeof(ConfiglueProfileCatalog))]
 internal partial class SingleBinaryJsonContext : JsonSerializerContext { }
