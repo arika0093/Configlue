@@ -1,0 +1,184 @@
+---
+title: 共通レイヤーソース (CommonSource)
+description: 基本構成である CommonSource の使い方と、追加ソースやコマンドラインへの発展方法を解説します。
+---
+
+import { Steps, Tabs, TabItem, CardGrid, Card } from '@astrojs/starlight/components';
+
+# 共通レイヤーソース (CommonSource)
+
+Configlue の設定設計において、中心となるのが **CommonSource**（`UseCommonSources`）です。
+設定の置き場所を手作業で個別に指定する代わりに、一般的なアプリケーションに必要な階層（ユーザー共通・ローカル・指定ファイル・環境変数）を最初から整った状態で提供します。
+
+## なぜ CommonSource を基本にするのか
+
+実運用における設定は、単一のファイルでは完結しません。
+
+- 出荷時やユーザー全体で共有するデフォルト設定
+- 開発時や作業環境ごとのローカルな上書き
+- コンテナ環境や CI で差し込む環境変数
+- 起動時に手動で指定する特定の設定ファイルやコマンドライン引数
+
+これらを手動で組み立てると、パスの解決や優先度付けのコードが重複し、設定の追加や移行が難しくなります。
+`UseCommonSources` を利用すると、標準的な階層があらかじめ安全な優先順位で構成されます。
+
+## レイヤー構成と優先順位
+
+CommonSource は、以下の 4 つの層を順序正しく重ね合わせます（表の下に行くほど優先度が高くなります）。
+
+| 層 | 有効化の条件 | 保存場所・入力源 | 既定の書き込み可否 |
+| --- | --- | --- | :---: |
+| **Global（共通）** | 常に有効 | OS 標準のユーザー設定フォルダー | 明示的に選択可能 |
+| **Local（ローカル）** | 常に有効 | カレントディレクトリのファイル | 既定の保存先（指定ファイルがない場合） |
+| **Specific（指定ファイル）** | パス指定時に有効 | コマンドライン等で渡された任意のファイルパス | 既定の保存先（指定ファイルがある場合） |
+| **Environment（環境変数）** | プレフィックス指定時に有効 | プロセス環境変数 | 読み取り専用 |
+
+## 基本的な使い方
+
+もっとも手軽な形式は、アプリケーション名を渡す呼び出しです。
+
+<Tabs syncKey="di">
+<TabItem label="DI なし">
+
+```csharp
+using Configlue;
+using Configlue.Source.Common;
+
+await using var context = ConfiglueApp.CreateContext(conf =>
+{
+    conf.Add<AppSettings>(model =>
+    {
+        model.UseCommonSources("ExampleApp");
+    });
+});
+```
+
+</TabItem>
+<TabItem label="DI あり">
+
+```csharp
+using Configlue;
+using Configlue.Source.Common;
+
+builder.Services.AddConfiglue(conf =>
+{
+    conf.Add<AppSettings>(model =>
+    {
+        model.UseCommonSources("ExampleApp");
+    });
+});
+```
+
+</TabItem>
+</Tabs>
+
+この指定により、以下が自動的に準備されます。
+
+- **Global**: `ConfiglueStandardPaths.GetStandardSaveDirectory("ExampleApp")` 配下の `settings.json`
+- **Local**: カレントディレクトリ配下の `settings.json`
+
+## CommonSourceOptions による詳細カスタマイズ
+
+ファイル名や環境変数のプレフィックス、保存先の変更には `CommonSourceOptions` を渡します。
+
+```csharp
+model.UseCommonSources(new CommonSourceOptions
+{
+    ApplicationId = "ExampleApp",
+    GlobalFileName = "appsettings.json",
+    EnvironmentPrefix = "EXAMPLE",          // EXAMPLE__SERVER__PORT などを環境変数から読み込む
+    SpecificFilePath = userSpecifiedPath,   // 起動引数で指定されたファイル（存在する場合のみ）
+    WriteLayer = CommonSourceWriteLayer.Local, // 既定の保存先を明示的に指定
+});
+```
+
+主なオプション項目は以下の通りです。
+
+- **`ApplicationId`**: ユーザー共通設定ディレクトリのフォルダー名として使用されます。
+- **`GlobalFileName`**: 共通フォルダーおよびローカルフォルダーで使用するファイル名です。
+- **`EnvironmentPrefix`**: 環境変数の接頭辞です。指定すると環境変数レイヤーが有効になります。
+- **`SpecificFilePath`**: 任意のファイルパスです。指定すると Specific レイヤーが有効になります。
+- **`WriteLayer`**: 通常の `SaveAsync` の保存先レイヤー（`Global`, `Local`, `Specific`）を指定します。
+- **`FileFormat`**: ファイルのフォーマット（`Auto`, `Json`, `Yaml`, `Xml`）を指定します。
+
+## セマンティックセレクターによる明示保存
+
+通常の `SaveAsync` は既定の保存先（通常は Local）に書き込みますが、特定の層を指定して保存することも可能です。
+文字列で ID を指定する代わりに、型安全な `CommonSource` セレクターを使用します。
+
+```csharp
+// ユーザー共通設定 (Global) に保存
+await options.Source(CommonSource.Global).SaveAsync(patch =>
+{
+    patch.Theme = "Dark";
+});
+
+// ローカル設定 (Local) に保存
+await options.Source(CommonSource.Local).SaveAsync(patch =>
+{
+    patch.LocalPort = 8080;
+});
+```
+
+## CommonSource からの発展パターン
+
+CommonSource は単体で完結するだけでなく、あらゆる発展的な設定シナリオの土台として機能します。
+
+### パターン 1: コマンドライン引数を重ねる
+
+コマンドラインによる設定の上書きを追加する場合は、`Configlue.Source.CommandLine` パッケージの `UseCommonSources` オーバーロードを使用します。
+
+```csharp
+using Configlue.Source.Common;
+using Configlue.Source.CommandLine;
+
+model.UseCommonSources(
+    new CommonSourceOptions
+    {
+        ApplicationId = "ExampleApp",
+        GlobalFileName = "settings.json",
+        EnvironmentPrefix = "EXAMPLE",
+    },
+    parseResult,
+    mappings =>
+    {
+        mappings.Map<AppSettings, int>(portOption, s => s.Server.Port);
+        mappings.Map<AppSettings, bool>(verboseOption, s => s.Verbose);
+    });
+```
+
+コマンドライン層は優先度 4（環境変数よりもさらに上）として追加され、コマンド実行時の一時的な上書きとして機能します。
+
+### パターン 2: リモートポリシーや追加ソースを重ねる
+
+会社の共通設定（HTTP 経由）や別の設定ファイルを組み合わせたい場合、`UseCommonSources` の呼び出しに続けて `model.Sources(...)` を記述します。
+
+```csharp
+// 1. 基本の共通レイヤーを構築
+model.UseCommonSources(new CommonSourceOptions
+{
+    ApplicationId = "ExampleApp",
+    GlobalFileName = "settings.json",
+    EnvironmentPrefix = "EXAMPLE",
+});
+
+// 2. 追加のソースを重ねる
+model.Sources(sources =>
+{
+    sources.FromJsonHttp(new()
+    {
+        Id = "company-policy",
+        EndPoint = "https://policy.example.internal/api/config",
+        Priority = 500, // CommonSource（優先度 0〜3）より上位に配置
+        FallbackCondition = StateFallbackCondition.NotFoundOrUnavailable,
+    });
+});
+```
+
+CommonSource が内部で登録する各層の優先度は 0（Global）〜 3（Environment）です。
+追加するソースの `Priority` を 100 や 500 など大きめの値に設定することで、CommonSource の上に自然にレイヤーを追加できます。
+
+## 次のステップ
+
+- 環境変数やコマンドラインの個別仕様は、[環境変数とコマンドライン](../sources/environment-and-commandline.md) を参照してください。
+- プロパティごとに保存先を振り分ける方法は、[書き込み経路指定](../layering/write-routing.md) を参照してください。

@@ -1,0 +1,66 @@
+---
+title: "STEP 3: Split shared and local"
+description: Standard paths, priority resolution, and routing writes to global or local files.
+---
+
+import { Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+
+# STEP 3: Split shared and local
+
+Putting everything into a single file conflates machine-wide defaults with project-specific overrides.
+Configlue's CommonSource preset establishes two distinct file layers right away: **Global (shared)** and **Local (project)**.
+
+## The Two Layers of CommonSource
+
+Calling `UseCommonSources("TutorialApp")` registers two file layers in precedence order:
+
+| Layer | Location | Role | Priority |
+| --- | --- | --- | :---: |
+| **Global** | OS per-user configuration folder | Machine-wide defaults | Low |
+| **Local** | Current directory (`settings.json`) | Project overrides | High |
+
+### Read and Merge Rules
+
+- **Priority overlay**: When a property exists in both files, the higher-priority `Local` value wins.
+- **Fall-through**: Properties absent from `Local` preserve their `Global` values.
+- **Missing files**: Missing files are skipped without throwing exceptions; settings are composed from whatever layers and model defaults exist.
+
+## Directing Write Destinations
+
+By default, calling `options.SaveAsync` persists changes to the **Local** file.
+To write to the Global file instead, use either of the following approaches:
+
+### Approach 1: Write directly to a layer (Semantic Selector)
+
+Use `CommonSource.Global` to retrieve a source handle for the shared layer:
+
+```csharp
+using Configlue.Source.Common;
+
+// Write to Global
+await options.Source(CommonSource.Global).SaveAsync(patch =>
+{
+    patch.Name = "GlobalDefaultName";
+});
+
+// Ordinary save (writes to default Local destination)
+await options.SaveAsync(patch =>
+{
+    patch.Name = "LocalOverrideName";
+});
+```
+
+### Approach 2: Change default write layer in options
+
+```csharp
+model.UseCommonSources(new CommonSourceOptions
+{
+    ApplicationId = "TutorialApp",
+    GlobalFileName = "settings.json",
+    WriteLayer = CommonSourceWriteLayer.Global, // Route default saves to Global
+});
+```
+
+---
+
+Next: [STEP 4: Add validation](./04-validation.md) introduces data annotation validation.

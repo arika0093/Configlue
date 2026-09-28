@@ -1,0 +1,98 @@
+---
+title: Quick Start
+description: Experience layered configuration reading, watching, and saving in 5 minutes with CommonSource.
+---
+
+import { Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+
+# Quick Start
+
+This guide uses Configlue's standard **CommonSource** preset to demonstrate reading, watching, and saving layered configuration without a dependency injection (DI) container.
+
+<Steps>
+
+1. ### Declare a model
+
+   Create an ordinary C# class with the `[ConfiglueModel]` attribute and mark it `partial`.
+   The Roslyn source generator generates diffing and fragment support.
+
+   ```csharp
+   using Configlue;
+
+   [ConfiglueModel("example.quick-settings", Version = 1)]
+   public partial class QuickSettings
+   {
+       public string Name { get; set; } = "World";
+       public int RunCount { get; set; }
+   }
+   ```
+
+2. ### Create a context with CommonSource
+
+   Call `UseCommonSources` to create the configuration context.
+   This single call configures a layered architecture spanning the user's global settings and a local file.
+
+   ```csharp
+   using Configlue;
+   using Configlue.Source.Common;
+
+   await using var context = ConfiglueApp.CreateContext(conf =>
+   {
+       conf.Add<QuickSettings>(model =>
+       {
+           model.UseCommonSources("QuickApp");
+       });
+   });
+
+   var options = context.GetOptions<QuickSettings>();
+   ```
+
+   CommonSource automatically layers the following:
+   - **Global (Shared)**: Located in the OS-standard per-user configuration folder.
+   - **Local (Project)**: Located in the current working directory (`settings.json`).
+
+3. ### Read, watch, and save
+
+   ```csharp
+   // 1. Read the effective combined value
+   var current = await options.GetValueAsync();
+   Console.WriteLine($"Hello, {current.Name}! (Run #{current.RunCount})");
+
+   // 2. Receive notifications when external file edits occur
+   using var subscription = options.OnChange(updated =>
+       Console.WriteLine($"Settings changed: {updated.Name}"));
+
+   // 3. Save a sparse patch
+   await options.SaveAsync(patch =>
+   {
+       patch.Name = "Ada";
+       patch.RunCount = current.RunCount + 1;
+   });
+   ```
+
+   Saving creates or updates `settings.json` in the current directory with only the modified fields:
+
+   ```json
+   {
+     "$version": 1,
+     "Name": "Ada",
+     "RunCount": 1
+   }
+   ```
+
+4. ### Inspect value provenance
+
+   When multiple sources contribute values, inspect where each value originated using `GetDetailsAsync`:
+
+   ```csharp
+   var details = await options.GetDetailsAsync();
+   Console.WriteLine(details.Name);
+   ```
+
+</Steps>
+
+## Next Steps
+
+- For host applications using dependency injection, see [Application setup](../basic-usage/app-setup.md).
+- To build a step-by-step understanding, follow [STEP 1: Your first file-based app](../getting-started/01-first-file-app.md).
+- For complete customization options, see [Common layered sources](../basic-usage/common-sources.md).

@@ -1,0 +1,144 @@
+---
+title: "STEP 2: 現実的なモデルに育てる"
+description: 入れ子構造やコレクションを追加し、実用的な設定ファイルを構築します。
+---
+
+import { Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+
+# STEP 2: 現実的なモデルに育てる
+
+STEP 1 で作成したシンプルなモデルに、サーバー設定やデータベース設定、コレクションなどの入れ子構造を追加します。
+モデルを拡張しても、登録方法や基本的な読み書きの手順は変わりません。
+
+<Steps>
+
+1. ### モデルを拡張する
+
+   設定クラスに入れ子となるクラスやリストを定義します。
+   ルートとなる設定クラスにのみ `[ConfiglueModel]` 属性を付与します。
+   入れ子のクラスには属性を付ける必要はありません。
+
+   ```csharp
+   using Configlue;
+
+   [ConfiglueModel("tutorial.settings", Version = 1)]
+   public partial class AppSettings
+   {
+       public string Name { get; set; } = "ExampleApp";
+       public ServerSettings Server { get; set; } = new();
+       public DatabaseSettings Database { get; set; } = new();
+       public List<string> EnabledFeatures { get; set; } = [];
+   }
+
+   public class ServerSettings
+   {
+       public string Host { get; set; } = "localhost";
+       public int Port { get; set; } = 8080;
+   }
+
+   public class DatabaseSettings
+   {
+       public string Host { get; set; } = "localhost";
+       public int Port { get; set; } = 5432;
+       public string? Password { get; set; }
+   }
+   ```
+
+2. ### コンテキストの登録（STEP 1 と同じ）
+
+   モデルの定義が増えても、コンテキストの作成コードは STEP 1 と全く同じです。
+
+   <Tabs syncKey="di">
+   <TabItem label="DI なし">
+
+   ```csharp
+   using Configlue;
+   using Configlue.Source.Common;
+
+   await using var context = ConfiglueApp.CreateContext(conf =>
+   {
+       conf.Add<AppSettings>(model =>
+       {
+           model.UseCommonSources("TutorialApp");
+       });
+   });
+
+   var options = context.GetOptions<AppSettings>();
+   ```
+
+   </TabItem>
+   <TabItem label="DI あり">
+
+   ```csharp
+   using Configlue;
+   using Configlue.Source.Common;
+
+   builder.Services.AddConfiglue(conf =>
+   {
+       conf.Add<AppSettings>(model =>
+       {
+           model.UseCommonSources("TutorialApp");
+       });
+   });
+   ```
+
+   </TabItem>
+   </Tabs>
+
+3. ### 入れ子プロパティやコレクションを保存する
+
+   入れ子のプロパティも、直接パスを指定して部分更新できます。
+
+   ```csharp
+   // 入れ子プロパティの更新
+   await options.SaveAsync(patch =>
+   {
+       patch.Server.Port = 9000;
+       patch.Database.Host = "db.internal";
+   });
+   ```
+
+   既存の値を参照しながらコレクション（リスト）を編集する場合は、**編集セッション (Edit Session)** を利用します。
+
+   ```csharp
+   // 現在の実効値をもとにコレクションを編集して保存
+   using var edit = await options.OpenEditSessionAsync();
+   edit.Value.EnabledFeatures.Add("audit-log");
+   await edit.CommitAsync();
+   ```
+
+   保存後の `settings.json` には、変更した項目のみが反映されます。
+
+   ```json
+   {
+     "$version": 1,
+     "Name": "ExampleApp",
+     "Server": {
+       "Host": "localhost",
+       "Port": 9000
+     },
+     "Database": {
+       "Host": "db.internal",
+       "Port": 5432
+     },
+     "EnabledFeatures": [
+       "audit-log"
+     ]
+   }
+   ```
+
+4. ### 値の出どころを確認する
+
+   設定が大きくなると、「この値がどの設定層から来ているか」を把握したくなります。
+   `GetDetailsAsync` を呼び出すと、各プロパティの実効値と、寄与しているソースの内訳を確認できます。
+
+   ```csharp
+   var details = await options.GetDetailsAsync();
+   Console.WriteLine(details.Database.Host);
+   ```
+
+</Steps>
+
+---
+
+次のステップ: [STEP 3: 共通とローカルに分ける](./03-global-local.md) では、ユーザー共通の設定とプロジェクト固有の設定を分離し、優先度と保存先の関係を学びます。
