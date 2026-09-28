@@ -30,7 +30,7 @@ model.Sources(sources => sources.FromDaprState(new DaprStateSourceOptions
 
 DI アプリケーションでは `ClientFactory` からホスト所有の `DaprClient` を解決できます。クライアントの所有権は呼び出し側に残ります。リソースは byte の読み書きを行うだけで、レイヤー、merge、provenance、schema、migration、query/ORM は実装しません。
 
-読み取り時に store が ETag を返せば Configlue revision として公開します。条件付き書き込みは期待 revision を Dapr に渡し、ETag 不一致を `StateConflictException` に変換します。Dapr は書き込み後の新しい ETag を返さないため、書き込み成功時の revision は次回読み取りまで null です。ETag と concurrency の保証は選択した Dapr state-store component に依存します。component が保証しない動作やエラーはそのまま表面化し、強い保証を擬似しません。ETag がない Dapr byte-state 応答では長さ0の値とキー不在を区別できないため、不在として扱います。
+読み取り時に store が ETag を返せば Configlue revision として公開します。revision を確認する書き込みは Dapr の `FirstWrite` concurrency mode を使って期待 revision を渡し、ETag 不一致を `StateConflictException` に変換します。revision を確認しない書き込みは `LastWrite` を使います。Dapr は書き込み後の新しい ETag を返さないため、書き込み成功時の revision は次回読み取りまで null です。ETag と concurrency の保証は選択した Dapr state-store component に依存します。component が保証しない動作やエラーはそのまま表面化し、強い保証を擬似しません。ETag がない Dapr byte-state 応答では長さ0の値とキー不在を区別できないため、不在として扱います。
 
 変更 watcher とキー間 transaction はありません。設定した state store より強い整合性や transaction を保証しません。
 

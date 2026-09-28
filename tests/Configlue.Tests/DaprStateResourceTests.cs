@@ -34,7 +34,7 @@ public sealed class DaprStateResourceTests
     }
 
     [Test]
-    public async Task WriteAsync_UsesExpectedEtagAndMapsMismatchToConflict()
+    public async Task WriteAsync_UsesFirstWriteForExpectedEtagAndMapsMismatchToConflict()
     {
         var client = new FakeDaprStateClient { TrySaveResult = true };
         var resource = new DaprStateResource(client, "state", "settings");
@@ -48,7 +48,7 @@ public sealed class DaprStateResourceTests
         );
 
         client.LastETag.ShouldBe("revision-1");
-        client.LastConcurrency.ShouldBe(ConcurrencyMode.LastWrite);
+        client.LastConcurrency.ShouldBe(ConcurrencyMode.FirstWrite);
         client.LastContent.ToArray().ShouldBe(new byte[] { 4, 5 });
         result.Revision.ShouldBeNull();
 
