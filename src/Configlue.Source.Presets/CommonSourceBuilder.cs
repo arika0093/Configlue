@@ -1,9 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Configlue.Provider.Json;
-using Configlue.Provider.Xml;
-using Configlue.Provider.Yaml;
-using SharpYaml;
 
 namespace Configlue.Source.Presets;
 
@@ -350,16 +347,16 @@ public sealed class CommonFileSourceBuilder
     private readonly CommonSourceBuilder.SourceDeclaration _declaration;
     private readonly string _id;
     private readonly string _path;
-    private CommonFileFormat _format;
+    private readonly Dictionary<Type, object> _providerOptions = [];
+    private Action<ConfiglueSourceSetBuilder, CommonFileSourceSettings>? _providerRegistration;
     private JsonSerializerOptions? _jsonOptions;
-    private YamlSerializerOptions? _yamlOptions;
-    private JsonNamingPolicy? _yamlNamingPolicy;
     private FileResourceOptions? _resourceOptions;
     private string? _section;
     private string? _schemaReferenceBaseUri;
     private bool _readOnly;
     private bool _watchChanges = true;
     private bool? _explicitOnly;
+    private JsonNamingPolicy? _propertyNamingPolicy;
     private readonly List<IStateByteTransformer> _transformers = [];
 
     internal CommonFileSourceBuilder(
@@ -377,8 +374,8 @@ public sealed class CommonFileSourceBuilder
     public CommonFileSourceBuilder Json(JsonSerializerOptions? options = null)
     {
         EnsureMutable();
-        _format = CommonFileFormat.Json;
         _jsonOptions = options;
+        _providerRegistration = null;
         return this;
     }
 
@@ -390,27 +387,6 @@ public sealed class CommonFileSourceBuilder
         return Json(context.Options);
     }
 
-    /// <summary>Selects the YAML provider.</summary>
-    public CommonFileSourceBuilder Yaml(
-        YamlSerializerOptions? serializerOptions = null,
-        JsonNamingPolicy? propertyNamingPolicy = null
-    )
-    {
-        EnsureMutable();
-        _format = CommonFileFormat.Yaml;
-        _yamlOptions = serializerOptions;
-        _yamlNamingPolicy = propertyNamingPolicy;
-        return this;
-    }
-
-    /// <summary>Selects the XML provider.</summary>
-    public CommonFileSourceBuilder Xml()
-    {
-        EnsureMutable();
-        _format = CommonFileFormat.Xml;
-        return this;
-    }
-
     /// <summary>Sets JSON serialization options.</summary>
     public CommonFileSourceBuilder SerializerOptions(JsonSerializerOptions options)
     {
@@ -420,20 +396,11 @@ public sealed class CommonFileSourceBuilder
         return this;
     }
 
-    /// <summary>Sets YAML serializer options.</summary>
-    public CommonFileSourceBuilder YamlSerializerOptions(YamlSerializerOptions options)
-    {
-        EnsureMutable();
-        ArgumentNullException.ThrowIfNull(options);
-        _yamlOptions = options;
-        return this;
-    }
-
     /// <summary>Sets the YAML property naming policy.</summary>
     public CommonFileSourceBuilder PropertyNamingPolicy(JsonNamingPolicy? policy)
     {
         EnsureMutable();
-        _yamlNamingPolicy = policy;
+        _propertyNamingPolicy = policy;
         return this;
     }
 
@@ -511,70 +478,81 @@ public sealed class CommonFileSourceBuilder
         bool isDefaultWriteTarget
     )
     {
-        switch (_format)
+        var settings = new CommonFileSourceSettings
         {
-            case CommonFileFormat.Yaml:
-                sources.FromYamlFile(
-                    new YamlFileSourceOptions
-                    {
-                        Id = _id,
-                        Path = _path,
-                        Priority = priority,
-                        SectionPath = _section,
-                        SchemaReferenceBaseUri = _schemaReferenceBaseUri,
-                        ReadOnly = _readOnly,
-                        ExplicitOnly = _explicitOnly ?? !isDefaultWriteTarget,
-                        WatchChanges = _watchChanges,
-                        PropertyNamingPolicy = _yamlNamingPolicy,
-                        SerializerOptions = _yamlOptions,
-                        ResourceOptions = _resourceOptions,
-                        Transformers = _transformers.ToArray(),
-                    }
-                );
-                break;
-            case CommonFileFormat.Xml:
-                sources.FromXmlFile(
-                    new XmlFileSourceOptions
-                    {
-                        Id = _id,
-                        Path = _path,
-                        Priority = priority,
-                        SectionPath = _section,
-                        ReadOnly = _readOnly,
-                        ExplicitOnly = _explicitOnly ?? !isDefaultWriteTarget,
-                        WatchChanges = _watchChanges,
-                        ResourceOptions = _resourceOptions,
-                        Transformers = _transformers.ToArray(),
-                    }
-                );
-                break;
-            default:
-                sources.FromJsonFile(
-                    new JsonFileSourceOptions
-                    {
-                        Id = _id,
-                        Path = _path,
-                        Priority = priority,
-                        SectionPath = _section,
-                        SchemaReferenceBaseUri = _schemaReferenceBaseUri,
-                        ReadOnly = _readOnly,
-                        ExplicitOnly = _explicitOnly ?? !isDefaultWriteTarget,
-                        WatchChanges = _watchChanges,
-                        SerializerOptions = _jsonOptions,
-                        ResourceOptions = _resourceOptions,
-                        Transformers = _transformers.ToArray(),
-                    }
-                );
-                break;
+            Id = _id,
+            Path = _path,
+            Priority = priority,
+            SectionPath = _section,
+            SchemaReferenceBaseUri = _schemaReferenceBaseUri,
+            ReadOnly = _readOnly,
+            ExplicitOnly = _explicitOnly ?? !isDefaultWriteTarget,
+            WatchChanges = _watchChanges,
+            SerializerOptions = _jsonOptions,
+            PropertyNamingPolicy = _propertyNamingPolicy,
+            ResourceOptions = _resourceOptions,
+            Transformers = _transformers.ToArray(),
+        };
+
+        if (_providerRegistration is not null)
+        {
+            _providerRegistration(sources, settings);
+            return;
         }
+
+        sources.FromJsonFile(
+            new JsonFileSourceOptions
+            {
+                Id = settings.Id,
+                Path = settings.Path,
+                Priority = settings.Priority,
+                SectionPath = settings.SectionPath,
+                SchemaReferenceBaseUri = settings.SchemaReferenceBaseUri,
+                ReadOnly = settings.ReadOnly,
+                ExplicitOnly = settings.ExplicitOnly,
+                WatchChanges = settings.WatchChanges,
+                SerializerOptions = settings.SerializerOptions,
+                ResourceOptions = settings.ResourceOptions,
+                Transformers = settings.Transformers,
+            }
+        );
+    }
+
+    internal TOptions GetOrCreateProviderOptions<TOptions>(Func<TOptions> create)
+        where TOptions : class
+    {
+        EnsureMutable();
+        ArgumentNullException.ThrowIfNull(create);
+        if (_providerOptions.TryGetValue(typeof(TOptions), out var options))
+        {
+            return (TOptions)options;
+        }
+
+        var newOptions = create();
+        _providerOptions.Add(typeof(TOptions), newOptions);
+        return newOptions;
+    }
+
+    internal void SetProviderRegistration<TOptions>(
+        TOptions options,
+        Action<ConfiglueSourceSetBuilder, CommonFileSourceSettings, TOptions> register
+    )
+        where TOptions : class
+    {
+        EnsureMutable();
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(register);
+        _providerRegistration = (sources, settings) => register(sources, settings, options);
+    }
+
+    internal void SetProviderRegistration(
+        Action<ConfiglueSourceSetBuilder, CommonFileSourceSettings> register
+    )
+    {
+        EnsureMutable();
+        ArgumentNullException.ThrowIfNull(register);
+        _providerRegistration = register;
     }
 
     private void EnsureMutable() => _declaration.EnsureMutable();
-
-    private enum CommonFileFormat
-    {
-        Json,
-        Yaml,
-        Xml,
-    }
 }

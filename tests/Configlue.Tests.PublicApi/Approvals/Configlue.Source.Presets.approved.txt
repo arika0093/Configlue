@@ -26,9 +26,6 @@ namespace Configlue.Source.Presets
         public Configlue.Source.Presets.CommonFileSourceBuilder SerializerOptions(System.Text.Json.JsonSerializerOptions options) { }
         public Configlue.Source.Presets.CommonFileSourceBuilder Transformer(Configlue.Transformers.IStateByteTransformer transformer) { }
         public Configlue.Source.Presets.CommonFileSourceBuilder WatchChanges(bool watchChanges = true) { }
-        public Configlue.Source.Presets.CommonFileSourceBuilder Xml() { }
-        public Configlue.Source.Presets.CommonFileSourceBuilder Yaml(SharpYaml.YamlSerializerOptions? serializerOptions = null, System.Text.Json.JsonNamingPolicy? propertyNamingPolicy = null) { }
-        public Configlue.Source.Presets.CommonFileSourceBuilder YamlSerializerOptions(SharpYaml.YamlSerializerOptions options) { }
     }
     public sealed class CommonHttpSourceBuilder
     {

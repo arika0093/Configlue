@@ -21,6 +21,8 @@ description: 機能ごとの NuGet パッケージを探す。
 | `Configlue.Source.Environment` | プロセス環境変数に支えられた読み取り専用ソース。 |
 | `Configlue.Source.CommandLine` | `System.CommandLine` パース結果に支えられた読み取り専用ソース。共通プリセットへの任意追加にも対応します。 |
 | `Configlue.Source.Presets` | 共通レイヤーのソースプリセット。`Configlue` メタパッケージに含まれます。 |
+| `Configlue.Source.Presets.Xml` | 共通プリセットのファイル層で XML Provider を使う任意アダプター。 |
+| `Configlue.Source.Presets.Yaml` | 共通プリセットのファイル層で YAML Provider を使う任意アダプター。 |
 | `Configlue.Resource.Http` | ETag リビジョンとポーリング変更検出つき HTTP 読み書きリソース。 |
 | `Configlue.Resource.Http.AspNetCore` | HTTP リソース配信の ASP.NET Core エンドポイント。 |
 | `Configlue.Resource.Dapr` | Dapr State Management 向けの任意 byte resource と source 登録。 |
