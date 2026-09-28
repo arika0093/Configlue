@@ -11,6 +11,22 @@ description: 等価な表現の束ねとリソース×コーデックの合成�
 
 既定では書き込みはアクティブな書き込み可能候補へ、無ければ最優先の書き込み可能候補へ行います。正規ファイルのような固定候補に寄せるには `writeSourceId` を設定します。読み取りで書き込みや状態のコピーは発生しません。候補ソースとリソースは呼び出し側所有のままです。
 
+読み取り時の暗黙昇格は行いません。選択中の旧表現を正規候補へ明示的に materialize する場合は、固定書き込み先を指定したうえで読み取り結果を同じ fallback writer に渡します。revision check が選択状態と書き込み先候補の変更を検出します:
+
+```csharp
+var snapshot = await fallback.ReadAsync();
+if (snapshot.Status == StateReadStatus.Success)
+{
+    await fallback.WriteAsync(
+        new StateWriteRequest<AppSettings.Fragment>(
+            snapshot.Value!,
+            snapshot.Revision,
+            CheckRevision: true));
+}
+```
+
+`writeSourceId` の候補は fallback 順で選択元より前に置いてください。書き込み後も旧候補は残り、正規候補が後で利用できなくなれば failback に使われます。別リソース間の操作は原子的ではなく、書き込み先の検証は writer の契約に従います。
+
 状態を別の論理ソースや表現へ移す場合は、明示的な移行先 projection を指定して `IConfiglueOptions<T>.MigrateSourcesToTargetsAsync` を使います。この移行 API は書き込み先を検証し、部分完了後の再試行にも対応します。
 
 ## 独自ソース
