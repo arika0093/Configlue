@@ -65,7 +65,6 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
     private CancellationTokenSource? _watchCancellation;
     private Task? _watchTask;
     private TaskCompletionSource? _operationsDrained;
-    private readonly AsyncLocal<OperationFrame?> _operationFrame = new();
     private int _activeOperations;
     private bool _disposed;
 
