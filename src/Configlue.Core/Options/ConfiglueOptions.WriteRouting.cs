@@ -37,7 +37,7 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
             TModel.ConfiglueSchema,
             changes,
             after,
-            [],
+            ConfiglueMemberPath.Root(TModel.ConfiglueSchema),
             routingFallbackSourceId,
             writePlan
         );
@@ -74,7 +74,7 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
                     TModel.ConfiglueSchema,
                     changes,
                     after,
-                    [],
+                    ConfiglueMemberPath.Root(TModel.ConfiglueSchema),
                     candidateId,
                     writePlan
                 );
@@ -361,7 +361,7 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
         ConfiglueModelSchema schema,
         IConfiglueFragment changes,
         object afterModel,
-        List<string> path,
+        ConfiglueMemberPath path,
         string fallbackSourceId,
         StateWritePlan writePlan
     )
@@ -377,57 +377,49 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
                 );
             }
 
-            path.Add(member.Name);
-            try
+            var propertyPath = path.Append(member.Id);
+            var afterValue = member.GetValue?.Invoke(afterModel);
+            if (
+                member.NestedSchemaFactory is not null
+                && change.Value is IConfiglueFragment nestedChanges
+                && afterValue is not null
+            )
             {
-                var propertyPath = string.Join('.', path);
-                var afterValue = member.GetValue?.Invoke(afterModel);
-                if (
-                    member.NestedSchemaFactory is not null
-                    && change.Value is IConfiglueFragment nestedChanges
-                    && afterValue is not null
-                )
+                var nestedRouted = PartitionRoutedChanges(
+                    member.NestedSchemaFactory(),
+                    nestedChanges,
+                    afterValue,
+                    propertyPath,
+                    fallbackSourceId,
+                    writePlan
+                );
+                foreach (var (sourceId, nestedFragment) in nestedRouted)
                 {
-                    var nestedRouted = PartitionRoutedChanges(
-                        member.NestedSchemaFactory(),
-                        nestedChanges,
-                        afterValue,
-                        path,
-                        fallbackSourceId,
-                        writePlan
-                    );
-                    foreach (var (sourceId, nestedFragment) in nestedRouted)
-                    {
-                        var sourceFragment = routed.TryGetValue(sourceId, out var current)
-                            ? current
-                            : schema.CreateEmptyFragment();
-                        routed[sourceId] = sourceFragment.WithMember(member.Id, nestedFragment);
-                    }
-
-                    continue;
+                    var sourceFragment = routed.TryGetValue(sourceId, out var current)
+                        ? current
+                        : schema.CreateEmptyFragment();
+                    routed[sourceId] = sourceFragment.WithMember(member.Id, nestedFragment);
                 }
 
-                if (
-                    member.NestedSchemaFactory is not null
-                    && afterValue is null
-                    && writePlan.HasRouteBelow(propertyPath)
-                )
-                {
-                    throw LogConflict(
-                        $"The edit replaces nested member '{propertyPath}' with null, so its more specific source routes cannot be applied."
-                    );
-                }
+                continue;
+            }
 
-                var targetSourceId = writePlan.ResolveSourceId(propertyPath, fallbackSourceId);
-                var targetFragment = routed.TryGetValue(targetSourceId, out var existing)
-                    ? existing
-                    : schema.CreateEmptyFragment();
-                routed[targetSourceId] = targetFragment.WithMember(member.Id, change.Value);
-            }
-            finally
+            if (
+                member.NestedSchemaFactory is not null
+                && afterValue is null
+                && writePlan.HasRouteBelow(propertyPath)
+            )
             {
-                path.RemoveAt(path.Count - 1);
+                throw LogConflict(
+                    $"The edit replaces nested member '{propertyPath}' with null, so its more specific source routes cannot be applied."
+                );
             }
+
+            var targetSourceId = writePlan.ResolveSourceIdOrNull(propertyPath, fallbackSourceId)!;
+            var targetFragment = routed.TryGetValue(targetSourceId, out var existing)
+                ? existing
+                : schema.CreateEmptyFragment();
+            routed[targetSourceId] = targetFragment.WithMember(member.Id, change.Value);
         }
 
         return routed;

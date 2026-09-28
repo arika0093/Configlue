@@ -27,14 +27,17 @@ public sealed partial class ConfiglueGenerator
                 + modelType
                 + " value, global::Configlue.CompilerServices.ConfiglueDetailsSnapshot snapshot)"
         );
-        code.AppendLineAt(1, "    : this(value, snapshot, \"\")");
+        code.AppendLineAt(
+            1,
+            "    : this(value, snapshot, global::Configlue.CompilerServices.ConfiglueMemberPath.Root(snapshot.Schema))"
+        );
         code.AppendLineAt(1, "{");
         code.AppendLineAt(1, "}");
         code.AppendLineAt(
             1,
             "public Details("
                 + modelType
-                + " value, global::Configlue.CompilerServices.ConfiglueDetailsSnapshot snapshot, string pathPrefix)"
+                + " value, global::Configlue.CompilerServices.ConfiglueDetailsSnapshot snapshot, global::Configlue.CompilerServices.ConfiglueMemberPath pathPrefix)"
         );
         code.AppendLineAt(1, "{");
         code.AppendLineAt(2, "global::System.ArgumentNullException.ThrowIfNull(snapshot);");
@@ -76,7 +79,7 @@ public sealed partial class ConfiglueGenerator
                 .Append("!), ")
                 .Append(member.MergeMode == ReplaceMergeMode ? "true" : "false")
                 .Append(", pathPrefix, ")
-                .Append(SymbolDisplay.FormatLiteral(member.Property.Name, true))
+                .Append(member.Id)
                 .AppendLine(") : null;");
             return;
         }
@@ -94,9 +97,9 @@ public sealed partial class ConfiglueGenerator
                 .Append(".Details(")
                 .Append("value.")
                 .Append(name)
-                .Append("!, snapshot, pathPrefix + ")
-                .Append(SymbolDisplay.FormatLiteral(member.Property.Name + ".", true))
-                .AppendLine(") : null;");
+                .Append("!, snapshot, pathPrefix.Append(")
+                .Append(member.Id)
+                .AppendLine(")) : null;");
             return;
         }
 
@@ -109,7 +112,7 @@ public sealed partial class ConfiglueGenerator
             .Append(">(snapshot, value.")
             .Append(name)
             .Append(", pathPrefix, ")
-            .Append(SymbolDisplay.FormatLiteral(member.Property.Name, true))
+            .Append(member.Id)
             .AppendLine(");");
     }
 
@@ -150,11 +153,10 @@ public sealed partial class ConfiglueGenerator
     {
         code.AppendLineAt(
             1,
-            "private static global::Configlue.ConfigValueDetails<T> Leaf<T>(global::Configlue.CompilerServices.ConfiglueDetailsSnapshot snapshot, T effective, string prefix, string memberName)"
+            "private static global::Configlue.ConfigValueDetails<T> Leaf<T>(global::Configlue.CompilerServices.ConfiglueDetailsSnapshot snapshot, T effective, global::Configlue.CompilerServices.ConfiglueMemberPath prefix, int memberId)"
         );
         code.AppendLineAt(1, "{");
-        code.AppendLineAt(2, "var segments = (prefix + memberName).Split('.');");
-        code.AppendLineAt(2, "var fullPath = string.Join('.', segments);");
+        code.AppendLineAt(2, "var fullPath = prefix.Append(memberId);");
         code.AppendLineAt(
             2,
             "var values = new global::Configlue.ConfigSourceValueDetails<T?>[snapshot.Sources.Count];"
@@ -166,7 +168,7 @@ public sealed partial class ConfiglueGenerator
         code.AppendLineAt(3, "object? raw = null;");
         code.AppendLineAt(
             3,
-            "var present = fragment is not null && global::Configlue.CompilerServices.ConfiglueDetailsSnapshot.TryGetPathValue(fragment, segments, out raw) && (raw is null || raw is T);"
+            "var present = fragment is not null && fullPath.TryGetFragmentValue(fragment, out raw) && (raw is null || raw is T);"
         );
         code.AppendLineAt(3, "var status = snapshot.SourceStatuses[index];");
         code.AppendLineAt(
@@ -211,11 +213,10 @@ public sealed partial class ConfiglueGenerator
         code.AppendLineAt(1, "}");
         code.AppendLineAt(
             1,
-            "private static global::Configlue.ConfigCollectionDetails<E> Collection<E>(global::Configlue.CompilerServices.ConfiglueDetailsSnapshot snapshot, global::System.Collections.Generic.IReadOnlyList<E> effective, bool replaceSemantics, string prefix, string memberName)"
+            "private static global::Configlue.ConfigCollectionDetails<E> Collection<E>(global::Configlue.CompilerServices.ConfiglueDetailsSnapshot snapshot, global::System.Collections.Generic.IReadOnlyList<E> effective, bool replaceSemantics, global::Configlue.CompilerServices.ConfiglueMemberPath prefix, int memberId)"
         );
         code.AppendLineAt(1, "{");
-        code.AppendLineAt(2, "var segments = (prefix + memberName).Split('.');");
-        code.AppendLineAt(2, "var fullPath = string.Join('.', segments);");
+        code.AppendLineAt(2, "var fullPath = prefix.Append(memberId);");
         code.AppendLineAt(
             2,
             "var values = new global::Configlue.ConfigSourceValueDetails<global::System.Collections.Generic.IReadOnlyList<E>?>[snapshot.Sources.Count];"
@@ -228,7 +229,7 @@ public sealed partial class ConfiglueGenerator
         code.AppendLineAt(3, "object? raw = null;");
         code.AppendLineAt(
             3,
-            "var present = fragment is not null && global::Configlue.CompilerServices.ConfiglueDetailsSnapshot.TryGetPathValue(fragment, segments, out raw) && raw is global::System.Collections.IEnumerable sequence;"
+            "var present = fragment is not null && fullPath.TryGetFragmentValue(fragment, out raw) && raw is global::System.Collections.IEnumerable sequence;"
         );
         code.AppendLineAt(
             3,

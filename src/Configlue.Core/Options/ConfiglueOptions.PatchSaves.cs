@@ -92,7 +92,7 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
                 }
 
                 var targetSourceId = _defaultWritePlan.ResolveSourceIdOrNull(
-                    member.Name,
+                    ConfiglueMemberPath.Root(modelSchema).Append(member.Id),
                     fallbackSource?.Id
                 );
                 if (targetSourceId is null)

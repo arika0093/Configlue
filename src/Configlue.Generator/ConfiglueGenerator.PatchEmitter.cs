@@ -408,11 +408,14 @@ public sealed partial class ConfiglueGenerator
         );
         code.AppendLineAt(2, "{");
         code.AppendLineAt(3, "global::System.ArgumentNullException.ThrowIfNull(writePlan);");
-        code.AppendLineAt(3, "return RouteCore(writePlan, fallbackSourceId, string.Empty);");
+        code.AppendLineAt(
+            3,
+            "return RouteCore(global::Configlue.CompilerServices.ConfiglueWriteRouting.Bind(writePlan, ConfiglueSchema), fallbackSourceId, global::Configlue.CompilerServices.ConfiglueMemberPath.Root(ConfiglueSchema));"
+        );
         code.AppendLineAt(2, "}");
         code.AppendLineAt(
             2,
-            "internal global::System.Collections.Generic.Dictionary<string, global::Configlue.IConfigluePatch> RouteCore(global::Configlue.StateWritePlan writePlan, string? fallbackSourceId, string propertyPrefix)"
+            "internal global::System.Collections.Generic.Dictionary<string, global::Configlue.IConfigluePatch> RouteCore(global::Configlue.StateWritePlan writePlan, string? fallbackSourceId, global::Configlue.CompilerServices.ConfiglueMemberPath propertyPrefix)"
         );
         code.AppendLineAt(2, "{");
         code.AppendLineAt(
@@ -432,11 +435,11 @@ public sealed partial class ConfiglueGenerator
         );
         code.AppendLineAt(
             4,
-            "if (propertyPrefix.Length > 0 && writePlan.HasRouteBelow(propertyPrefix)) { throw new global::System.NotSupportedException($\"A whole nested patch for '{propertyPrefix}' cannot be split across child source routes.\"); }"
+            "if (propertyPrefix.Length > 0 && global::Configlue.CompilerServices.ConfiglueWriteRouting.HasRouteBelow(writePlan, propertyPrefix)) { throw new global::System.NotSupportedException($\"A whole nested patch for '{propertyPrefix}' cannot be split across child source routes.\"); }"
         );
         code.AppendLineAt(
             4,
-            "var wholeSourceId = (propertyPrefix.Length == 0 ? fallbackSourceId : writePlan.ResolveSourceIdOrNull(propertyPrefix, fallbackSourceId)) ?? throw new global::System.InvalidOperationException($\"No write owner is configured for '{propertyPrefix}'.\");"
+            "var wholeSourceId = (propertyPrefix.Length == 0 ? fallbackSourceId : global::Configlue.CompilerServices.ConfiglueWriteRouting.Resolve(writePlan, propertyPrefix, fallbackSourceId)) ?? throw new global::System.InvalidOperationException($\"No write owner is configured for '{propertyPrefix}'.\");"
         );
         code.AppendLineAt(4, "routed.Add(wholeSourceId, ClonePatch());");
         code.AppendLineAt(4, "return routed;");
@@ -449,13 +452,7 @@ public sealed partial class ConfiglueGenerator
             code.AppendLineAt(3, "{");
             code.AppendLineAt(
                 4,
-                "var "
-                    + pathVariable
-                    + " = propertyPrefix.Length == 0 ? "
-                    + SymbolDisplay.FormatLiteral(member.Property.Name, true)
-                    + " : propertyPrefix + \".\" + "
-                    + SymbolDisplay.FormatLiteral(member.Property.Name, true)
-                    + ";"
+                "var " + pathVariable + " = propertyPrefix.Append(" + member.Id + ");"
             );
             if (member.ChildModel is not null)
             {
@@ -465,7 +462,7 @@ public sealed partial class ConfiglueGenerator
                         + field
                         + " is not null && !"
                         + field
-                        + ".IsEmpty && writePlan.HasRouteBelow("
+                        + ".IsEmpty && global::Configlue.CompilerServices.ConfiglueWriteRouting.HasRouteBelow(writePlan, "
                         + pathVariable
                         + "))"
                 );
@@ -494,7 +491,7 @@ public sealed partial class ConfiglueGenerator
                 code.AppendLineAt(4, "{");
                 code.AppendLineAt(
                     5,
-                    "var sourceId = writePlan.ResolveSourceIdOrNull("
+                    "var sourceId = global::Configlue.CompilerServices.ConfiglueWriteRouting.Resolve(writePlan, "
                         + pathVariable
                         + ", fallbackSourceId) ?? throw new global::System.InvalidOperationException($\"No write owner is configured for '{"
                         + pathVariable
@@ -515,7 +512,7 @@ public sealed partial class ConfiglueGenerator
                 code.AppendLineAt(4, "{");
                 code.AppendLineAt(
                     5,
-                    "var sourceId = writePlan.ResolveSourceIdOrNull("
+                    "var sourceId = global::Configlue.CompilerServices.ConfiglueWriteRouting.Resolve(writePlan, "
                         + pathVariable
                         + ", fallbackSourceId) ?? throw new global::System.InvalidOperationException($\"No write owner is configured for '{"
                         + pathVariable

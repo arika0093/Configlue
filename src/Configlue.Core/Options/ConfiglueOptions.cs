@@ -224,7 +224,7 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
 
         var inferredWritePlan =
             owners.Count == 0 ? StateWritePlan.Empty : new StateWritePlan(owners);
-        return inferredWritePlan.OverrideWith(configuredWritePlan);
+        return inferredWritePlan.OverrideWith(configuredWritePlan).Bind(TModel.ConfiglueSchema);
     }
 
     /// <inheritdoc />

@@ -77,11 +77,10 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
     }
 
     private ConfiglueEditability GetEditability(
-        string propertyPath,
+        ConfiglueMemberPath propertyPath,
         IReadOnlyList<ResolvedContribution> contributions
     )
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(propertyPath);
         var targetId = _defaultWritePlan.ResolveSourceIdOrNull(propertyPath, _writeRoute.SourceId);
         StateSource<TFragment>? target;
         if (targetId is not null)
@@ -109,10 +108,10 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
             }
         }
 
-        var member = ResolveMemberSchema(propertyPath);
+        var member = propertyPath.ResolveMember();
         if (
-            member?.MergeStrategy is not null
-            || member?.MergeMode is MergeMode.Append or MergeMode.SetUnion or MergeMode.Custom
+            member.MergeStrategy is not null
+            || member.MergeMode is MergeMode.Append or MergeMode.SetUnion or MergeMode.Custom
         )
         {
             return ConfiglueEditability.Editable;
@@ -123,12 +122,11 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
             activeSources,
             source => string.Equals(source.Id, target.Id, StringComparison.Ordinal)
         );
-        var parts = propertyPath.Split('.', StringSplitOptions.None);
         foreach (var contribution in contributions)
         {
             if (
                 contribution.Result.Value is not null
-                && TryGetFragmentValue(contribution.Result.Value, parts, out _)
+                && propertyPath.TryGetFragmentValue(contribution.Result.Value, out _)
             )
             {
                 var contributionIndex = contribution.IsModelDefaults
@@ -151,52 +149,19 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
         return ConfiglueEditability.Editable;
     }
 
-    private static ConfiglueMemberSchema? ResolveMemberSchema(string propertyPath)
-    {
-        var schema = TModel.ConfiglueSchema;
-        ConfiglueMemberSchema? current = null;
-        foreach (var segment in propertyPath.Split('.', StringSplitOptions.None))
-        {
-            var member = schema.Members.FirstOrDefault(candidate =>
-                string.Equals(candidate.Name, segment, StringComparison.Ordinal)
-            );
-            if (string.IsNullOrEmpty(member.Name))
-            {
-                return null;
-            }
-
-            current = member;
-            if (member.NestedSchemaFactory is null)
-            {
-                break;
-            }
-
-            schema = member.NestedSchemaFactory();
-        }
-
-        return current;
-    }
-
     private static IReadOnlyList<ConfigCollectionElementData> GetCollectionElementData(
-        string propertyPath,
+        ConfiglueMemberPath propertyPath,
         TModel value,
         IReadOnlyList<ResolvedContribution> contributions
     )
     {
-        var parts = propertyPath.Split('.', StringSplitOptions.None);
-        var effectiveValue = GetModelValue(
-            TModel.ConfiglueSchema,
-            value,
-            parts,
-            propertyPath,
-            out var member
-        );
+        var effectiveValue = propertyPath.GetModelValue(value, out var member);
         var sourceContributions = new List<(string SourceId, object? Value)>();
         foreach (var contribution in contributions)
         {
             if (
                 contribution.Result.Value is not null
-                && TryGetFragmentValue(contribution.Result.Value, parts, out var memberValue)
+                && propertyPath.TryGetFragmentValue(contribution.Result.Value, out var memberValue)
             )
             {
                 sourceContributions.Add((contribution.Source.Id, memberValue));
