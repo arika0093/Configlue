@@ -3,8 +3,6 @@ title: Adopting Configuration.Writable
 description: Read legacy inline-versioned files as migration inputs.
 ---
 
-# Adopting Configuration.Writable
-
 You can adopt Configlue while keeping files written by [Configuration.Writable](https://github.com/arika0093/Configuration.Writable). The legacy files stay untouched; Configlue reads them through an opt-in decoder and copies their contribution into a normal writable target.
 
 ## Legacy documents

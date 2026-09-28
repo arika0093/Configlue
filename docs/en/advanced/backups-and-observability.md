@@ -3,8 +3,6 @@ title: Backups, logging, and diagnostics
 description: File backup generations and restore, logging, explanations, and diagnostics.
 ---
 
-# Backups, logging, and diagnostics
-
 ## File backups
 
 Model-backed JSON, XML, and YAML file sources keep one atomic `.bak` generation by default under the persistent per-user state directory: `%LOCALAPPDATA%` on Windows, `~/Library/Application Support` on macOS, and `$XDG_STATE_HOME` or `~/.local/state` on Linux. The default layout is `configlue-backups/{ModelId}.v{Version}/`; backup filenames include a stable hash of the resource path so files with the same name do not overwrite one another. Windows marks the backup directory and files hidden. Standalone `FileResource` instances without model metadata retain the legacy `backup/` (Windows) or `.backup/` (other platforms) location.
@@ -56,7 +54,7 @@ var options = new FileResourceOptions
 ## Provenance and diagnostics
 
 * `await options.GetDetailsAsync()` returns a typed snapshot with effective values and per-source contributions from highest to lowest priority. Use it in settings UIs and troubleshooting.
-* `IConfiglueDiagnostics<T>.GetDiagnostics()` returns an immutable snapshot of the configured source topology for that options runtime, including source ID, priority, fallback policy, read/write/watch capabilities, physical origin, resource identity, and retired status. It also reports the default and property-path write routes; `GetWriteSourceId("Database.Endpoint")` resolves a registration-level route. Per-operation write plans are specific to that operation and are not included. Use `ReadAsync` for the latest read result and revisions, `GetDetailsAsync()` for effective values and their contributing sources, and write results for completed writes.
+* `IConfiglueDiagnostics<T>.GetDiagnostics()` returns an immutable snapshot of the configured source topology for that options runtime, including source ID, priority, fallback policy, read/write/watch capabilities, physical origin, resource identity, and active state. It also reports the default and property-path write routes; `GetWriteSourceId("Database.Endpoint")` resolves a registration-level route. Per-operation write plans are specific to that operation and are not included. Use `ReadAsync` for the latest read result and revisions, `GetDetailsAsync()` for effective values and their contributing sources, and write results for completed writes.
 
 ```csharp
 var diagnostics = options.GetDiagnostics();

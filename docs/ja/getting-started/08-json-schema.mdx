@@ -5,8 +5,6 @@ description: 生成モデルからスキーマを出力し、エディター補�
 
 import { Steps } from '@astrojs/starlight/components';
 
-# STEP 8: JSON Schema を出力する
-
 設定ファイルの記述ミスを実行前に検知するために、Configlue は生成モデル（`ConfiglueModelSchema`）から JSON Schema を出力する機能を備えています。
 VS Code などのエディター補完や CI パイプラインでの静的検査に活用できます。
 
@@ -46,6 +44,8 @@ API は `Configlue.JsonSchema` パッケージ・名前空間にあり、`Config
 
    モデルに `[ConfiglueModel("tutorial.settings", Version = 1)]` と指定している場合、`schemas/tutorial.settings.v1.json` が生成されます。
    モデルに付与した DataAnnotations の制約（`Range` や `Required` など）もスキーマ定義に反映されます。
+
+   `Write` は `Generate` の簡易ラッパーです。絶対 `$id` URI、`$configlue`/`$value` レイアウト、旧来の `--cw-generate-json-schema` 起動経路、テストダブルについては [JSON Schema とテスト](../advanced/json-schema-and-testing.md) を参照してください。
 
 3. ### 設定ファイルにスキーマ参照を埋め込む
 

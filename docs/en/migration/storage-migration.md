@@ -3,8 +3,6 @@ title: Storage migration
 description: Copy contributions between sources with verification and retirement.
 ---
 
-# Storage migration
-
 Schema migration evolves shapes; storage migration moves contributions between sources — a new file location, a format change, or a layer consolidation.
 
 ## Single source copy

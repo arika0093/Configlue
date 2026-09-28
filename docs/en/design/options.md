@@ -3,8 +3,6 @@ title: "Design: Options"
 description: The read/write facade. Profiles, dynamic options, DI adapters.
 ---
 
-# Design: Options (facade)
-
 Options is the facade apps see. Regular reads and writes stay small; advanced operations have focused capability interfaces.
 
 ## Read and write facades
@@ -30,6 +28,6 @@ File and HTTP source registrations generate stable opaque IDs from their normali
 
 ## Diagnostics and logging
 
-`GetDiagnostics()` snapshots that options instance's source topology: source ID, priority, read/write/watch capabilities, physical origin, resource identity, retired status, plus default and per-path write routes. Configuration values never reach logs; structured metadata carries model, options name, and source ID.
+`GetDiagnostics()` snapshots that options instance's source topology: source ID, priority, read/write/watch capabilities, physical origin, resource identity, active state, plus default and per-path write routes. Configuration values never reach logs; structured metadata carries model, options name, and source ID.
 
 App setup as a whole lives in [app setup](../basic-usage/app-setup.md); profile operations in [profiles](../profiles/profiles.md).

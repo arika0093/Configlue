@@ -3,8 +3,6 @@ title: What is Configlue
 description: Where the name comes from, and how Configlue approaches settings.
 ---
 
-# What is Configlue
-
 ## The name comes from "glue"
 
 Configlue is **Config + glue**: a library that sticks multiple setting sources together.

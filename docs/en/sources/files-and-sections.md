@@ -3,8 +3,6 @@ title: Files, formats, and sections
 description: JSON, YAML, and XML formats and file sources plus nested section views.
 ---
 
-# Files, formats, and sections
-
 Provider packages add one-call source registrations to the shared `Sources` builder. Every provider registration returns a common fluent configuration for the stable logical name, priority, fallback behavior, and read/write routing; provider-specific options remain in the options object.
 
 ```csharp

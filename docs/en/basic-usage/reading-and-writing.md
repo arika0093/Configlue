@@ -3,8 +3,6 @@ title: Reading, sessions, and patches
 description: GetValueAsync, SaveAsync, edit sessions, and patches.
 ---
 
-# Reading, sessions, and patches
-
 ## Read the current value
 
 ```csharp

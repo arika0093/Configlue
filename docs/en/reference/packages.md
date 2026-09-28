@@ -3,13 +3,12 @@ title: Packages
 description: Find the NuGet package for each Configlue capability.
 ---
 
-# Packages
-
 | Package | Purpose |
 | --- | --- |
 | `Configlue` | User-facing meta-package: Core, DI integration, JSON provider, JSON Schema export, HTTP resources, common layered sources, environment source, and the generator analyzer. Contains no implementation assembly of its own. |
 | `Configlue.Abstraction` | Provider, codec, resource, and generated-model contracts. |
 | `Configlue.Core` | State resolution and persistence runtime. |
+| `Configlue.Extensibility` | Provider SDK: serialization helpers, transformed resources, and mounted source registration. |
 | `Configlue.Extensions.DI` | Dependency-injection registration for Configlue options. |
 | `Configlue.Extensions.MSOptions` | Optional adapters for Microsoft's options interfaces. |
 | `Configlue.Generator` | Generated sparse model support (Roslyn analyzer). |
@@ -21,6 +20,8 @@ description: Find the NuGet package for each Configlue capability.
 | `Configlue.Source.Environment` | Read-only source backed by process environment variables. |
 | `Configlue.Source.CommandLine` | Read-only source backed by a `System.CommandLine` parse result, with opt-in common preset integration. |
 | `Configlue.Source.Presets` | Common layered and single-binary source presets, included by the `Configlue` meta-package. |
+| `Configlue.Source.Presets.Xml` | Optional adapter that uses the XML provider for common preset file layers. |
+| `Configlue.Source.Presets.Yaml` | Optional adapter that uses the YAML provider for common preset file layers. |
 | `Configlue.Resource.Http` | HTTP read/write resources with ETag revisions and polling change detection. |
 | `Configlue.Resource.Http.AspNetCore` | ASP.NET Core endpoints for serving HTTP resources. |
 | `Configlue.Resource.Dapr` | Optional byte resources and source registration for Dapr State Management. |

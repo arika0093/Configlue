@@ -3,8 +3,6 @@ title: 名前付きインスタンスと動的オプション
 description: OptionsName による名前付きインスタンスと、実行時の追加・削除。
 ---
 
-# 名前付きインスタンスと動的オプション
-
 モデルは `model.EnableDynamicOptions = true` で動的な名前付きオプションに参加できます。コンテキストは `GetOptionsRegistry<TModel>()` を公開し、`TryAdd(name)` が同じソース/モデル構成をその `OptionsName` で作り、`TryRemoveAsync(name)` がウォッチャーを止めてヘルパー生成リソースを破棄してから戻ります。
 
 ```csharp
