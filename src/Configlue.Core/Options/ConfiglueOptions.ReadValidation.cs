@@ -428,6 +428,16 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
         return attributes.TryGetValue(memberId, out var found) ? found : [];
     }
 
+    [UnconditionalSuppressMessage(
+        "Trimming",
+        "IL2026",
+        Justification = "Callers guard attribute inspection on dynamic code support."
+    )]
+    [UnconditionalSuppressMessage(
+        "AOT",
+        "IL3050",
+        Justification = "Callers guard attribute inspection on dynamic code support."
+    )]
     private static IReadOnlyDictionary<int, ValidationAttribute[]> BuildMemberValidationAttributes(
         ConfiglueModelSchema schema
     )
