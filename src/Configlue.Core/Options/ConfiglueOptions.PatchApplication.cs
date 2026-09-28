@@ -24,7 +24,8 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
         StateSourcePatch[] patchRequests,
         StateRevisionVector? expectedBaselineRevisions,
         object? expectedResolvedModel,
-        CancellationToken cancellationToken
+        CancellationToken cancellationToken,
+        ResolvedState? resolvedBaseline = null
     )
     {
         using var operation = EnterOperation();
@@ -74,7 +75,9 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
             }
         }
 
-        var baseline = await ResolveCoreAsync(null, cancellationToken).ConfigureAwait(false);
+        var baseline =
+            resolvedBaseline
+            ?? await ResolveCoreAsync(null, cancellationToken).ConfigureAwait(false);
         if (baseline.Result.Status != StateReadStatus.Success)
         {
             throw new InvalidOperationException(

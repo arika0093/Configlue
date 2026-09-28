@@ -298,6 +298,11 @@ public sealed partial class FileResource
         var current = previousContent is null
             ? ResourceReadResult.NotFound(revision)
             : ResourceReadResult.Success(previousContent, revision);
+        if (mutations.Count == 1)
+        {
+            return mutations[0].Apply(current).ToArray();
+        }
+
         foreach (var mutation in mutations)
         {
             var content = mutation.Apply(current).ToArray();
