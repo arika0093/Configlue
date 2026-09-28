@@ -18,6 +18,36 @@ internal partial class JsonAotSettingsJsonContext : JsonSerializerContext { }
 public sealed class JsonAotTests
 {
     [Test]
+    public async Task JsonAot_PipelineReadUsesGeneratedMetadata()
+    {
+        var path = Path.GetTempFileName();
+        try
+        {
+            await File.WriteAllTextAsync(path, """{"Host":"stream.example","Port":8443}""");
+            using var resource = new FileResource(path);
+            var reader = new SerializedStateReader<JsonAotSettings>(
+                resource,
+                new JsonStateCodec<JsonAotSettings>(
+                    JsonAotSettingsJsonContext.Default.JsonAotSettings
+                )
+                {
+                    UseAsyncStreamDecoding = true,
+                }
+            );
+
+            var result = await reader.ReadAsync();
+
+            result.Status.ShouldBe(StateReadStatus.Success);
+            result.Value!.Host.ShouldBe("stream.example");
+            result.Value.Port.ShouldBe(8443);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Test]
     public async Task JsonAot_UsesGeneratedMetadataForProjectedModelState()
     {
         var resource = new InMemoryResource();

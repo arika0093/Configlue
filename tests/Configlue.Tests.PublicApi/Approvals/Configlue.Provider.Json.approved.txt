@@ -95,7 +95,7 @@ namespace Configlue.Provider.Json
         public Configlue.StateSchemaMetadata? ReadSchemaMetadata(in System.Buffers.ReadOnlySequence<byte> source) { }
         public void Serialize(System.Type type, object? value, System.Buffers.IBufferWriter<byte> destination, in Configlue.StateCodecContext context) { }
     }
-    public sealed class JsonStateCodec<T> : Configlue.IStateCodecRecoveryPolicy, Configlue.IStateCodec<T>, Configlue.IStateSchemaMetadataReader
+    public sealed class JsonStateCodec<T> : Configlue.IPipelineStateCodec<T>, Configlue.IStateCodecRecoveryPolicy, Configlue.IStateCodec<T>, Configlue.IStateSchemaMetadataReader
     {
         [System.Diagnostics.CodeAnalysis.RequiresDynamicCode("Reflection-based JSON serialization may require runtime code generation. Use the " +
             "JsonTypeInfo constructor for NativeAOT.")]
@@ -103,11 +103,13 @@ namespace Configlue.Provider.Json
             "the JsonTypeInfo constructor for trim-safe serialization.")]
         public JsonStateCodec(System.Text.Json.JsonSerializerOptions? options = null, Configlue.DocumentLayoutOptions? documentLayout = null) { }
         public JsonStateCodec(System.Text.Json.Serialization.Metadata.JsonTypeInfo<T> typeInfo, Configlue.DocumentLayoutOptions? documentLayout = null) { }
+        public bool UseAsyncStreamDecoding { get; init; }
         [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Aot", "IL3050", Justification="The options-based constructor carries this requirement. The JsonTypeInfo construc" +
             "tor sets _typeInfo and never enters the reflection fallback.")]
         [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2026", Justification="The options-based constructor carries this requirement. The JsonTypeInfo construc" +
             "tor sets _typeInfo and never enters the reflection fallback.")]
         public T? Deserialize(in System.Buffers.ReadOnlySequence<byte> source, in Configlue.StateCodecContext context) { }
+        public System.Threading.Tasks.ValueTask<Configlue.StateReadResult<T>> DeserializeAsync(System.IO.Pipelines.PipeReader content, Configlue.StateCodecContext context, Configlue.StateSchemaMetadata? resourceSchema, System.Threading.CancellationToken cancellationToken = default) { }
         public bool IsRecoverableReadException(System.Exception exception) { }
         public Configlue.StateSchemaMetadata? ReadSchemaMetadata(in System.Buffers.ReadOnlySequence<byte> source) { }
         [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Aot", "IL3050", Justification="The options-based constructor carries this requirement. The JsonTypeInfo construc" +

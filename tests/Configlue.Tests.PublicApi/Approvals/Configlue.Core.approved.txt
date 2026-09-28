@@ -283,6 +283,11 @@ namespace Configlue
         bool IsPipelineReadPreferred { get; }
         System.Threading.Tasks.ValueTask<Configlue.PipelineResourceReadResult> ReadPipelineAsync(System.Threading.CancellationToken cancellationToken = default);
     }
+    public interface IPipelineStateCodec<T>
+    {
+        bool IsPipelineDecodePreferred { get; }
+        System.Threading.Tasks.ValueTask<Configlue.StateReadResult<T>> DeserializeAsync(System.IO.Pipelines.PipeReader content, Configlue.StateCodecContext context, Configlue.StateSchemaMetadata? resourceSchema, System.Threading.CancellationToken cancellationToken = default);
+    }
     public sealed class PipelineResourceReadResult : System.IAsyncDisposable
     {
         public System.IO.Pipelines.PipeReader? Content { get; }
@@ -299,7 +304,7 @@ namespace Configlue
     {
         public static System.IO.Pipelines.Pipe CreatePipe() { }
         public static System.Threading.Tasks.ValueTask<Configlue.PipelineResourceReadResult> FromMemoryAsync(Configlue.ResourceReadResult result, System.Threading.CancellationToken cancellationToken = default) { }
-        public static Configlue.PipelineResourceReadResult FromStream(System.IO.Stream source, string? revision = null, Configlue.StateSchemaMetadata? schema = default, bool computeXxHash3Revision = false, System.IDisposable? owner = null, System.Action<System.Buffers.ReadOnlySequence<byte>>? contentReadCompleted = null) { }
+        public static Configlue.PipelineResourceReadResult FromStream(System.IO.Stream source, string? revision = null, Configlue.StateSchemaMetadata? schema = default, bool computeXxHash3Revision = false, System.IDisposable? owner = null, System.Action<System.Buffers.ReadOnlySequence<byte>>? contentReadCompleted = null, System.Action<string>? contentFingerprintCompleted = null) { }
     }
     public sealed class SerializedStateReader<T> : Configlue.IStateReader<T>
     {

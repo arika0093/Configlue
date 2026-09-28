@@ -1,4 +1,3 @@
-using System.Buffers;
 using System.Globalization;
 using System.Net;
 using System.Net.Http.Headers;
@@ -135,14 +134,8 @@ public sealed class HttpResourceReader
                 revision,
                 schema,
                 owner: ownedResponse,
-                contentReadCompleted: content =>
-                    SetLastSnapshot(
-                        HttpResourceSnapshot.Success(
-                            revision,
-                            GetContentFingerprint(in content),
-                            schema
-                        )
-                    )
+                contentFingerprintCompleted: fingerprint =>
+                    SetLastSnapshot(HttpResourceSnapshot.Success(revision, fingerprint, schema))
             );
             responseOwnershipTransferred = true;
             return pipelineResult;
@@ -456,17 +449,6 @@ public sealed class HttpResourceReader
 
     private static string GetContentFingerprint(ReadOnlySpan<byte> content) =>
         Convert.ToHexString(SHA256.HashData(content));
-
-    private static string GetContentFingerprint(in ReadOnlySequence<byte> content)
-    {
-        using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
-        foreach (var segment in content)
-        {
-            hash.AppendData(segment.Span);
-        }
-
-        return Convert.ToHexString(hash.GetHashAndReset());
-    }
 
     private static Uri EnsureTrailingSlash(Uri endpointRoot)
     {
