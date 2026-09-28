@@ -3,15 +3,13 @@ title: アプリケーション構成
 description: 非 DI コンテキスト、DI 登録、所有権、名前付きインスタンス。
 ---
 
-# アプリケーション構成
-
 `conf.Add<TModel>(...)` は 1 つのモデルを定義します（ソース、書き込み経路、バリデーター、オプション名）。
 同じ定義が下記の両構成で動作します。
 
 ## DI なし
 
 `ConfiglueApp.CreateContext(...)` は、独立したライフサイクル管理付きコンテキストを作成します。
-`ConfiglueApp.Initialize(...)` と `ConfiglueApp.GetOptions<T>()` は、プロセス全体の既定コンテキストを共有します（旧 `Configlue` 静的クラスと同じ既定動作）。
+`ConfiglueApp.Initialize(...)` と `ConfiglueApp.GetOptions<T>()` は、プロセス全体の既定コンテキストを共有します。
 破棄は `await ConfiglueApp.ShutdownAsync()` を呼び出します。
 
 ```csharp
@@ -104,11 +102,15 @@ services.AddConfiglueOptions<AppConfig, AppConfig.Fragment>(
 
 ## 独自バリデーター
 
+DataAnnotations 検証は既定で有効です。無効にするには登録時に `validateDataAnnotations: false` を渡します。
+コードによる検証を追加するには、Microsoft の `IValidateOptions<T>` を `AddConfiglueValidator` で適合させるか、`IConfiglueValidator<T>` を実装して DI のシングルトンとして登録します。
+
 ```csharp
 services.AddConfiglueValidator<UserSetting>(new UserSettingValidator());
+services.AddSingleton<IConfiglueValidator<UserSetting>, UserSettingValidator2>();
 ```
 
-DataAnnotations 検証は既定で有効です。無効にするには登録時に `validateDataAnnotations: false` を渡します。[変更と検証](./changes-and-validation.md) 参照。
+[変更と検証](./changes-and-validation.md) 参照。
 
 ## 次のステップ
 

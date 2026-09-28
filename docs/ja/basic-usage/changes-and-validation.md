@@ -3,8 +3,6 @@ title: 変更と検証
 description: 変更通知、デバウンス、DataAnnotations、独自バリデーター。
 ---
 
-# 変更と検証
-
 ## 変更検出
 
 ```csharp

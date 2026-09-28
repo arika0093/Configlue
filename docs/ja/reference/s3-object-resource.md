@@ -1,9 +1,7 @@
 ---
-title: Amazon S3 object resource
+title: Amazon S3 オブジェクトリソース
 description: 任意の byte-oriented Configlue resource として Amazon S3 object を使う。
 ---
-
-# Amazon S3 object resource
 
 `Configlue.Resource.S3` は S3 object 1つを Configlue の byte-resource 契約へ接続します。S3 を使うアプリケーションだけにインストールしてください:
 

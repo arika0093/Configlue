@@ -5,8 +5,6 @@ description: Generate schemas from models for editor autocompletion and CI valid
 
 import { Steps } from '@astrojs/starlight/components';
 
-# STEP 8: Export JSON Schema
-
 To catch configuration typos before runtime, Configlue exports JSON Schema from a model's generated `ConfiglueModelSchema`.
 This enables rich autocompletion in editors such as VS Code and static validation in CI workflows.
 
@@ -46,6 +44,8 @@ The API is in the `Configlue.JsonSchema` package and namespace; the `Configlue` 
 
    For a model declared with `Version = 1`, this writes `schemas/tutorial.settings.v1.json`.
    DataAnnotations rules (such as `[Range]` and `[Required]`) map directly to JSON Schema constraints.
+
+   `Write` is a convenience wrapper over `Generate`. For absolute `$id` URIs, `$configlue`/`$value` layouts, the legacy `--cw-generate-json-schema` startup path, and test doubles, see [JSON Schema and testing](../advanced/json-schema-and-testing.md).
 
 3. ### Reference the schema in settings
 

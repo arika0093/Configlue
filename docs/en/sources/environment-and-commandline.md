@@ -3,8 +3,6 @@ title: Environment and command line
 description: Read-only sources from process variables and System.CommandLine.
 ---
 
-# Environment and command line
-
 Both sources are read-only and typically sit above file layers at higher priorities.
 
 ## Environment variables

@@ -3,13 +3,11 @@ title: Application setup
 description: Non-DI contexts, DI registration, ownership, and named instances.
 ---
 
-# Application setup
-
 `conf.Add<TModel>(...)` defines one model: its sources, write route, validators, and options name. The same definition works in both setups below.
 
 ## Without DI
 
-`ConfiglueApp.CreateContext(...)` creates an independent lifetime-managed context. `ConfiglueApp.Initialize(...)` plus `ConfiglueApp.GetOptions<T>()` share one process-wide default context instead (the same default the older `Configlue` static class uses); call `await ConfiglueApp.ShutdownAsync()` to dispose it.
+`ConfiglueApp.CreateContext(...)` creates an independent lifetime-managed context. `ConfiglueApp.Initialize(...)` plus `ConfiglueApp.GetOptions<T>()` share one process-wide default context instead; call `await ConfiglueApp.ShutdownAsync()` to dispose it.
 
 ```csharp
 using Configlue.Sources;
@@ -91,11 +89,14 @@ services.AddConfiglueOptions<AppConfig, AppConfig.Fragment>(
 
 ## Custom validators
 
+DataAnnotations validation is enabled by default; pass `validateDataAnnotations: false` when registering the model to disable it. For code-based rules, adapt a Microsoft `IValidateOptions<T>` with `AddConfiglueValidator`, or implement `IConfiglueValidator<T>` directly and register it as a DI singleton:
+
 ```csharp
 services.AddConfiglueValidator<UserSetting>(new UserSettingValidator());
+services.AddSingleton<IConfiglueValidator<UserSetting>, UserSettingValidator2>();
 ```
 
-DataAnnotations validation is enabled by default. Pass `validateDataAnnotations: false` to disable it. See [Changes and validation](./changes-and-validation.md).
+See [Changes and validation](./changes-and-validation.md).
 
 ## Next steps
 

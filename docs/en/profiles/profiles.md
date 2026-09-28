@@ -3,8 +3,6 @@ title: Profiles
 description: Persisted named profiles with an active-profile catalog.
 ---
 
-# Profiles
-
 Persistent named profiles use a separate writable source for their catalog. The profile source factory receives each profile name, which lets an application store profile values in separate files, sections, or other resources.
 
 ```csharp

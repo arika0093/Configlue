@@ -3,8 +3,6 @@ title: ファイル・形式・セクション
 description: JSON・YAML・XML の形式とファイルソース、入れ子セクションビュー。
 ---
 
-# ファイル・形式・セクション
-
 プロバイダーパッケージは共有の `Sources` ビルダーに一発登録を追加します。各 provider の登録は、安定した論理名・優先度・fallback 動作・読み書きルーティングを設定する共通 fluent API を返し、provider 固有の設定は options object に残ります。
 
 ```csharp

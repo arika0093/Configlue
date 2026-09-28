@@ -3,8 +3,6 @@ title: Fallback and custom sources
 description: Group equivalent representations and compose resources with codecs.
 ---
 
-# Fallback and custom sources
-
 ## Fallback sources
 
 Use `FallbackStateSource<TFragment>` to group serialized representations of the same logical state, such as a canonical JSON file and a legacy YAML file. It reads the first successful candidate by priority, subject to each candidate's fallback condition, and exposes that candidate as one source — values from separate formats are never overlaid.

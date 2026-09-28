@@ -3,13 +3,11 @@ title: サンプル集
 description: リポジトリ同梱の実行可能なサンプルアプリ。
 ---
 
-# サンプル集
-
 `example/` ディレクトリに実行可能なサンプルがあります。リポジトリルートから実行してください。
 
-## ファイル保存のコンソールアプリ (DI)
+## ファイル保存のコンソールアプリ
 
-`Example.ConsoleApp` は定番の DI サンプルです。JSON ファイルリソースに支えられた生成モデルを `IWritableOptions<T>` で読み書きします。
+`Example.ConsoleApp` は `ConfiglueApp.CreateContext` で生成モデルを登録し、JSON ファイルリソースを `GetAdvancedOptions<T>()` で読み書きします。
 
 ```sh
 dotnet run --project example/Example.ConsoleApp
@@ -18,16 +16,16 @@ dotnet run --project example/Example.ConsoleApp -- --set-name Ada
 
 設定ファイルは実行ファイルの横に書き込まれます。
 
-## ファイル保存のコンソールアプリ (DI なし)
+## ファサードを使わない低レベル構成
 
-`Example.SimpleApp` は `ConfiglueOptions<TModel, TFragment>` を直接組み立てて、同じ流れをコンテナーなしで示します。
+`Example.SimpleApp` は `ConfiglueApp` ファサードを使わず、`ConfiglueOptions<TModel, TFragment>` と `StateSourceSet<T>` を直接組み立てて同じ流れを示します。
 
 ```sh
 dotnet run --project example/Example.SimpleApp
 dotnet run --project example/Example.SimpleApp -- --set-name Ada
 ```
 
-## Worker Service
+## Worker Service (DI)
 
 `Example.WorkerService` は Generic Host に Configlue を登録します。バックグラウンドワーカーが設定を読み、`RunCount` を増やして5秒ごとに保存します。Ctrl+C で停止します。
 

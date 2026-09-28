@@ -3,8 +3,6 @@ title: インストール
 description: Configlue の SDK 要件と NuGet パッケージ。
 ---
 
-# インストール
-
 ## 要件
 
 * .NET 10 SDK
@@ -33,6 +31,9 @@ dotnet add package Configlue
 | --- | --- |
 | YAML ファイル | `Configlue.Provider.Yaml` |
 | XML ファイル | `Configlue.Provider.Xml` |
+| 共通プリセット層での YAML | `Configlue.Source.Presets.Yaml` |
+| 共通プリセット層での XML | `Configlue.Source.Presets.Xml` |
+| 独自プロバイダーの作成 | `Configlue.Extensibility` |
 | JSON Schema 出力のみ | `Configlue.JsonSchema` |
 | `System.CommandLine` 入力 | `Configlue.Source.CommandLine` |
 | 共通/ローカル/指定/env プリセット | `Configlue` (`Configlue.Source.Presets` を含む) |

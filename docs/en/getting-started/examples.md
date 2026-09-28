@@ -3,13 +3,11 @@ title: Examples
 description: Runnable sample applications shipped with the repository.
 ---
 
-# Examples
-
 The `example/` directory contains runnable samples. Run them from the repository root.
 
-## File-backed console app (DI)
+## File-backed console app
 
-`Example.ConsoleApp` is the standard DI sample: a generated model backed by a JSON file resource, read and saved through `IWritableOptions<T>`.
+`Example.ConsoleApp` uses `ConfiglueApp.CreateContext` to register a generated model backed by a JSON file resource, then reads and writes it through `GetAdvancedOptions<T>()`.
 
 ```sh
 dotnet run --project example/Example.ConsoleApp
@@ -18,16 +16,16 @@ dotnet run --project example/Example.ConsoleApp -- --set-name Ada
 
 The settings file is written beside the executable.
 
-## File-backed console app (no DI)
+## Low-level composition without a context
 
-`Example.SimpleApp` shows the same workflow without a container by constructing `ConfiglueOptions<TModel, TFragment>` directly.
+`Example.SimpleApp` shows the same workflow without the `ConfiglueApp` facade by constructing `ConfiglueOptions<TModel, TFragment>` and `StateSourceSet<T>` directly.
 
 ```sh
 dotnet run --project example/Example.SimpleApp
 dotnet run --project example/Example.SimpleApp -- --set-name Ada
 ```
 
-## Worker service
+## Worker service (DI)
 
 `Example.WorkerService` registers Configlue with the Generic Host. A background worker reads the settings, increments `RunCount`, and saves every five seconds. Press Ctrl+C to stop.
 

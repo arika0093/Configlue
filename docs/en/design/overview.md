@@ -3,8 +3,6 @@ title: Design overview
 description: How Resource, Source, Codec, Fragment, Patch, and Options relate.
 ---
 
-# Design overview
-
 Configlue has only six characters. Their relationship is a straight line, and so is the learning order:
 
 ```text
@@ -27,14 +25,81 @@ Reads flow like this: each Source fetches bytes from a Resource, a Codec turns t
 
 Writes flow backwards: apps edit an ordinary model value. Underneath, the change becomes a Fragment diff and reaches only the Source named by `WriteRoute` or `WritePlan`. Unrelated Sources stay clean.
 
-## Why split them
+Separating location, conversion, and contribution lets each evolve alone. Switch files to HTTP, or JSON to YAML, and model read/write code stays put. Shape changes travel through versioning; location moves travel through verified copies. The [Options facade](./options.md) is described separately.
 
-Separating location (Resource), conversion (Codec), and contribution (Source) lets each evolve alone. Switch files to HTTP, or JSON to YAML, and model read/write code stays put. Shape changes travel through versioning; location moves travel through verified copies. Details per page:
+## Resource: where bytes live
 
-- [Resource](./resource.md): physical endpoints — files, sections, ZIP, HTTP, memory.
-- [Source](./source.md): logical contributions — priority, fallback, projection, mounting.
-- [Codec](./codec.md): bytes-to-values conversion and per-format notes.
-- [Fragment and Patch](./fragment-patch.md): sparse diffs and single-field edits.
-- [Options](./options.md): the read/write facade — profiles, dynamic options, DI adapters.
+A Resource says only where bytes are. It knows nothing about value semantics or which fields use it.
 
-Stricter boundaries and implementation notes remain in the [design notes](../reference/design-notes.md).
+* **Files.** `FileResource` is the center: atomic writes with backup generations. One `.bak` generation by default; `FileResourceOptions` changes generations and their directory. `RestoreLatestBackupAsync` brings back the newest one. See [backups and observability](../advanced/backups-and-observability.md).
+* **Sections.** A view over part of a file. `JsonSectionResource` treats a nested path like `App:Policy` as an independent Resource while preserving siblings on writes. XML elements and YAML mappings have equivalent views. Disjoint sections over one file batch into a single physical write. JSON and YAML section writes apply edits to the original document text, preserving unrelated comments, whitespace, quoting, and scalar styles; JSON and JSONC files accept comments and trailing commas. When the codec has no structured editing support, its existing full-document replacement behavior remains unchanged.
+* **ZIP, HTTP, memory.** `ZipEntryResource` exposes one archive entry as a logical Resource, keeping the archive's physical identity and revision; untouched entries survive and disjoint updates batch into one archive write. `HttpResourceReader` reads from `{root}/get`, with ETag conditional writes and polling; writes apply only with `Writable = true`, and `Configlue.Resource.Http.AspNetCore` serves it. `InMemoryResource` is the test double (`Configlue.Testing`).
+
+Each logical Source can publish its physical Resource's `ResourceId`. Sections, ZIP entries, and projections preserve that identity so later write coordination can batch logical updates sharing a location. Backends that cannot batch a shared Resource fail before any grouped write.
+
+## Codec: bytes to values
+
+A Codec converts bytes to typed values and back, with no Resource I/O. It owns "how to read", not "where to keep".
+
+* **JSON**: `JsonStateCodec`, combined with section resources, file registration, and JSON Schema export. Pass a source-generated `JsonSerializerContext` for trimming-safe, NativeAOT-friendly behavior.
+* **XML**: the XML codec, with section resources and file registration.
+* **YAML**: the YAML codec, with section resources and file registration. See `example/Example.ConsoleApp.Yaml` for camel-case naming.
+* **Document layouts**: the JSON and YAML codecs read both the simple layout (`{ "$version": 1, ... }`, the write default) and the detailed `$configlue`/`$value` envelope. Select the write layout with `DocumentLayoutOptions` on the codec or file options; legacy `Configuration.Writable` files read as simple documents. See the [adoption guide](../migration/adopting-configuration-writable.md).
+
+### Byte transformers and state middleware
+
+`IStateByteTransformer` transforms persisted bytes between a Resource and a Codec. Read transforms run in registration order; write transforms run in reverse. The optional `Configlue.Transformer.AES` package provides `AesGcmStateByteTransformer` for AES-GCM encryption and authentication, and classifies authentication failures as eligible for backup recovery. Manage keys securely in the application and dispose the transformer when it is no longer needed. Pass transformers to `SerializedStateSource.FromResource`.
+
+After the Codec, `IStateMiddleware<T>` wraps typed readers and writers for auditing, validation, normalization, and similar behavior. The first registered middleware is outermost. A middleware that wraps a writer and needs batch writes must preserve `IStateWriteBatchParticipant<T>` on its returned writer.
+
+```csharp
+using Configlue.Codecs;
+using Configlue.State;
+using Configlue.Transformer.AES;
+
+using var encryption = new AesGcmStateByteTransformer(key);
+var source = SerializedStateSource.FromResource<AppSettings.Fragment>(
+    "remote",
+    resource,
+    new JsonStateCodec<AppSettings.Fragment>(),
+    transformers: [encryption],
+    middlewares: [new AuditMiddleware()]);
+```
+
+When in doubt, match the file format. Add one Codec per format you read, and narrow writes to one destination (STEP 11's YAML-first, JSON-second shape is typical). Mixing formats changes nothing about Source priority or `WriteRoute`.
+
+## Source: a logical contribution
+
+A Source is a logical contribution: which fields, at which priority. Reading, writing, and watching are exposed independently. If a Resource is the location, a Source is how that location is used.
+
+* **Priority and fallback.** When several Sources hold the same field, the larger `Priority` wins. `FallbackStateSource` groups alternate representations of one logical state (canonical JSON plus legacy YAML, say) and presents the first readable candidate as the Source — values across formats are never overlaid. Fall-through on missing files, and surfacing other read failures, is a Source promise; assembly details live in [files and sections](../sources/files-and-sections.md) and [environment and command line](../sources/environment-and-commandline.md).
+* **Read-only as a property.** Environment, command-line, and default HTTP sources are read-only. Trying to change a value shadowed by a read-only contribution from the writable side fails with a conflict instead of silently ignoring it. Checking origins with `GetDetailsAsync` before saving pays off.
+* **Projection and mounting.** Two mechanisms lend a model subtree to another Source: **projection** reshapes an existing Source's values into another model, used for per-destination verification and retryable migration; **mounting** attaches a separate Source at a nested model path (`AddMounted`) — for example, letting only `Policy` come from an HTTP layer. See [mount and project](../layering/mount-and-project.md).
+
+Presets like `UseCommonSources` fold this Source assembly into standard shapes ([common sources](../basic-usage/common-sources.md)).
+
+## Fragment and Patch: diffs and edits
+
+Fragment and Patch are the ground that resolution, migration, projection, and write planning move on. App code touches ordinary model values; these two carry the diffs underneath.
+
+* **Fragment** remembers each model member's presence. The key point: "member missing" stays distinct from "present `null` or default". Layering never lets "unset" overwrite "set to default". Resolution runs on Fragments: of every Source's contributed Fragment, only present members compose by priority into one model. Migration runs on Fragments too: `Fragment.FromPrevious` copies same-name, type-compatible members across versions, leaving only renames explicit.
+* **Patch** is the generated `TModel.Patch`, a single-field edit fragment. `SaveAsync` edits one member; explicit destinations use `StateSourcePatch` entries with `ApplyPatchesAsync` for split writes across Sources. `Unset` removes only the write Source's contribution.
+* **Merge behavior per member** changes with `[ConfiglueMerge]`: built-in `Append`, `Deep`, `Replace`, `SetUnion`, plus custom strategy types. Collection layering and ordering semantics are decided here. See [resolution and merge](../layering/resolution-and-merge.md).
+
+## Boundaries, project map, and status
+
+A **resource** represents a physical endpoint such as a file, a ZIP entry, or an HTTP response. A **codec** translates bytes to and from typed values without performing resource I/O. A **source** contributes a logical configuration snapshot and can independently expose read, write, and watch capabilities. A generated **fragment** preserves whether each model member is missing or present, including a present `null` or default value. Resolution, migration, projection, and write planning operate on fragments; application code edits ordinary model values.
+
+Projects live directly under `src/`. `Configlue` is a no-assembly meta-package that brings in Core, DI integration, the JSON provider, JSON Schema export, HTTP resources, common layered sources, the environment source, and the source-generator analyzer. `Configlue.Abstraction` holds the contracts; `Configlue.Core` holds the resolution and persistence runtime including the general file resource; `Configlue.Extensibility` is the provider SDK for serialization, transformed resources, and mounted source registration. `Configlue.Extensions.DI` contains DI registration, and optional Microsoft options adapters are in `Configlue.Extensions.MSOptions`. `Configlue.Generator` emits sparse fragments and patches. `Configlue.Provider.Json`, `.Xml`, and `.Yaml` contain format codecs, section resources, and file registrations; `Configlue.JsonSchema` generates JSON Schemas; `Configlue.Source.Environment`, `.CommandLine`, and `.Presets` provide sources and the standard layered preset (with optional `.Presets.Yaml` and `.Presets.Xml` adapters). `Configlue.Resource.Http`, `.Dapr`, `.S3`, `.Zip`, and `.Http.AspNetCore` cover transport and storage; `Configlue.Testing` provides in-memory doubles.
+
+The foundation is in place: backend-neutral read/write/watch contracts, prioritized resolution, schema and storage migration, projections, provenance details, topology diagnostics, optional structured logging, section and ZIP resources, backup rotation and restore, generated sparse fragments, format codecs, and JSON Schema export. The current API is an architectural foundation rather than a feature-complete replacement for Configuration.Writable.
+
+Known limitations:
+
+* Writes across different resources are not atomic.
+* Source retirement is scoped to the current options instance and leaves backing data intact; callers must update source registration for future process starts.
+* A source set is fixed for an options runtime. Dynamic named options and persistent profiles can create or remove whole runtimes, each with its own source set.
+* `FileStateStorageMigrationJournal` holds a cross-process lease for the full run of a migration ID. Custom journals that do not implement `IStateStorageMigrationLeaseProvider` require callers to coordinate concurrent runs.
+* Watchers provide invalidation signals; provider-specific polling, retry, and reconnection policies remain the provider's responsibility.
+
+Configlue does not replace the source set of an existing options identity in place. Build a new context, migrate explicitly when required, switch the application's consumers, and dispose the old context. See [dynamic options](../profiles/dynamic-options.md) for the current per-name lifecycle.

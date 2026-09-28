@@ -3,8 +3,6 @@ title: Configuration.Writable の取り込み
 description: 旧来のインライン版つきファイルを読んで移行入力にする。
 ---
 
-# Configuration.Writable の取り込み
-
 [Configuration.Writable](https://github.com/arika0093/Configuration.Writable) が書いたファイルを残したまま Configlue を導入できます。旧来ファイルには触れず、Configlue は opt-in デコーダーで読んで、その寄与を通常の書き込み先にコピーします。
 
 ## 旧来ドキュメント

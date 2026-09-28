@@ -3,8 +3,6 @@ title: Resolution and merge
 description: Priority reads, presence, merge modes, and provenance explanations.
 ---
 
-# Resolution and merge
-
 Register generated model options with a prioritized state-source set. Reads merge the present members from each source, and writes can target a source independently of read priority.
 
 ## Presence and merge modes

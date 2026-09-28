@@ -3,8 +3,6 @@ title: Dapr State Management resource
 description: Use a Dapr state store as an optional byte-oriented Configlue persistence resource.
 ---
 
-# Dapr State Management resource
-
 `Configlue.Resource.Dapr` adapts one Dapr State Management store key to Configlue's byte-resource contracts. Install it only when the application uses Dapr:
 
 ```sh
