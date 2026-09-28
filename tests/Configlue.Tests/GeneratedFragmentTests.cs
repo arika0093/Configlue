@@ -318,6 +318,22 @@ public sealed class GeneratedFragmentTests
     }
 
     [Test]
+    public async Task JsonCodec_DeserializesProjectedPayloadAfterWriterBufferGrows()
+    {
+        var label = new string('x', 4096);
+        var codec = new JsonStateCodec<AppSettings.Fragment>();
+        var fragment = new AppSettings.Fragment { Label = Optional<string?>.Present(label) };
+        var buffer = new System.Buffers.ArrayBufferWriter<byte>();
+        var context = new StateCodecContext(new StateSchemaMetadata("app-settings", 2));
+
+        codec.Serialize(fragment, buffer, in context);
+        var sequence = new ReadOnlySequence<byte>(buffer.WrittenMemory);
+        var decoded = codec.Deserialize(in sequence, default);
+
+        (decoded!.Label.Value).ShouldBe(label);
+    }
+
+    [Test]
     public async Task GeneratedHistoricalMapper_PreservesPresenceForCompatibleMembers()
     {
         var previous = new HistoricalSettingsV1.Fragment
