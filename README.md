@@ -25,35 +25,66 @@ File.WriteAllText("settings.json", json);
 
 Consider the following (detailed, yet important) use cases that you'll probably want to avoid dealing with manually:
 
-* Configuration comes from multiple locations.
-  * Global configuration (`%XDG_CONFIG_HOME%/MyApp/settings.json`)
-  * Per-runtime folder configuration (`./myapp.json`, etc.)
-  * Environment variable overrides
-  * Command-line argument overrides
-  * Encrypted credentials (only part of the configuration)
-  * Sometimes not local at all. For example, corporate policies or HTTP APIs for centralized management.
-* You want to receive notifications when settings are updated.
-  * When a configuration file is rewritten, you want it reflected without restarting the application.
-* Think about when you write configuration files.
-  * When reading from multiple sources, you want to automatically choose the right place to write.
-  * When reading values from environment variables, you'd want to raise a write error.
-* Configuration files are sometimes written by humans.
-  * They contain comments. Don't remove them.
-  * You want JSON schema support (since humans write them, you obviously want it!)
-  * What if there's a broken configuration file?
-* If the value is still at its default, don't write it to the configuration file.
-  * We don't want to write `foo: null, bar: null`.
-  * But if the user writes `foo: null`, we need to respect that.
-* You want to version up configuration files.
-  * Single values might become arrays, multiple items might be grouped or separated.
-  * In such cases, you want to automatically convert old configurations to the new format.
-* You want backups too.
-  * When rewriting configuration files, you want to automatically backup old settings.
-  * It would be nice if backups were automatically cleaned up, removing old ones.
-* File writes are done safely.
-  * Ensure atomicity so the file doesn't get corrupted if the app crashes during writing.
-  * If another process rewrites the same file during writing, detect the conflict and raise an error (or auto-merge).
-  * Automatically retry on failure.
+<details>
+<summary>Configuration comes from multiple locations</summary>
+
+* Global configuration (`%XDG_CONFIG_HOME%/MyApp/settings.json`)
+* Per-runtime folder configuration (`./myapp.json`, etc.)
+* Environment variable overrides
+* Command-line argument overrides
+* Encrypted credentials (only part of the configuration)
+* Sometimes not local at all. For example, corporate policies or HTTP APIs for centralized management.
+</details>
+
+<details>
+<summary>You want to receive notifications when settings are updated</summary>
+
+* When a configuration file is rewritten, you want it reflected without restarting the application.
+</details>
+
+<details>
+<summary>Think about when you write configuration files</summary>
+
+* When reading from multiple sources, you want to automatically choose the right place to write.
+* When reading values from environment variables, you'd want to raise a write error.
+</details>
+
+<details>
+<summary>Configuration files are sometimes written by humans</summary>
+
+* They contain comments. Don't remove them.
+* You want JSON schema support (since humans write them, you obviously want it!)
+* What if there's a broken configuration file?
+</details>
+
+<details>
+<summary>If the value is still at its default, don't write it to the configuration file</summary>
+
+* We don't want to write `foo: null, bar: null`.
+* But if the user writes `foo: null`, we need to respect that.
+</details>
+
+<details>
+<summary>You want to version up configuration files</summary>
+
+* Single values might become arrays, multiple items might be grouped or separated.
+* In such cases, you want to automatically convert old configurations to the new format.
+</details>
+
+<details>
+<summary>You want backups too</summary>
+
+* When rewriting configuration files, you want to automatically backup old settings.
+* It would be nice if backups were automatically cleaned up, removing old ones.
+</details>
+
+<details>
+<summary>File writes are done safely</summary>
+
+* Ensure atomicity so the file doesn't get corrupted if the app crashes during writing.
+* If another process rewrites the same file during writing, detect the conflict and raise an error (or auto-merge).
+* Automatically retry on failure.
+</details>
 
 Implementing all of these yourself is, frankly, tedious.
 
