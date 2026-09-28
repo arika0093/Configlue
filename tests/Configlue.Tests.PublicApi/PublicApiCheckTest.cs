@@ -146,6 +146,18 @@ public sealed class PublicApiCheckTest
         );
 
     [Test]
+    public void ReactiveIntegration() =>
+        PublicApiCheck.CheckAssembly(
+            typeof(global::Configlue.Extensions.Reactive.ConfiglueReactiveExtensions).Assembly
+        );
+
+    [Test]
+    public void R3Integration() =>
+        PublicApiCheck.CheckAssembly(
+            typeof(global::Configlue.Extensions.R3.ConfiglueR3Extensions).Assembly
+        );
+
+    [Test]
     public void Generator() => PublicApiCheck.Check<ConfiglueGenerator>();
 
     [Test]

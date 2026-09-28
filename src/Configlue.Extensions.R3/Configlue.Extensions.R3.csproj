@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>Configlue.Extensions.R3</AssemblyName>
+    <RootNamespace>Configlue.Extensions.R3</RootNamespace>
+    <IsPackable>true</IsPackable>
+    <PackageDescription>Optional R3 observables for composing Configlue values, profiles, and reload signals.</PackageDescription>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Configlue.Abstraction/Configlue.Abstraction.csproj" />
+    <PackageReference Include="R3" Version="1.3.1" />
+  </ItemGroup>
+</Project>
