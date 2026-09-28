@@ -49,7 +49,8 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
 
         var fallbackSource = TrySelectDefaultWriteSource();
 
-        var baseline = await ResolveCoreAsync(null, cancellationToken).ConfigureAwait(false);
+        var baseline = await ResolveCoreAsync(null, cancellationToken, captureContributions: true)
+            .ConfigureAwait(false);
         if (baseline.Result.Status != StateReadStatus.Success)
         {
             throw new InvalidOperationException(
