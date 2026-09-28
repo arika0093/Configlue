@@ -35,3 +35,15 @@ The optimization caches whether a model's validation metadata exists and skips D
 | `Configuration.Writable` save | 2.27 ms | 13,242 B |
 
 The cached-read and file-backed-read cases do different work. The save benchmarks use different default document formats and local file-system behavior, so their times and allocations are directional rather than a strict serialization comparison. The existing benchmarks show Configlue's save path is an area for future profiling; this task focused on the measured read-validation regression.
+
+## File-save profiling follow-up
+
+A focused ShortRun on the current worktree added a Configlue case with backups disabled to separate backup rotation from the save pipeline. It also exposed a redundant full source resolution in `SaveAsync`; reusing the already validated baseline reduced work without bypassing source revision checks or proposed-state validation. Single-mutation writes also avoid an extra byte-array copy.
+
+| Benchmark | Mean | Allocated |
+| --- | ---: | ---: |
+| Configlue save, default backups | 4.112 ms | 190.22 KB |
+| Configlue save, backups disabled | 2.344 ms | 105.31 KB |
+| `Configuration.Writable` save | 2.191 ms | 12.93 KB |
+
+The run used the same machine and ShortRun configuration described above. The before/after numbers are directional because the earlier checked-in result predates this focused run. The optimizations reduce the full-backup case by about 4.5% in allocations compared with the earlier 199,310 B result, while the no-backup case shows that backup work accounts for about 1.77 ms and 85 KB in this scenario. The remaining allocation gap is a separate profiling follow-up.

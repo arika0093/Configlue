@@ -146,7 +146,8 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
                 sourcePatches,
                 baseline.Result.Revisions,
                 expectedResolvedModel,
-                cancellationToken
+                cancellationToken,
+                baseline
             )
             .ConfigureAwait(false);
         var sourceResult = fallbackSource is null

@@ -30,10 +30,15 @@ public class FilePersistenceBenchmarks
 {
     private string _directory = null!;
     private FileResource _resource = null!;
+    private FileResource _resourceWithoutBackup = null!;
     private ConfiglueOptions<
         PersistenceBenchmarkSettings,
         PersistenceBenchmarkSettings.Fragment
     > _configlue = null!;
+    private ConfiglueOptions<
+        PersistenceBenchmarkSettings,
+        PersistenceBenchmarkSettings.Fragment
+    > _configlueWithoutBackup = null!;
     private Configuration.Writable.IWritableOptions<WritablePersistenceBenchmarkSettings> _writable =
         null!;
     private int _counter;
@@ -46,19 +51,23 @@ public class FilePersistenceBenchmarks
 
         var configluePath = Path.Combine(_directory, "configlue.json");
         _resource = new FileResource(configluePath);
-        var source = SerializedStateSource.FromResource<PersistenceBenchmarkSettings.Fragment>(
-            "benchmark",
-            _resource,
-            new JsonStateCodec<PersistenceBenchmarkSettings.Fragment>(
-                new JsonSerializerOptions { WriteIndented = false }
-            ),
-            physicalOrigin: configluePath
-        );
-        _configlue = new ConfiglueOptions<
-            PersistenceBenchmarkSettings,
-            PersistenceBenchmarkSettings.Fragment
-        >(new StateSourceSet<PersistenceBenchmarkSettings.Fragment>([source]));
+        _configlue = CreateConfiglueOptions(configluePath, _resource);
         _ = await ((Configlue.IReadOnlyOptions<PersistenceBenchmarkSettings>)_configlue)
+            .GetValueAsync()
+            .ConfigureAwait(false);
+
+        var configluePathWithoutBackup = Path.Combine(_directory, "configlue-no-backup.json");
+        _resourceWithoutBackup = new FileResource(
+            configluePathWithoutBackup,
+            new FileResourceOptions { CreateBackup = false, BackupMaxCount = 0 }
+        );
+        _configlueWithoutBackup = CreateConfiglueOptions(
+            configluePathWithoutBackup,
+            _resourceWithoutBackup
+        );
+        _ = await (
+            (Configlue.IReadOnlyOptions<PersistenceBenchmarkSettings>)_configlueWithoutBackup
+        )
             .GetValueAsync()
             .ConfigureAwait(false);
 
@@ -79,6 +88,7 @@ public class FilePersistenceBenchmarks
     public async Task CleanupAsync()
     {
         await _configlue.DisposeAsync().ConfigureAwait(false);
+        await _configlueWithoutBackup.DisposeAsync().ConfigureAwait(false);
         if (_writable is IAsyncDisposable asyncDisposable)
         {
             await asyncDisposable.DisposeAsync().ConfigureAwait(false);
@@ -88,6 +98,7 @@ public class FilePersistenceBenchmarks
             disposable.Dispose();
         }
         _resource.Dispose();
+        _resourceWithoutBackup.Dispose();
         Directory.Delete(_directory, recursive: true);
     }
 
@@ -107,10 +118,38 @@ public class FilePersistenceBenchmarks
     }
 
     [Benchmark]
+    public async Task ConfiglueSaveWithoutBackupAsync()
+    {
+        var next = Interlocked.Increment(ref _counter);
+        await _configlueWithoutBackup
+            .SaveAsync(patch => patch.Counter = next)
+            .ConfigureAwait(false);
+    }
+
+    [Benchmark]
     public async Task ConfigurationWritableSaveAsync()
     {
         var next = Interlocked.Increment(ref _counter);
         await _writable.SaveAsync(settings => settings.Counter = next).ConfigureAwait(false);
+    }
+
+    private static ConfiglueOptions<
+        PersistenceBenchmarkSettings,
+        PersistenceBenchmarkSettings.Fragment
+    > CreateConfiglueOptions(string path, FileResource resource)
+    {
+        var source = SerializedStateSource.FromResource<PersistenceBenchmarkSettings.Fragment>(
+            "benchmark",
+            resource,
+            new JsonStateCodec<PersistenceBenchmarkSettings.Fragment>(
+                new JsonSerializerOptions { WriteIndented = false }
+            ),
+            physicalOrigin: path
+        );
+        return new ConfiglueOptions<
+            PersistenceBenchmarkSettings,
+            PersistenceBenchmarkSettings.Fragment
+        >(new StateSourceSet<PersistenceBenchmarkSettings.Fragment>([source]));
     }
 }
 
