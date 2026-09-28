@@ -47,6 +47,65 @@ public sealed class CommonSourceFormatTests
     }
 
     [Test]
+    public async Task CommonSources_PreservesGlobalLocalSpecificAndEnvironmentPrecedence()
+    {
+        using var directory = new TemporaryDirectory();
+        var appId = $"Configlue.Tests.{Guid.NewGuid():N}";
+        var globalPath = Path.Combine(
+            ConfiglueStandardPaths.GetStandardSaveDirectory(appId),
+            "settings.json"
+        );
+        var localPath = Path.Combine(directory.FullPath, "local.json");
+        var specificPath = Path.Combine(directory.FullPath, "specific.json");
+        try
+        {
+            await WriteJsonFragmentAsync(
+                globalPath,
+                new AppSettings.Fragment { RetryCount = Optional<int>.Present(1) }
+            );
+            await WriteJsonFragmentAsync(
+                localPath,
+                new AppSettings.Fragment { RetryCount = Optional<int>.Present(2) }
+            );
+            await WriteJsonFragmentAsync(
+                specificPath,
+                new AppSettings.Fragment { RetryCount = Optional<int>.Present(3) }
+            );
+
+            await using var context = Configlue.CreateContext(builder =>
+            {
+                builder.Add<AppSettings>(model =>
+                    model.UseCommonSources(
+                        new CommonSourceOptions
+                        {
+                            ApplicationId = appId,
+                            GlobalFileName = "settings.json",
+                            LocalFilePath = localPath,
+                            SpecificFilePath = specificPath,
+                            EnvironmentPrefix = "CONFIGLUE_TEST",
+                            EnvironmentVariables = () =>
+                                [
+                                    new KeyValuePair<string, string?>(
+                                        "CONFIGLUE_TEST__RetryCount",
+                                        "4"
+                                    ),
+                                ],
+                        }
+                    )
+                );
+            });
+            var options = context.GetAdvancedOptions<AppSettings>();
+
+            (await options.GetValueAsync()).RetryCount.ShouldBe(4);
+            ((await options.GetDetailsAsync()).RetryCount.Source?.Kind).ShouldBe("Environment");
+        }
+        finally
+        {
+            DeleteStandardFile(globalPath);
+        }
+    }
+
+    [Test]
     public async Task CommonSources_DefaultsOrdinaryWritesToLocalWhenSpecificFileIsOmitted()
     {
         using var directory = new TemporaryDirectory();
