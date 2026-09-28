@@ -72,3 +72,16 @@ The after measurements used BenchmarkDotNet 0.15.8 ShortRun on the same Windows 
 | 1 MiB | 3,077.97 KB | 2,053.14 KB | 1,024.83 KB |
 
 The large-payload allocation reduction is approximately one payload copy. The 1 MiB ShortRun latency was 2.598 ms, but its confidence interval was too wide to support a latency conclusion. The file-persistence benchmark still allocates 27.49 KB/op with backups and 22.89 KB/op without backups; the corresponding baseline on the same harness was 27.61 KB and 23.02 KB. For these small JSON documents, the removed content copy has little effect, and the remaining no-backup allocation gap to `Configuration.Writable` (12.93 KB/op) is retained as a separate profiling task.
+
+## Small JSON save allocation profile
+
+An EventPipe GC-verbose trace of repeated no-backup saves showed allocation ticks in the JSON codec's `StripSimpleDocument` path, alongside async state-machine and file-I/O allocations. `StripSimpleDocument` serialized the filtered `JsonDocument` into an `ArrayBufferWriter` and then copied its written bytes into a second array. It now returns a `ReadOnlySequence<byte>` over the writer's completed memory, whose memory reference keeps the backing array alive through deserialization. The property loop also avoids a LINQ iterator on this hot path. A regression test exercises a payload large enough to grow the writer buffer.
+
+| Benchmark | Before | After |
+| --- | ---: | ---: |
+| Configlue save, default backups | 27.49 KB | 26.67 KB |
+| Configlue save, backups disabled | 22.89 KB | 21.98 KB |
+| Configlue save, in-memory source | 6.68 KB | 6.68 KB |
+| `Configuration.Writable` save | 12.93 KB | 12.93 KB |
+
+These ShortRun measurements use the same Windows machine and runtime. Latency samples remain too noisy for a conclusion. Async file reads, lock acquisition, and state-resolution allocations remain as a separate profiling task.

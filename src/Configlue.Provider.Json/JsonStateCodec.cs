@@ -35,7 +35,7 @@ public sealed class JsonStateCodec
     )
     {
         ArgumentNullException.ThrowIfNull(type);
-        var payload = JsonStateCodecOperations.GetPayload(in source, _layout, _options, out _);
+        var payload = JsonStateCodecOperations.GetPayload(in source, _layout, _options);
         var reader = new Utf8JsonReader(payload);
         return JsonSerializer.Deserialize(ref reader, type, _options);
     }
@@ -172,7 +172,7 @@ public sealed class JsonStateCodec<T>
     )]
     public T? Deserialize(in ReadOnlySequence<byte> source, in StateCodecContext context)
     {
-        var payload = JsonStateCodecOperations.GetPayload(in source, _layout, _options, out _);
+        var payload = JsonStateCodecOperations.GetPayload(in source, _layout, _options);
         var reader = new Utf8JsonReader(payload);
         if (_converter is not null)
         {
@@ -266,14 +266,12 @@ internal static class JsonStateCodecOperations
     public static ReadOnlySequence<byte> GetPayload(
         in ReadOnlySequence<byte> source,
         DocumentLayoutOptions? layout,
-        JsonSerializerOptions? serializerOptions,
-        out byte[]? ownedPayload
+        JsonSerializerOptions? serializerOptions
     )
     {
-        ownedPayload = null;
         if (!HasMetadataEnvelope(in source))
         {
-            return StripSimpleDocument(in source, layout, serializerOptions, out ownedPayload);
+            return StripSimpleDocument(in source, layout, serializerOptions);
         }
 
         using var document = JsonDocument.Parse(source);
@@ -284,8 +282,13 @@ internal static class JsonStateCodecOperations
             );
         }
 
-        ownedPayload = System.Text.Encoding.UTF8.GetBytes(payload.GetRawText());
-        return new ReadOnlySequence<byte>(ownedPayload);
+        var buffer = new ArrayBufferWriter<byte>();
+        using (var writer = new Utf8JsonWriter(buffer))
+        {
+            payload.WriteTo(writer);
+        }
+
+        return new ReadOnlySequence<byte>(buffer.WrittenMemory);
     }
 
     public static StateSchemaMetadata? ReadSchemaMetadata(
@@ -460,11 +463,9 @@ internal static class JsonStateCodecOperations
     private static ReadOnlySequence<byte> StripSimpleDocument(
         in ReadOnlySequence<byte> source,
         DocumentLayoutOptions? layout,
-        JsonSerializerOptions? serializerOptions,
-        out byte[]? ownedPayload
+        JsonSerializerOptions? serializerOptions
     )
     {
-        ownedPayload = null;
         using var document = JsonDocument.Parse(source);
         if (document.RootElement.ValueKind != JsonValueKind.Object)
         {
@@ -482,22 +483,25 @@ internal static class JsonStateCodecOperations
         using (var writer = new Utf8JsonWriter(buffer))
         {
             writer.WriteStartObject();
-            foreach (
-                var property in root.EnumerateObject()
-                    .Where(property =>
-                        !string.Equals(property.Name, versionName, StringComparison.Ordinal)
-                        && !string.Equals(property.Name, SchemaProperty, StringComparison.Ordinal)
-                    )
-            )
+#pragma warning disable S3267 // Keep this hot path free of a LINQ iterator allocation.
+            foreach (var property in root.EnumerateObject())
             {
+                if (
+                    string.Equals(property.Name, versionName, StringComparison.Ordinal)
+                    || string.Equals(property.Name, SchemaProperty, StringComparison.Ordinal)
+                )
+                {
+                    continue;
+                }
+
                 property.WriteTo(writer);
             }
+#pragma warning restore S3267
 
             writer.WriteEndObject();
         }
 
-        ownedPayload = buffer.WrittenMemory.ToArray();
-        return new ReadOnlySequence<byte>(ownedPayload);
+        return new ReadOnlySequence<byte>(buffer.WrittenMemory);
     }
 
     private static StateSchemaMetadata? ReadSimpleVersion(
