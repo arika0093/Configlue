@@ -33,7 +33,7 @@ public sealed class EnvironmentSourceOptions
 public static class EnvironmentFacadeSourceRegistration
 {
     /// <summary>Adds a sparse, read-only environment source.</summary>
-    public static void FromEnvironment(
+    public static ConfiglueSourceRegistration FromEnvironment(
         this ConfiglueSourceSetBuilder sources,
         EnvironmentSourceOptions options
     )
@@ -41,7 +41,7 @@ public static class EnvironmentFacadeSourceRegistration
         ArgumentNullException.ThrowIfNull(sources);
         ArgumentNullException.ThrowIfNull(options);
         ArgumentException.ThrowIfNullOrWhiteSpace(options.Prefix);
-        sources.Add(new Definition(options));
+        return sources.Add(new Definition(options));
     }
 
     private sealed class Definition(EnvironmentSourceOptions options) : IConfiglueSourceDefinition

@@ -19,14 +19,19 @@ object を typed state source として登録し、シリアライズは Configl
 using Configlue.Provider.Json;
 using Configlue.Resource.S3;
 
-model.Sources(sources => sources.FromS3Object(new S3ObjectSourceOptions
-{
-    BucketName = "app-config",
-    Key = "production/settings.json",
-    Client = s3Client,
-    Codec = new JsonStateCodec<AppSettings.Fragment>(),
-}));
+model.Sources(sources => sources
+    .FromS3Object(new S3ObjectSourceOptions
+    {
+        BucketName = "app-config",
+        Key = "production/settings.json",
+        Client = s3Client,
+        Codec = new JsonStateCodec<AppSettings.Fragment>(),
+    })
+    .Named("production-settings")
+    .Writable());
 ```
+
+返される登録 builder は他 provider と共通の `Named`・`Priority`・`FallbackWhen`・`ReadOnly`・`Writable`・`ExplicitOnly` を持ちます。`Named` はアプリケーションコードからルーティングや移行対象の source を選択する場合に便利です。
 
 DI アプリケーションでは `ClientFactory` からホスト所有の `IAmazonS3` を解決できます。client の所有権は呼び出し側に残ります。resource が必要な場所では `S3ObjectResource` を直接利用できます。
 

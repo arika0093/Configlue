@@ -5,7 +5,7 @@ description: JSON, YAML, and XML formats and file sources plus nested section vi
 
 # Files, formats, and sections
 
-Provider packages add one-call source registrations to the shared `Sources` builder. JSON, YAML, and XML files share the same options shape.
+Provider packages add one-call source registrations to the shared `Sources` builder. Every provider registration returns a common fluent configuration for the stable logical name, priority, fallback behavior, and read/write routing; provider-specific options remain in the options object.
 
 ```csharp
 using Configlue.Provider.Json;
@@ -13,22 +13,19 @@ using Configlue.Provider.Yaml;
 
 model.Sources(sources =>
 {
-    sources.FromJsonFile(new()
-    {
-        Path = "settings.json",
-        SectionPath = "Application:User",
-        Priority = 100,
-    });
-    sources.FromYamlFile(new()
-    {
-        Path = "defaults.yaml",
-        Priority = 10,
-        ReadOnly = true,
-    });
+    sources
+        .FromJsonFile(new() { Path = "settings.json", SectionPath = "Application:User" })
+        .Named("user-settings")
+        .Priority(100);
+    sources
+        .FromYamlFile(new() { Path = "defaults.yaml" })
+        .Named("defaults")
+        .Priority(10)
+        .ReadOnly();
 });
 ```
 
-File sources receive a stable opaque identity from their normalized resource and section. Set `Id` only when an advanced integration needs a stable diagnostic or migration identifier.
+Use `Named` when application code needs to select a source for routing or migration; otherwise file sources receive an opaque identity from their normalized resource and section. `Writable()` verifies that the provider exposes a writer, while `ReadOnly()` removes the writer. `ExplicitOnly()` keeps a writable source available for explicit writes while excluding it from ordinary write inference.
 
 `FromXmlFile(new() { ... })` uses the same options for an XML file and optional element path. File helpers work in non-DI and DI contexts; a generated file resource belongs to the context and is disposed after its watcher stops, while directly supplied clients remain owned by the caller.
 

@@ -54,6 +54,8 @@ public sealed class JsonFileSourceOptions
 
     internal int? PriorityOverride { get; set; }
 
+    internal StateFallbackCondition? FallbackConditionOverride { get; set; }
+
     internal bool? ReadOnlyOverride { get; set; }
 
     internal bool? WatchChangesOverride { get; set; }
@@ -61,6 +63,8 @@ public sealed class JsonFileSourceOptions
     internal JsonSerializerOptions? SerializerOptionsOverride { get; set; }
 
     internal bool? ExplicitOnlyOverride { get; set; }
+
+    internal string? IdOverride { get; set; }
 }
 
 /// <summary>Registers facade sources backed by JSON files.</summary>
@@ -119,7 +123,7 @@ public static class JsonFileSourceRegistration
     }
 
     /// <summary>Adds a JSON file source. The facade owns the created resource and its watcher.</summary>
-    public static void FromJsonFile(
+    public static ConfiglueSourceRegistration FromJsonFile(
         this ConfiglueSourceSetBuilder sources,
         JsonFileSourceOptions options
     )
@@ -139,7 +143,7 @@ public static class JsonFileSourceRegistration
             );
         }
 
-        sources.Add(new JsonFileSourceDefinition(options));
+        return sources.Add(new JsonFileSourceDefinition(options));
     }
 
     private sealed class JsonFileSourceDefinition(JsonFileSourceOptions options)
@@ -216,6 +220,7 @@ public static class JsonFileSourceRegistration
             var watchChanges = options.WatchChangesOverride ?? options.WatchChanges;
             var sectionPath = options.SectionPathOverride ?? options.SectionPath;
             var priority = options.PriorityOverride ?? options.Priority;
+            var fallbackCondition = options.FallbackConditionOverride ?? options.FallbackCondition;
             var explicitOnly = options.ExplicitOnlyOverride ?? options.ExplicitOnly;
             var serializerOptions = options.SerializerOptionsOverride ?? options.SerializerOptions;
             var schemaShape = JsoncDocumentEditor.CreateSchemaShape<TFragment>(
@@ -261,7 +266,8 @@ public static class JsonFileSourceRegistration
                 );
             var physicalResourceId = options.ResourceId ?? (file as IResourceIdentity)?.ResourceId;
             var sourceId =
-                options.Id
+                options.IdOverride
+                ?? options.Id
                 ?? JsonFileSourceSelector.CreateSourceId(
                     options.Path,
                     sectionPath,
@@ -271,7 +277,7 @@ public static class JsonFileSourceRegistration
                 sourceId,
                 stateReader,
                 priority,
-                options.FallbackCondition,
+                fallbackCondition,
                 stateWriter,
                 resourceWatcher,
                 file.Path,
@@ -333,6 +339,18 @@ public sealed class JsonFileRegistration<TModel>
         _sources = sources;
     }
 
+    /// <summary>Assigns a stable application-defined logical source name.</summary>
+    public JsonFileRegistration<TModel> Named(string name)
+    {
+        EnsureMutable();
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        _options.IdOverride = name;
+        return this;
+    }
+
+    /// <summary>Assigns a stable logical source name using a key for this model.</summary>
+    public JsonFileRegistration<TModel> Named(SourceKey<TModel> sourceKey) => Named(sourceKey.Name);
+
     /// <summary>Mounts the file's generated fragment at a strongly typed nested model member.</summary>
     public JsonFileRegistration<TModel> Mount<TSubtreeModel>(
         Expression<Func<TModel, TSubtreeModel?>> subtreeSelector
@@ -366,6 +384,24 @@ public sealed class JsonFileRegistration<TModel>
         return this;
     }
 
+    /// <summary>Sets which read statuses allow resolution to fall back to lower-priority sources.</summary>
+    public JsonFileRegistration<TModel> FallbackWhen(StateFallbackCondition condition)
+    {
+        EnsureMutable();
+        if (
+            (
+                condition
+                & ~(StateFallbackCondition.NotFoundOrUnavailable | StateFallbackCondition.Invalid)
+            ) != 0
+        )
+        {
+            throw new ArgumentOutOfRangeException(nameof(condition));
+        }
+
+        _options.FallbackConditionOverride = condition;
+        return this;
+    }
+
     /// <summary>Sets whether this file source is read-only.</summary>
     public JsonFileRegistration<TModel> ReadOnly(bool readOnly = true)
     {
@@ -373,6 +409,9 @@ public sealed class JsonFileRegistration<TModel>
         _options.ReadOnlyOverride = readOnly;
         return this;
     }
+
+    /// <summary>Requires this file source to expose a writer.</summary>
+    public JsonFileRegistration<TModel> Writable() => ReadOnly(false);
 
     /// <summary>Sets whether this file source watches for changes.</summary>
     public JsonFileRegistration<TModel> WatchChanges(bool watchChanges = true)

@@ -44,7 +44,7 @@ public sealed class DaprStateSourceOptions
 public static class DaprStateSourceRegistration
 {
     /// <summary>Adds a Dapr state source. The supplied Dapr client remains externally owned.</summary>
-    public static void FromDaprState(
+    public static ConfiglueSourceRegistration FromDaprState(
         this ConfiglueSourceSetBuilder sources,
         DaprStateSourceOptions options
     )
@@ -67,7 +67,7 @@ public static class DaprStateSourceRegistration
             ArgumentException.ThrowIfNullOrWhiteSpace(options.Id);
         }
 
-        sources.Add(new DaprStateSourceDefinition(options));
+        return sources.Add(new DaprStateSourceDefinition(options));
     }
 
     private sealed class DaprStateSourceDefinition(DaprStateSourceOptions options)

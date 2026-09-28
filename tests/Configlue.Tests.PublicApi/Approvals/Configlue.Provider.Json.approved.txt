@@ -5,12 +5,16 @@ namespace Configlue.Provider.Json
         where TModel : Configlue.IConfiglueFacadeModel<TModel>
     {
         public Configlue.Provider.Json.JsonFileRegistration<TModel> ExplicitOnly(bool explicitOnly = true) { }
+        public Configlue.Provider.Json.JsonFileRegistration<TModel> FallbackWhen(Configlue.StateFallbackCondition condition) { }
         public Configlue.Provider.Json.JsonFileRegistration<TModel> Mount<TSubtreeModel>(System.Linq.Expressions.Expression<System.Func<TModel, TSubtreeModel?>> subtreeSelector) { }
+        public Configlue.Provider.Json.JsonFileRegistration<TModel> Named(Configlue.SourceKey<TModel> sourceKey) { }
+        public Configlue.Provider.Json.JsonFileRegistration<TModel> Named(string name) { }
         public Configlue.Provider.Json.JsonFileRegistration<TModel> Priority(int priority) { }
         public Configlue.Provider.Json.JsonFileRegistration<TModel> ReadOnly(bool readOnly = true) { }
         public Configlue.Provider.Json.JsonFileRegistration<TModel> Section(string sectionPath) { }
         public Configlue.Provider.Json.JsonFileRegistration<TModel> SerializerOptions(System.Text.Json.JsonSerializerOptions serializerOptions) { }
         public Configlue.Provider.Json.JsonFileRegistration<TModel> WatchChanges(bool watchChanges = true) { }
+        public Configlue.Provider.Json.JsonFileRegistration<TModel> Writable() { }
     }
     public static class JsonFileSource
     {
@@ -35,7 +39,7 @@ namespace Configlue.Provider.Json
     }
     public static class JsonFileSourceRegistration
     {
-        public static void FromJsonFile(this Configlue.ConfiglueSourceSetBuilder sources, Configlue.Provider.Json.JsonFileSourceOptions options) { }
+        public static Configlue.ConfiglueSourceRegistration FromJsonFile(this Configlue.ConfiglueSourceSetBuilder sources, Configlue.Provider.Json.JsonFileSourceOptions options) { }
         public static Configlue.Provider.Json.JsonFileRegistration<TModel> JsonFile<TModel>(this Configlue.ConfiglueSourceSetBuilder<TModel> sources, string path)
             where TModel : Configlue.IConfiglueFacadeModel<TModel> { }
         public static void UseDefaultJsonFile<TModel>(this Configlue.ConfiglueModelBuilder<TModel> model)
@@ -69,7 +73,7 @@ namespace Configlue.Provider.Json
     }
     public static class JsonHttpSourceRegistration
     {
-        public static void FromJsonHttp(this Configlue.ConfiglueSourceSetBuilder sources, Configlue.Provider.Json.JsonHttpSourceOptions options) { }
+        public static Configlue.ConfiglueSourceRegistration FromJsonHttp(this Configlue.ConfiglueSourceSetBuilder sources, Configlue.Provider.Json.JsonHttpSourceOptions options) { }
     }
     public sealed class JsonSectionResource : Configlue.IPipelineResourceReader, Configlue.IResourceBackupRecovery, Configlue.IResourceBatchParticipant, Configlue.IResourceIdentity, Configlue.IResourceReader, Configlue.IResourceWriter, Configlue.IStateWatcher
     {

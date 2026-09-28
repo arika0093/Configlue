@@ -4,6 +4,9 @@ namespace Configlue;
 /// <typeparam name="T">The configuration model type.</typeparam>
 public interface IConfiglueOptions<T> : IWritableOptions<T>
 {
+    /// <summary>Reads the resolved value together with state and revision metadata.</summary>
+    ValueTask<StateReadResult<T>> ReadAsync(CancellationToken cancellationToken = default);
+
     /// <summary>Begins editing a deep clone of the currently resolved configuration.</summary>
     ValueTask<EditSession<T>> OpenEditSessionAsync(CancellationToken cancellationToken = default);
 
@@ -38,6 +41,13 @@ public interface IConfiglueOptions<T> : IWritableOptions<T>
         CancellationToken cancellationToken = default
     );
 
+    /// <summary>Migrates one source contribution using typed logical source keys.</summary>
+    ValueTask<StateSourceMigrationResult> MigrateSourceAsync(
+        SourceKey<T> sourceKey,
+        SourceKey<T> targetKey,
+        CancellationToken cancellationToken = default
+    );
+
     /// <summary>
     /// Migrates selected source contributions into projected targets. Implementations verify each write and
     /// skip targets already holding the requested fragment, so a partially completed operation can be retried.
@@ -47,6 +57,17 @@ public interface IConfiglueOptions<T> : IWritableOptions<T>
     ValueTask<StateStorageMigrationResult> MigrateSourcesToTargetsAsync(
         IEnumerable<string> sourceIds,
         IReadOnlyDictionary<string, Func<IConfiglueFragment, IConfiglueFragment>> targetProjections,
+        CancellationToken cancellationToken = default,
+        bool retireSources = false
+    );
+
+    /// <summary>Migrates source contributions using typed logical source keys.</summary>
+    ValueTask<StateStorageMigrationResult> MigrateSourcesToTargetsAsync(
+        IEnumerable<SourceKey<T>> sourceKeys,
+        IReadOnlyDictionary<
+            SourceKey<T>,
+            Func<IConfiglueFragment, IConfiglueFragment>
+        > targetProjections,
         CancellationToken cancellationToken = default,
         bool retireSources = false
     );

@@ -19,14 +19,19 @@ Register a key as a typed state source and keep serialization in Configlue's cod
 using Configlue.Provider.Json;
 using Configlue.Resource.Dapr;
 
-model.Sources(sources => sources.FromDaprState(new DaprStateSourceOptions
-{
-    StoreName = "state",
-    Key = "project:123",
-    Client = daprClient,
-    Codec = new JsonStateCodec<AppSettings.Fragment>(),
-}));
+model.Sources(sources => sources
+    .FromDaprState(new DaprStateSourceOptions
+    {
+        StoreName = "state",
+        Key = "project:123",
+        Client = daprClient,
+        Codec = new JsonStateCodec<AppSettings.Fragment>(),
+    })
+    .Named("project-state")
+    .Writable());
 ```
+
+The returned registration shares `Named`, `Priority`, `FallbackWhen`, `ReadOnly`, `Writable`, and `ExplicitOnly` with other providers. `Named` is useful when application code needs to select the source for routing or migration.
 
 In dependency-injected applications, use `ClientFactory` to resolve the host-owned `DaprClient`. The client remains externally owned. The resource itself performs byte reads and writes; it does not implement layering, merge, provenance, schemas, migrations, or query/ORM behavior.
 

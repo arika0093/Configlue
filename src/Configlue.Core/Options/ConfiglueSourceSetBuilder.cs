@@ -72,11 +72,13 @@ public class ConfiglueSourceSetBuilder
     }
 
     /// <summary>Adds a provider-defined source using the generated model's fragment type.</summary>
-    public void Add(IConfiglueSourceDefinition definition)
+    public ConfiglueSourceRegistration Add(IConfiglueSourceDefinition definition)
     {
         EnsureMutable();
         ArgumentNullException.ThrowIfNull(definition);
-        _sources.Add(new ConfiglueSourceDefinitionRegistration(definition));
+        var options = new ConfiglueSourceRegistration(EnsureMutable);
+        _sources.Add(new ConfiglueSourceDefinitionRegistration(definition, options));
+        return options;
     }
 
     internal StateSourceSet<TFragment> Build<TFragment>(IServiceProvider? serviceProvider)
@@ -168,7 +170,8 @@ public class ConfiglueSourceSetBuilder
     }
 
     private sealed class ConfiglueSourceDefinitionRegistration(
-        IConfiglueSourceDefinition definition
+        IConfiglueSourceDefinition definition,
+        ConfiglueSourceRegistration options
     ) : IConfiglueSourceRegistration
     {
         public bool RequiresGeneratedModel => true;
@@ -179,14 +182,16 @@ public class ConfiglueSourceSetBuilder
             Action<IDisposable> ownResource
         )
             where TFragment : class, IConfiglueFragment<TFragment> =>
-            definition.Create<TFragment>(
-                modelSchema
-                    ?? throw new InvalidOperationException(
-                        "Provider source definitions require generated model metadata."
-                    ),
-                serviceProvider,
-                ownResource
-            ) ?? throw new InvalidOperationException("A source definition returned null.");
+            options.Apply(
+                definition.Create<TFragment>(
+                    modelSchema
+                        ?? throw new InvalidOperationException(
+                            "Provider source definitions require generated model metadata."
+                        ),
+                    serviceProvider,
+                    ownResource
+                ) ?? throw new InvalidOperationException("A source definition returned null.")
+            );
     }
 }
 

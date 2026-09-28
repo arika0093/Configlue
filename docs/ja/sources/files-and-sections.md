@@ -5,7 +5,7 @@ description: JSON・YAML・XML の形式とファイルソース、入れ子セ�
 
 # ファイル・形式・セクション
 
-プロバイダーパッケージは共有の `Sources` ビルダーに一発登録を追加します。JSON・YAML・XML ファイルは同じオプション形状です。
+プロバイダーパッケージは共有の `Sources` ビルダーに一発登録を追加します。各 provider の登録は、安定した論理名・優先度・fallback 動作・読み書きルーティングを設定する共通 fluent API を返し、provider 固有の設定は options object に残ります。
 
 ```csharp
 using Configlue.Provider.Json;
@@ -13,22 +13,19 @@ using Configlue.Provider.Yaml;
 
 model.Sources(sources =>
 {
-    sources.FromJsonFile(new()
-    {
-        Path = "settings.json",
-        SectionPath = "Application:User",
-        Priority = 100,
-    });
-    sources.FromYamlFile(new()
-    {
-        Path = "defaults.yaml",
-        Priority = 10,
-        ReadOnly = true,
-    });
+    sources
+        .FromJsonFile(new() { Path = "settings.json", SectionPath = "Application:User" })
+        .Named("user-settings")
+        .Priority(100);
+    sources
+        .FromYamlFile(new() { Path = "defaults.yaml" })
+        .Named("defaults")
+        .Priority(10)
+        .ReadOnly();
 });
 ```
 
-ファイルソースは正規化したリソースとセクションから安定した不透明 ID を受け取ります。高度な移行や診断で安定 ID が必要な場合のみ `Id` を指定してください。
+アプリケーションコードでルーティングや移行のためにソースを選択する場合は `Named` を使います。それ以外ではファイルソースは正規化されたリソースとセクションから不透明 ID を取得します。`Writable()` は provider が writer を提供することを検証し、`ReadOnly()` は writer を取り除きます。`ExplicitOnly()` は明示的な書き込みには使えるまま、通常の書き込み先推論から除外します。
 
 `FromXmlFile(new() { ... })` も XML ファイルと任意の要素パスに同じオプションを使います。ファイルヘルパーは非 DI・DI の両方で動き、生成されたファイルリソースはコンテキスト所有でウォッチャー停止後に破棄されます。直接渡したクライアントは呼び出し側所有のままです。
 

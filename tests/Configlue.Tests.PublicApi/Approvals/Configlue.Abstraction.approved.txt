@@ -352,11 +352,14 @@ namespace Configlue
         System.Threading.Tasks.ValueTask<Configlue.StateMultiWriteResult> ApplyPatchesAsync(System.Collections.Generic.IEnumerable<Configlue.StateSourcePatch> patches, System.Threading.CancellationToken cancellationToken = default);
         System.Threading.Tasks.ValueTask<Configlue.ConfiglueDetailsSnapshot> GetDetailsSnapshotAsync(System.Threading.CancellationToken cancellationToken = default);
         Configlue.ConfiglueOptionsDiagnostics GetDiagnostics();
+        System.Threading.Tasks.ValueTask<Configlue.StateSourceMigrationResult> MigrateSourceAsync(Configlue.SourceKey<T> sourceKey, Configlue.SourceKey<T> targetKey, System.Threading.CancellationToken cancellationToken = default);
         System.Threading.Tasks.ValueTask<Configlue.StateSourceMigrationResult> MigrateSourceAsync(string sourceId, string targetId, System.Threading.CancellationToken cancellationToken = default);
+        System.Threading.Tasks.ValueTask<Configlue.StateStorageMigrationResult> MigrateSourcesToTargetsAsync(System.Collections.Generic.IEnumerable<Configlue.SourceKey<T>> sourceKeys, System.Collections.Generic.IReadOnlyDictionary<Configlue.SourceKey<T>, System.Func<Configlue.IConfiglueFragment, Configlue.IConfiglueFragment>> targetProjections, System.Threading.CancellationToken cancellationToken = default, bool retireSources = false);
         System.Threading.Tasks.ValueTask<Configlue.StateStorageMigrationResult> MigrateSourcesToTargetsAsync(System.Collections.Generic.IEnumerable<string> sourceIds, System.Collections.Generic.IReadOnlyDictionary<string, System.Func<Configlue.IConfiglueFragment, Configlue.IConfiglueFragment>> targetProjections, System.Threading.CancellationToken cancellationToken = default, bool retireSources = false);
         System.IDisposable OnReloadFailed(System.Action<System.Exception> listener);
         System.Threading.Tasks.ValueTask<Configlue.EditSession<T>> OpenEditSessionAsync(System.Threading.CancellationToken cancellationToken = default);
         System.Threading.Tasks.ValueTask<Configlue.EditSession<T>> OpenEditSessionAsync(Configlue.StateWritePlan writePlan, System.Threading.CancellationToken cancellationToken = default);
+        System.Threading.Tasks.ValueTask<Configlue.StateReadResult<T>> ReadAsync(System.Threading.CancellationToken cancellationToken = default);
     }
     public interface IConfigluePatch
     {
@@ -376,9 +379,6 @@ namespace Configlue
         System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyCollection<string>> GetProfileNamesAsync(System.Threading.CancellationToken cancellationToken = default);
         System.IDisposable OnChange(System.Action<TModel> listener);
         System.Threading.Tasks.ValueTask RemoveProfileAsync(string profileName, System.Threading.CancellationToken cancellationToken = default);
-        System.Threading.Tasks.ValueTask<Configlue.StateWriteResult> SaveAsync(System.Action<TModel> update, System.Threading.CancellationToken cancellationToken = default);
-        System.Threading.Tasks.ValueTask<Configlue.StateWriteResult> SaveAsync(System.Func<TModel, System.Threading.Tasks.Task> update, System.Threading.CancellationToken cancellationToken = default);
-        System.Threading.Tasks.ValueTask<Configlue.StateWriteResult> SaveAsync(TModel value, System.Threading.CancellationToken cancellationToken = default);
         System.Threading.Tasks.ValueTask SetActiveProfileAsync(string profileName, System.Threading.CancellationToken cancellationToken = default);
     }
     public interface IConfiglueReplacementPatch : Configlue.IConfigluePatch
@@ -402,7 +402,6 @@ namespace Configlue
     {
         System.Threading.Tasks.ValueTask<T> GetValueAsync(System.Threading.CancellationToken cancellationToken = default);
         System.IDisposable OnChange(System.Action<T> listener);
-        System.Threading.Tasks.ValueTask<Configlue.StateReadResult<T>> ReadAsync(System.Threading.CancellationToken cancellationToken = default);
     }
     public interface IResourceBackupRecovery
     {
@@ -569,8 +568,9 @@ namespace Configlue
     }
     public readonly struct SourceKey<TModel> : System.IEquatable<Configlue.SourceKey<TModel>>
     {
+        public string Name { get; }
         public static Configlue.SourceKey<TModel> Create() { }
-        public static Configlue.SourceKey<TModel> FromId(string id) { }
+        public static Configlue.SourceKey<TModel> Named(string name) { }
     }
     public readonly struct StateCodecContext
     {

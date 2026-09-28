@@ -19,14 +19,19 @@ Register an object as a typed state source and keep serialization in Configlue's
 using Configlue.Provider.Json;
 using Configlue.Resource.S3;
 
-model.Sources(sources => sources.FromS3Object(new S3ObjectSourceOptions
-{
-    BucketName = "app-config",
-    Key = "production/settings.json",
-    Client = s3Client,
-    Codec = new JsonStateCodec<AppSettings.Fragment>(),
-}));
+model.Sources(sources => sources
+    .FromS3Object(new S3ObjectSourceOptions
+    {
+        BucketName = "app-config",
+        Key = "production/settings.json",
+        Client = s3Client,
+        Codec = new JsonStateCodec<AppSettings.Fragment>(),
+    })
+    .Named("production-settings")
+    .Writable());
 ```
+
+The returned registration shares `Named`, `Priority`, `FallbackWhen`, `ReadOnly`, `Writable`, and `ExplicitOnly` with other providers. `Named` is useful when application code needs to select the source for routing or migration.
 
 In dependency-injected applications, use `ClientFactory` to resolve the host-owned `IAmazonS3`; the client remains externally owned. `S3ObjectResource` can also be used directly where a resource is needed.
 

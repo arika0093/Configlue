@@ -292,7 +292,10 @@ public sealed partial class StateRuntimeTests
             migrations: [new AppSettingsV1ToV2Migration()]
         );
 
-        var migration = await options.MigrateSourceAsync("legacy", "current");
+        var migration = await options.MigrateSourceAsync(
+            SourceKey<AppSettings>.Named("legacy"),
+            SourceKey<AppSettings>.Named("current")
+        );
         var copied = await target.ReadAsync();
 
         (migration.SourceId).ShouldBe("legacy");
@@ -339,20 +342,22 @@ public sealed partial class StateRuntimeTests
                 new("retry-only", retryTarget, priority: -1, writer: retryTarget),
             ])
         );
-        var targets = new Dictionary<string, Func<IConfiglueFragment, IConfiglueFragment>>(
-            StringComparer.Ordinal
-        )
+        var targets = new Dictionary<
+            SourceKey<AppSettings>,
+            Func<IConfiglueFragment, IConfiglueFragment>
+        >()
         {
-            ["primary"] = static fragment => fragment,
-            ["retry-only"] = static fragment => new AppSettings.Fragment
-            {
-                RetryCount = ((AppSettings.Fragment)fragment).RetryCount,
-            },
+            [SourceKey<AppSettings>.Named("primary")] = static fragment => fragment,
+            [SourceKey<AppSettings>.Named("retry-only")] =
+                static fragment => new AppSettings.Fragment
+                {
+                    RetryCount = ((AppSettings.Fragment)fragment).RetryCount,
+                },
         };
         IConfiglueOptions<AppSettings> writableOptions = options;
 
         var firstRun = await writableOptions.MigrateSourcesToTargetsAsync(
-            ["legacy", "user"],
+            [SourceKey<AppSettings>.Named("legacy"), SourceKey<AppSettings>.Named("user")],
             targets
         );
         var primary = await primaryTarget.ReadAsync();
@@ -370,7 +375,7 @@ public sealed partial class StateRuntimeTests
         (firstRun.Targets.All(static result => !result.WasAlreadyCurrent)).ShouldBeTrue();
 
         var secondRun = await writableOptions.MigrateSourcesToTargetsAsync(
-            ["legacy", "user"],
+            [SourceKey<AppSettings>.Named("legacy"), SourceKey<AppSettings>.Named("user")],
             targets
         );
 

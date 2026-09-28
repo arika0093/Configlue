@@ -34,6 +34,6 @@ namespace Configlue.Resource.S3
     }
     public static class S3ObjectSourceRegistration
     {
-        public static void FromS3Object(this Configlue.ConfiglueSourceSetBuilder sources, Configlue.Resource.S3.S3ObjectSourceOptions options) { }
+        public static Configlue.ConfiglueSourceRegistration FromS3Object(this Configlue.ConfiglueSourceSetBuilder sources, Configlue.Resource.S3.S3ObjectSourceOptions options) { }
     }
 }

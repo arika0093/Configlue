@@ -19,13 +19,13 @@ model.SourcesForOptions((profileName, sources) =>
 var profiles = context.GetProfiledOptions<AppSettings>();
 await profiles.CreateProfileAsync("work", copyFrom: "default");
 await profiles.SetActiveProfileAsync("work");
-var active = await profiles.GetActiveValueAsync();
-await profiles.SaveAsync(settings => settings.RetryCount++);
-var current = profiles.CurrentValue; // synchronous; blocks while sources are read
+var activeOptions = await profiles.GetActiveProfileAsync();
+await activeOptions.SaveAsync(patch => patch.RetryCount = 3);
+var current = await profiles.GetActiveValueAsync();
 await profiles.RemoveProfileAsync("work");
 ```
 
-The profile facade can read and save the active profile directly; save overloads accept a full value, a synchronous update, or an asynchronous update. Its `CurrentValue` property blocks while sources are read, so prefer `GetActiveValueAsync` from asynchronous flows. The profile catalog source must be writable and remains caller-owned. The catalog is stored through a normal writable `StateSource<ConfiglueProfileCatalog>`, so its provider can be chosen independently. `IConfiglueProfiledOptions<TModel>` lazily restores or creates the default profile on its first async operation, can copy a profile with `CreateProfileAsync`, and persists active-profile changes. Removing a profile removes it from the catalog and runtime; its backing state is retained.
+The profile facade manages profile selection and lifetime; write through the `IWritableOptions<TModel>` returned by `GetActiveProfileAsync` or `GetProfileAsync`. This keeps profile writes patch-first, including explicit `Unset` operations. The profile catalog source must be writable and remains caller-owned. The catalog is stored through a normal writable `StateSource<ConfiglueProfileCatalog>`, so its provider can be chosen independently. `IConfiglueProfiledOptions<TModel>` lazily restores or creates the default profile on its first async operation, can copy a profile with `CreateProfileAsync`, and persists active-profile changes. Removing a profile removes it from the catalog and runtime; its backing state is retained.
 
 `OnChange` follows the active profile: it reports value changes and emits the newly active value after a profile switch. When the catalog source provides a watcher, the manager observes external catalog changes too. Dispose the subscription to stop its callbacks. The manager's catalog watcher stops when the owning context is disposed; dispose a directly constructed profile manager yourself.
 

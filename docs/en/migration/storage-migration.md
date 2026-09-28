@@ -9,7 +9,7 @@ Schema migration evolves shapes; storage migration moves contributions between s
 
 ## Single source copy
 
-`IConfiglueOptions<T>.MigrateSourceAsync(sourceId, targetId)` copies one source contribution, applies its schema migration chain, and writes it to a selected destination.
+`IConfiglueOptions<T>.MigrateSourceAsync(sourceKey, targetKey)` copies one source contribution, applies its schema migration chain, and writes it to a selected destination. Use `SourceKey<T>.Named("legacy")` and `SourceKey<T>.Named("current")` for stable application-defined logical names; opaque provider-generated IDs remain useful for diagnostics but are not needed by application callers.
 
 ## Multi-target migration with retirement
 

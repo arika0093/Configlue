@@ -56,7 +56,7 @@ public sealed partial class NestedSourceBindingTests
         var explicitPatch = new AppSettings.Patch();
         explicitPatch.Database.Host = "explicit-updated.db";
         await options
-            .Source(SourceKey<AppSettings>.FromId("explicit-database"))
+            .Source(SourceKey<AppSettings>.Named("explicit-database"))
             .SaveAsync(explicitPatch);
         (await explicitStore.ReadAsync()).Value!.Host.Value.ShouldBe("explicit-updated.db");
     }

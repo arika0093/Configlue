@@ -69,13 +69,13 @@ public sealed class JsonHttpSourceOptions
 public static class JsonHttpSourceRegistration
 {
     /// <summary>Adds a JSON HTTP source. The client remains owned by its provider.</summary>
-    public static void FromJsonHttp(
+    public static ConfiglueSourceRegistration FromJsonHttp(
         this ConfiglueSourceSetBuilder sources,
         JsonHttpSourceOptions options
     )
     {
         ArgumentNullException.ThrowIfNull(sources);
         ArgumentNullException.ThrowIfNull(options);
-        sources.FromHttp(options.ToHttpSourceOptions());
+        return sources.FromHttp(options.ToHttpSourceOptions());
     }
 }
