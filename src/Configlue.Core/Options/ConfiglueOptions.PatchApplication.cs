@@ -280,7 +280,11 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
 
         if (replacements.Count > 0)
         {
-            var proposed = await ResolveCoreAsync(replacements, cancellationToken)
+            var proposed = await ResolveCoreAsync(
+                    replacements,
+                    cancellationToken,
+                    captureContributions: true
+                )
                 .ConfigureAwait(false);
             if (proposed.Result.Status != StateReadStatus.Success)
             {

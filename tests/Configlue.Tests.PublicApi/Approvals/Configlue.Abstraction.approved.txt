@@ -702,6 +702,8 @@ namespace Configlue
     public sealed class StateSourceSet<T>
     {
         public StateSourceSet(System.Collections.Generic.IEnumerable<Configlue.StateSource<T>> sources) { }
+        public int Count { get; }
+        public Configlue.StateSource<T> this[int index] { get; }
         public System.Collections.Generic.IReadOnlyList<Configlue.StateSource<T>> Sources { get; }
     }
     public readonly struct StateSourceWriteResult : System.IEquatable<Configlue.StateSourceWriteResult>

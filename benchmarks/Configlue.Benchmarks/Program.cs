@@ -122,3 +122,47 @@ public class OptionsRuntimeBenchmarks
         ) => _core.OnCompleted(continuation, state, token, flags);
     }
 }
+
+[MemoryDiagnoser]
+public class StateSourceResolverBenchmarks
+{
+    private StateSourceResolver<BenchmarkSettings.Fragment> _resolver = null!;
+
+    [Params(1, 4, 16)]
+    public int SourceCount { get; set; }
+
+    [GlobalSetup]
+    public void Setup()
+    {
+        var sources = Enumerable
+            .Range(0, SourceCount)
+            .Select(index =>
+            {
+                var store =
+                    index == SourceCount - 1
+                        ? new InMemoryStateStore<BenchmarkSettings.Fragment>(
+                            new BenchmarkSettings.Fragment
+                            {
+                                Counter = Optional<int>.Present(index),
+                                Name = Optional<string>.Present($"Layer {index}"),
+                                Enabled = Optional<bool>.Present(true),
+                            }
+                        )
+                        : new InMemoryStateStore<BenchmarkSettings.Fragment>();
+                return new StateSource<BenchmarkSettings.Fragment>(
+                    $"layer-{index}",
+                    store,
+                    priority: SourceCount - index,
+                    fallbackCondition: StateFallbackCondition.NotFound
+                );
+            })
+            .ToArray();
+        _resolver = new StateSourceResolver<BenchmarkSettings.Fragment>(
+            new StateSourceSet<BenchmarkSettings.Fragment>(sources)
+        );
+    }
+
+    [Benchmark]
+    public ValueTask<StateReadResult<BenchmarkSettings.Fragment>> ResolveSourcesAsync() =>
+        _resolver.ReadAsync();
+}

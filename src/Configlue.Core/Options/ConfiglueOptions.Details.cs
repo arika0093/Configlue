@@ -8,7 +8,8 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
         CancellationToken cancellationToken = default
     )
     {
-        var resolved = await ResolveCoreAsync(null, cancellationToken).ConfigureAwait(false);
+        var resolved = await ResolveCoreAsync(null, cancellationToken, captureContributions: true)
+            .ConfigureAwait(false);
         if (resolved.Result.Status != StateReadStatus.Success || resolved.Result.Value is null)
         {
             throw new InvalidOperationException(

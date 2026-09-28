@@ -35,7 +35,17 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
         lock (_changeGate)
         {
             watchTask = _watchTask;
-            operationsDrained = _operationsDrained.Task;
+            if (_activeOperations == 0)
+            {
+                operationsDrained = Task.CompletedTask;
+            }
+            else
+            {
+                _operationsDrained ??= new TaskCompletionSource(
+                    TaskCreationOptions.RunContinuationsAsynchronously
+                );
+                operationsDrained = _operationsDrained.Task;
+            }
         }
 
         List<Exception>? errors = null;
@@ -65,24 +75,19 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
         }
     }
 
-    private IDisposable EnterOperation()
+    private OperationLease EnterOperation()
     {
         for (var frame = _operationFrame.Value; frame is not null; frame = frame.Parent)
         {
             if (ReferenceEquals(frame.Owner, this) && Volatile.Read(ref frame.Active) != 0)
             {
-                return new OperationLease(this, frame: null);
+                return default;
             }
         }
         lock (_changeGate)
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
-            if (_activeOperations++ == 0)
-            {
-                _operationsDrained = new TaskCompletionSource(
-                    TaskCreationOptions.RunContinuationsAsynchronously
-                );
-            }
+            _activeOperations++;
         }
         var root = new OperationFrame(this, _operationFrame.Value);
         _operationFrame.Value = root;
@@ -104,16 +109,9 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
         {
             if (--_activeOperations == 0)
             {
-                _operationsDrained.TrySetResult();
+                _operationsDrained?.TrySetResult();
             }
         }
-    }
-
-    private static TaskCompletionSource CompletedOperationsSignal()
-    {
-        var signal = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        signal.SetResult();
-        return signal;
     }
 
     private sealed class OperationFrame(
@@ -126,14 +124,12 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
         public int Active = 1;
     }
 
-    private sealed class OperationLease(
-        ConfiglueOptions<TModel, TFragment> owner,
+    private readonly struct OperationLease(
+        ConfiglueOptions<TModel, TFragment>? owner,
         OperationFrame? frame
     ) : IDisposable
     {
-        private ConfiglueOptions<TModel, TFragment>? _owner = owner;
-
-        public void Dispose() => Interlocked.Exchange(ref _owner, null)?.ExitOperation(frame);
+        public void Dispose() => owner?.ExitOperation(frame);
     }
 
     private StateSource<TFragment> SelectWriteSource(bool allowPriorityFallback = false)
@@ -368,10 +364,7 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
 
     private StateSource<TFragment>[] GetActiveSources()
     {
-        lock (_sourceGate)
-        {
-            return _activeSources;
-        }
+        return Volatile.Read(ref _activeSources);
     }
 
     private bool IsSourceActive(string sourceId)
@@ -395,9 +388,12 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
 
             if (changed)
             {
-                _activeSources = _sourceSet
-                    .Sources.Where(source => !_retiredSourceIds.Contains(source.Id))
-                    .ToArray();
+                Volatile.Write(
+                    ref _activeSources,
+                    _sourceSet
+                        .Sources.Where(source => !_retiredSourceIds.Contains(source.Id))
+                        .ToArray()
+                );
                 topologyChanged = _sourceTopologyChanged;
                 _sourceTopologyChanged = NewTopologySignal();
             }

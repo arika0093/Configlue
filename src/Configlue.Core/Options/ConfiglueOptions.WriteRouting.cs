@@ -261,7 +261,11 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
             );
         }
 
-        var proposed = await ResolveCoreAsync(replacements, cancellationToken)
+        var proposed = await ResolveCoreAsync(
+                replacements,
+                cancellationToken,
+                captureContributions: true
+            )
             .ConfigureAwait(false);
         if (proposed.Result.Status != StateReadStatus.Success)
         {

@@ -105,15 +105,16 @@ public sealed class CompositeStateSource<TFragment>
     )
     {
         var successful = new List<ComponentResult>();
-        var revisions = new List<StateRevision>(_components.Sources.Count);
-        var nestedRevisions = new List<KeyValuePair<string, StateRevisionVector>>();
-        var watchTargets = new List<WatchTarget>(_components.Sources.Count);
+        var revisions = new List<StateRevision>(_components.Count);
+        List<KeyValuePair<string, StateRevisionVector>>? nestedRevisions = null;
+        var watchTargets = new List<WatchTarget>(_components.Count);
         StateReadResult<TFragment> lastFailure = default;
         StateSchemaMetadata? schema = null;
         var hasSchema = false;
 
-        foreach (var source in _components.Sources)
+        for (var index = 0; index < _components.Count; index++)
         {
+            var source = _components[index];
             cancellationToken.ThrowIfCancellationRequested();
             var result = await source.Reader.ReadAsync(cancellationToken).ConfigureAwait(false);
             result = result.FromSource(source.Id, source.PhysicalOrigin);
@@ -138,6 +139,7 @@ public sealed class CompositeStateSource<TFragment>
             watchTargets.Add(new WatchTarget(source, result.Revision));
             if (result.Revisions is { } nested)
             {
+                nestedRevisions ??= [];
                 nestedRevisions.Add(
                     new KeyValuePair<string, StateRevisionVector>(source.Id, nested)
                 );
@@ -185,10 +187,7 @@ public sealed class CompositeStateSource<TFragment>
             if (!CanFallBack(source.FallbackCondition, result.Status))
             {
                 SetWatchTargets(watchTargets);
-                return result with
-                {
-                    Revisions = new StateRevisionVector(revisions, nestedRevisions),
-                };
+                return result with { Revisions = CreateRevisionVector(revisions, nestedRevisions) };
             }
         }
 
@@ -197,7 +196,7 @@ public sealed class CompositeStateSource<TFragment>
         {
             return lastFailure with
             {
-                Revisions = new StateRevisionVector(revisions, nestedRevisions),
+                Revisions = CreateRevisionVector(revisions, nestedRevisions),
             };
         }
 
@@ -211,9 +210,17 @@ public sealed class CompositeStateSource<TFragment>
         return StateReadResult<TFragment>.Success(combined, schema: schema) with
         {
             PhysicalOrigin = GetPhysicalOrigin(successful),
-            Revisions = new StateRevisionVector(revisions, nestedRevisions),
+            Revisions = CreateRevisionVector(revisions, nestedRevisions),
         };
     }
+
+    private static StateRevisionVector CreateRevisionVector(
+        List<StateRevision> revisions,
+        List<KeyValuePair<string, StateRevisionVector>>? nestedRevisions
+    ) =>
+        nestedRevisions is null
+            ? new StateRevisionVector(revisions)
+            : new StateRevisionVector(revisions, nestedRevisions);
 
     /// <summary>Composite writes must be expressed as member patches so ownership stays component-local.</summary>
     public ValueTask<StateWriteResult> WriteAsync(

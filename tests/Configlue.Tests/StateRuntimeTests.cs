@@ -17,6 +17,27 @@ public partial class ReplaceCollectionSettings
 public sealed partial class StateRuntimeTests
 {
     [Test]
+    public void StateSourceSet_ExposesPriorityOrderedIndexedAccess()
+    {
+        var lowerPriority = new StateSource<string>(
+            "lower",
+            new InMemoryStateStore<string>(),
+            priority: 0
+        );
+        var higherPriority = new StateSource<string>(
+            "higher",
+            new InMemoryStateStore<string>(),
+            priority: 10
+        );
+        var sourceSet = new StateSourceSet<string>([lowerPriority, higherPriority]);
+
+        sourceSet.Count.ShouldBe(2);
+        sourceSet[0].Id.ShouldBe("higher");
+        sourceSet[1].Id.ShouldBe("lower");
+        sourceSet.Sources[0].Id.ShouldBe("higher");
+    }
+
+    [Test]
     public async Task PatchSaveRequiresAWriteRouteWhenMultipleSourcesAreWritable()
     {
         var first = new InMemoryStateStore<AppSettings.Fragment>();
