@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 
 namespace Configlue;
 
@@ -255,13 +256,19 @@ public sealed partial class FileResource
         {
             await using var interprocessLock = await AcquireInterprocessLockAsync(cancellationToken)
                 .ConfigureAwait(false);
-            var previousContent = await TryReadForWriteAsync(cancellationToken)
-                .ConfigureAwait(false);
-            var currentRevision = previousContent is null ? null : GetRevision(previousContent);
-            var expectedRevision = mutations[0].ExpectedRevision;
             var checkRevision = mutations.Any(static mutation =>
                 mutation.CheckRevision || mutation.ExpectedRevision is not null
             );
+            var canSkipRead =
+                !checkRevision
+                && !(_options.CreateBackup && _options.BackupMaxCount > 0)
+                && mutations.Count == 1
+                && mutations[0].TryGetOwnedReplacementContent(out _);
+            var previousContent = canSkipRead
+                ? null
+                : await TryReadForWriteAsync(cancellationToken).ConfigureAwait(false);
+            var currentRevision = previousContent is null ? null : GetRevision(previousContent);
+            var expectedRevision = mutations[0].ExpectedRevision;
             if (
                 checkRevision
                 && !string.Equals(expectedRevision, currentRevision, StringComparison.Ordinal)
@@ -294,6 +301,18 @@ public sealed partial class FileResource
         string? revision
     )
     {
+        if (
+            mutations.Count == 1
+            && mutations[0].TryGetOwnedReplacementContent(out var replacementContent)
+            && MemoryMarshal.TryGetArray(replacementContent, out var replacementSegment)
+            && replacementSegment.Array is byte[] replacementArray
+            && replacementSegment.Offset == 0
+            && replacementSegment.Count == replacementArray.Length
+        )
+        {
+            return replacementArray;
+        }
+
         var current = previousContent is null
             ? ResourceReadResult.NotFound(revision)
             : ResourceReadResult.Success(previousContent, revision);
