@@ -28,5 +28,6 @@
     <ProjectReference Include="../../src/Configlue.Resource.Http/Configlue.Resource.Http.csproj" />
     <ProjectReference Include="../../src/Configlue.Resource.Http.AspNetCore/Configlue.Resource.Http.AspNetCore.csproj" />
     <ProjectReference Include="../../src/Configlue.Testing/Configlue.Testing.csproj" />
+    <ProjectReference Include="../../src/Configlue.Transformer.AES/Configlue.Transformer.AES.csproj" />
   </ItemGroup>
 </Project>

@@ -8,12 +8,14 @@ public sealed class SerializedStateWriter<T> : IStateWriter<T>, IStateWriteBatch
     private readonly IResourceWriter _resource;
     private readonly object _codec;
     private readonly StateCodecContext _context;
+    private readonly IStateByteTransformer[] _transformers;
 
     /// <summary>Creates a serialized state writer.</summary>
     public SerializedStateWriter(
         IResourceWriter resource,
         object codec,
-        StateCodecContext context = default
+        StateCodecContext context = default,
+        IEnumerable<IStateByteTransformer>? transformers = null
     )
     {
         ArgumentNullException.ThrowIfNull(resource);
@@ -29,6 +31,7 @@ public sealed class SerializedStateWriter<T> : IStateWriter<T>, IStateWriteBatch
         _resource = resource;
         _codec = codec;
         _context = context;
+        _transformers = StateByteTransformerPipeline.Create(transformers);
     }
 
     /// <inheritdoc />
@@ -97,7 +100,7 @@ public sealed class SerializedStateWriter<T> : IStateWriter<T>, IStateWriteBatch
             context.Schema
             ?? (request.Value is IConfiglueFragment fragment ? fragment.Schema.ToMetadata() : null);
         return new ResourceWriteRequest(
-            destination.WrittenMemory,
+            StateByteTransformerPipeline.TransformWrite(destination.WrittenMemory, _transformers),
             request.ExpectedRevision,
             schema,
             request.CheckRevision

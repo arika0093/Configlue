@@ -18,6 +18,7 @@ using Configlue.Source.CommandLine;
 using Configlue.Source.Common;
 using Configlue.Source.Environment;
 using Configlue.Testing;
+using Configlue.Transformer.AES;
 using PublicApiGenerator;
 
 namespace Configlue.Tests.PublicApi;
@@ -176,4 +177,7 @@ public sealed class PublicApiCheckTest
 
     [Test]
     public void Testing() => PublicApiCheck.Check<InMemoryResource>();
+
+    [Test]
+    public void AesTransformer() => PublicApiCheck.Check<AesGcmStateByteTransformer>();
 }

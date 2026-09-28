@@ -38,6 +38,7 @@ Add the capability packages you need on top:
 | Persist state through a Dapr state store | `Configlue.Resource.Dapr` |
 | Read and write Amazon S3 objects | `Configlue.Resource.S3` |
 | ZIP archive entries | `Configlue.Resource.Zip` |
+| AES-GCM encryption between a Resource and Codec | `Configlue.Transformer.AES` |
 | In-memory doubles for tests | `Configlue.Testing` |
 
 The full list with project roles is in the [package reference](../reference/packages.md).

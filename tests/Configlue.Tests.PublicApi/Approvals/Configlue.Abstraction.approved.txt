@@ -431,6 +431,15 @@ namespace Configlue
     {
         System.Threading.Tasks.ValueTask<Configlue.StateWriteResult> WriteAsync(Configlue.ResourceWriteRequest request, System.Threading.CancellationToken cancellationToken = default);
     }
+    public interface IStateByteTransformer
+    {
+        System.ReadOnlyMemory<byte> TransformRead(System.ReadOnlyMemory<byte> source);
+        System.ReadOnlyMemory<byte> TransformWrite(System.ReadOnlyMemory<byte> source);
+    }
+    public interface IStateByteTransformerRecoveryPolicy
+    {
+        bool IsRecoverableReadException(System.Exception exception);
+    }
     public interface IStateCodec
     {
         object? Deserialize(System.Type type, in System.Buffers.ReadOnlySequence<byte> source, in Configlue.StateCodecContext context);
@@ -444,6 +453,11 @@ namespace Configlue
     {
         T? Deserialize(in System.Buffers.ReadOnlySequence<byte> source, in Configlue.StateCodecContext context);
         void Serialize(T? value, System.Buffers.IBufferWriter<byte> destination, in Configlue.StateCodecContext context);
+    }
+    public interface IStateMiddleware<T>
+    {
+        Configlue.IStateReader<T> WrapReader(Configlue.IStateReader<T> next);
+        Configlue.IStateWriter<T> WrapWriter(Configlue.IStateWriter<T> next);
     }
     public interface IStateReader<T>
     {

@@ -1,0 +1,83 @@
+using System.Security.Cryptography;
+using Configlue.Provider.Json;
+using Configlue.Testing;
+using Configlue.Transformer.AES;
+
+namespace Configlue.Tests;
+
+public sealed class StatePipelineTests
+{
+    [Test]
+    public async Task FromResource_EncryptsBytesAndAppliesStateMiddleware()
+    {
+        var resource = new InMemoryResource();
+        using var transformer = new AesGcmStateByteTransformer(new byte[32]);
+        var source = SerializedStateSource.FromResource<string>(
+            "encrypted",
+            resource,
+            new JsonStateCodec<string>(),
+            transformers: [transformer],
+            middlewares: [new SuffixMiddleware("!")]
+        );
+
+        await source.Writer!.WriteAsync(new StateWriteRequest<string>("sensitive"));
+        var stored = await resource.ReadAsync();
+        var read = await source.Reader.ReadAsync();
+
+        stored.Status.ShouldBe(StateReadStatus.Success);
+        System.Text.Encoding.UTF8.GetString(stored.Content.Span).ShouldNotContain("sensitive");
+        read.Value.ShouldBe("sensitive!!");
+    }
+
+    [Test]
+    public void AesGcmTransformer_RejectsTamperedContent()
+    {
+        using var transformer = new AesGcmStateByteTransformer(new byte[32]);
+        var encrypted = transformer.TransformWrite("secret"u8.ToArray());
+        var tampered = encrypted.ToArray();
+        tampered[^1] ^= 0x01;
+
+        Should.Throw<CryptographicException>(() => transformer.TransformRead(tampered));
+    }
+
+    [Test]
+    public void AesGcmTransformer_RejectsInvalidKeys()
+    {
+        Should.Throw<ArgumentException>(() => new AesGcmStateByteTransformer(new byte[15]));
+    }
+
+    private sealed class SuffixMiddleware(string suffix) : IStateMiddleware<string>
+    {
+        public IStateReader<string> WrapReader(IStateReader<string> next) =>
+            new SuffixReader(next, suffix);
+
+        public IStateWriter<string> WrapWriter(IStateWriter<string> next) =>
+            new SuffixWriter(next, suffix);
+    }
+
+    private sealed class SuffixReader(IStateReader<string> next, string suffix)
+        : IStateReader<string>
+    {
+        public async ValueTask<StateReadResult<string>> ReadAsync(
+            CancellationToken cancellationToken = default
+        )
+        {
+            var result = await next.ReadAsync(cancellationToken);
+            return result.Status == StateReadStatus.Success
+                ? result with
+                {
+                    Value = result.Value + suffix,
+                }
+                : result;
+        }
+    }
+
+    private sealed class SuffixWriter(IStateWriter<string> next, string suffix)
+        : IStateWriter<string>
+    {
+        public ValueTask<StateWriteResult> WriteAsync(
+            StateWriteRequest<string> request,
+            CancellationToken cancellationToken = default
+        ) => next.WriteAsync(request with { Value = request.Value + suffix }, cancellationToken);
+    }
+}

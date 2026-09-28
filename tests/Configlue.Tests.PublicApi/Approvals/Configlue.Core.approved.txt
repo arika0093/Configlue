@@ -278,16 +278,16 @@ namespace Configlue
     }
     public sealed class SerializedStateReader<T> : Configlue.IStateReader<T>
     {
-        public SerializedStateReader(Configlue.IResourceReader resource, object codec, Configlue.StateCodecContext context = default, Configlue.StateSchemaDispatcher<T>? schemaDispatcher = null) { }
+        public SerializedStateReader(Configlue.IResourceReader resource, object codec, Configlue.StateCodecContext context = default, Configlue.StateSchemaDispatcher<T>? schemaDispatcher = null, System.Collections.Generic.IEnumerable<Configlue.IStateByteTransformer>? transformers = null) { }
         public System.Threading.Tasks.ValueTask<Configlue.StateReadResult<T>> ReadAsync(System.Threading.CancellationToken cancellationToken = default) { }
     }
     public static class SerializedStateSource
     {
-        public static Configlue.StateSource<T> FromResource<T>(string id, Configlue.IResourceReader resource, object codec, int priority = 0, Configlue.StateFallbackCondition fallbackCondition = 1, Configlue.IResourceWriter? writer = null, Configlue.IStateWatcher? watcher = null, string? physicalOrigin = null, Configlue.StateCodecContext context = default, Configlue.ResourceId? resourceId = default, Configlue.StateSchemaDispatcher<T>? schemaDispatcher = null) { }
+        public static Configlue.StateSource<T> FromResource<T>(string id, Configlue.IResourceReader resource, object codec, int priority = 0, Configlue.StateFallbackCondition fallbackCondition = 1, Configlue.IResourceWriter? writer = null, Configlue.IStateWatcher? watcher = null, string? physicalOrigin = null, Configlue.StateCodecContext context = default, Configlue.ResourceId? resourceId = default, Configlue.StateSchemaDispatcher<T>? schemaDispatcher = null, System.Collections.Generic.IEnumerable<Configlue.IStateByteTransformer>? transformers = null, System.Collections.Generic.IEnumerable<Configlue.IStateMiddleware<T>>? middlewares = null) { }
     }
     public sealed class SerializedStateWriter<T> : Configlue.IStateWriteBatchParticipant<T>, Configlue.IStateWriter<T>
     {
-        public SerializedStateWriter(Configlue.IResourceWriter resource, object codec, Configlue.StateCodecContext context = default) { }
+        public SerializedStateWriter(Configlue.IResourceWriter resource, object codec, Configlue.StateCodecContext context = default, System.Collections.Generic.IEnumerable<Configlue.IStateByteTransformer>? transformers = null) { }
         public bool TryCreateBatchWrite(Configlue.StateWriteRequest<T> request, out Configlue.ResourceId resourceId, out Configlue.IResourceBatchWriter? batchWriter, out Configlue.ResourceWriteMutation? mutation) { }
         public System.Threading.Tasks.ValueTask<Configlue.StateWriteResult> WriteAsync(Configlue.StateWriteRequest<T> request, System.Threading.CancellationToken cancellationToken = default) { }
     }

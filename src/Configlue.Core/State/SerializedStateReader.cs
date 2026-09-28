@@ -9,13 +9,15 @@ public sealed class SerializedStateReader<T> : IStateReader<T>
     private readonly object _codec;
     private readonly StateCodecContext _context;
     private readonly StateSchemaDispatcher<T>? _schemaDispatcher;
+    private readonly IStateByteTransformer[] _transformers;
 
     /// <summary>Creates a serialized state reader.</summary>
     public SerializedStateReader(
         IResourceReader resource,
         object codec,
         StateCodecContext context = default,
-        StateSchemaDispatcher<T>? schemaDispatcher = null
+        StateSchemaDispatcher<T>? schemaDispatcher = null,
+        IEnumerable<IStateByteTransformer>? transformers = null
     )
     {
         ArgumentNullException.ThrowIfNull(resource);
@@ -32,6 +34,7 @@ public sealed class SerializedStateReader<T> : IStateReader<T>
         _codec = codec;
         _context = context;
         _schemaDispatcher = schemaDispatcher;
+        _transformers = StateByteTransformerPipeline.Create(transformers);
     }
 
     /// <inheritdoc />
@@ -159,8 +162,14 @@ public sealed class SerializedStateReader<T> : IStateReader<T>
     }
 
     private bool IsRecoverableReadException(Exception exception) =>
-        _codec is IStateCodecRecoveryPolicy recoveryPolicy
-        && recoveryPolicy.IsRecoverableReadException(exception);
+        (
+            _codec is IStateCodecRecoveryPolicy recoveryPolicy
+            && recoveryPolicy.IsRecoverableReadException(exception)
+        )
+        || _transformers.Any(transformer =>
+            transformer is IStateByteTransformerRecoveryPolicy recoveryPolicy
+            && recoveryPolicy.IsRecoverableReadException(exception)
+        );
 
     private StateReadResult<T> Deserialize(ResourceReadResult result)
     {
@@ -174,7 +183,8 @@ public sealed class SerializedStateReader<T> : IStateReader<T>
             );
         }
 
-        var bytes = new ReadOnlySequence<byte>(result.Content);
+        var content = StateByteTransformerPipeline.TransformRead(result.Content, _transformers);
+        var bytes = new ReadOnlySequence<byte>(content);
         var schema =
             result.Schema
             ?? (
