@@ -16,6 +16,7 @@
       ReferenceOutputAssembly="false"
     />
     <ProjectReference Include="../../src/Configlue.Provider.Json/Configlue.Provider.Json.csproj" />
+    <ProjectReference Include="../../src/Configlue.JsonSchema/Configlue.JsonSchema.csproj" />
     <ProjectReference Include="../../src/Configlue.Provider.Xml/Configlue.Provider.Xml.csproj" />
     <ProjectReference Include="../../src/Configlue.Provider.Yaml/Configlue.Provider.Yaml.csproj" />
     <ProjectReference Include="../../src/Configlue.Source.Environment/Configlue.Source.Environment.csproj" />

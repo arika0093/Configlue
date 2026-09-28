@@ -11,7 +11,7 @@ using System.Text.Json.Serialization.Metadata;
 using System.Text.Json.Schema;
 #endif
 
-namespace Configlue.Provider.Json;
+namespace Configlue.JsonSchema;
 
 public static partial class JsonSchemaGenerator
 {

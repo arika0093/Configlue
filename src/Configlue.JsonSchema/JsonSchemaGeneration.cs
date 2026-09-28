@@ -1,4 +1,4 @@
-namespace Configlue.Provider.Json;
+namespace Configlue.JsonSchema;
 
 internal static class JsonSchemaGeneration
 {

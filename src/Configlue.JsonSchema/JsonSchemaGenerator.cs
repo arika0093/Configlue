@@ -13,7 +13,7 @@ using System.Text.Json.Serialization.Metadata;
 using System.Text.Json.Schema;
 #endif
 
-namespace Configlue.Provider.Json;
+namespace Configlue.JsonSchema;
 
 /// <summary>Represents a generated JSON Schema document.</summary>
 public sealed record JsonSchemaDocument

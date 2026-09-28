@@ -7,7 +7,7 @@ description: 版つきスキーマの出力とインメモリダブルによる�
 
 ## JSON Schema 出力
 
-`JsonSchemaGenerator.Generate`・`Write` はモデルの生成済み `ConfiglueModelSchema` から版つきスキーマを出力します。トリミング/NativeAOT 向けのメタデータとしてソース生成の `IJsonTypeInfoResolver` を渡します。対応する DataAnnotations はスキーマ制約に写像されます。
+`JsonSchemaGenerator.Generate`・`Write` は独立パッケージ `Configlue.JsonSchema` (名前空間 `Configlue.JsonSchema`) にあり、モデルの生成済み `ConfiglueModelSchema` から版つきスキーマを出力します。`Configlue` メタパッケージにも含まれます。トリミング/NativeAOT 向けのメタデータとしてソース生成の `IJsonTypeInfoResolver` を渡します。対応する DataAnnotations はスキーマ制約に写像されます。
 
 ```csharp
 var result = JsonSchemaGenerator.Generate(

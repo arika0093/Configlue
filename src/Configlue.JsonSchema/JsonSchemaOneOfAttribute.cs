@@ -1,6 +1,6 @@
 using System;
 
-namespace Configlue.Provider.Json;
+namespace Configlue.JsonSchema;
 
 /// <summary>
 /// Describes the alternative JSON shapes accepted by a property with a custom converter.

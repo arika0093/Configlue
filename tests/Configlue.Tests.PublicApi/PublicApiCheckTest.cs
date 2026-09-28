@@ -5,6 +5,7 @@ using System.Text;
 using Configlue;
 using Configlue.Extensions.MSOptions;
 using Configlue.Generator;
+using Configlue.JsonSchema;
 using Configlue.Provider.Json;
 using Configlue.Provider.Xml;
 using Configlue.Provider.Yaml;
@@ -138,6 +139,9 @@ public sealed class PublicApiCheckTest
 
     [Test]
     public void Json() => PublicApiCheck.Check<JsonStateCodec<object>>();
+
+    [Test]
+    public void JsonSchema() => PublicApiCheck.Check<JsonSchemaGenerationResult>();
 
     [Test]
     public void Xml() => PublicApiCheck.Check<XmlStateCodec<object>>();
