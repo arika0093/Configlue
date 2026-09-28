@@ -7,7 +7,9 @@ description: Non-DI contexts, DI registration, ownership, and named instances.
 
 ## Without DI
 
-`ConfiglueApp.CreateContext(...)` creates an independent lifetime-managed context. `ConfiglueApp.Initialize(...)` plus `ConfiglueApp.GetOptions<T>()` share one process-wide default context instead; call `await ConfiglueApp.ShutdownAsync()` to dispose it.
+`ConfiglueApp.CreateContext(...)` creates an independent lifetime-managed context. `ConfiglueApp.Initialize(...)` plus `ConfiglueApp.GetOptions<T>()` share one process-wide default context instead; call `await ConfiglueApp.ShutdownAsync()` to dispose it. `Initialize` is configuration only and does not block on source I/O; reads and writes remain asynchronous.
+
+The process-wide lifecycle is strict and test friendly. `GetOptions<T>()` before `Initialize` throws `InvalidOperationException`, and initializing while a default context is active throws as well. `ShutdownAsync` is idempotent and clears the default context, so it can be followed by another `Initialize` to build a fresh context. Use `CreateContext` when you need several contexts at once, DI, or scoped lifetimes. Source precedence and equal-priority tie behavior are documented in [Resolution and merge](../layering/resolution-and-merge.md).
 
 ```csharp
 using Configlue.Sources;
