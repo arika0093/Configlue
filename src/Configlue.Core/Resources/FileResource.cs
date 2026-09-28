@@ -1,5 +1,7 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using Configlue.Codecs;
+using Configlue.State;
 
 namespace Configlue.Resources;
 
@@ -42,9 +44,10 @@ public sealed partial class FileResource
     private readonly string _path;
     private readonly string _directory;
     private readonly string _fileName;
+    private readonly string _backupFileName;
     private readonly string _lockPath;
     private readonly string _backupDirectory;
-    private readonly string? _previousBackupDirectory;
+    private readonly string[] _previousBackupDirectories;
     private readonly FileResourceOptions _options;
     private readonly object _watchGate = new();
     private FileSystemWatcher? _fileWatcher;
@@ -53,10 +56,34 @@ public sealed partial class FileResource
     private int _disposeCallCount;
 
     /// <summary>Creates a file resource at the supplied path.</summary>
+    /// <param name="path">The path of the file resource.</param>
+    /// <param name="options">The retry and backup settings.</param>
+    /// <param name="resourceId">An optional stable physical identity for the resource.</param>
     public FileResource(
         string path,
         FileResourceOptions? options = null,
         ResourceId? resourceId = null
+    )
+        : this(path, options, resourceId, null) { }
+
+    /// <summary>Creates a model-backed file resource at the supplied path.</summary>
+    /// <param name="path">The path of the file resource.</param>
+    /// <param name="backupSchema">The model identity used to organize persistent backups by model and version.</param>
+    /// <param name="options">The retry and backup settings.</param>
+    /// <param name="resourceId">An optional stable physical identity for the resource.</param>
+    public FileResource(
+        string path,
+        StateSchemaMetadata backupSchema,
+        FileResourceOptions? options = null,
+        ResourceId? resourceId = null
+    )
+        : this(path, options, resourceId, backupSchema) { }
+
+    private FileResource(
+        string path,
+        FileResourceOptions? options,
+        ResourceId? resourceId,
+        StateSchemaMetadata? backupSchema
     )
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
@@ -67,47 +94,167 @@ public sealed partial class FileResource
         _fileName = System.IO.Path.GetFileName(_path);
         _options = options ?? new FileResourceOptions();
         var backupDirectory = _options.BackupDirectory;
+        var previousBackupDirectories = new List<string>();
+        var usesPersistentBackupDirectory = false;
         if (backupDirectory is not null)
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(backupDirectory);
-        }
-
-        if (backupDirectory is null)
-        {
-            backupDirectory = OperatingSystem.IsWindows() ? "backup" : ".backup";
-            _backupDirectory = System.IO.Path.GetFullPath(
-                System.IO.Path.Combine(_directory, backupDirectory)
-            );
-            _previousBackupDirectory = _directory;
-        }
-        else if (string.Equals(backupDirectory, "/", StringComparison.Ordinal))
-        {
-            _backupDirectory = _directory;
-            _previousBackupDirectory = null;
+            if (string.Equals(backupDirectory, "/", StringComparison.Ordinal))
+            {
+                _backupDirectory = _directory;
+            }
+            else if (System.IO.Path.IsPathRooted(backupDirectory))
+            {
+                _backupDirectory = System.IO.Path.GetFullPath(backupDirectory);
+            }
+            else
+            {
+                _backupDirectory = System.IO.Path.GetFullPath(
+                    System.IO.Path.Combine(_directory, backupDirectory)
+                );
+            }
+            if (
+                !System.IO.Path.IsPathRooted(backupDirectory)
+                && !string.Equals(backupDirectory, "/", StringComparison.Ordinal)
+            )
+            {
+                previousBackupDirectories.Add(System.IO.Path.GetFullPath(backupDirectory));
+            }
         }
         else
         {
-            _backupDirectory = System.IO.Path.GetFullPath(
-                System.IO.Path.IsPathRooted(backupDirectory)
-                    ? backupDirectory
-                    : System.IO.Path.Combine(_directory, backupDirectory)
-            );
-            _previousBackupDirectory = System.IO.Path.IsPathRooted(backupDirectory)
-                ? null
-                : System.IO.Path.GetFullPath(backupDirectory);
-            if (
-                string.Equals(
-                    _previousBackupDirectory,
+            var configuredMode = _options.BackupDirectoryMode;
+            var mode = configuredMode.GetValueOrDefault();
+            if (configuredMode is null)
+            {
+                mode =
+                    backupSchema is not null
+                    || _options.BackupRootDirectory is not null
+                    || !string.Equals(
+                        _options.BackupDirectoryName,
+                        "configlue-backups",
+                        StringComparison.Ordinal
+                    )
+                    || !_options.IncludeModelVersionInBackupDirectory
+                        ? FileBackupDirectoryMode.PersistentUserDirectory
+                        : FileBackupDirectoryMode.ResourceDirectory;
+            }
+
+            if (!Enum.IsDefined(mode))
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(options),
+                    "BackupDirectoryMode is not a valid value."
+                );
+            }
+
+            if (mode == FileBackupDirectoryMode.ResourceDirectory)
+            {
+                var resourceBackupName = OperatingSystem.IsWindows() ? "backup" : ".backup";
+                _backupDirectory = System.IO.Path.GetFullPath(
+                    System.IO.Path.Combine(_directory, resourceBackupName)
+                );
+                previousBackupDirectories.Add(_directory);
+            }
+            else
+            {
+                usesPersistentBackupDirectory = true;
+                ArgumentException.ThrowIfNullOrWhiteSpace(_options.BackupDirectoryName);
+                if (
+                    _options.BackupDirectoryName is "." or ".."
+                    || _options.BackupDirectoryName.IndexOfAny([
+                        '/',
+                        '\\',
+                        ':',
+                        '*',
+                        '?',
+                        '"',
+                        '<',
+                        '>',
+                        '|',
+                        '\0',
+                    ]) >= 0
+                    || System.IO.Path.IsPathRooted(_options.BackupDirectoryName)
+                )
+                {
+                    throw new ArgumentException(
+                        "BackupDirectoryName must be a single directory name.",
+                        nameof(options)
+                    );
+                }
+
+                var backupRoot = _options.BackupRootDirectory;
+                if (backupRoot is not null)
+                {
+                    ArgumentException.ThrowIfNullOrWhiteSpace(backupRoot);
+                }
+
+                string fullBackupRoot;
+                if (backupRoot is null)
+                {
+                    fullBackupRoot = ConfiglueStandardPaths.GetPersistentUserDataDirectory();
+                }
+                else if (System.IO.Path.IsPathRooted(backupRoot))
+                {
+                    fullBackupRoot = System.IO.Path.GetFullPath(backupRoot);
+                }
+                else
+                {
+                    fullBackupRoot = System.IO.Path.GetFullPath(
+                        System.IO.Path.Combine(_directory, backupRoot)
+                    );
+                }
+                var resolvedBackupDirectory = System.IO.Path.Combine(
+                    fullBackupRoot,
+                    _options.BackupDirectoryName
+                );
+                if (_options.IncludeModelVersionInBackupDirectory)
+                {
+                    if (backupSchema is not { } schema || schema.ModelId is null)
+                    {
+                        throw new ArgumentException(
+                            "A model ID and version are required for model-version backup directories.",
+                            nameof(backupSchema)
+                        );
+                    }
+
+                    var modelVersionDirectory = System.IO.Path.GetFileNameWithoutExtension(
+                        StateSchemaReference.GetFileName(schema.ModelId, schema.Version)
+                    );
+                    resolvedBackupDirectory = System.IO.Path.Combine(
+                        resolvedBackupDirectory,
+                        modelVersionDirectory
+                    );
+                }
+
+                _backupDirectory = System.IO.Path.GetFullPath(resolvedBackupDirectory);
+                var legacyBackupName = OperatingSystem.IsWindows() ? "backup" : ".backup";
+                previousBackupDirectories.Add(
+                    System.IO.Path.GetFullPath(System.IO.Path.Combine(_directory, legacyBackupName))
+                );
+                previousBackupDirectories.Add(_directory);
+            }
+        }
+        _previousBackupDirectories = previousBackupDirectories
+            .Where(directory =>
+                !string.Equals(
+                    directory,
                     _backupDirectory,
                     OperatingSystem.IsWindows()
                         ? StringComparison.OrdinalIgnoreCase
                         : StringComparison.Ordinal
                 )
             )
-            {
-                _previousBackupDirectory = null;
-            }
-        }
+            .Distinct(
+                OperatingSystem.IsWindows()
+                    ? StringComparer.OrdinalIgnoreCase
+                    : StringComparer.Ordinal
+            )
+            .ToArray();
+        _backupFileName = usesPersistentBackupDirectory
+            ? _fileName + "." + ConfiglueHashing.GetXxHash3Hex(identityPath)
+            : _fileName;
+
         if (_options.BackupMaxCount < 0)
         {
             throw new ArgumentOutOfRangeException(

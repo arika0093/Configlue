@@ -32,4 +32,28 @@ public sealed class ConfiglueStandardPathsTests
             ConfiglueStandardPaths.GetStandardSaveDirectory("../outside")
         );
     }
+
+    [Test]
+    public void PersistentUserDataDirectoryUsesThePlatformStateBase()
+    {
+        var profile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        var localAppData = Environment.GetEnvironmentVariable("LOCALAPPDATA");
+        var xdgStateHome = Environment.GetEnvironmentVariable("XDG_STATE_HOME");
+        var expectedPath =
+            OperatingSystem.IsWindows()
+                ? Path.GetFullPath(
+                    string.IsNullOrWhiteSpace(localAppData)
+                        ? Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData)
+                        : localAppData
+                )
+            : OperatingSystem.IsMacOS()
+                ? Path.GetFullPath(Path.Combine(profile, "Library", "Application Support"))
+            : Path.GetFullPath(
+                string.IsNullOrWhiteSpace(xdgStateHome)
+                    ? Path.Combine(profile, ".local", "state")
+                    : xdgStateHome
+            );
+
+        ConfiglueStandardPaths.GetPersistentUserDataDirectory().ShouldBe(expectedPath);
+    }
 }

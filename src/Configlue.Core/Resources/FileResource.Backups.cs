@@ -96,10 +96,17 @@ public sealed partial class FileResource
         var backupPaths = new List<string>();
         var currentBackups = new List<(int Index, int DirectoryPriority, string Path)>();
         var legacyBackups = new List<FileInfo>();
-        for (var directoryIndex = 0; directoryIndex < 2; directoryIndex++)
+        for (
+            var directoryIndex = 0;
+            directoryIndex <= _previousBackupDirectories.Length;
+            directoryIndex++
+        )
         {
-            var directory = directoryIndex == 0 ? _backupDirectory : _previousBackupDirectory;
-            if (directory is null || !Directory.Exists(directory))
+            var directory =
+                directoryIndex == 0
+                    ? _backupDirectory
+                    : _previousBackupDirectories[directoryIndex - 1];
+            if (!Directory.Exists(directory))
             {
                 continue;
             }
@@ -121,6 +128,14 @@ public sealed partial class FileResource
             var legacyPattern = legacyPrefix + "_*" + System.IO.Path.GetExtension(_path) + ".bak";
             foreach (var path in Directory.EnumerateFiles(directory, legacyPattern))
             {
+                if (
+                    directoryIndex == 0
+                    && !string.Equals(_backupFileName, _fileName, StringComparison.Ordinal)
+                )
+                {
+                    continue;
+                }
+
                 legacyBackups.Add(new FileInfo(path));
             }
         }
@@ -162,7 +177,24 @@ public sealed partial class FileResource
     private bool TryGetCurrentBackupIndex(string path, out int index)
     {
         var fileName = System.IO.Path.GetFileName(path);
-        var baseName = _fileName + _options.BackupExtension;
+        if (
+            TryGetBackupIndex(fileName, _backupFileName + _options.BackupExtension, out index)
+            || (
+                !string.Equals(_backupFileName, _fileName, StringComparison.Ordinal)
+                && !IsInCurrentBackupDirectory(path)
+                && TryGetBackupIndex(fileName, _fileName + _options.BackupExtension, out index)
+            )
+        )
+        {
+            return true;
+        }
+
+        index = -1;
+        return false;
+    }
+
+    private static bool TryGetBackupIndex(string fileName, string baseName, out int index)
+    {
         if (string.Equals(fileName, baseName, StringComparison.Ordinal))
         {
             index = 0;
@@ -198,7 +230,7 @@ public sealed partial class FileResource
 
     private string GetBackupPath(int index)
     {
-        var backupName = _fileName + _options.BackupExtension;
+        var backupName = _backupFileName + _options.BackupExtension;
         if (index > 0)
         {
             backupName += "." + index.ToString(System.Globalization.CultureInfo.InvariantCulture);

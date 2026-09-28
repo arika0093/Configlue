@@ -7,17 +7,26 @@ description: ファイルの世代バックアップと復元、ログ記録、�
 
 ## ファイルバックアップ
 
-ファイルリソースは既定で不可分な `.bak` を1世代保持します。バックアップは Windows ではリソースファイルと同じ場所の `backup/`、その他の OS では `.backup/` に保存し、Windows ではディレクトリとファイルを隠し属性にします。`FileResourceOptions` で複数世代や保存先を変えられます。相対 `BackupDirectory` はリソースファイルのディレクトリを基準にします。`/` を指定するとリソースファイルと同じディレクトリに保存します。`RestoreLatestBackupAsync` で最新世代を明示復元できます。
+モデル情報を持つ JSON・XML・YAML file source は、既定で不可分な `.bak` を1世代保持し、永続するユーザー領域に保存します。保存先の基準は Windows では `%LOCALAPPDATA%`、macOS では `~/Library/Application Support`、Linux では `$XDG_STATE_HOME` または `~/.local/state` です。既定の配置は `configlue-backups/{ModelId}.v{Version}/` で、同名ファイル同士が衝突しないようバックアップ名にリソースパス由来の安定したハッシュを含めます。Windows ではディレクトリとファイルを隠し属性にします。モデル情報のない単独の `FileResource` は従来どおり Windows では隣接する `backup/`、その他の OS では `.backup/` を使います。
+
+`FileResourceOptions` で保存先と保持世代数を指定できます。`BackupDirectoryName` で `configlue-backups` の名前だけを変え、`BackupRootDirectory` で永続領域のルートを変更できます (相対パスはリソースファイルのディレクトリ基準)。`IncludeModelVersionInBackupDirectory = false` にするとフラットな配置になり、`BackupDirectoryMode = FileBackupDirectoryMode.ResourceDirectory` にすると従来どおりリソースファイルの隣に保存します。既存の `BackupDirectory` は保存先ディレクトリを直接指定する上書き設定です。相対パスはリソースファイルのディレクトリ基準で、`/` はリソースファイルと同じディレクトリを選びます。単独の `FileResource` でモデル/バージョン別の配置を有効にするには、コンストラクターに `backupSchema` を渡します。`BackupMaxCount` は最新世代を含む保持数で、`0` なら無効です。`RestoreLatestBackupAsync` で最新世代を明示復元できます。
 
 ```csharp
+using Configlue.Provider.Json;
 using Configlue.Resources;
 
-var resource = new FileResource(
-    "settings.json",
-    new FileResourceOptions { BackupMaxCount = 5, BackupDirectory = "my-backups" });
+model.UseJsonFile(new JsonFileSourceOptions
+{
+    Path = "settings.json",
+    ResourceOptions = new FileResourceOptions
+    {
+        BackupDirectoryName = "my-backups",
+        BackupMaxCount = 5,
+    },
+});
 ```
 
-`BackupMaxCount = 0` でバックアップ無効化です。不可分書き込み (一時ファイル+リネーム) と再試行つきアクセスで並行保存も安全です。
+独自ルートとフラット配置を使うには `BackupRootDirectory` と `IncludeModelVersionInBackupDirectory = false` を設定します。不可分書き込み (一時ファイル+リネーム) と再試行つきアクセスで並行保存も安全です。
 
 自動復旧は既定で無効です。JSON file source では `ResourceOptions` から有効にできます。
 
@@ -32,7 +41,7 @@ model.UseJsonFile(new JsonFileSourceOptions
 });
 ```
 
-ファイルがない場合や JSON が壊れている場合、最新バックアップ (Linux/macOS なら `.backup/settings.json.bak`) を読み直してデコードでき、失敗した読み取りの後に元ファイルが変更されていない場合にだけ復元します。Configuration.Writable のタイムスタンプ付きバックアップと、以前の Configlue がリソースファイルの隣や旧 current directory 基準の保存先に作ったバックアップも認識します。バックアップを作成する次回保存時に保持対象の世代を現行レイアウトへ移します。既定の JSON codec は不正な JSON を復旧対象として判定します。独自 codec の形式エラー復旧には `IStateCodecRecoveryPolicy` の実装が必要です。ファイル欠損からの復旧にはこの policy は要りません。
+ファイルがない場合や JSON が壊れている場合、最新バックアップを読み直してデコードでき、失敗した読み取りの後に元ファイルが変更されていない場合にだけ復元します。以前のリソース隣接レイアウト、旧 current directory 基準の保存先、Configuration.Writable のタイムスタンプ付きバックアップも認識します。バックアップを作成する次回保存時に保持対象の世代を現行レイアウトへ移します。既定の JSON codec は不正な JSON を復旧対象として判定します。独自 codec の形式エラー復旧には `IStateCodecRecoveryPolicy` の実装が必要です。ファイル欠損からの復旧にはこの policy は要りません。
 
 ファイル書き込みは一時ファイルの作成・書き込み・flush・置換の失敗を既定で 2 回再試行します (初回を含めて最大 3 回試行)。各試行の間は 100ms 待ち、キャンセルは再試行しません。`RetryCount` は初回後の再試行回数で、`RetryCount` と `RetryDelay` で変更できます。`RetryDelayFactory` を設定すると、1 始まりの再試行回数ごとに待ち時間を計算できます。
 

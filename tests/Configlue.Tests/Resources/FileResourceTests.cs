@@ -246,6 +246,157 @@ public sealed class FileResourceTests
     }
 
     [Test]
+    public async Task FileResource_StoresVersionedBackupsUnderTheConfiguredPersistentRoot()
+    {
+        var directory = CreateTemporaryDirectory();
+        Directory.CreateDirectory(directory);
+        using var cleanup = new DirectoryCleanup(directory);
+        var backupRoot = Path.Combine(directory, "persistent");
+        var resourcePath = Path.Combine(directory, "settings", "settings.json");
+        var backupDirectory = Path.Combine(backupRoot, "application-backups", "settings-model.v3");
+        var resourceOptions = new FileResourceOptions
+        {
+            BackupRootDirectory = backupRoot,
+            BackupDirectoryName = "application-backups",
+            BackupMaxCount = 2,
+        };
+        var backupSchema = new StateSchemaMetadata("settings-model", 3);
+        using var resource = new FileResource(resourcePath, backupSchema, resourceOptions);
+
+        for (var value = 0; value < 4; value++)
+        {
+            await resource.WriteAsync(
+                new ResourceWriteRequest(Encoding.UTF8.GetBytes($"{{\"value\":{value}}}"))
+            );
+        }
+
+        var latestBackup = Directory.GetFiles(backupDirectory, "settings.json.*.bak").Single();
+        var olderBackup = latestBackup + ".1";
+        (await File.ReadAllTextAsync(latestBackup)).ShouldBe("{\"value\":2}");
+        (await File.ReadAllTextAsync(olderBackup)).ShouldBe("{\"value\":1}");
+
+        using var otherResource = new FileResource(
+            Path.Combine(directory, "other", "settings.json"),
+            backupSchema,
+            resourceOptions
+        );
+        await otherResource.WriteAsync(new ResourceWriteRequest("other first"u8.ToArray()));
+        await otherResource.WriteAsync(new ResourceWriteRequest("other second"u8.ToArray()));
+        await otherResource.WriteAsync(new ResourceWriteRequest("other third"u8.ToArray()));
+
+        var backupContents = await Task.WhenAll(
+            Directory
+                .GetFiles(backupDirectory)
+                .Select(static backupPath => File.ReadAllTextAsync(backupPath))
+        );
+        backupContents.Length.ShouldBe(4);
+        backupContents.ShouldContain("other first");
+        backupContents.ShouldContain("other second");
+    }
+
+    [Test]
+    public async Task FileResource_PersistentBackupOptionsSupportFlatAndResourceDirectoryLayouts()
+    {
+        var directory = CreateTemporaryDirectory();
+        Directory.CreateDirectory(directory);
+        using var cleanup = new DirectoryCleanup(directory);
+        var backupRoot = Path.Combine(directory, "persistent");
+        var flatPath = Path.Combine(directory, "flat.json");
+        using (
+            var flatResource = new FileResource(
+                flatPath,
+                new FileResourceOptions
+                {
+                    BackupDirectoryMode = FileBackupDirectoryMode.PersistentUserDirectory,
+                    BackupRootDirectory = "persistent",
+                    BackupDirectoryName = "flat-backups",
+                    IncludeModelVersionInBackupDirectory = false,
+                }
+            )
+        )
+        {
+            await flatResource.WriteAsync(new ResourceWriteRequest("first"u8.ToArray()));
+            await flatResource.WriteAsync(new ResourceWriteRequest("second"u8.ToArray()));
+        }
+
+        Directory
+            .GetFiles(Path.Combine(backupRoot, "flat-backups"), "flat.json.*.bak")
+            .Length.ShouldBe(1);
+
+        var localPath = Path.Combine(directory, "local.json");
+        using (
+            var localResource = new FileResource(
+                localPath,
+                new FileResourceOptions
+                {
+                    BackupDirectoryMode = FileBackupDirectoryMode.ResourceDirectory,
+                }
+            )
+        )
+        {
+            await localResource.WriteAsync(new ResourceWriteRequest("first"u8.ToArray()));
+            await localResource.WriteAsync(new ResourceWriteRequest("second"u8.ToArray()));
+        }
+
+        File.Exists(GetDefaultBackupPath(localPath)).ShouldBeTrue();
+    }
+
+    [Test]
+    public void FileResource_RejectsBackupDirectoryNamesThatEscapeTheBackupRoot()
+    {
+        var directory = CreateTemporaryDirectory();
+        Should.Throw<ArgumentException>(() =>
+            new FileResource(
+                Path.Combine(directory, "settings.json"),
+                new FileResourceOptions
+                {
+                    BackupRootDirectory = directory,
+                    BackupDirectoryName = "../outside",
+                    IncludeModelVersionInBackupDirectory = false,
+                }
+            )
+        );
+    }
+
+    [Test]
+    public async Task FileResource_PersistentBackupsCanRecoverThePreviousResourceDirectoryLayout()
+    {
+        var directory = CreateTemporaryDirectory();
+        Directory.CreateDirectory(directory);
+        using var cleanup = new DirectoryCleanup(directory);
+        var resourcePath = Path.Combine(directory, "settings.json");
+        var previousBackupDirectory = Path.Combine(
+            directory,
+            OperatingSystem.IsWindows() ? "backup" : ".backup"
+        );
+        Directory.CreateDirectory(previousBackupDirectory);
+        var previousBackupPath = Path.Combine(previousBackupDirectory, "settings.json.bak");
+        await File.WriteAllTextAsync(previousBackupPath, "recoverable");
+        using var resource = new FileResource(
+            resourcePath,
+            new StateSchemaMetadata("settings-model", 3),
+            new FileResourceOptions
+            {
+                AutomaticBackupRecovery = true,
+                BackupRootDirectory = Path.Combine(directory, "persistent"),
+            }
+        );
+
+        var recovered = await resource.TryRecoverLatestBackupAsync(
+            expectedRevision: null,
+            expectedMissing: true,
+            static (candidate, _) =>
+                ValueTask.FromResult(
+                    Encoding.UTF8.GetString(candidate.Content.Span) == "recoverable"
+                )
+        );
+
+        recovered.HasValue.ShouldBeTrue();
+        Encoding.UTF8.GetString(recovered!.Value.Content.Span).ShouldBe("recoverable");
+        (await File.ReadAllTextAsync(resourcePath)).ShouldBe("recoverable");
+    }
+
+    [Test]
     public async Task SerializedReader_RecoversMissingFileBeforeSelectingFallbackSource()
     {
         var directory = CreateTemporaryDirectory();

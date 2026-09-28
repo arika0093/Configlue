@@ -16,9 +16,26 @@ public sealed class FileResourceOptions
     /// <remarks>Disabled by default. Corrupt input recovery requires a codec that classifies format errors.</remarks>
     public bool AutomaticBackupRecovery { get; init; }
 
-    /// <summary>An optional backup directory. Relative paths use the resource file directory.</summary>
-    /// <remarks>When unset, Windows uses <c>backup</c> and other platforms use <c>.backup</c> beside the resource file. The legacy value <c>/</c> selects the resource file directory itself.</remarks>
+    /// <summary>An optional exact backup directory. Relative paths use the resource file directory.</summary>
+    /// <remarks>When set, this takes precedence over <see cref="BackupDirectoryMode"/> and the backup root settings. The legacy value <c>/</c> selects the resource file directory itself.</remarks>
     public string? BackupDirectory { get; init; }
+
+    /// <summary>Selects the backup location when <see cref="BackupDirectory"/> is not set.</summary>
+    /// <remarks>
+    /// When unset, model-backed file sources use <see cref="FileBackupDirectoryMode.PersistentUserDirectory"/>,
+    /// while standalone resources without model metadata keep the legacy resource-directory location.
+    /// </remarks>
+    public FileBackupDirectoryMode? BackupDirectoryMode { get; init; }
+
+    /// <summary>An optional root for persistent user backups. Relative paths use the resource file directory.</summary>
+    /// <remarks>When unset, a platform-specific persistent per-user state directory is used.</remarks>
+    public string? BackupRootDirectory { get; init; }
+
+    /// <summary>The directory name appended to the persistent backup root.</summary>
+    public string BackupDirectoryName { get; init; } = "configlue-backups";
+
+    /// <summary>Whether persistent backups are separated by model ID and schema version.</summary>
+    public bool IncludeModelVersionInBackupDirectory { get; init; } = true;
 
     /// <summary>How many file write failures are retried, excluding cancellation.</summary>
     public int RetryCount { get; init; } = 2;
