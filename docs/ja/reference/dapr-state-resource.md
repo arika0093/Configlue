@@ -19,14 +19,19 @@ dotnet add package Configlue.Resource.Dapr
 using Configlue.Provider.Json;
 using Configlue.Resource.Dapr;
 
-model.Sources(sources => sources.FromDaprState(new DaprStateSourceOptions
-{
-    StoreName = "state",
-    Key = "project:123",
-    Client = daprClient,
-    Codec = new JsonStateCodec<AppSettings.Fragment>(),
-}));
+model.Sources(sources => sources
+    .FromDaprState(new DaprStateSourceOptions
+    {
+        StoreName = "state",
+        Key = "project:123",
+        Client = daprClient,
+        Codec = new JsonStateCodec<AppSettings.Fragment>(),
+    })
+    .Named("project-state")
+    .Writable());
 ```
+
+返される登録 builder は他 provider と共通の `Named`・`Priority`・`FallbackWhen`・`ReadOnly`・`Writable`・`ExplicitOnly` を持ちます。`Named` はアプリケーションコードからルーティングや移行対象の source を選択する場合に便利です。
 
 DI アプリケーションでは `ClientFactory` からホスト所有の `DaprClient` を解決できます。クライアントの所有権は呼び出し側に残ります。リソースは byte の読み書きを行うだけで、レイヤー、merge、provenance、schema、migration、query/ORM は実装しません。
 

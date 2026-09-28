@@ -3,7 +3,7 @@ namespace Configlue.Source.Environment
 {
     public static class EnvironmentFacadeSourceRegistration
     {
-        public static void FromEnvironment(this Configlue.ConfiglueSourceSetBuilder sources, Configlue.Source.Environment.EnvironmentSourceOptions options) { }
+        public static Configlue.ConfiglueSourceRegistration FromEnvironment(this Configlue.ConfiglueSourceSetBuilder sources, Configlue.Source.Environment.EnvironmentSourceOptions options) { }
     }
     public sealed class EnvironmentSourceOptions
     {

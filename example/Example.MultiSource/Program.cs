@@ -96,7 +96,7 @@ PrintSettings(current);
 
 if (requestedName is not null)
 {
-    var explicitSource = writable.Source(SourceKey<SampleSetting>.FromId("explicit"));
+    var explicitSource = writable.Source(SourceKey<SampleSetting>.Named("explicit"));
     await explicitSource.ReplaceAsync(patch => patch.Name = requestedName);
     Console.WriteLine("Saved to the explicit settings file.");
     PrintSettings(await writable.GetValueAsync());

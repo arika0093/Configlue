@@ -32,7 +32,12 @@ public sealed partial class ConfiglueFacadeSourceTests
             builder.Add<AppSettings>(model =>
                 model.Sources(sources =>
                 {
-                    sources.JsonFile(rootPath).ReadOnly().WatchChanges(false);
+                    sources
+                        .JsonFile(rootPath)
+                        .Named(SourceKey<AppSettings>.Named("root-settings"))
+                        .ReadOnly()
+                        .FallbackWhen(StateFallbackCondition.NotFoundOrUnavailable)
+                        .WatchChanges(false);
                     sources
                         .JsonFile(databasePath)
                         .Mount(settings => settings.Database)
@@ -43,6 +48,9 @@ public sealed partial class ConfiglueFacadeSourceTests
         });
 
         var options = (IConfiglueOptions<AppSettings>)context.GetOptions<AppSettings>();
+        (
+            options.GetDiagnostics().Sources.Any(static source => source.Id == "root-settings")
+        ).ShouldBeTrue();
         var current = await options.GetValueAsync();
         (current.RetryCount).ShouldBe(3);
         (current.Database!.Host).ShouldBe("db.example.test");
@@ -95,6 +103,61 @@ public sealed partial class ConfiglueFacadeSourceTests
         (JsonNode.Parse(await File.ReadAllTextAsync(path))!["Label"]!.GetValue<string>()).ShouldBe(
             "after"
         );
+    }
+
+    [Test]
+    public async Task ProviderSourceRegistration_SharesCommonFluentIdentityAndRoutingSettings()
+    {
+        using var directory = new TemporaryDirectory();
+        var path = Path.Combine(directory.FullPath, "settings.json");
+        var readOnlyPath = Path.Combine(directory.FullPath, "defaults.json");
+        await File.WriteAllTextAsync(path, "{\"Label\":\"configured\"}");
+        await File.WriteAllTextAsync(readOnlyPath, "{\"RetryCount\":3}");
+
+        await using var context = Configlue.CreateContext(builder =>
+        {
+            builder.Add<AppSettings>(model =>
+                model.Sources(sources =>
+                {
+                    sources
+                        .FromJsonFile(
+                            new JsonFileSourceOptions
+                            {
+                                Path = path,
+                                WatchChanges = false,
+                                ResourceOptions = new FileResourceOptions { CreateBackup = false },
+                            }
+                        )
+                        .Named("settings")
+                        .Priority(25)
+                        .FallbackWhen(StateFallbackCondition.NotFoundOrUnavailable)
+                        .Writable()
+                        .ExplicitOnly();
+                    sources
+                        .FromJsonFile(
+                            new JsonFileSourceOptions
+                            {
+                                Path = readOnlyPath,
+                                WatchChanges = false,
+                                ResourceOptions = new FileResourceOptions { CreateBackup = false },
+                            }
+                        )
+                        .Named("defaults")
+                        .Priority(0)
+                        .ReadOnly();
+                })
+            );
+        });
+
+        var diagnostics = context.GetAdvancedOptions<AppSettings>().GetDiagnostics();
+        var source = diagnostics.Sources.Single(static source => source.Id == "settings");
+        var readOnly = diagnostics.Sources.Single(static source => source.Id == "defaults");
+        (source.Id).ShouldBe("settings");
+        (source.Priority).ShouldBe(25);
+        (source.FallbackCondition).ShouldBe(StateFallbackCondition.NotFoundOrUnavailable);
+        (source.CanWrite).ShouldBeTrue();
+        (readOnly.CanWrite).ShouldBeFalse();
+        (diagnostics.DefaultWriteSourceId).ShouldBeNull();
     }
 
     [Test]

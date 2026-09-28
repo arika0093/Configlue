@@ -39,7 +39,7 @@ public sealed class XmlFileSourceOptions
 public static class XmlFileSourceRegistration
 {
     /// <summary>Adds an XML file source. The facade owns the created resource and its watcher.</summary>
-    public static void FromXmlFile(
+    public static ConfiglueSourceRegistration FromXmlFile(
         this ConfiglueSourceSetBuilder sources,
         XmlFileSourceOptions options
     )
@@ -52,7 +52,7 @@ public static class XmlFileSourceRegistration
             throw new ArgumentException("A section path cannot be empty.", nameof(options));
         }
 
-        sources.Add(new XmlFileSourceDefinition(options));
+        return sources.Add(new XmlFileSourceDefinition(options));
     }
 
     private sealed class XmlFileSourceDefinition(XmlFileSourceOptions options)

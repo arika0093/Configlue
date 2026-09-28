@@ -36,6 +36,6 @@ namespace Configlue.Resource.Dapr
     }
     public static class DaprStateSourceRegistration
     {
-        public static void FromDaprState(this Configlue.ConfiglueSourceSetBuilder sources, Configlue.Resource.Dapr.DaprStateSourceOptions options) { }
+        public static Configlue.ConfiglueSourceRegistration FromDaprState(this Configlue.ConfiglueSourceSetBuilder sources, Configlue.Resource.Dapr.DaprStateSourceOptions options) { }
     }
 }

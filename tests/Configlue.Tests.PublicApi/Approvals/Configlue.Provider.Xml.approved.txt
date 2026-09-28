@@ -21,7 +21,7 @@ namespace Configlue.Provider.Xml
     }
     public static class XmlFileSourceRegistration
     {
-        public static void FromXmlFile(this Configlue.ConfiglueSourceSetBuilder sources, Configlue.Provider.Xml.XmlFileSourceOptions options) { }
+        public static Configlue.ConfiglueSourceRegistration FromXmlFile(this Configlue.ConfiglueSourceSetBuilder sources, Configlue.Provider.Xml.XmlFileSourceOptions options) { }
     }
     public sealed class XmlFileSourceSelector : System.IEquatable<Configlue.Provider.Xml.XmlFileSourceSelector> { }
     public static class XmlFileSourceSelectorExtensions

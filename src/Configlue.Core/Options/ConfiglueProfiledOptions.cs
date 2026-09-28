@@ -238,50 +238,6 @@ public sealed partial class ConfiglueProfiledOptions<TModel, TFragment>
     }
 
     /// <inheritdoc />
-    public async ValueTask<StateWriteResult> SaveAsync(
-        TModel value,
-        CancellationToken cancellationToken = default
-    )
-    {
-        var activeProfile = await GetActiveProfileAsync(cancellationToken).ConfigureAwait(false);
-        using var session = await AsAdvancedOptions(activeProfile)
-            .OpenEditSessionAsync(cancellationToken)
-            .ConfigureAwait(false);
-        session.Value = value;
-        return await session.CommitAsync(cancellationToken).ConfigureAwait(false);
-    }
-
-    /// <inheritdoc />
-    public async ValueTask<StateWriteResult> SaveAsync(
-        Action<TModel> update,
-        CancellationToken cancellationToken = default
-    )
-    {
-        ArgumentNullException.ThrowIfNull(update);
-        var activeProfile = await GetActiveProfileAsync(cancellationToken).ConfigureAwait(false);
-        using var session = await AsAdvancedOptions(activeProfile)
-            .OpenEditSessionAsync(cancellationToken)
-            .ConfigureAwait(false);
-        update(session.Value);
-        return await session.CommitAsync(cancellationToken).ConfigureAwait(false);
-    }
-
-    /// <inheritdoc />
-    public async ValueTask<StateWriteResult> SaveAsync(
-        Func<TModel, Task> update,
-        CancellationToken cancellationToken = default
-    )
-    {
-        ArgumentNullException.ThrowIfNull(update);
-        var activeProfile = await GetActiveProfileAsync(cancellationToken).ConfigureAwait(false);
-        using var session = await AsAdvancedOptions(activeProfile)
-            .OpenEditSessionAsync(cancellationToken)
-            .ConfigureAwait(false);
-        await update(session.Value).ConfigureAwait(false);
-        return await session.CommitAsync(cancellationToken).ConfigureAwait(false);
-    }
-
-    /// <inheritdoc />
     public async ValueTask CreateProfileAsync(
         string profileName,
         string? copyFrom = null,

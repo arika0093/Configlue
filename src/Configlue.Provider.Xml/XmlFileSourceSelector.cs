@@ -58,6 +58,6 @@ public static class XmlFileSourceSelectorExtensions
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(selector);
-        return options.Source(SourceKey<TModel>.FromId(selector.SourceId));
+        return options.Source(SourceKey<TModel>.Named(selector.SourceId));
     }
 }

@@ -35,24 +35,6 @@ public interface IConfiglueProfiledOptions<TModel>
     /// <summary>Reads the active profile's current value.</summary>
     ValueTask<TModel> GetActiveValueAsync(CancellationToken cancellationToken = default);
 
-    /// <summary>Saves a complete value to the active profile.</summary>
-    ValueTask<StateWriteResult> SaveAsync(
-        TModel value,
-        CancellationToken cancellationToken = default
-    );
-
-    /// <summary>Updates and saves the active profile.</summary>
-    ValueTask<StateWriteResult> SaveAsync(
-        Action<TModel> update,
-        CancellationToken cancellationToken = default
-    );
-
-    /// <summary>Asynchronously updates and saves the active profile.</summary>
-    ValueTask<StateWriteResult> SaveAsync(
-        Func<TModel, Task> update,
-        CancellationToken cancellationToken = default
-    );
-
     /// <summary>Creates and persists a profile, optionally copying another profile's current value.</summary>
     ValueTask CreateProfileAsync(
         string profileName,

@@ -125,6 +125,18 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
         return migrationResult;
     }
 
+    /// <inheritdoc />
+    public ValueTask<StateSourceMigrationResult> MigrateSourceAsync(
+        SourceKey<TModel> sourceKey,
+        SourceKey<TModel> targetKey,
+        CancellationToken cancellationToken = default
+    )
+    {
+        ValidateSourceKey(sourceKey, nameof(sourceKey));
+        ValidateSourceKey(targetKey, nameof(targetKey));
+        return MigrateSourceAsync(sourceKey.Id, targetKey.Id, cancellationToken);
+    }
+
     /// <summary>
     /// Migrates selected source contributions to one or more projected targets. Successful targets are
     /// re-read and verified; repeating the operation skips targets already holding the requested fragment.
@@ -614,6 +626,51 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
             cancellationToken,
             retireSources
         );
+    }
+
+    /// <inheritdoc />
+    public ValueTask<StateStorageMigrationResult> MigrateSourcesToTargetsAsync(
+        IEnumerable<SourceKey<TModel>> sourceKeys,
+        IReadOnlyDictionary<
+            SourceKey<TModel>,
+            Func<IConfiglueFragment, IConfiglueFragment>
+        > targetProjections,
+        CancellationToken cancellationToken = default,
+        bool retireSources = false
+    )
+    {
+        ArgumentNullException.ThrowIfNull(sourceKeys);
+        ArgumentNullException.ThrowIfNull(targetProjections);
+        var sourceIds = sourceKeys.Select(key =>
+        {
+            ValidateSourceKey(key, nameof(sourceKeys));
+            return key.Id;
+        });
+        var stringProjections = targetProjections.ToDictionary(
+            pair =>
+            {
+                ValidateSourceKey(pair.Key, nameof(targetProjections));
+                ArgumentNullException.ThrowIfNull(pair.Value);
+                return pair.Key.Id;
+            },
+            static pair => pair.Value,
+            StringComparer.Ordinal
+        );
+
+        return MigrateSourcesToTargetsAsync(
+            sourceIds,
+            stringProjections,
+            cancellationToken,
+            retireSources
+        );
+    }
+
+    private static void ValidateSourceKey(SourceKey<TModel> sourceKey, string parameterName)
+    {
+        if (string.IsNullOrWhiteSpace(sourceKey.Id))
+        {
+            throw new ArgumentException("The source key is uninitialized.", parameterName);
+        }
     }
 
     private async ValueTask VerifyRetirementPreservesResolvedModelAsync(

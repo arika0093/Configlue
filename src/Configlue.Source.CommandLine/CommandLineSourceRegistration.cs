@@ -328,7 +328,7 @@ public sealed class CommandLineMappingBuilder
 public static class CommandLineSourceRegistration
 {
     /// <summary>Adds a read-only command-line source using explicit symbol-to-member mappings.</summary>
-    public static void FromCommandLine(
+    public static ConfiglueSourceRegistration FromCommandLine(
         this ConfiglueSourceSetBuilder sources,
         CommandLineSourceOptions options,
         Action<CommandLineMappingBuilder> configureMappings
@@ -349,7 +349,7 @@ public static class CommandLineSourceRegistration
             );
         }
 
-        sources.Add(new Definition(options, mappings.Mappings.ToArray()));
+        return sources.Add(new Definition(options, mappings.Mappings.ToArray()));
     }
 
     private sealed class Definition(

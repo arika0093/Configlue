@@ -44,7 +44,7 @@ public sealed class S3ObjectSourceOptions
 public static class S3ObjectSourceRegistration
 {
     /// <summary>Adds an S3 object source. The supplied S3 client remains externally owned.</summary>
-    public static void FromS3Object(
+    public static ConfiglueSourceRegistration FromS3Object(
         this ConfiglueSourceSetBuilder sources,
         S3ObjectSourceOptions options
     )
@@ -67,7 +67,7 @@ public static class S3ObjectSourceRegistration
             ArgumentException.ThrowIfNullOrWhiteSpace(options.Id);
         }
 
-        sources.Add(new S3ObjectSourceDefinition(options));
+        return sources.Add(new S3ObjectSourceDefinition(options));
     }
 
     private sealed class S3ObjectSourceDefinition(S3ObjectSourceOptions options)

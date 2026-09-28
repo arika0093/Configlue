@@ -304,6 +304,20 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
         CancellationToken cancellationToken = default
     ) => ReadPublicValueAsync(cancellationToken);
 
+    /// <inheritdoc />
+    public async ValueTask<TModel> GetValueAsync(CancellationToken cancellationToken = default)
+    {
+        var result = await ReadAsync(cancellationToken).ConfigureAwait(false);
+        if (result.Status != StateReadStatus.Success)
+        {
+            throw new InvalidOperationException(
+                $"Configuration state could not be read: {result.Status}."
+            );
+        }
+
+        return result.Value!;
+    }
+
     private async ValueTask<StateReadResult<TModel>> ReadPublicValueAsync(
         CancellationToken cancellationToken
     )

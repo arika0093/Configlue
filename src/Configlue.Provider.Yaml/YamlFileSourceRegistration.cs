@@ -54,7 +54,7 @@ public sealed class YamlFileSourceOptions
 public static class YamlFileSourceRegistration
 {
     /// <summary>Adds a YAML file source. The facade owns the created resource and its watcher.</summary>
-    public static void FromYamlFile(
+    public static ConfiglueSourceRegistration FromYamlFile(
         this ConfiglueSourceSetBuilder sources,
         YamlFileSourceOptions options
     )
@@ -74,7 +74,7 @@ public static class YamlFileSourceRegistration
             );
         }
 
-        sources.Add(new YamlFileSourceDefinition(options));
+        return sources.Add(new YamlFileSourceDefinition(options));
     }
 
     private sealed class YamlFileSourceDefinition(YamlFileSourceOptions options)

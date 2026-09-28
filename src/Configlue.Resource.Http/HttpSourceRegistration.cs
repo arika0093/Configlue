@@ -46,7 +46,10 @@ public sealed class HttpSourceOptions
 public static class HttpSourceRegistration
 {
     /// <summary>Adds an HTTP source. Clients and factory-provided handlers remain externally owned.</summary>
-    public static void FromHttp(this ConfiglueSourceSetBuilder sources, HttpSourceOptions options)
+    public static ConfiglueSourceRegistration FromHttp(
+        this ConfiglueSourceSetBuilder sources,
+        HttpSourceOptions options
+    )
     {
         ArgumentNullException.ThrowIfNull(sources);
         ArgumentNullException.ThrowIfNull(options);
@@ -84,7 +87,7 @@ public static class HttpSourceRegistration
             );
         }
 
-        sources.Add(new HttpSourceDefinition(options));
+        return sources.Add(new HttpSourceDefinition(options));
     }
 
     private sealed class HttpSourceDefinition(HttpSourceOptions options)

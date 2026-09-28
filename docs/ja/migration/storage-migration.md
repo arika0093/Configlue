@@ -9,7 +9,7 @@ description: 検証と退役つきでソース間に寄与をコピーする。
 
 ## 単一ソースのコピー
 
-`IConfiglueOptions<T>.MigrateSourceAsync(sourceId, targetId)` は1つのソース寄与をコピーし、スキーマ移行連鎖を適用して選択先に書き込みます。
+`IConfiglueOptions<T>.MigrateSourceAsync(sourceKey, targetKey)` は1つのソース寄与をコピーし、スキーマ移行連鎖を適用して選択先に書き込みます。安定したアプリケーション定義の論理名には `SourceKey<T>.Named("legacy")` と `SourceKey<T>.Named("current")` を使います。provider が生成する不透明 ID は診断に便利ですが、通常のアプリケーション呼び出しでは不要です。
 
 ## 退役つき複数宛先移行
 

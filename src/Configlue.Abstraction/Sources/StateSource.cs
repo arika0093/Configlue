@@ -129,10 +129,13 @@ public sealed class StateSource<T>
         return clone;
     }
 
-    internal void CopyRoutingMetadataTo<TTarget>(StateSource<TTarget> target)
+    internal void CopyRoutingMetadataTo<TTarget>(
+        StateSource<TTarget> target,
+        bool? explicitOnly = null
+    )
     {
         ArgumentNullException.ThrowIfNull(target);
-        target.ExplicitOnly = ExplicitOnly;
+        target.ExplicitOnly = explicitOnly ?? ExplicitOnly;
         target._ownedPropertyPaths = [.. _ownedPropertyPaths];
     }
 }
