@@ -33,6 +33,8 @@ CommonSource は、以下の 4 つの層を順序正しく重ね合わせます�
 | **Specific（指定ファイル）** | パス指定時に有効 | コマンドライン等で渡された任意のファイルパス | 既定の保存先（指定ファイルがある場合） |
 | **Environment（環境変数）** | プレフィックス指定時に有効 | プロセス環境変数 | 読み取り専用 |
 
+source identity と数値の優先度はプリセット内部で割り当てられます。通常の `SaveAsync` は Specific ファイルが設定されていればそこへ、そうでなければ Local に書き込みます。すべてのファイル層は semantic selector から明示的に書き込み可能です。
+
 ## 基本的な使い方
 
 もっとも手軽な形式は、アプリケーション名を渡す呼び出しです。
@@ -147,7 +149,7 @@ model.UseCommonSources(
     });
 ```
 
-コマンドライン層は優先度 4（環境変数よりもさらに上）として追加され、コマンド実行時の一時的な上書きとして機能します。
+コマンドライン層は CommonSource より上位に追加され、コマンド実行時の一時的な上書きとして機能します。
 
 ### パターン 2: リモートポリシーや追加ソースを重ねる
 
@@ -169,14 +171,13 @@ model.Sources(sources =>
     {
         Id = "company-policy",
         EndPoint = "https://policy.example.internal/api/config",
-        Priority = 500, // CommonSource（優先度 0〜3）より上位に配置
+        Priority = 500, // CommonSource プリセットより上位に配置
         FallbackCondition = StateFallbackCondition.NotFoundOrUnavailable,
     });
 });
 ```
 
-CommonSource が内部で登録する各層の優先度は 0（Global）〜 3（Environment）です。
-追加するソースの `Priority` を 100 や 500 など大きめの値に設定することで、CommonSource の上に自然にレイヤーを追加できます。
+追加するソースの `Priority` を大きめの値に設定することで、CommonSource の上にレイヤーを追加できます。
 
 ## 次のステップ
 

@@ -36,4 +36,4 @@ DI アプリケーションでは `ClientFactory` からホスト所有の `Dapr
 
 ## その他の永続化バックエンド
 
-Dapr State Management の state API に適合するデータベースや key/value store には Dapr を使い、Configlue にデータベースごとの adapter を増やしません。object storage は別の resource 形状です。たとえば Dapr は S3 を State Management store ではなく binding として公開するため、S3 integration は object key・byte・object revision を対応づける直接の Configlue Resource が適切です。このパッケージは S3 を実装しません。
+Dapr State Management の state API に適合するデータベースや key/value store には Dapr を使い、Configlue にデータベースごとの adapter を増やしません。object storage は別の resource 形状です。Amazon S3 には、object key・byte・ETag revision を直接対応づける別パッケージ [`Configlue.Resource.S3`](./s3-object-resource.md) を使ってください。

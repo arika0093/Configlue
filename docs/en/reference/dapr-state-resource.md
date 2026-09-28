@@ -36,4 +36,4 @@ This provider has no change watcher or cross-key transaction support. It does no
 
 ## Other persistence backends
 
-Use Dapr State Management for databases and key/value stores that fit its state API; Configlue does not need a first-party adapter for each database. Object storage is a different resource shape. For example, Dapr exposes S3 through bindings, not as a State Management store; an S3 integration should therefore be a direct Configlue Resource mapping object keys, bytes, and object revisions. This package does not implement S3.
+Use Dapr State Management for databases and key/value stores that fit its state API; Configlue does not need a first-party adapter for each database. Object storage is a different resource shape. For Amazon S3, use the separate [`Configlue.Resource.S3`](./s3-object-resource.md) package, which maps object keys, bytes, and ETag revisions directly.

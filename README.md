@@ -182,6 +182,7 @@ Detailed guides and references have moved to the [Configlue documentation site](
 | `Configlue.Provider.Yaml` | YAML provider (`SharpYaml`). |
 | `Configlue.Provider.Xml` | XML provider. |
 | `Configlue.Resource.Http` | Remote HTTP resource reader/writer with ETag polling. |
+| `Configlue.Resource.S3` | Amazon S3 object reader/writer with ETag revisions. |
 | `Configlue.Resource.Zip` | Single-entry ZIP archive resource. |
 | `Configlue.Extensions.DI` | Microsoft Dependency Injection integration. |
 | `Configlue.Extensions.MSOptions` | Adapters for `IOptions<T>`, `IOptionsSnapshot<T>`, and `IOptionsMonitor<T>`. |

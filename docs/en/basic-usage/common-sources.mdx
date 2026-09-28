@@ -31,6 +31,8 @@ CommonSource organizes four layers in increasing priority:
 | **Specific** | Path provided | User-supplied path via options/args | Default destination when set |
 | **Environment** | Prefix provided | Process environment variables | Read-only |
 
+The preset assigns source identities and numeric priorities internally. Ordinary `SaveAsync` targets the Specific file when configured, otherwise Local; all file layers remain writable through explicit semantic selectors.
+
 ## Basic Usage
 
 The simplest invocation requires only an application ID:
@@ -146,7 +148,7 @@ model.Sources(sources =>
     {
         Id = "remote-policy",
         EndPoint = "https://policy.example.internal/api/config",
-        Priority = 500, // Evaluated with higher priority than CommonSource (0-3)
+        Priority = 500, // Higher priority than the CommonSource preset
         FallbackCondition = StateFallbackCondition.NotFoundOrUnavailable,
     });
 });

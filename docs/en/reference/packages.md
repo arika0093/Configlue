@@ -23,8 +23,9 @@ description: Find the NuGet package for each Configlue capability.
 | `Configlue.Resource.Http` | HTTP read/write resources with ETag revisions and polling change detection. |
 | `Configlue.Resource.Http.AspNetCore` | ASP.NET Core endpoints for serving HTTP resources. |
 | `Configlue.Resource.Dapr` | Optional byte resources and source registration for Dapr State Management. |
+| `Configlue.Resource.S3` | Optional Amazon S3 object resources and source registration with ETag revisions. |
 | `Configlue.Resource.Zip` | Resource view over one entry in a ZIP archive. |
 
 The package references and versions in the project files are the source of truth. Install optional provider packages directly when you need them. Start with [Installation](../getting-started/installation.md).
 
-For Dapr state persistence and the object-storage provider boundary, see [Dapr State Management resource](./dapr-state-resource.md).
+For Dapr state persistence and object storage, see [Dapr State Management resource](./dapr-state-resource.md) and [Amazon S3 object resource](./s3-object-resource.md).

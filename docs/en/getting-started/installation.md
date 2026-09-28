@@ -35,6 +35,7 @@ Add the capability packages you need on top:
 | Global/local/specific/environment presets | `Configlue` (includes `Configlue.Source.Common`) |
 | Serve settings over HTTP (ASP.NET Core) | `Configlue.Resource.Http.AspNetCore` |
 | Persist state through a Dapr state store | `Configlue.Resource.Dapr` |
+| Read and write Amazon S3 objects | `Configlue.Resource.S3` |
 | ZIP archive entries | `Configlue.Resource.Zip` |
 | In-memory doubles for tests | `Configlue.Testing` |
 
