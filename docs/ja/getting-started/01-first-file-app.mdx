@@ -50,15 +50,16 @@ DI コンテナーを使わず、`ConfiglueApp.CreateContext` を使ってコン
 
    ```csharp
    using Configlue;
-   using Configlue.Source.Common;
+   using Configlue.Source.Presets;
 
    await using var context = ConfiglueApp.CreateContext(conf =>
-   {
-       conf.Add<AppSettings>(model =>
+       conf.UseCommonSources(sources =>
        {
-           model.UseCommonSources("TutorialApp");
-       });
-   });
+           sources.WithGlobal("TutorialApp");
+           sources.WithLocal();
+           sources.Add<AppSettings>();
+       })
+   );
 
    var options = context.GetOptions<AppSettings>();
    ```
@@ -69,15 +70,16 @@ DI コンテナーを使わず、`ConfiglueApp.CreateContext` を使ってコン
    ```csharp
    // Program.cs
    using Configlue;
-   using Configlue.Source.Common;
+   using Configlue.Source.Presets;
 
    builder.Services.AddConfiglue(conf =>
-   {
-       conf.Add<AppSettings>(model =>
+       conf.UseCommonSources(sources =>
        {
-           model.UseCommonSources("TutorialApp");
-       });
-   });
+           sources.WithGlobal("TutorialApp");
+           sources.WithLocal();
+           sources.Add<AppSettings>();
+       })
+   );
    ```
 
    ```csharp
@@ -97,7 +99,7 @@ DI コンテナーを使わず、`ConfiglueApp.CreateContext` を使ってコン
    </TabItem>
    </Tabs>
 
-   `UseCommonSources("TutorialApp")` を指定すると、次の構成が自動的に有効になります。
+   プリセットのスコープ内で宣言した層だけが有効になります。
 
    - **ユーザー共通設定**: OS 標準の保存先（Windows: `%APPDATA%/TutorialApp`, macOS/Linux: `~/.config/TutorialApp`）
    - **ローカル設定**: プロジェクトのカレントディレクトリの `settings.json`

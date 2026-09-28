@@ -95,7 +95,7 @@ await userSource.ReplaceAsync(patch => patch.Database.Host = "db.example.test");
 The common preset exposes semantic selectors for its standard file layers, so those sources do not need application-defined keys:
 
 ```csharp
-using Configlue.Source.Common;
+using Configlue.Source.Presets;
 
 await options.Source(CommonSource.Local).SaveAsync(
     new AppSettings.Patch { Name = FragmentOperation<string>.Set("local-name") }

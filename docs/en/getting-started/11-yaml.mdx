@@ -22,7 +22,7 @@ Even when formats differ, the fundamental source and layering concepts in Config
 
 2. ### Combine YAML and JSON sources
 
-   In `CommonSourceOptions`, you can set the `FileFormat` option to change the default file format.
+   Select YAML directly with `.Yaml()` on a preset file layer; file extensions do not implicitly select a provider.
    Alternatively, you can configure sources directly with `model.Sources(...)` to specify priorities between YAML (primary) and JSON (fallback):
 
    <Tabs syncKey="di">

@@ -30,13 +30,13 @@ public sealed class ConfiglueFacadeTests
         });
         try
         {
-            var value = await Configlue.GetOptions<AppSettings>().GetValueAsync();
+            var value = await ConfiglueApp.GetOptions<AppSettings>().GetValueAsync();
             (value.Label).ShouldBe("static-value");
             (await ConfiglueApp.GetOptions<AppSettings>().GetValueAsync()).Label.ShouldBe(
                 "static-value"
             );
 
-            Should.Throw<InvalidOperationException>(() => Configlue.Initialize(_ => { }));
+            Should.Throw<InvalidOperationException>(() => ConfiglueApp.Initialize(_ => { }));
         }
         finally
         {
@@ -58,7 +58,7 @@ public sealed class ConfiglueFacadeTests
                 Label = Optional<string?>.Present("default-label"),
             }
         );
-        await using var context = Configlue.CreateContext(builder =>
+        await using var context = ConfiglueApp.CreateContext(builder =>
         {
             builder.Add<AppSettings>(model =>
             {
@@ -230,7 +230,7 @@ public sealed class ConfiglueFacadeTests
     [Test]
     public async Task ContextResolvesNamedModelInstances()
     {
-        await using var context = Configlue.CreateContext(builder =>
+        await using var context = ConfiglueApp.CreateContext(builder =>
         {
             builder.Add<AppSettings>(model =>
             {
@@ -269,7 +269,7 @@ public sealed class ConfiglueFacadeTests
             writer: catalogStore,
             watcher: catalogStore
         );
-        await using var context = Configlue.CreateContext(builder =>
+        await using var context = ConfiglueApp.CreateContext(builder =>
         {
             builder.Add<AppSettings>(model =>
             {
@@ -305,7 +305,7 @@ public sealed class ConfiglueFacadeTests
             writer: catalogStore,
             watcher: catalogStore
         );
-        await using var context = Configlue.CreateContext(builder =>
+        await using var context = ConfiglueApp.CreateContext(builder =>
         {
             builder.Add<AppSettings>(model =>
             {
@@ -352,7 +352,7 @@ public sealed class ConfiglueFacadeTests
             writer: catalogStore,
             watcher: catalogStore
         );
-        await using var context = Configlue.CreateContext(builder =>
+        await using var context = ConfiglueApp.CreateContext(builder =>
         {
             builder.Add<AppSettings>(model =>
             {

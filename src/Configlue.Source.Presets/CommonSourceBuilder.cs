@@ -3,9 +3,6 @@ using System.Text.Json.Serialization;
 using Configlue.Provider.Json;
 using Configlue.Provider.Xml;
 using Configlue.Provider.Yaml;
-using Configlue.Resource.Http;
-using Configlue.Source.Common;
-using Configlue.Source.Environment;
 using SharpYaml;
 
 namespace Configlue.Source.Presets;
@@ -40,6 +37,7 @@ public sealed class CommonSourceBuilder
     private readonly List<SourceDeclaration> _declarations = [];
     private readonly int[] _customCounts = new int[LayerPriorities.Length];
     private bool _hasAddedModel;
+    private CommonSourceLayer? _defaultWriteLayer;
 
     internal CommonSourceBuilder(ConfiglueBuilder configlue)
     {
@@ -91,8 +89,28 @@ public sealed class CommonSourceBuilder
     {
         EnsureDeclarationsMutable();
         ArgumentException.ThrowIfNullOrWhiteSpace(prefix);
-        var declaration = AddDeclaration(CommonSourceLayer.Environment, static (_, _) => { });
+        var declaration = AddDeclaration(CommonSourceLayer.Environment, static (_, _, _) => { });
         return new CommonEnvironmentSourceBuilder(declaration, prefix);
+    }
+
+    /// <summary>Selects which configured file layer receives ordinary writes.</summary>
+    public CommonSourceBuilder DefaultWriteLayer(CommonSourceLayer layer)
+    {
+        EnsureDeclarationsMutable();
+        if (
+            layer
+            is not (
+                CommonSourceLayer.Global
+                or CommonSourceLayer.Local
+                or CommonSourceLayer.Explicit
+            )
+        )
+        {
+            throw new ArgumentOutOfRangeException(nameof(layer));
+        }
+
+        _defaultWriteLayer = layer;
+        return this;
     }
 
     /// <summary>Registers a read-only JSON-over-HTTP source.</summary>
@@ -106,7 +124,7 @@ public sealed class CommonSourceBuilder
         ArgumentException.ThrowIfNullOrWhiteSpace(endpoint);
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
         ArgumentNullException.ThrowIfNull(client);
-        var declaration = AddDeclaration(CommonSourceLayer.Http, static (_, _) => { });
+        var declaration = AddDeclaration(CommonSourceLayer.Http, static (_, _, _) => { });
         return new CommonHttpSourceBuilder(declaration, endpoint, client, id);
     }
 
@@ -121,7 +139,7 @@ public sealed class CommonSourceBuilder
         ArgumentException.ThrowIfNullOrWhiteSpace(endpoint);
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
         ArgumentNullException.ThrowIfNull(clientFactory);
-        var declaration = AddDeclaration(CommonSourceLayer.Http, static (_, _) => { });
+        var declaration = AddDeclaration(CommonSourceLayer.Http, static (_, _, _) => { });
         return new CommonHttpSourceBuilder(declaration, endpoint, clientFactory, id);
     }
 
@@ -151,7 +169,11 @@ public sealed class CommonSourceBuilder
 
         var declaration = new SourceDeclaration(
             priority,
-            (sources, selectedPriority) => register(sources).Priority(selectedPriority)
+            null,
+            (sources, selectedPriority, _) =>
+            {
+                register(sources).Priority(selectedPriority);
+            }
         );
         _declarations.Add(declaration);
         return new CommonCustomSourceBuilder(declaration);
@@ -169,6 +191,46 @@ public sealed class CommonSourceBuilder
                 "At least one common or custom source must be enabled before adding a model."
             );
         }
+        var fileDeclarations = declarations
+            .Where(static declaration => declaration.IsFile)
+            .ToArray();
+        var defaultWriteLayer = _defaultWriteLayer;
+        if (
+            defaultWriteLayer is null
+            && fileDeclarations.Any(static declaration =>
+                declaration.Layer == CommonSourceLayer.Explicit
+            )
+        )
+        {
+            defaultWriteLayer = CommonSourceLayer.Explicit;
+        }
+        else if (
+            defaultWriteLayer is null
+            && fileDeclarations.Any(static declaration =>
+                declaration.Layer == CommonSourceLayer.Local
+            )
+        )
+        {
+            defaultWriteLayer = CommonSourceLayer.Local;
+        }
+        else if (
+            defaultWriteLayer is null
+            && fileDeclarations.Any(static declaration =>
+                declaration.Layer == CommonSourceLayer.Global
+            )
+        )
+        {
+            defaultWriteLayer = CommonSourceLayer.Global;
+        }
+        if (
+            _defaultWriteLayer is { } requestedLayer
+            && !fileDeclarations.Any(declaration => declaration.Layer == requestedLayer)
+        )
+        {
+            throw new InvalidOperationException(
+                $"The default write layer '{requestedLayer}' was not configured."
+            );
+        }
         foreach (var declaration in declarations)
         {
             declaration.Seal();
@@ -180,7 +242,11 @@ public sealed class CommonSourceBuilder
             {
                 foreach (var declaration in declarations.OrderByDescending(item => item.Priority))
                 {
-                    declaration.Register(sources, declaration.Priority);
+                    declaration.Register(
+                        sources,
+                        declaration.Priority,
+                        declaration.Layer == defaultWriteLayer
+                    );
                 }
             });
             configure?.Invoke(model);
@@ -199,18 +265,25 @@ public sealed class CommonSourceBuilder
 
     private CommonFileSourceBuilder AddFile(CommonSourceLayer layer, string id, string path)
     {
-        var declaration = AddDeclaration(layer, static (_, _) => { });
+        var declaration = AddDeclaration(layer, static (_, _, _) => { }, isFile: true);
         var options = new CommonFileSourceBuilder(declaration, id, path);
-        declaration.Register = (sources, priority) => options.Register(sources, priority);
+        declaration.Register = (sources, priority, isDefaultWriteTarget) =>
+            options.Register(sources, priority, isDefaultWriteTarget);
         return options;
     }
 
     private SourceDeclaration AddDeclaration(
         CommonSourceLayer layer,
-        Action<ConfiglueSourceSetBuilder, int> register
+        Action<ConfiglueSourceSetBuilder, int, bool> register,
+        bool isFile = false
     )
     {
-        var declaration = new SourceDeclaration(LayerPriorities[(int)layer], register);
+        var declaration = new SourceDeclaration(
+            LayerPriorities[(int)layer],
+            layer,
+            register,
+            isFile
+        );
         _declarations.Add(declaration);
         return declaration;
     }
@@ -245,13 +318,17 @@ public sealed class CommonSourceBuilder
 
     internal sealed class SourceDeclaration(
         int priority,
-        Action<ConfiglueSourceSetBuilder, int> register
+        CommonSourceLayer? layer,
+        Action<ConfiglueSourceSetBuilder, int, bool> register,
+        bool isFile = false
     )
     {
         private bool _sealed;
 
         public int Priority { get; set; } = priority;
-        public Action<ConfiglueSourceSetBuilder, int> Register { get; set; } = register;
+        public CommonSourceLayer? Layer { get; } = layer;
+        public bool IsFile { get; } = isFile;
+        public Action<ConfiglueSourceSetBuilder, int, bool> Register { get; set; } = register;
 
         public void Seal() => _sealed = true;
 
@@ -279,9 +356,10 @@ public sealed class CommonFileSourceBuilder
     private JsonNamingPolicy? _yamlNamingPolicy;
     private FileResourceOptions? _resourceOptions;
     private string? _section;
+    private string? _schemaReferenceBaseUri;
     private bool _readOnly;
     private bool _watchChanges = true;
-    private bool _explicitOnly;
+    private bool? _explicitOnly;
     private readonly List<IStateByteTransformer> _transformers = [];
 
     internal CommonFileSourceBuilder(
@@ -377,6 +455,15 @@ public sealed class CommonFileSourceBuilder
         return this;
     }
 
+    /// <summary>Sets the JSON Schema reference written by JSON and YAML providers.</summary>
+    public CommonFileSourceBuilder SchemaReferenceBaseUri(string schemaReferenceBaseUri)
+    {
+        EnsureMutable();
+        ArgumentException.ThrowIfNullOrWhiteSpace(schemaReferenceBaseUri);
+        _schemaReferenceBaseUri = schemaReferenceBaseUri;
+        return this;
+    }
+
     /// <summary>Sets whether this file source is read-only.</summary>
     public CommonFileSourceBuilder ReadOnly(bool readOnly = true)
     {
@@ -418,7 +505,11 @@ public sealed class CommonFileSourceBuilder
         return this;
     }
 
-    internal void Register(ConfiglueSourceSetBuilder sources, int priority)
+    internal void Register(
+        ConfiglueSourceSetBuilder sources,
+        int priority,
+        bool isDefaultWriteTarget
+    )
     {
         switch (_format)
         {
@@ -430,8 +521,9 @@ public sealed class CommonFileSourceBuilder
                         Path = _path,
                         Priority = priority,
                         SectionPath = _section,
+                        SchemaReferenceBaseUri = _schemaReferenceBaseUri,
                         ReadOnly = _readOnly,
-                        ExplicitOnly = _explicitOnly,
+                        ExplicitOnly = _explicitOnly ?? !isDefaultWriteTarget,
                         WatchChanges = _watchChanges,
                         PropertyNamingPolicy = _yamlNamingPolicy,
                         SerializerOptions = _yamlOptions,
@@ -449,7 +541,7 @@ public sealed class CommonFileSourceBuilder
                         Priority = priority,
                         SectionPath = _section,
                         ReadOnly = _readOnly,
-                        ExplicitOnly = _explicitOnly,
+                        ExplicitOnly = _explicitOnly ?? !isDefaultWriteTarget,
                         WatchChanges = _watchChanges,
                         ResourceOptions = _resourceOptions,
                         Transformers = _transformers.ToArray(),
@@ -464,8 +556,9 @@ public sealed class CommonFileSourceBuilder
                         Path = _path,
                         Priority = priority,
                         SectionPath = _section,
+                        SchemaReferenceBaseUri = _schemaReferenceBaseUri,
                         ReadOnly = _readOnly,
-                        ExplicitOnly = _explicitOnly,
+                        ExplicitOnly = _explicitOnly ?? !isDefaultWriteTarget,
                         WatchChanges = _watchChanges,
                         SerializerOptions = _jsonOptions,
                         ResourceOptions = _resourceOptions,
@@ -483,171 +576,5 @@ public sealed class CommonFileSourceBuilder
         Json,
         Yaml,
         Xml,
-    }
-}
-
-/// <summary>Configures one environment source.</summary>
-public sealed class CommonEnvironmentSourceBuilder
-{
-    private readonly CommonSourceBuilder.SourceDeclaration _declaration;
-
-    internal CommonEnvironmentSourceBuilder(
-        CommonSourceBuilder.SourceDeclaration declaration,
-        string prefix
-    )
-    {
-        _declaration = declaration;
-        _declaration.Register = (sources, priority) =>
-            sources.FromEnvironment(
-                new EnvironmentSourceOptions
-                {
-                    Prefix = prefix,
-                    Priority = priority,
-                    FallbackCondition = StateFallbackCondition.NotFound,
-                }
-            );
-    }
-
-    /// <summary>Overrides the fixed environment-layer priority.</summary>
-    public CommonEnvironmentSourceBuilder Priority(int priority)
-    {
-        _declaration.EnsureMutable();
-        _declaration.Priority = priority;
-        return this;
-    }
-}
-
-/// <summary>Configures one HTTP policy source.</summary>
-public sealed class CommonHttpSourceBuilder
-{
-    private readonly CommonSourceBuilder.SourceDeclaration _declaration;
-    private readonly string _endpoint;
-    private readonly HttpClient? _client;
-    private readonly Func<IServiceProvider?, HttpClient>? _clientFactory;
-    private readonly string _id;
-    private JsonSerializerOptions? _serializerOptions;
-    private HttpResourceOptions? _resourceOptions;
-    private readonly List<IStateByteTransformer> _transformers = [];
-
-    internal CommonHttpSourceBuilder(
-        CommonSourceBuilder.SourceDeclaration declaration,
-        string endpoint,
-        HttpClient client,
-        string id
-    )
-    {
-        _declaration = declaration;
-        _endpoint = endpoint;
-        _client = client;
-        _id = id;
-        UpdateRegistration();
-    }
-
-    internal CommonHttpSourceBuilder(
-        CommonSourceBuilder.SourceDeclaration declaration,
-        string endpoint,
-        Func<IServiceProvider?, HttpClient> clientFactory,
-        string id
-    )
-    {
-        _declaration = declaration;
-        _endpoint = endpoint;
-        _clientFactory = clientFactory;
-        _id = id;
-        UpdateRegistration();
-    }
-
-    /// <summary>Sets JSON serialization options for the HTTP source.</summary>
-    public CommonHttpSourceBuilder SerializerOptions(JsonSerializerOptions options)
-    {
-        _declaration.EnsureMutable();
-        ArgumentNullException.ThrowIfNull(options);
-        _serializerOptions = options;
-        UpdateRegistration();
-        return this;
-    }
-
-    /// <summary>Sets HTTP resource paths and polling behavior.</summary>
-    public CommonHttpSourceBuilder ResourceOptions(HttpResourceOptions options)
-    {
-        _declaration.EnsureMutable();
-        ArgumentNullException.ThrowIfNull(options);
-        _resourceOptions = options;
-        UpdateRegistration();
-        return this;
-    }
-
-    /// <summary>Adds a byte transformer to this HTTP source.</summary>
-    public CommonHttpSourceBuilder Transformer(IStateByteTransformer transformer)
-    {
-        _declaration.EnsureMutable();
-        ArgumentNullException.ThrowIfNull(transformer);
-        _transformers.Add(transformer);
-        UpdateRegistration();
-        return this;
-    }
-
-    /// <summary>Overrides the fixed HTTP-layer priority.</summary>
-    public CommonHttpSourceBuilder Priority(int priority)
-    {
-        _declaration.EnsureMutable();
-        _declaration.Priority = priority;
-        return this;
-    }
-
-    private void UpdateRegistration()
-    {
-        _declaration.Register = (sources, priority) =>
-            sources.FromJsonHttp(
-                new JsonHttpSourceOptions
-                {
-                    Id = _id,
-                    EndPoint = _endpoint,
-                    Client = _client,
-                    ClientFactory = _clientFactory,
-                    Priority = priority,
-                    FallbackCondition = StateFallbackCondition.NotFound,
-                    Writable = false,
-                    ResourceOptions = _resourceOptions,
-                    SerializerOptions = _serializerOptions,
-                    Transformers = _transformers.ToArray(),
-                }
-            );
-    }
-}
-
-/// <summary>Configures the priority for a custom source inserted between built-in layers.</summary>
-public sealed class CommonCustomSourceBuilder
-{
-    private readonly CommonSourceBuilder.SourceDeclaration _declaration;
-
-    internal CommonCustomSourceBuilder(CommonSourceBuilder.SourceDeclaration declaration)
-    {
-        _declaration = declaration;
-    }
-
-    /// <summary>Overrides the automatically assigned insertion priority.</summary>
-    public CommonCustomSourceBuilder Priority(int priority)
-    {
-        _declaration.EnsureMutable();
-        _declaration.Priority = priority;
-        return this;
-    }
-}
-
-/// <summary>Registers the common source preset for multiple model registrations.</summary>
-public static class CommonSourceBuilderExtensions
-{
-    /// <summary>Configures common sources and adds models within the same scope.</summary>
-    public static void UseCommonSources(
-        this ConfiglueBuilder configlue,
-        Action<CommonSourceBuilder> configure
-    )
-    {
-        ArgumentNullException.ThrowIfNull(configlue);
-        ArgumentNullException.ThrowIfNull(configure);
-        var commonSources = new CommonSourceBuilder(configlue);
-        configure(commonSources);
-        commonSources.EnsureHasModel();
     }
 }

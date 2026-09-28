@@ -36,7 +36,7 @@ public sealed partial class CommonSourceFormatTests
 
         try
         {
-            await using var context = Configlue.CreateContext(configure =>
+            await using var context = ConfiglueApp.CreateContext(configure =>
                 configure.UseCommonSources(sources =>
                 {
                     sources.WithLocal(localPath);
@@ -75,7 +75,7 @@ public sealed partial class CommonSourceFormatTests
             new AppSettings.Fragment { RetryCount = Optional<int>.Present(23) }
         );
 
-        await using var context = Configlue.CreateContext(configure =>
+        await using var context = ConfiglueApp.CreateContext(configure =>
             configure.UseCommonSources(sources =>
             {
                 sources.WithExplicit(yamlPath).Yaml();
@@ -102,7 +102,7 @@ public sealed partial class CommonSourceFormatTests
         rootCommand.Options.Add(retryOption);
         var parseResult = rootCommand.Parse(["--retry", "31"]);
 
-        await using var context = Configlue.CreateContext(configure =>
+        await using var context = ConfiglueApp.CreateContext(configure =>
             configure.UseCommonSources(sources =>
             {
                 sources.WithCommandLine(
@@ -136,7 +136,7 @@ public sealed partial class CommonSourceFormatTests
         var encrypted = transformer.TransformWrite(plaintext);
         await File.WriteAllBytesAsync(explicitPath, encrypted.ToArray());
 
-        await using var context = Configlue.CreateContext(configure =>
+        await using var context = ConfiglueApp.CreateContext(configure =>
             configure.UseCommonSources(sources =>
             {
                 sources.WithExplicit(explicitPath).Transformer(transformer);

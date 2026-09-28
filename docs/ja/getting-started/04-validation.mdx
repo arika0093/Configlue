@@ -61,15 +61,16 @@ Configlue は、設定を保存する前や読み取る際に自動的に検証�
 
    ```csharp
    using Configlue;
-   using Configlue.Source.Common;
+   using Configlue.Source.Presets;
 
    await using var context = ConfiglueApp.CreateContext(conf =>
-   {
-       conf.Add<AppSettings>(model =>
+       conf.UseCommonSources(sources =>
        {
-           model.UseCommonSources("TutorialApp");
-       });
-   });
+           sources.WithGlobal("TutorialApp");
+           sources.WithLocal();
+           sources.Add<AppSettings>();
+       })
+   );
 
    var options = context.GetOptions<AppSettings>();
    ```
@@ -79,15 +80,16 @@ Configlue は、設定を保存する前や読み取る際に自動的に検証�
 
    ```csharp
    using Configlue;
-   using Configlue.Source.Common;
+   using Configlue.Source.Presets;
 
    builder.Services.AddConfiglue(conf =>
-   {
-       conf.Add<AppSettings>(model =>
+       conf.UseCommonSources(sources =>
        {
-           model.UseCommonSources("TutorialApp");
-       });
-   });
+           sources.WithGlobal("TutorialApp");
+           sources.WithLocal();
+           sources.Add<AppSettings>();
+       })
+   );
    ```
 
    </TabItem>
@@ -120,10 +122,11 @@ Configlue は、設定を保存する前や読み取る際に自動的に検証�
    <TabItem label="DI なし">
 
    ```csharp
-   conf.Add<AppSettings>(model =>
+   conf.UseCommonSources(sources =>
    {
-       model.UseCommonSources("TutorialApp");
-       model.AddValidator(new AppSettingsValidator());
+       sources.WithGlobal("TutorialApp");
+       sources.WithLocal();
+       sources.Add<AppSettings>(model => model.AddValidator(new AppSettingsValidator()));
    });
    ```
 

@@ -34,15 +34,16 @@ This guide uses Configlue's standard **CommonSource** preset to demonstrate read
 
    ```csharp
    using Configlue;
-   using Configlue.Source.Common;
+   using Configlue.Source.Presets;
 
    await using var context = ConfiglueApp.CreateContext(conf =>
-   {
-       conf.Add<QuickSettings>(model =>
+       conf.UseCommonSources(sources =>
        {
-           model.UseCommonSources("QuickApp");
-       });
-   });
+           sources.WithGlobal("QuickApp");
+           sources.WithLocal();
+           sources.Add<QuickSettings>();
+       })
+   );
 
    var options = context.GetOptions<QuickSettings>();
    ```

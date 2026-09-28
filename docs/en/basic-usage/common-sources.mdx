@@ -8,7 +8,7 @@ import { Steps, Tabs, TabItem } from '@astrojs/starlight/components';
 # Common Layered Sources
 
 The **CommonSource** (`UseCommonSources`) feature is the recommended foundation for application configuration in Configlue.
-Rather than configuring file paths and precedence manually, it establishes the standard layers required by real-world applications: global defaults, local overrides, command-line specific files, and environment variables.
+It provides standard layer helpers; only the layers declared in the scope are enabled.
 
 ## Why CommonSource as the Default?
 
@@ -18,20 +18,22 @@ Production applications rarely store all settings in a single file:
 - Dynamic environment variable injections in containers and CI/CD.
 - Ad-hoc configuration files selected at startup.
 
-`UseCommonSources` provides these layers with predictable, safe precedence out of the box.
+`UseCommonSources` provides predictable, fixed precedence for the layers you select.
 
 ## Layer Precedence Order
 
-CommonSource organizes four layers in increasing priority:
+The fixed order runs from lowest to highest priority:
 
 | Layer | Condition | Location / Source | Writes |
 | --- | --- | --- | :---: |
-| **Global** | Always | OS-standard per-user configuration folder | Selectable via handle or options |
-| **Local** | Always | Current directory (`settings.json`) | Default destination when no specific file is set |
-| **Specific** | Path provided | User-supplied path via options/args | Default destination when set |
-| **Environment** | Prefix provided | Process environment variables | Read-only |
+| **Global** | `WithGlobal` | OS-standard per-user configuration folder | Writable |
+| **Local** | `WithLocal` | Current directory (`settings.json`) | Writable |
+| **Explicit** | `WithExplicit` | Caller-supplied file path | Writable |
+| **Environment** | `WithEnvironment` | Process environment variables | Read-only |
+| **Arguments** | `WithCommandLine` | Command-line parse result | Read-only |
+| **HTTP** | `WithHttpPolicy` | Remote JSON policy | Read-only |
 
-The preset assigns source identities and numeric priorities internally. Ordinary `SaveAsync` targets the Specific file when configured, otherwise Local; all file layers remain writable through explicit semantic selectors.
+The preset assigns source identities and priorities internally (0, 100, 200, 300, 400, and 500). Ordinary `SaveAsync` targets the highest-priority configured file layer; `DefaultWriteLayer` can select another configured file. All configured file layers remain available through semantic selectors.
 ## Basic Usage
 
 To apply one preset to multiple models, use the scoped builder from `Configlue.Source.Presets`. Only declared sources are enabled, and precedence is fixed: Global < Local < Explicit < Environment < Arguments < HTTP.
@@ -41,7 +43,7 @@ using Configlue;
 using Configlue.Source.Presets;
 using System.Text.Json;
 
-await using var context = Configlue.CreateContext(conf =>
+await using var context = ConfiglueApp.CreateContext(conf =>
     conf.UseCommonSources(sources =>
 {
     sources.WithGlobal("ExampleApp", filename: "settings.yaml")
@@ -56,61 +58,26 @@ await using var context = Configlue.CreateContext(conf =>
 
 Use `WithCustom(CommonSourceLayer.Global, ...)` to insert a custom source between built-in layers. Provider serializer/resource settings and the CommandLine mapping API remain available through their provider-specific APIs.
 
-The simplest invocation requires only an application ID:
-
-<Tabs syncKey="di">
-<TabItem label="Without DI">
+Only explicitly declared layers are enabled. The default write target is the highest-priority configured file layer; use `DefaultWriteLayer` when you want another configured file to receive ordinary writes:
 
 ```csharp
 using Configlue;
-using Configlue.Source.Common;
+using Configlue.Source.Presets;
 
 await using var context = ConfiglueApp.CreateContext(conf =>
-{
-    conf.Add<AppSettings>(model =>
+    conf.UseCommonSources(sources =>
     {
-        model.UseCommonSources("ExampleApp");
-    });
-});
+        sources.WithGlobal("ExampleApp", filename: "appsettings.json");
+        sources.WithLocal();
+        sources.WithExplicit(userSpecifiedPath);
+        sources.WithEnvironment("EXAMPLE");
+        sources.DefaultWriteLayer(CommonSourceLayer.Local);
+        sources.Add<AppSettings>();
+    })
+);
 ```
 
-</TabItem>
-<TabItem label="With DI">
-
-```csharp
-using Configlue;
-using Configlue.Source.Common;
-
-builder.Services.AddConfiglue(conf =>
-{
-    conf.Add<AppSettings>(model =>
-    {
-        model.UseCommonSources("ExampleApp");
-    });
-});
-```
-
-</TabItem>
-</Tabs>
-
-This automatically prepares:
-- **Global**: `settings.json` under `ConfiglueStandardPaths.GetStandardSaveDirectory("ExampleApp")`.
-- **Local**: `settings.json` in the current working directory.
-
-## Customizing with CommonSourceOptions
-
-Pass `CommonSourceOptions` when you need specific file names, environment variable prefixes, or custom file paths:
-
-```csharp
-model.UseCommonSources(new CommonSourceOptions
-{
-    ApplicationId = "ExampleApp",
-    GlobalFileName = "appsettings.json",
-    EnvironmentPrefix = "EXAMPLE",          // Reads EXAMPLE__SERVER__PORT, etc.
-    SpecificFilePath = userSpecifiedPath,   // Optional path supplied via CLI
-    WriteLayer = CommonSourceWriteLayer.Local, // Explicit default save target
-});
-```
+For a DI registration, call the same `conf.UseCommonSources(...)` method inside `AddConfiglue`. A file layer can reuse the regular provider APIs, for example `sources.WithGlobal("ExampleApp").Yaml()` or `.FileResourceOptions(...)`.
 
 ## Explicit Writes with Semantic Selectors
 
@@ -132,46 +99,43 @@ await options.Source(CommonSource.Local).SaveAsync(patch =>
 
 ## Extension Patterns
 
-CommonSource serves as the foundation for more advanced requirements:
+The preset can be extended with provider-specific sources:
 
 ### Pattern 1: Command-line overrides
 
 Add `Configlue.Source.CommandLine` to seamlessly integrate `System.CommandLine` parse results:
 
 ```csharp
-using Configlue.Source.Common;
 using Configlue.Source.CommandLine;
 
-model.UseCommonSources(
-    commonOptions,
-    parseResult,
-    mappings =>
+conf.UseCommonSources(sources =>
+{
+    sources.WithGlobal("ExampleApp");
+    sources.WithLocal();
+    sources.WithEnvironment("EXAMPLE");
+    sources.WithCommandLine(parseResult, mappings =>
     {
-        mappings.Map<AppSettings, int>(portOption, s => s.Server.Port);
-        mappings.Map<AppSettings, bool>(verboseOption, s => s.Verbose);
+        mappings.Map(portOption, "Server.Port");
+        mappings.Map(verboseOption, "Verbose");
     });
+    sources.Add<AppSettings>();
+});
 ```
 
 ### Pattern 2: Remote policies and additional custom sources
 
-Append additional sources using `model.Sources(...)` directly after `UseCommonSources`:
+Declare an HTTP policy source directly in the preset scope:
 
 ```csharp
-model.UseCommonSources(new CommonSourceOptions
+conf.UseCommonSources(sources =>
 {
-    ApplicationId = "ExampleApp",
-    GlobalFileName = "settings.json",
-});
-
-model.Sources(sources =>
-{
-    sources.FromJsonHttp(new()
-    {
-        Id = "remote-policy",
-        EndPoint = "https://policy.example.internal/api/config",
-        Priority = 500, // Higher priority than the CommonSource preset
-        FallbackCondition = StateFallbackCondition.NotFoundOrUnavailable,
-    });
+    sources.WithGlobal("ExampleApp");
+    sources.WithLocal();
+    sources.WithHttpPolicy(
+        "https://policy.example.internal/api/config",
+        httpClient,
+        id: "remote-policy");
+    sources.Add<AppSettings>();
 });
 ```
 

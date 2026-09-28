@@ -86,7 +86,7 @@ public sealed class CommandLineSourceTests
         }
 
         var validParseResult = root.Parse(["--retry", "5"]);
-        await using var writableContext = Configlue.CreateContext(builder =>
+        await using var writableContext = ConfiglueApp.CreateContext(builder =>
         {
             builder.Add<AppSettings>(model =>
             {
@@ -177,7 +177,7 @@ public sealed class CommandLineSourceTests
         var parseResult = root.Parse(["--retry", "1"]);
 
         Should.Throw<ArgumentException>(() =>
-            Configlue.CreateContext(builder =>
+            ConfiglueApp.CreateContext(builder =>
                 builder.Add<AppSettings>(model =>
                     model.Sources(sources =>
                         sources.FromCommandLine(
@@ -257,7 +257,7 @@ public sealed class CommandLineSourceTests
         ParseResult parseResult,
         Action<CommandLineMappingBuilder> configureMappings
     ) =>
-        Configlue.CreateContext(builder =>
+        ConfiglueApp.CreateContext(builder =>
         {
             builder.Add<AppSettings>(model =>
                 model.Sources(sources =>

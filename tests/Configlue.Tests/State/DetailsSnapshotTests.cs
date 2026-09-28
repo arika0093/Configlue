@@ -9,7 +9,7 @@ public sealed class DetailsSnapshotTests
     [Test]
     public async Task GetDetailsAsync_ExposesTypedLeavesWithProvenance()
     {
-        await using var context = Configlue.CreateContext(builder =>
+        await using var context = ConfiglueApp.CreateContext(builder =>
         {
             builder.Add<AppSettings>(model =>
                 model.Sources(sources =>
@@ -187,7 +187,7 @@ public sealed class DetailsSnapshotTests
         {
             ["APP__RETRYCOUNT"] = "9",
         };
-        await using var context = Configlue.CreateContext(builder =>
+        await using var context = ConfiglueApp.CreateContext(builder =>
         {
             builder.Add<AppSettings>(model =>
             {
@@ -274,7 +274,7 @@ public sealed class DetailsSnapshotTests
     [Test]
     public async Task GetDetailsAsync_NavigatesNestedMembersAndCollections()
     {
-        await using var context = Configlue.CreateContext(builder =>
+        await using var context = ConfiglueApp.CreateContext(builder =>
         {
             builder.Add<AppSettings>(model =>
                 model.Sources(sources =>
@@ -318,7 +318,7 @@ public sealed class DetailsSnapshotTests
     [Test]
     public async Task GetDetailsAsync_SupportsArraysSetsAndNestedCollections()
     {
-        await using var context = Configlue.CreateContext(builder =>
+        await using var context = ConfiglueApp.CreateContext(builder =>
         {
             builder.Add<OwnershipSettings>(model =>
                 model.Sources(sources =>

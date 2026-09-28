@@ -45,15 +45,16 @@ Register settings into the Microsoft Dependency Injection container using `servi
 
    ```csharp
    using Configlue;
-   using Configlue.Source.Common;
+   using Configlue.Source.Presets;
 
    await using var context = ConfiglueApp.CreateContext(conf =>
-   {
-       conf.Add<AppSettings>(model =>
+       conf.UseCommonSources(sources =>
        {
-           model.UseCommonSources("TutorialApp");
-       });
-   });
+           sources.WithGlobal("TutorialApp");
+           sources.WithLocal();
+           sources.Add<AppSettings>();
+       })
+   );
 
    var options = context.GetOptions<AppSettings>();
    ```
@@ -64,15 +65,16 @@ Register settings into the Microsoft Dependency Injection container using `servi
    ```csharp
    // Program.cs
    using Configlue;
-   using Configlue.Source.Common;
+   using Configlue.Source.Presets;
 
    builder.Services.AddConfiglue(conf =>
-   {
-       conf.Add<AppSettings>(model =>
+       conf.UseCommonSources(sources =>
        {
-           model.UseCommonSources("TutorialApp");
-       });
-   });
+           sources.WithGlobal("TutorialApp");
+           sources.WithLocal();
+           sources.Add<AppSettings>();
+       })
+   );
    ```
 
    ```csharp
@@ -92,7 +94,7 @@ Register settings into the Microsoft Dependency Injection container using `servi
    </TabItem>
    </Tabs>
 
-   `UseCommonSources("TutorialApp")` prepares:
+   The preset enables exactly the layers declared in its scope:
    - **User-level global settings**: In the platform-standard folder (e.g. `%APPDATA%/TutorialApp` or `~/.config/TutorialApp`).
    - **Local settings**: In the current working directory (`settings.json`).
 

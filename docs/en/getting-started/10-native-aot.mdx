@@ -27,32 +27,25 @@ Configlue supports NativeAOT by accepting `System.Text.Json` source generator co
    }
    ```
 
-2. ### Pass serializer options to CommonSource
+2. ### Pass the generated JSON context to the file layers
 
-   Configure `SerializerOptions` in `CommonSourceOptions` using the generated `TypeInfoResolver`:
+   Pass the generated `JsonSerializerContext` to each file layer with `.Json(...)`:
 
    <Tabs syncKey="di">
    <TabItem label="Without DI">
 
    ```csharp
    using Configlue;
-   using Configlue.Source.Common;
+   using Configlue.Source.Presets;
 
    await using var context = ConfiglueApp.CreateContext(conf =>
-   {
-       conf.Add<AppSettings>(model =>
+       conf.UseCommonSources(sources =>
        {
-           model.UseCommonSources(new CommonSourceOptions
-           {
-               ApplicationId = "TutorialApp",
-               GlobalFileName = "settings.json",
-               SerializerOptions = new()
-               {
-                   TypeInfoResolver = AppJsonContext.Default,
-               },
-           });
-       });
-   });
+           sources.WithGlobal("TutorialApp").Json(AppJsonContext.Default);
+           sources.WithLocal().Json(AppJsonContext.Default);
+           sources.Add<AppSettings>();
+       })
+   );
    ```
 
    </TabItem>
@@ -60,23 +53,16 @@ Configlue supports NativeAOT by accepting `System.Text.Json` source generator co
 
    ```csharp
    using Configlue;
-   using Configlue.Source.Common;
+   using Configlue.Source.Presets;
 
    builder.Services.AddConfiglue(conf =>
-   {
-       conf.Add<AppSettings>(model =>
+       conf.UseCommonSources(sources =>
        {
-           model.UseCommonSources(new CommonSourceOptions
-           {
-               ApplicationId = "TutorialApp",
-               GlobalFileName = "settings.json",
-               SerializerOptions = new()
-               {
-                   TypeInfoResolver = AppJsonContext.Default,
-               },
-           });
-       });
-   });
+           sources.WithGlobal("TutorialApp").Json(AppJsonContext.Default);
+           sources.WithLocal().Json(AppJsonContext.Default);
+           sources.Add<AppSettings>();
+       })
+   );
    ```
 
    </TabItem>

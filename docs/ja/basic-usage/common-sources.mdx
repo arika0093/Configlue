@@ -8,7 +8,7 @@ import { Steps, Tabs, TabItem, CardGrid, Card } from '@astrojs/starlight/compone
 # 共通レイヤーソース (CommonSource)
 
 Configlue の設定設計において、中心となるのが **CommonSource**（`UseCommonSources`）です。
-設定の置き場所を手作業で個別に指定する代わりに、一般的なアプリケーションに必要な階層（ユーザー共通・ローカル・指定ファイル・環境変数）を最初から整った状態で提供します。
+標準的な各レイヤーを簡潔に宣言できます。スコープ内で宣言したレイヤーだけが有効になります。
 
 ## なぜ CommonSource を基本にするのか
 
@@ -20,22 +20,24 @@ Configlue の設定設計において、中心となるのが **CommonSource**�
 - 起動時に手動で指定する特定の設定ファイルやコマンドライン引数
 
 これらを手動で組み立てると、パスの解決や優先度付けのコードが重複し、設定の追加や移行が難しくなります。
-`UseCommonSources` を利用すると、標準的な階層があらかじめ安全な優先順位で構成されます。
+`UseCommonSources` を利用すると、宣言したレイヤーに固定された優先順位が適用されます。
 
 ## レイヤー構成と優先順位
 
-CommonSource は、以下の 4 つの層を順序正しく重ね合わせます（表の下に行くほど優先度が高くなります）。
+優先順位の低い順に、次のレイヤーが定義されています。
 
 | 層 | 有効化の条件 | 保存場所・入力源 | 既定の書き込み可否 |
 | --- | --- | --- | :---: |
-| **Global（共通）** | 常に有効 | OS 標準のユーザー設定フォルダー | 明示的に選択可能 |
-| **Local（ローカル）** | 常に有効 | カレントディレクトリのファイル | 既定の保存先（指定ファイルがない場合） |
-| **Specific（指定ファイル）** | パス指定時に有効 | コマンドライン等で渡された任意のファイルパス | 既定の保存先（指定ファイルがある場合） |
-| **Environment（環境変数）** | プレフィックス指定時に有効 | プロセス環境変数 | 読み取り専用 |
+| **Global（共通）** | `WithGlobal` | OS 標準のユーザー設定フォルダー | 書き込み可能 |
+| **Local（ローカル）** | `WithLocal` | カレントディレクトリのファイル | 書き込み可能 |
+| **Explicit（指定ファイル）** | `WithExplicit` | 呼び出し側が指定するファイル | 書き込み可能 |
+| **Environment（環境変数）** | `WithEnvironment` | プロセス環境変数 | 読み取り専用 |
+| **Arguments（引数）** | `WithCommandLine` | コマンドライン引数 | 読み取り専用 |
+| **HTTP** | `WithHttpPolicy` | リモート JSON ポリシー | 読み取り専用 |
 
-source identity と数値の優先度はプリセット内部で割り当てられます。
-通常の `SaveAsync` は Specific ファイルが設定されていればそこへ、そうでなければ Local に書き込みます。
-すべてのファイル層は semantic selector から明示的に書き込み可能です。
+source identity と優先度（0、100、200、300、400、500）はプリセット内部で割り当てられます。
+通常の `SaveAsync` は最も優先順位の高いファイル層に書き込みます。`DefaultWriteLayer` で別のファイル層を選択できます。
+登録したすべてのファイル層は semantic selector から明示的に書き込み可能です。
 ## 基本的な使い方
 
 複数モデルに同じプリセットを適用する場合は、`Configlue.Source.Presets` のスコープビルダーを使います。宣言したソースだけが有効になり、優先順位は Global < Local < Explicit < Environment < Arguments < HTTP で固定です。
@@ -45,7 +47,7 @@ using Configlue;
 using Configlue.Source.Presets;
 using System.Text.Json;
 
-await using var context = Configlue.CreateContext(conf =>
+await using var context = ConfiglueApp.CreateContext(conf =>
     conf.UseCommonSources(sources =>
 {
     sources.WithGlobal("ExampleApp", filename: "settings.yaml")
@@ -60,71 +62,26 @@ await using var context = Configlue.CreateContext(conf =>
 
 `WithCustom(CommonSourceLayer.Global, ...)` のように指定すると、組み込みレイヤーの間にカスタムソースを追加できます。各 Provider のシリアライザー・リソース設定と、CommandLine のマッピング API を利用できます。
 
-もっとも手軽な形式は、アプリケーション名を渡す呼び出しです。
-
-<Tabs syncKey="di">
-<TabItem label="DI なし">
+宣言した層だけが有効になります。通常の保存先は、設定されたファイル層のうち最も優先順位が高い層です。別のファイル層に保存したい場合は `DefaultWriteLayer` で指定できます。
 
 ```csharp
 using Configlue;
-using Configlue.Source.Common;
+using Configlue.Source.Presets;
 
 await using var context = ConfiglueApp.CreateContext(conf =>
-{
-    conf.Add<AppSettings>(model =>
+    conf.UseCommonSources(sources =>
     {
-        model.UseCommonSources("ExampleApp");
-    });
-});
+        sources.WithGlobal("ExampleApp", filename: "appsettings.json");
+        sources.WithLocal();
+        sources.WithExplicit(userSpecifiedPath);
+        sources.WithEnvironment("EXAMPLE");
+        sources.DefaultWriteLayer(CommonSourceLayer.Local);
+        sources.Add<AppSettings>();
+    })
+);
 ```
 
-</TabItem>
-<TabItem label="DI あり">
-
-```csharp
-using Configlue;
-using Configlue.Source.Common;
-
-builder.Services.AddConfiglue(conf =>
-{
-    conf.Add<AppSettings>(model =>
-    {
-        model.UseCommonSources("ExampleApp");
-    });
-});
-```
-
-</TabItem>
-</Tabs>
-
-この指定により、以下が自動的に準備されます。
-
-- **Global**: `ConfiglueStandardPaths.GetStandardSaveDirectory("ExampleApp")` 配下の `settings.json`
-- **Local**: カレントディレクトリ配下の `settings.json`
-
-## CommonSourceOptions による詳細カスタマイズ
-
-ファイル名や環境変数のプレフィックス、保存先の変更には `CommonSourceOptions` を渡します。
-
-```csharp
-model.UseCommonSources(new CommonSourceOptions
-{
-    ApplicationId = "ExampleApp",
-    GlobalFileName = "appsettings.json",
-    EnvironmentPrefix = "EXAMPLE",          // EXAMPLE__SERVER__PORT などを環境変数から読み込む
-    SpecificFilePath = userSpecifiedPath,   // 起動引数で指定されたファイル（存在する場合のみ）
-    WriteLayer = CommonSourceWriteLayer.Local, // 既定の保存先を明示的に指定
-});
-```
-
-主なオプション項目は以下の通りです。
-
-- **`ApplicationId`**: ユーザー共通設定ディレクトリのフォルダー名として使用されます。
-- **`GlobalFileName`**: 共通フォルダーおよびローカルフォルダーで使用するファイル名です。
-- **`EnvironmentPrefix`**: 環境変数の接頭辞です。指定すると環境変数レイヤーが有効になります。
-- **`SpecificFilePath`**: 任意のファイルパスです。指定すると Specific レイヤーが有効になります。
-- **`WriteLayer`**: 通常の `SaveAsync` の保存先レイヤー（`Global`, `Local`, `Specific`）を指定します。
-- **`FileFormat`**: ファイルのフォーマット（`Auto`, `Json`, `Yaml`, `Xml`）を指定します。
+DI 登録では同じ `conf.UseCommonSources(...)` を `AddConfiglue` 内で呼び出します。ファイル層には既存 Provider の API を利用でき、たとえば `sources.WithGlobal("ExampleApp").Yaml()` や `.FileResourceOptions(...)` を指定できます。
 
 ## セマンティックセレクターによる明示保存
 
@@ -147,60 +104,49 @@ await options.Source(CommonSource.Local).SaveAsync(patch =>
 
 ## CommonSource からの発展パターン
 
-CommonSource は単体で完結するだけでなく、あらゆる発展的な設定シナリオの土台として機能します。
+CommonSource は Provider 固有のソースと組み合わせられます。
 
 ### パターン 1: コマンドライン引数を重ねる
 
-コマンドラインによる設定の上書きを追加する場合は、`Configlue.Source.CommandLine` パッケージの `UseCommonSources` オーバーロードを使用します。
+コマンドラインによる設定の上書きには `Configlue.Source.CommandLine` パッケージの拡張 API を使います。
 
 ```csharp
-using Configlue.Source.Common;
 using Configlue.Source.CommandLine;
 
-model.UseCommonSources(
-    new CommonSourceOptions
+conf.UseCommonSources(sources =>
+{
+    sources.WithGlobal("ExampleApp");
+    sources.WithLocal();
+    sources.WithEnvironment("EXAMPLE");
+    sources.WithCommandLine(parseResult, mappings =>
     {
-        ApplicationId = "ExampleApp",
-        GlobalFileName = "settings.json",
-        EnvironmentPrefix = "EXAMPLE",
-    },
-    parseResult,
-    mappings =>
-    {
-        mappings.Map<AppSettings, int>(portOption, s => s.Server.Port);
-        mappings.Map<AppSettings, bool>(verboseOption, s => s.Verbose);
+        mappings.Map(portOption, "Server.Port");
+        mappings.Map(verboseOption, "Verbose");
     });
+    sources.Add<AppSettings>();
+});
 ```
 
-コマンドライン層は CommonSource より上位に追加され、コマンド実行時の一時的な上書きとして機能します。
+コマンドライン層は固定優先順位に従って、環境変数より上位に登録されます。
 
 ### パターン 2: リモートポリシーや追加ソースを重ねる
 
-会社の共通設定（HTTP 経由）や別の設定ファイルを組み合わせたい場合、`UseCommonSources` の呼び出しに続けて `model.Sources(...)` を記述します。
+会社の共通設定（HTTP 経由）を組み合わせる場合は、プリセットのスコープ内で HTTP 層を宣言します。
 
 ```csharp
-// 1. 基本の共通レイヤーを構築
-model.UseCommonSources(new CommonSourceOptions
+conf.UseCommonSources(sources =>
 {
-    ApplicationId = "ExampleApp",
-    GlobalFileName = "settings.json",
-    EnvironmentPrefix = "EXAMPLE",
-});
-
-// 2. 追加のソースを重ねる
-model.Sources(sources =>
-{
-    sources.FromJsonHttp(new()
-    {
-        Id = "company-policy",
-        EndPoint = "https://policy.example.internal/api/config",
-        Priority = 500, // CommonSource プリセットより上位に配置
-        FallbackCondition = StateFallbackCondition.NotFoundOrUnavailable,
-    });
+    sources.WithGlobal("ExampleApp");
+    sources.WithLocal();
+    sources.WithHttpPolicy(
+        "https://policy.example.internal/api/config",
+        httpClient,
+        id: "company-policy");
+    sources.Add<AppSettings>();
 });
 ```
 
-追加するソースの `Priority` を大きめの値に設定することで、CommonSource の上にレイヤーを追加できます。
+HTTP 層は固定優先順位に従って、他の標準層より上位に登録されます。
 
 ## 次のステップ
 

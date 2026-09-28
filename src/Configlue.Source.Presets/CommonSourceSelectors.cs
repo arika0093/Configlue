@@ -1,6 +1,6 @@
 using Configlue;
 
-namespace Configlue.Source.Common;
+namespace Configlue.Source.Presets;
 
 /// <summary>A semantic selector for one standard file layer in the common source preset.</summary>
 public sealed record CommonSourceSelector
@@ -14,7 +14,7 @@ public sealed record CommonSourceSelector
     internal string SourceId { get; init; }
 }
 
-/// <summary>Semantic selectors for the file layers registered by <see cref="CommonSourcePreset"/>.</summary>
+/// <summary>Semantic selectors for the file layers registered by the common source preset.</summary>
 public static class CommonSource
 {
     /// <summary>Selects the global per-user file layer.</summary>

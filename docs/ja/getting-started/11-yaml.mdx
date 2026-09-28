@@ -22,8 +22,8 @@ import { Steps, Tabs, TabItem } from '@astrojs/starlight/components';
 
 2. ### YAML と JSON を組み合わせる
 
-   CommonSource では `FileFormat` オプションで既定の形式を変更できます。
-   また、`model.Sources(...)` を直接使用して、YAML（主）と JSON（従）の優先度を設定することも可能です。
+   プリセットでは対象のファイル層に `.Yaml()` を指定します。拡張子から Provider が自動選択されることはありません。
+   YAML（主）と JSON（従）の優先度を直接構成する場合は、以下のように `model.Sources(...)` を利用できます。
 
    <Tabs syncKey="di">
    <TabItem label="DI なし">

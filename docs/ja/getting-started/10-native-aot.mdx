@@ -27,9 +27,9 @@ Configlue は、`System.Text.Json` のソース生成コンテキスト（`JsonS
    }
    ```
 
-2. ### CommonSource にシリアライザーオプションを渡す
+2. ### 生成した JSON コンテキストをファイル層に渡す
 
-   `CommonSourceOptions` の `SerializerOptions` に、ソース生成された `TypeInfoResolver` を設定します。
+   ソース生成した `JsonSerializerContext` を各ファイル層の `.Json(...)` に渡します。
    これにより、リフレクションなしで安全に JSON の読み書きが行われます。
 
    <Tabs syncKey="di">
@@ -37,23 +37,16 @@ Configlue は、`System.Text.Json` のソース生成コンテキスト（`JsonS
 
    ```csharp
    using Configlue;
-   using Configlue.Source.Common;
+   using Configlue.Source.Presets;
 
    await using var context = ConfiglueApp.CreateContext(conf =>
-   {
-       conf.Add<AppSettings>(model =>
+       conf.UseCommonSources(sources =>
        {
-           model.UseCommonSources(new CommonSourceOptions
-           {
-               ApplicationId = "TutorialApp",
-               GlobalFileName = "settings.json",
-               SerializerOptions = new()
-               {
-                   TypeInfoResolver = AppJsonContext.Default,
-               },
-           });
-       });
-   });
+           sources.WithGlobal("TutorialApp").Json(AppJsonContext.Default);
+           sources.WithLocal().Json(AppJsonContext.Default);
+           sources.Add<AppSettings>();
+       })
+   );
    ```
 
    </TabItem>
@@ -61,23 +54,16 @@ Configlue は、`System.Text.Json` のソース生成コンテキスト（`JsonS
 
    ```csharp
    using Configlue;
-   using Configlue.Source.Common;
+   using Configlue.Source.Presets;
 
    builder.Services.AddConfiglue(conf =>
-   {
-       conf.Add<AppSettings>(model =>
+       conf.UseCommonSources(sources =>
        {
-           model.UseCommonSources(new CommonSourceOptions
-           {
-               ApplicationId = "TutorialApp",
-               GlobalFileName = "settings.json",
-               SerializerOptions = new()
-               {
-                   TypeInfoResolver = AppJsonContext.Default,
-               },
-           });
-       });
-   });
+           sources.WithGlobal("TutorialApp").Json(AppJsonContext.Default);
+           sources.WithLocal().Json(AppJsonContext.Default);
+           sources.Add<AppSettings>();
+       })
+   );
    ```
 
    </TabItem>

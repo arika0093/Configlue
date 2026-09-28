@@ -9,33 +9,30 @@ import { Steps, Tabs, TabItem } from '@astrojs/starlight/components';
 
 In containers (Docker) or CI/CD pipelines, settings are often injected via environment variables rather than files.
 Environment variables act as a **read-only** source.
-With Configlue's CommonSource, enabling this layer requires only a single property.
+In the preset scope, declare the layer with `WithEnvironment`; the source is read-only.
 
 <Steps>
 
 1. ### Enable environment variables in CommonSource
 
-   Supply an `EnvironmentPrefix` in `CommonSourceOptions`:
+   Pass the environment variable prefix to `WithEnvironment`:
 
    <Tabs syncKey="di">
    <TabItem label="Without DI">
 
    ```csharp
    using Configlue;
-   using Configlue.Source.Common;
+   using Configlue.Source.Presets;
 
    await using var context = ConfiglueApp.CreateContext(conf =>
-   {
-       conf.Add<AppSettings>(model =>
+       conf.UseCommonSources(sources =>
        {
-           model.UseCommonSources(new CommonSourceOptions
-           {
-               ApplicationId = "TutorialApp",
-               GlobalFileName = "settings.json",
-               EnvironmentPrefix = "EXAMPLE", // Prefix for environment variables
-           });
-       });
-   });
+           sources.WithGlobal("TutorialApp");
+           sources.WithLocal();
+           sources.WithEnvironment("EXAMPLE");
+           sources.Add<AppSettings>();
+       })
+   );
    ```
 
    </TabItem>
@@ -43,20 +40,17 @@ With Configlue's CommonSource, enabling this layer requires only a single proper
 
    ```csharp
    using Configlue;
-   using Configlue.Source.Common;
+   using Configlue.Source.Presets;
 
    builder.Services.AddConfiglue(conf =>
-   {
-       conf.Add<AppSettings>(model =>
+       conf.UseCommonSources(sources =>
        {
-           model.UseCommonSources(new CommonSourceOptions
-           {
-               ApplicationId = "TutorialApp",
-               GlobalFileName = "settings.json",
-               EnvironmentPrefix = "EXAMPLE",
-           });
-       });
-   });
+           sources.WithGlobal("TutorialApp");
+           sources.WithLocal();
+           sources.WithEnvironment("EXAMPLE");
+           sources.Add<AppSettings>();
+       })
+   );
    ```
 
    </TabItem>

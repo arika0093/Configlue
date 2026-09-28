@@ -1,17 +1,10 @@
 [assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/arika0093/Configlue")]
 namespace Configlue
 {
-    public static class Configlue
-    {
-        public static Configlue.ConfiglueContext CreateContext(System.Action<Configlue.ConfiglueBuilder> configure) { }
-        public static Configlue.IConfiglueOptions<TModel> GetAdvancedOptions<TModel>(string? optionsName = null) { }
-        public static Configlue.IWritableOptions<TModel> GetOptions<TModel>(string? optionsName = null) { }
-        public static void Initialize(System.Action<Configlue.ConfiglueBuilder> configure) { }
-        public static System.Threading.Tasks.ValueTask ShutdownAsync() { }
-    }
     public static class ConfiglueApp
     {
         public static Configlue.ConfiglueContext CreateContext(System.Action<Configlue.ConfiglueBuilder> configure) { }
+        public static Configlue.IConfiglueOptions<TModel> GetAdvancedOptions<TModel>(string? optionsName = null) { }
         public static Configlue.IWritableOptions<TModel> GetOptions<TModel>(string? optionsName = null) { }
         public static void Initialize(System.Action<Configlue.ConfiglueBuilder> configure) { }
         public static System.Threading.Tasks.ValueTask ShutdownAsync() { }

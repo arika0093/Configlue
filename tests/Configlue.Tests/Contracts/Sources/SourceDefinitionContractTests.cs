@@ -9,7 +9,7 @@ public sealed class SourceDefinitionContractTests
     {
         var ownedResource = new DisposableProbe();
         var definition = new ProbeSourceDefinition(ownedResource);
-        await using var context = Configlue.CreateContext(builder =>
+        await using var context = ConfiglueApp.CreateContext(builder =>
         {
             builder.Add<AppSettings>(model => model.Sources(sources => sources.Add(definition)));
         });
