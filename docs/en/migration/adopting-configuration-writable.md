@@ -44,6 +44,41 @@ The file and section resource above remain application-owned. For a file with hi
 * Keep the original file until target verification succeeds; if migration fails, retry with the same source and target definitions.
 * Remove the old file only through an explicit application decision.
 
+## Migrating the application API
+
+After adopting the file, replace the application's registration and read/write calls. Register sources and their write destinations explicitly with `conf.Add<TModel>(...)`, using a provider that matches the existing file format.
+
+| Configuration.Writable | Configlue |
+| --- | --- |
+| `[OptionsModel]` | `[ConfiglueModel]`. Mark the class `partial` and use its generated `Patch` for sparse saves. |
+| `WritableOptions.Initialize(...)` | `ConfiglueApp.CreateContext(...)`. For a shared default context, use `ConfiglueApp.Initialize(...)` and `GetOptions<T>()`. |
+| `WritableOptions.GetOptions<T>()` | `context.GetOptions<T>()` or `ConfiglueApp.GetOptions<T>()`. |
+| `CurrentValue` | `await options.GetValueAsync()`. Configlue's core API is asynchronous. DI applications that need synchronous `IOptions<T>` adapters can opt in to `Configlue.Extensions.MSOptions`. |
+| `SaveAsync(value => ...)` | `await options.SaveAsync(patch => ...)` to save only changed members. Use `context.GetAdvancedOptions<T>().OpenEditSessionAsync()` when editing the resolved model as a whole. |
+| `OnChange(...)` / `OnReloadFailed(...)` | Use `options.OnChange(...)` and `context.GetAdvancedOptions<T>().OnReloadFailed(...)`. Dispose each returned subscription when it is no longer needed. |
+| `InstanceName` / named options | Set `OptionsName` at registration for fixed names. Use `EnableDynamicOptions` and `GetOptionsRegistry<T>()` to add or remove names at runtime. Use `EnableProfiles(...)` when the profile catalog must persist. |
+| `ConfigurationInfo` | Use `context.GetAdvancedOptions<T>().GetDiagnostics()` for source topology and write routes, and `context.GetAdvancedOptions<T>().GetDetailsSnapshotAsync()` for values and their source provenance. |
+| `AddWritableOptions(...)` | `services.AddConfiglue(...)`. Add `AddConfiglueMicrosoftOptions<T>()` when `IOptions<T>` adapters are also needed. |
+
+Example using an independent non-DI context:
+
+```csharp
+await using var context = ConfiglueApp.CreateContext(config =>
+{
+    config.Add<UserSettings>(model =>
+    {
+        model.UseDefaultJsonFile();
+    });
+});
+
+var options = context.GetOptions<UserSettings>();
+var value = await options.GetValueAsync();
+using var subscription = options.OnChange(updated => Console.WriteLine(updated.Name));
+await options.SaveAsync(patch => patch.Name = "new name");
+```
+
+`CreateContext` manages the lifetime of its context and the watchers it starts. Sources and resources supplied by the application remain application-owned. See [Application setup](../basic-usage/app-setup.md) for fixed named options and DI registration, and [Dynamic options](../profiles/dynamic-options.md) and [Profiles](../profiles/profiles.md) for the difference between runtime names and persisted profiles.
+
 ## Next steps
 
 * [Schema migration](./schema-migration.md) for version chains after adoption.

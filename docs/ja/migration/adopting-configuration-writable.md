@@ -44,6 +44,41 @@ await options.MigrateSourceAsync("legacy", "current");
 * 宛先検証が成功するまで元ファイルは残します。失敗したら同じソース・宛先定義で再試行します。
 * 旧ファイルの削除は明示的なアプリ判断でのみ行います。
 
+## アプリ API の移行
+
+ファイルを取り込んだ後、アプリの登録と読み書き箇所を次のように置き換えます。ソースと保存先は `conf.Add<TModel>(...)` で明示し、既存ファイルの形式に合う provider を登録してください。
+
+| Configuration.Writable | Configlue |
+| --- | --- |
+| `[OptionsModel]` | `[ConfiglueModel]`。クラスは `partial` にし、生成される `Patch` を疎な保存に使います。 |
+| `WritableOptions.Initialize(...)` | `ConfiglueApp.CreateContext(...)`。既定の共有 context が必要なら `ConfiglueApp.Initialize(...)` と `GetOptions<T>()`。 |
+| `WritableOptions.GetOptions<T>()` | `context.GetOptions<T>()` または `ConfiglueApp.GetOptions<T>()`。 |
+| `CurrentValue` | `await options.GetValueAsync()`。Configlue の基本 API は非同期です。同期 `IOptions<T>` adapter が必要な DI アプリは `Configlue.Extensions.MSOptions` を明示的に登録します。 |
+| `SaveAsync(value => ...)` | `await options.SaveAsync(patch => ...)`。指定した項目だけを保存します。解決済みモデル全体を編集する場合は `context.GetAdvancedOptions<T>().OpenEditSessionAsync()` を使います。 |
+| `OnChange(...)` / `OnReloadFailed(...)` | `options.OnChange(...)` と `context.GetAdvancedOptions<T>().OnReloadFailed(...)`。返された subscription は不要になった時点で破棄します。 |
+| `InstanceName` / named options | 固定名は登録時の `OptionsName`、実行時に追加・削除する名前は `EnableDynamicOptions` と `GetOptionsRegistry<T>()`。永続化された profile catalog が必要なら `EnableProfiles(...)` を使います。 |
+| `ConfigurationInfo` | topology と write route は `context.GetAdvancedOptions<T>().GetDiagnostics()`、値や各項目の出所は `context.GetAdvancedOptions<T>().GetDetailsSnapshotAsync()`。 |
+| `AddWritableOptions(...)` | `services.AddConfiglue(...)`。`IOptions<T>` なども必要な場合は `AddConfiglueMicrosoftOptions<T>()` を追加します。 |
+
+独立した非 DI context の例です:
+
+```csharp
+await using var context = ConfiglueApp.CreateContext(config =>
+{
+    config.Add<UserSettings>(model =>
+    {
+        model.UseDefaultJsonFile();
+    });
+});
+
+var options = context.GetOptions<UserSettings>();
+var value = await options.GetValueAsync();
+using var subscription = options.OnChange(updated => Console.WriteLine(updated.Name));
+await options.SaveAsync(patch => patch.Name = "new name");
+```
+
+`CreateContext` は context とそこで開始する watcher の寿命を管理します。アプリが渡した source や resource は引き続きアプリ所有です。固定登録の named options や DI 登録の詳細は[アプリケーション構成](../basic-usage/app-setup.md)、実行時追加・削除と永続 profile の違いは[動的オプション](../profiles/dynamic-options.md)と[プロファイル](../profiles/profiles.md)を参照してください。
+
 ## 次のステップ
 
 * 取り込み後の版連鎖は [スキーマ移行](./schema-migration.md)。
