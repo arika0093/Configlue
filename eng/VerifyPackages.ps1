@@ -10,6 +10,7 @@ $expectedPackageIds = @(
     'Configlue.Core',
     'Configlue.Extensions.DI',
     'Configlue.Extensions.MSOptions',
+    'Configlue.JsonSchema',
     'Configlue.Generator',
     'Configlue.Testing',
     'Configlue.Provider.Json',
@@ -20,7 +21,9 @@ $expectedPackageIds = @(
     'Configlue.Source.Common',
     'Configlue.Resource.Zip',
     'Configlue.Resource.Http',
-    'Configlue.Resource.Http.AspNetCore'
+    'Configlue.Resource.Http.AspNetCore',
+    'Configlue.Resource.Dapr',
+    'Configlue.Resource.S3'
 )
 
 $resolvedDirectory = Resolve-Path -LiteralPath $PackageDirectory
