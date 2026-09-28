@@ -439,6 +439,38 @@ public sealed class GeneratedFragmentTests
     }
 
     [Test]
+    public void PatchCopyFrom_ConvertsValuesAndKeepsPresenceSemantics()
+    {
+        var current = new AppSettings.Fragment
+        {
+            Enabled = Optional<bool>.Present(true),
+            RetryCount = Optional<int>.Present(5),
+            Label = Optional<string?>.Present("old"),
+            Plugins = Optional<IReadOnlyList<string>>.Present(["old"]),
+        };
+        var patch = new AppSettings.Patch();
+
+        patch.Enabled.CopyFrom(Optional<int>.Missing, static value => value != 0);
+        patch.RetryCount.CopyFrom(
+            Optional<string?>.Present(null),
+            static value => value?.Length ?? 0
+        );
+        patch.Label.CopyFrom(Optional<int>.Present(0), static value => value.ToString());
+        patch.Plugins.CopyFrom(
+            Optional<string?>.Present("converted"),
+            static value => new[] { value! }
+        );
+
+        var patched = current.Apply(patch);
+
+        patched.Enabled.IsPresent.ShouldBeFalse();
+        patched.RetryCount.IsPresent.ShouldBeTrue();
+        patched.RetryCount.Value.ShouldBe(0);
+        patched.Label.Value.ShouldBe("0");
+        patched.Plugins.Value.ShouldBe(new[] { "converted" });
+    }
+
+    [Test]
     public async Task FromPrevious_NestedMemberMigrationPreservesPresence()
     {
         var value = new NestedSettingsV1.Fragment

@@ -74,4 +74,25 @@ public static class ConfiglueMemberExtensions
         operation = source.IsPresent
             ? FragmentOperation<T>.Set(source.Value)
             : FragmentOperation<T>.Unset;
+
+    /// <summary>
+    /// Copies presence into this patch operation while converting a present source value. A missing
+    /// source marks the destination member as unset.
+    /// </summary>
+    /// <typeparam name="TSource">The source member value type.</typeparam>
+    /// <typeparam name="TDestination">The destination member value type.</typeparam>
+    /// <param name="operation">The generated patch operation to change.</param>
+    /// <param name="source">The member whose presence and value are copied.</param>
+    /// <param name="convert">Converts a present source value to the destination value type.</param>
+    public static void CopyFrom<TSource, TDestination>(
+        this ref FragmentOperation<TDestination> operation,
+        Optional<TSource> source,
+        Func<TSource, TDestination> convert
+    )
+    {
+        ArgumentNullException.ThrowIfNull(convert);
+        operation = source.IsPresent
+            ? FragmentOperation<TDestination>.Set(convert(source.Value!))
+            : FragmentOperation<TDestination>.Unset;
+    }
 }
