@@ -172,4 +172,17 @@ public sealed class JsonSectionResourceTests
             .GetInt32()
             .ShouldBe(2);
     }
+
+    [Test]
+    public async Task SectionResource_RejectsDuplicatePropertiesWithoutWriting()
+    {
+        const string duplicate = """{"App":{"Settings":{"RetryCount":3,"RetryCount":4}}}""";
+        var resource = new InMemoryResource();
+        await resource.WriteAsync(new ResourceWriteRequest(Encoding.UTF8.GetBytes(duplicate)));
+        var section = new JsonSectionResource(resource, "App:Settings");
+
+        await Should.ThrowAsync<JsonException>(async () => await section.ReadAsync());
+
+        Encoding.UTF8.GetString((await resource.ReadAsync()).Content.Span).ShouldBe(duplicate);
+    }
 }

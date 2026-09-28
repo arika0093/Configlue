@@ -9,6 +9,7 @@ internal static partial class JsonStateCodecOperations
         in ReadOnlySequence<byte> source,
         DocumentLayoutOptions? layout,
         JsonSerializerOptions? serializerOptions,
+        string[] candidates,
         out bool isMetadataEnvelope
     )
     {
@@ -31,7 +32,6 @@ internal static partial class JsonStateCodecOperations
             return null;
         }
 
-        var candidates = GetVersionPropertyCandidates(layout, serializerOptions);
         var selectedCandidate = int.MaxValue;
         int? selectedVersion = null;
         string? selectedVersionName = null;
@@ -326,7 +326,7 @@ internal static partial class JsonStateCodecOperations
         return buffer.WrittenMemory;
     }
 
-    private static string[] GetVersionPropertyCandidates(
+    internal static string[] GetVersionPropertyCandidates(
         DocumentLayoutOptions? layout,
         JsonSerializerOptions? serializerOptions
     )

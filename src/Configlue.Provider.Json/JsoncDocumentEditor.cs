@@ -68,7 +68,7 @@ internal sealed class JsoncDocumentEditor
                 JsoncValueNode? parent = null;
                 while (parentLength >= 0)
                 {
-                    parent = editor._document.GetPath(path.Take(parentLength).ToArray());
+                    parent = editor._document.GetPath(path, parentLength);
                     if (parent is not null)
                     {
                         break;
@@ -245,9 +245,19 @@ internal sealed class JsoncDocumentEditor
     {
         var currentProperties = current.Properties!;
         var updatedProperties = updated.Properties!;
-        var shapeNames = shape
-            ?.Properties?.Select(static property => property.Name)
-            .ToHashSet(StringComparer.Ordinal);
+        Dictionary<string, JsoncPropertyNode>? shapeByName = null;
+        if (shape?.Properties is { } shapeProperties)
+        {
+            shapeByName = new Dictionary<string, JsoncPropertyNode>(
+                shapeProperties.Count,
+                StringComparer.Ordinal
+            );
+            for (var index = 0; index < shapeProperties.Count; index++)
+            {
+                shapeByName[shapeProperties[index].Name] = shapeProperties[index];
+            }
+        }
+
         var updatedByName = updatedProperties.ToDictionary(
             static property => property.Name,
             StringComparer.Ordinal
@@ -259,7 +269,7 @@ internal sealed class JsoncDocumentEditor
             var property = currentProperties[index];
             if (!updatedByName.TryGetValue(property.Name, out var updatedProperty))
             {
-                if (shapeNames is null || shapeNames.Contains(property.Name))
+                if (shapeByName is null || shapeByName.ContainsKey(property.Name))
                 {
                     AddPropertyRemoval(property);
                 }
@@ -272,10 +282,16 @@ internal sealed class JsoncDocumentEditor
             }
 
             retainedProperties.Add(property);
-            var shapeProperty = shape?.Properties?.SingleOrDefault(candidate =>
-                string.Equals(candidate.Name, property.Name, StringComparison.Ordinal)
-            );
-            AddDiff(property.Value, updatedProperty.Value, shapeProperty?.Value, updatedSource);
+            JsoncValueNode? shapeValue = null;
+            if (
+                shapeByName is not null
+                && shapeByName.TryGetValue(property.Name, out var shapeProperty)
+            )
+            {
+                shapeValue = shapeProperty.Value;
+            }
+
+            AddDiff(property.Value, updatedProperty.Value, shapeValue, updatedSource);
         }
 
         var currentNames = currentProperties

@@ -240,9 +240,17 @@ public sealed class JsonSectionResource
                 );
             }
 
-            var property = current.Properties!.SingleOrDefault(candidate =>
-                string.Equals(candidate.Name, name, StringComparison.Ordinal)
-            );
+            var properties = current.Properties!;
+            JsoncPropertyNode? property = null;
+            for (var index = 0; index < properties.Count; index++)
+            {
+                if (string.Equals(properties[index].Name, name, StringComparison.Ordinal))
+                {
+                    property = properties[index];
+                    break;
+                }
+            }
+
             if (property is null)
             {
                 return ResourceReadResult.NotFound(resource.Revision);
@@ -251,10 +259,7 @@ public sealed class JsonSectionResource
             current = property.Value;
         }
 
-        return ResourceReadResult.Success(
-            document.GetRawText(current).ToArray(),
-            resource.Revision
-        );
+        return ResourceReadResult.Success(document.GetRawText(current), resource.Revision);
     }
 
     /// <inheritdoc />
