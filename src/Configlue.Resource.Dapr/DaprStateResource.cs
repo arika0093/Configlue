@@ -94,16 +94,13 @@ public sealed class DaprStateResource : IResourceReader, IResourceWriter, IResou
         }
 
         var expectedRevision = request.ExpectedRevision ?? string.Empty;
-        var concurrency = request.ExpectedRevision is null
-            ? ConcurrencyMode.FirstWrite
-            : ConcurrencyMode.LastWrite;
         var saved = await _client
             .TrySaveByteStateAsync(
                 StoreName,
                 Key,
                 request.Content,
                 expectedRevision,
-                CreateStateOptions(concurrency),
+                CreateStateOptions(ConcurrencyMode.FirstWrite),
                 _options.Metadata,
                 cancellationToken
             )
