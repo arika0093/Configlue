@@ -138,6 +138,47 @@ public sealed partial class StateRuntimeTests
     }
 
     [Test]
+    public async Task FallbackStateSource_CanExplicitlyMaterializeSelectedValueToCanonicalCandidate()
+    {
+        var canonical = new InMemoryStateStore<string>();
+        var legacy = new InMemoryStateStore<string>("legacy");
+        var fallback = new FallbackStateSource<string>(
+            new StateSourceSet<string>([
+                new(
+                    "canonical",
+                    canonical,
+                    priority: 100,
+                    fallbackCondition: StateFallbackCondition.NotFoundOrUnavailable,
+                    writer: canonical,
+                    watcher: canonical
+                ),
+                new("legacy", legacy, priority: 0, writer: legacy, watcher: legacy),
+            ]),
+            writeSourceId: "canonical"
+        );
+
+        var snapshot = await fallback.ReadAsync();
+        var canonicalBeforeWrite = await canonical.ReadAsync();
+        var legacyBeforeWrite = await legacy.ReadAsync();
+
+        (canonicalBeforeWrite.Status).ShouldBe(StateReadStatus.NotFound);
+        (legacyBeforeWrite.Value).ShouldBe("legacy");
+
+        await fallback.WriteAsync(
+            new StateWriteRequest<string>(snapshot.Value!, snapshot.Revision, CheckRevision: true)
+        );
+
+        var canonicalAfterWrite = await canonical.ReadAsync();
+        var legacyAfterWrite = await legacy.ReadAsync();
+        var resolvedAfterWrite = await fallback.ReadAsync();
+
+        (canonicalAfterWrite.Value).ShouldBe("legacy");
+        (legacyAfterWrite.Value).ShouldBe("legacy");
+        (resolvedAfterWrite.SourceId).ShouldBe("canonical");
+        (resolvedAfterWrite.Value).ShouldBe("legacy");
+    }
+
+    [Test]
     public async Task FallbackStateSource_WatchesForFailbackButIgnoresLowerPriorityChangesAfterSelection()
     {
         var canonical = new InMemoryStateStore<string>();

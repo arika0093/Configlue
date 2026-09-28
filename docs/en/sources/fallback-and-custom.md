@@ -11,6 +11,22 @@ Use `FallbackStateSource<TFragment>` to group serialized representations of the 
 
 By default, writes go to the active writable candidate, or the highest-priority writable candidate when none is active; set `writeSourceId` to route edits to a fixed candidate such as the canonical file. Reads never write or copy state. Candidate sources and resources remain caller-owned.
 
+Reads never promote implicitly. To explicitly materialize the selected legacy representation into a canonical candidate, configure that fixed write target and pass the read result back to the same fallback writer. The revision check detects changes to the selected state and the target candidate:
+
+```csharp
+var snapshot = await fallback.ReadAsync();
+if (snapshot.Status == StateReadStatus.Success)
+{
+    await fallback.WriteAsync(
+        new StateWriteRequest<AppSettings.Fragment>(
+            snapshot.Value!,
+            snapshot.Revision,
+            CheckRevision: true));
+}
+```
+
+Place the `writeSourceId` candidate before the selected source in fallback order. The legacy candidate remains available after the write and can serve as a failback if the canonical candidate later becomes unavailable. Writes across separate resources are not atomic; verification follows the writer contract.
+
 When state needs to move to a different logical source or representation, use `IConfiglueOptions<T>.MigrateSourcesToTargetsAsync` with an explicit target projection. The migration API verifies target writes and supports retry after partial completion.
 
 ## Custom sources
