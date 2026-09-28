@@ -227,7 +227,7 @@ public sealed class ReadValidationTests
     [Test]
     public async Task ReadValidationMode_IsConfigurableThroughTheModelBuilder()
     {
-        await using var context = Configlue.CreateContext(builder =>
+        await using var context = ConfiglueApp.CreateContext(builder =>
         {
             builder.Add<AppSettings>(model =>
             {
@@ -287,7 +287,7 @@ public sealed class ReadValidationTests
         Directory.CreateDirectory(directory);
         var path = Path.Combine(directory, "settings.json");
         await File.WriteAllTextAsync(path, "{\"$version\":2,\"RetryCount\":5}");
-        await using var context = Configlue.CreateContext(builder =>
+        await using var context = ConfiglueApp.CreateContext(builder =>
         {
             builder.Add<AppSettings>(model =>
                 model.Sources(sources =>

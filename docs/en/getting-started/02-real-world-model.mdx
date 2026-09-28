@@ -50,15 +50,16 @@ The registration and usage patterns remain identical.
 
    ```csharp
    using Configlue;
-   using Configlue.Source.Common;
+   using Configlue.Source.Presets;
 
    await using var context = ConfiglueApp.CreateContext(conf =>
-   {
-       conf.Add<AppSettings>(model =>
+       conf.UseCommonSources(sources =>
        {
-           model.UseCommonSources("TutorialApp");
-       });
-   });
+           sources.WithGlobal("TutorialApp");
+           sources.WithLocal();
+           sources.Add<AppSettings>();
+       })
+   );
 
    var options = context.GetOptions<AppSettings>();
    ```
@@ -68,15 +69,16 @@ The registration and usage patterns remain identical.
 
    ```csharp
    using Configlue;
-   using Configlue.Source.Common;
+   using Configlue.Source.Presets;
 
    builder.Services.AddConfiglue(conf =>
-   {
-       conf.Add<AppSettings>(model =>
+       conf.UseCommonSources(sources =>
        {
-           model.UseCommonSources("TutorialApp");
-       });
-   });
+           sources.WithGlobal("TutorialApp");
+           sources.WithLocal();
+           sources.Add<AppSettings>();
+       })
+   );
    ```
 
    </TabItem>

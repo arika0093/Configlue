@@ -1,57 +1,4 @@
 [assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/arika0093/Configlue")]
-namespace Configlue.Source.Common
-{
-    public static class CommonSource
-    {
-        public static Configlue.Source.Common.CommonSourceSelector Global { get; }
-        public static Configlue.Source.Common.CommonSourceSelector Local { get; }
-        public static Configlue.Source.Common.CommonSourceSelector Specific { get; }
-    }
-    public enum CommonSourceFileFormat
-    {
-        Auto = 0,
-        Json = 1,
-        Yaml = 2,
-        Xml = 3,
-    }
-    public sealed class CommonSourceOptions
-    {
-        public CommonSourceOptions() { }
-        public required string ApplicationId { get; init; }
-        public string? EnvironmentPrefix { get; init; }
-        public System.Func<System.Collections.Generic.IEnumerable<System.Collections.Generic.KeyValuePair<string, string?>>>? EnvironmentVariables { get; init; }
-        public Configlue.Source.Common.CommonSourceFileFormat FileFormat { get; init; }
-        public Configlue.Resources.FileResourceOptions? FileResourceOptions { get; init; }
-        public Configlue.Source.Common.CommonSourceFileFormat GlobalFileFormat { get; init; }
-        public required string GlobalFileName { get; init; }
-        public Configlue.Source.Common.CommonSourceFileFormat LocalFileFormat { get; init; }
-        public string? LocalFilePath { get; init; }
-        public System.Text.Json.JsonSerializerOptions? SerializerOptions { get; init; }
-        public Configlue.Source.Common.CommonSourceFileFormat SpecificFileFormat { get; init; }
-        public string? SpecificFilePath { get; init; }
-        public Configlue.Source.Common.CommonSourceWriteLayer? WriteLayer { get; init; }
-        public System.Text.Json.JsonNamingPolicy? YamlPropertyNamingPolicy { get; init; }
-        public SharpYaml.YamlSerializerOptions? YamlSerializerOptions { get; init; }
-    }
-    public static class CommonSourcePreset
-    {
-        public static void UseCommonSources<TModel>(this Configlue.ConfiglueModelBuilder<TModel> model, Configlue.Source.Common.CommonSourceOptions options)
-            where TModel : Configlue.IConfiglueFacadeModel<TModel> { }
-        public static void UseCommonSources<TModel>(this Configlue.ConfiglueModelBuilder<TModel> model, string applicationId, string? specificFilePath = null, string? environmentPrefix = null, Configlue.Source.Common.CommonSourceWriteLayer? writeLayer = default)
-            where TModel : Configlue.IConfiglueFacadeModel<TModel> { }
-    }
-    public sealed class CommonSourceSelector : System.IEquatable<Configlue.Source.Common.CommonSourceSelector> { }
-    public static class CommonSourceSelectorExtensions
-    {
-        public static Configlue.ConfiglueSourceHandle<TModel> Source<TModel>(this Configlue.IConfiglueOptions<TModel> options, Configlue.Source.Common.CommonSourceSelector selector) { }
-    }
-    public enum CommonSourceWriteLayer
-    {
-        Global = 0,
-        Local = 1,
-        Specific = 2,
-    }
-}
 namespace Configlue.Source.Presets
 {
     public sealed class CommonCustomSourceBuilder
@@ -60,7 +7,10 @@ namespace Configlue.Source.Presets
     }
     public sealed class CommonEnvironmentSourceBuilder
     {
+        public Configlue.Source.Presets.CommonEnvironmentSourceBuilder EnvironmentVariables(System.Func<System.Collections.Generic.IEnumerable<System.Collections.Generic.KeyValuePair<string, string?>>> environmentVariables) { }
+        public Configlue.Source.Presets.CommonEnvironmentSourceBuilder JsonSerializerOptions(System.Text.Json.JsonSerializerOptions options) { }
         public Configlue.Source.Presets.CommonEnvironmentSourceBuilder Priority(int priority) { }
+        public Configlue.Source.Presets.CommonEnvironmentSourceBuilder ValueParser(System.Func<string, System.Type, object?> valueParser) { }
     }
     public sealed class CommonFileSourceBuilder
     {
@@ -71,6 +21,7 @@ namespace Configlue.Source.Presets
         public Configlue.Source.Presets.CommonFileSourceBuilder Priority(int priority) { }
         public Configlue.Source.Presets.CommonFileSourceBuilder PropertyNamingPolicy(System.Text.Json.JsonNamingPolicy? policy) { }
         public Configlue.Source.Presets.CommonFileSourceBuilder ReadOnly(bool readOnly = true) { }
+        public Configlue.Source.Presets.CommonFileSourceBuilder SchemaReferenceBaseUri(string schemaReferenceBaseUri) { }
         public Configlue.Source.Presets.CommonFileSourceBuilder Section(string sectionPath) { }
         public Configlue.Source.Presets.CommonFileSourceBuilder SerializerOptions(System.Text.Json.JsonSerializerOptions options) { }
         public Configlue.Source.Presets.CommonFileSourceBuilder Transformer(Configlue.Transformers.IStateByteTransformer transformer) { }
@@ -81,15 +32,23 @@ namespace Configlue.Source.Presets
     }
     public sealed class CommonHttpSourceBuilder
     {
+        public Configlue.Source.Presets.CommonHttpSourceBuilder FallbackCondition(Configlue.Sources.StateFallbackCondition fallbackCondition) { }
         public Configlue.Source.Presets.CommonHttpSourceBuilder Priority(int priority) { }
         public Configlue.Source.Presets.CommonHttpSourceBuilder ResourceOptions(Configlue.Resource.Http.HttpResourceOptions options) { }
         public Configlue.Source.Presets.CommonHttpSourceBuilder SerializerOptions(System.Text.Json.JsonSerializerOptions options) { }
         public Configlue.Source.Presets.CommonHttpSourceBuilder Transformer(Configlue.Transformers.IStateByteTransformer transformer) { }
     }
+    public static class CommonSource
+    {
+        public static Configlue.Source.Presets.CommonSourceSelector Global { get; }
+        public static Configlue.Source.Presets.CommonSourceSelector Local { get; }
+        public static Configlue.Source.Presets.CommonSourceSelector Specific { get; }
+    }
     public sealed class CommonSourceBuilder
     {
         public void Add<TModel>(System.Action<Configlue.ConfiglueModelBuilder<TModel>>? configure = null)
             where TModel : Configlue.IConfiglueFacadeModel<TModel> { }
+        public Configlue.Source.Presets.CommonSourceBuilder DefaultWriteLayer(Configlue.Source.Presets.CommonSourceLayer layer) { }
         public Configlue.Source.Presets.CommonCustomSourceBuilder WithCustom(Configlue.Source.Presets.CommonSourceLayer afterLayer, System.Func<Configlue.ConfiglueSourceSetBuilder, Configlue.ConfiglueSourceRegistration> register) { }
         public Configlue.Source.Presets.CommonEnvironmentSourceBuilder WithEnvironment(string prefix) { }
         public Configlue.Source.Presets.CommonFileSourceBuilder WithExplicit(string filepath) { }
@@ -110,5 +69,10 @@ namespace Configlue.Source.Presets
         Environment = 3,
         Arguments = 4,
         Http = 5,
+    }
+    public sealed class CommonSourceSelector : System.IEquatable<Configlue.Source.Presets.CommonSourceSelector> { }
+    public static class CommonSourceSelectorExtensions
+    {
+        public static Configlue.ConfiglueSourceHandle<TModel> Source<TModel>(this Configlue.IConfiglueOptions<TModel> options, Configlue.Source.Presets.CommonSourceSelector selector) { }
     }
 }

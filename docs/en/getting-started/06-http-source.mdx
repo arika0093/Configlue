@@ -34,35 +34,25 @@ Here we add an **HTTP source** on top of the standard **CommonSource** architect
 
 2. ### Layer an HTTP source over CommonSource
 
-   Configure CommonSource first, then append the HTTP source via `model.Sources(...)`:
+   Declare the HTTP policy source in the preset scope. The HTTP layer has a fixed priority above the other built-in layers:
 
    <Tabs syncKey="di">
    <TabItem label="Without DI">
 
    ```csharp
    using Configlue;
-   using Configlue.Provider.Json;
-   using Configlue.Source.Common;
+   using Configlue.Source.Presets;
 
    var httpClient = new HttpClient { BaseAddress = new Uri("https://policy.example.com/") };
 
-   conf.Add<AppSettings>(model =>
+   conf.UseCommonSources(sources =>
    {
-       // 1. Standard common sources
-       model.UseCommonSources("TutorialApp");
-
-       // 2. Additional HTTP source with higher priority
-       model.Sources(sources =>
-       {
-           sources.FromJsonHttp(new()
-           {
-               Id = "policy",
-               EndPoint = "https://policy.example.com/api/policy",
-               Client = httpClient,
-               Priority = 300, // Higher than the CommonSource preset
-               FallbackCondition = StateFallbackCondition.NotFoundOrUnavailable,
-           });
-       });
+       sources.WithGlobal("TutorialApp");
+       sources.WithLocal();
+       sources
+           .WithHttpPolicy("https://policy.example.com/api/policy", httpClient, id: "policy")
+           .FallbackCondition(StateFallbackCondition.NotFoundOrUnavailable);
+       sources.Add<AppSettings>();
    });
    ```
 
@@ -71,8 +61,7 @@ Here we add an **HTTP source** on top of the standard **CommonSource** architect
 
    ```csharp
    using Configlue;
-   using Configlue.Provider.Json;
-   using Configlue.Source.Common;
+   using Configlue.Source.Presets;
 
    builder.Services.AddHttpClient("policy", client =>
    {
@@ -80,23 +69,19 @@ Here we add an **HTTP source** on top of the standard **CommonSource** architect
    });
 
    builder.Services.AddConfiglue(conf =>
-   {
-       conf.Add<AppSettings>(model =>
+       conf.UseCommonSources(sources =>
        {
-           model.UseCommonSources("TutorialApp");
-
-           model.Sources(sources =>
-           {
-               sources.FromJsonHttpClientFactory("policy", new()
-               {
-                   Id = "policy",
-                   EndPoint = "https://policy.example.com/api/policy",
-                   Priority = 300,
-                   FallbackCondition = StateFallbackCondition.NotFoundOrUnavailable,
-               });
-           });
-       });
-   });
+           sources.WithGlobal("TutorialApp");
+           sources.WithLocal();
+           sources
+               .WithHttpPolicy(
+                   "https://policy.example.com/api/policy",
+                   provider => provider!.GetRequiredService<IHttpClientFactory>().CreateClient("policy"),
+                   id: "policy")
+               .FallbackCondition(StateFallbackCondition.NotFoundOrUnavailable);
+           sources.Add<AppSettings>();
+       })
+   );
    ```
 
    </TabItem>

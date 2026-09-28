@@ -36,16 +36,16 @@ import { Steps, Tabs, TabItem } from '@astrojs/starlight/components';
 
    ```csharp
    using Configlue;
-   using Configlue.Source.Common;
+   using Configlue.Source.Presets;
 
    await using var context = ConfiglueApp.CreateContext(conf =>
-   {
-       conf.Add<QuickSettings>(model =>
+       conf.UseCommonSources(sources =>
        {
-           // アプリケーション名を指定するだけで、標準の階層構造を構成します
-           model.UseCommonSources("QuickApp");
-       });
-   });
+           sources.WithGlobal("QuickApp");
+           sources.WithLocal();
+           sources.Add<QuickSettings>();
+       })
+   );
 
    var options = context.GetOptions<QuickSettings>();
    ```

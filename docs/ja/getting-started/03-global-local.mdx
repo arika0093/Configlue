@@ -8,11 +8,11 @@ import { Tabs, TabItem } from '@astrojs/starlight/components';
 # STEP 3: 共通とローカルに分ける
 
 1 つの設定ファイルにすべてを保存すると、開発マシン共通の初期値と、プロジェクト固有の設定が混ざってしまいます。
-Configlue では、設定を「全プロジェクト共通（Global）」と「カレントディレクトリ固有（Local）」の 2 つの層に分けて管理します。
+Configlue のプリセットでは、設定を「全プロジェクト共通（Global）」と「カレントディレクトリ固有（Local）」の 2 つの層として宣言できます。
 
 ## CommonSource が構成する 2 つの層
 
-`UseCommonSources("TutorialApp")` を呼び出すと、内部で次の 2 つのファイルソースが自動的に登録されます。
+`UseCommonSources` のスコープ内で、次の 2 つのファイル層を宣言します。
 
 | 層 | 保存場所 | 役割 | 優先度 |
 | --- | --- | --- | :---: |
@@ -27,7 +27,7 @@ Configlue では、設定を「全プロジェクト共通（Global）」と「�
 
 ## 保存先のコントロール
 
-既定では、`options.SaveAsync` による保存はすべて **Local（カレントディレクトリ）** に書き込まれます。
+既定では、`options.SaveAsync` は設定されたファイル層のうち最も優先順位が高い層（この例では **Local**）に書き込みます。
 共通設定（Global）に保存したい場合は、次の 2 通りの方法があります。
 
 ### 方法 1: 一時的に保存先を指定する（セマンティックセレクター）
@@ -35,7 +35,7 @@ Configlue では、設定を「全プロジェクト共通（Global）」と「�
 特定の操作だけを共通設定に書き込みたい場合は、`CommonSource.Global` セレクターを使ってソースハンドルを取得します。
 
 ```csharp
-using Configlue.Source.Common;
+using Configlue.Source.Presets;
 
 // ユーザー共通設定（Global）に保存
 await options.Source(CommonSource.Global).SaveAsync(patch =>
@@ -52,46 +52,40 @@ await options.SaveAsync(patch =>
 
 ### 方法 2: 既定の保存先を Global に切り替える
 
-初期化時に `CommonSourceOptions` を渡し、`WriteLayer` を指定することで、既定の保存先を Global に変更できます。
+`DefaultWriteLayer` を使って、既定の保存先を Global に変更できます。
 
 <Tabs syncKey="di">
 <TabItem label="DI なし">
 
 ```csharp
-using Configlue.Source.Common;
+using Configlue.Source.Presets;
 
 await using var context = ConfiglueApp.CreateContext(conf =>
-{
-    conf.Add<AppSettings>(model =>
+    conf.UseCommonSources(sources =>
     {
-        model.UseCommonSources(new CommonSourceOptions
-        {
-            ApplicationId = "TutorialApp",
-            GlobalFileName = "settings.json",
-            WriteLayer = CommonSourceWriteLayer.Global, // 既定の保存先を Global に変更
-        });
-    });
-});
+        sources.WithGlobal("TutorialApp");
+        sources.WithLocal();
+        sources.DefaultWriteLayer(CommonSourceLayer.Global);
+        sources.Add<AppSettings>();
+    })
+);
 ```
 
 </TabItem>
 <TabItem label="DI あり">
 
 ```csharp
-using Configlue.Source.Common;
+using Configlue.Source.Presets;
 
 builder.Services.AddConfiglue(conf =>
-{
-    conf.Add<AppSettings>(model =>
+    conf.UseCommonSources(sources =>
     {
-        model.UseCommonSources(new CommonSourceOptions
-        {
-            ApplicationId = "TutorialApp",
-            GlobalFileName = "settings.json",
-            WriteLayer = CommonSourceWriteLayer.Global,
-        });
-    });
-});
+        sources.WithGlobal("TutorialApp");
+        sources.WithLocal();
+        sources.DefaultWriteLayer(CommonSourceLayer.Global);
+        sources.Add<AppSettings>();
+    })
+);
 ```
 
 </TabItem>

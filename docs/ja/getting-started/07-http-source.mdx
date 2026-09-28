@@ -36,35 +36,25 @@ import { Steps, Tabs, TabItem } from '@astrojs/starlight/components';
 
 2. ### CommonSource の上に追加ソースを重ねる
 
-   `UseCommonSources` に続けて `model.Sources(...)` を呼び出し、HTTP ソースを登録します。
+   プリセットのスコープ内で HTTP ポリシー層を宣言します。この層の優先順位は他の組み込み層より高く固定されています。
 
    <Tabs syncKey="di">
    <TabItem label="DI なし">
 
    ```csharp
    using Configlue;
-   using Configlue.Provider.Json;
-   using Configlue.Source.Common;
+   using Configlue.Source.Presets;
 
    var httpClient = new HttpClient { BaseAddress = new Uri("https://policy.example.com/") };
 
-   conf.Add<AppSettings>(model =>
+   conf.UseCommonSources(sources =>
    {
-       // 1. 基本のファイル構成
-       model.UseCommonSources("TutorialApp");
-
-       // 2. 追加のリモート HTTP ソースを登録
-       model.Sources(sources =>
-       {
-           sources.FromJsonHttp(new()
-           {
-               Id = "policy",
-               EndPoint = "https://policy.example.com/api/policy",
-               Client = httpClient,
-               Priority = 300, // CommonSource プリセットより上位に配置
-               FallbackCondition = StateFallbackCondition.NotFoundOrUnavailable,
-           });
-       });
+       sources.WithGlobal("TutorialApp");
+       sources.WithLocal();
+       sources
+           .WithHttpPolicy("https://policy.example.com/api/policy", httpClient, id: "policy")
+           .FallbackCondition(StateFallbackCondition.NotFoundOrUnavailable);
+       sources.Add<AppSettings>();
    });
    ```
 
@@ -73,8 +63,7 @@ import { Steps, Tabs, TabItem } from '@astrojs/starlight/components';
 
    ```csharp
    using Configlue;
-   using Configlue.Provider.Json;
-   using Configlue.Source.Common;
+   using Configlue.Source.Presets;
 
    // HttpClient を DI に登録
    builder.Services.AddHttpClient("policy", client =>
@@ -83,30 +72,26 @@ import { Steps, Tabs, TabItem } from '@astrojs/starlight/components';
    });
 
    builder.Services.AddConfiglue(conf =>
-   {
-       conf.Add<AppSettings>(model =>
+       conf.UseCommonSources(sources =>
        {
-           model.UseCommonSources("TutorialApp");
-
-           model.Sources(sources =>
-           {
-               sources.FromJsonHttpClientFactory("policy", new()
-               {
-                   Id = "policy",
-                   EndPoint = "https://policy.example.com/api/policy",
-                   Priority = 300,
-                   FallbackCondition = StateFallbackCondition.NotFoundOrUnavailable,
-               });
-           });
-       });
-   });
+           sources.WithGlobal("TutorialApp");
+           sources.WithLocal();
+           sources
+               .WithHttpPolicy(
+                   "https://policy.example.com/api/policy",
+                   provider => provider!.GetRequiredService<IHttpClientFactory>().CreateClient("policy"),
+                   id: "policy")
+               .FallbackCondition(StateFallbackCondition.NotFoundOrUnavailable);
+           sources.Add<AppSettings>();
+       })
+   );
    ```
 
    </TabItem>
    </Tabs>
 
    HTTP ソースは既定で読み取り専用として動作します。
-   `Priority = 300` と指定することで、CommonSource のファイル群よりも上位で評価されます。プリセット内部の source identity と優先度は実装詳細です。
+   HTTP 層は固定優先順位に従って、ファイル層よりも上位で評価されます。
 
 3. ### リモートサーバーに接続できないときの挙動
 

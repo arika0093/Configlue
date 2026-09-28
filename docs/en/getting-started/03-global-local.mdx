@@ -8,11 +8,11 @@ import { Tabs, TabItem } from '@astrojs/starlight/components';
 # STEP 3: Split shared and local
 
 Putting everything into a single file conflates machine-wide defaults with project-specific overrides.
-Configlue's CommonSource preset establishes two distinct file layers right away: **Global (shared)** and **Local (project)**.
+The CommonSource preset provides helpers to declare two distinct file layers: **Global (shared)** and **Local (project)**.
 
 ## The Two Layers of CommonSource
 
-Calling `UseCommonSources("TutorialApp")` registers two file layers in precedence order:
+Declare both layers in the `UseCommonSources` scope:
 
 | Layer | Location | Role | Priority |
 | --- | --- | --- | :---: |
@@ -27,7 +27,7 @@ Calling `UseCommonSources("TutorialApp")` registers two file layers in precedenc
 
 ## Directing Write Destinations
 
-By default, calling `options.SaveAsync` persists changes to the **Local** file.
+By default, calling `options.SaveAsync` persists changes to the highest-priority configured file, which is **Local** here.
 To write to the Global file instead, use either of the following approaches:
 
 ### Approach 1: Write directly to a layer (Semantic Selector)
@@ -35,7 +35,7 @@ To write to the Global file instead, use either of the following approaches:
 Use `CommonSource.Global` to retrieve a source handle for the shared layer:
 
 ```csharp
-using Configlue.Source.Common;
+using Configlue.Source.Presets;
 
 // Write to Global
 await options.Source(CommonSource.Global).SaveAsync(patch =>
@@ -50,14 +50,17 @@ await options.SaveAsync(patch =>
 });
 ```
 
-### Approach 2: Change default write layer in options
+### Approach 2: Change the default write layer
 
 ```csharp
-model.UseCommonSources(new CommonSourceOptions
+using Configlue.Source.Presets;
+
+conf.UseCommonSources(sources =>
 {
-    ApplicationId = "TutorialApp",
-    GlobalFileName = "settings.json",
-    WriteLayer = CommonSourceWriteLayer.Global, // Route default saves to Global
+    sources.WithGlobal("TutorialApp");
+    sources.WithLocal();
+    sources.DefaultWriteLayer(CommonSourceLayer.Global);
+    sources.Add<AppSettings>();
 });
 ```
 

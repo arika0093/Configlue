@@ -155,7 +155,7 @@ Save the code below to `example.cs` and run it with `dotnet run example.cs` (req
 #:package Configlue@*
 
 using Configlue;
-using Configlue.Source.Common;
+using Configlue.Source.Presets;
 
 // 1. Declare the settings model. The generator creates Fragment/Patch support.
 [ConfiglueModel("SampleSetting", Version = 1)]
@@ -166,16 +166,16 @@ public partial class SampleSetting
     public bool DefaultValue { get; set; } = true;
 }
 
-// 2. Initialize using CommonSource (recommended default).
-//    This automatically sets up standard user-level and local configuration layers.
+// 2. Declare the preset layers. Only the sources listed here are enabled.
 await using var context = ConfiglueApp.CreateContext(conf =>
-{
-    conf.Add<SampleSetting>(model =>
+    conf.UseCommonSources(sources =>
     {
-        // Global and local files; the prefix opts into the environment layer.
-        model.UseCommonSources("SampleApp", environmentPrefix: "SAMPLE");
-    });
-});
+        sources.WithGlobal("SampleApp");
+        sources.WithLocal();
+        sources.WithEnvironment("SAMPLE");
+        sources.Add<SampleSetting>();
+    })
+);
 
 // 3. Read and write through the options instance.
 var options = context.GetOptions<SampleSetting>();

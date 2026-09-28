@@ -52,14 +52,13 @@ API は `Configlue.JsonSchema` パッケージ・名前空間にあり、`Config
    CommonSource や JSON ファイルソースの登録時に `SchemaReferenceBaseUri` を指定すると、保存時に `$schema` プロパティが自動付与されます。
 
    ```csharp
-   model.UseCommonSources(new CommonSourceOptions
+   conf.UseCommonSources(sources =>
    {
-       ApplicationId = "TutorialApp",
-       GlobalFileName = "settings.json",
-       SerializerOptions = new()
-       {
-           TypeInfoResolver = AppJsonContext.Default,
-       },
+       sources
+           .WithGlobal("TutorialApp")
+           .Json(AppJsonContext.Default)
+           .SchemaReferenceBaseUri("./schemas/tutorial.settings.v1.json");
+       sources.Add<AppSettings>();
    });
    ```
 

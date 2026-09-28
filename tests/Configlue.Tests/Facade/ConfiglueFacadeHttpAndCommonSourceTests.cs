@@ -10,7 +10,7 @@ using Configlue.Provider.Xml;
 using Configlue.Provider.Yaml;
 using Configlue.Resource.Http;
 using Configlue.Source.CommandLine;
-using Configlue.Source.Common;
+using Configlue.Source.Presets;
 using Configlue.Testing;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -31,17 +31,13 @@ public sealed partial class ConfiglueFacadeSourceTests
         services.AddConfiglueMicrosoftOptions<AppSettings>();
         services.AddConfiglue(builder =>
         {
-            builder.Add<AppSettings>(model =>
-                model.UseCommonSources(
-                    new CommonSourceOptions
-                    {
-                        ApplicationId = $"Configlue.Tests.{Guid.NewGuid():N}",
-                        GlobalFileName = "settings.json",
-                        SpecificFilePath = selectedPath,
-                        FileResourceOptions = new FileResourceOptions { CreateBackup = false },
-                    }
-                )
-            );
+            builder.UseCommonSources(sources =>
+            {
+                sources
+                    .WithExplicit(selectedPath)
+                    .FileResourceOptions(new FileResourceOptions { CreateBackup = false });
+                sources.Add<AppSettings>();
+            });
         });
 
         await using var provider = services.BuildServiceProvider();
@@ -112,7 +108,7 @@ public sealed partial class ConfiglueFacadeSourceTests
         var handler = new RecordingHttpHandler(SerializeFragment(new AppSettings.Fragment()));
         using var client = new HttpClient(handler);
         await using (
-            var context = Configlue.CreateContext(builder =>
+            var context = ConfiglueApp.CreateContext(builder =>
             {
                 builder.Add<AppSettings>(model =>
                     model.Sources(sources =>
@@ -241,27 +237,33 @@ public sealed partial class ConfiglueFacadeSourceTests
             rootCommand.Options.Add(retryOption);
             rootCommand.Options.Add(settingsFileOption);
             var parseResult = rootCommand.Parse(["--settings", specificPath, "--retry", "5"]);
-            var commonOptions = new CommonSourceOptions
+            await using var context = ConfiglueApp.CreateContext(builder =>
             {
-                ApplicationId = appId,
-                GlobalFileName = "settings.json",
-                LocalFilePath = localPath,
-                SpecificFilePath = specificPath,
-                EnvironmentPrefix = "CONFIGLUE_TEST",
-                EnvironmentVariables = () =>
-                    [new KeyValuePair<string, string?>("CONFIGLUE_TEST__RetryCount", "4")],
-                FileResourceOptions = new FileResourceOptions { CreateBackup = false },
-            };
-
-            await using var context = Configlue.CreateContext(builder =>
-            {
-                builder.Add<AppSettings>(model =>
-                    model.UseCommonSources(
-                        commonOptions,
-                        parseResult,
-                        mappings => mappings.Map(retryOption, "RetryCount")
-                    )
-                );
+                builder.UseCommonSources(sources =>
+                {
+                    sources
+                        .WithEnvironment("CONFIGLUE_TEST")
+                        .EnvironmentVariables(() =>
+                            [
+                                new KeyValuePair<string, string?>(
+                                    "CONFIGLUE_TEST__RetryCount",
+                                    "4"
+                                ),
+                            ]
+                        );
+                    sources
+                        .WithCommandLine(parseResult, mappings => mappings.Map(retryOption, "RetryCount"));
+                    sources
+                        .WithExplicit(specificPath)
+                        .FileResourceOptions(new FileResourceOptions { CreateBackup = false });
+                    sources
+                        .WithGlobal(appId, "settings.json")
+                        .FileResourceOptions(new FileResourceOptions { CreateBackup = false });
+                    sources
+                        .WithLocal(localPath)
+                        .FileResourceOptions(new FileResourceOptions { CreateBackup = false });
+                    sources.Add<AppSettings>();
+                });
             });
             var options = (IConfiglueOptions<AppSettings>)context.GetOptions<AppSettings>();
             var value = await options.GetValueAsync();

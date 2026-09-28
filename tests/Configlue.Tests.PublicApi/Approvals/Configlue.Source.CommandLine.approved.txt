@@ -31,10 +31,8 @@ namespace Configlue.Source.CommandLine
         public static Configlue.Source.CommandLine.CommandLineSourceBuilder CommandLine(this Configlue.ConfiglueSourceSetBuilder sources, System.CommandLine.ParseResult parseResult, System.Action<Configlue.Source.CommandLine.CommandLineMappingBuilder> configureMappings, string id = "command-line") { }
         public static Configlue.ConfiglueSourceRegistration FromCommandLine(this Configlue.ConfiglueSourceSetBuilder sources, Configlue.Source.CommandLine.CommandLineSourceOptions options, System.Action<Configlue.Source.CommandLine.CommandLineMappingBuilder> configureMappings) { }
     }
-    public static class CommonCommandLineSourcePreset
+    public static class CommonCommandLineSourceExtensions
     {
-        public static void UseCommonSources<TModel>(this Configlue.ConfiglueModelBuilder<TModel> model, Configlue.Source.Common.CommonSourceOptions options, System.CommandLine.ParseResult parseResult, System.Action<Configlue.Source.CommandLine.CommandLineMappingBuilder> configureMappings)
-            where TModel : Configlue.IConfiglueFacadeModel<TModel> { }
         public static Configlue.Source.Presets.CommonCustomSourceBuilder WithCommandLine(this Configlue.Source.Presets.CommonSourceBuilder sources, System.CommandLine.ParseResult parseResult, System.Action<Configlue.Source.CommandLine.CommandLineMappingBuilder> configureMappings, string id = "common.commandLine") { }
     }
 }

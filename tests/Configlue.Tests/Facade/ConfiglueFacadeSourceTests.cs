@@ -10,7 +10,6 @@ using Configlue.Provider.Xml;
 using Configlue.Provider.Yaml;
 using Configlue.Resource.Http;
 using Configlue.Source.CommandLine;
-using Configlue.Source.Common;
 using Configlue.Testing;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -27,7 +26,7 @@ public sealed partial class ConfiglueFacadeSourceTests
         await File.WriteAllTextAsync(rootPath, "{\"RetryCount\":3}");
         await File.WriteAllTextAsync(databasePath, "{\"Host\":\"db.example.test\",\"Port\":7443}");
 
-        await using var context = Configlue.CreateContext(builder =>
+        await using var context = ConfiglueApp.CreateContext(builder =>
         {
             builder.Add<AppSettings>(model =>
                 model.Sources(sources =>
@@ -80,7 +79,7 @@ public sealed partial class ConfiglueFacadeSourceTests
         var backupRoot = Path.Combine(directory.FullPath, "user-state");
         await File.WriteAllTextAsync(path, "{\"Label\":\"before\"}");
 
-        await using var context = Configlue.CreateContext(builder =>
+        await using var context = ConfiglueApp.CreateContext(builder =>
         {
             builder.Add<AppSettings>(model =>
                 model.UseJsonFile(
@@ -112,7 +111,7 @@ public sealed partial class ConfiglueFacadeSourceTests
         var path = Path.Combine(directory.FullPath, "settings.json");
         await File.WriteAllTextAsync(path, "{\"Label\":\"before\"}");
 
-        await using var context = Configlue.CreateContext(builder =>
+        await using var context = ConfiglueApp.CreateContext(builder =>
         {
             builder.Add<AppSettings>(model =>
                 model.Sources(sources =>
@@ -147,7 +146,7 @@ public sealed partial class ConfiglueFacadeSourceTests
         await File.WriteAllTextAsync(path, "{\"Label\":\"configured\"}");
         await File.WriteAllTextAsync(readOnlyPath, "{\"RetryCount\":3}");
 
-        await using var context = Configlue.CreateContext(builder =>
+        await using var context = ConfiglueApp.CreateContext(builder =>
         {
             builder.Add<AppSettings>(model =>
                 model.Sources(sources =>
@@ -203,7 +202,7 @@ public sealed partial class ConfiglueFacadeSourceTests
             "{\"App\":{\"Other\":{\"Value\":\"keep\"}},\"Root\":\"keep\"}"
         );
 
-        await using var context = Configlue.CreateContext(builder =>
+        await using var context = ConfiglueApp.CreateContext(builder =>
         {
             builder.Add<AppSettings>(model =>
                 model.Sources(sources =>
@@ -249,7 +248,7 @@ public sealed partial class ConfiglueFacadeSourceTests
             """
         );
 
-        await using var context = Configlue.CreateContext(builder =>
+        await using var context = ConfiglueApp.CreateContext(builder =>
         {
             builder.Add<AppSettings>(model =>
                 model.Sources(sources =>
@@ -303,7 +302,7 @@ public sealed partial class ConfiglueFacadeSourceTests
         var bytes = Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes(document)).ToArray();
         await File.WriteAllBytesAsync(path, bytes);
 
-        await using var context = Configlue.CreateContext(builder =>
+        await using var context = ConfiglueApp.CreateContext(builder =>
         {
             builder.Add<AppSettings>(model =>
                 model.Sources(sources =>
@@ -348,7 +347,7 @@ public sealed partial class ConfiglueFacadeSourceTests
             "<root><App><Other><Value>keep</Value></Other></App><Root>keep</Root></root>"
         );
 
-        await using var context = Configlue.CreateContext(builder =>
+        await using var context = ConfiglueApp.CreateContext(builder =>
         {
             builder.Add<AppSettings>(model =>
                 model.Sources(sources =>
@@ -386,7 +385,7 @@ public sealed partial class ConfiglueFacadeSourceTests
         var path = Path.Combine(directory.FullPath, "settings.yaml");
         await File.WriteAllTextAsync(path, "App:\n  Other:\n    Value: keep\nRoot: keep\n");
 
-        await using var context = Configlue.CreateContext(builder =>
+        await using var context = ConfiglueApp.CreateContext(builder =>
         {
             builder.Add<AppSettings>(model =>
                 model.Sources(sources =>
@@ -437,7 +436,7 @@ public sealed partial class ConfiglueFacadeSourceTests
             """
         );
 
-        await using var context = Configlue.CreateContext(builder =>
+        await using var context = ConfiglueApp.CreateContext(builder =>
         {
             builder.Add<AppSettings>(model =>
                 model.Sources(sources =>
@@ -488,7 +487,7 @@ public sealed partial class ConfiglueFacadeSourceTests
             """
         );
 
-        await using var context = Configlue.CreateContext(builder =>
+        await using var context = ConfiglueApp.CreateContext(builder =>
         {
             builder.Add<AppSettings>(model =>
                 model.Sources(sources =>
@@ -535,7 +534,7 @@ public sealed partial class ConfiglueFacadeSourceTests
             """
         );
 
-        await using var context = Configlue.CreateContext(builder =>
+        await using var context = ConfiglueApp.CreateContext(builder =>
         {
             builder.Add<AppSettings>(model =>
                 model.Sources(sources =>
@@ -568,7 +567,7 @@ public sealed partial class ConfiglueFacadeSourceTests
         var path = Path.Combine(directory.FullPath, "readonly.json");
         await File.WriteAllTextAsync(path, "{\"App\":{\"Settings\":{}}}");
 
-        await using var context = Configlue.CreateContext(builder =>
+        await using var context = ConfiglueApp.CreateContext(builder =>
         {
             builder.Add<AppSettings>(model =>
                 model.Sources(sources =>
@@ -634,7 +633,7 @@ public sealed partial class ConfiglueFacadeSourceTests
         var path = Path.Combine(directory.FullPath, "first.json");
 
         Should.Throw<InvalidOperationException>(() =>
-            Configlue.CreateContext(builder =>
+            ConfiglueApp.CreateContext(builder =>
             {
                 builder.Add<AppSettings>(model =>
                     model.Sources(sources =>
@@ -666,7 +665,7 @@ public sealed partial class ConfiglueFacadeSourceTests
     {
         using var directory = new TemporaryDirectory();
         var path = Path.Combine(directory.FullPath, "watched.json");
-        var context = Configlue.CreateContext(builder =>
+        var context = ConfiglueApp.CreateContext(builder =>
         {
             builder.Add<AppSettings>(model =>
                 model.Sources(sources =>
@@ -706,7 +705,7 @@ public sealed partial class ConfiglueFacadeSourceTests
             resource,
             new JsonStateCodec<AppSettings.Fragment>()
         );
-        var context = Configlue.CreateContext(builder =>
+        var context = ConfiglueApp.CreateContext(builder =>
         {
             builder.Add<AppSettings>(model => model.Sources(sources => sources.Add(source)));
         });
@@ -727,7 +726,7 @@ public sealed partial class ConfiglueFacadeSourceTests
     public async Task RemovingDynamicOptionsStopsAndDisposesItsHelperCreatedFileWatcherOnce()
     {
         using var directory = new TemporaryDirectory();
-        await using var context = Configlue.CreateContext(builder =>
+        await using var context = ConfiglueApp.CreateContext(builder =>
         {
             builder.Add<AppSettings>(model =>
             {
@@ -775,7 +774,7 @@ public sealed partial class ConfiglueFacadeSourceTests
             writer: catalogStore,
             watcher: catalogStore
         );
-        var context = Configlue.CreateContext(builder =>
+        var context = ConfiglueApp.CreateContext(builder =>
         {
             builder.Add<AppSettings>(model =>
             {
@@ -835,7 +834,7 @@ public sealed partial class ConfiglueFacadeSourceTests
     public async Task DynamicSourceFactoryFailureDisposesResourcesCreatedEarlierInItsRuntime()
     {
         var resource = new DisposableProbe();
-        await using var context = Configlue.CreateContext(builder =>
+        await using var context = ConfiglueApp.CreateContext(builder =>
         {
             builder.Add<AppSettings>(model =>
             {
@@ -879,7 +878,7 @@ public sealed partial class ConfiglueFacadeSourceTests
     )
     {
         using var client = new HttpClient(new NoContentHttpHandler());
-        await using var context = Configlue.CreateContext(builder =>
+        await using var context = ConfiglueApp.CreateContext(builder =>
         {
             builder.Add<AppSettings>(model =>
                 model.Sources(sources =>
