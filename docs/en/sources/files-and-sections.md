@@ -44,7 +44,7 @@ File sources receive a stable opaque identity from their normalized resource and
 
 Disjoint section mounts that share one resource are combined into one physical write. For split files, use one `FileResource` per file and mount each source at its logical model path; each file is written independently. Section resources retain their physical `ResourceId` while keeping distinct logical source IDs and priorities.
 
-Constraints: section edits require standard JSON or UTF-8 YAML. JSON with comments/trailing commas (JSONC) is not supported, and section writes reserialize the document — comment, whitespace, quoting, and scalar-style preservation is not guaranteed. YAML input with invalid UTF-8 fails instead of being replacement-decoded.
+JSON file sources accept both `.json` and `.jsonc` content, including comments and trailing commas. JSON and YAML file writes update the affected values in place and preserve unrelated comments, whitespace, quoting, and scalar styles. If a write removes a modeled member, that member is removed while unknown properties remain. YAML input with invalid UTF-8 fails instead of being replacement-decoded. This structural editing is provided by the JSON and YAML file registrations; other codecs keep their existing replacement behavior.
 
 For YAML member naming, pass the naming policy and the generated fragment schema to the codec:
 

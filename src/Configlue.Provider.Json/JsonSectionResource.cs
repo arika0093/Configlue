@@ -1,6 +1,4 @@
-using System.Text;
 using System.Text.Json;
-using System.Text.Json.Nodes;
 
 namespace Configlue.Provider.Json;
 
@@ -17,13 +15,14 @@ public sealed class JsonSectionResource
     private readonly IResourceWriter? _writer;
     private readonly IStateWatcher? _watcher;
     private readonly string[] _path;
-    private readonly JsonSerializerOptions _serializerOptions;
     private readonly string _batchScope;
+    private readonly byte[] _schemaShape;
+    private readonly JsonSerializerOptions _serializerOptions;
 
     /// <summary>Creates a section resource over an existing JSON resource.</summary>
     /// <param name="resource">The physical resource containing the JSON document.</param>
     /// <param name="sectionPath">A colon- or double-underscore-separated path to the section.</param>
-    /// <param name="serializerOptions">Options used to format the updated document.</param>
+    /// <param name="serializerOptions">Options used to format newly created JSON structure.</param>
     /// <param name="resourceId">An optional stable identity for the physical resource.</param>
     public JsonSectionResource(
         IResourceReader resource,
@@ -49,21 +48,78 @@ public sealed class JsonSectionResource
         JsonSerializerOptions? serializerOptions = null,
         ResourceId? resourceId = null
     )
+        : this(
+            reader,
+            writer,
+            ParseSectionPath(sectionPath),
+            watcher,
+            serializerOptions,
+            resourceId,
+            []
+        ) { }
+
+    internal JsonSectionResource(
+        IResourceReader reader,
+        IResourceWriter? writer,
+        string sectionPath,
+        IStateWatcher? watcher,
+        JsonSerializerOptions? serializerOptions,
+        ResourceId? resourceId,
+        byte[] schemaShape
+    )
+        : this(
+            reader,
+            writer,
+            ParseSectionPath(sectionPath),
+            watcher,
+            serializerOptions,
+            resourceId,
+            schemaShape
+        ) { }
+
+    private JsonSectionResource(
+        IResourceReader reader,
+        IResourceWriter? writer,
+        string[] path,
+        IStateWatcher? watcher,
+        JsonSerializerOptions? serializerOptions,
+        ResourceId? resourceId,
+        byte[] schemaShape
+    )
     {
         ArgumentNullException.ThrowIfNull(reader);
-        ArgumentException.ThrowIfNullOrWhiteSpace(sectionPath);
 
         _reader = reader;
         _writer = writer;
         _watcher = watcher;
+        _path = path;
+        _schemaShape = schemaShape;
+        _serializerOptions = serializerOptions is null
+            ? new JsonSerializerOptions { WriteIndented = true }
+            : new JsonSerializerOptions(serializerOptions);
         ResourceId =
             resourceId
             ?? (writer as IResourceIdentity ?? reader as IResourceIdentity)?.ResourceId
             ?? new ResourceId($"section:{Guid.NewGuid():N}");
-        _path = sectionPath
+        _batchScope = "json/" + string.Join("/", _path.Select(Uri.EscapeDataString));
+    }
+
+    internal static JsonSectionResource CreateRoot(
+        IResourceReader reader,
+        IResourceWriter? writer,
+        IStateWatcher? watcher,
+        JsonSerializerOptions? serializerOptions,
+        ResourceId? resourceId,
+        byte[] schemaShape
+    ) => new(reader, writer, [], watcher, serializerOptions, resourceId, schemaShape);
+
+    private static string[] ParseSectionPath(string sectionPath)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sectionPath);
+        var path = sectionPath
             .Replace("__", ":", StringComparison.Ordinal)
             .Split(':', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        if (_path.Length == 0)
+        if (path.Length == 0)
         {
             throw new ArgumentException(
                 "The section path must contain at least one property name.",
@@ -71,11 +127,7 @@ public sealed class JsonSectionResource
             );
         }
 
-        _batchScope = "json/" + string.Join("/", _path.Select(Uri.EscapeDataString));
-
-        _serializerOptions = serializerOptions is null
-            ? new JsonSerializerOptions { WriteIndented = true }
-            : new JsonSerializerOptions(serializerOptions);
+        return path;
     }
 
     /// <summary>Whether a physical writer was supplied.</summary>
@@ -156,25 +208,36 @@ public sealed class JsonSectionResource
             return new ResourceReadResult(resource.Status, default, resource.Revision);
         }
 
-        using var document = JsonDocument.Parse(resource.Content);
-        var current = document.RootElement;
+        if (_path.Length == 0)
+        {
+            _ = JsoncSyntaxTree.Parse(resource.Content.ToArray());
+            return resource;
+        }
+
+        var document = JsoncSyntaxTree.Parse(resource.Content.ToArray());
+        var current = document.Root;
         foreach (var name in _path)
         {
-            if (current.ValueKind != JsonValueKind.Object)
+            if (current.Kind != JsonValueKind.Object)
             {
                 throw new JsonException(
                     $"Section path '{string.Join(':', _path)}' crosses a non-object value at '{name}'."
                 );
             }
 
-            if (!current.TryGetProperty(name, out current))
+            var property = current.Properties!.SingleOrDefault(candidate =>
+                string.Equals(candidate.Name, name, StringComparison.Ordinal)
+            );
+            if (property is null)
             {
                 return ResourceReadResult.NotFound(resource.Revision);
             }
+
+            current = property.Value;
         }
 
         return ResourceReadResult.Success(
-            Encoding.UTF8.GetBytes(current.GetRawText()),
+            document.GetRawText(current).ToArray(),
             resource.Revision
         );
     }
@@ -227,46 +290,18 @@ public sealed class JsonSectionResource
         ReadOnlyMemory<byte> sectionContent
     )
     {
-        JsonObject root;
-        if (current.Status == StateReadStatus.Success)
-        {
-            var parsedRoot = JsonNode.Parse(current.Content.Span);
-            root =
-                parsedRoot as JsonObject
-                ?? throw new JsonException(
-                    "A JSON section resource must be contained in a root object."
-                );
-        }
-        else if (current.Status == StateReadStatus.NotFound)
-        {
-            root = new JsonObject();
-        }
-        else
+        if (current.Status is not (StateReadStatus.Success or StateReadStatus.NotFound))
         {
             throw new IOException("The JSON resource is unavailable and cannot be updated safely.");
         }
 
-        var container = root;
-        for (var index = 0; index < _path.Length - 1; index++)
-        {
-            var name = _path[index];
-            if (!container.TryGetPropertyValue(name, out var child))
-            {
-                child = new JsonObject();
-                container[name] = child;
-            }
-            else if (child is not JsonObject)
-            {
-                throw new JsonException(
-                    $"Section path '{string.Join(':', _path)}' crosses a non-object value at '{name}'."
-                );
-            }
-
-            container = (JsonObject)child;
-        }
-
-        container[_path[^1]] = JsonNode.Parse(sectionContent.Span);
-        return Encoding.UTF8.GetBytes(root.ToJsonString(_serializerOptions));
+        return JsoncDocumentEditor.Update(
+            current.Status == StateReadStatus.Success ? current.Content : "{}"u8.ToArray(),
+            sectionContent,
+            _path,
+            _schemaShape,
+            _serializerOptions
+        );
     }
 
     /// <inheritdoc />

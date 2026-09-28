@@ -1,0 +1,733 @@
+using System.Buffers;
+using System.Text;
+using System.Text.Json;
+using SharpYaml;
+using SharpYaml.Events;
+using SharpYaml.Model;
+
+namespace Configlue.Provider.Yaml;
+
+internal static class YamlDocumentEditor
+{
+    private static readonly UTF8Encoding StrictUtf8 = new(
+        encoderShouldEmitUTF8Identifier: false,
+        throwOnInvalidBytes: true
+    );
+
+    internal static byte[] Update(
+        ReadOnlyMemory<byte> current,
+        ReadOnlyMemory<byte> updated,
+        IReadOnlyList<string> path,
+        ReadOnlyMemory<byte> schemaShape,
+        Encoding? textEncoding
+    )
+    {
+        var currentText = current.IsEmpty ? "" : Decode(current.Span, textEncoding);
+        var updatedText = Decode(updated.Span, textEncoding);
+        var currentDocument = YamlTextDocument.Parse(currentText);
+        var updatedDocument = YamlTextDocument.Parse(updatedText);
+        var shapeDocument = schemaShape.IsEmpty
+            ? null
+            : YamlTextDocument.Parse(Decode(schemaShape.Span, textEncoding));
+        var editor = new Editor(currentDocument);
+
+        if (path.Count == 0)
+        {
+            editor.AddDiff(currentDocument.Root, updatedDocument.Root, shapeDocument?.Root);
+        }
+        else
+        {
+            var section = currentDocument.GetPath(path);
+            if (section is not null)
+            {
+                editor.AddDiff(section, updatedDocument.Root, shapeDocument?.Root);
+            }
+            else
+            {
+                var parentLength = path.Count - 1;
+                YamlTextNode? parent = null;
+                while (parentLength >= 0)
+                {
+                    parent = currentDocument.GetPath(path.Take(parentLength).ToArray());
+                    if (parent is not null)
+                    {
+                        break;
+                    }
+
+                    parentLength--;
+                }
+
+                if (parent is null || parent.Kind != YamlTextKind.Mapping)
+                {
+                    throw new YamlException(
+                        $"YAML section path '{string.Join(':', path)}' has no containing mapping."
+                    );
+                }
+
+                var wrapped = updatedText[updatedDocument.Root.Start..updatedDocument.Root.End];
+                for (var index = path.Count - 1; index > parentLength; index--)
+                {
+                    wrapped = WrapProperty(path[index], wrapped);
+                }
+
+                editor.AddPropertyAtPath(parent, path[parentLength], wrapped);
+            }
+        }
+
+        return Encode(editor.ApplyEdits(), textEncoding);
+    }
+
+    internal static byte[] CreateSchemaShape(
+        ConfiglueModelSchema schema,
+        JsonNamingPolicy? namingPolicy,
+        YamlSerializerOptions? serializerOptions,
+        DocumentLayoutOptions? layout
+    )
+    {
+        var fragment = CreatePresentFragment(schema);
+        var codec = new YamlStateCodec(namingPolicy, schema, serializerOptions, layout);
+        var buffer = new ArrayBufferWriter<byte>();
+        codec.Serialize(
+            fragment.GetType(),
+            fragment,
+            buffer,
+            new StateCodecContext(schema.ToMetadata(), null, null)
+        );
+        return buffer.WrittenSpan.ToArray();
+    }
+
+    private static IConfiglueFragment CreatePresentFragment(ConfiglueModelSchema schema)
+    {
+        var fragment = schema.CreateEmptyFragment();
+        foreach (var member in schema.Members)
+        {
+            object? value;
+            if (member.NestedSchemaFactory is { } nestedSchemaFactory)
+            {
+                value = CreatePresentFragment(nestedSchemaFactory());
+            }
+            else
+            {
+                value = member.ValueType.IsValueType
+                    ? Activator.CreateInstance(member.ValueType)
+                    : null;
+            }
+
+            fragment = fragment.WithMember(member.Id, value);
+        }
+
+        return fragment;
+    }
+
+    private static string WrapProperty(string name, string value)
+    {
+        var key = YamlSerializer.Serialize(name).TrimEnd('\r', '\n');
+        return key + ":" + Environment.NewLine + Indent(value, "  ");
+    }
+
+    private static string Decode(ReadOnlySpan<byte> content, Encoding? textEncoding)
+    {
+        if (textEncoding is null)
+        {
+            return StrictUtf8.GetString(content);
+        }
+
+        using var stream = new MemoryStream(content.ToArray(), writable: false);
+        using var reader = new StreamReader(
+            stream,
+            textEncoding,
+            detectEncodingFromByteOrderMarks: true
+        );
+        return reader.ReadToEnd();
+    }
+
+    private static byte[] Encode(string text, Encoding? textEncoding) =>
+        (textEncoding ?? Encoding.UTF8).GetBytes(text);
+
+    private static string Indent(string text, string indentation)
+    {
+        var lines = text.Replace("\r\n", "\n", StringComparison.Ordinal)
+            .Replace('\r', '\n')
+            .Split('\n');
+        return string.Join(
+            Environment.NewLine,
+            lines.Select(line => line.Length == 0 ? line : indentation + line)
+        );
+    }
+
+    private sealed class Editor(YamlTextDocument document)
+    {
+        private readonly List<TextEdit> _edits = [];
+        private readonly HashSet<int> _removedFlowCommas = [];
+
+        internal void AddDiff(
+            YamlTextNode current,
+            YamlTextNode updated,
+            YamlTextNode? shape,
+            YamlTextProperty? currentProperty = null,
+            YamlTextProperty? updatedProperty = null
+        )
+        {
+            if (current.Kind != updated.Kind)
+            {
+                AddReplacement(current, updated, currentProperty, updatedProperty);
+                return;
+            }
+
+            switch (current.Kind)
+            {
+                case YamlTextKind.Mapping:
+                    AddMappingDiff(current, updated, shape);
+                    break;
+                case YamlTextKind.Sequence:
+                    AddSequenceDiff(current, updated);
+                    break;
+                case YamlTextKind.Scalar:
+                    if (!Equivalent(current, updated))
+                    {
+                        AddReplacement(current, updated, currentProperty, updatedProperty);
+                    }
+
+                    break;
+                default:
+                    throw new YamlException("The YAML document contains an unsupported node.");
+            }
+        }
+
+        internal void AddPropertyAtPath(YamlTextNode parent, string name, string value)
+        {
+            if (parent.Kind != YamlTextKind.Mapping)
+            {
+                throw new YamlException("A YAML section's containing value must be a mapping.");
+            }
+
+            AddProperties(parent, [WrapProperty(name, value)], parent.Properties!);
+        }
+
+        internal string ApplyEdits()
+        {
+            var result = document.Source;
+            foreach (var edit in _edits.OrderByDescending(static edit => edit.Start))
+            {
+                result = string.Concat(
+                    result.AsSpan(0, edit.Start),
+                    edit.Content,
+                    result.AsSpan(edit.Start + edit.Length)
+                );
+            }
+
+            return result;
+        }
+
+        private void AddMappingDiff(YamlTextNode current, YamlTextNode updated, YamlTextNode? shape)
+        {
+            var currentProperties = current.Properties!;
+            var updatedByName = updated.Properties!.ToDictionary(
+                static property => property.Name,
+                StringComparer.Ordinal
+            );
+            var shapeNames = shape
+                ?.Properties?.Select(static property => property.Name)
+                .ToHashSet(StringComparer.Ordinal);
+            var isFlow = ((YamlMapping)current.Element).Style == YamlStyle.Flow;
+            var retainedProperties = new List<YamlTextProperty>(currentProperties.Count);
+            for (var index = 0; index < currentProperties.Count; index++)
+            {
+                var property = currentProperties[index];
+                if (!updatedByName.TryGetValue(property.Name, out var updatedProperty))
+                {
+                    if (shapeNames is null || shapeNames.Contains(property.Name))
+                    {
+                        RemoveProperty(current, index, property, isFlow);
+                    }
+                    else
+                    {
+                        retainedProperties.Add(property);
+                    }
+
+                    continue;
+                }
+
+                retainedProperties.Add(property);
+                var shapeProperty = shape?.Properties?.SingleOrDefault(candidate =>
+                    string.Equals(candidate.Name, property.Name, StringComparison.Ordinal)
+                );
+                AddDiff(
+                    property.Value,
+                    updatedProperty.Value,
+                    shapeProperty?.Value,
+                    property,
+                    updatedProperty
+                );
+            }
+
+            var currentNames = currentProperties
+                .Select(static property => property.Name)
+                .ToHashSet(StringComparer.Ordinal);
+            var additions = updated
+                .Properties!.Where(property => !currentNames.Contains(property.Name))
+                .Select(property =>
+                    isFlow
+                        ? Slice(property.Value.Source, property.KeyStart, property.Value.ValueEnd)
+                        : Slice(property.Value.Source, property.EntryStart, property.EntryEnd)
+                )
+                .ToArray();
+            if (additions.Length > 0)
+            {
+                AddProperties(current, additions, retainedProperties);
+            }
+        }
+
+        private void AddSequenceDiff(YamlTextNode current, YamlTextNode updated)
+        {
+            var currentItems = current.Items!;
+            var updatedItems = updated.Items!;
+            var shared = Math.Min(currentItems.Count, updatedItems.Count);
+            for (var index = 0; index < shared; index++)
+            {
+                AddDiff(currentItems[index], updatedItems[index], null);
+            }
+
+            if (updatedItems.Count < currentItems.Count)
+            {
+                for (var index = currentItems.Count - 1; index >= updatedItems.Count; index--)
+                {
+                    RemoveSequenceItem(current, index);
+                }
+            }
+            else if (updatedItems.Count > currentItems.Count)
+            {
+                var isFlow = ((YamlSequence)current.Element).Style == YamlStyle.Flow;
+                var additions = updatedItems
+                    .Skip(currentItems.Count)
+                    .Select(item =>
+                        isFlow
+                            ? Slice(updated.Source, item.Start, item.End)
+                            : Slice(updated.Source, item.EntryStart, item.EntryEnd)
+                    )
+                    .ToArray();
+                AddSequenceItems(current, additions);
+            }
+        }
+
+        private void AddReplacement(
+            YamlTextNode current,
+            YamlTextNode updated,
+            YamlTextProperty? currentProperty,
+            YamlTextProperty? updatedProperty
+        )
+        {
+            var start = currentProperty?.ValueStart ?? current.Start;
+            var end = currentProperty?.ValueEnd ?? current.End;
+            var updatedStart = updatedProperty?.ValueStart ?? updated.Start;
+            var updatedEnd = updatedProperty?.ValueEnd ?? updated.End;
+            var raw = Slice(updated.Source, updatedStart, updatedEnd);
+            if (currentProperty is not null && updated.Kind != YamlTextKind.Scalar)
+            {
+                raw = Reindent(raw, GetIndentation(document.Source, currentProperty.EntryStart));
+            }
+
+            _edits.Add(new TextEdit(start, end - start, raw));
+        }
+
+        private void RemoveProperty(
+            YamlTextNode mapping,
+            int index,
+            YamlTextProperty property,
+            bool isFlow
+        )
+        {
+            if (isFlow)
+            {
+                var properties = mapping.Properties!;
+                var start = property.KeyStart;
+                var end = property.Value.End;
+                var separatorStart = index > 0 ? properties[index - 1].Value.End : end;
+                var separatorEnd =
+                    index < properties.Count - 1 ? properties[index + 1].KeyStart : mapping.End - 1;
+                var comma = -1;
+                if (index < properties.Count - 1)
+                {
+                    comma = FindFlowComma(document.Source, end, separatorEnd);
+                }
+                else if (index > 0)
+                {
+                    comma = FindFlowComma(document.Source, separatorStart, start);
+                }
+
+                if (comma >= 0 && _removedFlowCommas.Add(comma))
+                {
+                    _edits.Add(new TextEdit(comma, 1, ""));
+                }
+
+                var flowComments = ExtractComments(document.Source, start, end);
+                _edits.Add(new TextEdit(start, end - start, flowComments));
+                return;
+            }
+
+            var comments = ExtractComments(document.Source, property.EntryStart, property.EntryEnd);
+            _edits.Add(
+                new TextEdit(property.EntryStart, property.EntryEnd - property.EntryStart, comments)
+            );
+        }
+
+        private void RemoveSequenceItem(YamlTextNode sequence, int index)
+        {
+            var item = sequence.Items![index];
+            if (((YamlSequence)sequence.Element).Style == YamlStyle.Flow)
+            {
+                var comma = -1;
+                if (index < sequence.Items.Count - 1)
+                {
+                    comma = FindFlowComma(
+                        document.Source,
+                        item.End,
+                        sequence.Items[index + 1].Start
+                    );
+                }
+                else if (index > 0)
+                {
+                    comma = FindFlowComma(
+                        document.Source,
+                        sequence.Items[index - 1].End,
+                        item.Start
+                    );
+                }
+
+                if (comma >= 0 && _removedFlowCommas.Add(comma))
+                {
+                    _edits.Add(new TextEdit(comma, 1, ""));
+                }
+
+                var flowComments = ExtractComments(document.Source, item.Start, item.End);
+                _edits.Add(new TextEdit(item.Start, item.End - item.Start, flowComments));
+                return;
+            }
+
+            var comments = ExtractComments(document.Source, item.EntryStart, item.EntryEnd);
+            _edits.Add(new TextEdit(item.EntryStart, item.EntryEnd - item.EntryStart, comments));
+        }
+
+        private void AddProperties(
+            YamlTextNode mapping,
+            IReadOnlyList<string> additions,
+            IReadOnlyList<YamlTextProperty> retainedProperties
+        )
+        {
+            if (mapping.Element is YamlMapping { Style: YamlStyle.Flow })
+            {
+                AddFlowEntries(
+                    mapping,
+                    additions,
+                    false,
+                    retainedProperties.Count,
+                    retainedProperties.Count == 0 ? mapping.Start : retainedProperties[^1].Value.End
+                );
+                return;
+            }
+
+            string indentation;
+            if (retainedProperties.Count == 0)
+            {
+                indentation = ReferenceEquals(mapping, document.Root)
+                    ? ""
+                    : GetIndentation(document.Source, mapping.Start) + "  ";
+            }
+            else
+            {
+                indentation = GetIndentation(document.Source, retainedProperties[0].EntryStart);
+            }
+            var content = additions.Select(addition => Reindent(addition, indentation)).ToArray();
+            AddBlockEntries(mapping.End, content);
+        }
+
+        private void AddSequenceItems(YamlTextNode sequence, IReadOnlyList<string> additions)
+        {
+            if (sequence.Element is YamlSequence { Style: YamlStyle.Flow })
+            {
+                AddFlowEntries(
+                    sequence,
+                    additions,
+                    true,
+                    sequence.Items!.Count,
+                    sequence.Items.Count == 0 ? sequence.Start : sequence.Items[^1].End
+                );
+                return;
+            }
+
+            var indentation =
+                sequence.Items!.Count == 0
+                    ? GetIndentation(document.Source, sequence.Start) + "  "
+                    : GetIndentation(document.Source, sequence.Items[0].EntryStart);
+            var content = additions.Select(addition => Reindent(addition, indentation)).ToArray();
+            AddBlockEntries(sequence.End, content);
+        }
+
+        private void AddFlowEntries(
+            YamlTextNode container,
+            IReadOnlyList<string> additions,
+            bool isSequence,
+            int retainedCount,
+            int lastEnd
+        )
+        {
+            var close = container.End - 1;
+            if (close < container.Start || document.Source[close] != (isSequence ? ']' : '}'))
+            {
+                throw new YamlException("The YAML flow collection has no closing delimiter.");
+            }
+
+            var hasSeparator =
+                retainedCount > 0 && FindFlowComma(document.Source, lastEnd, close) >= 0;
+            var prefix = !hasSeparator && retainedCount > 0 ? ", " : "";
+            _edits.Add(
+                new TextEdit(
+                    close,
+                    0,
+                    prefix + string.Join(", ", additions.Select(static item => item.Trim()))
+                )
+            );
+        }
+
+        private static int FindFlowComma(string source, int start, int end)
+        {
+            var singleQuoted = false;
+            var doubleQuoted = false;
+            var depth = 0;
+            var position = start;
+            while (position < end)
+            {
+                var character = source[position];
+                if (doubleQuoted)
+                {
+                    if (character == '\\')
+                    {
+                        position += 2;
+                        continue;
+                    }
+
+                    if (character == '"')
+                    {
+                        doubleQuoted = false;
+                    }
+                }
+                else if (singleQuoted)
+                {
+                    if (character == '\'' && position + 1 < end && source[position + 1] == '\'')
+                    {
+                        position += 2;
+                        continue;
+                    }
+
+                    if (character == '\'')
+                    {
+                        singleQuoted = false;
+                    }
+                }
+                else if (character == '"')
+                {
+                    doubleQuoted = true;
+                }
+                else if (character == '\'')
+                {
+                    singleQuoted = true;
+                }
+                else if (character == '#')
+                {
+                    while (position < end && source[position] is not '\r' and not '\n')
+                    {
+                        position++;
+                    }
+
+                    continue;
+                }
+                else if (character is '[' or '{')
+                {
+                    depth++;
+                }
+                else if (character is ']' or '}')
+                {
+                    depth--;
+                }
+                else if (character == ',' && depth == 0)
+                {
+                    return position;
+                }
+
+                position++;
+            }
+
+            return -1;
+        }
+
+        private void AddBlockEntries(int position, IReadOnlyList<string> entries)
+        {
+            var newline = FindNewline(document.Source);
+            var prefix =
+                position > 0 && document.Source[position - 1] is not '\r' and not '\n'
+                    ? newline
+                    : "";
+            var content = string.Join(
+                newline,
+                entries.Select(static entry => entry.TrimEnd('\r', '\n'))
+            );
+            _edits.Add(new TextEdit(position, 0, prefix + content + newline));
+        }
+
+        private static bool Equivalent(YamlTextNode left, YamlTextNode right) =>
+            left
+                .Source.AsSpan(left.Start, left.End - left.Start)
+                .SequenceEqual(right.Source.AsSpan(right.Start, right.End - right.Start));
+
+        private static string Slice(string source, int start, int end) =>
+            source[start..Math.Clamp(end, start, source.Length)];
+
+        internal static string Reindent(string value, string indentation)
+        {
+            var normalized = value
+                .Replace("\r\n", "\n", StringComparison.Ordinal)
+                .Replace('\r', '\n');
+            var lines = normalized.Split('\n');
+            var sourceIndent = lines
+                .Where(static line => !string.IsNullOrWhiteSpace(line))
+                .Select(static line =>
+                    line.TakeWhile(static character => character is ' ' or '\t').Count()
+                )
+                .DefaultIfEmpty(0)
+                .Min();
+            return string.Join(
+                Environment.NewLine,
+                lines.Select(line =>
+                {
+                    if (line.Length == 0)
+                    {
+                        return line;
+                    }
+
+                    var remove = Math.Min(
+                        sourceIndent,
+                        line.TakeWhile(static character => character is ' ' or '\t').Count()
+                    );
+                    return indentation + line[remove..];
+                })
+            );
+        }
+
+        private static string ExtractComments(string source, int start, int end)
+        {
+            var result = new StringBuilder();
+            var position = start;
+            while (position < end)
+            {
+                var lineEnd = position;
+                while (lineEnd < end && source[lineEnd] is not '\r' and not '\n')
+                {
+                    lineEnd++;
+                }
+
+                var line = source.AsSpan(position, lineEnd - position);
+                var comment = FindCommentStart(line);
+                if (comment >= 0)
+                {
+                    var indentation = 0;
+                    while (indentation < comment && line[indentation] is ' ' or '\t')
+                    {
+                        indentation++;
+                    }
+
+                    result.Append(line[..indentation]);
+                    result.Append(line[comment..]);
+                    result.Append(FindNewline(source));
+                }
+
+                position = lineEnd;
+                if (position < end && source[position] == '\r')
+                {
+                    position++;
+                }
+
+                if (position < end && source[position] == '\n')
+                {
+                    position++;
+                }
+            }
+
+            return result.ToString();
+        }
+
+        private static int FindCommentStart(ReadOnlySpan<char> line)
+        {
+            var singleQuoted = false;
+            var doubleQuoted = false;
+            var index = 0;
+            while (index < line.Length)
+            {
+                if (doubleQuoted && line[index] == '\\')
+                {
+                    index++;
+                    index++;
+                    continue;
+                }
+
+                if (!doubleQuoted && line[index] == '\'')
+                {
+                    singleQuoted = !singleQuoted;
+                }
+                else if (!singleQuoted && line[index] == '"')
+                {
+                    doubleQuoted = !doubleQuoted;
+                }
+                else if (!singleQuoted && !doubleQuoted && line[index] == '#')
+                {
+                    return index;
+                }
+
+                index++;
+            }
+
+            return -1;
+        }
+
+        private static int FindLineStart(string source, int position)
+        {
+            while (position > 0 && source[position - 1] is not '\r' and not '\n')
+            {
+                position--;
+            }
+
+            return position;
+        }
+
+        private static string GetIndentation(string source, int position)
+        {
+            var lineStart = FindLineStart(source, position);
+            var length = 0;
+            while (lineStart + length < source.Length && source[lineStart + length] is ' ' or '\t')
+            {
+                length++;
+            }
+
+            return source.Substring(lineStart, length);
+        }
+
+        private static string FindNewline(string source)
+        {
+            var index = source.IndexOf('\n');
+            if (index > 0 && source[index - 1] == '\r')
+            {
+                return "\r\n";
+            }
+
+            return index >= 0 ? "\n" : Environment.NewLine;
+        }
+    }
+
+    private sealed class TextEdit(int start, int length, string content)
+    {
+        internal int Start { get; } = start;
+
+        internal int Length { get; } = length;
+
+        internal string Content { get; } = content;
+    }
+}

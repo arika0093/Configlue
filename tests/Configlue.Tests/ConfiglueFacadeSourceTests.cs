@@ -136,6 +136,113 @@ public sealed partial class ConfiglueFacadeSourceTests
     }
 
     [Test]
+    public async Task JsonFacadeFileSource_PreservesJsoncCommentsAndUnknownProperties()
+    {
+        using var directory = new TemporaryDirectory();
+        var path = Path.Combine(directory.FullPath, "appsettings.jsonc");
+        await File.WriteAllTextAsync(
+            path,
+            """
+            {
+              // Root comment.
+              "RetryCount": 3,
+              "Label": "before", // Inline comment.
+              "Unknown": { "Value": "keep" },
+              "$value": "keep reserved-looking unknown",
+            }
+            """
+        );
+
+        await using var context = Configlue.CreateContext(builder =>
+        {
+            builder.Add<AppSettings>(model =>
+                model.Sources(sources =>
+                    sources.FromJsonFile(
+                        new JsonFileSourceOptions
+                        {
+                            Path = path,
+                            WatchChanges = false,
+                            ResourceOptions = new FileResourceOptions { CreateBackup = false },
+                        }
+                    )
+                )
+            );
+        });
+
+        var options = context.GetOptions<AppSettings>();
+        (await options.GetValueAsync()).Label.ShouldBe("before");
+        await options.SaveAsync(settings => settings.Label = "after");
+
+        var written = await File.ReadAllTextAsync(path);
+        written.ShouldContain("// Root comment.");
+        written.ShouldContain("// Inline comment.");
+        written.ShouldContain("\"Unknown\": { \"Value\": \"keep\" }");
+        written.ShouldContain("\"$value\": \"keep reserved-looking unknown\"");
+        written.ShouldContain("\"Label\": \"after\"");
+
+        await options.SaveAsync(
+            new AppSettings.Patch { RetryCount = FragmentOperation<int>.Unset }
+        );
+        written = await File.ReadAllTextAsync(path);
+        written.ShouldNotContain("\"RetryCount\"");
+        written.ShouldContain("\"Unknown\": { \"Value\": \"keep\" }");
+    }
+
+    [Test]
+    public async Task JsonFileSource_ReadsJsoncCommentsAndUpdatesDetailedEnvelope()
+    {
+        using var directory = new TemporaryDirectory();
+        var path = Path.Combine(directory.FullPath, "appsettings.json");
+        var document = """
+            {
+              // Keep envelope comment.
+              "$configlue": { "id": "app-settings", "version": 2 },
+              "$value": {
+                "RetryCount": 3,
+                "Label": "before",
+                "Unknown": "keep",
+              },
+            }
+            """;
+        var bytes = Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes(document)).ToArray();
+        await File.WriteAllBytesAsync(path, bytes);
+
+        await using var context = Configlue.CreateContext(builder =>
+        {
+            builder.Add<AppSettings>(model =>
+                model.Sources(sources =>
+                    sources.FromJsonFile(
+                        new JsonFileSourceOptions
+                        {
+                            Path = path,
+                            WatchChanges = false,
+                            DocumentLayout = new DocumentLayoutOptions
+                            {
+                                Layout = DocumentLayout.Detailed,
+                            },
+                            ResourceOptions = new FileResourceOptions { CreateBackup = false },
+                        }
+                    )
+                )
+            );
+        });
+
+        var options = context.GetOptions<AppSettings>();
+        (await options.GetValueAsync()).Label.ShouldBe("before");
+        await options.SaveAsync(settings => settings.Label = "after");
+
+        var written = await File.ReadAllTextAsync(path);
+        written.ShouldContain("// Keep envelope comment.");
+        written.ShouldContain("\"Label\": \"after\"");
+        written.ShouldContain("\"Unknown\": \"keep\"");
+        written.ShouldContain("\"RetryCount\": 3");
+        (await File.ReadAllBytesAsync(path))
+            .AsSpan()
+            .StartsWith(Encoding.UTF8.GetPreamble())
+            .ShouldBeTrue();
+    }
+
+    [Test]
     public async Task XmlFacadeFileSource_WritesNestedSectionAndPreservesSiblings()
     {
         using var directory = new TemporaryDirectory();
@@ -211,6 +318,151 @@ public sealed partial class ConfiglueFacadeSourceTests
         var yaml = await File.ReadAllTextAsync(path);
         (yaml).ShouldContain("keep");
         (yaml).ShouldContain("selected");
+    }
+
+    [Test]
+    public async Task YamlFacadeFileSource_PreservesCommentsAndUnknownProperties()
+    {
+        using var directory = new TemporaryDirectory();
+        var path = Path.Combine(directory.FullPath, "appsettings.yaml");
+        await File.WriteAllTextAsync(
+            path,
+            """
+            # Root comment.
+            App:
+              # Section comment.
+              Settings:
+                RetryCount: 3
+                Label: before # Inline comment.
+                Unknown: keep
+              Other:
+                Value: keep-sibling
+            # Trailing comment.
+            """
+        );
+
+        await using var context = Configlue.CreateContext(builder =>
+        {
+            builder.Add<AppSettings>(model =>
+                model.Sources(sources =>
+                    sources.FromYamlFile(
+                        new YamlFileSourceOptions
+                        {
+                            Path = path,
+                            SectionPath = "App:Settings",
+                            WatchChanges = false,
+                            ResourceOptions = new FileResourceOptions { CreateBackup = false },
+                        }
+                    )
+                )
+            );
+        });
+
+        var options = context.GetOptions<AppSettings>();
+        (await options.GetValueAsync()).Label.ShouldBe("before");
+        await options.SaveAsync(settings => settings.Label = "after");
+
+        var yaml = await File.ReadAllTextAsync(path);
+        yaml.ShouldContain("# Root comment.");
+        yaml.ShouldContain("# Section comment.");
+        yaml.ShouldContain("# Inline comment.");
+        yaml.ShouldContain("# Trailing comment.");
+        yaml.ShouldContain("Unknown: keep");
+        yaml.ShouldContain("Value: keep-sibling");
+        yaml.ShouldContain("Label: after");
+
+        await options.SaveAsync(
+            new AppSettings.Patch { RetryCount = FragmentOperation<int>.Unset }
+        );
+        yaml = await File.ReadAllTextAsync(path);
+        yaml.ShouldNotContain("RetryCount:");
+        yaml.ShouldContain("Unknown: keep");
+    }
+
+    [Test]
+    public async Task YamlFacadeFileSource_PreservesFlowCollectionLayout()
+    {
+        using var directory = new TemporaryDirectory();
+        var path = Path.Combine(directory.FullPath, "flow.yaml");
+        await File.WriteAllTextAsync(
+            path,
+            """
+            # Keep flow document comment.
+            App: { Settings: { RetryCount: 3, Label: before, Unknown: keep }, Other: sibling }
+            """
+        );
+
+        await using var context = Configlue.CreateContext(builder =>
+        {
+            builder.Add<AppSettings>(model =>
+                model.Sources(sources =>
+                    sources.FromYamlFile(
+                        new YamlFileSourceOptions
+                        {
+                            Path = path,
+                            SectionPath = "App:Settings",
+                            WatchChanges = false,
+                            ResourceOptions = new FileResourceOptions { CreateBackup = false },
+                        }
+                    )
+                )
+            );
+        });
+
+        var options = context.GetOptions<AppSettings>();
+        (await options.GetValueAsync()).Label.ShouldBe("before");
+        await options.SaveAsync(settings => settings.Label = "after");
+        await options.SaveAsync(
+            new AppSettings.Patch { RetryCount = FragmentOperation<int>.Unset }
+        );
+
+        var yaml = await File.ReadAllTextAsync(path);
+        yaml.ShouldContain("# Keep flow document comment.");
+        yaml.ShouldContain("Unknown: keep");
+        yaml.ShouldContain("Label: after");
+        yaml.ShouldNotContain("RetryCount");
+        (await options.GetValueAsync()).Label.ShouldBe("after");
+    }
+
+    [Test]
+    public async Task YamlFacadeRootFileSourcePreservesCommentsAndUnknownProperties()
+    {
+        using var directory = new TemporaryDirectory();
+        var path = Path.Combine(directory.FullPath, "root.yaml");
+        await File.WriteAllTextAsync(
+            path,
+            """
+            # Root comment.
+            RetryCount: 3
+            Label: before
+            Unknown: keep
+            """
+        );
+
+        await using var context = Configlue.CreateContext(builder =>
+        {
+            builder.Add<AppSettings>(model =>
+                model.Sources(sources =>
+                    sources.FromYamlFile(
+                        new YamlFileSourceOptions
+                        {
+                            Path = path,
+                            WatchChanges = false,
+                            ResourceOptions = new FileResourceOptions { CreateBackup = false },
+                        }
+                    )
+                )
+            );
+        });
+
+        var options = context.GetOptions<AppSettings>();
+        await options.SaveAsync(settings => settings.Label = "after");
+
+        var yaml = await File.ReadAllTextAsync(path);
+        yaml.ShouldContain("# Root comment.");
+        yaml.ShouldContain("Unknown: keep");
+        yaml.ShouldContain("Label: after");
+        (await options.GetValueAsync()).Label.ShouldBe("after");
     }
 
     [Test]

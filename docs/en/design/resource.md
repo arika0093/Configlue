@@ -15,7 +15,7 @@ A Resource says only where bytes are. It knows nothing about value semantics or 
 
 A view over part of a file. `JsonSectionResource` treats a nested path like `App:Policy` as an independent Resource while preserving siblings on writes. XML elements and YAML mappings have equivalent views. Disjoint sections over one file batch into a single physical write.
 
-Note: section writes re-serialize the document. JSONC comments, whitespace, and quoting styles are not preserved. Use standard JSON or UTF-8 YAML.
+JSON and YAML section writes apply edits to the original document text, preserving unrelated comments, whitespace, quoting, and scalar styles. JSON and JSONC files accept comments and trailing commas. When the codec has no structured editing support, its existing full-document replacement behavior remains unchanged.
 
 ## ZIP, HTTP, memory
 

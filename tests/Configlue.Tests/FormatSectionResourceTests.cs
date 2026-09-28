@@ -339,31 +339,20 @@ public sealed class FormatSectionResourceTests
         var codec = new YamlStateCodec<AppSettings.Fragment>(
             modelSchema: AppSettings.FragmentSchema
         );
-        var fragmentBytes = Serialize(
-            codec,
-            new AppSettings.Fragment { RetryCount = Optional<int>.Present(4) }
-        );
-        var sectionNode = LoadYaml(fragmentBytes);
-        var document = new Dictionary<string, object?>(StringComparer.Ordinal)
-        {
-            ["App"] = new Dictionary<string, object?>(StringComparer.Ordinal)
-            {
-                ["Settings"] = sectionNode,
-                ["Other"] = new Dictionary<string, object?>(StringComparer.Ordinal)
-                {
-                    ["Value"] = "keep-nested",
-                },
-            },
-            ["OtherSection"] = new Dictionary<string, object?>(StringComparer.Ordinal)
-            {
-                ["Value"] = "keep-root",
-            },
-        };
         var resource = new InMemoryResource();
-        var yamlWithComments =
-            "# A surrounding comment is accepted; comment preservation is not promised.\n"
-            + Encoding.UTF8.GetString(SerializeYaml(document))
-            + "\n# A trailing comment.\n";
+        var yamlWithComments = """
+            # Keep the root comment.
+            App:
+              # Keep the section comment.
+              Settings:
+                $version: 2
+                RetryCount: 4 # Keep the inline comment.
+              Other:
+                Value: keep-nested
+            OtherSection:
+              Value: keep-root
+            # Keep the trailing comment.
+            """;
         await resource.WriteAsync(
             new ResourceWriteRequest(Encoding.UTF8.GetBytes(yamlWithComments))
         );
@@ -389,6 +378,11 @@ public sealed class FormatSectionResourceTests
         GetNode(settings, "RetryCount").ShouldBe(9);
         GetNode(GetMapping(app, "Other"), "Value").ShouldBe("keep-nested");
         GetNode(GetMapping(updatedRoot, "OtherSection"), "Value").ShouldBe("keep-root");
+        var updatedText = Encoding.UTF8.GetString((await resource.ReadAsync()).Content.Span);
+        updatedText.ShouldContain("# Keep the root comment.");
+        updatedText.ShouldContain("# Keep the section comment.");
+        updatedText.ShouldContain("# Keep the inline comment.");
+        updatedText.ShouldContain("# Keep the trailing comment.");
     }
 
     [Test]

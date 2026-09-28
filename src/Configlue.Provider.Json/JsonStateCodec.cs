@@ -36,7 +36,7 @@ public sealed class JsonStateCodec
     {
         ArgumentNullException.ThrowIfNull(type);
         var payload = JsonStateCodecOperations.GetPayload(in source, _layout, _options);
-        var reader = new Utf8JsonReader(payload);
+        var reader = new Utf8JsonReader(payload, JsoncSyntaxTree.ReaderOptions);
         return JsonSerializer.Deserialize(ref reader, type, _options);
     }
 
@@ -173,7 +173,7 @@ public sealed class JsonStateCodec<T>
     public T? Deserialize(in ReadOnlySequence<byte> source, in StateCodecContext context)
     {
         var payload = JsonStateCodecOperations.GetPayload(in source, _layout, _options);
-        var reader = new Utf8JsonReader(payload);
+        var reader = new Utf8JsonReader(payload, JsoncSyntaxTree.ReaderOptions);
         if (_converter is not null)
         {
             if (!reader.Read())
@@ -269,12 +269,16 @@ internal static class JsonStateCodecOperations
         JsonSerializerOptions? serializerOptions
     )
     {
-        if (!HasMetadataEnvelope(in source))
+        var normalizedSource = StripUtf8Bom(source);
+        if (!HasMetadataEnvelope(in normalizedSource))
         {
-            return StripSimpleDocument(in source, layout, serializerOptions);
+            return StripSimpleDocument(in normalizedSource, layout, serializerOptions);
         }
 
-        using var document = JsonDocument.Parse(source);
+        using var document = JsonDocument.Parse(
+            normalizedSource,
+            JsoncSyntaxTree.DocumentOptions
+        );
         if (!document.RootElement.TryGetProperty(PayloadProperty, out var payload))
         {
             throw new JsonException(
@@ -297,7 +301,11 @@ internal static class JsonStateCodecOperations
         JsonSerializerOptions? serializerOptions
     )
     {
-        using var document = JsonDocument.Parse(source);
+        var normalizedSource = StripUtf8Bom(source);
+        using var document = JsonDocument.Parse(
+            normalizedSource,
+            JsoncSyntaxTree.DocumentOptions
+        );
         if (document.RootElement.ValueKind != JsonValueKind.Object)
         {
             return null;
@@ -426,7 +434,7 @@ internal static class JsonStateCodecOperations
 
     private static bool HasMetadataEnvelope(in ReadOnlySequence<byte> source)
     {
-        var probe = new Utf8JsonReader(source);
+        var probe = new Utf8JsonReader(source, JsoncSyntaxTree.ReaderOptions);
         if (!probe.Read() || probe.TokenType != JsonTokenType.StartObject)
         {
             return false;
@@ -466,7 +474,7 @@ internal static class JsonStateCodecOperations
         JsonSerializerOptions? serializerOptions
     )
     {
-        using var document = JsonDocument.Parse(source);
+        using var document = JsonDocument.Parse(source, JsoncSyntaxTree.DocumentOptions);
         if (document.RootElement.ValueKind != JsonValueKind.Object)
         {
             return source;

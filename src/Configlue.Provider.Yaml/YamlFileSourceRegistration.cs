@@ -99,21 +99,33 @@ public static class YamlFileSourceRegistration
             ownResource(file);
 
             var writer = options.ReadOnly ? null : (IResourceWriter)file;
-            IResourceWriter? sourceWriter = writer;
-            IResourceReader resource = file;
-            if (options.SectionPath is { } sectionPath)
-            {
-                var section = new YamlSectionResource(
+            var schemaShape = YamlDocumentEditor.CreateSchemaShape(
+                modelSchema,
+                options.PropertyNamingPolicy,
+                options.SerializerOptions,
+                options.DocumentLayout
+            );
+            IStateWatcher? resourceWatcher = options.WatchChanges ? file : null;
+            var section = options.SectionPath is null
+                ? YamlSectionResource.CreateRoot(
                     file,
                     writer,
-                    sectionPath,
-                    options.WatchChanges ? file : null,
-                    options.ResourceId
+                    resourceWatcher,
+                    options.ResourceId,
+                    null,
+                    schemaShape
+                )
+                : new YamlSectionResource(
+                    file,
+                    writer,
+                    options.SectionPath,
+                    resourceWatcher,
+                    options.ResourceId,
+                    null,
+                    schemaShape
                 );
-                resource = section;
-                sourceWriter = writer is null ? null : section;
-            }
-            IStateWatcher? watcher = options.WatchChanges ? file : null;
+            IResourceReader resource = section;
+            IResourceWriter? sourceWriter = writer is null ? null : section;
             var codec = new YamlStateCodec(
                 options.PropertyNamingPolicy,
                 modelSchema,
@@ -136,7 +148,7 @@ public static class YamlFileSourceRegistration
                     options.Priority,
                     options.FallbackCondition,
                     stateWriter,
-                    watcher,
+                    resourceWatcher,
                     file.Path,
                     physicalResourceId,
                     explicitOnly: options.ExplicitOnly
@@ -147,7 +159,7 @@ public static class YamlFileSourceRegistration
                     options.Priority,
                     options.FallbackCondition,
                     stateWriter,
-                    watcher,
+                    resourceWatcher,
                     file.Path,
                     physicalResourceId,
                     explicitOnly: options.ExplicitOnly
