@@ -19,6 +19,7 @@ public sealed partial class ConfiglueGenerator
         CancellationToken cancellationToken
     )
     {
+        cancellationToken.ThrowIfCancellationRequested();
         var modelType = model.ModelTypeName;
         string generatedType;
         if (model.IsStruct)
@@ -163,6 +164,7 @@ public sealed partial class ConfiglueGenerator
         ImmutableArray<PreviousModelInfo> previousModels
     )
     {
+        code.CancellationToken.ThrowIfCancellationRequested();
         if (previousModels.IsEmpty)
         {
             return;
@@ -271,6 +273,7 @@ public sealed partial class ConfiglueGenerator
         ImmutableArray<MemberModel> members
     )
     {
+        code.CancellationToken.ThrowIfCancellationRequested();
         code.AppendIndent(1)
             .Append(
                 "public static global::Configlue.ConfiglueModelSchema ConfiglueSchema { get; } = new(typeof("
@@ -366,6 +369,7 @@ public sealed partial class ConfiglueGenerator
         ImmutableArray<MemberModel> members
     )
     {
+        code.CancellationToken.ThrowIfCancellationRequested();
         code.AppendIndent(1)
             .Append(
                 "public static global::Configlue.ConfiglueModelSchema FragmentSchema { get; } = new(typeof("
@@ -425,6 +429,7 @@ public sealed partial class ConfiglueGenerator
         bool usesPocoCloning
     )
     {
+        code.CancellationToken.ThrowIfCancellationRequested();
         code.AppendIndent(1).Append("public ").Append(modelType).AppendLine(" DeepClone()");
         code.AppendLineAt(1, "{");
         if (usesPocoCloning)
@@ -460,6 +465,7 @@ public sealed partial class ConfiglueGenerator
         ImmutableArray<PocoCloneModel> pocoTypes
     )
     {
+        code.CancellationToken.ThrowIfCancellationRequested();
         foreach (var pocoType in pocoTypes)
         {
             var typeName = pocoType.Model.ModelTypeName;

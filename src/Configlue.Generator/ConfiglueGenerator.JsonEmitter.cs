@@ -16,6 +16,7 @@ public sealed partial class ConfiglueGenerator
         ImmutableArray<MemberModel> members
     )
     {
+        code.CancellationToken.ThrowIfCancellationRequested();
         code.AppendLineAt(
             2,
             "/// <summary>Reads and writes sparse fragment properties without materializing absent values.</summary>"

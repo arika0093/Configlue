@@ -16,6 +16,7 @@ public sealed partial class ConfiglueGenerator
         ImmutableArray<MemberModel> members
     )
     {
+        code.CancellationToken.ThrowIfCancellationRequested();
         code.AppendLineAt(1, "/// <summary>A mutable builder for a generated fragment.</summary>");
         code.AppendLineAt(1, "public sealed class FragmentBuilder");
         code.AppendLineAt(1, "{");
@@ -67,6 +68,7 @@ public sealed partial class ConfiglueGenerator
         ImmutableArray<MemberModel> members
     )
     {
+        code.CancellationToken.ThrowIfCancellationRequested();
         code.AppendLineAt(
             1,
             "/// <summary>A source-local set/unset patch for generated fragment members.</summary>"
@@ -402,6 +404,7 @@ public sealed partial class ConfiglueGenerator
         ImmutableArray<MemberModel> members
     )
     {
+        code.CancellationToken.ThrowIfCancellationRequested();
         code.AppendLineAt(
             2,
             "public global::System.Collections.Generic.IReadOnlyDictionary<string, global::Configlue.IConfigluePatch> Route(global::Configlue.StateWritePlan writePlan, string? fallbackSourceId)"

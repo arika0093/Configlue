@@ -17,7 +17,6 @@ internal sealed class IndentedStringBuilder
 
     public IndentedStringBuilder AppendIndent(int level)
     {
-        _cancellationToken.ThrowIfCancellationRequested();
         if (level < 0)
         {
             throw new ArgumentOutOfRangeException(nameof(level));
@@ -29,28 +28,24 @@ internal sealed class IndentedStringBuilder
 
     public IndentedStringBuilder Append(string value)
     {
-        _cancellationToken.ThrowIfCancellationRequested();
         _builder.Append(value);
         return this;
     }
 
     public IndentedStringBuilder Append(char value)
     {
-        _cancellationToken.ThrowIfCancellationRequested();
         _builder.Append(value);
         return this;
     }
 
     public IndentedStringBuilder Append(int value)
     {
-        _cancellationToken.ThrowIfCancellationRequested();
         _builder.Append(value.ToString(CultureInfo.InvariantCulture));
         return this;
     }
 
     public IndentedStringBuilder AppendLine(string value = "")
     {
-        _cancellationToken.ThrowIfCancellationRequested();
         _builder.Append(value).Append('\n');
         return this;
     }
