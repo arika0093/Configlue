@@ -107,11 +107,13 @@ public sealed class ZipEntryResourceTests
     }
 
     [Test]
-    public async Task EntryViewsUseArchiveRevisionForConditionalWrites()
+    public async Task EntryViewsMergeDisjointWritesButRejectStaleWritesToSameEntry()
     {
         var archive = new InMemoryResource();
         await archive.WriteAsync(
-            new ResourceWriteRequest(CreateArchive(("a.json", new byte[] { 1 })))
+            new ResourceWriteRequest(
+                CreateArchive(("a.json", new byte[] { 1 }), ("b.json", new byte[] { 2 }))
+            )
         );
         var firstEntry = new ZipEntryResource(archive, archive, "a.json");
         var secondEntry = new ZipEntryResource(archive, archive, "b.json");
@@ -122,20 +124,28 @@ public sealed class ZipEntryResourceTests
         await firstEntry.WriteAsync(
             new ResourceWriteRequest(new byte[] { 2 }, firstRead.Revision, CheckRevision: true)
         );
+        await secondEntry.WriteAsync(
+            new ResourceWriteRequest(new byte[] { 3 }, secondRead.Revision, CheckRevision: true)
+        );
 
-        var staleWriteRejected = false;
-        try
-        {
-            await secondEntry.WriteAsync(
-                new ResourceWriteRequest(new byte[] { 3 }, secondRead.Revision, CheckRevision: true)
-            );
-        }
-        catch (StateConflictException)
-        {
-            staleWriteRejected = true;
-        }
+        (await firstEntry.ReadAsync()).Content.ToArray().ShouldBe([2]);
+        (await secondEntry.ReadAsync()).Content.ToArray().ShouldBe([3]);
 
-        (staleWriteRejected).ShouldBeTrue();
+        var conflictingEntry = new ZipEntryResource(archive, archive, "a.json");
+        var staleRead = await firstEntry.ReadAsync();
+        var conflictingRead = await conflictingEntry.ReadAsync();
+        await firstEntry.WriteAsync(
+            new ResourceWriteRequest(new byte[] { 4 }, staleRead.Revision, CheckRevision: true)
+        );
+        await Should.ThrowAsync<StateConflictException>(async () =>
+            await conflictingEntry.WriteAsync(
+                new ResourceWriteRequest(
+                    new byte[] { 6 },
+                    conflictingRead.Revision,
+                    CheckRevision: true
+                )
+            )
+        );
     }
 
     [Test]

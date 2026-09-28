@@ -3,13 +3,15 @@
     <AssemblyName>Configlue.Source.Presets</AssemblyName>
     <RootNamespace>Configlue.Source.Presets</RootNamespace>
     <IsPackable>true</IsPackable>
-    <PackageDescription>Common layered source presets for Configlue.</PackageDescription>
+    <PackageDescription>Common layered and single-binary source presets for Configlue.</PackageDescription>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../Configlue.Core/Configlue.Core.csproj" />
     <ProjectReference Include="../Configlue.Provider.Json/Configlue.Provider.Json.csproj" />
     <ProjectReference Include="../Configlue.Source.Environment/Configlue.Source.Environment.csproj" />
     <ProjectReference Include="../Configlue.Resource.Http/Configlue.Resource.Http.csproj" />
+    <ProjectReference Include="../Configlue.Resource.Zip/Configlue.Resource.Zip.csproj" />
+    <ProjectReference Include="../Configlue.Transformer.AES/Configlue.Transformer.AES.csproj" />
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Configlue.Source.Presets.Yaml" />

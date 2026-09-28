@@ -72,4 +72,21 @@ namespace Configlue.Source.Presets
     {
         public static Configlue.ConfiglueSourceHandle<TModel> Source<TModel>(this Configlue.IConfiglueOptions<TModel> options, Configlue.Source.Presets.CommonSourceSelector selector) { }
     }
+    public sealed class SingleBinaryBuilder
+    {
+        public void Add<TModel>(System.Action<Configlue.ConfiglueModelBuilder<TModel>>? configure = null, string? storageKey = null)
+            where TModel : Configlue.IConfiglueFacadeModel<TModel> { }
+        public Configlue.Source.Presets.SingleBinaryBuilder FileResourceOptions(Configlue.Resources.FileResourceOptions options) { }
+        public Configlue.Source.Presets.SingleBinaryBuilder Priority(int priority) { }
+        public Configlue.Source.Presets.SingleBinaryBuilder WithAesKey(System.ReadOnlyMemory<byte> key) { }
+        public Configlue.Source.Presets.SingleBinaryBuilder WithEncrypted(string passphrase) { }
+        public Configlue.Source.Presets.SingleBinaryBuilder WithEncryption(Configlue.Transformers.IStateByteTransformer transformer) { }
+        public Configlue.Source.Presets.SingleBinaryBuilder WithLocal(string filepath) { }
+        public Configlue.Source.Presets.SingleBinaryBuilder WithPassphrase(string passphrase) { }
+        public Configlue.Source.Presets.SingleBinaryBuilder WithProfiles(string defaultProfileName = "default") { }
+    }
+    public static class SingleBinaryBuilderExtensions
+    {
+        public static void UseSingleBinary(this Configlue.ConfiglueBuilder configlue, System.Action<Configlue.Source.Presets.SingleBinaryBuilder> configure) { }
+    }
 }

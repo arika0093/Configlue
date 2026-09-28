@@ -46,6 +46,30 @@ public sealed class StatePipelineTests
         Should.Throw<ArgumentException>(() => new AesGcmStateByteTransformer(new byte[15]));
     }
 
+    [Test]
+    public void AesGcmPassphraseTransformer_RoundTripsAndRejectsTamperedOrWrongKeyContent()
+    {
+        using var writer = new AesGcmPassphraseStateByteTransformer("correct horse battery staple");
+        using var reader = new AesGcmPassphraseStateByteTransformer("correct horse battery staple");
+        using var wrongKey = new AesGcmPassphraseStateByteTransformer("different passphrase");
+        var plaintext = "save data"u8.ToArray();
+
+        var encrypted = writer.TransformWrite(plaintext);
+        System.Text.Encoding.UTF8.GetString(encrypted.Span).ShouldNotContain("save data");
+        reader.TransformRead(encrypted).ToArray().SequenceEqual(plaintext).ShouldBeTrue();
+        Should.Throw<CryptographicException>(() => wrongKey.TransformRead(encrypted));
+
+        var tampered = encrypted.ToArray();
+        tampered[^1] ^= 0x01;
+        Should.Throw<CryptographicException>(() => reader.TransformRead(tampered));
+    }
+
+    [Test]
+    public void AesGcmPassphraseTransformer_RejectsEmptyPassphrases()
+    {
+        Should.Throw<ArgumentException>(() => new AesGcmPassphraseStateByteTransformer(""));
+    }
+
     private sealed class SuffixMiddleware(string suffix) : IStateMiddleware<string>
     {
         public IStateReader<string> WrapReader(IStateReader<string> next) =>

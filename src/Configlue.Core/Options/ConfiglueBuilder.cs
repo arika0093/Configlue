@@ -85,6 +85,11 @@ public sealed class ConfiglueModelBuilder<TModel>
     > _sourceConfigurations = [];
     private string _optionsName = string.Empty;
     private StateSource<ConfiglueProfileCatalog>? _profileCatalogSource;
+    private Func<
+        IServiceProvider?,
+        Action<IDisposable>,
+        StateSource<ConfiglueProfileCatalog>
+    >? _profileCatalogSourceFactory;
     private string _defaultProfileName = "default";
     private StateWriteRoute _writeRoute;
     private StateWritePlan _writePlan = StateWritePlan.Empty;
@@ -328,6 +333,30 @@ public sealed class ConfiglueModelBuilder<TModel>
             );
         }
         _profileCatalogSource = catalogSource;
+        _profileCatalogSourceFactory = null;
+        _defaultProfileName = defaultProfileName;
+        _enableDynamicOptions = true;
+    }
+
+    /// <summary>Enables persisted profiles using a catalog source created for each context.</summary>
+    /// <remarks>
+    /// Resources created by the factory must be reported through its resource ownership callback.
+    /// Caller-supplied resources remain caller-owned.
+    /// </remarks>
+    public void EnableProfiles(
+        Func<
+            IServiceProvider?,
+            Action<IDisposable>,
+            StateSource<ConfiglueProfileCatalog>
+        > catalogSourceFactory,
+        string defaultProfileName = "default"
+    )
+    {
+        EnsureMutable();
+        ArgumentNullException.ThrowIfNull(catalogSourceFactory);
+        ArgumentException.ThrowIfNullOrWhiteSpace(defaultProfileName);
+        _profileCatalogSource = null;
+        _profileCatalogSourceFactory = catalogSourceFactory;
         _defaultProfileName = defaultProfileName;
         _enableDynamicOptions = true;
     }
@@ -423,7 +452,17 @@ public sealed class ConfiglueModelBuilder<TModel>
         return validators;
     }
 
+    internal bool HasProfileCatalog =>
+        _profileCatalogSource is not null || _profileCatalogSourceFactory is not null;
+
     internal StateSource<ConfiglueProfileCatalog>? ProfileCatalogSource => _profileCatalogSource;
+
+    internal Func<
+        IServiceProvider?,
+        Action<IDisposable>,
+        StateSource<ConfiglueProfileCatalog>
+    >? ProfileCatalogSourceFactory => _profileCatalogSourceFactory;
+
     internal string DefaultProfileName => _defaultProfileName;
 
     /// <summary>The optional custom clone strategy configured for this model.</summary>
@@ -463,6 +502,7 @@ public sealed class ConfiglueModelBuilder<TModel>
         clone._migrations.AddRange(_migrations);
         clone._sourceConfigurations.AddRange(_sourceConfigurations);
         clone._profileCatalogSource = _profileCatalogSource;
+        clone._profileCatalogSourceFactory = _profileCatalogSourceFactory;
         clone._defaultProfileName = _defaultProfileName;
         return clone;
     }
@@ -494,7 +534,12 @@ internal interface IConfiglueModelRegistration
         IServiceProvider? serviceProvider,
         IReadOnlyList<string> reservedNames
     );
-    object CreateProfileManager(object registry, IReadOnlyList<string> reservedNames);
+    object CreateProfileManager(
+        object registry,
+        IReadOnlyList<string> reservedNames,
+        IServiceProvider? serviceProvider,
+        Action<IDisposable> ownResource
+    );
     void AddServiceDescriptors(IServiceCollection services);
     void Accept(IConfiglueRegistrationVisitor visitor);
 }
@@ -517,20 +562,32 @@ internal sealed class ConfiglueModelRegistration<TModel>(ConfiglueModelBuilder<T
 
     public bool EnableDynamicOptions => builder.EnableDynamicOptions;
 
-    public bool EnableProfiles => builder.ProfileCatalogSource is not null;
+    public bool EnableProfiles => builder.HasProfileCatalog;
 
     public object CreateRuntime(
         IServiceProvider? serviceProvider,
         Action<IDisposable> ownResource
     ) => TModel.CreateConfiglueRuntime(builder, serviceProvider, ownResource);
 
-    public object CreateProfileManager(object registry, IReadOnlyList<string> reservedNames)
+    public object CreateProfileManager(
+        object registry,
+        IReadOnlyList<string> reservedNames,
+        IServiceProvider? serviceProvider,
+        Action<IDisposable> ownResource
+    )
     {
         var catalogSource =
             builder.ProfileCatalogSource
+            ?? builder.ProfileCatalogSourceFactory?.Invoke(serviceProvider, ownResource)
             ?? throw new InvalidOperationException(
                 "Profile support was not enabled for this registration."
             );
+        if (catalogSource.Writer is null)
+        {
+            throw new InvalidOperationException(
+                "The profile catalog source factory returned a source that does not support writes."
+            );
+        }
         if (reservedNames.Contains(builder.DefaultProfileName, StringComparer.Ordinal))
         {
             throw new InvalidOperationException(

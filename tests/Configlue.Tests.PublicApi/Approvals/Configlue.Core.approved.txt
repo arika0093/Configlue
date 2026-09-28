@@ -51,6 +51,7 @@ namespace Configlue
         public Configlue.Sources.StateSourceSet<TFragment> BuildSources<TFragment>(Configlue.ConfiglueModelSchema modelSchema, System.IServiceProvider? serviceProvider, System.Action<System.IDisposable> ownResource)
             where TFragment :  class, Configlue.IConfiglueFragment<TFragment> { }
         public void EnableProfiles(Configlue.Sources.StateSource<Configlue.ConfiglueProfileCatalog> catalogSource, string defaultProfileName = "default") { }
+        public void EnableProfiles(System.Func<System.IServiceProvider?, System.Action<System.IDisposable>, Configlue.Sources.StateSource<Configlue.ConfiglueProfileCatalog>> catalogSourceFactory, string defaultProfileName = "default") { }
         public Microsoft.Extensions.Logging.ILogger? GetLogger(System.IServiceProvider? serviceProvider) { }
         public System.Collections.Generic.IReadOnlyList<Configlue.Migrations.IStateSchemaMigration<TFragment>> GetMigrations<TFragment>(System.IServiceProvider? serviceProvider)
             where TFragment :  class, Configlue.IConfiglueFragment<TFragment> { }
