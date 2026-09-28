@@ -246,6 +246,69 @@ public sealed class FileResourceTests
     }
 
     [Test]
+    public async Task FileResource_RotatesManyBackupGenerationsWithoutLosingContent()
+    {
+        var directory = System.IO.Path.Combine(
+            System.IO.Path.GetTempPath(),
+            "Configlue.Tests",
+            Guid.NewGuid().ToString("N")
+        );
+        var backupDirectory = System.IO.Path.Combine(directory, "backups");
+        var path = System.IO.Path.Combine(directory, "settings.json");
+        using var resource = new FileResource(
+            path,
+            new FileResourceOptions { BackupDirectory = backupDirectory, BackupMaxCount = 4 }
+        );
+
+        try
+        {
+            for (var value = 0; value < 6; value++)
+            {
+                await resource.WriteAsync(
+                    new ResourceWriteRequest(Encoding.UTF8.GetBytes($"{{\"value\":{value}}}"))
+                );
+            }
+
+            (
+                await File.ReadAllTextAsync(
+                    System.IO.Path.Combine(backupDirectory, "settings.json.bak")
+                )
+            ).ShouldBe("{\"value\":4}");
+            (
+                await File.ReadAllTextAsync(
+                    System.IO.Path.Combine(backupDirectory, "settings.json.bak.1")
+                )
+            ).ShouldBe("{\"value\":3}");
+            (
+                await File.ReadAllTextAsync(
+                    System.IO.Path.Combine(backupDirectory, "settings.json.bak.2")
+                )
+            ).ShouldBe("{\"value\":2}");
+            (
+                await File.ReadAllTextAsync(
+                    System.IO.Path.Combine(backupDirectory, "settings.json.bak.3")
+                )
+            ).ShouldBe("{\"value\":1}");
+            File.Exists(System.IO.Path.Combine(backupDirectory, "settings.json.bak.4"))
+                .ShouldBeFalse();
+
+            var restored = await resource.RestoreLatestBackupAsync();
+            var current = await resource.ReadAsync();
+
+            (restored.Revision).ShouldBe(current.Revision);
+            (Encoding.UTF8.GetString(current.Content.Span)).ShouldBe("{\"value\":4}");
+        }
+        finally
+        {
+            resource.Dispose();
+            if (Directory.Exists(directory))
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+        }
+    }
+
+    [Test]
     public async Task FileResource_StoresVersionedBackupsUnderTheConfiguredPersistentRoot()
     {
         var directory = CreateTemporaryDirectory();
