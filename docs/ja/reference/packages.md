@@ -22,6 +22,9 @@ description: 機能ごとの NuGet パッケージを探す。
 | `Configlue.Source.Common` | 共通/ローカル/ファイル/環境変数のソースプリセット。`Configlue` メタパッケージに含まれます。 |
 | `Configlue.Resource.Http` | ETag リビジョンとポーリング変更検出つき HTTP 読み書きリソース。 |
 | `Configlue.Resource.Http.AspNetCore` | HTTP リソース配信の ASP.NET Core エンドポイント。 |
+| `Configlue.Resource.Dapr` | Dapr State Management 向けの任意 byte resource と source 登録。 |
 | `Configlue.Resource.Zip` | ZIP アーカイブ内1エントリのリソースビュー。 |
 
 パッケージ参照と版の正本はプロジェクトファイルです。任意プロバイダーは必要になったら直接インストールしてください。まずは [インストール](../getting-started/installation.md) からどうぞ。
+
+Dapr state 永続化と object-storage provider の境界は [Dapr State Management リソース](./dapr-state-resource.md)を参照してください。

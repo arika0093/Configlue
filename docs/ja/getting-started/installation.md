@@ -34,6 +34,7 @@ dotnet add package Configlue
 | `System.CommandLine` 入力 | `Configlue.Source.CommandLine` |
 | 共通/ローカル/指定/env プリセット | `Configlue` (`Configlue.Source.Common` を含む) |
 | 設定の HTTP 配信 (ASP.NET Core) | `Configlue.Resource.Http.AspNetCore` |
+| Dapr state store への永続化 | `Configlue.Resource.Dapr` |
 | ZIP アーカイブ内エントリ | `Configlue.Resource.Zip` |
 | テスト用インメモリダブル | `Configlue.Testing` |
 

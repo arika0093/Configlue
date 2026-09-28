@@ -1,0 +1,39 @@
+[assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/arika0093/Configlue")]
+namespace Configlue.Resource.Dapr
+{
+    public sealed class DaprStateResource : Configlue.IResourceIdentity, Configlue.IResourceReader, Configlue.IResourceWriter
+    {
+        public DaprStateResource(Dapr.Client.DaprClient client, string storeName, string key, Configlue.Resource.Dapr.DaprStateResourceOptions? options = null) { }
+        public string Key { get; }
+        public Configlue.ResourceId ResourceId { get; }
+        public string StoreName { get; }
+        public System.Threading.Tasks.ValueTask<Configlue.ResourceReadResult> ReadAsync(System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Configlue.StateWriteResult> WriteAsync(Configlue.ResourceWriteRequest request, System.Threading.CancellationToken cancellationToken = default) { }
+    }
+    public sealed class DaprStateResourceOptions
+    {
+        public DaprStateResourceOptions() { }
+        public Dapr.Client.ConsistencyMode? ConsistencyMode { get; init; }
+        public System.Collections.Generic.IReadOnlyDictionary<string, string>? Metadata { get; init; }
+        public Configlue.ResourceId? ResourceId { get; init; }
+    }
+    public sealed class DaprStateSourceOptions
+    {
+        public DaprStateSourceOptions() { }
+        public Dapr.Client.DaprClient? Client { get; init; }
+        public System.Func<System.IServiceProvider?, Dapr.Client.DaprClient>? ClientFactory { get; init; }
+        public required object Codec { get; init; }
+        public Configlue.StateCodecContext CodecContext { get; init; }
+        public Configlue.StateFallbackCondition FallbackCondition { get; init; }
+        public string? Id { get; init; }
+        public required string Key { get; init; }
+        public int Priority { get; init; }
+        public Configlue.Resource.Dapr.DaprStateResourceOptions? ResourceOptions { get; init; }
+        public required string StoreName { get; init; }
+        public bool Writable { get; init; }
+    }
+    public static class DaprStateSourceRegistration
+    {
+        public static void FromDaprState(this Configlue.ConfiglueSourceSetBuilder sources, Configlue.Resource.Dapr.DaprStateSourceOptions options) { }
+    }
+}

@@ -22,6 +22,7 @@
     <ProjectReference Include="../../src/Configlue.Source.Common/Configlue.Source.Common.csproj" />
     <ProjectReference Include="../../src/Configlue.Source.CommandLine/Configlue.Source.CommandLine.csproj" />
     <ProjectReference Include="../../src/Configlue.Resource.Zip/Configlue.Resource.Zip.csproj" />
+    <ProjectReference Include="../../src/Configlue.Resource.Dapr/Configlue.Resource.Dapr.csproj" />
     <ProjectReference Include="../../src/Configlue.Resource.Http/Configlue.Resource.Http.csproj" />
     <ProjectReference Include="../../src/Configlue.Resource.Http.AspNetCore/Configlue.Resource.Http.AspNetCore.csproj" />
     <ProjectReference Include="../../src/Configlue.Testing/Configlue.Testing.csproj" />

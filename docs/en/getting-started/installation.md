@@ -34,6 +34,7 @@ Add the capability packages you need on top:
 | `System.CommandLine` input | `Configlue.Source.CommandLine` |
 | Global/local/specific/environment presets | `Configlue` (includes `Configlue.Source.Common`) |
 | Serve settings over HTTP (ASP.NET Core) | `Configlue.Resource.Http.AspNetCore` |
+| Persist state through a Dapr state store | `Configlue.Resource.Dapr` |
 | ZIP archive entries | `Configlue.Resource.Zip` |
 | In-memory doubles for tests | `Configlue.Testing` |
 

@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>Configlue.Resource.Dapr</AssemblyName>
+    <RootNamespace>Configlue.Resource.Dapr</RootNamespace>
+    <IsPackable>true</IsPackable>
+    <PackageDescription>Dapr State Management resources for Configlue.</PackageDescription>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Dapr.Client" Version="1.18.10" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Configlue.Abstraction/Configlue.Abstraction.csproj" />
+    <ProjectReference Include="../Configlue.Core/Configlue.Core.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Configlue.Tests" />
+  </ItemGroup>
+</Project>
