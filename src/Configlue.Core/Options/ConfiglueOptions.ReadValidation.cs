@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
 using System.Diagnostics.CodeAnalysis;
@@ -11,6 +12,26 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
     where TModel : IConfiglueModel<TModel, TFragment>
     where TFragment : class, IConfiglueFragment<TFragment>
 {
+    private static bool TryGetMember(
+        ConfiglueModelSchema schema,
+        int memberId,
+        out ConfiglueMemberSchema member
+    )
+    {
+        var members = schema.Members;
+        for (var index = 0; index < members.Count; index++)
+        {
+            if (members[index].Id == memberId)
+            {
+                member = members[index];
+                return true;
+            }
+        }
+
+        member = default;
+        return false;
+    }
+
     private void Validate(TModel value)
     {
         var failures = new List<string>();
@@ -83,7 +104,11 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
             TModel.FromFragment(_modelDefaultsFragment.Merge(fragment)),
             failures
         );
-        failures = failures.Distinct(StringComparer.Ordinal).ToList();
+        if (failures.Count > 1)
+        {
+            failures = failures.Distinct(StringComparer.Ordinal).ToList();
+        }
+
         if (failures.Count == 0)
         {
             return;
@@ -141,11 +166,7 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
 
         foreach (var present in fragment.EnumeratePresentMembers())
         {
-            var member = schema
-                .Members.Where(candidate => candidate.Id == present.Id)
-                .Cast<ConfiglueMemberSchema?>()
-                .FirstOrDefault();
-            if (member is not { } found)
+            if (!TryGetMember(schema, present.Id, out var found))
             {
                 continue;
             }
@@ -170,7 +191,7 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
 
             if (
                 CollectMemberAttributeFailures(
-                    schema.ModelType,
+                    GetMemberValidationAttributes(schema, found.Id),
                     found.Name,
                     present.Value,
                     out var message
@@ -252,7 +273,7 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
 
         foreach (var member in schema.Members)
         {
-            if (GetMemberValidationAttributes(schema.ModelType, member.Name).Length > 0)
+            if (GetMemberValidationAttributes(schema, member.Id).Length > 0)
             {
                 return true;
             }
@@ -284,11 +305,7 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
 
         foreach (var present in fragment.EnumeratePresentMembers())
         {
-            var member = schema
-                .Members.Where(candidate => candidate.Id == present.Id)
-                .Cast<ConfiglueMemberSchema?>()
-                .FirstOrDefault();
-            if (member is not { } found)
+            if (!TryGetMember(schema, present.Id, out var found))
             {
                 continue;
             }
@@ -314,7 +331,7 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
 
             if (
                 CollectMemberAttributeFailures(
-                    schema.ModelType,
+                    GetMemberValidationAttributes(schema, found.Id),
                     found.Name,
                     present.Value,
                     out var message
@@ -327,29 +344,24 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
         }
     }
 
-    [RequiresUnreferencedCode(
-        "Member validation reflects over model properties that trimming may remove."
-    )]
-    [RequiresDynamicCode("Member validation inspects model properties at runtime.")]
     private static bool CollectMemberAttributeFailures(
-        Type modelType,
+        ValidationAttribute[] attributes,
         string memberName,
         object? value,
         out string message
     )
     {
-        var failure = GetMemberValidationAttributes(modelType, memberName)
-            .Where(attribute => !attribute.IsValid(value))
-            .Select(attribute => attribute.FormatErrorMessage(memberName))
-            .FirstOrDefault();
-        if (failure is null)
+        for (var index = 0; index < attributes.Length; index++)
         {
-            message = string.Empty;
-            return false;
+            if (!attributes[index].IsValid(value))
+            {
+                message = attributes[index].FormatErrorMessage(memberName);
+                return true;
+            }
         }
 
-        message = failure;
-        return true;
+        message = string.Empty;
+        return false;
     }
 
     [RequiresUnreferencedCode(
@@ -372,4 +384,58 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
                     .ToArray()
                 ?? []
         );
+
+    [UnconditionalSuppressMessage(
+        "Trimming",
+        "IL2026",
+        Justification = "Callers guard attribute inspection on dynamic code support."
+    )]
+    [UnconditionalSuppressMessage(
+        "AOT",
+        "IL3050",
+        Justification = "Callers guard attribute inspection on dynamic code support."
+    )]
+    private static ValidationAttribute[] GetMemberValidationAttributes(
+        ConfiglueModelSchema schema,
+        int memberId
+    )
+    {
+        var attributes = ConfiglueMemberValidationAttributeCache.GetOrAdd(
+            schema.ModelType,
+            schema,
+            static candidate => BuildMemberValidationAttributes(candidate)
+        );
+        return attributes.TryGetValue(memberId, out var found) ? found : [];
+    }
+
+    private static IReadOnlyDictionary<int, ValidationAttribute[]> BuildMemberValidationAttributes(
+        ConfiglueModelSchema schema
+    )
+    {
+        var attributes = new Dictionary<int, ValidationAttribute[]>();
+        foreach (var member in schema.Members)
+        {
+            var memberAttributes = GetMemberValidationAttributes(schema.ModelType, member.Name);
+            if (memberAttributes.Length > 0)
+            {
+                attributes[member.Id] = memberAttributes;
+            }
+        }
+
+        return attributes;
+    }
+}
+
+internal static class ConfiglueMemberValidationAttributeCache
+{
+    private static readonly ConcurrentDictionary<
+        Type,
+        IReadOnlyDictionary<int, ValidationAttribute[]>
+    > ById = new();
+
+    public static IReadOnlyDictionary<int, ValidationAttribute[]> GetOrAdd(
+        Type modelType,
+        ConfiglueModelSchema schema,
+        Func<ConfiglueModelSchema, IReadOnlyDictionary<int, ValidationAttribute[]>> factory
+    ) => ById.GetOrAdd(modelType, _ => factory(schema));
 }
