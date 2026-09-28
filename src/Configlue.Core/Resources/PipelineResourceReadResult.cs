@@ -350,8 +350,8 @@ public static class PipelineResourceReader
     /// <summary>Creates a pipeline configured to retain the complete resource until its reader consumes it.</summary>
     public static Pipe CreatePipe() => new(PipeOptions);
 
-    /// <summary>Copies an existing resource result into a segmented pipeline.</summary>
-    public static async ValueTask<PipelineResourceReadResult> FromMemoryAsync(
+    /// <summary>Wraps an existing in-memory resource result in a pipeline-backed reader.</summary>
+    public static ValueTask<PipelineResourceReadResult> FromMemoryAsync(
         ResourceReadResult result,
         CancellationToken cancellationToken = default
     )
@@ -359,47 +359,15 @@ public static class PipelineResourceReader
         cancellationToken.ThrowIfCancellationRequested();
         if (result.Status != StateReadStatus.Success)
         {
-            return new PipelineResourceReadResult(
-                result.Status,
-                null,
-                result.Revision,
-                result.Schema
+            return ValueTask.FromResult(
+                new PipelineResourceReadResult(result.Status, null, result.Revision, result.Schema)
             );
         }
 
-        var pipe = CreatePipe();
-        var writerCompleted = false;
-        try
-        {
-            var remaining = result.Content;
-            while (!remaining.IsEmpty)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                var length = Math.Min(remaining.Length, 16 * 1024);
-                remaining.Span[..length].CopyTo(pipe.Writer.GetSpan(length));
-                pipe.Writer.Advance(length);
-                remaining = remaining[length..];
-            }
-
-            await pipe.Writer.FlushAsync(cancellationToken).ConfigureAwait(false);
-            await pipe.Writer.CompleteAsync().ConfigureAwait(false);
-            writerCompleted = true;
-            return PipelineResourceReadResult.Success(pipe.Reader, result.Revision, result.Schema);
-        }
-        finally
-        {
-            if (!writerCompleted)
-            {
-                try
-                {
-                    await pipe.Writer.CompleteAsync().ConfigureAwait(false);
-                }
-                finally
-                {
-                    await pipe.Reader.CompleteAsync().ConfigureAwait(false);
-                }
-            }
-        }
+        var reader = PipeReader.Create(new ReadOnlySequence<byte>(result.Content));
+        return ValueTask.FromResult(
+            PipelineResourceReadResult.Success(reader, result.Revision, result.Schema)
+        );
     }
 
     /// <summary>Creates a pipeline-backed result over a stream.</summary>

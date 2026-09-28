@@ -343,7 +343,8 @@ public sealed partial class FileResource
                     Mode = FileMode.Open,
                     Access = FileAccess.Read,
                     Share = FileShare.Read,
-                    BufferSize = 81920,
+                    // The StreamPipeReader supplies the read buffer; avoid a second FileStream buffer.
+                    BufferSize = 1,
                     Options = FileOptions.Asynchronous | FileOptions.SequentialScan,
                 }
             );

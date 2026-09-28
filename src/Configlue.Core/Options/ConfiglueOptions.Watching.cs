@@ -9,6 +9,9 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
     where TModel : IConfiglueModel<TModel, TFragment>
     where TFragment : class, IConfiglueFragment<TFragment>
 {
+    private List<Task>? _watchWaitTasks;
+    private ActiveSourceIdSet? _activeSourceIdSet;
+
     private async Task WatchChangesAsync(CancellationToken cancellationToken)
     {
         StateReadResult<TModel> previous = default;
@@ -102,10 +105,6 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
         CancellationToken cancellationToken
     )
     {
-        using var waitCancellation = CancellationTokenSource.CreateLinkedTokenSource(
-            cancellationToken
-        );
-        var waitTasks = new List<Task>();
         StateSource<TFragment>[] activeSources;
         Task topologyChanged;
         lock (_sourceGate)
@@ -114,18 +113,25 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
             topologyChanged = _sourceTopologyChanged.Task;
         }
 
+        if (revisions is null)
+        {
+            return;
+        }
+
+        var activeSourceIds = GetActiveSourceIds(activeSources);
         if (
-            revisions is null
-            || revisions.Revisions.Keys.Any(revisionSourceId =>
-                !activeSources.Any(source =>
-                    string.Equals(source.Id, revisionSourceId, StringComparison.Ordinal)
-                )
+            revisions.Revisions.Keys.Any(revisionSourceId =>
+                !activeSourceIds.Contains(revisionSourceId)
             )
         )
         {
             return;
         }
 
+        var waitTasks = GetWatchWaitTasks();
+        using var waitCancellation = CancellationTokenSource.CreateLinkedTokenSource(
+            cancellationToken
+        );
         try
         {
             foreach (var source in activeSources)
@@ -158,6 +164,57 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
         {
             // The remaining source waits are canceled after the first source reports a change.
         }
+        finally
+        {
+            waitTasks.Clear();
+        }
+    }
+
+    private List<Task> GetWatchWaitTasks()
+    {
+        var waitTasks = _watchWaitTasks;
+        if (waitTasks is null)
+        {
+            waitTasks = [];
+            _watchWaitTasks = waitTasks;
+        }
+        else
+        {
+            waitTasks.Clear();
+        }
+
+        return waitTasks;
+    }
+
+    private HashSet<string> GetActiveSourceIds(StateSource<TFragment>[] activeSources)
+    {
+        var cached = Volatile.Read(ref _activeSourceIdSet);
+        if (cached is not null && ReferenceEquals(cached.Sources, activeSources))
+        {
+            return cached.Ids;
+        }
+
+        var ids = new HashSet<string>(activeSources.Length, StringComparer.Ordinal);
+        foreach (var source in activeSources)
+        {
+            ids.Add(source.Id);
+        }
+
+        Volatile.Write(ref _activeSourceIdSet, new ActiveSourceIdSet(activeSources, ids));
+        return ids;
+    }
+
+    private sealed class ActiveSourceIdSet
+    {
+        public ActiveSourceIdSet(StateSource<TFragment>[] sources, HashSet<string> ids)
+        {
+            Sources = sources;
+            Ids = ids;
+        }
+
+        public StateSource<TFragment>[] Sources { get; }
+
+        public HashSet<string> Ids { get; }
     }
 
     private void NotifyListeners(TModel value)

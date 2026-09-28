@@ -101,6 +101,7 @@ internal sealed class ConfiglueMicrosoftOptionsMonitor<TModel>
 {
     private readonly ConfiglueMicrosoftOptionsResolver<TModel> _resolver;
     private readonly string[] _namedProfileNames;
+    private readonly HashSet<string> _namedProfileNameSet;
     private readonly IConfiglueOptionsRegistry<TModel>? _registry;
     private readonly object _cacheGate = new();
     private readonly Dictionary<string, MonitorCacheEntry> _namedCache = new(
@@ -131,6 +132,7 @@ internal sealed class ConfiglueMicrosoftOptionsMonitor<TModel>
             )
             .Distinct(StringComparer.Ordinal)
             .ToArray();
+        _namedProfileNameSet = new HashSet<string>(_namedProfileNames, StringComparer.Ordinal);
     }
 
     public TModel CurrentValue => GetDefaultCache().Value;
@@ -213,7 +215,7 @@ internal sealed class ConfiglueMicrosoftOptionsMonitor<TModel>
                     options = registered;
                     isRegistryProfile = true;
                 }
-                else if (!_namedProfileNames.Contains(name, StringComparer.Ordinal))
+                else if (!_namedProfileNameSet.Contains(name))
                 {
                     throw new KeyNotFoundException(
                         $"No Configlue options profile named '{name}' is registered."
