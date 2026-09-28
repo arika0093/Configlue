@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>Configlue.Extensions.Reactive</AssemblyName>
+    <RootNamespace>Configlue.Extensions.Reactive</RootNamespace>
+    <IsPackable>true</IsPackable>
+    <PackageDescription>Optional Reactive observables for composing Configlue values, profiles, and reload signals.</PackageDescription>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Configlue.Abstraction/Configlue.Abstraction.csproj" />
+    <PackageReference Include="System.Reactive" Version="7.0.0" />
+  </ItemGroup>
+</Project>
