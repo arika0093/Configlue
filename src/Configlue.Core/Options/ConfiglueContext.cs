@@ -217,7 +217,9 @@ public sealed class ConfiglueContext : IDisposable, IAsyncDisposable
                         registrations
                             .Where(candidate => candidate.ModelType == registration.ModelType)
                             .Select(candidate => candidate.OptionsName)
-                            .ToArray()
+                            .ToArray(),
+                        serviceProvider,
+                        OwnResource
                     );
                     profileManagers.Add(registration.ModelType, manager);
                     runtimes.Insert(0, manager);

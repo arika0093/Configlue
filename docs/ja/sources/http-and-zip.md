@@ -44,9 +44,31 @@ sources.FromHttp(new HttpSourceOptions
 
 ## ZIP エントリ
 
-`ZipEntryResource` はアーカイブ内の1エントリを論理リソースとして公開しつつ、アーカイブの物理同一性とリビジョンを保ちます。互いに重ならないエントリ更新は1回のアーカイブ書き込みにまとめられ、無関係のエントリは無傷です。
+`ZipEntryResource` はアーカイブ内の1エントリを論理リソースとして公開しつつ、アーカイブの物理同一性とリビジョンを保ちます。互いに重ならないエントリ更新は1回のアーカイブ書き込みにまとめるか、別エントリへの同時更新に対して安全に再適用できます。同じエントリへの同時更新は `StateConflictException` となり、無関係のエントリは無傷です。
 
 アーカイブリソースが `IStateWatcher` を実装する場合 (例: `FileResource`)、エントリの変更監視はその watcher に委譲され、アーカイブファイルの編集を検知します。watcher がないリソースだけリビジョンを既定250ms間隔でポーリングします。`ZipEntryResource` の `pollingInterval` でこのフォールバック間隔を変更できます。
+
+## 複数モデルを1つのバイナリファイルに保存
+
+`UseSingleBinary` はモデルと名前付きオプションを、それぞれ別の JSON エントリとして1つのローカル ZIP アーカイブに保存します。CLR型名の変更後も保存先を維持したい場合は、安定した `storageKey` を指定してください。
+
+```csharp
+using Configlue.Source.Presets;
+
+await using var context = ConfiglueApp.CreateContext(config =>
+    config.UseSingleBinary(binary =>
+    {
+        binary.WithLocal("savedata.bin")
+            .WithPassphrase("秘密のパスフレーズ")
+            .WithProfiles();
+        binary.Add<AppSettings>(storageKey: "app");
+        binary.Add<GameSettings>(storageKey: "game");
+    }));
+```
+
+`WithAesKey` は16・24・32バイトのAES鍵を受け取ります。名前付きオプションやプロファイルのランタイムを作成できる間は、渡した鍵メモリを変更しないでください。`WithEncryption` は呼び出し側所有の `IStateByteTransformer` を受け取るため、コンテキストの利用中は破棄しないでください。`WithPassphrase` (別名 `WithEncrypted(string)`) は PBKDF2-HMAC-SHA-256 で鍵を導出し、AES-256-GCM で暗号化します。ランダムsaltはファイルに保存されます。鍵やパスフレーズはセーブファイルとは別に管理してください。
+
+`WithProfiles` を使うと、モデルごとのプロファイルカタログも同じアーカイブに保存されます。プロファイル、通常の名前付きオプション、名前なしの既定状態は別エントリです。別エントリへの同時書き込みはマージされ、同じエントリへの古い状態からの書き込みは上書きせず競合として通知されます。
 
 ## 次のステップ
 

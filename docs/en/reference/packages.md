@@ -20,13 +20,13 @@ description: Find the NuGet package for each Configlue capability.
 | `Configlue.Provider.Yaml` | YAML codec with section resources and file registrations. |
 | `Configlue.Source.Environment` | Read-only source backed by process environment variables. |
 | `Configlue.Source.CommandLine` | Read-only source backed by a `System.CommandLine` parse result, with opt-in common preset integration. |
-| `Configlue.Source.Presets` | Common layered source presets, included by the `Configlue` meta-package. |
+| `Configlue.Source.Presets` | Common layered and single-binary source presets, included by the `Configlue` meta-package. |
 | `Configlue.Resource.Http` | HTTP read/write resources with ETag revisions and polling change detection. |
 | `Configlue.Resource.Http.AspNetCore` | ASP.NET Core endpoints for serving HTTP resources. |
 | `Configlue.Resource.Dapr` | Optional byte resources and source registration for Dapr State Management. |
 | `Configlue.Resource.S3` | Optional Amazon S3 object resources and source registration with ETag revisions. |
 | `Configlue.Resource.Zip` | Resource view over one entry in a ZIP archive. |
-| `Configlue.Transformer.AES` | AES-GCM encryption and authentication for state bytes between a Resource and Codec. |
+| `Configlue.Transformer.AES` | AES-GCM encryption and authentication for state bytes between a Resource and Codec, including passphrase-based key derivation. |
 
 The package references and versions in the project files are the source of truth. Install optional provider packages directly when you need them. Start with [Installation](../getting-started/installation.md).
 

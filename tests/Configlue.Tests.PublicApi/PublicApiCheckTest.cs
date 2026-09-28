@@ -166,6 +166,9 @@ public sealed class PublicApiCheckTest
         PublicApiCheck.CheckAssembly(typeof(CommonYamlFileSourceExtensions).Assembly);
 
     [Test]
+    public void SingleBinary() => PublicApiCheck.Check<SingleBinaryBuilder>();
+
+    [Test]
     public void CommandLineSources() => PublicApiCheck.Check<CommandLineSourceOptions>();
 
     [Test]
@@ -188,4 +191,8 @@ public sealed class PublicApiCheckTest
 
     [Test]
     public void AesTransformer() => PublicApiCheck.Check<AesGcmStateByteTransformer>();
+
+    [Test]
+    public void AesPassphraseTransformer() =>
+        PublicApiCheck.Check<AesGcmPassphraseStateByteTransformer>();
 }

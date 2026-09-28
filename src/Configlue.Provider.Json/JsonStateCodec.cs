@@ -144,6 +144,13 @@ public sealed class JsonStateCodec<T>
         _layout = documentLayout;
     }
 
+    /// <summary>Creates a codec that uses a generated fragment converter.</summary>
+    public static JsonStateCodec<T> FromConverter(JsonConverter<T> converter)
+    {
+        ArgumentNullException.ThrowIfNull(converter);
+        return new JsonStateCodec<T>(null, converter, null);
+    }
+
     internal JsonStateCodec(
         JsonSerializerOptions? options,
         JsonConverter<T>? converter,
