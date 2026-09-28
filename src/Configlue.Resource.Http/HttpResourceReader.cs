@@ -275,17 +275,18 @@ public sealed class HttpResourceReader
         request.Content.Headers.ContentType = MediaTypeHeaderValue.Parse(_contentType);
         AddSchemaHeaders(request, resourceRequest.Schema);
 
-        var checkRevision =
-            resourceRequest.CheckRevision || resourceRequest.ExpectedRevision is not null;
+        var checkRevision = !resourceRequest.Condition.IsNone;
         if (checkRevision)
         {
-            if (resourceRequest.ExpectedRevision is null)
+            if (resourceRequest.Condition.Revision is null)
             {
                 request.Headers.IfNoneMatch.Add(EntityTagHeaderValue.Any);
             }
             else
             {
-                request.Headers.IfMatch.Add(ParseStrongEntityTag(resourceRequest.ExpectedRevision));
+                request.Headers.IfMatch.Add(
+                    ParseStrongEntityTag(resourceRequest.Condition.Revision)
+                );
             }
         }
 

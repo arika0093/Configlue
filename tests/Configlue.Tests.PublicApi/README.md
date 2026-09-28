@@ -9,3 +9,6 @@ dotnet test --solution Configlue.slnx --configuration Release
 ```
 
 Review the resulting approval-file changes before committing them.
+
+`*.CompilerServices.approved.txt` snapshots review the generated ABI separately from application
+and provider-facing types. CompilerServices types are excluded from the ordinary assembly snapshots.

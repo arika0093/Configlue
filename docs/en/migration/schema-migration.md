@@ -3,8 +3,6 @@ title: Schema migration
 description: Version models and migrate older fragments with generated support.
 ---
 
-# Schema migration
-
 Configuration files evolve. Adding or removing properties is straightforward — just change the class and give new properties default values. Most providers handle this without issues. Incompatible changes need a version step.
 
 ## Incompatible changes

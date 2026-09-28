@@ -3,8 +3,6 @@ title: Adopting Configuration.Writable
 description: Read legacy inline-versioned files as migration inputs.
 ---
 
-# Adopting Configuration.Writable
-
 You can adopt Configlue while keeping files written by [Configuration.Writable](https://github.com/arika0093/Configuration.Writable). The legacy files stay untouched; Configlue reads them through an opt-in decoder and copies their contribution into a normal writable target.
 
 ## Legacy documents
@@ -61,10 +59,10 @@ After adopting the file, replace the application's registration and read/write c
 | `WritableOptions.Initialize(...)` | `ConfiglueApp.CreateContext(...)`. For a shared default context, use `ConfiglueApp.Initialize(...)` and `GetOptions<T>()`. |
 | `WritableOptions.GetOptions<T>()` | `context.GetOptions<T>()` or `ConfiglueApp.GetOptions<T>()`. |
 | `CurrentValue` | `await options.GetValueAsync()`. Configlue's core API is asynchronous. DI applications that need synchronous `IOptions<T>` adapters can opt in to `Configlue.Extensions.MSOptions`. |
-| `SaveAsync(value => ...)` | `await options.SaveAsync(patch => ...)` to save only changed members. Use `context.GetAdvancedOptions<T>().OpenEditSessionAsync()` when editing the resolved model as a whole. |
-| `OnChange(...)` / `OnReloadFailed(...)` | Use `options.OnChange(...)` and `context.GetAdvancedOptions<T>().OnReloadFailed(...)`. Dispose each returned subscription when it is no longer needed. |
+| `SaveAsync(value => ...)` | `await options.SaveAsync(patch => ...)` to save only changed members. Use `context.GetEditSessions<T>().OpenEditSessionAsync()` when editing the resolved model as a whole. |
+| `OnChange(...)` / `OnReloadFailed(...)` | Use `options.OnChange(...)` and `context.GetDiagnostics<T>().OnReloadFailed(...)`. Dispose each returned subscription when it is no longer needed. |
 | `InstanceName` / named options | Set `OptionsName` at registration for fixed names. Use `EnableDynamicOptions` and `GetOptionsRegistry<T>()` to add or remove names at runtime. Use `EnableProfiles(...)` when the profile catalog must persist. |
-| `ConfigurationInfo` | Use `context.GetAdvancedOptions<T>().GetDiagnostics()` for source topology and write routes, and `context.GetAdvancedOptions<T>().GetDetailsSnapshotAsync()` for values and their source provenance. |
+| `ConfigurationInfo` | Use `context.GetDiagnostics<T>().GetDiagnostics()` for source topology and write routes, and `context.GetInspection<T>().GetDetailsSnapshotAsync()` for values and their source provenance. |
 | `AddWritableOptions(...)` | `services.AddConfiglue(...)`. Add `AddConfiglueMicrosoftOptions<T>()` when `IOptions<T>` adapters are also needed. |
 
 Example using an independent non-DI context:

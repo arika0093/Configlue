@@ -3,8 +3,6 @@ title: HTTP resource protocol
 description: Serve Configlue byte resources over HTTP and use them as state sources.
 ---
 
-# HTTP resource protocol
-
 `Configlue.Resource.Http` provides an HTTP reader and an opt-in writer. The optional `Configlue.Resource.Http.AspNetCore` package maps the same byte protocol to ASP.NET Core Minimal APIs. Both packages leave serialization to the application's state codec.
 
 ## ASP.NET Core endpoint

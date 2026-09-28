@@ -52,7 +52,7 @@ public static class YamlFileSourceSelectorExtensions
 {
     /// <summary>Gets a write handle for the selected YAML file source.</summary>
     public static ConfiglueSourceHandle<TModel> Source<TModel>(
-        this IConfiglueOptions<TModel> options,
+        this IConfiglueSources<TModel> options,
         YamlFileSourceSelector selector
     )
     {

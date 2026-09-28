@@ -56,9 +56,25 @@ public sealed class ConfiglueContext : IDisposable, IAsyncDisposable
         );
     }
 
-    /// <summary>Gets the advanced options surface for source administration and edit sessions.</summary>
-    public IConfiglueOptions<TModel> GetAdvancedOptions<TModel>(string? optionsName = null) =>
-        (IConfiglueOptions<TModel>)GetOptions<TModel>(optionsName);
+    /// <summary>Reads resolved state and generated provenance details.</summary>
+    public IConfiglueInspection<TModel> GetInspection<TModel>(string? optionsName = null) =>
+        (IConfiglueInspection<TModel>)GetOptions<TModel>(optionsName);
+
+    /// <summary>Opens long-lived drafts of resolved configuration.</summary>
+    public IConfiglueEditSessions<TModel> GetEditSessions<TModel>(string? optionsName = null) =>
+        (IConfiglueEditSessions<TModel>)GetOptions<TModel>(optionsName);
+
+    /// <summary>Reports source topology and background reload failures.</summary>
+    public IConfiglueDiagnostics<TModel> GetDiagnostics<TModel>(string? optionsName = null) =>
+        (IConfiglueDiagnostics<TModel>)GetOptions<TModel>(optionsName);
+
+    /// <summary>Administers source-local writes and source migrations.</summary>
+    public IConfiglueSources<TModel> GetSources<TModel>(string? optionsName = null) =>
+        (IConfiglueSources<TModel>)GetOptions<TModel>(optionsName);
+
+    internal IConfiglueRuntimeOptions<TModel> GetRuntimeOptions<TModel>(
+        string? optionsName = null
+    ) => (IConfiglueRuntimeOptions<TModel>)GetOptions<TModel>(optionsName);
 
     /// <summary>Gets the runtime registry for dynamic named options.</summary>
     public IConfiglueOptionsRegistry<TModel> GetOptionsRegistry<TModel>()
@@ -83,6 +99,7 @@ public sealed class ConfiglueContext : IDisposable, IAsyncDisposable
     }
 
     /// <summary>Disposes the options and watchers owned by this context.</summary>
+    // Synchronous construction-failure cleanup or IDisposable boundary; normal source I/O stays asynchronous.
     public void Dispose() => DisposeAsync().AsTask().GetAwaiter().GetResult();
 
     /// <summary>Asynchronously disposes the options and watchers owned by this context.</summary>
@@ -243,6 +260,7 @@ public sealed class ConfiglueContext : IDisposable, IAsyncDisposable
                 {
                     if (runtime is IAsyncDisposable asyncDisposable)
                     {
+                        // Synchronous construction-failure cleanup or IDisposable boundary; normal source I/O stays asynchronous.
                         asyncDisposable.DisposeAsync().AsTask().GetAwaiter().GetResult();
                     }
                     else if (runtime is IDisposable disposable)

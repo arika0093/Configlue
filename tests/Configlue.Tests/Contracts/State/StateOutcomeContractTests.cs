@@ -1,0 +1,241 @@
+using System.IO.Compression;
+using System.Text;
+using Configlue.Provider.Json;
+using Configlue.Provider.Xml;
+using Configlue.Provider.Yaml;
+using Configlue.Resource.Zip;
+using Configlue.Testing;
+
+namespace Configlue.Tests;
+
+public sealed class StateOutcomeContractTests
+{
+    [Test]
+    public void ReadFactories_CloseStatusAndValueAndKeepDefaultMissing()
+    {
+        default(StateReadResult<string>).Status.ShouldBe(StateReadStatus.NotFound);
+        default(StateReadResult<int>).Status.ShouldBe(StateReadStatus.NotFound);
+        default(StateReadResult<string>).ShouldBe(StateReadResult<string>.NotFound());
+        Should.Throw<ArgumentNullException>(() => StateReadResult<string>.Success(null));
+        StateReadResult<int>.Success(0).Status.ShouldBe(StateReadStatus.Success);
+        StateReadResult<string>.NotFound("tombstone").Value.ShouldBeNull();
+        StateReadResult<string>.Unavailable("unreachable").Value.ShouldBeNull();
+        var invalid = StateReadResult<string>.Invalid("invalid value", "revision");
+        invalid.Status.ShouldBe(StateReadStatus.Invalid);
+        invalid.Value.ShouldBe("invalid value");
+        invalid.FromSource("source", "origin").Status.ShouldBe(StateReadStatus.Invalid);
+        ((int)StateReadStatus.Success).ShouldBe(0);
+        ((int)StateReadStatus.NotFound).ShouldBe(1);
+        typeof(StateReadResult<string>).GetProperty("Status")!.SetMethod.ShouldBeNull();
+        typeof(StateReadResult<string>).GetProperty("Value")!.SetMethod.ShouldBeNull();
+    }
+
+    [Test]
+    public async Task StateConditions_EnforceMatchAndAbsenceWithTombstoneRevisions()
+    {
+        var store = new InMemoryStateStore<string>();
+        store.SetNotFound();
+        (await store.ReadAsync()).Revision.ShouldNotBeNull();
+        await store.WriteAsync(
+            new StateWriteRequest<string>("created", RevisionCondition.MustNotExist)
+        );
+        await Should.ThrowAsync<StateConflictException>(async () =>
+            await store.WriteAsync(
+                new StateWriteRequest<string>("duplicate", RevisionCondition.MustNotExist)
+            )
+        );
+        var observed = await store.ReadAsync();
+        await store.WriteAsync(
+            new StateWriteRequest<string>("matched", RevisionCondition.Match(observed.Revision!))
+        );
+        await Should.ThrowAsync<StateConflictException>(async () =>
+            await store.WriteAsync(
+                new StateWriteRequest<string>("stale", RevisionCondition.Match(observed.Revision!))
+            )
+        );
+        await store.WriteAsync(new StateWriteRequest<string>("unchecked", RevisionCondition.None));
+        (await store.ReadAsync()).Value.ShouldBe("unchecked");
+        Should.Throw<ArgumentNullException>(() => RevisionCondition.Match(null!));
+    }
+
+    [Test]
+    public async Task ResourceConditions_EnforceMatchAbsenceAndUncheckedWrites()
+    {
+        var resource = new InMemoryResource();
+        await resource.WriteAsync(
+            new ResourceWriteRequest("first"u8.ToArray(), RevisionCondition.MustNotExist)
+        );
+        var observed = await resource.ReadAsync();
+        await resource.WriteAsync(
+            new ResourceWriteRequest(
+                "matched"u8.ToArray(),
+                RevisionCondition.Match(observed.Revision!)
+            )
+        );
+        await Should.ThrowAsync<StateConflictException>(async () =>
+            await resource.WriteAsync(
+                new ResourceWriteRequest(
+                    "stale"u8.ToArray(),
+                    RevisionCondition.Match(observed.Revision!)
+                )
+            )
+        );
+        await Should.ThrowAsync<StateConflictException>(async () =>
+            await resource.WriteAsync(
+                new ResourceWriteRequest("duplicate"u8.ToArray(), RevisionCondition.MustNotExist)
+            )
+        );
+        await resource.WriteAsync(
+            new ResourceWriteRequest("unchecked"u8.ToArray(), RevisionCondition.None)
+        );
+        Encoding.UTF8.GetString((await resource.ReadAsync()).Content.Span).ShouldBe("unchecked");
+    }
+
+    [Test]
+    public async Task BatchConditions_RejectDifferentSemanticsBeforeApplyingMutations()
+    {
+        var resource = new InMemoryResource();
+        var applied = false;
+        var mutations = new[]
+        {
+            new ResourceWriteMutation(
+                RevisionCondition.None,
+                null,
+                _ =>
+                {
+                    applied = true;
+                    return "first"u8.ToArray();
+                },
+                scope: "test/first",
+                canCompose: true
+            ),
+            new ResourceWriteMutation(
+                RevisionCondition.MustNotExist,
+                null,
+                _ => "second"u8.ToArray(),
+                scope: "test/second",
+                canCompose: true
+            ),
+        };
+        await Should.ThrowAsync<StateConflictException>(async () =>
+            await resource.WriteBatchAsync(mutations)
+        );
+        applied.ShouldBeFalse();
+        resource.WriteCount.ShouldBe(0);
+    }
+
+    [Test]
+    public async Task ScopedResources_MustNotExistCreatesMissingSectionInExistingDocument()
+    {
+        await CheckSectionAsync(
+            "{}",
+            "{\"Value\":1}",
+            static resource => new JsonSectionResource(resource, "Settings")
+        );
+        await CheckSectionAsync(
+            "<Root />",
+            "<Value>1</Value>",
+            static resource => new XmlSectionResource(resource, "Settings")
+        );
+        await CheckSectionAsync(
+            "Existing: 0",
+            "Value: 1",
+            static resource => new YamlSectionResource(resource, "Settings")
+        );
+    }
+
+    private static async Task CheckSectionAsync(
+        string document,
+        string sectionContent,
+        Func<InMemoryResource, IResourceReader> createSection
+    )
+    {
+        var resource = new InMemoryResource();
+        await resource.WriteAsync(new ResourceWriteRequest(Encoding.UTF8.GetBytes(document)));
+        var section = createSection(resource);
+        var writer = (IResourceWriter)section;
+        await writer.WriteAsync(
+            new ResourceWriteRequest(
+                Encoding.UTF8.GetBytes(sectionContent),
+                RevisionCondition.MustNotExist
+            )
+        );
+        (await section.ReadAsync()).Status.ShouldBe(StateReadStatus.Success);
+        await Should.ThrowAsync<StateConflictException>(async () =>
+            await writer.WriteAsync(
+                new ResourceWriteRequest(
+                    Encoding.UTF8.GetBytes(sectionContent),
+                    RevisionCondition.MustNotExist
+                )
+            )
+        );
+    }
+
+    [Test]
+    public async Task ZipAbsenceChecksEntryWhileUncheckedWritesIgnoreCachedSnapshots()
+    {
+        using var content = new MemoryStream();
+        using (var zip = new ZipArchive(content, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            zip.CreateEntry("existing.txt");
+        }
+        var resource = new InMemoryResource();
+        await resource.WriteAsync(new ResourceWriteRequest(content.ToArray()));
+        var entry = new ZipEntryResource(resource, "new.txt");
+        await entry.ReadAsync();
+        await entry.WriteAsync(
+            new ResourceWriteRequest("first"u8.ToArray(), RevisionCondition.MustNotExist)
+        );
+        await Should.ThrowAsync<StateConflictException>(async () =>
+            await entry.WriteAsync(
+                new ResourceWriteRequest("duplicate"u8.ToArray(), RevisionCondition.MustNotExist)
+            )
+        );
+        await entry.WriteAsync(
+            new ResourceWriteRequest("unchecked"u8.ToArray(), RevisionCondition.None)
+        );
+        Encoding.UTF8.GetString((await entry.ReadAsync()).Content.Span).ShouldBe("unchecked");
+    }
+
+    [Test]
+    public async Task NullCodecValues_AreInvalidInsteadOfSuccessfulMissingValues()
+    {
+        var resource = new InMemoryResource();
+        await resource.WriteAsync(new ResourceWriteRequest("null"u8.ToArray()));
+        var source = SerializedStateSource.FromResource<string>(
+            "null-json",
+            resource,
+            new JsonStateCodec<string>()
+        );
+        var result = await source.Reader.ReadAsync();
+        result.Status.ShouldBe(StateReadStatus.Invalid);
+        result.Value.ShouldBeNull();
+        result.Revision.ShouldNotBeNull();
+    }
+
+    [Test]
+    public async Task ApplicationSaves_ReturnSourceReceiptsForSingleWritesAndEmptyReceiptsForNoOps()
+    {
+        var store = new InMemoryStateStore<AppSettings.Fragment>();
+        await using var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(
+            new StateSourceSet<AppSettings.Fragment>([new("user", store, writer: store)])
+        );
+        IWritableOptions<AppSettings> writable = options;
+        var written = await writable.SaveAsync(new AppSettings.Patch { RetryCount = 8 });
+        written.Sources.Count.ShouldBe(1);
+        written.Sources[0].SourceId.ShouldBe("user");
+        written.Sources[0].ResourceId.ShouldBeNull();
+        written.Revision.ShouldBe((await store.ReadAsync()).Revision);
+        written.PhysicalWriteCount.ShouldBe(1);
+        var empty = await writable.SaveAsync(new AppSettings.Patch());
+        empty.Sources.ShouldBeEmpty();
+        empty.PhysicalWriteCount.ShouldBe(0);
+        empty.Revision.ShouldBeNull();
+        var sourceEmpty = await options.ApplyPatchesAsync([
+            new StateSourcePatch("user", new AppSettings.Patch()),
+        ]);
+        sourceEmpty.Sources.ShouldBeEmpty();
+        sourceEmpty.PhysicalWriteCount.ShouldBe(0);
+        sourceEmpty.Revision.ShouldBeNull();
+    }
+}

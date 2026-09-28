@@ -1,0 +1,63 @@
+using Configlue.Testing;
+
+namespace Configlue.Tests;
+
+public sealed class ConfiglueAppLifecycleTests
+{
+    [Test]
+    [NotInParallel]
+    public async Task UninitializedAccessThrowsAndShutdownIsIdempotent()
+    {
+        await ConfiglueApp.ShutdownAsync();
+
+        Should.Throw<InvalidOperationException>(() => ConfiglueApp.GetOptions<AppSettings>());
+
+        await ConfiglueApp.ShutdownAsync();
+    }
+
+    [Test]
+    [NotInParallel]
+    public async Task ShutdownClearsTheDefaultContextAndAllowsReinitialization()
+    {
+        await ConfiglueApp.ShutdownAsync();
+        try
+        {
+            ConfiglueApp.Initialize(builder =>
+            {
+                builder.Add<AppSettings>(model =>
+                    model.Sources(sources => sources.Add(CreateSource("first", "first")))
+                );
+            });
+            (await ConfiglueApp.GetOptions<AppSettings>().GetValueAsync()).Label.ShouldBe("first");
+        }
+        finally
+        {
+            await ConfiglueApp.ShutdownAsync();
+        }
+
+        Should.Throw<InvalidOperationException>(() => ConfiglueApp.GetOptions<AppSettings>());
+
+        try
+        {
+            ConfiglueApp.Initialize(builder =>
+            {
+                builder.Add<AppSettings>(model =>
+                    model.Sources(sources => sources.Add(CreateSource("second", "second")))
+                );
+            });
+            (await ConfiglueApp.GetOptions<AppSettings>().GetValueAsync()).Label.ShouldBe("second");
+        }
+        finally
+        {
+            await ConfiglueApp.ShutdownAsync();
+        }
+    }
+
+    private static StateSource<AppSettings.Fragment> CreateSource(string id, string label)
+    {
+        var store = new InMemoryStateStore<AppSettings.Fragment>(
+            new AppSettings.Fragment { Label = Optional<string?>.Present(label) }
+        );
+        return new StateSource<AppSettings.Fragment>(id, store, writer: store, watcher: store);
+    }
+}

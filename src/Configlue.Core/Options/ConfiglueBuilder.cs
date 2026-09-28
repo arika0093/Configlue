@@ -98,7 +98,6 @@ public sealed class ConfiglueModelBuilder<TModel>
     private WriteConflictResolution _writeConflictResolution =
         WriteConflictResolution.FailOnConflict;
     private bool _enableDynamicOptions;
-    private bool _registerAsSingleton;
     private TimeSpan? _onChangeDebounce;
     private ILogger? _logger;
     private Func<TModel, TModel>? _cloneStrategy;
@@ -146,18 +145,6 @@ public sealed class ConfiglueModelBuilder<TModel>
         {
             EnsureMutable();
             _enableDynamicOptions = value;
-        }
-    }
-
-    /// <summary>Registers the default model as a DI singleton snapshot for direct injection.</summary>
-    /// <remarks>The injected value is created on first resolution and does not follow later source changes. This setting applies only to DI registrations.</remarks>
-    public bool RegisterAsSingleton
-    {
-        get => _registerAsSingleton;
-        set
-        {
-            EnsureMutable();
-            _registerAsSingleton = value;
         }
     }
 
@@ -240,15 +227,7 @@ public sealed class ConfiglueModelBuilder<TModel>
         }
     }
 
-    /// <summary>Adds sources shared by non-DI and DI contexts.</summary>
-    public void Sources(Action<ConfiglueSourceSetBuilder> configure)
-    {
-        EnsureMutable();
-        ArgumentNullException.ThrowIfNull(configure);
-        configure(_sources);
-    }
-
-    /// <summary>Adds sources shared by non-DI and DI contexts with model-typed provider helpers.</summary>
+    /// <summary>Adds sources with strongly typed provider helpers during registration.</summary>
     public void Sources(Action<ConfiglueSourceSetBuilder<TModel>> configure)
     {
         EnsureMutable();
@@ -256,64 +235,15 @@ public sealed class ConfiglueModelBuilder<TModel>
         configure(_sources);
     }
 
-    /// <summary>Adds sources using the service provider available when this model's runtime is created.</summary>
-    public void Sources(Action<IServiceProvider?, ConfiglueSourceSetBuilder> configure)
+    /// <summary>Configures sources when the runtime is created, with its name and application services.</summary>
+    public void ConfigureSources(Action<ConfiglueSourceRegistrationContext<TModel>> configure)
     {
         EnsureMutable();
         ArgumentNullException.ThrowIfNull(configure);
         _sourceConfigurations.Add(
-            (_, serviceProvider, sources) => configure(serviceProvider, sources)
+            (name, services, sources) =>
+                configure(new ConfiglueSourceRegistrationContext<TModel>(name, services, sources))
         );
-    }
-
-    /// <summary>Adds sources using DI with model-typed provider helpers.</summary>
-    /// <remarks>The callback is recorded during model registration and invoked only after registrations have been added to the service collection. The provider is null in non-DI contexts.</remarks>
-    public void Sources(Action<IServiceProvider?, ConfiglueSourceSetBuilder<TModel>> configure)
-    {
-        EnsureMutable();
-        ArgumentNullException.ThrowIfNull(configure);
-        _sourceConfigurations.Add(
-            (_, serviceProvider, sources) => configure(serviceProvider, sources)
-        );
-    }
-
-    /// <summary>Adds sources whose definitions depend on this named options instance.</summary>
-    public void SourcesForOptions(Action<string, ConfiglueSourceSetBuilder> configure)
-    {
-        EnsureMutable();
-        ArgumentNullException.ThrowIfNull(configure);
-        _sourceConfigurations.Add((optionsName, _, sources) => configure(optionsName, sources));
-    }
-
-    /// <summary>Adds sources with the named options instance and model-typed provider helpers.</summary>
-    public void SourcesForOptions(Action<string, ConfiglueSourceSetBuilder<TModel>> configure)
-    {
-        EnsureMutable();
-        ArgumentNullException.ThrowIfNull(configure);
-        _sourceConfigurations.Add((optionsName, _, sources) => configure(optionsName, sources));
-    }
-
-    /// <summary>Adds sources using the service provider and named options instance available at runtime creation.</summary>
-    public void SourcesForOptions(
-        Action<string, IServiceProvider?, ConfiglueSourceSetBuilder> configure
-    )
-    {
-        EnsureMutable();
-        ArgumentNullException.ThrowIfNull(configure);
-        _sourceConfigurations.Add(
-            (optionsName, serviceProvider, sources) =>
-                configure(optionsName, serviceProvider, sources)
-        );
-    }
-
-    /// <summary>Adds sources using DI and the named options instance with model-typed provider helpers.</summary>
-    public void SourcesForOptions(
-        Action<string, IServiceProvider?, ConfiglueSourceSetBuilder<TModel>> configure
-    )
-    {
-        EnsureMutable();
-        ArgumentNullException.ThrowIfNull(configure);
-        _sourceConfigurations.Add(configure);
     }
 
     /// <summary>Enables a persisted profile catalog backed by a writable state source.</summary>
@@ -379,12 +309,12 @@ public sealed class ConfiglueModelBuilder<TModel>
     }
 
     /// <summary>Builds the typed source set using the generated model's closed fragment type.</summary>
-    public StateSourceSet<TFragment> BuildSources<TFragment>(IServiceProvider? serviceProvider)
+    internal StateSourceSet<TFragment> BuildSources<TFragment>(IServiceProvider? serviceProvider)
         where TFragment : class, IConfiglueFragment<TFragment> =>
         BuildSources<TFragment>(default!, serviceProvider, static _ => { });
 
     /// <summary>Builds the source set and reports resources created by helper definitions.</summary>
-    public StateSourceSet<TFragment> BuildSources<TFragment>(
+    internal StateSourceSet<TFragment> BuildSources<TFragment>(
         IServiceProvider? serviceProvider,
         Action<IDisposable> ownResource
     )
@@ -392,7 +322,7 @@ public sealed class ConfiglueModelBuilder<TModel>
         BuildSources<TFragment>(default!, serviceProvider, ownResource);
 
     /// <summary>Builds the source set and reports resources created by helper definitions.</summary>
-    public StateSourceSet<TFragment> BuildSources<TFragment>(
+    internal StateSourceSet<TFragment> BuildSources<TFragment>(
         ConfiglueModelSchema modelSchema,
         IServiceProvider? serviceProvider,
         Action<IDisposable> ownResource
@@ -414,7 +344,7 @@ public sealed class ConfiglueModelBuilder<TModel>
     }
 
     /// <summary>Gets explicit and dependency-injected migrations for the generated fragment type.</summary>
-    public IReadOnlyList<IStateSchemaMigration<TFragment>> GetMigrations<TFragment>(
+    internal IReadOnlyList<IStateSchemaMigration<TFragment>> GetMigrations<TFragment>(
         IServiceProvider? serviceProvider
     )
         where TFragment : class, IConfiglueFragment<TFragment>
@@ -439,7 +369,7 @@ public sealed class ConfiglueModelBuilder<TModel>
     }
 
     /// <summary>Gets explicit and dependency-injected validators for this model.</summary>
-    public IReadOnlyList<IConfiglueValidator<TModel>> GetValidators(
+    internal IReadOnlyList<IConfiglueValidator<TModel>> GetValidators(
         IServiceProvider? serviceProvider
     )
     {
@@ -466,10 +396,10 @@ public sealed class ConfiglueModelBuilder<TModel>
     internal string DefaultProfileName => _defaultProfileName;
 
     /// <summary>The optional custom clone strategy configured for this model.</summary>
-    public Func<TModel, TModel>? CloneStrategy => _cloneStrategy;
+    internal Func<TModel, TModel>? CloneStrategy => _cloneStrategy;
 
     /// <summary>Gets the explicitly configured logger or creates one from the service provider.</summary>
-    public ILogger? GetLogger(IServiceProvider? serviceProvider)
+    internal ILogger? GetLogger(IServiceProvider? serviceProvider)
     {
         if (_logger is not null)
         {
@@ -492,7 +422,6 @@ public sealed class ConfiglueModelBuilder<TModel>
             ReadValidationMode = _readValidationMode,
             WriteConflictResolution = _writeConflictResolution,
             EnableDynamicOptions = _enableDynamicOptions,
-            RegisterAsSingleton = _registerAsSingleton,
             OnChangeDebounce = _onChangeDebounce,
             Logger = _logger,
         };
@@ -556,7 +485,7 @@ internal sealed class ConfiglueModelRegistration<TModel>(ConfiglueModelBuilder<T
 {
     public Type ModelType => typeof(TModel);
 
-    public ConfiglueModelSchema ModelSchema => TModel.GetConfiglueSchema();
+    public ConfiglueModelSchema ModelSchema => TModel.Descriptor.Schema;
 
     public string OptionsName => builder.OptionsName;
 
@@ -567,7 +496,7 @@ internal sealed class ConfiglueModelRegistration<TModel>(ConfiglueModelBuilder<T
     public object CreateRuntime(
         IServiceProvider? serviceProvider,
         Action<IDisposable> ownResource
-    ) => TModel.CreateConfiglueRuntime(builder, serviceProvider, ownResource);
+    ) => TModel.Descriptor.CreateRuntime(builder, serviceProvider, ownResource);
 
     public object CreateProfileManager(
         object registry,
@@ -594,7 +523,7 @@ internal sealed class ConfiglueModelRegistration<TModel>(ConfiglueModelBuilder<T
                 $"Default profile '{builder.DefaultProfileName}' conflicts with a fixed OptionsName."
             );
         }
-        return TModel.CreateConfiglueProfileManager(
+        return TModel.Descriptor.CreateProfiles(
             (IConfiglueOptionsRegistry<TModel>)registry,
             catalogSource,
             builder.DefaultProfileName
@@ -614,7 +543,7 @@ internal sealed class ConfiglueModelRegistration<TModel>(ConfiglueModelBuilder<T
                 try
                 {
                     var dynamicBuilder = builder.CloneForOptionsName(name);
-                    runtime = TModel.CreateConfiglueRuntime(
+                    runtime = TModel.Descriptor.CreateRuntime(
                         dynamicBuilder,
                         serviceProvider,
                         resource =>
@@ -641,6 +570,7 @@ internal sealed class ConfiglueModelRegistration<TModel>(ConfiglueModelBuilder<T
                     {
                         if (runtime is IAsyncDisposable asyncDisposable)
                         {
+                            // Synchronous construction-failure cleanup or IDisposable boundary; normal source I/O stays asynchronous.
                             asyncDisposable.DisposeAsync().AsTask().GetAwaiter().GetResult();
                         }
                         else if (runtime is IDisposable disposable)
@@ -711,36 +641,6 @@ internal sealed class ConfiglueModelRegistration<TModel>(ConfiglueModelBuilder<T
                 OptionsName,
                 (provider, _) =>
                     provider.GetRequiredService<ConfiglueContext>().GetOptions<TModel>(OptionsName)
-            );
-        }
-
-        if (builder.RegisterAsSingleton)
-        {
-            if (OptionsName.Length != 0)
-            {
-                throw new InvalidOperationException(
-                    "Direct model singleton registration requires the default options name."
-                );
-            }
-            if (typeof(TModel).IsValueType)
-            {
-                throw new InvalidOperationException(
-                    "Direct model singleton registration requires a reference type."
-                );
-            }
-
-            services.Add(
-                ServiceDescriptor.Singleton(
-                    typeof(TModel),
-                    provider =>
-                        provider
-                            .GetRequiredService<ConfiglueContext>()
-                            .GetOptions<TModel>(OptionsName)
-                            .GetValueAsync()
-                            .AsTask()
-                            .GetAwaiter()
-                            .GetResult()
-                )
             );
         }
     }

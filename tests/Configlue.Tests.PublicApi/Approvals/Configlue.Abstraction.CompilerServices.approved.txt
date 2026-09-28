@@ -1,0 +1,61 @@
+[assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/arika0093/Configlue")]
+namespace Configlue.CompilerServices
+{
+    public readonly struct ConfigCollectionElementData : System.IEquatable<Configlue.CompilerServices.ConfigCollectionElementData>
+    {
+        public ConfigCollectionElementData(int Index, object? Value, System.Collections.Generic.IReadOnlyList<int> SourceIndices) { }
+        public int Index { get; init; }
+        public System.Collections.Generic.IReadOnlyList<int> SourceIndices { get; init; }
+        public object? Value { get; init; }
+        public void Deconstruct(out int Index, out object? Value, out System.Collections.Generic.IReadOnlyList<int> SourceIndices) { }
+    }
+    public sealed class ConfiglueDetailsSnapshot
+    {
+        public System.Func<Configlue.CompilerServices.ConfiglueMemberPath, System.Collections.Generic.IReadOnlyList<Configlue.CompilerServices.ConfigCollectionElementData>> CollectionElements { get; }
+        public System.Func<Configlue.CompilerServices.ConfiglueMemberPath, Configlue.ConfiglueEditability> Editability { get; }
+        public Configlue.ConfiglueModelSchema Schema { get; }
+        public System.Collections.Generic.IReadOnlyList<Configlue.IConfiglueFragment?> SourceFragments { get; }
+        public System.Collections.Generic.IReadOnlyList<Configlue.State.StateReadStatus> SourceStatuses { get; }
+        public System.Collections.Generic.IReadOnlyList<Configlue.ConfigSourceDetails> Sources { get; }
+        public object? Value { get; }
+    }
+    public readonly struct ConfiglueMemberPath : System.IEquatable<Configlue.CompilerServices.ConfiglueMemberPath>
+    {
+        public int Length { get; }
+        public System.ReadOnlySpan<int> MemberIds { get; }
+        public Configlue.ConfiglueModelSchema RootSchema { get; }
+        public Configlue.CompilerServices.ConfiglueMemberPath Append(int memberId) { }
+        public bool Equals(Configlue.CompilerServices.ConfiglueMemberPath other) { }
+        public override bool Equals(object? obj) { }
+        public override int GetHashCode() { }
+        public object? GetModelValue(object model, out Configlue.ConfiglueMemberSchema leaf) { }
+        public bool IsPrefixOf(Configlue.CompilerServices.ConfiglueMemberPath other) { }
+        public Configlue.ConfiglueMemberSchema ResolveMember() { }
+        public override string ToString() { }
+        public bool TryGetFragmentValue(Configlue.IConfiglueFragment? fragment, out object? value) { }
+        public static Configlue.CompilerServices.ConfiglueMemberPath FromNames(Configlue.ConfiglueModelSchema schema, string propertyPath) { }
+        public static Configlue.CompilerServices.ConfiglueMemberPath Root(Configlue.ConfiglueModelSchema schema) { }
+    }
+    public static class ConfiglueWriteRouting
+    {
+        public static Configlue.StateWritePlan Bind(Configlue.StateWritePlan plan, Configlue.ConfiglueModelSchema schema) { }
+        public static bool HasRouteBelow(Configlue.StateWritePlan plan, Configlue.CompilerServices.ConfiglueMemberPath path) { }
+        public static string? Resolve(Configlue.StateWritePlan plan, Configlue.CompilerServices.ConfiglueMemberPath path, string? fallbackSourceId = null) { }
+    }
+    public interface IConfiglueDetailsRuntime
+    {
+        System.Threading.Tasks.ValueTask<Configlue.CompilerServices.ConfiglueDetailsSnapshot> GetDetailsSnapshotAsync(System.Threading.CancellationToken cancellationToken = default);
+    }
+    public interface IConfiglueModel
+    {
+        Configlue.ConfiglueModelSchema ConfiglueSchema { get; }
+    }
+    public interface IConfiglueModel<TSelf, TFragment> : Configlue.CompilerServices.IConfiglueModel, Configlue.IConfiglueDeepCloneable<TSelf>
+        where TSelf : Configlue.CompilerServices.IConfiglueModel<TSelf, TFragment>
+        where TFragment :  class, Configlue.IConfiglueFragment<TFragment>
+    {
+        TFragment Diff(TSelf before, TSelf after);
+        TSelf FromFragment(TFragment value);
+        TFragment ToFragment(TSelf value);
+    }
+}

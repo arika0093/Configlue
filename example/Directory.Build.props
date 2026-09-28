@@ -12,6 +12,7 @@
     <Using Include="Configlue.Migrations" />
     <Using Include="Configlue.Resources" />
     <Using Include="Configlue.Sources" />
+    <Using Include="Configlue.Extensibility" />
     <Using Include="Configlue.State" />
     <Using Include="Configlue.Transformers" />
     <ProjectReference Include="../../src/Configlue.Core/Configlue.Core.csproj" />
@@ -20,5 +21,8 @@
       OutputItemType="Analyzer"
       ReferenceOutputAssembly="false"
     />
+  </ItemGroup>
+  <ItemGroup>
+    <Using Include="Configlue.CompilerServices" />
   </ItemGroup>
 </Project>

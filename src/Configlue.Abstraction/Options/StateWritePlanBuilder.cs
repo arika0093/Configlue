@@ -6,6 +6,7 @@ namespace Configlue;
 /// <summary>Builds typed source routes for model properties.</summary>
 /// <typeparam name="TModel">The generated configuration model.</typeparam>
 public sealed class StateWritePlanBuilder<TModel>
+    where TModel : IConfiglueModel
 {
     private readonly Dictionary<string, string> _routes = new(StringComparer.Ordinal);
 
@@ -22,6 +23,7 @@ public sealed class StateWritePlanBuilder<TModel>
         }
 
         var path = GetPropertyPath(property);
+        _ = ConfiglueMemberPath.FromNames(TModel.ConfiglueSchema, path);
         if (!_routes.TryAdd(path, source.Id))
         {
             throw new ArgumentException(
@@ -34,8 +36,7 @@ public sealed class StateWritePlanBuilder<TModel>
     }
 
     /// <summary>Creates the immutable write plan.</summary>
-    public StateWritePlan Build() =>
-        _routes.Count == 0 ? StateWritePlan.Empty : new StateWritePlan(_routes);
+    public StateWritePlan Build() => new StateWritePlan(_routes).Bind(TModel.ConfiglueSchema);
 
     private static string GetPropertyPath<TValue>(Expression<Func<TModel, TValue>> selector)
     {

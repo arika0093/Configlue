@@ -21,7 +21,7 @@ await using var context = ConfiglueApp.CreateContext(builder =>
         model.OnChangeDebounce = TimeSpan.Zero;
     });
 });
-var settings = context.GetAdvancedOptions<SampleSetting>();
+var settings = context.GetOptions<SampleSetting>();
 var current = await settings.GetValueAsync();
 Console.WriteLine($"Hello, {current.Name}. This is run {current.RunCount}.");
 
@@ -33,7 +33,7 @@ if (args.Length > 0)
         return 2;
     }
 
-    using (var edit = await settings.OpenEditSessionAsync())
+    using (var edit = await context.GetEditSessions<SampleSetting>().OpenEditSessionAsync())
     {
         edit.Value.Name = args[1];
         edit.Value.RunCount++;

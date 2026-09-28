@@ -181,17 +181,35 @@ public class ConfiglueSourceSetBuilder
             IServiceProvider? serviceProvider,
             Action<IDisposable> ownResource
         )
-            where TFragment : class, IConfiglueFragment<TFragment> =>
-            options.Apply(
-                definition.Create<TFragment>(
-                    modelSchema
-                        ?? throw new InvalidOperationException(
-                            "Provider source definitions require generated model metadata."
-                        ),
-                    serviceProvider,
-                    ownResource
-                ) ?? throw new InvalidOperationException("A source definition returned null.")
+            where TFragment : class, IConfiglueFragment<TFragment>
+        {
+            var context = new ConfiglueSourceCreationContext(
+                modelSchema
+                    ?? throw new InvalidOperationException(
+                        "Provider source definitions require generated model metadata."
+                    ),
+                serviceProvider
             );
+            try
+            {
+                var result =
+                    definition.Create<TFragment>(context)
+                    ?? throw new InvalidOperationException("A source definition returned null.");
+                foreach (var resource in result.OwnedResources)
+                {
+                    ownResource(resource);
+                }
+                return options.Apply(result.Source);
+            }
+            finally
+            {
+                // Include allocations made before a provider throws, so creation failure cannot leak resources.
+                foreach (var resource in context.CreatedResources)
+                {
+                    ownResource(resource);
+                }
+            }
+        }
     }
 }
 

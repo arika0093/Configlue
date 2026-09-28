@@ -5,6 +5,22 @@ namespace Configlue.Tests;
 public sealed class GeneratedModelContractTests
 {
     [Test]
+    public void CompilerPlumbingIsHiddenFromTheApplicationModelAndBuilder()
+    {
+        typeof(AppSettings).GetMethod("CreateConfiglueRuntime").ShouldBeNull();
+        typeof(AppSettings).GetMethod("ToFragment").ShouldBeNull();
+        typeof(ConfiglueModelBuilder<AppSettings>).GetMethod("BuildSources").ShouldBeNull();
+        typeof(ConfiglueModelBuilder<AppSettings>).GetMethod("GetMigrations").ShouldBeNull();
+        typeof(IConfiglueInspection<AppSettings>)
+            .GetMethod("GetDetailsSnapshotAsync")
+            .ShouldBeNull();
+        typeof(IConfiglueFacadeModel<AppSettings>)
+            .GetProperties()
+            .Select(property => property.Name)
+            .ShouldBe(["Descriptor"]);
+    }
+
+    [Test]
     public void IConfiglueModel_ConvertsModelsAndCreatesSparseSemanticDiffs()
     {
         var before = new AppSettings { RetryCount = 3, Label = "before" };
@@ -99,12 +115,12 @@ public sealed class GeneratedModelContractTests
     }
 
     private static ConfiglueModelSchema GetFacadeSchema<TModel>()
-        where TModel : IConfiglueFacadeModel<TModel> => TModel.GetConfiglueSchema();
+        where TModel : IConfiglueFacadeModel<TModel> => TModel.Descriptor.Schema;
 
     private static IWritableOptions<TModel> CreateRuntime<TModel>(
         ConfiglueModelBuilder<TModel> configuration,
         Action<IDisposable> ownResource
     )
         where TModel : IConfiglueFacadeModel<TModel> =>
-        TModel.CreateConfiglueRuntime(configuration, serviceProvider: null, ownResource);
+        TModel.Descriptor.CreateRuntime(configuration, null, ownResource);
 }

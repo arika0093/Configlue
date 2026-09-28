@@ -124,12 +124,14 @@ public sealed class ConfiglueOptionsRegistry<TModel, TFragment>
         }
 
         DrainNotifications();
+        // Synchronous registry API boundary preserves completed notifications and cleanup; async removal/clear/disposal are preferred.
         WaitForNotifications([notification], waitForNotifications).GetAwaiter().GetResult();
         return true;
     }
 
     /// <inheritdoc />
     public bool TryRemove(string profileName) =>
+        // Synchronous registry API boundary preserves completed notifications and cleanup; async removal/clear/disposal are preferred.
         TryRemoveAsync(profileName).AsTask().GetAwaiter().GetResult();
 
     /// <inheritdoc />
@@ -195,6 +197,7 @@ public sealed class ConfiglueOptionsRegistry<TModel, TFragment>
     }
 
     /// <inheritdoc />
+    // Synchronous registry API boundary preserves completed notifications and cleanup; async removal/clear/disposal are preferred.
     public void Clear() => ClearAsync().AsTask().GetAwaiter().GetResult();
 
     /// <inheritdoc />
@@ -292,6 +295,7 @@ public sealed class ConfiglueOptionsRegistry<TModel, TFragment>
     }
 
     /// <inheritdoc />
+    // Synchronous registry API boundary preserves completed notifications and cleanup; async removal/clear/disposal are preferred.
     public void Dispose() => DisposeAsync().AsTask().GetAwaiter().GetResult();
 
     /// <inheritdoc />
@@ -466,6 +470,7 @@ public sealed class ConfiglueOptionsRegistry<TModel, TFragment>
         {
             DrainNotifications();
             WaitForNotifications(notificationsToAwait, waitForNotifications)
+                // Synchronous registry API boundary preserves completed notifications and cleanup; async removal/clear/disposal are preferred.
                 .GetAwaiter()
                 .GetResult();
         }

@@ -44,11 +44,11 @@ public sealed partial class ConfiglueGenerator
             .Append(name)
             .Append(" : global::Configlue.IConfiglueDeepCloneable<")
             .Append(modelType)
-            .Append(">, global::Configlue.IConfiglueModel<")
+            .Append(">, global::Configlue.CompilerServices.IConfiglueModel<")
             .Append(modelType)
             .Append(", ")
             .Append(modelType)
-            .Append(".Fragment>, global::Configlue.IConfiglueFacadeModel<")
+            .Append(".Fragment>, global::Configlue.CompilerServices.IConfiglueFacadeModel<")
             .Append(modelType)
             .AppendLine(">");
         code.AppendLine("{");
@@ -79,7 +79,7 @@ public sealed partial class ConfiglueGenerator
         code.AppendLine("{");
         code.AppendLineAt(
             1,
-            "public static global::System.Threading.Tasks.ValueTask<global::Configlue.State.StateWriteResult> SaveAsync("
+            "public static global::System.Threading.Tasks.ValueTask<global::Configlue.StateWriteReceipt> SaveAsync("
         );
         code.AppendLineAt(2, "this global::Configlue.IWritableOptions<" + modelType + "> options,");
         code.AppendLineAt(2, "global::System.Action<" + modelType + ".Patch> configure,");
@@ -108,7 +108,7 @@ public sealed partial class ConfiglueGenerator
     {
         code.AppendLineAt(
             1,
-            "public static global::System.Threading.Tasks.ValueTask<global::Configlue.StateMultiWriteResult> "
+            "public static global::System.Threading.Tasks.ValueTask<global::Configlue.StateWriteReceipt> "
                 + methodName
                 + "("
         );
@@ -327,17 +327,15 @@ public sealed partial class ConfiglueGenerator
                         ? "null"
                         : "Fragment.__configlue_merge_strategy_" + member.Id
                 )
-                .AppendLine("),");
+                .Append(", static () => default(")
+                .Append(member.Property.Type.Name)
+                .AppendLine(")),");
         }
 
         code.AppendIndent(1)
             .Append("}, static () => ")
             .Append(modelType)
             .AppendLine(".Fragment.Empty);");
-        code.AppendLineAt(
-            1,
-            "public static global::Configlue.ConfiglueModelSchema GetConfiglueSchema() => ConfiglueSchema;"
-        );
     }
 
     private static string CollectionValueFactory(MemberModel member)
@@ -413,7 +411,9 @@ public sealed partial class ConfiglueGenerator
                         ? "null"
                         : "Fragment.__configlue_merge_strategy_" + member.Id
                 );
-            code.AppendLine("),");
+            code.Append(", static () => default(")
+                .Append(member.Property.Type.Name)
+                .AppendLine(")),");
         }
 
         code.AppendIndent(1)
@@ -506,79 +506,52 @@ public sealed partial class ConfiglueGenerator
     private static void AppendModelFragmentBridge(IndentedStringBuilder code, string modelType)
     {
         code.AppendIndent(1)
-            .Append("public static Fragment ToFragment(")
+            .Append(
+                "static Fragment global::Configlue.CompilerServices.IConfiglueModel<"
+                    + modelType
+                    + ", Fragment>.ToFragment("
+            )
             .Append(modelType)
             .AppendLine(" value) => Fragment.From(value);");
         code.AppendIndent(1)
-            .Append("public static Fragment Diff(")
+            .Append(
+                "static Fragment global::Configlue.CompilerServices.IConfiglueModel<"
+                    + modelType
+                    + ", Fragment>.Diff("
+            )
             .Append(modelType)
             .Append(" before, ")
             .Append(modelType)
             .AppendLine(" after) => Fragment.Diff(before, after);");
         code.AppendIndent(1)
-            .Append("public static ")
+            .Append("static ")
             .Append(modelType)
-            .AppendLine(" FromFragment(Fragment value) => value.ToModel();");
+            .AppendLine(
+                " global::Configlue.CompilerServices.IConfiglueModel<"
+                    + modelType
+                    + ", Fragment>.FromFragment(Fragment value) => value.ToModel();"
+            );
     }
 
     private static void AppendFacadeRuntimeBridge(IndentedStringBuilder code, string modelType)
     {
-        code.AppendIndent(1)
-            .Append("public static global::Configlue.IWritableOptions<")
-            .Append(modelType)
-            .AppendLine("> CreateConfiglueRuntime(");
         code.AppendLineAt(
-            2,
-            "global::Configlue.ConfiglueModelBuilder<" + modelType + "> configuration,"
-        );
-        code.AppendLineAt(2, "global::System.IServiceProvider? serviceProvider,");
-        code.AppendLineAt(2, "global::System.Action<global::System.IDisposable> ownResource)");
-        code.AppendIndent(2)
-            .Append("=> new global::Configlue.ConfiglueOptions<")
-            .Append(modelType)
-            .Append(", ")
-            .Append(modelType)
-            .AppendLine(".Fragment>(");
-        code.AppendLineAt(
-            3,
-            "configuration.BuildSources<"
+            1,
+            "private static readonly global::Configlue.CompilerServices.ConfiglueModelDescriptor<"
                 + modelType
-                + ".Fragment>("
+                + "> __Descriptor = global::Configlue.CompilerServices.ConfiglueRuntime.Describe<"
                 + modelType
-                + ".ConfiglueSchema, serviceProvider, ownResource),"
-        );
-        code.AppendLineAt(3, "configuration.WriteRoute,");
-        code.AppendLineAt(3, "configuration.WritePlan,");
-        code.AppendLineAt(
-            3,
-            "configuration.GetMigrations<" + modelType + ".Fragment>(serviceProvider),"
-        );
-        code.AppendLineAt(3, "configuration.GetValidators(serviceProvider),");
-        code.AppendLineAt(3, "configuration.ValidateDataAnnotations,");
-        code.AppendLineAt(3, "configuration.OnChangeDebounce,");
-        code.AppendLineAt(3, "configuration.OptionsName,");
-        code.AppendLineAt(3, "configuration.GetLogger(serviceProvider),");
-        code.AppendLineAt(3, "configuration.CloneStrategy,");
-        code.AppendLineAt(3, "configuration.ReadValidationMode,");
-        code.AppendLineAt(3, "configuration.WriteConflictResolution);");
-        code.AppendIndent(1)
-            .Append("public static global::Configlue.IConfiglueProfiledOptions<")
-            .Append(modelType)
-            .AppendLine("> CreateConfiglueProfileManager(");
-        code.AppendLineAt(
-            2,
-            "global::Configlue.IConfiglueOptionsRegistry<" + modelType + "> registry,"
+                + ", "
+                + modelType
+                + ".Fragment>(ConfiglueSchema);"
         );
         code.AppendLineAt(
-            2,
-            "global::Configlue.Sources.StateSource<global::Configlue.ConfiglueProfileCatalog> catalogSource,"
+            1,
+            "static global::Configlue.CompilerServices.ConfiglueModelDescriptor<"
+                + modelType
+                + "> global::Configlue.CompilerServices.IConfiglueFacadeModel<"
+                + modelType
+                + ">.Descriptor => __Descriptor;"
         );
-        code.AppendLineAt(2, "string defaultProfileName)");
-        code.AppendIndent(2)
-            .Append("=> new global::Configlue.ConfiglueProfiledOptions<")
-            .Append(modelType)
-            .Append(", ")
-            .Append(modelType)
-            .AppendLine(".Fragment>(registry, catalogSource, defaultProfileName);");
     }
 }

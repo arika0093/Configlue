@@ -107,11 +107,9 @@ public sealed class FallbackStateSource<T> : IStateReader<T>, IStateWriter<T>, I
     {
         var current = await _reader.ReadAsync(cancellationToken).ConfigureAwait(false);
         if (
-            (request.CheckRevision || request.ExpectedRevision is not null)
-            && !string.Equals(
-                request.ExpectedRevision,
+            !request.Condition.IsSatisfiedBy(
                 GetRevisionToken(current),
-                StringComparison.Ordinal
+                current.Status != StateReadStatus.NotFound
             )
         )
         {
@@ -140,7 +138,10 @@ public sealed class FallbackStateSource<T> : IStateReader<T>, IStateWriter<T>, I
 
         return await target
             .Writer!.WriteAsync(
-                new StateWriteRequest<T>(request.Value, targetState.Revision, CheckRevision: true),
+                new StateWriteRequest<T>(
+                    request.Value,
+                    Condition: RevisionCondition.FromRevision(targetState.Revision)
+                ),
                 cancellationToken
             )
             .ConfigureAwait(false);

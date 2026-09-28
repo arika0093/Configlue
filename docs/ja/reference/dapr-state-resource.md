@@ -3,8 +3,6 @@ title: Dapr State Management リソース
 description: 任意の byte-oriented Configlue 永続化リソースとして Dapr state store を使う。
 ---
 
-# Dapr State Management リソース
-
 `Configlue.Resource.Dapr` は Dapr State Management の1つの store key を Configlue の byte-resource 契約へ接続します。Dapr を使うアプリケーションだけにインストールしてください:
 
 ```sh

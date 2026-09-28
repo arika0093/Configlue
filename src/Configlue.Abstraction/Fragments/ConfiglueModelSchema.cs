@@ -30,6 +30,9 @@ public readonly record struct ConfiglueMemberSchema
     /// <summary>Gets or initializes the <see cref="MergeStrategy"/> value.</summary>
     public IConfiglueMergeStrategy? MergeStrategy { get; init; }
 
+    /// <summary>Creates a boxed default using generated code, without reflection.</summary>
+    public Func<object?>? DefaultValueFactory { get; init; }
+
     /// <summary>Initializes a new instance of this record.</summary>
     /// <param name="Id">The initial value for the <see cref="Id"/> property.</param>
     /// <param name="Name">The initial value for the <see cref="Name"/> property.</param>
@@ -40,6 +43,7 @@ public readonly record struct ConfiglueMemberSchema
     /// <param name="CollectionValueFactory">The initial value for the <see cref="CollectionValueFactory"/> property.</param>
     /// <param name="EnvironmentVariableName">The initial value for the <see cref="EnvironmentVariableName"/> property.</param>
     /// <param name="MergeStrategy">The initial value for the <see cref="MergeStrategy"/> property.</param>
+    /// <param name="DefaultValueFactory">The generated factory for the member's default.</param>
     public ConfiglueMemberSchema(
         int Id,
         string Name,
@@ -49,7 +53,8 @@ public readonly record struct ConfiglueMemberSchema
         Func<ConfiglueModelSchema>? NestedSchemaFactory = null,
         Func<IEnumerable<object?>, object?>? CollectionValueFactory = null,
         string? EnvironmentVariableName = null,
-        IConfiglueMergeStrategy? MergeStrategy = null
+        IConfiglueMergeStrategy? MergeStrategy = null,
+        Func<object?>? DefaultValueFactory = null
     )
     {
         this.Id = Id;
@@ -61,6 +66,7 @@ public readonly record struct ConfiglueMemberSchema
         this.CollectionValueFactory = CollectionValueFactory;
         this.EnvironmentVariableName = EnvironmentVariableName;
         this.MergeStrategy = MergeStrategy;
+        this.DefaultValueFactory = DefaultValueFactory;
     }
 
     /// <summary>Deconstructs this record into its property values.</summary>

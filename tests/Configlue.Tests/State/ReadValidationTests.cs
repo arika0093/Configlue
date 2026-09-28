@@ -244,7 +244,7 @@ public sealed class ReadValidationTests
                 );
             });
         });
-        var options = (IConfiglueOptions<AppSettings>)context.GetOptions<AppSettings>();
+        var options = (IConfiglueRuntimeOptions<AppSettings>)context.GetOptions<AppSettings>();
 
         ((await options.GetValueAsync()).RetryCount).ShouldBe(3);
     }
@@ -270,7 +270,7 @@ public sealed class ReadValidationTests
 
         (result.Status).ShouldBe(StateReadStatus.Invalid);
         (result.SourceId).ShouldBe("invalid-layer");
-        var readable = (IConfiglueOptions<AppSettings>)options;
+        var readable = (IConfiglueRuntimeOptions<AppSettings>)options;
         await Should.ThrowAsync<InvalidOperationException>(async () =>
             await readable.GetValueAsync()
         );
@@ -295,7 +295,7 @@ public sealed class ReadValidationTests
                 )
             );
         });
-        var options = (IConfiglueOptions<AppSettings>)context.GetOptions<AppSettings>();
+        var options = (IConfiglueRuntimeOptions<AppSettings>)context.GetOptions<AppSettings>();
         var listenerCalls = 0;
         var failure = new TaskCompletionSource<Exception>(
             TaskCreationOptions.RunContinuationsAsynchronously

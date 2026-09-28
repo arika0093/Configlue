@@ -126,8 +126,21 @@ public sealed partial class ConfiglueProfiledOptions<TModel, TFragment>
         }
     }
 
-    private async Task DisposeCoreAsync(Task? catalogWatchTask)
+    private async Task DisposeCoreAsync(
+        Task? catalogWatchTask,
+        ActiveProfileValueSubscription[] subscriptions
+    )
     {
+        // Leave the owner's subscription lock before cancelling sources or awaiting work.
+        await Task.Yield();
+        foreach (var subscription in subscriptions)
+        {
+            subscription.Dispose();
+        }
+        await Task.WhenAll(
+                subscriptions.Select(static subscription => subscription.WaitForCompletionAsync())
+            )
+            .ConfigureAwait(false);
         if (catalogWatchTask is not null)
         {
             await catalogWatchTask.ConfigureAwait(false);

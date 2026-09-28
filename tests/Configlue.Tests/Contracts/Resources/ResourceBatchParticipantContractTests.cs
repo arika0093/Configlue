@@ -22,16 +22,15 @@ public sealed class ResourceBatchParticipantContractTests
         var mutation = participant.CreateMutation(
             new ResourceWriteRequest(
                 """{"Value":2}"""u8.ToArray(),
-                sectionBeforeWrite.Revision,
-                schema,
-                CheckRevision: true
+                Condition: RevisionCondition.FromRevision(sectionBeforeWrite.Revision),
+                Schema: schema
             )
         );
 
         participant.ResourceId.ShouldBe(resource.ResourceId);
         participant.BatchWriter.ShouldBeSameAs(resource);
-        mutation.ExpectedRevision.ShouldBe(sectionBeforeWrite.Revision);
-        mutation.CheckRevision.ShouldBeTrue();
+        mutation.Condition.Revision.ShouldBe(sectionBeforeWrite.Revision);
+        mutation.Condition.ShouldBe(RevisionCondition.Match(sectionBeforeWrite.Revision!));
         mutation.Schema.ShouldBe(schema);
         mutation.Scope.ShouldBe("json/App/Settings");
         mutation.CanCompose.ShouldBeTrue();

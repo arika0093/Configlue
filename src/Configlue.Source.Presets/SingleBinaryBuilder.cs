@@ -165,30 +165,32 @@ public sealed class SingleBinaryBuilder
                 );
             }
 
-            model.SourcesForOptions(
-                (optionsName, _, sources) =>
-                {
-                    var isProfile =
-                        registerProfiles
-                        && !string.Equals(optionsName, baseOptionsName, StringComparison.Ordinal);
-                    var entryName = SingleBinarySourceFactory.GetModelEntryName(
-                        modelKey,
-                        isProfile,
-                        optionsName
+            model.ConfigureSources(registration =>
+            {
+                var isProfile =
+                    registerProfiles
+                    && !string.Equals(
+                        registration.OptionsName,
+                        baseOptionsName,
+                        StringComparison.Ordinal
                     );
-                    sources
-                        .Add(
-                            new SingleBinarySourceDefinition(
-                                path,
-                                entryName,
-                                resourceOptions,
-                                encryption,
-                                priority
-                            )
+                var entryName = SingleBinarySourceFactory.GetModelEntryName(
+                    modelKey,
+                    isProfile,
+                    registration.OptionsName
+                );
+                registration
+                    .Sources.Add(
+                        new SingleBinarySourceDefinition(
+                            path,
+                            entryName,
+                            resourceOptions,
+                            encryption,
+                            priority
                         )
-                        .Priority(priority);
-                }
-            );
+                    )
+                    .Priority(priority);
+            });
         });
         _storageKeyOwners.TryAdd(modelKey, typeof(TModel));
         if (registerProfiles)

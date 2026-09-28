@@ -61,9 +61,15 @@ public sealed class SerializedStateSourceCompositionTests
         {
             var result = await next.ReadAsync(cancellationToken);
             return result.Status == StateReadStatus.Success
-                ? result with
+                ? StateReadResult<string>.Success(
+                    result.Value + suffix,
+                    result.Revision,
+                    result.Schema
+                ) with
                 {
-                    Value = result.Value + suffix,
+                    SourceId = result.SourceId,
+                    PhysicalOrigin = result.PhysicalOrigin,
+                    Revisions = result.Revisions,
                 }
                 : result;
         }

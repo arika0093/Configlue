@@ -3,8 +3,6 @@ title: HTTP and ZIP
 description: Remote policy sources over HTTP and archive entries as resources.
 ---
 
-# HTTP and ZIP
-
 ## HTTP resources
 
 `HttpResourceReader` reads from `{root}/get` and can be composed with any state codec. HTTP requests use ETags for conditional writes and polling (every 5 seconds by default).

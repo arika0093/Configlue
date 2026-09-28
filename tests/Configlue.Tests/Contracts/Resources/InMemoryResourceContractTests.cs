@@ -25,8 +25,7 @@ public sealed class InMemoryResourceContractTests
             await writer.WriteAsync(
                 new ResourceWriteRequest(
                     "stale"u8.ToArray(),
-                    ExpectedRevision: initial.Revision,
-                    CheckRevision: true
+                    Condition: RevisionCondition.FromRevision(initial.Revision)
                 )
             )
         );
@@ -43,17 +42,15 @@ public sealed class InMemoryResourceContractTests
         var mutations = new[]
         {
             new ResourceWriteMutation(
-                initialWrite.Revision,
-                checkRevision: true,
-                schema: null,
+                RevisionCondition.FromRevision(initialWrite.Revision),
+                null,
                 _ => " first"u8.ToArray(),
                 scope: "json/first",
                 canCompose: true
             ),
             new ResourceWriteMutation(
-                initialWrite.Revision,
-                checkRevision: true,
-                schema: null,
+                RevisionCondition.FromRevision(initialWrite.Revision),
+                null,
                 current =>
                     Encoding.UTF8.GetBytes(
                         Encoding.UTF8.GetString(current.Content.Span) + " second"

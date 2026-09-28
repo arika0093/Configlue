@@ -83,7 +83,6 @@ export default defineConfig({
           label: 'Functional guides',
           translations: { ja: '機能説明' },
           items: [
-            'guides/overview',
             {
               label: 'Setup and read-write',
               translations: { ja: '構成と読み書き' },
@@ -144,14 +143,7 @@ export default defineConfig({
         {
           label: 'Design',
           translations: { ja: '設計' },
-          items: [
-            'design/overview',
-            'design/resource',
-            'design/source',
-            'design/codec',
-            'design/fragment-patch',
-            'design/options',
-          ],
+          items: ['design/overview', 'design/options'],
         },
         {
           label: 'Reference',
@@ -159,7 +151,8 @@ export default defineConfig({
           items: [
             'reference/packages',
             'reference/http-resource-protocol',
-            'reference/design-notes',
+            'reference/s3-object-resource',
+            'reference/dapr-state-resource',
           ],
         },
       ],

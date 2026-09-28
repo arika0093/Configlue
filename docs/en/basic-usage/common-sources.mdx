@@ -5,8 +5,6 @@ description: How to use the standard CommonSource preset and extend it with addi
 
 import { Steps, Tabs, TabItem } from '@astrojs/starlight/components';
 
-# Common Layered Sources
-
 The **CommonSource** (`UseCommonSources`) feature is the recommended foundation for application configuration in Configlue.
 It provides standard layer helpers; only the layers declared in the scope are enabled.
 
@@ -34,6 +32,9 @@ The fixed order runs from lowest to highest priority:
 | **HTTP** | `WithHttpPolicy` | Remote JSON policy | Read-only |
 
 The preset assigns source identities and priorities internally (0, 100, 200, 300, 400, and 500). Ordinary `SaveAsync` targets the highest-priority configured file layer; `DefaultWriteLayer` can select another configured file. All configured file layers remain available through semantic selectors.
+
+Provider selection on a preset file layer is explicit: `.Json()` is built in, while `.Yaml()` and `.Xml()` require the `Configlue.Source.Presets.Yaml` and `Configlue.Source.Presets.Xml` adapter packages. The `Configlue.Source.CommandLine` package adds `WithCommandLine`.
+
 ## Basic Usage
 
 To apply one preset to multiple models, use the scoped builder from `Configlue.Source.Presets`. Only declared sources are enabled, and precedence is fixed: Global < Local < Explicit < Environment < Arguments < HTTP.

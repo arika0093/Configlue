@@ -94,7 +94,9 @@ public sealed partial class ConfiglueFacadeSourceTests
         });
 
         await using var provider = services.BuildServiceProvider();
-        var options = provider.GetRequiredService<IConfiglueOptions<AppSettings>>();
+        var options =
+            (IConfiglueRuntimeOptions<AppSettings>)
+                provider.GetRequiredService<IWritableOptions<AppSettings>>();
         (await options.GetValueAsync()).RetryCount.ShouldBe(11);
         requestedUris.ShouldContain(new Uri("https://settings.example.test/json/get"));
         await Should.ThrowAsync<InvalidOperationException>(async () =>
@@ -128,7 +130,7 @@ public sealed partial class ConfiglueFacadeSourceTests
         )
         {
             var result = await (
-                (IConfiglueOptions<AppSettings>)context.GetOptions<AppSettings>()
+                (IConfiglueRuntimeOptions<AppSettings>)context.GetOptions<AppSettings>()
             ).ApplyPatchesAsync([
                 new StateSourcePatch(
                     "writable-json-http",
@@ -195,7 +197,9 @@ public sealed partial class ConfiglueFacadeSourceTests
         });
 
         await using var provider = services.BuildServiceProvider();
-        var options = provider.GetRequiredService<IConfiglueOptions<AppSettings>>();
+        var options =
+            (IConfiglueRuntimeOptions<AppSettings>)
+                provider.GetRequiredService<IWritableOptions<AppSettings>>();
         (await options.GetValueAsync()).RetryCount.ShouldBe(9);
         requestedUris.ShouldContain(new Uri("https://settings.example.test/primary/get"));
         requestedUris.ShouldContain(new Uri("https://settings.example.test/secondary/get"));
@@ -262,7 +266,7 @@ public sealed partial class ConfiglueFacadeSourceTests
                     sources.Add<AppSettings>();
                 });
             });
-            var options = (IConfiglueOptions<AppSettings>)context.GetOptions<AppSettings>();
+            var options = (IConfiglueRuntimeOptions<AppSettings>)context.GetOptions<AppSettings>();
             var value = await options.GetValueAsync();
             (value.RetryCount).ShouldBe(5);
             (value.Label).ShouldBe("local");

@@ -3,8 +3,6 @@ title: Configlue とは
 description: 名前の由来と考え方。設定が壊れ始める順番と、Configlue の向き合い方。
 ---
 
-# Configlue とは
-
 ## 名前は「糊」から来ています
 
 Configlue は **Config + glue** です。

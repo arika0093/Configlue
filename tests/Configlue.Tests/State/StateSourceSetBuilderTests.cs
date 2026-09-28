@@ -142,10 +142,7 @@ public sealed class StateSourceSetBuilderTests
     {
         public ValueTask<StateReadResult<T>> ReadAsync(
             CancellationToken cancellationToken = default
-        ) =>
-            ValueTask.FromResult(
-                new StateReadResult<T>(StateReadStatus.Success, value, "reader-only")
-            );
+        ) => ValueTask.FromResult(StateReadResult<T>.Success(value, "reader-only"));
     }
 }
 

@@ -40,24 +40,12 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
         }
 
         var source = SelectWriteSource(allowPriorityFallback: true);
-        var hasDynamicWritePlan = writePlan is not null && writePlan.PropertyRoutes.Count > 0;
-        var effectiveWritePlan = hasDynamicWritePlan
-            ? _defaultWritePlan.OverrideWith(writePlan!)
-            : _defaultWritePlan;
-        if (hasDynamicWritePlan)
-        {
-            if (effectiveWritePlan.PropertyRoutes.Count > 0)
-            {
-                ValidateWritePlan(effectiveWritePlan);
-            }
-        }
-        else if (
-            effectiveWritePlan.PropertyRoutes.Count > 0
-            && !Volatile.Read(ref _defaultWritePlanValidated)
-        )
+        var effectiveWritePlan = _defaultWritePlan
+            .OverrideWith(writePlan ?? StateWritePlan.Empty)
+            .Bind(TModel.ConfiglueSchema);
+        if (effectiveWritePlan.PropertyRoutes.Count > 0)
         {
             ValidateWritePlan(effectiveWritePlan);
-            Volatile.Write(ref _defaultWritePlanValidated, true);
         }
 
         string? expectedRevision;
@@ -123,7 +111,7 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
                     saveValue = RebaseConfigurationEdit(baseline, value, saveBaseline);
                 }
 
-                StateWriteResult writeResult;
+                StateWriteReceipt writeResult;
                 if (effectiveWritePlan.PropertyRoutes.Count == 0)
                 {
                     writeResult = await WriteChangesToSourceAsync(
@@ -143,7 +131,6 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
                             source,
                             saveBaseline,
                             saveValue,
-                            saveExpectedRevision,
                             saveRevisions,
                             saveContributions,
                             effectiveWritePlan,

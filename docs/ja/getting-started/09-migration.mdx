@@ -5,8 +5,6 @@ description: 互換性のない変更時にモデルの版（Version）を上げ
 
 import { Steps, Tabs, TabItem } from '@astrojs/starlight/components';
 
-# STEP 9: 版を上げて移行する
-
 プロパティの名称変更や型の変更など、互換性のないモデル改変が発生したとき、Configlue ではモデルの **Version** をインクリメントし、旧モデルからの移行ロジックを宣言します。
 これにより、ユーザーの手元にある既存の設定ファイルを破棄することなく、安全に読み替えが可能です。
 
@@ -66,7 +64,7 @@ import { Steps, Tabs, TabItem } from '@astrojs/starlight/components';
    <TabItem label="DI なし">
 
    ```csharp
-   var options = (IConfiglueOptions<AppSettings>)context.GetOptions<AppSettings>();
+   var options = (IConfiglueSources<AppSettings>)context.GetOptions<AppSettings>();
    var result = await options.MigrateSourceAsync("legacy-settings", "settings");
    Console.WriteLine($"{result.SourceId} から {result.TargetId} へ移行が完了しました。");
    ```
@@ -75,7 +73,7 @@ import { Steps, Tabs, TabItem } from '@astrojs/starlight/components';
    <TabItem label="DI あり">
 
    ```csharp
-   public sealed class SettingsMigrator(IConfiglueOptions<AppSettings> options)
+   public sealed class SettingsMigrator(IConfiglueSources<AppSettings> options)
    {
        public async Task MigrateAsync()
        {

@@ -3,8 +3,6 @@ title: Fallback and custom sources
 description: Group equivalent representations and compose resources with codecs.
 ---
 
-# Fallback and custom sources
-
 ## Fallback sources
 
 Use `FallbackStateSource<TFragment>` to group serialized representations of the same logical state, such as a canonical JSON file and a legacy YAML file. It reads the first successful candidate by priority, subject to each candidate's fallback condition, and exposes that candidate as one source — values from separate formats are never overlaid.
@@ -29,7 +27,7 @@ if (snapshot.Status == StateReadStatus.Success)
 
 Place the `writeSourceId` candidate before the selected source in fallback order. The legacy candidate remains available after the write and can serve as a failback if the canonical candidate later becomes unavailable. Writes across separate resources are not atomic; verification follows the writer contract.
 
-When state needs to move to a different logical source or representation, use `IConfiglueOptions<T>.MigrateSourcesToTargetsAsync` with an explicit target projection. The migration API verifies target writes and supports retry after partial completion.
+When state needs to move to a different logical source or representation, use `IConfiglueSources<T>.MigrateSourcesToTargetsAsync` with an explicit target projection. The migration API verifies target writes and supports retry after partial completion.
 
 ## Custom sources
 

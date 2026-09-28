@@ -3,8 +3,6 @@ title: JSON Schema とテスト
 description: 版つきスキーマの出力とインメモリダブルによるテスト。
 ---
 
-# JSON Schema とテスト
-
 ## JSON Schema 出力
 
 `JsonSchemaGenerator.Generate`・`Write` は独立パッケージ `Configlue.JsonSchema` (名前空間 `Configlue.JsonSchema`) にあり、モデルの生成済み `ConfiglueModelSchema` から版つきスキーマを出力します。`Configlue` メタパッケージにも含まれます。トリミング/NativeAOT 向けのメタデータとしてソース生成の `IJsonTypeInfoResolver` を渡します。対応する DataAnnotations はスキーマ制約に写像されます。
@@ -16,6 +14,8 @@ var result = JsonSchemaGenerator.Generate(
 ```
 
 `Generate` はメモリ上に文書を作り、`Write` は永続化します。生成やファイル出力の診断を確認してください。ファイルの置き場所は自由です — `main` ブランチのフォルダ、CDN、リリース資産など — エディターに指し示してください。
+
+チュートリアル形式で進める場合は [STEP 8: JSON Schema を出力する](../getting-started/08-json-schema.md) を参照してください。
 
 旧来の `--cw-generate-json-schema <directory>` 起動経路を使うには、`ConfiglueBuilder` に登録を集め、アプリを構築する前に `TryWriteFromCommandLine` を呼びます。helper は通常の結果を返し、プロセスの終了方法はホスト側に委ねます:
 

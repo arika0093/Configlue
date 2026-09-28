@@ -71,14 +71,7 @@ public sealed class InMemoryResource
         string revision;
         lock (_gate)
         {
-            var expectedRevision = mutations[0].ExpectedRevision;
-            var checkRevision = mutations.Any(static mutation =>
-                mutation.CheckRevision || mutation.ExpectedRevision is not null
-            );
-            if (
-                checkRevision
-                && !string.Equals(expectedRevision, _revision, StringComparison.Ordinal)
-            )
+            if (!mutations[0].Condition.IsSatisfiedBy(_revision, _content is not null))
             {
                 throw new StateConflictException(
                     "The in-memory resource changed after it was read."

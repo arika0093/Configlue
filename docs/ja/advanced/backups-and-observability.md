@@ -3,8 +3,6 @@ title: バックアップ・ログ・診断
 description: ファイルの世代バックアップと復元、ログ記録、出どころ説明、診断。
 ---
 
-# バックアップ・ログ・診断
-
 ## ファイルバックアップ
 
 モデル情報を持つ JSON・XML・YAML file source は、既定で不可分な `.bak` を1世代保持し、永続するユーザー領域に保存します。保存先の基準は Windows では `%LOCALAPPDATA%`、macOS では `~/Library/Application Support`、Linux では `$XDG_STATE_HOME` または `~/.local/state` です。既定の配置は `configlue-backups/{ModelId}.v{Version}/` で、同名ファイル同士が衝突しないようバックアップ名にリソースパス由来の安定したハッシュを含めます。Windows ではディレクトリとファイルを隠し属性にします。モデル情報のない単独の `FileResource` は従来どおり Windows では隣接する `backup/`、その他の OS では `.backup/` を使います。
@@ -56,7 +54,7 @@ var options = new FileResourceOptions
 ## 出どころと診断
 
 * `await options.GetDetailsAsync()` は実効値と優先度順のソース別寄与を持つ型つきスナップショットを返します。設定 UI やトラブルシュートに使います。
-* `IConfiglueOptions<T>.GetDiagnostics()` はそのオプションランタイムの設定済みソース構成の不変スナップショットを返します。ソース ID・優先度・フォールバック方針・読み/書き/監視可否・物理出どころ・リソース同一性・退役状態に加え、既定と属性パス単位の書き込み経路も報告します。`GetWriteSourceId("Database.Endpoint")` で登録レベルの経路を解決できます。操作単位の書き込みプランは対象外です。最新の読み結果とリビジョンは `ReadAsync`、実効値と寄与ソースは `GetDetailsAsync()`、完了した書き込みは書き込み結果を使います。
+* `IConfiglueDiagnostics<T>.GetDiagnostics()` はそのオプションランタイムの設定済みソース構成の不変スナップショットを返します。ソース ID・優先度・フォールバック方針・読み/書き/監視可否・物理出どころ・リソース同一性・アクティブ状態に加え、既定と属性パス単位の書き込み経路も報告します。`GetWriteSourceId("Database.Endpoint")` で登録レベルの経路を解決できます。操作単位の書き込みプランは対象外です。最新の読み結果とリビジョンは `ReadAsync`、実効値と寄与ソースは `GetDetailsAsync()`、完了した書き込みは書き込み結果を使います。
 
 ```csharp
 var diagnostics = options.GetDiagnostics();

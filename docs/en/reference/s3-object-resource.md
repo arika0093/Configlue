@@ -3,8 +3,6 @@ title: Amazon S3 object resource
 description: Use an Amazon S3 object as an optional byte-oriented Configlue resource.
 ---
 
-# Amazon S3 object resource
-
 `Configlue.Resource.S3` adapts one S3 object to Configlue's byte-resource contracts. Install it only when the application uses S3:
 
 ```sh

@@ -3,13 +3,11 @@ title: Storage migration
 description: Copy contributions between sources with verification and retirement.
 ---
 
-# Storage migration
-
 Schema migration evolves shapes; storage migration moves contributions between sources — a new file location, a format change, or a layer consolidation.
 
 ## Single source copy
 
-`IConfiglueOptions<T>.MigrateSourceAsync(sourceKey, targetKey)` copies one source contribution, applies its schema migration chain, and writes it to a selected destination. Use `SourceKey<T>.Named("legacy")` and `SourceKey<T>.Named("current")` for stable application-defined logical names; opaque provider-generated IDs remain useful for diagnostics but are not needed by application callers.
+`IConfiglueSources<T>.MigrateSourceAsync(sourceKey, targetKey)` copies one source contribution, applies its schema migration chain, and writes it to a selected destination. Use `SourceKey<T>.Named("legacy")` and `SourceKey<T>.Named("current")` for stable application-defined logical names; opaque provider-generated IDs remain useful for diagnostics but are not needed by application callers.
 
 ## Multi-target migration with retirement
 
@@ -29,7 +27,7 @@ var migration = new StateStorageMigrationDefinition<AppSettings.Fragment>(
     retireSources: true);
 
 var journal = new FileStateStorageMigrationJournal("./.configlue-migrations");
-var progress = await ((IConfiglueOptions<AppSettings>)options).MigrateAsync(migration, journal);
+var progress = await ((IConfiglueSources<AppSettings>)options).MigrateAsync(migration, journal);
 ```
 
 Before building options on the next startup, call `journal.ReadAsync(migration.Id)`. If `SourcesRetired` is true, omit the legacy JSON source from registration. Calling `MigrateAsync` with the same definition returns the retired progress without reading the old source. If migration stopped partway through, register the old source and resume with the same journal.
