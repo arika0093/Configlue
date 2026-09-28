@@ -64,6 +64,99 @@ public sealed class StateRevisionVector
         _nestedRevisions = CreateNestedRevisionMap(nestedRevisions);
     }
 
+    /// <summary>Creates a revision vector from spans without requiring collection enumerators.</summary>
+    public static StateRevisionVector FromSpan(
+        ReadOnlySpan<StateRevision> revisions,
+        ReadOnlySpan<KeyValuePair<string, StateRevisionVector>> nestedRevisions = default
+    ) =>
+        new(CreateRevisionMapFromSpan(revisions), CreateNestedRevisionMapFromSpan(nestedRevisions));
+
+    private StateRevisionVector(
+        IReadOnlyDictionary<string, string?> revisions,
+        IReadOnlyDictionary<string, StateRevisionVector> nestedRevisions
+    )
+    {
+        _revisions = revisions;
+        _nestedRevisions = nestedRevisions;
+    }
+
+    private static IReadOnlyDictionary<string, string?> CreateRevisionMapFromSpan(
+        ReadOnlySpan<StateRevision> revisions
+    )
+    {
+        if (revisions.IsEmpty)
+        {
+            return EmptyRevisions;
+        }
+
+        var first = revisions[0];
+        ArgumentException.ThrowIfNullOrWhiteSpace(first.SourceId);
+        if (revisions.Length == 1)
+        {
+            return new SingleEntryReadOnlyDictionary<string?>(first.SourceId, first.Revision);
+        }
+
+        var values = new Dictionary<string, string?>(revisions.Length, StringComparer.Ordinal)
+        {
+            [first.SourceId] = first.Revision,
+        };
+        for (var index = 1; index < revisions.Length; index++)
+        {
+            var item = revisions[index];
+            ArgumentException.ThrowIfNullOrWhiteSpace(item.SourceId);
+            if (!values.TryAdd(item.SourceId, item.Revision))
+            {
+                throw new ArgumentException(
+                    $"Source '{item.SourceId}' occurs more than once in the revision vector.",
+                    nameof(revisions)
+                );
+            }
+        }
+
+        return new ReadOnlyDictionary<string, string?>(values);
+    }
+
+    private static IReadOnlyDictionary<string, StateRevisionVector> CreateNestedRevisionMapFromSpan(
+        ReadOnlySpan<KeyValuePair<string, StateRevisionVector>> nestedRevisions
+    )
+    {
+        if (nestedRevisions.IsEmpty)
+        {
+            return EmptyNestedRevisions;
+        }
+
+        var first = nestedRevisions[0];
+        ArgumentException.ThrowIfNullOrWhiteSpace(first.Key);
+        ArgumentNullException.ThrowIfNull(first.Value);
+        if (nestedRevisions.Length == 1)
+        {
+            return new SingleEntryReadOnlyDictionary<StateRevisionVector>(first.Key, first.Value);
+        }
+
+        var values = new Dictionary<string, StateRevisionVector>(
+            nestedRevisions.Length,
+            StringComparer.Ordinal
+        )
+        {
+            [first.Key] = first.Value,
+        };
+        for (var index = 1; index < nestedRevisions.Length; index++)
+        {
+            var item = nestedRevisions[index];
+            ArgumentException.ThrowIfNullOrWhiteSpace(item.Key);
+            ArgumentNullException.ThrowIfNull(item.Value);
+            if (!values.TryAdd(item.Key, item.Value))
+            {
+                throw new ArgumentException(
+                    $"Source '{item.Key}' occurs more than once in the nested revision vectors.",
+                    nameof(nestedRevisions)
+                );
+            }
+        }
+
+        return new ReadOnlyDictionary<string, StateRevisionVector>(values);
+    }
+
     private static IReadOnlyDictionary<string, string?> CreateRevisionMap(
         IEnumerable<StateRevision> revisions
     )

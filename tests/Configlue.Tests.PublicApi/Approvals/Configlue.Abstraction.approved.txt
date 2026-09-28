@@ -646,6 +646,7 @@ namespace Configlue
         public System.Collections.Generic.IReadOnlyDictionary<string, string?> Revisions { get; }
         public bool TryGetNestedRevisions(string sourceId, out Configlue.StateRevisionVector? revisions) { }
         public bool TryGetRevision(string sourceId, out string? revision) { }
+        public static Configlue.StateRevisionVector FromSpan(System.ReadOnlySpan<Configlue.StateRevision> revisions, System.ReadOnlySpan<System.Collections.Generic.KeyValuePair<string, Configlue.StateRevisionVector>> nestedRevisions = default) { }
     }
     public sealed class StateSchemaDispatcher<T>
     {
