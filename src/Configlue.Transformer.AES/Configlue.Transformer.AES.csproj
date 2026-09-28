@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>Configlue.Transformer.AES</AssemblyName>
+    <RootNamespace>Configlue.Transformer.AES</RootNamespace>
+    <IsPackable>true</IsPackable>
+    <PackageDescription>AES-GCM byte transformation for Configlue state resources.</PackageDescription>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Configlue.Abstraction/Configlue.Abstraction.csproj" />
+  </ItemGroup>
+</Project>

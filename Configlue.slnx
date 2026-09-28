@@ -26,6 +26,9 @@
     <Project Path="src/Configlue.Resource.Http/Configlue.Resource.Http.csproj" />
     <Project Path="src/Configlue.Resource.Http.AspNetCore/Configlue.Resource.Http.AspNetCore.csproj" />
   </Folder>
+  <Folder Name="/src/Transformers/">
+    <Project Path="src/Configlue.Transformer.AES/Configlue.Transformer.AES.csproj" />
+  </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Configlue.Tests/Configlue.Tests.csproj" />
     <Project Path="tests/Configlue.Tests.PublicApi/Configlue.Tests.PublicApi.csproj" />

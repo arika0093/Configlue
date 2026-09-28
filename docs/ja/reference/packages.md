@@ -26,6 +26,7 @@ description: 機能ごとの NuGet パッケージを探す。
 | `Configlue.Resource.Dapr` | Dapr State Management 向けの任意 byte resource と source 登録。 |
 | `Configlue.Resource.S3` | ETag revision を使う Amazon S3 object resource と source 登録。 |
 | `Configlue.Resource.Zip` | ZIP アーカイブ内1エントリのリソースビュー。 |
+| `Configlue.Transformer.AES` | Resource と Codec の間で state bytes を AES-GCM 暗号化・認証。 |
 
 パッケージ参照と版の正本はプロジェクトファイルです。任意プロバイダーは必要になったら直接インストールしてください。まずは [インストール](../getting-started/installation.md) からどうぞ。
 

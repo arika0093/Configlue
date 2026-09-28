@@ -26,6 +26,7 @@ description: Find the NuGet package for each Configlue capability.
 | `Configlue.Resource.Dapr` | Optional byte resources and source registration for Dapr State Management. |
 | `Configlue.Resource.S3` | Optional Amazon S3 object resources and source registration with ETag revisions. |
 | `Configlue.Resource.Zip` | Resource view over one entry in a ZIP archive. |
+| `Configlue.Transformer.AES` | AES-GCM encryption and authentication for state bytes between a Resource and Codec. |
 
 The package references and versions in the project files are the source of truth. Install optional provider packages directly when you need them. Start with [Installation](../getting-started/installation.md).
 

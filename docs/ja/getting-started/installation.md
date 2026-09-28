@@ -40,6 +40,7 @@ dotnet add package Configlue
 | Dapr state store への永続化 | `Configlue.Resource.Dapr` |
 | Amazon S3 object の読み書き | `Configlue.Resource.S3` |
 | ZIP アーカイブ内エントリ | `Configlue.Resource.Zip` |
+| Resource と Codec 間の AES-GCM 暗号化 | `Configlue.Transformer.AES` |
 | テスト用インメモリダブル | `Configlue.Testing` |
 
 全一覧と各プロジェクトの役割は [パッケージリファレンス](../reference/packages.md) を参照してください。
