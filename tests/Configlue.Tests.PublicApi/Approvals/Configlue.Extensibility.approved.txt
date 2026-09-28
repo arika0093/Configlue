@@ -16,24 +16,24 @@ namespace Configlue.Extensibility
             where TRootFragment :  class, Configlue.IConfiglueFragment<TRootFragment>
             where TSubtreeFragment :  class, Configlue.IConfiglueFragment<TSubtreeFragment> { }
         public static void AddMounted<TModel, TRootFragment, TSubtreeModel, TSubtreeFragment>(this Configlue.ConfiglueSourceSetBuilder sources, Configlue.Sources.StateSource<TSubtreeFragment> source, System.Linq.Expressions.Expression<System.Func<TModel, TSubtreeModel?>> subtreeSelector)
-            where TModel : Configlue.IConfiglueModel<TModel, TRootFragment>
+            where TModel : Configlue.CompilerServices.IConfiglueModel<TModel, TRootFragment>
             where TRootFragment :  class, Configlue.IConfiglueFragment<TRootFragment>
-            where TSubtreeModel :  class, Configlue.IConfiglueModel<TSubtreeModel, TSubtreeFragment>
+            where TSubtreeModel :  class, Configlue.CompilerServices.IConfiglueModel<TSubtreeModel, TSubtreeFragment>
             where TSubtreeFragment :  class, Configlue.IConfiglueFragment<TSubtreeFragment> { }
         public static void AddMounted<TModel, TRootFragment, TSubtreeModel, TSubtreeFragment>(this Configlue.ConfiglueSourceSetBuilder sources, System.Func<System.IServiceProvider?, Configlue.Sources.StateSource<TSubtreeFragment>> sourceFactory, System.Linq.Expressions.Expression<System.Func<TModel, TSubtreeModel?>> subtreeSelector)
-            where TModel : Configlue.IConfiglueModel<TModel, TRootFragment>
+            where TModel : Configlue.CompilerServices.IConfiglueModel<TModel, TRootFragment>
             where TRootFragment :  class, Configlue.IConfiglueFragment<TRootFragment>
-            where TSubtreeModel :  class, Configlue.IConfiglueModel<TSubtreeModel, TSubtreeFragment>
+            where TSubtreeModel :  class, Configlue.CompilerServices.IConfiglueModel<TSubtreeModel, TSubtreeFragment>
             where TSubtreeFragment :  class, Configlue.IConfiglueFragment<TSubtreeFragment> { }
         public static void AddMounted<TModel, TRootFragment, TSubtreeModel, TSubtreeFragment>(this Configlue.ConfiglueSourceSetBuilder sources, Configlue.Sources.StateSource<TSubtreeFragment> source, System.Linq.Expressions.Expression<System.Func<TModel, TSubtreeModel?>> subtreeSelector, System.Func<TRootFragment, TSubtreeFragment> toSource)
-            where TModel : Configlue.IConfiglueModel<TModel, TRootFragment>
+            where TModel : Configlue.CompilerServices.IConfiglueModel<TModel, TRootFragment>
             where TRootFragment :  class, Configlue.IConfiglueFragment<TRootFragment>
-            where TSubtreeModel :  class, Configlue.IConfiglueModel<TSubtreeModel, TSubtreeFragment>
+            where TSubtreeModel :  class, Configlue.CompilerServices.IConfiglueModel<TSubtreeModel, TSubtreeFragment>
             where TSubtreeFragment :  class, Configlue.IConfiglueFragment<TSubtreeFragment> { }
         public static void AddMounted<TModel, TRootFragment, TSubtreeModel, TSubtreeFragment>(this Configlue.ConfiglueSourceSetBuilder sources, System.Func<System.IServiceProvider?, Configlue.Sources.StateSource<TSubtreeFragment>> sourceFactory, System.Linq.Expressions.Expression<System.Func<TModel, TSubtreeModel?>> subtreeSelector, System.Func<TRootFragment, TSubtreeFragment> toSource)
-            where TModel : Configlue.IConfiglueModel<TModel, TRootFragment>
+            where TModel : Configlue.CompilerServices.IConfiglueModel<TModel, TRootFragment>
             where TRootFragment :  class, Configlue.IConfiglueFragment<TRootFragment>
-            where TSubtreeModel :  class, Configlue.IConfiglueModel<TSubtreeModel, TSubtreeFragment>
+            where TSubtreeModel :  class, Configlue.CompilerServices.IConfiglueModel<TSubtreeModel, TSubtreeFragment>
             where TSubtreeFragment :  class, Configlue.IConfiglueFragment<TSubtreeFragment> { }
     }
     public sealed class SerializedStateReader<T> : Configlue.State.IStateReader<T>

@@ -32,12 +32,19 @@ public static class PublicApiCheck
 
     public static void CheckAssembly(Assembly assembly) => Check(assembly);
 
-    private static void Check(Assembly assembly)
+    public static void CheckCompiler(Assembly assembly) => Check(assembly, compilerOnly: true);
+
+    private static void Check(Assembly assembly, bool compilerOnly = false)
     {
-        var assemblyName = assembly.GetName().Name!;
+        var assemblyName =
+            assembly.GetName().Name! + (compilerOnly ? ".CompilerServices" : string.Empty);
         var publicApi = assembly.GeneratePublicApi(
             new()
             {
+                IncludeTypes = assembly
+                    .GetExportedTypes()
+                    .Where(type => (type.Namespace == "Configlue.CompilerServices") == compilerOnly)
+                    .ToArray(),
                 ExcludeAttributes =
                 [
                     typeof(InternalsVisibleToAttribute).FullName!,
@@ -45,7 +52,10 @@ public static class PublicApiCheck
                 ],
             }
         );
-        publicApi += FormatFacadeModelStaticMemberModifiers(assembly);
+        if (compilerOnly)
+        {
+            publicApi += FormatFacadeModelStaticMemberModifiers(assembly);
+        }
 
         if (Environment.GetEnvironmentVariable(UpdateApprovalsEnvironmentVariable) == "1")
         {
@@ -76,7 +86,7 @@ public static class PublicApiCheck
 
     private static string FormatFacadeModelStaticMemberModifiers(Assembly assembly)
     {
-        var contract = assembly.GetType("Configlue.IConfiglueFacadeModel`1");
+        var contract = assembly.GetType("Configlue.CompilerServices.IConfiglueFacadeModel`1");
         if (contract is null)
         {
             return string.Empty;
@@ -118,19 +128,12 @@ public sealed class PublicApiCheckTest
     public void Core() => PublicApiCheck.CheckAssembly(typeof(ConfiglueOptions<,>).Assembly);
 
     [Test]
-    public void CoreFacadeModelStaticMemberModifiers()
-    {
-        var contract = typeof(IConfiglueFacadeModel<>);
-        var runtimeFactory = contract.GetMethod("CreateConfiglueRuntime")!;
-        var profileManagerFactory = contract.GetMethod("CreateConfiglueProfileManager")!;
+    public void CompilerAbstraction() =>
+        PublicApiCheck.CheckCompiler(typeof(IConfiglueModel<,>).Assembly);
 
-        (runtimeFactory.IsStatic).ShouldBeTrue();
-        (runtimeFactory.IsAbstract).ShouldBeTrue();
-        (runtimeFactory.IsVirtual).ShouldBeTrue();
-        (profileManagerFactory.IsStatic).ShouldBeTrue();
-        (profileManagerFactory.IsAbstract).ShouldBeFalse();
-        (profileManagerFactory.IsVirtual).ShouldBeTrue();
-    }
+    [Test]
+    public void CompilerRuntime() =>
+        PublicApiCheck.CheckCompiler(typeof(IConfiglueFacadeModel<>).Assembly);
 
     [Test]
     public void DependencyInjection() =>

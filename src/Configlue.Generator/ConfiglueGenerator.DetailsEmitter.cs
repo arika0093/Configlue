@@ -25,7 +25,7 @@ public sealed partial class ConfiglueGenerator
             1,
             "public Details("
                 + modelType
-                + " value, global::Configlue.ConfiglueDetailsSnapshot snapshot)"
+                + " value, global::Configlue.CompilerServices.ConfiglueDetailsSnapshot snapshot)"
         );
         code.AppendLineAt(1, "    : this(value, snapshot, \"\")");
         code.AppendLineAt(1, "{");
@@ -34,7 +34,7 @@ public sealed partial class ConfiglueGenerator
             1,
             "public Details("
                 + modelType
-                + " value, global::Configlue.ConfiglueDetailsSnapshot snapshot, string pathPrefix)"
+                + " value, global::Configlue.CompilerServices.ConfiglueDetailsSnapshot snapshot, string pathPrefix)"
         );
         code.AppendLineAt(1, "{");
         code.AppendLineAt(2, "global::System.ArgumentNullException.ThrowIfNull(snapshot);");
@@ -150,7 +150,7 @@ public sealed partial class ConfiglueGenerator
     {
         code.AppendLineAt(
             1,
-            "private static global::Configlue.ConfigValueDetails<T> Leaf<T>(global::Configlue.ConfiglueDetailsSnapshot snapshot, T effective, string prefix, string memberName)"
+            "private static global::Configlue.ConfigValueDetails<T> Leaf<T>(global::Configlue.CompilerServices.ConfiglueDetailsSnapshot snapshot, T effective, string prefix, string memberName)"
         );
         code.AppendLineAt(1, "{");
         code.AppendLineAt(2, "var segments = (prefix + memberName).Split('.');");
@@ -166,7 +166,7 @@ public sealed partial class ConfiglueGenerator
         code.AppendLineAt(3, "object? raw = null;");
         code.AppendLineAt(
             3,
-            "var present = fragment is not null && global::Configlue.ConfiglueDetailsSnapshot.TryGetPathValue(fragment, segments, out raw) && (raw is null || raw is T);"
+            "var present = fragment is not null && global::Configlue.CompilerServices.ConfiglueDetailsSnapshot.TryGetPathValue(fragment, segments, out raw) && (raw is null || raw is T);"
         );
         code.AppendLineAt(3, "var status = snapshot.SourceStatuses[index];");
         code.AppendLineAt(
@@ -211,7 +211,7 @@ public sealed partial class ConfiglueGenerator
         code.AppendLineAt(1, "}");
         code.AppendLineAt(
             1,
-            "private static global::Configlue.ConfigCollectionDetails<E> Collection<E>(global::Configlue.ConfiglueDetailsSnapshot snapshot, global::System.Collections.Generic.IReadOnlyList<E> effective, bool replaceSemantics, string prefix, string memberName)"
+            "private static global::Configlue.ConfigCollectionDetails<E> Collection<E>(global::Configlue.CompilerServices.ConfiglueDetailsSnapshot snapshot, global::System.Collections.Generic.IReadOnlyList<E> effective, bool replaceSemantics, string prefix, string memberName)"
         );
         code.AppendLineAt(1, "{");
         code.AppendLineAt(2, "var segments = (prefix + memberName).Split('.');");
@@ -228,7 +228,7 @@ public sealed partial class ConfiglueGenerator
         code.AppendLineAt(3, "object? raw = null;");
         code.AppendLineAt(
             3,
-            "var present = fragment is not null && global::Configlue.ConfiglueDetailsSnapshot.TryGetPathValue(fragment, segments, out raw) && raw is global::System.Collections.IEnumerable sequence;"
+            "var present = fragment is not null && global::Configlue.CompilerServices.ConfiglueDetailsSnapshot.TryGetPathValue(fragment, segments, out raw) && raw is global::System.Collections.IEnumerable sequence;"
         );
         code.AppendLineAt(
             3,
@@ -317,7 +317,7 @@ public sealed partial class ConfiglueGenerator
         code.AppendLineAt(2, "global::System.ArgumentNullException.ThrowIfNull(options);");
         code.AppendLineAt(
             2,
-            "if (options is not global::Configlue.IConfiglueInspection<" + modelType + "> advanced)"
+            "if (options is not global::Configlue.CompilerServices.IConfiglueDetailsRuntime advanced)"
         );
         code.AppendLineAt(2, "{");
         code.AppendLineAt(

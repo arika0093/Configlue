@@ -58,7 +58,7 @@ public sealed class JsonAotTests
         );
         var projected = StateSourceProjection.Project(
             source,
-            static settings => JsonAotSettings.ToFragment(settings),
+            static settings => JsonAotSettings.Fragment.From(settings),
             static fragment => fragment.ToModel(),
             projectedSchema: JsonAotSettings.ConfiglueSchema.ToMetadata()
         );

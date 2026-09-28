@@ -130,6 +130,7 @@ public sealed class JsonStateCodec<T>
         _options = options is null
             ? new JsonSerializerOptions()
             : new JsonSerializerOptions(options);
+        EnsureTypeInfoResolver(_options);
         _pipelineOptions = CreatePipelineOptions(_options);
         _layout = documentLayout;
     }
@@ -263,8 +264,11 @@ public sealed class JsonStateCodec<T>
                     ? JsonStateCodecOperations.GetFilteredPayload(payload, _layout, _options)
                     : null;
             var strictValue = filteredPayload.HasValue
-                ? JsonSerializer.Deserialize<T>(filteredPayload.Value.Span, _pipelineOptions)
-                : payload.Deserialize<T>(_pipelineOptions);
+                ? JsonSerializer.Deserialize(
+                    filteredPayload.Value.Span,
+                    (JsonTypeInfo<T>)_pipelineOptions.GetTypeInfo(typeof(T))
+                )
+                : payload.Deserialize((JsonTypeInfo<T>)_pipelineOptions.GetTypeInfo(typeof(T)));
             return StateReadResult<T>.Success(strictValue, schema: strictSchema);
         }
 
@@ -275,7 +279,11 @@ public sealed class JsonStateCodec<T>
         try
         {
             value = await JsonSerializer
-                .DeserializeAsync<T>(capturingStream, _pipelineOptions, cancellationToken)
+                .DeserializeAsync(
+                    capturingStream,
+                    (JsonTypeInfo<T>)_pipelineOptions.GetTypeInfo(typeof(T)),
+                    cancellationToken
+                )
                 .ConfigureAwait(false);
         }
         catch (JsonException exception)

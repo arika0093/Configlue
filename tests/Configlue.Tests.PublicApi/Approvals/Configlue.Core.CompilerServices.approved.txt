@@ -1,0 +1,24 @@
+[assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/arika0093/Configlue")]
+namespace Configlue.CompilerServices
+{
+    public sealed class ConfiglueModelDescriptor<TModel>
+        where TModel : Configlue.CompilerServices.IConfiglueFacadeModel<TModel>
+    {
+        public System.Func<Configlue.IConfiglueOptionsRegistry<TModel>, Configlue.Sources.StateSource<Configlue.ConfiglueProfileCatalog>, string, Configlue.IConfiglueProfiledOptions<TModel>> CreateProfiles { get; }
+        public System.Func<Configlue.ConfiglueModelBuilder<TModel>, System.IServiceProvider?, System.Action<System.IDisposable>, Configlue.IWritableOptions<TModel>> CreateRuntime { get; }
+        public Configlue.ConfiglueModelSchema Schema { get; }
+    }
+    public static class ConfiglueRuntime
+    {
+        public static Configlue.CompilerServices.ConfiglueModelDescriptor<TModel> Describe<TModel, TFragment>(Configlue.ConfiglueModelSchema schema)
+            where TModel : Configlue.CompilerServices.IConfiglueFacadeModel<TModel>, Configlue.CompilerServices.IConfiglueModel<TModel, TFragment>
+            where TFragment :  class, Configlue.IConfiglueFragment<TFragment> { }
+    }
+    public interface IConfiglueFacadeModel<TSelf>
+        where TSelf : Configlue.CompilerServices.IConfiglueFacadeModel<TSelf>
+    {
+        Configlue.CompilerServices.ConfiglueModelDescriptor<TSelf> Descriptor { get; }
+    }
+}
+// Compiled static interface member modifiers
+IConfiglueFacadeModel.get_Descriptor: static abstract virtual

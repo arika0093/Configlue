@@ -128,7 +128,7 @@ public sealed partial class ConfiglueGenerator
                 + modelType
                 + " value) => __configlue_whole_operation = global::Configlue.FragmentOperation<Fragment?>.Set("
                 + modelType
-                + ".ToFragment(value));"
+                + ".Fragment.From(value));"
         );
         code.AppendLineAt(
             2,
