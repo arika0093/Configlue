@@ -1,18 +1,96 @@
 # Configlue
 
-Typed configuration assembled from independent state sources.
+**Make configuration management easier.**
 
-Configlue is a source-generator-first .NET library for reading, resolving, editing, and persisting typed configuration. Each source contributes only the fields it owns, so values can be layered — JSON files, environment variables, command-line options, HTTP resources — without replacing an entire settings object.
+Configlue combines typed settings from files, environment variables, command-line arguments, HTTP resources, and other sources. It keeps track of where values come from, so an update can change one setting without replacing unrelated settings.
 
-Browse the [Configlue documentation site](https://arika0093.github.io/Configlue/) for comprehensive guides, tutorials, and API concepts.
+## Why Configlue?
+### Configurations are easy ... until they aren't.
 
-## Key Features
+Saving and loading a single JSON file is straightforward:
 
-* **Sparse Generated Fragments**: Read, resolve, and update only the fields you touch, leaving other settings and files intact.
-* **Standard-by-Default Architecture**: Use `CommonSource` out of the box to manage global (per-user) settings, local overrides, and environment variables with zero boilerplate.
-* **Extensible Layering**: Start with `CommonSource` and seamlessly extend with command-line arguments, remote HTTP policies, or custom sources via `model.Sources(...)`.
-* **Safe Persistence**: Built-in atomic file writes with automatic backups, conflict detection, and debounce-enabled change notifications.
-* **Universal .NET Support**: Works with or without DI (Console, Desktop, ASP.NET Core, Worker Services) and supports NativeAOT.
+```cs
+// load
+var file = File.ReadAllText("settings.json");
+var config = JsonSerializer.Deserialize<AppSettings>(file);
+// save
+var json = JsonSerializer.Serialize(config);
+File.WriteAllText("settings.json", json);
+```
+
+…until it's not.
+
+### Configurations checklist
+
+As an application grows, you may need to:
+
+* Combine per-user defaults with files in the current working directory, then add environment variables or command-line values when needed.
+* Load optional encrypted secrets or remote policy. These require additional source or transformer configuration, such as the [AES-GCM guide](https://arika0093.github.io/Configlue/en/getting-started/05-encrypted-secrets/).
+* React to changes from sources that support change notifications.
+* Save changes to a writable source. Read-only overrides, such as environment variables, cannot be changed by saving; a conflicting save raises an error rather than being silently ignored.
+* Keep human-edited files readable. JSON and YAML file writes preserve unrelated comments and formatting; JSON also accepts comments and trailing commas.
+* Export JSON Schema for external validation and optionally recover from a damaged file using a valid backup. See [JSON Schema](https://arika0093.github.io/Configlue/en/advanced/json-schema-and-testing/) and [backup recovery](https://arika0093.github.io/Configlue/en/advanced/backups-and-observability/).
+* Evolve the settings format. Older versions can be migrated when the application declares a migration; see the [schema migration guide](https://arika0093.github.io/Configlue/en/migration/schema-migration/).
+* Protect file writes with atomic replacement, optional revision checks, retries, and backups. File backups are enabled by default, and older generations are pruned to the configured limit.
+
+Configlue provides building blocks for these cases, while optional layers and recovery behavior remain explicit.
+
+### Configlue's Approach
+
+Configlue combines values contributed by independent sources into one typed model. This example illustrates the idea; each source must be configured by the application:
+
+```jsonc
+{
+  "Name": "Alice",   // This value comes from global.
+  "RunCount": 42,    // This value only exists in local.
+  "Theme": "Dark",   // This value exists in both global and local, but local takes precedence.
+  "Server": {
+    "Host": "localhost:8080",  // This configuration was set via command-line arguments (-h localhost:8080).
+    "Username": "alice",       // This value comes from an environment variable (MYAPP__SERVER__USERNAME).
+    "Password": "secret"       // This value was decrypted from encrypted credentials.
+  },
+  "Features": {
+    "EnableFeatureX": true,  // These settings come from a remote-managed HTTP policy.
+    "EnableFeatureY": false  // This example's remote source is read-only.
+  }
+}
+```
+
+*Configlue* joins (**glues**) separate sources of **configuration** into one model.
+
+### Check where values come from and save updates
+
+Read the combined value with `GetValueAsync`. Use `GetDetailsAsync` to inspect its contributing sources:
+
+```csharp
+var options = context.GetOptions<AppSettings>();
+// 1. Get the current value (merged from all sources)
+var current = await options.GetValueAsync();
+Console.WriteLine($"Hello, {current.Name}! (Run #{current.RunCount})");
+
+// 2. Get the details of where each value came from
+var details = await options.GetDetailsAsync();
+// Values can be referenced normally.
+Console.WriteLine($"Name came from {details.Name.Source?.Locator}");
+Console.WriteLine($"Can write Name? {details.Name.IsEditable}");
+foreach (var contribution in details.Name.Sources)
+{
+    var source = contribution.Source;
+    Console.WriteLine(
+        $"  {source.Kind} | {source.Locator} | writable: {source.CanWrite} | state: {contribution.State}"
+    );
+}
+```
+
+Save a patch to update only the members it specifies. `Unset` removes that source's contribution so a lower-priority source can provide the value:
+
+```csharp
+await options.SaveAsync(patch =>
+{
+    patch.Name = "Bob"; // Specify only the items you want to change
+    patch.RunCount.Unset(); // Remove this source's value; a lower-priority source may provide one.
+});
+```
 
 ## Quick Start
 
@@ -31,6 +109,7 @@ public partial class SampleSetting
 {
     public string Name { get; set; } = "World";
     public int RunCount { get; set; }
+    public bool DefaultValue { get; set; } = true;
 }
 
 // 2. Initialize using CommonSource (recommended default).
@@ -39,7 +118,8 @@ await using var context = ConfiglueApp.CreateContext(conf =>
 {
     conf.Add<SampleSetting>(model =>
     {
-        model.UseCommonSources("SampleApp");
+        // Global and local files; the prefix opts into the environment layer.
+        model.UseCommonSources("SampleApp", environmentPrefix: "SAMPLE");
     });
 });
 
@@ -53,142 +133,27 @@ await options.SaveAsync(patch =>
 {
     patch.Name = "Alice";
     patch.RunCount = current.RunCount + 1;
+    // DefaultValue is not modified, so it will not be saved to the target layer.
 });
 
 var updated = await options.GetValueAsync();
 Console.WriteLine($"Saved. Hello, {updated.Name}! (Run #{updated.RunCount})");
 ```
 
-## Why CommonSource as the Default?
+`UseCommonSources` layers a file in the OS-standard per-user configuration directory and `settings.json` in the current working directory. Environment variables are not enabled unless you provide a prefix; here, `SAMPLE__NAME` overrides `Name`.
 
-In real-world applications, configuration rarely lives in a single place. You often need:
+By default, `SaveAsync` writes to the local file. If you provide a specific file, that becomes the default write destination. Environment variables are read-only.
 
-1. **Global defaults** stored in the OS-standard per-user configuration folder.
-2. **Local overrides** in the project or current working directory.
-3. **Environment variable** overrides in container or CI/CD environments.
-4. **Command-line arguments** for debugging or quick experiments.
+For command-line overrides, install `Configlue.Source.CommandLine` and map values from the `System.CommandLine` parse result. For complete examples and options, see the [CommonSource guide](https://arika0093.github.io/Configlue/en/basic-usage/common-sources/) and [tutorials](https://arika0093.github.io/Configlue/en/getting-started/quick-start/).
 
-Instead of wiring up paths and priority orders manually, `model.UseCommonSources("YourAppId")` gives you this layered architecture immediately:
+## FAQ
+### Why not just use `IConfiguration`?
 
-| Layer | Location / Source | Priority | Writable |
-| --- | --- | :---: | :---: |
-| **Global** | OS per-user settings directory (`settings.json`) | Low | Yes (via source handle or explicit write layer) |
-| **Local** | Current directory (`settings.json`) | Medium | Yes (default save destination) |
-| **Specific** | Command-line selected file (optional) | High | Yes (default destination when provided) |
-| **Environment** | Process environment variables (optional) | Highest | Read-only |
+`Microsoft.Extensions.Configuration` is a good fit when an application needs to read configuration. Configlue is an alternative when settings also need to be combined from independent sources, inspected by provenance, or saved as sparse updates.
 
-The precedence and numeric priorities are generated by the preset; source IDs and priority values are implementation details. Ordinary writes target the specific file when configured, otherwise the local file. All file layers remain writable through explicit handles; use `CommonSource.Global`, `CommonSource.Local`, or `CommonSource.Specific` to select one without depending on an ID string.
+### I already have existing configuration files.
 
-### Extending from CommonSource
-
-`CommonSource` is designed to be the foundation for almost all scenarios. You can customize options or append additional sources cleanly:
-
-```csharp
-conf.Add<AppSettings>(model =>
-{
-    // 1. CommonSource base configuration
-    model.UseCommonSources(new CommonSourceOptions
-    {
-        ApplicationId = "MyApp",
-        GlobalFileName = "settings.json",
-        EnvironmentPrefix = "MYAPP", // Reads MYAPP__SERVER__PORT, etc.
-        SpecificFilePath = argsPath, // Optional custom file from command line
-    });
-
-    // 2. Seamlessly add other layers (e.g., HTTP policy or custom source)
-    model.Sources(sources =>
-    {
-        sources.FromJsonHttp(new()
-        {
-            Id = "remote-policy",
-            EndPoint = "https://policy.example.internal/settings",
-            Priority = 500, // Higher priority than local/global files
-            FallbackCondition = StateFallbackCondition.NotFoundOrUnavailable,
-        });
-    });
-});
-```
-
-To add command-line overrides, install `Configlue.Source.CommandLine` and call its `UseCommonSources` overload with your `System.CommandLine` parse result:
-
-```csharp
-using Configlue.Source.CommandLine;
-
-model.UseCommonSources(commonOptions, parseResult, mappings =>
-{
-    mappings.Map<AppSettings, int>(portOption, s => s.Server.Port);
-});
-```
-
-## Dependency Injection (ASP.NET Core / Worker)
-
-In host applications, use `services.AddConfiglue`:
-
-```csharp
-// Program.cs
-builder.Services.AddConfiglue(conf =>
-{
-    conf.Add<AppSettings>(model =>
-    {
-        model.UseCommonSources("MyApp");
-    });
-});
-
-// In your services:
-public class GreeterService(IWritableOptions<AppSettings> options)
-{
-    public async Task SayHelloAsync()
-    {
-        var settings = await options.GetValueAsync();
-        Console.WriteLine($"Hello, {settings.Name}!");
-    }
-}
-```
-
-To integrate with Microsoft's `IOptions<T>` ecosystem, install `Configlue.Extensions.MSOptions` and call `services.AddConfiglueMicrosoftOptions<AppSettings>()`.
-
-## Documentation & Guides
-
-Detailed guides and references have moved to the [Configlue documentation site](https://arika0093.github.io/Configlue/):
-
-- **Tutorials**:
-  - [Step 1: Your first file-based app](https://arika0093.github.io/Configlue/en/getting-started/01-first-file-app/)
-  - [Step 2: Realistic models & collections](https://arika0093.github.io/Configlue/en/getting-started/02-real-world-model/)
-  - [Step 3: Shared and local configurations](https://arika0093.github.io/Configlue/en/getting-started/03-global-local/)
-  - [Step 4: Validation](https://arika0093.github.io/Configlue/en/getting-started/04-validation/)
-  - [Step 5: Environment variables](https://arika0093.github.io/Configlue/en/getting-started/05-environment/)
-  - [Step 6: Remote HTTP sources](https://arika0093.github.io/Configlue/en/getting-started/06-http-source/)
-  - [Step 7: JSON Schema generation](https://arika0093.github.io/Configlue/en/getting-started/07-json-schema/)
-  - [Step 8: Version migration](https://arika0093.github.io/Configlue/en/getting-started/08-migration/)
-- **Core Topics**:
-  - [Reading and Writing & Edit Sessions](https://arika0093.github.io/Configlue/en/basic-usage/reading-and-writing/)
-  - [Common Layered Sources](https://arika0093.github.io/Configlue/en/basic-usage/common-sources/)
-  - [Write Routing & Multi-Source Saves](https://arika0093.github.io/Configlue/en/layering/write-routing/)
-  - [Section Resources & Formats (YAML, XML, JSON)](https://arika0093.github.io/Configlue/en/sources/files-and-sections/)
-  - [Profiles & Multi-Tenancy](https://arika0093.github.io/Configlue/en/profiles/profiles/)
-  - [Schema & Storage Migration](https://arika0093.github.io/Configlue/en/migration/schema-migration/)
-  - [NativeAOT & Trimming](https://arika0093.github.io/Configlue/en/advanced/native-aot/)
-
-## Packages
-
-| Package | Purpose |
-| --- | --- |
-| `Configlue` | Metapackage containing Core, DI, JSON provider, HTTP resources, Common layered sources, Environment source, and Generator. |
-| `Configlue.Abstraction` | Core interfaces and attributes. |
-| `Configlue.Core` | Layering, merging, and persistence runtime. |
-| `Configlue.Source.Common` | Global, local, specific file, and environment presets. |
-| `Configlue.Source.CommandLine` | Command-line overrides (`System.CommandLine`). |
-| `Configlue.Source.Environment` | Environment variable source. |
-| `Configlue.Provider.Json` | JSON provider and JSON Schema generator. |
-| `Configlue.Provider.Yaml` | YAML provider (`SharpYaml`). |
-| `Configlue.Provider.Xml` | XML provider. |
-| `Configlue.Resource.Http` | Remote HTTP resource reader/writer with ETag polling. |
-| `Configlue.Resource.S3` | Amazon S3 object reader/writer with ETag revisions. |
-| `Configlue.Resource.Zip` | Single-entry ZIP archive resource. |
-| `Configlue.Transformer.AES` | AES-GCM encryption and authentication for state bytes. |
-| `Configlue.Extensions.DI` | Microsoft Dependency Injection integration. |
-| `Configlue.Extensions.MSOptions` | Adapters for `IOptions<T>`, `IOptionsSnapshot<T>`, and `IOptionsMonitor<T>`. |
-| `Configlue.Testing` | In-memory resources for unit testing. |
+Existing files can be registered as sources. For schema changes, declare a migration from the previous version; see the [schema migration guide](https://arika0093.github.io/Configlue/en/migration/schema-migration/). The [adoption guide](https://arika0093.github.io/Configlue/en/migration/adopting-configuration-writable/) covers files from Configuration.Writable.
 
 ## License
 
