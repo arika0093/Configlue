@@ -24,16 +24,12 @@ File.WriteAllText("settings.json", json);
 
 As an application grows, you may need to:
 
-* Combine per-user defaults with files in the current working directory, then add environment variables or command-line values when needed.
-* Load optional encrypted secrets or remote policy. These require additional source or transformer configuration, such as the [AES-GCM guide](https://arika0093.github.io/Configlue/en/getting-started/05-encrypted-secrets/).
-* React to changes from sources that support change notifications.
-* Save changes to a writable source. Read-only overrides, such as environment variables, cannot be changed by saving; a conflicting save raises an error rather than being silently ignored.
-* Keep human-edited files readable. JSON and YAML file writes preserve unrelated comments and formatting; JSON also accepts comments and trailing commas.
-* Export JSON Schema for external validation and optionally recover from a damaged file using a valid backup. See [JSON Schema](https://arika0093.github.io/Configlue/en/advanced/json-schema-and-testing/) and [backup recovery](https://arika0093.github.io/Configlue/en/advanced/backups-and-observability/).
-* Evolve the settings format. Older versions can be migrated when the application declares a migration; see the [schema migration guide](https://arika0093.github.io/Configlue/en/migration/schema-migration/).
-* Protect file writes with atomic replacement, optional revision checks, retries, and backups. File backups are enabled by default, and older generations are pruned to the configured limit.
+* Store per-user defaults in the OS-standard configuration directory.
+* Keep project-specific overrides in files in the current working directory.
+* Add environment-variable overrides for containers or CI/CD when needed.
+* Use command-line arguments for debugging or quick experiments.
 
-Configlue provides building blocks for these cases, while optional layers and recovery behavior remain explicit.
+`UseCommonSources` sets up the global and local file layers. Environment variables are opt-in through an environment prefix, and command-line values can be added with `Configlue.Source.CommandLine`. Additional sources can be registered with `model.Sources(...)`.
 
 ### Configlue's Approach
 
