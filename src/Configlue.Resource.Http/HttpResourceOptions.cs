@@ -14,4 +14,10 @@ public sealed class HttpResourceOptions
 
     /// <summary>The interval used when polling for resource changes.</summary>
     public TimeSpan PollingInterval { get; init; } = TimeSpan.FromSeconds(5);
+
+    /// <summary>The maximum delay between polls while the HTTP resource is unavailable.</summary>
+    public TimeSpan MaximumPollingInterval { get; init; } = TimeSpan.FromSeconds(30);
+
+    /// <summary>The maximum duration of an HTTP request made by the resource.</summary>
+    public TimeSpan RequestTimeout { get; init; } = TimeSpan.FromSeconds(30);
 }

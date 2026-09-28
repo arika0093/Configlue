@@ -12,10 +12,15 @@ public sealed class ConfiglueOptionsRegistry<TModel, TFragment>
     where TModel : IConfiglueModel<TModel, TFragment>
     where TFragment : class, IConfiglueFragment<TFragment>
 {
-    private sealed class Notification(IWritableOptions<TModel> runtime, Action dispatch)
+    private sealed class Notification(
+        IWritableOptions<TModel> runtime,
+        Action dispatch,
+        Task? ready = null
+    )
     {
         public IWritableOptions<TModel> Runtime { get; } = runtime;
         public Action Dispatch { get; } = dispatch;
+        public Task Ready { get; } = ready ?? Task.CompletedTask;
         public bool IsCancelled { get; set; }
         public TaskCompletionSource Completion { get; } =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -152,11 +157,8 @@ public sealed class ConfiglueOptionsRegistry<TModel, TFragment>
             _pendingAsyncRemovals.Add(removalCompleted.Task);
             notification = new Notification(
                 options,
-                () =>
-                {
-                    notificationReady.Task.GetAwaiter().GetResult();
-                    NotifyRemoved(profileName);
-                }
+                () => NotifyRemoved(profileName),
+                notificationReady.Task
             );
             _notifications.Enqueue(notification);
             waitForNotifications = !_insideNotification.Value && _notificationDeferralCount == 0;
@@ -217,14 +219,7 @@ public sealed class ConfiglueOptionsRegistry<TModel, TFragment>
             {
                 _retiringProfiles.Add(name);
                 _notifications.Enqueue(
-                    new Notification(
-                        options,
-                        () =>
-                        {
-                            notificationReady.Task.GetAwaiter().GetResult();
-                            NotifyRemoved(name);
-                        }
-                    )
+                    new Notification(options, () => NotifyRemoved(name), notificationReady.Task)
                 );
             }
             notificationsToAwait = CaptureQueuedNotificationsLocked();
@@ -325,14 +320,7 @@ public sealed class ConfiglueOptionsRegistry<TModel, TFragment>
             {
                 _retiringProfiles.Add(name);
                 _notifications.Enqueue(
-                    new Notification(
-                        options,
-                        () =>
-                        {
-                            notificationReady.Task.GetAwaiter().GetResult();
-                            NotifyRemoved(name);
-                        }
-                    )
+                    new Notification(options, () => NotifyRemoved(name), notificationReady.Task)
                 );
             }
             notificationsToAwait = CaptureQueuedNotificationsLocked();
@@ -587,6 +575,15 @@ public sealed class ConfiglueOptionsRegistry<TModel, TFragment>
                 {
                     _dispatchingNotifications = false;
                     _activeNotification = null;
+                    return;
+                }
+
+                if (!_notifications.Peek().Ready.IsCompleted)
+                {
+                    var ready = _notifications.Peek().Ready;
+                    _dispatchingNotifications = false;
+                    _activeNotification = null;
+                    ready.GetAwaiter().OnCompleted(DrainNotifications);
                     return;
                 }
 

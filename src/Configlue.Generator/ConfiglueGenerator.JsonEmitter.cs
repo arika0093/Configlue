@@ -56,11 +56,8 @@ public sealed partial class ConfiglueGenerator
             foreach (var member in members)
             {
                 var property = EscapeIdentifier(member.Property.Name);
-                var wireName = GetJsonPropertyName(
-                    member.Property,
-                    code.CancellationToken,
-                    out var explicitName
-                );
+                var wireName = member.Property.JsonPropertyName!;
+                var explicitName = member.Property.HasExplicitJsonPropertyName;
                 code.AppendIndent(5)
                     .Append(first ? "if (" : "else if (")
                     .Append("Matches(propertyName, ")
@@ -85,7 +82,7 @@ public sealed partial class ConfiglueGenerator
                 }
                 else
                 {
-                    var childFragment = NonNullableTypeName(member.ChildModel) + ".Fragment";
+                    var childFragment = member.ChildModel.Value.NonNullableName + ".Fragment";
                     code.AppendIndent(6)
                         .Append("builder.")
                         .Append(property)
@@ -127,11 +124,8 @@ public sealed partial class ConfiglueGenerator
         foreach (var member in members)
         {
             var property = EscapeIdentifier(member.Property.Name);
-            var wireName = GetJsonPropertyName(
-                member.Property,
-                code.CancellationToken,
-                out var explicitName
-            );
+            var wireName = member.Property.JsonPropertyName!;
+            var explicitName = member.Property.HasExplicitJsonPropertyName;
             code.AppendIndent(4).Append("if (value.").Append(property).AppendLine(".IsPresent)");
             code.AppendLineAt(4, "{");
             if (explicitName)
@@ -168,7 +162,7 @@ public sealed partial class ConfiglueGenerator
             }
             else
             {
-                var childFragment = NonNullableTypeName(member.ChildModel) + ".Fragment";
+                var childFragment = member.ChildModel.Value.NonNullableName + ".Fragment";
                 code.AppendIndent(5)
                     .Append("if (value.")
                     .Append(property)

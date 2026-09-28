@@ -24,6 +24,7 @@ internal static class YamlDocumentEditor
     {
         var currentText = current.IsEmpty ? "" : Decode(current.Span, textEncoding);
         var updatedText = Decode(updated.Span, textEncoding);
+        var newline = FindNewline(currentText);
         var currentDocument = YamlTextDocument.Parse(currentText);
         var updatedDocument = YamlTextDocument.Parse(updatedText);
         var shapeDocument = schemaShape.IsEmpty
@@ -67,14 +68,17 @@ internal static class YamlDocumentEditor
                 var wrapped = updatedText[updatedDocument.Root.Start..updatedDocument.Root.End];
                 for (var index = path.Count - 1; index > parentLength; index--)
                 {
-                    wrapped = WrapProperty(path[index], wrapped);
+                    wrapped = WrapProperty(path[index], wrapped, newline);
                 }
 
                 editor.AddPropertyAtPath(parent, path[parentLength], wrapped);
             }
         }
 
-        return Encode(editor.ApplyEdits(), textEncoding);
+        var originalPreamble = textEncoding?.GetPreamble() ?? [];
+        var preservePreamble =
+            originalPreamble.Length > 0 && current.Span.StartsWith(originalPreamble);
+        return Encode(editor.ApplyEdits(), textEncoding, originalPreamble, preservePreamble);
     }
 
     internal static byte[] CreateSchemaShape(
@@ -119,10 +123,10 @@ internal static class YamlDocumentEditor
         return fragment;
     }
 
-    private static string WrapProperty(string name, string value)
+    private static string WrapProperty(string name, string value, string newline)
     {
         var key = YamlSerializer.Serialize(name).TrimEnd('\r', '\n');
-        return key + ":" + Environment.NewLine + Indent(value, "  ");
+        return key + ":" + newline + Indent(value, "  ", newline);
     }
 
     private static string Decode(ReadOnlySpan<byte> content, Encoding? textEncoding)
@@ -141,24 +145,52 @@ internal static class YamlDocumentEditor
         return reader.ReadToEnd();
     }
 
-    private static byte[] Encode(string text, Encoding? textEncoding) =>
-        (textEncoding ?? Encoding.UTF8).GetBytes(text);
+    private static byte[] Encode(
+        string text,
+        Encoding? textEncoding,
+        byte[] preamble,
+        bool preservePreamble
+    )
+    {
+        var encoded = (textEncoding ?? Encoding.UTF8).GetBytes(text);
+        if (!preservePreamble)
+        {
+            return encoded;
+        }
 
-    private static string Indent(string text, string indentation)
+        var result = new byte[preamble.Length + encoded.Length];
+        preamble.CopyTo(result, 0);
+        encoded.CopyTo(result, preamble.Length);
+        return result;
+    }
+
+    private static string Indent(string text, string indentation, string newline)
     {
         var lines = text.Replace("\r\n", "\n", StringComparison.Ordinal)
             .Replace('\r', '\n')
             .Split('\n');
         return string.Join(
-            Environment.NewLine,
+            newline,
             lines.Select(line => line.Length == 0 ? line : indentation + line)
         );
+    }
+
+    private static string FindNewline(string source)
+    {
+        var index = source.IndexOf('\n');
+        if (index > 0 && source[index - 1] == '\r')
+        {
+            return "\r\n";
+        }
+
+        return index >= 0 ? "\n" : Environment.NewLine;
     }
 
     private sealed class Editor(YamlTextDocument document)
     {
         private readonly List<TextEdit> _edits = [];
         private readonly HashSet<int> _removedFlowCommas = [];
+        private string Newline => FindNewline(document.Source);
 
         internal void AddDiff(
             YamlTextNode current,
@@ -201,7 +233,7 @@ internal static class YamlDocumentEditor
                 throw new YamlException("A YAML section's containing value must be a mapping.");
             }
 
-            AddProperties(parent, [WrapProperty(name, value)], parent.Properties!);
+            AddProperties(parent, [WrapProperty(name, value, Newline)], parent.Properties!);
         }
 
         internal string ApplyEdits()
@@ -324,7 +356,11 @@ internal static class YamlDocumentEditor
             var raw = Slice(updated.Source, updatedStart, updatedEnd);
             if (currentProperty is not null && updated.Kind != YamlTextKind.Scalar)
             {
-                raw = Reindent(raw, GetIndentation(document.Source, currentProperty.EntryStart));
+                raw = Reindent(
+                    raw,
+                    GetIndentation(document.Source, currentProperty.EntryStart),
+                    Newline
+                );
             }
 
             _edits.Add(new TextEdit(start, end - start, raw));
@@ -437,7 +473,9 @@ internal static class YamlDocumentEditor
             {
                 indentation = GetIndentation(document.Source, retainedProperties[0].EntryStart);
             }
-            var content = additions.Select(addition => Reindent(addition, indentation)).ToArray();
+            var content = additions
+                .Select(addition => Reindent(addition, indentation, Newline))
+                .ToArray();
             AddBlockEntries(mapping.End, content);
         }
 
@@ -459,7 +497,9 @@ internal static class YamlDocumentEditor
                 sequence.Items!.Count == 0
                     ? GetIndentation(document.Source, sequence.Start) + "  "
                     : GetIndentation(document.Source, sequence.Items[0].EntryStart);
-            var content = additions.Select(addition => Reindent(addition, indentation)).ToArray();
+            var content = additions
+                .Select(addition => Reindent(addition, indentation, Newline))
+                .ToArray();
             AddBlockEntries(sequence.End, content);
         }
 
@@ -582,7 +622,7 @@ internal static class YamlDocumentEditor
         private static string Slice(string source, int start, int end) =>
             source[start..Math.Clamp(end, start, source.Length)];
 
-        internal static string Reindent(string value, string indentation)
+        internal static string Reindent(string value, string indentation, string newline)
         {
             var normalized = value
                 .Replace("\r\n", "\n", StringComparison.Ordinal)
@@ -596,7 +636,7 @@ internal static class YamlDocumentEditor
                 .DefaultIfEmpty(0)
                 .Min();
             return string.Join(
-                Environment.NewLine,
+                newline,
                 lines.Select(line =>
                 {
                     if (line.Length == 0)
@@ -708,17 +748,6 @@ internal static class YamlDocumentEditor
             }
 
             return source.Substring(lineStart, length);
-        }
-
-        private static string FindNewline(string source)
-        {
-            var index = source.IndexOf('\n');
-            if (index > 0 && source[index - 1] == '\r')
-            {
-                return "\r\n";
-            }
-
-            return index >= 0 ? "\n" : Environment.NewLine;
         }
     }
 

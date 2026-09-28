@@ -24,6 +24,8 @@ public sealed class HttpResourceReader
     private readonly Uri _updateUri;
     private readonly string _contentType;
     private readonly TimeSpan _pollingInterval;
+    private readonly TimeSpan _maximumPollingInterval;
+    private readonly TimeSpan _requestTimeout;
     private readonly object _snapshotGate = new();
     private HttpResourceSnapshot? _lastSnapshot;
 
@@ -76,6 +78,22 @@ public sealed class HttpResourceReader
             );
         }
 
+        if (configuredOptions.MaximumPollingInterval < configuredOptions.PollingInterval)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(options),
+                "MaximumPollingInterval must be greater than or equal to PollingInterval."
+            );
+        }
+
+        if (configuredOptions.RequestTimeout <= TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(options),
+                "RequestTimeout must be greater than zero."
+            );
+        }
+
         if (!MediaTypeHeaderValue.TryParse(configuredOptions.ContentType, out var contentType))
         {
             throw new ArgumentException("ContentType must be a valid media type.", nameof(options));
@@ -83,6 +101,8 @@ public sealed class HttpResourceReader
 
         _contentType = contentType.ToString();
         _pollingInterval = configuredOptions.PollingInterval;
+        _maximumPollingInterval = configuredOptions.MaximumPollingInterval;
+        _requestTimeout = configuredOptions.RequestTimeout;
         ResourceId = resourceId ?? CreateResourceId(root, _getUri, _updateUri);
     }
 
@@ -103,10 +123,15 @@ public sealed class HttpResourceReader
         using var request = new HttpRequestMessage(HttpMethod.Get, _getUri);
         HttpResponseMessage? response = null;
         var responseOwnershipTransferred = false;
+        var requestCancellation = CreateRequestCancellation(cancellationToken);
         try
         {
             response = await _httpClient
-                .SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
+                .SendAsync(
+                    request,
+                    HttpCompletionOption.ResponseHeadersRead,
+                    requestCancellation.Token
+                )
                 .ConfigureAwait(false);
             var revision = response.Headers.ETag?.ToString();
             if (response.StatusCode == HttpStatusCode.NotFound)
@@ -128,12 +153,12 @@ public sealed class HttpResourceReader
             var stream = await response
                 .Content.ReadAsStreamAsync(cancellationToken)
                 .ConfigureAwait(false);
-            var ownedResponse = response;
+            var owner = new HttpResponseOwner(response, requestCancellation);
             var pipelineResult = PipelineResourceReader.FromStream(
                 stream,
                 revision,
                 schema,
-                owner: ownedResponse,
+                owner: owner,
                 contentFingerprintCompleted: fingerprint =>
                     SetLastSnapshot(HttpResourceSnapshot.Success(revision, fingerprint, schema))
             );
@@ -157,6 +182,7 @@ public sealed class HttpResourceReader
             if (!responseOwnershipTransferred)
             {
                 response?.Dispose();
+                requestCancellation.Dispose();
             }
         }
     }
@@ -203,15 +229,26 @@ public sealed class HttpResourceReader
             return;
         }
 
+        var pollingInterval = _pollingInterval;
         while (true)
         {
-            await Task.Delay(_pollingInterval, cancellationToken).ConfigureAwait(false);
+            await Task.Delay(pollingInterval, cancellationToken).ConfigureAwait(false);
             var response = await SendReadAsync(
                     conditional: true,
                     observedRevision: observedRevision,
                     cancellationToken: cancellationToken
                 )
                 .ConfigureAwait(false);
+            if (response.Result.Status == StateReadStatus.Unavailable)
+            {
+                pollingInterval =
+                    pollingInterval.Ticks >= _maximumPollingInterval.Ticks / 2
+                        ? _maximumPollingInterval
+                        : TimeSpan.FromTicks(pollingInterval.Ticks * 2);
+                continue;
+            }
+
+            pollingInterval = _pollingInterval;
             if (response.NotModified)
             {
                 continue;
@@ -251,8 +288,9 @@ public sealed class HttpResourceReader
             }
         }
 
+        using var requestCancellation = CreateRequestCancellation(cancellationToken);
         using var response = await _httpClient
-            .SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
+            .SendAsync(request, HttpCompletionOption.ResponseHeadersRead, requestCancellation.Token)
             .ConfigureAwait(false);
         if (response.StatusCode is HttpStatusCode.PreconditionFailed or HttpStatusCode.Conflict)
         {
@@ -293,10 +331,15 @@ public sealed class HttpResourceReader
             request.Headers.IfNoneMatch.Add(observedTag);
         }
 
+        using var requestCancellation = CreateRequestCancellation(cancellationToken);
         try
         {
             using var response = await _httpClient
-                .SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
+                .SendAsync(
+                    request,
+                    HttpCompletionOption.ResponseHeadersRead,
+                    requestCancellation.Token
+                )
                 .ConfigureAwait(false);
             if (conditional && response.StatusCode == HttpStatusCode.NotModified)
             {
@@ -318,7 +361,7 @@ public sealed class HttpResourceReader
 
             response.EnsureSuccessStatusCode();
             var content = await response
-                .Content.ReadAsByteArrayAsync(cancellationToken)
+                .Content.ReadAsByteArrayAsync(requestCancellation.Token)
                 .ConfigureAwait(false);
             var schema = ReadSchemaMetadata(response.Headers);
             var result = ResourceReadResult.Success(content, revision, schema);
@@ -339,6 +382,15 @@ public sealed class HttpResourceReader
     private static bool IsTemporarilyUnavailable(HttpStatusCode statusCode) =>
         statusCode is HttpStatusCode.RequestTimeout or HttpStatusCode.TooManyRequests
         || (int)statusCode is >= 500 and <= 599;
+
+    private CancellationTokenSource CreateRequestCancellation(CancellationToken cancellationToken)
+    {
+        var requestCancellation = CancellationTokenSource.CreateLinkedTokenSource(
+            cancellationToken
+        );
+        requestCancellation.CancelAfter(_requestTimeout);
+        return requestCancellation;
+    }
 
     private static StateSchemaMetadata? ReadSchemaMetadata(HttpResponseHeaders headers)
     {
@@ -584,5 +636,17 @@ public sealed class HttpResourceReader
 
         public static HttpReadResponse Unchanged { get; } =
             new(default, default, NotModified: true);
+    }
+
+    private sealed class HttpResponseOwner(
+        HttpResponseMessage response,
+        CancellationTokenSource requestCancellation
+    ) : IDisposable
+    {
+        public void Dispose()
+        {
+            response.Dispose();
+            requestCancellation.Dispose();
+        }
     }
 }

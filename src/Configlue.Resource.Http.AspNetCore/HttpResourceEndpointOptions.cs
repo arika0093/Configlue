@@ -11,4 +11,10 @@ public sealed class HttpResourceEndpointOptions
 
     /// <summary>The media type accepted for writes and returned for successful reads.</summary>
     public string ContentType { get; init; } = "application/octet-stream";
+
+    /// <summary>Whether the mapped endpoint group requires authorization.</summary>
+    public bool RequireAuthorization { get; init; } = true;
+
+    /// <summary>The maximum accepted PUT request body size in bytes. Set to <see langword="null"/> to disable the limit.</summary>
+    public long? MaximumRequestBodySize { get; init; } = 30_000_000;
 }

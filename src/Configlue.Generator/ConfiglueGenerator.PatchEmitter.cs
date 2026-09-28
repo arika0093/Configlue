@@ -603,7 +603,7 @@ public sealed partial class ConfiglueGenerator
     }
 
     private static string NestedPatchType(MemberModel member) =>
-        NonNullableTypeName(member.ChildModel!) + ".Patch";
+        member.ChildModel!.Value.NonNullableName + ".Patch";
 
     private static string NestedOperationsEmptyExpression(ImmutableArray<MemberModel> members) =>
         members.Length == 0

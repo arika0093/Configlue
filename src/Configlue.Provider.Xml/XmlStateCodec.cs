@@ -1,7 +1,8 @@
 using System.Buffers;
 using System.Collections;
-using System.Collections.Concurrent;
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Xml;
 using System.Xml.Linq;
@@ -16,6 +17,8 @@ public sealed class XmlStateCodec
         IStateCodecRecoveryPolicy
 {
     /// <inheritdoc />
+    [RequiresUnreferencedCode("XmlSerializer requires reflected model metadata.")]
+    [RequiresDynamicCode("XmlSerializer may generate code at runtime.")]
     public object? Deserialize(
         Type type,
         in ReadOnlySequence<byte> source,
@@ -27,6 +30,8 @@ public sealed class XmlStateCodec
     }
 
     /// <inheritdoc />
+    [RequiresUnreferencedCode("XmlSerializer requires reflected model metadata.")]
+    [RequiresDynamicCode("XmlSerializer may generate code at runtime.")]
     public void Serialize(
         Type type,
         object? value,
@@ -58,10 +63,14 @@ public sealed class XmlStateCodec<T>
         IStateCodecRecoveryPolicy
 {
     /// <inheritdoc />
+    [RequiresUnreferencedCode("XmlSerializer requires reflected model metadata.")]
+    [RequiresDynamicCode("XmlSerializer may generate code at runtime.")]
     public T? Deserialize(in ReadOnlySequence<byte> source, in StateCodecContext context) =>
         (T?)XmlStateCodecOperations.Deserialize(typeof(T), source.ToArray());
 
     /// <inheritdoc />
+    [RequiresUnreferencedCode("XmlSerializer requires reflected model metadata.")]
+    [RequiresDynamicCode("XmlSerializer may generate code at runtime.")]
     public void Serialize(T? value, IBufferWriter<byte> destination, in StateCodecContext context)
     {
         ArgumentNullException.ThrowIfNull(destination);
@@ -88,8 +97,10 @@ internal static class XmlStateCodecOperations
     private const string SequenceName = "sequence";
     private const string ItemName = "item";
     private const string XsiNamespace = "http://www.w3.org/2001/XMLSchema-instance";
-    private static readonly ConcurrentDictionary<Type, XmlSerializer> Serializers = new();
+    private static readonly ConditionalWeakTable<Type, XmlSerializer> Serializers = new();
 
+    [RequiresUnreferencedCode("XmlSerializer requires reflected model metadata.")]
+    [RequiresDynamicCode("XmlSerializer may generate code at runtime.")]
     public static byte[] Serialize(Type type, object? value, StateSchemaMetadata? schema)
     {
         using var output = new MemoryStream();
@@ -139,6 +150,8 @@ internal static class XmlStateCodecOperations
         return output.ToArray();
     }
 
+    [RequiresUnreferencedCode("XmlSerializer requires reflected model metadata.")]
+    [RequiresDynamicCode("XmlSerializer may generate code at runtime.")]
     public static object? Deserialize(Type type, byte[] content)
     {
         var document = LoadDocument(content);
@@ -189,6 +202,8 @@ internal static class XmlStateCodecOperations
         return new StateSchemaMetadata((string?)root.Attribute("id"), version);
     }
 
+    [RequiresUnreferencedCode("XML fragment models are inspected through reflection.")]
+    [RequiresDynamicCode("XmlSerializer may generate code at runtime.")]
     private static void WriteFragment(
         XmlWriter writer,
         IConfiglueFragment fragment,
@@ -222,6 +237,8 @@ internal static class XmlStateCodecOperations
         writer.WriteEndElement();
     }
 
+    [RequiresUnreferencedCode("XML value models are inspected through reflection.")]
+    [RequiresDynamicCode("XmlSerializer may generate code at runtime.")]
     private static void WriteValue(XmlWriter writer, Type valueType, object value)
     {
         if (value is IConfiglueFragment nestedFragment)
@@ -255,6 +272,8 @@ internal static class XmlStateCodecOperations
         GetSerializer(valueType).Serialize(writer, value);
     }
 
+    [RequiresUnreferencedCode("XML fragment models are inspected through reflection.")]
+    [RequiresDynamicCode("XmlSerializer may generate code at runtime.")]
     private static IConfiglueFragment ReadFragment(XElement element, Type fragmentType)
     {
         var emptyProperty =
@@ -323,6 +342,8 @@ internal static class XmlStateCodecOperations
         return fragment;
     }
 
+    [RequiresUnreferencedCode("XML value models are inspected through reflection.")]
+    [RequiresDynamicCode("XmlSerializer may generate code at runtime.")]
     private static object? ReadValue(XElement element, Type valueType)
     {
         if (IsNil(element))
@@ -462,9 +483,13 @@ internal static class XmlStateCodecOperations
         return XDocument.Load(reader, LoadOptions.None);
     }
 
+    [RequiresUnreferencedCode("XmlSerializer requires reflected model metadata.")]
+    [RequiresDynamicCode("XmlSerializer may generate code at runtime.")]
     private static XmlSerializer GetSerializer(Type type) =>
-        Serializers.GetOrAdd(type, static type => new XmlSerializer(type));
+        Serializers.GetValue(type, static type => new XmlSerializer(type));
 
+    [RequiresUnreferencedCode("Generated fragment factories are resolved through reflection.")]
+    [RequiresDynamicCode("Generated fragment factories may construct runtime types.")]
     private static bool TryCreateGeneratedFragment(
         Type modelType,
         object value,
@@ -492,6 +517,8 @@ internal static class XmlStateCodecOperations
         return false;
     }
 
+    [RequiresUnreferencedCode("Generated fragment types are resolved through reflection.")]
+    [RequiresDynamicCode("Generated fragment types may require runtime code.")]
     private static Type? TryGetGeneratedFragmentType(Type modelType)
     {
         var fragmentType = modelType.GetNestedType("Fragment", BindingFlags.Public);

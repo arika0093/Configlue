@@ -48,17 +48,25 @@ namespace Configlue.Provider.Xml
     public sealed class XmlStateCodec : Configlue.Codecs.IStateCodec, Configlue.Codecs.IStateCodecRecoveryPolicy, Configlue.Codecs.IStateSchemaMetadataReader
     {
         public XmlStateCodec() { }
+        [System.Diagnostics.CodeAnalysis.RequiresDynamicCode("XmlSerializer may generate code at runtime.")]
+        [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("XmlSerializer requires reflected model metadata.")]
         public object? Deserialize(System.Type type, in System.Buffers.ReadOnlySequence<byte> source, in Configlue.Codecs.StateCodecContext context) { }
         public bool IsRecoverableReadException(System.Exception exception) { }
         public Configlue.State.StateSchemaMetadata? ReadSchemaMetadata(in System.Buffers.ReadOnlySequence<byte> source) { }
+        [System.Diagnostics.CodeAnalysis.RequiresDynamicCode("XmlSerializer may generate code at runtime.")]
+        [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("XmlSerializer requires reflected model metadata.")]
         public void Serialize(System.Type type, object? value, System.Buffers.IBufferWriter<byte> destination, in Configlue.Codecs.StateCodecContext context) { }
     }
     public sealed class XmlStateCodec<T> : Configlue.Codecs.IStateCodecRecoveryPolicy, Configlue.Codecs.IStateCodec<T>, Configlue.Codecs.IStateSchemaMetadataReader
     {
         public XmlStateCodec() { }
+        [System.Diagnostics.CodeAnalysis.RequiresDynamicCode("XmlSerializer may generate code at runtime.")]
+        [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("XmlSerializer requires reflected model metadata.")]
         public T? Deserialize(in System.Buffers.ReadOnlySequence<byte> source, in Configlue.Codecs.StateCodecContext context) { }
         public bool IsRecoverableReadException(System.Exception exception) { }
         public Configlue.State.StateSchemaMetadata? ReadSchemaMetadata(in System.Buffers.ReadOnlySequence<byte> source) { }
+        [System.Diagnostics.CodeAnalysis.RequiresDynamicCode("XmlSerializer may generate code at runtime.")]
+        [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("XmlSerializer requires reflected model metadata.")]
         public void Serialize(T? value, System.Buffers.IBufferWriter<byte> destination, in Configlue.Codecs.StateCodecContext context) { }
     }
 }

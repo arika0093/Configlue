@@ -13,14 +13,19 @@ public sealed partial class ConfiglueGenerator
 {
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
-        var generated = context
+        var analyzed = context
             .SyntaxProvider.ForAttributeWithMetadataName(
                 ModelAttributeName,
                 static (node, _) => node is TypeDeclarationSyntax,
                 static (attributeContext, cancellationToken) =>
-                    Generate((INamedTypeSymbol)attributeContext.TargetSymbol, cancellationToken)
+                    Analyze((INamedTypeSymbol)attributeContext.TargetSymbol, cancellationToken)
             )
-            .WithComparer(EqualityComparer<GenerationResult>.Default);
+            .WithComparer(EqualityComparer<GenerationAnalysis>.Default)
+            .WithTrackingName("ConfiglueGenerator.Analysis");
+        var generated = analyzed
+            .Select(static (analysis, cancellationToken) => Render(analysis, cancellationToken))
+            .WithComparer(EqualityComparer<GenerationResult>.Default)
+            .WithTrackingName("ConfiglueGenerator.Output");
 
         context.RegisterSourceOutput(
             generated,
@@ -58,7 +63,29 @@ public sealed partial class ConfiglueGenerator
         }
     }
 
-    private static GenerationResult Generate(
+    private static GenerationResult Render(
+        GenerationAnalysis analysis,
+        CancellationToken cancellationToken
+    )
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!analysis.Model.HasValue)
+        {
+            return new GenerationResult(null, null, analysis.Diagnostics);
+        }
+
+        var model = analysis.Model.Value;
+        var source = BuildSource(
+            model,
+            analysis.Members,
+            analysis.PreviousModels,
+            analysis.PocoCloneModels,
+            cancellationToken
+        );
+        return new GenerationResult(analysis.HintName, source, analysis.Diagnostics);
+    }
+
+    private static GenerationAnalysis Analyze(
         INamedTypeSymbol model,
         CancellationToken cancellationToken
     )
@@ -72,7 +99,7 @@ public sealed partial class ConfiglueGenerator
 
         if (declaration is null || !declaration.Modifiers.Any(SyntaxKind.PartialKeyword))
         {
-            return Failure(MustBePartial, location, model.Name);
+            return AnalysisFailure(MustBePartial, location, model.Name);
         }
 
         if (
@@ -81,12 +108,12 @@ public sealed partial class ConfiglueGenerator
             || (model.TypeKind != TypeKind.Class && model.TypeKind != TypeKind.Struct)
         )
         {
-            return Failure(UnsupportedModel, location, model.Name);
+            return AnalysisFailure(UnsupportedModel, location, model.Name);
         }
 
         if (model.IsAbstract)
         {
-            return Failure(UnsupportedModel, location, model.Name);
+            return AnalysisFailure(UnsupportedModel, location, model.Name);
         }
 
         if (
@@ -94,7 +121,7 @@ public sealed partial class ConfiglueGenerator
             && !HasPublicParameterlessConstructor(model, cancellationToken)
         )
         {
-            return Failure(MissingConstructor, location, model.Name);
+            return AnalysisFailure(MissingConstructor, location, model.Name);
         }
 
         var members = GetMembers(model, cancellationToken).ToImmutableArray();
@@ -118,7 +145,7 @@ public sealed partial class ConfiglueGenerator
         var previousModels =
             modelIdValid && modelVersionValid
                 ? GetPreviousModels(model, modelId, modelVersion, cancellationToken, diagnostics)
-                : ImmutableArray<PreviousModelInfo>.Empty;
+                : ImmutableArray<SymbolPreviousModelInfo>.Empty;
         foreach (var member in members)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -210,32 +237,54 @@ public sealed partial class ConfiglueGenerator
 
         if (diagnostics.Count > 0)
         {
-            return new GenerationResult(null, null, diagnostics.ToImmutable());
+            return new GenerationAnalysis(
+                null,
+                null,
+                ImmutableArray<MemberModel>.Empty,
+                ImmutableArray<PreviousModelInfo>.Empty,
+                ImmutableArray<PocoCloneModel>.Empty,
+                diagnostics.ToImmutable()
+            );
         }
 
-        var source = BuildSource(model, members, previousModels, cancellationToken);
         var fullyQualifiedName = model.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
         var fileName =
             Sanitize(fullyQualifiedName, cancellationToken)
             + "_"
             + GetStableTypeHash(fullyQualifiedName, cancellationToken)
             + ".Configlue.g.cs";
-        return new GenerationResult(
+        var memberModels = CreateMemberModels(members, cancellationToken);
+        var previousModelInfos = CreatePreviousModelInfos(
+            previousModels,
+            members,
+            memberModels,
+            cancellationToken
+        );
+        var pocoCloneModels = GetPocoCloneTypes(members, cancellationToken)
+            .Select(pocoType => CreatePocoCloneModel(pocoType, cancellationToken))
+            .ToImmutableArray();
+        return new GenerationAnalysis(
             fileName,
-            source,
+            CreateModelInfo(model, modelId, modelVersion, cancellationToken),
+            memberModels,
+            previousModelInfos,
+            pocoCloneModels,
             ImmutableArray<GeneratorDiagnosticInfo>.Empty
         );
     }
 
-    private static GenerationResult Failure(
+    private static GenerationAnalysis AnalysisFailure(
         DiagnosticDescriptor descriptor,
         Location? location,
         string? argument1
     )
     {
-        return new GenerationResult(
+        return new GenerationAnalysis(
             null,
             null,
+            ImmutableArray<MemberModel>.Empty,
+            ImmutableArray<PreviousModelInfo>.Empty,
+            ImmutableArray<PocoCloneModel>.Empty,
             ImmutableArray.Create(GeneratorDiagnosticInfo.Create(descriptor, location, argument1))
         );
     }

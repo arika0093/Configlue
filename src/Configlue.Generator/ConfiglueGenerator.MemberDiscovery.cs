@@ -31,7 +31,7 @@ public sealed partial class ConfiglueGenerator
         return false;
     }
 
-    private static IEnumerable<MemberModel> GetMembers(
+    private static IEnumerable<SymbolMemberModel> GetMembers(
         INamedTypeSymbol model,
         CancellationToken cancellationToken
     )
@@ -112,7 +112,7 @@ public sealed partial class ConfiglueGenerator
                 mode = int.MaxValue;
             }
 
-            yield return new MemberModel(
+            yield return new SymbolMemberModel(
                 index++,
                 property,
                 child,
@@ -123,7 +123,7 @@ public sealed partial class ConfiglueGenerator
         }
     }
 
-    private static ImmutableArray<PreviousModelInfo> GetPreviousModels(
+    private static ImmutableArray<SymbolPreviousModelInfo> GetPreviousModels(
         INamedTypeSymbol model,
         string modelId,
         int modelVersion,
@@ -131,7 +131,7 @@ public sealed partial class ConfiglueGenerator
         ImmutableArray<GeneratorDiagnosticInfo>.Builder diagnostics
     )
     {
-        var previousModels = ImmutableArray.CreateBuilder<PreviousModelInfo>();
+        var previousModels = ImmutableArray.CreateBuilder<SymbolPreviousModelInfo>();
         var seenVersions = new HashSet<int>();
         foreach (var attribute in model.GetAttributes())
         {
@@ -182,7 +182,7 @@ public sealed partial class ConfiglueGenerator
             }
 
             previousModels.Add(
-                new PreviousModelInfo(
+                new SymbolPreviousModelInfo(
                     previousModel,
                     GetMembers(previousModel, cancellationToken).ToImmutableArray()
                 )

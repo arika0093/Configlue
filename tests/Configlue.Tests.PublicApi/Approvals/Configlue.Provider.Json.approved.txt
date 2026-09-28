@@ -96,9 +96,17 @@ namespace Configlue.Provider.Json
     public sealed class JsonStateCodec : Configlue.Codecs.IStateCodec, Configlue.Codecs.IStateCodecRecoveryPolicy, Configlue.Codecs.IStateSchemaMetadataReader
     {
         public JsonStateCodec(System.Text.Json.JsonSerializerOptions? options = null, Configlue.Codecs.DocumentLayoutOptions? documentLayout = null) { }
+        [System.Diagnostics.CodeAnalysis.RequiresDynamicCode("Reflection-based JSON serialization may require runtime code generation. Use Json" +
+            "StateCodec<T> with JsonTypeInfo<T> for NativeAOT.")]
+        [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Reflection-based JSON serialization may require types that trimming removes. Use " +
+            "JsonStateCodec<T> with JsonTypeInfo<T> for trim-safe serialization.")]
         public object? Deserialize(System.Type type, in System.Buffers.ReadOnlySequence<byte> source, in Configlue.Codecs.StateCodecContext context) { }
         public bool IsRecoverableReadException(System.Exception exception) { }
         public Configlue.State.StateSchemaMetadata? ReadSchemaMetadata(in System.Buffers.ReadOnlySequence<byte> source) { }
+        [System.Diagnostics.CodeAnalysis.RequiresDynamicCode("Reflection-based JSON serialization may require runtime code generation. Use Json" +
+            "StateCodec<T> with JsonTypeInfo<T> for NativeAOT.")]
+        [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Reflection-based JSON serialization may require types that trimming removes. Use " +
+            "JsonStateCodec<T> with JsonTypeInfo<T> for trim-safe serialization.")]
         public void Serialize(System.Type type, object? value, System.Buffers.IBufferWriter<byte> destination, in Configlue.Codecs.StateCodecContext context) { }
     }
     public sealed class JsonStateCodec<T> : Configlue.Codecs.IStateCodecRecoveryPolicy, Configlue.Codecs.IStateCodec<T>, Configlue.Codecs.IStateSchemaMetadataReader, Configlue.State.IPipelineStateCodec<T>

@@ -6,7 +6,9 @@ namespace Configlue.Resource.Http
         public HttpResourceOptions() { }
         public string ContentType { get; init; }
         public string GetPath { get; init; }
+        public System.TimeSpan MaximumPollingInterval { get; init; }
         public System.TimeSpan PollingInterval { get; init; }
+        public System.TimeSpan RequestTimeout { get; init; }
         public string UpdatePath { get; init; }
     }
     public sealed class HttpResourceReader : Configlue.Resources.IResourceIdentity, Configlue.Resources.IResourceReader, Configlue.State.IPipelineResourceReader, Configlue.State.IStateWatcher

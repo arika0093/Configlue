@@ -144,13 +144,85 @@ public sealed class ConfiglueGeneratorDiagnosticTests
         (result.Diagnostics.Any(static diagnostic => diagnostic.Id == "CFG006")).ShouldBeTrue();
     }
 
+    [Test]
+    public async Task OutputBoundary_CachesEquivalentOutputAndInvalidatesSemanticChanges()
+    {
+        const string source = """
+                using Configlue;
+            using System.Text.Json.Serialization;
+
+            namespace Sample;
+
+            [ConfiglueModel("example.cache-test")]
+            public partial class Settings
+            {
+                [JsonPropertyName("old_value")]
+                public int Value { get; set; }
+            }
+            """;
+        var parseOptions = new CSharpParseOptions(LanguageVersion.Preview);
+        var syntaxTree = CSharpSyntaxTree.ParseText(source, parseOptions);
+        var compilation = CreateCompilation(syntaxTree);
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(
+            [new ConfiglueGenerator().AsSourceGenerator()],
+            parseOptions: parseOptions,
+            driverOptions: new GeneratorDriverOptions(
+                IncrementalGeneratorOutputKind.None,
+                trackIncrementalGeneratorSteps: true
+            )
+        );
+
+        driver = driver.RunGenerators(compilation);
+
+        var triviaChangedTree = CSharpSyntaxTree.ParseText(
+            source.Replace("public int Value", "public  int Value", StringComparison.Ordinal),
+            parseOptions
+        );
+        driver = driver.RunGenerators(compilation.ReplaceSyntaxTree(syntaxTree, triviaChangedTree));
+        var equivalentOutput = driver.GetRunResult();
+        (GetStepReason(equivalentOutput, "ConfiglueGenerator.Analysis")).ShouldBe(
+            IncrementalStepRunReason.Unchanged
+        );
+        (GetStepReason(equivalentOutput, "ConfiglueGenerator.Output")).ShouldBe(
+            IncrementalStepRunReason.Cached
+        );
+
+        var semanticChangedTree = CSharpSyntaxTree.ParseText(
+            source
+                .Replace("int Value", "string Value", StringComparison.Ordinal)
+                .Replace("old_value", "new_value", StringComparison.Ordinal),
+            parseOptions
+        );
+        var semanticChangedCompilation = compilation.ReplaceSyntaxTree(
+            syntaxTree,
+            semanticChangedTree
+        );
+        driver = driver.RunGenerators(semanticChangedCompilation);
+        var changedOutput = driver.GetRunResult();
+        (GetStepReason(changedOutput, "ConfiglueGenerator.Analysis")).ShouldBe(
+            IncrementalStepRunReason.Modified
+        );
+        (GetStepReason(changedOutput, "ConfiglueGenerator.Output")).ShouldBe(
+            IncrementalStepRunReason.Modified
+        );
+        (GetGeneratedSource(changedOutput)).ShouldContain("ConfigValueDetails<string>");
+        (GetGeneratedSource(changedOutput)).ShouldContain("\"new_value\"");
+    }
+
     private static GeneratorDriverRunResult RunGenerator(string source)
     {
         var syntaxTree = CSharpSyntaxTree.ParseText(
             source,
             new CSharpParseOptions(LanguageVersion.Preview)
         );
-        var compilation = CSharpCompilation.Create(
+        var compilation = CreateCompilation(syntaxTree);
+        var driver = CSharpGeneratorDriver.Create(new ConfiglueGenerator().AsSourceGenerator());
+        return driver.RunGenerators(compilation).GetRunResult();
+    }
+
+    private static CSharpCompilation CreateCompilation(SyntaxTree syntaxTree)
+    {
+        return CSharpCompilation.Create(
             "ConfiglueGeneratorDiagnosticTests",
             [syntaxTree],
             References,
@@ -159,8 +231,14 @@ public sealed class ConfiglueGeneratorDiagnosticTests
                 nullableContextOptions: NullableContextOptions.Enable
             )
         );
-        var driver = CSharpGeneratorDriver.Create(new ConfiglueGenerator().AsSourceGenerator());
-        return driver.RunGenerators(compilation).GetRunResult();
+    }
+
+    private static IncrementalStepRunReason GetStepReason(
+        GeneratorDriverRunResult result,
+        string trackingName
+    )
+    {
+        return result.Results.Single().TrackedSteps[trackingName].Single().Outputs.Single().Reason;
     }
 
     private static string GetGeneratedSource(GeneratorDriverRunResult result)

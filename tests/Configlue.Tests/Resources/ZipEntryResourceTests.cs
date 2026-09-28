@@ -163,9 +163,29 @@ public sealed class ZipEntryResourceTests
             {
                 rejected = true;
             }
-
             (rejected).ShouldBeTrue();
         }
+    }
+
+    [Test]
+    public async Task EntryWatcherUsesConfigurablePollingWhenArchiveHasNoWatcher()
+    {
+        var archive = new RevisionReader();
+        var entry = new ZipEntryResource(
+            archive,
+            "settings.json",
+            pollingInterval: TimeSpan.FromMilliseconds(10)
+        );
+        var waiting = entry.WaitForChangeAsync("first").AsTask();
+        await Task.Delay(35);
+        archive.Revision = "second";
+
+        await waiting.WaitAsync(TimeSpan.FromSeconds(2));
+
+        (archive.ReadCount > 1).ShouldBeTrue();
+        Should.Throw<ArgumentOutOfRangeException>(() =>
+            new ZipEntryResource(archive, "settings.json", pollingInterval: TimeSpan.Zero)
+        );
     }
 
     private static byte[] Encode(
@@ -177,6 +197,24 @@ public sealed class ZipEntryResourceTests
         var context = default(StateCodecContext);
         codec.Serialize(fragment, destination, in context);
         return destination.WrittenMemory.ToArray();
+    }
+
+    private sealed class RevisionReader : IResourceReader
+    {
+        public string Revision { get; set; } = "first";
+
+        public int ReadCount { get; private set; }
+
+        public ValueTask<ResourceReadResult> ReadAsync(
+            CancellationToken cancellationToken = default
+        )
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            ReadCount++;
+            return ValueTask.FromResult(
+                ResourceReadResult.Success(ReadOnlyMemory<byte>.Empty, Revision)
+            );
+        }
     }
 
     private static byte[] CreateArchive(params (string Name, byte[] Content)[] entries)

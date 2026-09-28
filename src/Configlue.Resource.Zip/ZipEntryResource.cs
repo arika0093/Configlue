@@ -11,11 +11,30 @@ public sealed class ZipEntryResource
         IResourceIdentity,
         IResourceBatchParticipant
 {
+    private readonly struct PollingOptions
+    {
+        public TimeSpan Interval { get; }
+
+        public PollingOptions(TimeSpan pollingInterval)
+        {
+            if (pollingInterval <= TimeSpan.Zero)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(pollingInterval),
+                    "The polling interval must be greater than zero."
+                );
+            }
+
+            Interval = pollingInterval;
+        }
+    }
+
     private readonly IResourceReader _archiveReader;
     private readonly IResourceBatchWriter? _archiveWriter;
     private readonly IStateWatcher? _archiveWatcher;
     private readonly string _entryName;
     private readonly ResourceId _resourceId;
+    private readonly TimeSpan _pollingInterval;
 
     /// <summary>Creates an entry view, detecting batch writing and change watching on the archive resource.</summary>
     public ZipEntryResource(
@@ -29,7 +48,25 @@ public sealed class ZipEntryResource
             archiveReader as IResourceBatchWriter,
             entryName,
             archiveWatcher,
-            resourceId
+            resourceId,
+            new PollingOptions(TimeSpan.FromMilliseconds(250))
+        ) { }
+
+    /// <summary>Creates an entry view with a configured fallback polling interval.</summary>
+    public ZipEntryResource(
+        IResourceReader archiveReader,
+        string entryName,
+        TimeSpan pollingInterval,
+        IStateWatcher? archiveWatcher = null,
+        ResourceId? resourceId = null
+    )
+        : this(
+            archiveReader,
+            archiveReader as IResourceBatchWriter,
+            entryName,
+            archiveWatcher,
+            resourceId,
+            new PollingOptions(pollingInterval)
         ) { }
 
     /// <summary>Creates an entry view with separate reader and optional batch writer capabilities.</summary>
@@ -39,6 +76,41 @@ public sealed class ZipEntryResource
         string entryName,
         IStateWatcher? archiveWatcher = null,
         ResourceId? resourceId = null
+    )
+        : this(
+            archiveReader,
+            archiveWriter,
+            entryName,
+            archiveWatcher,
+            resourceId,
+            new PollingOptions(TimeSpan.FromMilliseconds(250))
+        ) { }
+
+    /// <summary>Creates an entry view with separate capabilities and a configured fallback polling interval.</summary>
+    public ZipEntryResource(
+        IResourceReader archiveReader,
+        IResourceBatchWriter? archiveWriter,
+        string entryName,
+        TimeSpan pollingInterval,
+        IStateWatcher? archiveWatcher = null,
+        ResourceId? resourceId = null
+    )
+        : this(
+            archiveReader,
+            archiveWriter,
+            entryName,
+            archiveWatcher,
+            resourceId,
+            new PollingOptions(pollingInterval)
+        ) { }
+
+    private ZipEntryResource(
+        IResourceReader archiveReader,
+        IResourceBatchWriter? archiveWriter,
+        string entryName,
+        IStateWatcher? archiveWatcher,
+        ResourceId? resourceId,
+        PollingOptions pollingOptions
     )
     {
         ArgumentNullException.ThrowIfNull(archiveReader);
@@ -52,6 +124,7 @@ public sealed class ZipEntryResource
             ?? archiveWriter?.ResourceId
             ?? (archiveReader as IResourceIdentity)?.ResourceId
             ?? new ResourceId($"zip:{Guid.NewGuid():N}");
+        _pollingInterval = pollingOptions.Interval;
     }
 
     /// <inheritdoc />
@@ -153,8 +226,7 @@ public sealed class ZipEntryResource
                 return;
             }
 
-            await Task.Delay(TimeSpan.FromMilliseconds(250), cancellationToken)
-                .ConfigureAwait(false);
+            await Task.Delay(_pollingInterval, cancellationToken).ConfigureAwait(false);
         }
     }
 

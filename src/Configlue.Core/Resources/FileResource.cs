@@ -748,11 +748,7 @@ public sealed partial class FileResource
                 File.Move(temporaryPath, destinationPath, overwrite: true);
                 return;
             }
-            catch (OperationCanceledException)
-            {
-                throw;
-            }
-            catch (Exception) when (attempt < _options.RetryCount)
+            catch (IOException) when (attempt < _options.RetryCount)
             {
                 attempt++;
                 var retryDelayFactory = _options.RetryDelayFactory;
@@ -866,7 +862,22 @@ public sealed partial class FileResource
 
     private void OnFileRenamed(object sender, RenamedEventArgs args) => SignalChange();
 
-    private void OnWatcherError(object sender, ErrorEventArgs args) => SignalChange();
+    private void OnWatcherError(object sender, ErrorEventArgs args)
+    {
+        lock (_watchGate)
+        {
+            if (_disposed || !ReferenceEquals(_fileWatcher, sender))
+            {
+                return;
+            }
+
+            _fileWatcher.Dispose();
+            _fileWatcher = null;
+            var previous = _changed;
+            _changed = NewChangeSignal();
+            previous.TrySetResult();
+        }
+    }
 
     private void SignalChange()
     {

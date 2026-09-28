@@ -11,11 +11,11 @@ namespace Configlue.Generator;
 
 public sealed partial class ConfiglueGenerator
 {
-    private static CollectionInfo GetCollectionInfo(ITypeSymbol type)
+    private static SymbolCollectionInfo GetCollectionInfo(ITypeSymbol type)
     {
         if (type is IArrayTypeSymbol array)
         {
-            return new CollectionInfo(
+            return new SymbolCollectionInfo(
                 CollectionKind.Array,
                 CloneCollectionKind.Array,
                 array.ElementType,
@@ -26,7 +26,7 @@ public sealed partial class ConfiglueGenerator
 
         if (type is not INamedTypeSymbol named || named.TypeArguments.Length is < 1 or > 2)
         {
-            return CollectionInfo.Unsupported;
+            return SymbolCollectionInfo.Unsupported;
         }
 
         var elementType = named.TypeArguments[0];
@@ -80,7 +80,7 @@ public sealed partial class ConfiglueGenerator
             _ => CloneCollectionKind.Unsupported,
         };
 
-        return new CollectionInfo(
+        return new SymbolCollectionInfo(
             kind,
             cloneKind,
             elementType,
@@ -143,12 +143,12 @@ public sealed partial class ConfiglueGenerator
         return false;
     }
 
-    private sealed class MemberModel(
+    private sealed class SymbolMemberModel(
         int id,
         IPropertySymbol property,
         INamedTypeSymbol? childModel,
         int mergeMode,
-        CollectionInfo collection,
+        SymbolCollectionInfo collection,
         INamedTypeSymbol? mergeStrategyType
     )
     {
@@ -156,20 +156,20 @@ public sealed partial class ConfiglueGenerator
         public IPropertySymbol Property { get; } = property;
         public INamedTypeSymbol? ChildModel { get; } = childModel;
         public int MergeMode { get; } = mergeMode;
-        public CollectionInfo Collection { get; } = collection;
+        public SymbolCollectionInfo Collection { get; } = collection;
         public INamedTypeSymbol? MergeStrategyType { get; } = mergeStrategyType;
     }
 
-    private sealed class PreviousModelInfo(
+    private sealed class SymbolPreviousModelInfo(
         INamedTypeSymbol model,
-        ImmutableArray<MemberModel> members
+        ImmutableArray<SymbolMemberModel> members
     )
     {
         public INamedTypeSymbol Model { get; } = model;
-        public ImmutableArray<MemberModel> Members { get; } = members;
+        public ImmutableArray<SymbolMemberModel> Members { get; } = members;
     }
 
-    private sealed class CollectionInfo(
+    private sealed class SymbolCollectionInfo(
         CollectionKind kind,
         CloneCollectionKind cloneKind,
         ITypeSymbol elementType,
@@ -182,7 +182,7 @@ public sealed partial class ConfiglueGenerator
         public ITypeSymbol ElementType { get; } = elementType;
         public ITypeSymbol? ValueType { get; } = valueType;
         public INamedTypeSymbol? NamedType { get; } = namedType;
-        public static CollectionInfo Unsupported { get; } =
+        public static SymbolCollectionInfo Unsupported { get; } =
             new(CollectionKind.Unsupported, CloneCollectionKind.Unsupported, null!, null, null);
     }
 
