@@ -150,7 +150,7 @@ model.UseCommonSources(
     });
 ```
 
-コマンドライン層は優先度 4（環境変数よりもさらに上）として追加され、コマンド実行時の一時的な上書きとして機能します。
+コマンドライン層は CommonSource より上位に追加され、コマンド実行時の一時的な上書きとして機能します。
 
 ### パターン 2: リモートポリシーや追加ソースを重ねる
 
@@ -172,14 +172,13 @@ model.Sources(sources =>
     {
         Id = "company-policy",
         EndPoint = "https://policy.example.internal/api/config",
-        Priority = 500, // CommonSource（優先度 0〜3）より上位に配置
+        Priority = 500, // CommonSource プリセットより上位に配置
         FallbackCondition = StateFallbackCondition.NotFoundOrUnavailable,
     });
 });
 ```
 
-CommonSource が内部で登録する各層の優先度は 0（Global）〜 3（Environment）です。
-追加するソースの `Priority` を 100 や 500 など大きめの値に設定することで、CommonSource の上に自然にレイヤーを追加できます。
+追加するソースの `Priority` を大きめの値に設定することで、CommonSource の上にレイヤーを追加できます。
 
 ## 次のステップ
 
