@@ -11,6 +11,7 @@ using Configlue.Provider.Yaml;
 using Configlue.Resource.Dapr;
 using Configlue.Resource.Http;
 using Configlue.Resource.Http.AspNetCore;
+using Configlue.Resource.S3;
 using Configlue.Resource.Zip;
 using Configlue.Source.CommandLine;
 using Configlue.Source.Common;
@@ -165,6 +166,9 @@ public sealed class PublicApiCheckTest
 
     [Test]
     public void Dapr() => PublicApiCheck.Check<DaprStateSourceOptions>();
+
+    [Test]
+    public void S3() => PublicApiCheck.Check<S3ObjectSourceOptions>();
 
     [Test]
     public void Testing() => PublicApiCheck.Check<InMemoryResource>();

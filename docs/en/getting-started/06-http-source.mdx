@@ -59,7 +59,7 @@ Here we add an **HTTP source** on top of the standard **CommonSource** architect
                Id = "policy",
                EndPoint = "https://policy.example.com/api/policy",
                Client = httpClient,
-               Priority = 300, // Higher than CommonSource layers (0-3)
+               Priority = 300, // Higher than the CommonSource preset
                FallbackCondition = StateFallbackCondition.NotFoundOrUnavailable,
            });
        });

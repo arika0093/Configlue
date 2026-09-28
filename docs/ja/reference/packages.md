@@ -23,8 +23,9 @@ description: 機能ごとの NuGet パッケージを探す。
 | `Configlue.Resource.Http` | ETag リビジョンとポーリング変更検出つき HTTP 読み書きリソース。 |
 | `Configlue.Resource.Http.AspNetCore` | HTTP リソース配信の ASP.NET Core エンドポイント。 |
 | `Configlue.Resource.Dapr` | Dapr State Management 向けの任意 byte resource と source 登録。 |
+| `Configlue.Resource.S3` | ETag revision を使う Amazon S3 object resource と source 登録。 |
 | `Configlue.Resource.Zip` | ZIP アーカイブ内1エントリのリソースビュー。 |
 
 パッケージ参照と版の正本はプロジェクトファイルです。任意プロバイダーは必要になったら直接インストールしてください。まずは [インストール](../getting-started/installation.md) からどうぞ。
 
-Dapr state 永続化と object-storage provider の境界は [Dapr State Management リソース](./dapr-state-resource.md)を参照してください。
+Dapr state 永続化と object storage は、[Dapr State Management リソース](./dapr-state-resource.md)および [Amazon S3 object resource](./s3-object-resource.md)を参照してください。
