@@ -1,5 +1,3 @@
-using System.Security.Cryptography;
-using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -7,7 +5,7 @@ namespace Configlue;
 
 /// <summary>Stores migration progress as one atomically replaced JSON file per migration ID.</summary>
 /// <remarks>
-/// Progress files use SHA-256 names, so migration IDs do not become path components. Writes use
+/// Progress files use XXH3 hashes of migration IDs as names, so IDs do not become path components. Writes use
 /// <see cref="FileResource"/> revision checks; concurrent writers based on stale progress fail instead of
 /// silently replacing a newer journal entry.
 /// </remarks>
@@ -41,7 +39,7 @@ public sealed class FileStateStorageMigrationJournal
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(migrationId);
         cancellationToken.ThrowIfCancellationRequested();
-        var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(migrationId)));
+        var hash = ConfiglueHashing.GetXxHash3Hex(migrationId);
         using var resource = new FileResource(
             Path.Combine(_directoryPath, hash + ".lease"),
             _resourceOptions
@@ -138,7 +136,7 @@ public sealed class FileStateStorageMigrationJournal
 
     private FileResource CreateResource(string migrationId)
     {
-        var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(migrationId)));
+        var hash = ConfiglueHashing.GetXxHash3Hex(migrationId);
         var path = Path.Combine(_directoryPath, hash + ".json");
         return new FileResource(path, _resourceOptions);
     }

@@ -13,16 +13,16 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
 {
     private void Validate(TModel value)
     {
-        var failures = CollectValidationFailures(value);
+        var failures = new List<string>();
+        CollectValidationFailures(value, failures);
         if (failures.Count > 0)
         {
             throw new ConfiglueValidationException(_optionsName, typeof(TModel), failures);
         }
     }
 
-    private List<string> CollectValidationFailures(TModel value)
+    private void CollectValidationFailures(TModel value, List<string> failures)
     {
-        var failures = new List<string>();
         foreach (var validator in _validators)
         {
             failures.AddRange(validator.Validate(_optionsName, value));
@@ -47,8 +47,6 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
                 )
             );
         }
-
-        return failures;
     }
 
     private static bool HasValidationMetadata(Type modelType) =>
@@ -71,8 +69,9 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
             CollectMemberFailures(fragment.Schema, fragment, string.Empty, failures);
         }
 
-        failures.AddRange(
-            CollectValidationFailures(TModel.FromFragment(_modelDefaultsFragment.Merge(fragment)))
+        CollectValidationFailures(
+            TModel.FromFragment(_modelDefaultsFragment.Merge(fragment)),
+            failures
         );
         failures = failures.Distinct(StringComparer.Ordinal).ToList();
         if (failures.Count == 0)
@@ -178,21 +177,31 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
 
     private void ValidateResolvedModel(TModel model, IConfiglueFragment merged)
     {
+        var validateDataAnnotations =
+            _validateDataAnnotations && RuntimeFeature.IsDynamicCodeSupported;
+        var hasMemberValidation =
+            validateDataAnnotations && HasMemberValidationMetadata(merged.Schema);
+        var hasModelValidation = validateDataAnnotations && HasValidationMetadata(model.GetType());
+        if (_validators.Length == 0 && !hasMemberValidation && !hasModelValidation)
+        {
+            return;
+        }
+
         var failures = new List<string>();
-        if (
-            _validateDataAnnotations
-            && RuntimeFeature.IsDynamicCodeSupported
-            && HasMemberValidationMetadata(merged.Schema)
-        )
+        if (hasMemberValidation)
         {
             CollectMemberFailures(merged.Schema, merged, string.Empty, failures);
         }
 
-        failures.AddRange(CollectValidationFailures(model));
-        failures = failures.Distinct(StringComparer.Ordinal).ToList();
+        CollectValidationFailures(model, failures);
         if (failures.Count == 0)
         {
             return;
+        }
+
+        if (failures.Count > 1)
+        {
+            failures = failures.Distinct(StringComparer.Ordinal).ToList();
         }
 
         _logger?.LogWarning(
