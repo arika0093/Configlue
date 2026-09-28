@@ -4,7 +4,7 @@ namespace Configlue;
 public sealed class ResourceWriteMutation
 {
     private readonly Func<ResourceReadResult, ReadOnlyMemory<byte>> _apply;
-    private readonly byte[]? _ownedReplacementContent;
+    private readonly ReadOnlyMemory<byte>? _ownedReplacementContent;
 
     /// <summary>Creates a resource mutation.</summary>
     public ResourceWriteMutation(
@@ -24,7 +24,7 @@ public sealed class ResourceWriteMutation
         Func<ResourceReadResult, ReadOnlyMemory<byte>> apply,
         string? scope,
         bool canCompose,
-        byte[]? ownedReplacementContent
+        ReadOnlyMemory<byte>? ownedReplacementContent
     )
     {
         ArgumentNullException.ThrowIfNull(apply);
@@ -67,9 +67,9 @@ public sealed class ResourceWriteMutation
 
     internal bool TryGetOwnedReplacementContent(out ReadOnlyMemory<byte> content)
     {
-        if (_ownedReplacementContent is not null)
+        if (_ownedReplacementContent.HasValue)
         {
-            content = _ownedReplacementContent;
+            content = _ownedReplacementContent.Value;
             return true;
         }
 

@@ -275,10 +275,7 @@ internal static class JsonStateCodecOperations
             return StripSimpleDocument(in normalizedSource, layout, serializerOptions);
         }
 
-        using var document = JsonDocument.Parse(
-            normalizedSource,
-            JsoncSyntaxTree.DocumentOptions
-        );
+        using var document = JsonDocument.Parse(normalizedSource, JsoncSyntaxTree.DocumentOptions);
         if (!document.RootElement.TryGetProperty(PayloadProperty, out var payload))
         {
             throw new JsonException(
@@ -302,10 +299,7 @@ internal static class JsonStateCodecOperations
     )
     {
         var normalizedSource = StripUtf8Bom(source);
-        using var document = JsonDocument.Parse(
-            normalizedSource,
-            JsoncSyntaxTree.DocumentOptions
-        );
+        using var document = JsonDocument.Parse(normalizedSource, JsoncSyntaxTree.DocumentOptions);
         if (document.RootElement.ValueKind != JsonValueKind.Object)
         {
             return null;
@@ -466,6 +460,29 @@ internal static class JsonStateCodecOperations
         }
 
         return false;
+    }
+
+    private static ReadOnlySequence<byte> StripUtf8Bom(in ReadOnlySequence<byte> source)
+    {
+        if (source.Length < 3)
+        {
+            return source;
+        }
+
+        var reader = new SequenceReader<byte>(source);
+        if (
+            !reader.TryRead(out var first)
+            || first != 0xEF
+            || !reader.TryRead(out var second)
+            || second != 0xBB
+            || !reader.TryRead(out var third)
+            || third != 0xBF
+        )
+        {
+            return source;
+        }
+
+        return source.Slice(reader.Position);
     }
 
     private static ReadOnlySequence<byte> StripSimpleDocument(
