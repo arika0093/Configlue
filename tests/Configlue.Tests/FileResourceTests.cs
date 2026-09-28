@@ -78,6 +78,46 @@ public sealed class FileResourceTests
     }
 
     [Test]
+    public async Task FileResource_WritesLargePayloadWithoutChangingItsBytesOrRevision()
+    {
+        var directory = System.IO.Path.Combine(
+            System.IO.Path.GetTempPath(),
+            "Configlue.Tests",
+            Guid.NewGuid().ToString("N")
+        );
+        var path = System.IO.Path.Combine(directory, "large-settings.json");
+        using var resource = new FileResource(
+            path,
+            new FileResourceOptions { CreateBackup = false, BackupMaxCount = 0 }
+        );
+        var content = new byte[1024 * 1024];
+        for (var index = 0; index < content.Length; index++)
+        {
+            content[index] = (byte)(index % 251);
+        }
+
+        try
+        {
+            var write = await resource.WriteAsync(
+                new ResourceWriteRequest(content, CheckRevision: true)
+            );
+            var saved = await resource.ReadAsync();
+
+            saved.Status.ShouldBe(StateReadStatus.Success);
+            saved.Revision.ShouldBe(write.Revision);
+            saved.Content.Span.SequenceEqual(content).ShouldBeTrue();
+        }
+        finally
+        {
+            resource.Dispose();
+            if (Directory.Exists(directory))
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+        }
+    }
+
+    [Test]
     public async Task FileResource_RotatesBackupsAndRestoresTheLatestFromConfiguredDirectory()
     {
         var directory = System.IO.Path.Combine(

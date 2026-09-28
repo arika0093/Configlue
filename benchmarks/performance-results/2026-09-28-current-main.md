@@ -47,3 +47,16 @@ A focused ShortRun on the current worktree added a Configlue case with backups d
 | `Configuration.Writable` save | 2.191 ms | 12.93 KB |
 
 The run used the same machine and ShortRun configuration described above. The before/after numbers are directional because the earlier checked-in result predates this focused run. The optimizations reduce the full-backup case by about 4.5% in allocations compared with the earlier 199,310 B result, while the no-backup case shows that backup work accounts for about 1.77 ms and 85 KB in this scenario. The remaining allocation gap is a separate profiling follow-up.
+
+## File-save allocation profiling follow-up
+
+A focused comparison found that the save pipeline itself allocates 8,168 B/op with an in-memory source, while the same pipeline with a file source and backups disabled allocated 105.38 KB/op. The atomic file replacement stream was reserving an 81,920-byte buffer even though the complete payload was already serialized in memory. Reducing that stream buffer to 1 byte preserves the direct asynchronous write and explicit disk flush while cutting the small-file benchmark allocations substantially.
+
+| Benchmark | Before | After |
+| --- | ---: | ---: |
+| Configlue save, default backups | 190.22 KB | 30,356 B |
+| Configlue save, backups disabled | 105.31 KB | 25,665 B |
+| Configlue save, in-memory source | — | 8,168 B |
+| `Configuration.Writable` save | 12.93 KB | 13,306 B |
+
+The after measurements used BenchmarkDotNet 0.15.8 ShortRun on the same Windows machine. Default-backup save allocated 84% less and backup-disabled save allocated 76% less than the preceding focused run. Latencies were 3.987 ms with backups, 2.331 ms without backups, 1.953 us for in-memory save, and 2.270 ms for `Configuration.Writable`. A 1 MiB file-resource write test verifies exact bytes and revision after replacement.

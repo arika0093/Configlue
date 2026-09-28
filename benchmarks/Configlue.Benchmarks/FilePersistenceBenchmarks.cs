@@ -39,6 +39,10 @@ public class FilePersistenceBenchmarks
         PersistenceBenchmarkSettings,
         PersistenceBenchmarkSettings.Fragment
     > _configlueWithoutBackup = null!;
+    private ConfiglueOptions<
+        PersistenceBenchmarkSettings,
+        PersistenceBenchmarkSettings.Fragment
+    > _configlueInMemory = null!;
     private Configuration.Writable.IWritableOptions<WritablePersistenceBenchmarkSettings> _writable =
         null!;
     private int _counter;
@@ -71,6 +75,27 @@ public class FilePersistenceBenchmarks
             .GetValueAsync()
             .ConfigureAwait(false);
 
+        var inMemoryStore = new InMemoryStateStore<PersistenceBenchmarkSettings.Fragment>(
+            new PersistenceBenchmarkSettings.Fragment
+            {
+                Counter = Optional<int>.Present(0),
+                Name = Optional<string>.Present("Benchmark"),
+                Enabled = Optional<bool>.Present(true),
+            }
+        );
+        _configlueInMemory = new ConfiglueOptions<
+            PersistenceBenchmarkSettings,
+            PersistenceBenchmarkSettings.Fragment
+        >(
+            new StateSourceSet<PersistenceBenchmarkSettings.Fragment>([
+                new StateSource<PersistenceBenchmarkSettings.Fragment>(
+                    "benchmark",
+                    inMemoryStore,
+                    writer: inMemoryStore
+                ),
+            ])
+        );
+
         var writablePath = Path.Combine(_directory, "writable.json");
         WritableOptions.Initialize(configuration =>
         {
@@ -89,6 +114,7 @@ public class FilePersistenceBenchmarks
     {
         await _configlue.DisposeAsync().ConfigureAwait(false);
         await _configlueWithoutBackup.DisposeAsync().ConfigureAwait(false);
+        await _configlueInMemory.DisposeAsync().ConfigureAwait(false);
         if (_writable is IAsyncDisposable asyncDisposable)
         {
             await asyncDisposable.DisposeAsync().ConfigureAwait(false);
@@ -124,6 +150,13 @@ public class FilePersistenceBenchmarks
         await _configlueWithoutBackup
             .SaveAsync(patch => patch.Counter = next)
             .ConfigureAwait(false);
+    }
+
+    [Benchmark]
+    public async Task ConfiglueSaveInMemoryAsync()
+    {
+        var next = Interlocked.Increment(ref _counter);
+        await _configlueInMemory.SaveAsync(patch => patch.Counter = next).ConfigureAwait(false);
     }
 
     [Benchmark]

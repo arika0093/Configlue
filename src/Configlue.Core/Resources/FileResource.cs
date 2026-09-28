@@ -524,7 +524,8 @@ public sealed partial class FileResource
                         FileMode.CreateNew,
                         FileAccess.Write,
                         FileShare.None,
-                        bufferSize: 81920,
+                        // The complete payload is already buffered; avoid another large stream buffer.
+                        bufferSize: 1,
                         FileOptions.Asynchronous | FileOptions.WriteThrough
                     )
                 )
