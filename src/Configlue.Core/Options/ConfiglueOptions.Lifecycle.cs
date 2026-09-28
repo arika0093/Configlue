@@ -77,34 +77,17 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
 
     private OperationLease EnterOperation()
     {
-        for (var frame = _operationFrame.Value; frame is not null; frame = frame.Parent)
-        {
-            if (ReferenceEquals(frame.Owner, this) && Volatile.Read(ref frame.Active) != 0)
-            {
-                return default;
-            }
-        }
         lock (_changeGate)
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
             _activeOperations++;
         }
-        var root = new OperationFrame(this, _operationFrame.Value);
-        _operationFrame.Value = root;
-        return new OperationLease(this, root);
+
+        return new OperationLease(this);
     }
 
-    private void ExitOperation(OperationFrame? root)
+    private void ExitOperation()
     {
-        if (root is null)
-        {
-            return;
-        }
-        Volatile.Write(ref root.Active, 0);
-        if (ReferenceEquals(_operationFrame.Value, root))
-        {
-            _operationFrame.Value = root.Parent;
-        }
         lock (_changeGate)
         {
             if (--_activeOperations == 0)
@@ -114,22 +97,9 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
         }
     }
 
-    private sealed class OperationFrame(
-        ConfiglueOptions<TModel, TFragment> owner,
-        OperationFrame? parent
-    )
+    private readonly struct OperationLease(ConfiglueOptions<TModel, TFragment>? owner) : IDisposable
     {
-        public ConfiglueOptions<TModel, TFragment> Owner { get; } = owner;
-        public OperationFrame? Parent { get; } = parent;
-        public int Active = 1;
-    }
-
-    private readonly struct OperationLease(
-        ConfiglueOptions<TModel, TFragment>? owner,
-        OperationFrame? frame
-    ) : IDisposable
-    {
-        public void Dispose() => owner?.ExitOperation(frame);
+        public void Dispose() => owner?.ExitOperation();
     }
 
     private StateSource<TFragment> SelectWriteSource(bool allowPriorityFallback = false)
