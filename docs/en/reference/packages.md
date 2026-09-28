@@ -20,7 +20,7 @@ description: Find the NuGet package for each Configlue capability.
 | `Configlue.Provider.Yaml` | YAML codec with section resources and file registrations. |
 | `Configlue.Source.Environment` | Read-only source backed by process environment variables. |
 | `Configlue.Source.CommandLine` | Read-only source backed by a `System.CommandLine` parse result, with opt-in common preset integration. |
-| `Configlue.Source.Common` | Global/local/file/environment source presets, included by the `Configlue` meta-package. |
+| `Configlue.Source.Presets` | Common layered source presets, included by the `Configlue` meta-package. |
 | `Configlue.Resource.Http` | HTTP read/write resources with ETag revisions and polling change detection. |
 | `Configlue.Resource.Http.AspNetCore` | ASP.NET Core endpoints for serving HTTP resources. |
 | `Configlue.Resource.Dapr` | Optional byte resources and source registration for Dapr State Management. |

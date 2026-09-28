@@ -17,6 +17,7 @@ namespace Configlue.Provider.Xml
         public Configlue.Resources.ResourceId? ResourceId { get; init; }
         public Configlue.Resources.FileResourceOptions? ResourceOptions { get; init; }
         public string? SectionPath { get; init; }
+        public System.Collections.Generic.IReadOnlyList<Configlue.Transformers.IStateByteTransformer>? Transformers { get; init; }
         public bool WatchChanges { get; init; }
     }
     public static class XmlFileSourceRegistration

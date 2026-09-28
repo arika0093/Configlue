@@ -47,6 +47,9 @@ public sealed class JsonHttpSourceOptions
     /// <summary>Additional context passed to the codec.</summary>
     public StateCodecContext CodecContext { get; init; }
 
+    /// <summary>Byte transformers applied when reading and writing this source.</summary>
+    public IReadOnlyList<IStateByteTransformer>? Transformers { get; init; }
+
     internal HttpSourceOptions ToHttpSourceOptions() =>
         new()
         {
@@ -62,6 +65,7 @@ public sealed class JsonHttpSourceOptions
             ResourceOptions = ResourceOptions,
             ResourceId = ResourceId,
             CodecContext = CodecContext,
+            Transformers = Transformers,
         };
 }
 

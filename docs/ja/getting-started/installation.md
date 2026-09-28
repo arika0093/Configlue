@@ -35,7 +35,7 @@ dotnet add package Configlue
 | XML ファイル | `Configlue.Provider.Xml` |
 | JSON Schema 出力のみ | `Configlue.JsonSchema` |
 | `System.CommandLine` 入力 | `Configlue.Source.CommandLine` |
-| 共通/ローカル/指定/env プリセット | `Configlue` (`Configlue.Source.Common` を含む) |
+| 共通/ローカル/指定/env プリセット | `Configlue` (`Configlue.Source.Presets` を含む) |
 | 設定の HTTP 配信 (ASP.NET Core) | `Configlue.Resource.Http.AspNetCore` |
 | Dapr state store への永続化 | `Configlue.Resource.Dapr` |
 | Amazon S3 object の読み書き | `Configlue.Resource.S3` |

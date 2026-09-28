@@ -21,6 +21,7 @@ namespace Configlue.Provider.Yaml
         public string? SchemaReferenceBaseUri { get; init; }
         public string? SectionPath { get; init; }
         public SharpYaml.YamlSerializerOptions? SerializerOptions { get; init; }
+        public System.Collections.Generic.IReadOnlyList<Configlue.Transformers.IStateByteTransformer>? Transformers { get; init; }
         public bool WatchChanges { get; init; }
     }
     public static class YamlFileSourceRegistration

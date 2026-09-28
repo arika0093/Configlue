@@ -17,6 +17,7 @@ using Configlue.Resource.Zip;
 using Configlue.Source.CommandLine;
 using Configlue.Source.Common;
 using Configlue.Source.Environment;
+using Configlue.Source.Presets;
 using Configlue.Testing;
 using Configlue.Transformer.AES;
 using PublicApiGenerator;
@@ -155,7 +156,7 @@ public sealed class PublicApiCheckTest
         PublicApiCheck.CheckAssembly(typeof(EnvironmentStateSource).Assembly);
 
     [Test]
-    public void CommonSources() => PublicApiCheck.Check<CommonSourceOptions>();
+    public void CommonSources() => PublicApiCheck.Check<CommonSourceBuilder>();
 
     [Test]
     public void CommandLineSources() => PublicApiCheck.Check<CommandLineSourceOptions>();

@@ -33,7 +33,7 @@ Add the capability packages you need on top:
 | XML files | `Configlue.Provider.Xml` |
 | JSON Schema export only | `Configlue.JsonSchema` |
 | `System.CommandLine` input | `Configlue.Source.CommandLine` |
-| Global/local/specific/environment presets | `Configlue` (includes `Configlue.Source.Common`) |
+| Global/local/specific/environment presets | `Configlue` (includes `Configlue.Source.Presets`) |
 | Serve settings over HTTP (ASP.NET Core) | `Configlue.Resource.Http.AspNetCore` |
 | Persist state through a Dapr state store | `Configlue.Resource.Dapr` |
 | Read and write Amazon S3 objects | `Configlue.Resource.S3` |
