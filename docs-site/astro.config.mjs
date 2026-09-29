@@ -169,6 +169,7 @@ export default defineConfig({
             'reference/s3-object-resource',
             'reference/dapr-state-resource',
             'reference/postgresql-resource',
+            'reference/redis-resource',
           ],
         },
       ],

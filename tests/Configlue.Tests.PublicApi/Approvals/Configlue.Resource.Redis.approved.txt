@@ -1,0 +1,48 @@
+[assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/arika0093/Configlue")]
+namespace Configlue.Resource.Redis
+{
+    public sealed class RedisResource : Configlue.Resources.IResourceIdentity, Configlue.Resources.IResourceReader, Configlue.Resources.IResourceWriter, Configlue.State.IStateWatcher, System.IDisposable
+    {
+        public RedisResource(StackExchange.Redis.IConnectionMultiplexer connectionMultiplexer, string resourceNamespace, Configlue.Resource.Redis.RedisResourceOptions? options = null) { }
+        public RedisResource(System.Func<Configlue.RouteKey, StackExchange.Redis.IConnectionMultiplexer> connectionMultiplexerResolver, string resourceNamespace, Configlue.Resource.Redis.RedisResourceOptions? options = null) { }
+        public Configlue.Resources.ResourceId ResourceId { get; }
+        public string ResourceNamespace { get; }
+        public void Dispose() { }
+        public Configlue.Resources.ResourceId GetResourceId(Configlue.Resources.ConfiglueResourceContext context) { }
+        public System.Threading.Tasks.ValueTask<Configlue.Resources.ResourceReadResult> ReadAsync(System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Configlue.Resources.ResourceReadResult> ReadAsync(Configlue.Resources.ConfiglueResourceContext context, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask WaitForChangeAsync(string? observedRevision, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask WaitForChangeAsync(Configlue.Resources.ConfiglueResourceContext context, string? observedRevision, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Configlue.State.StateWriteResult> WriteAsync(Configlue.Resources.ResourceWriteRequest request, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Configlue.State.StateWriteResult> WriteAsync(Configlue.Resources.ConfiglueResourceContext context, Configlue.Resources.ResourceWriteRequest request, System.Threading.CancellationToken cancellationToken = default) { }
+    }
+    public sealed class RedisResourceOptions
+    {
+        public RedisResourceOptions() { }
+        public int Database { get; init; }
+        public System.Func<Configlue.Resources.ConfiglueResourceContext, int>? DatabaseSelector { get; init; }
+        public string KeyPrefix { get; init; }
+        public System.Func<Configlue.Resources.ConfiglueResourceContext, string>? KeyPrefixSelector { get; init; }
+        public string NotificationChannel { get; init; }
+        public Configlue.Resources.ResourceId? ResourceId { get; init; }
+    }
+    public sealed class RedisStateSourceOptions
+    {
+        public RedisStateSourceOptions() { }
+        public required object Codec { get; init; }
+        public Configlue.Codecs.StateCodecContext CodecContext { get; init; }
+        public StackExchange.Redis.IConnectionMultiplexer? ConnectionMultiplexer { get; init; }
+        public System.Func<System.IServiceProvider?, StackExchange.Redis.IConnectionMultiplexer>? ConnectionMultiplexerFactory { get; init; }
+        public System.Func<System.IServiceProvider?, Configlue.RouteKey, StackExchange.Redis.IConnectionMultiplexer>? ConnectionMultiplexerResolver { get; init; }
+        public Configlue.Sources.StateFallbackCondition FallbackCondition { get; init; }
+        public string? Id { get; init; }
+        public int Priority { get; init; }
+        public required string ResourceNamespace { get; init; }
+        public Configlue.Resource.Redis.RedisResourceOptions? ResourceOptions { get; init; }
+        public bool Writable { get; init; }
+    }
+    public static class RedisStateSourceRegistration
+    {
+        public static Configlue.ConfiglueSourceRegistration FromRedis(this Configlue.ConfiglueSourceSetBuilder sources, Configlue.Resource.Redis.RedisStateSourceOptions options) { }
+    }
+}

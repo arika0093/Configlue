@@ -24,9 +24,11 @@ description: Find the NuGet package for each Configlue capability.
 | `Configlue.Resource.Dapr` | Optional Dapr State Management resources and source registration with ETag concurrency checks. |
 | `Configlue.Resource.S3` | Optional Amazon S3 object resources and source registration with ETag revisions. |
 | `Configlue.Resource.PostgreSql` | Optional PostgreSQL byte resources with subject-key rows, atomic revision checks, and `LISTEN`/`NOTIFY` change watching. |
+| `Configlue.Resource.Redis` | Optional Redis byte resources with subject-key keys, atomic Lua revision checks, and multiplexed Pub/Sub invalidation. |
 | `Configlue.Transformer.AES` | AES-GCM encryption and authentication for state bytes between a Resource and Codec, including passphrase-based key derivation. |
 
 The package references and versions in the project files are the source of truth. Install optional provider packages directly when you need them. Start with [Installation](../getting-started/installation.md).
 
 For object storage, see [Amazon S3 object resource](./s3-object-resource.md).
 For direct PostgreSQL persistence, see [PostgreSQL resource](./postgresql-resource.md).
+For direct Redis persistence, see [Redis resource](./redis-resource.md).

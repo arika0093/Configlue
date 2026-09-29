@@ -35,6 +35,7 @@ Add only the packages required by the application.
 | Dapr State Management | `Configlue.Resource.Dapr` |
 | Amazon S3 | `Configlue.Resource.S3` |
 | Direct PostgreSQL storage | `Configlue.Resource.PostgreSql` |
+| Direct Redis storage | `Configlue.Resource.Redis` |
 | ZIP archive entries | `Configlue.Resource.Zip` |
 | AES-GCM encryption | `Configlue.Transformer.AES` |
 | In-memory test doubles | `Configlue.Testing` |
