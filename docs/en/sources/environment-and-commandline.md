@@ -60,8 +60,6 @@ mappings.Map(firstOption, "RetryCount");
 mappings.Map(secondOption, "RetryCount"); // wins when both are present
 ```
 
-The package builds against System.CommandLine 2.0.12 and uses only APIs that also exist in the 3.x line. To verify another line, build with `-p:ConfiglueSystemCommandLineVersion=<version>` (for example `3.0.0-rc.1.26425.128`).
-
 ## Next steps
 
 * [HTTP and ZIP](./http-and-zip.md) for remote and archive sources.

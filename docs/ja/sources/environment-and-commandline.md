@@ -67,9 +67,6 @@ mappings.Map(firstOption, "RetryCount");
 mappings.Map(secondOption, "RetryCount"); // 両方ある場合はこちらが勝つ
 ```
 
-パッケージは System.CommandLine 2.0.12 向けにビルドし、3.x 系列にもある API のみ使っています。
-他の系列を確認するには `-p:ConfiglueSystemCommandLineVersion=<version>`（例 `3.0.0-rc.1.26425.128`）付きでビルドします。
-
 ## 次のステップ
 
 * リモートとアーカイブは [HTTP と ZIP](./http-and-zip.md)。
