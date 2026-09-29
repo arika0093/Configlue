@@ -167,7 +167,6 @@ export default defineConfig({
             'reference/packages',
             'reference/http-resource-protocol',
             'reference/s3-object-resource',
-            'reference/dapr-state-resource',
           ],
         },
       ],

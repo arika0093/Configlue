@@ -9,7 +9,6 @@ using Configlue.JsonSchema;
 using Configlue.Provider.Json;
 using Configlue.Provider.Xml;
 using Configlue.Provider.Yaml;
-using Configlue.Resource.Dapr;
 using Configlue.Resource.Http;
 using Configlue.Resource.Http.AspNetCore;
 using Configlue.Resource.S3;
@@ -265,9 +264,6 @@ public sealed class PublicApiCheckTest
 
     [Test]
     public void HttpAspNetCore() => PublicApiCheck.Check<HttpResourceEndpointOptions>();
-
-    [Test]
-    public void Dapr() => PublicApiCheck.Check<DaprStateSourceOptions>();
 
     [Test]
     public void S3() => PublicApiCheck.Check<S3ObjectSourceOptions>();
