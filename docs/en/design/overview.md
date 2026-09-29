@@ -66,7 +66,7 @@ var source = SerializedStateSource.FromResource<AppSettings.Fragment>(
     middlewares: [new AuditMiddleware()]);
 ```
 
-When in doubt, match the file format. Add one Codec per format you read, and narrow writes to one destination (STEP 11's YAML-first, JSON-second shape is typical). Mixing formats changes nothing about Source priority or `WriteRoute`.
+When in doubt, match the file format. Add one Codec per format you read, and narrow writes to one destination (the YAML-first, JSON-second guide shows a typical shape). Mixing formats changes nothing about Source priority or `WriteRoute`.
 
 ## Source: a logical contribution
 

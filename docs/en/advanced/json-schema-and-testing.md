@@ -15,7 +15,7 @@ var result = JsonSchemaGenerator.Generate(
 
 `Generate` builds the documents in memory; `Write` persists them. Check the result diagnostics for generation and file-output issues. Host the files wherever fits — a `main`-branch folder, a CDN, or release assets — and point editors at them.
 
-For a guided walkthrough, see [STEP 8: Export JSON Schema](../getting-started/08-json-schema.md).
+For a guided walkthrough, see [Export JSON Schema](../getting-started/08-json-schema.md).
 
 To restore the legacy `--cw-generate-json-schema <directory>` startup path, collect registrations in a `ConfiglueBuilder` and call `TryWriteFromCommandLine` before building the application. The helper returns a result and leaves process exit behavior to the host:
 

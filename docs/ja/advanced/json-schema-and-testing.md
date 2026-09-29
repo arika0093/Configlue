@@ -15,7 +15,7 @@ var result = JsonSchemaGenerator.Generate(
 
 `Generate` はメモリ上に文書を作り、`Write` は永続化します。生成やファイル出力の診断を確認してください。ファイルの置き場所は自由です — `main` ブランチのフォルダ、CDN、リリース資産など — エディターに指し示してください。
 
-チュートリアル形式で進める場合は [STEP 8: JSON Schema を出力する](../getting-started/08-json-schema.md) を参照してください。
+チュートリアル形式で進める場合は [JSON Schema を出力する](../getting-started/08-json-schema.md) を参照してください。
 
 旧来の `--cw-generate-json-schema <directory>` 起動経路を使うには、`ConfiglueBuilder` に登録を集め、アプリを構築する前に `TryWriteFromCommandLine` を呼びます。helper は通常の結果を返し、プロセスの終了方法はホスト側に委ねます:
 

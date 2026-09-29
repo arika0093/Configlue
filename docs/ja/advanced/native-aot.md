@@ -20,7 +20,7 @@ dotnet publish example/Example.ConsoleApp.NativeAot --configuration Release --ru
 
 `XmlStateCodec` は `XmlSerializer` のリフレクションと実行時コード生成を使います。コーデックメソッドにはトリミングと動的コードの要件を注釈し、トリム対象や NativeAOT アプリケーションから呼ぶとアナライザー警告が出るようにしています。現在、XML の生成コード経路はありません。
 
-チュートリアル形式で進める場合は [STEP 10: NativeAOT に対応する](../getting-started/10-native-aot.md) を参照してください。
+チュートリアル形式で進める場合は [NativeAOT で配布する](../getting-started/10-native-aot.md) を参照してください。
 
 ## 次のステップ
 

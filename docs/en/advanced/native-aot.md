@@ -20,7 +20,7 @@ Prefer the `JsonTypeInfo`-based codec constructors (also used by the [legacy dec
 
 `XmlStateCodec` uses `XmlSerializer` reflection and runtime code generation. Its codec methods are annotated with trimming and dynamic-code requirements, so calls from trimmed or NativeAOT applications produce analyzer warnings; there is currently no generated XML codec path.
 
-To follow this as a guided tutorial, see [STEP 10: Support NativeAOT](../getting-started/10-native-aot.md).
+To follow this as a guided tutorial, see [NativeAOT deployment](../getting-started/10-native-aot.md).
 
 ## Next steps
 
