@@ -50,6 +50,7 @@ await options.SaveAsync(patch => patch.SomeSetting = newValue);
 ソースの寄与を破壊的に置換する場合は、型付きソースハンドルを使います。
 
 ```csharp
+var sourceAdmin = context.GetSources<AppSettings>();
 var userKey = SourceKey<AppSettings>.Create(); // ユーザーソース登録時に再利用
 var replacement = new AppSettings.Patch();
 replacement.Name = "new-name";
@@ -57,6 +58,12 @@ await options.Source(userKey).ReplaceAsync(replacement);
 ```
 
 ## 編集セッション
+
+context から edit-session 用の機能を取得します。DI では `IConfiglueEditSessions<T>` を注入できます。
+
+```csharp
+var editSessions = context.GetEditSessions<AppSettings>();
+```
 
 設定画面で複数変更をまとめて適用する場合は、`IConfiglueInspection<T>` の `OpenEditSessionAsync` を使います。
 `IWritableOptions<T>` は Patch 保存に特化しています。
@@ -68,11 +75,11 @@ await options.Source(userKey).ReplaceAsync(replacement);
 モデル登録で `WriteConflictResolution = WriteConflictResolution.LastWriteWins` を設定すると、競合した項目にはセッション側の値を優先できます。
 書き込み時にも宛先の revision を確認するため、最新状態の読み取り後に宛先が変わると `StateConflictException` が発生することがあります。
 
-同期処理からは `options.OpenEditSession()` も使えます。
+同期処理からは `editSessions.OpenEditSession()` も使えます。
 非同期ソースの読み込み中は呼び出し元をブロックするため、非同期処理では `OpenEditSessionAsync` を使ってください。
 
 ```csharp
-using var edit = await options.OpenEditSessionAsync();
+using var edit = await editSessions.OpenEditSessionAsync();
 edit.Update(value => value.SomeSetting = newValue);
 // edit.ResetToLoaded();  // セッション開始時に読み込んだ値へ戻す
 // edit.ResetToDefault(); // モデルの既定値へ戻す
@@ -103,7 +110,7 @@ await options.SaveAsync(patch);
 
 ```csharp
 var userKey = SourceKey<AppSettings>.Create(); // same key used by source registration
-var userSource = options.Source(userKey);
+var userSource = sourceAdmin.Source(userKey);
 await userSource.SaveAsync(patch => patch.Database.Host = "db.example.test");
 await userSource.ReplaceAsync(patch => patch.Database.Host = "db.example.test");
 ```
@@ -115,9 +122,9 @@ using Configlue.Provider.Json;
 using Configlue.Provider.Xml;
 using Configlue.Provider.Yaml;
 
-await options.Source(JsonFileSource.At("./settings.json")).SaveAsync(patch);
-await options.Source(YamlFileSource.At("./settings.yaml", "App:Settings")).SaveAsync(patch);
-await options.Source(XmlFileSource.At("./settings.xml", "App:Settings")).SaveAsync(patch);
+await sourceAdmin.Source(JsonFileSource.At("./settings.json")).SaveAsync(patch);
+await sourceAdmin.Source(YamlFileSource.At("./settings.yaml", "App:Settings")).SaveAsync(patch);
+await sourceAdmin.Source(XmlFileSource.At("./settings.xml", "App:Settings")).SaveAsync(patch);
 ```
 
 これらのパス由来 selector は明示的な `Id` を指定せずに登録したソースに対応します。JSON の mount したソースでは `mountPath` にモデルパスを渡します (例: `JsonFileSource.At("./secrets.json", mountPath: "Secrets")`)。明示 ID を指定した場合は、対応する `SourceKey<TModel>` で選択します。

@@ -38,4 +38,4 @@ JSON 全体ソースとマウントした HTTP ソースは `AppSettings.Policy`
 ## 次のステップ
 
 * [ファイル・形式・セクション](../sources/files-and-sections.md)。
-* 名前ごとのソース構築 `SourcesForOptions` は [プロファイル](../profiles/profiles.md)。
+* 名前ごとのソース構築 `ConfigureSources` は [プロファイル](../profiles/profiles.md)。

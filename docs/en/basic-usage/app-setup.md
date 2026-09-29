@@ -51,24 +51,17 @@ services.AddConfiglueMicrosoftOptions<UserSettings>();
 When a source path or provider comes from DI, use the provider-aware callback. Model registration still runs while `IServiceCollection` is mutable; this callback runs when the runtime source set is created:
 
 ```csharp
-model.Sources((provider, sources) =>
+model.ConfigureSources(registration =>
 {
-    var paths = provider!.GetRequiredService<ISettingsPathProvider>();
-    sources.FromJsonFile(new JsonFileSourceOptions { Path = paths.SettingsFile });
+    var paths = registration.Services!.GetRequiredService<ISettingsPathProvider>();
+    registration.Sources.FromJsonFile(
+        new JsonFileSourceOptions { Path = paths.SettingsFile });
 });
 ```
 
 An already materialized `IOptionsSnapshot<T>` keeps its value for that scope, as snapshots normally do.
 
-For consumers that need the model itself, set `RegisterAsSingleton = true` on the default model registration. DI creates the model singleton from the current options value when the model is first resolved. The injected model keeps that snapshot after later source changes; use an options interface when a consumer needs current values or change notifications. This setting takes effect with `AddConfiglue` and requires the default options name.
-
-```csharp
-builder.Services.AddConfiglue(conf => conf.Add<UserSettings>(model =>
-{
-    model.RegisterAsSingleton = true;
-    model.Sources(sources => sources.Add(CreateUserSettingsSource()));
-}));
-```
+The facade does not register the model itself as a synchronous snapshot. Inject `IReadOnlyOptions<T>` or `IWritableOptions<T>` and read it asynchronously. If a framework requires Microsoft's synchronous options abstractions, use the opt-in MSOptions adapter described above.
 
 For a custom source in DI, use the `(provider, sources) => ...` overload of `AddConfiglueOptions<TModel, TFragment>` to resolve services and add them with `sources.Add(id, reader, priority, fallbackCondition)`. Writer and watcher interfaces implemented by the reader are detected automatically; use `WithWriter` / `WithWatcher` for separate services. The callback runs when the options singleton is created, and `Sources(sources => sources.Add(existingSource))` remains available for fully custom lifecycles.
 

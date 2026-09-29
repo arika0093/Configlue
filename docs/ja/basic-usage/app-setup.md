@@ -58,28 +58,17 @@ services.AddConfiglueMicrosoftOptions<UserSettings>();
 モデル登録そのものは `IServiceCollection` が変更可能なうちに行い、コールバックはランタイムソースセットの作成時に実行されます。
 
 ```csharp
-model.Sources((provider, sources) =>
+model.ConfigureSources(registration =>
 {
-    var paths = provider!.GetRequiredService<ISettingsPathProvider>();
-    sources.FromJsonFile(new JsonFileSourceOptions { Path = paths.SettingsFile });
+    var paths = registration.Services!.GetRequiredService<ISettingsPathProvider>();
+    registration.Sources.FromJsonFile(
+        new JsonFileSourceOptions { Path = paths.SettingsFile });
 });
 ```
 
 既に実体化された `IOptionsSnapshot<T>` は通常のスナップショット通り、そのスコープの値を保持します。
 
-モデル自体を直接 DI で注入する場合は、既定モデルの登録で `RegisterAsSingleton = true` を設定します。
-DI はモデルが初めて解決された時点の options 値からモデルシングルトンを構築します。
-その後ソースが変わっても注入済みモデルはこのスナップショットを保持します。
-最新値や変更通知が必要な利用側には options インターフェイスを使用してください。
-この設定は `AddConfiglue` で有効になり、既定のオプション名が必要です。
-
-```csharp
-builder.Services.AddConfiglue(conf => conf.Add<UserSettings>(model =>
-{
-    model.RegisterAsSingleton = true;
-    model.Sources(sources => sources.Add(CreateUserSettingsSource()));
-}));
-```
+ファサードは、モデル本体を同期スナップショットとして DI 登録しません。通常は `IReadOnlyOptions<T>` または `IWritableOptions<T>` を注入し、非同期で値を読みます。Microsoft の同期 Options API が必要なフレームワークでは、前述の MSOptions アダプターを明示的に追加します。
 
 DI で独自ソースを使う場合は `AddConfiglueOptions<TModel, TFragment>` の `(provider, sources) => ...` オーバーロードでサービスを解決し、`sources.Add(id, reader, priority, fallbackCondition)` で追加します。リーダーが実装するライター/ウォッチャーインターフェイスは自動検出され、分離型には `WithWriter` / `WithWatcher` を使います。コールバックはオプションシングルトン生成時に実行され、完全独自ライフサイクルには `Sources(sources => sources.Add(existingSource))` も使えます。
 

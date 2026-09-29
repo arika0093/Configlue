@@ -85,14 +85,16 @@ For a DI registration, call the same `conf.UseCommonSources(...)` method inside 
 While `SaveAsync` writes to the default writable layer (typically Local), you can explicitly target a specific layer using type-safe selectors:
 
 ```csharp
+var sourceAdmin = context.GetSources<AppSettings>();
+
 // Persist to user-wide Global configuration
-await options.Source(CommonSource.Global).SaveAsync(patch =>
+await sourceAdmin.Source(CommonSource.Global).SaveAsync(patch =>
 {
     patch.Theme = "Dark";
 });
 
 // Persist to project-level Local configuration
-await options.Source(CommonSource.Local).SaveAsync(patch =>
+await sourceAdmin.Source(CommonSource.Local).SaveAsync(patch =>
 {
     patch.Port = 8080;
 });

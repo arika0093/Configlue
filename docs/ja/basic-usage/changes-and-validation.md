@@ -19,7 +19,8 @@ DI では `IOptionsMonitor<T>.OnChange` も使用できます。
 値変更とは別に、バックグラウンド再読み込みの失敗を購読できます。
 
 ```csharp
-using var reloadFailureSubscription = options.OnReloadFailed(exception =>
+var diagnostics = context.GetDiagnostics<UserSetting>();
+using var reloadFailureSubscription = diagnostics.OnReloadFailed(exception =>
     logger.LogError(exception, "Configuration reload failed"));
 ```
 

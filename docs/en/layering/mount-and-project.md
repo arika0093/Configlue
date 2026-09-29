@@ -38,4 +38,4 @@ Use `StateSourceProjection.Project` to migrate and map a source-specific fragmen
 ## Next steps
 
 * [Files, formats, and sections](../sources/files-and-sections.md).
-* [Profiles](../profiles/profiles.md) for per-name source construction with `SourcesForOptions`.
+* [Profiles](../profiles/profiles.md) for per-name source construction with `ConfigureSources`.

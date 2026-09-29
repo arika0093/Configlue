@@ -35,21 +35,23 @@ writable mounted source の所有パスが重なると options 作成時に失�
 // 1回の編集でモデルパスごとに書き込み先を変える。
 var database = SourceKey<AppSettings>.Create();
 var secrets = SourceKey<AppSettings>.Create();
+var editSessions = context.GetEditSessions<AppSettings>();
 var writePlan = StateWritePlan.For<AppSettings>()
     .Route(settings => settings.Database, database)
     .Route(settings => settings.Database!.Password, secrets)
     .Build();
-using var routedEdit = await options.OpenEditSessionAsync(writePlan);
+using var routedEdit = await editSessions.OpenEditSessionAsync(writePlan);
 routedEdit.Value.Database!.Password = "updated";
-var writeResult = await routedEdit.CommitAsync();
-var sourceWrites = writeResult.MultiWriteResult;
+var receipt = await routedEdit.CommitAsync();
+foreach (var sourceWrite in receipt.Sources)
+    Console.WriteLine($"{sourceWrite.SourceId}: {sourceWrite.Revision}");
 ```
 
 通常の patch 保存は登録時の経路に従い、nested Patch を複数ソースへ再帰的に分割します。全体置換 Patch は1つの書き込み先に適用します。
 
 ## 検証と競合
 
-プランは編集前にパスと宛先を検証し、書き込み前に完全解決モデルと全ソースリビジョンを検証します。戻り値の `StateWriteResult.MultiWriteResult` はソース単位のリビジョンと物理書き込み回数を報告します。異なるリソース間の書き込みはアトミックではありません。
+プランは編集前にパスと宛先を検証し、書き込み前に完全解決モデルと全ソースリビジョンを検証します。戻り値の `StateWriteReceipt.Sources` はソース単位のリビジョンと物理書き込み回数を報告します。異なるリソース間の書き込みはアトミックではありません。
 
 競合は `StateConflictException` で失敗します:
 

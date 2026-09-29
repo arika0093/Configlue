@@ -7,11 +7,11 @@ description: 有効プロファイルカタログつきの永続化される名�
 
 ```csharp
 model.EnableProfiles(profileCatalogSource, defaultProfileName: "default");
-model.SourcesForOptions((profileName, sources) =>
-    sources.FromJsonFile(new()
+model.ConfigureSources(registration =>
+    registration.Sources.FromJsonFile(new()
     {
         Id = "profile-state",
-        Path = Path.Combine(profileDirectory, profileName + ".json"),
+        Path = Path.Combine(profileDirectory, registration.OptionsName + ".json"),
     }));
 
 var profiles = context.GetProfiledOptions<AppSettings>();
@@ -27,7 +27,7 @@ await profiles.RemoveProfileAsync("work");
 
 `OnChange` は active profile を追跡し、値の変更とプロファイル切替後の新しい値を通知します。カタログ source が watcher を提供する場合は、外部からのカタログ変更も監視します。subscription を破棄するとその callback が止まります。manager の catalog watcher は所有 context の破棄時に停止します。直接生成した profile manager は呼び出し側で破棄してください。
 
-DI では同じ `EnableProfiles`・`SourcesForOptions` 呼び出しを `services.AddConfiglue(...)` の中で行い、プロバイダーから `IConfiglueProfiledOptions<AppSettings>` を解決します。プロバイダー構築後に追加されたプロファイル名はキー付きサービスではなく `IOptionsMonitor` と `IConfiglueInspectionRegistry` で解決されます。非 DI の1引数入口は上記の `context.GetProfiledOptions<AppSettings>()` です。
+DI では同じ `EnableProfiles`・`ConfigureSources` 呼び出しを `services.AddConfiglue(...)` の中で行い、プロバイダーから `IConfiglueProfiledOptions<AppSettings>` を解決します。プロバイダー構築後に追加されたプロファイル名はキー付きサービスではなく `IOptionsMonitor` と `IConfiglueOptionsRegistry` で解決されます。非 DI の1引数入口は上記の `context.GetProfiledOptions<AppSettings>()` です。
 
 ```csharp
 using Configlue.Sources;
@@ -42,7 +42,7 @@ services.AddConfiglueProfiledOptions<AppConfig, AppConfig.Fragment>(
     });
 ```
 
-プロファイル名はオプション登録簿の名前でもあるため、固定 `OptionsName` 登録と衝突できません。`SourcesForOptions` は固定登録自体を含む各名前つきランタイム構築で実行され、そのランタイムの正確な `OptionsName` を受け取ります — プロファイル固有ソースの構築に使います。名前付きプロファイルにはキー付き DI 登録も使えます (例: `AddConfiglueOptions<TModel, TModel.Fragment>("profile", sourceSet)` と `GetRequiredKeyedService<IReadOnlyOptions<TModel>>("profile")`)。
+プロファイル名はオプション登録簿の名前でもあるため、固定 `OptionsName` 登録と衝突できません。`ConfigureSources` は固定登録自体を含む各名前つきランタイム構築で実行され、そのランタイムの正確な `OptionsName` を受け取ります — プロファイル固有ソースの構築に使います。名前付きプロファイルにはキー付き DI 登録も使えます (例: `AddConfiglueOptions<TModel, TModel.Fragment>("profile", sourceSet)` と `GetRequiredKeyedService<IReadOnlyOptions<TModel>>("profile")`)。
 
 ## 次のステップ
 

@@ -17,7 +17,8 @@ Change notifications are debounced by 300ms by default; pass `onChangeDebounce: 
 Subscribe to background reload failures separately from value changes:
 
 ```csharp
-using var reloadFailureSubscription = options.OnReloadFailed(exception =>
+var diagnostics = context.GetDiagnostics<UserSetting>();
+using var reloadFailureSubscription = diagnostics.OnReloadFailed(exception =>
     logger.LogError(exception, "Configuration reload failed"));
 ```
 

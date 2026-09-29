@@ -7,7 +7,7 @@ The `example/` directory contains runnable samples. Run them from the repository
 
 ## File-backed console app
 
-`Example.ConsoleApp` uses `ConfiglueApp.CreateContext` to register a generated model backed by a JSON file resource, then reads and writes it through `GetAdvancedOptions<T>()`.
+`Example.ConsoleApp` uses `ConfiglueApp.CreateContext` to register a generated model backed by a JSON file resource, then reads and writes it through `GetOptions<T>()`.
 
 ```sh
 dotnet run --project example/Example.ConsoleApp

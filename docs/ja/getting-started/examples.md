@@ -7,7 +7,7 @@ description: リポジトリ同梱の実行可能なサンプルアプリ。
 
 ## ファイル保存のコンソールアプリ
 
-`Example.ConsoleApp` は `ConfiglueApp.CreateContext` で生成モデルを登録し、JSON ファイルリソースを `GetAdvancedOptions<T>()` で読み書きします。
+`Example.ConsoleApp` は `ConfiglueApp.CreateContext` で生成モデルを登録し、JSON ファイルリソースを `GetOptions<T>()` で読み書きします。
 
 ```sh
 dotnet run --project example/Example.ConsoleApp

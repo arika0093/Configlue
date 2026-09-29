@@ -41,6 +41,7 @@ await options.SaveAsync(patch => patch.SomeSetting = newValue);
 Unchanged fields retain their existing sparse state. For destructive replacement of one source contribution, use its typed source handle:
 
 ```csharp
+var sourceAdmin = context.GetSources<AppSettings>();
 var userKey = SourceKey<AppSettings>.Create(); // reuse this key when registering the user source
 var replacement = new AppSettings.Patch();
 replacement.Name = "new-name";
@@ -49,12 +50,18 @@ await options.Source(userKey).ReplaceAsync(replacement);
 
 ## Edit sessions
 
-Use `OpenEditSessionAsync` on `IConfiglueEditSessions<T>` when a settings screen applies several changes together. `IWritableOptions<T>` stays focused on patch saves. The session is in-memory until `CommitAsync`; discard it to abandon changes. Disposing during a commit lets it finish and prevents further edits or commits. Before writing, the session resolves the latest state and rebases the draft changes from the original baseline. Non-overlapping changes are preserved. Concurrent changes to the same member fail by default; set `WriteConflictResolution = WriteConflictResolution.LastWriteWins` on the model registration to prefer the draft for those conflicts. The destination revision is still checked on write, so a change after the latest read can raise `StateConflictException`.
-
-Synchronous callers can use `options.OpenEditSession()`. It blocks while asynchronous sources are read; use `OpenEditSessionAsync` from asynchronous code.
+Get the edit-session capability from the context, or inject `IConfiglueEditSessions<T>` in DI code:
 
 ```csharp
-using var edit = await options.OpenEditSessionAsync();
+var editSessions = context.GetEditSessions<AppSettings>();
+```
+
+Use `OpenEditSessionAsync` on `IConfiglueEditSessions<T>` when a settings screen applies several changes together. `IWritableOptions<T>` stays focused on patch saves. The session is in-memory until `CommitAsync`; discard it to abandon changes. Disposing during a commit lets it finish and prevents further edits or commits. Before writing, the session resolves the latest state and rebases the draft changes from the original baseline. Non-overlapping changes are preserved. Concurrent changes to the same member fail by default; set `WriteConflictResolution = WriteConflictResolution.LastWriteWins` on the model registration to prefer the draft for those conflicts. The destination revision is still checked on write, so a change after the latest read can raise `StateConflictException`.
+
+Synchronous callers can use `editSessions.OpenEditSession()`. It blocks while asynchronous sources are read; use `OpenEditSessionAsync` from asynchronous code.
+
+```csharp
+using var edit = await editSessions.OpenEditSessionAsync();
 edit.Update(value => value.SomeSetting = newValue);
 // edit.ResetToLoaded();  // restore the value loaded when the session began
 // edit.ResetToDefault(); // restore model defaults
@@ -85,7 +92,7 @@ For one source, use a typed key and handle. `SaveAsync` keeps unspecified contri
 
 ```csharp
 var userKey = SourceKey<AppSettings>.Create(); // same key used by source registration
-var userSource = options.Source(userKey);
+var userSource = sourceAdmin.Source(userKey);
 await userSource.SaveAsync(patch => patch.Database.Host = "db.example.test");
 await userSource.ReplaceAsync(patch => patch.Database.Host = "db.example.test");
 ```
@@ -95,7 +102,8 @@ The common preset exposes semantic selectors for its standard file layers, so th
 ```csharp
 using Configlue.Source.Presets;
 
-await options.Source(CommonSource.Local).SaveAsync(
+var sourceAdmin = context.GetSources<AppSettings>();
+await sourceAdmin.Source(CommonSource.Local).SaveAsync(
     new AppSettings.Patch { Name = FragmentOperation<string>.Set("local-name") }
 );
 ```
@@ -107,9 +115,9 @@ using Configlue.Provider.Json;
 using Configlue.Provider.Xml;
 using Configlue.Provider.Yaml;
 
-await options.Source(JsonFileSource.At("./settings.json")).SaveAsync(patch);
-await options.Source(YamlFileSource.At("./settings.yaml", "App:Settings")).SaveAsync(patch);
-await options.Source(XmlFileSource.At("./settings.xml", "App:Settings")).SaveAsync(patch);
+await sourceAdmin.Source(JsonFileSource.At("./settings.json")).SaveAsync(patch);
+await sourceAdmin.Source(YamlFileSource.At("./settings.yaml", "App:Settings")).SaveAsync(patch);
+await sourceAdmin.Source(XmlFileSource.At("./settings.xml", "App:Settings")).SaveAsync(patch);
 ```
 
 These path-derived selectors match sources registered without an explicit `Id`. JSON selectors also accept the model path of a mounted source through `mountPath`, for example `JsonFileSource.At("./secrets.json", mountPath: "Secrets")`. If you provide an explicit ID, select it with the corresponding `SourceKey<TModel>`.

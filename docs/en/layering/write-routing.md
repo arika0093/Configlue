@@ -35,21 +35,23 @@ Set `ConfiglueModelBuilder<T>.WritePlan` to declare default owners for paths or 
 // Route selected model paths to different writable sources for one edit.
 var database = SourceKey<AppSettings>.Create();
 var secrets = SourceKey<AppSettings>.Create();
+var editSessions = context.GetEditSessions<AppSettings>();
 var writePlan = StateWritePlan.For<AppSettings>()
     .Route(settings => settings.Database, database)
     .Route(settings => settings.Database!.Password, secrets)
     .Build();
-using var routedEdit = await options.OpenEditSessionAsync(writePlan);
+using var routedEdit = await editSessions.OpenEditSessionAsync(writePlan);
 routedEdit.Value.Database!.Password = "updated";
-var writeResult = await routedEdit.CommitAsync();
-var sourceWrites = writeResult.MultiWriteResult;
+var receipt = await routedEdit.CommitAsync();
+foreach (var sourceWrite in receipt.Sources)
+    Console.WriteLine($"{sourceWrite.SourceId}: {sourceWrite.Revision}");
 ```
 
 Generated patch saves follow registered routes and recursively split nested patches across multiple sources. Whole-model replacement patches apply to one write destination.
 
 ## Verification and conflicts
 
-Plans validate paths and targets before editing, then verify the fully resolved model and all source revisions before writing. The returned `StateWriteResult.MultiWriteResult` reports per-source revisions and physical write count. Writes across different resources are not atomic.
+Plans validate paths and targets before editing, then verify the fully resolved model and all source revisions before writing. The returned `StateWriteReceipt.Sources` reports per-source revisions and physical write count. Writes across different resources are not atomic.
 
 Conflicts fail with `StateConflictException`:
 

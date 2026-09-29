@@ -89,14 +89,16 @@ DI 登録では同じ `conf.UseCommonSources(...)` を `AddConfiglue` 内で呼�
 文字列で ID を指定する代わりに、型安全な `CommonSource` セレクターを使用します。
 
 ```csharp
+var sourceAdmin = context.GetSources<AppSettings>();
+
 // ユーザー共通設定 (Global) に保存
-await options.Source(CommonSource.Global).SaveAsync(patch =>
+await sourceAdmin.Source(CommonSource.Global).SaveAsync(patch =>
 {
     patch.Theme = "Dark";
 });
 
 // ローカル設定 (Local) に保存
-await options.Source(CommonSource.Local).SaveAsync(patch =>
+await sourceAdmin.Source(CommonSource.Local).SaveAsync(patch =>
 {
     patch.LocalPort = 8080;
 });

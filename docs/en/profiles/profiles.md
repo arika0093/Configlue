@@ -7,11 +7,11 @@ Persistent named profiles use a separate writable source for their catalog. The 
 
 ```csharp
 model.EnableProfiles(profileCatalogSource, defaultProfileName: "default");
-model.SourcesForOptions((profileName, sources) =>
-    sources.FromJsonFile(new()
+model.ConfigureSources(registration =>
+    registration.Sources.FromJsonFile(new()
     {
         Id = "profile-state",
-        Path = Path.Combine(profileDirectory, profileName + ".json"),
+        Path = Path.Combine(profileDirectory, registration.OptionsName + ".json"),
     }));
 
 var profiles = context.GetProfiledOptions<AppSettings>();
@@ -27,7 +27,7 @@ The profile facade manages profile selection and lifetime; write through the `IW
 
 `OnChange` follows the active profile: it reports value changes and emits the newly active value after a profile switch. When the catalog source provides a watcher, the manager observes external catalog changes too. Dispose the subscription to stop its callbacks. The manager's catalog watcher stops when the owning context is disposed; dispose a directly constructed profile manager yourself.
 
-For DI, use the same `EnableProfiles` and `SourcesForOptions` calls inside `services.AddConfiglue(...)`, then resolve `IConfiglueProfiledOptions<AppSettings>` from the provider. Profile names added after provider construction resolve through `IOptionsMonitor` and `IConfiglueInspectionRegistry`, not keyed services. The one-arity non-DI entry is `context.GetProfiledOptions<AppSettings>()` as shown above.
+For DI, use the same `EnableProfiles` and `ConfigureSources` calls inside `services.AddConfiglue(...)`, then resolve `IConfiglueProfiledOptions<AppSettings>` from the provider. Profile names added after provider construction resolve through `IOptionsMonitor` and `IConfiglueOptionsRegistry`, not keyed services. The one-arity non-DI entry is `context.GetProfiledOptions<AppSettings>()` as shown above.
 
 ```csharp
 using Configlue.Sources;
@@ -42,7 +42,7 @@ services.AddConfiglueProfiledOptions<AppConfig, AppConfig.Fragment>(
     });
 ```
 
-Profile names are also names in the options registry and must not collide with fixed `OptionsName` registrations. `SourcesForOptions` runs for each constructed named runtime, including the fixed registration itself, and receives that runtime's exact `OptionsName` — use it to build profile-specific sources. Named profiles can use keyed DI registrations, for example `AddConfiglueOptions<TModel, TModel.Fragment>("profile", sourceSet)` and `GetRequiredKeyedService<IReadOnlyOptions<TModel>>("profile")`.
+Profile names are also names in the options registry and must not collide with fixed `OptionsName` registrations. `ConfigureSources` runs for each constructed named runtime, including the fixed registration itself, and receives that runtime's exact `OptionsName` — use it to build profile-specific sources. Named profiles can use keyed DI registrations, for example `AddConfiglueOptions<TModel, TModel.Fragment>("profile", sourceSet)` and `GetRequiredKeyedService<IReadOnlyOptions<TModel>>("profile")`.
 
 ## Next steps
 
