@@ -7,6 +7,8 @@ description: Remote policy sources over HTTP and archive entries as resources.
 
 `HttpResourceReader` reads from `{root}/get` and can be composed with any state codec. HTTP requests use ETags for conditional writes and polling (every 5 seconds by default).
 
+Concurrent subject watchers that share one reader and endpoint share a single polling loop. Each waiter is released when the physical resource changes and then reads authoritative state independently; canceling one waiter leaves the shared loop running for the others, and removing the last waiter stops it.
+
 ```csharp
 using Configlue.Provider.Json;
 using Configlue.Resource.Http;

@@ -57,6 +57,7 @@ internal sealed class SubjectChangeSubscription<TModel> : IDisposable
     private IDisposable? _subjectSubscription;
     private IDisposable? _invalidationSubscription;
     private long _generation;
+    private long _boundGeneration = long.MinValue;
     private int _disposed;
 
     public SubjectChangeSubscription(
@@ -93,6 +94,7 @@ internal sealed class SubjectChangeSubscription<TModel> : IDisposable
     private void OnInvalidated()
     {
         Interlocked.Increment(ref _generation);
+        Interlocked.Exchange(ref _subjectSubscription, null)?.Dispose();
         _ = RebindAsync();
     }
 
@@ -106,32 +108,82 @@ internal sealed class SubjectChangeSubscription<TModel> : IDisposable
                 while (Volatile.Read(ref _disposed) == 0)
                 {
                     var generation = Volatile.Read(ref _generation);
+                    if (
+                        generation == Volatile.Read(ref _boundGeneration)
+                        && Volatile.Read(ref _subjectSubscription) is not null
+                    )
+                    {
+                        break;
+                    }
+
                     var subject = await _subjectAccessor
                         .GetCurrentSubjectAsync(_cancellation.Token)
                         .ConfigureAwait(false);
-                    var next = _subjectOptions
-                        .For(subject)
-                        .OnChange(value =>
+                    if (Volatile.Read(ref _disposed) != 0)
+                    {
+                        break;
+                    }
+
+                    var subjectOptions = _subjectOptions.For(subject);
+                    var next = subjectOptions.OnChange(value =>
+                    {
+                        if (
+                            Volatile.Read(ref _disposed) == 0
+                            && generation == Volatile.Read(ref _generation)
+                        )
                         {
-                            if (
-                                Volatile.Read(ref _disposed) == 0
-                                && generation == Volatile.Read(ref _generation)
-                            )
-                            {
-                                _listener(value);
-                            }
-                        });
-                    if (generation != Volatile.Read(ref _generation))
+                            _listener(value);
+                        }
+                    });
+                    if (
+                        Volatile.Read(ref _disposed) != 0
+                        || generation != Volatile.Read(ref _generation)
+                    )
                     {
                         next.Dispose();
+                        if (Volatile.Read(ref _disposed) != 0)
+                        {
+                            break;
+                        }
+
                         continue;
                     }
 
                     Interlocked.Exchange(ref _subjectSubscription, next)?.Dispose();
-                    if (generation == Volatile.Read(ref _generation))
+                    if (
+                        Volatile.Read(ref _disposed) != 0
+                        || generation != Volatile.Read(ref _generation)
+                    )
                     {
-                        break;
+                        Interlocked.Exchange(ref _subjectSubscription, null)?.Dispose();
+                        if (Volatile.Read(ref _disposed) != 0)
+                        {
+                            break;
+                        }
+
+                        continue;
                     }
+
+                    if (generation > 0)
+                    {
+                        var value = await subjectOptions
+                            .GetValueAsync(_cancellation.Token)
+                            .ConfigureAwait(false);
+                        if (
+                            Volatile.Read(ref _disposed) == 0
+                            && generation == Volatile.Read(ref _generation)
+                        )
+                        {
+                            Volatile.Write(ref _boundGeneration, generation);
+                            _listener(value);
+                        }
+                    }
+                    else
+                    {
+                        Volatile.Write(ref _boundGeneration, generation);
+                    }
+
+                    break;
                 }
             }
             finally

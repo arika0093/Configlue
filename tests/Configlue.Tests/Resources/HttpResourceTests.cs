@@ -391,6 +391,147 @@ public sealed class HttpResourceTests
     }
 
     [Test]
+    public async Task Watcher_MultiplexesHighFanOutOnOnePhysicalResource()
+    {
+        var requestCount = 0;
+        var activeRequests = 0;
+        var maximumConcurrentRequests = 0;
+        using var httpClient = new HttpClient(
+            new DelegateHttpMessageHandler(
+                async (_, cancellationToken) =>
+                {
+                    var active = Interlocked.Increment(ref activeRequests);
+                    while (true)
+                    {
+                        var observed = Volatile.Read(ref maximumConcurrentRequests);
+                        if (observed >= active)
+                        {
+                            break;
+                        }
+
+                        if (
+                            Interlocked.CompareExchange(
+                                ref maximumConcurrentRequests,
+                                active,
+                                observed
+                            ) == observed
+                        )
+                        {
+                            break;
+                        }
+                    }
+
+                    try
+                    {
+                        var requestIndex = Interlocked.Increment(ref requestCount);
+                        await Task.Delay(TimeSpan.FromMilliseconds(2), cancellationToken);
+                        return requestIndex == 1
+                            ? ContentResponse(HttpStatusCode.OK, "current", "\"revision-1\"")
+                            : new HttpResponseMessage(HttpStatusCode.NotModified);
+                    }
+                    finally
+                    {
+                        Interlocked.Decrement(ref activeRequests);
+                    }
+                }
+            )
+        );
+        var reader = new HttpResourceReader(
+            httpClient,
+            EndpointRoot,
+            new HttpResourceOptions { PollingInterval = TimeSpan.FromMilliseconds(4) }
+        );
+        var initial = await reader.ReadAsync();
+        using var firstCancellation = new CancellationTokenSource();
+        using var remainingCancellation = new CancellationTokenSource();
+        var waits = Enumerable
+            .Range(0, 32)
+            .Select(index =>
+                reader
+                    .WaitForChangeAsync(
+                        initial.Revision,
+                        index == 0 ? firstCancellation.Token : remainingCancellation.Token
+                    )
+                    .AsTask()
+            )
+            .ToArray();
+
+        await Task.Delay(TimeSpan.FromMilliseconds(50));
+        maximumConcurrentRequests.ShouldBe(1);
+        requestCount.ShouldBeLessThan(20);
+
+        firstCancellation.Cancel();
+        await Should.ThrowAsync<OperationCanceledException>(async () => await waits[0]);
+        var requestsBeforeContinuing = Volatile.Read(ref requestCount);
+        await Task.Delay(TimeSpan.FromMilliseconds(30));
+        (Volatile.Read(ref requestCount) > requestsBeforeContinuing).ShouldBeTrue();
+        waits.Skip(1).ShouldAllBe(static wait => !wait.IsCompleted);
+
+        remainingCancellation.Cancel();
+        await Should.ThrowAsync<OperationCanceledException>(async () =>
+            await Task.WhenAll(waits.Skip(1))
+        );
+    }
+
+    [Test]
+    public async Task Watcher_HandlesConcurrentSubscribeDisposeAndChange()
+    {
+        var requestCount = 0;
+        var pollStarted = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        var releaseChange = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        using var httpClient = new HttpClient(
+            new DelegateHttpMessageHandler(
+                async (_, cancellationToken) =>
+                {
+                    var requestIndex = Interlocked.Increment(ref requestCount);
+                    if (requestIndex == 1)
+                    {
+                        return ContentResponse(HttpStatusCode.OK, "current", "\"revision-1\"");
+                    }
+
+                    if (requestIndex == 2)
+                    {
+                        pollStarted.TrySetResult();
+                        await releaseChange.Task.WaitAsync(cancellationToken);
+                        return ContentResponse(HttpStatusCode.OK, "changed", "\"revision-2\"");
+                    }
+
+                    return new HttpResponseMessage(HttpStatusCode.NotModified);
+                }
+            )
+        );
+        var reader = new HttpResourceReader(
+            httpClient,
+            EndpointRoot,
+            new HttpResourceOptions { PollingInterval = TimeSpan.FromMilliseconds(2) }
+        );
+        var initial = await reader.ReadAsync();
+        var activeWaiters = Enumerable
+            .Range(0, 12)
+            .Select(_ => reader.WaitForChangeAsync(initial.Revision).AsTask())
+            .ToArray();
+        await pollStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+        for (var index = 0; index < 40; index++)
+        {
+            using var cancellation = new CancellationTokenSource();
+            var transientWaiter = reader
+                .WaitForChangeAsync(initial.Revision, cancellation.Token)
+                .AsTask();
+            cancellation.Cancel();
+            await Should.ThrowAsync<OperationCanceledException>(async () => await transientWaiter);
+        }
+
+        releaseChange.TrySetResult();
+        await Task.WhenAll(activeWaiters).WaitAsync(TimeSpan.FromSeconds(2));
+        requestCount.ShouldBe(2);
+    }
+
+    [Test]
     public void Constructor_RejectsNonHttpRootsAndPathsThatEscapeTheRoot()
     {
         using var httpClient = new HttpClient(

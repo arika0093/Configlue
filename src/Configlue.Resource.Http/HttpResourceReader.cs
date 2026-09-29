@@ -28,6 +28,10 @@ public sealed class HttpResourceReader
     private readonly TimeSpan _maximumPollingInterval;
     private readonly TimeSpan _requestTimeout;
     private readonly object _snapshotGate = new();
+    private readonly object _watchGate = new();
+    private readonly List<ChangeWaiter> _changeWaiters = [];
+    private CancellationTokenSource? _sharedWatchCancellation;
+    private Task? _sharedWatchTask;
     private HttpResourceSnapshot? _lastSnapshot;
 
     /// <summary>Creates a resource reader for the supplied HTTP endpoint root.</summary>
@@ -212,6 +216,7 @@ public sealed class HttpResourceReader
         CancellationToken cancellationToken = default
     )
     {
+        cancellationToken.ThrowIfCancellationRequested();
         var baseline = GetLastSnapshot();
         if (baseline is null)
         {
@@ -230,35 +235,162 @@ public sealed class HttpResourceReader
             return;
         }
 
-        var pollingInterval = _pollingInterval;
-        while (true)
+        var waiter = new ChangeWaiter(baseline.Value);
+        lock (_watchGate)
         {
-            await Task.Delay(pollingInterval, cancellationToken).ConfigureAwait(false);
-            var response = await SendReadAsync(
-                    conditional: true,
-                    observedRevision: observedRevision,
-                    cancellationToken: cancellationToken
-                )
-                .ConfigureAwait(false);
-            if (response.Result.Status == StateReadStatus.Unavailable)
+            var current = GetLastSnapshot();
+            if (
+                current is { } currentSnapshot
+                && !HasSameRevisionOrContent(baseline.Value, currentSnapshot)
+            )
             {
-                pollingInterval =
-                    pollingInterval.Ticks >= _maximumPollingInterval.Ticks / 2
-                        ? _maximumPollingInterval
-                        : TimeSpan.FromTicks(pollingInterval.Ticks * 2);
-                continue;
-            }
-
-            pollingInterval = _pollingInterval;
-            if (response.NotModified)
-            {
-                continue;
-            }
-
-            if (!HasSameRevisionOrContent(baseline.Value, response.ObservedSnapshot))
-            {
-                SetLastSnapshot(response.ObservedSnapshot);
                 return;
+            }
+
+            _changeWaiters.Add(waiter);
+            if (_sharedWatchTask is null)
+            {
+                StartSharedWatchLoopLocked();
+            }
+        }
+
+        try
+        {
+            await waiter.Completion.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            RemoveChangeWaiter(waiter);
+        }
+    }
+
+    private void StartSharedWatchLoopLocked()
+    {
+        var cancellation = new CancellationTokenSource();
+        _sharedWatchCancellation = cancellation;
+        _sharedWatchTask = Task.Run(
+            () => RunSharedWatchLoopAsync(cancellation),
+            CancellationToken.None
+        );
+    }
+
+    private async Task RunSharedWatchLoopAsync(CancellationTokenSource cancellation)
+    {
+        var cancellationToken = cancellation.Token;
+        try
+        {
+            var pollingInterval = _pollingInterval;
+            while (true)
+            {
+                HttpResourceSnapshot baseline;
+                lock (_watchGate)
+                {
+                    if (_changeWaiters.Count == 0)
+                    {
+                        return;
+                    }
+
+                    baseline =
+                        GetLastSnapshot()
+                        ?? throw new InvalidOperationException(
+                            "The HTTP watch loop started without a resource snapshot."
+                        );
+                    CompleteChangedWaitersLocked(baseline);
+                    if (_changeWaiters.Count == 0)
+                    {
+                        continue;
+                    }
+                }
+
+                await Task.Delay(pollingInterval, cancellationToken).ConfigureAwait(false);
+                var response = await SendReadAsync(
+                        conditional: true,
+                        observedRevision: baseline.Revision,
+                        cancellationToken: cancellationToken
+                    )
+                    .ConfigureAwait(false);
+                if (response.Result.Status == StateReadStatus.Unavailable)
+                {
+                    pollingInterval =
+                        pollingInterval.Ticks >= _maximumPollingInterval.Ticks / 2
+                            ? _maximumPollingInterval
+                            : TimeSpan.FromTicks(pollingInterval.Ticks * 2);
+                    continue;
+                }
+
+                pollingInterval = _pollingInterval;
+                if (response.NotModified)
+                {
+                    continue;
+                }
+
+                if (!HasSameRevisionOrContent(baseline, response.ObservedSnapshot))
+                {
+                    SetLastSnapshot(response.ObservedSnapshot);
+                    lock (_watchGate)
+                    {
+                        CompleteChangedWaitersLocked(response.ObservedSnapshot);
+                    }
+                }
+            }
+        }
+        catch (Exception exception)
+        {
+            if (!cancellationToken.IsCancellationRequested)
+            {
+                lock (_watchGate)
+                {
+                    foreach (var waiter in _changeWaiters)
+                    {
+                        waiter.Completion.TrySetException(exception);
+                    }
+
+                    _changeWaiters.Clear();
+                }
+            }
+        }
+        finally
+        {
+            lock (_watchGate)
+            {
+                if (ReferenceEquals(_sharedWatchCancellation, cancellation))
+                {
+                    _sharedWatchCancellation = null;
+                    _sharedWatchTask = null;
+                    if (_changeWaiters.Count > 0)
+                    {
+                        StartSharedWatchLoopLocked();
+                    }
+                }
+            }
+
+            cancellation.Dispose();
+        }
+    }
+
+    private void CompleteChangedWaitersLocked(HttpResourceSnapshot snapshot)
+    {
+        for (var index = _changeWaiters.Count - 1; index >= 0; index--)
+        {
+            var waiter = _changeWaiters[index];
+            if (HasSameRevisionOrContent(waiter.Baseline, snapshot))
+            {
+                continue;
+            }
+
+            _changeWaiters.RemoveAt(index);
+            waiter.Completion.TrySetResult();
+        }
+    }
+
+    private void RemoveChangeWaiter(ChangeWaiter waiter)
+    {
+        lock (_watchGate)
+        {
+            _changeWaiters.Remove(waiter);
+            if (_changeWaiters.Count == 0)
+            {
+                _sharedWatchCancellation?.Cancel();
             }
         }
     }
@@ -659,6 +791,14 @@ public sealed class HttpResourceReader
 
         public static HttpReadResponse Unchanged { get; } =
             new(default, default, NotModified: true);
+    }
+
+    private sealed class ChangeWaiter(HttpResourceSnapshot baseline)
+    {
+        public HttpResourceSnapshot Baseline { get; } = baseline;
+
+        public TaskCompletionSource Completion { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
     }
 
     private sealed class HttpResponseOwner(

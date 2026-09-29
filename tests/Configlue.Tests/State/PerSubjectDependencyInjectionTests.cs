@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Security.Claims;
+using System.Threading.Channels;
 using Configlue.Resource.Http.AspNetCore;
 using Configlue.Testing;
 using Microsoft.AspNetCore.Components.Authorization;
@@ -137,7 +138,13 @@ public sealed class PerSubjectDependencyInjectionTests
         );
         using var subscription = scope
             .ServiceProvider.GetRequiredService<IReadOnlyOptions<AppSettings>>()
-            .OnChange(value => changed.TrySetResult(value.Label));
+            .OnChange(value =>
+            {
+                if (value.Label == "after-b")
+                {
+                    changed.TrySetResult(value.Label);
+                }
+            });
 
         await Task.Delay(150);
         accessor.Set(subjectB);
@@ -147,6 +154,62 @@ public sealed class PerSubjectDependencyInjectionTests
         changed.Task.IsCompleted.ShouldBeFalse();
         users.Set(subjectB.Key, Fragment("after-b"));
         (await changed.Task.WaitAsync(TimeSpan.FromSeconds(3))).ShouldBe("after-b");
+    }
+
+    [Test]
+    public async Task SubjectInvalidationRebindsAcrossRoutesAndNotifiesEvenForEqualValues()
+    {
+        var users = new SubjectStateStore<AppSettings.Fragment>();
+        var key = SubjectKey.FromSegments("same-subject-key");
+        var routeA = RouteKey.From("backend-a");
+        var routeB = RouteKey.From("backend-b");
+        users.Set(key, routeA, Fragment("same"));
+        users.Set(key, routeB, Fragment("same"));
+        var services = new ServiceCollection();
+        services.AddScoped<MutableRoutedSubjectAccessor>();
+        services.AddConfiglue(builder =>
+            builder.Add<AppSettings>(model =>
+            {
+                model.PerSubject<MutableRoutedSubjectAccessor>();
+                model.Routing<RoutedSettingsSubject>(static subject => subject.Route);
+                model.OnChangeDebounce = TimeSpan.Zero;
+                model.Sources(sources =>
+                    sources.Add(
+                        new StateSource<AppSettings.Fragment>(
+                            "users",
+                            users,
+                            watcher: users,
+                            subjectKeySelector: _ => key
+                        )
+                    )
+                );
+            })
+        );
+
+        using var provider = services.BuildServiceProvider();
+        using var scope = provider.CreateScope();
+        var accessor = scope.ServiceProvider.GetRequiredService<MutableRoutedSubjectAccessor>();
+        accessor.Set(new RoutedSettingsSubject("a", routeA));
+        var options = scope.ServiceProvider.GetRequiredService<IReadOnlyOptions<AppSettings>>();
+        (await options.GetValueAsync()).Label.ShouldBe("same");
+        var changes = Channel.CreateUnbounded<string?>(
+            new UnboundedChannelOptions { SingleReader = true, SingleWriter = false }
+        );
+        using var subscription = options.OnChange(value => changes.Writer.TryWrite(value.Label));
+
+        await Task.Delay(100);
+        accessor.Set(new RoutedSettingsSubject("b", routeB));
+        (await changes.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(2))).ShouldBe(
+            "same"
+        );
+
+        users.Set(key, routeA, Fragment("changed-a"));
+        await Task.Delay(150);
+        changes.Reader.TryRead(out _).ShouldBeFalse();
+        users.Set(key, routeB, Fragment("changed-b"));
+        (await changes.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(2))).ShouldBe(
+            "changed-b"
+        );
     }
 
     [Test]
@@ -245,6 +308,11 @@ public sealed class PerSubjectDependencyInjectionTests
         public SubjectKey Key => SubjectKey.FromSegments(TenantId, UserId);
     }
 
+    private sealed record RoutedSettingsSubject(string Name, RouteKey Route) : IConfiglueSubject
+    {
+        public SubjectKey Key => SubjectKey.FromSegments("same-subject-key");
+    }
+
     private sealed class MutableSubjectAccessor
         : IConfiglueSubjectAccessor<SettingsSubject>,
             IConfiglueSubjectChangeSource
@@ -298,48 +366,112 @@ public sealed class PerSubjectDependencyInjectionTests
         }
     }
 
+    private sealed class MutableRoutedSubjectAccessor
+        : IConfiglueSubjectAccessor<RoutedSettingsSubject>,
+            IConfiglueSubjectChangeSource
+    {
+        private readonly object _gate = new();
+        private readonly List<Action> _listeners = [];
+        private RoutedSettingsSubject? _subject;
+
+        public ValueTask<RoutedSettingsSubject> GetCurrentAsync(
+            CancellationToken cancellationToken = default
+        )
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            lock (_gate)
+            {
+                return ValueTask.FromResult(
+                    _subject
+                        ?? throw new InvalidOperationException(
+                            "A test subject has not been selected."
+                        )
+                );
+            }
+        }
+
+        public void Set(RoutedSettingsSubject subject)
+        {
+            Action[] listeners;
+            lock (_gate)
+            {
+                _subject = subject;
+                listeners = [.. _listeners];
+            }
+
+            foreach (var listener in listeners)
+            {
+                listener();
+            }
+        }
+
+        public IDisposable OnChange(Action listener)
+        {
+            lock (_gate)
+            {
+                _listeners.Add(listener);
+            }
+
+            return new CallbackDisposable(() =>
+            {
+                lock (_gate)
+                {
+                    _listeners.Remove(listener);
+                }
+            });
+        }
+    }
+
     private sealed class SubjectStateStore<T> : IStateReader<T>, IStateWriter<T>, IStateWatcher
     {
-        private readonly ConcurrentDictionary<SubjectKey, InMemoryStateStore<T>> _states = new();
+        private readonly ConcurrentDictionary<
+            (SubjectKey Key, RouteKey Route),
+            InMemoryStateStore<T>
+        > _states = new();
 
-        public void Set(SubjectKey key, T value) => Get(key).Set(value);
+        public void Set(SubjectKey key, T value) => Set(key, RouteKey.Default, value);
+
+        public void Set(SubjectKey key, RouteKey route, T value) => Get(key, route).Set(value);
 
         public StateReadResult<T> Read(SubjectKey key) =>
-            Get(key).ReadAsync().GetAwaiter().GetResult();
+            Get(key, RouteKey.Default).ReadAsync().GetAwaiter().GetResult();
 
         public ValueTask<StateReadResult<T>> ReadAsync(
             CancellationToken cancellationToken = default
-        ) => Get(SubjectKey.Default).ReadAsync(cancellationToken);
+        ) => Get(SubjectKey.Default, RouteKey.Default).ReadAsync(cancellationToken);
 
         public ValueTask<StateReadResult<T>> ReadAsync(
             ConfiglueResourceContext context,
             CancellationToken cancellationToken = default
-        ) => Get(context.Key).ReadAsync(cancellationToken);
+        ) => Get(context.Key, context.Route).ReadAsync(cancellationToken);
 
         public ValueTask<StateWriteResult> WriteAsync(
             StateWriteRequest<T> request,
             CancellationToken cancellationToken = default
-        ) => Get(SubjectKey.Default).WriteAsync(request, cancellationToken);
+        ) => Get(SubjectKey.Default, RouteKey.Default).WriteAsync(request, cancellationToken);
 
         public ValueTask<StateWriteResult> WriteAsync(
             ConfiglueResourceContext context,
             StateWriteRequest<T> request,
             CancellationToken cancellationToken = default
-        ) => Get(context.Key).WriteAsync(request, cancellationToken);
+        ) => Get(context.Key, context.Route).WriteAsync(request, cancellationToken);
 
         public ValueTask WaitForChangeAsync(
             string? observedRevision,
             CancellationToken cancellationToken = default
-        ) => Get(SubjectKey.Default).WaitForChangeAsync(observedRevision, cancellationToken);
+        ) =>
+            Get(SubjectKey.Default, RouteKey.Default)
+                .WaitForChangeAsync(observedRevision, cancellationToken);
 
         public ValueTask WaitForChangeAsync(
             ConfiglueResourceContext context,
             string? observedRevision,
             CancellationToken cancellationToken = default
-        ) => Get(context.Key).WaitForChangeAsync(observedRevision, cancellationToken);
+        ) =>
+            Get(context.Key, context.Route).WaitForChangeAsync(observedRevision, cancellationToken);
 
-        private InMemoryStateStore<T> Get(SubjectKey key) =>
-            _states.GetOrAdd(key, static _ => new InMemoryStateStore<T>());
+        private InMemoryStateStore<T> Get(SubjectKey key, RouteKey route) =>
+            _states.GetOrAdd((key, route), static _ => new InMemoryStateStore<T>());
     }
 
     private sealed class CallbackDisposable(Action dispose) : IDisposable

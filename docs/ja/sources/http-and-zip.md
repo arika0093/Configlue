@@ -7,6 +7,8 @@ description: HTTP 越しのリモートポリシーソースとアーカイブ�
 
 `HttpResourceReader` は `{root}/get` から読み、任意の状態コーデックと組み合わせられます。HTTP リクエストは条件つき書き込みとポーリング (既定5秒間隔) に ETag を使います。
 
+同じ reader と endpoint を共有する複数 subject の watcher は、1 つのポーリングループを共有します。物理リソースの変更時に各 waiter が起床し、それぞれ authoritative state を読み直します。1 つの waiter をキャンセルしても他の waiter がある間はループを維持し、最後の waiter が外れると停止します。
+
 ```csharp
 using Configlue.Provider.Json;
 using Configlue.Resource.Http;
