@@ -1,12 +1,11 @@
 ---
-title: "STEP 11: YAML も受け付ける"
+title: "YAML と JSON を併用する"
 description: YAML を主としつつ既存の JSON も読み込み、複数形式を併用します。
 ---
 
 import { Steps, Tabs, TabItem } from '@astrojs/starlight/components';
 
-チュートリアルの仕上げとして、複数の異なるフォーマットを組み合わせる方法を学びます。
-メインの保存先を YAML ファイルにしつつ、既存の JSON ファイルも読み取り専用のフォールバックとして併用します。
+このガイドは、レイヤーの基本を理解した後に複数のファイル形式を組み合わせる例です。YAML を主な保存先にし、既存の JSON ファイルを読み取り専用のフォールバックとして残します。
 
 フォーマットが異なっていても、Configlue のソースとレイヤーの基本ルールは共通です。
 
@@ -102,12 +101,6 @@ import { Steps, Tabs, TabItem } from '@astrojs/starlight/components';
 
 </Steps>
 
-## チュートリアル完走の後は
+## 次に読む
 
-全 11 ステップのチュートリアルを通じて、CommonSource による基本構成から、入れ子・バリデーション・ユーザー情報の暗号化・環境変数・HTTP・スキーマ・移行・NativeAOT・YAML までを順に体験しました。
-
-今後の開発では、目的や必要に応じて以下のドキュメントを参照してください。
-
-- **機能の詳しい仕様**: サイドバーの「機能説明」カテゴリから目的の項目を探してください。
-- **アーキテクチャの理解**: 「設計」カテゴリ（Resource / Source / Codec / Fragment・Patch / Options）。
-- **実際に動作するサンプル**: [サンプル集](./examples.md) に完成したサンプルコードが揃っています。
+JSON、YAML、XML と section resource の使い分けは [ファイル・形式・セクション](../sources/files-and-sections.md) を参照してください。実行できるコードは [サンプル集](./examples.md) にあります。

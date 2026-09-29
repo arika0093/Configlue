@@ -62,7 +62,7 @@ await options.MigrateSourceAsync("legacy", "current");
 | `SaveAsync(value => ...)` | `await options.SaveAsync(patch => ...)`。指定した項目だけを保存します。解決済みモデル全体を編集する場合は `context.GetEditSessions<T>().OpenEditSessionAsync()` を使います。 |
 | `OnChange(...)` / `OnReloadFailed(...)` | `options.OnChange(...)` と `context.GetDiagnostics<T>().OnReloadFailed(...)`。返された subscription は不要になった時点で破棄します。 |
 | `InstanceName` / named options | 固定名は登録時の `OptionsName`、実行時に追加・削除する名前は `EnableDynamicOptions` と `GetOptionsRegistry<T>()`。永続化された profile catalog が必要なら `EnableProfiles(...)` を使います。 |
-| `ConfigurationInfo` | topology と write route は `context.GetDiagnostics<T>().GetDiagnostics()`、値や各項目の出所は `context.GetInspection<T>().GetDetailsSnapshotAsync()`。 |
+| `ConfigurationInfo` | topology と write route は `context.GetDiagnostics<T>().GetDiagnostics()`、値や各項目の出所は `await options.GetDetailsAsync()`。 |
 | `AddWritableOptions(...)` | `services.AddConfiglue(...)`。`IOptions<T>` なども必要な場合は `AddConfiglueMicrosoftOptions<T>()` を追加します。 |
 
 独立した非 DI context の例です:

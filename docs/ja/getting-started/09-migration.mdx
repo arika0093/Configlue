@@ -1,5 +1,5 @@
 ---
-title: "STEP 9: 版を上げて移行する"
+title: "スキーマと保存場所を移行する"
 description: 互換性のない変更時にモデルの版（Version）を上げ、旧モデルからの移行を定義します。
 ---
 
@@ -64,8 +64,8 @@ import { Steps, Tabs, TabItem } from '@astrojs/starlight/components';
    <TabItem label="DI なし">
 
    ```csharp
-   var options = (IConfiglueSources<AppSettings>)context.GetOptions<AppSettings>();
-   var result = await options.MigrateSourceAsync("legacy-settings", "settings");
+   var sources = context.GetSources<AppSettings>();
+   var result = await sources.MigrateSourceAsync("legacy-settings", "settings");
    Console.WriteLine($"{result.SourceId} から {result.TargetId} へ移行が完了しました。");
    ```
 
@@ -88,6 +88,6 @@ import { Steps, Tabs, TabItem } from '@astrojs/starlight/components';
 
 </Steps>
 
----
+## 次に読む
 
-次のステップ: [STEP 10: NativeAOT に対応する](./10-native-aot.md) では、トリミングや AOT 環境で安全に動作させる設定を学びます。
+版の連鎖は [スキーマ移行](../migration/schema-migration.md)、ソースの移動や退役は [保存場所移行](../migration/storage-migration.md) を参照してください。

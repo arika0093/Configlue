@@ -62,7 +62,7 @@ After adopting the file, replace the application's registration and read/write c
 | `SaveAsync(value => ...)` | `await options.SaveAsync(patch => ...)` to save only changed members. Use `context.GetEditSessions<T>().OpenEditSessionAsync()` when editing the resolved model as a whole. |
 | `OnChange(...)` / `OnReloadFailed(...)` | Use `options.OnChange(...)` and `context.GetDiagnostics<T>().OnReloadFailed(...)`. Dispose each returned subscription when it is no longer needed. |
 | `InstanceName` / named options | Set `OptionsName` at registration for fixed names. Use `EnableDynamicOptions` and `GetOptionsRegistry<T>()` to add or remove names at runtime. Use `EnableProfiles(...)` when the profile catalog must persist. |
-| `ConfigurationInfo` | Use `context.GetDiagnostics<T>().GetDiagnostics()` for source topology and write routes, and `context.GetInspection<T>().GetDetailsSnapshotAsync()` for values and their source provenance. |
+| `ConfigurationInfo` | Use `context.GetDiagnostics<T>().GetDiagnostics()` for source topology and write routes, and `await options.GetDetailsAsync()` for values and their source provenance. |
 | `AddWritableOptions(...)` | `services.AddConfiglue(...)`. Add `AddConfiglueMicrosoftOptions<T>()` when `IOptions<T>` adapters are also needed. |
 
 Example using an independent non-DI context:

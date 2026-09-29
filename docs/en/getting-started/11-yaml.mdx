@@ -1,12 +1,11 @@
 ---
-title: "STEP 11: Accept YAML Too"
+title: "Use YAML alongside JSON"
 description: Make YAML the primary configuration format while continuing to read existing JSON files.
 ---
 
 import { Steps, Tabs, TabItem } from '@astrojs/starlight/components';
 
-To conclude the tutorial, you will learn how to combine different file formats.
-We will configure a YAML file as our primary configuration destination while keeping an existing JSON file as a read-only fallback.
+This guide combines different file formats after the basic layering model is already understood. The example uses YAML as the primary destination and keeps an existing JSON file as a read-only fallback.
 
 Even when formats differ, the fundamental source and layering concepts in Configlue remain identical.
 
@@ -102,12 +101,6 @@ Even when formats differ, the fundamental source and layering concepts in Config
 
 </Steps>
 
-## After Completing the Tutorial
+## Next steps
 
-Across all 11 tutorial steps, you progressed from standard configuration with `CommonSource` through nested objects, validation, encrypted user credentials, environment overrides, remote HTTP layers, schema generation, migration, NativeAOT, and multi-format integration.
-
-To continue exploring Configlue:
-
-- **Detailed features**: Browse the "Functional guides" category in the sidebar to explore by use case.
-- **Design**: Browse the "Design" category (Resource / Source / Codec / Fragment & Patch / Options).
-- **Working examples**: Find runnable sample projects under [Examples](./examples.md).
+See [Files, formats, and sections](../sources/files-and-sections.md) for JSON, YAML, XML, and section resources. Use [Examples](./examples.md) for runnable projects.
