@@ -3,20 +3,17 @@
     <AssemblyName>Configlue</AssemblyName>
     <RootNamespace>Configlue</RootNamespace>
     <IsPackable>true</IsPackable>
-    <IncludeBuildOutput>false</IncludeBuildOutput>
     <PackageDescription>Convenience package for Configlue.</PackageDescription>
-    <!-- This package intentionally contains dependencies and an analyzer but no lib assembly. -->
-    <NoWarn>$(NoWarn);NU5128</NoWarn>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="../Configlue.Extensibility/Configlue.Extensibility.csproj" />
+    <ProjectReference Include="../Configlue.Core/Configlue.Core.csproj" />
     <ProjectReference Include="../Configlue.Abstraction/Configlue.Abstraction.csproj" />
     <ProjectReference Include="../Configlue.Extensions.DI/Configlue.Extensions.DI.csproj" />
     <ProjectReference Include="../Configlue.Provider.Json/Configlue.Provider.Json.csproj" />
     <ProjectReference Include="../Configlue.JsonSchema/Configlue.JsonSchema.csproj" />
     <ProjectReference Include="../Configlue.Resource.Http/Configlue.Resource.Http.csproj" />
     <ProjectReference Include="../Configlue.Source.Environment/Configlue.Source.Environment.csproj" />
-    <ProjectReference Include="../Configlue.Source.Presets/Configlue.Source.Presets.csproj" />
+    <ProjectReference Include="../Configlue.Transformer.AES/Configlue.Transformer.AES.csproj" />
     <ProjectReference
       Include="../Configlue.Generator/Configlue.Generator.csproj"
       OutputItemType="Analyzer"

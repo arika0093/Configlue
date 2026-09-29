@@ -18,7 +18,7 @@ public static class CommonYamlFileSourceExtensions
         ArgumentNullException.ThrowIfNull(source);
         var options = source.GetOrCreateProviderOptions(static () => new YamlProviderOptions());
         options.SerializerOptions = serializerOptions;
-        source.PropertyNamingPolicy(propertyNamingPolicy);
+        options.PropertyNamingPolicy = propertyNamingPolicy;
         source.SetProviderRegistration(
             options,
             static (sources, settings, yamlOptions) =>
@@ -33,7 +33,7 @@ public static class CommonYamlFileSourceExtensions
                         ReadOnly = settings.ReadOnly,
                         ExplicitOnly = settings.ExplicitOnly,
                         WatchChanges = settings.WatchChanges,
-                        PropertyNamingPolicy = settings.PropertyNamingPolicy,
+                        PropertyNamingPolicy = yamlOptions.PropertyNamingPolicy,
                         SerializerOptions = yamlOptions.SerializerOptions,
                         ResourceOptions = settings.ResourceOptions,
                         Transformers = settings.Transformers.ToArray(),
@@ -60,5 +60,6 @@ public static class CommonYamlFileSourceExtensions
     private sealed class YamlProviderOptions
     {
         public YamlSerializerOptions? SerializerOptions { get; set; }
+        public JsonNamingPolicy? PropertyNamingPolicy { get; set; }
     }
 }

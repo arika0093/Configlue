@@ -7,6 +7,7 @@
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="../../src/Configlue/Configlue.csproj" />
     <ProjectReference Include="../../src/Configlue.Core/Configlue.Core.csproj" />
     <ProjectReference Include="../../src/Configlue.Extensions.DI/Configlue.Extensions.DI.csproj" />
     <ProjectReference Include="../../src/Configlue.Extensions.MSOptions/Configlue.Extensions.MSOptions.csproj" />
@@ -20,11 +21,7 @@
     <ProjectReference Include="../../src/Configlue.Provider.Xml/Configlue.Provider.Xml.csproj" />
     <ProjectReference Include="../../src/Configlue.Provider.Yaml/Configlue.Provider.Yaml.csproj" />
     <ProjectReference Include="../../src/Configlue.Source.Environment/Configlue.Source.Environment.csproj" />
-    <ProjectReference Include="../../src/Configlue.Source.Presets/Configlue.Source.Presets.csproj" />
-    <ProjectReference Include="../../src/Configlue.Source.Presets.Xml/Configlue.Source.Presets.Xml.csproj" />
-    <ProjectReference Include="../../src/Configlue.Source.Presets.Yaml/Configlue.Source.Presets.Yaml.csproj" />
     <ProjectReference Include="../../src/Configlue.Source.CommandLine/Configlue.Source.CommandLine.csproj" />
-    <ProjectReference Include="../../src/Configlue.Resource.Zip/Configlue.Resource.Zip.csproj" />
     <ProjectReference Include="../../src/Configlue.Resource.Dapr/Configlue.Resource.Dapr.csproj" />
     <ProjectReference Include="../../src/Configlue.Resource.S3/Configlue.Resource.S3.csproj" />
     <ProjectReference Include="../../src/Configlue.Resource.Http/Configlue.Resource.Http.csproj" />

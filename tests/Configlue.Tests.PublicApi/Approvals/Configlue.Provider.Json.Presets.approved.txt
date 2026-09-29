@@ -1,0 +1,10 @@
+[assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/arika0093/Configlue")]
+namespace Configlue.Provider.Json
+{
+    public static class CommonJsonFileSourceExtensions
+    {
+        public static Configlue.Source.Presets.CommonFileSourceBuilder Json(this Configlue.Source.Presets.CommonFileSourceBuilder source, System.Text.Json.JsonSerializerOptions? options = null) { }
+        public static Configlue.Source.Presets.CommonFileSourceBuilder Json(this Configlue.Source.Presets.CommonFileSourceBuilder source, System.Text.Json.Serialization.JsonSerializerContext context) { }
+        public static Configlue.Source.Presets.CommonFileSourceBuilder SerializerOptions(this Configlue.Source.Presets.CommonFileSourceBuilder source, System.Text.Json.JsonSerializerOptions options) { }
+    }
+}

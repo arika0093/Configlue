@@ -1,6 +1,0 @@
-<Project Sdk="Microsoft.NET.Sdk">
-  <ItemGroup>
-    <ProjectReference Include="../../src/Configlue.Extensions.Reactive/Configlue.Extensions.Reactive.csproj" />
-    <Compile Include="../ReactiveFixtures.cs" Link="ReactiveFixtures.cs" />
-  </ItemGroup>
-</Project>

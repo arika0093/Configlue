@@ -1,9 +1,0 @@
-<Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup>
-    <IsPackable>true</IsPackable>
-    <PackageDescription>Source construction and serialization helpers for Configlue provider authors.</PackageDescription>
-  </PropertyGroup>
-  <ItemGroup>
-    <ProjectReference Include="../Configlue.Core/Configlue.Core.csproj" />
-  </ItemGroup>
-</Project>
