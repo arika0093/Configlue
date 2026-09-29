@@ -200,7 +200,8 @@ public sealed class PublicApiCheckTest
 
     [Test]
     public void CommonJsonSources() =>
-        PublicApiCheck.Check<CommonJsonFileSourceExtensions>(
+        PublicApiCheck.CheckAssembly(
+            typeof(CommonJsonFileSourceExtensions).Assembly,
             "Configlue.Provider.Json.Presets",
             static type => type == typeof(CommonJsonFileSourceExtensions)
         );
@@ -235,14 +236,16 @@ public sealed class PublicApiCheckTest
 
     [Test]
     public void CommonXmlSources() =>
-        PublicApiCheck.Check<CommonXmlFileSourceExtensions>(
+        PublicApiCheck.CheckAssembly(
+            typeof(CommonXmlFileSourceExtensions).Assembly,
             "Configlue.Source.Presets.Xml",
             static type => type == typeof(CommonXmlFileSourceExtensions)
         );
 
     [Test]
     public void CommonYamlSources() =>
-        PublicApiCheck.Check<CommonYamlFileSourceExtensions>(
+        PublicApiCheck.CheckAssembly(
+            typeof(CommonYamlFileSourceExtensions).Assembly,
             "Configlue.Source.Presets.Yaml",
             static type => type == typeof(CommonYamlFileSourceExtensions)
         );
