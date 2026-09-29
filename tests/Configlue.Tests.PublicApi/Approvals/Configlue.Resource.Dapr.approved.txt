@@ -1,13 +1,13 @@
 [assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/arika0093/Configlue")]
-namespace Configlue.Resource.S3
+namespace Configlue.Resource.Dapr
 {
-    public sealed class S3ObjectResource : Configlue.Resources.IResourceIdentity, Configlue.Resources.IResourceReader, Configlue.Resources.IResourceWriter, Configlue.State.IPipelineResourceReader
+    public sealed class DaprStateResource : Configlue.Resources.IResourceIdentity, Configlue.Resources.IResourceReader, Configlue.Resources.IResourceWriter, Configlue.State.IPipelineResourceReader
     {
-        public S3ObjectResource(Amazon.S3.IAmazonS3 client, string bucketName, string key, Configlue.Resource.S3.S3ObjectResourceOptions? options = null) { }
-        public string BucketName { get; }
+        public DaprStateResource(Dapr.Client.DaprClient client, string storeName, string key, Configlue.Resource.Dapr.DaprStateResourceOptions? options = null) { }
         public bool IsPipelineReadPreferred { get; }
         public string Key { get; }
         public Configlue.Resources.ResourceId ResourceId { get; }
+        public string StoreName { get; }
         public Configlue.Resources.ResourceId GetResourceId(Configlue.Resources.ConfiglueResourceContext context) { }
         public System.Threading.Tasks.ValueTask<Configlue.Resources.ResourceReadResult> ReadAsync(System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask<Configlue.Resources.ResourceReadResult> ReadAsync(Configlue.Resources.ConfiglueResourceContext context, System.Threading.CancellationToken cancellationToken = default) { }
@@ -16,31 +16,33 @@ namespace Configlue.Resource.S3
         public System.Threading.Tasks.ValueTask<Configlue.State.StateWriteResult> WriteAsync(Configlue.Resources.ResourceWriteRequest request, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask<Configlue.State.StateWriteResult> WriteAsync(Configlue.Resources.ConfiglueResourceContext context, Configlue.Resources.ResourceWriteRequest request, System.Threading.CancellationToken cancellationToken = default) { }
     }
-    public sealed class S3ObjectResourceOptions
+    public sealed class DaprStateResourceOptions
     {
-        public S3ObjectResourceOptions() { }
-        public System.Func<Configlue.Resources.ConfiglueResourceContext, string>? BucketNameSelector { get; init; }
-        public System.Func<Configlue.Resources.ConfiglueResourceContext, Amazon.S3.IAmazonS3>? ClientSelector { get; init; }
+        public DaprStateResourceOptions() { }
+        public System.Func<Configlue.Resources.ConfiglueResourceContext, Dapr.Client.DaprClient>? ClientSelector { get; init; }
+        public Dapr.Client.ConsistencyMode? ConsistencyMode { get; init; }
         public System.Func<Configlue.Resources.ConfiglueResourceContext, string>? KeySelector { get; init; }
+        public System.Collections.Generic.IReadOnlyDictionary<string, string>? Metadata { get; init; }
         public Configlue.Resources.ResourceId? ResourceId { get; init; }
+        public System.Func<Configlue.Resources.ConfiglueResourceContext, string>? StoreNameSelector { get; init; }
     }
-    public sealed class S3ObjectSourceOptions
+    public sealed class DaprStateSourceOptions
     {
-        public S3ObjectSourceOptions() { }
-        public required string BucketName { get; init; }
-        public Amazon.S3.IAmazonS3? Client { get; init; }
-        public System.Func<System.IServiceProvider?, Amazon.S3.IAmazonS3>? ClientFactory { get; init; }
+        public DaprStateSourceOptions() { }
+        public Dapr.Client.DaprClient? Client { get; init; }
+        public System.Func<System.IServiceProvider?, Dapr.Client.DaprClient>? ClientFactory { get; init; }
         public required object Codec { get; init; }
         public Configlue.Codecs.StateCodecContext CodecContext { get; init; }
         public Configlue.Sources.StateFallbackCondition FallbackCondition { get; init; }
         public string? Id { get; init; }
         public required string Key { get; init; }
         public int Priority { get; init; }
-        public Configlue.Resource.S3.S3ObjectResourceOptions? ResourceOptions { get; init; }
+        public Configlue.Resource.Dapr.DaprStateResourceOptions? ResourceOptions { get; init; }
+        public required string StoreName { get; init; }
         public bool Writable { get; init; }
     }
-    public static class S3ObjectSourceRegistration
+    public static class DaprStateSourceRegistration
     {
-        public static Configlue.ConfiglueSourceRegistration FromS3Object(this Configlue.ConfiglueSourceSetBuilder sources, Configlue.Resource.S3.S3ObjectSourceOptions options) { }
+        public static Configlue.ConfiglueSourceRegistration FromDaprState(this Configlue.ConfiglueSourceSetBuilder sources, Configlue.Resource.Dapr.DaprStateSourceOptions options) { }
     }
 }

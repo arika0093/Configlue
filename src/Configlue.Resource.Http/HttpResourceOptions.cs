@@ -3,6 +3,13 @@ namespace Configlue.Resource.Http;
 /// <summary>Configures the endpoints and polling interval for an HTTP resource.</summary>
 public sealed class HttpResourceOptions
 {
+    /// <summary>Resolves an endpoint root for subject-aware reads, writes, and watches.</summary>
+    /// <remarks>
+    /// Return a stable root for a given context. When unset, every subject uses the endpoint root
+    /// supplied to the resource.
+    /// </remarks>
+    public Func<ConfiglueResourceContext, Uri>? EndpointRootSelector { get; init; }
+
     /// <summary>The endpoint path, relative to the resource root, used for GET requests.</summary>
     public string GetPath { get; init; } = "get";
 

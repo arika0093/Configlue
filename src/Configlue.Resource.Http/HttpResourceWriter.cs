@@ -20,4 +20,19 @@ public sealed class HttpResourceWriter : IResourceWriter, IResourceIdentity
         ResourceWriteRequest request,
         CancellationToken cancellationToken = default
     ) => _reader.WriteAsync(request, cancellationToken);
+
+    /// <inheritdoc />
+    public ValueTask<StateWriteResult> WriteAsync(
+        ConfiglueResourceContext context,
+        ResourceWriteRequest request,
+        CancellationToken cancellationToken = default
+    ) => _reader.WriteAsync(context, request, cancellationToken);
+
+    /// <inheritdoc />
+    public ResourceId GetResourceId(ConfiglueResourceContext context) =>
+        _reader.GetResourceId(context);
+
+    /// <inheritdoc />
+    public bool TryGetResourceId(ConfiglueResourceContext context, out ResourceId resourceId) =>
+        _reader.TryGetResourceId(context, out resourceId);
 }

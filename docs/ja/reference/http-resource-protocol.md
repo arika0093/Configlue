@@ -67,4 +67,15 @@ HttpResourceWriter writer = reader.CreateWriter();
 
 クライアントは変更をポーリングし (既定5秒間隔)、条件つき書き込み失敗を `StateConflictException` として出します。ポーリング失敗時は既定で最大30秒まで指数バックオフします。HTTP リクエストのタイムアウトは既定30秒です。必要に応じて `HttpResourceOptions` の `PollingInterval`、`MaximumPollingInterval`、`RequestTimeout` を設定できます。リソース不在は `NotFound` フォールスルーに、輸送失敗・タイムアウトは `Unavailable` にマップされます。スキーマメタデータは `Configlue-Schema-Id`・`Configlue-Schema-Version` ヘッダーで運びます。
 
+既定では全 operation が同じ endpoint root を使います。複数キーを保存する場合は `EndpointRootSelector` から subject key や route に応じた物理 endpoint を選べます。読み書き・watch・resource identity が選択先を共有し、endpoint ごとに watcher を持ちます。選択 endpoint ごとに異なる物理 identity が必要なら `ResourceId` を固定しないでください。
+
+```csharp
+var reader = new HttpResourceReader(httpClient, defaultEndpoint, new HttpResourceOptions
+{
+    EndpointRootSelector = context => endpointByRegion[context.Route],
+});
+```
+
+グローバル設定は固定 endpoint のまま既存の constructor を使えます。
+
 登録オプション (`Client`/`ClientFactory`、`Writable`、`WatchChanges`、`FallbackCondition`) は [HTTP と ZIP](../sources/http-and-zip.md) 参照。

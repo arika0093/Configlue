@@ -45,6 +45,48 @@ public sealed class S3ObjectResourceTests
     }
 
     [Test]
+    public async Task SubjectAwareAddressSelectsObjectAndKeepsItsEtagCondition()
+    {
+        var client = new FakeS3ObjectClient
+        {
+            ReadResult = new S3ObjectReadResult(new byte[] { 1, 2 }, "\"revision-1\""),
+            WriteResult = new S3ObjectWriteResult("\"revision-2\""),
+        };
+        var resource = new S3ObjectResource(
+            client,
+            "settings-default",
+            "settings.json",
+            new S3ObjectResourceOptions
+            {
+                BucketNameSelector = context => $"settings-{context.Route.Value}",
+                KeySelector = context => $"{context.Key.Value}/settings.json",
+            }
+        );
+        var subject = new ResourceSubject("tenant-a");
+        var context = new ConfiglueResourceContext(
+            subject,
+            subject.Key,
+            RouteKey.From("region-jp")
+        );
+
+        var read = await resource.ReadAsync(context);
+        var write = await resource.WriteAsync(
+            context,
+            new ResourceWriteRequest(
+                new byte[] { 3 },
+                Condition: RevisionCondition.FromRevision(read.Revision)
+            )
+        );
+
+        read.Content.ToArray().ShouldBe([1, 2]);
+        client.LastBucketName.ShouldBe("settings-region-jp");
+        client.LastKey.ShouldBe($"{subject.Key.Value}/settings.json");
+        client.LastExpectedETag.ShouldBe("\"revision-1\"");
+        write.Revision.ShouldBe("\"revision-2\"");
+        resource.GetResourceId(context).ShouldNotBe(resource.ResourceId);
+    }
+
+    [Test]
     public async Task ReadAsync_MapsMissingObjectToNotFound()
     {
         var client = new FakeS3ObjectClient { ReadException = S3Exception("NoSuchKey", 404) };
@@ -153,15 +195,17 @@ public sealed class S3ObjectResourceTests
         public string? LastExpectedETag { get; private set; }
         public bool LastRequireMissing { get; private set; }
         public ReadOnlyMemory<byte> LastContent { get; private set; }
+        public string? LastBucketName { get; private set; }
+        public string? LastKey { get; private set; }
 
         public Task<S3ObjectReadResult> GetObjectAsync(
             string bucketName,
             string key,
             CancellationToken cancellationToken
         ) =>
-            ReadException is null
+            CaptureAddress(bucketName, key) && ReadException is null
                 ? Task.FromResult(ReadResult)
-                : Task.FromException<S3ObjectReadResult>(ReadException);
+                : Task.FromException<S3ObjectReadResult>(ReadException!);
 
         public Task<S3ObjectWriteResult> PutObjectAsync(
             string bucketName,
@@ -172,6 +216,8 @@ public sealed class S3ObjectResourceTests
             CancellationToken cancellationToken
         )
         {
+            LastBucketName = bucketName;
+            LastKey = key;
             LastContent = content;
             LastExpectedETag = expectedETag;
             LastRequireMissing = requireMissing;
@@ -179,5 +225,17 @@ public sealed class S3ObjectResourceTests
                 ? Task.FromResult(WriteResult)
                 : Task.FromException<S3ObjectWriteResult>(WriteException);
         }
+
+        private bool CaptureAddress(string bucketName, string key)
+        {
+            LastBucketName = bucketName;
+            LastKey = key;
+            return true;
+        }
+    }
+
+    private sealed record ResourceSubject(string Name) : IConfiglueSubject
+    {
+        public SubjectKey Key => SubjectKey.From(Name);
     }
 }

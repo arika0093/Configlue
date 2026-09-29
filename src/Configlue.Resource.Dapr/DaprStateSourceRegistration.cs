@@ -1,30 +1,30 @@
-using Amazon.S3;
+using Dapr.Client;
 
-namespace Configlue.Resource.S3;
+namespace Configlue.Resource.Dapr;
 
-/// <summary>Options for registering a source backed by one Amazon S3 object.</summary>
-public sealed class S3ObjectSourceOptions
+/// <summary>Options for registering a source backed by one Dapr state store key.</summary>
+public sealed class DaprStateSourceOptions
 {
     /// <summary>An optional stable logical source ID for provenance and explicit routing.</summary>
     public string? Id { get; init; }
 
-    /// <summary>The S3 bucket name.</summary>
-    public required string BucketName { get; init; }
+    /// <summary>The Dapr state store name.</summary>
+    public required string StoreName { get; init; }
 
-    /// <summary>The object key.</summary>
+    /// <summary>The state key.</summary>
     public required string Key { get; init; }
 
     /// <summary>A directly supplied client. It remains caller-owned.</summary>
-    public IAmazonS3? Client { get; init; }
+    public DaprClient? Client { get; init; }
 
     /// <summary>Resolves a client at context creation, for example from dependency injection.</summary>
-    public Func<IServiceProvider?, IAmazonS3>? ClientFactory { get; init; }
+    public Func<IServiceProvider?, DaprClient>? ClientFactory { get; init; }
 
-    /// <summary>The codec for the serialized object.</summary>
+    /// <summary>The codec for the serialized state.</summary>
     public required object Codec { get; init; }
 
-    /// <summary>Resource identity settings.</summary>
-    public S3ObjectResourceOptions? ResourceOptions { get; init; }
+    /// <summary>Resource identity, consistency, and metadata settings.</summary>
+    public DaprStateResourceOptions? ResourceOptions { get; init; }
 
     /// <summary>Higher values are read first.</summary>
     public int Priority { get; init; }
@@ -40,18 +40,18 @@ public sealed class S3ObjectSourceOptions
     public StateCodecContext CodecContext { get; init; }
 }
 
-/// <summary>Registers facade sources backed by Amazon S3 objects.</summary>
-public static class S3ObjectSourceRegistration
+/// <summary>Registers facade sources backed by Dapr State Management.</summary>
+public static class DaprStateSourceRegistration
 {
-    /// <summary>Adds an S3 object source. The supplied S3 client remains externally owned.</summary>
-    public static ConfiglueSourceRegistration FromS3Object(
+    /// <summary>Adds a Dapr state source. The supplied Dapr client remains externally owned.</summary>
+    public static ConfiglueSourceRegistration FromDaprState(
         this ConfiglueSourceSetBuilder sources,
-        S3ObjectSourceOptions options
+        DaprStateSourceOptions options
     )
     {
         ArgumentNullException.ThrowIfNull(sources);
         ArgumentNullException.ThrowIfNull(options);
-        ArgumentException.ThrowIfNullOrWhiteSpace(options.BucketName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(options.StoreName);
         ArgumentException.ThrowIfNullOrWhiteSpace(options.Key);
         ArgumentNullException.ThrowIfNull(options.Codec);
         if ((options.Client is null) == (options.ClientFactory is null))
@@ -67,10 +67,10 @@ public static class S3ObjectSourceRegistration
             ArgumentException.ThrowIfNullOrWhiteSpace(options.Id);
         }
 
-        return sources.Add(new S3ObjectSourceDefinition(options));
+        return sources.Add(new DaprStateSourceDefinition(options));
     }
 
-    private sealed class S3ObjectSourceDefinition(S3ObjectSourceOptions options)
+    private sealed class DaprStateSourceDefinition(DaprStateSourceOptions options)
         : IConfiglueSourceDefinition
     {
         public ConfiglueSourceCreation<TFragment> Create<TFragment>(
@@ -93,12 +93,12 @@ public static class S3ObjectSourceRegistration
             var client = options.Client ?? options.ClientFactory!(serviceProvider);
             if (client is null)
             {
-                throw new InvalidOperationException("The S3 client factory returned null.");
+                throw new InvalidOperationException("The Dapr client factory returned null.");
             }
 
-            var resource = new S3ObjectResource(
+            var resource = new DaprStateResource(
                 client,
-                options.BucketName,
+                options.StoreName,
                 options.Key,
                 options.ResourceOptions
             );
@@ -114,7 +114,7 @@ public static class S3ObjectSourceRegistration
                     options.CodecContext
                 )
                 : null;
-            var physicalOrigin = $"s3:{options.BucketName}";
+            var physicalOrigin = $"dapr:{options.StoreName}";
             return options.Id is { } id
                 ? new StateSource<TFragment>(
                     id,

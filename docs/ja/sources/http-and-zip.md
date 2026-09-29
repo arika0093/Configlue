@@ -26,6 +26,8 @@ model.Sources(sources => sources.FromHttp(new HttpSourceOptions
 
 HTTP 書き込みは `Writable = true` のときだけ有効で、コーデックの明示が必要です。DI では直接クライアントではなく `ClientFactory = provider => provider!.GetRequiredService<IHttpClientFactory>().CreateClient("settings")` を渡し、ハンドラー寿命をファクトリーに任せます。DI 外では渡したクライアントは呼び出し側所有のままです。
 
+`EndPoint` は既定で全 subject が共有するグローバル状態です。`ResourceOptions.EndpointRootSelector` を設定すると subject key や物理 route ごとに HTTP root を選べます。resource の読み書き・watch・identity は選択先を使います。
+
 ```csharp
 sources.FromHttp(new HttpSourceOptions
 {
@@ -45,6 +47,15 @@ sources.FromHttp(new HttpSourceOptions
 ## ZIP エントリ
 
 `ZipEntryResource` はアーカイブ内の1エントリを論理リソースとして公開しつつ、アーカイブの物理同一性とリビジョンを保ちます。互いに重ならないエントリ更新は1回のアーカイブ書き込みにまとめるか、別エントリへの同時更新に対して安全に再適用できます。同じエントリへの同時更新は `StateConflictException` となり、無関係のエントリは無傷です。
+
+既定では全 context が constructor に渡した固定 entry name を使います。`ZipEntryResourceOptions.EntryNameSelector` で subject key を同じ archive 内の別 entry に対応づけられます。archive が物理 resource のまま保たれ、batch scope には選択した entry path が使われるため、異なる key の更新は安全に合成できます。
+
+```csharp
+var entry = new ZipEntryResource(archive, new ZipEntryResourceOptions
+{
+    EntryNameSelector = context => $"settings/{context.Key.Value}.json",
+}, "settings/default.json");
+```
 
 アーカイブリソースが `IStateWatcher` を実装する場合 (例: `FileResource`)、エントリの変更監視はその watcher に委譲され、アーカイブファイルの編集を検知します。watcher がないリソースだけリビジョンを既定250ms間隔でポーリングします。`ZipEntryResource` の `pollingInterval` でこのフォールバック間隔を変更できます。
 

@@ -27,6 +27,8 @@ model.Sources(sources =>
 
 `FromXmlFile(new() { ... })` も XML ファイルと任意の要素パスに同じオプションを使います。ファイルヘルパーは非 DI・DI の両方で動き、生成されたファイルリソースはコンテキスト所有でウォッチャー停止後に破棄されます。直接渡したクライアントは呼び出し側所有のままです。
 
+File resource は設定した path を1つのグローバル物理 resource として扱い、subject key と route は無視します。同じ file を使う source は同じ状態を共有します。プロセス全体の設定には既存の file 登録を使い、subject ごとの状態には個別 path または context selector を持つ resource を使ってください。
+
 ## 解決ルール
 
 * 読み取りは各ソースの存在項目をマージし、項目ごとに `Priority` が高い方が勝ちます。

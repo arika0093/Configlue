@@ -160,6 +160,54 @@ public sealed class ZipEntryResourceTests
     }
 
     [Test]
+    public async Task SubjectAwareEntryNamesShareOneArchiveAndKeepDisjointWritesComposable()
+    {
+        var archive = new InMemoryResource();
+        var firstSubject = new ResourceSubject("one");
+        var secondSubject = new ResourceSubject("two");
+        var firstContext = new ConfiglueResourceContext(firstSubject, firstSubject.Key);
+        var secondContext = new ConfiglueResourceContext(secondSubject, secondSubject.Key);
+        var firstEntryName = $"settings/{firstSubject.Key.Value}.json";
+        var secondEntryName = $"settings/{secondSubject.Key.Value}.json";
+        await archive.WriteAsync(
+            new ResourceWriteRequest(CreateArchive((firstEntryName, [1]), (secondEntryName, [2])))
+        );
+
+        var options = new ZipEntryResourceOptions
+        {
+            EntryNameSelector = context => $"settings/{context.Key.Value}.json",
+        };
+        var entry = new ZipEntryResource(archive, archive, options, "settings/default.json");
+        var firstRead = await entry.ReadAsync(firstContext);
+        var secondRead = await entry.ReadAsync(secondContext);
+
+        firstRead.Content.ToArray().ShouldBe([1]);
+        secondRead.Content.ToArray().ShouldBe([2]);
+        entry.GetResourceId(firstContext).ShouldBe(entry.GetResourceId(secondContext));
+
+        await entry.BatchWriter!.WriteBatchAsync([
+            entry.CreateMutation(
+                firstContext,
+                new ResourceWriteRequest(
+                    new byte[] { 3 },
+                    Condition: RevisionCondition.FromRevision(firstRead.Revision)
+                )
+            ),
+            entry.CreateMutation(
+                secondContext,
+                new ResourceWriteRequest(
+                    new byte[] { 4 },
+                    Condition: RevisionCondition.FromRevision(secondRead.Revision)
+                )
+            ),
+        ]);
+
+        (await entry.ReadAsync(firstContext)).Content.ToArray().ShouldBe([3]);
+        (await entry.ReadAsync(secondContext)).Content.ToArray().ShouldBe([4]);
+        archive.WriteCount.ShouldBe(2);
+    }
+
+    [Test]
     public async Task EntryPathsRejectRootedAndTraversingNames()
     {
         var archive = new InMemoryResource();
@@ -251,5 +299,10 @@ public sealed class ZipEntryResourceTests
         }
 
         return stream.ToArray();
+    }
+
+    private sealed record ResourceSubject(string Name) : IConfiglueSubject
+    {
+        public SubjectKey Key => SubjectKey.From(Name);
     }
 }

@@ -38,6 +38,7 @@ public sealed class ZipEntryResource
     private readonly IResourceBatchWriter? _archiveWriter;
     private readonly IStateWatcher? _archiveWatcher;
     private readonly string _entryName;
+    private readonly Func<ConfiglueResourceContext, string>? _entryNameSelector;
     private readonly ResourceId _resourceId;
     private readonly ResourceId? _configuredResourceId;
     private readonly object _snapshotGate = new();
@@ -63,6 +64,24 @@ public sealed class ZipEntryResource
             archiveWatcher,
             resourceId,
             new PollingOptions(TimeSpan.FromMilliseconds(250))
+        ) { }
+
+    /// <summary>Creates an entry view with optional subject-aware entry selection.</summary>
+    public ZipEntryResource(
+        IResourceReader archiveReader,
+        ZipEntryResourceOptions options,
+        string entryName,
+        IStateWatcher? archiveWatcher = null,
+        ResourceId? resourceId = null
+    )
+        : this(
+            archiveReader,
+            archiveReader as IResourceBatchWriter,
+            entryName,
+            archiveWatcher,
+            resourceId,
+            new PollingOptions(TimeSpan.FromMilliseconds(250)),
+            options
         ) { }
 
     /// <summary>Creates an entry view with a configured fallback polling interval.</summary>
@@ -99,6 +118,25 @@ public sealed class ZipEntryResource
             new PollingOptions(TimeSpan.FromMilliseconds(250))
         ) { }
 
+    /// <summary>Creates an entry view with separate archive capabilities and subject-aware entry selection.</summary>
+    public ZipEntryResource(
+        IResourceReader archiveReader,
+        IResourceBatchWriter? archiveWriter,
+        ZipEntryResourceOptions options,
+        string entryName,
+        IStateWatcher? archiveWatcher = null,
+        ResourceId? resourceId = null
+    )
+        : this(
+            archiveReader,
+            archiveWriter,
+            entryName,
+            archiveWatcher,
+            resourceId,
+            new PollingOptions(TimeSpan.FromMilliseconds(250)),
+            options
+        ) { }
+
     /// <summary>Creates an entry view with separate capabilities and a configured fallback polling interval.</summary>
     public ZipEntryResource(
         IResourceReader archiveReader,
@@ -123,7 +161,8 @@ public sealed class ZipEntryResource
         string entryName,
         IStateWatcher? archiveWatcher,
         ResourceId? resourceId,
-        PollingOptions pollingOptions
+        PollingOptions pollingOptions,
+        ZipEntryResourceOptions? options = null
     )
     {
         ArgumentNullException.ThrowIfNull(archiveReader);
@@ -132,6 +171,7 @@ public sealed class ZipEntryResource
         _archiveWatcher =
             archiveWatcher ?? archiveReader as IStateWatcher ?? archiveWriter as IStateWatcher;
         _entryName = NormalizeEntryName(entryName);
+        _entryNameSelector = options?.EntryNameSelector;
         _configuredResourceId = resourceId;
         _resourceId =
             resourceId
@@ -235,7 +275,8 @@ public sealed class ZipEntryResource
 
         using var content = CreateReadOnlyStream(archiveResult.Content);
         using var archive = new ZipArchive(content, ZipArchiveMode.Read);
-        var entry = archive.GetEntry(_entryName);
+        var entryName = ResolveEntryName(context);
+        var entry = archive.GetEntry(entryName);
         if (entry is null)
         {
             StoreSnapshot(context, archiveResult.Revision, MissingEntryFingerprint);
@@ -282,6 +323,7 @@ public sealed class ZipEntryResource
         ResourceWriteRequest request
     )
     {
+        var entryName = ResolveEntryName(context);
         var content = request.Content.ToArray();
         var expectedSnapshot = string.Empty;
         var hasSnapshot =
@@ -296,34 +338,37 @@ public sealed class ZipEntryResource
             {
                 if (
                     request.Condition.IsMustNotExist
-                    && GetCurrentEntryFingerprint(current, _entryName) != MissingEntryFingerprint
+                    && GetCurrentEntryFingerprint(current, entryName) != MissingEntryFingerprint
                 )
                 {
                     throw new StateConflictException(
-                        $"The ZIP entry '{_entryName}' already exists."
+                        $"The ZIP entry '{entryName}' already exists."
                     );
                 }
                 if (
                     hasSnapshot
                     && !string.Equals(
                         expectedSnapshot,
-                        GetCurrentEntryFingerprint(current, _entryName),
+                        GetCurrentEntryFingerprint(current, entryName),
                         StringComparison.Ordinal
                     )
                 )
                 {
                     throw new StateConflictException(
-                        $"The ZIP entry '{_entryName}' changed after it was read."
+                        $"The ZIP entry '{entryName}' changed after it was read."
                     );
                 }
 
-                return ReplaceEntry(current, _entryName, content);
+                return ReplaceEntry(current, entryName, content);
             },
-            scope: "zip/" + _entryName,
+            scope: "zip/" + entryName,
             canCompose: true,
             context: context
         );
     }
+
+    private string ResolveEntryName(ConfiglueResourceContext context) =>
+        _entryNameSelector is null ? _entryName : NormalizeEntryName(_entryNameSelector(context));
 
     /// <inheritdoc />
     public ValueTask WaitForChangeAsync(

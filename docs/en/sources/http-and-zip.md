@@ -26,6 +26,8 @@ model.Sources(sources => sources.FromHttp(new HttpSourceOptions
 
 HTTP writes are disabled unless `Writable = true`; provide a codec explicitly. In DI, pass `ClientFactory = provider => provider!.GetRequiredService<IHttpClientFactory>().CreateClient("settings")` instead of a direct client so the factory owns the handler lifetime. Outside DI the supplied client stays caller-owned.
 
+`EndPoint` is shared global state unless `ResourceOptions.EndpointRootSelector` is configured. A selector can route subject keys or physical routes to separate HTTP roots; resource reads, writes, watchers, and identities follow that selection.
+
 ```csharp
 sources.FromHttp(new HttpSourceOptions
 {
@@ -45,6 +47,15 @@ Host applications can register named clients with the standard `AddHttpClient` A
 ## ZIP entries
 
 `ZipEntryResource` exposes one archive entry as a logical resource while retaining the archive's physical identity and revision. Disjoint entry updates can share one batched archive write or safely rebase over a concurrent change to another entry. A concurrent change to the same entry remains a `StateConflictException`, and untouched entries remain intact.
+
+By default every context reads the constructor's fixed entry name. `ZipEntryResourceOptions.EntryNameSelector` can map each subject key to an entry in the same archive. The archive remains the physical resource, while batch scopes use the selected entry path so independent keys still compose safely.
+
+```csharp
+var entry = new ZipEntryResource(archive, new ZipEntryResourceOptions
+{
+    EntryNameSelector = context => $"settings/{context.Key.Value}.json",
+}, "settings/default.json");
+```
 
 When the archive resource implements `IStateWatcher` (for example, `FileResource`), entry change monitoring delegates to that watcher and reacts to archive file edits. Only archive resources without a watcher use revision polling, every 250 ms by default; pass a `pollingInterval` to `ZipEntryResource` to configure that fallback.
 

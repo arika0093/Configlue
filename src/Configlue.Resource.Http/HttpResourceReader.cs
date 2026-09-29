@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Globalization;
 using System.Net;
 using System.Net.Http.Headers;
@@ -23,6 +24,12 @@ public sealed class HttpResourceReader
     private readonly HttpClient _httpClient;
     private readonly Uri _getUri;
     private readonly Uri _updateUri;
+    private readonly Func<ConfiglueResourceContext, Uri>? _endpointRootSelector;
+    private readonly HttpResourceOptions _fixedOptions;
+    private readonly ResourceId? _configuredResourceId;
+    private readonly ConcurrentDictionary<string, ContextWatcher> _contextWatchers = new(
+        StringComparer.Ordinal
+    );
     private readonly string _contentType;
     private readonly TimeSpan _pollingInterval;
     private readonly TimeSpan _maximumPollingInterval;
@@ -71,6 +78,17 @@ public sealed class HttpResourceReader
         }
 
         var configuredOptions = options ?? new HttpResourceOptions();
+        _endpointRootSelector = configuredOptions.EndpointRootSelector;
+        _fixedOptions = new HttpResourceOptions
+        {
+            GetPath = configuredOptions.GetPath,
+            UpdatePath = configuredOptions.UpdatePath,
+            ContentType = configuredOptions.ContentType,
+            PollingInterval = configuredOptions.PollingInterval,
+            MaximumPollingInterval = configuredOptions.MaximumPollingInterval,
+            RequestTimeout = configuredOptions.RequestTimeout,
+        };
+        _configuredResourceId = resourceId;
         _httpClient = httpClient;
         var root = EnsureTrailingSlash(endpointRoot);
         _getUri = CombineEndpoint(root, configuredOptions.GetPath, nameof(options));
@@ -108,11 +126,28 @@ public sealed class HttpResourceReader
         _pollingInterval = configuredOptions.PollingInterval;
         _maximumPollingInterval = configuredOptions.MaximumPollingInterval;
         _requestTimeout = configuredOptions.RequestTimeout;
-        ResourceId = resourceId ?? CreateResourceId(root, _getUri, _updateUri);
+        ResourceId =
+            resourceId
+            ?? (
+                _endpointRootSelector is null
+                    ? CreateResourceId(root, _getUri, _updateUri)
+                    : CreateContextReader(ConfiglueResourceContext.Default).ResourceId
+            );
     }
 
     /// <inheritdoc />
     public ResourceId ResourceId { get; }
+
+    /// <inheritdoc />
+    public ResourceId GetResourceId(ConfiglueResourceContext context) =>
+        _endpointRootSelector is null ? ResourceId : CreateContextReader(context).ResourceId;
+
+    /// <inheritdoc />
+    public bool TryGetResourceId(ConfiglueResourceContext context, out ResourceId resourceId)
+    {
+        resourceId = GetResourceId(context);
+        return true;
+    }
 
     /// <summary>The GET endpoint used to read the resource.</summary>
     public Uri GetUri => _getUri;
@@ -123,8 +158,23 @@ public sealed class HttpResourceReader
     /// <inheritdoc />
     public async ValueTask<PipelineResourceReadResult> ReadPipelineAsync(
         CancellationToken cancellationToken = default
+    ) =>
+        await ReadPipelineAsync(ConfiglueResourceContext.Default, cancellationToken)
+            .ConfigureAwait(false);
+
+    /// <inheritdoc />
+    public async ValueTask<PipelineResourceReadResult> ReadPipelineAsync(
+        ConfiglueResourceContext context,
+        CancellationToken cancellationToken = default
     )
     {
+        if (_endpointRootSelector is not null)
+        {
+            return await CreateContextReader(context)
+                .ReadPipelineAsync(cancellationToken)
+                .ConfigureAwait(false);
+        }
+
         using var request = new HttpRequestMessage(HttpMethod.Get, _getUri);
         HttpResponseMessage? response = null;
         var responseOwnershipTransferred = false;
@@ -198,8 +248,21 @@ public sealed class HttpResourceReader
     /// <inheritdoc />
     public async ValueTask<ResourceReadResult> ReadAsync(
         CancellationToken cancellationToken = default
+    ) => await ReadAsync(ConfiglueResourceContext.Default, cancellationToken).ConfigureAwait(false);
+
+    /// <inheritdoc />
+    public async ValueTask<ResourceReadResult> ReadAsync(
+        ConfiglueResourceContext context,
+        CancellationToken cancellationToken = default
     )
     {
+        if (_endpointRootSelector is not null)
+        {
+            return await CreateContextReader(context)
+                .ReadAsync(cancellationToken)
+                .ConfigureAwait(false);
+        }
+
         var response = await SendReadAsync(
                 conditional: false,
                 observedRevision: null,
@@ -214,8 +277,28 @@ public sealed class HttpResourceReader
     public async ValueTask WaitForChangeAsync(
         string? observedRevision,
         CancellationToken cancellationToken = default
+    ) =>
+        await WaitForChangeAsync(
+                ConfiglueResourceContext.Default,
+                observedRevision,
+                cancellationToken
+            )
+            .ConfigureAwait(false);
+
+    /// <inheritdoc />
+    public async ValueTask WaitForChangeAsync(
+        ConfiglueResourceContext context,
+        string? observedRevision,
+        CancellationToken cancellationToken = default
     )
     {
+        if (_endpointRootSelector is not null)
+        {
+            await WaitForContextChangeAsync(context, observedRevision, cancellationToken)
+                .ConfigureAwait(false);
+            return;
+        }
+
         cancellationToken.ThrowIfCancellationRequested();
         var baseline = GetLastSnapshot();
         if (baseline is null)
@@ -398,8 +481,23 @@ public sealed class HttpResourceReader
     internal async ValueTask<StateWriteResult> WriteAsync(
         ResourceWriteRequest resourceRequest,
         CancellationToken cancellationToken
+    ) =>
+        await WriteAsync(ConfiglueResourceContext.Default, resourceRequest, cancellationToken)
+            .ConfigureAwait(false);
+
+    internal async ValueTask<StateWriteResult> WriteAsync(
+        ConfiglueResourceContext context,
+        ResourceWriteRequest resourceRequest,
+        CancellationToken cancellationToken
     )
     {
+        if (_endpointRootSelector is not null)
+        {
+            return await CreateContextReader(context)
+                .WriteAsync(resourceRequest, cancellationToken)
+                .ConfigureAwait(false);
+        }
+
         using var request = new HttpRequestMessage(HttpMethod.Put, _updateUri)
         {
             Content = CreateContent(resourceRequest.Content),
@@ -443,6 +541,97 @@ public sealed class HttpResourceReader
             )
         );
         return new StateWriteResult(revision);
+    }
+
+    private HttpResourceReader CreateContextReader(ConfiglueResourceContext context)
+    {
+        var endpointRoot = ResolveContextEndpointRoot(context);
+        return new HttpResourceReader(
+            _httpClient,
+            endpointRoot,
+            _fixedOptions,
+            _configuredResourceId
+        );
+    }
+
+    private Uri ResolveContextEndpointRoot(ConfiglueResourceContext context)
+    {
+        var endpointRoot = _endpointRootSelector!(context);
+        ArgumentNullException.ThrowIfNull(endpointRoot);
+        return EnsureTrailingSlash(endpointRoot);
+    }
+
+    private async ValueTask WaitForContextChangeAsync(
+        ConfiglueResourceContext context,
+        string? observedRevision,
+        CancellationToken cancellationToken
+    )
+    {
+        var endpointRoot = ResolveContextEndpointRoot(context);
+        var endpointKey = endpointRoot.AbsoluteUri;
+        ContextWatcher watcher;
+        while (true)
+        {
+            watcher = _contextWatchers.GetOrAdd(
+                endpointKey,
+                _ => new ContextWatcher(
+                    new HttpResourceReader(
+                        _httpClient,
+                        endpointRoot,
+                        _fixedOptions,
+                        _configuredResourceId
+                    )
+                )
+            );
+            if (watcher.TryEnter())
+            {
+                break;
+            }
+
+            await watcher.Retired.WaitAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        try
+        {
+            await watcher
+                .Reader.WaitForChangeAsync(observedRevision, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        finally
+        {
+            if (watcher.Leave())
+            {
+                try
+                {
+                    await watcher.Reader.StopWatchLoopIfIdleAsync().ConfigureAwait(false);
+                }
+                finally
+                {
+                    _contextWatchers.TryRemove(endpointKey, out _);
+                    watcher.CompleteRetirement();
+                }
+            }
+        }
+    }
+
+    private async ValueTask StopWatchLoopIfIdleAsync()
+    {
+        Task? watchTask;
+        lock (_watchGate)
+        {
+            if (_changeWaiters.Count > 0)
+            {
+                return;
+            }
+
+            _sharedWatchCancellation?.Cancel();
+            watchTask = _sharedWatchTask;
+        }
+
+        if (watchTask is not null)
+        {
+            await watchTask.ConfigureAwait(false);
+        }
     }
 
     private async ValueTask<HttpReadResponse> SendReadAsync(
@@ -799,6 +988,51 @@ public sealed class HttpResourceReader
 
         public TaskCompletionSource Completion { get; } =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
+    }
+
+    private sealed class ContextWatcher(HttpResourceReader reader)
+    {
+        private readonly object _gate = new();
+        private readonly TaskCompletionSource _retired = new(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        private int _waiterCount;
+        private bool _retiring;
+
+        public HttpResourceReader Reader { get; } = reader;
+
+        public Task Retired => _retired.Task;
+
+        public bool TryEnter()
+        {
+            lock (_gate)
+            {
+                if (_retiring)
+                {
+                    return false;
+                }
+
+                _waiterCount++;
+                return true;
+            }
+        }
+
+        public bool Leave()
+        {
+            lock (_gate)
+            {
+                _waiterCount--;
+                if (_waiterCount != 0)
+                {
+                    return false;
+                }
+
+                _retiring = true;
+                return true;
+            }
+        }
+
+        public void CompleteRetirement() => _retired.TrySetResult();
     }
 
     private sealed class HttpResponseOwner(

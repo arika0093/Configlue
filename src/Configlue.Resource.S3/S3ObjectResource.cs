@@ -19,6 +19,8 @@ public sealed class S3ObjectResource
         IResourceIdentity
 {
     private readonly IS3ObjectClient _client;
+    private readonly S3ObjectResourceOptions _options;
+    private readonly Func<ConfiglueResourceContext, IS3ObjectClient>? _clientSelector;
 
     /// <summary>Creates a resource for one object in an S3 bucket.</summary>
     public S3ObjectResource(
@@ -27,13 +29,22 @@ public sealed class S3ObjectResource
         string key,
         S3ObjectResourceOptions? options = null
     )
-        : this(new S3ObjectClient(client), bucketName, key, options) { }
+        : this(
+            new S3ObjectClient(client),
+            bucketName,
+            key,
+            options,
+            options?.ClientSelector is { } selector
+                ? context => new S3ObjectClient(selector(context))
+                : null
+        ) { }
 
     internal S3ObjectResource(
         IS3ObjectClient client,
         string bucketName,
         string key,
-        S3ObjectResourceOptions? options = null
+        S3ObjectResourceOptions? options = null,
+        Func<ConfiglueResourceContext, IS3ObjectClient>? clientSelector = null
     )
     {
         ArgumentNullException.ThrowIfNull(client);
@@ -41,9 +52,11 @@ public sealed class S3ObjectResource
         ArgumentException.ThrowIfNullOrWhiteSpace(key);
 
         _client = client;
+        _options = options ?? new S3ObjectResourceOptions();
+        _clientSelector = clientSelector;
         BucketName = bucketName;
         Key = key;
-        ResourceId = options?.ResourceId ?? CreateResourceId(bucketName, key);
+        ResourceId = _options.ResourceId ?? GetResourceId(ConfiglueResourceContext.Default);
     }
 
     /// <summary>The S3 bucket name.</summary>
@@ -56,17 +69,36 @@ public sealed class S3ObjectResource
     public ResourceId ResourceId { get; }
 
     /// <inheritdoc />
+    public ResourceId GetResourceId(ConfiglueResourceContext context) =>
+        _options.ResourceId
+        ?? CreateResourceId(
+            ResolveBucket(context),
+            ResolveKey(context),
+            _clientSelector is null ? null : context.Route.Value
+        );
+
+    /// <inheritdoc />
     public bool IsPipelineReadPreferred => true;
 
     /// <inheritdoc />
     public async ValueTask<PipelineResourceReadResult> ReadPipelineAsync(
         CancellationToken cancellationToken = default
+    ) =>
+        await ReadPipelineAsync(ConfiglueResourceContext.Default, cancellationToken)
+            .ConfigureAwait(false);
+
+    /// <inheritdoc />
+    public async ValueTask<PipelineResourceReadResult> ReadPipelineAsync(
+        ConfiglueResourceContext context,
+        CancellationToken cancellationToken = default
     )
     {
+        var bucketName = ResolveBucket(context);
+        var key = ResolveKey(context);
         try
         {
-            var result = await _client
-                .GetObjectStreamAsync(BucketName, Key, cancellationToken)
+            var result = await GetClient(context)
+                .GetObjectStreamAsync(bucketName, key, cancellationToken)
                 .ConfigureAwait(false);
             return PipelineResourceReader.FromStream(result.Content, result.ETag, owner: result);
         }
@@ -79,12 +111,20 @@ public sealed class S3ObjectResource
     /// <inheritdoc />
     public async ValueTask<ResourceReadResult> ReadAsync(
         CancellationToken cancellationToken = default
+    ) => await ReadAsync(ConfiglueResourceContext.Default, cancellationToken).ConfigureAwait(false);
+
+    /// <inheritdoc />
+    public async ValueTask<ResourceReadResult> ReadAsync(
+        ConfiglueResourceContext context,
+        CancellationToken cancellationToken = default
     )
     {
+        var bucketName = ResolveBucket(context);
+        var key = ResolveKey(context);
         try
         {
-            var result = await _client
-                .GetObjectAsync(BucketName, Key, cancellationToken)
+            var result = await GetClient(context)
+                .GetObjectAsync(bucketName, key, cancellationToken)
                 .ConfigureAwait(false);
             return ResourceReadResult.Success(result.Content, result.ETag);
         }
@@ -98,15 +138,26 @@ public sealed class S3ObjectResource
     public async ValueTask<StateWriteResult> WriteAsync(
         ResourceWriteRequest request,
         CancellationToken cancellationToken = default
+    ) =>
+        await WriteAsync(ConfiglueResourceContext.Default, request, cancellationToken)
+            .ConfigureAwait(false);
+
+    /// <inheritdoc />
+    public async ValueTask<StateWriteResult> WriteAsync(
+        ConfiglueResourceContext context,
+        ResourceWriteRequest request,
+        CancellationToken cancellationToken = default
     )
     {
+        var bucketName = ResolveBucket(context);
+        var key = ResolveKey(context);
         var checkRevision = !request.Condition.IsNone;
         try
         {
-            var result = await _client
+            var result = await GetClient(context)
                 .PutObjectAsync(
-                    BucketName,
-                    Key,
+                    bucketName,
+                    key,
                     request.Content,
                     checkRevision ? request.Condition.Revision : null,
                     checkRevision && request.Condition.Revision is null,
@@ -118,9 +169,26 @@ public sealed class S3ObjectResource
         catch (AmazonS3Exception exception) when (checkRevision && IsRevisionConflict(exception))
         {
             throw new StateConflictException(
-                $"The S3 object '{BucketName}/{Key}' changed after it was read."
+                $"The S3 object '{bucketName}/{key}' changed after it was read."
             );
         }
+    }
+
+    private IS3ObjectClient GetClient(ConfiglueResourceContext context) =>
+        _clientSelector?.Invoke(context) ?? _client;
+
+    private string ResolveBucket(ConfiglueResourceContext context)
+    {
+        var bucketName = _options.BucketNameSelector?.Invoke(context) ?? BucketName;
+        ArgumentException.ThrowIfNullOrWhiteSpace(bucketName);
+        return bucketName;
+    }
+
+    private string ResolveKey(ConfiglueResourceContext context)
+    {
+        var key = _options.KeySelector?.Invoke(context) ?? Key;
+        ArgumentException.ThrowIfNullOrWhiteSpace(key);
+        return key;
     }
 
     private static bool IsMissingObject(AmazonS3Exception exception) =>
@@ -134,9 +202,11 @@ public sealed class S3ObjectResource
         exception.ErrorCode is "PreconditionFailed" or "ConditionalRequestConflict"
         || exception.StatusCode is HttpStatusCode.PreconditionFailed or HttpStatusCode.Conflict;
 
-    private static ResourceId CreateResourceId(string bucketName, string key)
+    private static ResourceId CreateResourceId(string bucketName, string key, string? route = null)
     {
-        var identity = Encoding.UTF8.GetBytes(bucketName + "\n" + key);
+        var identity = Encoding.UTF8.GetBytes(
+            route is null ? bucketName + "\n" + key : bucketName + "\n" + key + "\n" + route
+        );
         return new ResourceId(
             $"s3:{Convert.ToHexString(SHA256.HashData(identity)).ToLowerInvariant()}"
         );

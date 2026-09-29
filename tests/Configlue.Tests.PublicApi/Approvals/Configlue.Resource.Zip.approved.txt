@@ -4,8 +4,10 @@ namespace Configlue.Resource.Zip
     public sealed class ZipEntryResource : Configlue.Resources.IResourceBatchParticipant, Configlue.Resources.IResourceIdentity, Configlue.Resources.IResourceReader, Configlue.Resources.IResourceWriter, Configlue.State.IPipelineResourceReader, Configlue.State.IStateWatcher
     {
         public ZipEntryResource(Configlue.Resources.IResourceReader archiveReader, string entryName, Configlue.State.IStateWatcher? archiveWatcher = null, Configlue.Resources.ResourceId? resourceId = default) { }
+        public ZipEntryResource(Configlue.Resources.IResourceReader archiveReader, Configlue.Resource.Zip.ZipEntryResourceOptions options, string entryName, Configlue.State.IStateWatcher? archiveWatcher = null, Configlue.Resources.ResourceId? resourceId = default) { }
         public ZipEntryResource(Configlue.Resources.IResourceReader archiveReader, Configlue.Resources.IResourceBatchWriter? archiveWriter, string entryName, Configlue.State.IStateWatcher? archiveWatcher = null, Configlue.Resources.ResourceId? resourceId = default) { }
         public ZipEntryResource(Configlue.Resources.IResourceReader archiveReader, string entryName, System.TimeSpan pollingInterval, Configlue.State.IStateWatcher? archiveWatcher = null, Configlue.Resources.ResourceId? resourceId = default) { }
+        public ZipEntryResource(Configlue.Resources.IResourceReader archiveReader, Configlue.Resources.IResourceBatchWriter? archiveWriter, Configlue.Resource.Zip.ZipEntryResourceOptions options, string entryName, Configlue.State.IStateWatcher? archiveWatcher = null, Configlue.Resources.ResourceId? resourceId = default) { }
         public ZipEntryResource(Configlue.Resources.IResourceReader archiveReader, Configlue.Resources.IResourceBatchWriter? archiveWriter, string entryName, System.TimeSpan pollingInterval, Configlue.State.IStateWatcher? archiveWatcher = null, Configlue.Resources.ResourceId? resourceId = default) { }
         public Configlue.Resources.IResourceBatchWriter? BatchWriter { get; }
         public string EntryName { get; }
@@ -23,5 +25,10 @@ namespace Configlue.Resource.Zip
         public System.Threading.Tasks.ValueTask WaitForChangeAsync(Configlue.Resources.ConfiglueResourceContext context, string? observedRevision, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask<Configlue.State.StateWriteResult> WriteAsync(Configlue.Resources.ResourceWriteRequest request, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask<Configlue.State.StateWriteResult> WriteAsync(Configlue.Resources.ConfiglueResourceContext context, Configlue.Resources.ResourceWriteRequest request, System.Threading.CancellationToken cancellationToken = default) { }
+    }
+    public sealed class ZipEntryResourceOptions
+    {
+        public ZipEntryResourceOptions() { }
+        public System.Func<Configlue.Resources.ConfiglueResourceContext, string>? EntryNameSelector { get; init; }
     }
 }

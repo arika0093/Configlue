@@ -27,6 +27,8 @@ Use `Named` when application code needs to select a source for routing or migrat
 
 `FromXmlFile(new() { ... })` uses the same options for an XML file and optional element path. File helpers work in non-DI and DI contexts; a generated file resource belongs to the context and is disposed after its watcher stops, while directly supplied clients remain owned by the caller.
 
+File resources use their configured path as one global physical resource and ignore subject keys and routes. Sources that use the same file share its state. Keep the existing file registration for process-wide settings; use separate configured paths or a resource with an explicit context selector when state belongs to individual subjects.
+
 ## Resolution rules
 
 * Reads merge the present members from each source; higher `Priority` wins per member.

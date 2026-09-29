@@ -1,4 +1,5 @@
 using System.Buffers;
+using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
@@ -59,6 +60,118 @@ public sealed class HttpResourceTests
         result.Revision.ShouldBe("\"revision-1\"");
         result.Schema.ShouldBe(new StateSchemaMetadata("AppSettings", 3));
         reader.GetUri.ShouldBe(new Uri(EndpointRoot, "get"));
+    }
+
+    [Test]
+    public async Task SubjectAwareEndpointSelectionRoutesReadsWritesAndResourceIdentity()
+    {
+        var requests = new List<(HttpMethod Method, Uri Uri)>();
+        using var httpClient = new HttpClient(
+            new DelegateHttpMessageHandler(
+                (request, _) =>
+                {
+                    requests.Add((request.Method, request.RequestUri!));
+                    var response = ContentResponse(HttpStatusCode.OK, "{}", "\"revision-1\"");
+                    if (request.Method == HttpMethod.Put)
+                    {
+                        response.StatusCode = HttpStatusCode.NoContent;
+                    }
+
+                    return Task.FromResult(response);
+                }
+            )
+        );
+        var reader = new HttpResourceReader(
+            httpClient,
+            EndpointRoot,
+            new HttpResourceOptions
+            {
+                EndpointRootSelector = context => new Uri(
+                    $"https://settings.example.test/{context.Route.Value}/{context.Key.Value}/"
+                ),
+            }
+        );
+        var firstSubject = new ResourceSubject("one");
+        var secondSubject = new ResourceSubject("two");
+        var firstContext = new ConfiglueResourceContext(
+            firstSubject,
+            firstSubject.Key,
+            RouteKey.From("jp")
+        );
+        var secondContext = new ConfiglueResourceContext(
+            secondSubject,
+            secondSubject.Key,
+            RouteKey.From("eu")
+        );
+
+        await reader.ReadAsync(firstContext);
+        await reader.ReadAsync(secondContext);
+        await reader
+            .CreateWriter()
+            .WriteAsync(firstContext, new ResourceWriteRequest(Encoding.UTF8.GetBytes("{}")));
+
+        requests
+            .Select(static request => request.Uri.AbsolutePath)
+            .ShouldBe([
+                $"/jp/{firstSubject.Key.Value}/get",
+                $"/eu/{secondSubject.Key.Value}/get",
+                $"/jp/{firstSubject.Key.Value}/update",
+            ]);
+        reader.GetResourceId(firstContext).ShouldNotBe(reader.GetResourceId(secondContext));
+    }
+
+    [Test]
+    public async Task SubjectAwareWatcherPollsTheSelectedEndpoint()
+    {
+        var currentETag = "\"revision-1\"";
+        var firstConditionalPoll = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        var conditionalUris = new ConcurrentQueue<Uri>();
+        using var httpClient = new HttpClient(
+            new DelegateHttpMessageHandler(
+                (request, _) =>
+                {
+                    if (request.Headers.IfNoneMatch.Count > 0)
+                    {
+                        conditionalUris.Enqueue(request.RequestUri!);
+                        firstConditionalPoll.TrySetResult();
+                        var observed = request.Headers.IfNoneMatch.Single().Tag;
+                        if (observed == Volatile.Read(ref currentETag))
+                        {
+                            return Task.FromResult(
+                                new HttpResponseMessage(HttpStatusCode.NotModified)
+                            );
+                        }
+                    }
+
+                    return Task.FromResult(
+                        ContentResponse(HttpStatusCode.OK, "{}", Volatile.Read(ref currentETag))
+                    );
+                }
+            )
+        );
+        var reader = new HttpResourceReader(
+            httpClient,
+            EndpointRoot,
+            new HttpResourceOptions
+            {
+                PollingInterval = TimeSpan.FromMilliseconds(5),
+                EndpointRootSelector = context => new Uri(
+                    $"https://settings.example.test/{context.Route.Value}/{context.Key.Value}/"
+                ),
+            }
+        );
+        var subject = new ResourceSubject("watcher");
+        var context = new ConfiglueResourceContext(subject, subject.Key, RouteKey.From("jp"));
+
+        var waiting = reader.WaitForChangeAsync(context, "\"revision-1\"").AsTask();
+        await firstConditionalPoll.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        Volatile.Write(ref currentETag, "\"revision-2\"");
+        await waiting.WaitAsync(TimeSpan.FromSeconds(2));
+
+        conditionalUris.ShouldNotBeEmpty();
+        conditionalUris.ShouldAllBe(uri => uri.AbsolutePath == $"/jp/{subject.Key.Value}/get");
     }
 
     [Test]
@@ -394,6 +507,10 @@ public sealed class HttpResourceTests
     public async Task Watcher_MultiplexesHighFanOutOnOnePhysicalResource()
     {
         var requestCount = 0;
+        var firstWaiterCancelled = 0;
+        var pollAfterCancellation = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
         var activeRequests = 0;
         var maximumConcurrentRequests = 0;
         using var httpClient = new HttpClient(
@@ -424,6 +541,11 @@ public sealed class HttpResourceTests
                     try
                     {
                         var requestIndex = Interlocked.Increment(ref requestCount);
+                        if (Volatile.Read(ref firstWaiterCancelled) != 0)
+                        {
+                            pollAfterCancellation.TrySetResult();
+                        }
+
                         await Task.Delay(TimeSpan.FromMilliseconds(2), cancellationToken);
                         return requestIndex == 1
                             ? ContentResponse(HttpStatusCode.OK, "current", "\"revision-1\"")
@@ -462,9 +584,8 @@ public sealed class HttpResourceTests
 
         firstCancellation.Cancel();
         await Should.ThrowAsync<OperationCanceledException>(async () => await waits[0]);
-        var requestsBeforeContinuing = Volatile.Read(ref requestCount);
-        await Task.Delay(TimeSpan.FromMilliseconds(30));
-        (Volatile.Read(ref requestCount) > requestsBeforeContinuing).ShouldBeTrue();
+        Volatile.Write(ref firstWaiterCancelled, 1);
+        await pollAfterCancellation.Task.WaitAsync(TimeSpan.FromSeconds(2));
         waits.Skip(1).ShouldAllBe(static wait => !wait.IsCompleted);
 
         remainingCancellation.Cancel();
@@ -679,5 +800,10 @@ public sealed class HttpResourceTests
             await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
             throw new InvalidOperationException("The infinite wait completed unexpectedly.");
         }
+    }
+
+    private sealed record ResourceSubject(string Name) : IConfiglueSubject
+    {
+        public SubjectKey Key => SubjectKey.From(Name);
     }
 }

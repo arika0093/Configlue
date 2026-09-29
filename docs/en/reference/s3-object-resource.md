@@ -36,3 +36,13 @@ In dependency-injected applications, use `ClientFactory` to resolve the host-own
 Reads return the object bytes and ETag. When revision checking is requested, writes use S3 conditional `If-Match` with the expected ETag, or `If-None-Match: *` when the expected object is missing. S3 precondition failures become `StateConflictException`. Unconditional writes remain unconditional. A missing object is reported as not found; authorization, bucket, network, and other S3 errors are surfaced.
 
 ETags are opaque S3 revisions, not necessarily content hashes (for example, multipart uploads and encryption can affect their meaning). Conditional-write guarantees require an S3 implementation that supports these request headers. This provider does not implement a change watcher, cross-object transactions, or bucket management.
+
+The configured bucket and key are fixed for every operation by default. For multi-key state, `S3ObjectResourceOptions` can resolve the bucket, key, and caller-owned S3 client from `ConfiglueResourceContext`. Use `context.Key` to select an object and `context.Route` to select a bucket or regional client. Reads, writes, and physical identity use the same resolved address; ETag checks still apply to that object. Use distinct routes when clients point to separate S3 accounts or regions. A global setting can keep the fixed `BucketName` and `Key` shown above.
+
+```csharp
+ResourceOptions = new S3ObjectResourceOptions
+{
+    BucketNameSelector = context => buckets[context.Route],
+    KeySelector = context => $"{context.Key.Value}/settings.json",
+};
+```

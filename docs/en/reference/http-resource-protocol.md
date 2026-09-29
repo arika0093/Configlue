@@ -67,4 +67,15 @@ Creating a writer does not grant server-side access; only map the update route w
 
 The client polls for changes (every 5 seconds by default) and surfaces conditional-write failures as `StateConflictException`. Failed polls use exponential backoff up to 30 seconds by default. Each HTTP request has a 30-second timeout by default; configure `PollingInterval`, `MaximumPollingInterval`, and `RequestTimeout` on `HttpResourceOptions` as needed. Missing resources map to `NotFound` fall-through; transport failures and timeouts map to `Unavailable`. Schema metadata travels in the `Configlue-Schema-Id` and `Configlue-Schema-Version` headers.
 
+The endpoint root is fixed for every operation by default. For multi-key state, set `EndpointRootSelector` to choose a physical endpoint from the subject key or route. Reads, writes, watches, and resource identity use the selected endpoint, with a separate watcher per endpoint. Leave `ResourceId` unset when selected endpoints should have distinct physical identities.
+
+```csharp
+var reader = new HttpResourceReader(httpClient, defaultEndpoint, new HttpResourceOptions
+{
+    EndpointRootSelector = context => endpointByRegion[context.Route],
+});
+```
+
+Global settings can keep one fixed root and use the existing reader constructor unchanged.
+
 For registration options (`Client` vs `ClientFactory`, `Writable`, `WatchChanges`, `FallbackCondition`), see [HTTP and ZIP](../sources/http-and-zip.md).

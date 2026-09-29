@@ -135,7 +135,6 @@ public static class HttpSourceRegistration
                 options.CodecContext,
                 transformers: options.Transformers
             );
-            var resourceId = options.ResourceId ?? resource.ResourceId;
             var watcher = options.WatchChanges ? resource : null;
             return options.Id is { } id
                 ? new StateSource<TFragment>(
@@ -146,7 +145,7 @@ public static class HttpSourceRegistration
                     writer,
                     watcher,
                     endpoint.AbsoluteUri,
-                    resourceId
+                    options.ResourceId
                 )
                 : new StateSource<TFragment>(
                     reader,
@@ -155,7 +154,7 @@ public static class HttpSourceRegistration
                     writer,
                     watcher,
                     endpoint.AbsoluteUri,
-                    resourceId
+                    options.ResourceId
                 );
         }
     }

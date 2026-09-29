@@ -21,6 +21,7 @@ description: Find the NuGet package for each Configlue capability.
 | `Configlue.Source.CommandLine` | Read-only source backed by a `System.CommandLine` parse result, with opt-in common preset integration. |
 | `Configlue.Resource.Http` | HTTP read/write resources with ETag revisions and polling change detection. |
 | `Configlue.Resource.Http.AspNetCore` | ASP.NET Core endpoints for serving HTTP resources. |
+| `Configlue.Resource.Dapr` | Optional Dapr State Management resources and source registration with ETag concurrency checks. |
 | `Configlue.Resource.S3` | Optional Amazon S3 object resources and source registration with ETag revisions. |
 | `Configlue.Transformer.AES` | AES-GCM encryption and authentication for state bytes between a Resource and Codec, including passphrase-based key derivation. |
 
