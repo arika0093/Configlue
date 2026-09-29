@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Linq;
 
 namespace Configlue.State;
@@ -20,7 +21,10 @@ public sealed class CompositeStateSource<TFragment>
     private readonly StateSourceSet<TFragment> _components;
     private readonly string? _defaultWriteSourceId;
     private readonly StateWritePlan _writePlan;
-    private WatchTarget[] _watchTargets = [];
+    private readonly ConcurrentDictionary<
+        (SubjectKey SubjectKey, RouteKey Route),
+        WatchTarget[]
+    > _watchTargets = new();
 
     /// <summary>Creates a logical read source from priority-ordered component sources.</summary>
     /// <param name="components">Component sources that return the same generated fragment type.</param>
@@ -92,15 +96,35 @@ public sealed class CompositeStateSource<TFragment>
     internal async ValueTask<StateReadResult<TFragment>> ReadWithOverridesAsync(
         IReadOnlyDictionary<string, TFragment> overrides,
         CancellationToken cancellationToken
-    ) => await ReadCoreAsync(overrides, cancellationToken).ConfigureAwait(false);
+    ) =>
+        await ReadCoreAsync(overrides, null, RouteKey.Default, cancellationToken)
+            .ConfigureAwait(false);
+
+    internal async ValueTask<StateReadResult<TFragment>> ReadWithOverridesAsync(
+        IReadOnlyDictionary<string, TFragment> overrides,
+        ConfiglueResourceContext context,
+        CancellationToken cancellationToken
+    ) =>
+        await ReadCoreAsync(overrides, context.Subject, context.Route, cancellationToken)
+            .ConfigureAwait(false);
 
     /// <inheritdoc />
     public async ValueTask<StateReadResult<TFragment>> ReadAsync(
         CancellationToken cancellationToken = default
-    ) => await ReadCoreAsync(null, cancellationToken).ConfigureAwait(false);
+    ) => await ReadCoreAsync(null, null, RouteKey.Default, cancellationToken).ConfigureAwait(false);
+
+    /// <inheritdoc />
+    public async ValueTask<StateReadResult<TFragment>> ReadAsync(
+        ConfiglueResourceContext context,
+        CancellationToken cancellationToken = default
+    ) =>
+        await ReadCoreAsync(null, context.Subject, context.Route, cancellationToken)
+            .ConfigureAwait(false);
 
     private async ValueTask<StateReadResult<TFragment>> ReadCoreAsync(
         IReadOnlyDictionary<string, TFragment>? overrides,
+        IConfiglueSubject? subject,
+        RouteKey route,
         CancellationToken cancellationToken
     )
     {
@@ -116,7 +140,11 @@ public sealed class CompositeStateSource<TFragment>
         {
             var source = _components[index];
             cancellationToken.ThrowIfCancellationRequested();
-            var result = await source.Reader.ReadAsync(cancellationToken).ConfigureAwait(false);
+            var result = subject is null
+                ? await source.Reader.ReadAsync(cancellationToken).ConfigureAwait(false)
+                : await source
+                    .ReadAsync(source.GetResourceContext(subject, route), cancellationToken)
+                    .ConfigureAwait(false);
             result = result.FromSource(source.Id, source.PhysicalOrigin);
             if (
                 result.Status == StateReadStatus.NotFound
@@ -186,12 +214,12 @@ public sealed class CompositeStateSource<TFragment>
             lastFailure = result;
             if (!CanFallBack(source.FallbackCondition, result.Status))
             {
-                SetWatchTargets(watchTargets);
+                SetWatchTargets(watchTargets, subject, route);
                 return result with { Revisions = CreateRevisionVector(revisions, nestedRevisions) };
             }
         }
 
-        SetWatchTargets(watchTargets);
+        SetWatchTargets(watchTargets, subject, route);
         if (successful.Count == 0)
         {
             return lastFailure with
@@ -235,6 +263,13 @@ public sealed class CompositeStateSource<TFragment>
         );
     }
 
+    /// <inheritdoc />
+    public ValueTask<StateWriteResult> WriteAsync(
+        ConfiglueResourceContext context,
+        StateWriteRequest<TFragment> request,
+        CancellationToken cancellationToken = default
+    ) => WriteAsync(request, cancellationToken);
+
     private static StateSource<TFragment> GetWritableComponent(
         StateSourceSet<TFragment> components,
         string componentId
@@ -267,7 +302,29 @@ public sealed class CompositeStateSource<TFragment>
     )
     {
         _ = observedRevision;
-        var targets = Volatile.Read(ref _watchTargets);
+        await WaitForChangeCoreAsync(null, RouteKey.Default, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public ValueTask WaitForChangeAsync(
+        ConfiglueResourceContext context,
+        string? observedRevision,
+        CancellationToken cancellationToken = default
+    )
+    {
+        _ = observedRevision;
+        return WaitForChangeCoreAsync(context.Subject, context.Route, cancellationToken);
+    }
+
+    private async ValueTask WaitForChangeCoreAsync(
+        IConfiglueSubject? subject,
+        RouteKey route,
+        CancellationToken cancellationToken
+    )
+    {
+        var cacheKey = (subject?.Key ?? SubjectKey.Default, route);
+        var targets = _watchTargets.GetValueOrDefault(cacheKey) ?? [];
         using var watchCancellation = CancellationTokenSource.CreateLinkedTokenSource(
             cancellationToken
         );
@@ -283,7 +340,15 @@ public sealed class CompositeStateSource<TFragment>
                 }
 
                 watchers.Add(
-                    watcher.WaitForChangeAsync(target.Revision, watchCancellation.Token).AsTask()
+                    (
+                        subject is null
+                            ? watcher.WaitForChangeAsync(target.Revision, watchCancellation.Token)
+                            : target.Source.WaitForChangeAsync(
+                                target.Source.GetResourceContext(subject, route),
+                                target.Revision,
+                                watchCancellation.Token
+                            )
+                    ).AsTask()
                 );
             }
 
@@ -322,8 +387,11 @@ public sealed class CompositeStateSource<TFragment>
         }
     }
 
-    private void SetWatchTargets(List<WatchTarget> targets) =>
-        Volatile.Write(ref _watchTargets, targets.ToArray());
+    private void SetWatchTargets(
+        List<WatchTarget> targets,
+        IConfiglueSubject? subject,
+        RouteKey route
+    ) => _watchTargets[(subject?.Key ?? SubjectKey.Default, route)] = targets.ToArray();
 
     private static string? GetPhysicalOrigin(List<ComponentResult> successful)
     {

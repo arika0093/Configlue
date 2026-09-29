@@ -41,8 +41,12 @@ public sealed class ZipEntryResource
     private readonly ResourceId _resourceId;
     private readonly ResourceId? _configuredResourceId;
     private readonly object _snapshotGate = new();
-    private readonly Dictionary<(SubjectKey Key, string Revision), string> _readSnapshots = [];
-    private readonly Queue<(SubjectKey Key, string Revision)> _snapshotOrder = new();
+    private readonly Dictionary<
+        (SubjectKey Key, RouteKey Route, string Revision),
+        string
+    > _readSnapshots = [];
+    private readonly Queue<(SubjectKey Key, RouteKey Route, string Revision)> _snapshotOrder =
+        new();
     private readonly TimeSpan _pollingInterval;
 
     /// <summary>Creates an entry view, detecting batch writing and change watching on the archive resource.</summary>
@@ -222,7 +226,7 @@ public sealed class ZipEntryResource
         {
             if (archiveResult.Status == StateReadStatus.NotFound)
             {
-                StoreSnapshot(context.Key, archiveResult.Revision, MissingEntryFingerprint);
+                StoreSnapshot(context, archiveResult.Revision, MissingEntryFingerprint);
                 return ResourceReadResult.NotFound(archiveResult.Revision);
             }
 
@@ -234,7 +238,7 @@ public sealed class ZipEntryResource
         var entry = archive.GetEntry(_entryName);
         if (entry is null)
         {
-            StoreSnapshot(context.Key, archiveResult.Revision, MissingEntryFingerprint);
+            StoreSnapshot(context, archiveResult.Revision, MissingEntryFingerprint);
             return ResourceReadResult.NotFound(archiveResult.Revision);
         }
 
@@ -247,7 +251,7 @@ public sealed class ZipEntryResource
                 cancellationToken
             )
             .ConfigureAwait(false);
-        StoreSnapshot(context.Key, archiveResult.Revision, entryRevision);
+        StoreSnapshot(context, archiveResult.Revision, entryRevision);
         return ResourceReadResult.Success(entryContent, archiveResult.Revision);
     }
 
@@ -282,7 +286,7 @@ public sealed class ZipEntryResource
         var expectedSnapshot = string.Empty;
         var hasSnapshot =
             request.Condition.IsMatch
-            && TryGetSnapshot(context.Key, request.Condition.Revision, out expectedSnapshot);
+            && TryGetSnapshot(context, request.Condition.Revision, out expectedSnapshot);
         return new ResourceWriteMutation(
             hasSnapshot || request.Condition.IsMustNotExist
                 ? RevisionCondition.None
@@ -404,12 +408,12 @@ public sealed class ZipEntryResource
     }
 
     private void StoreSnapshot(
-        SubjectKey subjectKey,
+        ConfiglueResourceContext context,
         string? archiveRevision,
         string entryFingerprint
     )
     {
-        var key = (subjectKey, archiveRevision ?? string.Empty);
+        var key = (context.Key, context.Route, archiveRevision ?? string.Empty);
         lock (_snapshotGate)
         {
             if (_readSnapshots.ContainsKey(key))
@@ -435,9 +439,13 @@ public sealed class ZipEntryResource
             ? id
             : null;
 
-    private bool TryGetSnapshot(SubjectKey subjectKey, string? revision, out string fingerprint)
+    private bool TryGetSnapshot(
+        ConfiglueResourceContext context,
+        string? revision,
+        out string fingerprint
+    )
     {
-        var key = (subjectKey, revision ?? string.Empty);
+        var key = (context.Key, context.Route, revision ?? string.Empty);
         lock (_snapshotGate)
         {
             return _readSnapshots.TryGetValue(key, out fingerprint!);

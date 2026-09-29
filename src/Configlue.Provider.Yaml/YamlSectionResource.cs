@@ -29,6 +29,7 @@ public sealed class YamlSectionResource
     private readonly object _sectionCacheGate = new();
     private string? _cachedSectionRevision;
     private SubjectKey _cachedSectionKey;
+    private RouteKey _cachedSectionRoute;
     private ResourceReadResult _cachedSection;
     private bool _hasCachedSection;
 
@@ -221,7 +222,7 @@ public sealed class YamlSectionResource
         var resource = await _reader.ReadAsync(context, cancellationToken).ConfigureAwait(false);
         try
         {
-            return ExtractSection(resource, context.Key);
+            return ExtractSection(resource, context);
         }
         catch (SharpYaml.YamlException exception)
         {
@@ -277,7 +278,7 @@ public sealed class YamlSectionResource
                     ResourceReadResult section;
                     try
                     {
-                        section = ExtractSection(candidate, context.Key);
+                        section = ExtractSection(candidate, context);
                     }
                     catch (SharpYaml.YamlException)
                     {
@@ -294,12 +295,12 @@ public sealed class YamlSectionResource
                 cancellationToken
             )
             .ConfigureAwait(false);
-        return restored is { } result ? ExtractSection(result, context.Key) : null;
+        return restored is { } result ? ExtractSection(result, context) : null;
     }
 
     private ResourceReadResult ExtractSection(
         ResourceReadResult resource,
-        SubjectKey subjectKey = default
+        ConfiglueResourceContext context
     )
     {
         if (resource.Status != StateReadStatus.Success)
@@ -314,7 +315,8 @@ public sealed class YamlSectionResource
             {
                 if (
                     _hasCachedSection
-                    && _cachedSectionKey == subjectKey
+                    && _cachedSectionKey == context.Key
+                    && _cachedSectionRoute == context.Route
                     && string.Equals(_cachedSectionRevision, revision, StringComparison.Ordinal)
                 )
                 {
@@ -329,7 +331,8 @@ public sealed class YamlSectionResource
             lock (_sectionCacheGate)
             {
                 _cachedSectionRevision = revision;
-                _cachedSectionKey = subjectKey;
+                _cachedSectionKey = context.Key;
+                _cachedSectionRoute = context.Route;
                 _cachedSection = result;
                 _hasCachedSection = true;
             }
@@ -413,7 +416,7 @@ public sealed class YamlSectionResource
             {
                 if (!request.Condition.IsNone)
                 {
-                    var section = ExtractSection(current, context.Key);
+                    var section = ExtractSection(current, context);
                     if (
                         !request.Condition.IsSatisfiedBy(
                             section.Revision,

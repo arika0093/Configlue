@@ -24,6 +24,7 @@ public sealed class XmlSectionResource
     private readonly object _sectionCacheGate = new();
     private string? _cachedSectionRevision;
     private SubjectKey _cachedSectionKey;
+    private RouteKey _cachedSectionRoute;
     private ResourceReadResult _cachedSection;
     private bool _hasCachedSection;
 
@@ -157,7 +158,7 @@ public sealed class XmlSectionResource
         var resource = await _reader.ReadAsync(context, cancellationToken).ConfigureAwait(false);
         try
         {
-            return ExtractSection(resource, context.Key);
+            return ExtractSection(resource, context);
         }
         catch (XmlException exception)
         {
@@ -208,7 +209,7 @@ public sealed class XmlSectionResource
                     ResourceReadResult section;
                     try
                     {
-                        section = ExtractSection(candidate, context.Key);
+                        section = ExtractSection(candidate, context);
                     }
                     catch (XmlException)
                     {
@@ -221,12 +222,12 @@ public sealed class XmlSectionResource
                 cancellationToken
             )
             .ConfigureAwait(false);
-        return restored is { } result ? ExtractSection(result, context.Key) : null;
+        return restored is { } result ? ExtractSection(result, context) : null;
     }
 
     private ResourceReadResult ExtractSection(
         ResourceReadResult resource,
-        SubjectKey subjectKey = default
+        ConfiglueResourceContext context
     )
     {
         if (resource.Status != StateReadStatus.Success)
@@ -241,7 +242,8 @@ public sealed class XmlSectionResource
             {
                 if (
                     _hasCachedSection
-                    && _cachedSectionKey == subjectKey
+                    && _cachedSectionKey == context.Key
+                    && _cachedSectionRoute == context.Route
                     && string.Equals(_cachedSectionRevision, revision, StringComparison.Ordinal)
                 )
                 {
@@ -256,7 +258,8 @@ public sealed class XmlSectionResource
             lock (_sectionCacheGate)
             {
                 _cachedSectionRevision = revision;
-                _cachedSectionKey = subjectKey;
+                _cachedSectionKey = context.Key;
+                _cachedSectionRoute = context.Route;
                 _cachedSection = result;
                 _hasCachedSection = true;
             }
@@ -350,7 +353,7 @@ public sealed class XmlSectionResource
             {
                 if (!request.Condition.IsNone)
                 {
-                    var section = ExtractSection(current, context.Key);
+                    var section = ExtractSection(current, context);
                     if (
                         !request.Condition.IsSatisfiedBy(
                             section.Revision,

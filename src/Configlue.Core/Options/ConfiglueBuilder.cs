@@ -101,6 +101,7 @@ public sealed class ConfiglueModelBuilder<TModel>
     private TimeSpan? _onChangeDebounce;
     private ILogger? _logger;
     private Func<TModel, TModel>? _cloneStrategy;
+    private Func<IConfiglueSubject, RouteKey>? _routeSelector;
     private bool _sealed;
 
     /// <summary>The name used by named options and profiles. The default is the unnamed instance.</summary>
@@ -233,6 +234,20 @@ public sealed class ConfiglueModelBuilder<TModel>
         EnsureMutable();
         ArgumentNullException.ThrowIfNull(configure);
         configure(_sources);
+    }
+
+    /// <summary>Routes subject-specific resource operations using application metadata.</summary>
+    public void Routing<TSubject>(Func<TSubject, RouteKey> selector)
+        where TSubject : IConfiglueSubject
+    {
+        EnsureMutable();
+        ArgumentNullException.ThrowIfNull(selector);
+        _routeSelector = subject =>
+            subject is TSubject typed
+                ? selector(typed)
+                : throw new InvalidOperationException(
+                    $"The routing policy for '{typeof(TModel)}' requires a subject of type '{typeof(TSubject)}', but received '{subject.GetType()}'."
+                );
     }
 
     /// <summary>Configures sources when the runtime is created, with its name and application services.</summary>
@@ -398,6 +413,8 @@ public sealed class ConfiglueModelBuilder<TModel>
     /// <summary>The optional custom clone strategy configured for this model.</summary>
     internal Func<TModel, TModel>? CloneStrategy => _cloneStrategy;
 
+    internal Func<IConfiglueSubject, RouteKey>? RouteSelector => _routeSelector;
+
     /// <summary>Gets the explicitly configured logger or creates one from the service provider.</summary>
     internal ILogger? GetLogger(IServiceProvider? serviceProvider)
     {
@@ -424,6 +441,7 @@ public sealed class ConfiglueModelBuilder<TModel>
             EnableDynamicOptions = _enableDynamicOptions,
             OnChangeDebounce = _onChangeDebounce,
             Logger = _logger,
+            _routeSelector = _routeSelector,
         };
         clone._sources.CopyFrom(_sources);
         clone._cloneStrategy = _cloneStrategy;

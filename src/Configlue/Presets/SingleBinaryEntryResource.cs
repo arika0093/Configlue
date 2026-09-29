@@ -14,13 +14,21 @@ internal sealed class SingleBinaryEntryResource
     private const string MissingEntryRevision = "missing";
     private readonly ZipEntryResource _entry;
     private readonly object _revisionGate = new();
-    private readonly Dictionary<(SubjectKey Key, string Revision), string?> _archiveRevisions = [];
-    private readonly Queue<(SubjectKey Key, string Revision)> _revisionOrder = new();
     private readonly Dictionary<
-        (SubjectKey Key, string Revision),
+        (SubjectKey Key, RouteKey Route, string Revision),
+        string?
+    > _archiveRevisions = [];
+    private readonly Queue<(SubjectKey Key, RouteKey Route, string Revision)> _revisionOrder =
+        new();
+    private readonly Dictionary<
+        (SubjectKey Key, RouteKey Route, string Revision),
         string
     > _entryRevisionsByArchiveRevision = [];
-    private readonly Queue<(SubjectKey Key, string Revision)> _archiveRevisionOrder = new();
+    private readonly Queue<(
+        SubjectKey Key,
+        RouteKey Route,
+        string Revision
+    )> _archiveRevisionOrder = new();
 
     public SingleBinaryEntryResource(ZipEntryResource entry)
     {
@@ -57,8 +65,8 @@ internal sealed class SingleBinaryEntryResource
                 ? MissingEntryRevision
                 : GetEntryRevision(result.Content.Span);
         var exposedRevision = entryRevision;
-        StoreArchiveRevision(context.Key, entryRevision, result.Revision);
-        StoreEntryRevision(context.Key, result.Revision, entryRevision);
+        StoreArchiveRevision(context, entryRevision, result.Revision);
+        StoreEntryRevision(context, result.Revision, entryRevision);
         return result with { Revision = exposedRevision };
     }
 
@@ -94,7 +102,7 @@ internal sealed class SingleBinaryEntryResource
         CancellationToken cancellationToken = default
     )
     {
-        var archiveRevision = ResolveArchiveRevision(context.Key, request.Condition.Revision);
+        var archiveRevision = ResolveArchiveRevision(context, request.Condition.Revision);
         return WriteEntryAsync(
             new ResourceWriteRequest(
                 request.Content,
@@ -121,17 +129,17 @@ internal sealed class SingleBinaryEntryResource
     ) =>
         _entry.WaitForChangeAsync(
             context,
-            ResolveArchiveRevision(context.Key, observedRevision),
+            ResolveArchiveRevision(context, observedRevision),
             cancellationToken
         );
 
     private void StoreArchiveRevision(
-        SubjectKey subjectKey,
+        ConfiglueResourceContext context,
         string entryRevision,
         string? archiveRevision
     )
     {
-        var key = (subjectKey, entryRevision);
+        var key = (context.Key, context.Route, entryRevision);
         lock (_revisionGate)
         {
             if (_archiveRevisions.ContainsKey(key))
@@ -150,12 +158,12 @@ internal sealed class SingleBinaryEntryResource
     }
 
     private void StoreEntryRevision(
-        SubjectKey subjectKey,
+        ConfiglueResourceContext context,
         string? archiveRevision,
         string entryRevision
     )
     {
-        var key = (subjectKey, archiveRevision ?? string.Empty);
+        var key = (context.Key, context.Route, archiveRevision ?? string.Empty);
         lock (_revisionGate)
         {
             if (_entryRevisionsByArchiveRevision.ContainsKey(key))
@@ -174,7 +182,7 @@ internal sealed class SingleBinaryEntryResource
     }
 
     private bool HasUnchangedEntryAtRevision(
-        SubjectKey subjectKey,
+        ConfiglueResourceContext context,
         string? archiveRevision,
         string currentEntryRevision
     )
@@ -187,13 +195,13 @@ internal sealed class SingleBinaryEntryResource
         lock (_revisionGate)
         {
             return _entryRevisionsByArchiveRevision.TryGetValue(
-                    (subjectKey, archiveRevision),
+                    (context.Key, context.Route, archiveRevision),
                     out var baseline
                 ) && string.Equals(baseline, currentEntryRevision, StringComparison.Ordinal);
         }
     }
 
-    private string? ResolveArchiveRevision(SubjectKey subjectKey, string? entryRevision)
+    private string? ResolveArchiveRevision(ConfiglueResourceContext context, string? entryRevision)
     {
         if (entryRevision is null)
         {
@@ -203,7 +211,7 @@ internal sealed class SingleBinaryEntryResource
         lock (_revisionGate)
         {
             return _archiveRevisions.TryGetValue(
-                (subjectKey, entryRevision),
+                (context.Key, context.Route, entryRevision),
                 out var archiveRevision
             )
                 ? archiveRevision
@@ -232,11 +240,7 @@ internal sealed class SingleBinaryEntryResource
         var expectedRevisionMatches =
             string.Equals(expectedRevision, currentRevision, StringComparison.Ordinal)
             || string.Equals(expectedRevision, current.Revision, StringComparison.Ordinal)
-            || HasUnchangedEntryAtRevision(
-                context.Key,
-                request.Condition.Revision,
-                currentRevision
-            );
+            || HasUnchangedEntryAtRevision(context, request.Condition.Revision, currentRevision);
         if (
             request.Condition.IsMatch && !expectedRevisionMatches
             || request.Condition.IsMustNotExist && current.Status != StateReadStatus.NotFound
@@ -280,8 +284,8 @@ internal sealed class SingleBinaryEntryResource
             );
         }
 
-        StoreArchiveRevision(context.Key, writtenRevision, written.Revision);
-        StoreEntryRevision(context.Key, written.Revision, writtenRevision);
+        StoreArchiveRevision(context, writtenRevision, written.Revision);
+        StoreEntryRevision(context, written.Revision, writtenRevision);
         return new StateWriteResult(writtenRevision);
     }
 

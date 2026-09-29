@@ -74,7 +74,8 @@ public static class ConfiglueRuntime
                     configuration.GetLogger(services),
                     configuration.CloneStrategy,
                     configuration.ReadValidationMode,
-                    configuration.WriteConflictResolution
+                    configuration.WriteConflictResolution,
+                    configuration.RouteSelector
                 ),
             static (registry, catalog, name) =>
                 new ConfiglueProfiledOptions<TModel, TFragment>(registry, catalog, name)

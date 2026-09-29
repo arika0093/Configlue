@@ -176,7 +176,13 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
                 )
                 .ConfigureAwait(false);
             return new StateWriteReceipt(
-                [new StateSourceWriteResult(candidate.Id, candidate.ResourceId, written.Revision)],
+                [
+                    new StateSourceWriteResult(
+                        candidate.Id,
+                        GetResourceId(candidate),
+                        written.Revision
+                    ),
+                ],
                 1
             );
         }

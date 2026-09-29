@@ -100,12 +100,53 @@ public sealed class FallbackStateSource<T> : IStateReader<T>, IStateWriter<T>, I
     }
 
     /// <inheritdoc />
+    public async ValueTask<StateReadResult<T>> ReadAsync(
+        ConfiglueResourceContext context,
+        CancellationToken cancellationToken = default
+    )
+    {
+        var result = await _reader.ReadAsync(context, cancellationToken).ConfigureAwait(false);
+        if (result.Status != StateReadStatus.Success)
+        {
+            return result;
+        }
+
+        return result with
+        {
+            Revision = CreateRevisionToken(result),
+        };
+    }
+
+    /// <inheritdoc />
     public async ValueTask<StateWriteResult> WriteAsync(
         StateWriteRequest<T> request,
         CancellationToken cancellationToken = default
     )
     {
         var current = await _reader.ReadAsync(cancellationToken).ConfigureAwait(false);
+        return await WriteCoreAsync(null, current, request, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async ValueTask<StateWriteResult> WriteAsync(
+        ConfiglueResourceContext context,
+        StateWriteRequest<T> request,
+        CancellationToken cancellationToken = default
+    )
+    {
+        var current = await _reader.ReadAsync(context, cancellationToken).ConfigureAwait(false);
+        return await WriteCoreAsync(context, current, request, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    private async ValueTask<StateWriteResult> WriteCoreAsync(
+        ConfiglueResourceContext? context,
+        StateReadResult<T> current,
+        StateWriteRequest<T> request,
+        CancellationToken cancellationToken
+    )
+    {
         if (
             !request.Condition.IsSatisfiedBy(
                 GetRevisionToken(current),
@@ -126,9 +167,24 @@ public sealed class FallbackStateSource<T> : IStateReader<T>, IStateWriter<T>, I
         }
 
         var target = ResolveWriteSource(current);
-        var targetState = string.Equals(current.SourceId, target.Id, StringComparison.Ordinal)
-            ? current
-            : await target.Reader.ReadAsync(cancellationToken).ConfigureAwait(false);
+        StateReadResult<T> targetState;
+        if (string.Equals(current.SourceId, target.Id, StringComparison.Ordinal))
+        {
+            targetState = current;
+        }
+        else if (context is { } readContext)
+        {
+            targetState = await target
+                .ReadAsync(
+                    target.GetResourceContext(readContext.Subject, readContext.Route),
+                    cancellationToken
+                )
+                .ConfigureAwait(false);
+        }
+        else
+        {
+            targetState = await target.Reader.ReadAsync(cancellationToken).ConfigureAwait(false);
+        }
         if (targetState.Status == StateReadStatus.Unavailable)
         {
             throw new InvalidOperationException(
@@ -136,14 +192,23 @@ public sealed class FallbackStateSource<T> : IStateReader<T>, IStateWriter<T>, I
             );
         }
 
+        var targetRequest = new StateWriteRequest<T>(
+            request.Value,
+            Condition: RevisionCondition.FromRevision(targetState.Revision)
+        );
+        if (context is { } writeContext)
+        {
+            return await target
+                .WriteAsync(
+                    target.GetResourceContext(writeContext.Subject, writeContext.Route),
+                    targetRequest,
+                    cancellationToken
+                )
+                .ConfigureAwait(false);
+        }
+
         return await target
-            .Writer!.WriteAsync(
-                new StateWriteRequest<T>(
-                    request.Value,
-                    Condition: RevisionCondition.FromRevision(targetState.Revision)
-                ),
-                cancellationToken
-            )
+            .Writer!.WriteAsync(targetRequest, cancellationToken)
             .ConfigureAwait(false);
     }
 
@@ -152,6 +217,13 @@ public sealed class FallbackStateSource<T> : IStateReader<T>, IStateWriter<T>, I
         string? observedRevision,
         CancellationToken cancellationToken = default
     ) => _watcher.WaitForChangeAsync(observedRevision, cancellationToken);
+
+    /// <inheritdoc />
+    public ValueTask WaitForChangeAsync(
+        ConfiglueResourceContext context,
+        string? observedRevision,
+        CancellationToken cancellationToken = default
+    ) => _watcher.WaitForChangeAsync(context, observedRevision, cancellationToken);
 
     private StateSource<T> ResolveWriteSource(StateReadResult<T> current)
     {

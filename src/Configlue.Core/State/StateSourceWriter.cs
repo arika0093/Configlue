@@ -30,7 +30,11 @@ public sealed class StateSourceWriter<T> : IStateWriter<T>
     )
     {
         ArgumentNullException.ThrowIfNull(subject);
-        return WriteCoreAsync(subject, request, cancellationToken);
+        return WriteCoreAsync(
+            new ConfiglueResourceContext(subject, subject.Key),
+            request,
+            cancellationToken
+        );
     }
 
     /// <inheritdoc />
@@ -38,10 +42,10 @@ public sealed class StateSourceWriter<T> : IStateWriter<T>
         ConfiglueResourceContext context,
         StateWriteRequest<T> request,
         CancellationToken cancellationToken = default
-    ) => WriteAsync(context.Subject, request, cancellationToken);
+    ) => WriteCoreAsync(context, request, cancellationToken);
 
     private ValueTask<StateWriteResult> WriteCoreAsync(
-        IConfiglueSubject? subject,
+        ConfiglueResourceContext? context,
         StateWriteRequest<T> request,
         CancellationToken cancellationToken
     )
@@ -68,8 +72,12 @@ public sealed class StateSourceWriter<T> : IStateWriter<T>
             );
         }
 
-        return subject is null
+        return context is null
             ? source.Writer.WriteAsync(request, cancellationToken)
-            : source.WriteAsync(subject, request, cancellationToken);
+            : source.WriteAsync(
+                source.GetResourceContext(context.Value.Subject, context.Value.Route),
+                request,
+                cancellationToken
+            );
     }
 }

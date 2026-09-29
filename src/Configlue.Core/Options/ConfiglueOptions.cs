@@ -52,6 +52,7 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
     private readonly StateWriteRoute _writeRoute;
     private readonly StateWritePlan _defaultWritePlan;
     private readonly Func<TModel, TModel>? _cloneStrategy;
+    private readonly Func<IConfiglueSubject, RouteKey>? _routeSelector;
     private readonly StateSchemaMigrationChain<TFragment> _migrationChain;
     private readonly IConfiglueValidator<TModel>[] _validators;
     private readonly string _optionsName;
@@ -141,7 +142,8 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
         ILogger? logger,
         Func<TModel, TModel>? cloneStrategy,
         ReadValidationMode readValidationMode = ReadValidationMode.EffectiveThrow,
-        WriteConflictResolution writeConflictResolution = WriteConflictResolution.FailOnConflict
+        WriteConflictResolution writeConflictResolution = WriteConflictResolution.FailOnConflict,
+        Func<IConfiglueSubject, RouteKey>? routeSelector = null
     )
     {
         ArgumentNullException.ThrowIfNull(sourceSet);
@@ -156,6 +158,7 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
         _writeRoute = writeRoute;
         _defaultWritePlan = BuildWritePlanWithMountedOwners(_activeSources, defaultWritePlan);
         _cloneStrategy = cloneStrategy;
+        _routeSelector = routeSelector;
         _validators = validators?.ToArray() ?? [];
         _optionsName = optionsName ?? string.Empty;
         _logger = logger;
@@ -407,8 +410,8 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
         StateSource<TFragment> source,
         CancellationToken cancellationToken
     ) =>
-        _subjectContext.Value is { } subject
-            ? source.ReadAsync(subject, cancellationToken)
+        _subjectContext.Value is not null
+            ? source.ReadAsync(GetResourceContext(source), cancellationToken)
             : source.Reader.ReadAsync(cancellationToken);
 
     private ValueTask<StateWriteResult> WriteSourceAsync(
@@ -416,8 +419,8 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
         StateWriteRequest<TFragment> request,
         CancellationToken cancellationToken
     ) =>
-        _subjectContext.Value is { } subject
-            ? source.WriteAsync(subject, request, cancellationToken)
+        _subjectContext.Value is not null
+            ? source.WriteAsync(GetResourceContext(source), request, cancellationToken)
             : source.Writer!.WriteAsync(request, cancellationToken);
 
     private ValueTask WaitForSourceChangeAsync(
@@ -425,17 +428,22 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
         string? revision,
         CancellationToken cancellationToken
     ) =>
-        _subjectContext.Value is { } subject
-            ? source.WaitForChangeAsync(subject, revision, cancellationToken)
+        _subjectContext.Value is not null
+            ? source.WaitForChangeAsync(GetResourceContext(source), revision, cancellationToken)
             : source.Watcher!.WaitForChangeAsync(revision, cancellationToken);
 
     private ConfiglueResourceContext GetResourceContext(StateSource<TFragment> source) =>
         _subjectContext.Value is { } subject
-            ? new ConfiglueResourceContext(subject, source.GetSubjectKey(subject))
+            ? source.GetResourceContext(
+                subject,
+                _routeSelector?.Invoke(subject) ?? RouteKey.Default
+            )
             : ConfiglueResourceContext.Default;
 
     private ResourceId? GetResourceId(StateSource<TFragment> source) =>
-        _subjectContext.Value is { } subject ? source.GetResourceId(subject) : source.ResourceId;
+        _subjectContext.Value is not null
+            ? source.GetResourceId(GetResourceContext(source))
+            : source.ResourceId;
 
     /// <inheritdoc />
     public IDisposable OnReloadFailed(Action<Exception> listener)

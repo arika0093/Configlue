@@ -248,8 +248,10 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
         StateWriteResult result;
         try
         {
-            result = _subjectContext.Value is { } subject
-                ? await target.WriteAsync(subject, request, cancellationToken).ConfigureAwait(false)
+            result = _subjectContext.Value is not null
+                ? await target
+                    .WriteAsync(GetResourceContext(target), request, cancellationToken)
+                    .ConfigureAwait(false)
                 : await writer.WriteAsync(request, cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)

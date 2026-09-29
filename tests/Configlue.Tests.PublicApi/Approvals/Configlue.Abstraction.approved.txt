@@ -455,6 +455,14 @@ namespace Configlue
         StrictThrow = 1,
         IgnoreValue = 2,
     }
+    public readonly struct RouteKey : System.IEquatable<Configlue.RouteKey>
+    {
+        public bool IsDefault { get; }
+        public string Value { get; }
+        public static Configlue.RouteKey Default { get; }
+        public override string ToString() { }
+        public static Configlue.RouteKey From(string value) { }
+    }
     public readonly struct SourceKey<TModel> : System.IEquatable<Configlue.SourceKey<TModel>>
     {
         public string Name { get; }
@@ -636,7 +644,9 @@ namespace Configlue.Resources
     public readonly struct ConfiglueResourceContext : System.IEquatable<Configlue.Resources.ConfiglueResourceContext>
     {
         public ConfiglueResourceContext(Configlue.IConfiglueSubject Subject, Configlue.SubjectKey Key) { }
+        public ConfiglueResourceContext(Configlue.IConfiglueSubject Subject, Configlue.SubjectKey Key, Configlue.RouteKey Route) { }
         public Configlue.SubjectKey Key { get; init; }
+        public Configlue.RouteKey Route { get; init; }
         public Configlue.IConfiglueSubject Subject { get; init; }
         public static Configlue.Resources.ConfiglueResourceContext Default { get; }
     }
@@ -757,11 +767,16 @@ namespace Configlue.Sources
         public Configlue.Resources.ResourceId? ResourceId { get; }
         public Configlue.State.IStateWatcher? Watcher { get; }
         public Configlue.State.IStateWriter<T>? Writer { get; }
+        public Configlue.Resources.ConfiglueResourceContext GetResourceContext(Configlue.IConfiglueSubject subject, Configlue.RouteKey route = default) { }
         public Configlue.Resources.ResourceId? GetResourceId(Configlue.IConfiglueSubject subject) { }
+        public Configlue.Resources.ResourceId? GetResourceId(Configlue.Resources.ConfiglueResourceContext context) { }
         public Configlue.SubjectKey GetSubjectKey(Configlue.IConfiglueSubject subject) { }
         public System.Threading.Tasks.ValueTask<Configlue.State.StateReadResult<T>> ReadAsync(Configlue.IConfiglueSubject subject, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Configlue.State.StateReadResult<T>> ReadAsync(Configlue.Resources.ConfiglueResourceContext context, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask WaitForChangeAsync(Configlue.IConfiglueSubject subject, string? observedRevision, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask WaitForChangeAsync(Configlue.Resources.ConfiglueResourceContext context, string? observedRevision, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask<Configlue.State.StateWriteResult> WriteAsync(Configlue.IConfiglueSubject subject, Configlue.State.StateWriteRequest<T> request, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Configlue.State.StateWriteResult> WriteAsync(Configlue.Resources.ConfiglueResourceContext context, Configlue.State.StateWriteRequest<T> request, System.Threading.CancellationToken cancellationToken = default) { }
     }
 }
 namespace Configlue.State

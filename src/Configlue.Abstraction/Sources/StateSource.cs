@@ -127,13 +127,28 @@ public sealed class StateSource<T>
     public ResourceId? GetResourceId(IConfiglueSubject subject)
     {
         ArgumentNullException.ThrowIfNull(subject);
+        return GetResourceId(GetResourceContext(subject));
+    }
+
+    /// <summary>Resolves the physical resource identity for one resource operation context.</summary>
+    public ResourceId? GetResourceId(ConfiglueResourceContext context)
+    {
         if (_configuredResourceId is { } configured)
         {
             return configured;
         }
 
-        var context = new ConfiglueResourceContext(subject, GetSubjectKey(subject));
         return TryGetResourceId(Writer, context) ?? TryGetResourceId(Reader, context) ?? ResourceId;
+    }
+
+    /// <summary>Creates the resource context for a subject and this source's key mapping.</summary>
+    public ConfiglueResourceContext GetResourceContext(
+        IConfiglueSubject subject,
+        RouteKey route = default
+    )
+    {
+        ArgumentNullException.ThrowIfNull(subject);
+        return new ConfiglueResourceContext(subject, GetSubjectKey(subject), route);
     }
 
     /// <summary>Reads this source for a subject using its source-specific key mapping.</summary>
@@ -143,11 +158,14 @@ public sealed class StateSource<T>
     )
     {
         ArgumentNullException.ThrowIfNull(subject);
-        return Reader.ReadAsync(
-            new ConfiglueResourceContext(subject, GetSubjectKey(subject)),
-            cancellationToken
-        );
+        return ReadAsync(GetResourceContext(subject), cancellationToken);
     }
+
+    /// <summary>Reads this source using an already resolved resource context.</summary>
+    public ValueTask<StateReadResult<T>> ReadAsync(
+        ConfiglueResourceContext context,
+        CancellationToken cancellationToken = default
+    ) => Reader.ReadAsync(context, cancellationToken);
 
     /// <summary>Writes this source for a subject using its source-specific key mapping.</summary>
     public ValueTask<StateWriteResult> WriteAsync(
@@ -162,11 +180,22 @@ public sealed class StateSource<T>
             throw new InvalidOperationException($"State source '{Id}' does not support writes.");
         }
 
-        return Writer.WriteAsync(
-            new ConfiglueResourceContext(subject, GetSubjectKey(subject)),
-            request,
-            cancellationToken
-        );
+        return Writer.WriteAsync(GetResourceContext(subject), request, cancellationToken);
+    }
+
+    /// <summary>Writes this source using an already resolved resource context.</summary>
+    public ValueTask<StateWriteResult> WriteAsync(
+        ConfiglueResourceContext context,
+        StateWriteRequest<T> request,
+        CancellationToken cancellationToken = default
+    )
+    {
+        if (Writer is null)
+        {
+            throw new InvalidOperationException($"State source '{Id}' does not support writes.");
+        }
+
+        return Writer.WriteAsync(context, request, cancellationToken);
     }
 
     /// <summary>Watches this source for one subject using its source-specific key mapping.</summary>
@@ -184,12 +213,20 @@ public sealed class StateSource<T>
             );
         }
 
-        return Watcher.WaitForChangeAsync(
-            new ConfiglueResourceContext(subject, GetSubjectKey(subject)),
-            observedRevision,
-            cancellationToken
-        );
+        return WaitForChangeAsync(GetResourceContext(subject), observedRevision, cancellationToken);
     }
+
+    /// <summary>Watches this source using an already resolved resource context.</summary>
+    public ValueTask WaitForChangeAsync(
+        ConfiglueResourceContext context,
+        string? observedRevision,
+        CancellationToken cancellationToken = default
+    ) =>
+        Watcher is null
+            ? ValueTask.FromException(
+                new InvalidOperationException($"State source '{Id}' does not support watching.")
+            )
+            : Watcher.WaitForChangeAsync(context, observedRevision, cancellationToken);
 
     internal IReadOnlyList<string> OwnedPropertyPaths => _ownedPropertyPaths;
 

@@ -291,7 +291,11 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
         }
 
         var composed = await composite
-            .ReadWithOverridesAsync(componentOverrides, cancellationToken)
+            .ReadWithOverridesAsync(
+                componentOverrides,
+                GetResourceContext(source),
+                cancellationToken
+            )
             .ConfigureAwait(false);
         if (composed.Status != StateReadStatus.Success || composed.Value is null)
         {

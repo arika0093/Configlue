@@ -18,7 +18,7 @@ public sealed class StateSourceWatcher<T> : IStateWatcher
     public ValueTask WaitForChangeAsync(
         string? observedRevision,
         CancellationToken cancellationToken = default
-    ) => WaitCoreAsync(null, observedRevision, cancellationToken);
+    ) => WaitCoreAsync(null, RouteKey.Default, observedRevision, cancellationToken);
 
     /// <summary>Waits for source changes affecting one subject.</summary>
     public ValueTask WaitForChangeAsync(
@@ -28,7 +28,7 @@ public sealed class StateSourceWatcher<T> : IStateWatcher
     )
     {
         ArgumentNullException.ThrowIfNull(subject);
-        return WaitCoreAsync(subject, observedRevision, cancellationToken);
+        return WaitCoreAsync(subject, RouteKey.Default, observedRevision, cancellationToken);
     }
 
     /// <inheritdoc />
@@ -36,10 +36,11 @@ public sealed class StateSourceWatcher<T> : IStateWatcher
         ConfiglueResourceContext context,
         string? observedRevision,
         CancellationToken cancellationToken = default
-    ) => WaitForChangeAsync(context.Subject, observedRevision, cancellationToken);
+    ) => WaitCoreAsync(context.Subject, context.Route, observedRevision, cancellationToken);
 
     private async ValueTask WaitCoreAsync(
         IConfiglueSubject? subject,
+        RouteKey route,
         string? observedRevision,
         CancellationToken cancellationToken
     )
@@ -54,7 +55,7 @@ public sealed class StateSourceWatcher<T> : IStateWatcher
                 var target in (
                     subject is null
                         ? _resolver.GetSourcesForWatch(observedRevision)
-                        : _resolver.GetSourcesForWatch(subject, observedRevision)
+                        : _resolver.GetSourcesForWatch(subject, route, observedRevision)
                 ).Where(static target => target.Source.Watcher is not null)
             )
             {
@@ -66,7 +67,7 @@ public sealed class StateSourceWatcher<T> : IStateWatcher
                                 watchCancellation.Token
                             )
                             : target.Source.WaitForChangeAsync(
-                                subject,
+                                target.Source.GetResourceContext(subject, route),
                                 target.ObservedRevision,
                                 watchCancellation.Token
                             )
