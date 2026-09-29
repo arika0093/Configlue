@@ -849,7 +849,7 @@ public sealed class GeneratedFragmentTests
         var fragmentResult = await source.Reader.ReadAsync();
         (fragmentResult.Status).ShouldBe(StateReadStatus.Success);
         (fragmentResult.Schema).ShouldBe(HistoricalSettings.ConfiglueSchema.ToMetadata());
-        var options = new ConfiglueOptions<HistoricalSettings, HistoricalSettings.Fragment>(
+        var options = new ConfiglueRuntime<HistoricalSettings, HistoricalSettings.Fragment>(
             new StateSourceSet<HistoricalSettings.Fragment>([source])
         );
         var modelResult = await options.ReadAsync();

@@ -8,7 +8,7 @@ description: 機能ごとの NuGet パッケージを探す。
 | `Configlue` | batteries-included パッケージ: 共通レイヤー/単一バイナリプリセットに加え、Core・DI 統合・JSON Provider・JSON Schema・HTTP・環境変数・AES・Generator をまとめます。 |
 | `Configlue.Abstraction` | プロバイダー・コーデック・リソース・生成モデルの契約。 |
 | `Configlue.Core` | serializer-neutral な状態解決ランタイム、Provider 作成支援、ZIP resource、共通ファイル preset SPI。 |
-| `Configlue.Extensions.DI` | Configlue options の依存性注入登録。 |
+| `Configlue.Extensions.DI` | Configlue state の依存性注入登録。 |
 | `Configlue.Extensions.MSOptions` | Microsoft options インターフェイス向けの任意アダプター。 |
 | `Configlue.Generator` | 疎モデル生成サポート (Roslyn アナライザー)。 |
 | `Configlue.Testing` | インメモリリソースとテストダブル。 |

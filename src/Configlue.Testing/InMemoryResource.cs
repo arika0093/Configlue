@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using Configlue.Sources;
 
 namespace Configlue.Testing;
 
@@ -6,7 +7,7 @@ namespace Configlue.Testing;
 public sealed class InMemoryResource
     : IResourceReader,
         IPipelineResourceReader,
-        IStateWatcher,
+        ISourceWatcher,
         IResourceBatchWriter
 {
     private readonly object _gate = new();

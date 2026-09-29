@@ -7,6 +7,6 @@ public interface IConfiglueValidator<in T>
     /// <summary>Returns validation failures, or an empty list when the value is valid.</summary>
     IReadOnlyList<string> Validate(T value);
 
-    /// <summary>Returns validation failures for the named options profile, or an empty list when the value is valid.</summary>
+    /// <summary>Returns validation failures for the named state, or an empty list when the value is valid.</summary>
     IReadOnlyList<string> Validate(string? name, T value) => Validate(value);
 }

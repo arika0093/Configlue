@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Linq;
+using Configlue.Sources;
 
 namespace Configlue.State;
 
@@ -13,9 +14,9 @@ namespace Configlue.State;
 /// combined fragment.
 /// </remarks>
 public sealed class CompositeStateSource<TFragment>
-    : IStateReader<TFragment>,
-        IStateWriter<TFragment>,
-        IStateWatcher
+    : ISourceReader<TFragment>,
+        ISourceWriter<TFragment>,
+        ISourceWatcher
     where TFragment : class, IConfiglueFragment<TFragment>
 {
     private readonly StateSourceSet<TFragment> _components;

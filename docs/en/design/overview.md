@@ -1,12 +1,12 @@
 ---
 title: Design overview
-description: How Resource, Source, Codec, Fragment, Patch, and Options relate.
+description: How Resource, Source, Codec, Fragment, Patch, and State relate.
 ---
 
 Configlue has only six characters. Their relationship is a straight line, and so is the learning order:
 
 ```text
-Resource (location) → Codec (conversion) → Source (contribution) → Fragment (diff) → Options (facade)
+Resource (location) → Codec (conversion) → Source (contribution) → Fragment (diff) → State (facade)
                                                         ↘ Patch (edit fragment)
 ```
 
@@ -19,13 +19,13 @@ Resource (location) → Codec (conversion) → Source (contribution) → Fragmen
 | Source | A logical contribution | "The `Server` part of the user settings file" |
 | Fragment | A diff that remembers presence | A state with "only `Port`" |
 | Patch | A single-field edit | "Set `Port` to 9000" |
-| Options | The facade apps see | Read, save, watch, explain, diagnose |
+| State | The facade apps use | Read, save, watch, explain, diagnose |
 
 Reads flow like this: each Source fetches bytes from a Resource, a Codec turns them into a Fragment. The runtime layers only present fields by priority into one model.
 
 Writes flow backwards: apps edit an ordinary model value. Underneath, the change becomes a Fragment diff and reaches only the Source named by `WriteRoute` or `WritePlan`. Unrelated Sources stay clean.
 
-Separating location, conversion, and contribution lets each evolve alone. Switch files to HTTP, or JSON to YAML, and model read/write code stays put. Shape changes travel through versioning; location moves travel through verified copies. The [Options facade](./options.md) is described separately.
+Separating location, conversion, and contribution lets each evolve alone. Switch files to HTTP, or JSON to YAML, and model read/write code stays put. Shape changes travel through versioning; location moves travel through verified copies. The [state facade](./state.md) is described separately.
 
 ## Resource: where bytes live
 
@@ -50,11 +50,12 @@ A Codec converts bytes to typed values and back, with no Resource I/O. It owns "
 
 `IStateByteTransformer` transforms persisted bytes between a Resource and a Codec. Read transforms run in registration order; write transforms run in reverse. The optional `Configlue.Transformer.AES` package provides `AesGcmStateByteTransformer` for AES-GCM encryption and authentication, and classifies authentication failures as eligible for backup recovery. Manage keys securely in the application and dispose the transformer when it is no longer needed. Pass transformers to `SerializedStateSource.FromResource`.
 
-After the Codec, `IStateMiddleware<T>` wraps typed readers and writers for auditing, validation, normalization, and similar behavior. The first registered middleware is outermost. A middleware that wraps a writer and needs batch writes must preserve `IStateWriteBatchParticipant<T>` on its returned writer.
+After the Codec, `IStateMiddleware<T>` wraps typed readers and writers for auditing, validation, normalization, and similar behavior. The first registered middleware is outermost. A middleware that wraps a writer and needs batch writes must preserve `ISourceWriteBatchParticipant<T>` on its returned writer.
 
 ```csharp
 using Configlue.Codecs;
 using Configlue.State;
+using Configlue.Sources;
 using Configlue.Transformer.AES;
 
 using var encryption = new AesGcmStateByteTransformer(key);
@@ -70,7 +71,7 @@ When in doubt, match the file format. Add one Codec per format you read, and nar
 
 ## Source: a logical contribution
 
-A Source is a logical contribution: which fields, at which priority. Reading, writing, and watching are exposed independently. If a Resource is the location, a Source is how that location is used.
+A Source is a logical contribution: which fields, at which priority. Its typed read, write, and watch contracts are `Configlue.Sources.ISourceReader<T>`, `ISourceWriter<T>`, and `ISourceWatcher`. Physical resource I/O uses the separate `Configlue.Resources.IResourceReader` and `IResourceWriter` contracts. If a Resource is the location, a Source is how that location contributes to state.
 
 * **Priority and fallback.** When several Sources hold the same field, the larger `Priority` wins. `FallbackStateSource` groups alternate representations of one logical state (canonical JSON plus legacy YAML, say) and presents the first readable candidate as the Source — values across formats are never overlaid. Fall-through on missing files, and surfacing other read failures, is a Source promise; assembly details live in [files and sections](../sources/files-and-sections.md) and [environment and command line](../sources/environment-and-commandline.md).
 * **Read-only as a property.** Environment, command-line, and default HTTP sources are read-only. Trying to change a value shadowed by a read-only contribution from the writable side fails with a conflict instead of silently ignoring it. Checking origins with `GetDetailsAsync` before saving pays off.
@@ -97,9 +98,9 @@ The foundation is in place: backend-neutral read/write/watch contracts, prioriti
 Known limitations:
 
 * Writes across different resources are not atomic.
-* Source retirement is scoped to the current options instance and leaves backing data intact; callers must update source registration for future process starts.
-* A source set is fixed for an options runtime. Dynamic named options and persistent profiles can create or remove whole runtimes, each with its own source set.
+* Source retirement is scoped to the current state instance and leaves backing data intact; callers must update source registration for future process starts.
+* A source set is fixed for a state runtime. Dynamic named states and persistent profiles can create or remove whole runtimes, each with its own source set.
 * `FileStateStorageMigrationJournal` holds a cross-process lease for the full run of a migration ID. Custom journals that do not implement `IStateStorageMigrationLeaseProvider` require callers to coordinate concurrent runs.
 * Watchers provide invalidation signals; provider-specific polling, retry, and reconnection policies remain the provider's responsibility.
 
-Configlue does not replace the source set of an existing options identity in place. Build a new context, migrate explicitly when required, switch the application's consumers, and dispose the old context. See [dynamic options](../profiles/dynamic-options.md) for the current per-name lifecycle.
+Configlue does not replace the source set of an existing state identity in place. Build a new context, migrate explicitly when required, switch the application's consumers, and dispose the old context. See [dynamic states](../profiles/dynamic-states.md) for the current per-name lifecycle.

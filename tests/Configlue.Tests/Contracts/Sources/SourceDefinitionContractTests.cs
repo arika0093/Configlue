@@ -70,7 +70,7 @@ public sealed class SourceDefinitionContractTests
             builder.Add<AppSettings>(model => model.Sources(sources => sources.Add(definition)));
         });
 
-        await context.GetOptions<AppSettings>().GetValueAsync();
+        await context.GetState<AppSettings>().GetValueAsync();
 
         definition.CreateCallCount.ShouldBe(1);
         definition.CreatedModelSchemaId.ShouldBe("app-settings");

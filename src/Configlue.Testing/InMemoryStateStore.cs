@@ -1,7 +1,9 @@
+using Configlue.Sources;
+
 namespace Configlue.Testing;
 
 /// <summary>An in-memory typed state source for runtime and application tests.</summary>
-public sealed class InMemoryStateStore<T> : IStateReader<T>, IStateWriter<T>, IStateWatcher
+public sealed class InMemoryStateStore<T> : ISourceReader<T>, ISourceWriter<T>, ISourceWatcher
 {
     private readonly object _gate = new();
     private StateReadStatus _status;

@@ -48,7 +48,7 @@ public sealed partial class NestedSourceBindingTests
             );
         });
 
-        var options = (IConfiglueRuntimeOptions<AppSettings>)context.GetOptions<AppSettings>();
+        var options = (IConfiglueRuntimeState<AppSettings>)context.GetState<AppSettings>();
         await options.SaveAsync(settings => settings.Database!.Host = "ordinary-updated.db");
         (await ordinaryStore.ReadAsync()).Value!.Host.Value.ShouldBe("ordinary-updated.db");
         (await explicitStore.ReadAsync()).Value!.Host.Value.ShouldBe("explicit.db");
@@ -163,7 +163,7 @@ public sealed partial class NestedSourceBindingTests
 
         using (
             var edit = await context
-                .GetRuntimeOptions<AppSettings>()
+                .GetRuntimeState<AppSettings>()
                 .OpenEditSessionAsync(
                     new StateWritePlan(
                         new Dictionary<string, string>(StringComparer.Ordinal)
@@ -183,7 +183,7 @@ public sealed partial class NestedSourceBindingTests
         (result.HostName.Value).ShouldBe("updated.remote.db");
         (result.Port.Value).ShouldBe(7443);
 
-        var projectedOptions = new ConfiglueOptions<DatabaseSettings, DatabaseSettings.Fragment>(
+        var projectedOptions = new ConfiglueRuntime<DatabaseSettings, DatabaseSettings.Fragment>(
             new StateSourceSet<DatabaseSettings.Fragment>([projected])
         );
         await projectedOptions.SaveAsync(
@@ -244,7 +244,7 @@ public sealed partial class NestedSourceBindingTests
         });
 
         using var edit = await context
-            .GetRuntimeOptions<RootWithTwoSettings>()
+            .GetRuntimeState<RootWithTwoSettings>()
             .OpenEditSessionAsync(
                 new StateWritePlan(
                     new Dictionary<string, string>(StringComparer.Ordinal)
@@ -301,7 +301,7 @@ public sealed partial class NestedSourceBindingTests
             migrated,
             "Database"
         );
-        var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(
+        var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([mounted])
         );
 
@@ -363,8 +363,8 @@ public sealed partial class NestedSourceBindingTests
         });
 
         var options =
-            (IConfiglueRuntimeOptions<RootWithNestedSettings>)
-                context.GetOptions<RootWithNestedSettings>();
+            (IConfiglueRuntimeState<RootWithNestedSettings>)
+                context.GetState<RootWithNestedSettings>();
         var value = await options.GetValueAsync();
         var count = (await options.GetDetailsAsync()).Settings!.Inner!.Count;
 
@@ -419,8 +419,8 @@ public sealed partial class NestedSourceBindingTests
         });
 
         var options =
-            (IConfiglueRuntimeOptions<RootWithNestedSettings>)
-                context.GetOptions<RootWithNestedSettings>();
+            (IConfiglueRuntimeState<RootWithNestedSettings>)
+                context.GetState<RootWithNestedSettings>();
         var value = await options.GetValueAsync();
         var details = await options.GetDetailsAsync();
         var label = details.Settings!.Label;

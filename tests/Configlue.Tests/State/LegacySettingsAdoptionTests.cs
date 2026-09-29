@@ -420,7 +420,7 @@ public sealed class LegacySettingsAdoptionTests
             higherPriorityStore,
             priority: 500
         );
-        var options = new ConfiglueOptions<HistoricalSettings, HistoricalSettings.Fragment>(
+        var options = new ConfiglueRuntime<HistoricalSettings, HistoricalSettings.Fragment>(
             new StateSourceSet<HistoricalSettings.Fragment>([higherPrioritySource, source, target])
         );
 

@@ -117,7 +117,7 @@ public sealed class GeneratedModelContractTests
     private static ConfiglueModelSchema GetFacadeSchema<TModel>()
         where TModel : IConfiglueFacadeModel<TModel> => TModel.Descriptor.Schema;
 
-    private static IWritableOptions<TModel> CreateRuntime<TModel>(
+    private static IWritableState<TModel> CreateRuntime<TModel>(
         ConfiglueModelBuilder<TModel> configuration,
         Action<IDisposable> ownResource
     )

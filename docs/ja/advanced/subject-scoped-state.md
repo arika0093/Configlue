@@ -59,7 +59,7 @@ Resource が受け取る `ConfiglueResourceContext` にはアプリケーショ�
 
 ## current subject と明示 subject の view
 
-request scope や circuit scope の consumer には、model 登録時に `PerSubject<TAccessor>()` を指定します。通常の `IReadOnlyOptions<T>` / `IWritableOptions<T>` view は各操作で現在の subject を解決します。accessor は model ごとに選べるため、1 つの model は tenant accessor、別の model はサーバー共通にできます。
+request scope や circuit scope の consumer には、model 登録時に `PerSubject<TAccessor>()` を指定します。通常の `IReadOnlyState<T>` / `IWritableState<T>` view は各操作で現在の subject を解決します。accessor は model ごとに選べるため、1 つの model は tenant accessor、別の model はサーバー共通にできます。
 
 ```csharp
 services.AddScoped<CurrentTenantAccessor>();
@@ -76,7 +76,7 @@ services.AddConfiglue(conf =>
 });
 ```
 
-アプリケーション独自 accessor は `IConfiglueSubjectAccessor<TenantSubject>` を実装します。background job、管理画面、現在の request 以外の subject を扱う処理では `ISubjectOptions<T>` を受け取り、`For(subject)` を呼びます。戻り値の `IWritableOptions<T>` view はその subject に固定されます。どちらの view も同じ model runtime と source topology を使います。
+アプリケーション独自 accessor は `IConfiglueSubjectAccessor<TenantSubject>` を実装します。background job、管理画面、現在の request 以外の subject を扱う処理では `ISubjectState<T>` を受け取り、`ForSubject(subject)` を呼びます。戻り値の `IWritableState<T>` view はその subject に固定されます。どちらの view も同じ model runtime と source topology を使います。
 
 scope の途中で subject が変わる可能性があれば accessor は `IConfiglueSubjectChangeSource` を実装できます。通知を受けた active change subscription は subject を再解決し、旧 watch 先を解除して新しい subject と route に接続し直し、実効値を読み込んで listener に通知します。変更通知を実装しない場合、subscription は最初に解決した subject を監視し続けます。
 

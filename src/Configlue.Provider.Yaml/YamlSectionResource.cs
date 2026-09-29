@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using System.Text;
+using Configlue.Sources;
 using SharpYaml.Model;
 
 namespace Configlue.Provider.Yaml;
@@ -9,7 +10,7 @@ public sealed class YamlSectionResource
     : IResourceReader,
         IPipelineResourceReader,
         IResourceWriter,
-        IStateWatcher,
+        ISourceWatcher,
         IResourceIdentity,
         IResourceBatchParticipant,
         IResourceBackupRecovery
@@ -20,7 +21,7 @@ public sealed class YamlSectionResource
     );
     private readonly IResourceReader _reader;
     private readonly IResourceWriter? _writer;
-    private readonly IStateWatcher? _watcher;
+    private readonly ISourceWatcher? _watcher;
     private readonly string[] _path;
     private readonly string _batchScope;
     private readonly ResourceId? _configuredResourceId;
@@ -35,14 +36,14 @@ public sealed class YamlSectionResource
 
     /// <summary>Creates a YAML section resource over a resource with inferred write and watch capabilities.</summary>
     public YamlSectionResource(IResourceReader resource, string sectionPath)
-        : this(resource, resource as IResourceWriter, sectionPath, resource as IStateWatcher) { }
+        : this(resource, resource as IResourceWriter, sectionPath, resource as ISourceWatcher) { }
 
     /// <summary>Creates a YAML section resource with separate read, write, and watch capabilities.</summary>
     public YamlSectionResource(
         IResourceReader reader,
         IResourceWriter? writer,
         string sectionPath,
-        IStateWatcher? watcher = null,
+        ISourceWatcher? watcher = null,
         ResourceId? resourceId = null,
         Encoding? textEncoding = null
     )
@@ -53,7 +54,7 @@ public sealed class YamlSectionResource
         IResourceReader reader,
         IResourceWriter? writer,
         string sectionPath,
-        IStateWatcher? watcher,
+        ISourceWatcher? watcher,
         ResourceId? resourceId,
         Encoding? textEncoding,
         byte[] schemaShape
@@ -72,7 +73,7 @@ public sealed class YamlSectionResource
         IResourceReader reader,
         IResourceWriter? writer,
         string[] path,
-        IStateWatcher? watcher,
+        ISourceWatcher? watcher,
         ResourceId? resourceId,
         Encoding? textEncoding,
         byte[] schemaShape
@@ -114,7 +115,7 @@ public sealed class YamlSectionResource
     internal static YamlSectionResource CreateRoot(
         IResourceReader reader,
         IResourceWriter? writer,
-        IStateWatcher? watcher,
+        ISourceWatcher? watcher,
         ResourceId? resourceId,
         Encoding? textEncoding,
         byte[] schemaShape

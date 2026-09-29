@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using Configlue.Testing;
+using Configlue.Sources;
 
 namespace Configlue.Tests;
 
@@ -29,16 +30,16 @@ public sealed class SubjectRoutingTests
             });
         });
 
-        var options = context.GetSubjectOptions<AppSettings>();
-        var defaultValue = await options.For(new RoutingSubject("default", false)).GetValueAsync();
-        var tokyoValue = await options.For(new RoutingSubject("strict-jp", true)).GetValueAsync();
-        var europeValue = await options.For(new RoutingSubject("strict-eu", true)).GetValueAsync();
+        var options = context.GetSubjectState<AppSettings>();
+        var defaultValue = await options.ForSubject(new RoutingSubject("default", false)).GetValueAsync();
+        var tokyoValue = await options.ForSubject(new RoutingSubject("strict-jp", true)).GetValueAsync();
+        var europeValue = await options.ForSubject(new RoutingSubject("strict-eu", true)).GetValueAsync();
 
         defaultValue.Label.ShouldBe("default");
         tokyoValue.Label.ShouldBe("tokyo");
         europeValue.Label.ShouldBe("europe");
         var tokyoReceipt = await options
-            .For(new RoutingSubject("strict-jp", true))
+            .ForSubject(new RoutingSubject("strict-jp", true))
             .SaveAsync(
                 new AppSettings.Patch { Label = FragmentOperation<string?>.Set("tokyo-updated") }
             );
@@ -148,9 +149,9 @@ public sealed class SubjectRoutingTests
     }
 
     private sealed class RoutedStateStore
-        : IStateReader<AppSettings.Fragment>,
-            IStateWriter<AppSettings.Fragment>,
-            IStateWatcher,
+        : ISourceReader<AppSettings.Fragment>,
+            ISourceWriter<AppSettings.Fragment>,
+            ISourceWatcher,
             IResourceIdentity
     {
         private readonly ConcurrentDictionary<

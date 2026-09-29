@@ -10,25 +10,25 @@ internal sealed class ConfiglueMicrosoftOptionsResolver<TModel>
 
     public ConfiglueMicrosoftOptionsResolver(IServiceProvider services) => _services = services;
 
-    public IReadOnlyOptions<TModel> Resolve(string? name)
+    public IReadOnlyState<TModel> Resolve(string? name)
     {
         var normalizedName = name ?? Options.DefaultName;
         if (
             normalizedName == Options.DefaultName
-            && _services.GetService<IReadOnlyOptions<TModel>>() is { } defaultOptions
+            && _services.GetService<IReadOnlyState<TModel>>() is { } defaultOptions
         )
         {
             return defaultOptions;
         }
 
-        if (_services.GetKeyedService<IReadOnlyOptions<TModel>>(normalizedName) is { } keyedOptions)
+        if (_services.GetKeyedService<IReadOnlyState<TModel>>(normalizedName) is { } keyedOptions)
         {
             return keyedOptions;
         }
 
         if (
             normalizedName != Options.DefaultName
-            && _services.GetService<IConfiglueOptionsRegistry<TModel>>() is { } registry
+            && _services.GetService<IConfiglueStateRegistry<TModel>>() is { } registry
             && registry.TryGet(normalizedName, out var registeredOptions)
             && registeredOptions is not null
         )
@@ -37,12 +37,12 @@ internal sealed class ConfiglueMicrosoftOptionsResolver<TModel>
         }
 
         throw new KeyNotFoundException(
-            $"No Configlue options profile named '{normalizedName}' is registered."
+            $"No Configlue state named '{normalizedName}' is registered."
         );
     }
 
-    public IConfiglueOptionsRegistry<TModel>? Registry =>
-        _services.GetService<IConfiglueOptionsRegistry<TModel>>();
+    public IConfiglueStateRegistry<TModel>? Registry =>
+        _services.GetService<IConfiglueStateRegistry<TModel>>();
 }
 
 internal sealed class ConfiglueMicrosoftOptionsValue<TModel> : IOptions<TModel>
@@ -104,7 +104,7 @@ internal sealed class ConfiglueMicrosoftOptionsMonitor<TModel>
     private readonly ConfiglueMicrosoftOptionsResolver<TModel> _resolver;
     private readonly string[] _namedProfileNames;
     private readonly HashSet<string> _namedProfileNameSet;
-    private readonly IConfiglueOptionsRegistry<TModel>? _registry;
+    private readonly IConfiglueStateRegistry<TModel>? _registry;
     private readonly object _cacheGate = new();
     private readonly Dictionary<string, MonitorCacheEntry> _namedCache = new(
         StringComparer.Ordinal
@@ -114,14 +114,14 @@ internal sealed class ConfiglueMicrosoftOptionsMonitor<TModel>
 
     public ConfiglueMicrosoftOptionsMonitor(
         ConfiglueMicrosoftOptionsResolver<TModel> resolver,
-        IEnumerable<ConfiglueNamedOptionsProfile<TModel>> namedProfiles
+        IEnumerable<ConfiglueNamedStateProfile<TModel>> namedProfiles
     )
     {
         _resolver = resolver;
         _registry = resolver.Registry;
         if (_registry is not null)
         {
-            _registry.ProfileRemoved += OnProfileRemoved;
+            _registry.StateRemoved += OnStateRemoved;
         }
 
         _namedProfileNames = namedProfiles
@@ -173,7 +173,7 @@ internal sealed class ConfiglueMicrosoftOptionsMonitor<TModel>
 
         if (_registry is not null)
         {
-            _registry.ProfileRemoved -= OnProfileRemoved;
+            _registry.StateRemoved -= OnStateRemoved;
         }
 
         foreach (var entry in entries)
@@ -204,7 +204,7 @@ internal sealed class ConfiglueMicrosoftOptionsMonitor<TModel>
         }
     }
 
-    private MonitorCacheEntry GetNamedCache(string name, IReadOnlyOptions<TModel> options)
+    private MonitorCacheEntry GetNamedCache(string name, IReadOnlyState<TModel> options)
     {
         var isRegistryProfile = false;
         lock (_cacheGate)
@@ -220,7 +220,7 @@ internal sealed class ConfiglueMicrosoftOptionsMonitor<TModel>
                 else if (!_namedProfileNameSet.Contains(name))
                 {
                     throw new KeyNotFoundException(
-                        $"No Configlue options profile named '{name}' is registered."
+                        $"No Configlue state named '{name}' is registered."
                     );
                 }
             }
@@ -242,7 +242,7 @@ internal sealed class ConfiglueMicrosoftOptionsMonitor<TModel>
         }
     }
 
-    private void OnProfileRemoved(string name)
+    private void OnStateRemoved(string name)
     {
         MonitorCacheEntry? removed = null;
         lock (_cacheGate)
@@ -265,7 +265,7 @@ internal sealed class ConfiglueMicrosoftOptionsMonitor<TModel>
         private TModel? _value;
         private int _changeVersion;
 
-        public MonitorCacheEntry(IReadOnlyOptions<TModel> options, bool allowCache = true)
+        public MonitorCacheEntry(IReadOnlyState<TModel> options, bool allowCache = true)
         {
             Options = options;
             _cloneProvider = options as IConfiglueValueCloneProvider<TModel>;
@@ -280,7 +280,7 @@ internal sealed class ConfiglueMicrosoftOptionsMonitor<TModel>
             }
         }
 
-        public IReadOnlyOptions<TModel> Options { get; }
+        public IReadOnlyState<TModel> Options { get; }
 
         public TModel Value
         {
@@ -320,7 +320,7 @@ internal sealed class ConfiglueMicrosoftOptionsMonitor<TModel>
 
         public void Dispose() => _subscription?.Dispose();
 
-        private static TModel Read(IReadOnlyOptions<TModel> options) =>
+        private static TModel Read(IReadOnlyState<TModel> options) =>
             // Microsoft Options exposes synchronous getters; this opt-in framework adapter deliberately blocks for its snapshot.
             options.GetValueAsync().AsTask().GetAwaiter().GetResult();
 
@@ -374,7 +374,7 @@ internal sealed class ConfiglueMicrosoftOptionsMonitor<TModel>
 
         if (_registry is not null)
         {
-            foreach (var name in _registry.ProfileNames)
+            foreach (var name in _registry.StateNames)
             {
                 if (
                     name != Options.DefaultName
@@ -388,7 +388,7 @@ internal sealed class ConfiglueMicrosoftOptionsMonitor<TModel>
         }
     }
 
-    private void EnsureCacheEntry(string name, IReadOnlyOptions<TModel> options)
+    private void EnsureCacheEntry(string name, IReadOnlyState<TModel> options)
     {
         if (name == Options.DefaultName)
         {
@@ -404,7 +404,7 @@ internal sealed class ConfiglueMicrosoftOptionsMonitor<TModel>
     {
         private readonly ConfiglueMicrosoftOptionsResolver<TModel> _resolver;
         private readonly Action<TModel, string?> _listener;
-        private readonly Action<string, IReadOnlyOptions<TModel>> _ensureCacheEntry;
+        private readonly Action<string, IReadOnlyState<TModel>> _ensureCacheEntry;
         private readonly object _gate = new();
         private readonly Dictionary<string, ProfileSubscription> _subscriptions = new(
             StringComparer.Ordinal
@@ -412,12 +412,12 @@ internal sealed class ConfiglueMicrosoftOptionsMonitor<TModel>
         private readonly Dictionary<string, object> _profileOperationTokens = new(
             StringComparer.Ordinal
         );
-        private readonly IConfiglueOptionsRegistry<TModel>? _registry;
+        private readonly IConfiglueStateRegistry<TModel>? _registry;
         private bool _disposed;
 
-        private sealed class ProfileSubscription(IReadOnlyOptions<TModel> options)
+        private sealed class ProfileSubscription(IReadOnlyState<TModel> options)
         {
-            public IReadOnlyOptions<TModel> Options { get; } = options;
+            public IReadOnlyState<TModel> Options { get; } = options;
 
             public IDisposable? ChangeSubscription { get; set; }
         }
@@ -426,7 +426,7 @@ internal sealed class ConfiglueMicrosoftOptionsMonitor<TModel>
             ConfiglueMicrosoftOptionsResolver<TModel> resolver,
             Action<TModel, string?> listener,
             IEnumerable<string> namedProfileNames,
-            Action<string, IReadOnlyOptions<TModel>> ensureCacheEntry
+            Action<string, IReadOnlyState<TModel>> ensureCacheEntry
         )
         {
             _resolver = resolver;
@@ -456,9 +456,9 @@ internal sealed class ConfiglueMicrosoftOptionsMonitor<TModel>
 
             if (_registry is not null)
             {
-                _registry.ProfileAdded += OnProfileAdded;
-                _registry.ProfileRemoved += OnProfileRemoved;
-                foreach (var name in _registry.ProfileNames)
+                _registry.StateAdded += OnStateAdded;
+                _registry.StateRemoved += OnStateRemoved;
+                foreach (var name in _registry.StateNames)
                 {
                     if (
                         name != Options.DefaultName
@@ -493,8 +493,8 @@ internal sealed class ConfiglueMicrosoftOptionsMonitor<TModel>
 
             if (_registry is not null)
             {
-                _registry.ProfileAdded -= OnProfileAdded;
-                _registry.ProfileRemoved -= OnProfileRemoved;
+                _registry.StateAdded -= OnStateAdded;
+                _registry.StateRemoved -= OnStateRemoved;
             }
 
             foreach (var subscription in subscriptions)
@@ -503,7 +503,7 @@ internal sealed class ConfiglueMicrosoftOptionsMonitor<TModel>
             }
         }
 
-        private void OnProfileAdded(string name, IWritableOptions<TModel> options)
+        private void OnStateAdded(string name, IWritableState<TModel> options)
         {
             if (name != Options.DefaultName)
             {
@@ -511,7 +511,7 @@ internal sealed class ConfiglueMicrosoftOptionsMonitor<TModel>
             }
         }
 
-        private void OnProfileRemoved(string name)
+        private void OnStateRemoved(string name)
         {
             var operationToken = BeginProfileOperation(name);
             if (operationToken is null)
@@ -545,7 +545,7 @@ internal sealed class ConfiglueMicrosoftOptionsMonitor<TModel>
 
         private void Subscribe(
             string name,
-            IReadOnlyOptions<TModel> options,
+            IReadOnlyState<TModel> options,
             bool registryProfile = false
         )
         {
@@ -569,11 +569,7 @@ internal sealed class ConfiglueMicrosoftOptionsMonitor<TModel>
             BindProfile(name, options, operationToken);
         }
 
-        private void BindProfile(
-            string name,
-            IReadOnlyOptions<TModel> options,
-            object operationToken
-        )
+        private void BindProfile(string name, IReadOnlyState<TModel> options, object operationToken)
         {
             ProfileSubscription entry;
             IDisposable? previousSubscription = null;
@@ -678,7 +674,7 @@ internal sealed class ConfiglueMicrosoftOptionsMonitor<TModel>
             && _profileOperationTokens.TryGetValue(name, out var current)
             && ReferenceEquals(current, operationToken);
 
-        private bool TryGetRegisteredProfile(string name, out IWritableOptions<TModel>? options)
+        private bool TryGetRegisteredProfile(string name, out IWritableState<TModel>? options)
         {
             options = null;
             if (_registry is null)

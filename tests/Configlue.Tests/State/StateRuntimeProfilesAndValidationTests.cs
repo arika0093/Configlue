@@ -22,7 +22,7 @@ public sealed partial class StateRuntimeTests
             )
         );
         var sourceSet = new StateSourceSet<AppSettings.Fragment>([new("legacy", reader)]);
-        var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(
+        var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             sourceSet,
             migrations: [new AppSettingsV1ToV2Migration()]
         );
@@ -47,12 +47,12 @@ public sealed partial class StateRuntimeTests
         var services = new ServiceCollection();
         services.AddConfiglueMicrosoftOptions<AppSettings>();
         services.AddConfiglueValidator<AppSettings>(new RetryCountValidator());
-        services.AddConfiglueOptions<AppSettings, AppSettings.Fragment>(
+        services.AddConfiglueState<AppSettings, AppSettings.Fragment>(
             sourceSet,
             validateDataAnnotations: true
         );
         using var serviceProvider = services.BuildServiceProvider();
-        var writable = serviceProvider.GetRequiredService<IWritableOptions<AppSettings>>();
+        var writable = serviceProvider.GetRequiredService<IWritableState<AppSettings>>();
         ConfiglueValidationException? validationFailure = null;
 
         try
@@ -76,8 +76,8 @@ public sealed partial class StateRuntimeTests
         (stored.Revision).ShouldBe("1");
 
         var advanced =
-            (IConfiglueRuntimeOptions<AppSettings>)
-                serviceProvider.GetRequiredService<IWritableOptions<AppSettings>>();
+            (IConfiglueRuntimeState<AppSettings>)
+                serviceProvider.GetRequiredService<IWritableState<AppSettings>>();
         using var edit = await advanced.OpenEditSessionAsync();
         edit.Value.RetryCount = 101;
         var editWasRejected = false;
@@ -113,18 +113,18 @@ public sealed partial class StateRuntimeTests
         var services = new ServiceCollection();
         services.AddConfiglueMicrosoftOptions<AppSettings>();
         services.AddConfiglueValidator(new ProfileScopedRetryCountValidator());
-        services.AddConfiglueOptions<AppSettings, AppSettings.Fragment>(
+        services.AddConfiglueState<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
                 new("default", defaultStore, writer: defaultStore),
             ])
         );
-        services.AddConfiglueOptions<AppSettings, AppSettings.Fragment>(
+        services.AddConfiglueState<AppSettings, AppSettings.Fragment>(
             "custom",
             new StateSourceSet<AppSettings.Fragment>([
                 new("custom", keyedStore, writer: keyedStore),
             ])
         );
-        services.AddConfiglueOptionsRegistry<AppSettings, AppSettings.Fragment>(
+        services.AddConfiglueStateRegistry<AppSettings, AppSettings.Fragment>(
             (_, profileName) =>
             {
                 var store = new InMemoryStateStore<AppSettings.Fragment>(
@@ -138,30 +138,30 @@ public sealed partial class StateRuntimeTests
         );
         using var serviceProvider = services.BuildServiceProvider();
 
-        var defaultOptions = serviceProvider.GetRequiredService<IWritableOptions<AppSettings>>();
+        var defaultOptions = serviceProvider.GetRequiredService<IWritableState<AppSettings>>();
         await defaultOptions.SaveAsync(patch => patch.RetryCount = 12);
         ((await defaultStore.ReadAsync()).Value!.RetryCount.Value).ShouldBe(12);
 
-        var keyedOptions = serviceProvider.GetRequiredKeyedService<IWritableOptions<AppSettings>>(
+        var keyedOptions = serviceProvider.GetRequiredKeyedService<IWritableState<AppSettings>>(
             "custom"
         );
         var keyedBefore = await keyedStore.ReadAsync();
         var keyedFailure = await SaveInvalidAndCaptureAsync(keyedOptions);
         var keyedAfter = await keyedStore.ReadAsync();
 
-        (keyedFailure.OptionsName).ShouldBe("custom");
+        (keyedFailure.StateName).ShouldBe("custom");
         (keyedFailure.Failures).ShouldContain("RetryCount is too high for this profile.");
         (keyedAfter.Revision).ShouldBe(keyedBefore.Revision);
         (keyedAfter.Value!.RetryCount.Value).ShouldBe(3);
 
-        var registry = serviceProvider.GetRequiredService<IConfiglueOptionsRegistry<AppSettings>>();
+        var registry = serviceProvider.GetRequiredService<IConfiglueStateRegistry<AppSettings>>();
         (registry.TryAdd("runtime")).ShouldBeTrue();
         var runtimeOptions = registry.Get("runtime");
         var runtimeBefore = await runtimeStores["runtime"].ReadAsync();
         var runtimeFailure = await SaveInvalidAndCaptureAsync(runtimeOptions);
         var runtimeAfter = await runtimeStores["runtime"].ReadAsync();
 
-        (runtimeFailure.OptionsName).ShouldBe("runtime");
+        (runtimeFailure.StateName).ShouldBe("runtime");
         (runtimeFailure.Failures).ShouldContain("RetryCount is too high for this profile.");
         (runtimeAfter.Revision).ShouldBe(runtimeBefore.Revision);
         (runtimeAfter.Value!.RetryCount.Value).ShouldBe(3);
@@ -189,7 +189,7 @@ public sealed partial class StateRuntimeTests
             new("user", user, priority: 100, writer: user),
             new("defaults", defaults, priority: 0),
         ]);
-        var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(sourceSet);
+        var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(sourceSet);
         var patch = new AppSettings.Patch
         {
             RetryCount = FragmentOperation<int>.Unset,
@@ -215,7 +215,7 @@ public sealed partial class StateRuntimeTests
         var store = new InMemoryStateStore<AppSettings.Fragment>(
             new AppSettings.Fragment { RetryCount = Optional<int>.Present(12) }
         );
-        await using var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(
+        await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([new("user", store, writer: store)])
         );
 
@@ -246,16 +246,16 @@ public sealed partial class StateRuntimeTests
         ]);
         var services = new ServiceCollection();
         services.AddConfiglueMicrosoftOptions<AppSettings>();
-        services.AddConfiglueOptions<AppSettings, AppSettings.Fragment>("primary", primarySources);
-        services.AddConfiglueOptions<AppSettings, AppSettings.Fragment>(
+        services.AddConfiglueState<AppSettings, AppSettings.Fragment>("primary", primarySources);
+        services.AddConfiglueState<AppSettings, AppSettings.Fragment>(
             "secondary",
             secondarySources
         );
         using var serviceProvider = services.BuildServiceProvider();
-        var primary = serviceProvider.GetRequiredKeyedService<IReadOnlyOptions<AppSettings>>(
+        var primary = serviceProvider.GetRequiredKeyedService<IReadOnlyState<AppSettings>>(
             "primary"
         );
-        var secondary = serviceProvider.GetRequiredKeyedService<IReadOnlyOptions<AppSettings>>(
+        var secondary = serviceProvider.GetRequiredKeyedService<IReadOnlyState<AppSettings>>(
             "secondary"
         );
 
@@ -272,7 +272,7 @@ public sealed partial class StateRuntimeTests
         var services = new ServiceCollection();
         services.AddConfiglueMicrosoftOptions<AppSettings>();
         var factoryCalls = 0;
-        services.AddConfiglueOptionsRegistry<AppSettings, AppSettings.Fragment>(
+        services.AddConfiglueStateRegistry<AppSettings, AppSettings.Fragment>(
             (_, profileName) =>
             {
                 Interlocked.Increment(ref factoryCalls);
@@ -286,11 +286,11 @@ public sealed partial class StateRuntimeTests
             }
         );
         using var serviceProvider = services.BuildServiceProvider();
-        var registry = serviceProvider.GetRequiredService<IConfiglueOptionsRegistry<AppSettings>>();
+        var registry = serviceProvider.GetRequiredService<IConfiglueStateRegistry<AppSettings>>();
         var added = new List<string>();
         var removed = new List<string>();
-        registry.ProfileAdded += (name, _) => added.Add(name);
-        registry.ProfileRemoved += name => removed.Add(name);
+        registry.StateAdded += (name, _) => added.Add(name);
+        registry.StateRemoved += name => removed.Add(name);
 
         var addResults = new bool[16];
         Parallel.For(0, addResults.Length, index => addResults[index] = registry.TryAdd("primary"));
@@ -304,7 +304,7 @@ public sealed partial class StateRuntimeTests
         (factoryCalls).ShouldBe(2);
         (primary.RetryCount).ShouldBe(5);
         (secondary.RetryCount).ShouldBe(8);
-        ((registry.ProfileNames))
+        ((registry.StateNames))
             .OrderBy(static item => item)
             .ShouldBe((new[] { "secondary" }).OrderBy(static item => item));
         ((added))
@@ -322,7 +322,7 @@ public sealed partial class StateRuntimeTests
     {
         var services = new ServiceCollection();
         services.AddConfiglueMicrosoftOptions<AppSettings>();
-        services.AddConfiglueOptionsRegistry<AppSettings, AppSettings.Fragment>(
+        services.AddConfiglueStateRegistry<AppSettings, AppSettings.Fragment>(
             (_, name) =>
             {
                 var store = new InMemoryStateStore<AppSettings.Fragment>();
@@ -332,7 +332,7 @@ public sealed partial class StateRuntimeTests
             }
         );
         using var serviceProvider = services.BuildServiceProvider();
-        var registry = serviceProvider.GetRequiredService<IConfiglueOptionsRegistry<AppSettings>>();
+        var registry = serviceProvider.GetRequiredService<IConfiglueStateRegistry<AppSettings>>();
         var firstAdded = new TaskCompletionSource(
             TaskCreationOptions.RunContinuationsAsynchronously
         );
@@ -340,7 +340,7 @@ public sealed partial class StateRuntimeTests
             TaskCreationOptions.RunContinuationsAsynchronously
         );
         var addOrder = new List<string>();
-        registry.ProfileAdded += (name, _) =>
+        registry.StateAdded += (name, _) =>
         {
             if (name == "first")
             {
@@ -381,7 +381,7 @@ public sealed partial class StateRuntimeTests
             TaskCreationOptions.RunContinuationsAsynchronously
         );
         var removedNames = new List<string>();
-        registry.ProfileRemoved += name =>
+        registry.StateRemoved += name =>
         {
             if (name == "first")
             {
@@ -399,7 +399,7 @@ public sealed partial class StateRuntimeTests
             (
                 await Task.Run(() =>
                     SpinWait.SpinUntil(
-                        () => registry.ProfileNames.Count == 0,
+                        () => registry.StateNames.Count == 0,
                         TimeSpan.FromSeconds(5)
                     )
                 )
@@ -422,7 +422,7 @@ public sealed partial class StateRuntimeTests
         var releaseDisposeNotification = new TaskCompletionSource(
             TaskCreationOptions.RunContinuationsAsynchronously
         );
-        registry.ProfileRemoved += name =>
+        registry.StateRemoved += name =>
         {
             if (name == "dispose")
             {
@@ -451,7 +451,7 @@ public sealed partial class StateRuntimeTests
     {
         var services = new ServiceCollection();
         services.AddConfiglueMicrosoftOptions<AppSettings>();
-        services.AddConfiglueOptionsRegistry<AppSettings, AppSettings.Fragment>(
+        services.AddConfiglueStateRegistry<AppSettings, AppSettings.Fragment>(
             (_, name) =>
             {
                 var store = new InMemoryStateStore<AppSettings.Fragment>();
@@ -461,9 +461,9 @@ public sealed partial class StateRuntimeTests
             }
         );
         using var serviceProvider = services.BuildServiceProvider();
-        var registry = serviceProvider.GetRequiredService<IConfiglueOptionsRegistry<AppSettings>>();
+        var registry = serviceProvider.GetRequiredService<IConfiglueStateRegistry<AppSettings>>();
         registry.TryAdd("clear").ShouldBeTrue();
-        registry.ProfileRemoved += name =>
+        registry.StateRemoved += name =>
         {
             if (name == "clear")
             {
@@ -476,14 +476,14 @@ public sealed partial class StateRuntimeTests
         ).ShouldBeTrue();
 
         var listenerAfterFailureWasCalled = false;
-        registry.ProfileAdded += (name, _) =>
+        registry.StateAdded += (name, _) =>
         {
             if (name == "listener-error")
             {
                 throw new InvalidOperationException("listener failure");
             }
         };
-        registry.ProfileAdded += (name, _) =>
+        registry.StateAdded += (name, _) =>
         {
             if (name == "listener-error")
             {
@@ -495,7 +495,7 @@ public sealed partial class StateRuntimeTests
         registry.TryRemove("listener-error").ShouldBeTrue();
 
         registry.TryAdd("dispose").ShouldBeTrue();
-        registry.ProfileRemoved += name =>
+        registry.StateRemoved += name =>
         {
             if (name == "dispose")
             {

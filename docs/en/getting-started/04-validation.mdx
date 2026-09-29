@@ -38,9 +38,9 @@ The final beginner step adds two behaviors that matter after basic reading and l
 2. ### Subscribe to effective-value changes
 
    ```csharp
-   var options = context.GetOptions<AppSettings>();
+   var state = context.GetState<AppSettings>();
 
-   using var subscription = options.OnChange(updated =>
+   using var subscription = state.OnChange(updated =>
        Console.WriteLine($"Port changed to {updated.Server.Port}"));
    ```
 

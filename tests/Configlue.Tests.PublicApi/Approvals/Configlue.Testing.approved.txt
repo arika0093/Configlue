@@ -1,7 +1,7 @@
 [assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/arika0093/Configlue")]
 namespace Configlue.Testing
 {
-    public sealed class InMemoryResource : Configlue.Resources.IResourceBatchWriter, Configlue.Resources.IResourceIdentity, Configlue.Resources.IResourceReader, Configlue.Resources.IResourceWriter, Configlue.State.IPipelineResourceReader, Configlue.State.IStateWatcher
+    public sealed class InMemoryResource : Configlue.Resources.IResourceBatchWriter, Configlue.Resources.IResourceIdentity, Configlue.Resources.IResourceReader, Configlue.Resources.IResourceWriter, Configlue.Sources.ISourceWatcher, Configlue.State.IPipelineResourceReader
     {
         public InMemoryResource() { }
         public bool IsPipelineReadPreferred { get; }
@@ -13,7 +13,7 @@ namespace Configlue.Testing
         public System.Threading.Tasks.ValueTask<Configlue.State.StateWriteResult> WriteAsync(Configlue.Resources.ResourceWriteRequest request, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask<Configlue.State.StateWriteResult> WriteBatchAsync(System.Collections.Generic.IReadOnlyList<Configlue.Resources.ResourceWriteMutation> mutations, System.Threading.CancellationToken cancellationToken = default) { }
     }
-    public sealed class InMemoryStateStore<T> : Configlue.State.IStateReader<T>, Configlue.State.IStateWatcher, Configlue.State.IStateWriter<T>
+    public sealed class InMemoryStateStore<T> : Configlue.Sources.ISourceReader<T>, Configlue.Sources.ISourceWatcher, Configlue.Sources.ISourceWriter<T>
     {
         public InMemoryStateStore() { }
         public InMemoryStateStore(T? initialValue) { }

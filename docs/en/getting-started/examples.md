@@ -7,7 +7,7 @@ The `example/` directory contains runnable samples. Run them from the repository
 
 ## File-backed console app
 
-`Example.ConsoleApp` uses `ConfiglueApp.CreateContext` to register a generated model backed by a JSON file resource, then reads and writes it through `GetOptions<T>()`.
+`Example.ConsoleApp` uses `ConfiglueApp.CreateContext` to register a generated model backed by a JSON file resource, then reads and writes it through `GetState<T>()`.
 
 ```sh
 dotnet run --project example/Example.ConsoleApp
@@ -16,9 +16,9 @@ dotnet run --project example/Example.ConsoleApp -- --set-name Ada
 
 The settings file is written beside the executable.
 
-## Low-level composition without a context
+## Registering sources without dependency injection
 
-`Example.SimpleApp` shows the same workflow without the `ConfiglueApp` facade by constructing `ConfiglueOptions<TModel, TFragment>` and `StateSourceSet<T>` directly.
+`Example.SimpleApp` shows the same workflow without a dependency injection container. It registers a `StateSource<T>` through `ConfiglueApp.CreateContext` and reads or writes it through `IWritableState<T>`.
 
 ```sh
 dotnet run --project example/Example.SimpleApp

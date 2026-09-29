@@ -1,5 +1,6 @@
 using Configlue.Testing;
 using Microsoft.Extensions.DependencyInjection;
+using Configlue.Sources;
 
 namespace Configlue.Tests;
 
@@ -66,7 +67,7 @@ public sealed class StateSourceSetBuilderTests
         var services = new ServiceCollection();
         services.AddKeyedSingleton("user", user);
         services.AddKeyedSingleton("defaults", defaults);
-        services.AddConfiglueOptions<AppSettings, AppSettings.Fragment>(
+        services.AddConfiglueState<AppSettings, AppSettings.Fragment>(
             (provider, sources) =>
             {
                 configureCount++;
@@ -92,7 +93,7 @@ public sealed class StateSourceSetBuilderTests
         using var serviceProvider = services.BuildServiceProvider();
 
         var options = serviceProvider.GetRequiredService<
-            ConfiglueOptions<AppSettings, AppSettings.Fragment>
+            ConfiglueRuntime<AppSettings, AppSettings.Fragment>
         >();
         var initial = await options.ReadAsync();
         var changed = new TaskCompletionSource<int>(
@@ -118,7 +119,7 @@ public sealed class StateSourceSetBuilderTests
         );
         var services = new ServiceCollection();
         services.AddKeyedSingleton("profile-source", profile);
-        services.AddConfiglueOptions<AppSettings, AppSettings.Fragment>(
+        services.AddConfiglueState<AppSettings, AppSettings.Fragment>(
             "profile",
             (provider, sources) =>
                 sources.Add(
@@ -130,7 +131,7 @@ public sealed class StateSourceSetBuilderTests
         );
         using var serviceProvider = services.BuildServiceProvider();
 
-        var options = serviceProvider.GetRequiredKeyedService<IReadOnlyOptions<AppSettings>>(
+        var options = serviceProvider.GetRequiredKeyedService<IReadOnlyState<AppSettings>>(
             "profile"
         );
         var value = await options.GetValueAsync();
@@ -138,7 +139,7 @@ public sealed class StateSourceSetBuilderTests
         (value.RetryCount).ShouldBe(12);
     }
 
-    private sealed class ReaderOnly<T>(T value) : IStateReader<T>
+    private sealed class ReaderOnly<T>(T value) : ISourceReader<T>
     {
         public ValueTask<StateReadResult<T>> ReadAsync(
             CancellationToken cancellationToken = default

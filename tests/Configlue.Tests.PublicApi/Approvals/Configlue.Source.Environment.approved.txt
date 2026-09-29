@@ -16,7 +16,7 @@ namespace Configlue.Source.Environment
         public int Priority { get; init; }
         public System.Func<string, System.Type, object?>? ValueParser { get; init; }
     }
-    public sealed class EnvironmentStateReader<TFragment> : Configlue.State.IStateReader<TFragment>
+    public sealed class EnvironmentStateReader<TFragment> : Configlue.Sources.ISourceReader<TFragment>
         where TFragment :  class, Configlue.IConfiglueFragment<TFragment>
     {
         public EnvironmentStateReader(Configlue.ConfiglueModelSchema schema, string prefix, System.Func<System.Collections.Generic.IEnumerable<System.Collections.Generic.KeyValuePair<string, string?>>>? environmentVariables = null, System.Func<string, System.Type, object?>? valueParser = null, System.Text.Json.JsonSerializerOptions? jsonSerializerOptions = null) { }

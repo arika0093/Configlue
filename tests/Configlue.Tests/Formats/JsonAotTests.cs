@@ -62,7 +62,7 @@ public sealed class JsonAotTests
             static fragment => fragment.ToModel(),
             projectedSchema: JsonAotSettings.ConfiglueSchema.ToMetadata()
         );
-        var options = new ConfiglueOptions<JsonAotSettings, JsonAotSettings.Fragment>(
+        var options = new ConfiglueRuntime<JsonAotSettings, JsonAotSettings.Fragment>(
             new StateSourceSet<JsonAotSettings.Fragment>([projected])
         );
 

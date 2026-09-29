@@ -1,7 +1,7 @@
 Configlue vNext API migration
 ============================
 
-The common workflow uses a generated model, registration, an options handle, and
+The common workflow uses a generated model, registration, a state handle, and
 asynchronous reads or generated sparse patches:
 
 ```csharp
@@ -11,9 +11,9 @@ using Configlue.Provider.Json;
 await using var context = ConfiglueApp.CreateContext(app =>
     app.Add<Settings>(model => model.UseJsonFile("settings.json")));
 
-var options = context.GetOptions<Settings>();
-var current = await options.GetValueAsync();
-var receipt = await options.SaveAsync(new Settings.Patch
+var state = context.GetState<Settings>();
+var current = await state.GetValueAsync();
+var receipt = await state.SaveAsync(new Settings.Patch
 {
     Host = FragmentOperation<string>.Set("production"),
 });
@@ -25,7 +25,7 @@ public partial class Settings
 }
 ```
 
-Use `ConfiglueApp.Initialize`, `GetOptions<T>`, and `ShutdownAsync` for a
+Use `ConfiglueApp.Initialize`, `GetState<T>`, and `ShutdownAsync` for a
 process-wide CLI or small application. Explicit contexts remain independent and
 are preferable when an application needs scoped lifetimes, tests, DI, or several
 configuration environments. Higher source priority wins; earlier registration
@@ -34,21 +34,21 @@ reveals the next source.
 
 | Previous surface | vNext surface |
 | --- | --- |
-| `IConfiglueOptions<T>` / `GetAdvancedOptions<T>` | `IReadOnlyOptions<T>` / `IWritableOptions<T>` for ordinary usage; focused capabilities below for advanced operations |
+| `IConfiglueRuntime<T>` / `GetAdvancedOptions<T>` | `IReadOnlyState<T>` / `IWritableState<T>` for ordinary usage; focused capabilities below for advanced operations |
 | State inspection through the aggregate interface | `GetInspection<T>()` / `IConfiglueInspection<T>.ReadAsync` |
 | Draft sessions through the aggregate interface | `GetEditSessions<T>()` / `IConfiglueEditSessions<T>` |
 | Topology and reload failure notifications | `GetDiagnostics<T>()` / `IConfiglueDiagnostics<T>` |
 | Source-local writes and migrations | `GetSources<T>()` / `IConfiglueSources<T>` |
-| Context-dependent `Sources` overloads / `SourcesForOptions` | `ConfigureSources(registration => ...)`, with `OptionsName`, `Services`, and `Sources` |
+| Context-dependent `Sources` overloads / `SourcesForOptions` | `ConfigureSources(registration => ...)`, with `StateName`, `Services`, and `Sources` |
 | Provider `Create` parameter lists | `Create<TFragment>(ConfiglueSourceCreationContext)` and `Complete(source)` |
 | Core serialization/transformation helpers | Optional `Configlue.Extensibility` SDK, namespace `Configlue.Extensibility` |
 | Direct read-result constructors / writable status or value | Validated `StateReadResult<T>` factories; default is `NotFound` |
 | Nullable expected revision and absence flags | Explicit `RevisionCondition.None`, `Match(token)`, or `MustNotExist` |
 | `StateMultiWriteResult` / application revision-only write results | `StateWriteReceipt`, with logical outcomes and physical write count |
 | Generator runtime factory helpers and detail transport | Hidden `Configlue.CompilerServices` descriptor and member-path ABI |
-| `RegisterAsSingleton` | Inject async options, or explicitly preload a fixed startup snapshot |
+| `RegisterAsSingleton` | Inject async state, or explicitly preload a fixed startup snapshot |
 
-Generated details remain available through `options.GetDetailsAsync()`. The
+Generated details remain available through `state.GetDetailsAsync()`. The
 snapshot transport and recursive path plumbing are compiler contracts; ordinary
 applications consume generated details, including source and collection-element
 provenance. Plans still accept typed selectors and `SourceKey<T>`; generated
@@ -66,7 +66,7 @@ The public surface has three audiences:
 
 | Audience | Intended boundary |
 | --- | --- |
-| Application | Registration, async options, generated patches/details, sessions, diagnostics, sources, profiles, named/dynamic registries, validation, migrations |
+| Application | Registration, async state, generated patches/details, sessions, diagnostics, sources, profiles, named/dynamic registries, validation, migrations |
 | Provider author | Low-level state/resource/codec/source contracts in Abstraction; optional Extensibility helpers reference inward into Core |
 | Compiler | Editor-hidden static model contracts, one facade descriptor, generated member paths and details transport in `Configlue.CompilerServices` |
 

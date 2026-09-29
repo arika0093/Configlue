@@ -73,7 +73,7 @@ public sealed partial class ConfiglueFacadeSourceTests
             );
         });
         var resource = context.OwnedResourcesForTests.OfType<FileResource>().Single();
-        using var subscription = context.GetOptions<AppSettings>().OnChange(static _ => { });
+        using var subscription = context.GetState<AppSettings>().OnChange(static _ => { });
 
         await WaitUntilAsync(() => resource.HasActiveWatcherForTests);
         var firstDisposal = context.DisposeAsync().AsTask();
@@ -100,7 +100,7 @@ public sealed partial class ConfiglueFacadeSourceTests
         {
             builder.Add<AppSettings>(model => model.Sources(sources => sources.Add(source)));
         });
-        using var subscription = context.GetOptions<AppSettings>().OnChange(static _ => { });
+        using var subscription = context.GetState<AppSettings>().OnChange(static _ => { });
 
         await WaitUntilAsync(() => resource.HasActiveWatcherForTests);
         await context.DisposeAsync();
@@ -121,15 +121,15 @@ public sealed partial class ConfiglueFacadeSourceTests
         {
             builder.Add<AppSettings>(model =>
             {
-                model.EnableDynamicOptions = true;
+                model.EnableDynamicStates = true;
                 model.ConfigureSources(registration =>
                     registration.Sources.FromJsonFile(
                         new JsonFileSourceOptions
                         {
-                            Id = $"dynamic-{registration.OptionsName}",
+                            Id = $"dynamic-{registration.StateName}",
                             Path = Path.Combine(
                                 directory.FullPath,
-                                $"{registration.OptionsName}.json"
+                                $"{registration.StateName}.json"
                             ),
                             ReadOnly = true,
                             WatchChanges = true,
@@ -138,9 +138,9 @@ public sealed partial class ConfiglueFacadeSourceTests
                 );
             });
         });
-        var registry = context.GetOptionsRegistry<AppSettings>();
+        var registry = context.GetStateRegistry<AppSettings>();
         registry.TryAdd("late").ShouldBeTrue();
-        var resource = ((ConfiglueFacadeOptionsRegistry<AppSettings>)registry)
+        var resource = ((ConfiglueFacadeStateRegistry<AppSettings>)registry)
             .GetOwnedResourcesForTests("late")
             .OfType<FileResource>()
             .Single();
@@ -176,10 +176,10 @@ public sealed partial class ConfiglueFacadeSourceTests
                     registration.Sources.FromJsonFile(
                         new JsonFileSourceOptions
                         {
-                            Id = $"profile-{registration.OptionsName}",
+                            Id = $"profile-{registration.StateName}",
                             Path = Path.Combine(
                                 directory.FullPath,
-                                $"{registration.OptionsName}.json"
+                                $"{registration.StateName}.json"
                             ),
                             WatchChanges = true,
                         }
@@ -187,13 +187,13 @@ public sealed partial class ConfiglueFacadeSourceTests
                 );
             });
         });
-        var profiles = context.GetProfiledOptions<AppSettings>();
+        var profiles = context.GetProfiledState<AppSettings>();
         await profiles.GetProfileNamesAsync();
         await profiles.CreateProfileAsync("removed", copyFrom: "default");
         await profiles.CreateProfileAsync("context-end", copyFrom: "default");
 
         var registry =
-            (ConfiglueFacadeOptionsRegistry<AppSettings>)context.GetOptionsRegistry<AppSettings>();
+            (ConfiglueFacadeStateRegistry<AppSettings>)context.GetStateRegistry<AppSettings>();
         var removedResource = registry
             .GetOwnedResourcesForTests("removed")
             .OfType<FileResource>()
@@ -203,10 +203,10 @@ public sealed partial class ConfiglueFacadeSourceTests
             .OfType<FileResource>()
             .Single();
         using var removedSubscription = context
-            .GetOptions<AppSettings>("removed")
+            .GetState<AppSettings>("removed")
             .OnChange(static _ => { });
         using var contextEndSubscription = context
-            .GetOptions<AppSettings>("context-end")
+            .GetState<AppSettings>("context-end")
             .OnChange(static _ => { });
 
         await WaitUntilAsync(() =>
@@ -233,10 +233,10 @@ public sealed partial class ConfiglueFacadeSourceTests
         {
             builder.Add<AppSettings>(model =>
             {
-                model.EnableDynamicOptions = true;
+                model.EnableDynamicStates = true;
                 model.ConfigureSources(registration =>
                 {
-                    if (registration.OptionsName != "failure")
+                    if (registration.StateName != "failure")
                     {
                         var store = new InMemoryStateStore<AppSettings.Fragment>();
                         registration.Sources.Add<AppSettings.Fragment>(
@@ -257,7 +257,7 @@ public sealed partial class ConfiglueFacadeSourceTests
                 });
             });
         });
-        var registry = context.GetOptionsRegistry<AppSettings>();
+        var registry = context.GetStateRegistry<AppSettings>();
 
         Should.Throw<InvalidOperationException>(() => registry.TryAdd("failure"));
 
@@ -292,7 +292,7 @@ public sealed partial class ConfiglueFacadeSourceTests
         });
 
         var result = await (
-            (IConfiglueRuntimeOptions<AppSettings>)context.GetOptions<AppSettings>()
+            (IConfiglueRuntimeState<AppSettings>)context.GetState<AppSettings>()
         ).ApplyPatchesAsync([
             new StateSourcePatch(
                 "http-settings",

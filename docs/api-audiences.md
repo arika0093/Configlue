@@ -16,7 +16,7 @@ or DI remain borrowed. Core adopts owned resources even when creation throws, an
 by reference in the context lifetime. A result can also explicitly supply its owned resources.
 
 `model.Sources(sources => ...)` runs during structural registration. Runtime-dependent registration
-uses `model.ConfigureSources(registration => ...)`, with `OptionsName`, `Services`, and `Sources`.
+uses `model.ConfigureSources(registration => ...)`, with `StateName`, `Services`, and `Sources`.
 Adding another contextual value does not require new overload families. Runtime callbacks execute
 after DI service registration and also work with null services in independent contexts.
 
@@ -29,12 +29,12 @@ compiler ABI cleanup; capability contracts separate application inspection from 
 
 | Surface | Audience | Ownership decision |
 | --- | --- | --- |
-| Options, sessions, profiles, source selectors, validation, write plans, details | Application | Keep typed user-facing APIs; segregate capabilities |
+| States, sessions, profiles, source selectors, validation, write plans, details | Application | Keep typed user-facing APIs; segregate capabilities |
 | Resource, state, codec, source, transformer and migration contracts | Provider SPI | Minimal shared contracts stay inward in Abstraction |
 | Serialization, transformation and mounted registration helpers | Provider SDK | Move outward to Extensibility |
 | Generated static model contracts, schema operations, details snapshot transport | Compiler ABI | Dedicated CompilerServices surface; hide from IntelliSense |
 | Builder source-build, validator/migration retrieval and runtime construction plumbing | Implementation leakage | Internalize behind the compiler runtime bridge |
-| Runtime concrete options and source composition implementations | Advanced runtime | Needed for explicit low-level composition; ordinary code uses capabilities |
+| Runtime concrete state and source composition implementations | Advanced runtime | Needed for explicit low-level composition; ordinary code uses capabilities |
 | File resource, locking, backups and migration journal | Built-in runtime/resource | Keep the shared physical resource implementation inward |
 
 Public API snapshots are reviewed by assembly and, for the compiler ABI, by audience. Providers

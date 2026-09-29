@@ -46,7 +46,7 @@ public sealed partial class ConfiglueFacadeSourceTests
             );
         });
 
-        var options = (IConfiglueRuntimeOptions<AppSettings>)context.GetOptions<AppSettings>();
+        var options = (IConfiglueRuntimeState<AppSettings>)context.GetState<AppSettings>();
         (
             options.GetDiagnostics().Sources.Any(static source => source.Id == "root-settings")
         ).ShouldBeTrue();
@@ -96,7 +96,7 @@ public sealed partial class ConfiglueFacadeSourceTests
             );
         });
 
-        var options = (IConfiglueRuntimeOptions<AppSettings>)context.GetOptions<AppSettings>();
+        var options = (IConfiglueRuntimeState<AppSettings>)context.GetState<AppSettings>();
         await options.SaveAsync(settings => settings.Label = "after");
 
         var backupDirectory = Path.Combine(backupRoot, "configlue-backups", "app-settings.v2");
@@ -128,7 +128,7 @@ public sealed partial class ConfiglueFacadeSourceTests
         });
 
         await context
-            .GetRuntimeOptions<AppSettings>()
+            .GetRuntimeState<AppSettings>()
             .Source(JsonFileSource.At(path))
             .SaveAsync(new AppSettings.Patch { Label = FragmentOperation<string?>.Set("after") });
 
@@ -181,7 +181,7 @@ public sealed partial class ConfiglueFacadeSourceTests
             );
         });
 
-        var diagnostics = context.GetRuntimeOptions<AppSettings>().GetDiagnostics();
+        var diagnostics = context.GetRuntimeState<AppSettings>().GetDiagnostics();
         var source = diagnostics.Sources.Single(static source => source.Id == "settings");
         var readOnly = diagnostics.Sources.Single(static source => source.Id == "defaults");
         (source.Id).ShouldBe("settings");
@@ -220,7 +220,7 @@ public sealed partial class ConfiglueFacadeSourceTests
             );
         });
 
-        await context.GetOptions<AppSettings>().SaveAsync(settings => settings.Label = "updated");
+        await context.GetState<AppSettings>().SaveAsync(settings => settings.Label = "updated");
 
         var document = JsonNode.Parse(await File.ReadAllTextAsync(path))!.AsObject();
         (document["App"]!["Other"]!["Value"]!.GetValue<string>()).ShouldBe("keep");
@@ -264,7 +264,7 @@ public sealed partial class ConfiglueFacadeSourceTests
             );
         });
 
-        var options = context.GetOptions<AppSettings>();
+        var options = context.GetState<AppSettings>();
         (await options.GetValueAsync()).Label.ShouldBe("before");
         await options.SaveAsync(settings => settings.Label = "after");
 
@@ -322,7 +322,7 @@ public sealed partial class ConfiglueFacadeSourceTests
             );
         });
 
-        var options = context.GetOptions<AppSettings>();
+        var options = context.GetState<AppSettings>();
         (await options.GetValueAsync()).Label.ShouldBe("before");
         await options.SaveAsync(settings => settings.Label = "after");
 
@@ -364,8 +364,8 @@ public sealed partial class ConfiglueFacadeSourceTests
             );
         });
 
-        await context.GetOptions<AppSettings>().SaveAsync(settings => settings.Label = "updated");
-        var options = context.GetRuntimeOptions<AppSettings>();
+        await context.GetState<AppSettings>().SaveAsync(settings => settings.Label = "updated");
+        var options = context.GetRuntimeState<AppSettings>();
         await options
             .Source(XmlFileSource.At(path, "App:Settings"))
             .SaveAsync(
@@ -402,8 +402,8 @@ public sealed partial class ConfiglueFacadeSourceTests
             );
         });
 
-        await context.GetOptions<AppSettings>().SaveAsync(settings => settings.Label = "updated");
-        var options = context.GetRuntimeOptions<AppSettings>();
+        await context.GetState<AppSettings>().SaveAsync(settings => settings.Label = "updated");
+        var options = context.GetRuntimeState<AppSettings>();
         await options
             .Source(YamlFileSource.At(path, "App:Settings"))
             .SaveAsync(
@@ -453,7 +453,7 @@ public sealed partial class ConfiglueFacadeSourceTests
             );
         });
 
-        var options = context.GetOptions<AppSettings>();
+        var options = context.GetState<AppSettings>();
         (await options.GetValueAsync()).Label.ShouldBe("before");
         await options.SaveAsync(settings => settings.Label = "after");
 
@@ -504,7 +504,7 @@ public sealed partial class ConfiglueFacadeSourceTests
             );
         });
 
-        var options = context.GetOptions<AppSettings>();
+        var options = context.GetState<AppSettings>();
         (await options.GetValueAsync()).Label.ShouldBe("before");
         await options.SaveAsync(settings => settings.Label = "after");
         await options.SaveAsync(
@@ -550,7 +550,7 @@ public sealed partial class ConfiglueFacadeSourceTests
             );
         });
 
-        var options = context.GetOptions<AppSettings>();
+        var options = context.GetState<AppSettings>();
         await options.SaveAsync(settings => settings.Label = "after");
 
         var yaml = await File.ReadAllTextAsync(path);
@@ -586,7 +586,7 @@ public sealed partial class ConfiglueFacadeSourceTests
         });
 
         await Should.ThrowAsync<InvalidOperationException>(async () =>
-            await context.GetOptions<AppSettings>().SaveAsync(settings => settings.Label = "no")
+            await context.GetState<AppSettings>().SaveAsync(settings => settings.Label = "no")
         );
     }
 

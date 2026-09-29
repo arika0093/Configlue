@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Configlue.Sources;
 using SharpYaml;
 
 namespace Configlue.Provider.Yaml;
@@ -127,7 +128,7 @@ public static class YamlFileSourceRegistration
                 options.SerializerOptions,
                 options.DocumentLayout
             );
-            IStateWatcher? resourceWatcher = options.WatchChanges ? file : null;
+            ISourceWatcher? resourceWatcher = options.WatchChanges ? file : null;
             var section = options.SectionPath is null
                 ? YamlSectionResource.CreateRoot(
                     resource,

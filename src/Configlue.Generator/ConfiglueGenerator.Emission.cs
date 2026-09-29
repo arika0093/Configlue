@@ -81,7 +81,7 @@ public sealed partial class ConfiglueGenerator
             1,
             "public static global::System.Threading.Tasks.ValueTask<global::Configlue.StateWriteReceipt> SaveAsync("
         );
-        code.AppendLineAt(2, "this global::Configlue.IWritableOptions<" + modelType + "> options,");
+        code.AppendLineAt(2, "this global::Configlue.IWritableState<" + modelType + "> options,");
         code.AppendLineAt(2, "global::System.Action<" + modelType + ".Patch> configure,");
         code.AppendLineAt(
             2,

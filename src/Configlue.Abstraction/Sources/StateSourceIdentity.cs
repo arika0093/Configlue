@@ -6,7 +6,7 @@ namespace Configlue.Sources;
 internal static class StateSourceIdentity
 {
     public static string Create<T>(
-        IStateReader<T> reader,
+        ISourceReader<T> reader,
         string? physicalOrigin,
         ResourceId? resourceId,
         string? logicalDescriptor

@@ -57,7 +57,7 @@ var entry = new ZipEntryResource(archive, new ZipEntryResourceOptions
 }, "settings/default.json");
 ```
 
-アーカイブリソースが `IStateWatcher` を実装する場合 (例: `FileResource`)、エントリの変更監視はその watcher に委譲され、アーカイブファイルの編集を検知します。watcher がないリソースだけリビジョンを既定250ms間隔でポーリングします。`ZipEntryResource` の `pollingInterval` でこのフォールバック間隔を変更できます。
+アーカイブリソースが `ISourceWatcher` を実装する場合 (例: `FileResource`)、エントリの変更監視はその watcher に委譲され、アーカイブファイルの編集を検知します。watcher がないリソースだけリビジョンを既定250ms間隔でポーリングします。`ZipEntryResource` の `pollingInterval` でこのフォールバック間隔を変更できます。
 
 ## 複数モデルを1つのバイナリファイルに保存
 

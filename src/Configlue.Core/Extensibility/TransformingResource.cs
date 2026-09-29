@@ -1,3 +1,5 @@
+using Configlue.Sources;
+
 namespace Configlue.Extensibility;
 
 /// <summary>Applies byte transformers around a resource before provider-specific document processing.</summary>
@@ -50,7 +52,7 @@ public sealed class TransformingResource
                 ? new TransformingBatchWriter(this, writer, batchWriter)
                 : new TransformingWriter(this, writer);
         }
-        Watcher = resource as IStateWatcher;
+        Watcher = resource as ISourceWatcher;
     }
 
     /// <summary>The physical identity of the wrapped resource.</summary>
@@ -82,7 +84,7 @@ public sealed class TransformingResource
     public IResourceWriter? Writer { get; }
 
     /// <summary>The wrapped resource watcher, if available.</summary>
-    public IStateWatcher? Watcher { get; }
+    public ISourceWatcher? Watcher { get; }
 
     /// <inheritdoc />
     public bool AutomaticBackupRecoveryEnabled =>

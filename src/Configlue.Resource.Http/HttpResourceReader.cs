@@ -5,6 +5,7 @@ using System.Net.Http.Headers;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
+using Configlue.Sources;
 
 namespace Configlue.Resource.Http;
 
@@ -12,7 +13,7 @@ namespace Configlue.Resource.Http;
 public sealed class HttpResourceReader
     : IResourceReader,
         IPipelineResourceReader,
-        IStateWatcher,
+        ISourceWatcher,
         IResourceIdentity
 {
     /// <summary>Response and request header carrying the source schema identifier.</summary>

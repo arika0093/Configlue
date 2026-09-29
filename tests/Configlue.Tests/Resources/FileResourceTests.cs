@@ -504,7 +504,7 @@ public sealed partial class FileResourceTests
             new AppSettings.Fragment { RetryCount = Optional<int>.Present(99) }
         );
         var fallbackSource = new StateSource<AppSettings.Fragment>("fallback", fallbackStore);
-        await using var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(
+        await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([primarySource, fallbackSource])
         );
 

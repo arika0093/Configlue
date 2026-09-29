@@ -1,3 +1,5 @@
+using Configlue.Sources;
+
 namespace Configlue.Extensibility;
 
 /// <summary>Creates typed state sources by composing a resource, byte transformers, a codec, and middleware.</summary>
@@ -27,7 +29,7 @@ public static class SerializedStateSource
         int priority = 0,
         StateFallbackCondition fallbackCondition = StateFallbackCondition.NotFound,
         IResourceWriter? writer = null,
-        IStateWatcher? watcher = null,
+        ISourceWatcher? watcher = null,
         string? physicalOrigin = null,
         StateCodecContext context = default,
         ResourceId? resourceId = null,
@@ -40,7 +42,7 @@ public static class SerializedStateSource
         ArgumentNullException.ThrowIfNull(codec);
 
         var resourceWriter = writer ?? resource as IResourceWriter;
-        var resourceWatcher = watcher ?? resource as IStateWatcher;
+        var resourceWatcher = watcher ?? resource as ISourceWatcher;
         var transformerPipeline = StateByteTransformerPipeline.Create(transformers);
         var middlewarePipeline = middlewares?.ToArray() ?? [];
         if (middlewarePipeline.Any(static middleware => middleware is null))
@@ -48,14 +50,14 @@ public static class SerializedStateSource
             throw new ArgumentException("A middleware collection cannot contain null values.");
         }
 
-        IStateReader<T> reader = new SerializedStateReader<T>(
+        ISourceReader<T> reader = new SerializedStateReader<T>(
             resource,
             codec,
             context,
             schemaDispatcher,
             transformerPipeline
         );
-        IStateWriter<T>? stateWriter = resourceWriter is null
+        ISourceWriter<T>? stateWriter = resourceWriter is null
             ? null
             : new SerializedStateWriter<T>(resourceWriter, codec, context, transformerPipeline);
         for (var index = middlewarePipeline.Length - 1; index >= 0; index--)

@@ -23,7 +23,7 @@ import { Steps } from '@astrojs/starlight/components';
            sources.Add<AppSettings>();
        }));
 
-   var options = context.GetOptions<AppSettings>();
+   var state = context.GetState<AppSettings>();
    ```
 
    `Global` は OS 標準のユーザー設定ディレクトリを使います。`Local` はカレントディレクトリの `settings.json` を使い、読み取り時には Global より高い優先順位を持ちます。
@@ -35,7 +35,7 @@ import { Steps } from '@astrojs/starlight/components';
 3. ### 値の出所を確認する
 
    ```csharp
-   var details = await options.GetDetailsAsync();
+   var details = await state.GetDetailsAsync();
 
    Console.WriteLine(details.Server.Port.Value);
    Console.WriteLine(details.Server.Port.Source?.DisplayName);

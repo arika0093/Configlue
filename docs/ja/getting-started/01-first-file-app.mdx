@@ -34,7 +34,7 @@ import { Steps } from '@astrojs/starlight/components';
        config.Add<AppSettings>(model =>
            model.UseJsonFile("settings.json")));
 
-   var options = context.GetOptions<AppSettings>();
+   var state = context.GetState<AppSettings>();
    ```
 
    `UseJsonFile` が作成したファイルリソースと watcher は context が所有し、context の破棄時に停止します。
@@ -42,7 +42,7 @@ import { Steps } from '@astrojs/starlight/components';
 3. ### 現在の値を読む
 
    ```csharp
-   var current = await options.GetValueAsync();
+   var current = await state.GetValueAsync();
    Console.WriteLine($"Hello, {current.Name}! Run #{current.RunCount}");
    ```
 
@@ -51,7 +51,7 @@ import { Steps } from '@astrojs/starlight/components';
 4. ### 変更した項目だけを保存する
 
    ```csharp
-   await options.SaveAsync(patch =>
+   await state.SaveAsync(patch =>
    {
        patch.Name = "Ada";
        patch.RunCount = current.RunCount + 1;

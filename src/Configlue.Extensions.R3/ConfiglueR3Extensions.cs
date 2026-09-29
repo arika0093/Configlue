@@ -6,7 +6,7 @@ namespace Configlue.Extensions.R3;
 public static class ConfiglueR3Extensions
 {
     /// <summary>Observes future resolved changes without an initial read.</summary>
-    public static global::R3.Observable<T> ObserveChanges<T>(this IReadOnlyOptions<T> options)
+    public static global::R3.Observable<T> ObserveChanges<T>(this IReadOnlyState<T> options)
     {
         ArgumentNullException.ThrowIfNull(options);
         return Create<T>(options.OnChange);
@@ -14,7 +14,7 @@ public static class ConfiglueR3Extensions
 
     /// <summary>Observes the current value followed by resolved changes.</summary>
     /// <remarks>Subscribes before reading and suppresses a stale initial value if a change arrives during the read.</remarks>
-    public static global::R3.Observable<T> ObserveValues<T>(this IReadOnlyOptions<T> options)
+    public static global::R3.Observable<T> ObserveValues<T>(this IReadOnlyState<T> options)
     {
         ArgumentNullException.ThrowIfNull(options);
         return Create<T>(options.OnChange, options.GetValueAsync);
@@ -31,7 +31,7 @@ public static class ConfiglueR3Extensions
 
     /// <summary>Observes the current active value, its changes, and subsequent profile switches.</summary>
     public static global::R3.Observable<T> ObserveActiveValues<T>(
-        this IConfiglueProfiledOptions<T> profiles
+        this IConfiglueProfiledState<T> profiles
     )
     {
         ArgumentNullException.ThrowIfNull(profiles);
@@ -47,7 +47,7 @@ public static class ConfiglueR3Extensions
 
     /// <summary>Observes the current active profile name followed by profile switches.</summary>
     public static global::R3.Observable<string> ObserveActiveProfileNames<T>(
-        this IConfiglueProfiledOptions<T> profiles
+        this IConfiglueProfiledState<T> profiles
     )
     {
         ArgumentNullException.ThrowIfNull(profiles);

@@ -1,10 +1,11 @@
 using System.Buffers;
 using System.IO.Pipelines;
+using Configlue.Sources;
 
 namespace Configlue.Extensibility;
 
 /// <summary>Reads a typed state value by composing a resource and a codec.</summary>
-public sealed class SerializedStateReader<T> : IStateReader<T>, IResourceIdentity
+public sealed class SerializedStateReader<T> : ISourceReader<T>, IResourceIdentity
 {
     private readonly IResourceReader _resource;
     private readonly object _codec;

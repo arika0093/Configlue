@@ -51,7 +51,7 @@ public sealed partial class CommonSourceFormatTests
                     sources.Add<AppSettings>();
                 })
             );
-            var options = context.GetRuntimeOptions<AppSettings>();
+            var options = context.GetRuntimeState<AppSettings>();
 
             (await options.GetValueAsync()).RetryCount.ShouldBe(2);
             options
@@ -82,7 +82,7 @@ public sealed partial class CommonSourceFormatTests
                 sources.Add<AppSettings>();
             })
         );
-        var options = context.GetRuntimeOptions<AppSettings>();
+        var options = context.GetRuntimeState<AppSettings>();
 
         (await options.GetValueAsync()).RetryCount.ShouldBe(23);
         var diagnostics = options.GetDiagnostics().Sources;
@@ -113,7 +113,7 @@ public sealed partial class CommonSourceFormatTests
                 sources.Add<AppSettings>();
             })
         );
-        var options = context.GetRuntimeOptions<AppSettings>();
+        var options = context.GetRuntimeState<AppSettings>();
 
         (await options.GetValueAsync()).RetryCount.ShouldBe(31);
         var commandLine = options
@@ -144,7 +144,7 @@ public sealed partial class CommonSourceFormatTests
             })
         );
 
-        var options = context.GetOptions<AppSettings>();
+        var options = context.GetState<AppSettings>();
         (await options.GetValueAsync()).RetryCount.ShouldBe(37);
         await options.SaveAsync(settings => settings.RetryCount = 39);
         (await options.GetValueAsync()).RetryCount.ShouldBe(39);

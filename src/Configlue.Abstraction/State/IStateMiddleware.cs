@@ -1,3 +1,5 @@
+using Configlue.Sources;
+
 namespace Configlue.State;
 
 /// <summary>Wraps a typed state reader and writer with application-specific behavior.</summary>
@@ -5,8 +7,8 @@ namespace Configlue.State;
 public interface IStateMiddleware<T>
 {
     /// <summary>Wraps the next reader in the state pipeline.</summary>
-    IStateReader<T> WrapReader(IStateReader<T> next);
+    ISourceReader<T> WrapReader(ISourceReader<T> next);
 
     /// <summary>Wraps the next writer in the state pipeline.</summary>
-    IStateWriter<T> WrapWriter(IStateWriter<T> next);
+    ISourceWriter<T> WrapWriter(ISourceWriter<T> next);
 }

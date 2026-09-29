@@ -1,14 +1,14 @@
 [assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/arika0093/Configlue")]
 namespace Configlue.Resource.Zip
 {
-    public sealed class ZipEntryResource : Configlue.Resources.IResourceBatchParticipant, Configlue.Resources.IResourceIdentity, Configlue.Resources.IResourceReader, Configlue.Resources.IResourceWriter, Configlue.State.IPipelineResourceReader, Configlue.State.IStateWatcher
+    public sealed class ZipEntryResource : Configlue.Resources.IResourceBatchParticipant, Configlue.Resources.IResourceIdentity, Configlue.Resources.IResourceReader, Configlue.Resources.IResourceWriter, Configlue.Sources.ISourceWatcher, Configlue.State.IPipelineResourceReader
     {
-        public ZipEntryResource(Configlue.Resources.IResourceReader archiveReader, string entryName, Configlue.State.IStateWatcher? archiveWatcher = null, Configlue.Resources.ResourceId? resourceId = default) { }
-        public ZipEntryResource(Configlue.Resources.IResourceReader archiveReader, Configlue.Resource.Zip.ZipEntryResourceOptions options, string entryName, Configlue.State.IStateWatcher? archiveWatcher = null, Configlue.Resources.ResourceId? resourceId = default) { }
-        public ZipEntryResource(Configlue.Resources.IResourceReader archiveReader, Configlue.Resources.IResourceBatchWriter? archiveWriter, string entryName, Configlue.State.IStateWatcher? archiveWatcher = null, Configlue.Resources.ResourceId? resourceId = default) { }
-        public ZipEntryResource(Configlue.Resources.IResourceReader archiveReader, string entryName, System.TimeSpan pollingInterval, Configlue.State.IStateWatcher? archiveWatcher = null, Configlue.Resources.ResourceId? resourceId = default) { }
-        public ZipEntryResource(Configlue.Resources.IResourceReader archiveReader, Configlue.Resources.IResourceBatchWriter? archiveWriter, Configlue.Resource.Zip.ZipEntryResourceOptions options, string entryName, Configlue.State.IStateWatcher? archiveWatcher = null, Configlue.Resources.ResourceId? resourceId = default) { }
-        public ZipEntryResource(Configlue.Resources.IResourceReader archiveReader, Configlue.Resources.IResourceBatchWriter? archiveWriter, string entryName, System.TimeSpan pollingInterval, Configlue.State.IStateWatcher? archiveWatcher = null, Configlue.Resources.ResourceId? resourceId = default) { }
+        public ZipEntryResource(Configlue.Resources.IResourceReader archiveReader, string entryName, Configlue.Sources.ISourceWatcher? archiveWatcher = null, Configlue.Resources.ResourceId? resourceId = default) { }
+        public ZipEntryResource(Configlue.Resources.IResourceReader archiveReader, Configlue.Resource.Zip.ZipEntryResourceOptions options, string entryName, Configlue.Sources.ISourceWatcher? archiveWatcher = null, Configlue.Resources.ResourceId? resourceId = default) { }
+        public ZipEntryResource(Configlue.Resources.IResourceReader archiveReader, Configlue.Resources.IResourceBatchWriter? archiveWriter, string entryName, Configlue.Sources.ISourceWatcher? archiveWatcher = null, Configlue.Resources.ResourceId? resourceId = default) { }
+        public ZipEntryResource(Configlue.Resources.IResourceReader archiveReader, string entryName, System.TimeSpan pollingInterval, Configlue.Sources.ISourceWatcher? archiveWatcher = null, Configlue.Resources.ResourceId? resourceId = default) { }
+        public ZipEntryResource(Configlue.Resources.IResourceReader archiveReader, Configlue.Resources.IResourceBatchWriter? archiveWriter, Configlue.Resource.Zip.ZipEntryResourceOptions options, string entryName, Configlue.Sources.ISourceWatcher? archiveWatcher = null, Configlue.Resources.ResourceId? resourceId = default) { }
+        public ZipEntryResource(Configlue.Resources.IResourceReader archiveReader, Configlue.Resources.IResourceBatchWriter? archiveWriter, string entryName, System.TimeSpan pollingInterval, Configlue.Sources.ISourceWatcher? archiveWatcher = null, Configlue.Resources.ResourceId? resourceId = default) { }
         public Configlue.Resources.IResourceBatchWriter? BatchWriter { get; }
         public string EntryName { get; }
         public bool IsPipelineReadPreferred { get; }

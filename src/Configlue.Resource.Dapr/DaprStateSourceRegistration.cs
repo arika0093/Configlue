@@ -1,3 +1,4 @@
+using Configlue.Sources;
 using Dapr.Client;
 
 namespace Configlue.Resource.Dapr;
@@ -107,7 +108,7 @@ public static class DaprStateSourceRegistration
                 options.Codec,
                 options.CodecContext
             );
-            IStateWriter<TFragment>? writer = options.Writable
+            ISourceWriter<TFragment>? writer = options.Writable
                 ? new SerializedStateWriter<TFragment>(
                     resource,
                     options.Codec,

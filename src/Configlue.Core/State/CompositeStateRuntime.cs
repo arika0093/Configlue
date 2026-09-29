@@ -1,3 +1,5 @@
+using Configlue.Sources;
+
 namespace Configlue.State;
 
 /// <summary>Exposes the composed read, write, and watch capabilities for a source set.</summary>
@@ -16,8 +18,8 @@ public sealed class CompositeStateRuntime<T>
     public StateSourceResolver<T> Reader { get; }
 
     /// <summary>The independently routed writer.</summary>
-    public IStateWriter<T> Writer { get; }
+    public ISourceWriter<T> Writer { get; }
 
     /// <summary>The failover and failback watcher.</summary>
-    public IStateWatcher Watcher { get; }
+    public ISourceWatcher Watcher { get; }
 }

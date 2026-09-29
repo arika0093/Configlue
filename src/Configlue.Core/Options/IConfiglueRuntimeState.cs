@@ -1,0 +1,10 @@
+namespace Configlue;
+
+// Core's aggregate implementation contract is not an application service.
+internal interface IConfiglueRuntimeState<T>
+    : IWritableState<T>,
+        IConfiglueInspection<T>,
+        IConfiglueEditSessions<T>,
+        IConfiglueDiagnostics<T>,
+        IConfiglueSources<T>,
+        IConfiglueDetailsRuntime { }

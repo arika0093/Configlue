@@ -128,8 +128,8 @@ public sealed class ObservableAdapterTests
     public async Task RapidSwitchesSupersedePendingProfileAcquisition()
     {
         var profiles = new FakeProfiles();
-        profiles.PendingProfiles["default"] = new TaskCompletionSource<IWritableOptions<int>>();
-        profiles.PendingProfiles["other"] = new TaskCompletionSource<IWritableOptions<int>>();
+        profiles.PendingProfiles["default"] = new TaskCompletionSource<IWritableState<int>>();
+        profiles.PendingProfiles["other"] = new TaskCompletionSource<IWritableState<int>>();
         profiles.ProfileOptions["last"] = new FakeOptions<int>(3);
         var values = new List<int>();
         using var subscription = profiles.ObserveActiveValues().Subscribe(values.Add);

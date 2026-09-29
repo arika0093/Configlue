@@ -1,6 +1,7 @@
 using Configlue;
 using Configlue.Source.Environment;
 using Configlue.Testing;
+using Configlue.Sources;
 
 namespace Configlue.Tests;
 
@@ -39,7 +40,7 @@ public sealed class DetailsSnapshotTests
                 })
             );
         });
-        var options = context.GetOptions<AppSettings>();
+        var options = context.GetState<AppSettings>();
         var details = await options.GetDetailsAsync();
 
         var overrideKey = details.RetryCount.Source!.Key;
@@ -75,7 +76,7 @@ public sealed class DetailsSnapshotTests
     public async Task GetDetailsAsync_ReportsModelDefaultsAsTheEditableBaseline()
     {
         var missing = new InMemoryStateStore<AppSettings.Fragment>();
-        await using var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(
+        await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([new("local", missing, writer: missing)])
         );
 
@@ -96,7 +97,7 @@ public sealed class DetailsSnapshotTests
     [Test]
     public async Task GetDetailsAsync_IncludesImplicitClrDefaults()
     {
-        await using var options = new ConfiglueOptions<
+        await using var options = new ConfiglueRuntime<
             ClrDefaultSettings,
             ClrDefaultSettings.Fragment
         >(
@@ -117,7 +118,7 @@ public sealed class DetailsSnapshotTests
     [Test]
     public async Task GetDetailsAsync_ReportsUnavailableSourcesInFallbackSnapshots()
     {
-        var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(
+        var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
                 new(
                     "remote-internal-id",
@@ -168,7 +169,7 @@ public sealed class DetailsSnapshotTests
                 "revision-1"
             )
         );
-        await using var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(
+        await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([new("counted", reader)])
         );
 
@@ -212,7 +213,7 @@ public sealed class DetailsSnapshotTests
                 });
             });
         });
-        var options = context.GetOptions<AppSettings>();
+        var options = context.GetState<AppSettings>();
         var details = await options.GetDetailsAsync();
 
         (details.RetryCount.Value).ShouldBe(9);
@@ -228,7 +229,7 @@ public sealed class DetailsSnapshotTests
             new AppSettings.Fragment { Label = Optional<string?>.Present("policy") }
         );
         var user = new InMemoryStateStore<AppSettings.Fragment>();
-        await using var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(
+        await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
                 new("policy", policy, priority: 100),
                 new("user", user, priority: 100, writer: user),
@@ -250,7 +251,7 @@ public sealed class DetailsSnapshotTests
             new AppSettings.Fragment { Label = Optional<string?>.Present("read-only") }
         );
         await using (
-            var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(
+            var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
                 new StateSourceSet<AppSettings.Fragment>([new("policy", readOnly)]),
                 StateWriteRoute.To("policy")
             )
@@ -261,7 +262,7 @@ public sealed class DetailsSnapshotTests
         }
 
         await using (
-            var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(
+            var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
                 new StateSourceSet<AppSettings.Fragment>([new("policy", readOnly)])
             )
         )
@@ -301,7 +302,7 @@ public sealed class DetailsSnapshotTests
                 )
             );
         });
-        var options = context.GetOptions<AppSettings>();
+        var options = context.GetState<AppSettings>();
         var details = await options.GetDetailsAsync();
 
         (details.Database!.Host.Value).ShouldBe("db.local");
@@ -342,7 +343,7 @@ public sealed class DetailsSnapshotTests
                 )
             );
         });
-        var options = context.GetOptions<OwnershipSettings>();
+        var options = context.GetState<OwnershipSettings>();
         var details = await options.GetDetailsAsync();
 
         (details.ArrayValues!.Value).ShouldBe(["a", "b"]);
@@ -356,7 +357,7 @@ public sealed class DetailsSnapshotTests
     [Test]
     public async Task GetDetailsAsync_ReportsCollectionOwnershipAndShadowing()
     {
-        var appendOptions = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(
+        var appendOptions = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
                 new(
                     "high-internal-id",
@@ -390,7 +391,7 @@ public sealed class DetailsSnapshotTests
             (details.Plugins.Sources[1].IsShadowed).ShouldBeFalse();
         }
 
-        var replaceOptions = new ConfiglueOptions<
+        var replaceOptions = new ConfiglueRuntime<
             ReplaceCollectionSettings,
             ReplaceCollectionSettings.Fragment
         >(
@@ -427,7 +428,7 @@ public sealed class DetailsSnapshotTests
         }
     }
 
-    private sealed class FixedReader<T>(StateReadResult<T> result) : IStateReader<T>
+    private sealed class FixedReader<T>(StateReadResult<T> result) : ISourceReader<T>
     {
         public ValueTask<StateReadResult<T>> ReadAsync(
             CancellationToken cancellationToken = default
@@ -438,7 +439,7 @@ public sealed class DetailsSnapshotTests
         }
     }
 
-    private sealed class CountingReader<T>(StateReadResult<T> result) : IStateReader<T>
+    private sealed class CountingReader<T>(StateReadResult<T> result) : ISourceReader<T>
     {
         private int _readCount;
 

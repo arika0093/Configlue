@@ -12,7 +12,7 @@ namespace Configlue.Resource.Http
         public System.TimeSpan RequestTimeout { get; init; }
         public string UpdatePath { get; init; }
     }
-    public sealed class HttpResourceReader : Configlue.Resources.IResourceIdentity, Configlue.Resources.IResourceReader, Configlue.State.IPipelineResourceReader, Configlue.State.IStateWatcher
+    public sealed class HttpResourceReader : Configlue.Resources.IResourceIdentity, Configlue.Resources.IResourceReader, Configlue.Sources.ISourceWatcher, Configlue.State.IPipelineResourceReader
     {
         public const string SchemaIdHeaderName = "Configlue-Schema-Id";
         public const string SchemaVersionHeaderName = "Configlue-Schema-Version";

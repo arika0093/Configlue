@@ -85,20 +85,29 @@ else
 }
 
 // Writes always target the explicit file; local and global files remain read-only fallbacks.
-await using var options = new ConfiglueOptions<SampleSetting, SampleSetting.Fragment>(
-    new StateSourceSet<SampleSetting.Fragment>(sources),
-    StateWriteRoute.To("explicit"),
-    onChangeDebounce: TimeSpan.Zero
+await using var context = ConfiglueApp.CreateContext(app =>
+    app.Add<SampleSetting>(model =>
+    {
+        model.Sources(sourceSet =>
+        {
+            foreach (var source in sources)
+            {
+                sourceSet.Add(source);
+            }
+        });
+        model.WriteRoute = StateWriteRoute.To("explicit");
+        model.OnChangeDebounce = TimeSpan.Zero;
+    })
 );
-var writable = (IWritableOptions<SampleSetting>)options;
+var writable = context.GetState<SampleSetting>();
 var current = await writable.GetValueAsync();
 PrintSettings(current);
 
 if (requestedName is not null)
 {
-    var explicitSource = ((IConfiglueSources<SampleSetting>)options).Source(
-        SourceKey<SampleSetting>.Named("explicit")
-    );
+    var explicitSource = context
+        .GetSources<SampleSetting>()
+        .Source(SourceKey<SampleSetting>.Named("explicit"));
     await explicitSource.ReplaceAsync(patch => patch.Name = requestedName);
     Console.WriteLine("Saved to the explicit settings file.");
     PrintSettings(await writable.GetValueAsync());

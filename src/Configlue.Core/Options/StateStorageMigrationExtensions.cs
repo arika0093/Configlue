@@ -9,7 +9,7 @@ public static class StateStorageMigrationExtensions
     /// the same migration ID; callers should coordinate concurrent runs when their journal lacks that capability.
     /// </summary>
     public static async ValueTask<StateStorageMigrationProgress> MigrateAsync<TModel, TFragment>(
-        this IConfiglueSources<TModel> options,
+        this IConfiglueSources<TModel> sources,
         StateStorageMigrationDefinition<TFragment> definition,
         IStateStorageMigrationJournal journal,
         CancellationToken cancellationToken = default
@@ -17,7 +17,7 @@ public static class StateStorageMigrationExtensions
         where TModel : IConfiglueModel<TModel, TFragment>
         where TFragment : class, IConfiglueFragment<TFragment>
     {
-        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(sources);
         ArgumentNullException.ThrowIfNull(definition);
         ArgumentNullException.ThrowIfNull(journal);
         cancellationToken.ThrowIfCancellationRequested();
@@ -58,7 +58,7 @@ public static class StateStorageMigrationExtensions
                             $"Migration source fragment '{fragment.GetType()}' is incompatible with '{typeof(TFragment)}'."
                         ),
             };
-            var result = await options
+            var result = await sources
                 .MigrateSourcesToTargetsAsync(definition.SourceIds, projections, cancellationToken)
                 .ConfigureAwait(false);
             if (sourceRevisionSnapshot is null)
@@ -101,7 +101,7 @@ public static class StateStorageMigrationExtensions
                     ),
                 StringComparer.Ordinal
             );
-            await options
+            await sources
                 .MigrateSourcesToTargetsAsync(
                     definition.SourceIds,
                     allProjections,

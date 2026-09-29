@@ -94,7 +94,7 @@ public sealed class FormatSectionResourceTests
                     new AppSettings.Fragment { RetryCount = Optional<int>.Present(99) }
                 )
             );
-            await using var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(
+            await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
                 new StateSourceSet<AppSettings.Fragment>([primarySource, fallbackSource])
             );
 
@@ -280,7 +280,7 @@ public sealed class FormatSectionResourceTests
             section,
             codec
         );
-        var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(
+        var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([source])
         );
 
@@ -313,7 +313,7 @@ public sealed class FormatSectionResourceTests
             section,
             new XmlStateCodec<AppSettings.Fragment>()
         );
-        await using var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(
+        await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([source])
         );
 
@@ -376,7 +376,7 @@ public sealed class FormatSectionResourceTests
             section,
             codec
         );
-        var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(
+        var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([source])
         );
 
@@ -412,7 +412,7 @@ public sealed class FormatSectionResourceTests
             section,
             new YamlStateCodec<AppSettings.Fragment>(modelSchema: AppSettings.FragmentSchema)
         );
-        await using var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(
+        await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([source])
         );
 
@@ -438,7 +438,7 @@ public sealed class FormatSectionResourceTests
             section,
             new YamlStateCodec<AppSettings.Fragment>(modelSchema: AppSettings.FragmentSchema)
         );
-        await using var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(
+        await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([source])
         );
 

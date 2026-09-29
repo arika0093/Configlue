@@ -10,7 +10,7 @@ public sealed class ConfiglueAppLifecycleTests
     {
         await ConfiglueApp.ShutdownAsync();
 
-        Should.Throw<InvalidOperationException>(() => ConfiglueApp.GetOptions<AppSettings>());
+        Should.Throw<InvalidOperationException>(() => ConfiglueApp.GetState<AppSettings>());
 
         await ConfiglueApp.ShutdownAsync();
     }
@@ -28,14 +28,14 @@ public sealed class ConfiglueAppLifecycleTests
                     model.Sources(sources => sources.Add(CreateSource("first", "first")))
                 );
             });
-            (await ConfiglueApp.GetOptions<AppSettings>().GetValueAsync()).Label.ShouldBe("first");
+            (await ConfiglueApp.GetState<AppSettings>().GetValueAsync()).Label.ShouldBe("first");
         }
         finally
         {
             await ConfiglueApp.ShutdownAsync();
         }
 
-        Should.Throw<InvalidOperationException>(() => ConfiglueApp.GetOptions<AppSettings>());
+        Should.Throw<InvalidOperationException>(() => ConfiglueApp.GetState<AppSettings>());
 
         try
         {
@@ -45,7 +45,7 @@ public sealed class ConfiglueAppLifecycleTests
                     model.Sources(sources => sources.Add(CreateSource("second", "second")))
                 );
             });
-            (await ConfiglueApp.GetOptions<AppSettings>().GetValueAsync()).Label.ShouldBe("second");
+            (await ConfiglueApp.GetState<AppSettings>().GetValueAsync()).Label.ShouldBe("second");
         }
         finally
         {

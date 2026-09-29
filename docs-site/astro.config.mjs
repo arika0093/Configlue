@@ -114,7 +114,7 @@ export default defineConfig({
               translations: { ja: 'プロファイルと名前付き設定' },
               items: [
                 'profiles/profiles',
-                'profiles/dynamic-options',
+                'profiles/dynamic-states',
               ],
             },
             {
@@ -159,7 +159,7 @@ export default defineConfig({
         {
           label: 'Design',
           translations: { ja: '設計' },
-          items: ['design/overview', 'design/options'],
+          items: ['design/overview', 'design/state'],
         },
         {
           label: 'Reference',

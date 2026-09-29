@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using Configlue.Resource.Zip;
+using Configlue.Sources;
 
 namespace Configlue.Source.Presets;
 
@@ -7,7 +8,7 @@ internal sealed class SingleBinaryEntryResource
     : IResourceReader,
         IPipelineResourceReader,
         IResourceWriter,
-        IStateWatcher,
+        ISourceWatcher,
         IResourceIdentity
 {
     private const int RevisionMapLimit = 8;

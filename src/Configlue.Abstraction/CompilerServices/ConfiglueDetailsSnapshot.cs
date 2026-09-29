@@ -37,7 +37,7 @@ public readonly record struct ConfigCollectionElementData
 }
 
 /// <summary>One internally consistent resolution snapshot backing generated configuration details.</summary>
-/// <remarks>Created by the options runtime; consumed by generated details trees without further source reads.</remarks>
+/// <remarks>Created by the state runtime; consumed by generated details trees without further source reads.</remarks>
 [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
 public sealed class ConfiglueDetailsSnapshot
 {

@@ -11,7 +11,7 @@ public sealed class MigrationJournalTests
             new AppSettings.Fragment { RetryCount = Optional<int>.Present(12) }
         );
         var target = new InMemoryStateStore<AppSettings.Fragment>();
-        await using var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(
+        await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
                 new("source", source, priority: 100),
                 new("target", target, priority: 0, writer: target),

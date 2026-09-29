@@ -73,11 +73,11 @@ import { Steps, Tabs, TabItem } from '@astrojs/starlight/components';
    <TabItem label="DI あり">
 
    ```csharp
-   public sealed class SettingsMigrator(IConfiglueSources<AppSettings> options)
+   public sealed class SettingsMigrator(IConfiglueSources<AppSettings> state)
    {
        public async Task MigrateAsync()
        {
-           var result = await options.MigrateSourceAsync("legacy-settings", "settings");
+           var result = await state.MigrateSourceAsync("legacy-settings", "settings");
            Console.WriteLine($"{result.SourceId} から {result.TargetId} へ移行が完了しました。");
        }
    }

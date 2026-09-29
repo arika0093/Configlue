@@ -30,7 +30,7 @@ await using var context = ConfiglueApp.CreateContext(builder =>
         });
     });
 });
-var options = context.GetOptions<SampleSetting>();
+var options = context.GetState<SampleSetting>();
 var current = await options.GetValueAsync();
 Console.WriteLine(
     $"Hello, {current.Name}. This is run {current.RunCount}. Database: {current.Database.Host}:{current.Database.Port}."

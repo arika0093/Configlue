@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
+using Configlue.Sources;
 using StackExchange.Redis;
 
 namespace Configlue.Resource.Redis;
@@ -16,7 +17,7 @@ public sealed class RedisResource
     : IResourceReader,
         IResourceWriter,
         IResourceIdentity,
-        IStateWatcher,
+        ISourceWatcher,
         IDisposable
 {
     private readonly Func<RouteKey, IConnectionMultiplexer>? _multiplexerResolver;

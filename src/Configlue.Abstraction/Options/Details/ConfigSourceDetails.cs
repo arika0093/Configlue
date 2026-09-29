@@ -24,7 +24,7 @@ public sealed class ConfigSourceDetails
         CanWatch = canWatch;
     }
 
-    /// <summary>An opaque stable key for matching this source across snapshots from one options instance. Not a source ID or display value.</summary>
+    /// <summary>An opaque stable key for matching this source across snapshots from one state instance. Not a source ID or display value.</summary>
     public string Key { get; }
 
     /// <summary>The source kind, such as <c>Environment</c>, <c>File</c>, <c>Http</c>, or <c>CommandLine</c>.</summary>

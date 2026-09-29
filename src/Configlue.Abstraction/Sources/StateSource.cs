@@ -16,11 +16,11 @@ public sealed class StateSource<T>
     /// views over the same resource. Sources without a locator receive a registration-scoped identity.
     /// </remarks>
     public StateSource(
-        IStateReader<T> reader,
+        ISourceReader<T> reader,
         int priority = 0,
         StateFallbackCondition fallbackCondition = StateFallbackCondition.NotFound,
-        IStateWriter<T>? writer = null,
-        IStateWatcher? watcher = null,
+        ISourceWriter<T>? writer = null,
+        ISourceWatcher? watcher = null,
         string? physicalOrigin = null,
         ResourceId? resourceId = null,
         string? logicalDescriptor = null,
@@ -48,11 +48,11 @@ public sealed class StateSource<T>
     /// <summary>Creates a source with at least a reader.</summary>
     public StateSource(
         string id,
-        IStateReader<T> reader,
+        ISourceReader<T> reader,
         int priority = 0,
         StateFallbackCondition fallbackCondition = StateFallbackCondition.NotFound,
-        IStateWriter<T>? writer = null,
-        IStateWatcher? watcher = null,
+        ISourceWriter<T>? writer = null,
+        ISourceWatcher? watcher = null,
         string? physicalOrigin = null,
         ResourceId? resourceId = null,
         bool explicitOnly = false,
@@ -91,13 +91,13 @@ public sealed class StateSource<T>
     public string Id { get; }
 
     /// <summary>The source reader.</summary>
-    public IStateReader<T> Reader { get; }
+    public ISourceReader<T> Reader { get; }
 
     /// <summary>The optional source writer.</summary>
-    public IStateWriter<T>? Writer { get; }
+    public ISourceWriter<T>? Writer { get; }
 
     /// <summary>The optional source change watcher.</summary>
-    public IStateWatcher? Watcher { get; }
+    public ISourceWatcher? Watcher { get; }
 
     /// <summary>Higher values are read first.</summary>
     public int Priority { get; }

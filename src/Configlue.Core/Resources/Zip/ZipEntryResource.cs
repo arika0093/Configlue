@@ -1,6 +1,7 @@
 using System.IO.Compression;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
+using Configlue.Sources;
 
 namespace Configlue.Resource.Zip;
 
@@ -9,7 +10,7 @@ public sealed class ZipEntryResource
     : IResourceReader,
         IPipelineResourceReader,
         IResourceWriter,
-        IStateWatcher,
+        ISourceWatcher,
         IResourceIdentity,
         IResourceBatchParticipant
 {
@@ -36,7 +37,7 @@ public sealed class ZipEntryResource
     private const string PresentEntryFingerprintPrefix = "present:";
     private readonly IResourceReader _archiveReader;
     private readonly IResourceBatchWriter? _archiveWriter;
-    private readonly IStateWatcher? _archiveWatcher;
+    private readonly ISourceWatcher? _archiveWatcher;
     private readonly string _entryName;
     private readonly Func<ConfiglueResourceContext, string>? _entryNameSelector;
     private readonly ResourceId _resourceId;
@@ -54,7 +55,7 @@ public sealed class ZipEntryResource
     public ZipEntryResource(
         IResourceReader archiveReader,
         string entryName,
-        IStateWatcher? archiveWatcher = null,
+        ISourceWatcher? archiveWatcher = null,
         ResourceId? resourceId = null
     )
         : this(
@@ -71,7 +72,7 @@ public sealed class ZipEntryResource
         IResourceReader archiveReader,
         ZipEntryResourceOptions options,
         string entryName,
-        IStateWatcher? archiveWatcher = null,
+        ISourceWatcher? archiveWatcher = null,
         ResourceId? resourceId = null
     )
         : this(
@@ -89,7 +90,7 @@ public sealed class ZipEntryResource
         IResourceReader archiveReader,
         string entryName,
         TimeSpan pollingInterval,
-        IStateWatcher? archiveWatcher = null,
+        ISourceWatcher? archiveWatcher = null,
         ResourceId? resourceId = null
     )
         : this(
@@ -106,7 +107,7 @@ public sealed class ZipEntryResource
         IResourceReader archiveReader,
         IResourceBatchWriter? archiveWriter,
         string entryName,
-        IStateWatcher? archiveWatcher = null,
+        ISourceWatcher? archiveWatcher = null,
         ResourceId? resourceId = null
     )
         : this(
@@ -124,7 +125,7 @@ public sealed class ZipEntryResource
         IResourceBatchWriter? archiveWriter,
         ZipEntryResourceOptions options,
         string entryName,
-        IStateWatcher? archiveWatcher = null,
+        ISourceWatcher? archiveWatcher = null,
         ResourceId? resourceId = null
     )
         : this(
@@ -143,7 +144,7 @@ public sealed class ZipEntryResource
         IResourceBatchWriter? archiveWriter,
         string entryName,
         TimeSpan pollingInterval,
-        IStateWatcher? archiveWatcher = null,
+        ISourceWatcher? archiveWatcher = null,
         ResourceId? resourceId = null
     )
         : this(
@@ -159,7 +160,7 @@ public sealed class ZipEntryResource
         IResourceReader archiveReader,
         IResourceBatchWriter? archiveWriter,
         string entryName,
-        IStateWatcher? archiveWatcher,
+        ISourceWatcher? archiveWatcher,
         ResourceId? resourceId,
         PollingOptions pollingOptions,
         ZipEntryResourceOptions? options = null
@@ -169,7 +170,7 @@ public sealed class ZipEntryResource
         _archiveReader = archiveReader;
         _archiveWriter = archiveWriter;
         _archiveWatcher =
-            archiveWatcher ?? archiveReader as IStateWatcher ?? archiveWriter as IStateWatcher;
+            archiveWatcher ?? archiveReader as ISourceWatcher ?? archiveWriter as ISourceWatcher;
         _entryName = NormalizeEntryName(entryName);
         _entryNameSelector = options?.EntryNameSelector;
         _configuredResourceId = resourceId;

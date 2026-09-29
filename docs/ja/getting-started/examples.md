@@ -7,7 +7,7 @@ description: リポジトリ同梱の実行可能なサンプルアプリ。
 
 ## ファイル保存のコンソールアプリ
 
-`Example.ConsoleApp` は `ConfiglueApp.CreateContext` で生成モデルを登録し、JSON ファイルリソースを `GetOptions<T>()` で読み書きします。
+`Example.ConsoleApp` は `ConfiglueApp.CreateContext` で生成モデルを登録し、JSON ファイルリソースを `GetState<T>()` で読み書きします。
 
 ```sh
 dotnet run --project example/Example.ConsoleApp
@@ -18,7 +18,7 @@ dotnet run --project example/Example.ConsoleApp -- --set-name Ada
 
 ## ファサードを使わない低レベル構成
 
-`Example.SimpleApp` は `ConfiglueApp` ファサードを使わず、`ConfiglueOptions<TModel, TFragment>` と `StateSourceSet<T>` を直接組み立てて同じ流れを示します。
+`Example.SimpleApp` は DI コンテナーを使わず、`ConfiglueApp.CreateContext` に `StateSource<T>` を登録して、`IWritableState<T>` から読み書きする流れを示します。
 
 ```sh
 dotnet run --project example/Example.SimpleApp

@@ -38,9 +38,9 @@ import { Steps } from '@astrojs/starlight/components';
 2. ### 有効値の変更を購読する
 
    ```csharp
-   var options = context.GetOptions<AppSettings>();
+   var state = context.GetState<AppSettings>();
 
-   using var subscription = options.OnChange(updated =>
+   using var subscription = state.OnChange(updated =>
        Console.WriteLine($"Port changed to {updated.Server.Port}"));
    ```
 

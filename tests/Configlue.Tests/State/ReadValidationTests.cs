@@ -3,6 +3,7 @@ using Configlue;
 using Configlue.Provider.Json;
 using Configlue.Source.Environment;
 using Configlue.Testing;
+using Configlue.Sources;
 
 namespace Configlue.Tests;
 
@@ -30,7 +31,7 @@ public sealed class ReadValidationTests
         {
             ["APP__RETRYCOUNT"] = "150",
         };
-        var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(
+        var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
                 EnvironmentStateSource.FromEnvironment<AppSettings, AppSettings.Fragment>(
                     "environment",
@@ -67,7 +68,7 @@ public sealed class ReadValidationTests
                 ),
             ]);
 
-        var strict = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(
+        var strict = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             sources(),
             readValidationMode: ReadValidationMode.StrictThrow
         );
@@ -78,7 +79,7 @@ public sealed class ReadValidationTests
             string.Join("; ", strictFailure.Failures).Contains("low", StringComparison.Ordinal)
         ).ShouldBeTrue();
 
-        var effective = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(
+        var effective = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             sources(),
             readValidationMode: ReadValidationMode.EffectiveThrow
         );
@@ -91,7 +92,7 @@ public sealed class ReadValidationTests
     [Test]
     public async Task IgnoreValue_DropsInvalidMembersAndKeepsTheRest()
     {
-        var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(
+        var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
                 new StateSource<AppSettings.Fragment>(
                     "layer",
@@ -117,7 +118,7 @@ public sealed class ReadValidationTests
     [Test]
     public async Task IgnoreValue_DropsOnlyInvalidNestedMember()
     {
-        var options = new ConfiglueOptions<ReadValidationRoot, ReadValidationRoot.Fragment>(
+        var options = new ConfiglueRuntime<ReadValidationRoot, ReadValidationRoot.Fragment>(
             new StateSourceSet<ReadValidationRoot.Fragment>([
                 new StateSource<ReadValidationRoot.Fragment>(
                     "nested-layer",
@@ -149,7 +150,7 @@ public sealed class ReadValidationTests
     {
         foreach (var mode in Enum.GetValues<ReadValidationMode>())
         {
-            var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(
+            var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
                 new StateSourceSet<AppSettings.Fragment>([
                     new StateSource<AppSettings.Fragment>(
                         "layer",
@@ -172,7 +173,7 @@ public sealed class ReadValidationTests
     [Test]
     public async Task StrictThrowRunsCustomValidatorsWhenDataAnnotationsAreDisabled()
     {
-        var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(
+        var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
                 new StateSource<AppSettings.Fragment>(
                     "layer",
@@ -199,7 +200,7 @@ public sealed class ReadValidationTests
     [Test]
     public async Task InvalidFallbackConditionContinuesToLowerPrioritySource()
     {
-        var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(
+        var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
                 new StateSource<AppSettings.Fragment>(
                     "invalid",
@@ -244,7 +245,7 @@ public sealed class ReadValidationTests
                 );
             });
         });
-        var options = (IConfiglueRuntimeOptions<AppSettings>)context.GetOptions<AppSettings>();
+        var options = (IConfiglueRuntimeState<AppSettings>)context.GetState<AppSettings>();
 
         ((await options.GetValueAsync()).RetryCount).ShouldBe(3);
     }
@@ -252,7 +253,7 @@ public sealed class ReadValidationTests
     [Test]
     public async Task InvalidStatus_FlowsThroughProvenanceWithoutThrowingOnRead()
     {
-        var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(
+        var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
                 new StateSource<AppSettings.Fragment>(
                     "invalid-layer",
@@ -270,7 +271,7 @@ public sealed class ReadValidationTests
 
         (result.Status).ShouldBe(StateReadStatus.Invalid);
         (result.SourceId).ShouldBe("invalid-layer");
-        var readable = (IConfiglueRuntimeOptions<AppSettings>)options;
+        var readable = (IConfiglueRuntimeState<AppSettings>)options;
         await Should.ThrowAsync<InvalidOperationException>(async () =>
             await readable.GetValueAsync()
         );
@@ -295,7 +296,7 @@ public sealed class ReadValidationTests
                 )
             );
         });
-        var options = (IConfiglueRuntimeOptions<AppSettings>)context.GetOptions<AppSettings>();
+        var options = (IConfiglueRuntimeState<AppSettings>)context.GetState<AppSettings>();
         var listenerCalls = 0;
         var failure = new TaskCompletionSource<Exception>(
             TaskCreationOptions.RunContinuationsAsynchronously
@@ -341,7 +342,7 @@ public sealed class ReadValidationTests
     }
 
     private sealed class StubReader(StateReadResult<AppSettings.Fragment> result)
-        : IStateReader<AppSettings.Fragment>
+        : ISourceReader<AppSettings.Fragment>
     {
         public ValueTask<StateReadResult<AppSettings.Fragment>> ReadAsync(
             CancellationToken cancellationToken = default

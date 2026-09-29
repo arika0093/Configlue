@@ -6,18 +6,18 @@ public sealed class ConfiglueSourceRegistrationContext<TModel>
     where TModel : IConfiglueFacadeModel<TModel>
 {
     internal ConfiglueSourceRegistrationContext(
-        string optionsName,
+        string stateName,
         IServiceProvider? services,
         ConfiglueSourceSetBuilder<TModel> sources
     )
     {
-        OptionsName = optionsName;
+        StateName = stateName;
         Services = services;
         Sources = sources;
     }
 
-    /// <summary>The named options instance being created.</summary>
-    public string OptionsName { get; }
+    /// <summary>The named state instance being created.</summary>
+    public string StateName { get; }
 
     /// <summary>Application services, or null for an independent context.</summary>
     public IServiceProvider? Services { get; }

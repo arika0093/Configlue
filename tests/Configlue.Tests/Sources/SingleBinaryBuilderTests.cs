@@ -19,23 +19,23 @@ public sealed class SingleBinaryBuilderTests
                 {
                     builder.Add<AppSettings>(storageKey: "app");
                     builder.Add<DatabaseSettings>(
-                        model => model.OptionsName = "local",
+                        model => model.StateName = "local",
                         storageKey: "database"
                     );
                     builder.Add<AppSettings>(
-                        model => model.OptionsName = "game",
+                        model => model.StateName = "game",
                         storageKey: "app"
                     );
                 }
             )
         )
         {
-            await context.GetOptions<AppSettings>().SaveAsync(settings => settings.RetryCount = 12);
+            await context.GetState<AppSettings>().SaveAsync(settings => settings.RetryCount = 12);
             await context
-                .GetOptions<AppSettings>("game")
+                .GetState<AppSettings>("game")
                 .SaveAsync(settings => settings.RetryCount = 24);
             await context
-                .GetOptions<DatabaseSettings>("local")
+                .GetState<DatabaseSettings>("local")
                 .SaveAsync(settings => settings.Port = 6543);
         }
 
@@ -45,16 +45,16 @@ public sealed class SingleBinaryBuilderTests
             {
                 builder.Add<AppSettings>(storageKey: "app");
                 builder.Add<DatabaseSettings>(
-                    model => model.OptionsName = "local",
+                    model => model.StateName = "local",
                     storageKey: "database"
                 );
-                builder.Add<AppSettings>(model => model.OptionsName = "game", storageKey: "app");
+                builder.Add<AppSettings>(model => model.StateName = "game", storageKey: "app");
             }
         );
 
-        (await reopened.GetOptions<AppSettings>().GetValueAsync()).RetryCount.ShouldBe(12);
-        (await reopened.GetOptions<AppSettings>("game").GetValueAsync()).RetryCount.ShouldBe(24);
-        (await reopened.GetOptions<DatabaseSettings>("local").GetValueAsync()).Port.ShouldBe(6543);
+        (await reopened.GetState<AppSettings>().GetValueAsync()).RetryCount.ShouldBe(12);
+        (await reopened.GetState<AppSettings>("game").GetValueAsync()).RetryCount.ShouldBe(24);
+        (await reopened.GetState<DatabaseSettings>("local").GetValueAsync()).Port.ShouldBe(6543);
 
         using var stream = File.OpenRead(path);
         using var archive = new ZipArchive(stream, ZipArchiveMode.Read);
@@ -87,7 +87,7 @@ public sealed class SingleBinaryBuilderTests
             )
         )
         {
-            var profiles = context.GetProfiledOptions<AppSettings>();
+            var profiles = context.GetProfiledState<AppSettings>();
             (await profiles.GetProfileNamesAsync()).ShouldContain("default");
             var defaultProfile = await profiles.GetProfileAsync("default");
             await defaultProfile.SaveAsync(settings => settings.RetryCount = 7);
@@ -104,11 +104,11 @@ public sealed class SingleBinaryBuilderTests
                 binary.Add<AppSettings>(storageKey: "app");
             })
         );
-        var reopenedProfiles = reopened.GetProfiledOptions<AppSettings>();
+        var reopenedProfiles = reopened.GetProfiledState<AppSettings>();
         (await reopenedProfiles.GetProfileNamesAsync()).ShouldContain("work");
         (await reopenedProfiles.GetActiveProfileNameAsync()).ShouldBe("work");
-        (await reopened.GetOptions<AppSettings>("default").GetValueAsync()).RetryCount.ShouldBe(7);
-        (await reopened.GetOptions<AppSettings>("work").GetValueAsync()).RetryCount.ShouldBe(19);
+        (await reopened.GetState<AppSettings>("default").GetValueAsync()).RetryCount.ShouldBe(7);
+        (await reopened.GetState<AppSettings>("work").GetValueAsync()).RetryCount.ShouldBe(19);
     }
 
     [Test]
@@ -127,7 +127,7 @@ public sealed class SingleBinaryBuilderTests
             )
         )
         {
-            await context.GetOptions<AppSettings>().SaveAsync(settings => settings.RetryCount = 42);
+            await context.GetState<AppSettings>().SaveAsync(settings => settings.RetryCount = 42);
         }
 
         var encrypted = await File.ReadAllBytesAsync(path);
@@ -140,7 +140,7 @@ public sealed class SingleBinaryBuilderTests
                 binary.Add<AppSettings>(storageKey: "app");
             })
         );
-        (await reopened.GetOptions<AppSettings>().GetValueAsync()).RetryCount.ShouldBe(42);
+        (await reopened.GetState<AppSettings>().GetValueAsync()).RetryCount.ShouldBe(42);
     }
 
     [Test]
@@ -160,7 +160,7 @@ public sealed class SingleBinaryBuilderTests
             )
         )
         {
-            await context.GetOptions<AppSettings>().SaveAsync(settings => settings.RetryCount = 53);
+            await context.GetState<AppSettings>().SaveAsync(settings => settings.RetryCount = 53);
         }
 
         await using var reopened = ConfiglueApp.CreateContext(configure =>
@@ -170,7 +170,7 @@ public sealed class SingleBinaryBuilderTests
                 binary.Add<AppSettings>(storageKey: "app");
             })
         );
-        (await reopened.GetOptions<AppSettings>().GetValueAsync()).RetryCount.ShouldBe(53);
+        (await reopened.GetState<AppSettings>().GetValueAsync()).RetryCount.ShouldBe(53);
     }
 
     [Test]
@@ -190,7 +190,7 @@ public sealed class SingleBinaryBuilderTests
             )
         )
         {
-            await context.GetOptions<AppSettings>().SaveAsync(settings => settings.RetryCount = 54);
+            await context.GetState<AppSettings>().SaveAsync(settings => settings.RetryCount = 54);
         }
 
         await using var reopened = ConfiglueApp.CreateContext(configure =>
@@ -200,7 +200,7 @@ public sealed class SingleBinaryBuilderTests
                 binary.Add<AppSettings>(storageKey: "app");
             })
         );
-        (await reopened.GetOptions<AppSettings>().GetValueAsync()).RetryCount.ShouldBe(54);
+        (await reopened.GetState<AppSettings>().GetValueAsync()).RetryCount.ShouldBe(54);
     }
 
     [Test]
@@ -217,8 +217,8 @@ public sealed class SingleBinaryBuilderTests
             })
         );
 
-        var app = context.GetRuntimeOptions<AppSettings>();
-        var database = context.GetRuntimeOptions<DatabaseSettings>();
+        var app = context.GetRuntimeState<AppSettings>();
+        var database = context.GetRuntimeState<DatabaseSettings>();
         await app.SaveAsync(settings => settings.RetryCount = 60);
         using var appEdit = await app.OpenEditSessionAsync();
         using var databaseEdit = await database.OpenEditSessionAsync();

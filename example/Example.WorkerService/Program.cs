@@ -10,7 +10,7 @@ var builder = Host.CreateApplicationBuilder(args);
 
 // The host owns and disposes the file resource registered as a singleton.
 builder.Services.AddSingleton(_ => new FileResource(settingsPath));
-builder.Services.AddConfiglueOptions<SampleSetting, SampleSetting.Fragment>(
+builder.Services.AddConfiglueState<SampleSetting, SampleSetting.Fragment>(
     provider =>
     {
         var resource = provider.GetRequiredService<FileResource>();

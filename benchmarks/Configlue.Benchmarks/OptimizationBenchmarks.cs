@@ -66,7 +66,7 @@ public partial class SaveRoutingBenchmarkSettings
 [MemoryDiagnoser]
 public class ReadValidationBenchmarks
 {
-    private ConfiglueOptions<
+    private ConfiglueRuntime<
         OptimizationBenchmarkSettings,
         OptimizationBenchmarkSettings.Fragment
     > _options = null!;
@@ -89,11 +89,11 @@ public class ReadValidationBenchmarks
             new StateSource<OptimizationBenchmarkSettings.Fragment>("benchmark", store),
         ]);
         _options = Validate
-            ? new ConfiglueOptions<
+            ? new ConfiglueRuntime<
                 OptimizationBenchmarkSettings,
                 OptimizationBenchmarkSettings.Fragment
             >(sourceSet, validators: [new MarkerValidator()], validateDataAnnotations: true)
-            : new ConfiglueOptions<
+            : new ConfiglueRuntime<
                 OptimizationBenchmarkSettings,
                 OptimizationBenchmarkSettings.Fragment
             >(sourceSet, validateDataAnnotations: false);
@@ -115,7 +115,7 @@ public class ReadValidationBenchmarks
 [MemoryDiagnoser]
 public class LayeredResolutionFallbackBenchmarks
 {
-    private ConfiglueOptions<
+    private ConfiglueRuntime<
         OptimizationBenchmarkSettings,
         OptimizationBenchmarkSettings.Fragment
     > _options = null!;
@@ -152,7 +152,7 @@ public class LayeredResolutionFallbackBenchmarks
                 );
             })
             .ToArray();
-        _options = new ConfiglueOptions<
+        _options = new ConfiglueRuntime<
             OptimizationBenchmarkSettings,
             OptimizationBenchmarkSettings.Fragment
         >(new StateSourceSet<OptimizationBenchmarkSettings.Fragment>(sources));
@@ -207,7 +207,7 @@ public class FragmentMergeBenchmarks
 [MemoryDiagnoser]
 public class NestedModelReadBenchmarks
 {
-    private ConfiglueOptions<OptimizationRootSettings, OptimizationRootSettings.Fragment> _options =
+    private ConfiglueRuntime<OptimizationRootSettings, OptimizationRootSettings.Fragment> _options =
         null!;
 
     [GlobalSetup]
@@ -226,7 +226,7 @@ public class NestedModelReadBenchmarks
                 ),
             }
         );
-        _options = new ConfiglueOptions<
+        _options = new ConfiglueRuntime<
             OptimizationRootSettings,
             OptimizationRootSettings.Fragment
         >(
@@ -246,9 +246,9 @@ public class NestedModelReadBenchmarks
 [MemoryDiagnoser]
 public class CollectionMergeBenchmarks
 {
-    private ConfiglueOptions<AppendCollectionSettings, AppendCollectionSettings.Fragment> _append =
+    private ConfiglueRuntime<AppendCollectionSettings, AppendCollectionSettings.Fragment> _append =
         null!;
-    private ConfiglueOptions<
+    private ConfiglueRuntime<
         SetUnionCollectionSettings,
         SetUnionCollectionSettings.Fragment
     > _setUnion = null!;
@@ -259,10 +259,10 @@ public class CollectionMergeBenchmarks
     [GlobalSetup]
     public void Setup()
     {
-        _append = new ConfiglueOptions<AppendCollectionSettings, AppendCollectionSettings.Fragment>(
+        _append = new ConfiglueRuntime<AppendCollectionSettings, AppendCollectionSettings.Fragment>(
             new StateSourceSet<AppendCollectionSettings.Fragment>(CreateAppendSources())
         );
-        _setUnion = new ConfiglueOptions<
+        _setUnion = new ConfiglueRuntime<
             SetUnionCollectionSettings,
             SetUnionCollectionSettings.Fragment
         >(new StateSourceSet<SetUnionCollectionSettings.Fragment>(CreateSetUnionSources()));
@@ -330,11 +330,11 @@ public class CollectionMergeBenchmarks
 [MemoryDiagnoser]
 public class SaveRoutingBenchmarks
 {
-    private ConfiglueOptions<
+    private ConfiglueRuntime<
         SaveRoutingBenchmarkSettings,
         SaveRoutingBenchmarkSettings.Fragment
     > _single = null!;
-    private ConfiglueOptions<
+    private ConfiglueRuntime<
         SaveRoutingBenchmarkSettings,
         SaveRoutingBenchmarkSettings.Fragment
     > _multi = null!;
@@ -351,7 +351,7 @@ public class SaveRoutingBenchmarks
                 Name = Optional<string>.Present("single"),
             }
         );
-        _single = new ConfiglueOptions<
+        _single = new ConfiglueRuntime<
             SaveRoutingBenchmarkSettings,
             SaveRoutingBenchmarkSettings.Fragment
         >(
@@ -374,7 +374,7 @@ public class SaveRoutingBenchmarks
         var right = new InMemoryStateStore<SaveRoutingBenchmarkSettings.Fragment>(
             new SaveRoutingBenchmarkSettings.Fragment { Name = Optional<string>.Present("right") }
         );
-        _multi = new ConfiglueOptions<
+        _multi = new ConfiglueRuntime<
             SaveRoutingBenchmarkSettings,
             SaveRoutingBenchmarkSettings.Fragment
         >(
@@ -471,7 +471,7 @@ public class JsonSectionBenchmarks
     private string _directory = null!;
     private FileResource _file = null!;
     private SerializedStateReader<OptimizationBenchmarkSettings.Fragment> _reader = null!;
-    private ConfiglueOptions<
+    private ConfiglueRuntime<
         OptimizationBenchmarkSettings,
         OptimizationBenchmarkSettings.Fragment
     > _options = null!;
@@ -507,7 +507,7 @@ public class JsonSectionBenchmarks
             section,
             codec
         );
-        _options = new ConfiglueOptions<
+        _options = new ConfiglueRuntime<
             OptimizationBenchmarkSettings,
             OptimizationBenchmarkSettings.Fragment
         >(
@@ -571,7 +571,7 @@ public class EnvironmentSourceBenchmarks
 public class CommandLineSourceBenchmarks
 {
     private ConfiglueContext _context = null!;
-    private IWritableOptions<OptimizationBenchmarkSettings> _options = null!;
+    private IWritableState<OptimizationBenchmarkSettings> _options = null!;
 
     [GlobalSetup]
     public void Setup()
@@ -596,7 +596,7 @@ public class CommandLineSourceBenchmarks
                 )
             );
         });
-        _options = _context.GetOptions<OptimizationBenchmarkSettings>();
+        _options = _context.GetState<OptimizationBenchmarkSettings>();
     }
 
     [GlobalCleanup]
@@ -611,7 +611,7 @@ public class FileBackupBenchmarks
 {
     private string _directory = null!;
     private FileResource _resource = null!;
-    private ConfiglueOptions<
+    private ConfiglueRuntime<
         OptimizationBenchmarkSettings,
         OptimizationBenchmarkSettings.Fragment
     > _options = null!;
@@ -642,7 +642,7 @@ public class FileBackupBenchmarks
             new JsonStateCodec<OptimizationBenchmarkSettings.Fragment>(),
             physicalOrigin: path
         );
-        _options = new ConfiglueOptions<
+        _options = new ConfiglueRuntime<
             OptimizationBenchmarkSettings,
             OptimizationBenchmarkSettings.Fragment
         >(new StateSourceSet<OptimizationBenchmarkSettings.Fragment>([source]));

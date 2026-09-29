@@ -8,7 +8,7 @@ description: Find the NuGet package for each Configlue capability.
 | `Configlue` | Batteries-included package: common layered and single-binary presets plus Core, DI integration, JSON provider, JSON Schema export, HTTP resources, environment source, AES helpers, and the generator analyzer. |
 | `Configlue.Abstraction` | Provider, codec, resource, and generated-model contracts. |
 | `Configlue.Core` | Serializer-neutral state resolution runtime, provider-authoring helpers, ZIP resources, and common file-preset SPI. |
-| `Configlue.Extensions.DI` | Dependency-injection registration for Configlue options. |
+| `Configlue.Extensions.DI` | Dependency-injection registration for Configlue state. |
 | `Configlue.Extensions.MSOptions` | Optional adapters for Microsoft's options interfaces. |
 | `Configlue.Extensions.R3` | Optional R3 observables for composing values, profiles, and reload signals. |
 | `Configlue.Generator` | Generated sparse model support (Roslyn analyzer). |

@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using Configlue.Testing;
+using Configlue.Sources;
 
 namespace Configlue.Tests;
 
@@ -26,7 +27,7 @@ public sealed class AsyncProfileSubscriptionTests
             }
             return await store.ReadAsync(token);
         });
-        await using var manager = new ConfiglueProfiledOptions<AppSettings, AppSettings.Fragment>(
+        await using var manager = new ConfiglueProfiledState<AppSettings, AppSettings.Fragment>(
             registry,
             new StateSource<ConfiglueProfileCatalog>("catalog", reader, writer: store)
         );
@@ -179,7 +180,7 @@ public sealed class AsyncProfileSubscriptionTests
     private static ConfiglueProfileCatalog Catalog() =>
         new() { ProfileNames = ["default", "Work", "Other"], ActiveProfileName = "default" };
 
-    private static ConfiglueProfiledOptions<AppSettings, AppSettings.Fragment> CreateManager(
+    private static ConfiglueProfiledState<AppSettings, AppSettings.Fragment> CreateManager(
         TestRegistry registry
     )
     {
@@ -192,14 +193,14 @@ public sealed class AsyncProfileSubscriptionTests
 
     private sealed class CatalogReader(
         Func<CancellationToken, ValueTask<StateReadResult<ConfiglueProfileCatalog>>> read
-    ) : IStateReader<ConfiglueProfileCatalog>
+    ) : ISourceReader<ConfiglueProfileCatalog>
     {
         public ValueTask<StateReadResult<ConfiglueProfileCatalog>> ReadAsync(
             CancellationToken cancellationToken = default
         ) => read(cancellationToken);
     }
 
-    private sealed class TestOptions : IWritableOptions<AppSettings>
+    private sealed class TestOptions : IWritableState<AppSettings>
     {
         private readonly object _gate = new();
         private Action<AppSettings>? _listeners;
@@ -262,24 +263,24 @@ public sealed class AsyncProfileSubscriptionTests
         public void Dispose() => Interlocked.Exchange(ref _detach, null)?.Invoke();
     }
 
-    private sealed class TestRegistry : IConfiglueOptionsRegistry<AppSettings>
+    private sealed class TestRegistry : IConfiglueStateRegistry<AppSettings>
     {
         public TestOptions Default { get; } = new();
         public TestOptions Work { get; } = new();
         public TestOptions Other { get; } = new();
-        public IReadOnlyCollection<string> ProfileNames => new[] { "default", "Work", "Other" };
-        public event Action<string, IWritableOptions<AppSettings>>? ProfileAdded
+        public IReadOnlyCollection<string> StateNames => new[] { "default", "Work", "Other" };
+        public event Action<string, IWritableState<AppSettings>>? StateAdded
         {
             add { }
             remove { }
         }
-        public event Action<string>? ProfileRemoved
+        public event Action<string>? StateRemoved
         {
             add { }
             remove { }
         }
 
-        public IWritableOptions<AppSettings> Get(string profileName) =>
+        public IWritableState<AppSettings> Get(string profileName) =>
             profileName switch
             {
                 "default" => Default,
@@ -288,7 +289,7 @@ public sealed class AsyncProfileSubscriptionTests
                 _ => throw new KeyNotFoundException(),
             };
 
-        public bool TryGet(string profileName, out IWritableOptions<AppSettings>? options)
+        public bool TryGet(string profileName, out IWritableState<AppSettings>? options)
         {
             options = profileName is "default" or "Work" or "Other" ? Get(profileName) : null;
             return options is not null;

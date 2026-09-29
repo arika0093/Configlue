@@ -32,7 +32,7 @@ import { Steps } from '@astrojs/starlight/components';
 2. ### 入れ子の項目だけを保存する
 
    ```csharp
-   await options.SaveAsync(patch =>
+   await state.SaveAsync(patch =>
    {
        patch.Server.Port = 9000;
    });
@@ -43,7 +43,7 @@ import { Steps } from '@astrojs/starlight/components';
 3. ### コレクションを置き換える
 
    ```csharp
-   await options.SaveAsync(patch =>
+   await state.SaveAsync(patch =>
    {
        patch.EnabledFeatures = ["audit-log", "metrics"];
    });

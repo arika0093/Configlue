@@ -3,13 +3,13 @@ title: アプリケーション構成
 description: 非 DI コンテキスト、DI 登録、所有権、名前付きインスタンス。
 ---
 
-`conf.Add<TModel>(...)` は 1 つのモデルを定義します（ソース、書き込み経路、バリデーター、オプション名）。
+`conf.Add<TModel>(...)` は 1 つのモデルを定義します（ソース、書き込み経路、バリデーター、state 名）。
 同じ定義が下記の両構成で動作します。
 
 ## DI なし
 
 `ConfiglueApp.CreateContext(...)` は、独立したライフサイクル管理付きコンテキストを作成します。
-`ConfiglueApp.Initialize(...)` と `ConfiglueApp.GetOptions<T>()` は、プロセス全体の既定コンテキストを共有します。
+`ConfiglueApp.Initialize(...)` と `ConfiglueApp.GetState<T>()` は、プロセス全体の既定コンテキストを共有します。
 破棄は `await ConfiglueApp.ShutdownAsync()` を呼び出します。
 
 ```csharp
@@ -24,13 +24,13 @@ await using var context = ConfiglueApp.CreateContext(conf =>
     });
 });
 
-var options = context.GetOptions<UserSettings>();
+var state = context.GetState<UserSettings>();
 ```
 
-`ConfiglueContext` は作成したオプションとウォッチャータスクを所有します。
+`ConfiglueContext` は作成した state とウォッチャータスクを所有します。
 アプリが渡したソース・リーダー・ライター・リソースのインスタンスは呼び出し側所有のまま維持されます。
 ただし `FromJsonFile` などのプロバイダー登録ヘルパーが作成したリソースはコンテキスト所有となり、ウォッチャー停止後に破棄されます。
-名前付きインスタンスを扱う場合は、モデルコールバックで `OptionsName` を設定します。
+名前付きインスタンスを扱う場合は、モデルコールバックで `StateName` を設定します。
 
 ## DI あり
 
@@ -45,7 +45,7 @@ builder.Services.AddConfiglue(conf => conf.Add<UserSettings>(model =>
 ```
 
 コンテキストはサービスプロバイダーが所有します。
-コンポーネントには `IReadOnlyOptions<T>` または `IWritableOptions<T>` を注入してください。
+コンポーネントには `IReadOnlyState<T>` または `IWritableState<T>` を注入してください。
 クラスモデル向けの `IOptions<T>` / `IOptionsSnapshot<T>` / `IOptionsMonitor<T>` を使う場合は、`Configlue.Extensions.MSOptions` パッケージを追加し、モデル登録後に明示的に登録します。
 
 ```csharp
@@ -68,15 +68,15 @@ model.ConfigureSources(registration =>
 
 既に実体化された `IOptionsSnapshot<T>` は通常のスナップショット通り、そのスコープの値を保持します。
 
-ファサードは、モデル本体を同期スナップショットとして DI 登録しません。通常は `IReadOnlyOptions<T>` または `IWritableOptions<T>` を注入し、非同期で値を読みます。Microsoft の同期 Options API が必要なフレームワークでは、前述の MSOptions アダプターを明示的に追加します。
+ファサードは、モデル本体を同期スナップショットとして DI 登録しません。通常は `IReadOnlyState<T>` または `IWritableState<T>` を注入し、非同期で値を読みます。Microsoft の同期 Options API が必要なフレームワークでは、前述の MSOptions アダプターを明示的に追加します。
 
-DI で独自ソースを使う場合は `AddConfiglueOptions<TModel, TFragment>` の `(provider, sources) => ...` オーバーロードでサービスを解決し、`sources.Add(id, reader, priority, fallbackCondition)` で追加します。リーダーが実装するライター/ウォッチャーインターフェイスは自動検出され、分離型には `WithWriter` / `WithWatcher` を使います。コールバックはオプションシングルトン生成時に実行され、完全独自ライフサイクルには `Sources(sources => sources.Add(existingSource))` も使えます。
+DI で独自ソースを使う場合は `AddConfiglueState<TModel, TFragment>` の `(provider, sources) => ...` オーバーロードでサービスを解決し、`sources.Add(id, reader, priority, fallbackCondition)` で追加します。リーダーが実装するライター/ウォッチャーインターフェイスは自動検出され、分離型には `WithWriter` / `WithWatcher` を使います。コールバックは state シングルトン生成時に実行され、完全独自ライフサイクルには `Sources(sources => sources.Add(existingSource))` も使えます。
 
 ```csharp
 using Configlue.Sources;
 
 services.AddSingleton<UserSettingsSource>();
-services.AddConfiglueOptions<AppConfig, AppConfig.Fragment>(
+services.AddConfiglueState<AppConfig, AppConfig.Fragment>(
     (provider, sources) =>
     {
         sources.Add(
@@ -91,7 +91,7 @@ services.AddConfiglueOptions<AppConfig, AppConfig.Fragment>(
 
 ## Subject ごとのモデル
 
-現在の値がリクエスト、ユーザー、テナントなどのアプリケーションコンテキストに依存するモデルでは、`model.PerSubject<TAccessor>()` を指定します。アクセサーはアプリ側で DI 登録します。scoped な `IReadOnlyOptions<T>` / `IWritableOptions<T>` は、読み取りと保存のたびにアクセサーから現在の subject を取得します。アクセサーはモデル登録ごとに選択でき、`PerSubject` を指定しないモデルは通常どおりシングルトンです。
+現在の値がリクエスト、ユーザー、テナントなどのアプリケーションコンテキストに依存するモデルでは、`model.PerSubject<TAccessor>()` を指定します。アクセサーはアプリ側で DI 登録します。scoped な `IReadOnlyState<T>` / `IWritableState<T>` は、読み取りと保存のたびにアクセサーから現在の subject を取得します。アクセサーはモデル登録ごとに選択でき、`PerSubject` を指定しないモデルは通常どおりシングルトンです。
 
 ```csharp
 services.AddScoped<CurrentTenantAccessor>();
@@ -108,7 +108,7 @@ services.AddConfiglue(conf =>
 });
 ```
 
-`CurrentTenantAccessor` は `IConfiglueSubjectAccessor<TenantSubject>` を実装し、`GetCurrentAsync` から `TenantSubject : IConfiglueSubject` を返します。アクセサーはアプリ側で管理し、非同期サービスも利用できます。`ISubjectOptions<T>` は明示的な subject view を得るシングルトン入口として残り、`.For(subject)` で使います。検査、診断、ソース管理、編集セッションは共有ランタイムに対するサービスとして動作します。
+`CurrentTenantAccessor` は `IConfiglueSubjectAccessor<TenantSubject>` を実装し、`GetCurrentAsync` から `TenantSubject : IConfiglueSubject` を返します。アクセサーはアプリ側で管理し、非同期サービスも利用できます。`ISubjectState<T>` は明示的な subject view を得るシングルトン入口として残り、`.ForSubject(subject)` で使います。検査、診断、ソース管理、編集セッションは共有ランタイムに対するサービスとして動作します。
 
 アクセサーに `IConfiglueSubjectChangeSource` も実装すると、通知を受けた `OnChange` 購読が subject を再解決し、その subject の watcher に接続し直します。認証状態などが同じスコープ内で変わる場合に使えます。この任意インターフェイスを実装しない場合、watcher は購読開始時に解決した subject を監視し続けます。
 
@@ -123,7 +123,7 @@ services.AddBlazorAuthenticationConfiglueSubjectAccessor<TenantSubject>(
         new TenantSubject(principal.FindFirst("tenant")!.Value)));
 ```
 
-モデルには `PerSubject<HttpContextConfiglueSubjectAccessor<TenantSubject>>()` または `PerSubject<BlazorAuthenticationConfiglueSubjectAccessor<TenantSubject>>()` を指定します。Blazor アクセサーは認証状態の変更を通知するため、既存の options watcher も新しい subject に追従します。
+モデルには `PerSubject<HttpContextConfiglueSubjectAccessor<TenantSubject>>()` または `PerSubject<BlazorAuthenticationConfiglueSubjectAccessor<TenantSubject>>()` を指定します。Blazor アクセサーは認証状態の変更を通知するため、既存の state watcher も新しい subject に追従します。
 
 ## 独自バリデーター
 

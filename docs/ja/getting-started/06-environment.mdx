@@ -35,8 +35,8 @@ import { Steps } from '@astrojs/starlight/components';
 3. ### 保存前に上書き状態を調べる
 
    ```csharp
-   var options = context.GetOptions<AppSettings>();
-   var details = await options.GetDetailsAsync();
+   var state = context.GetState<AppSettings>();
+   var details = await state.GetDetailsAsync();
 
    Console.WriteLine(details.Server.Port.Value);
    Console.WriteLine(details.Server.Port.IsEditable);

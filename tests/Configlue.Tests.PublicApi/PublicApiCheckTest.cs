@@ -151,7 +151,7 @@ public sealed class PublicApiCheckTest
     [Test]
     public void Core() =>
         PublicApiCheck.CheckAssembly(
-            typeof(ConfiglueOptions<,>).Assembly,
+            typeof(ConfiglueApp).Assembly,
             "Configlue.Core",
             static type =>
                 type.Namespace != "Configlue.Extensibility"

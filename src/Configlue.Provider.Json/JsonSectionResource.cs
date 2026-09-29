@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Configlue.Sources;
 
 namespace Configlue.Provider.Json;
 
@@ -7,14 +8,14 @@ public sealed class JsonSectionResource
     : IResourceReader,
         IPipelineResourceReader,
         IResourceWriter,
-        IStateWatcher,
+        ISourceWatcher,
         IResourceIdentity,
         IResourceBatchParticipant,
         IResourceBackupRecovery
 {
     private readonly IResourceReader _reader;
     private readonly IResourceWriter? _writer;
-    private readonly IStateWatcher? _watcher;
+    private readonly ISourceWatcher? _watcher;
     private readonly string[] _path;
     private readonly string _batchScope;
     private readonly ResourceId? _configuredResourceId;
@@ -36,7 +37,7 @@ public sealed class JsonSectionResource
             resource,
             resource as IResourceWriter,
             sectionPath,
-            resource as IStateWatcher,
+            resource as ISourceWatcher,
             serializerOptions,
             resourceId
         ) { }
@@ -46,7 +47,7 @@ public sealed class JsonSectionResource
         IResourceReader reader,
         IResourceWriter? writer,
         string sectionPath,
-        IStateWatcher? watcher = null,
+        ISourceWatcher? watcher = null,
         JsonSerializerOptions? serializerOptions = null,
         ResourceId? resourceId = null
     )
@@ -64,7 +65,7 @@ public sealed class JsonSectionResource
         IResourceReader reader,
         IResourceWriter? writer,
         string sectionPath,
-        IStateWatcher? watcher,
+        ISourceWatcher? watcher,
         JsonSerializerOptions? serializerOptions,
         ResourceId? resourceId,
         byte[] schemaShape
@@ -83,7 +84,7 @@ public sealed class JsonSectionResource
         IResourceReader reader,
         IResourceWriter? writer,
         string[] path,
-        IStateWatcher? watcher,
+        ISourceWatcher? watcher,
         JsonSerializerOptions? serializerOptions,
         ResourceId? resourceId,
         byte[] schemaShape
@@ -128,7 +129,7 @@ public sealed class JsonSectionResource
     internal static JsonSectionResource CreateRoot(
         IResourceReader reader,
         IResourceWriter? writer,
-        IStateWatcher? watcher,
+        ISourceWatcher? watcher,
         JsonSerializerOptions? serializerOptions,
         ResourceId? resourceId,
         byte[] schemaShape

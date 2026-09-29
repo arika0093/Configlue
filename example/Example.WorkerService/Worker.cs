@@ -5,7 +5,7 @@ using Microsoft.Extensions.Logging;
 namespace Example.WorkerService;
 
 internal sealed class Worker(
-    IWritableOptions<SampleSetting> settings,
+    IWritableState<SampleSetting> settings,
     IConfiglueEditSessions<SampleSetting> editSessions,
     ILogger<Worker> logger
 ) : BackgroundService

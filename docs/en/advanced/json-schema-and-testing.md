@@ -21,7 +21,7 @@ To restore the legacy `--cw-generate-json-schema <directory>` startup path, coll
 
 ```csharp
 var config = new ConfiglueBuilder();
-config.Add<AppSettings>(_ => { /* register sources and options */ });
+config.Add<AppSettings>(_ => { /* register sources and state */ });
 
 if (JsonSchemaGenerator.TryWriteFromCommandLine(
     args,

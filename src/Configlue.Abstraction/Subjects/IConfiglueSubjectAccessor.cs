@@ -1,6 +1,6 @@
 namespace Configlue;
 
-/// <summary>Resolves the current application-defined subject for a scoped options operation.</summary>
+/// <summary>Resolves the current application-defined subject for a scoped state operation.</summary>
 public interface IConfiglueSubjectAccessor
 {
     /// <summary>Asynchronously resolves the current subject as the common Configlue contract.</summary>

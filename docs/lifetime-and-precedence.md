@@ -7,13 +7,13 @@ the public surface.
 
 `ConfiglueApp.Initialize(...)` configures one process-wide default context for CLI
 tools and small applications where explicit context propagation adds ceremony.
-`ConfiglueApp.GetOptions<T>()` (and the inspection, edit-session, diagnostics, and
+`ConfiglueApp.GetState<T>()` (and the inspection, edit-session, diagnostics, and
 sources accessors) resolve handles from that context. `await
 ConfiglueApp.ShutdownAsync()` disposes the context and clears it.
 
 The lifecycle is deliberately strict and test friendly:
 
-- Accessing `GetOptions<T>()` before `Initialize` throws `InvalidOperationException`.
+- Accessing `GetState<T>()` before `Initialize` throws `InvalidOperationException`.
 - Initializing while a default context is already active throws
   `InvalidOperationException`; the newly built context is disposed rather than leaked.
 - `ShutdownAsync` is idempotent. Calling it with no active context completes without
@@ -32,7 +32,7 @@ block on source I/O. Reads and writes stay asynchronous through the resolved han
 libraries, multiple simultaneous environments, and scoped or composable lifetimes.
 Contexts are isolated from one another and from the process-wide default.
 
-A context owns the options and watcher tasks it creates, plus resources created by
+A context owns the states and watcher tasks it creates, plus resources created by
 provider registration helpers (for example `FromJsonFile`). Source, reader, writer,
 and resource instances supplied by the application remain caller-owned and must be
 disposed by the caller. For DI, the service provider owns the context.

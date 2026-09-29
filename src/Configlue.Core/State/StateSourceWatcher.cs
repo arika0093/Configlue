@@ -1,9 +1,10 @@
 using Configlue.Resources;
+using Configlue.Sources;
 
 namespace Configlue.State;
 
 /// <summary>Watches the active source and higher-priority sources that may become active again.</summary>
-public sealed class StateSourceWatcher<T> : IStateWatcher
+public sealed class StateSourceWatcher<T> : ISourceWatcher
 {
     private readonly StateSourceResolver<T> _resolver;
 

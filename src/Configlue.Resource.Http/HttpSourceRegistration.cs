@@ -1,3 +1,5 @@
+using Configlue.Sources;
+
 namespace Configlue.Resource.Http;
 
 /// <summary>Options for registering an HTTP-backed state source through the one-arity facade.</summary>
@@ -121,7 +123,7 @@ public static class HttpSourceRegistration
                 options.ResourceOptions,
                 options.ResourceId
             );
-            IStateWriter<TFragment>? writer = options.Writable
+            ISourceWriter<TFragment>? writer = options.Writable
                 ? new SerializedStateWriter<TFragment>(
                     resource.CreateWriter(),
                     options.Codec,

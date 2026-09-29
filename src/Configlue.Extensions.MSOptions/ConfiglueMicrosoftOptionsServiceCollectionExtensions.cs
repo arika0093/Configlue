@@ -48,7 +48,7 @@ public static class ConfiglueMicrosoftOptionsServiceCollectionExtensions
                     CreateAdapter(
                         monitorAdapterType,
                         GetRequiredService(provider, resolverType),
-                        provider.GetServices<ConfiglueNamedOptionsProfile<TModel>>()
+                        provider.GetServices<ConfiglueNamedStateProfile<TModel>>()
                     )
             );
         }
@@ -69,6 +69,6 @@ public static class ConfiglueMicrosoftOptionsServiceCollectionExtensions
             culture: null
         )
         ?? throw new InvalidOperationException(
-            $"Could not create Configlue options adapter '{adapterType}'."
+            $"Could not create Configlue Microsoft Options adapter '{adapterType}'."
         );
 }

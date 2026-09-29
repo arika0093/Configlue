@@ -23,7 +23,7 @@ sources.JsonFile("database.json")
     .ExplicitOnly();
 ```
 
-writable mounted source の所有パスが重なると options 作成時に失敗します。一方を `ExplicitOnly()` にすると明示 source 書き込み専用にできます。
+writable mounted source の所有パスが重なると state 作成時に失敗します。一方を `ExplicitOnly()` にすると明示 source 書き込み専用にできます。
 
 `WriteRoute` を設定していない場合、edit session は明示的なパス所有者がない変更パスについて書き込み可能ソースを読み取り優先度順に評価します。明示経路に振り分けたパッチと候補を全ソースに適用した状態をシミュレーションし、要求された実効モデルになる最初の候補を使います。評価中は書き込まず、編集基準の全 revision を再確認してから選択先へ書き込みます。設定済み `WriteRoute` と明示的なパス経路は固定され、要求値を実現できなければ `StateConflictException` になります。モデル全体を置き換える Patch は1つの選択先に適用されます。
 

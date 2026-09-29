@@ -133,9 +133,9 @@ public sealed class StateStorageMigrationResult
     /// <summary>Per-target migration and verification outcomes.</summary>
     public IReadOnlyList<StateStorageMigrationTargetResult> Targets { get; }
 
-    /// <summary>Selected sources excluded from this options instance after all targets were verified.</summary>
+    /// <summary>Selected sources excluded from this state instance after all targets were verified.</summary>
     public IReadOnlyList<string> RetiredSourceIds { get; }
 
-    /// <summary>Whether this migration retired its selected sources from this options instance.</summary>
+    /// <summary>Whether this migration retired its selected sources from this state instance.</summary>
     public bool SourcesRetired => RetiredSourceIds.Count > 0;
 }

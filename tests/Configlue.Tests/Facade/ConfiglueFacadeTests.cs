@@ -18,7 +18,7 @@ public sealed class ConfiglueFacadeTests
             })
         )
         {
-            var value = await context.GetOptions<AppSettings>().GetValueAsync();
+            var value = await context.GetState<AppSettings>().GetValueAsync();
             (value.Label).ShouldBe("context-value");
         }
 
@@ -30,9 +30,9 @@ public sealed class ConfiglueFacadeTests
         });
         try
         {
-            var value = await ConfiglueApp.GetOptions<AppSettings>().GetValueAsync();
+            var value = await ConfiglueApp.GetState<AppSettings>().GetValueAsync();
             (value.Label).ShouldBe("static-value");
-            (await ConfiglueApp.GetOptions<AppSettings>().GetValueAsync()).Label.ShouldBe(
+            (await ConfiglueApp.GetState<AppSettings>().GetValueAsync()).Label.ShouldBe(
                 "static-value"
             );
 
@@ -93,7 +93,7 @@ public sealed class ConfiglueFacadeTests
             });
         });
 
-        var options = context.GetRuntimeOptions<AppSettings>();
+        var options = context.GetRuntimeState<AppSettings>();
         (await options.GetValueAsync()).RetryCount.ShouldBe(3);
         using (var edit = await options.OpenEditSessionAsync())
         {
@@ -139,8 +139,8 @@ public sealed class ConfiglueFacadeTests
         });
 
         await using var provider = services.BuildServiceProvider();
-        var readOnly = provider.GetRequiredService<IReadOnlyOptions<AppSettings>>();
-        var writable = provider.GetRequiredService<IWritableOptions<AppSettings>>();
+        var readOnly = provider.GetRequiredService<IReadOnlyState<AppSettings>>();
+        var writable = provider.GetRequiredService<IWritableState<AppSettings>>();
         var value = await readOnly.GetValueAsync();
 
         (ReferenceEquals(readOnly, writable)).ShouldBeTrue();
@@ -169,7 +169,7 @@ public sealed class ConfiglueFacadeTests
 
         (sourceConfigurationCalls).ShouldBe(0);
         await using var provider = services.BuildServiceProvider();
-        var options = provider.GetRequiredService<IReadOnlyOptions<AppSettings>>();
+        var options = provider.GetRequiredService<IReadOnlyState<AppSettings>>();
 
         (sourceConfigurationCalls).ShouldBe(1);
         (await options.GetValueAsync()).Label.ShouldBe("from-provider");
@@ -194,7 +194,7 @@ public sealed class ConfiglueFacadeTests
         });
 
         (receivedNullProvider).ShouldBeTrue();
-        (await context.GetOptions<AppSettings>().GetValueAsync()).Label.ShouldBe(
+        (await context.GetState<AppSettings>().GetValueAsync()).Label.ShouldBe(
             "without-provider"
         );
     }
@@ -208,7 +208,7 @@ public sealed class ConfiglueFacadeTests
         {
             builder.Add<AppSettings>(model =>
             {
-                model.OptionsName = "profile";
+                model.StateName = "profile";
                 model.Sources(sources =>
                     sources.Add(_ => CreateSource("profile", "profile-value"))
                 );
@@ -216,7 +216,7 @@ public sealed class ConfiglueFacadeTests
         });
 
         await using var provider = services.BuildServiceProvider();
-        var keyedOptions = provider.GetRequiredKeyedService<IReadOnlyOptions<AppSettings>>(
+        var keyedOptions = provider.GetRequiredKeyedService<IReadOnlyState<AppSettings>>(
             "profile"
         );
 
@@ -233,23 +233,23 @@ public sealed class ConfiglueFacadeTests
         {
             builder.Add<AppSettings>(model =>
             {
-                model.OptionsName = "first";
+                model.StateName = "first";
                 model.Sources(sources => sources.Add(CreateSource("first", "first-value")));
             });
             builder.Add<AppSettings>(model =>
             {
-                model.OptionsName = "second";
+                model.StateName = "second";
                 model.Sources(sources => sources.Add(CreateSource("second", "second-value")));
             });
         });
 
-        (await context.GetOptions<AppSettings>("first").GetValueAsync()).Label.ShouldBe(
+        (await context.GetState<AppSettings>("first").GetValueAsync()).Label.ShouldBe(
             "first-value"
         );
-        (await context.GetOptions<AppSettings>("second").GetValueAsync()).Label.ShouldBe(
+        (await context.GetState<AppSettings>("second").GetValueAsync()).Label.ShouldBe(
             "second-value"
         );
-        Should.Throw<KeyNotFoundException>(() => context.GetOptions<AppSettings>());
+        Should.Throw<KeyNotFoundException>(() => context.GetState<AppSettings>());
     }
 
     [Test]
@@ -276,19 +276,19 @@ public sealed class ConfiglueFacadeTests
                 model.ConfigureSources(registration =>
                     registration.Sources.Add(_ =>
                         CreateSource(
-                            string.IsNullOrEmpty(registration.OptionsName)
+                            string.IsNullOrEmpty(registration.StateName)
                                 ? "default-source"
-                                : $"profile-{registration.OptionsName}",
-                            $"{registration.OptionsName}-value"
+                                : $"profile-{registration.StateName}",
+                            $"{registration.StateName}-value"
                         )
                     )
                 );
             });
         });
 
-        var registry = context.GetOptionsRegistry<AppSettings>();
+        var registry = context.GetStateRegistry<AppSettings>();
         registry.TryAdd("temporary").ShouldBeTrue();
-        var profiles = context.GetProfiledOptions<AppSettings>();
+        var profiles = context.GetProfiledState<AppSettings>();
 
         (await profiles.GetProfileNamesAsync()).ShouldContain("default");
         registry.TryGet("temporary", out var temporary).ShouldBeTrue();
@@ -313,34 +313,34 @@ public sealed class ConfiglueFacadeTests
                 model.ConfigureSources(registration =>
                     registration.Sources.Add(_ =>
                         CreateSource(
-                            string.IsNullOrEmpty(registration.OptionsName)
+                            string.IsNullOrEmpty(registration.StateName)
                                 ? "fixed"
-                                : $"profile-{registration.OptionsName}",
-                            string.IsNullOrEmpty(registration.OptionsName)
+                                : $"profile-{registration.StateName}",
+                            string.IsNullOrEmpty(registration.StateName)
                                 ? "fixed-value"
-                                : $"{registration.OptionsName}-value"
+                                : $"{registration.StateName}-value"
                         )
                     )
                 );
             });
         });
 
-        var profiles = context.GetProfiledOptions<AppSettings>();
+        var profiles = context.GetProfiledState<AppSettings>();
         await profiles.GetProfileNamesAsync();
         await profiles.CreateProfileAsync("Work", copyFrom: "default");
-        (await context.GetOptions<AppSettings>("Work").GetValueAsync()).Label.ShouldBe(
+        (await context.GetState<AppSettings>("Work").GetValueAsync()).Label.ShouldBe(
             "default-value"
         );
         await profiles.SetActiveProfileAsync("Work");
         (await profiles.GetActiveValueAsync()).Label.ShouldBe("default-value");
 
-        var removedHandle = context.GetOptions<AppSettings>("Work");
+        var removedHandle = context.GetState<AppSettings>("Work");
         await profiles.RemoveProfileAsync("Work");
         await Should.ThrowAsync<ObjectDisposedException>(async () =>
             await removedHandle.GetValueAsync()
         );
-        Should.Throw<KeyNotFoundException>(() => context.GetOptions<AppSettings>("Work"));
-        (await context.GetOptions<AppSettings>("default").GetValueAsync()).Label.ShouldBe(
+        Should.Throw<KeyNotFoundException>(() => context.GetState<AppSettings>("Work"));
+        (await context.GetState<AppSettings>("default").GetValueAsync()).Label.ShouldBe(
             "default-value"
         );
     }
@@ -363,23 +363,23 @@ public sealed class ConfiglueFacadeTests
                 model.ConfigureSources(registration =>
                     registration.Sources.Add(_ =>
                         CreateSource(
-                            string.IsNullOrEmpty(registration.OptionsName)
+                            string.IsNullOrEmpty(registration.StateName)
                                 ? "default-source"
-                                : $"profile-{registration.OptionsName}",
-                            $"{registration.OptionsName}-value"
+                                : $"profile-{registration.StateName}",
+                            $"{registration.StateName}-value"
                         )
                     )
                 );
             });
         });
 
-        var profiles = context.GetProfiledOptions<AppSettings>();
+        var profiles = context.GetProfiledState<AppSettings>();
         await profiles.GetProfileNamesAsync();
-        var registry = context.GetOptionsRegistry<AppSettings>();
+        var registry = context.GetStateRegistry<AppSettings>();
         var addedObservation = new TaskCompletionSource<(bool IsPublished, string? Value)>(
             TaskCreationOptions.RunContinuationsAsynchronously
         );
-        registry.ProfileAdded += (name, options) =>
+        registry.StateAdded += (name, options) =>
         {
             if (name != "Work")
             {
@@ -412,7 +412,7 @@ public sealed class ConfiglueFacadeTests
         var removedObservation = new TaskCompletionSource<bool>(
             TaskCreationOptions.RunContinuationsAsynchronously
         );
-        registry.ProfileRemoved += name =>
+        registry.StateRemoved += name =>
         {
             if (name != "Work")
             {
@@ -441,12 +441,12 @@ public sealed class ConfiglueFacadeTests
         {
             builder.Add<AppSettings>(model =>
             {
-                model.EnableDynamicOptions = true;
+                model.EnableDynamicStates = true;
                 model.ConfigureSources(registration =>
                     registration.Sources.Add(_ =>
                         CreateSource(
-                            $"dynamic-{registration.OptionsName}",
-                            $"{registration.OptionsName}-value"
+                            $"dynamic-{registration.StateName}",
+                            $"{registration.StateName}-value"
                         )
                     )
                 );
@@ -454,7 +454,7 @@ public sealed class ConfiglueFacadeTests
         });
 
         await using var provider = services.BuildServiceProvider();
-        var registry = provider.GetRequiredService<IConfiglueOptionsRegistry<AppSettings>>();
+        var registry = provider.GetRequiredService<IConfiglueStateRegistry<AppSettings>>();
         registry.TryAdd("late").ShouldBeTrue();
         var monitor = provider.GetRequiredService<IOptionsMonitor<AppSettings>>();
         (monitor.Get("late").Label).ShouldBe("late-value");
@@ -487,8 +487,8 @@ public sealed class ConfiglueFacadeTests
                 model.ConfigureSources(registration =>
                     registration.Sources.Add(_ =>
                         CreateSource(
-                            $"di-profile-{registration.OptionsName}",
-                            $"{registration.OptionsName}-value"
+                            $"di-profile-{registration.StateName}",
+                            $"{registration.StateName}-value"
                         )
                     )
                 );
@@ -496,7 +496,7 @@ public sealed class ConfiglueFacadeTests
         });
 
         await using var provider = services.BuildServiceProvider();
-        var profiles = provider.GetRequiredService<IConfiglueProfiledOptions<AppSettings>>();
+        var profiles = provider.GetRequiredService<IConfiglueProfiledState<AppSettings>>();
         await profiles.GetProfileNamesAsync();
         await profiles.CreateProfileAsync("Work", copyFrom: "default");
         var monitor = provider.GetRequiredService<IOptionsMonitor<AppSettings>>();
@@ -512,7 +512,7 @@ public sealed class ConfiglueFacadeTests
     [Test]
     public async Task FacadeRegistryWaitsForOrderedConcurrentNotifications()
     {
-        var registry = new ConfiglueFacadeOptionsRegistry<AppSettings>(
+        var registry = new ConfiglueFacadeStateRegistry<AppSettings>(
             name =>
             {
                 var store = new InMemoryStateStore<AppSettings.Fragment>();
@@ -522,7 +522,7 @@ public sealed class ConfiglueFacadeTests
                     writer: store,
                     watcher: store
                 );
-                var runtime = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(
+                var runtime = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
                     new StateSourceSet<AppSettings.Fragment>([source])
                 );
                 return (runtime, []);
@@ -536,7 +536,7 @@ public sealed class ConfiglueFacadeTests
         var releaseFirstAdded = new TaskCompletionSource(
             TaskCreationOptions.RunContinuationsAsynchronously
         );
-        registry.ProfileAdded += (name, _) =>
+        registry.StateAdded += (name, _) =>
         {
             if (name == "first")
             {
@@ -576,7 +576,7 @@ public sealed class ConfiglueFacadeTests
         var releaseFirstRemoved = new TaskCompletionSource(
             TaskCreationOptions.RunContinuationsAsynchronously
         );
-        registry.ProfileRemoved += name =>
+        registry.StateRemoved += name =>
         {
             if (name == "first")
             {
@@ -593,7 +593,7 @@ public sealed class ConfiglueFacadeTests
             (
                 await Task.Run(() =>
                     SpinWait.SpinUntil(
-                        () => registry.ProfileNames.Count == 0,
+                        () => registry.StateNames.Count == 0,
                         TimeSpan.FromSeconds(5)
                     )
                 )
@@ -609,7 +609,7 @@ public sealed class ConfiglueFacadeTests
         await Task.WhenAll(firstRemove, clear);
 
         registry.TryAdd("reentrant").ShouldBeTrue();
-        registry.ProfileRemoved += name =>
+        registry.StateRemoved += name =>
         {
             if (name == "reentrant")
             {
@@ -627,7 +627,7 @@ public sealed class ConfiglueFacadeTests
         var releaseDisposeNotification = new TaskCompletionSource(
             TaskCreationOptions.RunContinuationsAsynchronously
         );
-        registry.ProfileRemoved += name =>
+        registry.StateRemoved += name =>
         {
             if (name == "dispose")
             {

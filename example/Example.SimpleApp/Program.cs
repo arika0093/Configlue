@@ -16,12 +16,15 @@ var source = SerializedStateSource.FromResource<SampleSetting.Fragment>(
     physicalOrigin: settingsPath
 );
 
-// Combine the source and its write route directly, without a dependency injection container.
-await using var options = new ConfiglueOptions<SampleSetting, SampleSetting.Fragment>(
-    new StateSourceSet<SampleSetting.Fragment>([source]),
-    StateWriteRoute.To("settings")
+// Register the source and its write route without a dependency injection container.
+await using var context = ConfiglueApp.CreateContext(app =>
+    app.Add<SampleSetting>(model =>
+    {
+        model.Sources(sources => sources.Add(source));
+        model.WriteRoute = StateWriteRoute.To("settings");
+    })
 );
-var writable = (IWritableOptions<SampleSetting>)options;
+var writable = context.GetState<SampleSetting>();
 
 var current = await writable.GetValueAsync();
 Console.WriteLine($"Hello, {current.Name}. This is run {current.RunCount}.");

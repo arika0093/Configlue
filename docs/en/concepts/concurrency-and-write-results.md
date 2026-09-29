@@ -10,7 +10,7 @@ Configlue can combine several logical sources and several physical resources in 
 `SaveAsync`, source-local saves, routed patch saves, and edit-session commits return `StateWriteReceipt`.
 
 ```csharp
-var receipt = await options.SaveAsync(patch =>
+var receipt = await state.SaveAsync(patch =>
 {
     patch.Server.Port = 9000;
 });

@@ -29,7 +29,7 @@ public sealed partial class StateRuntimeTests
             codec,
             priority: 0
         );
-        var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(
+        var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([firstSource, secondSource])
         );
 
@@ -73,7 +73,7 @@ public sealed partial class StateRuntimeTests
             new JsonSectionResource(resource, "App:Second"),
             codec
         );
-        var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(
+        var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([first, second])
         );
 
@@ -111,7 +111,7 @@ public sealed partial class StateRuntimeTests
         var codec = new JsonStateCodec<AppSettings.Fragment>();
         var parent = new JsonSectionResource(resource, "App");
         var child = new JsonSectionResource(resource, "App:Child");
-        var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(
+        var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
                 SerializedStateSource.FromResource<AppSettings.Fragment>(
                     "parent",
@@ -151,7 +151,7 @@ public sealed partial class StateRuntimeTests
 
         var json = new JsonSectionResource(resource, "App:Json");
         var xml = new XmlSectionResource(resource, "App:Xml");
-        var differentDomains = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(
+        var differentDomains = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
                 SerializedStateSource.FromResource<AppSettings.Fragment>("json", json, codec),
                 SerializedStateSource.FromResource<AppSettings.Fragment>(
@@ -199,7 +199,7 @@ public sealed partial class StateRuntimeTests
             new XmlSectionResource(xmlResource, "App:Second"),
             xmlCodec
         );
-        var xmlOptions = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(
+        var xmlOptions = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([xmlFirst, xmlSecond])
         );
         var xmlResult = await xmlOptions.ApplyPatchesAsync([
@@ -227,7 +227,7 @@ public sealed partial class StateRuntimeTests
             new YamlSectionResource(yamlResource, "App:Second"),
             yamlCodec
         );
-        var yamlOptions = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(
+        var yamlOptions = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([yamlFirst, yamlSecond])
         );
         var yamlResult = await yamlOptions.ApplyPatchesAsync([

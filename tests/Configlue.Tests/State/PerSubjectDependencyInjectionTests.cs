@@ -6,6 +6,7 @@ using Configlue.Testing;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
+using Configlue.Sources;
 
 namespace Configlue.Tests;
 
@@ -54,7 +55,7 @@ public sealed class PerSubjectDependencyInjectionTests
         using var provider = services.BuildServiceProvider(
             new ServiceProviderOptions { ValidateScopes = true }
         );
-        var sharedSubjectOptions = provider.GetRequiredService<ISubjectOptions<AppSettings>>();
+        var sharedSubjectOptions = provider.GetRequiredService<ISubjectState<AppSettings>>();
         provider.GetRequiredService<IConfiglueInspection<AppSettings>>().ShouldNotBeNull();
         using var scopeA = provider.CreateScope();
         using var scopeB = provider.CreateScope();
@@ -63,17 +64,17 @@ public sealed class PerSubjectDependencyInjectionTests
         accessorA.Set(subjectA);
         accessorB.Set(subjectB);
 
-        var readA = scopeA.ServiceProvider.GetRequiredService<IReadOnlyOptions<AppSettings>>();
-        var writeA = scopeA.ServiceProvider.GetRequiredService<IWritableOptions<AppSettings>>();
-        var readB = scopeB.ServiceProvider.GetRequiredService<IReadOnlyOptions<AppSettings>>();
-        var writeB = scopeB.ServiceProvider.GetRequiredService<IWritableOptions<AppSettings>>();
+        var readA = scopeA.ServiceProvider.GetRequiredService<IReadOnlyState<AppSettings>>();
+        var writeA = scopeA.ServiceProvider.GetRequiredService<IWritableState<AppSettings>>();
+        var readB = scopeB.ServiceProvider.GetRequiredService<IReadOnlyState<AppSettings>>();
+        var writeB = scopeB.ServiceProvider.GetRequiredService<IWritableState<AppSettings>>();
 
         ReferenceEquals(readA, writeA).ShouldBeTrue();
         ReferenceEquals(readB, writeB).ShouldBeTrue();
         ReferenceEquals(readA, readB).ShouldBeFalse();
         ReferenceEquals(
                 sharedSubjectOptions,
-                provider.GetRequiredService<ISubjectOptions<AppSettings>>()
+                provider.GetRequiredService<ISubjectState<AppSettings>>()
             )
             .ShouldBeTrue();
         (await readA.GetValueAsync()).Label.ShouldBe("user-a");
@@ -89,15 +90,15 @@ public sealed class PerSubjectDependencyInjectionTests
         users.Read(subjectB.Key).Value!.Label.Value.ShouldBe("saved-b");
 
         var serverOptionsA = scopeA.ServiceProvider.GetRequiredService<
-            IReadOnlyOptions<DatabaseSettings>
+            IReadOnlyState<DatabaseSettings>
         >();
         var serverOptionsB = scopeB.ServiceProvider.GetRequiredService<
-            IReadOnlyOptions<DatabaseSettings>
+            IReadOnlyState<DatabaseSettings>
         >();
         ReferenceEquals(serverOptionsA, serverOptionsB).ShouldBeTrue();
         (await serverOptionsA.GetValueAsync()).Host.ShouldBe("server.db");
 
-        (await sharedSubjectOptions.For(subjectB).GetValueAsync()).Label.ShouldBe("saved-b");
+        (await sharedSubjectOptions.ForSubject(subjectB).GetValueAsync()).Label.ShouldBe("saved-b");
     }
 
     [Test]
@@ -137,7 +138,7 @@ public sealed class PerSubjectDependencyInjectionTests
             TaskCreationOptions.RunContinuationsAsynchronously
         );
         using var subscription = scope
-            .ServiceProvider.GetRequiredService<IReadOnlyOptions<AppSettings>>()
+            .ServiceProvider.GetRequiredService<IReadOnlyState<AppSettings>>()
             .OnChange(value =>
             {
                 if (value.Label == "after-b")
@@ -190,7 +191,7 @@ public sealed class PerSubjectDependencyInjectionTests
         using var scope = provider.CreateScope();
         var accessor = scope.ServiceProvider.GetRequiredService<MutableRoutedSubjectAccessor>();
         accessor.Set(new RoutedSettingsSubject("a", routeA));
-        var options = scope.ServiceProvider.GetRequiredService<IReadOnlyOptions<AppSettings>>();
+        var options = scope.ServiceProvider.GetRequiredService<IReadOnlyState<AppSettings>>();
         (await options.GetValueAsync()).Label.ShouldBe("same");
         var changes = Channel.CreateUnbounded<string?>(
             new UnboundedChannelOptions { SingleReader = true, SingleWriter = false }
@@ -223,7 +224,7 @@ public sealed class PerSubjectDependencyInjectionTests
         services.AddConfiglue(builder =>
             builder.Add<AppSettings>(model =>
             {
-                model.OptionsName = "tenant";
+                model.StateName = "tenant";
                 model.PerSubject<MutableSubjectAccessor>();
                 model.Sources(sources =>
                     sources.Add(
@@ -241,14 +242,14 @@ public sealed class PerSubjectDependencyInjectionTests
         using var provider = services.BuildServiceProvider();
         using var scope = provider.CreateScope();
         scope.ServiceProvider.GetRequiredService<MutableSubjectAccessor>().Set(subject);
-        var options = scope.ServiceProvider.GetRequiredKeyedService<IReadOnlyOptions<AppSettings>>(
+        var options = scope.ServiceProvider.GetRequiredKeyedService<IReadOnlyState<AppSettings>>(
             "tenant"
         );
         (await options.GetValueAsync()).Label.ShouldBe("named-value");
-        var fixedSubjectOptions = provider.GetRequiredKeyedService<ISubjectOptions<AppSettings>>(
+        var fixedSubjectOptions = provider.GetRequiredKeyedService<ISubjectState<AppSettings>>(
             "tenant"
         );
-        (await fixedSubjectOptions.For(subject).GetValueAsync()).Label.ShouldBe("named-value");
+        (await fixedSubjectOptions.ForSubject(subject).GetValueAsync()).Label.ShouldBe("named-value");
     }
 
     [Test]
@@ -422,7 +423,7 @@ public sealed class PerSubjectDependencyInjectionTests
         }
     }
 
-    private sealed class SubjectStateStore<T> : IStateReader<T>, IStateWriter<T>, IStateWatcher
+    private sealed class SubjectStateStore<T> : ISourceReader<T>, ISourceWriter<T>, ISourceWatcher
     {
         private readonly ConcurrentDictionary<
             (SubjectKey Key, RouteKey Route),

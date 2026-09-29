@@ -21,7 +21,7 @@ var result = JsonSchemaGenerator.Generate(
 
 ```csharp
 var config = new ConfiglueBuilder();
-config.Add<AppSettings>(_ => { /* source と options を登録 */ });
+config.Add<AppSettings>(_ => { /* source と state を登録 */ });
 
 if (JsonSchemaGenerator.TryWriteFromCommandLine(
     args,

@@ -28,7 +28,7 @@ public sealed class CommandLineSourceTests
             )
         )
         {
-            var value = await context.GetOptions<AppSettings>().GetValueAsync();
+            var value = await context.GetState<AppSettings>().GetValueAsync();
             (value.RetryCount).ShouldBe(4);
             (value.Label).ShouldBe("cli");
         }
@@ -44,7 +44,7 @@ public sealed class CommandLineSourceTests
             )
         )
         {
-            var value = await context.GetOptions<AppSettings>().GetValueAsync();
+            var value = await context.GetState<AppSettings>().GetValueAsync();
             (value.RetryCount).ShouldBe(8);
             (value.Label).ShouldBe("explicit");
         }
@@ -66,7 +66,7 @@ public sealed class CommandLineSourceTests
         )
         {
             await Should.ThrowAsync<FormatException>(async () =>
-                await context.GetOptions<AppSettings>().GetValueAsync()
+                await context.GetState<AppSettings>().GetValueAsync()
             );
         }
 
@@ -80,7 +80,7 @@ public sealed class CommandLineSourceTests
         )
         {
             var exception = await Should.ThrowAsync<FormatException>(async () =>
-                await context.GetOptions<AppSettings>().GetValueAsync()
+                await context.GetState<AppSettings>().GetValueAsync()
             );
             (exception.Message).ShouldContain("unmatched tokens");
         }
@@ -105,7 +105,7 @@ public sealed class CommandLineSourceTests
         });
 
         await Should.ThrowAsync<InvalidOperationException>(async () =>
-            await writableContext.GetOptions<AppSettings>().SaveAsync(value => value.RetryCount = 7)
+            await writableContext.GetState<AppSettings>().SaveAsync(value => value.RetryCount = 7)
         );
     }
 
@@ -123,7 +123,7 @@ public sealed class CommandLineSourceTests
         await using (context)
         {
             var exception = await Should.ThrowAsync<FormatException>(async () =>
-                await context.GetOptions<AppSettings>().GetValueAsync()
+                await context.GetState<AppSettings>().GetValueAsync()
             );
             (exception.Message).ShouldContain("RetryCount");
         }
@@ -150,7 +150,7 @@ public sealed class CommandLineSourceTests
             )
         )
         {
-            (await context.GetOptions<AppSettings>().GetValueAsync()).RetryCount.ShouldBe(2);
+            (await context.GetState<AppSettings>().GetValueAsync()).RetryCount.ShouldBe(2);
         }
 
         await using (
@@ -164,7 +164,7 @@ public sealed class CommandLineSourceTests
             )
         )
         {
-            (await reversed.GetOptions<AppSettings>().GetValueAsync()).RetryCount.ShouldBe(1);
+            (await reversed.GetState<AppSettings>().GetValueAsync()).RetryCount.ShouldBe(1);
         }
     }
 
@@ -228,7 +228,7 @@ public sealed class CommandLineSourceTests
             )
         )
         {
-            var value = await context.GetOptions<AppSettings>().GetValueAsync();
+            var value = await context.GetState<AppSettings>().GetValueAsync();
             (value.Database!.Host).ShouldBe("db.example.test");
             (value.Database.Port).ShouldBe(6432);
         }
@@ -248,7 +248,7 @@ public sealed class CommandLineSourceTests
             )
         )
         {
-            var value = await context.GetOptions<AppSettings>().GetValueAsync();
+            var value = await context.GetState<AppSettings>().GetValueAsync();
             (value.Plugins).ShouldBe(["nord", "dracula"]);
         }
     }

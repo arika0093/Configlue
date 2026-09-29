@@ -11,11 +11,11 @@ Use `Configlue.Extensions.Reactive` for Rx.NET or `Configlue.Extensions.R3` for 
 
 | Adapter | Source | Stream |
 | --- | --- | --- |
-| `ObserveChanges()` | `IReadOnlyOptions<T>` | Future effective-value changes, without an initial read |
-| `ObserveValues()` | `IReadOnlyOptions<T>` | Current effective value followed by changes |
+| `ObserveChanges()` | `IReadOnlyState<T>` | Future effective-value changes, without an initial read |
+| `ObserveValues()` | `IReadOnlyState<T>` | Current effective value followed by changes |
 | `ObserveReloadFailures()` | `IConfiglueDiagnostics<T>` | Background reload failures as exception values |
-| `ObserveActiveValues()` | `IConfiglueProfiledOptions<T>` | Active profile value and later profile/value changes |
-| `ObserveActiveProfileNames()` | `IConfiglueProfiledOptions<T>` | Current active profile name followed by switches |
+| `ObserveActiveValues()` | `IConfiglueProfiledState<T>` | Active profile value and later profile/value changes |
+| `ObserveActiveProfileNames()` | `IConfiglueProfiledState<T>` | Current active profile name followed by switches |
 
 The streams are cold. Each subscription attaches its own Configlue listener and owns cancellation for an initial read. Dispose the subscription to detach the listener.
 
@@ -49,4 +49,4 @@ An error while attaching a listener or performing the initial read does terminat
 
 Use `ObserveActiveProfileNames()` when the application needs to compose the profile name with another stream explicitly.
 
-The source options, profile manager, and owning context remain caller-owned. Keep them alive for at least as long as their subscriptions.
+The source definitions, profile manager, and owning context remain caller-owned. Keep them alive for at least as long as their subscriptions.

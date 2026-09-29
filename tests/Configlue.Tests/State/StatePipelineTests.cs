@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using Configlue.Provider.Json;
 using Configlue.Testing;
 using Configlue.Transformer.AES;
+using Configlue.Sources;
 
 namespace Configlue.Tests;
 
@@ -72,15 +73,15 @@ public sealed class StatePipelineTests
 
     private sealed class SuffixMiddleware(string suffix) : IStateMiddleware<string>
     {
-        public IStateReader<string> WrapReader(IStateReader<string> next) =>
+        public ISourceReader<string> WrapReader(ISourceReader<string> next) =>
             new SuffixReader(next, suffix);
 
-        public IStateWriter<string> WrapWriter(IStateWriter<string> next) =>
+        public ISourceWriter<string> WrapWriter(ISourceWriter<string> next) =>
             new SuffixWriter(next, suffix);
     }
 
-    private sealed class SuffixReader(IStateReader<string> next, string suffix)
-        : IStateReader<string>
+    private sealed class SuffixReader(ISourceReader<string> next, string suffix)
+        : ISourceReader<string>
     {
         public async ValueTask<StateReadResult<string>> ReadAsync(
             CancellationToken cancellationToken = default
@@ -102,8 +103,8 @@ public sealed class StatePipelineTests
         }
     }
 
-    private sealed class SuffixWriter(IStateWriter<string> next, string suffix)
-        : IStateWriter<string>
+    private sealed class SuffixWriter(ISourceWriter<string> next, string suffix)
+        : ISourceWriter<string>
     {
         public ValueTask<StateWriteResult> WriteAsync(
             StateWriteRequest<string> request,

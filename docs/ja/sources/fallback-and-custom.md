@@ -54,12 +54,12 @@ var currentSource = SerializedStateSource.FromResource<AppSettings.Fragment>(
 リソースは論理ソース ID や物理出どころラベルとは別に、安定した `ResourceId` を公開できます。
 セクションビューは背後の同一性を継承し、独自リソースは `IResourceIdentity` 実装か `SerializedStateSource.FromResource`・`StateSource`・セクションビューへの引数で ID を供給できます。
 
-完全手組みのソースは `IStateReader<TFragment>`（必要に応じて `IStateWriter<TFragment>` や `IStateWatcher`）を実装します。
+完全手組みのソースは `Configlue.Sources.ISourceReader<TFragment>`（必要に応じて `ISourceWriter<TFragment>` や `ISourceWatcher`）を実装します。
 登録時は `Sources(sources => sources.Add(existingSource))` または DI の `(provider, sources) => ...` オーバーロードで `sources.Add(id, reader, priority, fallbackCondition)` を呼び出します。
 
 ### 複数リソースを 1 つの論理ソースにまとめる
 
-複数リソースが疎フラグメントを寄与し、options ランタイムには 1 つの論理ソースとして見せる場合は `CompositeStateSource<TFragment>` を使います。
+複数リソースが疎フラグメントを寄与し、state ランタイムには 1 つの論理ソースとして見せる場合は `CompositeStateSource<TFragment>` を使います。
 書き込み先は既定のコンポーネントとメンバーパスごとのルーティングで明示します。
 
 ```csharp

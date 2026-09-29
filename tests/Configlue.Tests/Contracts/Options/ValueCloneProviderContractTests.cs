@@ -35,7 +35,7 @@ public sealed class ValueCloneProviderContractTests
         Should.Throw<InvalidOperationException>(() => cloneProvider.CloneValue(new AppSettings()));
     }
 
-    private static ConfiglueOptions<AppSettings, AppSettings.Fragment> CreateOptions(
+    private static ConfiglueRuntime<AppSettings, AppSettings.Fragment> CreateOptions(
         Func<AppSettings, AppSettings>? cloneStrategy = null
     ) =>
         new(
@@ -48,7 +48,7 @@ public sealed class ValueCloneProviderContractTests
             validators: null,
             validateDataAnnotations: false,
             onChangeDebounce: null,
-            optionsName: null,
+            stateName: null,
             logger: null,
             cloneStrategy: cloneStrategy
         );

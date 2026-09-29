@@ -53,11 +53,11 @@ var options = new FileResourceOptions
 
 ## 出どころと診断
 
-* `await options.GetDetailsAsync()` は実効値と優先度順のソース別寄与を持つ型つきスナップショットを返します。設定 UI やトラブルシュートに使います。
-* `IConfiglueDiagnostics<T>.GetDiagnostics()` はそのオプションランタイムの設定済みソース構成の不変スナップショットを返します。ソース ID・優先度・フォールバック方針・読み/書き/監視可否・物理出どころ・リソース同一性・アクティブ状態に加え、既定と属性パス単位の書き込み経路も報告します。`GetWriteSourceId("Database.Endpoint")` で登録レベルの経路を解決できます。操作単位の書き込みプランは対象外です。最新の読み結果とリビジョンは `ReadAsync`、実効値と寄与ソースは `GetDetailsAsync()`、完了した書き込みは書き込み結果を使います。
+* `await state.GetDetailsAsync()` は実効値と優先度順のソース別寄与を持つ型つきスナップショットを返します。設定 UI やトラブルシュートに使います。
+* `IConfiglueDiagnostics<T>.GetDiagnostics()` はその state ランタイムの設定済みソース構成の不変スナップショットを返します。ソース ID・優先度・フォールバック方針・読み/書き/監視可否・物理出どころ・リソース同一性・アクティブ状態に加え、既定と属性パス単位の書き込み経路も報告します。`GetWriteSourceId("Database.Endpoint")` で登録レベルの経路を解決できます。操作単位の書き込みプランは対象外です。最新の読み結果とリビジョンは `ReadAsync`、実効値と寄与ソースは `GetDetailsAsync()`、完了した書き込みは書き込み結果を使います。
 
 ```csharp
-var diagnostics = options.GetDiagnostics();
+var diagnostics = state.GetDiagnostics();
 var defaultWriteSource = diagnostics.GetWriteSourceId();
 var endpointWriteSource = diagnostics.GetWriteSourceId("Database.Endpoint");
 foreach (var source in diagnostics.Sources)
@@ -71,7 +71,7 @@ foreach (var source in diagnostics.Sources)
 
 ## ログ
 
-ファサードランタイムは DI に `ILoggerFactory` が登録されていれば使います。非 DI の呼び出し側は `ConfiglueModelBuilder<TModel>` に `Logger` を設定でき、`ConfiglueOptions<TModel, TFragment>` を直接組み立てる呼び出し側は任意の `logger` 引数を渡せます。ログは任意です。ソース読み判断・ウォッチャー失敗・書き込み・移行結果・リビジョン競合は、モデル・オプション名・ソース ID・物理出どころ・リソース ID などの構造化メタデータで記録されます。設定値そのものはログに出ません。
+ファサードの state は、DI に `ILoggerFactory` が登録されていれば利用します。非 DI の呼び出し側は `ConfiglueModelBuilder<TModel>` に `Logger` を設定できます。ログは任意です。ソース読み判断・ウォッチャー失敗・書き込み・移行結果・リビジョン競合は、モデル・state 名・ソース ID・物理出どころ・リソース ID などの構造化メタデータで記録されます。設定値そのものはログに出ません。
 
 ## 次のステップ
 

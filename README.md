@@ -117,13 +117,13 @@ For example, like this:
 Read the combined value with `GetValueAsync`. Use `GetDetailsAsync` to inspect its contributing sources:
 
 ```csharp
-var options = context.GetOptions<AppSettings>();
+var state = context.GetState<AppSettings>();
 // 1. Get the current value (merged from all sources)
-var current = await options.GetValueAsync();
+var current = await state.GetValueAsync();
 Console.WriteLine($"Hello, {current.Name}! (Run #{current.RunCount})");
 
 // 2. Get the details of where each value came from
-var details = await options.GetDetailsAsync();
+var details = await state.GetDetailsAsync();
 // Values can be referenced normally.
 Console.WriteLine($"Name came from {details.Name.Source?.Locator}");
 Console.WriteLine($"Can write Name? {details.Name.IsEditable}");
@@ -139,7 +139,7 @@ foreach (var contribution in details.Name.Sources)
 Save a patch to update only the members it specifies. `Unset` removes that source's contribution so a lower-priority source can provide the value:
 
 ```csharp
-await options.SaveAsync(patch =>
+await state.SaveAsync(patch =>
 {
     patch.Name = "Bob"; // Specify only the items you want to change
     patch.RunCount.Unset(); // Remove this source's value; a lower-priority source may provide one.
@@ -177,20 +177,20 @@ await using var context = ConfiglueApp.CreateContext(conf =>
     })
 );
 
-// 3. Read and write through the options instance.
-var options = context.GetOptions<SampleSetting>();
-var current = await options.GetValueAsync();
+// 3. Read and write through the state instance.
+var state = context.GetState<SampleSetting>();
+var current = await state.GetValueAsync();
 Console.WriteLine($"Hello, {current.Name}! (Run #{current.RunCount})");
 
 // Sparse edit: only modified fields are saved to the target layer.
-await options.SaveAsync(patch =>
+await state.SaveAsync(patch =>
 {
     patch.Name = "Alice";
     patch.RunCount = current.RunCount + 1;
     // DefaultValue is not modified, so it will not be saved to the target layer.
 });
 
-var updated = await options.GetValueAsync();
+var updated = await state.GetValueAsync();
 Console.WriteLine($"Saved. Hello, {updated.Name}! (Run #{updated.RunCount})");
 ```
 

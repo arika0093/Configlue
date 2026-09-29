@@ -1,14 +1,15 @@
 using Configlue.Testing;
+using Configlue.Sources;
 
 namespace Configlue.Tests;
 
 public sealed class InMemoryStateStoreContractTests
 {
     [Test]
-    public async Task IStateReader_ReportsNotFoundUnavailableAndCurrentValue()
+    public async Task ISourceReader_ReportsNotFoundUnavailableAndCurrentValue()
     {
         var store = new InMemoryStateStore<string>();
-        IStateReader<string> reader = store;
+        ISourceReader<string> reader = store;
 
         var missing = await reader.ReadAsync();
         store.SetUnavailable();
@@ -24,10 +25,10 @@ public sealed class InMemoryStateStoreContractTests
     }
 
     [Test]
-    public async Task IStateWriter_RequiresTheExpectedRevisionAndReturnsTheNewRevision()
+    public async Task ISourceWriter_RequiresTheExpectedRevisionAndReturnsTheNewRevision()
     {
         var store = new InMemoryStateStore<string>("initial");
-        IStateWriter<string> writer = store;
+        ISourceWriter<string> writer = store;
         var initial = await store.ReadAsync();
 
         var written = await writer.WriteAsync(
@@ -51,10 +52,10 @@ public sealed class InMemoryStateStoreContractTests
     }
 
     [Test]
-    public async Task IStateWatcher_ObservesChangesAndHonorsCancellation()
+    public async Task ISourceWatcher_ObservesChangesAndHonorsCancellation()
     {
         var store = new InMemoryStateStore<string>("initial");
-        IStateWatcher watcher = store;
+        ISourceWatcher watcher = store;
         var initial = await store.ReadAsync();
         var change = watcher.WaitForChangeAsync(initial.Revision).AsTask();
 

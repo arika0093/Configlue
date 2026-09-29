@@ -33,12 +33,19 @@ var oldReader = new SerializedStateReader<AppSettings.Fragment>(
 var oldSource = new StateSource<AppSettings.Fragment>("legacy", oldReader);
 var currentSource = CreateCurrentSettingsSource(); // writable source using the normal Configlue codec
 
-await using var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(
-    new StateSourceSet<AppSettings.Fragment>([oldSource, currentSource]),
-    StateWriteRoute.To("current"));
+await using var context = ConfiglueApp.CreateContext(app =>
+    app.Add<AppSettings>(model =>
+    {
+        model.Sources(sources =>
+        {
+            sources.Add(oldSource);
+            sources.Add(currentSource);
+        });
+        model.WriteRoute = StateWriteRoute.To("current");
+    }));
 
 // Copy only the old contribution and leave oldFile available for retry/recovery.
-await options.MigrateSourceAsync("legacy", "current");
+await context.GetSources<AppSettings>().MigrateSourceAsync("legacy", "current");
 ```
 
 The file and section resource above remain application-owned. For a file with historical field shapes, pass a schema dispatcher to `SerializedStateReader<TFragment>` and register a matching legacy codec for each historical fragment.
@@ -56,13 +63,13 @@ After adopting the file, replace the application's registration and read/write c
 | Configuration.Writable | Configlue |
 | --- | --- |
 | `[OptionsModel]` | `[ConfiglueModel]`. Mark the class `partial` and use its generated `Patch` for sparse saves. |
-| `WritableOptions.Initialize(...)` | `ConfiglueApp.CreateContext(...)`. For a shared default context, use `ConfiglueApp.Initialize(...)` and `GetOptions<T>()`. |
-| `WritableOptions.GetOptions<T>()` | `context.GetOptions<T>()` or `ConfiglueApp.GetOptions<T>()`. |
-| `CurrentValue` | `await options.GetValueAsync()`. Configlue's core API is asynchronous. DI applications that need synchronous `IOptions<T>` adapters can opt in to `Configlue.Extensions.MSOptions`. |
-| `SaveAsync(value => ...)` | `await options.SaveAsync(patch => ...)` to save only changed members. Use `context.GetEditSessions<T>().OpenEditSessionAsync()` when editing the resolved model as a whole. |
-| `OnChange(...)` / `OnReloadFailed(...)` | Use `options.OnChange(...)` and `context.GetDiagnostics<T>().OnReloadFailed(...)`. Dispose each returned subscription when it is no longer needed. |
-| `InstanceName` / named options | Set `OptionsName` at registration for fixed names. Use `EnableDynamicOptions` and `GetOptionsRegistry<T>()` to add or remove names at runtime. Use `EnableProfiles(...)` when the profile catalog must persist. |
-| `ConfigurationInfo` | Use `context.GetDiagnostics<T>().GetDiagnostics()` for source topology and write routes, and `await options.GetDetailsAsync()` for values and their source provenance. |
+| `WritableOptions.Initialize(...)` | `ConfiglueApp.CreateContext(...)`. For a shared default context, use `ConfiglueApp.Initialize(...)` and `GetState<T>()`. |
+| `WritableOptions.GetState<T>()` | `context.GetState<T>()` or `ConfiglueApp.GetState<T>()`. |
+| `CurrentValue` | `await state.GetValueAsync()`. Configlue's core API is asynchronous. DI applications that need synchronous `IOptions<T>` adapters can opt in to `Configlue.Extensions.MSOptions`. |
+| `SaveAsync(value => ...)` | `await state.SaveAsync(patch => ...)` to save only changed members. Use `context.GetEditSessions<T>().OpenEditSessionAsync()` when editing the resolved model as a whole. |
+| `OnChange(...)` / `OnReloadFailed(...)` | Use `state.OnChange(...)` and `context.GetDiagnostics<T>().OnReloadFailed(...)`. Dispose each returned subscription when it is no longer needed. |
+| `InstanceName` / named options | Set `StateName` at registration for fixed names. Use `EnableDynamicStates` and `GetStateRegistry<T>()` to add or remove names at runtime. Use `EnableProfiles(...)` when the profile catalog must persist. |
+| `ConfigurationInfo` | Use `context.GetDiagnostics<T>().GetDiagnostics()` for source topology and write routes, and `await state.GetDetailsAsync()` for values and their source provenance. |
 | `AddWritableOptions(...)` | `services.AddConfiglue(...)`. Add `AddConfiglueMicrosoftOptions<T>()` when `IOptions<T>` adapters are also needed. |
 
 Example using an independent non-DI context:
@@ -76,13 +83,13 @@ await using var context = ConfiglueApp.CreateContext(config =>
     });
 });
 
-var options = context.GetOptions<UserSettings>();
-var value = await options.GetValueAsync();
-using var subscription = options.OnChange(updated => Console.WriteLine(updated.Name));
-await options.SaveAsync(patch => patch.Name = "new name");
+var state = context.GetState<UserSettings>();
+var value = await state.GetValueAsync();
+using var subscription = state.OnChange(updated => Console.WriteLine(updated.Name));
+await state.SaveAsync(patch => patch.Name = "new name");
 ```
 
-`CreateContext` manages the lifetime of its context and the watchers it starts. Sources and resources supplied by the application remain application-owned. See [Application setup](../basic-usage/app-setup.md) for fixed named options and DI registration, and [Dynamic options](../profiles/dynamic-options.md) and [Profiles](../profiles/profiles.md) for the difference between runtime names and persisted profiles.
+`CreateContext` manages the lifetime of its context and the watchers it starts. Sources and resources supplied by the application remain application-owned. See [Application setup](../basic-usage/app-setup.md) for fixed named states and DI registration, and [Dynamic states](../profiles/dynamic-states.md) and [Profiles](../profiles/profiles.md) for the difference between runtime names and persisted profiles.
 
 ## Next steps
 

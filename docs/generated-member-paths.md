@@ -17,7 +17,7 @@ descendants, and replacing that model with null is rejected when a more specific
 child route makes the operation ambiguous.
 
 Selectors and compatibility string routes are validated against generated schema
-metadata when the plan is built or bound to an options runtime. Normal patch and
+metadata when the plan is built or bound to a state runtime. Normal patch and
 edit-session routing compares immutable member-ID sequences. Generated details
 use the same paths for editability, sparse source contributions, and collection
 provenance. Property names are formatted for diagnostics rather than parsed in

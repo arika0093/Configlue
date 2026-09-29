@@ -217,10 +217,10 @@ public sealed class StateOutcomeContractTests
     public async Task ApplicationSaves_ReturnSourceReceiptsForSingleWritesAndEmptyReceiptsForNoOps()
     {
         var store = new InMemoryStateStore<AppSettings.Fragment>();
-        await using var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(
+        await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([new("user", store, writer: store)])
         );
-        IWritableOptions<AppSettings> writable = options;
+        IWritableState<AppSettings> writable = options;
         var written = await writable.SaveAsync(new AppSettings.Patch { RetryCount = 8 });
         written.Sources.Count.ShouldBe(1);
         written.Sources[0].SourceId.ShouldBe("user");

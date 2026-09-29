@@ -7,9 +7,9 @@ dotnet run --project example/Example.ConsoleApp
 dotnet run --project example/Example.ConsoleApp -- --set-name Ada
 ```
 
-The settings file is written beside the executable. The sample uses `IWritableOptions<T>` to read and save the generated model through the JSON state codec. It does not need a dependency injection container.
+The settings file is written beside the executable. The sample uses `IWritableState<T>` to read and save the generated model through the JSON state codec. It does not need a dependency injection container.
 
-`Example.SimpleApp` shows the same file-backed workflow without a dependency injection container. It constructs `ConfiglueOptions<TModel, TFragment>` directly:
+`Example.SimpleApp` shows the same file-backed workflow without a dependency injection container. It registers the source in an independent `ConfiglueContext` and reads it through `IWritableState<T>`:
 
 ```sh
 dotnet run --project example/Example.SimpleApp

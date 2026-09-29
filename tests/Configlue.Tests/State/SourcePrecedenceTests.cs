@@ -42,7 +42,7 @@ public sealed class SourcePrecedenceTests
         var later = new InMemoryStateStore<AppSettings.Fragment>(
             new AppSettings.Fragment { Label = Optional<string?>.Present("later") }
         );
-        await using var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(
+        await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
                 new("earlier", earlier, priority: 100),
                 new("later", later, priority: 100),

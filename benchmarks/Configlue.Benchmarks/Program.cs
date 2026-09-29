@@ -25,8 +25,8 @@ public partial class BenchmarkSettings
 public class OptionsRuntimeBenchmarks
 {
     private InMemoryStateStore<BenchmarkSettings.Fragment> _store = null!;
-    private ConfiglueOptions<BenchmarkSettings, BenchmarkSettings.Fragment> _options = null!;
-    private IReadOnlyOptions<BenchmarkSettings> _readOptions = null!;
+    private ConfiglueRuntime<BenchmarkSettings, BenchmarkSettings.Fragment> _options = null!;
+    private IReadOnlyState<BenchmarkSettings> _readOptions = null!;
     private IOptionsMonitor<BenchmarkSettings> _monitor = null!;
     private ServiceProvider _serviceProvider = null!;
     private IDisposable _subscription = null!;
@@ -46,14 +46,14 @@ public class OptionsRuntimeBenchmarks
             ),
         ]);
         var services = new ServiceCollection();
-        services.AddConfiglueOptions<BenchmarkSettings, BenchmarkSettings.Fragment>(
+        services.AddConfiglueState<BenchmarkSettings, BenchmarkSettings.Fragment>(
             sourceSet,
             onChangeDebounce: TimeSpan.Zero
         );
         services.AddConfiglueMicrosoftOptions<BenchmarkSettings>();
         _serviceProvider = services.BuildServiceProvider();
         _options = _serviceProvider.GetRequiredService<
-            ConfiglueOptions<BenchmarkSettings, BenchmarkSettings.Fragment>
+            ConfiglueRuntime<BenchmarkSettings, BenchmarkSettings.Fragment>
         >();
         _readOptions = _options;
         _monitor = _serviceProvider.GetRequiredService<IOptionsMonitor<BenchmarkSettings>>();
@@ -78,7 +78,7 @@ public class OptionsRuntimeBenchmarks
 
     [Benchmark]
     public ValueTask<BenchmarkSettings> FacadeGetValueAsync() =>
-        ((IReadOnlyOptions<BenchmarkSettings>)_options).GetValueAsync();
+        ((IReadOnlyState<BenchmarkSettings>)_options).GetValueAsync();
 
     [Benchmark]
     public async Task PublishChangeAsync()

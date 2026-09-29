@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using Configlue.Codecs;
+using Configlue.Sources;
 using Configlue.State;
 
 namespace Configlue.Resources;
@@ -31,7 +32,7 @@ namespace Configlue.Resources;
 public sealed partial class FileResource
     : IResourceReader,
         IPipelineResourceReader,
-        IStateWatcher,
+        ISourceWatcher,
         IResourceBatchWriter,
         IResourceBackupRecovery,
         IDisposable

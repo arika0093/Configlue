@@ -154,7 +154,7 @@ public sealed class SingleBinaryBuilder
         _configlue.Add<TModel>(model =>
         {
             configure?.Invoke(model);
-            var baseOptionsName = model.OptionsName;
+            var baseStateName = model.StateName;
             if (registerProfiles)
             {
                 model.EnableProfiles(
@@ -176,14 +176,14 @@ public sealed class SingleBinaryBuilder
                 var isProfile =
                     registerProfiles
                     && !string.Equals(
-                        registration.OptionsName,
-                        baseOptionsName,
+                        registration.StateName,
+                        baseStateName,
                         StringComparison.Ordinal
                     );
                 var entryName = SingleBinarySourceFactory.GetModelEntryName(
                     modelKey,
                     isProfile,
-                    registration.OptionsName
+                    registration.StateName
                 );
                 registration
                     .Sources.Add(

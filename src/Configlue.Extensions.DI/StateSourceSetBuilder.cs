@@ -1,3 +1,5 @@
+using Configlue.Sources;
+
 namespace Configlue;
 
 /// <summary>Builds a state-source set from services registered in dependency injection.</summary>
@@ -9,7 +11,7 @@ public sealed class StateSourceSetBuilder<T>
 
     /// <summary>Adds a source with an automatically generated opaque identity.</summary>
     public StateSourceBuilder<T> Add(
-        IStateReader<T> reader,
+        ISourceReader<T> reader,
         int priority = 0,
         StateFallbackCondition fallbackCondition = StateFallbackCondition.NotFound,
         string? physicalOrigin = null,
@@ -22,8 +24,8 @@ public sealed class StateSourceSetBuilder<T>
             reader,
             priority,
             fallbackCondition,
-            reader as IStateWriter<T>,
-            reader as IStateWatcher,
+            reader as ISourceWriter<T>,
+            reader as ISourceWatcher,
             physicalOrigin,
             resourceId,
             logicalDescriptor
@@ -34,7 +36,7 @@ public sealed class StateSourceSetBuilder<T>
     /// <summary>Adds a source and detects writer and watcher support on its reader.</summary>
     public StateSourceBuilder<T> Add(
         string id,
-        IStateReader<T> reader,
+        ISourceReader<T> reader,
         int priority = 0,
         StateFallbackCondition fallbackCondition = StateFallbackCondition.NotFound,
         string? physicalOrigin = null,
@@ -51,8 +53,8 @@ public sealed class StateSourceSetBuilder<T>
             reader,
             priority,
             fallbackCondition,
-            reader as IStateWriter<T>,
-            reader as IStateWatcher,
+            reader as ISourceWriter<T>,
+            reader as ISourceWatcher,
             physicalOrigin,
             resourceId
         );
@@ -102,10 +104,10 @@ public sealed class StateSourceSetBuilder<T>
 /// <typeparam name="T">The generated sparse state fragment.</typeparam>
 public sealed class StateSourceBuilder<T>
 {
-    private IStateWriter<T>? _writer;
-    private IStateWatcher? _watcher;
+    private ISourceWriter<T>? _writer;
+    private ISourceWatcher? _watcher;
     private readonly string _id;
-    private readonly IStateReader<T> _reader;
+    private readonly ISourceReader<T> _reader;
     private readonly int _priority;
     private readonly StateFallbackCondition _fallbackCondition;
     private readonly string? _physicalOrigin;
@@ -114,11 +116,11 @@ public sealed class StateSourceBuilder<T>
 
     internal StateSourceBuilder(
         string id,
-        IStateReader<T> reader,
+        ISourceReader<T> reader,
         int priority,
         StateFallbackCondition fallbackCondition,
-        IStateWriter<T>? writer,
-        IStateWatcher? watcher,
+        ISourceWriter<T>? writer,
+        ISourceWatcher? watcher,
         string? physicalOrigin,
         ResourceId? resourceId
     )
@@ -134,7 +136,7 @@ public sealed class StateSourceBuilder<T>
     }
 
     /// <summary>Sets or replaces the writer. The reader's writer is detected by default.</summary>
-    public StateSourceBuilder<T> WithWriter(IStateWriter<T> writer)
+    public StateSourceBuilder<T> WithWriter(ISourceWriter<T> writer)
     {
         ArgumentNullException.ThrowIfNull(writer);
         _writer = writer;
@@ -142,7 +144,7 @@ public sealed class StateSourceBuilder<T>
     }
 
     /// <summary>Sets or replaces the watcher. The reader's watcher is detected by default.</summary>
-    public StateSourceBuilder<T> WithWatcher(IStateWatcher watcher)
+    public StateSourceBuilder<T> WithWatcher(ISourceWatcher watcher)
     {
         ArgumentNullException.ThrowIfNull(watcher);
         _watcher = watcher;

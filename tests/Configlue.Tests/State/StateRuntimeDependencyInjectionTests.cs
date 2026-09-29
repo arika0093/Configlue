@@ -42,16 +42,16 @@ public sealed partial class StateRuntimeTests
         ]);
         var services = new ServiceCollection();
         services.AddConfiglueMicrosoftOptions<AppSettings>();
-        services.AddConfiglueOptions<AppSettings, AppSettings.Fragment>(
+        services.AddConfiglueState<AppSettings, AppSettings.Fragment>(
             _ => sources,
             StateWriteRoute.To("user")
         );
         using var serviceProvider = services.BuildServiceProvider();
-        var readOnly = serviceProvider.GetRequiredService<IReadOnlyOptions<AppSettings>>();
-        var writable = serviceProvider.GetRequiredService<IWritableOptions<AppSettings>>();
+        var readOnly = serviceProvider.GetRequiredService<IReadOnlyState<AppSettings>>();
+        var writable = serviceProvider.GetRequiredService<IWritableState<AppSettings>>();
 
         (ReferenceEquals(readOnly, writable)).ShouldBeTrue();
-        var resolved = await ((IConfiglueRuntimeOptions<AppSettings>)readOnly).ReadAsync();
+        var resolved = await ((IConfiglueRuntimeState<AppSettings>)readOnly).ReadAsync();
         var currentValue = await readOnly.GetValueAsync();
         var saveResult = await writable.SaveAsync(patch =>
         {
@@ -91,7 +91,7 @@ public sealed partial class StateRuntimeTests
         );
         var services = new ServiceCollection();
         services.AddConfiglueMicrosoftOptions<AppSettings>();
-        services.AddConfiglueOptions<AppSettings, AppSettings.Fragment>(
+        services.AddConfiglueState<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([new("default", store, writer: store)])
         );
         using var serviceProvider = services.BuildServiceProvider();
@@ -120,12 +120,12 @@ public sealed partial class StateRuntimeTests
         );
         var services = new ServiceCollection();
         services.AddConfiglueMicrosoftOptions<AppSettings>();
-        services.AddConfiglueOptions<AppSettings, AppSettings.Fragment>(
+        services.AddConfiglueState<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
                 new("default", defaultStore, writer: defaultStore),
             ])
         );
-        services.AddConfiglueOptions<AppSettings, AppSettings.Fragment>(
+        services.AddConfiglueState<AppSettings, AppSettings.Fragment>(
             "custom",
             new StateSourceSet<AppSettings.Fragment>([
                 new("custom", namedStore, writer: namedStore),
@@ -141,10 +141,10 @@ public sealed partial class StateRuntimeTests
         (snapshot.Get("custom").RetryCount).ShouldBe(8);
 
         await serviceProvider
-            .GetRequiredService<IWritableOptions<AppSettings>>()
+            .GetRequiredService<IWritableState<AppSettings>>()
             .SaveAsync(settings => settings.RetryCount = 23);
         await serviceProvider
-            .GetRequiredKeyedService<IWritableOptions<AppSettings>>("custom")
+            .GetRequiredKeyedService<IWritableState<AppSettings>>("custom")
             .SaveAsync(settings => settings.RetryCount = 19);
 
         (snapshot.Value.RetryCount).ShouldBe(17);
@@ -169,11 +169,11 @@ public sealed partial class StateRuntimeTests
         );
         var services = new ServiceCollection();
         services.AddConfiglueMicrosoftOptions<AppSettings>();
-        services.AddConfiglueOptions<AppSettings, AppSettings.Fragment>(
+        services.AddConfiglueState<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([new("default", defaults, writer: defaults)]),
             onChangeDebounce: TimeSpan.Zero
         );
-        services.AddConfiglueOptions<AppSettings, AppSettings.Fragment>(
+        services.AddConfiglueState<AppSettings, AppSettings.Fragment>(
             "custom",
             new StateSourceSet<AppSettings.Fragment>([
                 new("custom", custom, writer: custom, watcher: custom),
@@ -198,7 +198,7 @@ public sealed partial class StateRuntimeTests
             }
         );
         using var directSubscription = serviceProvider
-            .GetRequiredKeyedService<IReadOnlyOptions<AppSettings>>("custom")
+            .GetRequiredKeyedService<IReadOnlyState<AppSettings>>("custom")
             .OnChange(value => directChanged.TrySetResult(value.RetryCount));
 
         (monitor.Get("custom").RetryCount).ShouldBe(8);
@@ -215,7 +215,7 @@ public sealed partial class StateRuntimeTests
         );
         var services = new ServiceCollection();
         services.AddConfiglueMicrosoftOptions<AppSettings>();
-        services.AddConfiglueOptionsRegistry<AppSettings, AppSettings.Fragment>(
+        services.AddConfiglueStateRegistry<AppSettings, AppSettings.Fragment>(
             (_, profileName) =>
             {
                 var store = new InMemoryStateStore<AppSettings.Fragment>(
@@ -229,7 +229,7 @@ public sealed partial class StateRuntimeTests
             onChangeDebounce: TimeSpan.Zero
         );
         using var serviceProvider = services.BuildServiceProvider();
-        var registry = serviceProvider.GetRequiredService<IConfiglueOptionsRegistry<AppSettings>>();
+        var registry = serviceProvider.GetRequiredService<IConfiglueStateRegistry<AppSettings>>();
         var monitor = serviceProvider.GetRequiredService<IOptionsMonitor<AppSettings>>();
         var changed = new TaskCompletionSource<int>(
             TaskCreationOptions.RunContinuationsAsynchronously
@@ -258,7 +258,7 @@ public sealed partial class StateRuntimeTests
         );
         var services = new ServiceCollection();
         services.AddConfiglueMicrosoftOptions<AppSettings>();
-        services.AddConfiglueOptionsRegistry<AppSettings, AppSettings.Fragment>(
+        services.AddConfiglueStateRegistry<AppSettings, AppSettings.Fragment>(
             (_, profileName) =>
             {
                 var store = new InMemoryStateStore<AppSettings.Fragment>(
@@ -272,7 +272,7 @@ public sealed partial class StateRuntimeTests
             onChangeDebounce: TimeSpan.Zero
         );
         using var serviceProvider = services.BuildServiceProvider();
-        var registry = serviceProvider.GetRequiredService<IConfiglueOptionsRegistry<AppSettings>>();
+        var registry = serviceProvider.GetRequiredService<IConfiglueStateRegistry<AppSettings>>();
         (registry.TryAdd("runtime")).ShouldBeTrue();
 
         var removalEntered = new TaskCompletionSource(
@@ -282,7 +282,7 @@ public sealed partial class StateRuntimeTests
             TaskCreationOptions.RunContinuationsAsynchronously
         );
         // Pause before the monitor's removal handler so the replacement is added first.
-        registry.ProfileRemoved += name =>
+        registry.StateRemoved += name =>
         {
             if (name == "runtime")
             {

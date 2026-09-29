@@ -1,6 +1,6 @@
 namespace Configlue.Tests.ReactiveSupport;
 
-internal sealed class FakeOptions<T>(T value) : IWritableOptions<T>, IConfiglueDiagnostics<T>
+internal sealed class FakeOptions<T>(T value) : IWritableState<T>, IConfiglueDiagnostics<T>
 {
     private event Action<T>? Changed;
     private event Action<Exception>? Failed;
@@ -52,7 +52,7 @@ internal sealed class FakeOptions<T>(T value) : IWritableOptions<T>, IConfiglueD
         CancellationToken cancellationToken = default
     ) => throw new NotSupportedException();
 
-    public ConfiglueOptionsDiagnostics GetDiagnostics() => throw new NotSupportedException();
+    public ConfiglueStateDiagnostics GetDiagnostics() => throw new NotSupportedException();
 
     public void Emit(T value)
     {
@@ -63,7 +63,7 @@ internal sealed class FakeOptions<T>(T value) : IWritableOptions<T>, IConfiglueD
     public void Fail(Exception exception) => Failed?.Invoke(exception);
 }
 
-internal sealed class FakeProfiles : IConfiglueProfiledOptions<int>
+internal sealed class FakeProfiles : IConfiglueProfiledState<int>
 {
     private event Action<int>? Changed;
     private event Action<string>? ProfileChanged;
@@ -71,7 +71,7 @@ internal sealed class FakeProfiles : IConfiglueProfiledOptions<int>
         new(StringComparer.Ordinal) { ["default"] = new(1), ["other"] = new(2) };
     public Dictionary<
         string,
-        TaskCompletionSource<IWritableOptions<int>>
+        TaskCompletionSource<IWritableState<int>>
     > PendingProfiles { get; } = new(StringComparer.Ordinal);
     public Dictionary<string, CancellationToken> ProfileReadTokens { get; } =
         new(StringComparer.Ordinal);
@@ -139,7 +139,7 @@ internal sealed class FakeProfiles : IConfiglueProfiledOptions<int>
         CancellationToken cancellationToken = default
     ) => ValueTask.FromResult<IReadOnlyCollection<string>>(ProfileOptions.Keys);
 
-    public ValueTask<IWritableOptions<int>> GetProfileAsync(
+    public ValueTask<IWritableState<int>> GetProfileAsync(
         string profileName,
         CancellationToken cancellationToken = default
     )
@@ -147,10 +147,10 @@ internal sealed class FakeProfiles : IConfiglueProfiledOptions<int>
         ProfileReadTokens[profileName] = cancellationToken;
         return PendingProfiles.TryGetValue(profileName, out var pending)
             ? new(pending.Task)
-            : ValueTask.FromResult<IWritableOptions<int>>(ProfileOptions[profileName]);
+            : ValueTask.FromResult<IWritableState<int>>(ProfileOptions[profileName]);
     }
 
-    public ValueTask<IWritableOptions<int>> GetActiveProfileAsync(
+    public ValueTask<IWritableState<int>> GetActiveProfileAsync(
         CancellationToken cancellationToken = default
     ) => GetProfileAsync(Name, cancellationToken);
 

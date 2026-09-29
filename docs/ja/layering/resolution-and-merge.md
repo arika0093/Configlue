@@ -33,7 +33,7 @@ public partial class AppSettings
 
 ## 出どころ
 
-`await options.GetDetailsAsync()` は実効値と、優先度順のソース別寄与を持つ型つきスナップショットを返します。重ね合わせのトラブルシュートや設定 UI の「どこから来たか」表示に使います。
+`await state.GetDetailsAsync()` は実効値と、優先度順のソース別寄与を持つ型つきスナップショットを返します。重ね合わせのトラブルシュートや設定 UI の「どこから来たか」表示に使います。
 
 ## 次のステップ
 

@@ -1,4 +1,5 @@
 using System.Text;
+using Configlue.Sources;
 
 namespace Configlue.State;
 
@@ -7,13 +8,13 @@ namespace Configlue.State;
 /// </summary>
 /// <typeparam name="T">The state type stored by each representation.</typeparam>
 /// <remarks>
-/// Unlike adding every candidate directly to an options source set, this class does not overlay older
+/// Unlike adding every candidate directly to a state source set, this class does not overlay older
 /// representations with the selected value. Its watcher observes the selected representation and higher
 /// priority candidates so a recovered higher-priority representation can become active again. Writes update
 /// the active writable representation unless a fixed candidate is configured. Candidate resources remain
 /// owned by the caller.
 /// </remarks>
-public sealed class FallbackStateSource<T> : IStateReader<T>, IStateWriter<T>, IStateWatcher
+public sealed class FallbackStateSource<T> : ISourceReader<T>, ISourceWriter<T>, ISourceWatcher
 {
     private readonly StateSourceSet<T> _candidates;
     private readonly StateSourceResolver<T> _reader;
@@ -63,7 +64,7 @@ public sealed class FallbackStateSource<T> : IStateReader<T>, IStateWriter<T>, I
     public StateSource<T>? SelectedSource => _reader.ActiveSource;
 
     /// <summary>
-    /// Creates one logical source for an options source set. The logical source keeps the candidate set as an
+    /// Creates one logical source for a state source set. The logical source keeps the candidate set as an
     /// alternative representation group rather than merging every candidate as an independent contribution.
     /// </summary>
     public StateSource<T> CreateSource(

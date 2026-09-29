@@ -1,12 +1,12 @@
 ---
 title: 設計の全体像
-description: Resource・Source・Codec・Fragment・Patch・Optionsの関係を掴む。
+description: Resource・Source・Codec・Fragment・Patch・Stateの関係を掴む。
 ---
 
 Configlue は登場人物が6つだけです。関係は一直線で、覚える順番も決まっています。
 
 ```text
-Resource（置き場所） → Codec（変換） → Source（寄与） → Fragment（差分） → Options（窓口）
+Resource（置き場所） → Codec（変換） → Source（寄与） → Fragment（差分） → State（窓口）
                                               ↘ Patch（編集の断片）
 ```
 
@@ -19,13 +19,13 @@ Resource（置き場所） → Codec（変換） → Source（寄与） → Frag
 | Source | 論理的な寄与 | 「ユーザー設定ファイルの `Server` 部分」 |
 | Fragment | 項目の有無を持った差分 | 「`Port` だけある」状態 |
 | Patch | 一項目の編集の断片 | 「`Port` を 9000 に」 |
-| Options | アプリから見える窓口 | 読み・保存・監視・説明・診断 |
+| State | アプリが使う窓口 | 読み・保存・監視・説明・診断 |
 
 読みの流れはこうです。各 Source が Resource からバイトを取り、Codec で Fragment に変えます。ランタイムは存在する項目だけを優先度順に重ね、ひとつのモデルにします。
 
 書きの流れは逆です。アプリは普通のモデル値を編集します。裏側では変更が Fragment の差分になり、`WriteRoute` や `WritePlan` の指す Source にだけ届きます。関係ない Source は汚しません。
 
-置き場所・変換・寄与を分けておくと、それぞれを別々に進化させられます。ファイルから HTTP に変えても、JSON から YAML に変えても、モデルの読み書きは変わりません。形の変更は版管理で、置き場所の引っ越しは検証付きコピーで扱います。読み書きの窓口は [Options](./options.md) で別に説明します。
+置き場所・変換・寄与を分けておくと、それぞれを別々に進化させられます。ファイルから HTTP に変えても、JSON から YAML に変えても、モデルの読み書きは変わりません。形の変更は版管理で、置き場所の引っ越しは検証付きコピーで扱います。読み書きの窓口は [State](./state.md) で別に説明します。
 
 ## Resource: バイトの置き場所
 
@@ -50,11 +50,12 @@ Codec は Resource の I/O なしに、バイトと型付き値を相互変換�
 
 `IStateByteTransformer` は Resource と Codec の間で保存バイトを変換します。読み取りは登録順、書き込みは逆順です。任意パッケージ `Configlue.Transformer.AES` の `AesGcmStateByteTransformer` は AES-GCM で暗号化・認証し、認証に失敗した入力を backup recovery 対象として分類します。鍵はアプリケーション側で安全に管理し、不要になった transformer は破棄してください。`SerializedStateSource.FromResource` の `transformers` に渡せます。
 
-Codec の後には `IStateMiddleware<T>` を置けます。これは型付き reader/writer を包み、監査・検証・正規化などを実装します。`middlewares` の先頭が外側になります。middleware が writer を包む場合、batch write にも参加させるなら、戻り値の writer で `IStateWriteBatchParticipant<T>` を引き継いでください。
+Codec の後には `IStateMiddleware<T>` を置けます。これは型付き reader/writer を包み、監査・検証・正規化などを実装します。`middlewares` の先頭が外側になります。middleware が writer を包む場合、batch write にも参加させるなら、戻り値の writer で `ISourceWriteBatchParticipant<T>` を引き継いでください。
 
 ```csharp
 using Configlue.Codecs;
 using Configlue.State;
+using Configlue.Sources;
 using Configlue.Transformer.AES;
 
 using var encryption = new AesGcmStateByteTransformer(key);
@@ -70,7 +71,7 @@ var source = SerializedStateSource.FromResource<AppSettings.Fragment>(
 
 ## Source: 論理的な寄与
 
-Source は「どの項目を、どの優先度で出すか」という論理的な寄与です。読み・書き・監視の機能を独立に公開できます。Resource が置き場所なら、Source はその置き場所の「使い方」です。
+Source は「どの項目を、どの優先度で出すか」という論理的な寄与です。型付きの読み書き監視契約は `Configlue.Sources.ISourceReader<T>`・`ISourceWriter<T>`・`ISourceWatcher` です。物理リソースの I/O には別の `Configlue.Resources.IResourceReader`・`IResourceWriter` 契約を使います。Resource が置き場所なら、Source は state への寄与の仕方です。
 
 * **優先度とフォールバック。** 複数 Source に同じ項目があるとき、数字の大きい `Priority` が勝ちます。`FallbackStateSource` は同じ論理状態の別表現（正規 JSON と旧 YAML など）を束ね、先に読めた候補をその Source の顔として出します。形式違いの値を重ねることはしません。ファイルがないときの素通りと、それ以外の読み取り失敗の伝播は Source の約束です。詳しい組み立ては[ファイル・形式・セクション](../sources/files-and-sections.md)や[環境変数とコマンドライン](../sources/environment-and-commandline.md)を見てください。
 * **読み取り専用という性質。** 環境変数・コマンドライン・既定の HTTP は読み取り専用です。読み取り専用の寄与が隠している値を書き込み側から変えようとすると、黙って無視するのではなく競合で失敗します。保存の前に `GetDetailsAsync` で出どころを確かめる癖が効きます。
@@ -97,9 +98,9 @@ Fragment と Patch は、解決・移行・投影・書き込み計画が動く�
 既知の制限:
 
 * 異なる Resource をまたぐ書き込みは原子的ではありません。
-* Source の退役は現在の options 実体に限定され、実データは残ります。次回起動以降に備えて登録を更新してください。
-* Source 集合は options ランタイムに対して固定です。動的オプションと永続プロファイルは、それぞれ独自の Source 集合を持つランタイムを丸ごと作成・削除できます。
+* Source の退役は現在の state 実体に限定され、実データは残ります。次回起動以降に備えて登録を更新してください。
+* Source 集合は state ランタイムに対して固定です。動的 state と永続プロファイルは、それぞれ独自の Source 集合を持つランタイムを丸ごと作成・削除できます。
 * `FileStateStorageMigrationJournal` は移行 ID の実行中、プロセス間リースを保持します。`IStateStorageMigrationLeaseProvider` を実装しない独自 journal では、呼び出し側が同時実行を調整する必要があります。
 * ウォッチャーは無効化シグナルを提供します。ポーリング・再試行・再接続の方針は各プロバイダーの責務です。
 
-Configlue は既存 options 実体の Source 集合をその場で差し替えません。新しい Context を組み、必要なら明示的に移行し、アプリの利用側を切り替えてから古い Context を破棄してください。名前単位のライフサイクルは[動的オプション](../profiles/dynamic-options.md)を見てください。
+Configlue は既存 state 実体の Source 集合をその場で差し替えません。新しい Context を組み、必要なら明示的に移行し、アプリの利用側を切り替えてから古い Context を破棄してください。名前単位のライフサイクルは[動的 state](../profiles/dynamic-states.md)を見てください。

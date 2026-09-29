@@ -6,7 +6,7 @@ description: 変更通知、デバウンス、DataAnnotations、独自バリデ�
 ## 変更検出
 
 ```csharp
-using var changeSubscription = options.OnChange(updated =>
+using var changeSubscription = state.OnChange(updated =>
     Console.WriteLine($">> Settings changed: {updated.Name}"));
 ```
 
@@ -36,7 +36,7 @@ DataAnnotations 検証は既定で保存時に実行されます。
 NativeAOT など実行環境が動的コードをサポートしない場合、リフレクションを使う DataAnnotations 検証は自動的にスキップされます。
 登録済みの独自バリデーターは引き続き実行されます。
 
-検証に失敗すると `ConfiglueValidationException` が送出され、オプション名・型・すべての失敗メッセージを確認できます。
+検証に失敗すると `ConfiglueValidationException` が送出され、state 名・型・すべての失敗メッセージを確認できます。
 この検証契約は Configlue Core に属し、`Microsoft.Extensions.Options` を必要としません。
 
 読み取り時も検証されます。
@@ -56,7 +56,7 @@ NativeAOT など実行環境が動的コードをサポートしない場合、�
 `GetDetailsAsync()` は、実効値・ソース別寄与・編集可否・コレクション要素の出どころを持つ、生成された強い型のスナップショットを一度の解決から返します。
 
 ```csharp
-var details = await options.GetDetailsAsync();
+var details = await state.GetDetailsAsync();
 
 string name = details.Name;
 bool editable = details.Name.IsEditable;

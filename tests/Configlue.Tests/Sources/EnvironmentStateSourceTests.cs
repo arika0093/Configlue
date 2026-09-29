@@ -79,7 +79,7 @@ public sealed class EnvironmentStateSourceTests
                 ),
             }
         );
-        var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(
+        var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
                 source,
                 new StateSource<AppSettings.Fragment>("defaults", defaults, priority: 0),

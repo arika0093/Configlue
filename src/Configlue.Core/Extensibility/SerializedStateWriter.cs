@@ -1,11 +1,12 @@
 using System.Buffers;
+using Configlue.Sources;
 
 namespace Configlue.Extensibility;
 
 /// <summary>Writes a typed state value by composing a codec and a resource.</summary>
 public sealed class SerializedStateWriter<T>
-    : IStateWriter<T>,
-        IStateWriteBatchParticipant<T>,
+    : ISourceWriter<T>,
+        ISourceWriteBatchParticipant<T>,
         IResourceIdentity
 {
     private readonly IResourceWriter _resource;

@@ -7,15 +7,15 @@ Configlue applications do not acquire either dependency.
 
 | Adapter | Source | Behavior |
 | --- | --- | --- |
-| `ObserveChanges()` | `IReadOnlyOptions<T>` | Future resolved changes, without an initial read. |
-| `ObserveValues()` | `IReadOnlyOptions<T>` | Current resolved value followed by changes. |
+| `ObserveChanges()` | `IReadOnlyState<T>` | Future resolved changes, without an initial read. |
+| `ObserveValues()` | `IReadOnlyState<T>` | Current resolved value followed by changes. |
 | `ObserveReloadFailures()` | `IConfiglueDiagnostics<T>` | Watcher failures emitted as `Exception` values. |
-| `ObserveActiveValues()` | `IConfiglueProfiledOptions<T>` | Current active value, value changes, and profile switches. |
-| `ObserveActiveProfileNames()` | `IConfiglueProfiledOptions<T>` | Current active profile name followed by selection changes. |
+| `ObserveActiveValues()` | `IConfiglueProfiledState<T>` | Current active value, value changes, and profile switches. |
+| `ObserveActiveProfileNames()` | `IConfiglueProfiledState<T>` | Current active profile name followed by selection changes. |
 
 Every subscription owns its listener and initial-read cancellation source.
 Disposal detaches the listener, cancels an outstanding initial read, and suppresses
-late results even when a source ignores cancellation. The source options/context
+late results even when a source ignores cancellation. The source definitions/context
 remain caller-owned. Streams are cold: use native `Publish().RefCount()` or
 `Share()` when several consumers should share one subscription.
 
@@ -38,8 +38,8 @@ reloads, rather than errors from explicit reads or failures in change listeners.
 
 ## Rx.NET: combine models, select state, debounce, and dispatch
 
-Assume `app` and `network` are `IReadOnlyOptions<AppSettings>` and
-`IReadOnlyOptions<NetworkSettings>`, and `dispatcher` is the target
+Assume `app` and `network` are `IReadOnlyState<AppSettings>` and
+`IReadOnlyState<NetworkSettings>`, and `dispatcher` is the target
 `SynchronizationContext`.
 
 ```csharp
@@ -101,7 +101,7 @@ native observables and apply `Switch`. Rx.NET example:
 using var subscription = profiles.ObserveActiveProfileNames()
     .Select(name => Observable.FromAsync(token =>
             profiles.GetProfileAsync(name, token).AsTask())
-        .SelectMany(options => options.ObserveValues()))
+        .SelectMany(state => state.ObserveValues()))
     .Switch()
     .Subscribe(ApplyProfile, ReportReadFailure);
 ```

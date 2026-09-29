@@ -2,6 +2,7 @@ using System.Linq.Expressions;
 using System.Reflection;
 using System.Runtime.ExceptionServices;
 using System.Text.Json;
+using Configlue.Sources;
 
 namespace Configlue.Provider.Json;
 
@@ -246,7 +247,7 @@ public static class JsonFileSourceRegistration
             );
             IResourceReader resource = file;
             IResourceWriter? writer = readOnly ? null : file;
-            IStateWatcher? resourceWatcher = watchChanges ? file : null;
+            ISourceWatcher? resourceWatcher = watchChanges ? file : null;
             if (options.Transformers is { Count: > 0 })
             {
                 var transformed = new TransformingResource(file, options.Transformers);

@@ -5,12 +5,13 @@ using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using Configlue;
+using Configlue.Sources;
 
 namespace Configlue.Source.CommandLine;
 
 /// <summary>Reads mapped command-line values into a generated sparse model fragment.</summary>
 /// <typeparam name="TFragment">The generated fragment type.</typeparam>
-internal sealed class CommandLineStateReader<TFragment> : IStateReader<TFragment>
+internal sealed class CommandLineStateReader<TFragment> : ISourceReader<TFragment>
     where TFragment : class, IConfiglueFragment<TFragment>
 {
     private readonly ConfiglueModelSchema _schema;

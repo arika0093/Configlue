@@ -12,11 +12,11 @@ public interface IConfiglueDiagnostics<T>
     {
         ArgumentNullException.ThrowIfNull(listener);
         throw new NotSupportedException(
-            "This options implementation does not support reload-failure notifications."
+            "This state implementation does not support reload-failure notifications."
         );
     }
 
     /// <summary>Returns the configured source topology and registration-level write routing.</summary>
-    ConfiglueOptionsDiagnostics GetDiagnostics();
+    ConfiglueStateDiagnostics GetDiagnostics();
 }
 #pragma warning restore S2326

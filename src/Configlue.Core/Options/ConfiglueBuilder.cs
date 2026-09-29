@@ -22,16 +22,12 @@ public sealed class ConfiglueBuilder
         if (
             _registrations.Any(registration =>
                 registration.ModelType == typeof(TModel)
-                && string.Equals(
-                    registration.OptionsName,
-                    model.OptionsName,
-                    StringComparison.Ordinal
-                )
+                && string.Equals(registration.StateName, model.StateName, StringComparison.Ordinal)
             )
         )
         {
             throw new ArgumentException(
-                $"Model '{typeof(TModel)}' with options name '{model.OptionsName}' is already registered.",
+                $"Model '{typeof(TModel)}' with state name '{model.StateName}' is already registered.",
                 nameof(configure)
             );
         }
@@ -83,7 +79,7 @@ public sealed class ConfiglueModelBuilder<TModel>
     private readonly List<
         Action<string, IServiceProvider?, ConfiglueSourceSetBuilder<TModel>>
     > _sourceConfigurations = [];
-    private string _optionsName = string.Empty;
+    private string _stateName = string.Empty;
     private StateSource<ConfiglueProfileCatalog>? _profileCatalogSource;
     private Func<
         IServiceProvider?,
@@ -97,7 +93,7 @@ public sealed class ConfiglueModelBuilder<TModel>
     private ReadValidationMode _readValidationMode = ReadValidationMode.EffectiveThrow;
     private WriteConflictResolution _writeConflictResolution =
         WriteConflictResolution.FailOnConflict;
-    private bool _enableDynamicOptions;
+    private bool _enableDynamicStates;
     private TimeSpan? _onChangeDebounce;
     private ILogger? _logger;
     private Func<TModel, TModel>? _cloneStrategy;
@@ -105,14 +101,14 @@ public sealed class ConfiglueModelBuilder<TModel>
     private Type? _subjectAccessorType;
     private bool _sealed;
 
-    /// <summary>The name used by named options and profiles. The default is the unnamed instance.</summary>
-    public string OptionsName
+    /// <summary>The name used by state instances and profiles. The default is the unnamed instance.</summary>
+    public string StateName
     {
-        get => _optionsName;
+        get => _stateName;
         set
         {
             EnsureMutable();
-            _optionsName = value ?? throw new ArgumentNullException(nameof(value));
+            _stateName = value ?? throw new ArgumentNullException(nameof(value));
         }
     }
 
@@ -140,13 +136,13 @@ public sealed class ConfiglueModelBuilder<TModel>
     }
 
     /// <summary>Enables runtime registration of named instances for this model.</summary>
-    public bool EnableDynamicOptions
+    public bool EnableDynamicStates
     {
-        get => _enableDynamicOptions;
+        get => _enableDynamicStates;
         set
         {
             EnsureMutable();
-            _enableDynamicOptions = value;
+            _enableDynamicStates = value;
         }
     }
 
@@ -161,7 +157,7 @@ public sealed class ConfiglueModelBuilder<TModel>
         }
     }
 
-    /// <summary>Sets a custom deep-clone strategy for model values used by this options runtime.</summary>
+    /// <summary>Sets a custom deep-clone strategy for model values used by this state runtime.</summary>
     /// <remarks>The strategy must return a distinct model with independent mutable members. Full-model saves use it before creating the source fragment; direct fragment patch APIs remain the caller's responsibility.</remarks>
     public void UseCloneStrategy(Func<TModel, TModel> cloneStrategy)
     {
@@ -253,8 +249,8 @@ public sealed class ConfiglueModelBuilder<TModel>
 
     /// <summary>Resolves the current subject from a scoped dependency-injection accessor.</summary>
     /// <remarks>
-    /// The accessor type must be registered with the application's service provider. Options
-    /// injected into a scope become scoped views; the underlying runtime remains shared.
+    /// The accessor type must be registered with the application's service provider. State
+    /// interfaces injected into a scope become scoped views; the underlying runtime remains shared.
     /// </remarks>
     public void PerSubject<TAccessor>()
         where TAccessor : class, IConfiglueSubjectAccessor
@@ -293,7 +289,7 @@ public sealed class ConfiglueModelBuilder<TModel>
         _profileCatalogSource = catalogSource;
         _profileCatalogSourceFactory = null;
         _defaultProfileName = defaultProfileName;
-        _enableDynamicOptions = true;
+        _enableDynamicStates = true;
     }
 
     /// <summary>Enables persisted profiles using a catalog source created for each context.</summary>
@@ -316,7 +312,7 @@ public sealed class ConfiglueModelBuilder<TModel>
         _profileCatalogSource = null;
         _profileCatalogSourceFactory = catalogSourceFactory;
         _defaultProfileName = defaultProfileName;
-        _enableDynamicOptions = true;
+        _enableDynamicStates = true;
     }
 
     /// <summary>Adds a validator for this model.</summary>
@@ -366,7 +362,7 @@ public sealed class ConfiglueModelBuilder<TModel>
         sources.CopyFrom(_sources);
         foreach (var configure in _sourceConfigurations)
         {
-            configure(OptionsName, serviceProvider, sources);
+            configure(StateName, serviceProvider, sources);
         }
         return sources.Build<TFragment>(modelSchema, serviceProvider, ownResource);
     }
@@ -440,20 +436,20 @@ public sealed class ConfiglueModelBuilder<TModel>
 
         return (
             serviceProvider?.GetService(typeof(ILoggerFactory)) as ILoggerFactory
-        )?.CreateLogger($"Configlue.Options.{typeof(TModel).FullName}.{OptionsName}");
+        )?.CreateLogger($"Configlue.State.{typeof(TModel).FullName}.{StateName}");
     }
 
-    internal ConfiglueModelBuilder<TModel> CloneForOptionsName(string optionsName)
+    internal ConfiglueModelBuilder<TModel> CloneForStateName(string stateName)
     {
         var clone = new ConfiglueModelBuilder<TModel>
         {
-            OptionsName = optionsName,
+            StateName = stateName,
             WriteRoute = _writeRoute,
             WritePlan = _writePlan,
             ValidateDataAnnotations = _validateDataAnnotations,
             ReadValidationMode = _readValidationMode,
             WriteConflictResolution = _writeConflictResolution,
-            EnableDynamicOptions = _enableDynamicOptions,
+            EnableDynamicStates = _enableDynamicStates,
             OnChangeDebounce = _onChangeDebounce,
             Logger = _logger,
             _routeSelector = _routeSelector,
@@ -489,13 +485,13 @@ internal interface IConfiglueModelRegistration
 {
     Type ModelType { get; }
     ConfiglueModelSchema ModelSchema { get; }
-    string OptionsName { get; }
+    string StateName { get; }
     bool IsPerSubject { get; }
     Type? SubjectAccessorType { get; }
-    bool EnableDynamicOptions { get; }
+    bool EnableDynamicStates { get; }
     bool EnableProfiles { get; }
     object CreateRuntime(IServiceProvider? serviceProvider, Action<IDisposable> ownResource);
-    object CreateOptionsRegistry(
+    object CreateStateRegistry(
         IServiceProvider? serviceProvider,
         IReadOnlyList<string> reservedNames
     );
@@ -523,13 +519,13 @@ internal sealed class ConfiglueModelRegistration<TModel>(ConfiglueModelBuilder<T
 
     public ConfiglueModelSchema ModelSchema => TModel.Descriptor.Schema;
 
-    public string OptionsName => builder.OptionsName;
+    public string StateName => builder.StateName;
 
     public bool IsPerSubject => builder.SubjectAccessorType is not null;
 
     public Type? SubjectAccessorType => builder.SubjectAccessorType;
 
-    public bool EnableDynamicOptions => builder.EnableDynamicOptions;
+    public bool EnableDynamicStates => builder.EnableDynamicStates;
 
     public bool EnableProfiles => builder.HasProfileCatalog;
 
@@ -560,29 +556,29 @@ internal sealed class ConfiglueModelRegistration<TModel>(ConfiglueModelBuilder<T
         if (reservedNames.Contains(builder.DefaultProfileName, StringComparer.Ordinal))
         {
             throw new InvalidOperationException(
-                $"Default profile '{builder.DefaultProfileName}' conflicts with a fixed OptionsName."
+                $"Default profile '{builder.DefaultProfileName}' conflicts with a fixed StateName."
             );
         }
         return TModel.Descriptor.CreateProfiles(
-            (IConfiglueOptionsRegistry<TModel>)registry,
+            (IConfiglueStateRegistry<TModel>)registry,
             catalogSource,
             builder.DefaultProfileName
         );
     }
 
-    public object CreateOptionsRegistry(
+    public object CreateStateRegistry(
         IServiceProvider? serviceProvider,
         IReadOnlyList<string> reservedNames
     ) =>
-        new ConfiglueFacadeOptionsRegistry<TModel>(
+        new ConfiglueFacadeStateRegistry<TModel>(
             name =>
             {
                 var resources = new List<IDisposable>();
                 var resourceSet = new HashSet<IDisposable>(ReferenceEqualityComparer.Instance);
-                IWritableOptions<TModel>? runtime = null;
+                IWritableState<TModel>? runtime = null;
                 try
                 {
-                    var dynamicBuilder = builder.CloneForOptionsName(name);
+                    var dynamicBuilder = builder.CloneForStateName(name);
                     runtime = TModel.Descriptor.CreateRuntime(
                         dynamicBuilder,
                         serviceProvider,
@@ -649,105 +645,103 @@ internal sealed class ConfiglueModelRegistration<TModel>(ConfiglueModelBuilder<T
 
     public void AddServiceDescriptors(IServiceCollection services)
     {
-        if (EnableDynamicOptions)
+        if (EnableDynamicStates)
         {
-            services.AddSingleton<IConfiglueOptionsRegistry<TModel>>(provider =>
-                provider.GetRequiredService<ConfiglueContext>().GetOptionsRegistry<TModel>()
+            services.AddSingleton<IConfiglueStateRegistry<TModel>>(provider =>
+                provider.GetRequiredService<ConfiglueContext>().GetStateRegistry<TModel>()
             );
         }
         if (EnableProfiles)
         {
-            services.AddSingleton<IConfiglueProfiledOptions<TModel>>(provider =>
-                provider.GetRequiredService<ConfiglueContext>().GetProfiledOptions<TModel>()
+            services.AddSingleton<IConfiglueProfiledState<TModel>>(provider =>
+                provider.GetRequiredService<ConfiglueContext>().GetProfiledState<TModel>()
             );
         }
         if (IsPerSubject)
         {
             var subjectAccessorType = SubjectAccessorType!;
-            if (OptionsName.Length == 0)
+            if (StateName.Length == 0)
             {
-                services.AddScoped(provider => new CurrentSubjectOptions<TModel>(
+                services.AddScoped(provider => new CurrentSubjectState<TModel>(
                     provider
                         .GetRequiredService<ConfiglueContext>()
-                        .GetSubjectOptions<TModel>(OptionsName),
+                        .GetSubjectState<TModel>(StateName),
                     (IConfiglueSubjectAccessor)provider.GetRequiredService(subjectAccessorType)
                 ));
-                services.AddScoped<IReadOnlyOptions<TModel>>(provider =>
-                    provider.GetRequiredService<CurrentSubjectOptions<TModel>>()
+                services.AddScoped<IReadOnlyState<TModel>>(provider =>
+                    provider.GetRequiredService<CurrentSubjectState<TModel>>()
                 );
-                services.AddScoped<IWritableOptions<TModel>>(provider =>
-                    provider.GetRequiredService<CurrentSubjectOptions<TModel>>()
+                services.AddScoped<IWritableState<TModel>>(provider =>
+                    provider.GetRequiredService<CurrentSubjectState<TModel>>()
                 );
-                services.AddSingleton<ISubjectOptions<TModel>>(provider =>
+                services.AddSingleton<ISubjectState<TModel>>(provider =>
                     provider
                         .GetRequiredService<ConfiglueContext>()
-                        .GetSubjectOptions<TModel>(OptionsName)
+                        .GetSubjectState<TModel>(StateName)
                 );
             }
             else
             {
-                services.AddKeyedScoped<CurrentSubjectOptions<TModel>>(
-                    OptionsName,
+                services.AddKeyedScoped<CurrentSubjectState<TModel>>(
+                    StateName,
                     (provider, _) =>
-                        new CurrentSubjectOptions<TModel>(
+                        new CurrentSubjectState<TModel>(
                             provider
                                 .GetRequiredService<ConfiglueContext>()
-                                .GetSubjectOptions<TModel>(OptionsName),
+                                .GetSubjectState<TModel>(StateName),
                             (IConfiglueSubjectAccessor)
                                 provider.GetRequiredService(subjectAccessorType)
                         )
                 );
-                services.AddKeyedScoped<IReadOnlyOptions<TModel>>(
-                    OptionsName,
+                services.AddKeyedScoped<IReadOnlyState<TModel>>(
+                    StateName,
                     (provider, key) =>
-                        provider.GetRequiredKeyedService<CurrentSubjectOptions<TModel>>(key)
+                        provider.GetRequiredKeyedService<CurrentSubjectState<TModel>>(key)
                 );
-                services.AddKeyedScoped<IWritableOptions<TModel>>(
-                    OptionsName,
+                services.AddKeyedScoped<IWritableState<TModel>>(
+                    StateName,
                     (provider, key) =>
-                        provider.GetRequiredKeyedService<CurrentSubjectOptions<TModel>>(key)
+                        provider.GetRequiredKeyedService<CurrentSubjectState<TModel>>(key)
                 );
-                services.AddKeyedSingleton<ISubjectOptions<TModel>>(
-                    OptionsName,
+                services.AddKeyedSingleton<ISubjectState<TModel>>(
+                    StateName,
                     (provider, _) =>
                         provider
                             .GetRequiredService<ConfiglueContext>()
-                            .GetSubjectOptions<TModel>(OptionsName)
+                            .GetSubjectState<TModel>(StateName)
                 );
             }
         }
-        else if (OptionsName.Length == 0)
+        else if (StateName.Length == 0)
         {
-            services.AddSingleton<IReadOnlyOptions<TModel>>(provider =>
-                provider.GetRequiredService<ConfiglueContext>().GetOptions<TModel>(OptionsName)
+            services.AddSingleton<IReadOnlyState<TModel>>(provider =>
+                provider.GetRequiredService<ConfiglueContext>().GetState<TModel>(StateName)
             );
-            services.AddSingleton<IWritableOptions<TModel>>(provider =>
-                provider.GetRequiredService<ConfiglueContext>().GetOptions<TModel>(OptionsName)
+            services.AddSingleton<IWritableState<TModel>>(provider =>
+                provider.GetRequiredService<ConfiglueContext>().GetState<TModel>(StateName)
             );
-            services.AddSingleton<ISubjectOptions<TModel>>(provider =>
-                provider
-                    .GetRequiredService<ConfiglueContext>()
-                    .GetSubjectOptions<TModel>(OptionsName)
+            services.AddSingleton<ISubjectState<TModel>>(provider =>
+                provider.GetRequiredService<ConfiglueContext>().GetSubjectState<TModel>(StateName)
             );
         }
         else
         {
-            services.AddKeyedSingleton<IReadOnlyOptions<TModel>>(
-                OptionsName,
+            services.AddKeyedSingleton<IReadOnlyState<TModel>>(
+                StateName,
                 (provider, _) =>
-                    provider.GetRequiredService<ConfiglueContext>().GetOptions<TModel>(OptionsName)
+                    provider.GetRequiredService<ConfiglueContext>().GetState<TModel>(StateName)
             );
-            services.AddKeyedSingleton<IWritableOptions<TModel>>(
-                OptionsName,
+            services.AddKeyedSingleton<IWritableState<TModel>>(
+                StateName,
                 (provider, _) =>
-                    provider.GetRequiredService<ConfiglueContext>().GetOptions<TModel>(OptionsName)
+                    provider.GetRequiredService<ConfiglueContext>().GetState<TModel>(StateName)
             );
-            services.AddKeyedSingleton<ISubjectOptions<TModel>>(
-                OptionsName,
+            services.AddKeyedSingleton<ISubjectState<TModel>>(
+                StateName,
                 (provider, _) =>
                     provider
                         .GetRequiredService<ConfiglueContext>()
-                        .GetSubjectOptions<TModel>(OptionsName)
+                        .GetSubjectState<TModel>(StateName)
             );
         }
     }

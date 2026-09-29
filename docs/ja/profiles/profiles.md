@@ -11,10 +11,10 @@ model.ConfigureSources(registration =>
     registration.Sources.FromJsonFile(new()
     {
         Id = "profile-state",
-        Path = Path.Combine(profileDirectory, registration.OptionsName + ".json"),
+        Path = Path.Combine(profileDirectory, registration.StateName + ".json"),
     }));
 
-var profiles = context.GetProfiledOptions<AppSettings>();
+var profiles = context.GetProfiledState<AppSettings>();
 await profiles.CreateProfileAsync("work", copyFrom: "default");
 await profiles.SetActiveProfileAsync("work");
 var activeOptions = await profiles.GetActiveProfileAsync();
@@ -23,17 +23,17 @@ var current = await profiles.GetActiveValueAsync();
 await profiles.RemoveProfileAsync("work");
 ```
 
-プロファイル facade はプロファイルの選択とライフタイムを管理します。書き込みは `GetActiveProfileAsync` または `GetProfileAsync` が返す `IWritableOptions<TModel>` を通して行います。これにより明示的な `Unset` を含む patch-first の書き込みになります。プロファイルカタログソースは書き込み可能である必要があり、呼び出し側所有のままです。カタログは通常の書き込み可能 `StateSource<ConfiglueProfileCatalog>` で保存されるため、プロバイダーは独立に選べます。`IConfiglueProfiledOptions<TModel>` は最初の非同期操作で既定プロファイルを遅延復元/作成し、`CreateProfileAsync` で複写でき、有効プロファイル変更を永続化します。プロファイル削除はカタログとランタイムから除去しますが、裏の状態は残ります。
+プロファイル facade はプロファイルの選択とライフタイムを管理します。書き込みは `GetActiveProfileAsync` または `GetProfileAsync` が返す `IWritableState<TModel>` を通して行います。これにより明示的な `Unset` を含む patch-first の書き込みになります。プロファイルカタログソースは書き込み可能である必要があり、呼び出し側所有のままです。カタログは通常の書き込み可能 `StateSource<ConfiglueProfileCatalog>` で保存されるため、プロバイダーは独立に選べます。`IConfiglueProfiledState<TModel>` は最初の非同期操作で既定プロファイルを遅延復元/作成し、`CreateProfileAsync` で複写でき、有効プロファイル変更を永続化します。プロファイル削除はカタログとランタイムから除去しますが、裏の状態は残ります。
 
 `OnChange` は active profile を追跡し、値の変更とプロファイル切替後の新しい値を通知します。カタログ source が watcher を提供する場合は、外部からのカタログ変更も監視します。subscription を破棄するとその callback が止まります。manager の catalog watcher は所有 context の破棄時に停止します。直接生成した profile manager は呼び出し側で破棄してください。
 
-DI では同じ `EnableProfiles`・`ConfigureSources` 呼び出しを `services.AddConfiglue(...)` の中で行い、プロバイダーから `IConfiglueProfiledOptions<AppSettings>` を解決します。プロバイダー構築後に追加されたプロファイル名はキー付きサービスではなく `IOptionsMonitor` と `IConfiglueOptionsRegistry` で解決されます。非 DI の1引数入口は上記の `context.GetProfiledOptions<AppSettings>()` です。
+DI では同じ `EnableProfiles`・`ConfigureSources` 呼び出しを `services.AddConfiglue(...)` の中で行い、プロバイダーから `IConfiglueProfiledState<AppSettings>` を解決します。プロバイダー構築後に追加されたプロファイル名はキー付きサービスではなく `IOptionsMonitor` と `IConfiglueStateRegistry` で解決されます。非 DI の1引数入口は上記の `context.GetProfiledState<AppSettings>()` です。
 
 ```csharp
 using Configlue.Sources;
 
 services.AddSingleton<ProfileCatalogStore>();
-services.AddConfiglueProfiledOptions<AppConfig, AppConfig.Fragment>(
+services.AddConfiglueProfiledState<AppConfig, AppConfig.Fragment>(
     (provider, profileName) => CreateProfileSources(provider, profileName),
     provider =>
     {
@@ -42,9 +42,9 @@ services.AddConfiglueProfiledOptions<AppConfig, AppConfig.Fragment>(
     });
 ```
 
-プロファイル名はオプション登録簿の名前でもあるため、固定 `OptionsName` 登録と衝突できません。`ConfigureSources` は固定登録自体を含む各名前つきランタイム構築で実行され、そのランタイムの正確な `OptionsName` を受け取ります — プロファイル固有ソースの構築に使います。名前付きプロファイルにはキー付き DI 登録も使えます (例: `AddConfiglueOptions<TModel, TModel.Fragment>("profile", sourceSet)` と `GetRequiredKeyedService<IReadOnlyOptions<TModel>>("profile")`)。
+プロファイル名は state 登録簿の名前でもあるため、固定 `StateName` 登録と衝突できません。`ConfigureSources` は固定登録自体を含む各名前つきランタイム構築で実行され、そのランタイムの正確な `StateName` を受け取ります — プロファイル固有ソースの構築に使います。名前付きプロファイルにはキー付き DI 登録も使えます (例: `AddConfiglueState<TModel, TModel.Fragment>("profile", sourceSet)` と `GetRequiredKeyedService<IReadOnlyState<TModel>>("profile")`)。
 
 ## 次のステップ
 
-* 永続化なしの実行時限定の名前つき実体は [名前付きインスタンスと動的オプション](./dynamic-options.md)。
+* 永続化なしの実行時限定の名前つき実体は [名前付きインスタンスと動的 state](./dynamic-states.md)。
 * [保存場所移行](../migration/storage-migration.md)。

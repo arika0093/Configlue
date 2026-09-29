@@ -1,5 +1,6 @@
 using Configlue.Provider.Json;
 using Configlue.Testing;
+using Configlue.Sources;
 
 namespace Configlue.Tests;
 
@@ -22,7 +23,7 @@ public sealed class BatchWriteParticipantContractTests
             ),
         };
         var request = new StateWriteRequest<AppSettings.Fragment>(value);
-        var syncParticipant = (IStateWriteBatchParticipant<AppSettings.Fragment>)projected.Writer!;
+        var syncParticipant = (ISourceWriteBatchParticipant<AppSettings.Fragment>)projected.Writer!;
 
         syncParticipant
             .TryCreateBatchWrite(request, out var resourceId, out var batchWriter, out var mutation)
@@ -33,7 +34,7 @@ public sealed class BatchWriteParticipantContractTests
         await batchWriter!.WriteBatchAsync([mutation!]);
 
         var asyncParticipant =
-            (IAsyncStateWriteBatchParticipant<AppSettings.Fragment>)projected.Writer!;
+            (IAsyncSourceWriteBatchParticipant<AppSettings.Fragment>)projected.Writer!;
         asyncParticipant.CanPrepareBatchWrite.ShouldBeTrue();
         var plan = await asyncParticipant.TryCreateBatchWriteAsync(request);
 
@@ -53,9 +54,9 @@ public sealed class BatchWriteParticipantContractTests
         var source = new StateSource<DatabaseSettings.Fragment>("database", store, writer: store);
         var projected = Project(source);
         var request = new StateWriteRequest<AppSettings.Fragment>(new AppSettings.Fragment());
-        var syncParticipant = (IStateWriteBatchParticipant<AppSettings.Fragment>)projected.Writer!;
+        var syncParticipant = (ISourceWriteBatchParticipant<AppSettings.Fragment>)projected.Writer!;
         var asyncParticipant =
-            (IAsyncStateWriteBatchParticipant<AppSettings.Fragment>)projected.Writer!;
+            (IAsyncSourceWriteBatchParticipant<AppSettings.Fragment>)projected.Writer!;
 
         syncParticipant
             .TryCreateBatchWrite(request, out var resourceId, out var batchWriter, out var mutation)

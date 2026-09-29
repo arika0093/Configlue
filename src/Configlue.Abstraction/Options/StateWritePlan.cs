@@ -6,7 +6,7 @@ namespace Configlue;
 /// <summary>Routes changed model property paths to source-local write targets.</summary>
 /// <remarks>
 /// The most specific configured path applies. A route for a nested model also applies to its descendants;
-/// paths without a matching route use the options instance's configured write source. Registration routes
+/// paths without a matching route use the state instance's configured write source. Registration routes
 /// can be combined with per-operation routes; per-operation routes replace registration routes for the same path.
 /// Nested changes can be split across routes. Replacing a nested value with null fails if a route exists below it.
 /// </remarks>

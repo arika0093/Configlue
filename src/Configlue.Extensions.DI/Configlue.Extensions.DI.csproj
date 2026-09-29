@@ -3,7 +3,7 @@
     <AssemblyName>Configlue.Extensions.DI</AssemblyName>
     <RootNamespace>Configlue</RootNamespace>
     <IsPackable>true</IsPackable>
-    <PackageDescription>Dependency injection registration for Configlue options.</PackageDescription>
+    <PackageDescription>Dependency injection registration for Configlue state.</PackageDescription>
   </PropertyGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Configlue.Extensions.MSOptions" />

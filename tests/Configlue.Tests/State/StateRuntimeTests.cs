@@ -5,6 +5,7 @@ using Configlue.Provider.Yaml;
 using Configlue.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using Configlue.Sources;
 
 namespace Configlue.Tests;
 
@@ -42,7 +43,7 @@ public sealed partial class StateRuntimeTests
     {
         var first = new InMemoryStateStore<AppSettings.Fragment>();
         var second = new InMemoryStateStore<AppSettings.Fragment>();
-        await using var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(
+        await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
                 new StateSource<AppSettings.Fragment>("first", first, writer: first),
                 new StateSource<AppSettings.Fragment>("second", second, writer: second),
@@ -63,7 +64,7 @@ public sealed partial class StateRuntimeTests
             new AppSettings.Fragment { Label = Optional<string?>.Present("before") }
         );
         var reader = new CountingStateReader<AppSettings.Fragment>(store);
-        await using var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(
+        await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
                 new StateSource<AppSettings.Fragment>("settings", reader, writer: store),
             ])
@@ -95,7 +96,7 @@ public sealed partial class StateRuntimeTests
                 }
             }
         );
-        await using var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(
+        await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
                 new StateSource<AppSettings.Fragment>("settings", reader, writer: store),
             ])
@@ -193,7 +194,7 @@ public sealed partial class StateRuntimeTests
             ]),
             writeSourceId: "canonical"
         );
-        await using var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(
+        await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([fallback.CreateSource("settings")]),
             onChangeDebounce: TimeSpan.Zero
         );
@@ -447,7 +448,7 @@ public sealed partial class StateRuntimeTests
                 watcher: throwingWatcher
             ),
         ]);
-        await using var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(
+        await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             sources,
             onChangeDebounce: TimeSpan.Zero
         );
@@ -470,7 +471,7 @@ public sealed partial class StateRuntimeTests
             physicalOrigin: "memory://settings"
         );
         var sourceSet = new StateSourceSet<AppSettings.Fragment>([source]);
-        var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(sourceSet);
+        var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(sourceSet);
 
         await options.SaveAsync(
             new AppSettings.Patch { RetryCount = FragmentOperation<int>.Set(12) }
@@ -485,7 +486,7 @@ public sealed partial class StateRuntimeTests
         (storedResource.Schema).ShouldBe(AppSettings.ConfiglueSchema.ToMetadata());
     }
 
-    private sealed class FixedStateReader<T>(StateReadResult<T> result) : IStateReader<T>
+    private sealed class FixedStateReader<T>(StateReadResult<T> result) : ISourceReader<T>
     {
         public ValueTask<StateReadResult<T>> ReadAsync(
             CancellationToken cancellationToken = default
@@ -496,7 +497,7 @@ public sealed partial class StateRuntimeTests
         }
     }
 
-    private sealed class OpaqueRevisionStateStore<T> : IStateReader<T>, IStateWatcher
+    private sealed class OpaqueRevisionStateStore<T> : ISourceReader<T>, ISourceWatcher
     {
         private const string Revision = "opaque";
         private readonly object _gate = new();
@@ -575,7 +576,7 @@ public sealed partial class StateRuntimeTests
             new(TaskCreationOptions.RunContinuationsAsynchronously);
     }
 
-    private sealed class PendingStateWatcher : IStateWatcher
+    private sealed class PendingStateWatcher : ISourceWatcher
     {
         private readonly TaskCompletionSource<bool> _started = new(
             TaskCreationOptions.RunContinuationsAsynchronously
@@ -602,7 +603,7 @@ public sealed partial class StateRuntimeTests
         }
     }
 
-    private sealed class SynchronousThrowingStateWatcher : IStateWatcher
+    private sealed class SynchronousThrowingStateWatcher : ISourceWatcher
     {
         public ValueTask WaitForChangeAsync(
             string? observedRevision,
@@ -610,7 +611,7 @@ public sealed partial class StateRuntimeTests
         ) => throw new InvalidOperationException("Simulated synchronous watcher startup failure.");
     }
 
-    private sealed class FailOnceStateWriter<T>(IStateWriter<T> inner) : IStateWriter<T>
+    private sealed class FailOnceStateWriter<T>(ISourceWriter<T> inner) : ISourceWriter<T>
     {
         private int _shouldFail = 1;
 
@@ -701,7 +702,7 @@ public sealed partial class StateRuntimeTests
     }
 
     private static async Task<ConfiglueValidationException> SaveInvalidAndCaptureAsync(
-        IWritableOptions<AppSettings> options
+        IWritableState<AppSettings> options
     )
     {
         try
@@ -719,9 +720,9 @@ public sealed partial class StateRuntimeTests
     }
 
     private sealed class CountingStateReader<T>(
-        IStateReader<T> inner,
+        ISourceReader<T> inner,
         Action<int>? afterRead = null
-    ) : IStateReader<T>
+    ) : ISourceReader<T>
     {
         public int ReadCount { get; private set; }
 

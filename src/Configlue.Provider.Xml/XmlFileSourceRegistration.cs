@@ -1,3 +1,5 @@
+using Configlue.Sources;
+
 namespace Configlue.Provider.Xml;
 
 /// <summary>Options for registering an XML file source through the one-arity facade.</summary>
@@ -104,7 +106,7 @@ public static class XmlFileSourceRegistration
                 resource = section;
                 sourceWriter = writer is null ? null : section;
             }
-            IStateWatcher? watcher = options.WatchChanges ? file : null;
+            ISourceWatcher? watcher = options.WatchChanges ? file : null;
             var codec = new XmlStateCodec();
             var stateReader = new SerializedStateReader<TFragment>(resource, codec);
             var stateWriter = sourceWriter is null

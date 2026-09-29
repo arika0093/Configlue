@@ -2,6 +2,7 @@ using System.Buffers.Binary;
 using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text;
+using Configlue.Sources;
 using Npgsql;
 
 namespace Configlue.Resource.PostgreSql;
@@ -15,7 +16,7 @@ public sealed class PostgreSqlResource
     : IResourceReader,
         IResourceWriter,
         IResourceIdentity,
-        IStateWatcher,
+        ISourceWatcher,
         IDisposable
 {
     private readonly Func<RouteKey, NpgsqlDataSource>? _dataSourceResolver;

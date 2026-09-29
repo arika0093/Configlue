@@ -47,11 +47,11 @@ var currentSource = SerializedStateSource.FromResource<AppSettings.Fragment>(
 
 Resources can expose a stable `ResourceId` separately from logical source IDs and physical-origin labels; section views inherit the underlying identity, and custom resources can implement `IResourceIdentity` or supply an ID to `SerializedStateSource.FromResource`, `StateSource`, or a section view.
 
-For a fully hand-rolled source, implement `IStateReader<TFragment>` (plus `IStateWriter<TFragment>` / `IStateWatcher` as needed) and add it with `Sources(sources => sources.Add(existingSource))` or the DI `(provider, sources) => ...` overload with `sources.Add(id, reader, priority, fallbackCondition)`.
+For a fully hand-rolled source, implement `Configlue.Sources.ISourceReader<TFragment>` (plus `ISourceWriter<TFragment>` / `ISourceWatcher` as needed) and add it with `Sources(sources => sources.Add(existingSource))` or the DI `(provider, sources) => ...` overload with `sources.Add(id, reader, priority, fallbackCondition)`.
 
 ### Combine multiple resources as one logical source
 
-Use `CompositeStateSource<TFragment>` when several resources contribute sparse fragments but should appear as one logical source to the options runtime. Keep writes explicit by naming a default writable component and optional member-path routes:
+Use `CompositeStateSource<TFragment>` when several resources contribute sparse fragments but should appear as one logical source to the state runtime. Keep writes explicit by naming a default writable component and optional member-path routes:
 
 ```csharp
 using Configlue.Sources;

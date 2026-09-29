@@ -3,7 +3,7 @@ using Microsoft.Extensions.Options;
 
 namespace Configlue;
 
-/// <summary>Registers generated Configlue options with dependency injection.</summary>
+/// <summary>Registers generated Configlue state with dependency injection.</summary>
 public static class ConfiglueServiceCollectionExtensions
 {
     /// <summary>Registers the same model definitions used by non-DI Configlue contexts.</summary>
@@ -48,8 +48,8 @@ public static class ConfiglueServiceCollectionExtensions
         return services;
     }
 
-    /// <summary>Registers options using a dependency-injection-aware source builder.</summary>
-    public static IServiceCollection AddConfiglueOptions<TModel, TFragment>(
+    /// <summary>Registers state using a dependency-injection-aware source builder.</summary>
+    public static IServiceCollection AddConfiglueState<TModel, TFragment>(
         this IServiceCollection services,
         Action<IServiceProvider, StateSourceSetBuilder<TFragment>> configureSources,
         StateWriteRoute writeRoute = default,
@@ -63,7 +63,7 @@ public static class ConfiglueServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(configureSources);
-        return services.AddConfiglueOptions<TModel, TFragment>(
+        return services.AddConfiglueState<TModel, TFragment>(
             provider =>
             {
                 var sources = new StateSourceSetBuilder<TFragment>();
@@ -78,8 +78,8 @@ public static class ConfiglueServiceCollectionExtensions
         );
     }
 
-    /// <summary>Registers options backed by a state-source set created from the service provider.</summary>
-    public static IServiceCollection AddConfiglueOptions<TModel, TFragment>(
+    /// <summary>Registers state backed by a state-source set created from the service provider.</summary>
+    public static IServiceCollection AddConfiglueState<TModel, TFragment>(
         this IServiceCollection services,
         Func<IServiceProvider, StateSourceSet<TFragment>> sourceSetFactory,
         StateWriteRoute writeRoute = default,
@@ -94,7 +94,7 @@ public static class ConfiglueServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(sourceSetFactory);
 
-        services.AddSingleton(provider => new ConfiglueOptions<TModel, TFragment>(
+        services.AddSingleton(provider => new ConfiglueRuntime<TModel, TFragment>(
             sourceSetFactory(provider),
             writeRoute,
             provider.GetServices<IStateSchemaMigration<TFragment>>(),
@@ -104,32 +104,32 @@ public static class ConfiglueServiceCollectionExtensions
             readValidationMode: readValidationMode,
             writeConflictResolution: writeConflictResolution
         ));
-        services.AddSingleton<IReadOnlyOptions<TModel>>(provider =>
-            provider.GetRequiredService<ConfiglueOptions<TModel, TFragment>>()
+        services.AddSingleton<IReadOnlyState<TModel>>(provider =>
+            provider.GetRequiredService<ConfiglueRuntime<TModel, TFragment>>()
         );
-        services.AddSingleton<IWritableOptions<TModel>>(provider =>
-            provider.GetRequiredService<ConfiglueOptions<TModel, TFragment>>()
+        services.AddSingleton<IWritableState<TModel>>(provider =>
+            provider.GetRequiredService<ConfiglueRuntime<TModel, TFragment>>()
         );
-        services.AddSingleton<ISubjectOptions<TModel>>(provider =>
-            provider.GetRequiredService<ConfiglueOptions<TModel, TFragment>>()
+        services.AddSingleton<ISubjectState<TModel>>(provider =>
+            provider.GetRequiredService<ConfiglueRuntime<TModel, TFragment>>()
         );
         services.AddSingleton<IConfiglueInspection<TModel>>(provider =>
-            provider.GetRequiredService<ConfiglueOptions<TModel, TFragment>>()
+            provider.GetRequiredService<ConfiglueRuntime<TModel, TFragment>>()
         );
         services.AddSingleton<IConfiglueEditSessions<TModel>>(provider =>
-            provider.GetRequiredService<ConfiglueOptions<TModel, TFragment>>()
+            provider.GetRequiredService<ConfiglueRuntime<TModel, TFragment>>()
         );
         services.AddSingleton<IConfiglueDiagnostics<TModel>>(provider =>
-            provider.GetRequiredService<ConfiglueOptions<TModel, TFragment>>()
+            provider.GetRequiredService<ConfiglueRuntime<TModel, TFragment>>()
         );
         services.AddSingleton<IConfiglueSources<TModel>>(provider =>
-            provider.GetRequiredService<ConfiglueOptions<TModel, TFragment>>()
+            provider.GetRequiredService<ConfiglueRuntime<TModel, TFragment>>()
         );
         return services;
     }
 
-    /// <summary>Registers options backed by an already-created state-source set.</summary>
-    public static IServiceCollection AddConfiglueOptions<TModel, TFragment>(
+    /// <summary>Registers state backed by an already-created state-source set.</summary>
+    public static IServiceCollection AddConfiglueState<TModel, TFragment>(
         this IServiceCollection services,
         StateSourceSet<TFragment> sourceSet,
         StateWriteRoute writeRoute = default,
@@ -142,7 +142,7 @@ public static class ConfiglueServiceCollectionExtensions
         where TFragment : class, IConfiglueFragment<TFragment>
     {
         ArgumentNullException.ThrowIfNull(sourceSet);
-        return services.AddConfiglueOptions<TModel, TFragment>(
+        return services.AddConfiglueState<TModel, TFragment>(
             _ => sourceSet,
             writeRoute,
             validateDataAnnotations,
@@ -153,7 +153,7 @@ public static class ConfiglueServiceCollectionExtensions
     }
 
     /// <summary>Registers a named profile using a dependency-injection-aware source builder.</summary>
-    public static IServiceCollection AddConfiglueOptions<TModel, TFragment>(
+    public static IServiceCollection AddConfiglueState<TModel, TFragment>(
         this IServiceCollection services,
         object serviceKey,
         Action<IServiceProvider, StateSourceSetBuilder<TFragment>> configureSources,
@@ -168,7 +168,7 @@ public static class ConfiglueServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(configureSources);
-        return services.AddConfiglueOptions<TModel, TFragment>(
+        return services.AddConfiglueState<TModel, TFragment>(
             serviceKey,
             provider =>
             {
@@ -185,7 +185,7 @@ public static class ConfiglueServiceCollectionExtensions
     }
 
     /// <summary>Registers a named configuration profile as keyed dependency-injection services.</summary>
-    public static IServiceCollection AddConfiglueOptions<TModel, TFragment>(
+    public static IServiceCollection AddConfiglueState<TModel, TFragment>(
         this IServiceCollection services,
         object serviceKey,
         Func<IServiceProvider, StateSourceSet<TFragment>> sourceSetFactory,
@@ -202,66 +202,66 @@ public static class ConfiglueServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(serviceKey);
         ArgumentNullException.ThrowIfNull(sourceSetFactory);
 
-        services.AddKeyedSingleton<ConfiglueOptions<TModel, TFragment>>(
+        services.AddKeyedSingleton<ConfiglueRuntime<TModel, TFragment>>(
             serviceKey,
             (provider, key) =>
-                new ConfiglueOptions<TModel, TFragment>(
+                new ConfiglueRuntime<TModel, TFragment>(
                     sourceSetFactory(provider),
                     writeRoute,
                     provider.GetServices<IStateSchemaMigration<TFragment>>(),
                     provider.GetServices<IConfiglueValidator<TModel>>(),
                     validateDataAnnotations,
                     onChangeDebounce,
-                    optionsName: key as string ?? Options.DefaultName,
+                    stateName: key as string ?? Options.DefaultName,
                     readValidationMode: readValidationMode,
                     writeConflictResolution: writeConflictResolution
                 )
         );
-        services.AddKeyedSingleton<IReadOnlyOptions<TModel>>(
+        services.AddKeyedSingleton<IReadOnlyState<TModel>>(
             serviceKey,
             (provider, key) =>
-                provider.GetRequiredKeyedService<ConfiglueOptions<TModel, TFragment>>(key)
+                provider.GetRequiredKeyedService<ConfiglueRuntime<TModel, TFragment>>(key)
         );
-        services.AddKeyedSingleton<IWritableOptions<TModel>>(
+        services.AddKeyedSingleton<IWritableState<TModel>>(
             serviceKey,
             (provider, key) =>
-                provider.GetRequiredKeyedService<ConfiglueOptions<TModel, TFragment>>(key)
+                provider.GetRequiredKeyedService<ConfiglueRuntime<TModel, TFragment>>(key)
         );
-        services.AddKeyedSingleton<ISubjectOptions<TModel>>(
+        services.AddKeyedSingleton<ISubjectState<TModel>>(
             serviceKey,
             (provider, key) =>
-                provider.GetRequiredKeyedService<ConfiglueOptions<TModel, TFragment>>(key)
+                provider.GetRequiredKeyedService<ConfiglueRuntime<TModel, TFragment>>(key)
         );
         services.AddKeyedSingleton<IConfiglueInspection<TModel>>(
             serviceKey,
             (provider, key) =>
-                provider.GetRequiredKeyedService<ConfiglueOptions<TModel, TFragment>>(key)
+                provider.GetRequiredKeyedService<ConfiglueRuntime<TModel, TFragment>>(key)
         );
         services.AddKeyedSingleton<IConfiglueEditSessions<TModel>>(
             serviceKey,
             (provider, key) =>
-                provider.GetRequiredKeyedService<ConfiglueOptions<TModel, TFragment>>(key)
+                provider.GetRequiredKeyedService<ConfiglueRuntime<TModel, TFragment>>(key)
         );
         services.AddKeyedSingleton<IConfiglueDiagnostics<TModel>>(
             serviceKey,
             (provider, key) =>
-                provider.GetRequiredKeyedService<ConfiglueOptions<TModel, TFragment>>(key)
+                provider.GetRequiredKeyedService<ConfiglueRuntime<TModel, TFragment>>(key)
         );
         services.AddKeyedSingleton<IConfiglueSources<TModel>>(
             serviceKey,
             (provider, key) =>
-                provider.GetRequiredKeyedService<ConfiglueOptions<TModel, TFragment>>(key)
+                provider.GetRequiredKeyedService<ConfiglueRuntime<TModel, TFragment>>(key)
         );
         if (serviceKey is string profileName && profileName != Options.DefaultName)
         {
-            services.AddSingleton(new ConfiglueNamedOptionsProfile<TModel>(profileName));
+            services.AddSingleton(new ConfiglueNamedStateProfile<TModel>(profileName));
         }
 
         return services;
     }
 
     /// <summary>Registers a named profile backed by an already-created state-source set.</summary>
-    public static IServiceCollection AddConfiglueOptions<TModel, TFragment>(
+    public static IServiceCollection AddConfiglueState<TModel, TFragment>(
         this IServiceCollection services,
         object serviceKey,
         StateSourceSet<TFragment> sourceSet,
@@ -275,7 +275,7 @@ public static class ConfiglueServiceCollectionExtensions
         where TFragment : class, IConfiglueFragment<TFragment>
     {
         ArgumentNullException.ThrowIfNull(sourceSet);
-        return services.AddConfiglueOptions<TModel, TFragment>(
+        return services.AddConfiglueState<TModel, TFragment>(
             serviceKey,
             _ => sourceSet,
             writeRoute,
@@ -287,7 +287,7 @@ public static class ConfiglueServiceCollectionExtensions
     }
 
     /// <summary>Registers a runtime-managed registry that can add and remove named profiles.</summary>
-    public static IServiceCollection AddConfiglueOptionsRegistry<TModel, TFragment>(
+    public static IServiceCollection AddConfiglueStateRegistry<TModel, TFragment>(
         this IServiceCollection services,
         Func<IServiceProvider, string, StateSourceSet<TFragment>> sourceSetFactory,
         StateWriteRoute writeRoute = default,
@@ -302,16 +302,16 @@ public static class ConfiglueServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(sourceSetFactory);
 
-        services.AddSingleton<IConfiglueOptionsRegistry<TModel>>(
-            provider => new ConfiglueOptionsRegistry<TModel, TFragment>(
-                profileName => new ConfiglueOptions<TModel, TFragment>(
+        services.AddSingleton<IConfiglueStateRegistry<TModel>>(
+            provider => new ConfiglueStateRegistry<TModel, TFragment>(
+                profileName => new ConfiglueRuntime<TModel, TFragment>(
                     sourceSetFactory(provider, profileName),
                     writeRoute,
                     provider.GetServices<IStateSchemaMigration<TFragment>>(),
                     provider.GetServices<IConfiglueValidator<TModel>>(),
                     validateDataAnnotations,
                     onChangeDebounce,
-                    optionsName: profileName,
+                    stateName: profileName,
                     readValidationMode: readValidationMode,
                     writeConflictResolution: writeConflictResolution
                 )
@@ -326,15 +326,15 @@ public static class ConfiglueServiceCollectionExtensions
         public void Visit<TModel>(ConfiglueModelRegistration<TModel> registration)
             where TModel : IConfiglueFacadeModel<TModel>
         {
-            if (registration.OptionsName == Options.DefaultName)
+            if (registration.StateName == Options.DefaultName)
             {
-                Func<IServiceProvider, IWritableOptions<TModel>> getRuntime =
+                Func<IServiceProvider, IWritableState<TModel>> getRuntime =
                     registration.IsPerSubject
                         ? provider =>
                             provider
                                 .GetRequiredService<ConfiglueContext>()
-                                .GetOptions<TModel>(registration.OptionsName)
-                        : provider => provider.GetRequiredService<IWritableOptions<TModel>>();
+                                .GetState<TModel>(registration.StateName)
+                        : provider => provider.GetRequiredService<IWritableState<TModel>>();
                 services.AddSingleton<IConfiglueInspection<TModel>>(provider =>
                     (IConfiglueInspection<TModel>)getRuntime(provider)
                 );
@@ -353,41 +353,41 @@ public static class ConfiglueServiceCollectionExtensions
                 if (typeof(TModel).IsClass)
                 {
                     services.AddSingleton(
-                        new ConfiglueNamedOptionsProfile<TModel>(registration.OptionsName)
+                        new ConfiglueNamedStateProfile<TModel>(registration.StateName)
                     );
                 }
 
-                Func<IServiceProvider, IWritableOptions<TModel>> getRuntime =
+                Func<IServiceProvider, IWritableState<TModel>> getRuntime =
                     registration.IsPerSubject
                         ? provider =>
                             provider
                                 .GetRequiredService<ConfiglueContext>()
-                                .GetOptions<TModel>(registration.OptionsName)
+                                .GetState<TModel>(registration.StateName)
                         : provider =>
-                            provider.GetRequiredKeyedService<IWritableOptions<TModel>>(
-                                registration.OptionsName
+                            provider.GetRequiredKeyedService<IWritableState<TModel>>(
+                                registration.StateName
                             );
                 services.AddKeyedSingleton<IConfiglueInspection<TModel>>(
-                    registration.OptionsName,
+                    registration.StateName,
                     (provider, _) => (IConfiglueInspection<TModel>)getRuntime(provider)
                 );
                 services.AddKeyedSingleton<IConfiglueEditSessions<TModel>>(
-                    registration.OptionsName,
+                    registration.StateName,
                     (provider, _) => (IConfiglueEditSessions<TModel>)getRuntime(provider)
                 );
                 services.AddKeyedSingleton<IConfiglueDiagnostics<TModel>>(
-                    registration.OptionsName,
+                    registration.StateName,
                     (provider, _) => (IConfiglueDiagnostics<TModel>)getRuntime(provider)
                 );
                 services.AddKeyedSingleton<IConfiglueSources<TModel>>(
-                    registration.OptionsName,
+                    registration.StateName,
                     (provider, _) => (IConfiglueSources<TModel>)getRuntime(provider)
                 );
             }
         }
     }
 
-    /// <summary>Registers a standard Microsoft options validator for Configlue saves.</summary>
+    /// <summary>Registers a standard Microsoft options validator for state writes.</summary>
     public static IServiceCollection AddConfiglueValidator<TModel>(
         this IServiceCollection services,
         IValidateOptions<TModel> validator

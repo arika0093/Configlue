@@ -40,7 +40,7 @@ public sealed class JsonSectionResourceTests
         var sources = new StateSourceSet<AppSettings.Fragment>([
             new("app-settings", reader, writer: writer, watcher: section),
         ]);
-        var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(sources);
+        var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(sources);
 
         try
         {

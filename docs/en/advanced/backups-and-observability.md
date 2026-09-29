@@ -53,11 +53,11 @@ var options = new FileResourceOptions
 
 ## Provenance and diagnostics
 
-* `await options.GetDetailsAsync()` returns a typed snapshot with effective values and per-source contributions from highest to lowest priority. Use it in settings UIs and troubleshooting.
-* `IConfiglueDiagnostics<T>.GetDiagnostics()` returns an immutable snapshot of the configured source topology for that options runtime, including source ID, priority, fallback policy, read/write/watch capabilities, physical origin, resource identity, and active state. It also reports the default and property-path write routes; `GetWriteSourceId("Database.Endpoint")` resolves a registration-level route. Per-operation write plans are specific to that operation and are not included. Use `ReadAsync` for the latest read result and revisions, `GetDetailsAsync()` for effective values and their contributing sources, and write results for completed writes.
+* `await state.GetDetailsAsync()` returns a typed snapshot with effective values and per-source contributions from highest to lowest priority. Use it in settings UIs and troubleshooting.
+* `IConfiglueDiagnostics<T>.GetDiagnostics()` returns an immutable snapshot of the configured source topology for that state runtime, including source ID, priority, fallback policy, read/write/watch capabilities, physical origin, resource identity, and active state. It also reports the default and property-path write routes; `GetWriteSourceId("Database.Endpoint")` resolves a registration-level route. Per-operation write plans are specific to that operation and are not included. Use `ReadAsync` for the latest read result and revisions, `GetDetailsAsync()` for effective values and their contributing sources, and write results for completed writes.
 
 ```csharp
-var diagnostics = options.GetDiagnostics();
+var diagnostics = state.GetDiagnostics();
 var defaultWriteSource = diagnostics.GetWriteSourceId();
 var endpointWriteSource = diagnostics.GetWriteSourceId("Database.Endpoint");
 foreach (var source in diagnostics.Sources)
@@ -71,7 +71,7 @@ foreach (var source in diagnostics.Sources)
 
 ## Logging
 
-Facade runtimes use `ILoggerFactory` from DI when one is registered. Non-DI callers can set `Logger` on `ConfiglueModelBuilder<TModel>`, and callers constructing `ConfiglueOptions<TModel, TFragment>` directly can pass its optional `logger` argument. Logging is optional; source read decisions, watcher failures, writes, migration outcomes, and revision conflicts use structured metadata such as model, options name, source ID, physical origin, and resource ID. No configuration values are written to logs.
+Facade states use `ILoggerFactory` from DI when one is registered. Non-DI callers can set `Logger` on `ConfiglueModelBuilder<TModel>`. Logging is optional; source read decisions, watcher failures, writes, migration outcomes, and revision conflicts use structured metadata such as model, state name, source ID, physical origin, and resource ID. No configuration values are written to logs.
 
 ## Next steps
 

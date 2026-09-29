@@ -5,12 +5,13 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Configlue;
+using Configlue.Sources;
 
 namespace Configlue.Source.Environment;
 
 /// <summary>Reads prefixed environment variables into a generated sparse model fragment.</summary>
 /// <typeparam name="TFragment">The generated fragment type.</typeparam>
-public sealed class EnvironmentStateReader<TFragment> : IStateReader<TFragment>
+public sealed class EnvironmentStateReader<TFragment> : ISourceReader<TFragment>
     where TFragment : class, IConfiglueFragment<TFragment>
 {
     private readonly ConfiglueModelSchema _schema;

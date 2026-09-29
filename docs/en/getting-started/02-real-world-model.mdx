@@ -32,7 +32,7 @@ A settings model can contain ordinary nested classes and collections. The regist
 2. ### Save a nested member sparsely
 
    ```csharp
-   await options.SaveAsync(patch =>
+   await state.SaveAsync(patch =>
    {
        patch.Server.Port = 9000;
    });
@@ -43,7 +43,7 @@ A settings model can contain ordinary nested classes and collections. The regist
 3. ### Replace a collection when needed
 
    ```csharp
-   await options.SaveAsync(patch =>
+   await state.SaveAsync(patch =>
    {
        patch.EnabledFeatures = ["audit-log", "metrics"];
    });

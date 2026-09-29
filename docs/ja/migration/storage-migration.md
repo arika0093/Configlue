@@ -27,10 +27,10 @@ var migration = new StateStorageMigrationDefinition<AppSettings.Fragment>(
     retireSources: true);
 
 var journal = new FileStateStorageMigrationJournal("./.configlue-migrations");
-var progress = await ((IConfiglueSources<AppSettings>)options).MigrateAsync(migration, journal);
+var progress = await ((IConfiglueSources<AppSettings>)state).MigrateAsync(migration, journal);
 ```
 
-再起動時は options を組み立てる前に `journal.ReadAsync(migration.Id)` を呼び、`SourcesRetired` が true なら旧 JSON source を登録から省きます。定義と同じ ID で `MigrateAsync` を呼ぶと、journal が退役済み状態を返すため旧 source は不要です。移行途中なら旧 source を登録して再開します。
+再起動時は state を組み立てる前に `journal.ReadAsync(migration.Id)` を呼び、`SourcesRetired` が true なら旧 JSON source を登録から省きます。定義と同じ ID で `MigrateAsync` を呼ぶと、journal が退役済み状態を返すため旧 source は不要です。移行途中なら旧 source を登録して再開します。
 
 複数ファイルへ分割する場合はターゲットごとに投影を宣言します。選択元だけを先にマージし、それぞれの target に必要な subtree を渡します。
 
@@ -53,7 +53,7 @@ var migration = new StateStorageMigrationDefinition<AppSettings.Fragment>(
     retireSources: true);
 ```
 
-全宛先の検証後に、仮想解決で実効モデル不変が証明できた場合に限り、選択ソースをそのオプション実体から除去するには `retireSources: true` を渡します。結果の `RetiredSourceIds` に列挙されます。これは実行中オプション構成の変更であり、裏データは削除しないため、将来の起動向けにアプリの登録からも退役ソースを除去してください。
+全宛先の検証後に、仮想解決で実効モデル不変が証明できた場合に限り、選択ソースをその state 実体から除去するには `retireSources: true` を渡します。結果の `RetiredSourceIds` に列挙されます。これは実行中 state 構成の変更であり、裏データは削除しないため、将来の起動向けにアプリの登録からも退役ソースを除去してください。
 
 ## 実務メモ
 

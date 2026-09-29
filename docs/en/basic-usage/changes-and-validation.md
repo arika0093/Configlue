@@ -6,7 +6,7 @@ description: Change notifications, debounce, DataAnnotations, and custom validat
 ## Change detection
 
 ```csharp
-using var changeSubscription = options.OnChange(updated =>
+using var changeSubscription = state.OnChange(updated =>
     Console.WriteLine($">> Settings changed: {updated.Name}"));
 ```
 
@@ -28,7 +28,7 @@ The callback receives watcher or reload exceptions. If a changed state resolves 
 
 DataAnnotations validation runs on save by default. Set `ValidateDataAnnotations = false` to disable it. Configlue skips reflection-based DataAnnotations validation automatically when the runtime does not support dynamic code, such as NativeAOT; registered validators continue to run.
 
-Validation failures throw `ConfiglueValidationException`, which includes the options name, options type, and all failure messages. This validation contract is part of Configlue Core and does not require `Microsoft.Extensions.Options`.
+Validation failures throw `ConfiglueValidationException`, which includes the state name, state type, and all failure messages. This validation contract is part of Configlue Core and does not require `Microsoft.Extensions.Options`.
 
 Reads are validated too. `ReadValidationMode` selects how read-time failures are handled: `EffectiveThrow` (the default) throws when the finally resolved value is invalid, `StrictThrow` throws as soon as any source contributes an invalid value, and `IgnoreValue` drops invalid contributed members and resolves the remaining values. Sources that report an invalid value carry the `Invalid` read status through provenance and details diagnostics. A watcher reload that fails validation is reported to `OnReloadFailed` without notifying `OnChange` listeners.
 
@@ -39,7 +39,7 @@ Edits reject conflicting changes to the same member by default. Set `WriteConfli
 `GetDetailsAsync()` returns a generated, strongly typed snapshot of one consistent resolution: effective values with per-source contributions, editability, and collection element provenance.
 
 ```csharp
-var details = await options.GetDetailsAsync();
+var details = await state.GetDetailsAsync();
 
 string name = details.Name;
 bool editable = details.Name.IsEditable;

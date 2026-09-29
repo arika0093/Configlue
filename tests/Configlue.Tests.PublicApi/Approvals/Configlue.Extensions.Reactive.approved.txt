@@ -3,10 +3,10 @@ namespace Configlue.Extensions.Reactive
 {
     public static class ConfiglueReactiveExtensions
     {
-        public static System.IObservable<string> ObserveActiveProfileNames<T>(this Configlue.IConfiglueProfiledOptions<T> profiles) { }
-        public static System.IObservable<T> ObserveActiveValues<T>(this Configlue.IConfiglueProfiledOptions<T> profiles) { }
-        public static System.IObservable<T> ObserveChanges<T>(this Configlue.IReadOnlyOptions<T> options) { }
+        public static System.IObservable<string> ObserveActiveProfileNames<T>(this Configlue.IConfiglueProfiledState<T> profiles) { }
+        public static System.IObservable<T> ObserveActiveValues<T>(this Configlue.IConfiglueProfiledState<T> profiles) { }
+        public static System.IObservable<T> ObserveChanges<T>(this Configlue.IReadOnlyState<T> options) { }
         public static System.IObservable<System.Exception> ObserveReloadFailures<T>(this Configlue.IConfiglueDiagnostics<T> diagnostics) { }
-        public static System.IObservable<T> ObserveValues<T>(this Configlue.IReadOnlyOptions<T> options) { }
+        public static System.IObservable<T> ObserveValues<T>(this Configlue.IReadOnlyState<T> options) { }
     }
 }

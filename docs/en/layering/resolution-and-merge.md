@@ -3,7 +3,7 @@ title: Resolution and merge
 description: Priority reads, presence, merge modes, and provenance explanations.
 ---
 
-Register generated model options with a prioritized state-source set. Reads merge the present members from each source, and writes can target a source independently of read priority.
+Register generated model state with a prioritized state-source set. Reads merge the present members from each source, and writes can target a source independently of read priority.
 
 ## Source precedence
 
@@ -37,7 +37,7 @@ The generated member names, the `Optional<T>`/`FragmentOperation<T>` shapes, pre
 
 ## Provenance
 
-`await options.GetDetailsAsync()` returns a typed snapshot with effective values and per-source contributions from highest to lowest priority. Use it for troubleshooting layering and for surfacing "where did this come from" in settings UIs.
+`await state.GetDetailsAsync()` returns a typed snapshot with effective values and per-source contributions from highest to lowest priority. Use it for troubleshooting layering and for surfacing "where did this come from" in settings UIs.
 
 ## Next steps
 

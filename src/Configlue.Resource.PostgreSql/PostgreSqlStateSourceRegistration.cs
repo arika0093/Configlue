@@ -1,3 +1,4 @@
+using Configlue.Sources;
 using Npgsql;
 
 namespace Configlue.Resource.PostgreSql;
@@ -124,7 +125,7 @@ public static class PostgreSqlStateSourceRegistration
                 options.Codec,
                 options.CodecContext
             );
-            IStateWriter<TFragment>? writer = options.Writable
+            ISourceWriter<TFragment>? writer = options.Writable
                 ? new SerializedStateWriter<TFragment>(
                     resource,
                     options.Codec,

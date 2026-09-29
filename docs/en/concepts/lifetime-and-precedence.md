@@ -3,7 +3,7 @@ title: Lifetime and source precedence
 description: Choose between process-wide and explicit contexts, and understand deterministic source ordering.
 ---
 
-Configlue has two lifetime models. They use the same options APIs and source-resolution rules; the difference is who owns the context.
+Configlue has two lifetime models. They use the same state APIs and source-resolution rules; the difference is who owns the context.
 
 ## Process-wide applications
 
@@ -16,13 +16,13 @@ ConfiglueApp.Initialize(config =>
         model.UseJsonFile("settings.json"));
 });
 
-var options = ConfiglueApp.GetOptions<AppSettings>();
-var value = await options.GetValueAsync();
+var state = ConfiglueApp.GetState<AppSettings>();
+var value = await state.GetValueAsync();
 
 await ConfiglueApp.ShutdownAsync();
 ```
 
-Calling `GetOptions<T>()` before initialization throws `InvalidOperationException`. Initializing while another default context is active also throws. `ShutdownAsync` is idempotent and clears the default context, so a later test or CLI scenario can initialize a fresh one.
+Calling `GetState<T>()` before initialization throws `InvalidOperationException`. Initializing while another default context is active also throws. `ShutdownAsync` is idempotent and clears the default context, so a later test or CLI scenario can initialize a fresh one.
 
 Initialization only builds registrations and runtimes. Source reads and writes remain asynchronous.
 
@@ -37,10 +37,10 @@ await using var context = ConfiglueApp.CreateContext(config =>
         model.UseJsonFile("settings.json"));
 });
 
-var options = context.GetOptions<AppSettings>();
+var state = context.GetState<AppSettings>();
 ```
 
-The context owns options runtimes, watchers, and resources created by registration helpers such as `FromJsonFile`. A source, reader, writer, or resource instance supplied by application code remains caller-owned.
+The context owns state runtimes, watchers, and resources created by registration helpers such as `FromJsonFile`. A source, reader, writer, or resource instance supplied by application code remains caller-owned.
 
 ## Source precedence
 

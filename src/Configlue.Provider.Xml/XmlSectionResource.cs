@@ -2,6 +2,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Xml;
 using System.Xml.Linq;
+using Configlue.Sources;
 
 namespace Configlue.Provider.Xml;
 
@@ -10,14 +11,14 @@ public sealed class XmlSectionResource
     : IResourceReader,
         IPipelineResourceReader,
         IResourceWriter,
-        IStateWatcher,
+        ISourceWatcher,
         IResourceIdentity,
         IResourceBatchParticipant,
         IResourceBackupRecovery
 {
     private readonly IResourceReader _reader;
     private readonly IResourceWriter? _writer;
-    private readonly IStateWatcher? _watcher;
+    private readonly ISourceWatcher? _watcher;
     private readonly string[] _path;
     private readonly string _batchScope;
     private readonly ResourceId? _configuredResourceId;
@@ -30,14 +31,14 @@ public sealed class XmlSectionResource
 
     /// <summary>Creates an XML section resource over a resource with inferred write and watch capabilities.</summary>
     public XmlSectionResource(IResourceReader resource, string sectionPath)
-        : this(resource, resource as IResourceWriter, sectionPath, resource as IStateWatcher) { }
+        : this(resource, resource as IResourceWriter, sectionPath, resource as ISourceWatcher) { }
 
     /// <summary>Creates an XML section resource with separate read, write, and watch capabilities.</summary>
     public XmlSectionResource(
         IResourceReader reader,
         IResourceWriter? writer,
         string sectionPath,
-        IStateWatcher? watcher = null,
+        ISourceWatcher? watcher = null,
         ResourceId? resourceId = null
     )
     {

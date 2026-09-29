@@ -12,13 +12,13 @@ public sealed class ConfiglueModelDescriptor<TModel>
             ConfiglueModelBuilder<TModel>,
             IServiceProvider?,
             Action<IDisposable>,
-            IWritableOptions<TModel>
+            IWritableState<TModel>
         > createRuntime,
         Func<
-            IConfiglueOptionsRegistry<TModel>,
+            IConfiglueStateRegistry<TModel>,
             StateSource<ConfiglueProfileCatalog>,
             string,
-            IConfiglueProfiledOptions<TModel>
+            IConfiglueProfiledState<TModel>
         > createProfiles
     )
     {
@@ -35,15 +35,15 @@ public sealed class ConfiglueModelDescriptor<TModel>
         ConfiglueModelBuilder<TModel>,
         IServiceProvider?,
         Action<IDisposable>,
-        IWritableOptions<TModel>
+        IWritableState<TModel>
     > CreateRuntime { get; }
 
     /// <summary>The closed factory for persisted profiles.</summary>
     public Func<
-        IConfiglueOptionsRegistry<TModel>,
+        IConfiglueStateRegistry<TModel>,
         StateSource<ConfiglueProfileCatalog>,
         string,
-        IConfiglueProfiledOptions<TModel>
+        IConfiglueProfiledState<TModel>
     > CreateProfiles { get; }
 }
 
@@ -62,7 +62,7 @@ public static class ConfiglueRuntime
         return new ConfiglueModelDescriptor<TModel>(
             schema,
             (configuration, services, ownResource) =>
-                new ConfiglueOptions<TModel, TFragment>(
+                new ConfiglueRuntime<TModel, TFragment>(
                     configuration.BuildSources<TFragment>(schema, services, ownResource),
                     configuration.WriteRoute,
                     configuration.WritePlan,
@@ -70,7 +70,7 @@ public static class ConfiglueRuntime
                     configuration.GetValidators(services),
                     configuration.ValidateDataAnnotations,
                     configuration.OnChangeDebounce,
-                    configuration.OptionsName,
+                    configuration.StateName,
                     configuration.GetLogger(services),
                     configuration.CloneStrategy,
                     configuration.ReadValidationMode,
@@ -78,7 +78,7 @@ public static class ConfiglueRuntime
                     configuration.RouteSelector
                 ),
             static (registry, catalog, name) =>
-                new ConfiglueProfiledOptions<TModel, TFragment>(registry, catalog, name)
+                new ConfiglueProfiledState<TModel, TFragment>(registry, catalog, name)
         );
     }
 }

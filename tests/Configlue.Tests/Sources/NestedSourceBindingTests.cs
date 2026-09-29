@@ -1,5 +1,6 @@
 using Configlue.Provider.Json;
 using Configlue.Testing;
+using Configlue.Sources;
 
 namespace Configlue.Tests;
 
@@ -85,7 +86,7 @@ public sealed partial class NestedSourceBindingTests
             );
         });
 
-        var options = (IConfiglueRuntimeOptions<AppSettings>)context.GetOptions<AppSettings>();
+        var options = (IConfiglueRuntimeState<AppSettings>)context.GetState<AppSettings>();
         var value = await options.GetValueAsync();
         var database = (await options.GetDetailsAsync()).Database!;
         var host = database.Host;
@@ -180,7 +181,7 @@ public sealed partial class NestedSourceBindingTests
             );
         });
 
-        var options = context.GetRuntimeOptions<AppSettings>();
+        var options = context.GetRuntimeState<AppSettings>();
         using (
             var edit = await options.OpenEditSessionAsync(
                 new StateWritePlan(
@@ -239,7 +240,7 @@ public sealed partial class NestedSourceBindingTests
             );
         });
 
-        var options = (IConfiglueRuntimeOptions<AppSettings>)context.GetOptions<AppSettings>();
+        var options = (IConfiglueRuntimeState<AppSettings>)context.GetState<AppSettings>();
         await options.SaveAsync(settings => settings.Database!.Host = "updated.remote.db");
         await options.SaveAsync(settings => settings.RetryCount = 9);
 
@@ -294,7 +295,7 @@ public sealed partial class NestedSourceBindingTests
             );
         });
 
-        var options = (IConfiglueRuntimeOptions<AppSettings>)context.GetOptions<AppSettings>();
+        var options = (IConfiglueRuntimeState<AppSettings>)context.GetState<AppSettings>();
         await options.SaveAsync(settings => settings.Database!.Host = "updated.remote.db");
 
         (await databaseStore.ReadAsync()).Value!.Host.Value.ShouldBe("updated.remote.db");
@@ -322,7 +323,7 @@ public sealed partial class NestedSourceBindingTests
             );
     }
 
-    private sealed class FixedReader<T>(StateReadResult<T> result) : IStateReader<T>
+    private sealed class FixedReader<T>(StateReadResult<T> result) : ISourceReader<T>
     {
         public ValueTask<StateReadResult<T>> ReadAsync(
             CancellationToken cancellationToken = default

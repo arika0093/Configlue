@@ -27,10 +27,10 @@ var migration = new StateStorageMigrationDefinition<AppSettings.Fragment>(
     retireSources: true);
 
 var journal = new FileStateStorageMigrationJournal("./.configlue-migrations");
-var progress = await ((IConfiglueSources<AppSettings>)options).MigrateAsync(migration, journal);
+var progress = await ((IConfiglueSources<AppSettings>)state).MigrateAsync(migration, journal);
 ```
 
-Before building options on the next startup, call `journal.ReadAsync(migration.Id)`. If `SourcesRetired` is true, omit the legacy JSON source from registration. Calling `MigrateAsync` with the same definition returns the retired progress without reading the old source. If migration stopped partway through, register the old source and resume with the same journal.
+Before building state on the next startup, call `journal.ReadAsync(migration.Id)`. If `SourcesRetired` is true, omit the legacy JSON source from registration. Calling `MigrateAsync` with the same definition returns the retired progress without reading the old source. If migration stopped partway through, register the old source and resume with the same journal.
 
 For a split into multiple files, declare a projection for each target. Only the selected source contribution is merged before each subtree is projected:
 
@@ -53,7 +53,7 @@ var migration = new StateStorageMigrationDefinition<AppSettings.Fragment>(
     retireSources: true);
 ```
 
-Pass `retireSources: true` to remove the selected sources from that options instance after every target verifies and only when virtual resolution proves the effective model stays the same; the result lists them in `RetiredSourceIds`. This changes the running options topology; it does not delete backing data, so remove retired sources from the application's registration for future process starts.
+Pass `retireSources: true` to remove the selected sources from that state instance after every target verifies and only when virtual resolution proves the effective model stays the same; the result lists them in `RetiredSourceIds`. This changes the running state topology; it does not delete backing data, so remove retired sources from the application's registration for future process starts.
 
 ## Practical notes
 

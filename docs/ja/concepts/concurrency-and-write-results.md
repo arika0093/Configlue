@@ -10,7 +10,7 @@ Configlue は、複数の論理ソースと複数の物理リソースを1つの
 `SaveAsync`、特定ソースへの保存、経路指定された Patch、edit session の commit は `StateWriteReceipt` を返します。
 
 ```csharp
-var receipt = await options.SaveAsync(patch =>
+var receipt = await state.SaveAsync(patch =>
 {
     patch.Server.Port = 9000;
 });

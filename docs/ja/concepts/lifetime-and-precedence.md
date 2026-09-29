@@ -3,7 +3,7 @@ title: ライフタイムとソースの優先順位
 description: プロセス全体の context と明示的な context を使い分け、ソース解決の順序を理解する。
 ---
 
-Configlue には2つのライフタイムがあります。どちらも同じ Options API とソース解決規則を使い、context を誰が所有するかが異なります。
+Configlue には2つのライフタイムがあります。どちらも同じ State API とソース解決規則を使い、context を誰が所有するかが異なります。
 
 ## プロセス全体で1つの context を使う
 
@@ -16,13 +16,13 @@ ConfiglueApp.Initialize(config =>
         model.UseJsonFile("settings.json"));
 });
 
-var options = ConfiglueApp.GetOptions<AppSettings>();
-var value = await options.GetValueAsync();
+var state = ConfiglueApp.GetState<AppSettings>();
+var value = await state.GetValueAsync();
 
 await ConfiglueApp.ShutdownAsync();
 ```
 
-初期化前に `GetOptions<T>()` を呼ぶと `InvalidOperationException` が発生します。既定の context が存在する状態で再び初期化した場合も同じです。`ShutdownAsync` は複数回呼べ、既定の context を破棄して参照を消します。その後は新しい context を初期化できます。
+初期化前に `GetState<T>()` を呼ぶと `InvalidOperationException` が発生します。既定の context が存在する状態で再び初期化した場合も同じです。`ShutdownAsync` は複数回呼べ、既定の context を破棄して参照を消します。その後は新しい context を初期化できます。
 
 `Initialize` が行うのは登録とランタイムの構築です。ソースの読み書きは引き続き非同期で実行されます。
 
@@ -37,10 +37,10 @@ await using var context = ConfiglueApp.CreateContext(config =>
         model.UseJsonFile("settings.json"));
 });
 
-var options = context.GetOptions<AppSettings>();
+var state = context.GetState<AppSettings>();
 ```
 
-context は Options ランタイム、watcher、`FromJsonFile` などの登録ヘルパーが作成したリソースを所有します。アプリケーション側で生成して渡した source、reader、writer、resource は呼び出し側が所有します。
+context は state ランタイム、watcher、`FromJsonFile` などの登録ヘルパーが作成したリソースを所有します。アプリケーション側で生成して渡した source、reader、writer、resource は呼び出し側が所有します。
 
 ## ソースの優先順位
 

@@ -1,9 +1,10 @@
 using Configlue.Resources;
+using Configlue.Sources;
 
 namespace Configlue.State;
 
 /// <summary>Routes writes independently from read-source selection.</summary>
-public sealed class StateSourceWriter<T> : IStateWriter<T>
+public sealed class StateSourceWriter<T> : ISourceWriter<T>
 {
     private readonly StateSourceSet<T> _sourceSet;
     private readonly StateWriteRoute _route;

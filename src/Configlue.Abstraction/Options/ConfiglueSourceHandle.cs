@@ -4,12 +4,12 @@ namespace Configlue;
 /// <typeparam name="TModel">The configuration model type.</typeparam>
 public sealed class ConfiglueSourceHandle<TModel>
 {
-    private readonly IConfiglueSources<TModel> _options;
+    private readonly IConfiglueSources<TModel> _sources;
     private readonly SourceKey<TModel> _sourceKey;
 
-    internal ConfiglueSourceHandle(IConfiglueSources<TModel> options, SourceKey<TModel> sourceKey)
+    internal ConfiglueSourceHandle(IConfiglueSources<TModel> sources, SourceKey<TModel> sourceKey)
     {
-        _options = options;
+        _sources = sources;
         _sourceKey = sourceKey;
     }
 
@@ -20,7 +20,7 @@ public sealed class ConfiglueSourceHandle<TModel>
     )
     {
         ArgumentNullException.ThrowIfNull(patch);
-        return _options.ApplyPatchesAsync(
+        return _sources.ApplyPatchesAsync(
             [new StateSourcePatch(_sourceKey.Id, patch)],
             cancellationToken
         );
@@ -41,7 +41,7 @@ public sealed class ConfiglueSourceHandle<TModel>
             );
         }
 
-        return _options.ApplyPatchesAsync(
+        return _sources.ApplyPatchesAsync(
             [new StateSourcePatch(_sourceKey.Id, replacementPatch.WithUnspecifiedMembersUnset())],
             cancellationToken
         );

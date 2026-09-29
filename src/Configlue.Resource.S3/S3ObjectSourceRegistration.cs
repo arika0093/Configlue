@@ -1,4 +1,5 @@
 using Amazon.S3;
+using Configlue.Sources;
 
 namespace Configlue.Resource.S3;
 
@@ -107,7 +108,7 @@ public static class S3ObjectSourceRegistration
                 options.Codec,
                 options.CodecContext
             );
-            IStateWriter<TFragment>? writer = options.Writable
+            ISourceWriter<TFragment>? writer = options.Writable
                 ? new SerializedStateWriter<TFragment>(
                     resource,
                     options.Codec,

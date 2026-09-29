@@ -23,7 +23,7 @@ The previous steps had one source. This step introduces layering: a lower-priori
            sources.Add<AppSettings>();
        }));
 
-   var options = context.GetOptions<AppSettings>();
+   var state = context.GetState<AppSettings>();
    ```
 
    `Global` uses the platform-standard per-user configuration directory. `Local` uses `settings.json` in the current working directory and has higher read priority.
@@ -35,7 +35,7 @@ The previous steps had one source. This step introduces layering: a lower-priori
 3. ### Inspect where a value came from
 
    ```csharp
-   var details = await options.GetDetailsAsync();
+   var details = await state.GetDetailsAsync();
 
    Console.WriteLine(details.Server.Port.Value);
    Console.WriteLine(details.Server.Port.Source?.DisplayName);

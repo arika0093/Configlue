@@ -6,13 +6,13 @@ description: GetValueAsync, SaveAsync, edit sessions, and patches.
 ## Read the current value
 
 ```csharp
-var setting = await options.GetValueAsync();
+var setting = await state.GetValueAsync();
 Console.WriteLine($">> Name: {setting.Name}");
 ```
 
 Reads resolve every source by priority and return a deep copy. In DI you can also use the synchronous `IOptions<T>.Value` / `IOptionsSnapshot<T>` / `IOptionsMonitor<T>` adapters, but prefer the async methods in asynchronous flows.
 
-`IReadOnlyOptions<T>` keeps the everyday read surface to `GetValueAsync` and `OnChange`. Advanced callers using `IConfiglueInspection<T>` can call `ReadAsync` to inspect state and revision metadata. Core does not provide a synchronous `CurrentValue` property. In DI, the opt-in `Configlue.Extensions.MSOptions` package supplies `IOptions<T>`, `IOptionsSnapshot<T>`, and `IOptionsMonitor<T>` adapters. Their synchronous getters block while asynchronous sources are read, so use `GetValueAsync` in asynchronous flows.
+`IReadOnlyState<T>` keeps the everyday read surface to `GetValueAsync` and `OnChange`. Advanced callers using `IConfiglueInspection<T>` can call `ReadAsync` to inspect state and revision metadata. Core does not provide a synchronous `CurrentValue` property. In DI, the opt-in `Configlue.Extensions.MSOptions` package supplies `IOptions<T>`, `IOptionsSnapshot<T>`, and `IOptionsMonitor<T>` adapters. Their synchronous getters block while asynchronous sources are read, so use `GetValueAsync` in asynchronous flows.
 
 Generated clones handle nested Configlue models, common collections, and ordinary POCOs whose public instance state consists of public get/set properties and that have a public parameterless constructor. The generated POCO helpers preserve shared references and cycles between those POCOs. Types with public fields, read-only properties, constructor arguments, or required/init-only properties, and values in unsupported collection shapes, are left as references; configure a custom copy strategy for those values:
 
@@ -35,7 +35,7 @@ The strategy clones public read results, creates the edit-session draft and base
 The generated Patch overload writes only the members you specify to the configured write source:
 
 ```csharp
-await options.SaveAsync(patch => patch.SomeSetting = newValue);
+await state.SaveAsync(patch => patch.SomeSetting = newValue);
 ```
 
 Unchanged fields retain their existing sparse state. For destructive replacement of one source contribution, use its typed source handle:
@@ -56,7 +56,7 @@ Get the edit-session capability from the context, or inject `IConfiglueEditSessi
 var editSessions = context.GetEditSessions<AppSettings>();
 ```
 
-Use `OpenEditSessionAsync` on `IConfiglueEditSessions<T>` when a settings screen applies several changes together. `IWritableOptions<T>` stays focused on patch saves. The session is in-memory until `CommitAsync`; discard it to abandon changes. Disposing during a commit lets it finish and prevents further edits or commits. Before writing, the session resolves the latest state and rebases the draft changes from the original baseline. Non-overlapping changes are preserved. Concurrent changes to the same member fail by default; set `WriteConflictResolution = WriteConflictResolution.LastWriteWins` on the model registration to prefer the draft for those conflicts. The destination revision is still checked on write, so a change after the latest read can raise `StateConflictException`.
+Use `OpenEditSessionAsync` on `IConfiglueEditSessions<T>` when a settings screen applies several changes together. `IWritableState<T>` stays focused on patch saves. The session is in-memory until `CommitAsync`; discard it to abandon changes. Disposing during a commit lets it finish and prevents further edits or commits. Before writing, the session resolves the latest state and rebases the draft changes from the original baseline. Non-overlapping changes are preserved. Concurrent changes to the same member fail by default; set `WriteConflictResolution = WriteConflictResolution.LastWriteWins` on the model registration to prefer the draft for those conflicts. The destination revision is still checked on write, so a change after the latest read can raise `StateConflictException`.
 
 Synchronous callers can use `editSessions.OpenEditSession()`. It blocks while asynchronous sources are read; use `OpenEditSessionAsync` from asynchronous code.
 
@@ -77,13 +77,13 @@ A per-operation `StateWritePlan` can split the session across sources — see [W
 Generated `TModel.Patch` values address members individually. `Unset` removes only the write source's contribution and exposes lower-priority values again:
 
 ```csharp
-await options.SaveAsync(patch => patch.Database.Host = "db.example.test");
-await options.SaveAsync(patch => patch.Database.Password.Unset());
+await state.SaveAsync(patch => patch.Database.Host = "db.example.test");
+await state.SaveAsync(patch => patch.Database.Password.Unset());
 
 var patch = new AppSettings.Patch();
 patch.SomeSetting = newValue;   // set
 // patch.SomeSetting.Unset();   // withdraw this source's contribution
-await options.SaveAsync(patch);
+await state.SaveAsync(patch);
 ```
 
 Use `ApplyPatchesAsync` with `StateSourcePatch` entries for an explicit source-local multi-write. Disjoint section updates sharing a `ResourceId` persist with one physical write; overlapping scopes are rejected and the result reports each source revision and physical write count. Writes across different resources are not atomic.

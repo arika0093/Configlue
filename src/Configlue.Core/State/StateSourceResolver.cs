@@ -1,12 +1,13 @@
 using System.Collections.Concurrent;
 using System.Runtime.InteropServices;
 using Configlue.Resources;
+using Configlue.Sources;
 using Microsoft.Extensions.Logging;
 
 namespace Configlue.State;
 
 /// <summary>Reads the first successful state from a priority-ordered set of sources.</summary>
-public sealed class StateSourceResolver<T> : IStateReader<T>
+public sealed class StateSourceResolver<T> : ISourceReader<T>
 {
     private static readonly EventId ReadEvent = new(1050, "ResolverSourceRead");
     private static readonly EventId FallbackEvent = new(1051, "ResolverSourceFallback");

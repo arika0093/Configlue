@@ -53,7 +53,7 @@ public sealed partial class StateRuntimeTests
             projectedSource,
             new("defaults", defaults, priority: 0),
         ]);
-        var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(
+        var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             sourceSet,
             StateWriteRoute.To("remote-database")
         );
@@ -114,7 +114,7 @@ public sealed partial class StateRuntimeTests
             sourceSchema: DatabaseSettings.ConfiglueSchema.ToMetadata()
         );
         var sources = new StateSourceSet<AppSettings.Fragment>([projected]);
-        var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(sources);
+        var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(sources);
 
         var resolved = await options.ReadAsync();
 
@@ -150,7 +150,7 @@ public sealed partial class StateRuntimeTests
             new("user", user, priority: 100, physicalOrigin: "user-settings.json"),
             new("defaults", defaults, priority: 0, physicalOrigin: "defaults.json"),
         ]);
-        var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(sourceSet);
+        var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(sourceSet);
 
         var details = await options.GetDetailsAsync();
 
@@ -181,7 +181,7 @@ public sealed partial class StateRuntimeTests
                 Plugins = Optional<IReadOnlyList<string>>.Present(["base", "shared"]),
             }
         );
-        var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(
+        var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
                 new("user", user, priority: 100),
                 new("defaults", defaults, priority: 0),
@@ -214,7 +214,7 @@ public sealed partial class StateRuntimeTests
                 Tags = Optional<IReadOnlyList<string>>.Present(["base", "shared"]),
             }
         );
-        var options = new ConfiglueOptions<SetUnionSettings, SetUnionSettings.Fragment>(
+        var options = new ConfiglueRuntime<SetUnionSettings, SetUnionSettings.Fragment>(
             new StateSourceSet<SetUnionSettings.Fragment>([
                 new("user", user, priority: 100),
                 new("defaults", defaults, priority: 0),
@@ -246,7 +246,7 @@ public sealed partial class StateRuntimeTests
                 Values = Optional<IReadOnlyList<string>>.Present(["default"]),
             }
         );
-        var options = new ConfiglueOptions<
+        var options = new ConfiglueRuntime<
             ReplaceCollectionSettings,
             ReplaceCollectionSettings.Fragment
         >(
@@ -287,7 +287,7 @@ public sealed partial class StateRuntimeTests
             new("legacy", legacy, priority: 50),
             new("current", target, priority: 0, writer: target),
         ]);
-        var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(
+        var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             sources,
             migrations: [new AppSettingsV1ToV2Migration()]
         );
@@ -333,7 +333,7 @@ public sealed partial class StateRuntimeTests
         );
         var primaryTarget = new InMemoryStateStore<AppSettings.Fragment>();
         var retryTarget = new InMemoryStateStore<AppSettings.Fragment>();
-        var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(
+        var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
                 new("environment", environment, priority: 200),
                 new("user", user, priority: 100),
@@ -354,7 +354,7 @@ public sealed partial class StateRuntimeTests
                     RetryCount = ((AppSettings.Fragment)fragment).RetryCount,
                 },
         };
-        IConfiglueRuntimeOptions<AppSettings> writableOptions = options;
+        IConfiglueRuntimeState<AppSettings> writableOptions = options;
 
         var firstRun = await writableOptions.MigrateSourcesToTargetsAsync(
             [SourceKey<AppSettings>.Named("legacy"), SourceKey<AppSettings>.Named("user")],
@@ -395,7 +395,7 @@ public sealed partial class StateRuntimeTests
         );
         var firstTarget = new InMemoryStateStore<AppSettings.Fragment>();
         var secondTarget = new InMemoryStateStore<AppSettings.Fragment>();
-        var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(
+        var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
                 new("source", source, priority: 100, writer: source),
                 new("first-target", firstTarget, priority: 0, writer: firstTarget),
@@ -415,7 +415,7 @@ public sealed partial class StateRuntimeTests
             ["first-target"] = static fragment => fragment,
             ["second-target"] = static fragment => fragment,
         };
-        IConfiglueRuntimeOptions<AppSettings> writableOptions = options;
+        IConfiglueRuntimeState<AppSettings> writableOptions = options;
         var failed = false;
         try
         {
@@ -472,13 +472,13 @@ public sealed partial class StateRuntimeTests
             new AppSettings.Fragment { RetryCount = Optional<int>.Present(22) }
         );
         var target = new InMemoryStateStore<AppSettings.Fragment>();
-        var options = new ConfiglueOptions<AppSettings, AppSettings.Fragment>(
+        var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
                 new("source", source, priority: 100),
                 new("target", target, priority: 0, writer: target),
             ])
         );
-        IConfiglueRuntimeOptions<AppSettings> writableOptions = options;
+        IConfiglueRuntimeState<AppSettings> writableOptions = options;
         var projections = new Dictionary<string, Func<IConfiglueFragment, IConfiglueFragment>>(
             StringComparer.Ordinal
         )

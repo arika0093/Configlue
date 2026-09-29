@@ -267,7 +267,7 @@ public static class StateSourceProjection
             projectedSchema,
             migrationChain
         );
-        IStateWriter<TTarget>? writer =
+        ISourceWriter<TTarget>? writer =
             source.Writer is not null && (toSource is not null || updateSource is not null)
                 ? new ProjectedWriter<TSource, TTarget>(
                     source.Reader,
@@ -294,11 +294,11 @@ public static class StateSourceProjection
     }
 
     private sealed class ProjectedReader<TSource, TTarget>(
-        IStateReader<TSource> source,
+        ISourceReader<TSource> source,
         Func<TSource, TTarget> toTarget,
         StateSchemaMetadata? projectedSchema,
         StateSchemaMigrationChain<TSource>? migrationChain
-    ) : IStateReader<TTarget>
+    ) : ISourceReader<TTarget>
     {
         public async ValueTask<StateReadResult<TTarget>> ReadAsync(
             CancellationToken cancellationToken = default
@@ -420,20 +420,20 @@ public static class StateSourceProjection
     }
 
     private sealed class ProjectedWriter<TSource, TTarget>(
-        IStateReader<TSource> reader,
-        IStateWriter<TSource> source,
+        ISourceReader<TSource> reader,
+        ISourceWriter<TSource> source,
         Func<TSource, TTarget> toTarget,
         Func<TTarget, TSource>? toSource,
         Func<TTarget?, TTarget, TSource?, TSource>? updateSource,
         StateSchemaMigrationChain<TSource>? migrationChain
     )
-        : IStateWriter<TTarget>,
-            IStateWriteBatchParticipant<TTarget>,
-            IAsyncStateWriteBatchParticipant<TTarget>
+        : ISourceWriter<TTarget>,
+            ISourceWriteBatchParticipant<TTarget>,
+            IAsyncSourceWriteBatchParticipant<TTarget>
     {
         public bool CanPrepareBatchWrite =>
-            source is IStateWriteBatchParticipant<TSource>
-            || source is IAsyncStateWriteBatchParticipant<TSource> { CanPrepareBatchWrite: true };
+            source is ISourceWriteBatchParticipant<TSource>
+            || source is IAsyncSourceWriteBatchParticipant<TSource> { CanPrepareBatchWrite: true };
 
         public async ValueTask<StateWriteResult> WriteAsync(
             StateWriteRequest<TTarget> request,
@@ -501,7 +501,7 @@ public static class StateSourceProjection
                 return false;
             }
 
-            if (source is IStateWriteBatchParticipant<TSource> participant)
+            if (source is ISourceWriteBatchParticipant<TSource> participant)
             {
                 return participant.TryCreateBatchWrite(
                     context,
@@ -555,7 +555,7 @@ public static class StateSourceProjection
                 mapped,
                 Condition: request.Condition
             );
-            if (source is IAsyncStateWriteBatchParticipant<TSource> asyncParticipant)
+            if (source is IAsyncSourceWriteBatchParticipant<TSource> asyncParticipant)
             {
                 return await asyncParticipant
                     .TryCreateBatchWriteAsync(context, sourceRequest, cancellationToken)
@@ -563,7 +563,7 @@ public static class StateSourceProjection
             }
 
             if (
-                source is IStateWriteBatchParticipant<TSource> participant
+                source is ISourceWriteBatchParticipant<TSource> participant
                 && participant.TryCreateBatchWrite(
                     context,
                     sourceRequest,

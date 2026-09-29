@@ -310,7 +310,7 @@ public sealed partial class ConfiglueGenerator
                 + modelType
                 + ".Details> GetDetailsAsync("
         );
-        code.AppendLineAt(2, "this global::Configlue.IReadOnlyOptions<" + modelType + "> options,");
+        code.AppendLineAt(2, "this global::Configlue.IReadOnlyState<" + modelType + "> options,");
         code.AppendLineAt(
             2,
             "global::System.Threading.CancellationToken cancellationToken = default)"

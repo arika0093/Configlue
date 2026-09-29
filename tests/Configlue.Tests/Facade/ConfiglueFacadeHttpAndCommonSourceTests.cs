@@ -95,8 +95,8 @@ public sealed partial class ConfiglueFacadeSourceTests
 
         await using var provider = services.BuildServiceProvider();
         var options =
-            (IConfiglueRuntimeOptions<AppSettings>)
-                provider.GetRequiredService<IWritableOptions<AppSettings>>();
+            (IConfiglueRuntimeState<AppSettings>)
+                provider.GetRequiredService<IWritableState<AppSettings>>();
         (await options.GetValueAsync()).RetryCount.ShouldBe(11);
         requestedUris.ShouldContain(new Uri("https://settings.example.test/json/get"));
         await Should.ThrowAsync<InvalidOperationException>(async () =>
@@ -130,7 +130,7 @@ public sealed partial class ConfiglueFacadeSourceTests
         )
         {
             var result = await (
-                (IConfiglueRuntimeOptions<AppSettings>)context.GetOptions<AppSettings>()
+                (IConfiglueRuntimeState<AppSettings>)context.GetState<AppSettings>()
             ).ApplyPatchesAsync([
                 new StateSourcePatch(
                     "writable-json-http",
@@ -198,8 +198,8 @@ public sealed partial class ConfiglueFacadeSourceTests
 
         await using var provider = services.BuildServiceProvider();
         var options =
-            (IConfiglueRuntimeOptions<AppSettings>)
-                provider.GetRequiredService<IWritableOptions<AppSettings>>();
+            (IConfiglueRuntimeState<AppSettings>)
+                provider.GetRequiredService<IWritableState<AppSettings>>();
         (await options.GetValueAsync()).RetryCount.ShouldBe(9);
         requestedUris.ShouldContain(new Uri("https://settings.example.test/primary/get"));
         requestedUris.ShouldContain(new Uri("https://settings.example.test/secondary/get"));
@@ -266,7 +266,7 @@ public sealed partial class ConfiglueFacadeSourceTests
                     sources.Add<AppSettings>();
                 });
             });
-            var options = (IConfiglueRuntimeOptions<AppSettings>)context.GetOptions<AppSettings>();
+            var options = (IConfiglueRuntimeState<AppSettings>)context.GetState<AppSettings>();
             var value = await options.GetValueAsync();
             (value.RetryCount).ShouldBe(5);
             (value.Label).ShouldBe("local");

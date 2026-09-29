@@ -1,5 +1,6 @@
 using Configlue.Provider.Json;
 using Configlue.Resource.Zip;
+using Configlue.Sources;
 using Configlue.State;
 using Configlue.Transformer.AES;
 
@@ -66,7 +67,7 @@ internal static class SingleBinarySourceFactory
         ownResource(file);
         IResourceReader reader = file;
         IResourceBatchWriter? batchWriter = file;
-        IStateWatcher watcher = file;
+        ISourceWatcher watcher = file;
         if (encryption is not null)
         {
             var transformer = encryption.CreateTransformer();
@@ -118,10 +119,10 @@ internal static class SingleBinarySourceFactory
         );
     }
 
-    public static string GetModelEntryName(string modelKey, bool isProfile, string optionsName)
+    public static string GetModelEntryName(string modelKey, bool isProfile, string stateName)
     {
         var category = isProfile ? "profiles" : "options";
-        var name = optionsName.Length == 0 ? "default" : optionsName;
+        var name = stateName.Length == 0 ? "default" : stateName;
         return $"models/{Escape(modelKey)}/{category}/{Escape(name)}.json";
     }
 

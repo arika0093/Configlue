@@ -1,3 +1,4 @@
+using Configlue.Sources;
 using StackExchange.Redis;
 
 namespace Configlue.Resource.Redis;
@@ -131,7 +132,7 @@ public static class RedisStateSourceRegistration
                 options.Codec,
                 options.CodecContext
             );
-            IStateWriter<TFragment>? writer = options.Writable
+            ISourceWriter<TFragment>? writer = options.Writable
                 ? new SerializedStateWriter<TFragment>(
                     resource,
                     options.Codec,

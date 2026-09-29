@@ -59,7 +59,7 @@ For example, [PostgreSQL](../reference/postgresql-resource.md) can resolve a sha
 
 ## Use current-subject and explicit-subject views
 
-For request or circuit scoped consumers, select an accessor on that model with `PerSubject<TAccessor>()`. The ordinary `IReadOnlyOptions<T>` and `IWritableOptions<T>` views resolve the current subject when each operation runs. Accessors are selected per model, so one model can use a tenant accessor while another remains server-wide.
+For request or circuit scoped consumers, select an accessor on that model with `PerSubject<TAccessor>()`. The ordinary `IReadOnlyState<T>` and `IWritableState<T>` views resolve the current subject when each operation runs. Accessors are selected per model, so one model can use a tenant accessor while another remains server-wide.
 
 ```csharp
 services.AddScoped<CurrentTenantAccessor>();
@@ -76,7 +76,7 @@ services.AddConfiglue(conf =>
 });
 ```
 
-Implement `IConfiglueSubjectAccessor<TenantSubject>` for an application-owned accessor. For background jobs, administration, or work on a subject other than the current request, inject `ISubjectOptions<T>` and call `For(subject)`; the returned `IWritableOptions<T>` view is fixed to that subject. Both views use the same model runtime and source topology.
+Implement `IConfiglueSubjectAccessor<TenantSubject>` for an application-owned accessor. For background jobs, administration, or work on a subject other than the current request, inject `ISubjectState<T>` and call `ForSubject(subject)`; the returned `IWritableState<T>` view is fixed to that subject. Both views use the same model runtime and source topology.
 
 An accessor may implement `IConfiglueSubjectChangeSource` when its subject can change during a scope. Active change subscriptions then resolve the subject again, detach from the old watch targets, bind to the new subject and route, re-read the effective value, and notify listeners. Without change notifications, a subscription remains attached to the subject it first resolved.
 
