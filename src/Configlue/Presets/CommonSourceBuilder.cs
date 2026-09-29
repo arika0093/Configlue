@@ -344,4 +344,3 @@ public sealed class CommonSourceBuilder
         }
     }
 }
-
