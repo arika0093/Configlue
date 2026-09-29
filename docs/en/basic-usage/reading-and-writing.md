@@ -45,7 +45,7 @@ var sourceAdmin = context.GetSources<AppSettings>();
 var userKey = SourceKey<AppSettings>.Create(); // reuse this key when registering the user source
 var replacement = new AppSettings.Patch();
 replacement.Name = "new-name";
-await options.Source(userKey).ReplaceAsync(replacement);
+await sourceAdmin.Source(userKey).ReplaceAsync(replacement);
 ```
 
 ## Edit sessions

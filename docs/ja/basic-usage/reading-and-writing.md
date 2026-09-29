@@ -54,7 +54,7 @@ var sourceAdmin = context.GetSources<AppSettings>();
 var userKey = SourceKey<AppSettings>.Create(); // ユーザーソース登録時に再利用
 var replacement = new AppSettings.Patch();
 replacement.Name = "new-name";
-await options.Source(userKey).ReplaceAsync(replacement);
+await sourceAdmin.Source(userKey).ReplaceAsync(replacement);
 ```
 
 ## 編集セッション
@@ -65,7 +65,7 @@ context から edit-session 用の機能を取得します。DI では `IConfigl
 var editSessions = context.GetEditSessions<AppSettings>();
 ```
 
-設定画面で複数変更をまとめて適用する場合は、`IConfiglueInspection<T>` の `OpenEditSessionAsync` を使います。
+設定画面で複数変更をまとめて適用する場合は、`IConfiglueEditSessions<T>` の `OpenEditSessionAsync` を使います。
 `IWritableOptions<T>` は Patch 保存に特化しています。
 セッションは `CommitAsync` までインメモリで管理され、破棄すれば未保存の変更は破棄されます。
 コミット中に破棄した場合、そのコミットは完了し、以後の編集やコミットはできません。
