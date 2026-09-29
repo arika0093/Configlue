@@ -139,5 +139,6 @@ services.AddSingleton<IConfiglueValidator<UserSetting>, UserSettingValidator2>()
 
 ## 次のステップ
 
+* current subject、明示 subject view、route、共有 provider watch は [Subject ごとの state](../advanced/subject-scoped-state.md) を参照してください。
 * 定番の共通/ローカル/指定/env 構成は [共通レイヤーソース](./common-sources.md)。コマンドライン上書きは明示的に追加できます。
 * プロバイダー登録は [ファイル・形式・セクション](../sources/files-and-sections.md)。

@@ -82,6 +82,7 @@ export default defineConfig({
               translations: { ja: 'アプリ構成と編集' },
               items: [
                 'basic-usage/app-setup',
+                'advanced/subject-scoped-state',
                 'basic-usage/reading-and-writing',
                 'basic-usage/common-sources',
                 'basic-usage/changes-and-validation',

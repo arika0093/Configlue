@@ -131,5 +131,6 @@ See [Changes and validation](./changes-and-validation.md).
 
 ## Next steps
 
+* [Subject-scoped state](../advanced/subject-scoped-state.md) for current-subject access, explicit subject views, routing, and shared provider watches.
 * [Common layered sources](./common-sources.md) for the standard global/local/specific/environment stack, with command-line overrides available as an opt-in.
 * [Files, formats, and sections](../sources/files-and-sections.md) for provider registrations.
