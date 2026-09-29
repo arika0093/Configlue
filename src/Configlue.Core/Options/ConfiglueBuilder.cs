@@ -102,6 +102,7 @@ public sealed class ConfiglueModelBuilder<TModel>
     private ILogger? _logger;
     private Func<TModel, TModel>? _cloneStrategy;
     private Func<IConfiglueSubject, RouteKey>? _routeSelector;
+    private Type? _subjectAccessorType;
     private bool _sealed;
 
     /// <summary>The name used by named options and profiles. The default is the unnamed instance.</summary>
@@ -248,6 +249,18 @@ public sealed class ConfiglueModelBuilder<TModel>
                 : throw new InvalidOperationException(
                     $"The routing policy for '{typeof(TModel)}' requires a subject of type '{typeof(TSubject)}', but received '{subject.GetType()}'."
                 );
+    }
+
+    /// <summary>Resolves the current subject from a scoped dependency-injection accessor.</summary>
+    /// <remarks>
+    /// The accessor type must be registered with the application's service provider. Options
+    /// injected into a scope become scoped views; the underlying runtime remains shared.
+    /// </remarks>
+    public void PerSubject<TAccessor>()
+        where TAccessor : class, IConfiglueSubjectAccessor
+    {
+        EnsureMutable();
+        _subjectAccessorType = typeof(TAccessor);
     }
 
     /// <summary>Configures sources when the runtime is created, with its name and application services.</summary>
@@ -415,6 +428,8 @@ public sealed class ConfiglueModelBuilder<TModel>
 
     internal Func<IConfiglueSubject, RouteKey>? RouteSelector => _routeSelector;
 
+    internal Type? SubjectAccessorType => _subjectAccessorType;
+
     /// <summary>Gets the explicitly configured logger or creates one from the service provider.</summary>
     internal ILogger? GetLogger(IServiceProvider? serviceProvider)
     {
@@ -442,6 +457,7 @@ public sealed class ConfiglueModelBuilder<TModel>
             OnChangeDebounce = _onChangeDebounce,
             Logger = _logger,
             _routeSelector = _routeSelector,
+            _subjectAccessorType = _subjectAccessorType,
         };
         clone._sources.CopyFrom(_sources);
         clone._cloneStrategy = _cloneStrategy;
@@ -474,6 +490,8 @@ internal interface IConfiglueModelRegistration
     Type ModelType { get; }
     ConfiglueModelSchema ModelSchema { get; }
     string OptionsName { get; }
+    bool IsPerSubject { get; }
+    Type? SubjectAccessorType { get; }
     bool EnableDynamicOptions { get; }
     bool EnableProfiles { get; }
     object CreateRuntime(IServiceProvider? serviceProvider, Action<IDisposable> ownResource);
@@ -506,6 +524,10 @@ internal sealed class ConfiglueModelRegistration<TModel>(ConfiglueModelBuilder<T
     public ConfiglueModelSchema ModelSchema => TModel.Descriptor.Schema;
 
     public string OptionsName => builder.OptionsName;
+
+    public bool IsPerSubject => builder.SubjectAccessorType is not null;
+
+    public Type? SubjectAccessorType => builder.SubjectAccessorType;
 
     public bool EnableDynamicOptions => builder.EnableDynamicOptions;
 
@@ -639,7 +661,62 @@ internal sealed class ConfiglueModelRegistration<TModel>(ConfiglueModelBuilder<T
                 provider.GetRequiredService<ConfiglueContext>().GetProfiledOptions<TModel>()
             );
         }
-        if (OptionsName.Length == 0)
+        if (IsPerSubject)
+        {
+            var subjectAccessorType = SubjectAccessorType!;
+            if (OptionsName.Length == 0)
+            {
+                services.AddScoped(provider => new CurrentSubjectOptions<TModel>(
+                    provider
+                        .GetRequiredService<ConfiglueContext>()
+                        .GetSubjectOptions<TModel>(OptionsName),
+                    (IConfiglueSubjectAccessor)provider.GetRequiredService(subjectAccessorType)
+                ));
+                services.AddScoped<IReadOnlyOptions<TModel>>(provider =>
+                    provider.GetRequiredService<CurrentSubjectOptions<TModel>>()
+                );
+                services.AddScoped<IWritableOptions<TModel>>(provider =>
+                    provider.GetRequiredService<CurrentSubjectOptions<TModel>>()
+                );
+                services.AddSingleton<ISubjectOptions<TModel>>(provider =>
+                    provider
+                        .GetRequiredService<ConfiglueContext>()
+                        .GetSubjectOptions<TModel>(OptionsName)
+                );
+            }
+            else
+            {
+                services.AddKeyedScoped<CurrentSubjectOptions<TModel>>(
+                    OptionsName,
+                    (provider, _) =>
+                        new CurrentSubjectOptions<TModel>(
+                            provider
+                                .GetRequiredService<ConfiglueContext>()
+                                .GetSubjectOptions<TModel>(OptionsName),
+                            (IConfiglueSubjectAccessor)
+                                provider.GetRequiredService(subjectAccessorType)
+                        )
+                );
+                services.AddKeyedScoped<IReadOnlyOptions<TModel>>(
+                    OptionsName,
+                    (provider, key) =>
+                        provider.GetRequiredKeyedService<CurrentSubjectOptions<TModel>>(key)
+                );
+                services.AddKeyedScoped<IWritableOptions<TModel>>(
+                    OptionsName,
+                    (provider, key) =>
+                        provider.GetRequiredKeyedService<CurrentSubjectOptions<TModel>>(key)
+                );
+                services.AddKeyedSingleton<ISubjectOptions<TModel>>(
+                    OptionsName,
+                    (provider, _) =>
+                        provider
+                            .GetRequiredService<ConfiglueContext>()
+                            .GetSubjectOptions<TModel>(OptionsName)
+                );
+            }
+        }
+        else if (OptionsName.Length == 0)
         {
             services.AddSingleton<IReadOnlyOptions<TModel>>(provider =>
                 provider.GetRequiredService<ConfiglueContext>().GetOptions<TModel>(OptionsName)

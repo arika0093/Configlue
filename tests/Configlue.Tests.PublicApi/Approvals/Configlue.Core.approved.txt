@@ -52,6 +52,8 @@ namespace Configlue
         public void ConfigureSources(System.Action<Configlue.ConfiglueSourceRegistrationContext<TModel>> configure) { }
         public void EnableProfiles(Configlue.Sources.StateSource<Configlue.ConfiglueProfileCatalog> catalogSource, string defaultProfileName = "default") { }
         public void EnableProfiles(System.Func<System.IServiceProvider?, System.Action<System.IDisposable>, Configlue.Sources.StateSource<Configlue.ConfiglueProfileCatalog>> catalogSourceFactory, string defaultProfileName = "default") { }
+        public void PerSubject<TAccessor>()
+            where TAccessor :  class, Configlue.IConfiglueSubjectAccessor { }
         public void Routing<TSubject>(System.Func<TSubject, Configlue.RouteKey> selector)
             where TSubject : Configlue.IConfiglueSubject { }
         public void Sources(System.Action<Configlue.ConfiglueSourceSetBuilder<TModel>> configure) { }

@@ -82,6 +82,42 @@ services.AddConfiglueOptions<AppConfig, AppConfig.Fragment>(
     StateWriteRoute.To("user-settings"));
 ```
 
+## Per-subject models
+
+Use `model.PerSubject<TAccessor>()` for models whose current value depends on a request, user, tenant, or another application context. Register the accessor with DI; the scoped `IReadOnlyOptions<T>` and `IWritableOptions<T>` facade resolves it on every read and save. Each model registration chooses its own accessor, while models without `PerSubject` keep the usual singleton options lifetime.
+
+```csharp
+services.AddScoped<CurrentTenantAccessor>();
+services.AddConfiglue(conf =>
+{
+    conf.Add<UserSettings>(model =>
+    {
+        model.PerSubject<CurrentTenantAccessor>();
+        model.Sources(sources => sources.Add(CreateTenantSource()));
+    });
+
+    conf.Add<ServerSettings>(model =>
+        model.Sources(sources => sources.Add(CreateServerSource())));
+});
+```
+
+`CurrentTenantAccessor` implements `IConfiglueSubjectAccessor<TenantSubject>` and returns a `TenantSubject : IConfiglueSubject` from `GetCurrentAsync`. The accessor is application-controlled and can use asynchronous services. `ISubjectOptions<T>` remains a singleton entry point for explicit subject views with `.For(subject)`, and inspection, diagnostics, source administration, and edit-session services continue to address the shared runtime.
+
+An accessor can also implement `IConfiglueSubjectChangeSource`. Its notifications tell an `OnChange` subscription to resolve the subject again and bind to that subject's watcher. This is useful when authentication or another context changes within a scope. Without this optional interface, a watcher stays bound to the subject resolved when the subscription was created.
+
+The optional `Configlue.Resource.Http.AspNetCore` package includes request and Blazor authentication accessors. They only adapt framework context into the core subject contract; the core package does not depend on ASP.NET Core or claims:
+
+```csharp
+services.AddHttpContextConfiglueSubjectAccessor<TenantSubject>(
+    context => new TenantSubject(context.User.FindFirst("tenant")!.Value));
+
+services.AddBlazorAuthenticationConfiglueSubjectAccessor<TenantSubject>(
+    (principal, _) => ValueTask.FromResult(
+        new TenantSubject(principal.FindFirst("tenant")!.Value)));
+```
+
+Select the matching accessor on that model registration with `PerSubject<HttpContextConfiglueSubjectAccessor<TenantSubject>>()` or `PerSubject<BlazorAuthenticationConfiglueSubjectAccessor<TenantSubject>>()`. The Blazor accessor reports authentication-state changes so active options watchers follow the new subject.
+
 ## Custom validators
 
 DataAnnotations validation is enabled by default; pass `validateDataAnnotations: false` when registering the model to disable it. For code-based rules, adapt a Microsoft `IValidateOptions<T>` with `AddConfiglueValidator`, or implement `IConfiglueValidator<T>` directly and register it as a DI singleton:

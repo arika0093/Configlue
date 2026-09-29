@@ -1,0 +1,373 @@
+using System.Collections.Concurrent;
+using System.Security.Claims;
+using Configlue.Resource.Http.AspNetCore;
+using Configlue.Testing;
+using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
+
+namespace Configlue.Tests;
+
+public sealed class PerSubjectDependencyInjectionTests
+{
+    [Test]
+    public async Task ScopedOptionsResolveAndSaveUsingEachScopeCurrentSubject()
+    {
+        var users = new SubjectStateStore<AppSettings.Fragment>();
+        var subjectA = new SettingsSubject("tenant-a", "user-a");
+        var subjectB = new SettingsSubject("tenant-b", "user-b");
+        users.Set(subjectA.Key, Fragment("user-a"));
+        users.Set(subjectB.Key, Fragment("user-b"));
+
+        var server = new InMemoryStateStore<DatabaseSettings.Fragment>(
+            new DatabaseSettings.Fragment { Host = Optional<string>.Present("server.db") }
+        );
+        var services = new ServiceCollection();
+        services.AddScoped<MutableSubjectAccessor>();
+        services.AddConfiglue(builder =>
+        {
+            builder.Add<AppSettings>(model =>
+            {
+                model.PerSubject<MutableSubjectAccessor>();
+                model.WriteRoute = StateWriteRoute.To("users");
+                model.Sources(sources =>
+                    sources.Add(
+                        new StateSource<AppSettings.Fragment>(
+                            "users",
+                            users,
+                            writer: users,
+                            watcher: users,
+                            subjectKeySelector: subject =>
+                                subject is SettingsSubject typed ? typed.Key : SubjectKey.Default
+                        )
+                    )
+                );
+            });
+            builder.Add<DatabaseSettings>(model =>
+                model.Sources(sources =>
+                    sources.Add(new StateSource<DatabaseSettings.Fragment>("server", server))
+                )
+            );
+        });
+
+        using var provider = services.BuildServiceProvider(
+            new ServiceProviderOptions { ValidateScopes = true }
+        );
+        var sharedSubjectOptions = provider.GetRequiredService<ISubjectOptions<AppSettings>>();
+        provider.GetRequiredService<IConfiglueInspection<AppSettings>>().ShouldNotBeNull();
+        using var scopeA = provider.CreateScope();
+        using var scopeB = provider.CreateScope();
+        var accessorA = scopeA.ServiceProvider.GetRequiredService<MutableSubjectAccessor>();
+        var accessorB = scopeB.ServiceProvider.GetRequiredService<MutableSubjectAccessor>();
+        accessorA.Set(subjectA);
+        accessorB.Set(subjectB);
+
+        var readA = scopeA.ServiceProvider.GetRequiredService<IReadOnlyOptions<AppSettings>>();
+        var writeA = scopeA.ServiceProvider.GetRequiredService<IWritableOptions<AppSettings>>();
+        var readB = scopeB.ServiceProvider.GetRequiredService<IReadOnlyOptions<AppSettings>>();
+        var writeB = scopeB.ServiceProvider.GetRequiredService<IWritableOptions<AppSettings>>();
+
+        ReferenceEquals(readA, writeA).ShouldBeTrue();
+        ReferenceEquals(readB, writeB).ShouldBeTrue();
+        ReferenceEquals(readA, readB).ShouldBeFalse();
+        ReferenceEquals(
+                sharedSubjectOptions,
+                provider.GetRequiredService<ISubjectOptions<AppSettings>>()
+            )
+            .ShouldBeTrue();
+        (await readA.GetValueAsync()).Label.ShouldBe("user-a");
+        (await readB.GetValueAsync()).Label.ShouldBe("user-b");
+
+        await writeA.SaveAsync(
+            new AppSettings.Patch { Label = FragmentOperation<string?>.Set("saved-a") }
+        );
+        await writeB.SaveAsync(
+            new AppSettings.Patch { Label = FragmentOperation<string?>.Set("saved-b") }
+        );
+        users.Read(subjectA.Key).Value!.Label.Value.ShouldBe("saved-a");
+        users.Read(subjectB.Key).Value!.Label.Value.ShouldBe("saved-b");
+
+        var serverOptionsA = scopeA.ServiceProvider.GetRequiredService<
+            IReadOnlyOptions<DatabaseSettings>
+        >();
+        var serverOptionsB = scopeB.ServiceProvider.GetRequiredService<
+            IReadOnlyOptions<DatabaseSettings>
+        >();
+        ReferenceEquals(serverOptionsA, serverOptionsB).ShouldBeTrue();
+        (await serverOptionsA.GetValueAsync()).Host.ShouldBe("server.db");
+
+        (await sharedSubjectOptions.For(subjectB).GetValueAsync()).Label.ShouldBe("saved-b");
+    }
+
+    [Test]
+    public async Task ScopedChangeSubscriptionRebindsAfterSubjectInvalidation()
+    {
+        var users = new SubjectStateStore<AppSettings.Fragment>();
+        var subjectA = new SettingsSubject("tenant", "user-a");
+        var subjectB = new SettingsSubject("tenant", "user-b");
+        users.Set(subjectA.Key, Fragment("before-a"));
+        users.Set(subjectB.Key, Fragment("before-b"));
+        var services = new ServiceCollection();
+        services.AddScoped<MutableSubjectAccessor>();
+        services.AddConfiglue(builder =>
+            builder.Add<AppSettings>(model =>
+            {
+                model.PerSubject<MutableSubjectAccessor>();
+                model.OnChangeDebounce = TimeSpan.Zero;
+                model.Sources(sources =>
+                    sources.Add(
+                        new StateSource<AppSettings.Fragment>(
+                            "users",
+                            users,
+                            watcher: users,
+                            subjectKeySelector: subject =>
+                                subject is SettingsSubject typed ? typed.Key : SubjectKey.Default
+                        )
+                    )
+                );
+            })
+        );
+
+        using var provider = services.BuildServiceProvider();
+        using var scope = provider.CreateScope();
+        var accessor = scope.ServiceProvider.GetRequiredService<MutableSubjectAccessor>();
+        accessor.Set(subjectA);
+        var changed = new TaskCompletionSource<string?>(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        using var subscription = scope
+            .ServiceProvider.GetRequiredService<IReadOnlyOptions<AppSettings>>()
+            .OnChange(value => changed.TrySetResult(value.Label));
+
+        await Task.Delay(150);
+        accessor.Set(subjectB);
+        await Task.Delay(150);
+        users.Set(subjectA.Key, Fragment("after-a"));
+        await Task.Delay(150);
+        changed.Task.IsCompleted.ShouldBeFalse();
+        users.Set(subjectB.Key, Fragment("after-b"));
+        (await changed.Task.WaitAsync(TimeSpan.FromSeconds(3))).ShouldBe("after-b");
+    }
+
+    [Test]
+    public async Task NamedPerSubjectRegistrationUsesItsConfiguredAccessor()
+    {
+        var users = new SubjectStateStore<AppSettings.Fragment>();
+        var subject = new SettingsSubject("tenant", "named-user");
+        users.Set(subject.Key, Fragment("named-value"));
+        var services = new ServiceCollection();
+        services.AddScoped<MutableSubjectAccessor>();
+        services.AddConfiglue(builder =>
+            builder.Add<AppSettings>(model =>
+            {
+                model.OptionsName = "tenant";
+                model.PerSubject<MutableSubjectAccessor>();
+                model.Sources(sources =>
+                    sources.Add(
+                        new StateSource<AppSettings.Fragment>(
+                            "users",
+                            users,
+                            subjectKeySelector: current =>
+                                current is SettingsSubject typed ? typed.Key : SubjectKey.Default
+                        )
+                    )
+                );
+            })
+        );
+
+        using var provider = services.BuildServiceProvider();
+        using var scope = provider.CreateScope();
+        scope.ServiceProvider.GetRequiredService<MutableSubjectAccessor>().Set(subject);
+        var options = scope.ServiceProvider.GetRequiredKeyedService<IReadOnlyOptions<AppSettings>>(
+            "tenant"
+        );
+        (await options.GetValueAsync()).Label.ShouldBe("named-value");
+        var fixedSubjectOptions = provider.GetRequiredKeyedService<ISubjectOptions<AppSettings>>(
+            "tenant"
+        );
+        (await fixedSubjectOptions.For(subject).GetValueAsync()).Label.ShouldBe("named-value");
+    }
+
+    [Test]
+    public async Task HttpContextAccessorMapsRequestIntoTypedSubject()
+    {
+        var services = new ServiceCollection();
+        services.AddHttpContextConfiglueSubjectAccessor<SettingsSubject>(
+            context => new SettingsSubject("tenant", context.Request.Headers["X-User"].ToString())
+        );
+        using var provider = services.BuildServiceProvider();
+        var httpContextAccessor = provider.GetRequiredService<IHttpContextAccessor>();
+        httpContextAccessor.HttpContext = new DefaultHttpContext();
+        httpContextAccessor.HttpContext.Request.Headers["X-User"] = "request-user";
+        using var scope = provider.CreateScope();
+        var accessor = scope.ServiceProvider.GetRequiredService<
+            HttpContextConfiglueSubjectAccessor<SettingsSubject>
+        >();
+
+        var subject = await accessor.GetCurrentAsync();
+        subject.ShouldBe(new SettingsSubject("tenant", "request-user"));
+        (await ((IConfiglueSubjectAccessor)accessor).GetCurrentSubjectAsync()).ShouldBe(subject);
+    }
+
+    [Test]
+    public async Task BlazorAuthenticationAccessorInvalidatesAndResolvesNewPrincipal()
+    {
+        var authenticationStateProvider = new TestAuthenticationStateProvider("user-a");
+        var services = new ServiceCollection();
+        services.AddSingleton<AuthenticationStateProvider>(authenticationStateProvider);
+        services.AddBlazorAuthenticationConfiglueSubjectAccessor<SettingsSubject>(
+            (principal, _) =>
+                ValueTask.FromResult(
+                    new SettingsSubject("tenant", principal.FindFirst("user")!.Value)
+                )
+        );
+        using var provider = services.BuildServiceProvider();
+        using var scope = provider.CreateScope();
+        var accessor = scope.ServiceProvider.GetRequiredService<
+            BlazorAuthenticationConfiglueSubjectAccessor<SettingsSubject>
+        >();
+        var invalidated = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        using var subscription = accessor.OnChange(() => invalidated.TrySetResult());
+
+        (await accessor.GetCurrentAsync()).UserId.ShouldBe("user-a");
+        authenticationStateProvider.SetUser("user-b");
+        await invalidated.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        (await accessor.GetCurrentAsync()).UserId.ShouldBe("user-b");
+    }
+
+    private static AppSettings.Fragment Fragment(string? label) =>
+        new() { Label = Optional<string?>.Present(label) };
+
+    private sealed record SettingsSubject(string TenantId, string UserId) : IConfiglueSubject
+    {
+        public SubjectKey Key => SubjectKey.FromSegments(TenantId, UserId);
+    }
+
+    private sealed class MutableSubjectAccessor
+        : IConfiglueSubjectAccessor<SettingsSubject>,
+            IConfiglueSubjectChangeSource
+    {
+        private readonly object _gate = new();
+        private readonly List<Action> _listeners = [];
+        private SettingsSubject? _subject;
+
+        public async ValueTask<SettingsSubject> GetCurrentAsync(
+            CancellationToken cancellationToken = default
+        )
+        {
+            await Task.Yield();
+            cancellationToken.ThrowIfCancellationRequested();
+            lock (_gate)
+            {
+                return _subject
+                    ?? throw new InvalidOperationException("A test subject has not been selected.");
+            }
+        }
+
+        public void Set(SettingsSubject subject)
+        {
+            Action[] listeners;
+            lock (_gate)
+            {
+                _subject = subject;
+                listeners = [.. _listeners];
+            }
+
+            foreach (var listener in listeners)
+            {
+                listener();
+            }
+        }
+
+        public IDisposable OnChange(Action listener)
+        {
+            lock (_gate)
+            {
+                _listeners.Add(listener);
+            }
+
+            return new CallbackDisposable(() =>
+            {
+                lock (_gate)
+                {
+                    _listeners.Remove(listener);
+                }
+            });
+        }
+    }
+
+    private sealed class SubjectStateStore<T> : IStateReader<T>, IStateWriter<T>, IStateWatcher
+    {
+        private readonly ConcurrentDictionary<SubjectKey, InMemoryStateStore<T>> _states = new();
+
+        public void Set(SubjectKey key, T value) => Get(key).Set(value);
+
+        public StateReadResult<T> Read(SubjectKey key) =>
+            Get(key).ReadAsync().GetAwaiter().GetResult();
+
+        public ValueTask<StateReadResult<T>> ReadAsync(
+            CancellationToken cancellationToken = default
+        ) => Get(SubjectKey.Default).ReadAsync(cancellationToken);
+
+        public ValueTask<StateReadResult<T>> ReadAsync(
+            ConfiglueResourceContext context,
+            CancellationToken cancellationToken = default
+        ) => Get(context.Key).ReadAsync(cancellationToken);
+
+        public ValueTask<StateWriteResult> WriteAsync(
+            StateWriteRequest<T> request,
+            CancellationToken cancellationToken = default
+        ) => Get(SubjectKey.Default).WriteAsync(request, cancellationToken);
+
+        public ValueTask<StateWriteResult> WriteAsync(
+            ConfiglueResourceContext context,
+            StateWriteRequest<T> request,
+            CancellationToken cancellationToken = default
+        ) => Get(context.Key).WriteAsync(request, cancellationToken);
+
+        public ValueTask WaitForChangeAsync(
+            string? observedRevision,
+            CancellationToken cancellationToken = default
+        ) => Get(SubjectKey.Default).WaitForChangeAsync(observedRevision, cancellationToken);
+
+        public ValueTask WaitForChangeAsync(
+            ConfiglueResourceContext context,
+            string? observedRevision,
+            CancellationToken cancellationToken = default
+        ) => Get(context.Key).WaitForChangeAsync(observedRevision, cancellationToken);
+
+        private InMemoryStateStore<T> Get(SubjectKey key) =>
+            _states.GetOrAdd(key, static _ => new InMemoryStateStore<T>());
+    }
+
+    private sealed class CallbackDisposable(Action dispose) : IDisposable
+    {
+        private Action? _dispose = dispose;
+
+        public void Dispose() => Interlocked.Exchange(ref _dispose, null)?.Invoke();
+    }
+
+    private sealed class TestAuthenticationStateProvider(string userId)
+        : AuthenticationStateProvider
+    {
+        private AuthenticationState _state = CreateState(userId);
+
+        public override Task<AuthenticationState> GetAuthenticationStateAsync() =>
+            Task.FromResult(_state);
+
+        public void SetUser(string nextUserId)
+        {
+            _state = CreateState(nextUserId);
+            NotifyAuthenticationStateChanged(Task.FromResult(_state));
+        }
+
+        private static AuthenticationState CreateState(string userId) =>
+            new(
+                new ClaimsPrincipal(
+                    new ClaimsIdentity([new Claim("user", userId)], authenticationType: "test")
+                )
+            );
+    }
+}

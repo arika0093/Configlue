@@ -403,6 +403,19 @@ namespace Configlue
     {
         Configlue.SubjectKey Key { get; }
     }
+    public interface IConfiglueSubjectAccessor
+    {
+        System.Threading.Tasks.ValueTask<Configlue.IConfiglueSubject> GetCurrentSubjectAsync(System.Threading.CancellationToken cancellationToken = default);
+    }
+    public interface IConfiglueSubjectAccessor<TSubject> : Configlue.IConfiglueSubjectAccessor
+        where TSubject : Configlue.IConfiglueSubject
+    {
+        System.Threading.Tasks.ValueTask<TSubject> GetCurrentAsync(System.Threading.CancellationToken cancellationToken = default);
+    }
+    public interface IConfiglueSubjectChangeSource
+    {
+        System.IDisposable OnChange(System.Action listener);
+    }
     public interface IConfiglueValidator<in T>
     {
         System.Collections.Generic.IReadOnlyList<string> Validate(T value);

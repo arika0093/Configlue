@@ -89,6 +89,42 @@ services.AddConfiglueOptions<AppConfig, AppConfig.Fragment>(
     StateWriteRoute.To("user-settings"));
 ```
 
+## Subject ごとのモデル
+
+現在の値がリクエスト、ユーザー、テナントなどのアプリケーションコンテキストに依存するモデルでは、`model.PerSubject<TAccessor>()` を指定します。アクセサーはアプリ側で DI 登録します。scoped な `IReadOnlyOptions<T>` / `IWritableOptions<T>` は、読み取りと保存のたびにアクセサーから現在の subject を取得します。アクセサーはモデル登録ごとに選択でき、`PerSubject` を指定しないモデルは通常どおりシングルトンです。
+
+```csharp
+services.AddScoped<CurrentTenantAccessor>();
+services.AddConfiglue(conf =>
+{
+    conf.Add<UserSettings>(model =>
+    {
+        model.PerSubject<CurrentTenantAccessor>();
+        model.Sources(sources => sources.Add(CreateTenantSource()));
+    });
+
+    conf.Add<ServerSettings>(model =>
+        model.Sources(sources => sources.Add(CreateServerSource())));
+});
+```
+
+`CurrentTenantAccessor` は `IConfiglueSubjectAccessor<TenantSubject>` を実装し、`GetCurrentAsync` から `TenantSubject : IConfiglueSubject` を返します。アクセサーはアプリ側で管理し、非同期サービスも利用できます。`ISubjectOptions<T>` は明示的な subject view を得るシングルトン入口として残り、`.For(subject)` で使います。検査、診断、ソース管理、編集セッションは共有ランタイムに対するサービスとして動作します。
+
+アクセサーに `IConfiglueSubjectChangeSource` も実装すると、通知を受けた `OnChange` 購読が subject を再解決し、その subject の watcher に接続し直します。認証状態などが同じスコープ内で変わる場合に使えます。この任意インターフェイスを実装しない場合、watcher は購読開始時に解決した subject を監視し続けます。
+
+任意の `Configlue.Resource.Http.AspNetCore` パッケージには、HTTP リクエストおよび Blazor 認証状態から subject を解決するアクセサーがあります。フレームワーク固有のコンテキストや claims への依存は Core パッケージに入りません。
+
+```csharp
+services.AddHttpContextConfiglueSubjectAccessor<TenantSubject>(
+    context => new TenantSubject(context.User.FindFirst("tenant")!.Value));
+
+services.AddBlazorAuthenticationConfiglueSubjectAccessor<TenantSubject>(
+    (principal, _) => ValueTask.FromResult(
+        new TenantSubject(principal.FindFirst("tenant")!.Value)));
+```
+
+モデルには `PerSubject<HttpContextConfiglueSubjectAccessor<TenantSubject>>()` または `PerSubject<BlazorAuthenticationConfiglueSubjectAccessor<TenantSubject>>()` を指定します。Blazor アクセサーは認証状態の変更を通知するため、既存の options watcher も新しい subject に追従します。
+
 ## 独自バリデーター
 
 DataAnnotations 検証は既定で有効です。無効にするには登録時に `validateDataAnnotations: false` を渡します。

@@ -328,21 +328,24 @@ public static class ConfiglueServiceCollectionExtensions
         {
             if (registration.OptionsName == Options.DefaultName)
             {
+                Func<IServiceProvider, IWritableOptions<TModel>> getRuntime =
+                    registration.IsPerSubject
+                        ? provider =>
+                            provider
+                                .GetRequiredService<ConfiglueContext>()
+                                .GetOptions<TModel>(registration.OptionsName)
+                        : provider => provider.GetRequiredService<IWritableOptions<TModel>>();
                 services.AddSingleton<IConfiglueInspection<TModel>>(provider =>
-                    (IConfiglueInspection<TModel>)
-                        provider.GetRequiredService<IWritableOptions<TModel>>()
+                    (IConfiglueInspection<TModel>)getRuntime(provider)
                 );
                 services.AddSingleton<IConfiglueEditSessions<TModel>>(provider =>
-                    (IConfiglueEditSessions<TModel>)
-                        provider.GetRequiredService<IWritableOptions<TModel>>()
+                    (IConfiglueEditSessions<TModel>)getRuntime(provider)
                 );
                 services.AddSingleton<IConfiglueDiagnostics<TModel>>(provider =>
-                    (IConfiglueDiagnostics<TModel>)
-                        provider.GetRequiredService<IWritableOptions<TModel>>()
+                    (IConfiglueDiagnostics<TModel>)getRuntime(provider)
                 );
                 services.AddSingleton<IConfiglueSources<TModel>>(provider =>
-                    (IConfiglueSources<TModel>)
-                        provider.GetRequiredService<IWritableOptions<TModel>>()
+                    (IConfiglueSources<TModel>)getRuntime(provider)
                 );
             }
             else
@@ -354,29 +357,31 @@ public static class ConfiglueServiceCollectionExtensions
                     );
                 }
 
+                Func<IServiceProvider, IWritableOptions<TModel>> getRuntime =
+                    registration.IsPerSubject
+                        ? provider =>
+                            provider
+                                .GetRequiredService<ConfiglueContext>()
+                                .GetOptions<TModel>(registration.OptionsName)
+                        : provider =>
+                            provider.GetRequiredKeyedService<IWritableOptions<TModel>>(
+                                registration.OptionsName
+                            );
                 services.AddKeyedSingleton<IConfiglueInspection<TModel>>(
                     registration.OptionsName,
-                    (provider, key) =>
-                        (IConfiglueInspection<TModel>)
-                            provider.GetRequiredKeyedService<IWritableOptions<TModel>>(key)
+                    (provider, _) => (IConfiglueInspection<TModel>)getRuntime(provider)
                 );
                 services.AddKeyedSingleton<IConfiglueEditSessions<TModel>>(
                     registration.OptionsName,
-                    (provider, key) =>
-                        (IConfiglueEditSessions<TModel>)
-                            provider.GetRequiredKeyedService<IWritableOptions<TModel>>(key)
+                    (provider, _) => (IConfiglueEditSessions<TModel>)getRuntime(provider)
                 );
                 services.AddKeyedSingleton<IConfiglueDiagnostics<TModel>>(
                     registration.OptionsName,
-                    (provider, key) =>
-                        (IConfiglueDiagnostics<TModel>)
-                            provider.GetRequiredKeyedService<IWritableOptions<TModel>>(key)
+                    (provider, _) => (IConfiglueDiagnostics<TModel>)getRuntime(provider)
                 );
                 services.AddKeyedSingleton<IConfiglueSources<TModel>>(
                     registration.OptionsName,
-                    (provider, key) =>
-                        (IConfiglueSources<TModel>)
-                            provider.GetRequiredKeyedService<IWritableOptions<TModel>>(key)
+                    (provider, _) => (IConfiglueSources<TModel>)getRuntime(provider)
                 );
             }
         }
