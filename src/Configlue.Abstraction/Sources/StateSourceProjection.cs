@@ -286,7 +286,8 @@ public static class StateSourceProjection
             writer,
             source.Watcher,
             source.PhysicalOrigin,
-            source.ResourceId
+            source.ResourceId,
+            subjectKeySelector: source.GetSubjectKey
         );
         source.CopyRoutingMetadataTo(projected);
         return projected;
@@ -301,9 +302,21 @@ public static class StateSourceProjection
     {
         public async ValueTask<StateReadResult<TTarget>> ReadAsync(
             CancellationToken cancellationToken = default
+        ) => await ReadCoreAsync(null, cancellationToken).ConfigureAwait(false);
+
+        public async ValueTask<StateReadResult<TTarget>> ReadAsync(
+            ConfiglueResourceContext context,
+            CancellationToken cancellationToken = default
+        ) => await ReadCoreAsync(context, cancellationToken).ConfigureAwait(false);
+
+        private async ValueTask<StateReadResult<TTarget>> ReadCoreAsync(
+            ConfiglueResourceContext? context,
+            CancellationToken cancellationToken
         )
         {
-            var result = await source.ReadAsync(cancellationToken).ConfigureAwait(false);
+            var result = context is { } resourceContext
+                ? await source.ReadAsync(resourceContext, cancellationToken).ConfigureAwait(false)
+                : await source.ReadAsync(cancellationToken).ConfigureAwait(false);
             if (result.Status != StateReadStatus.Success)
             {
                 return StateReadResult<TTarget>.Create(
@@ -425,21 +438,37 @@ public static class StateSourceProjection
         public async ValueTask<StateWriteResult> WriteAsync(
             StateWriteRequest<TTarget> request,
             CancellationToken cancellationToken = default
+        ) => await WriteCoreAsync(null, request, cancellationToken).ConfigureAwait(false);
+
+        public async ValueTask<StateWriteResult> WriteAsync(
+            ConfiglueResourceContext context,
+            StateWriteRequest<TTarget> request,
+            CancellationToken cancellationToken = default
+        ) => await WriteCoreAsync(context, request, cancellationToken).ConfigureAwait(false);
+
+        private async ValueTask<StateWriteResult> WriteCoreAsync(
+            ConfiglueResourceContext? context,
+            StateWriteRequest<TTarget> request,
+            CancellationToken cancellationToken
         )
         {
             var mapped = updateSource is null
                 ? toSource!(request.Value)
-                : await UpdateSourceAsync(request, cancellationToken).ConfigureAwait(false);
+                : await UpdateSourceAsync(request, context, cancellationToken)
+                    .ConfigureAwait(false);
             if (mapped is null)
             {
                 throw new InvalidOperationException("The source projection returned a null value.");
             }
-            return await source
-                .WriteAsync(
-                    new StateWriteRequest<TSource>(mapped, Condition: request.Condition),
-                    cancellationToken
-                )
-                .ConfigureAwait(false);
+            var sourceRequest = new StateWriteRequest<TSource>(
+                mapped,
+                Condition: request.Condition
+            );
+            return context is { } resourceContext
+                ? await source
+                    .WriteAsync(resourceContext, sourceRequest, cancellationToken)
+                    .ConfigureAwait(false)
+                : await source.WriteAsync(sourceRequest, cancellationToken).ConfigureAwait(false);
         }
 
         public bool TryCreateBatchWrite(
@@ -488,7 +517,7 @@ public static class StateSourceProjection
 
             var mapped = updateSource is null
                 ? toSource!(request.Value)
-                : await UpdateSourceAsync(request, cancellationToken).ConfigureAwait(false);
+                : await UpdateSourceAsync(request, null, cancellationToken).ConfigureAwait(false);
             if (mapped is null)
             {
                 throw new InvalidOperationException("The source projection returned a null value.");
@@ -524,10 +553,13 @@ public static class StateSourceProjection
 
         private async ValueTask<TSource> UpdateSourceAsync(
             StateWriteRequest<TTarget> request,
+            ConfiglueResourceContext? context,
             CancellationToken cancellationToken
         )
         {
-            var current = await reader.ReadAsync(cancellationToken).ConfigureAwait(false);
+            var current = context is { } resourceContext
+                ? await reader.ReadAsync(resourceContext, cancellationToken).ConfigureAwait(false)
+                : await reader.ReadAsync(cancellationToken).ConfigureAwait(false);
             if (
                 !request.Condition.IsSatisfiedBy(
                     current.Revision,

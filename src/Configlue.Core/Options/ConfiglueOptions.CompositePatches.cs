@@ -128,7 +128,7 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
                 string.Equals(item.Id, componentId, StringComparison.Ordinal)
             );
             var componentCurrent = (
-                await component.Reader.ReadAsync(cancellationToken).ConfigureAwait(false)
+                await ReadSourceAsync(component, cancellationToken).ConfigureAwait(false)
             ).FromSource(component.Id, component.PhysicalOrigin);
             if (componentCurrent.Status == StateReadStatus.Unavailable)
             {
@@ -263,7 +263,7 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
             }
 
             var componentState = (
-                await component.Reader.ReadAsync(cancellationToken).ConfigureAwait(false)
+                await ReadSourceAsync(component, cancellationToken).ConfigureAwait(false)
             ).FromSource(component.Id, component.PhysicalOrigin);
             if (componentState.Status != StateReadStatus.Success || componentState.Value is null)
             {

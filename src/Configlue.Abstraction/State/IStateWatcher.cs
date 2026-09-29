@@ -1,3 +1,5 @@
+using Configlue.Resources;
+
 namespace Configlue.State;
 
 /// <summary>Waits for an upstream invalidation signal.</summary>
@@ -8,4 +10,11 @@ public interface IStateWatcher
         string? observedRevision,
         CancellationToken cancellationToken = default
     );
+
+    /// <summary>Waits for changes to one source-specific subject key.</summary>
+    ValueTask WaitForChangeAsync(
+        ConfiglueResourceContext context,
+        string? observedRevision,
+        CancellationToken cancellationToken = default
+    ) => WaitForChangeAsync(observedRevision, cancellationToken);
 }

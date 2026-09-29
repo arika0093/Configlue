@@ -54,7 +54,7 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
             || !resolved.Revisions.TryGetRevision(source.Id, out expectedRevision)
         )
         {
-            var current = await source.Reader.ReadAsync(cancellationToken).ConfigureAwait(false);
+            var current = await ReadSourceAsync(source, cancellationToken).ConfigureAwait(false);
             if (current.Status == StateReadStatus.Unavailable)
             {
                 throw new InvalidOperationException(
@@ -94,7 +94,7 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
                     || !saveRevisions.TryGetRevision(source.Id, out saveExpectedRevision)
                 )
                 {
-                    var current = await source.Reader.ReadAsync(token).ConfigureAwait(false);
+                    var current = await ReadSourceAsync(source, token).ConfigureAwait(false);
                     if (current.Status == StateReadStatus.Unavailable)
                     {
                         throw new InvalidOperationException(

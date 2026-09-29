@@ -60,6 +60,13 @@ public sealed class ConfiglueContext : IDisposable, IAsyncDisposable
     public IConfiglueInspection<TModel> GetInspection<TModel>(string? optionsName = null) =>
         (IConfiglueInspection<TModel>)GetOptions<TModel>(optionsName);
 
+    /// <summary>Gets the explicit arbitrary-subject entry point for a model.</summary>
+    public ISubjectOptions<TModel> GetSubjectOptions<TModel>(string? optionsName = null) =>
+        GetOptions<TModel>(optionsName) as ISubjectOptions<TModel>
+        ?? throw new InvalidOperationException(
+            $"Options for model '{typeof(TModel)}' do not support subject-bound views."
+        );
+
     /// <summary>Opens long-lived drafts of resolved configuration.</summary>
     public IConfiglueEditSessions<TModel> GetEditSessions<TModel>(string? optionsName = null) =>
         (IConfiglueEditSessions<TModel>)GetOptions<TModel>(optionsName);

@@ -205,7 +205,7 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
                 );
             }
 
-            var current = await source.Reader.ReadAsync(cancellationToken).ConfigureAwait(false);
+            var current = await ReadSourceAsync(source, cancellationToken).ConfigureAwait(false);
             if (current.Status == StateReadStatus.Unavailable)
             {
                 return $"Source '{source.Id}' is unavailable.";

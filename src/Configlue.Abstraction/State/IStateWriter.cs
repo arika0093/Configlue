@@ -1,3 +1,5 @@
+using Configlue.Resources;
+
 namespace Configlue.State;
 
 /// <summary>Writes state to a backend that supports updates.</summary>
@@ -8,4 +10,11 @@ public interface IStateWriter<T>
         StateWriteRequest<T> request,
         CancellationToken cancellationToken = default
     );
+
+    /// <summary>Writes state for a source-specific subject key.</summary>
+    ValueTask<StateWriteResult> WriteAsync(
+        ConfiglueResourceContext context,
+        StateWriteRequest<T> request,
+        CancellationToken cancellationToken = default
+    ) => WriteAsync(request, cancellationToken);
 }

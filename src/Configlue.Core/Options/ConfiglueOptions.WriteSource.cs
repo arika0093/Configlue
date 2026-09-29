@@ -55,7 +55,7 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
                 );
             }
 
-            var current = await candidate.Reader.ReadAsync(cancellationToken).ConfigureAwait(false);
+            var current = await ReadSourceAsync(candidate, cancellationToken).ConfigureAwait(false);
             if (
                 !string.Equals(
                     current.Revision,

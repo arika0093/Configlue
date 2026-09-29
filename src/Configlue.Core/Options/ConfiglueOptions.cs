@@ -12,6 +12,7 @@ namespace Configlue;
 public sealed partial class ConfiglueOptions<TModel, TFragment>
     : IConfiglueRuntimeOptions<TModel>,
         IConfiglueValueCloneProvider<TModel>,
+        ISubjectOptions<TModel>,
         IDisposable,
         IAsyncDisposable
     where TModel : IConfiglueModel<TModel, TFragment>
@@ -60,6 +61,9 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
     private readonly TimeSpan _onChangeDebounce;
     private readonly ILogger? _logger;
     private readonly object _changeGate = new();
+    private readonly AsyncLocal<IConfiglueSubject?> _subjectContext = new();
+    private readonly ConcurrentDictionary<SubjectWatchSubscription, byte> _subjectSubscriptions =
+        new();
     private readonly List<Action<TModel>> _changeListeners = [];
     private readonly List<Action<Exception>> _reloadFailureListeners = [];
     private CancellationTokenSource? _watchCancellation;
@@ -354,6 +358,78 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
     }
 
     /// <inheritdoc />
+    public IWritableOptions<TModel> For(IConfiglueSubject subject)
+    {
+        ArgumentNullException.ThrowIfNull(subject);
+        return new SubjectBoundOptions(this, subject);
+    }
+
+    private async ValueTask<TModel> GetValueForSubjectAsync(
+        IConfiglueSubject subject,
+        CancellationToken cancellationToken
+    )
+    {
+        using var scope = EnterSubject(subject);
+        return await GetValueAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    private async ValueTask<StateWriteReceipt> SaveForSubjectAsync(
+        IConfiglueSubject subject,
+        IConfigluePatch patch,
+        CancellationToken cancellationToken
+    )
+    {
+        using var scope = EnterSubject(subject);
+        return await SaveAsync(patch, cancellationToken).ConfigureAwait(false);
+    }
+
+    private IDisposable WatchSubject(IConfiglueSubject subject, Action<TModel> listener)
+    {
+        ArgumentNullException.ThrowIfNull(listener);
+        lock (_changeGate)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            var subscription = new SubjectWatchSubscription(this, subject, listener);
+            _subjectSubscriptions.TryAdd(subscription, 0);
+            subscription.Start();
+            return subscription;
+        }
+    }
+
+    private IDisposable EnterSubject(IConfiglueSubject subject)
+    {
+        var previous = _subjectContext.Value;
+        _subjectContext.Value = subject;
+        return new SubjectContextScope(_subjectContext, previous);
+    }
+
+    private ValueTask<StateReadResult<TFragment>> ReadSourceAsync(
+        StateSource<TFragment> source,
+        CancellationToken cancellationToken
+    ) =>
+        _subjectContext.Value is { } subject
+            ? source.ReadAsync(subject, cancellationToken)
+            : source.Reader.ReadAsync(cancellationToken);
+
+    private ValueTask<StateWriteResult> WriteSourceAsync(
+        StateSource<TFragment> source,
+        StateWriteRequest<TFragment> request,
+        CancellationToken cancellationToken
+    ) =>
+        _subjectContext.Value is { } subject
+            ? source.WriteAsync(subject, request, cancellationToken)
+            : source.Writer!.WriteAsync(request, cancellationToken);
+
+    private ValueTask WaitForSourceChangeAsync(
+        StateSource<TFragment> source,
+        string? revision,
+        CancellationToken cancellationToken
+    ) =>
+        _subjectContext.Value is { } subject
+            ? source.WaitForChangeAsync(subject, revision, cancellationToken)
+            : source.Watcher!.WaitForChangeAsync(revision, cancellationToken);
+
+    /// <inheritdoc />
     public IDisposable OnReloadFailed(Action<Exception> listener)
     {
         ArgumentNullException.ThrowIfNull(listener);
@@ -451,8 +527,7 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
                 );
                 try
                 {
-                    sourceResult = await source
-                        .Reader.ReadAsync(cancellationToken)
+                    sourceResult = await ReadSourceAsync(source, cancellationToken)
                         .ConfigureAwait(false);
                 }
                 catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)

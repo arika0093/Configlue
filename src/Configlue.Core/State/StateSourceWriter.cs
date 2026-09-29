@@ -1,3 +1,5 @@
+using Configlue.Resources;
+
 namespace Configlue.State;
 
 /// <summary>Routes writes independently from read-source selection.</summary>
@@ -18,6 +20,30 @@ public sealed class StateSourceWriter<T> : IStateWriter<T>
     public ValueTask<StateWriteResult> WriteAsync(
         StateWriteRequest<T> request,
         CancellationToken cancellationToken = default
+    ) => WriteCoreAsync(null, request, cancellationToken);
+
+    /// <summary>Writes state to the selected source for one subject.</summary>
+    public ValueTask<StateWriteResult> WriteAsync(
+        IConfiglueSubject subject,
+        StateWriteRequest<T> request,
+        CancellationToken cancellationToken = default
+    )
+    {
+        ArgumentNullException.ThrowIfNull(subject);
+        return WriteCoreAsync(subject, request, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public ValueTask<StateWriteResult> WriteAsync(
+        ConfiglueResourceContext context,
+        StateWriteRequest<T> request,
+        CancellationToken cancellationToken = default
+    ) => WriteAsync(context.Subject, request, cancellationToken);
+
+    private ValueTask<StateWriteResult> WriteCoreAsync(
+        IConfiglueSubject? subject,
+        StateWriteRequest<T> request,
+        CancellationToken cancellationToken
     )
     {
         var source = _route.SourceId is { } id
@@ -42,6 +68,8 @@ public sealed class StateSourceWriter<T> : IStateWriter<T>
             );
         }
 
-        return source.Writer.WriteAsync(request, cancellationToken);
+        return subject is null
+            ? source.Writer.WriteAsync(request, cancellationToken)
+            : source.WriteAsync(subject, request, cancellationToken);
     }
 }

@@ -37,6 +37,8 @@ namespace Configlue
     }
     public sealed class StateSourceBuilder<T>
     {
+        public Configlue.StateSourceBuilder<T> KeyBy<TSubject>(System.Func<TSubject, Configlue.SubjectKey> selector)
+            where TSubject : Configlue.IConfiglueSubject { }
         public Configlue.StateSourceBuilder<T> WithWatcher(Configlue.State.IStateWatcher watcher) { }
         public Configlue.StateSourceBuilder<T> WithWriter(Configlue.State.IStateWriter<T> writer) { }
         public Configlue.StateSourceBuilder<T> WithoutWatcher() { }

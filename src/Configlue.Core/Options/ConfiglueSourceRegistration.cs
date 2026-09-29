@@ -101,7 +101,8 @@ public sealed class ConfiglueSourceRegistration
             source.Watcher,
             source.PhysicalOrigin,
             source.ResourceId,
-            _explicitOnly ?? source.ExplicitOnly
+            _explicitOnly ?? source.ExplicitOnly,
+            source.GetSubjectKey
         );
         source.CopyRoutingMetadataTo(configured, _explicitOnly);
         return configured;

@@ -23,12 +23,19 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
             _changeListeners.Clear();
             _reloadFailureListeners.Clear();
             _watchCancellation?.Cancel();
+            foreach (var subscription in _subjectSubscriptions.Keys.ToArray())
+            {
+                subscription.Dispose();
+            }
         }
     }
 
     /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {
+        var subjectWatchTasks = _subjectSubscriptions
+            .Keys.Select(static subscription => subscription.Completion)
+            .ToArray();
         Dispose();
         Task? watchTask;
         Task operationsDrained;
@@ -54,6 +61,17 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
             try
             {
                 await watchTask.ConfigureAwait(false);
+            }
+            catch (Exception exception)
+            {
+                (errors ??= []).Add(exception);
+            }
+        }
+        foreach (var subjectWatchTask in subjectWatchTasks)
+        {
+            try
+            {
+                await subjectWatchTask.ConfigureAwait(false);
             }
             catch (Exception exception)
             {
@@ -230,7 +248,9 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
         StateWriteResult result;
         try
         {
-            result = await writer.WriteAsync(request, cancellationToken).ConfigureAwait(false);
+            result = _subjectContext.Value is { } subject
+                ? await target.WriteAsync(subject, request, cancellationToken).ConfigureAwait(false)
+                : await writer.WriteAsync(request, cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -275,7 +295,7 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
         StateReadResult<TFragment> result;
         try
         {
-            result = await source.Reader.ReadAsync(cancellationToken).ConfigureAwait(false);
+            result = await ReadSourceAsync(source, cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {

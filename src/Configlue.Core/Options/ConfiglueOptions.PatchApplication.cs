@@ -119,7 +119,7 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
 
             var current =
                 TryGetPatchBaselineSourceResult(baseline, source)
-                ?? await source.Reader.ReadAsync(cancellationToken).ConfigureAwait(false);
+                ?? await ReadSourceAsync(source, cancellationToken).ConfigureAwait(false);
             current = current.FromSource(source.Id, source.PhysicalOrigin);
             if (current.Status == StateReadStatus.Unavailable)
             {
@@ -428,8 +428,7 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
                 StateWriteResult write;
                 try
                 {
-                    write = await plan
-                        .Writer.WriteAsync(plan.Request, cancellationToken)
+                    write = await WriteSourceAsync(plan.Source, plan.Request, cancellationToken)
                         .ConfigureAwait(false);
                 }
                 catch (OperationCanceledException exception)

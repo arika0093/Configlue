@@ -629,6 +629,11 @@ internal sealed class ConfiglueModelRegistration<TModel>(ConfiglueModelBuilder<T
             services.AddSingleton<IWritableOptions<TModel>>(provider =>
                 provider.GetRequiredService<ConfiglueContext>().GetOptions<TModel>(OptionsName)
             );
+            services.AddSingleton<ISubjectOptions<TModel>>(provider =>
+                provider
+                    .GetRequiredService<ConfiglueContext>()
+                    .GetSubjectOptions<TModel>(OptionsName)
+            );
         }
         else
         {
@@ -641,6 +646,13 @@ internal sealed class ConfiglueModelRegistration<TModel>(ConfiglueModelBuilder<T
                 OptionsName,
                 (provider, _) =>
                     provider.GetRequiredService<ConfiglueContext>().GetOptions<TModel>(OptionsName)
+            );
+            services.AddKeyedSingleton<ISubjectOptions<TModel>>(
+                OptionsName,
+                (provider, _) =>
+                    provider
+                        .GetRequiredService<ConfiglueContext>()
+                        .GetSubjectOptions<TModel>(OptionsName)
             );
         }
     }

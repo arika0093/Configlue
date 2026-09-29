@@ -110,6 +110,7 @@ public sealed class StateSourceBuilder<T>
     private readonly StateFallbackCondition _fallbackCondition;
     private readonly string? _physicalOrigin;
     private readonly ResourceId? _resourceId;
+    private Func<IConfiglueSubject, SubjectKey> _subjectKeySelector = static subject => subject.Key;
 
     internal StateSourceBuilder(
         string id,
@@ -162,6 +163,20 @@ public sealed class StateSourceBuilder<T>
         return this;
     }
 
+    /// <summary>Maps this source's key from a strongly typed application subject.</summary>
+    public StateSourceBuilder<T> KeyBy<TSubject>(Func<TSubject, SubjectKey> selector)
+        where TSubject : IConfiglueSubject
+    {
+        ArgumentNullException.ThrowIfNull(selector);
+        _subjectKeySelector = subject =>
+            subject is TSubject typed
+                ? selector(typed)
+                : throw new InvalidOperationException(
+                    $"Source '{_id}' requires a subject of type '{typeof(TSubject)}', but received '{subject.GetType()}'."
+                );
+        return this;
+    }
+
     internal StateSource<T> Build() =>
         new(
             _id,
@@ -171,6 +186,7 @@ public sealed class StateSourceBuilder<T>
             _writer,
             _watcher,
             _physicalOrigin,
-            _resourceId
+            _resourceId,
+            subjectKeySelector: _subjectKeySelector
         );
 }

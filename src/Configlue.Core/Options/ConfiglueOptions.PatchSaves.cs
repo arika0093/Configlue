@@ -34,8 +34,7 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
         if (patch.IsEmpty)
         {
             var emptyPatchSource = SelectWriteSource(allowPriorityFallback: true);
-            var current = await emptyPatchSource
-                .Reader.ReadAsync(cancellationToken)
+            var current = await ReadSourceAsync(emptyPatchSource, cancellationToken)
                 .ConfigureAwait(false);
             if (current.Status == StateReadStatus.Unavailable)
             {

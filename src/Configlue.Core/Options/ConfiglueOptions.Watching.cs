@@ -142,7 +142,7 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
                 )
                 {
                     waitTasks.Add(
-                        source.Watcher.WaitForChangeAsync(revision, waitCancellation.Token).AsTask()
+                        WaitForSourceChangeAsync(source, revision, waitCancellation.Token).AsTask()
                     );
                 }
             }

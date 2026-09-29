@@ -46,7 +46,7 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
                 string.Equals(result.TargetId, target.Id, StringComparison.Ordinal)
             );
             var current = (
-                await target.Reader.ReadAsync(cancellationToken).ConfigureAwait(false)
+                await ReadSourceAsync(target, cancellationToken).ConfigureAwait(false)
             ).FromSource(target.Id, target.PhysicalOrigin);
             if (
                 current.Status == StateReadStatus.Unavailable
@@ -115,7 +115,7 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
                 string.Equals(result.TargetId, target.Id, StringComparison.Ordinal)
             );
             var latest = (
-                await target.Reader.ReadAsync(cancellationToken).ConfigureAwait(false)
+                await ReadSourceAsync(target, cancellationToken).ConfigureAwait(false)
             ).FromSource(target.Id, target.PhysicalOrigin);
             if (!string.Equals(latest.Revision, outcome.TargetRevision, StringComparison.Ordinal))
             {

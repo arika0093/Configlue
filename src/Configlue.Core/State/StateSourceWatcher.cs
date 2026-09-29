@@ -1,3 +1,5 @@
+using Configlue.Resources;
+
 namespace Configlue.State;
 
 /// <summary>Watches the active source and higher-priority sources that may become active again.</summary>
@@ -13,9 +15,33 @@ public sealed class StateSourceWatcher<T> : IStateWatcher
     }
 
     /// <inheritdoc />
-    public async ValueTask WaitForChangeAsync(
+    public ValueTask WaitForChangeAsync(
         string? observedRevision,
         CancellationToken cancellationToken = default
+    ) => WaitCoreAsync(null, observedRevision, cancellationToken);
+
+    /// <summary>Waits for source changes affecting one subject.</summary>
+    public ValueTask WaitForChangeAsync(
+        IConfiglueSubject subject,
+        string? observedRevision,
+        CancellationToken cancellationToken = default
+    )
+    {
+        ArgumentNullException.ThrowIfNull(subject);
+        return WaitCoreAsync(subject, observedRevision, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public ValueTask WaitForChangeAsync(
+        ConfiglueResourceContext context,
+        string? observedRevision,
+        CancellationToken cancellationToken = default
+    ) => WaitForChangeAsync(context.Subject, observedRevision, cancellationToken);
+
+    private async ValueTask WaitCoreAsync(
+        IConfiglueSubject? subject,
+        string? observedRevision,
+        CancellationToken cancellationToken
     )
     {
         using var watchCancellation = CancellationTokenSource.CreateLinkedTokenSource(
@@ -25,18 +51,26 @@ public sealed class StateSourceWatcher<T> : IStateWatcher
         try
         {
             foreach (
-                var target in _resolver
-                    .GetSourcesForWatch(observedRevision)
-                    .Where(static target => target.Source.Watcher is not null)
+                var target in (
+                    subject is null
+                        ? _resolver.GetSourcesForWatch(observedRevision)
+                        : _resolver.GetSourcesForWatch(subject, observedRevision)
+                ).Where(static target => target.Source.Watcher is not null)
             )
             {
                 watchers.Add(
-                    target
-                        .Source.Watcher!.WaitForChangeAsync(
-                            target.ObservedRevision,
-                            watchCancellation.Token
-                        )
-                        .AsTask()
+                    (
+                        subject is null
+                            ? target.Source.Watcher!.WaitForChangeAsync(
+                                target.ObservedRevision,
+                                watchCancellation.Token
+                            )
+                            : target.Source.WaitForChangeAsync(
+                                subject,
+                                target.ObservedRevision,
+                                watchCancellation.Token
+                            )
+                    ).AsTask()
                 );
             }
 

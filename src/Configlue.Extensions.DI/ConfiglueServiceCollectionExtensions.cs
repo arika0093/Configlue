@@ -110,6 +110,9 @@ public static class ConfiglueServiceCollectionExtensions
         services.AddSingleton<IWritableOptions<TModel>>(provider =>
             provider.GetRequiredService<ConfiglueOptions<TModel, TFragment>>()
         );
+        services.AddSingleton<ISubjectOptions<TModel>>(provider =>
+            provider.GetRequiredService<ConfiglueOptions<TModel, TFragment>>()
+        );
         services.AddSingleton<IConfiglueInspection<TModel>>(provider =>
             provider.GetRequiredService<ConfiglueOptions<TModel, TFragment>>()
         );
@@ -220,6 +223,11 @@ public static class ConfiglueServiceCollectionExtensions
                 provider.GetRequiredKeyedService<ConfiglueOptions<TModel, TFragment>>(key)
         );
         services.AddKeyedSingleton<IWritableOptions<TModel>>(
+            serviceKey,
+            (provider, key) =>
+                provider.GetRequiredKeyedService<ConfiglueOptions<TModel, TFragment>>(key)
+        );
+        services.AddKeyedSingleton<ISubjectOptions<TModel>>(
             serviceKey,
             (provider, key) =>
                 provider.GetRequiredKeyedService<ConfiglueOptions<TModel, TFragment>>(key)
