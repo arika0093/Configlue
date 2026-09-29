@@ -5,7 +5,7 @@
 Configlue is a .NET library that handles tedious configuration management for you.
 
 ## Why Configlue?
-### Configurations are easy ... until they aren't.
+### Configurations are easy ... until it's not.
 
 You might think that handling configuration files is straightforward and there's no need to use a library.
 In fact, if you just need to save and load configuration from a JSON file, it's quite simple.
@@ -19,7 +19,7 @@ var json = JsonSerializer.Serialize(config);
 File.WriteAllText("settings.json", json);
 ```
 
-…until it's not.
+... until it's not.
 
 ### Configurations checklist
 
