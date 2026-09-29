@@ -7,6 +7,7 @@ public sealed class StateSource<T>
 {
     private string[] _ownedPropertyPaths = [];
     private readonly Func<IConfiglueSubject, SubjectKey> _subjectKeySelector;
+    private readonly ResourceId? _configuredResourceId;
 
     /// <summary>Creates a source with an automatically generated opaque logical identity.</summary>
     /// <remarks>
@@ -30,7 +31,7 @@ public sealed class StateSource<T>
             StateSourceIdentity.Create(
                 reader,
                 physicalOrigin,
-                resourceId ?? (reader as IResourceIdentity)?.ResourceId,
+                resourceId ?? TryGetResourceId(reader, ConfiglueResourceContext.Default),
                 logicalDescriptor
             ),
             reader,
@@ -78,7 +79,10 @@ public sealed class StateSource<T>
         Watcher = watcher;
         PhysicalOrigin = physicalOrigin;
         ResourceId =
-            resourceId ?? (reader as IResourceIdentity ?? writer as IResourceIdentity)?.ResourceId;
+            resourceId
+            ?? TryGetResourceId(reader, ConfiglueResourceContext.Default)
+            ?? TryGetResourceId(writer, ConfiglueResourceContext.Default);
+        _configuredResourceId = resourceId;
         ExplicitOnly = explicitOnly;
         _subjectKeySelector = subjectKeySelector ?? (static subject => subject.Key);
     }
@@ -107,6 +111,8 @@ public sealed class StateSource<T>
     /// <summary>The optional identity of the physical resource backing this logical source.</summary>
     public ResourceId? ResourceId { get; }
 
+    internal ResourceId? ConfiguredResourceId => _configuredResourceId;
+
     /// <summary>Whether this source is excluded from ordinary inferred write routing.</summary>
     public bool ExplicitOnly { get; private set; }
 
@@ -115,6 +121,19 @@ public sealed class StateSource<T>
     {
         ArgumentNullException.ThrowIfNull(subject);
         return _subjectKeySelector(subject);
+    }
+
+    /// <summary>Resolves the physical resource identity for one application-defined subject.</summary>
+    public ResourceId? GetResourceId(IConfiglueSubject subject)
+    {
+        ArgumentNullException.ThrowIfNull(subject);
+        if (_configuredResourceId is { } configured)
+        {
+            return configured;
+        }
+
+        var context = new ConfiglueResourceContext(subject, GetSubjectKey(subject));
+        return TryGetResourceId(Writer, context) ?? TryGetResourceId(Reader, context) ?? ResourceId;
     }
 
     /// <summary>Reads this source for a subject using its source-specific key mapping.</summary>
@@ -174,6 +193,14 @@ public sealed class StateSource<T>
 
     internal IReadOnlyList<string> OwnedPropertyPaths => _ownedPropertyPaths;
 
+    private static ResourceId? TryGetResourceId(
+        object? resource,
+        ConfiglueResourceContext context
+    ) =>
+        resource is IResourceIdentity identity && identity.TryGetResourceId(context, out var id)
+            ? id
+            : null;
+
     internal StateSource<T> WithWriteOwnership(string propertyPath)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(propertyPath);
@@ -189,7 +216,7 @@ public sealed class StateSource<T>
             Writer,
             Watcher,
             PhysicalOrigin,
-            ResourceId,
+            _configuredResourceId,
             ExplicitOnly,
             _subjectKeySelector
         )
@@ -212,7 +239,7 @@ public sealed class StateSource<T>
             Writer,
             Watcher,
             PhysicalOrigin,
-            ResourceId,
+            _configuredResourceId,
             ExplicitOnly,
             subjectKeySelector
         );

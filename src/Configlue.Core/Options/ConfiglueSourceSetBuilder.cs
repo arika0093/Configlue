@@ -54,7 +54,7 @@ public class ConfiglueSourceSetBuilder
                     source.Writer,
                     source.Watcher,
                     source.PhysicalOrigin,
-                    source.ResourceId,
+                    source.ConfiguredResourceId,
                     subjectKeySelector: source.GetSubjectKey
                 );
                 source.CopyRoutingMetadataTo(keyedSource);

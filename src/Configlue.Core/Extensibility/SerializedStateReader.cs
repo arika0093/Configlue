@@ -4,7 +4,7 @@ using System.IO.Pipelines;
 namespace Configlue.Extensibility;
 
 /// <summary>Reads a typed state value by composing a resource and a codec.</summary>
-public sealed class SerializedStateReader<T> : IStateReader<T>
+public sealed class SerializedStateReader<T> : IStateReader<T>, IResourceIdentity
 {
     private readonly IResourceReader _resource;
     private readonly object _codec;
@@ -39,7 +39,36 @@ public sealed class SerializedStateReader<T> : IStateReader<T>
     }
 
     /// <inheritdoc />
+    public ResourceId ResourceId => GetResourceId(ConfiglueResourceContext.Default);
+
+    /// <inheritdoc />
+    public ResourceId GetResourceId(ConfiglueResourceContext context) =>
+        TryGetResourceId(context, out var resourceId)
+            ? resourceId
+            : throw new InvalidOperationException(
+                "The underlying resource has no physical identity."
+            );
+
+    /// <inheritdoc />
+    public bool TryGetResourceId(ConfiglueResourceContext context, out ResourceId resourceId)
+    {
+        if (_resource is IResourceIdentity identity)
+        {
+            return identity.TryGetResourceId(context, out resourceId);
+        }
+
+        resourceId = default;
+        return false;
+    }
+
+    /// <inheritdoc />
     public async ValueTask<StateReadResult<T>> ReadAsync(
+        CancellationToken cancellationToken = default
+    ) => await ReadAsync(ConfiglueResourceContext.Default, cancellationToken).ConfigureAwait(false);
+
+    /// <summary>Reads and deserializes state for one logical subject and source-specific key.</summary>
+    public async ValueTask<StateReadResult<T>> ReadAsync(
+        ConfiglueResourceContext context,
         CancellationToken cancellationToken = default
     )
     {
@@ -52,7 +81,7 @@ public sealed class SerializedStateReader<T> : IStateReader<T>
         {
             try
             {
-                return await ReadPipelineAsync(pipelineReader, cancellationToken)
+                return await ReadPipelineAsync(pipelineReader, context, cancellationToken)
                     .ConfigureAwait(false);
             }
             catch (IOException) when (!cancellationToken.IsCancellationRequested)
@@ -64,7 +93,7 @@ public sealed class SerializedStateReader<T> : IStateReader<T>
         ResourceReadResult result;
         try
         {
-            result = await _resource.ReadAsync(cancellationToken).ConfigureAwait(false);
+            result = await _resource.ReadAsync(context, cancellationToken).ConfigureAwait(false);
         }
         catch (Exception exception) when (IsRecoverableReadException(exception))
         {
@@ -76,6 +105,7 @@ public sealed class SerializedStateReader<T> : IStateReader<T>
             {
                 var recovered = await TryRecoverAsync(
                         recovery,
+                        context,
                         observedRevision,
                         expectedMissing: false,
                         cancellationToken
@@ -107,6 +137,7 @@ public sealed class SerializedStateReader<T> : IStateReader<T>
 
             var recovered = await TryRecoverAsync(
                     backupRecovery,
+                    context,
                     result.Revision,
                     expectedMissing: true,
                     cancellationToken
@@ -123,6 +154,7 @@ public sealed class SerializedStateReader<T> : IStateReader<T>
         {
             var recovered = await TryRecoverAsync(
                     backupRecovery,
+                    context,
                     result.Revision,
                     expectedMissing: false,
                     cancellationToken
@@ -139,12 +171,14 @@ public sealed class SerializedStateReader<T> : IStateReader<T>
 
     private async ValueTask<ResourceReadResult?> TryRecoverAsync(
         IResourceBackupRecovery resource,
+        ConfiglueResourceContext resourceContext,
         string? observedRevision,
         bool expectedMissing,
         CancellationToken cancellationToken
     ) =>
         await resource
             .TryRecoverLatestBackupAsync(
+                resourceContext,
                 observedRevision,
                 expectedMissing,
                 (candidate, _) =>
@@ -209,11 +243,12 @@ public sealed class SerializedStateReader<T> : IStateReader<T>
 
     private async ValueTask<StateReadResult<T>> ReadPipelineAsync(
         IPipelineResourceReader pipelineReader,
+        ConfiglueResourceContext resourceContext,
         CancellationToken cancellationToken
     )
     {
         var result = await pipelineReader
-            .ReadPipelineAsync(cancellationToken)
+            .ReadPipelineAsync(resourceContext, cancellationToken)
             .ConfigureAwait(false);
         if (result.Status != StateReadStatus.Success)
         {

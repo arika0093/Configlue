@@ -39,9 +39,10 @@ public sealed class ZipEntryResource
     private readonly IStateWatcher? _archiveWatcher;
     private readonly string _entryName;
     private readonly ResourceId _resourceId;
+    private readonly ResourceId? _configuredResourceId;
     private readonly object _snapshotGate = new();
-    private readonly Dictionary<string, string> _readSnapshots = new(StringComparer.Ordinal);
-    private readonly Queue<string> _snapshotOrder = new();
+    private readonly Dictionary<(SubjectKey Key, string Revision), string> _readSnapshots = [];
+    private readonly Queue<(SubjectKey Key, string Revision)> _snapshotOrder = new();
     private readonly TimeSpan _pollingInterval;
 
     /// <summary>Creates an entry view, detecting batch writing and change watching on the archive resource.</summary>
@@ -127,16 +128,50 @@ public sealed class ZipEntryResource
         _archiveWatcher =
             archiveWatcher ?? archiveReader as IStateWatcher ?? archiveWriter as IStateWatcher;
         _entryName = NormalizeEntryName(entryName);
+        _configuredResourceId = resourceId;
         _resourceId =
             resourceId
-            ?? archiveWriter?.ResourceId
-            ?? (archiveReader as IResourceIdentity)?.ResourceId
+            ?? TryGetResourceId(archiveWriter, ConfiglueResourceContext.Default)
+            ?? TryGetResourceId(archiveReader, ConfiglueResourceContext.Default)
             ?? new ResourceId($"zip:{Guid.NewGuid():N}");
         _pollingInterval = pollingOptions.Interval;
     }
 
     /// <inheritdoc />
     public ResourceId ResourceId => _resourceId;
+
+    /// <inheritdoc />
+    public ResourceId GetResourceId(ConfiglueResourceContext context) =>
+        TryGetResourceId(context, out var resourceId) ? resourceId : _resourceId;
+
+    /// <inheritdoc />
+    public bool TryGetResourceId(ConfiglueResourceContext context, out ResourceId resourceId)
+    {
+        if (_configuredResourceId is { } configuredResourceId)
+        {
+            resourceId = configuredResourceId;
+            return true;
+        }
+
+        if (
+            _archiveWriter is IResourceIdentity writerIdentity
+            && writerIdentity.TryGetResourceId(context, out resourceId)
+        )
+        {
+            return true;
+        }
+
+        if (
+            _archiveReader is IResourceIdentity readerIdentity
+            && readerIdentity.TryGetResourceId(context, out resourceId)
+        )
+        {
+            return true;
+        }
+
+        resourceId = _resourceId;
+        return true;
+    }
 
     /// <inheritdoc />
     public IResourceBatchWriter? BatchWriter => _archiveWriter;
@@ -159,16 +194,35 @@ public sealed class ZipEntryResource
     }
 
     /// <inheritdoc />
-    public async ValueTask<ResourceReadResult> ReadAsync(
+    public async ValueTask<PipelineResourceReadResult> ReadPipelineAsync(
+        ConfiglueResourceContext context,
         CancellationToken cancellationToken = default
     )
     {
-        var archiveResult = await _archiveReader.ReadAsync(cancellationToken).ConfigureAwait(false);
+        var result = await ReadAsync(context, cancellationToken).ConfigureAwait(false);
+        return await PipelineResourceReader
+            .FromMemoryAsync(result, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public ValueTask<ResourceReadResult> ReadAsync(CancellationToken cancellationToken = default) =>
+        ReadAsync(ConfiglueResourceContext.Default, cancellationToken);
+
+    /// <inheritdoc />
+    public async ValueTask<ResourceReadResult> ReadAsync(
+        ConfiglueResourceContext context,
+        CancellationToken cancellationToken = default
+    )
+    {
+        var archiveResult = await _archiveReader
+            .ReadAsync(context, cancellationToken)
+            .ConfigureAwait(false);
         if (archiveResult.Status != StateReadStatus.Success)
         {
             if (archiveResult.Status == StateReadStatus.NotFound)
             {
-                StoreSnapshot(archiveResult.Revision, MissingEntryFingerprint);
+                StoreSnapshot(context.Key, archiveResult.Revision, MissingEntryFingerprint);
                 return ResourceReadResult.NotFound(archiveResult.Revision);
             }
 
@@ -180,7 +234,7 @@ public sealed class ZipEntryResource
         var entry = archive.GetEntry(_entryName);
         if (entry is null)
         {
-            StoreSnapshot(archiveResult.Revision, MissingEntryFingerprint);
+            StoreSnapshot(context.Key, archiveResult.Revision, MissingEntryFingerprint);
             return ResourceReadResult.NotFound(archiveResult.Revision);
         }
 
@@ -193,7 +247,7 @@ public sealed class ZipEntryResource
                 cancellationToken
             )
             .ConfigureAwait(false);
-        StoreSnapshot(archiveResult.Revision, entryRevision);
+        StoreSnapshot(context.Key, archiveResult.Revision, entryRevision);
         return ResourceReadResult.Success(entryContent, archiveResult.Revision);
     }
 
@@ -201,20 +255,34 @@ public sealed class ZipEntryResource
     public ValueTask<StateWriteResult> WriteAsync(
         ResourceWriteRequest request,
         CancellationToken cancellationToken = default
+    ) => WriteAsync(ConfiglueResourceContext.Default, request, cancellationToken);
+
+    /// <inheritdoc />
+    public ValueTask<StateWriteResult> WriteAsync(
+        ConfiglueResourceContext context,
+        ResourceWriteRequest request,
+        CancellationToken cancellationToken = default
     ) =>
         (
             _archiveWriter
             ?? throw new NotSupportedException("The ZIP archive resource is read-only.")
-        ).WriteBatchAsync([CreateMutation(request)], cancellationToken);
+        ).WriteBatchAsync([CreateMutation(context, request)], cancellationToken);
 
     /// <inheritdoc />
-    public ResourceWriteMutation CreateMutation(ResourceWriteRequest request)
+    public ResourceWriteMutation CreateMutation(ResourceWriteRequest request) =>
+        CreateMutation(ConfiglueResourceContext.Default, request);
+
+    /// <inheritdoc />
+    public ResourceWriteMutation CreateMutation(
+        ConfiglueResourceContext context,
+        ResourceWriteRequest request
+    )
     {
         var content = request.Content.ToArray();
         var expectedSnapshot = string.Empty;
         var hasSnapshot =
             request.Condition.IsMatch
-            && TryGetSnapshot(request.Condition.Revision, out expectedSnapshot);
+            && TryGetSnapshot(context.Key, request.Condition.Revision, out expectedSnapshot);
         return new ResourceWriteMutation(
             hasSnapshot || request.Condition.IsMustNotExist
                 ? RevisionCondition.None
@@ -248,12 +316,20 @@ public sealed class ZipEntryResource
                 return ReplaceEntry(current, _entryName, content);
             },
             scope: "zip/" + _entryName,
-            canCompose: true
+            canCompose: true,
+            context: context
         );
     }
 
     /// <inheritdoc />
+    public ValueTask WaitForChangeAsync(
+        string? observedRevision,
+        CancellationToken cancellationToken = default
+    ) => WaitForChangeAsync(ConfiglueResourceContext.Default, observedRevision, cancellationToken);
+
+    /// <inheritdoc />
     public async ValueTask WaitForChangeAsync(
+        ConfiglueResourceContext context,
         string? observedRevision,
         CancellationToken cancellationToken = default
     )
@@ -261,7 +337,7 @@ public sealed class ZipEntryResource
         if (_archiveWatcher is not null)
         {
             await _archiveWatcher
-                .WaitForChangeAsync(observedRevision, cancellationToken)
+                .WaitForChangeAsync(context, observedRevision, cancellationToken)
                 .ConfigureAwait(false);
             return;
         }
@@ -269,7 +345,9 @@ public sealed class ZipEntryResource
         while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var current = await _archiveReader.ReadAsync(cancellationToken).ConfigureAwait(false);
+            var current = await _archiveReader
+                .ReadAsync(context, cancellationToken)
+                .ConfigureAwait(false);
             if (!string.Equals(current.Revision, observedRevision, StringComparison.Ordinal))
             {
                 return;
@@ -325,9 +403,13 @@ public sealed class ZipEntryResource
         return archiveContent.ToArray();
     }
 
-    private void StoreSnapshot(string? archiveRevision, string entryFingerprint)
+    private void StoreSnapshot(
+        SubjectKey subjectKey,
+        string? archiveRevision,
+        string entryFingerprint
+    )
     {
-        var key = archiveRevision ?? string.Empty;
+        var key = (subjectKey, archiveRevision ?? string.Empty);
         lock (_snapshotGate)
         {
             if (_readSnapshots.ContainsKey(key))
@@ -345,9 +427,17 @@ public sealed class ZipEntryResource
         }
     }
 
-    private bool TryGetSnapshot(string? revision, out string fingerprint)
+    private static ResourceId? TryGetResourceId(
+        object? resource,
+        ConfiglueResourceContext context
+    ) =>
+        resource is IResourceIdentity identity && identity.TryGetResourceId(context, out var id)
+            ? id
+            : null;
+
+    private bool TryGetSnapshot(SubjectKey subjectKey, string? revision, out string fingerprint)
     {
-        var key = revision ?? string.Empty;
+        var key = (subjectKey, revision ?? string.Empty);
         lock (_snapshotGate)
         {
             return _readSnapshots.TryGetValue(key, out fingerprint!);

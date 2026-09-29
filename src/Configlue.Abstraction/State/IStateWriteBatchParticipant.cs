@@ -10,6 +10,32 @@ public interface IStateWriteBatchParticipant<T>
         out IResourceBatchWriter? batchWriter,
         out ResourceWriteMutation? mutation
     );
+
+    /// <summary>Prepares a batch write for one logical subject and source-specific key.</summary>
+    bool TryCreateBatchWrite(
+        ConfiglueResourceContext context,
+        StateWriteRequest<T> request,
+        out ResourceId resourceId,
+        out IResourceBatchWriter? batchWriter,
+        out ResourceWriteMutation? mutation
+    )
+    {
+        if (!TryCreateBatchWrite(request, out resourceId, out batchWriter, out mutation))
+        {
+            return false;
+        }
+
+        if (
+            batchWriter is IResourceIdentity identity
+            && identity.TryGetResourceId(context, out var contextualResourceId)
+        )
+        {
+            resourceId = contextualResourceId;
+        }
+
+        mutation = mutation?.WithContext(context);
+        return true;
+    }
 }
 
 /// <summary>A prepared typed source mutation for a batch-capable physical resource.</summary>
@@ -66,4 +92,30 @@ public interface IAsyncStateWriteBatchParticipant<T>
         StateWriteRequest<T> request,
         CancellationToken cancellationToken = default
     );
+
+    /// <summary>Asynchronously prepares a batch write for one logical subject and key.</summary>
+    async ValueTask<StateWriteBatchPlan?> TryCreateBatchWriteAsync(
+        ConfiglueResourceContext context,
+        StateWriteRequest<T> request,
+        CancellationToken cancellationToken = default
+    )
+    {
+        var plan = await TryCreateBatchWriteAsync(request, cancellationToken).ConfigureAwait(false);
+        if (plan is not { } prepared)
+        {
+            return null;
+        }
+
+        var resourceId = prepared.ResourceId;
+        if (prepared.BatchWriter.TryGetResourceId(context, out var contextualResourceId))
+        {
+            resourceId = contextualResourceId;
+        }
+
+        return prepared with
+        {
+            ResourceId = resourceId,
+            Mutation = prepared.Mutation.WithContext(context),
+        };
+    }
 }

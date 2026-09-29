@@ -198,7 +198,8 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
                 patchedFragment,
                 Condition: RevisionCondition.FromRevision(current.Revision)
             );
-            var sourceResourceId = source.ResourceId;
+            var resourceContext = GetResourceContext(source);
+            var sourceResourceId = GetResourceId(source);
             IResourceBatchWriter? batchWriter = null;
             ResourceWriteMutation? mutation = null;
             ResourceId? participantResourceId = null;
@@ -210,7 +211,7 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
             )
             {
                 var batchPlan = await asyncParticipant
-                    .TryCreateBatchWriteAsync(request, cancellationToken)
+                    .TryCreateBatchWriteAsync(resourceContext, request, cancellationToken)
                     .ConfigureAwait(false);
                 if (batchPlan is { } prepared)
                 {
@@ -222,6 +223,7 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
             else if (
                 source.Writer is IStateWriteBatchParticipant<TFragment> participant
                 && participant.TryCreateBatchWrite(
+                    resourceContext,
                     request,
                     out var synchronousResourceId,
                     out batchWriter,
@@ -246,11 +248,15 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
 
                 if (
                     batchWriter is IResourceIdentity batchIdentity
-                    && batchIdentity.ResourceId != resolvedResourceId
+                    && batchIdentity.TryGetResourceId(
+                        resourceContext,
+                        out var batchWriterResourceId
+                    )
+                    && batchWriterResourceId != resolvedResourceId
                 )
                 {
                     throw new InvalidOperationException(
-                        $"State source '{source.Id}' prepares a mutation for '{resolvedResourceId}' but its batch writer targets '{batchIdentity.ResourceId}'."
+                        $"State source '{source.Id}' prepares a mutation for '{resolvedResourceId}' but its batch writer targets '{batchWriterResourceId}'."
                     );
                 }
 

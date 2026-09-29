@@ -83,10 +83,25 @@ public static class SerializedStateSource
             stateWriter,
             resourceWatcher,
             physicalOrigin,
-            resourceId
-                ?? (
-                    resourceWriter as IResourceIdentity ?? resource as IResourceIdentity
-                )?.ResourceId
+            resourceId ?? ResolveResourceId(resourceWriter, resource)
         );
+    }
+
+    private static ResourceId? ResolveResourceId(IResourceWriter? writer, IResourceReader reader)
+    {
+        var context = ConfiglueResourceContext.Default;
+        if (
+            writer is IResourceIdentity writerIdentity
+            && writerIdentity.TryGetResourceId(context, out var writerResourceId)
+        )
+        {
+            return writerResourceId;
+        }
+
+        return
+            reader is IResourceIdentity readerIdentity
+            && readerIdentity.TryGetResourceId(context, out var readerResourceId)
+            ? readerResourceId
+            : null;
     }
 }

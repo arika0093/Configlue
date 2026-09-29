@@ -184,7 +184,8 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
                 patchedComponent,
                 Condition: RevisionCondition.FromRevision(componentCurrent.Revision)
             );
-            var componentResourceId = component.ResourceId;
+            var resourceContext = GetResourceContext(component);
+            var componentResourceId = GetResourceId(component);
             IResourceBatchWriter? componentBatchWriter = null;
             ResourceWriteMutation? componentMutation = null;
             ResourceId? componentParticipantResourceId = null;
@@ -196,7 +197,7 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
             )
             {
                 var batchPlan = await componentAsyncParticipant
-                    .TryCreateBatchWriteAsync(componentRequest, cancellationToken)
+                    .TryCreateBatchWriteAsync(resourceContext, componentRequest, cancellationToken)
                     .ConfigureAwait(false);
                 if (batchPlan is { } prepared)
                 {
@@ -208,6 +209,7 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
             else if (
                 component.Writer is IStateWriteBatchParticipant<TFragment> participant
                 && participant.TryCreateBatchWrite(
+                    resourceContext,
                     componentRequest,
                     out var synchronousResourceId,
                     out componentBatchWriter,
@@ -232,11 +234,15 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
 
                 if (
                     componentBatchWriter is IResourceIdentity batchIdentity
-                    && batchIdentity.ResourceId != componentResolvedResourceId
+                    && batchIdentity.TryGetResourceId(
+                        resourceContext,
+                        out var batchWriterResourceId
+                    )
+                    && batchWriterResourceId != componentResolvedResourceId
                 )
                 {
                     throw new InvalidOperationException(
-                        $"State source '{component.Id}' prepares a mutation for '{componentResolvedResourceId}' but its batch writer targets '{batchIdentity.ResourceId}'."
+                        $"State source '{component.Id}' prepares a mutation for '{componentResolvedResourceId}' but its batch writer targets '{batchWriterResourceId}'."
                     );
                 }
 

@@ -12,9 +12,10 @@ public sealed class ResourceWriteMutation
         StateSchemaMetadata? schema,
         Func<ResourceReadResult, ReadOnlyMemory<byte>> apply,
         string? scope = null,
-        bool canCompose = false
+        bool canCompose = false,
+        ConfiglueResourceContext context = default
     )
-        : this(condition, schema, apply, scope, canCompose, null) { }
+        : this(condition, schema, apply, scope, canCompose, null, NormalizeContext(context)) { }
 
     private ResourceWriteMutation(
         RevisionCondition condition,
@@ -22,7 +23,8 @@ public sealed class ResourceWriteMutation
         Func<ResourceReadResult, ReadOnlyMemory<byte>> apply,
         string? scope,
         bool canCompose,
-        ReadOnlyMemory<byte>? ownedReplacementContent
+        ReadOnlyMemory<byte>? ownedReplacementContent,
+        ConfiglueResourceContext context
     )
     {
         ArgumentNullException.ThrowIfNull(apply);
@@ -40,6 +42,7 @@ public sealed class ResourceWriteMutation
         Scope = scope;
         CanCompose = canCompose;
         _ownedReplacementContent = ownedReplacementContent;
+        Context = context;
     }
 
     /// <summary>The explicit concurrency precondition for this mutation.</summary>
@@ -53,6 +56,9 @@ public sealed class ResourceWriteMutation
 
     /// <summary>Whether this mutation can safely compose with other disjoint scoped mutations.</summary>
     public bool CanCompose { get; }
+
+    /// <summary>The logical subject and source-specific key for this mutation.</summary>
+    public ConfiglueResourceContext Context { get; }
 
     internal bool HasStableContent { get; private set; }
 
@@ -72,7 +78,14 @@ public sealed class ResourceWriteMutation
     }
 
     /// <summary>Creates a full-resource replacement mutation.</summary>
-    public static ResourceWriteMutation Replace(ResourceWriteRequest request)
+    public static ResourceWriteMutation Replace(ResourceWriteRequest request) =>
+        Replace(request, ConfiglueResourceContext.Default);
+
+    /// <summary>Creates a full-resource replacement mutation for one subject.</summary>
+    public static ResourceWriteMutation Replace(
+        ResourceWriteRequest request,
+        ConfiglueResourceContext context
+    )
     {
         var content = request.ContentIsOwned ? request.Content : request.Content.ToArray();
         var mutation = new ResourceWriteMutation(
@@ -81,11 +94,30 @@ public sealed class ResourceWriteMutation
             _ => content,
             scope: null,
             canCompose: false,
-            ownedReplacementContent: content
+            ownedReplacementContent: content,
+            context
         );
         mutation.HasStableContent = true;
         return mutation;
     }
+
+    /// <summary>Returns this mutation with the logical subject and key for its resource operation.</summary>
+    public ResourceWriteMutation WithContext(ConfiglueResourceContext context) =>
+        new(
+            Condition,
+            Schema,
+            _apply,
+            Scope,
+            CanCompose,
+            _ownedReplacementContent,
+            NormalizeContext(context)
+        )
+        {
+            HasStableContent = HasStableContent,
+        };
+
+    private static ConfiglueResourceContext NormalizeContext(ConfiglueResourceContext context) =>
+        context.Subject is null ? ConfiglueResourceContext.Default : context;
 
     /// <summary>Validates that a set of mutations can be applied in one physical write.</summary>
     public static void ValidateBatch(IReadOnlyList<ResourceWriteMutation> mutations)

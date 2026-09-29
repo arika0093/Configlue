@@ -3,7 +3,10 @@ using System.Buffers;
 namespace Configlue.Extensibility;
 
 /// <summary>Writes a typed state value by composing a codec and a resource.</summary>
-public sealed class SerializedStateWriter<T> : IStateWriter<T>, IStateWriteBatchParticipant<T>
+public sealed class SerializedStateWriter<T>
+    : IStateWriter<T>,
+        IStateWriteBatchParticipant<T>,
+        IResourceIdentity
 {
     private readonly IResourceWriter _resource;
     private readonly object _codec;
@@ -35,17 +38,63 @@ public sealed class SerializedStateWriter<T> : IStateWriter<T>, IStateWriteBatch
     }
 
     /// <inheritdoc />
+    public ResourceId ResourceId => GetResourceId(ConfiglueResourceContext.Default);
+
+    /// <inheritdoc />
+    public ResourceId GetResourceId(ConfiglueResourceContext context) =>
+        TryGetResourceId(context, out var resourceId)
+            ? resourceId
+            : throw new InvalidOperationException(
+                "The underlying resource has no physical identity."
+            );
+
+    /// <inheritdoc />
+    public bool TryGetResourceId(ConfiglueResourceContext context, out ResourceId resourceId)
+    {
+        if (_resource is IResourceIdentity identity)
+        {
+            return identity.TryGetResourceId(context, out resourceId);
+        }
+
+        resourceId = default;
+        return false;
+    }
+
+    /// <inheritdoc />
     public ValueTask<StateWriteResult> WriteAsync(
+        StateWriteRequest<T> request,
+        CancellationToken cancellationToken = default
+    ) => WriteAsync(ConfiglueResourceContext.Default, request, cancellationToken);
+
+    /// <summary>Writes serialized state for one logical subject and source-specific key.</summary>
+    public ValueTask<StateWriteResult> WriteAsync(
+        ConfiglueResourceContext context,
         StateWriteRequest<T> request,
         CancellationToken cancellationToken = default
     )
     {
         cancellationToken.ThrowIfCancellationRequested();
-        return _resource.WriteAsync(CreateResourceRequest(request), cancellationToken);
+        return _resource.WriteAsync(context, CreateResourceRequest(request), cancellationToken);
     }
 
     /// <inheritdoc />
     public bool TryCreateBatchWrite(
+        StateWriteRequest<T> request,
+        out ResourceId resourceId,
+        out IResourceBatchWriter? batchWriter,
+        out ResourceWriteMutation? mutation
+    ) =>
+        TryCreateBatchWrite(
+            ConfiglueResourceContext.Default,
+            request,
+            out resourceId,
+            out batchWriter,
+            out mutation
+        );
+
+    /// <summary>Prepares a resource batch mutation for one logical subject.</summary>
+    public bool TryCreateBatchWrite(
+        ConfiglueResourceContext context,
         StateWriteRequest<T> request,
         out ResourceId resourceId,
         out IResourceBatchWriter? batchWriter,
@@ -58,17 +107,17 @@ public sealed class SerializedStateWriter<T> : IStateWriter<T>, IStateWriteBatch
             && participant.BatchWriter is { } participantWriter
         )
         {
-            resourceId = participant.ResourceId;
+            resourceId = participant.GetResourceId(context);
             batchWriter = participantWriter;
-            mutation = participant.CreateMutation(resourceRequest);
+            mutation = participant.CreateMutation(context, resourceRequest);
             return true;
         }
 
         if (_resource is IResourceBatchWriter writer)
         {
-            resourceId = writer.ResourceId;
+            resourceId = writer.GetResourceId(context);
             batchWriter = writer;
-            mutation = ResourceWriteMutation.Replace(resourceRequest);
+            mutation = ResourceWriteMutation.Replace(resourceRequest, context);
             return true;
         }
 

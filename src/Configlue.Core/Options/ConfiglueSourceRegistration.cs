@@ -100,7 +100,7 @@ public sealed class ConfiglueSourceRegistration
             _readOnly == true ? null : source.Writer,
             source.Watcher,
             source.PhysicalOrigin,
-            source.ResourceId,
+            source.ConfiguredResourceId,
             _explicitOnly ?? source.ExplicitOnly,
             source.GetSubjectKey
         );

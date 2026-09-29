@@ -22,4 +22,14 @@ public interface IResourceIdentity
 {
     /// <summary>The identity of the underlying physical resource.</summary>
     ResourceId ResourceId { get; }
+
+    /// <summary>Gets the physical identity used for an operation on one subject.</summary>
+    ResourceId GetResourceId(ConfiglueResourceContext context) => ResourceId;
+
+    /// <summary>Tries to get the physical identity used for an operation on one subject.</summary>
+    bool TryGetResourceId(ConfiglueResourceContext context, out ResourceId resourceId)
+    {
+        resourceId = GetResourceId(context);
+        return true;
+    }
 }

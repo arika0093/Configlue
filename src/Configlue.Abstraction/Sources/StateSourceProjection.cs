@@ -286,7 +286,7 @@ public static class StateSourceProjection
             writer,
             source.Watcher,
             source.PhysicalOrigin,
-            source.ResourceId,
+            source.ConfiguredResourceId,
             subjectKeySelector: source.GetSubjectKey
         );
         source.CopyRoutingMetadataTo(projected);
@@ -476,6 +476,21 @@ public static class StateSourceProjection
             out ResourceId resourceId,
             out IResourceBatchWriter? batchWriter,
             out ResourceWriteMutation? mutation
+        ) =>
+            TryCreateBatchWrite(
+                ConfiglueResourceContext.Default,
+                request,
+                out resourceId,
+                out batchWriter,
+                out mutation
+            );
+
+        public bool TryCreateBatchWrite(
+            ConfiglueResourceContext context,
+            StateWriteRequest<TTarget> request,
+            out ResourceId resourceId,
+            out IResourceBatchWriter? batchWriter,
+            out ResourceWriteMutation? mutation
         )
         {
             if (updateSource is not null)
@@ -489,6 +504,7 @@ public static class StateSourceProjection
             if (source is IStateWriteBatchParticipant<TSource> participant)
             {
                 return participant.TryCreateBatchWrite(
+                    context,
                     new StateWriteRequest<TSource>(
                         toSource!(request.Value),
                         Condition: request.Condition
@@ -508,6 +524,18 @@ public static class StateSourceProjection
         public async ValueTask<StateWriteBatchPlan?> TryCreateBatchWriteAsync(
             StateWriteRequest<TTarget> request,
             CancellationToken cancellationToken = default
+        ) =>
+            await TryCreateBatchWriteAsync(
+                    ConfiglueResourceContext.Default,
+                    request,
+                    cancellationToken
+                )
+                .ConfigureAwait(false);
+
+        public async ValueTask<StateWriteBatchPlan?> TryCreateBatchWriteAsync(
+            ConfiglueResourceContext context,
+            StateWriteRequest<TTarget> request,
+            CancellationToken cancellationToken = default
         )
         {
             if (!CanPrepareBatchWrite)
@@ -517,7 +545,8 @@ public static class StateSourceProjection
 
             var mapped = updateSource is null
                 ? toSource!(request.Value)
-                : await UpdateSourceAsync(request, null, cancellationToken).ConfigureAwait(false);
+                : await UpdateSourceAsync(request, context, cancellationToken)
+                    .ConfigureAwait(false);
             if (mapped is null)
             {
                 throw new InvalidOperationException("The source projection returned a null value.");
@@ -529,13 +558,14 @@ public static class StateSourceProjection
             if (source is IAsyncStateWriteBatchParticipant<TSource> asyncParticipant)
             {
                 return await asyncParticipant
-                    .TryCreateBatchWriteAsync(sourceRequest, cancellationToken)
+                    .TryCreateBatchWriteAsync(context, sourceRequest, cancellationToken)
                     .ConfigureAwait(false);
             }
 
             if (
                 source is IStateWriteBatchParticipant<TSource> participant
                 && participant.TryCreateBatchWrite(
+                    context,
                     sourceRequest,
                     out var resourceId,
                     out var batchWriter,

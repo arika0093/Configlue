@@ -10,4 +10,10 @@ public interface IPipelineResourceReader
     ValueTask<PipelineResourceReadResult> ReadPipelineAsync(
         CancellationToken cancellationToken = default
     );
+
+    /// <summary>Reads a subject-specific resource into a pipeline-backed result.</summary>
+    ValueTask<PipelineResourceReadResult> ReadPipelineAsync(
+        ConfiglueResourceContext context,
+        CancellationToken cancellationToken = default
+    ) => ReadPipelineAsync(cancellationToken);
 }

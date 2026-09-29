@@ -287,6 +287,7 @@ namespace Configlue.State
     {
         bool IsPipelineReadPreferred { get; }
         System.Threading.Tasks.ValueTask<Configlue.Resources.PipelineResourceReadResult> ReadPipelineAsync(System.Threading.CancellationToken cancellationToken = default);
+        System.Threading.Tasks.ValueTask<Configlue.Resources.PipelineResourceReadResult> ReadPipelineAsync(Configlue.Resources.ConfiglueResourceContext context, System.Threading.CancellationToken cancellationToken = default);
     }
     public interface IPipelineStateCodec<T>
     {

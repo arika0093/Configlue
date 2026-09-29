@@ -17,6 +17,7 @@ public sealed class JsonSectionResource
     private readonly IStateWatcher? _watcher;
     private readonly string[] _path;
     private readonly string _batchScope;
+    private readonly ResourceId? _configuredResourceId;
     private readonly byte[] _schemaShape;
     private readonly JsonSerializerOptions _serializerOptions;
 
@@ -95,14 +96,33 @@ public sealed class JsonSectionResource
         _watcher = watcher;
         _path = path;
         _schemaShape = schemaShape;
+        _configuredResourceId = resourceId;
         _serializerOptions = serializerOptions is null
             ? new JsonSerializerOptions { WriteIndented = true }
             : new JsonSerializerOptions(serializerOptions);
         ResourceId =
             resourceId
-            ?? (writer as IResourceIdentity ?? reader as IResourceIdentity)?.ResourceId
+            ?? ResolveResourceId(writer, reader)
             ?? new ResourceId($"section:{Guid.NewGuid():N}");
         _batchScope = "json/" + string.Join("/", _path.Select(Uri.EscapeDataString));
+    }
+
+    private static ResourceId? ResolveResourceId(IResourceWriter? writer, IResourceReader reader)
+    {
+        var context = ConfiglueResourceContext.Default;
+        if (
+            writer is IResourceIdentity writerIdentity
+            && writerIdentity.TryGetResourceId(context, out var writerResourceId)
+        )
+        {
+            return writerResourceId;
+        }
+
+        return
+            reader is IResourceIdentity readerIdentity
+            && readerIdentity.TryGetResourceId(context, out var readerResourceId)
+            ? readerResourceId
+            : null;
     }
 
     internal static JsonSectionResource CreateRoot(
@@ -138,6 +158,39 @@ public sealed class JsonSectionResource
     public ResourceId ResourceId { get; }
 
     /// <inheritdoc />
+    public ResourceId GetResourceId(ConfiglueResourceContext context) =>
+        TryGetResourceId(context, out var resourceId) ? resourceId : ResourceId;
+
+    /// <inheritdoc />
+    public bool TryGetResourceId(ConfiglueResourceContext context, out ResourceId resourceId)
+    {
+        if (_configuredResourceId is { } configuredResourceId)
+        {
+            resourceId = configuredResourceId;
+            return true;
+        }
+
+        if (
+            _writer is IResourceIdentity writerIdentity
+            && writerIdentity.TryGetResourceId(context, out resourceId)
+        )
+        {
+            return true;
+        }
+
+        if (
+            _reader is IResourceIdentity readerIdentity
+            && readerIdentity.TryGetResourceId(context, out resourceId)
+        )
+        {
+            return true;
+        }
+
+        resourceId = ResourceId;
+        return true;
+    }
+
+    /// <inheritdoc />
     public IResourceBatchWriter? BatchWriter => _writer as IResourceBatchWriter;
 
     /// <inheritdoc />
@@ -155,15 +208,32 @@ public sealed class JsonSectionResource
     }
 
     /// <inheritdoc />
+    public async ValueTask<PipelineResourceReadResult> ReadPipelineAsync(
+        ConfiglueResourceContext context,
+        CancellationToken cancellationToken = default
+    )
+    {
+        var result = await ReadAsync(context, cancellationToken).ConfigureAwait(false);
+        return await PipelineResourceReader
+            .FromMemoryAsync(result, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
     public bool AutomaticBackupRecoveryEnabled =>
         _reader is IResourceBackupRecovery recovery && recovery.AutomaticBackupRecoveryEnabled;
 
     /// <inheritdoc />
+    public ValueTask<ResourceReadResult> ReadAsync(CancellationToken cancellationToken = default) =>
+        ReadAsync(ConfiglueResourceContext.Default, cancellationToken);
+
+    /// <inheritdoc />
     public async ValueTask<ResourceReadResult> ReadAsync(
+        ConfiglueResourceContext context,
         CancellationToken cancellationToken = default
     )
     {
-        var resource = await _reader.ReadAsync(cancellationToken).ConfigureAwait(false);
+        var resource = await _reader.ReadAsync(context, cancellationToken).ConfigureAwait(false);
         try
         {
             return ExtractSection(resource);
@@ -176,7 +246,23 @@ public sealed class JsonSectionResource
     }
 
     /// <inheritdoc />
+    public ValueTask<ResourceReadResult?> TryRecoverLatestBackupAsync(
+        string? expectedRevision,
+        bool expectedMissing,
+        Func<ResourceReadResult, CancellationToken, ValueTask<bool>> validate,
+        CancellationToken cancellationToken = default
+    ) =>
+        TryRecoverLatestBackupAsync(
+            ConfiglueResourceContext.Default,
+            expectedRevision,
+            expectedMissing,
+            validate,
+            cancellationToken
+        );
+
+    /// <inheritdoc />
     public async ValueTask<ResourceReadResult?> TryRecoverLatestBackupAsync(
+        ConfiglueResourceContext context,
         string? expectedRevision,
         bool expectedMissing,
         Func<ResourceReadResult, CancellationToken, ValueTask<bool>> validate,
@@ -193,6 +279,7 @@ public sealed class JsonSectionResource
 
         var restored = await recovery
             .TryRecoverLatestBackupAsync(
+                context,
                 expectedRevision,
                 expectedMissing,
                 async (candidate, token) =>
@@ -263,7 +350,14 @@ public sealed class JsonSectionResource
     }
 
     /// <inheritdoc />
+    public ValueTask<StateWriteResult> WriteAsync(
+        ResourceWriteRequest request,
+        CancellationToken cancellationToken = default
+    ) => WriteAsync(ConfiglueResourceContext.Default, request, cancellationToken);
+
+    /// <inheritdoc />
     public async ValueTask<StateWriteResult> WriteAsync(
+        ConfiglueResourceContext context,
         ResourceWriteRequest request,
         CancellationToken cancellationToken = default
     )
@@ -271,10 +365,11 @@ public sealed class JsonSectionResource
         cancellationToken.ThrowIfCancellationRequested();
         var writer =
             _writer ?? throw new NotSupportedException("This JSON section resource is read-only.");
-        var current = await _reader.ReadAsync(cancellationToken).ConfigureAwait(false);
-        var updatedDocument = CreateMutation(request).Apply(current);
+        var current = await _reader.ReadAsync(context, cancellationToken).ConfigureAwait(false);
+        var updatedDocument = CreateMutation(context, request).Apply(current);
         return await writer
             .WriteAsync(
+                context,
                 new ResourceWriteRequest(
                     updatedDocument,
                     Condition: RevisionCondition.FromRevision(current.Revision),
@@ -314,6 +409,12 @@ public sealed class JsonSectionResource
         );
     }
 
+    /// <inheritdoc />
+    public ResourceWriteMutation CreateMutation(
+        ConfiglueResourceContext context,
+        ResourceWriteRequest request
+    ) => CreateMutation(request).WithContext(context);
+
     private ReadOnlyMemory<byte> ApplyToResource(
         ResourceReadResult current,
         ReadOnlyMemory<byte> sectionContent
@@ -334,7 +435,14 @@ public sealed class JsonSectionResource
     }
 
     /// <inheritdoc />
+    public ValueTask WaitForChangeAsync(
+        string? observedRevision,
+        CancellationToken cancellationToken = default
+    ) => WaitForChangeAsync(ConfiglueResourceContext.Default, observedRevision, cancellationToken);
+
+    /// <inheritdoc />
     public async ValueTask WaitForChangeAsync(
+        ConfiglueResourceContext context,
         string? observedRevision,
         CancellationToken cancellationToken = default
     )
@@ -342,7 +450,7 @@ public sealed class JsonSectionResource
         if (_watcher is not null)
         {
             await _watcher
-                .WaitForChangeAsync(observedRevision, cancellationToken)
+                .WaitForChangeAsync(context, observedRevision, cancellationToken)
                 .ConfigureAwait(false);
             return;
         }
@@ -350,7 +458,7 @@ public sealed class JsonSectionResource
         while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var current = await ReadAsync(cancellationToken).ConfigureAwait(false);
+            var current = await ReadAsync(context, cancellationToken).ConfigureAwait(false);
             if (!string.Equals(current.Revision, observedRevision, StringComparison.Ordinal))
             {
                 return;

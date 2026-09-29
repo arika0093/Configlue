@@ -638,17 +638,21 @@ namespace Configlue.Resources
         public ConfiglueResourceContext(Configlue.IConfiglueSubject Subject, Configlue.SubjectKey Key) { }
         public Configlue.SubjectKey Key { get; init; }
         public Configlue.IConfiglueSubject Subject { get; init; }
+        public static Configlue.Resources.ConfiglueResourceContext Default { get; }
     }
     public interface IResourceBackupRecovery
     {
         bool AutomaticBackupRecoveryEnabled { get; }
         System.Threading.Tasks.ValueTask<Configlue.Resources.ResourceReadResult?> TryRecoverLatestBackupAsync(string? expectedRevision, bool expectedMissing, System.Func<Configlue.Resources.ResourceReadResult, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<bool>> validate, System.Threading.CancellationToken cancellationToken = default);
+        System.Threading.Tasks.ValueTask<Configlue.Resources.ResourceReadResult?> TryRecoverLatestBackupAsync(Configlue.Resources.ConfiglueResourceContext context, string? expectedRevision, bool expectedMissing, System.Func<Configlue.Resources.ResourceReadResult, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<bool>> validate, System.Threading.CancellationToken cancellationToken = default);
     }
     public interface IResourceBatchParticipant
     {
         Configlue.Resources.IResourceBatchWriter? BatchWriter { get; }
         Configlue.Resources.ResourceId ResourceId { get; }
         Configlue.Resources.ResourceWriteMutation CreateMutation(Configlue.Resources.ResourceWriteRequest request);
+        Configlue.Resources.ResourceWriteMutation CreateMutation(Configlue.Resources.ConfiglueResourceContext context, Configlue.Resources.ResourceWriteRequest request);
+        Configlue.Resources.ResourceId GetResourceId(Configlue.Resources.ConfiglueResourceContext context);
     }
     public interface IResourceBatchWriter : Configlue.Resources.IResourceIdentity, Configlue.Resources.IResourceWriter
     {
@@ -657,14 +661,18 @@ namespace Configlue.Resources
     public interface IResourceIdentity
     {
         Configlue.Resources.ResourceId ResourceId { get; }
+        Configlue.Resources.ResourceId GetResourceId(Configlue.Resources.ConfiglueResourceContext context);
+        bool TryGetResourceId(Configlue.Resources.ConfiglueResourceContext context, out Configlue.Resources.ResourceId resourceId);
     }
     public interface IResourceReader
     {
         System.Threading.Tasks.ValueTask<Configlue.Resources.ResourceReadResult> ReadAsync(System.Threading.CancellationToken cancellationToken = default);
+        System.Threading.Tasks.ValueTask<Configlue.Resources.ResourceReadResult> ReadAsync(Configlue.Resources.ConfiglueResourceContext context, System.Threading.CancellationToken cancellationToken = default);
     }
     public interface IResourceWriter
     {
         System.Threading.Tasks.ValueTask<Configlue.State.StateWriteResult> WriteAsync(Configlue.Resources.ResourceWriteRequest request, System.Threading.CancellationToken cancellationToken = default);
+        System.Threading.Tasks.ValueTask<Configlue.State.StateWriteResult> WriteAsync(Configlue.Resources.ConfiglueResourceContext context, Configlue.Resources.ResourceWriteRequest request, System.Threading.CancellationToken cancellationToken = default);
     }
     public readonly struct ResourceId : System.IEquatable<Configlue.Resources.ResourceId>
     {
@@ -686,13 +694,16 @@ namespace Configlue.Resources
     }
     public sealed class ResourceWriteMutation
     {
-        public ResourceWriteMutation(Configlue.State.RevisionCondition condition, Configlue.State.StateSchemaMetadata? schema, System.Func<Configlue.Resources.ResourceReadResult, System.ReadOnlyMemory<byte>> apply, string? scope = null, bool canCompose = false) { }
+        public ResourceWriteMutation(Configlue.State.RevisionCondition condition, Configlue.State.StateSchemaMetadata? schema, System.Func<Configlue.Resources.ResourceReadResult, System.ReadOnlyMemory<byte>> apply, string? scope = null, bool canCompose = false, Configlue.Resources.ConfiglueResourceContext context = default) { }
         public bool CanCompose { get; }
         public Configlue.State.RevisionCondition Condition { get; }
+        public Configlue.Resources.ConfiglueResourceContext Context { get; }
         public Configlue.State.StateSchemaMetadata? Schema { get; }
         public string? Scope { get; }
         public System.ReadOnlyMemory<byte> Apply(Configlue.Resources.ResourceReadResult current) { }
+        public Configlue.Resources.ResourceWriteMutation WithContext(Configlue.Resources.ConfiglueResourceContext context) { }
         public static Configlue.Resources.ResourceWriteMutation Replace(Configlue.Resources.ResourceWriteRequest request) { }
+        public static Configlue.Resources.ResourceWriteMutation Replace(Configlue.Resources.ResourceWriteRequest request, Configlue.Resources.ConfiglueResourceContext context) { }
         public static void ValidateBatch(System.Collections.Generic.IReadOnlyList<Configlue.Resources.ResourceWriteMutation> mutations) { }
     }
     public readonly struct ResourceWriteRequest : System.IEquatable<Configlue.Resources.ResourceWriteRequest>
@@ -746,6 +757,7 @@ namespace Configlue.Sources
         public Configlue.Resources.ResourceId? ResourceId { get; }
         public Configlue.State.IStateWatcher? Watcher { get; }
         public Configlue.State.IStateWriter<T>? Writer { get; }
+        public Configlue.Resources.ResourceId? GetResourceId(Configlue.IConfiglueSubject subject) { }
         public Configlue.SubjectKey GetSubjectKey(Configlue.IConfiglueSubject subject) { }
         public System.Threading.Tasks.ValueTask<Configlue.State.StateReadResult<T>> ReadAsync(Configlue.IConfiglueSubject subject, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask WaitForChangeAsync(Configlue.IConfiglueSubject subject, string? observedRevision, System.Threading.CancellationToken cancellationToken = default) { }
@@ -758,6 +770,7 @@ namespace Configlue.State
     {
         bool CanPrepareBatchWrite { get; }
         System.Threading.Tasks.ValueTask<Configlue.State.StateWriteBatchPlan?> TryCreateBatchWriteAsync(Configlue.State.StateWriteRequest<T> request, System.Threading.CancellationToken cancellationToken = default);
+        System.Threading.Tasks.ValueTask<Configlue.State.StateWriteBatchPlan?> TryCreateBatchWriteAsync(Configlue.Resources.ConfiglueResourceContext context, Configlue.State.StateWriteRequest<T> request, System.Threading.CancellationToken cancellationToken = default);
     }
     public interface IStateMiddleware<T>
     {
@@ -777,6 +790,7 @@ namespace Configlue.State
     public interface IStateWriteBatchParticipant<T>
     {
         bool TryCreateBatchWrite(Configlue.State.StateWriteRequest<T> request, out Configlue.Resources.ResourceId resourceId, out Configlue.Resources.IResourceBatchWriter? batchWriter, out Configlue.Resources.ResourceWriteMutation? mutation);
+        bool TryCreateBatchWrite(Configlue.Resources.ConfiglueResourceContext context, Configlue.State.StateWriteRequest<T> request, out Configlue.Resources.ResourceId resourceId, out Configlue.Resources.IResourceBatchWriter? batchWriter, out Configlue.Resources.ResourceWriteMutation? mutation);
     }
     public interface IStateWriter<T>
     {

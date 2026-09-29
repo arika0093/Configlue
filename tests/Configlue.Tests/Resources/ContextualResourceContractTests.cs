@@ -1,0 +1,217 @@
+using System.Buffers;
+using System.Collections.Concurrent;
+using System.Security.Cryptography;
+using Configlue.Extensibility;
+using Configlue.Provider.Json;
+
+namespace Configlue.Tests;
+
+public sealed class ContextualResourceContractTests
+{
+    [Test]
+    public async Task SerializedAdaptersPassContextThroughPipelineWritesAndBatchMutations()
+    {
+        var codec = new JsonStateCodec<AppSettings.Fragment>();
+        var resource = new ContextualMemoryResource(perSubjectIdentity: true);
+        var subjectA = new SettingsSubject("tenant-a", "user-a");
+        var subjectB = new SettingsSubject("tenant-b", "user-b");
+        resource.Set(subjectA.Key, Serialize(codec, Fragment("before-a")));
+        resource.Set(subjectB.Key, Serialize(codec, Fragment("before-b")));
+
+        var reader = new SerializedStateReader<AppSettings.Fragment>(resource, codec);
+        var writer = new SerializedStateWriter<AppSettings.Fragment>(resource, codec);
+        var source = new StateSource<AppSettings.Fragment>(
+            "subject-settings",
+            reader,
+            writer: writer
+        );
+
+        var initial = await source.ReadAsync(subjectA);
+        initial.Status.ShouldBe(StateReadStatus.Success);
+        initial.Value!.Label.Value.ShouldBe("before-a");
+        resource.LastPipelineContext!.Value.Key.ShouldBe(subjectA.Key);
+        resource.LastPipelineContext.Value.Subject.ShouldBe(subjectA);
+        source.GetResourceId(subjectA).ShouldBe(new ResourceId($"object:{subjectA.Key.Value}"));
+        source.GetResourceId(subjectB).ShouldBe(new ResourceId($"object:{subjectB.Key.Value}"));
+        source.GetResourceId(subjectA).ShouldNotBe(source.GetResourceId(subjectB));
+
+        await source.WriteAsync(
+            subjectA,
+            new StateWriteRequest<AppSettings.Fragment>(
+                Fragment("after-a"),
+                RevisionCondition.FromRevision(initial.Revision)
+            )
+        );
+        resource.LastWriteContext!.Value.Key.ShouldBe(subjectA.Key);
+
+        var afterWrite = await source.ReadAsync(subjectA);
+        afterWrite.Value!.Label.Value.ShouldBe("after-a");
+
+        var batchRequest = new StateWriteRequest<AppSettings.Fragment>(
+            Fragment("batch-b"),
+            RevisionCondition.FromRevision((await source.ReadAsync(subjectB)).Revision)
+        );
+        var context = new ConfiglueResourceContext(subjectB, subjectB.Key);
+        writer
+            .TryCreateBatchWrite(
+                context,
+                batchRequest,
+                out var resourceId,
+                out var batchWriter,
+                out var mutation
+            )
+            .ShouldBeTrue();
+        resourceId.ShouldBe(new ResourceId($"object:{subjectB.Key.Value}"));
+        mutation!.Context.Key.ShouldBe(subjectB.Key);
+        mutation.Context.Subject.ShouldBe(subjectB);
+        (await batchWriter!.WriteBatchAsync([mutation])).Revision.ShouldNotBeNull();
+        resource.LastWriteContext!.Value.Key.ShouldBe(subjectB.Key);
+        (await source.ReadAsync(subjectB)).Value!.Label.Value.ShouldBe("batch-b");
+    }
+
+    [Test]
+    public void ResourceIdentityCanShareOrSeparateCoordinationDomainsByContext()
+    {
+        var first = new SettingsSubject("tenant", "one");
+        var second = new SettingsSubject("tenant", "two");
+        var sharedIdentity = new ContextualMemoryResource(perSubjectIdentity: false);
+        var separateIdentity = new ContextualMemoryResource(perSubjectIdentity: true);
+
+        sharedIdentity.GetResourceId(Context(first)).ShouldBe(sharedIdentity.ResourceId);
+        sharedIdentity.GetResourceId(Context(second)).ShouldBe(sharedIdentity.ResourceId);
+        separateIdentity
+            .GetResourceId(Context(first))
+            .ShouldNotBe(separateIdentity.GetResourceId(Context(second)));
+    }
+
+    private static ConfiglueResourceContext Context(SettingsSubject subject) =>
+        new(subject, subject.Key);
+
+    private static AppSettings.Fragment Fragment(string? label) =>
+        new() { Label = Optional<string?>.Present(label) };
+
+    private static ReadOnlyMemory<byte> Serialize(
+        JsonStateCodec<AppSettings.Fragment> codec,
+        AppSettings.Fragment fragment
+    )
+    {
+        var buffer = new ArrayBufferWriter<byte>();
+        var context = default(StateCodecContext);
+        codec.Serialize(fragment, buffer, in context);
+        return buffer.WrittenMemory.ToArray();
+    }
+
+    private sealed record SettingsSubject(string TenantId, string UserId) : IConfiglueSubject
+    {
+        public SubjectKey Key => SubjectKey.FromSegments(TenantId, UserId);
+    }
+
+    private sealed class ContextualMemoryResource(bool perSubjectIdentity)
+        : IResourceReader,
+            IPipelineResourceReader,
+            IResourceBatchWriter
+    {
+        private readonly ConcurrentDictionary<SubjectKey, ResourceReadResult> _states = new();
+
+        public ResourceId ResourceId { get; } = new("memory:shared");
+
+        public bool IsPipelineReadPreferred => true;
+
+        public ConfiglueResourceContext? LastPipelineContext { get; private set; }
+
+        public ConfiglueResourceContext? LastWriteContext { get; private set; }
+
+        public ResourceId GetResourceId(ConfiglueResourceContext context) =>
+            perSubjectIdentity ? new ResourceId($"object:{context.Key.Value}") : ResourceId;
+
+        public void Set(SubjectKey key, ReadOnlyMemory<byte> content) =>
+            _states[key] = ResourceReadResult.Success(content, Revision(content.Span));
+
+        public ValueTask<ResourceReadResult> ReadAsync(
+            CancellationToken cancellationToken = default
+        ) => ReadAsync(ConfiglueResourceContext.Default, cancellationToken);
+
+        public ValueTask<ResourceReadResult> ReadAsync(
+            ConfiglueResourceContext context,
+            CancellationToken cancellationToken = default
+        )
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return ValueTask.FromResult(
+                _states.TryGetValue(context.Key, out var state)
+                    ? state
+                    : ResourceReadResult.NotFound()
+            );
+        }
+
+        public async ValueTask<PipelineResourceReadResult> ReadPipelineAsync(
+            CancellationToken cancellationToken = default
+        ) =>
+            await ReadPipelineAsync(ConfiglueResourceContext.Default, cancellationToken)
+                .ConfigureAwait(false);
+
+        public async ValueTask<PipelineResourceReadResult> ReadPipelineAsync(
+            ConfiglueResourceContext context,
+            CancellationToken cancellationToken = default
+        )
+        {
+            LastPipelineContext = context;
+            var result = await ReadAsync(context, cancellationToken).ConfigureAwait(false);
+            return await PipelineResourceReader
+                .FromMemoryAsync(result, cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        public ValueTask<StateWriteResult> WriteAsync(
+            ResourceWriteRequest request,
+            CancellationToken cancellationToken = default
+        ) => WriteAsync(ConfiglueResourceContext.Default, request, cancellationToken);
+
+        public ValueTask<StateWriteResult> WriteAsync(
+            ConfiglueResourceContext context,
+            ResourceWriteRequest request,
+            CancellationToken cancellationToken = default
+        ) => WriteBatchAsync([ResourceWriteMutation.Replace(request, context)], cancellationToken);
+
+        public ValueTask<StateWriteResult> WriteBatchAsync(
+            IReadOnlyList<ResourceWriteMutation> mutations,
+            CancellationToken cancellationToken = default
+        )
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            ResourceWriteMutation.ValidateBatch(mutations);
+            StateWriteResult result = default;
+            foreach (var mutation in mutations)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                LastWriteContext = mutation.Context;
+                var current = _states.TryGetValue(mutation.Context.Key, out var value)
+                    ? value
+                    : ResourceReadResult.NotFound();
+                if (
+                    !mutation.Condition.IsSatisfiedBy(
+                        current.Revision,
+                        current.Status == StateReadStatus.Success
+                    )
+                )
+                {
+                    throw new StateConflictException("The resource changed after it was read.");
+                }
+
+                var content = mutation.Apply(current).ToArray();
+                var revision = Revision(content);
+                _states[mutation.Context.Key] = ResourceReadResult.Success(
+                    content,
+                    revision,
+                    mutation.Schema
+                );
+                result = new StateWriteResult(revision);
+            }
+
+            return ValueTask.FromResult(result);
+        }
+
+        private static string Revision(ReadOnlySpan<byte> content) =>
+            Convert.ToHexString(SHA256.HashData(content));
+    }
+}

@@ -20,8 +20,10 @@ public sealed class XmlSectionResource
     private readonly IStateWatcher? _watcher;
     private readonly string[] _path;
     private readonly string _batchScope;
+    private readonly ResourceId? _configuredResourceId;
     private readonly object _sectionCacheGate = new();
     private string? _cachedSectionRevision;
+    private SubjectKey _cachedSectionKey;
     private ResourceReadResult _cachedSection;
     private bool _hasCachedSection;
 
@@ -43,12 +45,31 @@ public sealed class XmlSectionResource
         _reader = reader;
         _writer = writer;
         _watcher = watcher;
+        _configuredResourceId = resourceId;
         ResourceId =
             resourceId
-            ?? (writer as IResourceIdentity ?? reader as IResourceIdentity)?.ResourceId
+            ?? ResolveResourceId(writer, reader)
             ?? new ResourceId($"section:{Guid.NewGuid():N}");
         _path = ParsePath(sectionPath);
         _batchScope = "xml/" + string.Join("/", _path.Select(Uri.EscapeDataString));
+    }
+
+    private static ResourceId? ResolveResourceId(IResourceWriter? writer, IResourceReader reader)
+    {
+        var context = ConfiglueResourceContext.Default;
+        if (
+            writer is IResourceIdentity writerIdentity
+            && writerIdentity.TryGetResourceId(context, out var writerResourceId)
+        )
+        {
+            return writerResourceId;
+        }
+
+        return
+            reader is IResourceIdentity readerIdentity
+            && readerIdentity.TryGetResourceId(context, out var readerResourceId)
+            ? readerResourceId
+            : null;
     }
 
     /// <summary>Whether a physical writer was supplied.</summary>
@@ -56,6 +77,39 @@ public sealed class XmlSectionResource
 
     /// <inheritdoc />
     public ResourceId ResourceId { get; }
+
+    /// <inheritdoc />
+    public ResourceId GetResourceId(ConfiglueResourceContext context) =>
+        TryGetResourceId(context, out var resourceId) ? resourceId : ResourceId;
+
+    /// <inheritdoc />
+    public bool TryGetResourceId(ConfiglueResourceContext context, out ResourceId resourceId)
+    {
+        if (_configuredResourceId is { } configuredResourceId)
+        {
+            resourceId = configuredResourceId;
+            return true;
+        }
+
+        if (
+            _writer is IResourceIdentity writerIdentity
+            && writerIdentity.TryGetResourceId(context, out resourceId)
+        )
+        {
+            return true;
+        }
+
+        if (
+            _reader is IResourceIdentity readerIdentity
+            && readerIdentity.TryGetResourceId(context, out resourceId)
+        )
+        {
+            return true;
+        }
+
+        resourceId = ResourceId;
+        return true;
+    }
 
     /// <inheritdoc />
     public IResourceBatchWriter? BatchWriter => _writer as IResourceBatchWriter;
@@ -75,18 +129,35 @@ public sealed class XmlSectionResource
     }
 
     /// <inheritdoc />
+    public async ValueTask<PipelineResourceReadResult> ReadPipelineAsync(
+        ConfiglueResourceContext context,
+        CancellationToken cancellationToken = default
+    )
+    {
+        var result = await ReadAsync(context, cancellationToken).ConfigureAwait(false);
+        return await PipelineResourceReader
+            .FromMemoryAsync(result, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
     public bool AutomaticBackupRecoveryEnabled =>
         _reader is IResourceBackupRecovery recovery && recovery.AutomaticBackupRecoveryEnabled;
 
     /// <inheritdoc />
+    public ValueTask<ResourceReadResult> ReadAsync(CancellationToken cancellationToken = default) =>
+        ReadAsync(ConfiglueResourceContext.Default, cancellationToken);
+
+    /// <inheritdoc />
     public async ValueTask<ResourceReadResult> ReadAsync(
+        ConfiglueResourceContext context,
         CancellationToken cancellationToken = default
     )
     {
-        var resource = await _reader.ReadAsync(cancellationToken).ConfigureAwait(false);
+        var resource = await _reader.ReadAsync(context, cancellationToken).ConfigureAwait(false);
         try
         {
-            return ExtractSection(resource);
+            return ExtractSection(resource, context.Key);
         }
         catch (XmlException exception)
         {
@@ -96,7 +167,23 @@ public sealed class XmlSectionResource
     }
 
     /// <inheritdoc />
+    public ValueTask<ResourceReadResult?> TryRecoverLatestBackupAsync(
+        string? expectedRevision,
+        bool expectedMissing,
+        Func<ResourceReadResult, CancellationToken, ValueTask<bool>> validate,
+        CancellationToken cancellationToken = default
+    ) =>
+        TryRecoverLatestBackupAsync(
+            ConfiglueResourceContext.Default,
+            expectedRevision,
+            expectedMissing,
+            validate,
+            cancellationToken
+        );
+
+    /// <inheritdoc />
     public async ValueTask<ResourceReadResult?> TryRecoverLatestBackupAsync(
+        ConfiglueResourceContext context,
         string? expectedRevision,
         bool expectedMissing,
         Func<ResourceReadResult, CancellationToken, ValueTask<bool>> validate,
@@ -113,6 +200,7 @@ public sealed class XmlSectionResource
 
         var restored = await recovery
             .TryRecoverLatestBackupAsync(
+                context,
                 expectedRevision,
                 expectedMissing,
                 async (candidate, token) =>
@@ -120,7 +208,7 @@ public sealed class XmlSectionResource
                     ResourceReadResult section;
                     try
                     {
-                        section = ExtractSection(candidate);
+                        section = ExtractSection(candidate, context.Key);
                     }
                     catch (XmlException)
                     {
@@ -133,10 +221,13 @@ public sealed class XmlSectionResource
                 cancellationToken
             )
             .ConfigureAwait(false);
-        return restored is { } result ? ExtractSection(result) : null;
+        return restored is { } result ? ExtractSection(result, context.Key) : null;
     }
 
-    private ResourceReadResult ExtractSection(ResourceReadResult resource)
+    private ResourceReadResult ExtractSection(
+        ResourceReadResult resource,
+        SubjectKey subjectKey = default
+    )
     {
         if (resource.Status != StateReadStatus.Success)
         {
@@ -150,6 +241,7 @@ public sealed class XmlSectionResource
             {
                 if (
                     _hasCachedSection
+                    && _cachedSectionKey == subjectKey
                     && string.Equals(_cachedSectionRevision, revision, StringComparison.Ordinal)
                 )
                 {
@@ -164,6 +256,7 @@ public sealed class XmlSectionResource
             lock (_sectionCacheGate)
             {
                 _cachedSectionRevision = revision;
+                _cachedSectionKey = subjectKey;
                 _cachedSection = result;
                 _hasCachedSection = true;
             }
@@ -209,7 +302,14 @@ public sealed class XmlSectionResource
     }
 
     /// <inheritdoc />
+    public ValueTask<StateWriteResult> WriteAsync(
+        ResourceWriteRequest request,
+        CancellationToken cancellationToken = default
+    ) => WriteAsync(ConfiglueResourceContext.Default, request, cancellationToken);
+
+    /// <inheritdoc />
     public async ValueTask<StateWriteResult> WriteAsync(
+        ConfiglueResourceContext context,
         ResourceWriteRequest request,
         CancellationToken cancellationToken = default
     )
@@ -217,10 +317,11 @@ public sealed class XmlSectionResource
         cancellationToken.ThrowIfCancellationRequested();
         var writer =
             _writer ?? throw new NotSupportedException("This XML section resource is read-only.");
-        var current = await _reader.ReadAsync(cancellationToken).ConfigureAwait(false);
-        var updated = CreateMutation(request).Apply(current);
+        var current = await _reader.ReadAsync(context, cancellationToken).ConfigureAwait(false);
+        var updated = CreateMutation(context, request).Apply(current);
         return await writer
             .WriteAsync(
+                context,
                 new ResourceWriteRequest(
                     updated,
                     Condition: RevisionCondition.FromRevision(current.Revision),
@@ -232,7 +333,14 @@ public sealed class XmlSectionResource
     }
 
     /// <inheritdoc />
-    public ResourceWriteMutation CreateMutation(ResourceWriteRequest request)
+    public ResourceWriteMutation CreateMutation(ResourceWriteRequest request) =>
+        CreateMutation(ConfiglueResourceContext.Default, request);
+
+    /// <inheritdoc />
+    public ResourceWriteMutation CreateMutation(
+        ConfiglueResourceContext context,
+        ResourceWriteRequest request
+    )
     {
         var content = request.Content.ToArray();
         return new ResourceWriteMutation(
@@ -242,7 +350,7 @@ public sealed class XmlSectionResource
             {
                 if (!request.Condition.IsNone)
                 {
-                    var section = ExtractSection(current);
+                    var section = ExtractSection(current, context.Key);
                     if (
                         !request.Condition.IsSatisfiedBy(
                             section.Revision,
@@ -256,7 +364,8 @@ public sealed class XmlSectionResource
                 return ApplyToResource(current, content);
             },
             scope: _batchScope,
-            canCompose: true
+            canCompose: true,
+            context: context
         );
     }
 
@@ -338,7 +447,14 @@ public sealed class XmlSectionResource
     }
 
     /// <inheritdoc />
+    public ValueTask WaitForChangeAsync(
+        string? observedRevision,
+        CancellationToken cancellationToken = default
+    ) => WaitForChangeAsync(ConfiglueResourceContext.Default, observedRevision, cancellationToken);
+
+    /// <inheritdoc />
     public async ValueTask WaitForChangeAsync(
+        ConfiglueResourceContext context,
         string? observedRevision,
         CancellationToken cancellationToken = default
     )
@@ -346,7 +462,7 @@ public sealed class XmlSectionResource
         if (_watcher is not null)
         {
             await _watcher
-                .WaitForChangeAsync(observedRevision, cancellationToken)
+                .WaitForChangeAsync(context, observedRevision, cancellationToken)
                 .ConfigureAwait(false);
             return;
         }
@@ -354,7 +470,7 @@ public sealed class XmlSectionResource
         while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var current = await ReadAsync(cancellationToken).ConfigureAwait(false);
+            var current = await ReadAsync(context, cancellationToken).ConfigureAwait(false);
             if (!string.Equals(current.Revision, observedRevision, StringComparison.Ordinal))
             {
                 return;

@@ -429,6 +429,14 @@ public sealed partial class ConfiglueOptions<TModel, TFragment>
             ? source.WaitForChangeAsync(subject, revision, cancellationToken)
             : source.Watcher!.WaitForChangeAsync(revision, cancellationToken);
 
+    private ConfiglueResourceContext GetResourceContext(StateSource<TFragment> source) =>
+        _subjectContext.Value is { } subject
+            ? new ConfiglueResourceContext(subject, source.GetSubjectKey(subject))
+            : ConfiglueResourceContext.Default;
+
+    private ResourceId? GetResourceId(StateSource<TFragment> source) =>
+        _subjectContext.Value is { } subject ? source.GetResourceId(subject) : source.ResourceId;
+
     /// <inheritdoc />
     public IDisposable OnReloadFailed(Action<Exception> listener)
     {

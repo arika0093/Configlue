@@ -9,6 +9,7 @@ public sealed class TransformingResource
     private readonly IResourceReader _reader;
     private readonly IResourceBackupRecovery? _backupRecovery;
     private readonly IStateByteTransformer[] _transformers;
+    private readonly ResourceId? _configuredResourceId;
 
     /// <summary>Creates a resource view that transforms the raw resource bytes.</summary>
     public TransformingResource(
@@ -21,6 +22,7 @@ public sealed class TransformingResource
         ArgumentNullException.ThrowIfNull(transformers);
         _reader = resource;
         _backupRecovery = resource as IResourceBackupRecovery;
+        _configuredResourceId = resourceId;
         _transformers = transformers.ToArray();
         if (_transformers.Any(static transformer => transformer is null))
         {
@@ -32,7 +34,12 @@ public sealed class TransformingResource
 
         ResourceId =
             resourceId
-            ?? (resource as IResourceIdentity)?.ResourceId
+            ?? (
+                resource is IResourceIdentity identity
+                && identity.TryGetResourceId(ConfiglueResourceContext.Default, out var resolvedId)
+                    ? (ResourceId?)resolvedId
+                    : null
+            )
             ?? throw new ArgumentException(
                 "A transforming resource requires a physical resource identity.",
                 nameof(resource)
@@ -49,6 +56,28 @@ public sealed class TransformingResource
     /// <summary>The physical identity of the wrapped resource.</summary>
     public ResourceId ResourceId { get; }
 
+    /// <inheritdoc />
+    public ResourceId GetResourceId(ConfiglueResourceContext context) =>
+        TryGetResourceId(context, out var resourceId) ? resourceId : ResourceId;
+
+    /// <inheritdoc />
+    public bool TryGetResourceId(ConfiglueResourceContext context, out ResourceId resourceId)
+    {
+        if (_configuredResourceId is { } configuredResourceId)
+        {
+            resourceId = configuredResourceId;
+            return true;
+        }
+
+        if (_reader is IResourceIdentity identity)
+        {
+            return identity.TryGetResourceId(context, out resourceId);
+        }
+
+        resourceId = ResourceId;
+        return true;
+    }
+
     /// <summary>A writer that transforms bytes before persisting them, if the resource is writable.</summary>
     public IResourceWriter? Writer { get; }
 
@@ -60,11 +89,16 @@ public sealed class TransformingResource
         _backupRecovery?.AutomaticBackupRecoveryEnabled == true;
 
     /// <inheritdoc />
+    public ValueTask<ResourceReadResult> ReadAsync(CancellationToken cancellationToken = default) =>
+        ReadAsync(ConfiglueResourceContext.Default, cancellationToken);
+
+    /// <inheritdoc />
     public async ValueTask<ResourceReadResult> ReadAsync(
+        ConfiglueResourceContext context,
         CancellationToken cancellationToken = default
     )
     {
-        var result = await _reader.ReadAsync(cancellationToken).ConfigureAwait(false);
+        var result = await _reader.ReadAsync(context, cancellationToken).ConfigureAwait(false);
         return result.Status == StateReadStatus.Success
             ? result with
             {
@@ -74,7 +108,23 @@ public sealed class TransformingResource
     }
 
     /// <inheritdoc />
+    public ValueTask<ResourceReadResult?> TryRecoverLatestBackupAsync(
+        string? expectedRevision,
+        bool expectedMissing,
+        Func<ResourceReadResult, CancellationToken, ValueTask<bool>> validate,
+        CancellationToken cancellationToken = default
+    ) =>
+        TryRecoverLatestBackupAsync(
+            ConfiglueResourceContext.Default,
+            expectedRevision,
+            expectedMissing,
+            validate,
+            cancellationToken
+        );
+
+    /// <inheritdoc />
     public async ValueTask<ResourceReadResult?> TryRecoverLatestBackupAsync(
+        ConfiglueResourceContext context,
         string? expectedRevision,
         bool expectedMissing,
         Func<ResourceReadResult, CancellationToken, ValueTask<bool>> validate,
@@ -89,6 +139,7 @@ public sealed class TransformingResource
 
         var restored = await _backupRecovery
             .TryRecoverLatestBackupAsync(
+                context,
                 expectedRevision,
                 expectedMissing,
                 async (candidate, token) =>
@@ -125,8 +176,15 @@ public sealed class TransformingResource
         public ValueTask<StateWriteResult> WriteAsync(
             ResourceWriteRequest request,
             CancellationToken cancellationToken = default
+        ) => WriteAsync(ConfiglueResourceContext.Default, request, cancellationToken);
+
+        public ValueTask<StateWriteResult> WriteAsync(
+            ConfiglueResourceContext context,
+            ResourceWriteRequest request,
+            CancellationToken cancellationToken = default
         ) =>
             writer.WriteAsync(
+                context,
                 new ResourceWriteRequest(
                     owner.TransformWrite(request.Content),
                     Condition: request.Condition,
@@ -154,6 +212,9 @@ public sealed class TransformingResource
 
         public ResourceId ResourceId => _owner.ResourceId;
 
+        public ResourceId GetResourceId(ConfiglueResourceContext context) =>
+            _owner.GetResourceId(context);
+
         public ValueTask<StateWriteResult> WriteBatchAsync(
             IReadOnlyList<ResourceWriteMutation> mutations,
             CancellationToken cancellationToken = default
@@ -179,7 +240,8 @@ public sealed class TransformingResource
                         return _owner.TransformWrite(mutation.Apply(decoded));
                     },
                     scope: mutation.Scope,
-                    canCompose: mutation.CanCompose
+                    canCompose: mutation.CanCompose,
+                    context: mutation.Context
                 );
             }
 

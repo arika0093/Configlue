@@ -25,7 +25,7 @@ public sealed class StateSourceSetBuilder<T>
             reader as IStateWriter<T>,
             reader as IStateWatcher,
             physicalOrigin,
-            resourceId ?? (reader as IResourceIdentity)?.ResourceId,
+            resourceId,
             logicalDescriptor
         );
         return Add(source.Id, reader, priority, fallbackCondition, physicalOrigin, resourceId);
