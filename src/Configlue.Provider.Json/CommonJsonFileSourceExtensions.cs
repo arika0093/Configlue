@@ -14,7 +14,9 @@ public static class CommonJsonFileSourceExtensions
     )
     {
         ArgumentNullException.ThrowIfNull(source);
-        var providerOptions = source.GetOrCreateProviderOptions(static () => new JsonProviderOptions());
+        var providerOptions = source.GetOrCreateProviderOptions(static () =>
+            new JsonProviderOptions()
+        );
         providerOptions.SerializerOptions = options;
         Apply(source, providerOptions);
         return source;
@@ -38,7 +40,9 @@ public static class CommonJsonFileSourceExtensions
     {
         ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(options);
-        var providerOptions = source.GetOrCreateProviderOptions(static () => new JsonProviderOptions());
+        var providerOptions = source.GetOrCreateProviderOptions(static () =>
+            new JsonProviderOptions()
+        );
         providerOptions.SerializerOptions = options;
         Apply(source, providerOptions);
         return source;
