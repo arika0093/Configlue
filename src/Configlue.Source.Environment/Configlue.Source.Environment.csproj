@@ -7,6 +7,6 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../Configlue.Abstraction/Configlue.Abstraction.csproj" />
-    <ProjectReference Include="../Configlue.Extensibility/Configlue.Extensibility.csproj" />
+    <ProjectReference Include="../Configlue.Core/Configlue.Core.csproj" />
   </ItemGroup>
 </Project>

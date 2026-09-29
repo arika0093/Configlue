@@ -2,7 +2,6 @@
   <Folder Name="/src/">
     <Project Path="src/Configlue.Abstraction/Configlue.Abstraction.csproj" />
     <Project Path="src/Configlue.Core/Configlue.Core.csproj" />
-    <Project Path="src/Configlue.Extensibility/Configlue.Extensibility.csproj" />
     <Project Path="src/Configlue.JsonSchema/Configlue.JsonSchema.csproj" />
     <Project Path="src/Configlue.Generator/Configlue.Generator.csproj" />
     <Project Path="src/Configlue.Extensions.DI/Configlue.Extensions.DI.csproj" />
@@ -18,15 +17,11 @@
   </Folder>
   <Folder Name="/src/Sources/">
     <Project Path="src/Configlue.Source.Environment/Configlue.Source.Environment.csproj" />
-    <Project Path="src/Configlue.Source.Presets/Configlue.Source.Presets.csproj" />
-    <Project Path="src/Configlue.Source.Presets.Xml/Configlue.Source.Presets.Xml.csproj" />
-    <Project Path="src/Configlue.Source.Presets.Yaml/Configlue.Source.Presets.Yaml.csproj" />
     <Project Path="src/Configlue.Source.CommandLine/Configlue.Source.CommandLine.csproj" />
   </Folder>
   <Folder Name="/src/Resources/">
     <Project Path="src/Configlue.Resource.Dapr/Configlue.Resource.Dapr.csproj" />
     <Project Path="src/Configlue.Resource.S3/Configlue.Resource.S3.csproj" />
-    <Project Path="src/Configlue.Resource.Zip/Configlue.Resource.Zip.csproj" />
     <Project Path="src/Configlue.Resource.Http/Configlue.Resource.Http.csproj" />
     <Project Path="src/Configlue.Resource.Http.AspNetCore/Configlue.Resource.Http.AspNetCore.csproj" />
   </Folder>
