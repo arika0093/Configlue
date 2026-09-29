@@ -121,7 +121,6 @@ export default defineConfig({
               translations: { ja: 'スキーマと移行' },
               items: [
                 'getting-started/08-json-schema',
-                'advanced/json-schema-and-testing',
                 'getting-started/09-migration',
                 'migration/schema-migration',
                 'migration/storage-migration',
@@ -134,10 +133,26 @@ export default defineConfig({
               items: [
                 'getting-started/05-encrypted-secrets',
                 'advanced/backups-and-observability',
-                'getting-started/10-native-aot',
-                'advanced/native-aot',
               ],
             },
+          ],
+        },
+        {
+          label: 'Concepts',
+          translations: { ja: '概念' },
+          items: [
+            'concepts/lifetime-and-precedence',
+            'concepts/concurrency-and-write-results',
+          ],
+        },
+        {
+          label: 'Advanced',
+          translations: { ja: '高度な機能' },
+          items: [
+            'advanced/json-schema-and-testing',
+            'getting-started/10-native-aot',
+            'advanced/native-aot',
+            'advanced/reactive-integration',
           ],
         },
         {
