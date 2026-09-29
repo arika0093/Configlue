@@ -1,5 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
+    <PackageReference Include="Npgsql" Version="10.0.3" />
     <PackageReference Include="Microsoft.AspNetCore.TestHost" Version="10.0.0" />
     <PackageReference Include="System.CommandLine" Version="2.0.12" />
   </ItemGroup>
@@ -26,6 +27,7 @@
     <ProjectReference Include="../../src/Configlue.Resource.S3/Configlue.Resource.S3.csproj" />
     <ProjectReference Include="../../src/Configlue.Resource.Http/Configlue.Resource.Http.csproj" />
     <ProjectReference Include="../../src/Configlue.Resource.Http.AspNetCore/Configlue.Resource.Http.AspNetCore.csproj" />
+    <ProjectReference Include="../../src/Configlue.Resource.PostgreSql/Configlue.Resource.PostgreSql.csproj" />
     <ProjectReference Include="../../src/Configlue.Testing/Configlue.Testing.csproj" />
     <ProjectReference Include="../../src/Configlue.Transformer.AES/Configlue.Transformer.AES.csproj" />
   </ItemGroup>

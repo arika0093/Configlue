@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>Configlue.Resource.PostgreSql</AssemblyName>
+    <RootNamespace>Configlue.Resource.PostgreSql</RootNamespace>
+    <IsPackable>true</IsPackable>
+    <PackageDescription>Direct PostgreSQL resources for Configlue.</PackageDescription>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Npgsql" Version="10.0.3" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Configlue.Abstraction/Configlue.Abstraction.csproj" />
+    <ProjectReference Include="../Configlue.Core/Configlue.Core.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Configlue.Tests" />
+  </ItemGroup>
+</Project>

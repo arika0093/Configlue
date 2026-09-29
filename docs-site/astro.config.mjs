@@ -168,6 +168,7 @@ export default defineConfig({
             'reference/http-resource-protocol',
             'reference/s3-object-resource',
             'reference/dapr-state-resource',
+            'reference/postgresql-resource',
           ],
         },
       ],

@@ -24,6 +24,7 @@
     <Project Path="src/Configlue.Resource.S3/Configlue.Resource.S3.csproj" />
     <Project Path="src/Configlue.Resource.Http/Configlue.Resource.Http.csproj" />
     <Project Path="src/Configlue.Resource.Http.AspNetCore/Configlue.Resource.Http.AspNetCore.csproj" />
+    <Project Path="src/Configlue.Resource.PostgreSql/Configlue.Resource.PostgreSql.csproj" />
   </Folder>
   <Folder Name="/src/Transformers/">
     <Project Path="src/Configlue.Transformer.AES/Configlue.Transformer.AES.csproj" />

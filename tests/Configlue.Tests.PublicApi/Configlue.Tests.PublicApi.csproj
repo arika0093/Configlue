@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
     <PackageReference Include="PublicApiGenerator" Version="11.5.4" />
+    <PackageReference Include="Npgsql" Version="10.0.3" />
     <PackageReference
       Include="Microsoft.CodeAnalysis.CSharp"
       Version="4.11.0"
@@ -26,6 +27,7 @@
     <ProjectReference Include="../../src/Configlue.Resource.S3/Configlue.Resource.S3.csproj" />
     <ProjectReference Include="../../src/Configlue.Resource.Http/Configlue.Resource.Http.csproj" />
     <ProjectReference Include="../../src/Configlue.Resource.Http.AspNetCore/Configlue.Resource.Http.AspNetCore.csproj" />
+    <ProjectReference Include="../../src/Configlue.Resource.PostgreSql/Configlue.Resource.PostgreSql.csproj" />
     <ProjectReference Include="../../src/Configlue.Testing/Configlue.Testing.csproj" />
     <ProjectReference Include="../../src/Configlue.Transformer.AES/Configlue.Transformer.AES.csproj" />
     <ProjectReference Include="../../src/Configlue.Generator/Configlue.Generator.csproj" />

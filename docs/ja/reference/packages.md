@@ -22,8 +22,10 @@ description: 機能ごとの NuGet パッケージを探す。
 | `Configlue.Resource.Http.AspNetCore` | HTTP リソース配信の ASP.NET Core エンドポイント。 |
 | `Configlue.Resource.Dapr` | ETag concurrency check つき Dapr State Management resource と source 登録。 |
 | `Configlue.Resource.S3` | ETag revision を使う Amazon S3 object resource と source 登録。 |
+| `Configlue.Resource.PostgreSql` | subject key ごとの row、revision の atomic check、`LISTEN`/`NOTIFY` watcher を備えた任意の PostgreSQL byte resource。 |
 | `Configlue.Transformer.AES` | Resource と Codec の間で state bytes を AES-GCM 暗号化・認証。パスフレーズからの鍵導出にも対応します。 |
 
 パッケージ参照と版の正本はプロジェクトファイルです。任意プロバイダーは必要になったら直接インストールしてください。まずは [インストール](../getting-started/installation.md) からどうぞ。
 
 object storage は [Amazon S3 object resource](./s3-object-resource.md)を参照してください。
+PostgreSQL への直接保存は [PostgreSQL resource](./postgresql-resource.md)を参照してください。

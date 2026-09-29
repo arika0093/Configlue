@@ -12,6 +12,7 @@ using Configlue.Provider.Yaml;
 using Configlue.Resource.Dapr;
 using Configlue.Resource.Http;
 using Configlue.Resource.Http.AspNetCore;
+using Configlue.Resource.PostgreSql;
 using Configlue.Resource.S3;
 using Configlue.Resource.Zip;
 using Configlue.Source.CommandLine;
@@ -271,6 +272,9 @@ public sealed class PublicApiCheckTest
 
     [Test]
     public void S3() => PublicApiCheck.Check<S3ObjectSourceOptions>();
+
+    [Test]
+    public void PostgreSql() => PublicApiCheck.Check<PostgreSqlStateSourceOptions>();
 
     [Test]
     public void Testing() => PublicApiCheck.Check<InMemoryResource>();

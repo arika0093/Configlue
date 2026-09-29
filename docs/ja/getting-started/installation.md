@@ -34,6 +34,7 @@ dotnet add package Configlue
 | ASP.NET Core から Configlue の HTTP リソースを配信する | `Configlue.Resource.Http.AspNetCore` |
 | Dapr State Management | `Configlue.Resource.Dapr` |
 | Amazon S3 | `Configlue.Resource.S3` |
+| PostgreSQL への直接保存 | `Configlue.Resource.PostgreSql` |
 | ZIP アーカイブ | `Configlue.Resource.Zip` |
 | AES-GCM 暗号化 | `Configlue.Transformer.AES` |
 | テスト用のインメモリ実装 | `Configlue.Testing` |

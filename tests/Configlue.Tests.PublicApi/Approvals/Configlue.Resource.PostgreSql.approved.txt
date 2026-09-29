@@ -1,0 +1,45 @@
+[assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/arika0093/Configlue")]
+namespace Configlue.Resource.PostgreSql
+{
+    public sealed class PostgreSqlResource : Configlue.Resources.IResourceIdentity, Configlue.Resources.IResourceReader, Configlue.Resources.IResourceWriter, Configlue.State.IStateWatcher, System.IDisposable
+    {
+        public PostgreSqlResource(Npgsql.NpgsqlDataSource dataSource, string resourceNamespace, Configlue.Resource.PostgreSql.PostgreSqlResourceOptions? options = null) { }
+        public PostgreSqlResource(System.Func<Configlue.RouteKey, Npgsql.NpgsqlDataSource> dataSourceResolver, string resourceNamespace, Configlue.Resource.PostgreSql.PostgreSqlResourceOptions? options = null) { }
+        public Configlue.Resources.ResourceId ResourceId { get; }
+        public string ResourceNamespace { get; }
+        public void Dispose() { }
+        public Configlue.Resources.ResourceId GetResourceId(Configlue.Resources.ConfiglueResourceContext context) { }
+        public System.Threading.Tasks.ValueTask<Configlue.Resources.ResourceReadResult> ReadAsync(System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Configlue.Resources.ResourceReadResult> ReadAsync(Configlue.Resources.ConfiglueResourceContext context, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask WaitForChangeAsync(string? observedRevision, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask WaitForChangeAsync(Configlue.Resources.ConfiglueResourceContext context, string? observedRevision, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Configlue.State.StateWriteResult> WriteAsync(Configlue.Resources.ResourceWriteRequest request, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Configlue.State.StateWriteResult> WriteAsync(Configlue.Resources.ConfiglueResourceContext context, Configlue.Resources.ResourceWriteRequest request, System.Threading.CancellationToken cancellationToken = default) { }
+    }
+    public sealed class PostgreSqlResourceOptions
+    {
+        public PostgreSqlResourceOptions() { }
+        public Configlue.Resources.ResourceId? ResourceId { get; init; }
+        public string SchemaName { get; init; }
+        public string TableName { get; init; }
+    }
+    public sealed class PostgreSqlStateSourceOptions
+    {
+        public PostgreSqlStateSourceOptions() { }
+        public required object Codec { get; init; }
+        public Configlue.Codecs.StateCodecContext CodecContext { get; init; }
+        public Npgsql.NpgsqlDataSource? DataSource { get; init; }
+        public System.Func<System.IServiceProvider?, Npgsql.NpgsqlDataSource>? DataSourceFactory { get; init; }
+        public System.Func<System.IServiceProvider?, Configlue.RouteKey, Npgsql.NpgsqlDataSource>? DataSourceResolver { get; init; }
+        public Configlue.Sources.StateFallbackCondition FallbackCondition { get; init; }
+        public string? Id { get; init; }
+        public int Priority { get; init; }
+        public required string ResourceNamespace { get; init; }
+        public Configlue.Resource.PostgreSql.PostgreSqlResourceOptions? ResourceOptions { get; init; }
+        public bool Writable { get; init; }
+    }
+    public static class PostgreSqlStateSourceRegistration
+    {
+        public static Configlue.ConfiglueSourceRegistration FromPostgreSql(this Configlue.ConfiglueSourceSetBuilder sources, Configlue.Resource.PostgreSql.PostgreSqlStateSourceOptions options) { }
+    }
+}
