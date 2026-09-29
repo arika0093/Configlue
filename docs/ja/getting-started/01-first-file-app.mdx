@@ -1,28 +1,15 @@
 ---
-title: "STEP 1: はじめての設定アプリ"
-description: CommonSource を使った設定の読み書きと、変更通知の基本を学びます。
+title: "STEP 1: 1つのファイルを読み書きする"
+description: 1つのモデルと1つの JSON ファイルから始め、疎な保存を確認する。
 ---
 
-import { Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+import { Steps } from '@astrojs/starlight/components';
 
-このチュートリアルでは、段階的に設定アプリを構築していきます。
-STEP 1 では、Configlue の標準プリセットである **CommonSource** を使い、設定の読み込み・保存・外部変更通知の基本を学びます。
-
-<Tabs syncKey="di">
-<TabItem label="DI なし (コンソール・デスクトップ)">
-DI コンテナーを使わず、`ConfiglueApp.CreateContext` を使ってコンテキストを初期化します。
-</TabItem>
-<TabItem label="DI あり (ASP.NET Core・Worker)">
-`services.AddConfiglue` を使い、依存性注入（DI）コンテナーに設定を登録します。
-</TabItem>
-</Tabs>
+チュートリアルでは通常のコンソールプロジェクトを使い、新しい概念を一つずつ追加します。最初のステップでは、設定の入力元を1つの JSON ファイルだけにします。
 
 <Steps>
 
-1. ### モデルを宣言する
-
-   設定の器となるクラスを宣言します。
-   `[ConfiglueModel]` 属性を付与し、クラスに `partial` 修飾子を付けます。
+1. ### 設定モデルを定義する
 
    ```csharp
    using Configlue;
@@ -35,91 +22,35 @@ DI コンテナーを使わず、`ConfiglueApp.CreateContext` を使ってコン
    }
    ```
 
-   属性の第 1 引数は、設定の識別子（スキーマ ID）です。
-   アプリケーション内で一意になる文字列を指定します。
+   `[ConfiglueModel]` と `partial` が必要なのは、Configlue が管理するルートモデルです。
 
-2. ### コンテキストを作る
-
-   設定の読み書きを管理するコンテキストを生成します。
-   Configlue では、標準レイヤーを自動構成する `UseCommonSources` の利用を推奨しています。
-
-   <Tabs syncKey="di">
-   <TabItem label="DI なし">
+2. ### JSON ファイルを1つ登録する
 
    ```csharp
    using Configlue;
-   using Configlue.Source.Presets;
+   using Configlue.Provider.Json;
 
-   await using var context = ConfiglueApp.CreateContext(conf =>
-       conf.UseCommonSources(sources =>
-       {
-           sources.WithGlobal("TutorialApp");
-           sources.WithLocal();
-           sources.Add<AppSettings>();
-       })
-   );
+   await using var context = ConfiglueApp.CreateContext(config =>
+       config.Add<AppSettings>(model =>
+           model.UseJsonFile("settings.json")));
 
    var options = context.GetOptions<AppSettings>();
    ```
 
-   </TabItem>
-   <TabItem label="DI あり">
+   `UseJsonFile` が作成したファイルリソースと watcher は context が所有し、context の破棄時に停止します。
+
+3. ### 現在の値を読む
 
    ```csharp
-   // Program.cs
-   using Configlue;
-   using Configlue.Source.Presets;
-
-   builder.Services.AddConfiglue(conf =>
-       conf.UseCommonSources(sources =>
-       {
-           sources.WithGlobal("TutorialApp");
-           sources.WithLocal();
-           sources.Add<AppSettings>();
-       })
-   );
-   ```
-
-   ```csharp
-   // 利用側のサービスクラス
-   using Configlue;
-
-   public class Greeter(IWritableOptions<AppSettings> options)
-   {
-       public async Task RunAsync()
-       {
-           var settings = await options.GetValueAsync();
-           Console.WriteLine($"Hello, {settings.Name}!");
-       }
-   }
-   ```
-
-   </TabItem>
-   </Tabs>
-
-   プリセットのスコープ内で宣言した層だけが有効になります。
-
-   - **ユーザー共通設定**: OS 標準の保存先（Windows: `%APPDATA%/TutorialApp`, macOS/Linux: `~/.config/TutorialApp`）
-   - **ローカル設定**: プロジェクトのカレントディレクトリの `settings.json`
-
-   > [!NOTE]
-   > 単一のローカルファイルのみを直接扱いたい場合は、代替手段として `model.UseDefaultJsonFile()` や `model.UseJsonFile("settings.json")` も指定できます。
-
-3. ### 読み取り・監視・保存を行う
-
-   <Tabs syncKey="di">
-   <TabItem label="DI なし">
-
-   ```csharp
-   // 1. 現在の設定を読み取ります
    var current = await options.GetValueAsync();
-   Console.WriteLine($"Hello, {current.Name}! (run #{current.RunCount})");
+   Console.WriteLine($"Hello, {current.Name}! Run #{current.RunCount}");
+   ```
 
-   // 2. 外部からファイルが書き換えられたときの変更通知を登録します
-   using var subscription = options.OnChange(updated =>
-       Console.WriteLine($"ファイルが更新されました: {updated.Name}"));
+   `settings.json` が存在しない場合でも、モデルの初期値から有効な設定値を組み立てられます。
 
-   // 3. 変更したい項目だけを指定して保存します
+4. ### 変更した項目だけを保存する
+
+   ```csharp
    await options.SaveAsync(patch =>
    {
        patch.Name = "Ada";
@@ -127,50 +58,8 @@ DI コンテナーを使わず、`ConfiglueApp.CreateContext` を使ってコン
    });
    ```
 
-   </TabItem>
-   <TabItem label="DI あり">
-
-   ```csharp
-   // DI コンテナーから IWritableOptions<AppSettings> を注入して実行します
-   var current = await options.GetValueAsync();
-   Console.WriteLine($"Hello, {current.Name}! (run #{current.RunCount})");
-
-   using var subscription = options.OnChange(updated =>
-       Console.WriteLine($"ファイルが更新されました: {updated.Name}"));
-
-   await options.SaveAsync(patch =>
-   {
-       patch.Name = "Ada";
-       patch.RunCount = current.RunCount + 1;
-   });
-   ```
-
-   </TabItem>
-   </Tabs>
-
-   `SaveAsync` に渡すパッチは「疎（スパース）な変更」です。
-   指定したプロパティのみが保存対象となり、指定していないプロパティは既存の値をそのまま維持します。
-
-   保存を実行すると、カレントディレクトリに `settings.json` が生成されます。
-
-   ```json
-   {
-     "$version": 1,
-     "Name": "Ada",
-     "RunCount": 1
-   }
-   ```
-
-   初回実行時などで設定ファイルが存在しない場合、例外は発生せず、モデルに定義した初期値が使われます。
+   `SaveAsync` は疎な Patch を保存します。モデルに初期値があるという理由だけで、変更していない項目までファイルへ書き出すことはありません。
 
 </Steps>
 
-## つまずきやすい点
-
-- **`partial` キーワードの付け忘れ**: クラスに `partial` が付いていないと、ソースジェネレーターによるコード生成が行われません。
-- **登録前の `GetOptions` 呼び出し**: `GetOptions` を呼ぶ前に、必ず `conf.Add<T>` でモデルを登録してください。
-- **保存先のルール**: `UseCommonSources` を使っている場合、既定の保存先はカレントディレクトリの `settings.json`（ローカル設定）になります。
-
----
-
-次のステップ: [STEP 2: 現実的なモデルに育てる](./02-real-world-model.md) では、入れ子構造やコレクションを追加し、実用的な設定クラスを定義します。
+次: [STEP 2: モデルを実用的な形に広げる](./02-real-world-model.md)。

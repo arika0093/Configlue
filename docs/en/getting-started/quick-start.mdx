@@ -1,97 +1,59 @@
 ---
 title: Quick Start
-description: Experience layered configuration reading, watching, and saving in 5 minutes with CommonSource.
+description: Read and save one JSON settings file in a few minutes.
 ---
 
-import { Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+import { Steps } from '@astrojs/starlight/components';
 
-This guide uses Configlue's standard **CommonSource** preset to demonstrate reading, watching, and saving layered configuration without a dependency injection (DI) container.
+This page is for trying Configlue with the smallest useful example. It uses one model and one JSON file; layering and dependency injection come later.
 
 <Steps>
 
-1. ### Declare a model
+1. ### Create a file-based app
 
-   Create an ordinary C# class with the `[ConfiglueModel]` attribute and mark it `partial`.
-   The Roslyn source generator generates diffing and fragment support.
+   Save the following as `app.cs`. .NET 10 file-based apps can restore the package directly from the source file.
 
    ```csharp
-   using Configlue;
+   #:package Configlue@*
 
-   [ConfiglueModel("example.quick-settings", Version = 1)]
-   public partial class QuickSettings
+   using Configlue;
+   using Configlue.Provider.Json;
+
+   await using var context = ConfiglueApp.CreateContext(config =>
+       config.Add<AppSettings>(model =>
+           model.UseJsonFile("settings.json")));
+
+   var options = context.GetOptions<AppSettings>();
+
+   var current = await options.GetValueAsync();
+   Console.WriteLine($"Hello, {current.Name}! Run #{current.RunCount}");
+
+   await options.SaveAsync(patch =>
+   {
+       patch.Name = "Ada";
+       patch.RunCount = current.RunCount + 1;
+   });
+
+   [ConfiglueModel("example.quick-start", Version = 1)]
+   public partial class AppSettings
    {
        public string Name { get; set; } = "World";
        public int RunCount { get; set; }
    }
    ```
 
-2. ### Create a context with CommonSource
+2. ### Run it
 
-   Call `UseCommonSources` to create the configuration context.
-   This single call configures a layered architecture spanning the user's global settings and a local file.
-
-   ```csharp
-   using Configlue;
-   using Configlue.Source.Presets;
-
-   await using var context = ConfiglueApp.CreateContext(conf =>
-       conf.UseCommonSources(sources =>
-       {
-           sources.WithGlobal("QuickApp");
-           sources.WithLocal();
-           sources.Add<QuickSettings>();
-       })
-   );
-
-   var options = context.GetOptions<QuickSettings>();
+   ```sh
+   dotnet run app.cs
    ```
 
-   CommonSource automatically layers the following:
-   - **Global (Shared)**: Located in the OS-standard per-user configuration folder.
-   - **Local (Project)**: Located in the current working directory (`settings.json`).
+   On the first read, no settings file exists, so the model defaults are used. `SaveAsync` then writes only the members changed by the patch to `settings.json`.
 
-3. ### Read, watch, and save
+3. ### Run it again
 
-   ```csharp
-   // 1. Read the effective combined value
-   var current = await options.GetValueAsync();
-   Console.WriteLine($"Hello, {current.Name}! (Run #{current.RunCount})");
-
-   // 2. Receive notifications when external file edits occur
-   using var subscription = options.OnChange(updated =>
-       Console.WriteLine($"Settings changed: {updated.Name}"));
-
-   // 3. Save a sparse patch
-   await options.SaveAsync(patch =>
-   {
-       patch.Name = "Ada";
-       patch.RunCount = current.RunCount + 1;
-   });
-   ```
-
-   Saving creates or updates `settings.json` in the current directory with only the modified fields:
-
-   ```json
-   {
-     "$version": 1,
-     "Name": "Ada",
-     "RunCount": 1
-   }
-   ```
-
-4. ### Inspect value provenance
-
-   When multiple sources contribute values, inspect where each value originated using `GetDetailsAsync`:
-
-   ```csharp
-   var details = await options.GetDetailsAsync();
-   Console.WriteLine(details.Name);
-   ```
+   The second run reads the values written to `settings.json` and increments `RunCount` again.
 
 </Steps>
 
-## Next Steps
-
-- For host applications using dependency injection, see [Application setup](../basic-usage/app-setup.md).
-- To build a step-by-step understanding, follow [STEP 1: Your first file-based app](../getting-started/01-first-file-app.md).
-- For complete customization options, see [Common layered sources](../basic-usage/common-sources.md).
+The [tutorial](./01-first-file-app.md) starts from the same single-file storage model and introduces one Configlue concept at a time.

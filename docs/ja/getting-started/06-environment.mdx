@@ -1,103 +1,54 @@
 ---
-title: "STEP 6: 環境変数に対応する"
-description: CommonSource での環境変数レイヤーの有効化と、読み取り専用値が存在する際の保存の振る舞いを学びます。
+title: "STEP 4: 環境変数で上書きする"
+description: 読み取り専用で優先順位の高いソースを追加し、上書き中の保存を理解する。
 ---
 
-import { Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+import { Steps } from '@astrojs/starlight/components';
 
-コンテナ環境（Docker）や CI/CD パイプラインでは、ファイルではなく環境変数を用いて設定値を上書きしたい場面が多くあります。
-環境変数は**読み取り専用**のソースです。
-プリセットのスコープ内で `WithEnvironment` を宣言すると、環境変数レイヤーを追加できます。
+環境変数を追加すると、初めて読み取り専用の上書きが登場します。これによって、読み取り時の優先順位と書き込み先が別の規則であることを確認できます。
 
 <Steps>
 
-1. ### CommonSource で環境変数を有効化する
-
-   `WithEnvironment` に環境変数の接頭辞（プレフィックス）を指定します。
-
-   <Tabs syncKey="di">
-   <TabItem label="DI なし">
+1. ### Environment レイヤーを追加する
 
    ```csharp
-   using Configlue;
-   using Configlue.Source.Presets;
-
-   await using var context = ConfiglueApp.CreateContext(conf =>
-       conf.UseCommonSources(sources =>
+   await using var context = ConfiglueApp.CreateContext(config =>
+       config.UseCommonSources(sources =>
        {
            sources.WithGlobal("TutorialApp");
            sources.WithLocal();
            sources.WithEnvironment("EXAMPLE");
            sources.Add<AppSettings>();
-       })
-   );
+       }));
    ```
 
-   </TabItem>
-   <TabItem label="DI あり">
+2. ### 入れ子の値を環境変数で指定する
 
-   ```csharp
-   using Configlue;
-   using Configlue.Source.Presets;
+   プロパティ階層は `__` で区切ります。
 
-   builder.Services.AddConfiglue(conf =>
-       conf.UseCommonSources(sources =>
-       {
-           sources.WithGlobal("TutorialApp");
-           sources.WithLocal();
-           sources.WithEnvironment("EXAMPLE");
-           sources.Add<AppSettings>();
-       })
-   );
-   ```
-
-   </TabItem>
-   </Tabs>
-
-2. ### 環境変数による値の上書きルール
-
-   環境変数の名前は、二重アンダースコア（`__`）でプロパティの階層を区切ります。
-   大文字と小文字は区別されません。
-
-   たとえば `Server.Port` を上書きしたい場合、以下の環境変数を設定します。
-
-   ```bash
+   ```sh
    export EXAMPLE__SERVER__PORT=9000
    ```
 
-   CommonSource において、環境変数レイヤーはファイルレイヤーよりも高い優先度を持ちます。
-   そのため、ローカルファイルに別の値が記述されていても、環境変数の値が優先して採用されます。
+   Environment はファイル層より優先順位が高いため、有効な `Server.Port` は `9000` になります。
 
-3. ### 読み取り専用値があるときの保存と競合
-
-   環境変数は読み取り専用であるため、アプリケーションから書き換えることはできません。
-   では、`EXAMPLE__SERVER__PORT` で値が覆われている状態で `SaveAsync` を呼び出すとどうなるでしょうか。
+3. ### 保存前に上書き状態を調べる
 
    ```csharp
-   // EXAMPLE__SERVER__PORT が設定されている場合、この保存は失敗します
-   await options.SaveAsync(patch => patch.Server!.Port = 9000);
-   ```
-
-   この保存は、**`StateConflictException`（競合例外）** を投げて中断されます。
-   上位の読み取り専用ソースによって隠されてしまう変更を無言でファイルに書き込むと、実行結果とファイルの内容の乖離（不整合）が発生するためです。
-
-   安全に対処するには、以下のいずれかを選択します。
-
-   - 実行環境の環境変数を解除してから保存する。
-   - 環境変数で上書きされていない他のプロパティのみを保存する。
-   - `GetDetailsAsync` を使って、あらかじめ値の出どころを確認してから保存を行う。
-
-4. ### 出どころの確認
-
-   ```csharp
+   var options = context.GetOptions<AppSettings>();
    var details = await options.GetDetailsAsync();
-   Console.WriteLine(details.Server.Port);
+
+   Console.WriteLine(details.Server.Port.Value);
+   Console.WriteLine(details.Server.Port.IsEditable);
+   Console.WriteLine(details.Server.Port.Source?.Locator);
    ```
 
-   出力結果には、現在の実効値だけでなく、値を提供しているソース名（環境変数レイヤーかファイルレイヤーか）が表示されます。
+   Local が書き込み可能でも、読み取り専用の Environment が同じ項目を上書きしている間は、通常の保存経路から有効値を変更できない場合があります。
+
+4. ### 競合を明示的に扱う
+
+   上書きされた項目へ別の値を保存しようとすると、`StateConflictException` が発生することがあります。ファイルへの書き込みが成功すれば有効値も変わると仮定せず、環境変数を外す、別の項目だけを保存する、ソース構成を変更するといった方法を選びます。
 
 </Steps>
 
----
-
-次のステップ: [STEP 7: HTTP ソースに対応する](./07-http-source.md) では、CommonSource の上にリモート配信された設定を重ねる方法を学びます。
+次: [STEP 5: 変更を監視して検証する](./04-validation.md)。

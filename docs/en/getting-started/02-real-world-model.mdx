@@ -1,29 +1,22 @@
 ---
-title: "STEP 2: Grow a realistic model"
-description: Add nesting, sub-objects, and collections to create realistic settings files.
+title: "STEP 2: Grow the model"
+description: Add nested objects and collections without changing the basic read/write workflow.
 ---
 
-import { Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+import { Steps } from '@astrojs/starlight/components';
 
-Here we extend the simple model from STEP 1 with nested server, database, and feature collection structures.
-The registration and usage patterns remain identical.
+A settings model can contain ordinary nested classes and collections. The registration and `GetValueAsync` / `SaveAsync` workflow stays the same.
 
 <Steps>
 
-1. ### Extend the model
-
-   Only the root configuration model requires `[ConfiglueModel]`.
-   Nested classes do not need any attributes.
+1. ### Add nested settings
 
    ```csharp
-   using Configlue;
-
    [ConfiglueModel("tutorial.settings", Version = 1)]
    public partial class AppSettings
    {
        public string Name { get; set; } = "ExampleApp";
        public ServerSettings Server { get; set; } = new();
-       public DatabaseSettings Database { get; set; } = new();
        public List<string> EnabledFeatures { get; set; } = [];
    }
 
@@ -32,101 +25,32 @@ The registration and usage patterns remain identical.
        public string Host { get; set; } = "localhost";
        public int Port { get; set; } = 8080;
    }
-
-   public class DatabaseSettings
-   {
-       public string Host { get; set; } = "localhost";
-       public int Port { get; set; } = 5432;
-       public string? Password { get; set; }
-   }
    ```
 
-2. ### Registration remains the same
+   Nested classes do not need `[ConfiglueModel]` when they are part of the root model.
 
-   <Tabs syncKey="di">
-   <TabItem label="Without DI">
-
-   ```csharp
-   using Configlue;
-   using Configlue.Source.Presets;
-
-   await using var context = ConfiglueApp.CreateContext(conf =>
-       conf.UseCommonSources(sources =>
-       {
-           sources.WithGlobal("TutorialApp");
-           sources.WithLocal();
-           sources.Add<AppSettings>();
-       })
-   );
-
-   var options = context.GetOptions<AppSettings>();
-   ```
-
-   </TabItem>
-   <TabItem label="With DI">
+2. ### Save a nested member sparsely
 
    ```csharp
-   using Configlue;
-   using Configlue.Source.Presets;
-
-   builder.Services.AddConfiglue(conf =>
-       conf.UseCommonSources(sources =>
-       {
-           sources.WithGlobal("TutorialApp");
-           sources.WithLocal();
-           sources.Add<AppSettings>();
-       })
-   );
-   ```
-
-   </TabItem>
-   </Tabs>
-
-3. ### Edit nested properties and collections
-
-   ```csharp
-   // Update nested fields sparsely
    await options.SaveAsync(patch =>
    {
        patch.Server.Port = 9000;
-       patch.Database.Host = "db.internal";
    });
-
-   // Edit collections based on current effective values using an edit session
-   using var edit = await options.OpenEditSessionAsync();
-   edit.Value.EnabledFeatures.Add("audit-log");
-   await edit.CommitAsync();
    ```
 
-   Saved `settings.json`:
+   This operation contributes a value for `Server.Port` without turning every model default into persisted state.
 
-   ```json
-   {
-     "$version": 1,
-     "Name": "ExampleApp",
-     "Server": {
-       "Host": "localhost",
-       "Port": 9000
-     },
-     "Database": {
-       "Host": "db.internal",
-       "Port": 5432
-     },
-     "EnabledFeatures": [
-       "audit-log"
-     ]
-   }
-   ```
-
-4. ### Inspect provenance
+3. ### Replace a collection when needed
 
    ```csharp
-   var details = await options.GetDetailsAsync();
-   Console.WriteLine(details.Database.Host);
+   await options.SaveAsync(patch =>
+   {
+       patch.EnabledFeatures = ["audit-log", "metrics"];
+   });
    ```
+
+   For settings screens that edit many values as a mutable model, use an edit session later; patch saves remain the simpler choice for known fields.
 
 </Steps>
 
----
-
-Next: [STEP 3: Split shared and local](./03-global-local.md) covers layering and write destination targets.
+Next: [STEP 3: Combine global and local settings](./03-global-local.md).

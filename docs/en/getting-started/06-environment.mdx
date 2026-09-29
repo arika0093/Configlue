@@ -1,86 +1,54 @@
 ---
-title: "STEP 6: Environment variables"
-description: Enable environment variable overlays in CommonSource and understand read-only conflict behavior.
+title: "STEP 4: Add environment overrides"
+description: Add a read-only high-priority source and understand shadowed writes.
 ---
 
-import { Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+import { Steps } from '@astrojs/starlight/components';
 
-In containers (Docker) or CI/CD pipelines, settings are often injected via environment variables rather than files.
-Environment variables act as a **read-only** source.
-In the preset scope, declare the layer with `WithEnvironment`; the source is read-only.
+Environment variables introduce the first read-only override. This makes the difference between read priority and write destination visible.
 
 <Steps>
 
-1. ### Enable environment variables in CommonSource
-
-   Pass the environment variable prefix to `WithEnvironment`:
-
-   <Tabs syncKey="di">
-   <TabItem label="Without DI">
+1. ### Add the environment layer
 
    ```csharp
-   using Configlue;
-   using Configlue.Source.Presets;
-
-   await using var context = ConfiglueApp.CreateContext(conf =>
-       conf.UseCommonSources(sources =>
+   await using var context = ConfiglueApp.CreateContext(config =>
+       config.UseCommonSources(sources =>
        {
            sources.WithGlobal("TutorialApp");
            sources.WithLocal();
            sources.WithEnvironment("EXAMPLE");
            sources.Add<AppSettings>();
-       })
-   );
+       }));
    ```
 
-   </TabItem>
-   <TabItem label="With DI">
+2. ### Set a nested value
 
-   ```csharp
-   using Configlue;
-   using Configlue.Source.Presets;
+   Property paths use double underscores.
 
-   builder.Services.AddConfiglue(conf =>
-       conf.UseCommonSources(sources =>
-       {
-           sources.WithGlobal("TutorialApp");
-           sources.WithLocal();
-           sources.WithEnvironment("EXAMPLE");
-           sources.Add<AppSettings>();
-       })
-   );
-   ```
-
-   </TabItem>
-   </Tabs>
-
-2. ### Property naming and priority
-
-   Environment variables separate property paths with double underscores (`__`) and are case-insensitive:
-
-   ```bash
+   ```sh
    export EXAMPLE__SERVER__PORT=9000
    ```
 
-   The environment layer has higher priority than local and global files, overriding whatever values exist in those files.
+   The environment source has higher priority than the file layers, so the effective `Server.Port` becomes `9000`.
 
-3. ### Saving with read-only overrides (Conflict Detection)
-
-   Because environment variables cannot be written by the application, attempting to save a value that is currently overridden by an environment variable throws a **`StateConflictException`**:
+3. ### Inspect shadowing before saving
 
    ```csharp
-   // Throws StateConflictException if EXAMPLE__SERVER__PORT is currently set
-   await options.SaveAsync(patch => patch.Server!.Port = 9000);
+   var options = context.GetOptions<AppSettings>();
+   var details = await options.GetDetailsAsync();
+
+   Console.WriteLine(details.Server.Port.Value);
+   Console.WriteLine(details.Server.Port.IsEditable);
+   Console.WriteLine(details.Server.Port.Source?.Locator);
    ```
 
-   This prevents silent discrepancies between file content and the runtime configuration.
-   To handle this safely:
-   - Unset the environment variable before persisting.
-   - Save only unaffected fields.
-   - Check value provenance with `GetDetailsAsync` beforehand.
+   A writable Local source may exist even when the effective value cannot currently be changed through the normal save route because the read-only environment source shadows it.
+
+4. ### Handle conflicts explicitly
+
+   Trying to save a different value for a member that remains shadowed can raise `StateConflictException`. Remove the override, save another member, or change the source topology instead of assuming that a successful file write would change the effective configuration.
 
 </Steps>
 
----
-
-Next: [STEP 7: Remote HTTP sources](./07-http-source.md) layers remotely distributed settings on top of CommonSource.
+Next: [STEP 5: Watch and validate changes](./04-validation.md).

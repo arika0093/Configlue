@@ -1,27 +1,15 @@
 ---
-title: "STEP 1: Your first settings app"
-description: Learn the basics of reading, saving, and watching settings using CommonSource.
+title: "STEP 1: Read and save one file"
+description: Start with one model, one JSON file, and sparse saves.
 ---
 
-import { Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+import { Steps } from '@astrojs/starlight/components';
 
-This tutorial progresses step-by-step.
-STEP 1 introduces Configlue's standard **CommonSource** preset to establish reading, saving, and change-notification behavior.
-
-<Tabs syncKey="di">
-<TabItem label="Without DI (Console / Desktop)">
-Initialize an independent context using `ConfiglueApp.CreateContext`.
-</TabItem>
-<TabItem label="With DI (ASP.NET Core / Worker)">
-Register settings into the Microsoft Dependency Injection container using `services.AddConfiglue`.
-</TabItem>
-</Tabs>
+The tutorial uses a normal console project and adds one concept at a time. This first step keeps the source topology to one JSON file.
 
 <Steps>
 
-1. ### Declare a model
-
-   Define a settings container class, annotate it with `[ConfiglueModel]`, and mark it `partial`.
+1. ### Define the settings model
 
    ```csharp
    using Configlue;
@@ -34,80 +22,35 @@ Register settings into the Microsoft Dependency Injection container using `servi
    }
    ```
 
-2. ### Create a context
+   Only the root Configlue model needs `[ConfiglueModel]` and `partial`.
 
-   Use `UseCommonSources` to configure standard settings layers:
-
-   <Tabs syncKey="di">
-   <TabItem label="Without DI">
+2. ### Register one JSON file
 
    ```csharp
    using Configlue;
-   using Configlue.Source.Presets;
+   using Configlue.Provider.Json;
 
-   await using var context = ConfiglueApp.CreateContext(conf =>
-       conf.UseCommonSources(sources =>
-       {
-           sources.WithGlobal("TutorialApp");
-           sources.WithLocal();
-           sources.Add<AppSettings>();
-       })
-   );
+   await using var context = ConfiglueApp.CreateContext(config =>
+       config.Add<AppSettings>(model =>
+           model.UseJsonFile("settings.json")));
 
    var options = context.GetOptions<AppSettings>();
    ```
 
-   </TabItem>
-   <TabItem label="With DI">
+   The context owns the file resource created by `UseJsonFile` and disposes its watcher with the options runtime.
 
-   ```csharp
-   // Program.cs
-   using Configlue;
-   using Configlue.Source.Presets;
-
-   builder.Services.AddConfiglue(conf =>
-       conf.UseCommonSources(sources =>
-       {
-           sources.WithGlobal("TutorialApp");
-           sources.WithLocal();
-           sources.Add<AppSettings>();
-       })
-   );
-   ```
-
-   ```csharp
-   // Consumer
-   using Configlue;
-
-   public class Greeter(IWritableOptions<AppSettings> options)
-   {
-       public async Task RunAsync()
-       {
-           var settings = await options.GetValueAsync();
-           Console.WriteLine($"Hello, {settings.Name}!");
-       }
-   }
-   ```
-
-   </TabItem>
-   </Tabs>
-
-   The preset enables exactly the layers declared in its scope:
-   - **User-level global settings**: In the platform-standard folder (e.g. `%APPDATA%/TutorialApp` or `~/.config/TutorialApp`).
-   - **Local settings**: In the current working directory (`settings.json`).
-
-3. ### Read, watch, and save
-
-   <Tabs syncKey="di">
-   <TabItem label="Without DI">
+3. ### Read the effective value
 
    ```csharp
    var current = await options.GetValueAsync();
-   Console.WriteLine($"Hello, {current.Name}! (Run #{current.RunCount})");
+   Console.WriteLine($"Hello, {current.Name}! Run #{current.RunCount}");
+   ```
 
-   using var subscription = options.OnChange(updated =>
-       Console.WriteLine($"Settings changed: {updated.Name}"));
+   If `settings.json` does not exist, the model defaults still produce a usable value.
 
+4. ### Save only the changed members
+
+   ```csharp
    await options.SaveAsync(patch =>
    {
        patch.Name = "Ada";
@@ -115,46 +58,8 @@ Register settings into the Microsoft Dependency Injection container using `servi
    });
    ```
 
-   </TabItem>
-   <TabItem label="With DI">
-
-   ```csharp
-   var current = await options.GetValueAsync();
-   Console.WriteLine($"Hello, {current.Name}! (Run #{current.RunCount})");
-
-   using var subscription = options.OnChange(updated =>
-       Console.WriteLine($"Settings changed: {updated.Name}"));
-
-   await options.SaveAsync(patch =>
-   {
-       patch.Name = "Ada";
-       patch.RunCount = current.RunCount + 1;
-   });
-   ```
-
-   </TabItem>
-   </Tabs>
-
-   `SaveAsync` performs a sparse patch write: only assigned members are persisted, while untouched members retain their existing values.
-
-   Saved `settings.json`:
-
-   ```json
-   {
-     "$version": 1,
-     "Name": "Ada",
-     "RunCount": 1
-   }
-   ```
+   Configlue saves a sparse patch. Members that were not assigned are not copied into the file merely because they have defaults in the model.
 
 </Steps>
 
-## Key Points
-
-- **`partial` keyword**: Required on models so the source generator can produce companion types.
-- **Register before resolve**: Always call `conf.Add<T>` before calling `GetOptions`.
-- **Default write target**: `UseCommonSources` writes to `settings.json` in the current working directory by default.
-
----
-
-Next: [STEP 2: Grow a realistic model](./02-real-world-model.md) adds nested models and collections.
+Next: [STEP 2: Grow the model](./02-real-world-model.md).

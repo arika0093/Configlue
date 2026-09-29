@@ -1,67 +1,63 @@
 ---
-title: "STEP 3: Split shared and local"
-description: Standard paths, priority resolution, and routing writes to global or local files.
+title: "STEP 3: Combine global and local settings"
+description: Add a second source and inspect which source supplies each value.
 ---
 
-import { Tabs, TabItem } from '@astrojs/starlight/components';
+import { Steps } from '@astrojs/starlight/components';
 
-Putting everything into a single file conflates machine-wide defaults with project-specific overrides.
-The CommonSource preset provides helpers to declare two distinct file layers: **Global (shared)** and **Local (project)**.
+The previous steps had one source. This step introduces layering: a lower-priority per-user file provides shared values, and a local file overrides only the members it contains.
 
-## The Two Layers of CommonSource
+<Steps>
 
-Declare both layers in the `UseCommonSources` scope:
+1. ### Replace the single file with CommonSource
 
-| Layer | Location | Role | Priority |
-| --- | --- | --- | :---: |
-| **Global** | OS per-user configuration folder | Machine-wide defaults | Low |
-| **Local** | Current directory (`settings.json`) | Project overrides | High |
+   ```csharp
+   using Configlue;
+   using Configlue.Source.Presets;
 
-### Read and Merge Rules
+   await using var context = ConfiglueApp.CreateContext(config =>
+       config.UseCommonSources(sources =>
+       {
+           sources.WithGlobal("TutorialApp");
+           sources.WithLocal();
+           sources.Add<AppSettings>();
+       }));
 
-- **Priority overlay**: When a property exists in both files, the higher-priority `Local` value wins.
-- **Fall-through**: Properties absent from `Local` preserve their `Global` values.
-- **Missing files**: Missing files are skipped without throwing exceptions; settings are composed from whatever layers and model defaults exist.
+   var options = context.GetOptions<AppSettings>();
+   ```
 
-## Directing Write Destinations
+   `Global` uses the platform-standard per-user configuration directory. `Local` uses `settings.json` in the current working directory and has higher read priority.
 
-By default, calling `options.SaveAsync` persists changes to the highest-priority configured file, which is **Local** here.
-To write to the Global file instead, use either of the following approaches:
+2. ### Read the merged value
 
-### Approach 1: Write directly to a layer (Semantic Selector)
+   A member present in Local overrides the same member from Global. A member missing from Local can still come from Global or, if neither file contributes it, from the model defaults.
 
-Use `CommonSource.Global` to retrieve a source handle for the shared layer:
+3. ### Inspect where a value came from
 
-```csharp
-using Configlue.Source.Presets;
+   ```csharp
+   var details = await options.GetDetailsAsync();
 
-// Write to Global
-await options.Source(CommonSource.Global).SaveAsync(patch =>
-{
-    patch.Name = "GlobalDefaultName";
-});
+   Console.WriteLine(details.Server.Port.Value);
+   Console.WriteLine(details.Server.Port.Source?.DisplayName);
+   ```
 
-// Ordinary save (writes to default Local destination)
-await options.SaveAsync(patch =>
-{
-    patch.Name = "LocalOverrideName";
-});
-```
+   `GetDetailsAsync` returns one consistent resolution snapshot, including the effective value and its source contributions.
 
-### Approach 2: Change the default write layer
+4. ### Choose a source explicitly when necessary
 
-```csharp
-using Configlue.Source.Presets;
+   Ordinary `SaveAsync` uses the preset's default writable layer, which is Local in this configuration. To write the lower Global layer intentionally, get the source-administration capability from the context.
 
-conf.UseCommonSources(sources =>
-{
-    sources.WithGlobal("TutorialApp");
-    sources.WithLocal();
-    sources.DefaultWriteLayer(CommonSourceLayer.Global);
-    sources.Add<AppSettings>();
-});
-```
+   ```csharp
+   var sources = context.GetSources<AppSettings>();
 
----
+   await sources.Source(CommonSource.Global).SaveAsync(patch =>
+   {
+       patch.Name = "Shared default";
+   });
+   ```
 
-Next: [STEP 4: Add validation](./04-validation.md) introduces data annotation validation.
+   An explicit source write changes that source's contribution; a higher-priority source can still shadow it.
+
+</Steps>
+
+Next: [STEP 4: Add environment overrides](./06-environment.md).

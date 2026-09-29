@@ -1,32 +1,26 @@
 ---
-title: "STEP 4: バリデーションを付ける"
-description: DataAnnotations と独自バリデーターを使って不正な値の保存を防ぎます。
+title: "STEP 5: 変更を監視して検証する"
+description: 外部からの変更を受け取り、不正な設定値を拒否する。
 ---
 
-import { Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+import { Steps } from '@astrojs/starlight/components';
 
-設定項目が増えたりファイルが分かれたりすると、範囲外のポート番号や空文字のパスワードといった「不正な値」の混入を防ぐ必要が出てきます。
-Configlue は、設定を保存する前や読み取る際に自動的に検証を行います。
+初心者向けチュートリアルの最後に、変更通知と検証を追加します。どちらも、基本の読み書きとレイヤー構成を理解した後で使う方が挙動を追いやすい機能です。
 
 <Steps>
 
-1. ### DataAnnotations で検証ルールを宣言する
-
-   もっとも手軽な検証方法は、標準の `System.ComponentModel.DataAnnotations` 属性をモデルのプロパティに付与することです。
-   STEP 2 で定義した `AppSettings` の入れ子プロパティに属性を付けます。
+1. ### 検証属性を追加する
 
    ```csharp
    using System.ComponentModel.DataAnnotations;
-   using Configlue;
 
    [ConfiglueModel("tutorial.settings", Version = 1)]
    public partial class AppSettings
    {
-       [Required, MinLength(1)]
+       [Required, MinLength(3)]
        public string Name { get; set; } = "ExampleApp";
 
        public ServerSettings Server { get; set; } = new();
-       public DatabaseSettings Database { get; set; } = new();
        public List<string> EnabledFeatures { get; set; } = [];
    }
 
@@ -37,122 +31,32 @@ Configlue は、設定を保存する前や読み取る際に自動的に検証�
        [Range(1, 65535)]
        public int Port { get; set; } = 8080;
    }
-
-   public class DatabaseSettings
-   {
-       public string Host { get; set; } = "localhost";
-
-       [Range(1, 65535)]
-       public int Port { get; set; } = 5432;
-
-       public string? Password { get; set; }
-   }
    ```
 
-2. ### コンテキストの登録
+   通常のランタイムでは DataAnnotations の検証が既定で有効です。不正な値を保存すると `ConfiglueValidationException` が発生します。
 
-   DataAnnotations による検証は既定で有効になっています。
-   CommonSource の基本登録コードをそのまま使用できます。
-
-   <Tabs syncKey="di">
-   <TabItem label="DI なし">
+2. ### 有効値の変更を購読する
 
    ```csharp
-   using Configlue;
-   using Configlue.Source.Presets;
-
-   await using var context = ConfiglueApp.CreateContext(conf =>
-       conf.UseCommonSources(sources =>
-       {
-           sources.WithGlobal("TutorialApp");
-           sources.WithLocal();
-           sources.Add<AppSettings>();
-       })
-   );
-
    var options = context.GetOptions<AppSettings>();
+
+   using var subscription = options.OnChange(updated =>
+       Console.WriteLine($"Port changed to {updated.Server.Port}"));
    ```
 
-   </TabItem>
-   <TabItem label="DI あり">
+   ファイルなど監視可能なソースが変化し、新しい有効値を正常に解決できると `OnChange` が呼ばれます。
+
+3. ### 再読み込みの失敗を別に受け取る
 
    ```csharp
-   using Configlue;
-   using Configlue.Source.Presets;
+   var diagnostics = context.GetDiagnostics<AppSettings>();
 
-   builder.Services.AddConfiglue(conf =>
-       conf.UseCommonSources(sources =>
-       {
-           sources.WithGlobal("TutorialApp");
-           sources.WithLocal();
-           sources.Add<AppSettings>();
-       })
-   );
+   using var failures = diagnostics.OnReloadFailed(exception =>
+       Console.Error.WriteLine(exception.Message));
    ```
 
-   </TabItem>
-   </Tabs>
-
-3. ### 独自バリデーターを追加する
-
-   属性だけでは表現しきれない複雑な相関検証などは、`IConfiglueValidator<T>` インターフェースを実装して追加します。
-
-   ```csharp
-   using Configlue;
-
-   public sealed class AppSettingsValidator : IConfiglueValidator<AppSettings>
-   {
-       public IReadOnlyList<string> Validate(AppSettings value)
-       {
-           if (value.Server.Port == value.Database.Port)
-           {
-               return ["Server の Port と Database の Port に同一の値は指定できません。"];
-           }
-
-           return [];
-       }
-   }
-   ```
-
-   作成したバリデーターをモデル登録時に追加します。
-
-   <Tabs syncKey="di">
-   <TabItem label="DI なし">
-
-   ```csharp
-   conf.UseCommonSources(sources =>
-   {
-       sources.WithGlobal("TutorialApp");
-       sources.WithLocal();
-       sources.Add<AppSettings>(model => model.AddValidator(new AppSettingsValidator()));
-   });
-   ```
-
-   </TabItem>
-   <TabItem label="DI あり">
-
-   ```csharp
-   builder.Services.AddSingleton<IConfiglueValidator<AppSettings>, AppSettingsValidator>();
-   ```
-
-   </TabItem>
-   </Tabs>
-
-4. ### 検証が実行されるタイミング
-
-   検証は、読み取り時（`GetValueAsync`）と保存時（`SaveAsync`）の両方で自動実行されます。
-   無効な値を保存しようとした場合、ファイルに書き込まれる前に検証例外（`ConfiglueValidationException`）が発生して処理を中断します。
-
-   ```csharp
-   // 範囲外の値を保存しようとすると、保存前に例外が発生します
-   await options.SaveAsync(patch =>
-   {
-       patch.Server.Port = 99999; // 1〜65535 以外なので失敗
-   });
-   ```
+   バックグラウンドの再読み込みで有効な設定を作れなかった場合、その失敗は `OnChange` ではなく diagnostics から通知されます。
 
 </Steps>
 
----
-
-次のステップ: [STEP 5: ユーザー情報を暗号化して保存する](./05-encrypted-secrets.md) では、AES で暗号化した専用 JSON ソースを追加します。
+ここまでで、1つのソース、疎な保存、レイヤー、値の出所、読み取り専用の上書き、変更監視、検証を扱いました。暗号化、HTTP、スキーマ移行、NativeAOT、YAML などは、この基本ルートの前提ではなく目的別の機能として扱います。

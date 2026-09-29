@@ -1,29 +1,25 @@
 ---
 title: Installation
-description: SDK requirements and NuGet packages for Configlue.
+description: Requirements and the packages needed to start using Configlue.
 ---
 
 ## Requirements
 
-* .NET 10 SDK.
-* `LangVersion` supporting source generators (the repository builds with `preview`; a recent C# is enough for the `new() { ... }` snippets in these guides).
+Configlue currently targets .NET 10. Install the .NET 10 SDK before creating an application.
 
-Build and test the repository itself with:
+For a new console application:
 
 ```sh
-dotnet build Configlue.slnx
-dotnet test --solution Configlue.slnx --configuration Release
-```
-
-## Packages
-
-Install the `Configlue` meta-package. It brings in the abstraction contracts, the core runtime, DI integration, the JSON provider, JSON Schema export, HTTP resources, common layered sources, the environment source, and the source-generator analyzer. It contains no implementation assembly of its own.
-
-```bash
+dotnet new console -n ConfiglueTutorial
+cd ConfiglueTutorial
 dotnet add package Configlue
 ```
 
-Add the capability packages you need on top:
+The `Configlue` meta-package includes the core runtime, the JSON provider, common source presets, environment-variable support, dependency-injection integration, JSON Schema support, and the source generator.
+
+## Optional packages
+
+Add only the packages required by the application.
 
 | Need | Package |
 | --- | --- |
@@ -31,22 +27,23 @@ Add the capability packages you need on top:
 | XML files | `Configlue.Provider.Xml` |
 | YAML in common preset layers | `Configlue.Source.Presets.Yaml` |
 | XML in common preset layers | `Configlue.Source.Presets.Xml` |
-| Build a custom provider | `Configlue.Extensibility` |
-| JSON Schema export only | `Configlue.JsonSchema` |
 | `System.CommandLine` input | `Configlue.Source.CommandLine` |
-| Global/local/specific/environment presets | `Configlue` (includes `Configlue.Source.Presets`) |
-| Serve settings over HTTP (ASP.NET Core) | `Configlue.Resource.Http.AspNetCore` |
-| Persist state through a Dapr state store | `Configlue.Resource.Dapr` |
-| Read and write Amazon S3 objects | `Configlue.Resource.S3` |
+| Microsoft `IOptions<T>` adapters | `Configlue.Extensions.MSOptions` |
+| Rx.NET integration | `Configlue.Extensions.Reactive` |
+| R3 integration | `Configlue.Extensions.R3` |
+| Serve Configlue HTTP resources from ASP.NET Core | `Configlue.Resource.Http.AspNetCore` |
+| Dapr State Management | `Configlue.Resource.Dapr` |
+| Amazon S3 | `Configlue.Resource.S3` |
 | ZIP archive entries | `Configlue.Resource.Zip` |
-| AES-GCM encryption between a Resource and Codec | `Configlue.Transformer.AES` |
-| In-memory doubles for tests | `Configlue.Testing` |
+| AES-GCM encryption | `Configlue.Transformer.AES` |
+| In-memory test doubles | `Configlue.Testing` |
+| Provider development | `Configlue.Extensibility` |
 
-The full list with project roles is in the [package reference](../reference/packages.md).
+See [Packages](../reference/packages.md) for the complete package map.
 
-## Verify the generator runs
+## Verify the source generator
 
-Declare a model and build. If the build succeeds, the generator emitted the `Fragment`/`Patch` support types.
+Configlue models are `partial` classes marked with `[ConfiglueModel]`. Building the project generates the sparse Fragment, Patch, and details types used by the runtime.
 
 ```csharp
 using Configlue;
@@ -58,6 +55,6 @@ public partial class HealthCheckSettings
 }
 ```
 
-Models must be `partial`. The first constructor argument is the stable schema ID used for schema dispatch and JSON Schema export — pick a dotted name unique to your application.
+The model ID is persisted as schema identity. Keep it stable after configuration files have been distributed.
 
-Next: [Quick start](./quick-start.md).
+Next: [Quick Start](./quick-start.md).

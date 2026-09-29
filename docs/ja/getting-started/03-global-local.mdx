@@ -1,117 +1,63 @@
 ---
-title: "STEP 3: 共通とローカルに分ける"
-description: ユーザー共通設定とローカル設定の階層化、優先度、保存先の切り替えを学びます。
+title: "STEP 3: Global と Local を重ねる"
+description: 2つ目のソースを追加し、各値がどこから来たかを確認する。
 ---
 
-import { Tabs, TabItem } from '@astrojs/starlight/components';
+import { Steps } from '@astrojs/starlight/components';
 
-1 つの設定ファイルにすべてを保存すると、開発マシン共通の初期値と、プロジェクト固有の設定が混ざってしまいます。
-Configlue のプリセットでは、設定を「全プロジェクト共通（Global）」と「カレントディレクトリ固有（Local）」の 2 つの層として宣言できます。
+前のステップまではソースが1つでした。ここでは、ユーザー単位の Global ファイルを下位の設定として置き、Local ファイルに存在する項目だけを上書きする構成へ進みます。
 
-## CommonSource が構成する 2 つの層
+<Steps>
 
-`UseCommonSources` のスコープ内で、次の 2 つのファイル層を宣言します。
+1. ### 単一ファイルを CommonSource に置き換える
 
-| 層 | 保存場所 | 役割 | 優先度 |
-| --- | --- | --- | :---: |
-| **Global（共通）** | OS 標準のユーザー設定フォルダー | ユーザー全体のデフォルト値 | 低 |
-| **Local（ローカル）** | カレントディレクトリの `settings.json` | プロジェクトごとの上書き値 | 高 |
+   ```csharp
+   using Configlue;
+   using Configlue.Source.Presets;
 
-### 読み取りのルール（重ね合わせ）
+   await using var context = ConfiglueApp.CreateContext(config =>
+       config.UseCommonSources(sources =>
+       {
+           sources.WithGlobal("TutorialApp");
+           sources.WithLocal();
+           sources.Add<AppSettings>();
+       }));
 
-- **優先度順のマージ**: 両方のファイルに同一のプロパティが存在する場合、優先度の高い `Local` の値が採用されます。
-- **欠損の素通り**: `Local` に書かれていないプロパティは、自動的に `Global` の値が使われます。
-- **ファイルの不在**: どちらかのファイルが存在しなくてもエラーにはならず、存在するファイルとモデルの初期値から設定が組み立てられます。
+   var options = context.GetOptions<AppSettings>();
+   ```
 
-## 保存先のコントロール
+   `Global` は OS 標準のユーザー設定ディレクトリを使います。`Local` はカレントディレクトリの `settings.json` を使い、読み取り時には Global より高い優先順位を持ちます。
 
-既定では、`options.SaveAsync` は設定されたファイル層のうち最も優先順位が高い層（この例では **Local**）に書き込みます。
-共通設定（Global）に保存したい場合は、次の 2 通りの方法があります。
+2. ### 合成された値を読む
 
-### 方法 1: 一時的に保存先を指定する（セマンティックセレクター）
+   Local に存在する項目は、同じ項目の Global の値を上書きします。Local にない項目は Global から補われ、どちらのファイルにもなければモデルの初期値が使われます。
 
-特定の操作だけを共通設定に書き込みたい場合は、`CommonSource.Global` セレクターを使ってソースハンドルを取得します。
+3. ### 値の出所を確認する
 
-```csharp
-using Configlue.Source.Presets;
+   ```csharp
+   var details = await options.GetDetailsAsync();
 
-// ユーザー共通設定（Global）に保存
-await options.Source(CommonSource.Global).SaveAsync(patch =>
-{
-    patch.Name = "GlobalDefaultName";
-});
+   Console.WriteLine(details.Server.Port.Value);
+   Console.WriteLine(details.Server.Port.Source?.DisplayName);
+   ```
 
-// 通常の保存（既定の Local に保存）
-await options.SaveAsync(patch =>
-{
-    patch.Name = "LocalOverrideName";
-});
-```
+   `GetDetailsAsync` は、同じ解決処理から有効値と各ソースの寄与をまとめたスナップショットを返します。
 
-### 方法 2: 既定の保存先を Global に切り替える
+4. ### 必要なときだけ保存先を明示する
 
-`DefaultWriteLayer` を使って、既定の保存先を Global に変更できます。
+   この構成で通常の `SaveAsync` が使う保存先は Local です。Global に意図して保存する場合は、context からソース管理用の機能を取得します。
 
-<Tabs syncKey="di">
-<TabItem label="DI なし">
+   ```csharp
+   var sources = context.GetSources<AppSettings>();
 
-```csharp
-using Configlue.Source.Presets;
+   await sources.Source(CommonSource.Global).SaveAsync(patch =>
+   {
+       patch.Name = "Shared default";
+   });
+   ```
 
-await using var context = ConfiglueApp.CreateContext(conf =>
-    conf.UseCommonSources(sources =>
-    {
-        sources.WithGlobal("TutorialApp");
-        sources.WithLocal();
-        sources.DefaultWriteLayer(CommonSourceLayer.Global);
-        sources.Add<AppSettings>();
-    })
-);
-```
+   ここで変更するのは Global の寄与です。Local など、より優先順位の高いソースに同じ項目があれば、有効値はそちらのままです。
 
-</TabItem>
-<TabItem label="DI あり">
+</Steps>
 
-```csharp
-using Configlue.Source.Presets;
-
-builder.Services.AddConfiglue(conf =>
-    conf.UseCommonSources(sources =>
-    {
-        sources.WithGlobal("TutorialApp");
-        sources.WithLocal();
-        sources.DefaultWriteLayer(CommonSourceLayer.Global);
-        sources.Add<AppSettings>();
-    })
-);
-```
-
-</TabItem>
-</Tabs>
-
-## 内部の仕組み（参考: 手動での階層構成）
-
-`UseCommonSources` が行っている処理は、低レベル API を用いて手動で組み立てることも可能です。
-
-```csharp
-using Configlue.Provider.Json;
-
-conf.Add<AppSettings>(model =>
-{
-    model.Sources(sources =>
-    {
-        // 優先度 100 で共通ファイルを登録
-        sources.FromJsonFile(new() { Id = "global", Path = globalPath, Priority = 100 });
-        // 優先度 200 でローカルファイルを登録
-        sources.FromJsonFile(new() { Id = "local", Path = "settings.json", Priority = 200 });
-    });
-    // 既定の保存先を local に指定
-    model.WriteRoute = StateWriteRoute.To("local");
-});
-```
-
-低レベル API を直接呼ぶ構成に比べ、`UseCommonSources` を利用すると OS ごとの標準パスの解決や安全なセレクターによる保存先指定が自動的に組み込まれます。
-
----
-
-次のステップ: [STEP 4: バリデーションを付ける](./04-validation.md) では、不正な値が保存されるのを防ぐ検証ルールを追加します。
+次: [STEP 4: 環境変数で上書きする](./06-environment.md)。

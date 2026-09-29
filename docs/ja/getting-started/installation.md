@@ -1,55 +1,49 @@
 ---
 title: インストール
-description: Configlue の SDK 要件と NuGet パッケージ。
+description: Configlue を使い始めるための要件とパッケージ。
 ---
 
-## 要件
+## 必要な環境
 
-* .NET 10 SDK
-* ソースジェネレーターを使える言語バージョン（このリポジトリは `preview` でビルドしていますが、各ガイドの `new() { ... }` が記述できれば十分です）
+Configlue は現在 .NET 10 を対象にしています。アプリケーションを作成する前に .NET 10 SDK をインストールしてください。
 
-リポジトリ自体のビルドとテストは次のコマンドで実行します。
+コンソールアプリを新しく作る場合は、次のコマンドから始められます。
 
 ```sh
-dotnet build Configlue.slnx
-dotnet test --solution Configlue.slnx --configuration Release
-```
-
-## パッケージ
-
-`Configlue` メタパッケージをインストールします。
-抽象契約・コアランタイム・DI 統合・JSON プロバイダー・JSON Schema 出力・HTTP リソース・共通レイヤーソース・環境変数ソース・ソースジェネレーターのアナライザーが含まれます。
-このパッケージ自体に実装アセンブリはありません。
-
-```bash
+dotnet new console -n ConfiglueTutorial
+cd ConfiglueTutorial
 dotnet add package Configlue
 ```
 
-必要に応じて機能パッケージを追加します。
+`Configlue` メタパッケージには、コアランタイム、JSON プロバイダー、共通ソースのプリセット、環境変数、DI 統合、JSON Schema、ソースジェネレーターが含まれます。
+
+## 必要に応じて追加するパッケージ
+
+アプリケーションで使う機能だけを追加します。
 
 | 用途 | パッケージ |
 | --- | --- |
 | YAML ファイル | `Configlue.Provider.Yaml` |
 | XML ファイル | `Configlue.Provider.Xml` |
-| 共通プリセット層での YAML | `Configlue.Source.Presets.Yaml` |
-| 共通プリセット層での XML | `Configlue.Source.Presets.Xml` |
-| 独自プロバイダーの作成 | `Configlue.Extensibility` |
-| JSON Schema 出力のみ | `Configlue.JsonSchema` |
-| `System.CommandLine` 入力 | `Configlue.Source.CommandLine` |
-| 共通/ローカル/指定/env プリセット | `Configlue` (`Configlue.Source.Presets` を含む) |
-| 設定の HTTP 配信 (ASP.NET Core) | `Configlue.Resource.Http.AspNetCore` |
-| Dapr state store への永続化 | `Configlue.Resource.Dapr` |
-| Amazon S3 object の読み書き | `Configlue.Resource.S3` |
-| ZIP アーカイブ内エントリ | `Configlue.Resource.Zip` |
-| Resource と Codec 間の AES-GCM 暗号化 | `Configlue.Transformer.AES` |
-| テスト用インメモリダブル | `Configlue.Testing` |
+| 共通プリセットで YAML を使う | `Configlue.Source.Presets.Yaml` |
+| 共通プリセットで XML を使う | `Configlue.Source.Presets.Xml` |
+| `System.CommandLine` から読む | `Configlue.Source.CommandLine` |
+| Microsoft `IOptions<T>` と接続する | `Configlue.Extensions.MSOptions` |
+| Rx.NET と接続する | `Configlue.Extensions.Reactive` |
+| R3 と接続する | `Configlue.Extensions.R3` |
+| ASP.NET Core から Configlue の HTTP リソースを配信する | `Configlue.Resource.Http.AspNetCore` |
+| Dapr State Management | `Configlue.Resource.Dapr` |
+| Amazon S3 | `Configlue.Resource.S3` |
+| ZIP アーカイブ | `Configlue.Resource.Zip` |
+| AES-GCM 暗号化 | `Configlue.Transformer.AES` |
+| テスト用のインメモリ実装 | `Configlue.Testing` |
+| 独自プロバイダーの開発 | `Configlue.Extensibility` |
 
-全一覧と各プロジェクトの役割は [パッケージリファレンス](../reference/packages.md) を参照してください。
+パッケージ全体の対応関係は [パッケージ一覧](../reference/packages.md) を参照してください。
 
-## ジェネレーターの動作確認
+## ソースジェネレーターを確認する
 
-モデルを宣言してビルドします。
-ビルドが成功すれば `Fragment`/`Patch` サポート型が生成されています。
+Configlue のモデルは `[ConfiglueModel]` を付けた `partial` クラスとして定義します。ビルド時に、疎な状態を表す Fragment、書き込み用の Patch、値の出所を調べる Details が生成されます。
 
 ```csharp
 using Configlue;
@@ -61,8 +55,6 @@ public partial class HealthCheckSettings
 }
 ```
 
-モデルには必ず `partial` 修飾子を付与します。
-最初のコンストラクター引数は、スキーマ配信や JSON Schema 出力に使う安定したスキーマ ID です。
-アプリ内で一意なドット区切り名を付けてください。
+モデル ID は保存データのスキーマを識別する値です。設定ファイルを配布した後は同じ ID を使い続けてください。
 
 次: [クイックスタート](./quick-start.md)。
