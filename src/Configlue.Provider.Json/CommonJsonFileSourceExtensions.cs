@@ -17,7 +17,7 @@ public static class CommonJsonFileSourceExtensions
         var providerOptions = source.GetOrCreateProviderOptions(static () =>
             new JsonProviderOptions()
         );
-        providerOptions.SerializerOptions = options;
+        providerOptions.Options = options;
         Apply(source, providerOptions);
         return source;
     }
@@ -43,7 +43,7 @@ public static class CommonJsonFileSourceExtensions
         var providerOptions = source.GetOrCreateProviderOptions(static () =>
             new JsonProviderOptions()
         );
-        providerOptions.SerializerOptions = options;
+        providerOptions.Options = options;
         Apply(source, providerOptions);
         return source;
     }
@@ -63,7 +63,7 @@ public static class CommonJsonFileSourceExtensions
                         ReadOnly = settings.ReadOnly,
                         ExplicitOnly = settings.ExplicitOnly,
                         WatchChanges = settings.WatchChanges,
-                        SerializerOptions = jsonOptions.SerializerOptions,
+                        SerializerOptions = jsonOptions.Options,
                         ResourceOptions = settings.ResourceOptions,
                         Transformers = settings.Transformers,
                     }
@@ -72,6 +72,6 @@ public static class CommonJsonFileSourceExtensions
 
     private sealed class JsonProviderOptions
     {
-        public JsonSerializerOptions? SerializerOptions { get; set; }
+        public JsonSerializerOptions? Options { get; set; }
     }
 }
