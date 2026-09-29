@@ -12,21 +12,6 @@ namespace Configlue.Source.Presets
         public Configlue.Source.Presets.CommonEnvironmentSourceBuilder Priority(int priority) { }
         public Configlue.Source.Presets.CommonEnvironmentSourceBuilder ValueParser(System.Func<string, System.Type, object?> valueParser) { }
     }
-    public sealed class CommonFileSourceBuilder
-    {
-        public Configlue.Source.Presets.CommonFileSourceBuilder ExplicitOnly(bool explicitOnly = true) { }
-        public Configlue.Source.Presets.CommonFileSourceBuilder FileResourceOptions(Configlue.Resources.FileResourceOptions options) { }
-        public Configlue.Source.Presets.CommonFileSourceBuilder Json(System.Text.Json.JsonSerializerOptions? options = null) { }
-        public Configlue.Source.Presets.CommonFileSourceBuilder Json(System.Text.Json.Serialization.JsonSerializerContext context) { }
-        public Configlue.Source.Presets.CommonFileSourceBuilder Priority(int priority) { }
-        public Configlue.Source.Presets.CommonFileSourceBuilder PropertyNamingPolicy(System.Text.Json.JsonNamingPolicy? policy) { }
-        public Configlue.Source.Presets.CommonFileSourceBuilder ReadOnly(bool readOnly = true) { }
-        public Configlue.Source.Presets.CommonFileSourceBuilder SchemaReferenceBaseUri(string schemaReferenceBaseUri) { }
-        public Configlue.Source.Presets.CommonFileSourceBuilder Section(string sectionPath) { }
-        public Configlue.Source.Presets.CommonFileSourceBuilder SerializerOptions(System.Text.Json.JsonSerializerOptions options) { }
-        public Configlue.Source.Presets.CommonFileSourceBuilder Transformer(Configlue.Transformers.IStateByteTransformer transformer) { }
-        public Configlue.Source.Presets.CommonFileSourceBuilder WatchChanges(bool watchChanges = true) { }
-    }
     public sealed class CommonHttpSourceBuilder
     {
         public Configlue.Source.Presets.CommonHttpSourceBuilder FallbackCondition(Configlue.Sources.StateFallbackCondition fallbackCondition) { }
