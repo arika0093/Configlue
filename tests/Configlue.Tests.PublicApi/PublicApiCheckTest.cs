@@ -30,20 +30,38 @@ public static class PublicApiCheck
 
     public static void Check<T>() => Check(typeof(T).Assembly);
 
+    public static void Check<T>(string approvalName, Func<Type, bool> includeType) =>
+        Check(typeof(T).Assembly, approvalName: approvalName, includeType: includeType);
+
     public static void CheckAssembly(Assembly assembly) => Check(assembly);
+
+    public static void CheckAssembly(
+        Assembly assembly,
+        string approvalName,
+        Func<Type, bool> includeType
+    ) => Check(assembly, approvalName: approvalName, includeType: includeType);
 
     public static void CheckCompiler(Assembly assembly) => Check(assembly, compilerOnly: true);
 
-    private static void Check(Assembly assembly, bool compilerOnly = false)
+    private static void Check(
+        Assembly assembly,
+        bool compilerOnly = false,
+        string? approvalName = null,
+        Func<Type, bool>? includeType = null
+    )
     {
         var assemblyName =
-            assembly.GetName().Name! + (compilerOnly ? ".CompilerServices" : string.Empty);
+            approvalName
+            ?? assembly.GetName().Name! + (compilerOnly ? ".CompilerServices" : string.Empty);
         var publicApi = assembly.GeneratePublicApi(
             new()
             {
                 IncludeTypes = assembly
                     .GetExportedTypes()
-                    .Where(type => (type.Namespace == "Configlue.CompilerServices") == compilerOnly)
+                    .Where(type =>
+                        (type.Namespace == "Configlue.CompilerServices") == compilerOnly
+                        && (includeType?.Invoke(type) ?? true)
+                    )
                     .ToArray(),
                 ExcludeAttributes =
                 [
@@ -122,10 +140,29 @@ public sealed class PublicApiCheckTest
     public void Abstraction() => PublicApiCheck.Check<ConfiglueModelAttribute>();
 
     [Test]
-    public void Extensibility() => PublicApiCheck.Check<SerializedStateReader<object>>();
+    public void Extensibility() =>
+        PublicApiCheck.Check<SerializedStateReader<object>>(
+            "Configlue.Extensibility",
+            static type => type.Namespace == "Configlue.Extensibility"
+        );
 
     [Test]
-    public void Core() => PublicApiCheck.CheckAssembly(typeof(ConfiglueOptions<,>).Assembly);
+    public void Core() =>
+        PublicApiCheck.CheckAssembly(
+            typeof(ConfiglueOptions<,>).Assembly,
+            "Configlue.Core",
+            static type =>
+                type.Namespace != "Configlue.Extensibility"
+                && type.Namespace != "Configlue.Resource.Zip"
+                && type != typeof(CommonFileSourceBuilder)
+        );
+
+    [Test]
+    public void CommonFilePresetSpi() =>
+        PublicApiCheck.Check<CommonFileSourceBuilder>(
+            "Configlue.Core.Presets",
+            static type => type == typeof(CommonFileSourceBuilder)
+        );
 
     [Test]
     public void CompilerAbstraction() =>
@@ -155,40 +192,70 @@ public sealed class PublicApiCheckTest
     public void Generator() => PublicApiCheck.Check<ConfiglueGenerator>();
 
     [Test]
-    public void Json() => PublicApiCheck.Check<JsonStateCodec<object>>();
+    public void Json() =>
+        PublicApiCheck.Check<JsonStateCodec<object>>(
+            "Configlue.Provider.Json",
+            static type => type != typeof(CommonJsonFileSourceExtensions)
+        );
+
+    [Test]
+    public void CommonJsonSources() =>
+        PublicApiCheck.Check<CommonJsonFileSourceExtensions>(
+            "Configlue.Provider.Json.Presets",
+            static type => type == typeof(CommonJsonFileSourceExtensions)
+        );
 
     [Test]
     public void JsonSchema() => PublicApiCheck.Check<JsonSchemaGenerationResult>();
 
     [Test]
-    public void Xml() => PublicApiCheck.Check<XmlStateCodec<object>>();
+    public void Xml() =>
+        PublicApiCheck.Check<XmlStateCodec<object>>(
+            "Configlue.Provider.Xml",
+            static type => type.Namespace == "Configlue.Provider.Xml"
+        );
 
     [Test]
-    public void Yaml() => PublicApiCheck.Check<YamlStateCodec<object>>();
+    public void Yaml() =>
+        PublicApiCheck.Check<YamlStateCodec<object>>(
+            "Configlue.Provider.Yaml",
+            static type => type.Namespace == "Configlue.Provider.Yaml"
+        );
 
     [Test]
     public void Environment() =>
         PublicApiCheck.CheckAssembly(typeof(EnvironmentStateSource).Assembly);
 
     [Test]
-    public void CommonSources() => PublicApiCheck.Check<CommonSourceBuilder>();
+    public void CommonSources() =>
+        PublicApiCheck.Check<CommonSourceBuilder>(
+            "Configlue.Source.Presets",
+            static type => type.Namespace == "Configlue.Source.Presets"
+        );
 
     [Test]
     public void CommonXmlSources() =>
-        PublicApiCheck.CheckAssembly(typeof(CommonXmlFileSourceExtensions).Assembly);
+        PublicApiCheck.Check<CommonXmlFileSourceExtensions>(
+            "Configlue.Source.Presets.Xml",
+            static type => type == typeof(CommonXmlFileSourceExtensions)
+        );
 
     [Test]
     public void CommonYamlSources() =>
-        PublicApiCheck.CheckAssembly(typeof(CommonYamlFileSourceExtensions).Assembly);
-
-    [Test]
-    public void SingleBinary() => PublicApiCheck.Check<SingleBinaryBuilder>();
+        PublicApiCheck.Check<CommonYamlFileSourceExtensions>(
+            "Configlue.Source.Presets.Yaml",
+            static type => type == typeof(CommonYamlFileSourceExtensions)
+        );
 
     [Test]
     public void CommandLineSources() => PublicApiCheck.Check<CommandLineSourceOptions>();
 
     [Test]
-    public void Zip() => PublicApiCheck.Check<ZipEntryResource>();
+    public void Zip() =>
+        PublicApiCheck.Check<ZipEntryResource>(
+            "Configlue.Resource.Zip",
+            static type => type.Namespace == "Configlue.Resource.Zip"
+        );
 
     [Test]
     public void Http() => PublicApiCheck.Check<HttpResourceReader>();
