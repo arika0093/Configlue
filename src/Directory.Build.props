@@ -15,8 +15,9 @@
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PolyArgumentExceptions>true</PolyArgumentExceptions>
     <PolyUseEmbeddedAttribute>true</PolyUseEmbeddedAttribute>
-    <NBGV_SetCloudBuildVersionVars Condition="'$(GITHUB_ACTIONS)' == 'true'"
-      >false</NBGV_SetCloudBuildVersionVars>
+    <ConfiglueNetStandard20 Condition="'$(TargetFramework)' == 'netstandard2.0'">true</ConfiglueNetStandard20>
+    <ConfiglueNetStandard Condition="'$(ConfiglueNetStandard20)' == 'true' or '$(TargetFramework)' == 'netstandard2.1'"
+      >true</ConfiglueNetStandard>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Nerdbank.GitVersioning" Version="3.*" PrivateAssets="all">
@@ -39,10 +40,12 @@
     <Using Include="Configlue.State" />
     <Using Include="Configlue.Transformers" />
   </ItemGroup>
-  <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0' and '$(MSBuildProjectName)' != 'Configlue.Generator'">
-    <PackageReference Include="Polyfill" Version="11.4.1" PrivateAssets="all" />
+  <ItemGroup Condition="'$(ConfiglueNetStandard20)' == 'true' and '$(MSBuildProjectName)' != 'Configlue.Generator'">
     <PackageReference Include="Microsoft.Bcl.AsyncInterfaces" Version="10.0.5" />
     <PackageReference Include="System.Threading.Tasks.Extensions" Version="4.6.3" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(ConfiglueNetStandard)' == 'true' and '$(MSBuildProjectName)' != 'Configlue.Generator'">
+    <PackageReference Include="Polyfill" Version="11.4.1" PrivateAssets="all" />
     <PackageReference Include="System.Threading.Channels" Version="10.0.5" />
   </ItemGroup>
 </Project>

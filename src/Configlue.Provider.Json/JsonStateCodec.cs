@@ -261,7 +261,7 @@ public sealed class JsonStateCodec<T>
         ArgumentNullException.ThrowIfNull(content);
         if (_options.UnmappedMemberHandling == JsonUnmappedMemberHandling.Disallow)
         {
-#if NETSTANDARD2_0
+#if NETSTANDARD
             using var strictStream = content.AsStream(leaveOpen: true);
 #else
             await using var strictStream = content.AsStream(leaveOpen: true);
@@ -294,7 +294,7 @@ public sealed class JsonStateCodec<T>
                 : StateReadResult<T>.Success(strictValue, schema: strictSchema);
         }
 
-#if NETSTANDARD2_0
+#if NETSTANDARD
         using var source = content.AsStream(leaveOpen: true);
 #else
         await using var source = content.AsStream(leaveOpen: true);

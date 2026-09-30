@@ -6,7 +6,7 @@ namespace Configlue;
 
 internal static class ConfiglueHashing
 {
-#if !NETSTANDARD2_0
+#if !NETSTANDARD
     private const int StackBufferLimit = 256;
 #endif
 
@@ -20,7 +20,7 @@ internal static class ConfiglueHashing
     public static string GetXxHash3Hex(string content)
     {
         ArgumentNullException.ThrowIfNull(content);
-#if NETSTANDARD2_0
+#if NETSTANDARD
         return GetXxHash3Hex(Encoding.UTF8.GetBytes(content));
 #else
         var byteCount = Encoding.UTF8.GetByteCount(content);

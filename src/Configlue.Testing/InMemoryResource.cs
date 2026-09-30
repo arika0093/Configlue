@@ -126,7 +126,7 @@ public sealed class InMemoryResource
 
     private static string GetRevision(ReadOnlySpan<byte> content)
     {
-#if NETSTANDARD2_0
+#if NETSTANDARD
         using var algorithm = SHA256.Create();
         return BitConverter.ToString(algorithm.ComputeHash(content.ToArray())).Replace("-", "");
 #else

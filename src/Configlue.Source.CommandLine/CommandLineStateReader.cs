@@ -223,7 +223,7 @@ internal sealed class CommandLineStateReader<TFragment> : ISourceReader<TFragmen
     {
         Span<byte> prefix = stackalloc byte[12];
         var prefixLength = WriteLengthPrefix(prefix, value.Length);
-#if NETSTANDARD2_0
+#if NETSTANDARD
         hash.AppendData(prefix[..prefixLength].ToArray());
         hash.AppendData(Encoding.UTF8.GetBytes(value));
 #else
@@ -392,7 +392,7 @@ internal static class CommandLineValueConverter
             return $"{type.FullName}:{dateTimeOffset.ToString("O", CultureInfo.InvariantCulture)}";
         }
 
-#if !NETSTANDARD2_0
+#if !NETSTANDARD
         if (value is DateOnly dateOnly)
         {
             return $"{type.FullName}:{dateOnly.ToString("O", CultureInfo.InvariantCulture)}";
@@ -524,7 +524,7 @@ internal static class CommandLineValueConverter
                 );
             }
 
-#if !NETSTANDARD2_0
+#if !NETSTANDARD
             if (valueType == typeof(DateOnly))
             {
                 return DateOnly.Parse(text, CultureInfo.InvariantCulture);

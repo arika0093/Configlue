@@ -470,7 +470,7 @@ internal static class ConfiglueMemberValidationAttributeCache
 
 internal static class ConfiglueRuntimeCapabilities
 {
-#if NETSTANDARD2_0
+#if NETSTANDARD
     private static readonly PropertyInfo? IsDynamicCodeSupportedProperty = Type.GetType(
             "System.Runtime.CompilerServices.RuntimeFeature, System.Runtime"
         )

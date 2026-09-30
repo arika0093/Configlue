@@ -221,7 +221,7 @@ public sealed class HttpResourceReader
             responseOwnershipTransferred = true;
             return pipelineResult;
         }
-#if NETSTANDARD2_0
+#if NETSTANDARD
         catch (HttpRequestException)
 #else
         catch (HttpRequestException exception) when (exception.StatusCode is null)
@@ -671,7 +671,7 @@ public sealed class HttpResourceReader
                 )
                 .ConfigureAwait(false);
         }
-#if NETSTANDARD2_0
+#if NETSTANDARD
         catch (HttpRequestException)
 #else
         catch (HttpRequestException exception) when (exception.StatusCode is null)
@@ -1073,7 +1073,7 @@ public sealed class HttpResourceReader
         protected override Task SerializeToStreamAsync(Stream stream, TransportContext? context) =>
             stream.WriteAsync(_content).AsTask();
 
-#if !NETSTANDARD2_0
+#if !NETSTANDARD
         protected override Task SerializeToStreamAsync(
             Stream stream,
             TransportContext? context,

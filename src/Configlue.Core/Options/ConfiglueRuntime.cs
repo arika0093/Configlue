@@ -878,7 +878,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             ? StateRevisionVector.FromSpan(revisions.AsSpan(0, revisionCount))
             : StateRevisionVector.FromSpan(
                 revisions.AsSpan(0, revisionCount),
-#if NETSTANDARD2_0
+#if NETSTANDARD
                 nestedRevisions.ToArray()
 #else
                 CollectionsMarshal.AsSpan(nestedRevisions)

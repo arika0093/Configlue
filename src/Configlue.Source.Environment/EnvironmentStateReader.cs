@@ -424,7 +424,7 @@ public sealed class EnvironmentStateReader<TFragment> : ISourceReader<TFragment>
     private static void AppendHashedString(IncrementalHash hash, string value)
     {
         Span<byte> prefix = stackalloc byte[12];
-#if NETSTANDARD2_0
+#if NETSTANDARD
         var prefixLength = WriteLengthPrefix(prefix, value.Length);
         hash.AppendData(prefix[..prefixLength].ToArray());
         hash.AppendData(Encoding.UTF8.GetBytes(value));
@@ -523,7 +523,7 @@ public sealed class EnvironmentStateReader<TFragment> : ISourceReader<TFragment>
                 DateTimeStyles.RoundtripKind
             );
         }
-#if !NETSTANDARD2_0
+#if !NETSTANDARD
         if (valueType == typeof(DateOnly))
         {
             return DateOnly.Parse(value, CultureInfo.InvariantCulture);

@@ -285,7 +285,7 @@ public sealed class PipelineResourceReadResult : IAsyncDisposable
             if (read > 0)
             {
                 _revisionHasher?.Append(content);
-#if NETSTANDARD2_0
+#if NETSTANDARD
                 _fingerprintHasher?.AppendData(content.ToArray());
 #else
                 _fingerprintHasher?.AppendData(content);

@@ -34,32 +34,32 @@ description: 機能ごとの NuGet パッケージを探す。
 
 | パッケージ | Assets | 直接 NuGet 依存と最低 TFM |
 | --- | --- | --- |
-| `Configlue.Abstraction` | `netstandard2.0;net10.0` | `netstandard2.0` のみ `System.Memory` 4.6.3。 |
-| `Configlue.Core` | `netstandard2.0;net10.0` | `Microsoft.Extensions.DependencyInjection.Abstractions` 10.0.0、`Microsoft.Extensions.Logging.Abstractions` 10.0.0、`System.IO.Hashing` 10.0.0、`System.IO.Pipelines` 10.0.0。`System.ComponentModel.Annotations` 5.0.0 は `netstandard2.0` のみ。Core は `System.Text.Json` に依存しません。 |
-| `Configlue` | `netstandard2.0;net10.0` | 直接 NuGet 依存なし。project reference で portable な Core/DI/JSON/HTTP/環境変数グラフを構成します。JSON Schema は `net10.0` のみ参照し、AES は参照しません。 |
-| `Configlue.Extensions.DI` | `netstandard2.0;net10.0` | `Microsoft.Extensions.DependencyInjection.Abstractions` 10.0.0、`Microsoft.Extensions.Http` 10.0.0。 |
-| `Configlue.Extensions.MSOptions` | `netstandard2.0;net10.0` | `Microsoft.Extensions.Options` 10.0.0。 |
-| `Configlue.Extensions.R3` | `netstandard2.0;net10.0` | `R3` 1.3.1。 |
+| `Configlue.Abstraction` | `netstandard2.0;netstandard2.1;net10.0` | `netstandard2.0` のみ `System.Memory` 4.6.3 と `Microsoft.Bcl.AsyncInterfaces` 10.0.5。`netstandard2.1` asset は互換パッケージを使わずプラットフォームの async iterator を利用します。 |
+| `Configlue.Core` | `netstandard2.0;netstandard2.1;net10.0` | `Microsoft.Extensions.DependencyInjection.Abstractions` 10.0.0、`Microsoft.Extensions.Logging.Abstractions` 10.0.0、`System.IO.Hashing` 10.0.0、`System.IO.Pipelines` 10.0.0。`System.ComponentModel.Annotations` 5.0.0 と `System.Threading.Channels` 10.0.5 は両 Standard asset。`Microsoft.Bcl.AsyncInterfaces` 10.0.5 と `System.Threading.Tasks.Extensions` 4.6.3 は `netstandard2.0` のみ。Core は `System.Text.Json` に依存しません。 |
+| `Configlue` | `netstandard2.0;netstandard2.1;net10.0` | 直接 NuGet 依存なし。project reference で portable な Core/DI/JSON/HTTP/環境変数グラフを構成します。JSON Schema は `net10.0` のみ参照し、AES は参照しません。 |
+| `Configlue.Extensions.DI` | `netstandard2.0;netstandard2.1;net10.0` | `Microsoft.Extensions.DependencyInjection.Abstractions` 10.0.0、`Microsoft.Extensions.Http` 10.0.0。 |
+| `Configlue.Extensions.MSOptions` | `netstandard2.0;netstandard2.1;net10.0` | `Microsoft.Extensions.Options` 10.0.0。 |
+| `Configlue.Extensions.R3` | `netstandard2.0;netstandard2.1;net10.0` | `R3` 1.3.1。 |
 | `Configlue.Generator` | `netstandard2.0` | `Microsoft.CodeAnalysis.CSharp` 4.11.0、`Microsoft.CodeAnalysis.Analyzers` 3.11.0 (analyzer 内部依存)。 |
-| `Configlue.Testing` | `netstandard2.0;net10.0` | 直接 NuGet 依存なし。 |
-| `Configlue.Provider.Json` | `netstandard2.0;net10.0` | `System.IO.Pipelines` 10.0.0。`System.Text.Json` 10.0.0 は `netstandard2.0` のみ。 |
+| `Configlue.Testing` | `netstandard2.0;netstandard2.1;net10.0` | 直接 NuGet 依存なし。 |
+| `Configlue.Provider.Json` | `netstandard2.0;netstandard2.1;net10.0` | `System.IO.Pipelines` 10.0.0。`System.Text.Json` 10.0.0 は両 Standard asset。 |
 | `Configlue.JsonSchema` | `net10.0` | 直接 NuGet 依存なし。.NET 10 の JSON Schema exporter API を使用します。 |
-| `Configlue.Provider.Xml` | `netstandard2.0;net10.0` | 直接 NuGet 依存なし。 |
-| `Configlue.Provider.Yaml` | `netstandard2.0;net10.0` | `SharpYaml` 3.13.1。 |
-| `Configlue.Source.Environment` | `netstandard2.0;net10.0` | `System.Text.Json` 10.0.0 は `netstandard2.0` のみ。 |
-| `Configlue.Source.CommandLine` | `netstandard2.0;net10.0` | `System.CommandLine` 2.0.12。 |
-| `Configlue.Resource.Http` | `netstandard2.0;net10.0` | 直接 NuGet 依存なし。 |
+| `Configlue.Provider.Xml` | `netstandard2.0;netstandard2.1;net10.0` | 直接 NuGet 依存なし。 |
+| `Configlue.Provider.Yaml` | `netstandard2.0;netstandard2.1;net10.0` | `SharpYaml` 3.13.1。 |
+| `Configlue.Source.Environment` | `netstandard2.0;netstandard2.1;net10.0` | `System.Text.Json` 10.0.0 は両 Standard asset。 |
+| `Configlue.Source.CommandLine` | `netstandard2.0;netstandard2.1;net10.0` | `System.CommandLine` 2.0.12。 |
+| `Configlue.Resource.Http` | `netstandard2.0;netstandard2.1;net10.0` | 直接 NuGet 依存なし。 |
 | `Configlue.Resource.Http.AspNetCore` | `net10.0` | `Microsoft.AspNetCore.App` framework reference。 |
 | `Configlue.Extensions.AspNetCore` | `net10.0` | `Microsoft.AspNetCore.App` framework reference。 |
 | `Configlue.Extensions.Blazor` | `net10.0` | `Microsoft.AspNetCore.App` framework reference。 |
 | `Configlue.Resource.WebStorage` | `net10.0` | `Microsoft.JSInterop` 10.0.0。 |
 | `Configlue.Resource.Dapr` | `net8.0;net10.0` | `Dapr.Client` 1.18.10 の最低 TFM により `net8.0` 以上。 |
-| `Configlue.Resource.S3` | `netstandard2.0;net10.0` | `AWSSDK.S3` 4.0.103.4。 |
+| `Configlue.Resource.S3` | `netstandard2.0;netstandard2.1;net10.0` | `AWSSDK.S3` 4.0.103.4。 |
 | `Configlue.Resource.PostgreSql` | `net8.0;net10.0` | `Npgsql` 10.0.3 の最低 TFM により `net8.0` 以上。 |
-| `Configlue.Resource.Redis` | `netstandard2.0;net10.0` | `StackExchange.Redis` 3.3.1。 |
+| `Configlue.Resource.Redis` | `netstandard2.0;netstandard2.1;net10.0` | `StackExchange.Redis` 3.3.1。 |
 | `Configlue.Transformer.AES` | `netstandard2.1;net10.0` | 直接 NuGet 依存なし。AES-GCM 要件により最低 TFM は `netstandard2.1`。AES 拡張を使う場合は明示的に追加してください。 |
 
-Solution build には、生成モデルを使う `netstandard2.0` consumer fixture が JSON Provider あり/なしの両方で含まれます。CI では generator assembly 自体とは別に、consumer 側の互換性もビルドします。
+Solution build には、生成モデルを使う consumer fixture が両 Standard family (`netstandard2.0` と `netstandard2.1`) 向けに JSON Provider あり/なしの両方で含まれます。CI では generator assembly 自体とは別に、consumer 側の互換性もビルドします。
 
 パッケージ参照と版の正本はプロジェクトファイルです。任意プロバイダーは必要になったら直接インストールしてください。まずは [インストール](../getting-started/installation.md) からどうぞ。
 

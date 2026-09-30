@@ -12,3 +12,4 @@ docs-site/dist/
 *.suo
 *.trx
 todo/
+eng/VerifyPackages.ps1

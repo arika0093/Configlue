@@ -284,7 +284,7 @@ public sealed class ZipEntryResource
             return ResourceReadResult.NotFound(archiveResult.Revision);
         }
 
-#if NETSTANDARD2_0
+#if NETSTANDARD
         using var entryStream = entry.Open();
 #else
         await using var entryStream = await entry
@@ -554,7 +554,7 @@ public sealed class ZipEntryResource
         var offset = 0;
         while (offset < content.Length)
         {
-#if NETSTANDARD2_0
+#if NETSTANDARD
             var read = await entryStream
                 .ReadAsync(content, offset, content.Length - offset, cancellationToken)
                 .ConfigureAwait(false);

@@ -52,7 +52,7 @@ public sealed partial class FileResource
             .ConfigureAwait(false);
         try
         {
-#if NETSTANDARD2_0
+#if NETSTANDARD
             using var interprocessLock = await AcquireInterprocessLockAsync(cancellationToken)
                 .ConfigureAwait(false);
 #else
@@ -143,7 +143,7 @@ public sealed partial class FileResource
             .ConfigureAwait(false);
         try
         {
-#if NETSTANDARD2_0
+#if NETSTANDARD
             using var interprocessLock = await AcquireInterprocessLockAsync(cancellationToken)
                 .ConfigureAwait(false);
 #else
@@ -185,7 +185,7 @@ public sealed partial class FileResource
             .ConfigureAwait(false);
         try
         {
-#if NETSTANDARD2_0
+#if NETSTANDARD
             using var interprocessLock = await AcquireInterprocessLockAsync(cancellationToken)
                 .ConfigureAwait(false);
 #else
@@ -258,7 +258,7 @@ public sealed partial class FileResource
 
     private static void MoveReplacing(string sourcePath, string destinationPath)
     {
-#if NETSTANDARD2_0
+#if NETSTANDARD
         if (File.Exists(destinationPath))
         {
             var attributes = File.GetAttributes(destinationPath);
@@ -286,7 +286,7 @@ public sealed partial class FileResource
             var temporaryPath = destinationPath + "." + Guid.NewGuid().ToString("N") + ".tmp";
             try
             {
-#if NETSTANDARD2_0
+#if NETSTANDARD
                 using (
 #else
                 await using (

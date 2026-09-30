@@ -10,6 +10,9 @@
     <AnalysisLevel>latest</AnalysisLevel>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
+    <ConfiglueNetStandard20 Condition="'$(TargetFramework)' == 'netstandard2.0'">true</ConfiglueNetStandard20>
+    <ConfiglueNetStandard Condition="'$(ConfiglueNetStandard20)' == 'true' or '$(TargetFramework)' == 'netstandard2.1'"
+      >true</ConfiglueNetStandard>
   </PropertyGroup>
   <PropertyGroup Condition="'$(ConfiglueNativeAot)' == 'true' and '$(TargetFramework)' == 'net10.0'">
     <PublishAot>true</PublishAot>
@@ -27,27 +30,27 @@
     <PackageReference
       Include="TUnit"
       Version="1.66.27"
-      Condition="'$(TargetFramework)' != 'netstandard2.0'"
+      Condition="'$(ConfiglueNetStandard)' != 'true'"
     />
     <PackageReference
       Include="Shouldly"
       Version="4.3.0"
-      Condition="'$(TargetFramework)' != 'netstandard2.0'"
+      Condition="'$(ConfiglueNetStandard)' != 'true'"
     />
     <PackageReference
       Include="Microsoft.Testing.Extensions.Retry"
       Version="2.4.1"
-      Condition="'$(TargetFramework)' != 'netstandard2.0'"
+      Condition="'$(ConfiglueNetStandard)' != 'true'"
     />
   </ItemGroup>
   <ItemGroup>
-    <Using Include="Shouldly" Condition="'$(TargetFramework)' != 'netstandard2.0'" />
-    <Using Include="Configlue.Codecs" Condition="'$(TargetFramework)' != 'netstandard2.0'" />
-    <Using Include="Configlue.Migrations" Condition="'$(TargetFramework)' != 'netstandard2.0'" />
-    <Using Include="Configlue.Resources" Condition="'$(TargetFramework)' != 'netstandard2.0'" />
-    <Using Include="Configlue.Sources" Condition="'$(TargetFramework)' != 'netstandard2.0'" />
-    <Using Include="Configlue.Extensibility" Condition="'$(TargetFramework)' != 'netstandard2.0'" />
-    <Using Include="Configlue.State" Condition="'$(TargetFramework)' != 'netstandard2.0'" />
-    <Using Include="Configlue.Transformers" Condition="'$(TargetFramework)' != 'netstandard2.0'" />
+    <Using Include="Shouldly" Condition="'$(ConfiglueNetStandard)' != 'true'" />
+    <Using Include="Configlue.Codecs" Condition="'$(ConfiglueNetStandard)' != 'true'" />
+    <Using Include="Configlue.Migrations" Condition="'$(ConfiglueNetStandard)' != 'true'" />
+    <Using Include="Configlue.Resources" Condition="'$(ConfiglueNetStandard)' != 'true'" />
+    <Using Include="Configlue.Sources" Condition="'$(ConfiglueNetStandard)' != 'true'" />
+    <Using Include="Configlue.Extensibility" Condition="'$(ConfiglueNetStandard)' != 'true'" />
+    <Using Include="Configlue.State" Condition="'$(ConfiglueNetStandard)' != 'true'" />
+    <Using Include="Configlue.Transformers" Condition="'$(ConfiglueNetStandard)' != 'true'" />
   </ItemGroup>
 </Project>

@@ -157,7 +157,7 @@ public sealed class StateSourceResolver<T> : IContextualSourceReader<T>
                 source.Id,
                 nestedVector
             );
-#if NETSTANDARD2_0
+#if NETSTANDARD
             revisionVector = StateRevisionVector.FromSpan(
                 new[] { revision },
                 new[] { nestedEntry }
@@ -171,7 +171,7 @@ public sealed class StateSourceResolver<T> : IContextualSourceReader<T>
         }
         else
         {
-#if NETSTANDARD2_0
+#if NETSTANDARD
             revisionVector = StateRevisionVector.FromSpan(new[] { revision });
 #else
             revisionVector = StateRevisionVector.FromSpan(
@@ -336,7 +336,7 @@ public sealed class StateSourceResolver<T> : IContextualSourceReader<T>
             ? StateRevisionVector.FromSpan(revisions.AsSpan(0, revisionCount))
             : StateRevisionVector.FromSpan(
                 revisions.AsSpan(0, revisionCount),
-#if NETSTANDARD2_0
+#if NETSTANDARD
                 nestedRevisions.ToArray()
 #else
                 System.Runtime.InteropServices.CollectionsMarshal.AsSpan(nestedRevisions)

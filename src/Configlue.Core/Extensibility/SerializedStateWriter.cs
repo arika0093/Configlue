@@ -130,7 +130,7 @@ public sealed class SerializedStateWriter<T>
 
     private ResourceWriteRequest CreateResourceRequest(StateWriteRequest<T> request)
     {
-#if NETSTANDARD2_0
+#if NETSTANDARD
         var destination = new ArrayBufferWriter<byte>();
 #else
         var destination = new ArrayBufferWriter<byte>();

@@ -1,4 +1,4 @@
-#if NETSTANDARD2_0
+#if NETSTANDARD
 #pragma warning disable CS1591
 namespace System.Collections.Generic
 {

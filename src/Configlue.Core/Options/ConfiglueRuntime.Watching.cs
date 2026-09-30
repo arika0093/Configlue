@@ -195,7 +195,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             return cached.Ids;
         }
 
-#if NETSTANDARD2_0
+#if NETSTANDARD
         var ids = new HashSet<string>(StringComparer.Ordinal);
 #else
         var ids = new HashSet<string>(activeSources.Length, StringComparer.Ordinal);

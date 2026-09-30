@@ -362,7 +362,7 @@ public sealed partial class FileResource
         cancellationToken.ThrowIfCancellationRequested();
         try
         {
-#if NETSTANDARD2_0
+#if NETSTANDARD
             var stream = new FileStream(
                 _path,
                 FileMode.Open,

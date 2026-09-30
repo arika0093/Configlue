@@ -32,7 +32,7 @@ internal static class StateSourceIdentity
             locator?.Trim().Normalize(NormalizationForm.FormKC) ?? string.Empty,
             descriptor ?? string.Empty
         );
-#if NETSTANDARD2_0
+#if NETSTANDARD
         using var algorithm = SHA256.Create();
         var hash = algorithm.ComputeHash(Encoding.UTF8.GetBytes(canonical));
         var hashText = BitConverter.ToString(hash).Replace("-", string.Empty).ToLowerInvariant();

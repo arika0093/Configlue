@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFrameworks>netstandard2.0;net10.0</TargetFrameworks>
+    <TargetFrameworks>netstandard2.0;netstandard2.1;net10.0</TargetFrameworks>
     <AssemblyName>Configlue.Source.Environment</AssemblyName>
     <RootNamespace>Configlue.Source.Environment</RootNamespace>
     <IsPackable>true</IsPackable>
@@ -10,7 +10,7 @@
     <ProjectReference Include="../Configlue.Abstraction/Configlue.Abstraction.csproj" />
     <ProjectReference Include="../Configlue.Core/Configlue.Core.csproj" />
   </ItemGroup>
-  <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
+  <ItemGroup Condition="'$(ConfiglueNetStandard)' == 'true'">
     <PackageReference Include="System.Text.Json" Version="10.0.0" />
   </ItemGroup>
 </Project>
