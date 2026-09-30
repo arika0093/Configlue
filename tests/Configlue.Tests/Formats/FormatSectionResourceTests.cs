@@ -352,11 +352,7 @@ public sealed class FormatSectionResourceTests
             OtherSection:
               Value: keep-root
             # Keep the trailing comment.
-            """.Replace("\r\n", "\n").Replace(
-            "\n",
-            "\r\n",
-            StringComparison.Ordinal
-        );
+            """.Replace("\r\n", "\n").Replace("\n", "\r\n");
         var textEncoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: true);
         var preamble = textEncoding.GetPreamble();
         var originalBytes = new byte[

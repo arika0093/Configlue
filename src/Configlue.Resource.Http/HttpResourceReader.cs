@@ -714,6 +714,7 @@ public sealed class HttpResourceReader
             var result = ResourceReadResult.Success(content, revision, schema);
             return new HttpReadResponse(result, Snapshot(result), NotModified: false);
         }
+    }
 
     private static bool IsTemporarilyUnavailable(HttpStatusCode statusCode) =>
         statusCode == HttpStatusCode.RequestTimeout

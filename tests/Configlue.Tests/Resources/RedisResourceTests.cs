@@ -148,7 +148,9 @@ public sealed class RedisResourceTests
                 _ =>
                 {
                     firstRead.TrySetResult();
-                    return ValueTaskCompat.FromResult(ResourceReadResult.Success(new byte[] { 1 }, "1"));
+                    return ValueTaskCompat.FromResult(
+                        ResourceReadResult.Success(new byte[] { 1 }, "1")
+                    );
                 },
                 CancellationToken.None
             )
@@ -159,7 +161,9 @@ public sealed class RedisResourceTests
                 _ =>
                 {
                     secondRead.TrySetResult();
-                    return ValueTaskCompat.FromResult(ResourceReadResult.Success(new byte[] { 2 }, "1"));
+                    return ValueTaskCompat.FromResult(
+                        ResourceReadResult.Success(new byte[] { 2 }, "1")
+                    );
                 },
                 CancellationToken.None
             )

@@ -196,7 +196,9 @@ public sealed class SubjectRoutingTests
             cancellationToken.ThrowIfCancellationRequested();
             ReadContexts.Enqueue(context);
             LastReadContext = context;
-            return ValueTaskCompat.FromResult(_states.GetValueOrDefault((context.Key, context.Route)));
+            return ValueTaskCompat.FromResult(
+                _states.GetValueOrDefault((context.Key, context.Route))
+            );
         }
 
         public ValueTask<StateWriteResult> WriteAsync(
