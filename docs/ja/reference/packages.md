@@ -23,7 +23,8 @@ description: 機能ごとの NuGet パッケージを探す。
 | `Configlue.Extensions.AspNetCore` | ASP.NET Core host 統合: 現在リクエストからの subject 解決 (`IHttpContextAccessor`) と HTTP リソース配信エンドポイント。 |
 | `Configlue.Extensions.Blazor` | Blazor host 統合: 認証状態からの subject 解決と circuit 単位の変更通知、ブラウザー `localStorage` / `sessionStorage` リソース。 |
 | `Configlue.Resource.S3` | ETag revision を使う Amazon S3 object resource と source 登録。 |
-| `Configlue.Resource.PostgreSql` | subject key ごとの row、revision の atomic check、`LISTEN`/`NOTIFY` watcher を備えた任意の PostgreSQL byte resource。 |
+| `Configlue.Source.PostgreSql` | subject key ごとの row、revision の atomic check、`LISTEN`/`NOTIFY` watcher を備えた任意の JSONB native PostgreSQL source。 |
+| `Configlue.Source.PostgreSql.Migrations` | `Configlue.Source.PostgreSql` の database schema 作成と component 単位の version migration。 |
 | `Configlue.Resource.Redis` | subject key ごとの key、Lua による revision の atomic check、Pub/Sub invalidation を備えた任意の Redis byte resource。 |
 | `Configlue.Transformer.AES` | Resource と Codec の間で state bytes を AES-GCM 暗号化・認証。パスフレーズからの鍵導出にも対応します。 |
 
@@ -49,7 +50,8 @@ description: 機能ごとの NuGet パッケージを探す。
 | `Configlue.Extensions.AspNetCore` | `net10.0` | `Microsoft.AspNetCore.App` framework reference と `Configlue.Resource.Http`。 |
 | `Configlue.Extensions.Blazor` | `net10.0` | `Microsoft.AspNetCore.App` framework reference と `Configlue.Provider.Json` (ブラウザー storage の既定 JSON コーデック)。 |
 | `Configlue.Resource.S3` | `netstandard2.0;netstandard2.1;net10.0` | `AWSSDK.S3` 4.0.103.4。 |
-| `Configlue.Resource.PostgreSql` | `net8.0;net10.0` | `Npgsql` 10.0.3 の最低 TFM により `net8.0` 以上。 |
+| `Configlue.Source.PostgreSql` | `net8.0;net10.0` | `Npgsql` 10.0.3 と `Configlue.Provider.Json`。backend 依存の最低 TFM により `net8.0` 以上。 |
+| `Configlue.Source.PostgreSql.Migrations` | `net8.0;net10.0` | `Npgsql` 10.0.3 と `Configlue.Source.PostgreSql`。 |
 | `Configlue.Resource.Redis` | `netstandard2.0;netstandard2.1;net10.0` | `StackExchange.Redis` 3.3.1。 |
 | `Configlue.Transformer.AES` | `netstandard2.1;net10.0` | 直接 NuGet 依存なし。AES-GCM 要件により最低 TFM は `netstandard2.1`。AES 拡張を使う場合は明示的に追加してください。 |
 

@@ -1,0 +1,59 @@
+[assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/arika0093/Configlue")]
+namespace Configlue.Source.PostgreSql
+{
+    public sealed class PostgreSqlSchemaException : System.InvalidOperationException
+    {
+        public PostgreSqlSchemaException(string message) { }
+        public PostgreSqlSchemaException(string message, System.Exception innerException) { }
+    }
+    public static class PostgreSqlSchemaVersions
+    {
+        public const string CoreComponent = "core";
+        public const int CoreVersion = 1;
+    }
+    public sealed class PostgreSqlSourceOptions
+    {
+        public PostgreSqlSourceOptions() { }
+        public Npgsql.NpgsqlDataSource? DataSource { get; init; }
+        public System.Func<System.IServiceProvider?, Npgsql.NpgsqlDataSource>? DataSourceFactory { get; init; }
+        public System.Func<System.IServiceProvider?, Configlue.RouteKey, Npgsql.NpgsqlDataSource>? DataSourceResolver { get; init; }
+        public Configlue.Sources.StateFallbackCondition FallbackCondition { get; init; }
+        public string? Id { get; init; }
+        public int Priority { get; init; }
+        public required string ResourceNamespace { get; init; }
+        public System.Text.Json.JsonSerializerOptions? SerializerOptions { get; init; }
+        public Configlue.Source.PostgreSql.PostgreSqlTableOptions? TableOptions { get; init; }
+        public bool Writable { get; init; }
+    }
+    public static class PostgreSqlSourceRegistration
+    {
+        public static Configlue.Extensibility.ConfiglueSourceRegistration FromPostgreSql(this Configlue.ConfiglueSourceSetBuilder sources, Configlue.Source.PostgreSql.PostgreSqlSourceOptions options) { }
+    }
+    public sealed class PostgreSqlSource<T> : Configlue.Resources.IContextualResourceIdentity, Configlue.Resources.IResourceIdentity, Configlue.Resources.ITryContextualResourceIdentity, Configlue.Sources.IContextualSourceReader<T>, Configlue.Sources.IContextualSourceWatcher, Configlue.Sources.IContextualSourceWriter<T>, Configlue.Sources.ISourceCapabilities<T>, Configlue.Sources.ISourceReader<T>, Configlue.Sources.ISourceWatcher, Configlue.Sources.ISourceWriter<T>, System.IDisposable
+    {
+        public PostgreSqlSource(Npgsql.NpgsqlDataSource dataSource, string resourceNamespace, Configlue.Provider.Json.JsonStateValueSerializer<T> serializer, Configlue.Source.PostgreSql.PostgreSqlTableOptions? tableOptions = null, bool writable = true) { }
+        public PostgreSqlSource(System.Func<Configlue.RouteKey, Npgsql.NpgsqlDataSource> dataSourceResolver, string resourceNamespace, Configlue.Provider.Json.JsonStateValueSerializer<T> serializer, Configlue.Source.PostgreSql.PostgreSqlTableOptions? tableOptions = null, bool writable = true) { }
+        public bool CanWrite { get; }
+        public Configlue.Resources.ResourceId ResourceId { get; }
+        public string ResourceNamespace { get; }
+        public Configlue.Sources.ISourceWatcher? Watcher { get; }
+        public Configlue.Sources.ISourceWriter<T>? Writer { get; }
+        public void Dispose() { }
+        public Configlue.Resources.ResourceId GetResourceId(Configlue.Resources.ConfiglueResourceContext context) { }
+        public System.Threading.Tasks.ValueTask<Configlue.State.StateReadResult<T>> ReadAsync(System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Configlue.State.StateReadResult<T>> ReadAsync(Configlue.Resources.ConfiglueResourceContext context, System.Threading.CancellationToken cancellationToken = default) { }
+        public bool TryGetResourceId(Configlue.Resources.ConfiglueResourceContext context, out Configlue.Resources.ResourceId resourceId) { }
+        public System.Threading.Tasks.ValueTask WaitForChangeAsync(string? observedRevision, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask WaitForChangeAsync(Configlue.Resources.ConfiglueResourceContext context, string? observedRevision, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Configlue.State.StateWriteResult> WriteAsync(Configlue.State.StateWriteRequest<T> request, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Configlue.State.StateWriteResult> WriteAsync(Configlue.Resources.ConfiglueResourceContext context, Configlue.State.StateWriteRequest<T> request, System.Threading.CancellationToken cancellationToken = default) { }
+    }
+    public sealed class PostgreSqlTableOptions
+    {
+        public PostgreSqlTableOptions() { }
+        public string ComponentsTableName { get; init; }
+        public Configlue.Resources.ResourceId? ResourceId { get; init; }
+        public string SchemaName { get; init; }
+        public string TableName { get; init; }
+    }
+}

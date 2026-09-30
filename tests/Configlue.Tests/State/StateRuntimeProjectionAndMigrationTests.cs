@@ -13,10 +13,10 @@ public sealed partial class StateRuntimeTests
     [Test]
     public async Task SourceProjection_MapsNestedSourceContractsAndRoutesWritesBack()
     {
-        var remoteDatabase = new InMemoryStateStore<DatabaseSettings.Fragment>(
+        var remoteDatabase = new InMemoryStateSource<DatabaseSettings.Fragment>(
             new DatabaseSettings.Fragment { Host = Optional<string>.Present("remote.db") }
         );
-        var defaults = new InMemoryStateStore<AppSettings.Fragment>(
+        var defaults = new InMemoryStateSource<AppSettings.Fragment>(
             new AppSettings.Fragment
             {
                 RetryCount = Optional<int>.Present(3),
@@ -126,7 +126,7 @@ public sealed partial class StateRuntimeTests
     [Test]
     public async Task Options_ExplainsEffectiveNestedValuesAndSparseSourceContributions()
     {
-        var user = new InMemoryStateStore<AppSettings.Fragment>(
+        var user = new InMemoryStateSource<AppSettings.Fragment>(
             new AppSettings.Fragment
             {
                 Database = Optional<DatabaseSettings.Fragment?>.Present(
@@ -134,7 +134,7 @@ public sealed partial class StateRuntimeTests
                 ),
             }
         );
-        var defaults = new InMemoryStateStore<AppSettings.Fragment>(
+        var defaults = new InMemoryStateSource<AppSettings.Fragment>(
             new AppSettings.Fragment
             {
                 Database = Optional<DatabaseSettings.Fragment?>.Present(
@@ -169,13 +169,13 @@ public sealed partial class StateRuntimeTests
     [Test]
     public async Task Options_ExplainsAppendElementOriginsIncludingDuplicates()
     {
-        var user = new InMemoryStateStore<AppSettings.Fragment>(
+        var user = new InMemoryStateSource<AppSettings.Fragment>(
             new AppSettings.Fragment
             {
                 Plugins = Optional<IReadOnlyList<string>>.Present(["user", "shared"]),
             }
         );
-        var defaults = new InMemoryStateStore<AppSettings.Fragment>(
+        var defaults = new InMemoryStateSource<AppSettings.Fragment>(
             new AppSettings.Fragment
             {
                 Plugins = Optional<IReadOnlyList<string>>.Present(["base", "shared"]),
@@ -202,13 +202,13 @@ public sealed partial class StateRuntimeTests
     [Test]
     public async Task Options_ExplainsSetUnionElementOriginsForOverlappingValues()
     {
-        var user = new InMemoryStateStore<SetUnionSettings.Fragment>(
+        var user = new InMemoryStateSource<SetUnionSettings.Fragment>(
             new SetUnionSettings.Fragment
             {
                 Tags = Optional<IReadOnlyList<string>>.Present(["user", "shared"]),
             }
         );
-        var defaults = new InMemoryStateStore<SetUnionSettings.Fragment>(
+        var defaults = new InMemoryStateSource<SetUnionSettings.Fragment>(
             new SetUnionSettings.Fragment
             {
                 Tags = Optional<IReadOnlyList<string>>.Present(["base", "shared"]),
@@ -234,13 +234,13 @@ public sealed partial class StateRuntimeTests
     [Test]
     public async Task Options_ExplainsOnlyTheWinningSourceForReplacementCollectionElements()
     {
-        var user = new InMemoryStateStore<ReplaceCollectionSettings.Fragment>(
+        var user = new InMemoryStateSource<ReplaceCollectionSettings.Fragment>(
             new ReplaceCollectionSettings.Fragment
             {
                 Values = Optional<IReadOnlyList<string>>.Present(["user"]),
             }
         );
-        var defaults = new InMemoryStateStore<ReplaceCollectionSettings.Fragment>(
+        var defaults = new InMemoryStateSource<ReplaceCollectionSettings.Fragment>(
             new ReplaceCollectionSettings.Fragment
             {
                 Values = Optional<IReadOnlyList<string>>.Present(["default"]),
@@ -281,7 +281,7 @@ public sealed partial class StateRuntimeTests
                 legacySchema
             )
         );
-        var target = new InMemoryStateStore<AppSettings.Fragment>();
+        var target = new InMemoryStateSource<AppSettings.Fragment>();
         var sources = new StateSourceSet<AppSettings.Fragment>([
             new("environment", environment, priority: 100),
             new("legacy", legacy, priority: 50),
@@ -310,10 +310,10 @@ public sealed partial class StateRuntimeTests
     [Test]
     public async Task MigrateSourcesToTargetsAsync_MergesSelectedSourcesAndSkipsCompletedTargetsOnRetry()
     {
-        var environment = new InMemoryStateStore<AppSettings.Fragment>(
+        var environment = new InMemoryStateSource<AppSettings.Fragment>(
             new AppSettings.Fragment { Label = Optional<string?>.Present("environment-value") }
         );
-        var user = new InMemoryStateStore<AppSettings.Fragment>(
+        var user = new InMemoryStateSource<AppSettings.Fragment>(
             new AppSettings.Fragment
             {
                 Database = Optional<DatabaseSettings.Fragment?>.Present(
@@ -322,7 +322,7 @@ public sealed partial class StateRuntimeTests
                 Plugins = Optional<IReadOnlyList<string>>.Present(["user-plugin"]),
             }
         );
-        var legacy = new InMemoryStateStore<AppSettings.Fragment>(
+        var legacy = new InMemoryStateSource<AppSettings.Fragment>(
             new AppSettings.Fragment
             {
                 RetryCount = Optional<int>.Present(12),
@@ -331,8 +331,8 @@ public sealed partial class StateRuntimeTests
                 ),
             }
         );
-        var primaryTarget = new InMemoryStateStore<AppSettings.Fragment>();
-        var retryTarget = new InMemoryStateStore<AppSettings.Fragment>();
+        var primaryTarget = new InMemoryStateSource<AppSettings.Fragment>();
+        var retryTarget = new InMemoryStateSource<AppSettings.Fragment>();
         var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
                 new("environment", environment, priority: 200),
@@ -390,11 +390,11 @@ public sealed partial class StateRuntimeTests
     [Test]
     public async Task MigrateSourcesToTargetsAsync_ResumesAfterALaterTargetFails()
     {
-        var source = new InMemoryStateStore<AppSettings.Fragment>(
+        var source = new InMemoryStateSource<AppSettings.Fragment>(
             new AppSettings.Fragment { RetryCount = Optional<int>.Present(22) }
         );
-        var firstTarget = new InMemoryStateStore<AppSettings.Fragment>();
-        var secondTarget = new InMemoryStateStore<AppSettings.Fragment>();
+        var firstTarget = new InMemoryStateSource<AppSettings.Fragment>();
+        var secondTarget = new InMemoryStateSource<AppSettings.Fragment>();
         var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
                 new("source", source, priority: 100, writer: source),
@@ -468,10 +468,10 @@ public sealed partial class StateRuntimeTests
     [Test]
     public async Task MigrateSourcesToTargetsAsync_RefusesRetirementThatWouldChangeEffectiveModel()
     {
-        var source = new InMemoryStateStore<AppSettings.Fragment>(
+        var source = new InMemoryStateSource<AppSettings.Fragment>(
             new AppSettings.Fragment { RetryCount = Optional<int>.Present(22) }
         );
-        var target = new InMemoryStateStore<AppSettings.Fragment>();
+        var target = new InMemoryStateSource<AppSettings.Fragment>();
         var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
                 new("source", source, priority: 100),

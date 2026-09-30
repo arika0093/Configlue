@@ -1,53 +1,57 @@
 using System.Collections.Concurrent;
 using System.Globalization;
-using Configlue.Resource.PostgreSql;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using Configlue.Provider.Json;
+using Configlue.Source.PostgreSql;
 using Npgsql;
 
 namespace Configlue.Tests;
 
-public sealed class PostgreSqlResourceTests
+public sealed class PostgreSqlSourceTests
 {
     [Test]
     public async Task CompareAndSwapAllowsOnlyOneConcurrentWriter()
     {
         var backend = new FakePostgreSqlStateBackend();
-        using var resource = CreateResource(_ => backend);
+        using var source = CreateSource(_ => backend);
         var context = CreateContext("tenant-a");
-        var created = await resource.WriteAsync(
+        var created = await source.WriteAsync(
             context,
-            new ResourceWriteRequest(new byte[] { 1 }, RevisionCondition.MustNotExist)
+            new StateWriteRequest<string>("first", RevisionCondition.MustNotExist)
         );
 
         created.Revision.ShouldBe("1");
         var writes = await Task.WhenAll(
             Enumerable
                 .Range(0, 24)
-                .Select(index => TryWriteAsync(resource, context, (byte)index, created.Revision!))
+                .Select(index =>
+                    TryWriteAsync(source, context, index.ToString(CultureInfo.InvariantCulture), created.Revision!)
+                )
         );
 
         writes.Count(static succeeded => succeeded).ShouldBe(1);
-        var current = await resource.ReadAsync(context);
+        var current = await source.ReadAsync(context);
         current.Status.ShouldBe(StateReadStatus.Success);
         current.Revision.ShouldBe("2");
-        current.Content.Length.ShouldBe(1);
 
         await Should.ThrowAsync<StateConflictException>(async () =>
-            await resource.WriteAsync(
+            await source.WriteAsync(
                 context,
-                new ResourceWriteRequest(new byte[] { 99 }, RevisionCondition.MustNotExist)
+                new StateWriteRequest<string>("again", RevisionCondition.MustNotExist)
             )
         );
     }
 
     [Test]
-    public async Task OneResourceServesManyKeysAndRoutesWithoutSharingRows()
+    public async Task OneSourceServesManyKeysAndRoutesWithoutSharingRows()
     {
         var routeA = RouteKey.From("region-a");
         var routeB = RouteKey.From("region-b");
         var routeAStore = new FakePostgreSqlStateBackend();
         var routeBStore = new FakePostgreSqlStateBackend();
         var resolverCalls = new ConcurrentDictionary<RouteKey, int>();
-        using var resource = CreateResource(route =>
+        using var source = CreateSource(route =>
         {
             resolverCalls.AddOrUpdate(route, 1, static (_, count) => count + 1);
             return route == routeA ? routeAStore : routeBStore;
@@ -60,11 +64,11 @@ public sealed class PostgreSqlResourceTests
         await Task.WhenAll(
             contexts.Select(
                 (context, index) =>
-                    resource
+                    source
                         .WriteAsync(
                             context,
-                            new ResourceWriteRequest(
-                                new byte[] { (byte)index },
+                            new StateWriteRequest<string>(
+                                index.ToString(CultureInfo.InvariantCulture),
                                 RevisionCondition.MustNotExist
                             )
                         )
@@ -73,69 +77,60 @@ public sealed class PostgreSqlResourceTests
         );
 
         resolverCalls[routeA].ShouldBe(1);
-        (await resource.ReadAsync(contexts[17])).Content.ToArray().ShouldBe(new byte[] { 17 });
-        resource.GetResourceId(contexts[0]).ShouldNotBe(resource.GetResourceId(contexts[1]));
+        (await source.ReadAsync(contexts[17])).Value.ShouldBe("17");
+        source.GetResourceId(contexts[0]).ShouldNotBe(source.GetResourceId(contexts[1]));
 
         var sameSubjectOnOtherRoute = CreateContext("tenant-0", routeB);
-        await resource.WriteAsync(
+        await source.WriteAsync(
             sameSubjectOnOtherRoute,
-            new ResourceWriteRequest(new byte[] { 200 }, RevisionCondition.MustNotExist)
+            new StateWriteRequest<string>("200", RevisionCondition.MustNotExist)
         );
         resolverCalls[routeB].ShouldBe(1);
-        (await resource.ReadAsync(sameSubjectOnOtherRoute))
-            .Content.ToArray()
-            .ShouldBe(new byte[] { 200 });
-        (await resource.ReadAsync(CreateContext("tenant-0", routeA)))
-            .Content.ToArray()
-            .ShouldBe(new byte[] { 0 });
+        (await source.ReadAsync(sameSubjectOnOtherRoute)).Value.ShouldBe("200");
+        (await source.ReadAsync(CreateContext("tenant-0", routeA))).Value.ShouldBe("0");
 
-        using var otherNamespace = CreateResource(_ => routeAStore, "other-application");
+        using var otherNamespace = CreateSource(_ => routeAStore, "other-application");
         await otherNamespace.WriteAsync(
             contexts[0],
-            new ResourceWriteRequest(new byte[] { 201 }, RevisionCondition.MustNotExist)
+            new StateWriteRequest<string>("201", RevisionCondition.MustNotExist)
         );
-        (await otherNamespace.ReadAsync(contexts[0]))
-            .Content.ToArray()
-            .ShouldBe(new byte[] { 201 });
-        (await resource.ReadAsync(contexts[0])).Content.ToArray().ShouldBe(new byte[] { 0 });
+        (await otherNamespace.ReadAsync(contexts[0])).Value.ShouldBe("201");
+        (await source.ReadAsync(contexts[0])).Value.ShouldBe("0");
     }
 
     [Test]
     public async Task RowsAreIsolatedByModelId()
     {
         var backend = new FakePostgreSqlStateBackend();
-        using var resource = CreateResource(_ => backend);
+        using var source = CreateSource(_ => backend);
         var modelOne = CreateContext("tenant-a", modelId: "model-one");
         var modelTwo = CreateContext("tenant-a", modelId: "model-two");
 
-        await resource.WriteAsync(
+        await source.WriteAsync(
             modelOne,
-            new ResourceWriteRequest(new byte[] { 1 }, RevisionCondition.MustNotExist)
+            new StateWriteRequest<string>("one", RevisionCondition.MustNotExist)
         );
-        await resource.WriteAsync(
+        await source.WriteAsync(
             modelTwo,
-            new ResourceWriteRequest(new byte[] { 2 }, RevisionCondition.MustNotExist)
+            new StateWriteRequest<string>("two", RevisionCondition.MustNotExist)
         );
 
-        resource.GetResourceId(modelOne).ShouldNotBe(resource.GetResourceId(modelTwo));
-        (await resource.ReadAsync(modelOne)).Content.ToArray().ShouldBe(new byte[] { 1 });
-        (await resource.ReadAsync(modelTwo)).Content.ToArray().ShouldBe(new byte[] { 2 });
+        source.GetResourceId(modelOne).ShouldNotBe(source.GetResourceId(modelTwo));
+        (await source.ReadAsync(modelOne)).Value.ShouldBe("one");
+        (await source.ReadAsync(modelTwo)).Value.ShouldBe("two");
     }
 
     [Test]
     public async Task WriteRejectsPayloadSchemaModelMismatch()
     {
         var backend = new FakePostgreSqlStateBackend();
-        using var resource = CreateResource(_ => backend);
+        using var source = CreateFragmentSource(_ => backend);
         var context = CreateContext("tenant-a", modelId: "model-one");
 
         await Should.ThrowAsync<InvalidOperationException>(async () =>
-            await resource.WriteAsync(
+            await source.WriteAsync(
                 context,
-                new ResourceWriteRequest(
-                    new byte[] { 1 },
-                    Schema: new StateSchemaMetadata("model-two", 1)
-                )
+                new StateWriteRequest<TestFragment>(new TestFragment("model-two", 1))
             )
         );
     }
@@ -144,44 +139,41 @@ public sealed class PostgreSqlResourceTests
     public async Task WriteAcceptsMatchingPayloadSchemaModel()
     {
         var backend = new FakePostgreSqlStateBackend();
-        using var resource = CreateResource(_ => backend);
+        using var source = CreateFragmentSource(_ => backend);
         var context = CreateContext("tenant-a", modelId: "model-one");
 
-        await resource.WriteAsync(
+        var write = await source.WriteAsync(
             context,
-            new ResourceWriteRequest(
-                new byte[] { 1 },
-                Schema: new StateSchemaMetadata("model-one", 1)
-            )
+            new StateWriteRequest<TestFragment>(new TestFragment("model-one", 1))
         );
 
-        (await resource.ReadAsync(context)).Schema!.Value.ModelId.ShouldBe("model-one");
+        write.Revision.ShouldBe("1");
     }
 
     [Test]
     public async Task WatcherInvalidationIsScopedToTheSubjectKey()
     {
         var backend = new FakePostgreSqlStateBackend();
-        using var resource = CreateResource(_ => backend);
+        using var source = CreateSource(_ => backend);
         var firstContext = CreateContext("tenant-a");
         var secondContext = CreateContext("tenant-b");
-        await resource.WriteAsync(firstContext, new ResourceWriteRequest(new byte[] { 1 }));
-        await resource.WriteAsync(secondContext, new ResourceWriteRequest(new byte[] { 2 }));
+        await source.WriteAsync(firstContext, new StateWriteRequest<string>("1"));
+        await source.WriteAsync(secondContext, new StateWriteRequest<string>("2"));
 
-        var firstWait = resource.WaitForChangeAsync(firstContext, "1").AsTask();
-        var secondWait = resource.WaitForChangeAsync(secondContext, "1").AsTask();
+        var firstWait = source.WaitForChangeAsync(firstContext, "1").AsTask();
+        var secondWait = source.WaitForChangeAsync(secondContext, "1").AsTask();
         await backend.WaitForWaiterCountAsync(2).WaitAsync(TimeSpan.FromSeconds(2));
 
-        await resource.WriteAsync(
+        await source.WriteAsync(
             firstContext,
-            new ResourceWriteRequest(new byte[] { 3 }, RevisionCondition.Match("1"))
+            new StateWriteRequest<string>("3", RevisionCondition.Match("1"))
         );
         await firstWait.WaitAsync(TimeSpan.FromSeconds(2));
         secondWait.IsCompleted.ShouldBeFalse();
 
-        await resource.WriteAsync(
+        await source.WriteAsync(
             secondContext,
-            new ResourceWriteRequest(new byte[] { 4 }, RevisionCondition.Match("1"))
+            new StateWriteRequest<string>("4", RevisionCondition.Match("1"))
         );
         await secondWait.WaitAsync(TimeSpan.FromSeconds(2));
     }
@@ -206,7 +198,9 @@ public sealed class PostgreSqlResourceTests
                 _ =>
                 {
                     firstRead.TrySetResult();
-                    return ValueTask.FromResult(ResourceReadResult.Success(new byte[] { 1 }, "1"));
+                    return ValueTask.FromResult(
+                        ResourceReadResult.Success(new byte[] { 1 }, "1")
+                    );
                 },
                 CancellationToken.None
             )
@@ -217,7 +211,9 @@ public sealed class PostgreSqlResourceTests
                 _ =>
                 {
                     secondRead.TrySetResult();
-                    return ValueTask.FromResult(ResourceReadResult.Success(new byte[] { 2 }, "1"));
+                    return ValueTask.FromResult(
+                        ResourceReadResult.Success(new byte[] { 2 }, "1")
+                    );
                 },
                 CancellationToken.None
             )
@@ -237,9 +233,12 @@ public sealed class PostgreSqlResourceTests
     public void RejectsUnsafeTableIdentifiers()
     {
         Should.Throw<ArgumentException>(() =>
-            CreateResource(
+            CreateSource(
                 _ => new FakePostgreSqlStateBackend(),
-                options: new PostgreSqlResourceOptions { TableName = "settings; DROP TABLE users" }
+                tableOptions: new PostgreSqlTableOptions
+                {
+                    TableName = "settings; DROP TABLE users",
+                }
             )
         );
     }
@@ -250,17 +249,22 @@ public sealed class PostgreSqlResourceTests
         using var dataSource = NpgsqlDataSource.Create(
             "Host=localhost;Database=postgres;Username=postgres;Password=not-used"
         );
+        var serializer = new JsonStateValueSerializer<string>();
         var defaultRouteContext = CreateContext("tenant-a");
         var routeContext = CreateContext("tenant-a", RouteKey.From("region-a"));
-        using var fixedResource = new PostgreSqlResource(dataSource, "settings");
-        using var routedResource = new PostgreSqlResource(_ => dataSource, "settings");
+        using var fixedSource = new PostgreSqlSource<string>(dataSource, "settings", serializer);
+        using var routedSource = new PostgreSqlSource<string>(
+            _ => dataSource,
+            "settings",
+            serializer
+        );
 
-        fixedResource
+        fixedSource
             .GetResourceId(defaultRouteContext)
-            .ShouldBe(fixedResource.GetResourceId(routeContext));
-        routedResource
+            .ShouldBe(fixedSource.GetResourceId(routeContext));
+        routedSource
             .GetResourceId(defaultRouteContext)
-            .ShouldNotBe(routedResource.GetResourceId(routeContext));
+            .ShouldNotBe(routedSource.GetResourceId(routeContext));
     }
 
     [Test]
@@ -284,11 +288,23 @@ public sealed class PostgreSqlResourceTests
         otherTable.Dispose();
     }
 
-    private static PostgreSqlResource CreateResource(
+    private static PostgreSqlSource<string> CreateSource(
         Func<RouteKey, IPostgreSqlStateBackend> resolver,
         string resourceNamespace = "settings",
-        PostgreSqlResourceOptions? options = null
-    ) => new(resolver, resourceNamespace, options);
+        PostgreSqlTableOptions? tableOptions = null
+    ) => new(resolver, resourceNamespace, new JsonStateValueSerializer<string>(), tableOptions);
+
+    private static PostgreSqlSource<TestFragment> CreateFragmentSource(
+        Func<RouteKey, IPostgreSqlStateBackend> resolver,
+        string resourceNamespace = "settings",
+        PostgreSqlTableOptions? tableOptions = null
+    ) =>
+        new(
+            resolver,
+            resourceNamespace,
+            JsonStateValueSerializer<TestFragment>.FromConverter(new TestFragmentConverter()),
+            tableOptions
+        );
 
     private static ConfiglueResourceContext CreateContext(
         string subject,
@@ -301,17 +317,17 @@ public sealed class PostgreSqlResourceTests
     }
 
     private static async Task<bool> TryWriteAsync(
-        PostgreSqlResource resource,
+        PostgreSqlSource<string> source,
         ConfiglueResourceContext context,
-        byte value,
+        string value,
         string revision
     )
     {
         try
         {
-            await resource.WriteAsync(
+            await source.WriteAsync(
                 context,
-                new ResourceWriteRequest(new byte[] { value }, RevisionCondition.Match(revision))
+                new StateWriteRequest<string>(value, RevisionCondition.Match(revision))
             );
             return true;
         }
@@ -323,11 +339,40 @@ public sealed class PostgreSqlResourceTests
 
     private sealed record FakeSubject(SubjectKey Key) : IConfiglueSubject;
 
+    private sealed record TestFragment(string ModelId, int Version) : IConfiglueFragment
+    {
+        public ConfiglueModelSchema Schema =>
+            new(typeof(TestFragment), ModelId, Version, []);
+
+        public IEnumerable<ConfiglueFragmentMember> EnumeratePresentMembers() => [];
+
+        public IConfiglueFragment WithMember(int memberId, object? value) => this;
+
+        public IConfiglueFragment WithoutMember(int memberId) => this;
+    }
+
+    private sealed class TestFragmentConverter : JsonConverter<TestFragment>
+    {
+        public override TestFragment? Read(
+            ref Utf8JsonReader reader,
+            Type typeToConvert,
+            JsonSerializerOptions options
+        ) => throw new NotSupportedException();
+
+        public override void Write(
+            Utf8JsonWriter writer,
+            TestFragment value,
+            JsonSerializerOptions options
+        ) => writer.WriteStartObject();
+    }
+
     private sealed class FakePostgreSqlStateBackend : IPostgreSqlStateBackend
     {
         private readonly object _gate = new();
-        private readonly Dictionary<(string ModelId, string Namespace, string Key), StoredState> _states =
-            [];
+        private readonly Dictionary<
+            (string ModelId, string Namespace, string Key),
+            StoredState
+        > _states = [];
         private readonly Dictionary<
             (string ModelId, string Namespace, string Key),
             HashSet<TaskCompletionSource>

@@ -154,14 +154,12 @@ public static class WebStorageSourceRegistration
                 ?? JsonStateCodec<TFragment>.FromConverter(
                     ConfiglueJsonFragmentRegistry<TFragment>.Converter
                 );
-            var reader = new SerializedStateReader<TFragment>(
+            var serialized = new SerializedSource<TFragment>(
                 resource,
                 codec,
-                options.CodecContext
+                options.CodecContext,
+                writer: options.Writable ? resource : null
             );
-            ISourceWriter<TFragment>? writer = options.Writable
-                ? new SerializedStateWriter<TFragment>(resource, codec, options.CodecContext)
-                : null;
             var physicalOrigin =
                 options.Kind == WebStorageKind.Local
                     ? "weblocal:localStorage"
@@ -170,18 +168,16 @@ public static class WebStorageSourceRegistration
                 options.Id is { } id
                     ? new StateSource<TFragment>(
                         id,
-                        reader,
+                        serialized,
                         options.Priority,
                         options.FallbackCondition,
-                        writer,
                         physicalOrigin: physicalOrigin,
                         runtimeLifetime: RuntimeLifetimeRequirement.Scoped
                     )
                     : new StateSource<TFragment>(
-                        reader,
+                        serialized,
                         options.Priority,
                         options.FallbackCondition,
-                        writer,
                         physicalOrigin: physicalOrigin,
                         runtimeLifetime: RuntimeLifetimeRequirement.Scoped
                     )

@@ -90,7 +90,7 @@ public sealed class FormatSectionResourceTests
             );
             var fallbackSource = new StateSource<AppSettings.Fragment>(
                 "fallback",
-                new InMemoryStateStore<AppSettings.Fragment>(
+                new InMemoryStateSource<AppSettings.Fragment>(
                     new AppSettings.Fragment { RetryCount = Optional<int>.Present(99) }
                 )
             );

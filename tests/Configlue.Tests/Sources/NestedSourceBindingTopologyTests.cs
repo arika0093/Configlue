@@ -8,10 +8,10 @@ public sealed partial class NestedSourceBindingTests
     [Test]
     public async Task ExplicitOnlyMountedSourceIsNotAnOrdinaryWriteOwner()
     {
-        var explicitStore = new InMemoryStateStore<DatabaseSettings.Fragment>(
+        var explicitStore = new InMemoryStateSource<DatabaseSettings.Fragment>(
             new DatabaseSettings.Fragment { Host = Optional<string>.Present("explicit.db") }
         );
-        var ordinaryStore = new InMemoryStateStore<DatabaseSettings.Fragment>(
+        var ordinaryStore = new InMemoryStateSource<DatabaseSettings.Fragment>(
             new DatabaseSettings.Fragment { Host = Optional<string>.Present("ordinary.db") }
         );
         var explicitSource = new StateSource<DatabaseSettings.Fragment>(
@@ -64,8 +64,8 @@ public sealed partial class NestedSourceBindingTests
     [Test]
     public void DuplicateWritableMountedOwnersAreRejected()
     {
-        var firstStore = new InMemoryStateStore<DatabaseSettings.Fragment>();
-        var secondStore = new InMemoryStateStore<DatabaseSettings.Fragment>();
+        var firstStore = new InMemoryStateSource<DatabaseSettings.Fragment>();
+        var secondStore = new InMemoryStateSource<DatabaseSettings.Fragment>();
 
         Should.Throw<InvalidOperationException>(() =>
             ConfiglueApp.CreateContext(builder =>
@@ -108,7 +108,7 @@ public sealed partial class NestedSourceBindingTests
     [Test]
     public async Task CurrentAwareReverseProjectionPreservesUnprojectedSourceFields()
     {
-        var sourceStore = new InMemoryStateStore<RemoteDatabaseContract.Fragment>(
+        var sourceStore = new InMemoryStateSource<RemoteDatabaseContract.Fragment>(
             new RemoteDatabaseContract.Fragment
             {
                 Endpoint = Optional<string>.Present("keep-this-endpoint"),
@@ -317,7 +317,7 @@ public sealed partial class NestedSourceBindingTests
     [Test]
     public async Task MountedSourceCanTargetADeepNestedSubtree()
     {
-        var baseStore = new InMemoryStateStore<RootWithNestedSettings.Fragment>(
+        var baseStore = new InMemoryStateSource<RootWithNestedSettings.Fragment>(
             new RootWithNestedSettings.Fragment
             {
                 Settings = Optional<NestedSettings.Fragment?>.Present(
@@ -335,7 +335,7 @@ public sealed partial class NestedSourceBindingTests
                 ),
             }
         );
-        var remoteStore = new InMemoryStateStore<InnerSettingsV2.Fragment>(
+        var remoteStore = new InMemoryStateSource<InnerSettingsV2.Fragment>(
             new InnerSettingsV2.Fragment { Count = Optional<int>.Present(9) }
         );
         var remote = new StateSource<InnerSettingsV2.Fragment>(
@@ -380,7 +380,7 @@ public sealed partial class NestedSourceBindingTests
         var resourceId = new ResourceId("file:settings.json");
         var settingsSource = new StateSource<NestedSettings.Fragment>(
             "settings-section",
-            new InMemoryStateStore<NestedSettings.Fragment>(
+            new InMemoryStateSource<NestedSettings.Fragment>(
                 new NestedSettings.Fragment { Label = Optional<string?>.Present("section-label") }
             ),
             priority: 100,
@@ -389,7 +389,7 @@ public sealed partial class NestedSourceBindingTests
         );
         var innerSource = new StateSource<InnerSettingsV2.Fragment>(
             "inner-section",
-            new InMemoryStateStore<InnerSettingsV2.Fragment>(
+            new InMemoryStateSource<InnerSettingsV2.Fragment>(
                 new InnerSettingsV2.Fragment { Count = Optional<int>.Present(11) }
             ),
             priority: 200,
@@ -441,7 +441,7 @@ public sealed partial class NestedSourceBindingTests
     [Test]
     public void MountRejectsUnknownAndMismatchedNestedPaths()
     {
-        var sourceStore = new InMemoryStateStore<DatabaseSettings.Fragment>();
+        var sourceStore = new InMemoryStateSource<DatabaseSettings.Fragment>();
         var source = new StateSource<DatabaseSettings.Fragment>("database", sourceStore);
 
         Should.Throw<ArgumentException>(() =>
@@ -463,7 +463,7 @@ public sealed partial class NestedSourceBindingTests
             )
         );
 
-        var otherSourceStore = new InMemoryStateStore<InnerSettingsV2.Fragment>();
+        var otherSourceStore = new InMemoryStateSource<InnerSettingsV2.Fragment>();
         var otherSource = new StateSource<InnerSettingsV2.Fragment>("inner", otherSourceStore);
         Should.Throw<ArgumentException>(() =>
             StateSourceProjection.Mount<InnerSettingsV2.Fragment, AppSettings.Fragment>(

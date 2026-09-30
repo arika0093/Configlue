@@ -33,7 +33,7 @@ public sealed partial class NestedSourceBindingTests
     [Test]
     public async Task MountedPartialSubtreeOverridesOnlyPresentMembersAndRetainsProvenance()
     {
-        var baseStore = new InMemoryStateStore<AppSettings.Fragment>(
+        var baseStore = new InMemoryStateSource<AppSettings.Fragment>(
             new AppSettings.Fragment
             {
                 RetryCount = Optional<int>.Present(3),
@@ -46,7 +46,7 @@ public sealed partial class NestedSourceBindingTests
                 ),
             }
         );
-        var remoteStore = new InMemoryStateStore<DatabaseSettings.Fragment>(
+        var remoteStore = new InMemoryStateSource<DatabaseSettings.Fragment>(
             new DatabaseSettings.Fragment { Host = Optional<string>.Present("remote.db") }
         );
         var remote = new StateSource<DatabaseSettings.Fragment>(
@@ -139,7 +139,7 @@ public sealed partial class NestedSourceBindingTests
     [Test]
     public async Task WritableMountedSourceAppliesSparseNestedChangesToItsExistingContribution()
     {
-        var baseStore = new InMemoryStateStore<AppSettings.Fragment>(
+        var baseStore = new InMemoryStateSource<AppSettings.Fragment>(
             new AppSettings.Fragment
             {
                 Database = Optional<DatabaseSettings.Fragment?>.Present(
@@ -151,7 +151,7 @@ public sealed partial class NestedSourceBindingTests
                 ),
             }
         );
-        var remoteStore = new InMemoryStateStore<DatabaseSettings.Fragment>(
+        var remoteStore = new InMemoryStateSource<DatabaseSettings.Fragment>(
             new DatabaseSettings.Fragment
             {
                 Host = Optional<string>.Present("remote.db"),
@@ -206,10 +206,10 @@ public sealed partial class NestedSourceBindingTests
     [Test]
     public async Task OrdinaryPatchWritesAreRoutedToTheMountedSubtreeOwner()
     {
-        var rootStore = new InMemoryStateStore<AppSettings.Fragment>(
+        var rootStore = new InMemoryStateSource<AppSettings.Fragment>(
             new AppSettings.Fragment { RetryCount = Optional<int>.Present(3) }
         );
-        var databaseStore = new InMemoryStateStore<DatabaseSettings.Fragment>(
+        var databaseStore = new InMemoryStateSource<DatabaseSettings.Fragment>(
             new DatabaseSettings.Fragment
             {
                 Host = Optional<string>.Present("remote.db"),
@@ -253,9 +253,9 @@ public sealed partial class NestedSourceBindingTests
     [Test]
     public async Task MountedOwnerDoesNotRequireAnUnambiguousRootWriter()
     {
-        var firstRootStore = new InMemoryStateStore<AppSettings.Fragment>();
-        var secondRootStore = new InMemoryStateStore<AppSettings.Fragment>();
-        var databaseStore = new InMemoryStateStore<DatabaseSettings.Fragment>(
+        var firstRootStore = new InMemoryStateSource<AppSettings.Fragment>();
+        var secondRootStore = new InMemoryStateSource<AppSettings.Fragment>();
+        var databaseStore = new InMemoryStateSource<DatabaseSettings.Fragment>(
             new DatabaseSettings.Fragment { Host = Optional<string>.Present("remote.db") }
         );
 

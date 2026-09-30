@@ -42,7 +42,7 @@ public sealed class SourceDefinitionContractTests
     [Test]
     public async Task ExtensibilityPortRegistersKeyedProviderSourcesOutsideTheApplicationSurface()
     {
-        var store = new InMemoryStateStore<AppSettings.Fragment>(
+        var store = new InMemoryStateSource<AppSettings.Fragment>(
             new AppSettings.Fragment { Label = Optional<string?>.Present("port") }
         );
         await using var context = ConfiglueApp.CreateContext(builder =>
@@ -84,7 +84,7 @@ public sealed class SourceDefinitionContractTests
             where TFragment : class, IConfiglueFragment<TFragment>
         {
             _ = resource;
-            var store = new InMemoryStateStore<TFragment>();
+            var store = new InMemoryStateSource<TFragment>();
             return new ConfiglueSourceCreation<TFragment>(
                 new StateSource<TFragment>("borrowed", store)
             );
@@ -139,7 +139,7 @@ public sealed class SourceDefinitionContractTests
             CreateCallCount++;
             CreatedModelSchemaId = modelSchema.Id;
             ownResource(resource);
-            var store = new InMemoryStateStore<TFragment>();
+            var store = new InMemoryStateSource<TFragment>();
             return new StateSource<TFragment>("source-definition", store, writer: store);
         }
     }

@@ -13,7 +13,7 @@ public sealed partial class StateRuntimeTests
     [Test]
     public async Task Options_ReturnsModelDefaultsWhenEverySourceIsMissing()
     {
-        var missing = new InMemoryStateStore<AppSettings.Fragment>();
+        var missing = new InMemoryStateSource<AppSettings.Fragment>();
         var sourceSet = new StateSourceSet<AppSettings.Fragment>([
             new("optional", missing, writer: missing),
         ]);
@@ -33,8 +33,8 @@ public sealed partial class StateRuntimeTests
     [Test]
     public async Task Options_NotifiesSubscribersWhenAWatchedSourceChanges()
     {
-        var user = new InMemoryStateStore<AppSettings.Fragment>();
-        var defaults = new InMemoryStateStore<AppSettings.Fragment>(
+        var user = new InMemoryStateSource<AppSettings.Fragment>();
+        var defaults = new InMemoryStateSource<AppSettings.Fragment>(
             new AppSettings.Fragment { RetryCount = Optional<int>.Present(3) }
         );
         var sourceSet = new StateSourceSet<AppSettings.Fragment>([
@@ -189,7 +189,7 @@ public sealed partial class StateRuntimeTests
     [Test]
     public async Task Options_DebouncesRapidSourceChangesAndReportsTheLatestValue()
     {
-        var store = new InMemoryStateStore<AppSettings.Fragment>(
+        var store = new InMemoryStateSource<AppSettings.Fragment>(
             new AppSettings.Fragment { RetryCount = Optional<int>.Present(3) }
         );
         var sourceSet = new StateSourceSet<AppSettings.Fragment>([
@@ -224,7 +224,7 @@ public sealed partial class StateRuntimeTests
     [Test]
     public async Task EditSession_SavesDraftAndRejectsAStaleRevision()
     {
-        var store = new InMemoryStateStore<AppSettings.Fragment>(
+        var store = new InMemoryStateSource<AppSettings.Fragment>(
             new AppSettings.Fragment { RetryCount = Optional<int>.Present(3) }
         );
         var sourceSet = new StateSourceSet<AppSettings.Fragment>([
@@ -261,7 +261,7 @@ public sealed partial class StateRuntimeTests
     [Test]
     public async Task EditSession_RebasesAChangeAfterAnUnrelatedPathChanges()
     {
-        var store = new InMemoryStateStore<AppSettings.Fragment>(
+        var store = new InMemoryStateSource<AppSettings.Fragment>(
             new AppSettings.Fragment { RetryCount = Optional<int>.Present(3) }
         );
         var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
@@ -287,7 +287,7 @@ public sealed partial class StateRuntimeTests
     [Test]
     public async Task EditSession_RebasesNestedDisjointChanges()
     {
-        var store = new InMemoryStateStore<AppSettings.Fragment>(
+        var store = new InMemoryStateSource<AppSettings.Fragment>(
             new AppSettings.Fragment
             {
                 Database = Optional<DatabaseSettings.Fragment?>.Present(
@@ -327,7 +327,7 @@ public sealed partial class StateRuntimeTests
     [Test]
     public async Task SaveAsync_UpdatesACloneSynchronouslyOrAsynchronously()
     {
-        var store = new InMemoryStateStore<AppSettings.Fragment>(
+        var store = new InMemoryStateSource<AppSettings.Fragment>(
             new AppSettings.Fragment
             {
                 RetryCount = Optional<int>.Present(3),
@@ -363,7 +363,7 @@ public sealed partial class StateRuntimeTests
     [Test]
     public async Task SaveAsync_DoesNotRetainCallerOwnedCollectionReferences()
     {
-        var store = new InMemoryStateStore<AppSettings.Fragment>();
+        var store = new InMemoryStateSource<AppSettings.Fragment>();
         var sources = new StateSourceSet<AppSettings.Fragment>([new("user", store, writer: store)]);
         await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(sources);
         var plugins = new List<string> { "before-save" };
@@ -378,10 +378,10 @@ public sealed partial class StateRuntimeTests
     [Test]
     public async Task EditSession_RebasesAfterAnUnrelatedSourceChanges()
     {
-        var user = new InMemoryStateStore<AppSettings.Fragment>(
+        var user = new InMemoryStateSource<AppSettings.Fragment>(
             new AppSettings.Fragment { Enabled = Optional<bool>.Present(true) }
         );
-        var defaults = new InMemoryStateStore<AppSettings.Fragment>(
+        var defaults = new InMemoryStateSource<AppSettings.Fragment>(
             new AppSettings.Fragment { RetryCount = Optional<int>.Present(3) }
         );
         var sources = new StateSourceSet<AppSettings.Fragment>([
@@ -406,7 +406,7 @@ public sealed partial class StateRuntimeTests
     [Test]
     public async Task EditSession_WritesOnlySemanticChangesToTheSelectedContribution()
     {
-        var defaults = new InMemoryStateStore<AppSettings.Fragment>(
+        var defaults = new InMemoryStateSource<AppSettings.Fragment>(
             new AppSettings.Fragment
             {
                 RetryCount = Optional<int>.Present(3),
@@ -419,7 +419,7 @@ public sealed partial class StateRuntimeTests
                 ),
             }
         );
-        var user = new InMemoryStateStore<AppSettings.Fragment>(
+        var user = new InMemoryStateSource<AppSettings.Fragment>(
             new AppSettings.Fragment
             {
                 Label = Optional<string?>.Present("user label"),
@@ -453,8 +453,8 @@ public sealed partial class StateRuntimeTests
     [Test]
     public async Task EditSession_RoutesNestedChangesToTheMostSpecificSources()
     {
-        var user = new InMemoryStateStore<AppSettings.Fragment>(new AppSettings.Fragment());
-        var database = new InMemoryStateStore<AppSettings.Fragment>(
+        var user = new InMemoryStateSource<AppSettings.Fragment>(new AppSettings.Fragment());
+        var database = new InMemoryStateSource<AppSettings.Fragment>(
             new AppSettings.Fragment
             {
                 Database = Optional<DatabaseSettings.Fragment?>.Present(
@@ -462,7 +462,7 @@ public sealed partial class StateRuntimeTests
                 ),
             }
         );
-        var defaults = new InMemoryStateStore<AppSettings.Fragment>(
+        var defaults = new InMemoryStateSource<AppSettings.Fragment>(
             new AppSettings.Fragment
             {
                 RetryCount = Optional<int>.Present(3),
@@ -518,10 +518,10 @@ public sealed partial class StateRuntimeTests
     [Test]
     public async Task EditSession_PathPlanRejectsEditsHiddenByAHigherPrioritySource()
     {
-        var policy = new InMemoryStateStore<AppSettings.Fragment>(
+        var policy = new InMemoryStateSource<AppSettings.Fragment>(
             new AppSettings.Fragment { Enabled = Optional<bool>.Present(true) }
         );
-        var user = new InMemoryStateStore<AppSettings.Fragment>(new AppSettings.Fragment());
+        var user = new InMemoryStateSource<AppSettings.Fragment>(new AppSettings.Fragment());
         var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
                 new("policy", policy, priority: 100),
@@ -556,7 +556,7 @@ public sealed partial class StateRuntimeTests
     [Test]
     public async Task EditSession_DoesNotWriteWhenTheModelWasNotChanged()
     {
-        var store = new InMemoryStateStore<AppSettings.Fragment>(
+        var store = new InMemoryStateSource<AppSettings.Fragment>(
             new AppSettings.Fragment { RetryCount = Optional<int>.Present(3) }
         );
         var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
@@ -576,10 +576,10 @@ public sealed partial class StateRuntimeTests
     [Test]
     public async Task EditSession_RebasesAppendEditsOntoTheSelectedSourceSegment()
     {
-        var defaults = new InMemoryStateStore<AppSettings.Fragment>(
+        var defaults = new InMemoryStateSource<AppSettings.Fragment>(
             new AppSettings.Fragment { Plugins = Optional<IReadOnlyList<string>>.Present(["base"]) }
         );
-        var user = new InMemoryStateStore<AppSettings.Fragment>(
+        var user = new InMemoryStateSource<AppSettings.Fragment>(
             new AppSettings.Fragment { Plugins = Optional<IReadOnlyList<string>>.Present(["user"]) }
         );
         var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
@@ -606,10 +606,10 @@ public sealed partial class StateRuntimeTests
     [Test]
     public async Task EditSession_RebasesConcurrentAppendAdditions()
     {
-        var defaults = new InMemoryStateStore<AppSettings.Fragment>(
+        var defaults = new InMemoryStateSource<AppSettings.Fragment>(
             new AppSettings.Fragment { Plugins = Optional<IReadOnlyList<string>>.Present(["base"]) }
         );
-        var user = new InMemoryStateStore<AppSettings.Fragment>(
+        var user = new InMemoryStateSource<AppSettings.Fragment>(
             new AppSettings.Fragment { Plugins = Optional<IReadOnlyList<string>>.Present(["user"]) }
         );
         var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
@@ -640,13 +640,13 @@ public sealed partial class StateRuntimeTests
     [Test]
     public async Task EditSession_RebasesSetUnionEditsAndRejectsRemovingOtherSourceValues()
     {
-        var defaults = new InMemoryStateStore<SetUnionSettings.Fragment>(
+        var defaults = new InMemoryStateSource<SetUnionSettings.Fragment>(
             new SetUnionSettings.Fragment
             {
                 Tags = Optional<IReadOnlyList<string>>.Present(["base", "shared"]),
             }
         );
-        var user = new InMemoryStateStore<SetUnionSettings.Fragment>(
+        var user = new InMemoryStateSource<SetUnionSettings.Fragment>(
             new SetUnionSettings.Fragment
             {
                 Tags = Optional<IReadOnlyList<string>>.Present(["user", "shared"]),
@@ -693,13 +693,13 @@ public sealed partial class StateRuntimeTests
     [Test]
     public async Task EditSession_RebasesConcurrentSetUnionAdditions()
     {
-        var defaults = new InMemoryStateStore<SetUnionSettings.Fragment>(
+        var defaults = new InMemoryStateSource<SetUnionSettings.Fragment>(
             new SetUnionSettings.Fragment
             {
                 Tags = Optional<IReadOnlyList<string>>.Present(["base"]),
             }
         );
-        var user = new InMemoryStateStore<SetUnionSettings.Fragment>(
+        var user = new InMemoryStateSource<SetUnionSettings.Fragment>(
             new SetUnionSettings.Fragment
             {
                 Tags = Optional<IReadOnlyList<string>>.Present(["user"]),
@@ -733,10 +733,10 @@ public sealed partial class StateRuntimeTests
     [Test]
     public async Task EditSession_RejectsAWriteHiddenByHigherPriorityReadOnlySource()
     {
-        var policy = new InMemoryStateStore<AppSettings.Fragment>(
+        var policy = new InMemoryStateSource<AppSettings.Fragment>(
             new AppSettings.Fragment { Enabled = Optional<bool>.Present(true) }
         );
-        var user = new InMemoryStateStore<AppSettings.Fragment>();
+        var user = new InMemoryStateSource<AppSettings.Fragment>();
         var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
                 new("policy", policy, priority: 100),

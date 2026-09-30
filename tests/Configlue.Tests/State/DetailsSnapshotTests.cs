@@ -18,7 +18,7 @@ public sealed class DetailsSnapshotTests
                     sources.Add(
                         new StateSource<AppSettings.Fragment>(
                             "base",
-                            new InMemoryStateStore<AppSettings.Fragment>(
+                            new InMemoryStateSource<AppSettings.Fragment>(
                                 new AppSettings.Fragment
                                 {
                                     RetryCount = Optional<int>.Present(4),
@@ -30,10 +30,10 @@ public sealed class DetailsSnapshotTests
                     sources.Add(
                         new StateSource<AppSettings.Fragment>(
                             "override",
-                            new InMemoryStateStore<AppSettings.Fragment>(
+                            new InMemoryStateSource<AppSettings.Fragment>(
                                 new AppSettings.Fragment { RetryCount = Optional<int>.Present(8) }
                             ),
-                            writer: new InMemoryStateStore<AppSettings.Fragment>(),
+                            writer: new InMemoryStateSource<AppSettings.Fragment>(),
                             priority: 100
                         )
                     );
@@ -77,7 +77,7 @@ public sealed class DetailsSnapshotTests
     [Test]
     public async Task GetDetailsAsync_ReportsModelDefaultsAsTheEditableBaseline()
     {
-        var missing = new InMemoryStateStore<AppSettings.Fragment>();
+        var missing = new InMemoryStateSource<AppSettings.Fragment>();
         await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([new("local", missing, writer: missing)])
         );
@@ -104,7 +104,7 @@ public sealed class DetailsSnapshotTests
             new StateSourceSet<AppSettings.Fragment>([
                 new(
                     "local",
-                    new InMemoryStateStore<AppSettings.Fragment>(
+                    new InMemoryStateSource<AppSettings.Fragment>(
                         new AppSettings.Fragment { Label = Optional<string?>.Present("local") }
                     ),
                     physicalOrigin: "custom:placement"
@@ -130,7 +130,7 @@ public sealed class DetailsSnapshotTests
             ClrDefaultSettings.Fragment
         >(
             new StateSourceSet<ClrDefaultSettings.Fragment>([
-                new("empty", new InMemoryStateStore<ClrDefaultSettings.Fragment>()),
+                new("empty", new InMemoryStateSource<ClrDefaultSettings.Fragment>()),
             ])
         );
 
@@ -159,7 +159,7 @@ public sealed class DetailsSnapshotTests
                 ),
                 new(
                     "base-internal-id",
-                    new InMemoryStateStore<AppSettings.Fragment>(
+                    new InMemoryStateSource<AppSettings.Fragment>(
                         new AppSettings.Fragment { Label = Optional<string?>.Present("local") }
                     ),
                     priority: 0
@@ -226,8 +226,8 @@ public sealed class DetailsSnapshotTests
                     sources.Add(
                         new StateSource<AppSettings.Fragment>(
                             "file",
-                            new InMemoryStateStore<AppSettings.Fragment>(),
-                            writer: new InMemoryStateStore<AppSettings.Fragment>()
+                            new InMemoryStateSource<AppSettings.Fragment>(),
+                            writer: new InMemoryStateSource<AppSettings.Fragment>()
                         )
                     );
                     sources.Add(
@@ -253,10 +253,10 @@ public sealed class DetailsSnapshotTests
     [Test]
     public async Task GetDetailsAsync_UsesResolverOrderForEqualPriorityShadowing()
     {
-        var policy = new InMemoryStateStore<AppSettings.Fragment>(
+        var policy = new InMemoryStateSource<AppSettings.Fragment>(
             new AppSettings.Fragment { Label = Optional<string?>.Present("policy") }
         );
-        var user = new InMemoryStateStore<AppSettings.Fragment>();
+        var user = new InMemoryStateSource<AppSettings.Fragment>();
         await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
                 new("policy", policy, priority: 100),
@@ -275,7 +275,7 @@ public sealed class DetailsSnapshotTests
     [Test]
     public async Task GetDetailsAsync_DistinguishesReadOnlyAndMissingWriteTargets()
     {
-        var readOnly = new InMemoryStateStore<AppSettings.Fragment>(
+        var readOnly = new InMemoryStateSource<AppSettings.Fragment>(
             new AppSettings.Fragment { Label = Optional<string?>.Present("read-only") }
         );
         await using (
@@ -310,7 +310,7 @@ public sealed class DetailsSnapshotTests
                     sources.Add(
                         new StateSource<AppSettings.Fragment>(
                             "base",
-                            new InMemoryStateStore<AppSettings.Fragment>(
+                            new InMemoryStateSource<AppSettings.Fragment>(
                                 new AppSettings.Fragment
                                 {
                                     Database = Optional<DatabaseSettings.Fragment?>.Present(
@@ -354,7 +354,7 @@ public sealed class DetailsSnapshotTests
                     sources.Add(
                         new StateSource<OwnershipSettings.Fragment>(
                             "base",
-                            new InMemoryStateStore<OwnershipSettings.Fragment>(
+                            new InMemoryStateSource<OwnershipSettings.Fragment>(
                                 new OwnershipSettings.Fragment
                                 {
                                     ArrayValues = Optional<string[]>.Present(["a", "b"]),
@@ -389,7 +389,7 @@ public sealed class DetailsSnapshotTests
             new StateSourceSet<AppSettings.Fragment>([
                 new(
                     "high-internal-id",
-                    new InMemoryStateStore<AppSettings.Fragment>(
+                    new InMemoryStateSource<AppSettings.Fragment>(
                         new AppSettings.Fragment
                         {
                             Plugins = Optional<IReadOnlyList<string>>.Present(["high"]),
@@ -399,7 +399,7 @@ public sealed class DetailsSnapshotTests
                 ),
                 new(
                     "low-internal-id",
-                    new InMemoryStateStore<AppSettings.Fragment>(
+                    new InMemoryStateSource<AppSettings.Fragment>(
                         new AppSettings.Fragment
                         {
                             Plugins = Optional<IReadOnlyList<string>>.Present(["low"]),
@@ -426,7 +426,7 @@ public sealed class DetailsSnapshotTests
             new StateSourceSet<ReplaceCollectionSettings.Fragment>([
                 new(
                     "preferred",
-                    new InMemoryStateStore<ReplaceCollectionSettings.Fragment>(
+                    new InMemoryStateSource<ReplaceCollectionSettings.Fragment>(
                         new ReplaceCollectionSettings.Fragment
                         {
                             Values = Optional<IReadOnlyList<string>>.Present(["preferred"]),
@@ -436,7 +436,7 @@ public sealed class DetailsSnapshotTests
                 ),
                 new(
                     "fallback",
-                    new InMemoryStateStore<ReplaceCollectionSettings.Fragment>(
+                    new InMemoryStateSource<ReplaceCollectionSettings.Fragment>(
                         new ReplaceCollectionSettings.Fragment
                         {
                             Values = Optional<IReadOnlyList<string>>.Present(["fallback"]),

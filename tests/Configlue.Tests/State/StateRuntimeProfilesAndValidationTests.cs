@@ -38,7 +38,7 @@ public sealed partial class StateRuntimeTests
     [Test]
     public async Task Options_ValidatesBeforeSavingAndLeavesTheStoredRevisionUntouched()
     {
-        var store = new InMemoryStateStore<AppSettings.Fragment>(
+        var store = new InMemoryStateSource<AppSettings.Fragment>(
             new AppSettings.Fragment { RetryCount = Optional<int>.Present(3) }
         );
         var sourceSet = new StateSourceSet<AppSettings.Fragment>([
@@ -101,13 +101,13 @@ public sealed partial class StateRuntimeTests
     [Test]
     public async Task NamedAndRuntimeProfiles_PassTheirNamesToMicrosoftValidators()
     {
-        var defaultStore = new InMemoryStateStore<AppSettings.Fragment>(
+        var defaultStore = new InMemoryStateSource<AppSettings.Fragment>(
             new AppSettings.Fragment { RetryCount = Optional<int>.Present(3) }
         );
-        var keyedStore = new InMemoryStateStore<AppSettings.Fragment>(
+        var keyedStore = new InMemoryStateSource<AppSettings.Fragment>(
             new AppSettings.Fragment { RetryCount = Optional<int>.Present(3) }
         );
-        var runtimeStores = new Dictionary<string, InMemoryStateStore<AppSettings.Fragment>>(
+        var runtimeStores = new Dictionary<string, InMemoryStateSource<AppSettings.Fragment>>(
             StringComparer.Ordinal
         );
         var services = new ServiceCollection();
@@ -127,7 +127,7 @@ public sealed partial class StateRuntimeTests
         services.AddConfiglueStateRegistry<AppSettings, AppSettings.Fragment>(
             (_, profileName) =>
             {
-                var store = new InMemoryStateStore<AppSettings.Fragment>(
+                var store = new InMemoryStateSource<AppSettings.Fragment>(
                     new AppSettings.Fragment { RetryCount = Optional<int>.Present(3) }
                 );
                 runtimeStores.Add(profileName, store);
@@ -170,14 +170,14 @@ public sealed partial class StateRuntimeTests
     [Test]
     public async Task SaveAsync_ChangesOnlyTheTargetContributionAndUnsetRevealsLowerValues()
     {
-        var defaults = new InMemoryStateStore<AppSettings.Fragment>(
+        var defaults = new InMemoryStateSource<AppSettings.Fragment>(
             new AppSettings.Fragment
             {
                 RetryCount = Optional<int>.Present(3),
                 Label = Optional<string?>.Present("default label"),
             }
         );
-        var user = new InMemoryStateStore<AppSettings.Fragment>(
+        var user = new InMemoryStateSource<AppSettings.Fragment>(
             new AppSettings.Fragment
             {
                 Enabled = Optional<bool>.Present(false),
@@ -212,7 +212,7 @@ public sealed partial class StateRuntimeTests
     [Test]
     public async Task SaveAsync_UnsetRevealsTheModelDefaultsContribution()
     {
-        var store = new InMemoryStateStore<AppSettings.Fragment>(
+        var store = new InMemoryStateSource<AppSettings.Fragment>(
             new AppSettings.Fragment { RetryCount = Optional<int>.Present(12) }
         );
         await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
@@ -232,10 +232,10 @@ public sealed partial class StateRuntimeTests
     [Test]
     public async Task DependencyInjection_ResolvesNamedProfilesByServiceKey()
     {
-        var primaryStore = new InMemoryStateStore<AppSettings.Fragment>(
+        var primaryStore = new InMemoryStateSource<AppSettings.Fragment>(
             new AppSettings.Fragment { RetryCount = Optional<int>.Present(5) }
         );
-        var secondaryStore = new InMemoryStateStore<AppSettings.Fragment>(
+        var secondaryStore = new InMemoryStateSource<AppSettings.Fragment>(
             new AppSettings.Fragment { RetryCount = Optional<int>.Present(8) }
         );
         var primarySources = new StateSourceSet<AppSettings.Fragment>([
@@ -276,7 +276,7 @@ public sealed partial class StateRuntimeTests
             (_, profileName) =>
             {
                 Interlocked.Increment(ref factoryCalls);
-                var store = new InMemoryStateStore<AppSettings.Fragment>(
+                var store = new InMemoryStateSource<AppSettings.Fragment>(
                     new AppSettings.Fragment
                     {
                         RetryCount = Optional<int>.Present(profileName == "primary" ? 5 : 8),
@@ -325,7 +325,7 @@ public sealed partial class StateRuntimeTests
         services.AddConfiglueStateRegistry<AppSettings, AppSettings.Fragment>(
             (_, name) =>
             {
-                var store = new InMemoryStateStore<AppSettings.Fragment>();
+                var store = new InMemoryStateSource<AppSettings.Fragment>();
                 return new StateSourceSet<AppSettings.Fragment>([
                     new(name, store, writer: store, watcher: store),
                 ]);
@@ -454,7 +454,7 @@ public sealed partial class StateRuntimeTests
         services.AddConfiglueStateRegistry<AppSettings, AppSettings.Fragment>(
             (_, name) =>
             {
-                var store = new InMemoryStateStore<AppSettings.Fragment>();
+                var store = new InMemoryStateSource<AppSettings.Fragment>();
                 return new StateSourceSet<AppSettings.Fragment>([
                     new(name, store, writer: store, watcher: store),
                 ]);

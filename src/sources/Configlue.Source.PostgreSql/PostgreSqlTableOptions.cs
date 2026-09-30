@@ -1,13 +1,16 @@
-namespace Configlue.Resource.PostgreSql;
+namespace Configlue.Source.PostgreSql;
 
-/// <summary>Configures the table and identity of a PostgreSQL resource.</summary>
-public sealed class PostgreSqlResourceOptions
+/// <summary>Configures the table and identity of a PostgreSQL JSONB source.</summary>
+public sealed class PostgreSqlTableOptions
 {
     /// <summary>The PostgreSQL schema. Defaults to <c>public</c>.</summary>
     public string SchemaName { get; init; } = "public";
 
-    /// <summary>The table holding resource rows. Defaults to <c>configlue_state</c>.</summary>
+    /// <summary>The table holding JSONB state rows. Defaults to <c>configlue_state</c>.</summary>
     public string TableName { get; init; } = "configlue_state";
+
+    /// <summary>The table tracking applied schema component versions. Defaults to <c>configlue_schema_components</c>.</summary>
+    public string ComponentsTableName { get; init; } = "configlue_schema_components";
 
     /// <summary>An optional fixed identity overriding the identity derived from the row and route.</summary>
     public ResourceId? ResourceId { get; init; }
@@ -16,6 +19,7 @@ public sealed class PostgreSqlResourceOptions
     {
         ValidateIdentifier(SchemaName, nameof(SchemaName));
         ValidateIdentifier(TableName, nameof(TableName));
+        ValidateIdentifier(ComponentsTableName, nameof(ComponentsTableName));
     }
 
     internal static void ValidateIdentifier(string value, string parameterName)
@@ -40,6 +44,8 @@ public sealed class PostgreSqlResourceOptions
             );
         }
     }
+
+    internal static string Quote(string identifier) => '"' + identifier.Replace("\"", "\"\"") + '"';
 
     private static bool IsIdentifierStart(char value) =>
         value is >= 'A' and <= 'Z' or >= 'a' and <= 'z' or '_';

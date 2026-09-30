@@ -64,7 +64,7 @@ public sealed class EnvironmentStateSourceTests
         (source.Watcher).ShouldBeNull();
         (source.PhysicalOrigin).ShouldBe("environment:APP");
 
-        var defaults = new InMemoryStateStore<AppSettings.Fragment>(
+        var defaults = new InMemoryStateSource<AppSettings.Fragment>(
             new AppSettings.Fragment
             {
                 Enabled = Optional<bool>.Present(true),

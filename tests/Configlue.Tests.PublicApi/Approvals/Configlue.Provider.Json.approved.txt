@@ -17,6 +17,7 @@ namespace Configlue.Provider.Json
     {
         public static System.Text.Json.Serialization.JsonConverter<TFragment> Converter { get; }
         public static void Register(System.Text.Json.Serialization.JsonConverter<TFragment> converter) { }
+        public static bool TryGetConverter([System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out System.Text.Json.Serialization.JsonConverter<TFragment>? converter) { }
     }
     public sealed class JsonFileRegistration<TModel>
         where TModel : Configlue.CompilerServices.IConfiglueFacadeModel<TModel>
@@ -135,5 +136,26 @@ namespace Configlue.Provider.Json
             "tor sets _typeInfo and never enters the reflection fallback.")]
         public void Serialize(T? value, System.Buffers.IBufferWriter<byte> destination, in Configlue.Codecs.StateCodecContext context) { }
         public static Configlue.Provider.Json.JsonStateCodec<T> FromConverter(System.Text.Json.Serialization.JsonConverter<T> converter) { }
+    }
+    public sealed class JsonStateValueSerializer<T>
+    {
+        [System.Diagnostics.CodeAnalysis.RequiresDynamicCode("Reflection-based JSON serialization may require runtime code generation. Use the " +
+            "JsonTypeInfo constructor for NativeAOT.")]
+        [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Reflection-based JSON serialization may require types that trimming removes. Use " +
+            "the JsonTypeInfo constructor for trim-safe serialization.")]
+        public JsonStateValueSerializer(System.Text.Json.JsonSerializerOptions? options = null) { }
+        public JsonStateValueSerializer(System.Text.Json.Serialization.Metadata.JsonTypeInfo<T> typeInfo) { }
+        public JsonStateValueSerializer(System.Text.Json.JsonSerializerOptions? options, System.Text.Json.Serialization.JsonConverter<T>? converter) { }
+        [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Aot", "IL3050", Justification="The options-based constructor carries this requirement. The JsonTypeInfo construc" +
+            "tor sets _typeInfo and never enters the reflection fallback.")]
+        [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2026", Justification="The options-based constructor carries this requirement. The JsonTypeInfo construc" +
+            "tor sets _typeInfo and never enters the reflection fallback.")]
+        public T? Deserialize(in System.Buffers.ReadOnlySequence<byte> source) { }
+        [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Aot", "IL3050", Justification="The options-based constructor carries this requirement. The JsonTypeInfo construc" +
+            "tor sets _typeInfo and never enters the reflection fallback.")]
+        [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2026", Justification="The options-based constructor carries this requirement. The JsonTypeInfo construc" +
+            "tor sets _typeInfo and never enters the reflection fallback.")]
+        public void Serialize(T? value, System.Buffers.IBufferWriter<byte> destination) { }
+        public static Configlue.Provider.Json.JsonStateValueSerializer<T> FromConverter(System.Text.Json.Serialization.JsonConverter<T> converter) { }
     }
 }

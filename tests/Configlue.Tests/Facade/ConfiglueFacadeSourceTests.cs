@@ -160,7 +160,7 @@ public sealed partial class ConfiglueFacadeSourceTests
     public async Task RemovingAndDisposingFacadeProfilesStopsAndDisposesTheirFileWatchersOnce()
     {
         using var directory = new TemporaryDirectory();
-        var catalogStore = new InMemoryStateStore<ConfiglueProfileCatalog>();
+        var catalogStore = new InMemoryStateSource<ConfiglueProfileCatalog>();
         var catalog = new StateSource<ConfiglueProfileCatalog>(
             "catalog",
             catalogStore,
@@ -238,7 +238,7 @@ public sealed partial class ConfiglueFacadeSourceTests
                 {
                     if (registration.StateName != "failure")
                     {
-                        var store = new InMemoryStateStore<AppSettings.Fragment>();
+                        var store = new InMemoryStateSource<AppSettings.Fragment>();
                         registration.Sources.Add<AppSettings.Fragment>(
                             _ => new StateSource<AppSettings.Fragment>(
                                 "ordinary",
@@ -404,7 +404,7 @@ public sealed partial class ConfiglueFacadeSourceTests
             where TFragment : class, IConfiglueFragment<TFragment>
         {
             ownResource(resource);
-            var store = new InMemoryStateStore<TFragment>();
+            var store = new InMemoryStateSource<TFragment>();
             return new StateSource<TFragment>("owned-probe", store, writer: store, watcher: store);
         }
     }

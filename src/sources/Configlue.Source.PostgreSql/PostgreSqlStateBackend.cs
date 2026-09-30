@@ -3,25 +3,28 @@
 using System.Collections.Concurrent;
 using System.Globalization;
 using System.Runtime.CompilerServices;
+using System.Text;
 using Npgsql;
 using NpgsqlTypes;
 
-namespace Configlue.Resource.PostgreSql;
+namespace Configlue.Source.PostgreSql;
 
 internal sealed class PostgreSqlStateBackend : IPostgreSqlStateBackend
 {
     private readonly NpgsqlDataSource _dataSource;
-    private readonly PostgreSqlResourceOptions _options;
     private readonly PostgreSqlChangeHubLease _changeHub;
     private readonly SemaphoreSlim _initializationLock = new(1, 1);
     private readonly string _qualifiedTable;
-    private volatile bool _initialized;
+    private readonly string _qualifiedComponentsTable;
+    private volatile bool _verified;
 
-    public PostgreSqlStateBackend(NpgsqlDataSource dataSource, PostgreSqlResourceOptions options)
+    public PostgreSqlStateBackend(NpgsqlDataSource dataSource, PostgreSqlTableOptions options)
     {
         _dataSource = dataSource;
-        _options = options;
-        _qualifiedTable = $"{Quote(options.SchemaName)}.{Quote(options.TableName)}";
+        _qualifiedTable =
+            $"{PostgreSqlTableOptions.Quote(options.SchemaName)}.{PostgreSqlTableOptions.Quote(options.TableName)}";
+        _qualifiedComponentsTable =
+            $"{PostgreSqlTableOptions.Quote(options.SchemaName)}.{PostgreSqlTableOptions.Quote(options.ComponentsTableName)}";
         _changeHub = PostgreSqlChangeHubRegistry.Acquire(
             dataSource,
             "clue_" + PostgreSqlIdentityHash.Create(options.SchemaName, options.TableName)[..58]
@@ -35,13 +38,13 @@ internal sealed class PostgreSqlStateBackend : IPostgreSqlStateBackend
         CancellationToken cancellationToken
     )
     {
-        await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+        await EnsureCompatibleAsync(cancellationToken).ConfigureAwait(false);
         await using var connection = await _dataSource
             .OpenConnectionAsync(cancellationToken)
             .ConfigureAwait(false);
         await using var command = connection.CreateCommand();
         command.CommandText = $"""
-            SELECT "payload", "revision", "schema_version"
+            SELECT "payload"::text, "revision", "schema_version"
             FROM {_qualifiedTable}
             WHERE "model_id" = @model_id
                 AND "resource_namespace" = @namespace
@@ -59,11 +62,10 @@ internal sealed class PostgreSqlStateBackend : IPostgreSqlStateBackend
             return ResourceReadResult.NotFound();
         }
 
-        StateSchemaMetadata? schema = reader.IsDBNull(2)
-            ? null
-            : new StateSchemaMetadata(modelId, reader.GetInt32(2));
+        var payload = Encoding.UTF8.GetBytes(reader.GetString(0));
+        var schema = new StateSchemaMetadata(modelId, reader.GetInt32(2));
         return ResourceReadResult.Success(
-            reader.GetFieldValue<byte[]>(0),
+            payload,
             reader.GetInt64(1).ToString(CultureInfo.InvariantCulture),
             schema
         );
@@ -78,7 +80,7 @@ internal sealed class PostgreSqlStateBackend : IPostgreSqlStateBackend
     )
     {
         ValidatePayloadModelId(modelId, request);
-        await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+        await EnsureCompatibleAsync(cancellationToken).ConfigureAwait(false);
         await using var connection = await _dataSource
             .OpenConnectionAsync(cancellationToken)
             .ConfigureAwait(false);
@@ -130,7 +132,7 @@ internal sealed class PostgreSqlStateBackend : IPostgreSqlStateBackend
         if (revision is null)
         {
             throw new StateConflictException(
-                $"The PostgreSQL resource '{resourceNamespace}/{modelId}/{subjectKey}' no longer matches its expected revision."
+                $"The PostgreSQL row '{resourceNamespace}/{modelId}/{subjectKey}' no longer matches its expected revision."
             );
         }
 
@@ -266,7 +268,7 @@ internal sealed class PostgreSqlStateBackend : IPostgreSqlStateBackend
         )
         {
             throw new InvalidOperationException(
-                $"The payload schema model ID '{payloadModelId}' does not match the resource context model ID '{modelId}'."
+                $"The payload schema model ID '{payloadModelId}' does not match the source context model ID '{modelId}'."
             );
         }
     }
@@ -293,21 +295,25 @@ internal sealed class PostgreSqlStateBackend : IPostgreSqlStateBackend
         AddText(command, "model_id", modelId);
         AddText(command, "namespace", resourceNamespace);
         AddText(command, "subject_key", subjectKey);
-        command.Parameters.AddWithValue("payload", NpgsqlDbType.Bytea, request.Content.ToArray());
+        command.Parameters.AddWithValue(
+            "payload",
+            NpgsqlDbType.Jsonb,
+            Encoding.UTF8.GetString(request.Content.Span)
+        );
         var schema = request.Schema;
         command.Parameters.AddWithValue(
             "schema_version",
             NpgsqlDbType.Integer,
-            schema is { } metadata ? metadata.Version : DBNull.Value
+            schema is { } metadata ? metadata.Version : StateSchemaMetadata.InitialVersion
         );
     }
 
     private static void AddText(NpgsqlCommand command, string name, string value) =>
         command.Parameters.AddWithValue(name, NpgsqlDbType.Text, value);
 
-    private async ValueTask EnsureInitializedAsync(CancellationToken cancellationToken)
+    private async ValueTask EnsureCompatibleAsync(CancellationToken cancellationToken)
     {
-        if (_initialized)
+        if (_verified)
         {
             return;
         }
@@ -315,7 +321,7 @@ internal sealed class PostgreSqlStateBackend : IPostgreSqlStateBackend
         await _initializationLock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            if (_initialized)
+            if (_verified)
             {
                 return;
             }
@@ -323,22 +329,56 @@ internal sealed class PostgreSqlStateBackend : IPostgreSqlStateBackend
             await using var connection = await _dataSource
                 .OpenConnectionAsync(cancellationToken)
                 .ConfigureAwait(false);
-            await using var command = connection.CreateCommand();
-            command.CommandText = $"""
-                CREATE SCHEMA IF NOT EXISTS {Quote(_options.SchemaName)};
-                CREATE TABLE IF NOT EXISTS {_qualifiedTable} (
-                    "model_id" text NOT NULL,
-                    "resource_namespace" text NOT NULL,
-                    "subject_key" text NOT NULL,
-                    "payload" bytea NOT NULL,
-                    "revision" bigint NOT NULL CHECK ("revision" > 0),
-                    "schema_version" integer NULL,
-                    "updated_at" timestamptz NOT NULL,
-                    PRIMARY KEY ("model_id", "resource_namespace", "subject_key")
-                )
-                """;
-            await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
-            _initialized = true;
+            await using (var probe = connection.CreateCommand())
+            {
+                probe.CommandText =
+                    "SELECT to_regclass(@state_table)::text, to_regclass(@components_table)::text";
+                AddText(probe, "state_table", _qualifiedTable);
+                AddText(probe, "components_table", _qualifiedComponentsTable);
+                await using var reader = await probe
+                    .ExecuteReaderAsync(cancellationToken)
+                    .ConfigureAwait(false);
+                if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+                {
+                    throw MissingSchema();
+                }
+
+                var hasStateTable = !reader.IsDBNull(0);
+                var hasComponentsTable = !reader.IsDBNull(1);
+                if (!hasStateTable || !hasComponentsTable)
+                {
+                    throw MissingSchema();
+                }
+            }
+
+            await using (var versionCommand = connection.CreateCommand())
+            {
+                versionCommand.CommandText =
+                    $"SELECT \"version\" FROM {_qualifiedComponentsTable} WHERE \"component\" = @component";
+                AddText(versionCommand, "component", PostgreSqlSchemaVersions.CoreComponent);
+                var value = await versionCommand
+                    .ExecuteScalarAsync(cancellationToken)
+                    .ConfigureAwait(false);
+                if (value is null or DBNull)
+                {
+                    throw new PostgreSqlSchemaException(
+                        $"The PostgreSQL schema component '{PostgreSqlSchemaVersions.CoreComponent}' is not registered. "
+                            + "Apply the database schema with Configlue.Source.PostgreSql.Migrations before using the source."
+                    );
+                }
+
+                var version = Convert.ToInt32(value, CultureInfo.InvariantCulture);
+                if (version < PostgreSqlSchemaVersions.CoreVersion)
+                {
+                    throw new PostgreSqlSchemaException(
+                        $"The PostgreSQL schema component '{PostgreSqlSchemaVersions.CoreComponent}' has version {version}, "
+                            + $"but version {PostgreSqlSchemaVersions.CoreVersion} or later is required. "
+                            + "Upgrade the database schema with Configlue.Source.PostgreSql.Migrations."
+                    );
+                }
+            }
+
+            _verified = true;
         }
         finally
         {
@@ -346,7 +386,11 @@ internal sealed class PostgreSqlStateBackend : IPostgreSqlStateBackend
         }
     }
 
-    private static string Quote(string identifier) => '"' + identifier.Replace("\"", "\"\"") + '"';
+    private PostgreSqlSchemaException MissingSchema() =>
+        new(
+            $"The PostgreSQL schema objects '{_qualifiedTable}' and '{_qualifiedComponentsTable}' were not found. "
+                + "The runtime source does not create database objects; apply the schema with Configlue.Source.PostgreSql.Migrations."
+        );
 }
 
 internal sealed class PostgreSqlChangeHub : IDisposable

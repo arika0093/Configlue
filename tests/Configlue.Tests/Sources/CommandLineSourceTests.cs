@@ -262,7 +262,7 @@ public sealed class CommandLineSourceTests
             builder.Add<AppSettings>(model =>
                 model.Sources(sources =>
                 {
-                    var baseStore = new InMemoryStateStore<AppSettings.Fragment>(
+                    var baseStore = new InMemoryStateSource<AppSettings.Fragment>(
                         new AppSettings.Fragment
                         {
                             RetryCount = Optional<int>.Present(4),

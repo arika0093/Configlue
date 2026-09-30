@@ -9,11 +9,11 @@ public sealed class StateSourceSetBuilderTests
     [Test]
     public async Task Builder_DetectsAndOverridesSourceCapabilities()
     {
-        var autoDetected = new InMemoryStateStore<AppSettings.Fragment>();
+        var autoDetected = new InMemoryStateSource<AppSettings.Fragment>();
         var reader = new ReaderOnly<AppSettings.Fragment>(new AppSettings.Fragment());
-        var writerOverride = new InMemoryStateStore<AppSettings.Fragment>();
-        var watcherOverride = new InMemoryStateStore<AppSettings.Fragment>();
-        var suppressedCapabilities = new InMemoryStateStore<AppSettings.Fragment>();
+        var writerOverride = new InMemoryStateSource<AppSettings.Fragment>();
+        var watcherOverride = new InMemoryStateSource<AppSettings.Fragment>();
+        var suppressedCapabilities = new InMemoryStateSource<AppSettings.Fragment>();
         var sources = new StateSourceSetBuilder<AppSettings.Fragment>();
 
         sources.AddTestStore("automatic", autoDetected, priority: 50);
@@ -59,8 +59,8 @@ public sealed class StateSourceSetBuilderTests
     [Test]
     public async Task DependencyInjectionBuilder_ResolvesProvidersAndUsesDetectedCapabilities()
     {
-        var user = new InMemoryStateStore<AppSettings.Fragment>();
-        var defaults = new InMemoryStateStore<AppSettings.Fragment>(
+        var user = new InMemoryStateSource<AppSettings.Fragment>();
+        var defaults = new InMemoryStateSource<AppSettings.Fragment>(
             new AppSettings.Fragment { RetryCount = Optional<int>.Present(4) }
         );
         var configureCount = 0;
@@ -73,7 +73,7 @@ public sealed class StateSourceSetBuilderTests
                 configureCount++;
                 sources.Add(
                     "user",
-                    provider.GetRequiredKeyedService<InMemoryStateStore<AppSettings.Fragment>>(
+                    provider.GetRequiredKeyedService<InMemoryStateSource<AppSettings.Fragment>>(
                         "user"
                     ),
                     priority: 100,
@@ -81,7 +81,7 @@ public sealed class StateSourceSetBuilderTests
                 );
                 sources.Add(
                     "defaults",
-                    provider.GetRequiredKeyedService<InMemoryStateStore<AppSettings.Fragment>>(
+                    provider.GetRequiredKeyedService<InMemoryStateSource<AppSettings.Fragment>>(
                         "defaults"
                     ),
                     priority: 0
@@ -114,7 +114,7 @@ public sealed class StateSourceSetBuilderTests
     [Test]
     public async Task DependencyInjectionBuilder_RegistersKeyedProfiles()
     {
-        var profile = new InMemoryStateStore<AppSettings.Fragment>(
+        var profile = new InMemoryStateSource<AppSettings.Fragment>(
             new AppSettings.Fragment { RetryCount = Optional<int>.Present(12) }
         );
         var services = new ServiceCollection();
@@ -124,7 +124,7 @@ public sealed class StateSourceSetBuilderTests
             (provider, sources) =>
                 sources.Add(
                     "profile-source",
-                    provider.GetRequiredKeyedService<InMemoryStateStore<AppSettings.Fragment>>(
+                    provider.GetRequiredKeyedService<InMemoryStateSource<AppSettings.Fragment>>(
                         "profile-source"
                     )
                 )
@@ -152,7 +152,7 @@ internal static class StateSourceSetBuilderTestExtensions
     public static StateSourceBuilder<T> AddTestStore<T>(
         this StateSourceSetBuilder<T> sources,
         string id,
-        InMemoryStateStore<T> store,
+        InMemoryStateSource<T> store,
         int priority = 0
     ) => sources.Add(id, store, priority);
 }

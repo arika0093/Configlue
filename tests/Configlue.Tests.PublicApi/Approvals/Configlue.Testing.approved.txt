@@ -15,10 +15,10 @@ namespace Configlue.Testing
         public System.Threading.Tasks.ValueTask<Configlue.State.StateWriteResult> WriteAsync(Configlue.Resources.ConfiglueResourceContext context, Configlue.Resources.ResourceWriteRequest request, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask<Configlue.State.StateWriteResult> WriteBatchAsync(System.Collections.Generic.IReadOnlyList<Configlue.Resources.ResourceWriteMutation> mutations, System.Threading.CancellationToken cancellationToken = default) { }
     }
-    public sealed class InMemoryStateStore<T> : Configlue.Sources.ISourceReader<T>, Configlue.Sources.ISourceWatcher, Configlue.Sources.ISourceWriter<T>
+    public sealed class InMemoryStateSource<T> : Configlue.Sources.ISourceReader<T>, Configlue.Sources.ISourceWatcher, Configlue.Sources.ISourceWriter<T>
     {
-        public InMemoryStateStore() { }
-        public InMemoryStateStore(T? initialValue) { }
+        public InMemoryStateSource() { }
+        public InMemoryStateSource(T? initialValue) { }
         public System.Threading.Tasks.ValueTask<Configlue.State.StateReadResult<T>> ReadAsync(System.Threading.CancellationToken cancellationToken = default) { }
         public void Set(T? value) { }
         public void SetNotFound() { }

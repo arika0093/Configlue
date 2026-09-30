@@ -80,7 +80,7 @@ public sealed class SubjectStateTests
     [Test]
     public async Task DependencyInjectionExposesSubjectViewsFromTheSharedRuntime()
     {
-        var store = new InMemoryStateStore<AppSettings.Fragment>(Fragment("server"));
+        var store = new InMemoryStateSource<AppSettings.Fragment>(Fragment("server"));
         var services = new ServiceCollection();
         services.AddConfiglueState<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([new("server", store)])
@@ -134,7 +134,7 @@ public sealed class SubjectStateTests
             IContextualSourceWriter<T>,
             IContextualSourceWatcher
     {
-        private readonly ConcurrentDictionary<SubjectKey, InMemoryStateStore<T>> _states = new();
+        private readonly ConcurrentDictionary<SubjectKey, InMemoryStateSource<T>> _states = new();
 
         public void Set(SubjectKey key, T value) => Get(key).Set(value);
 
@@ -172,7 +172,7 @@ public sealed class SubjectStateTests
             CancellationToken cancellationToken = default
         ) => Get(context.Key).WaitForChangeAsync(observedRevision, cancellationToken);
 
-        private InMemoryStateStore<T> Get(SubjectKey key) =>
-            _states.GetOrAdd(key, static _ => new InMemoryStateStore<T>());
+        private InMemoryStateSource<T> Get(SubjectKey key) =>
+            _states.GetOrAdd(key, static _ => new InMemoryStateSource<T>());
     }
 }

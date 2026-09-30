@@ -161,36 +161,31 @@ public static class YamlFileSourceRegistration
                 options.SerializerOptions,
                 options.DocumentLayout
             );
-            var stateReader = new SerializedStateReader<TFragment>(resource, codec);
-            var stateWriter = sourceWriter is null
-                ? null
-                : new SerializedStateWriter<TFragment>(
-                    sourceWriter,
-                    codec,
-                    new StateCodecContext(null, null, options.SchemaReferenceBaseUri)
-                );
+            var serialized = new SerializedSource<TFragment>(
+                resource,
+                codec,
+                new StateCodecContext(null, null, options.SchemaReferenceBaseUri),
+                writer: sourceWriter,
+                watcher: resourceWatcher
+            );
             var physicalResourceId = options.ResourceId ?? (file as IResourceIdentity)?.ResourceId;
             return options.Id is { } id
                 ? new StateSource<TFragment>(
                     id,
-                    stateReader,
+                    serialized,
                     options.Priority,
                     options.FallbackCondition,
-                    stateWriter,
-                    resourceWatcher,
-                    file.Path,
-                    physicalResourceId,
+                    physicalOrigin: file.Path,
+                    resourceId: physicalResourceId,
                     explicitOnly: options.ExplicitOnly
                 )
                 : new StateSource<TFragment>(
                     YamlFileSourceSelector.CreateSourceId(file.Path, options.SectionPath),
-                    stateReader,
+                    serialized,
                     options.Priority,
                     options.FallbackCondition,
-                    stateWriter,
-                    resourceWatcher,
-                    file.Path,
-                    physicalResourceId,
+                    physicalOrigin: file.Path,
+                    resourceId: physicalResourceId,
                     explicitOnly: options.ExplicitOnly
                 );
         }

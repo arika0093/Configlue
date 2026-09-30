@@ -76,7 +76,7 @@ public class FilePersistenceBenchmarks
             _configlueWithoutBackupContext.GetState<PersistenceBenchmarkSettings>();
         _ = await _configlueWithoutBackup.GetValueAsync().ConfigureAwait(false);
 
-        var inMemoryStore = new InMemoryStateStore<PersistenceBenchmarkSettings.Fragment>(
+        var inMemoryStore = new InMemoryStateSource<PersistenceBenchmarkSettings.Fragment>(
             new PersistenceBenchmarkSettings.Fragment
             {
                 Counter = Optional<int>.Present(0),
@@ -199,7 +199,7 @@ public class LayeredResolutionBenchmarks
             .Range(0, SourceCount)
             .Select(index =>
             {
-                var store = new InMemoryStateStore<BenchmarkSettings.Fragment>(
+                var store = new InMemoryStateSource<BenchmarkSettings.Fragment>(
                     new BenchmarkSettings.Fragment
                     {
                         Counter = Optional<int>.Present(index),

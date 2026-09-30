@@ -500,7 +500,7 @@ public sealed partial class FileResourceTests
             codec,
             priority: 100
         );
-        var fallbackStore = new InMemoryStateStore<AppSettings.Fragment>(
+        var fallbackStore = new InMemoryStateSource<AppSettings.Fragment>(
             new AppSettings.Fragment { RetryCount = Optional<int>.Present(99) }
         );
         var fallbackSource = new StateSource<AppSettings.Fragment>("fallback", fallbackStore);

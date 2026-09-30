@@ -41,69 +41,34 @@ public static class SerializedStateSource
         ArgumentNullException.ThrowIfNull(resource);
         ArgumentNullException.ThrowIfNull(codec);
 
-        var resourceWriter = writer ?? resource as IResourceWriter;
-        var resourceWatcher = watcher ?? resource as ISourceWatcher;
-        var transformerPipeline = StateByteTransformerPipeline.Create(transformers);
-        var middlewarePipeline = middlewares?.ToArray() ?? [];
-        if (middlewarePipeline.Any(static middleware => middleware is null))
-        {
-            throw new ArgumentException("A middleware collection cannot contain null values.");
-        }
-
-        ISourceReader<T> reader = new SerializedStateReader<T>(
+        var serialized = new SerializedSource<T>(
             resource,
             codec,
             context,
             schemaDispatcher,
-            transformerPipeline
+            transformers,
+            writer ?? resource as IResourceWriter,
+            watcher ?? resource as ISourceWatcher,
+            middlewares
         );
-        ISourceWriter<T>? stateWriter = resourceWriter is null
-            ? null
-            : new SerializedStateWriter<T>(resourceWriter, codec, context, transformerPipeline);
-        for (var index = middlewarePipeline.Length - 1; index >= 0; index--)
+        var effectiveResourceId = resourceId;
+        if (
+            effectiveResourceId is null
+            && serialized.TryGetResourceId(ConfiglueResourceContext.Default, out var resolved)
+        )
         {
-            reader =
-                middlewarePipeline[index].WrapReader(reader)
-                ?? throw new InvalidOperationException(
-                    "A middleware returned a null state reader."
-                );
-            if (stateWriter is not null)
-            {
-                stateWriter =
-                    middlewarePipeline[index].WrapWriter(stateWriter)
-                    ?? throw new InvalidOperationException(
-                        "A middleware returned a null state writer."
-                    );
-            }
+            effectiveResourceId = resolved;
         }
 
         return new StateSource<T>(
             id,
-            reader,
+            serialized,
             priority,
             fallbackCondition,
-            stateWriter,
-            resourceWatcher,
+            serialized.Writer,
+            serialized.Watcher,
             physicalOrigin,
-            resourceId ?? ResolveResourceId(resourceWriter, resource)
+            effectiveResourceId
         );
-    }
-
-    private static ResourceId? ResolveResourceId(IResourceWriter? writer, IResourceReader reader)
-    {
-        var context = ConfiglueResourceContext.Default;
-        if (
-            writer is IResourceIdentity writerIdentity
-            && writerIdentity.TryGetResourceId(context, out var writerResourceId)
-        )
-        {
-            return writerResourceId;
-        }
-
-        return
-            reader is IResourceIdentity readerIdentity
-            && readerIdentity.TryGetResourceId(context, out var readerResourceId)
-            ? readerResourceId
-            : null;
     }
 }

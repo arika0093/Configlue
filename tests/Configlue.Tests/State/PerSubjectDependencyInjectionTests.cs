@@ -24,7 +24,7 @@ public sealed class PerSubjectDependencyInjectionTests
         users.Set(subjectA.Key, Fragment("user-a"));
         users.Set(subjectB.Key, Fragment("user-b"));
 
-        var server = new InMemoryStateStore<DatabaseSettings.Fragment>(
+        var server = new InMemoryStateSource<DatabaseSettings.Fragment>(
             new DatabaseSettings.Fragment { Host = Optional<string>.Present("server.db") }
         );
         var services = new ServiceCollection();
@@ -474,7 +474,7 @@ public sealed class PerSubjectDependencyInjectionTests
     {
         private readonly ConcurrentDictionary<
             (SubjectKey Key, RouteKey Route),
-            InMemoryStateStore<T>
+            InMemoryStateSource<T>
         > _states = new();
 
         public void Set(SubjectKey key, T value) => Set(key, RouteKey.Default, value);
@@ -518,8 +518,8 @@ public sealed class PerSubjectDependencyInjectionTests
         ) =>
             Get(context.Key, context.Route).WaitForChangeAsync(observedRevision, cancellationToken);
 
-        private InMemoryStateStore<T> Get(SubjectKey key, RouteKey route) =>
-            _states.GetOrAdd((key, route), static _ => new InMemoryStateStore<T>());
+        private InMemoryStateSource<T> Get(SubjectKey key, RouteKey route) =>
+            _states.GetOrAdd((key, route), static _ => new InMemoryStateSource<T>());
     }
 
     private sealed class CallbackDisposable(Action dispose) : IDisposable

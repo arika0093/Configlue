@@ -34,7 +34,7 @@ dotnet add package Configlue
 | ASP.NET Core 統合 (リクエスト subject と HTTP リソース配信) | `Configlue.Extensions.AspNetCore` |
 | Blazor 統合 (認証状態 subject とブラウザー storage) | `Configlue.Extensions.Blazor` |
 | Amazon S3 | `Configlue.Resource.S3` |
-| PostgreSQL への直接保存 | `Configlue.Resource.PostgreSql` |
+| PostgreSQL への直接保存 | `Configlue.Source.PostgreSql` と `Configlue.Source.PostgreSql.Migrations` |
 | Redis への直接保存 | `Configlue.Resource.Redis` |
 | ZIP アーカイブ | `Configlue.Resource.Zip` |
 | AES-GCM 暗号化 | `Configlue.Transformer.AES` |

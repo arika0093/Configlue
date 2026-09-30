@@ -29,7 +29,7 @@
     />
     <Compile Remove="Formats/ConfiglueSchemaMsBuildTests.cs" />
     <Compile Remove="Resources/HttpResourceEndpointTests.cs" />
-    <Compile Remove="Resources/PostgreSqlResourceTests.cs" />
+    <Compile Remove="Resources/PostgreSqlSourceTests.cs" />
     <Compile Remove="State/StatePipelineTests.cs" />
     <Compile Remove="State/RuntimeLifetimeTests.cs" />
     <Compile Remove="Contracts/Transformers/TransformerRecoveryPolicyContractTests.cs" />
@@ -78,7 +78,8 @@
     <ProjectReference Include="../../src/extensions/Configlue.Extensions.Blazor/Configlue.Extensions.Blazor.csproj" />
     <ProjectReference Include="../../src/tools/Configlue.JsonSchema.MSBuild/Configlue.JsonSchema.MSBuild.csproj" />
     <ProjectReference Include="../Configlue.JsonSchema.MSBuild.Fixtures/Configlue.JsonSchema.MSBuild.Fixtures.csproj" />
-    <ProjectReference Include="../../src/resources/Configlue.Resource.PostgreSql/Configlue.Resource.PostgreSql.csproj" />
+    <ProjectReference Include="../../src/sources/Configlue.Source.PostgreSql/Configlue.Source.PostgreSql.csproj" />
+    <ProjectReference Include="../../src/sources/Configlue.Source.PostgreSql.Migrations/Configlue.Source.PostgreSql.Migrations.csproj" />
     <ProjectReference Include="../../src/transformers/Configlue.Transformer.AES/Configlue.Transformer.AES.csproj" />
   </ItemGroup>
 </Project>

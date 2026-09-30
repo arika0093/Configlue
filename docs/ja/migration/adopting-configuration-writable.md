@@ -7,7 +7,7 @@ description: 旧来のインライン版つきファイルを読んで移行入�
 
 ## 旧来ドキュメント
 
-Configuration.Writable の JSON/YAML ファイルを取り込むには、シンプルなドキュメントレイアウト (`DocumentLayout.Simple`、既定) で読みます。コーデックはインライン `$version` (と `Version` フォールバック) を認識し、版のないスキーマ注釈つきオブジェクト/マッピングを版 1 とみなし、履歴配送向けに現行 Configlue モデル ID へ版を対応づけられます。`StateSchemaDispatcher<T>` はモデル ID のないインライン版を dispatcher の対象モデルに対応づけます。`$schema` はメタデータとして剥がします。空・空白のみの YAML は空の疎フラグメントとして読みます。BOM つき YAML の符号化は自動判定します。明示的な非 UTF-8 符号化で入れ子セクションを読む場合は、`YamlSectionResource` とコーデックの両方に `textEncoding` を渡します。まず `JsonSectionResource`・`YamlSectionResource` で入れ子セクションを選び、`SerializedStateReader<TFragment>` とライターなし `StateSource<TFragment>` で包みます。
+Configuration.Writable の JSON/YAML ファイルを取り込むには、シンプルなドキュメントレイアウト (`DocumentLayout.Simple`、既定) で読みます。コーデックはインライン `$version` (と `Version` フォールバック) を認識し、版のないスキーマ注釈つきオブジェクト/マッピングを版 1 とみなし、履歴配送向けに現行 Configlue モデル ID へ版を対応づけられます。`StateSchemaDispatcher<T>` はモデル ID のないインライン版を dispatcher の対象モデルに対応づけます。`$schema` はメタデータとして剥がします。空・空白のみの YAML は空の疎フラグメントとして読みます。BOM つき YAML の符号化は自動判定します。明示的な非 UTF-8 符号化で入れ子セクションを読む場合は、`YamlSectionResource` とコーデックの両方に `textEncoding` を渡します。まず `JsonSectionResource`・`YamlSectionResource` で入れ子セクションを選び、`SerializedSource<TFragment>` とライターなし `StateSource<TFragment>` で構成します。
 
 ```csharp
 using Configlue.Codecs;
@@ -23,7 +23,7 @@ var oldSection = new JsonSectionResource(
     writer: null,
     sectionPath: "ApplicationSettings:Database",
     watcher: null);
-var oldReader = new SerializedStateReader<AppSettings.Fragment>(
+var oldReader = new SerializedSource<AppSettings.Fragment>(
     oldSection,
     new JsonStateCodec<AppSettings.Fragment>(
         documentLayout: new DocumentLayoutOptions
@@ -48,7 +48,7 @@ await using var context = ConfiglueApp.CreateContext(app =>
 await context.GetSources<AppSettings>().MigrateSourceAsync("legacy", "current");
 ```
 
-上記のファイル・セクションリソースはアプリ所有のままです。履歴的な項目形状を持つファイルには `SerializedStateReader<TFragment>` にスキーマ配送子を渡し、履歴フラグメントごとに対応する旧来コーデックを登録します。
+上記のファイル・セクションリソースはアプリ所有のままです。履歴的な項目形状を持つファイルには `SerializedSource<TFragment>` にスキーマ配送子を渡し、履歴フラグメントごとに対応する旧来コーデックを登録します。
 
 ## 安全な取り込みの約束
 

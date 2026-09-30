@@ -22,12 +22,12 @@ public sealed partial class StateRuntimeTests
     {
         var lowerPriority = new StateSource<string>(
             "lower",
-            new InMemoryStateStore<string>(),
+            new InMemoryStateSource<string>(),
             priority: 0
         );
         var higherPriority = new StateSource<string>(
             "higher",
-            new InMemoryStateStore<string>(),
+            new InMemoryStateSource<string>(),
             priority: 10
         );
         var sourceSet = new StateSourceSet<string>([lowerPriority, higherPriority]);
@@ -41,8 +41,8 @@ public sealed partial class StateRuntimeTests
     [Test]
     public async Task PatchSaveRequiresAWriteRouteWhenMultipleSourcesAreWritable()
     {
-        var first = new InMemoryStateStore<AppSettings.Fragment>();
-        var second = new InMemoryStateStore<AppSettings.Fragment>();
+        var first = new InMemoryStateSource<AppSettings.Fragment>();
+        var second = new InMemoryStateSource<AppSettings.Fragment>();
         await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
                 new StateSource<AppSettings.Fragment>("first", first, writer: first),
@@ -60,7 +60,7 @@ public sealed partial class StateRuntimeTests
     [Test]
     public async Task PatchSaveReusesResolvedBaselineForItsSourceRead()
     {
-        var store = new InMemoryStateStore<AppSettings.Fragment>(
+        var store = new InMemoryStateSource<AppSettings.Fragment>(
             new AppSettings.Fragment { Label = Optional<string?>.Present("before") }
         );
         var reader = new CountingStateReader<AppSettings.Fragment>(store);
@@ -81,7 +81,7 @@ public sealed partial class StateRuntimeTests
     [Test]
     public async Task PatchSaveStillChecksRevisionAtTheWriterAfterItsFinalRead()
     {
-        var store = new InMemoryStateStore<AppSettings.Fragment>(
+        var store = new InMemoryStateSource<AppSettings.Fragment>(
             new AppSettings.Fragment { Label = Optional<string?>.Present("before") }
         );
         var reader = new CountingStateReader<AppSettings.Fragment>(
@@ -115,8 +115,8 @@ public sealed partial class StateRuntimeTests
     [Test]
     public async Task FallbackStateSource_UsesOneRepresentationAndWritesToTheSelectedCandidate()
     {
-        var canonical = new InMemoryStateStore<string>();
-        var legacy = new InMemoryStateStore<string>("legacy");
+        var canonical = new InMemoryStateSource<string>();
+        var legacy = new InMemoryStateSource<string>("legacy");
         var fallback = new FallbackStateSource<string>(
             new StateSourceSet<string>([
                 new(
@@ -164,8 +164,8 @@ public sealed partial class StateRuntimeTests
     [Test]
     public async Task FallbackStateSource_CanWriteToExplicitCanonicalCandidateWithoutLosingFallbackFields()
     {
-        var canonical = new InMemoryStateStore<AppSettings.Fragment>();
-        var legacy = new InMemoryStateStore<AppSettings.Fragment>(
+        var canonical = new InMemoryStateSource<AppSettings.Fragment>();
+        var legacy = new InMemoryStateSource<AppSettings.Fragment>(
             new AppSettings.Fragment
             {
                 RetryCount = Optional<int>.Present(11),
@@ -220,8 +220,8 @@ public sealed partial class StateRuntimeTests
     [Test]
     public async Task FallbackStateSource_CanExplicitlyMaterializeSelectedValueToCanonicalCandidate()
     {
-        var canonical = new InMemoryStateStore<string>();
-        var legacy = new InMemoryStateStore<string>("legacy");
+        var canonical = new InMemoryStateSource<string>();
+        var legacy = new InMemoryStateSource<string>("legacy");
         var fallback = new FallbackStateSource<string>(
             new StateSourceSet<string>([
                 new(
@@ -264,8 +264,8 @@ public sealed partial class StateRuntimeTests
     [Test]
     public async Task FallbackStateSource_WatchesForFailbackButIgnoresLowerPriorityChangesAfterSelection()
     {
-        var canonical = new InMemoryStateStore<string>();
-        var legacy = new InMemoryStateStore<string>("legacy");
+        var canonical = new InMemoryStateSource<string>();
+        var legacy = new InMemoryStateSource<string>("legacy");
         var fallback = new FallbackStateSource<string>(
             new StateSourceSet<string>([
                 new(
@@ -304,8 +304,8 @@ public sealed partial class StateRuntimeTests
     [Test]
     public async Task FallbackStateSource_RejectsWriteWhenSelectedRepresentationChangedAfterRead()
     {
-        var canonical = new InMemoryStateStore<string>();
-        var legacy = new InMemoryStateStore<string>("legacy");
+        var canonical = new InMemoryStateSource<string>();
+        var legacy = new InMemoryStateSource<string>("legacy");
         var fallback = new FallbackStateSource<string>(
             new StateSourceSet<string>([
                 new(
@@ -336,9 +336,9 @@ public sealed partial class StateRuntimeTests
     [Test]
     public async Task Resolver_FallsBackByPolicyAndWatchesHigherPrioritySourceForFailback()
     {
-        var primary = new InMemoryStateStore<string>();
+        var primary = new InMemoryStateSource<string>();
         primary.SetUnavailable();
-        var fallback = new InMemoryStateStore<string>("local");
+        var fallback = new InMemoryStateSource<string>("local");
         var sources = new StateSourceSet<string>([
             new StateSource<string>(
                 "remote",

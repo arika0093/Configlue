@@ -75,7 +75,7 @@ public class ReadValidationBenchmarks
     [GlobalSetup]
     public void Setup()
     {
-        var store = new InMemoryStateStore<OptimizationBenchmarkSettings.Fragment>(
+        var store = new InMemoryStateSource<OptimizationBenchmarkSettings.Fragment>(
             new OptimizationBenchmarkSettings.Fragment
             {
                 Counter = Optional<int>.Present(10),
@@ -137,8 +137,8 @@ public class LayeredResolutionFallbackBenchmarks
             {
                 var store =
                     TopSourceNotFound && index == 0
-                        ? new InMemoryStateStore<OptimizationBenchmarkSettings.Fragment>()
-                        : new InMemoryStateStore<OptimizationBenchmarkSettings.Fragment>(
+                        ? new InMemoryStateSource<OptimizationBenchmarkSettings.Fragment>()
+                        : new InMemoryStateSource<OptimizationBenchmarkSettings.Fragment>(
                             new OptimizationBenchmarkSettings.Fragment
                             {
                                 Counter = Optional<int>.Present(index),
@@ -216,7 +216,7 @@ public class NestedModelReadBenchmarks
     [GlobalSetup]
     public void Setup()
     {
-        var store = new InMemoryStateStore<OptimizationRootSettings.Fragment>(
+        var store = new InMemoryStateSource<OptimizationRootSettings.Fragment>(
             new OptimizationRootSettings.Fragment
             {
                 Name = Optional<string>.Present("root"),
@@ -292,7 +292,7 @@ public class CollectionMergeBenchmarks
             .Range(0, SourceCount)
             .Select(index =>
             {
-                var store = new InMemoryStateStore<AppendCollectionSettings.Fragment>(
+                var store = new InMemoryStateSource<AppendCollectionSettings.Fragment>(
                     new AppendCollectionSettings.Fragment
                     {
                         Items = Optional<IReadOnlyList<string>>.Present([
@@ -314,7 +314,7 @@ public class CollectionMergeBenchmarks
             .Range(0, SourceCount)
             .Select(index =>
             {
-                var store = new InMemoryStateStore<SetUnionCollectionSettings.Fragment>(
+                var store = new InMemoryStateSource<SetUnionCollectionSettings.Fragment>(
                     new SetUnionCollectionSettings.Fragment
                     {
                         Items = Optional<IReadOnlyList<string>>.Present([
@@ -345,7 +345,7 @@ public class SaveRoutingBenchmarks
     [GlobalSetup]
     public void Setup()
     {
-        var singleStore = new InMemoryStateStore<SaveRoutingBenchmarkSettings.Fragment>(
+        var singleStore = new InMemoryStateSource<SaveRoutingBenchmarkSettings.Fragment>(
             new SaveRoutingBenchmarkSettings.Fragment
             {
                 Counter = Optional<int>.Present(0),
@@ -369,14 +369,14 @@ public class SaveRoutingBenchmarks
         );
         _single = _singleContext.GetState<SaveRoutingBenchmarkSettings>();
 
-        var left = new InMemoryStateStore<SaveRoutingBenchmarkSettings.Fragment>(
+        var left = new InMemoryStateSource<SaveRoutingBenchmarkSettings.Fragment>(
             new SaveRoutingBenchmarkSettings.Fragment
             {
                 Counter = Optional<int>.Present(0),
                 Name = Optional<string>.Present("left"),
             }
         );
-        var right = new InMemoryStateStore<SaveRoutingBenchmarkSettings.Fragment>(
+        var right = new InMemoryStateSource<SaveRoutingBenchmarkSettings.Fragment>(
             new SaveRoutingBenchmarkSettings.Fragment { Name = Optional<string>.Present("right") }
         );
         _multiContext = BenchmarkContextFactory.Create<

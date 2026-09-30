@@ -47,11 +47,11 @@ public sealed class ConfiglueFacadeTests
     [Test]
     public async Task RegistrationWritePlanCreatesSparseOverridesForOrdinaryEdits()
     {
-        var overlay = new InMemoryStateStore<AppSettings.Fragment>(new AppSettings.Fragment());
-        var sessionOverlay = new InMemoryStateStore<AppSettings.Fragment>(
+        var overlay = new InMemoryStateSource<AppSettings.Fragment>(new AppSettings.Fragment());
+        var sessionOverlay = new InMemoryStateSource<AppSettings.Fragment>(
             new AppSettings.Fragment()
         );
-        var defaults = new InMemoryStateStore<AppSettings.Fragment>(
+        var defaults = new InMemoryStateSource<AppSettings.Fragment>(
             new AppSettings.Fragment
             {
                 RetryCount = Optional<int>.Present(3),
@@ -251,7 +251,7 @@ public sealed class ConfiglueFacadeTests
     [Test]
     public async Task ProfileCatalogReconciliationKeepsUnrelatedDynamicOptions()
     {
-        var catalogStore = new InMemoryStateStore<ConfiglueProfileCatalog>(
+        var catalogStore = new InMemoryStateSource<ConfiglueProfileCatalog>(
             new ConfiglueProfileCatalog
             {
                 ProfileNames = ["default"],
@@ -294,7 +294,7 @@ public sealed class ConfiglueFacadeTests
     [Test]
     public async Task FacadeProfilesCreateSwitchAndRemoveNamedOptionsInContext()
     {
-        var catalogStore = new InMemoryStateStore<ConfiglueProfileCatalog>();
+        var catalogStore = new InMemoryStateSource<ConfiglueProfileCatalog>();
         var catalog = new StateSource<ConfiglueProfileCatalog>(
             "catalog",
             catalogStore,
@@ -344,7 +344,7 @@ public sealed class ConfiglueFacadeTests
     [Test]
     public async Task FacadeProfileRegistryEventsCanReenterManagerAfterCatalogChanges()
     {
-        var catalogStore = new InMemoryStateStore<ConfiglueProfileCatalog>();
+        var catalogStore = new InMemoryStateSource<ConfiglueProfileCatalog>();
         var catalog = new StateSource<ConfiglueProfileCatalog>(
             "catalog",
             catalogStore,
@@ -466,7 +466,7 @@ public sealed class ConfiglueFacadeTests
     [Test]
     public async Task FacadeProfilesAreVisibleThroughTheDiMonitorUntilRemoval()
     {
-        var catalogStore = new InMemoryStateStore<ConfiglueProfileCatalog>();
+        var catalogStore = new InMemoryStateSource<ConfiglueProfileCatalog>();
         var catalog = new StateSource<ConfiglueProfileCatalog>(
             "catalog",
             catalogStore,
@@ -511,7 +511,7 @@ public sealed class ConfiglueFacadeTests
         var registry = new ConfiglueFacadeStateRegistry<AppSettings>(
             name =>
             {
-                var store = new InMemoryStateStore<AppSettings.Fragment>();
+                var store = new InMemoryStateSource<AppSettings.Fragment>();
                 var source = new StateSource<AppSettings.Fragment>(
                     $"facade-{name}",
                     store,
@@ -649,7 +649,7 @@ public sealed class ConfiglueFacadeTests
 
     private static StateSource<AppSettings.Fragment> CreateSource(string id, string label)
     {
-        var store = new InMemoryStateStore<AppSettings.Fragment>(
+        var store = new InMemoryStateSource<AppSettings.Fragment>(
             new AppSettings.Fragment { Label = Optional<string?>.Present(label) }
         );
         return new StateSource<AppSettings.Fragment>(id, store, writer: store, watcher: store);

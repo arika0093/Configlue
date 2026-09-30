@@ -265,7 +265,7 @@ public sealed class SubjectDetailsSnapshotTests
     {
         private readonly ConcurrentDictionary<
             (SubjectKey Key, RouteKey Route),
-            InMemoryStateStore<T>
+            InMemoryStateSource<T>
         > _states = new();
 
         public void Set(SubjectKey key, T value) => Set(key, RouteKey.Default, value);
@@ -309,8 +309,8 @@ public sealed class SubjectDetailsSnapshotTests
         ) =>
             Get(context.Key, context.Route).WaitForChangeAsync(observedRevision, cancellationToken);
 
-        private InMemoryStateStore<T> Get(SubjectKey key, RouteKey route) =>
-            _states.GetOrAdd((key, route), static _ => new InMemoryStateStore<T>());
+        private InMemoryStateSource<T> Get(SubjectKey key, RouteKey route) =>
+            _states.GetOrAdd((key, route), static _ => new InMemoryStateSource<T>());
     }
 
     private sealed class RoutedStateStore

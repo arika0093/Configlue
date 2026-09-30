@@ -291,14 +291,13 @@ public static class JsonFileSourceRegistration
                 ConfiglueJsonFragmentRegistry<TFragment>.Converter,
                 options.DocumentLayout
             );
-            var stateReader = new SerializedStateReader<TFragment>(resource, codec);
-            var stateWriter = sourceWriter is null
-                ? null
-                : new SerializedStateWriter<TFragment>(
-                    sourceWriter,
-                    codec,
-                    new StateCodecContext(null, null, options.SchemaReferenceBaseUri)
-                );
+            var serialized = new SerializedSource<TFragment>(
+                resource,
+                codec,
+                new StateCodecContext(null, null, options.SchemaReferenceBaseUri),
+                writer: sourceWriter,
+                watcher: resourceWatcher
+            );
             var physicalResourceId = options.ResourceId ?? (file as IResourceIdentity)?.ResourceId;
             var sourceId =
                 options.IdOverride
@@ -310,14 +309,12 @@ public static class JsonFileSourceRegistration
                 );
             return new StateSource<TFragment>(
                 sourceId,
-                stateReader,
+                serialized,
                 priority,
                 fallbackCondition,
-                stateWriter,
-                resourceWatcher,
-                file.Path,
-                physicalResourceId,
-                explicitOnly
+                physicalOrigin: file.Path,
+                resourceId: physicalResourceId,
+                explicitOnly: explicitOnly
             );
         }
 

@@ -7,10 +7,10 @@ public sealed class MigrationJournalTests
     [Test]
     public async Task MigrationRunHoldsOptionalJournalLeaseUntilCompletion()
     {
-        var source = new InMemoryStateStore<AppSettings.Fragment>(
+        var source = new InMemoryStateSource<AppSettings.Fragment>(
             new AppSettings.Fragment { RetryCount = Optional<int>.Present(12) }
         );
-        var target = new InMemoryStateStore<AppSettings.Fragment>();
+        var target = new InMemoryStateSource<AppSettings.Fragment>();
         await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
                 new("source", source, priority: 100),

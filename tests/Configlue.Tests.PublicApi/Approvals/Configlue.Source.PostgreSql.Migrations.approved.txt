@@ -1,0 +1,33 @@
+[assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/arika0093/Configlue")]
+namespace Configlue.Source.PostgreSql.Migrations
+{
+    public sealed class PostgreSqlMigrationOptions
+    {
+        public PostgreSqlMigrationOptions() { }
+        public Configlue.Source.PostgreSql.PostgreSqlTableOptions? TableOptions { get; init; }
+    }
+    public readonly struct PostgreSqlSchemaComponentVersion : System.IEquatable<Configlue.Source.PostgreSql.Migrations.PostgreSqlSchemaComponentVersion>
+    {
+        public PostgreSqlSchemaComponentVersion(string Component, int Version) { }
+        public string Component { get; init; }
+        public int Version { get; init; }
+    }
+    public sealed class PostgreSqlSchemaMigrationResult
+    {
+        public PostgreSqlSchemaMigrationResult(bool changed, System.Collections.Generic.IReadOnlyList<Configlue.Source.PostgreSql.Migrations.PostgreSqlSchemaComponentVersion> components) { }
+        public bool Changed { get; }
+        public System.Collections.Generic.IReadOnlyList<Configlue.Source.PostgreSql.Migrations.PostgreSqlSchemaComponentVersion> Components { get; }
+    }
+    public sealed class PostgreSqlSchemaMigrator
+    {
+        public PostgreSqlSchemaMigrator(Npgsql.NpgsqlDataSource dataSource, Configlue.Source.PostgreSql.Migrations.PostgreSqlMigrationOptions? options = null) { }
+        public System.Threading.Tasks.ValueTask<Configlue.Source.PostgreSql.Migrations.PostgreSqlSchemaStatus> InspectAsync(System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Configlue.Source.PostgreSql.Migrations.PostgreSqlSchemaMigrationResult> MigrateAsync(System.Threading.CancellationToken cancellationToken = default) { }
+    }
+    public sealed class PostgreSqlSchemaStatus
+    {
+        public PostgreSqlSchemaStatus(bool isInitialized, System.Collections.Generic.IReadOnlyList<Configlue.Source.PostgreSql.Migrations.PostgreSqlSchemaComponentVersion> components) { }
+        public System.Collections.Generic.IReadOnlyList<Configlue.Source.PostgreSql.Migrations.PostgreSqlSchemaComponentVersion> Components { get; }
+        public bool IsInitialized { get; }
+    }
+}

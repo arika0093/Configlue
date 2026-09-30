@@ -105,34 +105,26 @@ public static class S3ObjectSourceRegistration
                 options.Key,
                 options.ResourceOptions
             );
-            var reader = new SerializedStateReader<TFragment>(
+            var serialized = new SerializedSource<TFragment>(
                 resource,
                 options.Codec,
-                options.CodecContext
+                options.CodecContext,
+                writer: options.Writable ? resource : null
             );
-            ISourceWriter<TFragment>? writer = options.Writable
-                ? new SerializedStateWriter<TFragment>(
-                    resource,
-                    options.Codec,
-                    options.CodecContext
-                )
-                : null;
             var physicalOrigin = $"s3:{options.BucketName}";
             return options.Id is { } id
                 ? new StateSource<TFragment>(
                     id,
-                    reader,
+                    serialized,
                     options.Priority,
                     options.FallbackCondition,
-                    writer,
                     physicalOrigin: physicalOrigin,
                     resourceId: options.ResourceOptions?.ResourceId
                 )
                 : new StateSource<TFragment>(
-                    reader,
+                    serialized,
                     options.Priority,
                     options.FallbackCondition,
-                    writer,
                     physicalOrigin: physicalOrigin,
                     resourceId: options.ResourceOptions?.ResourceId
                 );

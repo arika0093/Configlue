@@ -16,6 +16,15 @@ public static class ConfiglueJsonFragmentRegistry<TFragment>
             $"Generated JSON converter for fragment '{typeof(TFragment)}' has not been registered."
         );
 
+    /// <summary>Tries to get the generated JSON converter registered for this fragment.</summary>
+    public static bool TryGetConverter(
+        [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out JsonConverter<TFragment>? converter
+    )
+    {
+        converter = _converter;
+        return converter is not null;
+    }
+
     /// <summary>Registers the generated JSON converter for this fragment.</summary>
     public static void Register(JsonConverter<TFragment> converter)
     {

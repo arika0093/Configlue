@@ -47,7 +47,7 @@ dotnet add package Configlue.Testing
 ```
 
 * `InMemoryResource` — リーダー/ウォッチャー/バッチライターのリソースダブルで `WriteCount` プローブつき。`SerializedStateSource.FromResource` と合成して、ファイルに触らず解決・書き込み・監視をテストします。
-* `InMemoryStateStore<T>` — リーダー/ライター/ウォッチャーのダブルで、`Set(value)` による種付け、`SetNotFound()` / `SetUnavailable()` による強制、直接観測ができます。
+* `InMemoryStateSource<T>` — リーダー/ライター/ウォッチャーのダブルで、`Set(value)` による種付け、`SetNotFound()` / `SetUnavailable()` による強制、直接観測ができます。
 
 ## 次のステップ
 

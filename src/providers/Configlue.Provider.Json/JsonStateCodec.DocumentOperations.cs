@@ -15,6 +15,33 @@ internal static partial class JsonStateCodecOperations
     private const string SchemaProperty = "$schema";
     private const string DefaultVersionProperty = "$version";
 
+    [UnconditionalSuppressMessage(
+        "Trimming",
+        "IL2026",
+        Justification = "The reflection resolver is created only when reflection-based serialization is enabled. NativeAOT applications must supply a source-generated resolver, which bypasses this branch."
+    )]
+    [UnconditionalSuppressMessage(
+        "Aot",
+        "IL3050",
+        Justification = "The reflection resolver is created only when reflection-based serialization is enabled. NativeAOT applications must supply a source-generated resolver, which bypasses this branch."
+    )]
+    internal static void EnsureTypeInfoResolver(JsonSerializerOptions options)
+    {
+        if (options.TypeInfoResolver is not null)
+        {
+            return;
+        }
+
+        if (!JsonSerializer.IsReflectionEnabledByDefault)
+        {
+            throw new InvalidOperationException(
+                "A source-generated JsonSerializerContext must be supplied for JSON serialization when reflection-based JSON serialization is disabled."
+            );
+        }
+
+        options.TypeInfoResolver = new DefaultJsonTypeInfoResolver();
+    }
+
     public static ReadOnlySequence<byte> GetPayload(
         in ReadOnlySequence<byte> source,
         DocumentLayoutOptions? layout,

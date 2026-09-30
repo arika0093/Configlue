@@ -42,7 +42,7 @@ public sealed class GeneratedModelContractTests
     public async Task IConfiglueFacadeModel_ProvidesSchemaAndCreatesItsTypedRuntime()
     {
         var schema = GetFacadeSchema<AppSettings>();
-        var store = new InMemoryStateStore<AppSettings.Fragment>(
+        var store = new InMemoryStateSource<AppSettings.Fragment>(
             new AppSettings.Fragment { RetryCount = Optional<int>.Present(13) }
         );
         var configuration = new ConfiglueModelBuilder<AppSettings>();

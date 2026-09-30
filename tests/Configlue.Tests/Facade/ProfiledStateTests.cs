@@ -206,7 +206,7 @@ public sealed class ProfiledStateTests
     [Test]
     public async Task ProfileCatalogReconciliationNotifiesOnlyCommittedAmbiguousActiveChanges()
     {
-        var committedStore = new InMemoryStateStore<ConfiglueProfileCatalog>(
+        var committedStore = new InMemoryStateSource<ConfiglueProfileCatalog>(
             new ConfiglueProfileCatalog
             {
                 ProfileNames = ["default", "Work"],
@@ -253,7 +253,7 @@ public sealed class ProfiledStateTests
         committedNotifications.ShouldBe(new[] { ("Work", "Work") });
         await committedRegistry.DisposeAsync();
 
-        var unchangedStore = new InMemoryStateStore<ConfiglueProfileCatalog>(
+        var unchangedStore = new InMemoryStateSource<ConfiglueProfileCatalog>(
             new ConfiglueProfileCatalog
             {
                 ProfileNames = ["default", "Work"],
@@ -284,7 +284,7 @@ public sealed class ProfiledStateTests
     [Test]
     public async Task ProfileManagerReleasesItsGateWhenCustomNotificationDeferralFails()
     {
-        var catalogStore = new InMemoryStateStore<ConfiglueProfileCatalog>(
+        var catalogStore = new InMemoryStateSource<ConfiglueProfileCatalog>(
             new ConfiglueProfileCatalog
             {
                 ProfileNames = ["default", "Work"],
@@ -327,7 +327,7 @@ public sealed class ProfiledStateTests
     [Test]
     public async Task CustomDeferringRegistryAllowsProfileManagerReentrancyFromRegistryEvents()
     {
-        var catalogStore = new InMemoryStateStore<ConfiglueProfileCatalog>(
+        var catalogStore = new InMemoryStateSource<ConfiglueProfileCatalog>(
             new ConfiglueProfileCatalog
             {
                 ProfileNames = ["default"],
@@ -466,7 +466,7 @@ public sealed class ProfiledStateTests
     > CreateProfileRegistry() =>
         new(name =>
         {
-            var store = new InMemoryStateStore<AppSettings.Fragment>();
+            var store = new InMemoryStateSource<AppSettings.Fragment>();
             var source = new StateSource<AppSettings.Fragment>(name, store, writer: store);
             return new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
                 new StateSourceSet<AppSettings.Fragment>([source])
@@ -532,7 +532,7 @@ public sealed class ProfiledStateTests
     }
 
     private sealed class CommitThenThrowCatalogWriter(
-        InMemoryStateStore<ConfiglueProfileCatalog> inner,
+        InMemoryStateSource<ConfiglueProfileCatalog> inner,
         bool commitBeforeThrow
     ) : ISourceWriter<ConfiglueProfileCatalog>
     {

@@ -3,7 +3,7 @@ using Configlue.Sources;
 namespace Configlue.Testing;
 
 /// <summary>An in-memory typed state source for runtime and application tests.</summary>
-public sealed class InMemoryStateStore<T> : ISourceReader<T>, ISourceWriter<T>, ISourceWatcher
+public sealed class InMemoryStateSource<T> : ISourceReader<T>, ISourceWriter<T>, ISourceWatcher
 {
     private readonly object _gate = new();
     private StateReadStatus _status;
@@ -13,10 +13,10 @@ public sealed class InMemoryStateStore<T> : ISourceReader<T>, ISourceWriter<T>, 
     private TaskCompletionSource _changed = NewSignal();
 
     /// <summary>Creates an empty state store.</summary>
-    public InMemoryStateStore() => _status = StateReadStatus.NotFound;
+    public InMemoryStateSource() => _status = StateReadStatus.NotFound;
 
     /// <summary>Creates a state store with an initial value.</summary>
-    public InMemoryStateStore(T? initialValue)
+    public InMemoryStateSource(T? initialValue)
     {
         _value = initialValue;
         _status = StateReadStatus.Success;

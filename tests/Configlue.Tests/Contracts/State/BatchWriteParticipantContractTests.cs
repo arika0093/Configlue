@@ -50,7 +50,7 @@ public sealed class BatchWriteParticipantContractTests
     [Test]
     public async Task ProjectedWriter_ReportsUnsupportedBatchPreparation()
     {
-        var store = new InMemoryStateStore<DatabaseSettings.Fragment>();
+        var store = new InMemoryStateSource<DatabaseSettings.Fragment>();
         var source = new StateSource<DatabaseSettings.Fragment>("database", store, writer: store);
         var projected = Project(source);
         var request = new StateWriteRequest<AppSettings.Fragment>(new AppSettings.Fragment());

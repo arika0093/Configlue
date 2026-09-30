@@ -123,40 +123,29 @@ public static class HttpSourceRegistration
                 options.ResourceOptions,
                 options.ResourceId
             );
-            ISourceWriter<TFragment>? writer = options.Writable
-                ? new SerializedStateWriter<TFragment>(
-                    resource.CreateWriter(),
-                    options.Codec,
-                    options.CodecContext,
-                    options.Transformers
-                )
-                : null;
-            var reader = new SerializedStateReader<TFragment>(
+            var serialized = new SerializedSource<TFragment>(
                 resource,
                 options.Codec,
                 options.CodecContext,
-                transformers: options.Transformers
+                transformers: options.Transformers,
+                writer: options.Writable ? resource.CreateWriter() : null,
+                watcher: options.WatchChanges ? resource : null
             );
-            var watcher = options.WatchChanges ? resource : null;
             return options.Id is { } id
                 ? new StateSource<TFragment>(
                     id,
-                    reader,
+                    serialized,
                     options.Priority,
                     options.FallbackCondition,
-                    writer,
-                    watcher,
-                    endpoint.AbsoluteUri,
-                    options.ResourceId
+                    physicalOrigin: endpoint.AbsoluteUri,
+                    resourceId: options.ResourceId
                 )
                 : new StateSource<TFragment>(
-                    reader,
+                    serialized,
                     options.Priority,
                     options.FallbackCondition,
-                    writer,
-                    watcher,
-                    endpoint.AbsoluteUri,
-                    options.ResourceId
+                    physicalOrigin: endpoint.AbsoluteUri,
+                    resourceId: options.ResourceId
                 );
         }
     }

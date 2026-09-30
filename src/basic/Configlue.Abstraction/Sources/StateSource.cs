@@ -49,6 +49,62 @@ public sealed class StateSource<T>
             modelId
         ) { }
 
+    /// <summary>Creates a source from one object that supplies its read, write, and watch capabilities.</summary>
+    public StateSource(
+        ISourceCapabilities<T> source,
+        int priority = 0,
+        StateFallbackCondition fallbackCondition = StateFallbackCondition.NotFound,
+        string? physicalOrigin = null,
+        ResourceId? resourceId = null,
+        string? logicalDescriptor = null,
+        bool explicitOnly = false,
+        Func<IConfiglueSubject, SubjectKey>? subjectKeySelector = null,
+        RuntimeLifetimeRequirement runtimeLifetime = RuntimeLifetimeRequirement.Shared,
+        string? modelId = null
+    )
+        : this(
+            (ISourceReader<T>)source,
+            priority,
+            fallbackCondition,
+            source.Writer,
+            source.Watcher,
+            physicalOrigin,
+            resourceId,
+            logicalDescriptor,
+            explicitOnly,
+            subjectKeySelector,
+            runtimeLifetime,
+            modelId
+        ) { }
+
+    /// <summary>Creates a source from one capability-supplying object with an explicit logical identity.</summary>
+    public StateSource(
+        string id,
+        ISourceCapabilities<T> source,
+        int priority = 0,
+        StateFallbackCondition fallbackCondition = StateFallbackCondition.NotFound,
+        string? physicalOrigin = null,
+        ResourceId? resourceId = null,
+        bool explicitOnly = false,
+        Func<IConfiglueSubject, SubjectKey>? subjectKeySelector = null,
+        RuntimeLifetimeRequirement runtimeLifetime = RuntimeLifetimeRequirement.Shared,
+        string? modelId = null
+    )
+        : this(
+            id,
+            (ISourceReader<T>)source,
+            priority,
+            fallbackCondition,
+            source.Writer,
+            source.Watcher,
+            physicalOrigin,
+            resourceId,
+            explicitOnly,
+            subjectKeySelector,
+            runtimeLifetime,
+            modelId
+        ) { }
+
     /// <summary>Creates a source with at least a reader.</summary>
     public StateSource(
         string id,
@@ -87,7 +143,7 @@ public sealed class StateSource<T>
         ResourceId =
             resourceId
             ?? TryGetResourceId(reader, ConfiglueResourceContext.Default)
-            ?? TryGetResourceId(writer, ConfiglueResourceContext.Default);
+            ?? TryGetResourceId(Writer, ConfiglueResourceContext.Default);
         _configuredResourceId = resourceId;
         ExplicitOnly = explicitOnly;
         RuntimeLifetime = runtimeLifetime;

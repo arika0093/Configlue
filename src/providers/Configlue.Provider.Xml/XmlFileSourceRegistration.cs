@@ -114,32 +114,30 @@ public static class XmlFileSourceRegistration
             }
             ISourceWatcher? watcher = options.WatchChanges ? file : null;
             var codec = new XmlStateCodec();
-            var stateReader = new SerializedStateReader<TFragment>(resource, codec);
-            var stateWriter = sourceWriter is null
-                ? null
-                : new SerializedStateWriter<TFragment>(sourceWriter, codec);
+            var serialized = new SerializedSource<TFragment>(
+                resource,
+                codec,
+                writer: sourceWriter,
+                watcher: watcher
+            );
             var physicalResourceId = options.ResourceId ?? (file as IResourceIdentity)?.ResourceId;
             return options.Id is { } id
                 ? new StateSource<TFragment>(
                     id,
-                    stateReader,
+                    serialized,
                     options.Priority,
                     options.FallbackCondition,
-                    stateWriter,
-                    watcher,
-                    file.Path,
-                    physicalResourceId,
+                    physicalOrigin: file.Path,
+                    resourceId: physicalResourceId,
                     explicitOnly: options.ExplicitOnly
                 )
                 : new StateSource<TFragment>(
                     XmlFileSourceSelector.CreateSourceId(file.Path, options.SectionPath),
-                    stateReader,
+                    serialized,
                     options.Priority,
                     options.FallbackCondition,
-                    stateWriter,
-                    watcher,
-                    file.Path,
-                    physicalResourceId,
+                    physicalOrigin: file.Path,
+                    resourceId: physicalResourceId,
                     explicitOnly: options.ExplicitOnly
                 );
         }

@@ -9,7 +9,7 @@ public sealed class AsyncProfileSubscriptionTests
     [Test]
     public async Task OnChangeReturnsBeforeAnAsynchronousCatalogReadAndDisposalCancelsIt()
     {
-        var store = new InMemoryStateStore<ConfiglueProfileCatalog>(Catalog());
+        var store = new InMemoryStateSource<ConfiglueProfileCatalog>(Catalog());
         var entered = Signal();
         var cancelled = Signal();
         var registry = new TestRegistry();
@@ -184,7 +184,7 @@ public sealed class AsyncProfileSubscriptionTests
         TestRegistry registry
     )
     {
-        var store = new InMemoryStateStore<ConfiglueProfileCatalog>(Catalog());
+        var store = new InMemoryStateSource<ConfiglueProfileCatalog>(Catalog());
         return new(
             registry,
             new StateSource<ConfiglueProfileCatalog>("catalog", store, writer: store)

@@ -23,7 +23,8 @@ description: Find the NuGet package for each Configlue capability.
 | `Configlue.Extensions.AspNetCore` | ASP.NET Core host integration: current-request subject resolution (`IHttpContextAccessor`) and HTTP resource endpoints for serving resources. |
 | `Configlue.Extensions.Blazor` | Blazor host integration: authentication-state subject resolution with circuit change notifications and browser `localStorage`/`sessionStorage` resources. |
 | `Configlue.Resource.S3` | Optional Amazon S3 object resources and source registration with ETag revisions. |
-| `Configlue.Resource.PostgreSql` | Optional PostgreSQL byte resources with subject-key rows, atomic revision checks, and `LISTEN`/`NOTIFY` change watching. |
+| `Configlue.Source.PostgreSql` | Optional JSONB-native PostgreSQL source with subject-key rows, atomic revision checks, and `LISTEN`/`NOTIFY` change watching. |
+| `Configlue.Source.PostgreSql.Migrations` | Database schema creation and per-component version migrations for `Configlue.Source.PostgreSql`. |
 | `Configlue.Resource.Redis` | Optional Redis byte resources with subject-key keys, atomic Lua revision checks, and multiplexed Pub/Sub invalidation. |
 | `Configlue.Transformer.AES` | AES-GCM encryption and authentication for state bytes between a Resource and Codec, including passphrase-based key derivation. |
 
@@ -49,7 +50,8 @@ description: Find the NuGet package for each Configlue capability.
 | `Configlue.Extensions.AspNetCore` | `net10.0` | `Microsoft.AspNetCore.App` framework reference and `Configlue.Resource.Http`. |
 | `Configlue.Extensions.Blazor` | `net10.0` | `Microsoft.AspNetCore.App` framework reference and `Configlue.Provider.Json` (default JSON codec for browser storage). |
 | `Configlue.Resource.S3` | `netstandard2.0;netstandard2.1;net10.0` | `AWSSDK.S3` 4.0.103.4. |
-| `Configlue.Resource.PostgreSql` | `net8.0;net10.0` | `Npgsql` 10.0.3; the backend dependency sets the `net8.0` floor. |
+| `Configlue.Source.PostgreSql` | `net8.0;net10.0` | `Npgsql` 10.0.3 and `Configlue.Provider.Json`; the backend dependency sets the `net8.0` floor. |
+| `Configlue.Source.PostgreSql.Migrations` | `net8.0;net10.0` | `Npgsql` 10.0.3 and `Configlue.Source.PostgreSql`. |
 | `Configlue.Resource.Redis` | `netstandard2.0;netstandard2.1;net10.0` | `StackExchange.Redis` 3.3.1. |
 | `Configlue.Transformer.AES` | `netstandard2.1;net10.0` | No direct NuGet dependencies; AES-GCM requires the `netstandard2.1` floor. Install this package explicitly to enable AES extensions. |
 

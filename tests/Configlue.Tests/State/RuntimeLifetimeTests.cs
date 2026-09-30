@@ -17,7 +17,7 @@ public sealed partial class RuntimeLifetimeTests
     [Test]
     public void SharedSourceKeepsConfigurationRuntimeSharedAcrossScopes()
     {
-        var store = new InMemoryStateStore<RuntimeLifetimeSettings.Fragment>();
+        var store = new InMemoryStateSource<RuntimeLifetimeSettings.Fragment>();
         var services = new ServiceCollection();
         services.AddConfiglue(builder =>
             builder.Add<RuntimeLifetimeSettings>(model =>

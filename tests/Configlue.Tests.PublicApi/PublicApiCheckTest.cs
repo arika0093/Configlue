@@ -12,12 +12,13 @@ using Configlue.Provider.Json;
 using Configlue.Provider.Xml;
 using Configlue.Provider.Yaml;
 using Configlue.Resource.Http;
-using Configlue.Resource.PostgreSql;
 using Configlue.Resource.Redis;
 using Configlue.Resource.S3;
 using Configlue.Resource.Zip;
 using Configlue.Source.CommandLine;
 using Configlue.Source.Environment;
+using Configlue.Source.PostgreSql;
+using Configlue.Source.PostgreSql.Migrations;
 using Configlue.Source.Presets;
 using Configlue.Testing;
 using Configlue.Transformer.AES;
@@ -279,7 +280,10 @@ public sealed class PublicApiCheckTest
     public void S3() => PublicApiCheck.Check<S3ObjectSourceOptions>();
 
     [Test]
-    public void PostgreSql() => PublicApiCheck.Check<PostgreSqlStateSourceOptions>();
+    public void PostgreSql() => PublicApiCheck.Check<PostgreSqlSourceOptions>();
+
+    [Test]
+    public void PostgreSqlMigrations() => PublicApiCheck.Check<PostgreSqlSchemaMigrator>();
 
     [Test]
     public void Redis() => PublicApiCheck.Check<RedisStateSourceOptions>();

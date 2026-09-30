@@ -406,13 +406,13 @@ public sealed class LegacySettingsAdoptionTests
             currentCodec,
             schemaDispatcher: dispatcher
         );
-        var targetStore = new InMemoryStateStore<HistoricalSettings.Fragment>();
+        var targetStore = new InMemoryStateSource<HistoricalSettings.Fragment>();
         var target = new StateSource<HistoricalSettings.Fragment>(
             "current-settings",
             targetStore,
             writer: targetStore
         );
-        var higherPriorityStore = new InMemoryStateStore<HistoricalSettings.Fragment>(
+        var higherPriorityStore = new InMemoryStateSource<HistoricalSettings.Fragment>(
             new HistoricalSettings.Fragment { RetryCount = Optional<int>.Present(99) }
         );
         var higherPrioritySource = new StateSource<HistoricalSettings.Fragment>(

@@ -129,34 +129,26 @@ public static class RedisStateSourceRegistration
                 );
             context.Own(resource);
 
-            var reader = new SerializedStateReader<TFragment>(
+            var serialized = new SerializedSource<TFragment>(
                 resource,
                 options.Codec,
-                options.CodecContext
+                options.CodecContext,
+                writer: options.Writable ? resource : null
             );
-            ISourceWriter<TFragment>? writer = options.Writable
-                ? new SerializedStateWriter<TFragment>(
-                    resource,
-                    options.Codec,
-                    options.CodecContext
-                )
-                : null;
             var physicalOrigin = $"redis:{options.ResourceNamespace}";
             var source = options.Id is { } id
                 ? new StateSource<TFragment>(
                     id,
-                    reader,
+                    serialized,
                     options.Priority,
                     options.FallbackCondition,
-                    writer,
                     physicalOrigin: physicalOrigin,
                     resourceId: options.ResourceOptions?.ResourceId
                 )
                 : new StateSource<TFragment>(
-                    reader,
+                    serialized,
                     options.Priority,
                     options.FallbackCondition,
-                    writer,
                     physicalOrigin: physicalOrigin,
                     resourceId: options.ResourceOptions?.ResourceId
                 );

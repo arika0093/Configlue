@@ -3,12 +3,12 @@ using Configlue.Testing;
 
 namespace Configlue.Tests;
 
-public sealed class InMemoryStateStoreContractTests
+public sealed class InMemoryStateSourceContractTests
 {
     [Test]
     public async Task ISourceReader_ReportsNotFoundUnavailableAndCurrentValue()
     {
-        var store = new InMemoryStateStore<string>();
+        var store = new InMemoryStateSource<string>();
         ISourceReader<string> reader = store;
 
         var missing = await reader.ReadAsync();
@@ -27,7 +27,7 @@ public sealed class InMemoryStateStoreContractTests
     [Test]
     public async Task ISourceWriter_RequiresTheExpectedRevisionAndReturnsTheNewRevision()
     {
-        var store = new InMemoryStateStore<string>("initial");
+        var store = new InMemoryStateSource<string>("initial");
         ISourceWriter<string> writer = store;
         var initial = await store.ReadAsync();
 
@@ -54,7 +54,7 @@ public sealed class InMemoryStateStoreContractTests
     [Test]
     public async Task ISourceWatcher_ObservesChangesAndHonorsCancellation()
     {
-        var store = new InMemoryStateStore<string>("initial");
+        var store = new InMemoryStateSource<string>("initial");
         ISourceWatcher watcher = store;
         var initial = await store.ReadAsync();
         var change = watcher.WaitForChangeAsync(initial.Revision).AsTask();

@@ -16,7 +16,7 @@ public sealed class StateCapabilityTests
                     sources.Add(
                         new StateSource<AppSettings.Fragment>(
                             "default",
-                            new InMemoryStateStore<AppSettings.Fragment>()
+                            new InMemoryStateSource<AppSettings.Fragment>()
                         )
                     )
                 )
@@ -28,7 +28,7 @@ public sealed class StateCapabilityTests
                     sources.Add(
                         new StateSource<AppSettings.Fragment>(
                             "named",
-                            new InMemoryStateStore<AppSettings.Fragment>()
+                            new InMemoryStateSource<AppSettings.Fragment>()
                         )
                     )
                 );

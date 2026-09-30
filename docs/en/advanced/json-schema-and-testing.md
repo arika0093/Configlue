@@ -47,7 +47,7 @@ dotnet add package Configlue.Testing
 ```
 
 * `InMemoryResource` — a resource reader/watcher/batch-writer double with a `WriteCount` probe. Compose it with `SerializedStateSource.FromResource` to test resolution, writes, and watchers without touching the file system.
-* `InMemoryStateStore<T>` — a reader/writer/watcher double that can be seeded with `Set(value)`, forced to `SetNotFound()` / `SetUnavailable()`, and observed directly.
+* `InMemoryStateSource<T>` — a reader/writer/watcher double that can be seeded with `Set(value)`, forced to `SetNotFound()` / `SetUnavailable()`, and observed directly.
 
 ## Next steps
 

@@ -16,8 +16,8 @@ public sealed class StateCheckTests
     [Test]
     public async Task CheckStreamsEachEvaluatedSourceInPriorityOrder()
     {
-        var primary = new InMemoryStateStore<AppSettings.Fragment>(Fragment("primary"));
-        var secondary = new InMemoryStateStore<AppSettings.Fragment>(Fragment("secondary"));
+        var primary = new InMemoryStateSource<AppSettings.Fragment>(Fragment("primary"));
+        var secondary = new InMemoryStateSource<AppSettings.Fragment>(Fragment("secondary"));
         await using var runtime = CreateRuntime(
             Source("primary", primary, priority: 10),
             Source("secondary", secondary, priority: 0)
@@ -46,9 +46,9 @@ public sealed class StateCheckTests
     [Test]
     public async Task CheckContinuesFallbackAndReportsEachAttemptedSource()
     {
-        var primary = new InMemoryStateStore<AppSettings.Fragment>();
+        var primary = new InMemoryStateSource<AppSettings.Fragment>();
         primary.SetUnavailable();
-        var secondary = new InMemoryStateStore<AppSettings.Fragment>(Fragment("secondary"));
+        var secondary = new InMemoryStateSource<AppSettings.Fragment>(Fragment("secondary"));
         await using var runtime = CreateRuntime(
             Source(
                 "primary",
@@ -80,9 +80,9 @@ public sealed class StateCheckTests
     [Test]
     public async Task CheckStopsAtNonFallbackSourceWithoutInventingResults()
     {
-        var primary = new InMemoryStateStore<AppSettings.Fragment>();
+        var primary = new InMemoryStateSource<AppSettings.Fragment>();
         primary.SetUnavailable();
-        var secondary = new InMemoryStateStore<AppSettings.Fragment>(Fragment("secondary"));
+        var secondary = new InMemoryStateSource<AppSettings.Fragment>(Fragment("secondary"));
         await using var runtime = CreateRuntime(
             Source(
                 "primary",
@@ -111,7 +111,7 @@ public sealed class StateCheckTests
     [Test]
     public async Task CheckReportsNotFoundWhenNonFallbackSourceHasNoValue()
     {
-        var primary = new InMemoryStateStore<AppSettings.Fragment>();
+        var primary = new InMemoryStateSource<AppSettings.Fragment>();
         primary.SetNotFound();
         await using var runtime = CreateRuntime(
             Source("primary", primary, priority: 10, fallbackCondition: StateFallbackCondition.None)

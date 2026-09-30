@@ -33,7 +33,7 @@ public sealed class StateOutcomeContractTests
     [Test]
     public async Task StateConditions_EnforceMatchAndAbsenceWithTombstoneRevisions()
     {
-        var store = new InMemoryStateStore<string>();
+        var store = new InMemoryStateSource<string>();
         store.SetNotFound();
         (await store.ReadAsync()).Revision.ShouldNotBeNull();
         await store.WriteAsync(
@@ -216,7 +216,7 @@ public sealed class StateOutcomeContractTests
     [Test]
     public async Task ApplicationSaves_ReturnSourceReceiptsForSingleWritesAndEmptyReceiptsForNoOps()
     {
-        var store = new InMemoryStateStore<AppSettings.Fragment>();
+        var store = new InMemoryStateSource<AppSettings.Fragment>();
         await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([new("user", store, writer: store)])
         );

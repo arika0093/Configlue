@@ -1,15 +1,17 @@
+using System.Text.Json;
+using Configlue.Provider.Json;
 using Configlue.Sources;
 using Npgsql;
 
-namespace Configlue.Resource.PostgreSql;
+namespace Configlue.Source.PostgreSql;
 
-/// <summary>Options for registering a PostgreSQL-backed serialized state source.</summary>
-public sealed class PostgreSqlStateSourceOptions
+/// <summary>Options for registering a JSONB-native PostgreSQL source.</summary>
+public sealed class PostgreSqlSourceOptions
 {
     /// <summary>An optional stable logical source ID.</summary>
     public string? Id { get; init; }
 
-    /// <summary>The namespace separating this resource's rows from other resources in the table.</summary>
+    /// <summary>The namespace separating this source's rows from other sources in the table.</summary>
     public required string ResourceNamespace { get; init; }
 
     /// <summary>A caller-owned data source used for every route.</summary>
@@ -21,11 +23,14 @@ public sealed class PostgreSqlStateSourceOptions
     /// <summary>Resolves a caller-owned, shared data source for each physical route.</summary>
     public Func<IServiceProvider?, RouteKey, NpgsqlDataSource>? DataSourceResolver { get; init; }
 
-    /// <summary>The codec for the serialized state.</summary>
-    public required object Codec { get; init; }
+    /// <summary>Table, schema, and resource identity settings.</summary>
+    public PostgreSqlTableOptions? TableOptions { get; init; }
 
-    /// <summary>Table and resource identity settings.</summary>
-    public PostgreSqlResourceOptions? ResourceOptions { get; init; }
+    /// <summary>
+    /// JSON serialization options. Generated fragment converters are used automatically when registered;
+    /// supply a source-generated resolver here for NativeAOT.
+    /// </summary>
+    public JsonSerializerOptions? SerializerOptions { get; init; }
 
     /// <summary>Higher values are read first.</summary>
     public int Priority { get; init; }
@@ -37,21 +42,8 @@ public sealed class PostgreSqlStateSourceOptions
     /// <summary>Whether this source exposes a writer.</summary>
     public bool Writable { get; init; } = true;
 
-    /// <summary>Additional context passed to the codec.</summary>
-    public StateCodecContext CodecContext { get; init; }
-}
-
-/// <summary>Registers sources backed by PostgreSQL byte resources.</summary>
-public static class PostgreSqlStateSourceRegistration
-{
-    /// <summary>Adds a PostgreSQL source. Supplied data sources remain externally owned.</summary>
-    public static ConfiglueSourceRegistration FromPostgreSql(
-        this ConfiglueSourceSetBuilder sources,
-        PostgreSqlStateSourceOptions options
-    )
+    internal static void Validate(PostgreSqlSourceOptions options)
     {
-        ArgumentNullException.ThrowIfNull(sources);
-        ArgumentNullException.ThrowIfNull(options);
         ArgumentException.ThrowIfNullOrWhiteSpace(options.ResourceNamespace);
         if (options.ResourceNamespace.Contains('\0'))
         {
@@ -61,8 +53,7 @@ public static class PostgreSqlStateSourceRegistration
             );
         }
 
-        ArgumentNullException.ThrowIfNull(options.Codec);
-        options.ResourceOptions?.Validate();
+        options.TableOptions?.Validate();
         if (
             (options.DataSource is null ? 0 : 1)
                 + (options.DataSourceFactory is null ? 0 : 1)
@@ -80,13 +71,28 @@ public static class PostgreSqlStateSourceRegistration
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(options.Id);
         }
+    }
+}
+
+/// <summary>Registers JSONB-native PostgreSQL sources.</summary>
+public static class PostgreSqlSourceRegistration
+{
+    /// <summary>Adds a PostgreSQL source. Supplied data sources remain externally owned.</summary>
+    public static ConfiglueSourceRegistration FromPostgreSql(
+        this ConfiglueSourceSetBuilder sources,
+        PostgreSqlSourceOptions options
+    )
+    {
+        ArgumentNullException.ThrowIfNull(sources);
+        ArgumentNullException.ThrowIfNull(options);
+        PostgreSqlSourceOptions.Validate(options);
 
         return ((IConfiglueSourceRegistrationSink)sources).Add(
-            new PostgreSqlStateSourceDefinition(options)
+            new PostgreSqlSourceDefinition(options)
         );
     }
 
-    private sealed class PostgreSqlStateSourceDefinition(PostgreSqlStateSourceOptions options)
+    private sealed class PostgreSqlSourceDefinition(PostgreSqlSourceOptions options)
         : IConfiglueSourceDefinition
     {
         public ConfiglueSourceCreation<TFragment> Create<TFragment>(
@@ -105,55 +111,51 @@ public static class PostgreSqlStateSourceRegistration
                     );
             }
 
-            var resource = options.DataSourceResolver is { } dataSourceResolver
-                ? new PostgreSqlResource(
+            var serializer = new JsonStateValueSerializer<TFragment>(
+                options.SerializerOptions,
+                ConfiglueJsonFragmentRegistry<TFragment>.TryGetConverter(out var converter)
+                    ? converter
+                    : null
+            );
+            var source = options.DataSourceResolver is { } dataSourceResolver
+                ? new PostgreSqlSource<TFragment>(
                     route =>
                         dataSourceResolver(context.Services, route)
                         ?? throw new InvalidOperationException(
                             "The PostgreSQL data source resolver returned null."
                         ),
                     options.ResourceNamespace,
-                    options.ResourceOptions
+                    serializer,
+                    options.TableOptions,
+                    options.Writable
                 )
-                : new PostgreSqlResource(
+                : new PostgreSqlSource<TFragment>(
                     fixedDataSource!,
                     options.ResourceNamespace,
-                    options.ResourceOptions
+                    serializer,
+                    options.TableOptions,
+                    options.Writable
                 );
-            context.Own(resource);
+            context.Own(source);
 
-            var reader = new SerializedStateReader<TFragment>(
-                resource,
-                options.Codec,
-                options.CodecContext
-            );
-            ISourceWriter<TFragment>? writer = options.Writable
-                ? new SerializedStateWriter<TFragment>(
-                    resource,
-                    options.Codec,
-                    options.CodecContext
-                )
-                : null;
             var physicalOrigin = $"postgresql:{options.ResourceNamespace}";
-            var source = options.Id is { } id
+            var stateSource = options.Id is { } id
                 ? new StateSource<TFragment>(
                     id,
-                    reader,
+                    source,
                     options.Priority,
                     options.FallbackCondition,
-                    writer,
                     physicalOrigin: physicalOrigin,
-                    resourceId: options.ResourceOptions?.ResourceId
+                    resourceId: options.TableOptions?.ResourceId
                 )
                 : new StateSource<TFragment>(
-                    reader,
+                    source,
                     options.Priority,
                     options.FallbackCondition,
-                    writer,
                     physicalOrigin: physicalOrigin,
-                    resourceId: options.ResourceOptions?.ResourceId
+                    resourceId: options.TableOptions?.ResourceId
                 );
-            return context.Complete(source);
+            return context.Complete(stateSource);
         }
     }
 }

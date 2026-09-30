@@ -1,10 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
-    <AssemblyName>Configlue.Resource.PostgreSql</AssemblyName>
-    <RootNamespace>Configlue.Resource.PostgreSql</RootNamespace>
+    <AssemblyName>Configlue.Source.PostgreSql</AssemblyName>
+    <RootNamespace>Configlue.Source.PostgreSql</RootNamespace>
     <IsPackable>true</IsPackable>
-    <PackageDescription>Direct PostgreSQL resources for Configlue.</PackageDescription>
+    <PackageDescription>JSONB-native PostgreSQL sources for Configlue.</PackageDescription>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Npgsql" Version="10.0.3" />
@@ -12,8 +12,10 @@
   <ItemGroup>
     <ProjectReference Include="../../basic/Configlue.Abstraction/Configlue.Abstraction.csproj" />
     <ProjectReference Include="../../basic/Configlue.Core/Configlue.Core.csproj" />
+    <ProjectReference Include="../../providers/Configlue.Provider.Json/Configlue.Provider.Json.csproj" />
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Configlue.Tests" />
+    <InternalsVisibleTo Include="Configlue.Source.PostgreSql.Migrations" />
   </ItemGroup>
 </Project>

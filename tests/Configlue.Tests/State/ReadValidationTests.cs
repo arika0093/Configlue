@@ -54,14 +54,14 @@ public sealed class ReadValidationTests
             new([
                 new StateSource<AppSettings.Fragment>(
                     "low",
-                    new InMemoryStateStore<AppSettings.Fragment>(
+                    new InMemoryStateSource<AppSettings.Fragment>(
                         new AppSettings.Fragment { RetryCount = Optional<int>.Present(150) }
                     ),
                     priority: 100
                 ),
                 new StateSource<AppSettings.Fragment>(
                     "high",
-                    new InMemoryStateStore<AppSettings.Fragment>(
+                    new InMemoryStateSource<AppSettings.Fragment>(
                         new AppSettings.Fragment { RetryCount = Optional<int>.Present(5) }
                     ),
                     priority: 200
@@ -96,7 +96,7 @@ public sealed class ReadValidationTests
             new StateSourceSet<AppSettings.Fragment>([
                 new StateSource<AppSettings.Fragment>(
                     "layer",
-                    new InMemoryStateStore<AppSettings.Fragment>(
+                    new InMemoryStateSource<AppSettings.Fragment>(
                         new AppSettings.Fragment
                         {
                             RetryCount = Optional<int>.Present(150),
@@ -122,7 +122,7 @@ public sealed class ReadValidationTests
             new StateSourceSet<ReadValidationRoot.Fragment>([
                 new StateSource<ReadValidationRoot.Fragment>(
                     "nested-layer",
-                    new InMemoryStateStore<ReadValidationRoot.Fragment>(
+                    new InMemoryStateSource<ReadValidationRoot.Fragment>(
                         new ReadValidationRoot.Fragment
                         {
                             Nested = Optional<ReadValidationNested.Fragment?>.Present(
@@ -154,7 +154,7 @@ public sealed class ReadValidationTests
                 new StateSourceSet<AppSettings.Fragment>([
                     new StateSource<AppSettings.Fragment>(
                         "layer",
-                        new InMemoryStateStore<AppSettings.Fragment>(
+                        new InMemoryStateSource<AppSettings.Fragment>(
                             new AppSettings.Fragment { RetryCount = Optional<int>.Present(150) }
                         )
                     ),
@@ -177,7 +177,7 @@ public sealed class ReadValidationTests
             new StateSourceSet<AppSettings.Fragment>([
                 new StateSource<AppSettings.Fragment>(
                     "layer",
-                    new InMemoryStateStore<AppSettings.Fragment>(
+                    new InMemoryStateSource<AppSettings.Fragment>(
                         new AppSettings.Fragment
                         {
                             Label = Optional<string?>.Present("custom-invalid"),
@@ -212,7 +212,7 @@ public sealed class ReadValidationTests
                 ),
                 new StateSource<AppSettings.Fragment>(
                     "valid",
-                    new InMemoryStateStore<AppSettings.Fragment>(
+                    new InMemoryStateSource<AppSettings.Fragment>(
                         new AppSettings.Fragment { RetryCount = Optional<int>.Present(8) }
                     )
                 ),
@@ -237,7 +237,7 @@ public sealed class ReadValidationTests
                     sources.Add(
                         new StateSource<AppSettings.Fragment>(
                             "layer",
-                            new InMemoryStateStore<AppSettings.Fragment>(
+                            new InMemoryStateSource<AppSettings.Fragment>(
                                 new AppSettings.Fragment { RetryCount = Optional<int>.Present(150) }
                             )
                         )

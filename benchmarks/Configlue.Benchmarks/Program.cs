@@ -24,7 +24,7 @@ public partial class BenchmarkSettings
 [MemoryDiagnoser]
 public class OptionsRuntimeBenchmarks
 {
-    private InMemoryStateStore<BenchmarkSettings.Fragment> _store = null!;
+    private InMemoryStateSource<BenchmarkSettings.Fragment> _store = null!;
     private IWritableState<BenchmarkSettings> _options = null!;
     private IReadOnlyState<BenchmarkSettings> _readOptions = null!;
     private IOptionsMonitor<BenchmarkSettings> _monitor = null!;
@@ -36,7 +36,7 @@ public class OptionsRuntimeBenchmarks
     [GlobalSetup]
     public async Task SetupAsync()
     {
-        _store = new InMemoryStateStore<BenchmarkSettings.Fragment>(CreateFragment(0));
+        _store = new InMemoryStateSource<BenchmarkSettings.Fragment>(CreateFragment(0));
         var sourceSet = new StateSourceSet<BenchmarkSettings.Fragment>([
             new StateSource<BenchmarkSettings.Fragment>(
                 "benchmark",
@@ -139,7 +139,7 @@ public class StateSourceResolverBenchmarks
             {
                 var store =
                     index == SourceCount - 1
-                        ? new InMemoryStateStore<BenchmarkSettings.Fragment>(
+                        ? new InMemoryStateSource<BenchmarkSettings.Fragment>(
                             new BenchmarkSettings.Fragment
                             {
                                 Counter = Optional<int>.Present(index),
@@ -147,7 +147,7 @@ public class StateSourceResolverBenchmarks
                                 Enabled = Optional<bool>.Present(true),
                             }
                         )
-                        : new InMemoryStateStore<BenchmarkSettings.Fragment>();
+                        : new InMemoryStateSource<BenchmarkSettings.Fragment>();
                 return new StateSource<BenchmarkSettings.Fragment>(
                     $"layer-{index}",
                     store,

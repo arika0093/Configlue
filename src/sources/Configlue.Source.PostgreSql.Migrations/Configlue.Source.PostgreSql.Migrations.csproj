@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
+    <AssemblyName>Configlue.Source.PostgreSql.Migrations</AssemblyName>
+    <RootNamespace>Configlue.Source.PostgreSql.Migrations</RootNamespace>
+    <IsPackable>true</IsPackable>
+    <PackageDescription>Database schema migrations for Configlue PostgreSQL sources.</PackageDescription>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Npgsql" Version="10.0.3" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Configlue.Source.PostgreSql/Configlue.Source.PostgreSql.csproj" />
+  </ItemGroup>
+</Project>

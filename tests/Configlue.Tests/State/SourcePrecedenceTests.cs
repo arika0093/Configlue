@@ -9,17 +9,17 @@ public sealed class SourcePrecedenceTests
     {
         var firstTie = new StateSource<string>(
             "first-tie",
-            new InMemoryStateStore<string>(),
+            new InMemoryStateSource<string>(),
             priority: 100
         );
         var lowest = new StateSource<string>(
             "lowest",
-            new InMemoryStateStore<string>(),
+            new InMemoryStateSource<string>(),
             priority: 0
         );
         var secondTie = new StateSource<string>(
             "second-tie",
-            new InMemoryStateStore<string>(),
+            new InMemoryStateSource<string>(),
             priority: 100
         );
 
@@ -33,13 +33,13 @@ public sealed class SourcePrecedenceTests
     [Test]
     public async Task Read_ResolvesHigherPriorityFirstAndEarlierRegistrationForEqualPriority()
     {
-        var higher = new InMemoryStateStore<AppSettings.Fragment>(
+        var higher = new InMemoryStateSource<AppSettings.Fragment>(
             new AppSettings.Fragment { RetryCount = Optional<int>.Present(10) }
         );
-        var earlier = new InMemoryStateStore<AppSettings.Fragment>(
+        var earlier = new InMemoryStateSource<AppSettings.Fragment>(
             new AppSettings.Fragment { Label = Optional<string?>.Present("earlier") }
         );
-        var later = new InMemoryStateStore<AppSettings.Fragment>(
+        var later = new InMemoryStateSource<AppSettings.Fragment>(
             new AppSettings.Fragment { Label = Optional<string?>.Present("later") }
         );
         await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(

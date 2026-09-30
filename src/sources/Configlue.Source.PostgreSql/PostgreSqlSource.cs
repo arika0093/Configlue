@@ -1,27 +1,30 @@
-using System.Buffers.Binary;
+using System.Buffers;
 using System.Collections.Concurrent;
-using System.Security.Cryptography;
-using System.Text;
+using Configlue.Provider.Json;
 using Configlue.Sources;
 using Npgsql;
 
-namespace Configlue.Resource.PostgreSql;
+namespace Configlue.Source.PostgreSql;
 
-/// <summary>Reads and writes subject-scoped byte resources stored in PostgreSQL.</summary>
+/// <summary>A JSONB-native PostgreSQL source with read, optional write, and LISTEN/NOTIFY watch capabilities.</summary>
 /// <remarks>
-/// A row is addressed by resource namespace and subject key. Route selectors choose a shared
-/// caller-owned <see cref="NpgsqlDataSource"/> for each physical placement route.
+/// Rows are addressed by the model ID, resource namespace, and subject key, and store structured JSONB
+/// payloads. This type performs DML only; create or upgrade the database schema with
+/// Configlue.Source.PostgreSql.Migrations.
 /// </remarks>
-public sealed class PostgreSqlResource
-    : IResourceReader,
-        IResourceWriter,
-        IContextualResourceIdentity,
+public sealed class PostgreSqlSource<T>
+    : IContextualSourceReader<T>,
+        IContextualSourceWriter<T>,
         IContextualSourceWatcher,
+        ISourceCapabilities<T>,
+        ITryContextualResourceIdentity,
         IDisposable
 {
     private readonly Func<RouteKey, NpgsqlDataSource>? _dataSourceResolver;
     private readonly Func<RouteKey, IPostgreSqlStateBackend>? _testBackendResolver;
-    private readonly PostgreSqlResourceOptions _options;
+    private readonly PostgreSqlTableOptions _tableOptions;
+    private readonly JsonStateValueSerializer<T> _serializer;
+    private readonly bool _writable;
     private readonly bool _routeAwareIdentity;
     private readonly ConcurrentDictionary<RouteKey, Lazy<NpgsqlDataSource>> _dataSources = new();
     private readonly ConcurrentDictionary<
@@ -32,30 +35,51 @@ public sealed class PostgreSqlResource
         new();
     private int _disposed;
 
-    /// <summary>Creates a resource whose subject operations use one shared data source.</summary>
-    public PostgreSqlResource(
+    /// <summary>Creates a source whose subject operations use one shared data source.</summary>
+    public PostgreSqlSource(
         NpgsqlDataSource dataSource,
         string resourceNamespace,
-        PostgreSqlResourceOptions? options = null
+        JsonStateValueSerializer<T> serializer,
+        PostgreSqlTableOptions? tableOptions = null,
+        bool writable = true
     )
-        : this(CreateDataSourceResolver(dataSource), resourceNamespace, options, false) { }
+        : this(
+            CreateDataSourceResolver(dataSource),
+            resourceNamespace,
+            serializer,
+            tableOptions,
+            writable,
+            routeAwareIdentity: false
+        ) { }
 
-    /// <summary>Creates a resource that resolves a shared data source for each physical route.</summary>
-    public PostgreSqlResource(
+    /// <summary>Creates a source that resolves a shared data source for each physical route.</summary>
+    public PostgreSqlSource(
         Func<RouteKey, NpgsqlDataSource> dataSourceResolver,
         string resourceNamespace,
-        PostgreSqlResourceOptions? options = null
+        JsonStateValueSerializer<T> serializer,
+        PostgreSqlTableOptions? tableOptions = null,
+        bool writable = true
     )
-        : this(dataSourceResolver, resourceNamespace, options, true) { }
+        : this(
+            dataSourceResolver,
+            resourceNamespace,
+            serializer,
+            tableOptions,
+            writable,
+            routeAwareIdentity: true
+        ) { }
 
-    private PostgreSqlResource(
+    private PostgreSqlSource(
         Func<RouteKey, NpgsqlDataSource> dataSourceResolver,
         string resourceNamespace,
-        PostgreSqlResourceOptions? options,
+        JsonStateValueSerializer<T> serializer,
+        PostgreSqlTableOptions? tableOptions,
+        bool writable,
         bool routeAwareIdentity
     )
     {
         ArgumentNullException.ThrowIfNull(dataSourceResolver);
+        ArgumentNullException.ThrowIfNull(serializer);
         ArgumentException.ThrowIfNullOrWhiteSpace(resourceNamespace);
         if (resourceNamespace.Contains('\0'))
         {
@@ -65,20 +89,25 @@ public sealed class PostgreSqlResource
             );
         }
 
-        _options = options ?? new PostgreSqlResourceOptions();
-        _options.Validate();
+        _tableOptions = tableOptions ?? new PostgreSqlTableOptions();
+        _tableOptions.Validate();
         _dataSourceResolver = dataSourceResolver;
         _routeAwareIdentity = routeAwareIdentity;
+        _serializer = serializer;
+        _writable = writable;
         ResourceNamespace = resourceNamespace;
     }
 
-    internal PostgreSqlResource(
+    internal PostgreSqlSource(
         Func<RouteKey, IPostgreSqlStateBackend> backendResolver,
         string resourceNamespace,
-        PostgreSqlResourceOptions? options
+        JsonStateValueSerializer<T> serializer,
+        PostgreSqlTableOptions? tableOptions = null,
+        bool writable = true
     )
     {
         ArgumentNullException.ThrowIfNull(backendResolver);
+        ArgumentNullException.ThrowIfNull(serializer);
         ArgumentException.ThrowIfNullOrWhiteSpace(resourceNamespace);
         if (resourceNamespace.Contains('\0'))
         {
@@ -88,27 +117,38 @@ public sealed class PostgreSqlResource
             );
         }
 
-        _options = options ?? new PostgreSqlResourceOptions();
-        _options.Validate();
+        _tableOptions = tableOptions ?? new PostgreSqlTableOptions();
+        _tableOptions.Validate();
         _testBackendResolver = backendResolver;
         _routeAwareIdentity = true;
+        _serializer = serializer;
+        _writable = writable;
         ResourceNamespace = resourceNamespace;
     }
 
-    /// <summary>The namespace that separates this resource's rows.</summary>
+    /// <summary>The namespace that separates this source's rows.</summary>
     public string ResourceNamespace { get; }
+
+    /// <inheritdoc />
+    public bool CanWrite => _writable;
+
+    /// <inheritdoc />
+    public ISourceWriter<T>? Writer => _writable ? this : null;
+
+    /// <inheritdoc />
+    public ISourceWatcher? Watcher => this;
 
     /// <inheritdoc />
     public ResourceId ResourceId => GetResourceId(ConfiglueResourceContext.Default);
 
     /// <inheritdoc />
     public ResourceId GetResourceId(ConfiglueResourceContext context) =>
-        _options.ResourceId
+        _tableOptions.ResourceId
         ?? new ResourceId(
             "postgresql:"
-                + PostgreSqlStateBackend.HashIdentity(
-                    _options.SchemaName,
-                    _options.TableName,
+                + PostgreSqlIdentityHash.Create(
+                    _tableOptions.SchemaName,
+                    _tableOptions.TableName,
                     ResourceNamespace,
                     context.ModelId ?? string.Empty,
                     context.Key.Value,
@@ -117,32 +157,91 @@ public sealed class PostgreSqlResource
         );
 
     /// <inheritdoc />
-    public ValueTask<ResourceReadResult> ReadAsync(
+    public bool TryGetResourceId(ConfiglueResourceContext context, out ResourceId resourceId)
+    {
+        resourceId = GetResourceId(context);
+        return true;
+    }
+
+    /// <inheritdoc />
+    public async ValueTask<StateReadResult<T>> ReadAsync(
+        CancellationToken cancellationToken = default
+    ) => await ReadAsync(ConfiglueResourceContext.Default, cancellationToken).ConfigureAwait(false);
+
+    /// <inheritdoc />
+    public async ValueTask<StateReadResult<T>> ReadAsync(
         ConfiglueResourceContext context,
         CancellationToken cancellationToken = default
-    ) =>
-        GetBackend(context.Route)
+    )
+    {
+        var result = await GetBackend(context.Route)
             .ReadAsync(
                 ResourceNamespace,
                 context.ModelId ?? string.Empty,
                 context.Key.Value,
                 cancellationToken
-            );
+            )
+            .ConfigureAwait(false);
+        if (result.Status != StateReadStatus.Success)
+        {
+            return result.Status == StateReadStatus.NotFound
+                ? StateReadResult<T>.NotFound(result.Revision) with
+                {
+                    Schema = result.Schema,
+                }
+                : StateReadResult<T>.Unavailable(result.Revision) with
+                {
+                    Schema = result.Schema,
+                };
+        }
+
+        var value = _serializer.Deserialize(new ReadOnlySequence<byte>(result.Content));
+        return value is null
+            ? StateReadResult<T>.Invalid(default, result.Revision) with
+            {
+                Schema = result.Schema,
+            }
+            : StateReadResult<T>.Success(value, result.Revision, result.Schema);
+    }
+
+    /// <inheritdoc />
+    public ValueTask<StateWriteResult> WriteAsync(
+        StateWriteRequest<T> request,
+        CancellationToken cancellationToken = default
+    ) => WriteAsync(ConfiglueResourceContext.Default, request, cancellationToken);
 
     /// <inheritdoc />
     public ValueTask<StateWriteResult> WriteAsync(
         ConfiglueResourceContext context,
-        ResourceWriteRequest request,
+        StateWriteRequest<T> request,
         CancellationToken cancellationToken = default
     )
     {
-        ValidateSchemaModelId(context, request);
+        if (!_writable)
+        {
+            throw new InvalidOperationException(
+                $"The PostgreSQL source '{ResourceNamespace}' is read-only."
+            );
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+        var schema = request.Value is IConfiglueFragment fragment
+            ? (StateSchemaMetadata?)fragment.Schema.ToMetadata()
+            : null;
+        ValidateSchemaModelId(context, schema);
+        var buffer = new ArrayBufferWriter<byte>();
+        _serializer.Serialize(request.Value, buffer);
+        var resourceRequest = new ResourceWriteRequest(
+            buffer.WrittenMemory,
+            request.Condition,
+            schema
+        );
         return GetBackend(context.Route)
             .WriteAsync(
                 ResourceNamespace,
                 context.ModelId ?? string.Empty,
                 context.Key.Value,
-                request,
+                resourceRequest,
                 cancellationToken
             );
     }
@@ -226,7 +325,7 @@ public sealed class PostgreSqlResource
             .GetOrAdd(
                 dataSource,
                 source => new Lazy<IPostgreSqlStateBackend>(
-                    () => new PostgreSqlStateBackend(source, _options),
+                    () => new PostgreSqlStateBackend(source, _tableOptions),
                     LazyThreadSafetyMode.ExecutionAndPublication
                 )
             )
@@ -235,16 +334,16 @@ public sealed class PostgreSqlResource
 
     private static void ValidateSchemaModelId(
         ConfiglueResourceContext context,
-        ResourceWriteRequest request
+        StateSchemaMetadata? schema
     )
     {
         if (
-            request.Schema is { ModelId: { } payloadModelId }
+            schema is { ModelId: { } payloadModelId }
             && !string.Equals(payloadModelId, context.ModelId, StringComparison.Ordinal)
         )
         {
             throw new InvalidOperationException(
-                $"The payload schema model ID '{payloadModelId}' does not match the resource context model ID '{context.ModelId}'."
+                $"The payload schema model ID '{payloadModelId}' does not match the source context model ID '{context.ModelId}'."
             );
         }
     }
@@ -288,12 +387,14 @@ internal static class PostgreSqlIdentityHash
 {
     public static string Create(params string[] values)
     {
-        using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        using var hash = System.Security.Cryptography.IncrementalHash.CreateHash(
+            System.Security.Cryptography.HashAlgorithmName.SHA256
+        );
         Span<byte> lengthBuffer = stackalloc byte[sizeof(int)];
         foreach (var value in values)
         {
-            var bytes = Encoding.UTF8.GetBytes(value);
-            BinaryPrimitives.WriteInt32BigEndian(lengthBuffer, bytes.Length);
+            var bytes = System.Text.Encoding.UTF8.GetBytes(value);
+            System.Buffers.Binary.BinaryPrimitives.WriteInt32BigEndian(lengthBuffer, bytes.Length);
             hash.AppendData(lengthBuffer);
             hash.AppendData(bytes);
         }

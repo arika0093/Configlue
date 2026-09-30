@@ -34,7 +34,7 @@ Add only the packages required by the application.
 | ASP.NET Core integration (request subjects and HTTP resource endpoints) | `Configlue.Extensions.AspNetCore` |
 | Blazor integration (authentication-state subjects and browser storage) | `Configlue.Extensions.Blazor` |
 | Amazon S3 | `Configlue.Resource.S3` |
-| Direct PostgreSQL storage | `Configlue.Resource.PostgreSql` |
+| Direct PostgreSQL storage | `Configlue.Source.PostgreSql` and `Configlue.Source.PostgreSql.Migrations` |
 | Direct Redis storage | `Configlue.Resource.Redis` |
 | ZIP archive entries | `Configlue.Resource.Zip` |
 | AES-GCM encryption | `Configlue.Transformer.AES` |
