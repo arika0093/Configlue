@@ -22,10 +22,7 @@ public sealed class SingleBinaryBuilderTests
                         model => model.StateName = "local",
                         storageKey: "database"
                     );
-                    builder.Add<AppSettings>(
-                        model => model.StateName = "game",
-                        storageKey: "app"
-                    );
+                    builder.Add<AppSettings>(model => model.StateName = "game", storageKey: "app");
                 }
             )
         )
@@ -238,6 +235,140 @@ public sealed class SingleBinaryBuilderTests
         new[] { 62, 63 }.ShouldContain((await app.GetValueAsync()).RetryCount);
     }
 
+    [Test]
+    public async Task SingleBinaryStoresEachSubjectInItsOwnEntryAcrossContexts()
+    {
+        using var directory = new TemporaryDirectory();
+        var path = Path.Combine(directory.FullPath, "subjects.bin");
+        var subjectA = new TestSubject("user/a");
+        var subjectB = new TestSubject("user%a");
+
+        await using (
+            var context = ConfiglueApp.CreateContext(configure =>
+                configure.UseSingleBinary(binary =>
+                {
+                    binary.WithLocal(path);
+                    binary.Add<AppSettings>(storageKey: "app");
+                })
+            )
+        )
+        {
+            await context.GetState<AppSettings>().SaveAsync(settings => settings.RetryCount = 1);
+            var subjects = context.GetSubjectState<AppSettings>();
+            var stateA = subjects.ForSubject(subjectA);
+            var stateB = subjects.ForSubject(subjectB);
+            await Task.WhenAll(
+                stateA.SaveAsync(settings => settings.RetryCount = 2).AsTask(),
+                stateB.SaveAsync(settings => settings.RetryCount = 3).AsTask()
+            );
+
+            (await stateA.GetValueAsync()).RetryCount.ShouldBe(2);
+            (await stateB.GetValueAsync()).RetryCount.ShouldBe(3);
+        }
+
+        await using var reopened = ConfiglueApp.CreateContext(configure =>
+            configure.UseSingleBinary(binary =>
+            {
+                binary.WithLocal(path);
+                binary.Add<AppSettings>(storageKey: "app");
+            })
+        );
+        var reopenedSubjects = reopened.GetSubjectState<AppSettings>();
+        (await reopened.GetState<AppSettings>().GetValueAsync()).RetryCount.ShouldBe(1);
+        (await reopenedSubjects.ForSubject(subjectA).GetValueAsync()).RetryCount.ShouldBe(2);
+        (await reopenedSubjects.ForSubject(subjectB).GetValueAsync()).RetryCount.ShouldBe(3);
+
+        using var stream = File.OpenRead(path);
+        using var archive = new ZipArchive(stream, ZipArchiveMode.Read);
+        var entries = archive.Entries.Select(static entry => entry.FullName).ToHashSet();
+        entries.ShouldContain("models/app/options/default.json");
+        entries.ShouldContain(SubjectEntryName(subjectA, "models/app/options/default.json"));
+        entries.ShouldContain(SubjectEntryName(subjectB, "models/app/options/default.json"));
+    }
+
+    [Test]
+    public async Task SingleBinaryNamedStateEntriesAreScopedToTheirSubject()
+    {
+        using var directory = new TemporaryDirectory();
+        var path = Path.Combine(directory.FullPath, "named-subjects.bin");
+        var subject = new TestSubject("named-user");
+
+        await using (
+            var context = ConfiglueApp.CreateContext(configure =>
+                configure.UseSingleBinary(binary =>
+                {
+                    binary.WithLocal(path);
+                    binary.Add<AppSettings>(storageKey: "app");
+                    binary.Add<AppSettings>(model => model.StateName = "game", storageKey: "app");
+                })
+            )
+        )
+        {
+            var subjectStates = context.GetSubjectState<AppSettings>();
+            await subjectStates.ForSubject(subject).SaveAsync(settings => settings.RetryCount = 4);
+            await context
+                .GetSubjectState<AppSettings>("game")
+                .ForSubject(subject)
+                .SaveAsync(settings => settings.RetryCount = 5);
+
+            (
+                await context
+                    .GetSubjectState<AppSettings>("game")
+                    .ForSubject(subject)
+                    .GetValueAsync()
+            ).RetryCount.ShouldBe(5);
+        }
+
+        using var stream = File.OpenRead(path);
+        using var archive = new ZipArchive(stream, ZipArchiveMode.Read);
+        var entries = archive.Entries.Select(static entry => entry.FullName).ToHashSet();
+        entries.ShouldContain(SubjectEntryName(subject, "models/app/options/default.json"));
+        entries.ShouldContain(SubjectEntryName(subject, "models/app/options/game.json"));
+    }
+
+    [Test]
+    public async Task SingleBinaryEncryptedArchivePreservesMultipleSubjects()
+    {
+        using var directory = new TemporaryDirectory();
+        var path = Path.Combine(directory.FullPath, "encrypted-subjects.bin");
+        var subjectA = new TestSubject("encrypted-a");
+        var subjectB = new TestSubject("encrypted-b");
+
+        await using (
+            var context = ConfiglueApp.CreateContext(configure =>
+                configure.UseSingleBinary(binary =>
+                {
+                    binary.WithLocal(path).WithPassphrase("subject archive secret");
+                    binary.Add<AppSettings>(storageKey: "app");
+                })
+            )
+        )
+        {
+            var subjects = context.GetSubjectState<AppSettings>();
+            await Task.WhenAll(
+                subjects
+                    .ForSubject(subjectA)
+                    .SaveAsync(settings => settings.RetryCount = 10)
+                    .AsTask(),
+                subjects
+                    .ForSubject(subjectB)
+                    .SaveAsync(settings => settings.RetryCount = 20)
+                    .AsTask()
+            );
+        }
+
+        await using var reopened = ConfiglueApp.CreateContext(configure =>
+            configure.UseSingleBinary(binary =>
+            {
+                binary.WithLocal(path).WithPassphrase("subject archive secret");
+                binary.Add<AppSettings>(storageKey: "app");
+            })
+        );
+        var reopenedSubjects = reopened.GetSubjectState<AppSettings>();
+        (await reopenedSubjects.ForSubject(subjectA).GetValueAsync()).RetryCount.ShouldBe(10);
+        (await reopenedSubjects.ForSubject(subjectB).GetValueAsync()).RetryCount.ShouldBe(20);
+    }
+
     private static async Task<bool> Commit(EditSession<AppSettings> session)
     {
         try
@@ -262,6 +393,14 @@ public sealed class SingleBinaryBuilderTests
                 configure(binary);
             })
         );
+
+    private static string SubjectEntryName(TestSubject subject, string entryName) =>
+        $"subjects/{Uri.EscapeDataString(subject.Key.Value)}/{entryName}";
+
+    private sealed record TestSubject(string Id) : IConfiglueSubject
+    {
+        public SubjectKey Key => SubjectKey.FromSegments(Id);
+    }
 
     private sealed class TemporaryDirectory : IDisposable
     {

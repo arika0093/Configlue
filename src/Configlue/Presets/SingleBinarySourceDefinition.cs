@@ -86,7 +86,16 @@ internal static class SingleBinarySourceFactory
         }
 
         return new SingleBinaryEntryResource(
-            new ZipEntryResource(reader, batchWriter, entryName, watcher)
+            new ZipEntryResource(
+                reader,
+                batchWriter,
+                new ZipEntryResourceOptions
+                {
+                    EntryNameSelector = context => GetSubjectEntryName(entryName, context.Key),
+                },
+                entryName,
+                watcher
+            )
         );
     }
 
@@ -125,6 +134,9 @@ internal static class SingleBinarySourceFactory
         var name = stateName.Length == 0 ? "default" : stateName;
         return $"models/{Escape(modelKey)}/{category}/{Escape(name)}.json";
     }
+
+    private static string GetSubjectEntryName(string entryName, SubjectKey subjectKey) =>
+        subjectKey.IsDefault ? entryName : $"subjects/{Escape(subjectKey.Value)}/{entryName}";
 
     public static string GetSourceId(string entryName) => "single-binary:" + entryName;
 

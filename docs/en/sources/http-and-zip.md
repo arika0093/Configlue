@@ -63,6 +63,16 @@ When the archive resource implements `ISourceWatcher` (for example, `FileResourc
 
 `UseSingleBinary` stores each model and named state instance in its own JSON entry in one local ZIP archive. Pass a stable `storageKey` when a model's persisted identity must survive CLR type renames.
 
+SingleBinary also isolates non-default subjects under separate subject-specific archive paths. The default subject keeps the existing entry layout, and named states and profiles are isolated in the same way. This makes one archive suitable for independent save slots:
+
+```csharp
+var saveSlot = context.GetSubjectState<GameSettings>()
+    .ForSubject(new SaveSlotSubject("slot-1"));
+await saveSlot.SaveAsync(settings => settings.Level = 8);
+```
+
+Subject keys are encoded canonically before they are used as ZIP paths; callers do not need to configure ZIP entry selection.
+
 ```csharp
 using Configlue.Source.Presets;
 

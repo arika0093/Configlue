@@ -63,6 +63,16 @@ var entry = new ZipEntryResource(archive, new ZipEntryResourceOptions
 
 `UseSingleBinary` はモデルと名前付きオプションを、それぞれ別の JSON エントリとして1つのローカル ZIP アーカイブに保存します。CLR型名の変更後も保存先を維持したい場合は、安定した `storageKey` を指定してください。
 
+SingleBinary は既定以外の Subject ごとに別のアーカイブパスへ保存します。既定 Subject は従来のエントリ配置を維持し、名前付き状態とプロファイルも同様に分離されます。これにより、1つのアーカイブを独立したセーブスロットに利用できます。
+
+```csharp
+var saveSlot = context.GetSubjectState<GameSettings>()
+    .ForSubject(new SaveSlotSubject("slot-1"));
+await saveSlot.SaveAsync(settings => settings.Level = 8);
+```
+
+Subject key は ZIP パスに安全な形式へ正規化されるため、ZIP エントリ選択を呼び出し側で設定する必要はありません。
+
 ```csharp
 using Configlue.Source.Presets;
 
