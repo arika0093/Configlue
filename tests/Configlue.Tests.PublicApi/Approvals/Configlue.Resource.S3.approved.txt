@@ -1,7 +1,7 @@
 [assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/arika0093/Configlue")]
 namespace Configlue.Resource.S3
 {
-    public sealed class S3ObjectResource : Configlue.Resources.IContextualResourceIdentity, Configlue.Resources.IContextualResourceReader, Configlue.Resources.IContextualResourceWriter, Configlue.Resources.IResourceIdentity, Configlue.Resources.IResourceReader, Configlue.Resources.IResourceWriter, Configlue.State.IContextualPipelineResourceReader, Configlue.State.IPipelineResourceReader
+    public sealed class S3ObjectResource : Configlue.Resources.IContextualResourceIdentity, Configlue.Resources.IResourceIdentity, Configlue.Resources.IResourceReader, Configlue.Resources.IResourceWriter, Configlue.State.IContextualPipelineResourceReader, Configlue.State.IPipelineResourceReader
     {
         public S3ObjectResource(Amazon.S3.IAmazonS3 client, string bucketName, string key, Configlue.Resource.S3.S3ObjectResourceOptions? options = null) { }
         public string BucketName { get; }

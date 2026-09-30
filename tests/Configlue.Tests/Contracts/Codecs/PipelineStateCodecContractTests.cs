@@ -120,6 +120,7 @@ public sealed class PipelineStateCodecContractTests
         public bool IsPipelineReadPreferred => true;
 
         public ValueTask<ResourceReadResult> ReadAsync(
+            ConfiglueResourceContext context,
             CancellationToken cancellationToken = default
         )
         {

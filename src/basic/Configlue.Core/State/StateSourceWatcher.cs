@@ -37,7 +37,15 @@ public sealed class StateSourceWatcher<T> : IContextualSourceWatcher
         ConfiglueResourceContext context,
         string? observedRevision,
         CancellationToken cancellationToken = default
-    ) => WaitCoreAsync(context.Subject, context.Route, observedRevision, cancellationToken);
+    ) =>
+        WaitCoreAsync(
+            ReferenceEquals(context.Subject, ConfiglueResourceContext.DefaultSubject)
+                ? null
+                : context.Subject,
+            context.Route,
+            observedRevision,
+            cancellationToken
+        );
 
     private async ValueTask WaitCoreAsync(
         IConfiglueSubject? subject,

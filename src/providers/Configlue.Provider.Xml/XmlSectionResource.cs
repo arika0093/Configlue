@@ -8,9 +8,9 @@ namespace Configlue.Provider.Xml;
 
 /// <summary>Exposes a nested XML element as a resource while preserving sibling elements.</summary>
 public sealed class XmlSectionResource
-    : IContextualResourceReader,
+    : IResourceReader,
         IContextualPipelineResourceReader,
-        IContextualResourceWriter,
+        IResourceWriter,
         IContextualSourceWatcher,
         ITryContextualResourceIdentity,
         IContextualResourceBatchParticipant,

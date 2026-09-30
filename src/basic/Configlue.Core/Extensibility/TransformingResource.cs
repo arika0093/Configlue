@@ -4,7 +4,7 @@ namespace Configlue.Extensibility;
 
 /// <summary>Applies byte transformers around a resource before provider-specific document processing.</summary>
 public sealed class TransformingResource
-    : IContextualResourceReader,
+    : IResourceReader,
         ITryContextualResourceIdentity,
         IContextualResourceBackupRecovery
 {
@@ -173,13 +173,8 @@ public sealed class TransformingResource
         StateByteTransformerPipeline.TransformWrite(content, _transformers);
 
     private class TransformingWriter(TransformingResource owner, IResourceWriter writer)
-        : IContextualResourceWriter
+        : IResourceWriter
     {
-        public ValueTask<StateWriteResult> WriteAsync(
-            ResourceWriteRequest request,
-            CancellationToken cancellationToken = default
-        ) => WriteAsync(ConfiglueResourceContext.Default, request, cancellationToken);
-
         public ValueTask<StateWriteResult> WriteAsync(
             ConfiglueResourceContext context,
             ResourceWriteRequest request,

@@ -8,6 +8,12 @@ namespace Configlue.Resources;
 public sealed partial class FileResource
 {
     /// <inheritdoc />
+    public ValueTask<ResourceReadResult> ReadAsync(
+        ConfiglueResourceContext context,
+        CancellationToken cancellationToken = default
+    ) => ReadAsync(cancellationToken);
+
+    /// <inheritdoc />
     public async ValueTask<ResourceReadResult> ReadAsync(
         CancellationToken cancellationToken = default
     )
@@ -31,6 +37,13 @@ public sealed partial class FileResource
             return ResourceReadResult.Unavailable();
         }
     }
+
+    /// <inheritdoc />
+    public ValueTask<StateWriteResult> WriteAsync(
+        ConfiglueResourceContext context,
+        ResourceWriteRequest request,
+        CancellationToken cancellationToken = default
+    ) => WriteAsync(request, cancellationToken);
 
     /// <inheritdoc />
     public ValueTask<StateWriteResult> WriteAsync(

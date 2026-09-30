@@ -7,9 +7,9 @@ namespace Configlue.Resource.Zip;
 
 /// <summary>A logical resource view over one entry in a shared ZIP archive resource.</summary>
 public sealed class ZipEntryResource
-    : IContextualResourceReader,
+    : IResourceReader,
         IContextualPipelineResourceReader,
-        IContextualResourceWriter,
+        IResourceWriter,
         IContextualSourceWatcher,
         ITryContextualResourceIdentity,
         IContextualResourceBatchParticipant

@@ -13,9 +13,9 @@ namespace Configlue.Resource.S3;
 /// implementations may not provide the same ETag or conditional-request guarantees.
 /// </remarks>
 public sealed class S3ObjectResource
-    : IContextualResourceReader,
+    : IResourceReader,
         IContextualPipelineResourceReader,
-        IContextualResourceWriter,
+        IResourceWriter,
         IContextualResourceIdentity
 {
     private readonly IS3ObjectClient _client;

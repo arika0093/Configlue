@@ -30,6 +30,7 @@ internal sealed class PostgreSqlStateBackend : IPostgreSqlStateBackend
 
     public async ValueTask<ResourceReadResult> ReadAsync(
         string resourceNamespace,
+        string modelId,
         string subjectKey,
         CancellationToken cancellationToken
     )
@@ -40,10 +41,13 @@ internal sealed class PostgreSqlStateBackend : IPostgreSqlStateBackend
             .ConfigureAwait(false);
         await using var command = connection.CreateCommand();
         command.CommandText = $"""
-            SELECT "payload", "revision", "schema_model_id", "schema_version"
+            SELECT "payload", "revision", "schema_version"
             FROM {_qualifiedTable}
-            WHERE "resource_namespace" = @namespace AND "subject_key" = @subject_key
+            WHERE "model_id" = @model_id
+                AND "resource_namespace" = @namespace
+                AND "subject_key" = @subject_key
             """;
+        AddText(command, "model_id", modelId);
         AddText(command, "namespace", resourceNamespace);
         AddText(command, "subject_key", subjectKey);
 
@@ -55,15 +59,9 @@ internal sealed class PostgreSqlStateBackend : IPostgreSqlStateBackend
             return ResourceReadResult.NotFound();
         }
 
-        StateSchemaMetadata? schema = null;
-        if (!reader.IsDBNull(2) || !reader.IsDBNull(3))
-        {
-            var modelId = reader.IsDBNull(2) ? null : reader.GetString(2);
-            var schemaVersion = reader.IsDBNull(3)
-                ? StateSchemaMetadata.InitialVersion
-                : reader.GetInt32(3);
-            schema = new StateSchemaMetadata(modelId, schemaVersion);
-        }
+        StateSchemaMetadata? schema = reader.IsDBNull(2)
+            ? null
+            : new StateSchemaMetadata(modelId, reader.GetInt32(2));
         return ResourceReadResult.Success(
             reader.GetFieldValue<byte[]>(0),
             reader.GetInt64(1).ToString(CultureInfo.InvariantCulture),
@@ -73,11 +71,13 @@ internal sealed class PostgreSqlStateBackend : IPostgreSqlStateBackend
 
     public async ValueTask<StateWriteResult> WriteAsync(
         string resourceNamespace,
+        string modelId,
         string subjectKey,
         ResourceWriteRequest request,
         CancellationToken cancellationToken
     )
     {
+        ValidatePayloadModelId(modelId, request);
         await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
         await using var connection = await _dataSource
             .OpenConnectionAsync(cancellationToken)
@@ -93,6 +93,7 @@ internal sealed class PostgreSqlStateBackend : IPostgreSqlStateBackend
                     connection,
                     transaction,
                     resourceNamespace,
+                    modelId,
                     subjectKey,
                     request,
                     cancellationToken
@@ -105,6 +106,7 @@ internal sealed class PostgreSqlStateBackend : IPostgreSqlStateBackend
                     connection,
                     transaction,
                     resourceNamespace,
+                    modelId,
                     subjectKey,
                     request,
                     cancellationToken
@@ -117,6 +119,7 @@ internal sealed class PostgreSqlStateBackend : IPostgreSqlStateBackend
                     connection,
                     transaction,
                     resourceNamespace,
+                    modelId,
                     subjectKey,
                     request,
                     cancellationToken
@@ -127,7 +130,7 @@ internal sealed class PostgreSqlStateBackend : IPostgreSqlStateBackend
         if (revision is null)
         {
             throw new StateConflictException(
-                $"The PostgreSQL resource '{resourceNamespace}/{subjectKey}' no longer matches its expected revision."
+                $"The PostgreSQL resource '{resourceNamespace}/{modelId}/{subjectKey}' no longer matches its expected revision."
             );
         }
 
@@ -136,7 +139,7 @@ internal sealed class PostgreSqlStateBackend : IPostgreSqlStateBackend
             notify.Transaction = transaction;
             notify.CommandText = "SELECT pg_notify(@channel, @identity)";
             AddText(notify, "channel", _changeHub.Hub.Channel);
-            AddText(notify, "identity", HashIdentity(resourceNamespace, subjectKey));
+            AddText(notify, "identity", HashIdentity(resourceNamespace, modelId, subjectKey));
             await notify.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         }
 
@@ -146,14 +149,15 @@ internal sealed class PostgreSqlStateBackend : IPostgreSqlStateBackend
 
     public ValueTask WaitForChangeAsync(
         string resourceNamespace,
+        string modelId,
         string subjectKey,
         string? observedRevision,
         CancellationToken cancellationToken
     ) =>
         _changeHub.Hub.WaitForChangeAsync(
-            HashIdentity(resourceNamespace, subjectKey),
+            HashIdentity(resourceNamespace, modelId, subjectKey),
             observedRevision,
-            token => ReadAsync(resourceNamespace, subjectKey, token),
+            token => ReadAsync(resourceNamespace, modelId, subjectKey, token),
             cancellationToken
         );
 
@@ -166,6 +170,7 @@ internal sealed class PostgreSqlStateBackend : IPostgreSqlStateBackend
         NpgsqlConnection connection,
         NpgsqlTransaction transaction,
         string resourceNamespace,
+        string modelId,
         string subjectKey,
         ResourceWriteRequest request,
         CancellationToken cancellationToken
@@ -175,17 +180,16 @@ internal sealed class PostgreSqlStateBackend : IPostgreSqlStateBackend
         command.Transaction = transaction;
         command.CommandText = $"""
             INSERT INTO {_qualifiedTable} AS target
-                ("resource_namespace", "subject_key", "payload", "revision", "schema_model_id", "schema_version", "updated_at")
-            VALUES (@namespace, @subject_key, @payload, 1, @schema_model_id, @schema_version, clock_timestamp())
-            ON CONFLICT ("resource_namespace", "subject_key") DO UPDATE SET
+                ("model_id", "resource_namespace", "subject_key", "payload", "revision", "schema_version", "updated_at")
+            VALUES (@model_id, @namespace, @subject_key, @payload, 1, @schema_version, clock_timestamp())
+            ON CONFLICT ("model_id", "resource_namespace", "subject_key") DO UPDATE SET
                 "payload" = EXCLUDED."payload",
                 "revision" = target."revision" + 1,
-                "schema_model_id" = EXCLUDED."schema_model_id",
                 "schema_version" = EXCLUDED."schema_version",
                 "updated_at" = clock_timestamp()
             RETURNING "revision"::text
             """;
-        AddWriteParameters(command, resourceNamespace, subjectKey, request);
+        AddWriteParameters(command, resourceNamespace, modelId, subjectKey, request);
         return await ExecuteRevisionAsync(command, cancellationToken).ConfigureAwait(false);
     }
 
@@ -193,6 +197,7 @@ internal sealed class PostgreSqlStateBackend : IPostgreSqlStateBackend
         NpgsqlConnection connection,
         NpgsqlTransaction transaction,
         string resourceNamespace,
+        string modelId,
         string subjectKey,
         ResourceWriteRequest request,
         CancellationToken cancellationToken
@@ -202,12 +207,12 @@ internal sealed class PostgreSqlStateBackend : IPostgreSqlStateBackend
         command.Transaction = transaction;
         command.CommandText = $"""
             INSERT INTO {_qualifiedTable}
-                ("resource_namespace", "subject_key", "payload", "revision", "schema_model_id", "schema_version", "updated_at")
-            VALUES (@namespace, @subject_key, @payload, 1, @schema_model_id, @schema_version, clock_timestamp())
-            ON CONFLICT ("resource_namespace", "subject_key") DO NOTHING
+                ("model_id", "resource_namespace", "subject_key", "payload", "revision", "schema_version", "updated_at")
+            VALUES (@model_id, @namespace, @subject_key, @payload, 1, @schema_version, clock_timestamp())
+            ON CONFLICT ("model_id", "resource_namespace", "subject_key") DO NOTHING
             RETURNING "revision"::text
             """;
-        AddWriteParameters(command, resourceNamespace, subjectKey, request);
+        AddWriteParameters(command, resourceNamespace, modelId, subjectKey, request);
         return await ExecuteRevisionAsync(command, cancellationToken).ConfigureAwait(false);
     }
 
@@ -215,6 +220,7 @@ internal sealed class PostgreSqlStateBackend : IPostgreSqlStateBackend
         NpgsqlConnection connection,
         NpgsqlTransaction transaction,
         string resourceNamespace,
+        string modelId,
         string subjectKey,
         ResourceWriteRequest request,
         CancellationToken cancellationToken
@@ -239,17 +245,30 @@ internal sealed class PostgreSqlStateBackend : IPostgreSqlStateBackend
             UPDATE {_qualifiedTable}
             SET "payload" = @payload,
                 "revision" = "revision" + 1,
-                "schema_model_id" = @schema_model_id,
                 "schema_version" = @schema_version,
                 "updated_at" = clock_timestamp()
-            WHERE "resource_namespace" = @namespace
+            WHERE "model_id" = @model_id
+                AND "resource_namespace" = @namespace
                 AND "subject_key" = @subject_key
                 AND "revision" = @expected_revision
             RETURNING "revision"::text
             """;
-        AddWriteParameters(command, resourceNamespace, subjectKey, request);
+        AddWriteParameters(command, resourceNamespace, modelId, subjectKey, request);
         command.Parameters.AddWithValue("expected_revision", NpgsqlDbType.Bigint, expectedRevision);
         return await ExecuteRevisionAsync(command, cancellationToken).ConfigureAwait(false);
+    }
+
+    private static void ValidatePayloadModelId(string modelId, ResourceWriteRequest request)
+    {
+        if (
+            request.Schema is { ModelId: { } payloadModelId }
+            && !string.Equals(payloadModelId, modelId, StringComparison.Ordinal)
+        )
+        {
+            throw new InvalidOperationException(
+                $"The payload schema model ID '{payloadModelId}' does not match the resource context model ID '{modelId}'."
+            );
+        }
     }
 
     private static async ValueTask<string?> ExecuteRevisionAsync(
@@ -266,19 +285,16 @@ internal sealed class PostgreSqlStateBackend : IPostgreSqlStateBackend
     private static void AddWriteParameters(
         NpgsqlCommand command,
         string resourceNamespace,
+        string modelId,
         string subjectKey,
         ResourceWriteRequest request
     )
     {
+        AddText(command, "model_id", modelId);
         AddText(command, "namespace", resourceNamespace);
         AddText(command, "subject_key", subjectKey);
         command.Parameters.AddWithValue("payload", NpgsqlDbType.Bytea, request.Content.ToArray());
         var schema = request.Schema;
-        command.Parameters.AddWithValue(
-            "schema_model_id",
-            NpgsqlDbType.Text,
-            schema is { ModelId: not null } ? schema.Value.ModelId : DBNull.Value
-        );
         command.Parameters.AddWithValue(
             "schema_version",
             NpgsqlDbType.Integer,
@@ -311,14 +327,14 @@ internal sealed class PostgreSqlStateBackend : IPostgreSqlStateBackend
             command.CommandText = $"""
                 CREATE SCHEMA IF NOT EXISTS {Quote(_options.SchemaName)};
                 CREATE TABLE IF NOT EXISTS {_qualifiedTable} (
+                    "model_id" text NOT NULL,
                     "resource_namespace" text NOT NULL,
                     "subject_key" text NOT NULL,
                     "payload" bytea NOT NULL,
                     "revision" bigint NOT NULL CHECK ("revision" > 0),
-                    "schema_model_id" text NULL,
                     "schema_version" integer NULL,
                     "updated_at" timestamptz NOT NULL,
-                    PRIMARY KEY ("resource_namespace", "subject_key")
+                    PRIMARY KEY ("model_id", "resource_namespace", "subject_key")
                 )
                 """;
             await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);

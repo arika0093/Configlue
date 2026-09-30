@@ -7,9 +7,9 @@ namespace Configlue.Provider.Yaml;
 
 /// <summary>Exposes a nested YAML mapping as a resource while preserving sibling nodes.</summary>
 public sealed class YamlSectionResource
-    : IContextualResourceReader,
+    : IResourceReader,
         IContextualPipelineResourceReader,
-        IContextualResourceWriter,
+        IResourceWriter,
         IContextualSourceWatcher,
         ITryContextualResourceIdentity,
         IContextualResourceBatchParticipant,

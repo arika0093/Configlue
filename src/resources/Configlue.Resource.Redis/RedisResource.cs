@@ -14,8 +14,8 @@ namespace Configlue.Resource.Redis;
 /// multiplexers for physical placement; Redis remains a persistent state resource, not a cache policy.
 /// </remarks>
 public sealed class RedisResource
-    : IContextualResourceReader,
-        IContextualResourceWriter,
+    : IResourceReader,
+        IResourceWriter,
         IContextualResourceIdentity,
         IContextualSourceWatcher,
         IDisposable

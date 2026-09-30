@@ -5,9 +5,9 @@ using Configlue.Sources;
 namespace Configlue.Source.Presets;
 
 internal sealed class SingleBinaryEntryResource
-    : IContextualResourceReader,
+    : IResourceReader,
         IContextualPipelineResourceReader,
-        IContextualResourceWriter,
+        IResourceWriter,
         IContextualSourceWatcher,
         ITryContextualResourceIdentity
 {

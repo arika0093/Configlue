@@ -23,14 +23,17 @@ public sealed class ContextualResourceContractTests
         var source = new StateSource<AppSettings.Fragment>(
             "subject-settings",
             reader,
-            writer: writer
+            writer: writer,
+            modelId: "subject-settings-model"
         );
 
+        source.GetResourceContext(subjectA).ModelId.ShouldBe("subject-settings-model");
         var initial = await source.ReadAsync(subjectA);
         initial.Status.ShouldBe(StateReadStatus.Success);
         initial.Value!.Label.Value.ShouldBe("before-a");
         resource.LastPipelineContext!.Value.Key.ShouldBe(subjectA.Key);
         resource.LastPipelineContext.Value.Subject.ShouldBe(subjectA);
+        resource.LastPipelineContext.Value.ModelId.ShouldBe("subject-settings-model");
         source.GetResourceId(subjectA).ShouldBe(new ResourceId($"object:{subjectA.Key.Value}"));
         source.GetResourceId(subjectB).ShouldBe(new ResourceId($"object:{subjectB.Key.Value}"));
         source.GetResourceId(subjectA).ShouldNotBe(source.GetResourceId(subjectB));
@@ -51,7 +54,12 @@ public sealed class ContextualResourceContractTests
             Fragment("batch-b"),
             RevisionCondition.FromRevision((await source.ReadAsync(subjectB)).Revision)
         );
-        var context = new ConfiglueResourceContext(subjectB, subjectB.Key);
+        var context = new ConfiglueResourceContext(
+            "subject-settings-model",
+            subjectB,
+            subjectB.Key,
+            RouteKey.Default
+        );
         writer
             .TryCreateBatchWrite(
                 context,
@@ -64,6 +72,7 @@ public sealed class ContextualResourceContractTests
         resourceId.ShouldBe(new ResourceId($"object:{subjectB.Key.Value}"));
         mutation!.Context.Key.ShouldBe(subjectB.Key);
         mutation.Context.Subject.ShouldBe(subjectB);
+        mutation.Context.ModelId.ShouldBe("subject-settings-model");
         (await batchWriter!.WriteBatchAsync([mutation])).Revision.ShouldNotBeNull();
         resource.LastWriteContext!.Value.Key.ShouldBe(subjectB.Key);
         (await source.ReadAsync(subjectB)).Value!.Label.Value.ShouldBe("batch-b");
@@ -107,10 +116,10 @@ public sealed class ContextualResourceContractTests
     }
 
     private sealed class ContextualMemoryResource(bool perSubjectIdentity)
-        : IContextualResourceReader,
+        : IResourceReader,
             IContextualPipelineResourceReader,
             IResourceBatchWriter,
-            IContextualResourceWriter,
+            IResourceWriter,
             IContextualResourceIdentity
     {
         private readonly ConcurrentDictionary<SubjectKey, ResourceReadResult> _states = new();

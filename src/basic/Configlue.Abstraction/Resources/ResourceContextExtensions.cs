@@ -1,12 +1,11 @@
 namespace Configlue.Resources;
 
-/// <summary>Context-aware resource operations with portable fallback behavior.</summary>
+/// <summary>Context-free convenience and context-aware fallback resource operations.</summary>
 public static class ResourceContextExtensions
 {
-    /// <summary>Reads the resource for one logical subject and source-specific key.</summary>
+    /// <summary>Reads the resource using the default context.</summary>
     public static ValueTask<ResourceReadResult> ReadAsync(
         this IResourceReader reader,
-        ConfiglueResourceContext context,
         CancellationToken cancellationToken = default
     )
     {
@@ -14,15 +13,12 @@ public static class ResourceContextExtensions
         {
             throw new ArgumentNullException(nameof(reader));
         }
-        return reader is IContextualResourceReader contextualReader
-            ? contextualReader.ReadAsync(context, cancellationToken)
-            : reader.ReadAsync(cancellationToken);
+        return reader.ReadAsync(ConfiglueResourceContext.Default, cancellationToken);
     }
 
-    /// <summary>Writes the resource for one logical subject and source-specific key.</summary>
+    /// <summary>Writes the resource using the default context.</summary>
     public static ValueTask<StateWriteResult> WriteAsync(
         this IResourceWriter writer,
-        ConfiglueResourceContext context,
         ResourceWriteRequest request,
         CancellationToken cancellationToken = default
     )
@@ -31,9 +27,7 @@ public static class ResourceContextExtensions
         {
             throw new ArgumentNullException(nameof(writer));
         }
-        return writer is IContextualResourceWriter contextualWriter
-            ? contextualWriter.WriteAsync(context, request, cancellationToken)
-            : writer.WriteAsync(request, cancellationToken);
+        return writer.WriteAsync(ConfiglueResourceContext.Default, request, cancellationToken);
     }
 
     /// <summary>Recovers a subject-specific resource from a validated backup.</summary>

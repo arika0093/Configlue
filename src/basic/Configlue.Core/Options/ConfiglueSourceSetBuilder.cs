@@ -117,14 +117,13 @@ public class ConfiglueSourceSetBuilder : IConfiglueSourceRegistrationSink
         var sources = new List<StateSource<TFragment>>(_sources.Count);
         foreach (var registration in _sources)
         {
-            sources.Add(
-                registration.Create<TFragment>(
-                    modelSchema,
-                    serviceProvider,
-                    ownResource,
-                    hostPaths ?? ConfiglueHostPathProfile.Default
-                )
+            var source = registration.Create<TFragment>(
+                modelSchema,
+                serviceProvider,
+                ownResource,
+                hostPaths ?? ConfiglueHostPathProfile.Default
             );
+            sources.Add(source.WithModelId(modelSchema?.Id ?? source.ModelId));
         }
 
         return new StateSourceSet<TFragment>(sources);

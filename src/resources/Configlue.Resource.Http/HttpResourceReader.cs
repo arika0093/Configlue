@@ -11,7 +11,7 @@ namespace Configlue.Resource.Http;
 
 /// <summary>Reads and watches a byte resource exposed through the Configlue HTTP resource protocol.</summary>
 public sealed class HttpResourceReader
-    : IContextualResourceReader,
+    : IResourceReader,
         IContextualPipelineResourceReader,
         IContextualSourceWatcher,
         ITryContextualResourceIdentity

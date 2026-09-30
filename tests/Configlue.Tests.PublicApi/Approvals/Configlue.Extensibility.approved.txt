@@ -79,7 +79,7 @@ namespace Configlue.Extensibility
         public System.Threading.Tasks.ValueTask<Configlue.State.StateWriteResult> WriteAsync(Configlue.State.StateWriteRequest<T> request, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask<Configlue.State.StateWriteResult> WriteAsync(Configlue.Resources.ConfiglueResourceContext context, Configlue.State.StateWriteRequest<T> request, System.Threading.CancellationToken cancellationToken = default) { }
     }
-    public sealed class TransformingResource : Configlue.Resources.IContextualResourceBackupRecovery, Configlue.Resources.IContextualResourceIdentity, Configlue.Resources.IContextualResourceReader, Configlue.Resources.IResourceBackupRecovery, Configlue.Resources.IResourceIdentity, Configlue.Resources.IResourceReader, Configlue.Resources.ITryContextualResourceIdentity
+    public sealed class TransformingResource : Configlue.Resources.IContextualResourceBackupRecovery, Configlue.Resources.IContextualResourceIdentity, Configlue.Resources.IResourceBackupRecovery, Configlue.Resources.IResourceIdentity, Configlue.Resources.IResourceReader, Configlue.Resources.ITryContextualResourceIdentity
     {
         public TransformingResource(Configlue.Resources.IResourceReader resource, System.Collections.Generic.IEnumerable<Configlue.Transformers.IStateByteTransformer> transformers, Configlue.Resources.ResourceId? resourceId = default) { }
         public bool AutomaticBackupRecoveryEnabled { get; }

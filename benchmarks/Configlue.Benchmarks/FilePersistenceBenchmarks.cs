@@ -323,8 +323,9 @@ public class SerializedFileReadBenchmarks
     private sealed class MemoryOnlyResourceReader(IResourceReader inner) : IResourceReader
     {
         public ValueTask<ResourceReadResult> ReadAsync(
+            ConfiglueResourceContext context,
             CancellationToken cancellationToken = default
-        ) => inner.ReadAsync(cancellationToken);
+        ) => inner.ReadAsync(context, cancellationToken);
     }
 }
 

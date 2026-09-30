@@ -5,9 +5,9 @@ namespace Configlue.Provider.Json;
 
 /// <summary>Exposes a nested JSON object as an independently revisioned resource view.</summary>
 public sealed class JsonSectionResource
-    : IContextualResourceReader,
+    : IResourceReader,
         IContextualPipelineResourceReader,
-        IContextualResourceWriter,
+        IResourceWriter,
         IContextualSourceWatcher,
         ITryContextualResourceIdentity,
         IContextualResourceBatchParticipant,

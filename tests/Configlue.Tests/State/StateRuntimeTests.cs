@@ -486,6 +486,47 @@ public sealed partial class StateRuntimeTests
         (storedResource.Schema).ShouldBe(AppSettings.ConfiglueSchema.ToMetadata());
     }
 
+    [Test]
+    public async Task RuntimeStampsGeneratedModelIdOnPhysicalResourceContext()
+    {
+        var resource = new CapturingResource();
+        var source = SerializedStateSource.FromResource<AppSettings.Fragment>(
+            "settings",
+            resource,
+            new JsonStateCodec<AppSettings.Fragment>()
+        );
+        await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
+            new StateSourceSet<AppSettings.Fragment>([source])
+        );
+
+        try
+        {
+            _ = await options.GetValueAsync();
+        }
+        catch (InvalidOperationException)
+        {
+            // The capturing resource reports NotFound; only the context is under test.
+        }
+
+        resource.LastContext.HasValue.ShouldBeTrue();
+        resource.LastContext!.Value.ModelId.ShouldBe(AppSettings.ConfiglueSchema.Id);
+    }
+
+    private sealed class CapturingResource : IResourceReader
+    {
+        public ConfiglueResourceContext? LastContext { get; private set; }
+
+        public ValueTask<ResourceReadResult> ReadAsync(
+            ConfiglueResourceContext context,
+            CancellationToken cancellationToken = default
+        )
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            LastContext = context;
+            return ValueTaskCompat.FromResult(ResourceReadResult.NotFound());
+        }
+    }
+
     private sealed class FixedStateReader<T>(StateReadResult<T> result) : ISourceReader<T>
     {
         public ValueTask<StateReadResult<T>> ReadAsync(

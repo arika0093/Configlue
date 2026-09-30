@@ -169,11 +169,13 @@ namespace Configlue.Resources
         public System.Threading.Tasks.ValueTask<System.IDisposable> AcquireExclusiveLockAsync(System.Threading.CancellationToken cancellationToken) { }
         public void Dispose() { }
         public System.Threading.Tasks.ValueTask<Configlue.Resources.ResourceReadResult> ReadAsync(System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Configlue.Resources.ResourceReadResult> ReadAsync(Configlue.Resources.ConfiglueResourceContext context, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask<Configlue.Resources.PipelineResourceReadResult> ReadPipelineAsync(System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask<Configlue.State.StateWriteResult> RestoreLatestBackupAsync(System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask<Configlue.Resources.ResourceReadResult?> TryRecoverLatestBackupAsync(string? expectedRevision, bool expectedMissing, System.Func<Configlue.Resources.ResourceReadResult, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<bool>> validate, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask WaitForChangeAsync(string? observedRevision, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask<Configlue.State.StateWriteResult> WriteAsync(Configlue.Resources.ResourceWriteRequest request, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Configlue.State.StateWriteResult> WriteAsync(Configlue.Resources.ConfiglueResourceContext context, Configlue.Resources.ResourceWriteRequest request, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask<Configlue.State.StateWriteResult> WriteBatchAsync(System.Collections.Generic.IReadOnlyList<Configlue.Resources.ResourceWriteMutation> mutations, System.Threading.CancellationToken cancellationToken = default) { }
     }
     public sealed class FileResourceOptions

@@ -13,8 +13,8 @@ namespace Configlue.Resource.PostgreSql;
 /// caller-owned <see cref="NpgsqlDataSource"/> for each physical placement route.
 /// </remarks>
 public sealed class PostgreSqlResource
-    : IContextualResourceReader,
-        IContextualResourceWriter,
+    : IResourceReader,
+        IResourceWriter,
         IContextualResourceIdentity,
         IContextualSourceWatcher,
         IDisposable
@@ -110,14 +110,11 @@ public sealed class PostgreSqlResource
                     _options.SchemaName,
                     _options.TableName,
                     ResourceNamespace,
+                    context.ModelId ?? string.Empty,
                     context.Key.Value,
                     _routeAwareIdentity ? context.Route.Value : string.Empty
                 )
         );
-
-    /// <inheritdoc />
-    public ValueTask<ResourceReadResult> ReadAsync(CancellationToken cancellationToken = default) =>
-        ReadAsync(ConfiglueResourceContext.Default, cancellationToken);
 
     /// <inheritdoc />
     public ValueTask<ResourceReadResult> ReadAsync(
@@ -125,22 +122,30 @@ public sealed class PostgreSqlResource
         CancellationToken cancellationToken = default
     ) =>
         GetBackend(context.Route)
-            .ReadAsync(ResourceNamespace, context.Key.Value, cancellationToken);
-
-    /// <inheritdoc />
-    public ValueTask<StateWriteResult> WriteAsync(
-        ResourceWriteRequest request,
-        CancellationToken cancellationToken = default
-    ) => WriteAsync(ConfiglueResourceContext.Default, request, cancellationToken);
+            .ReadAsync(
+                ResourceNamespace,
+                context.ModelId ?? string.Empty,
+                context.Key.Value,
+                cancellationToken
+            );
 
     /// <inheritdoc />
     public ValueTask<StateWriteResult> WriteAsync(
         ConfiglueResourceContext context,
         ResourceWriteRequest request,
         CancellationToken cancellationToken = default
-    ) =>
-        GetBackend(context.Route)
-            .WriteAsync(ResourceNamespace, context.Key.Value, request, cancellationToken);
+    )
+    {
+        ValidateSchemaModelId(context, request);
+        return GetBackend(context.Route)
+            .WriteAsync(
+                ResourceNamespace,
+                context.ModelId ?? string.Empty,
+                context.Key.Value,
+                request,
+                cancellationToken
+            );
+    }
 
     /// <inheritdoc />
     public ValueTask WaitForChangeAsync(
@@ -157,6 +162,7 @@ public sealed class PostgreSqlResource
         GetBackend(context.Route)
             .WaitForChangeAsync(
                 ResourceNamespace,
+                context.ModelId ?? string.Empty,
                 context.Key.Value,
                 observedRevision,
                 cancellationToken
@@ -227,6 +233,22 @@ public sealed class PostgreSqlResource
             .Value;
     }
 
+    private static void ValidateSchemaModelId(
+        ConfiglueResourceContext context,
+        ResourceWriteRequest request
+    )
+    {
+        if (
+            request.Schema is { ModelId: { } payloadModelId }
+            && !string.Equals(payloadModelId, context.ModelId, StringComparison.Ordinal)
+        )
+        {
+            throw new InvalidOperationException(
+                $"The payload schema model ID '{payloadModelId}' does not match the resource context model ID '{context.ModelId}'."
+            );
+        }
+    }
+
     private static Func<RouteKey, NpgsqlDataSource> CreateDataSourceResolver(
         NpgsqlDataSource dataSource
     )
@@ -240,12 +262,14 @@ internal interface IPostgreSqlStateBackend : IDisposable
 {
     ValueTask<ResourceReadResult> ReadAsync(
         string resourceNamespace,
+        string modelId,
         string subjectKey,
         CancellationToken cancellationToken
     );
 
     ValueTask<StateWriteResult> WriteAsync(
         string resourceNamespace,
+        string modelId,
         string subjectKey,
         ResourceWriteRequest request,
         CancellationToken cancellationToken
@@ -253,6 +277,7 @@ internal interface IPostgreSqlStateBackend : IDisposable
 
     ValueTask WaitForChangeAsync(
         string resourceNamespace,
+        string modelId,
         string subjectKey,
         string? observedRevision,
         CancellationToken cancellationToken

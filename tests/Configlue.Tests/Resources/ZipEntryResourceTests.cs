@@ -275,6 +275,7 @@ public sealed class ZipEntryResourceTests
         public int ReadCount { get; private set; }
 
         public ValueTask<ResourceReadResult> ReadAsync(
+            ConfiglueResourceContext context,
             CancellationToken cancellationToken = default
         )
         {

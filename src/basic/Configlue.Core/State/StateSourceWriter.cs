@@ -73,12 +73,15 @@ public sealed class StateSourceWriter<T> : IContextualSourceWriter<T>
             );
         }
 
-        return context is null
-            ? source.Writer.WriteAsync(request, cancellationToken)
-            : source.WriteAsync(
-                source.GetResourceContext(context.Value.Subject, context.Value.Route),
-                request,
-                cancellationToken
-            );
+        return source.WriteAsync(
+            context is { } provided
+                ? source.GetResourceContext(provided.Subject, provided.Route)
+                : source.GetResourceContext(
+                    ConfiglueResourceContext.Default.Subject,
+                    RouteKey.Default
+                ),
+            request,
+            cancellationToken
+        );
     }
 }

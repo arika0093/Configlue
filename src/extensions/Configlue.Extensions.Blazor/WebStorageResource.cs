@@ -38,7 +38,7 @@ public sealed class WebStorageUnavailableException : InvalidOperationException
 /// and writes throw <see cref="WebStorageUnavailableException"/> instead of silently using a
 /// different storage.
 /// </remarks>
-public sealed class WebStorageResource : IContextualResourceReader, IContextualResourceWriter
+public sealed class WebStorageResource : IResourceReader, IResourceWriter
 {
     private static readonly JsonSerializerOptions EnvelopeOptions = new(JsonSerializerDefaults.Web);
     private readonly IJSRuntime _jsRuntime;

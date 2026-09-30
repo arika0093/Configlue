@@ -27,7 +27,7 @@ namespace Configlue.Extensions.Blazor
         Local = 0,
         Session = 1,
     }
-    public sealed class WebStorageResource : Configlue.Resources.IContextualResourceReader, Configlue.Resources.IContextualResourceWriter, Configlue.Resources.IResourceReader, Configlue.Resources.IResourceWriter
+    public sealed class WebStorageResource : Configlue.Resources.IResourceReader, Configlue.Resources.IResourceWriter
     {
         public WebStorageResource(Microsoft.JSInterop.IJSRuntime jsRuntime, Configlue.Extensions.Blazor.WebStorageKind kind, string key, System.Func<Configlue.Resources.ConfiglueResourceContext, string>? keySelector = null) { }
         public string Key { get; }

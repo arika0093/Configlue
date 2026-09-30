@@ -295,6 +295,7 @@ public sealed class HttpResourceEndpointTests
     private sealed class FixedResourceReader(ResourceReadResult result) : IResourceReader
     {
         public ValueTask<ResourceReadResult> ReadAsync(
+            ConfiglueResourceContext context,
             CancellationToken cancellationToken = default
         )
         {
@@ -312,6 +313,7 @@ public sealed class HttpResourceEndpointTests
             new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public async ValueTask<ResourceReadResult> ReadAsync(
+            ConfiglueResourceContext context,
             CancellationToken cancellationToken = default
         )
         {
@@ -333,6 +335,7 @@ public sealed class HttpResourceEndpointTests
     private sealed class ThrowingResourceReader : IResourceReader
     {
         public ValueTask<ResourceReadResult> ReadAsync(
+            ConfiglueResourceContext context,
             CancellationToken cancellationToken = default
         )
         {

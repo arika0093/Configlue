@@ -47,6 +47,11 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         ConfiglueModelOperations<TModel, TFragment>.Current;
     private static ConfiglueModelSchema ModelSchema => ModelOperations.Schema;
     private static TFragment EmptyFragment => ModelOperations.EmptyFragment;
+    private static ConfiglueResourceContext DefaultResourceContext =>
+        ConfiglueResourceContext.Default with
+        {
+            ModelId = ModelSchema.Id,
+        };
 
     private static TFragment ToFragment(TModel value) => ModelOperations.ToFragment(value);
 
@@ -165,8 +170,8 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
     {
         ArgumentNullException.ThrowIfNull(sourceSet);
         ArgumentNullException.ThrowIfNull(defaultWritePlan);
-        _sourceSet = sourceSet;
-        _activeSources = sourceSet.Sources.ToArray();
+        _sourceSet = sourceSet.WithModelId(ModelSchema.Id);
+        _activeSources = _sourceSet.Sources.ToArray();
         _modelDefaultsFragment = ToFragment(FromFragment(EmptyFragment));
         _modelDefaultsSource = new StateSource<TFragment>(
             $"__configlue_model_defaults:{Guid.NewGuid():N}",
@@ -427,36 +432,28 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         StateSource<TFragment> source,
         CancellationToken cancellationToken
     ) =>
-        _subjectContext.Value is not null
-            ? source.ReadAsync(GetResourceContext(source), cancellationToken)
-            : source.Reader.ReadAsync(cancellationToken);
+        source.ReadAsync(
+            _subjectContext.Value is not null ? GetResourceContext(source) : DefaultResourceContext,
+            cancellationToken
+        );
 
     private static ValueTask<StateReadResult<TFragment>> ReadSourceAsync(
         StateSource<TFragment> source,
         ConfiglueResourceContext? context,
         CancellationToken cancellationToken
-    ) =>
-        context is null
-            ? source.Reader.ReadAsync(cancellationToken)
-            : source.ReadAsync(context.Value, cancellationToken);
+    ) => source.ReadAsync(context ?? DefaultResourceContext, cancellationToken);
 
     private ValueTask<StateWriteResult> WriteSourceAsync(
         StateSource<TFragment> source,
         StateWriteRequest<TFragment> request,
         CancellationToken cancellationToken
-    ) =>
-        _subjectContext.Value is not null
-            ? source.WriteAsync(GetResourceContext(source), request, cancellationToken)
-            : source.Writer!.WriteAsync(request, cancellationToken);
+    ) => source.WriteAsync(GetResourceContext(source), request, cancellationToken);
 
     private ValueTask WaitForSourceChangeAsync(
         StateSource<TFragment> source,
         string? revision,
         CancellationToken cancellationToken
-    ) =>
-        _subjectContext.Value is not null
-            ? source.WaitForChangeAsync(GetResourceContext(source), revision, cancellationToken)
-            : source.Watcher!.WaitForChangeAsync(revision, cancellationToken);
+    ) => source.WaitForChangeAsync(GetResourceContext(source), revision, cancellationToken);
 
     private ConfiglueResourceContext GetResourceContext(StateSource<TFragment> source) =>
         _subjectContext.Value is { } subject
@@ -464,12 +461,10 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                 subject,
                 _routeSelector?.Invoke(subject) ?? RouteKey.Default
             )
-            : ConfiglueResourceContext.Default;
+            : DefaultResourceContext;
 
     private ResourceId? GetResourceId(StateSource<TFragment> source) =>
-        _subjectContext.Value is not null
-            ? source.GetResourceId(GetResourceContext(source))
-            : source.ResourceId;
+        source.GetResourceId(GetResourceContext(source));
 
     /// <inheritdoc />
     public IDisposable OnReloadFailed(Action<Exception> listener)

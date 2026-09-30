@@ -41,6 +41,12 @@ public sealed class InMemoryResource
     }
 
     /// <inheritdoc />
+    public ValueTask<ResourceReadResult> ReadAsync(
+        ConfiglueResourceContext context,
+        CancellationToken cancellationToken = default
+    ) => ReadAsync(cancellationToken);
+
+    /// <inheritdoc />
     public ValueTask<ResourceReadResult> ReadAsync(CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -53,6 +59,13 @@ public sealed class InMemoryResource
             );
         }
     }
+
+    /// <inheritdoc />
+    public ValueTask<StateWriteResult> WriteAsync(
+        ConfiglueResourceContext context,
+        ResourceWriteRequest request,
+        CancellationToken cancellationToken = default
+    ) => WriteAsync(request, cancellationToken);
 
     /// <inheritdoc />
     public ValueTask<StateWriteResult> WriteAsync(

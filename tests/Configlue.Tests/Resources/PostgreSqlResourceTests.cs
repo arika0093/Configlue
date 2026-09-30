@@ -101,6 +101,64 @@ public sealed class PostgreSqlResourceTests
     }
 
     [Test]
+    public async Task RowsAreIsolatedByModelId()
+    {
+        var backend = new FakePostgreSqlStateBackend();
+        using var resource = CreateResource(_ => backend);
+        var modelOne = CreateContext("tenant-a", modelId: "model-one");
+        var modelTwo = CreateContext("tenant-a", modelId: "model-two");
+
+        await resource.WriteAsync(
+            modelOne,
+            new ResourceWriteRequest(new byte[] { 1 }, RevisionCondition.MustNotExist)
+        );
+        await resource.WriteAsync(
+            modelTwo,
+            new ResourceWriteRequest(new byte[] { 2 }, RevisionCondition.MustNotExist)
+        );
+
+        resource.GetResourceId(modelOne).ShouldNotBe(resource.GetResourceId(modelTwo));
+        (await resource.ReadAsync(modelOne)).Content.ToArray().ShouldBe(new byte[] { 1 });
+        (await resource.ReadAsync(modelTwo)).Content.ToArray().ShouldBe(new byte[] { 2 });
+    }
+
+    [Test]
+    public async Task WriteRejectsPayloadSchemaModelMismatch()
+    {
+        var backend = new FakePostgreSqlStateBackend();
+        using var resource = CreateResource(_ => backend);
+        var context = CreateContext("tenant-a", modelId: "model-one");
+
+        await Should.ThrowAsync<InvalidOperationException>(async () =>
+            await resource.WriteAsync(
+                context,
+                new ResourceWriteRequest(
+                    new byte[] { 1 },
+                    Schema: new StateSchemaMetadata("model-two", 1)
+                )
+            )
+        );
+    }
+
+    [Test]
+    public async Task WriteAcceptsMatchingPayloadSchemaModel()
+    {
+        var backend = new FakePostgreSqlStateBackend();
+        using var resource = CreateResource(_ => backend);
+        var context = CreateContext("tenant-a", modelId: "model-one");
+
+        await resource.WriteAsync(
+            context,
+            new ResourceWriteRequest(
+                new byte[] { 1 },
+                Schema: new StateSchemaMetadata("model-one", 1)
+            )
+        );
+
+        (await resource.ReadAsync(context)).Schema!.Value.ModelId.ShouldBe("model-one");
+    }
+
+    [Test]
     public async Task WatcherInvalidationIsScopedToTheSubjectKey()
     {
         var backend = new FakePostgreSqlStateBackend();
@@ -232,10 +290,14 @@ public sealed class PostgreSqlResourceTests
         PostgreSqlResourceOptions? options = null
     ) => new(resolver, resourceNamespace, options);
 
-    private static ConfiglueResourceContext CreateContext(string subject, RouteKey route = default)
+    private static ConfiglueResourceContext CreateContext(
+        string subject,
+        RouteKey route = default,
+        string? modelId = null
+    )
     {
         var key = SubjectKey.From(subject);
-        return new ConfiglueResourceContext(new FakeSubject(key), key, route);
+        return new ConfiglueResourceContext(modelId, new FakeSubject(key), key, route);
     }
 
     private static async Task<bool> TryWriteAsync(
@@ -264,9 +326,10 @@ public sealed class PostgreSqlResourceTests
     private sealed class FakePostgreSqlStateBackend : IPostgreSqlStateBackend
     {
         private readonly object _gate = new();
-        private readonly Dictionary<(string Namespace, string Key), StoredState> _states = [];
+        private readonly Dictionary<(string ModelId, string Namespace, string Key), StoredState> _states =
+            [];
         private readonly Dictionary<
-            (string Namespace, string Key),
+            (string ModelId, string Namespace, string Key),
             HashSet<TaskCompletionSource>
         > _waiters = [];
         private TaskCompletionSource _waitersChanged = new(
@@ -275,6 +338,7 @@ public sealed class PostgreSqlResourceTests
 
         public ValueTask<ResourceReadResult> ReadAsync(
             string resourceNamespace,
+            string modelId,
             string subjectKey,
             CancellationToken cancellationToken
         )
@@ -283,7 +347,7 @@ public sealed class PostgreSqlResourceTests
             lock (_gate)
             {
                 return ValueTask.FromResult(
-                    _states.TryGetValue((resourceNamespace, subjectKey), out var state)
+                    _states.TryGetValue((modelId, resourceNamespace, subjectKey), out var state)
                         ? ResourceReadResult.Success(
                             state.Content,
                             state.Revision.ToString(CultureInfo.InvariantCulture),
@@ -296,6 +360,7 @@ public sealed class PostgreSqlResourceTests
 
         public ValueTask<StateWriteResult> WriteAsync(
             string resourceNamespace,
+            string modelId,
             string subjectKey,
             ResourceWriteRequest request,
             CancellationToken cancellationToken
@@ -304,7 +369,7 @@ public sealed class PostgreSqlResourceTests
             cancellationToken.ThrowIfCancellationRequested();
             TaskCompletionSource[] notifications;
             long revision;
-            var address = (resourceNamespace, subjectKey);
+            var address = (modelId, resourceNamespace, subjectKey);
             lock (_gate)
             {
                 _states.TryGetValue(address, out var current);
@@ -337,13 +402,14 @@ public sealed class PostgreSqlResourceTests
 
         public async ValueTask WaitForChangeAsync(
             string resourceNamespace,
+            string modelId,
             string subjectKey,
             string? observedRevision,
             CancellationToken cancellationToken
         )
         {
             TaskCompletionSource signal;
-            var address = (resourceNamespace, subjectKey);
+            var address = (modelId, resourceNamespace, subjectKey);
             lock (_gate)
             {
                 _states.TryGetValue(address, out var current);

@@ -26,7 +26,8 @@ public sealed class StateSource<T>
         string? logicalDescriptor = null,
         bool explicitOnly = false,
         Func<IConfiglueSubject, SubjectKey>? subjectKeySelector = null,
-        RuntimeLifetimeRequirement runtimeLifetime = RuntimeLifetimeRequirement.Shared
+        RuntimeLifetimeRequirement runtimeLifetime = RuntimeLifetimeRequirement.Shared,
+        string? modelId = null
     )
         : this(
             StateSourceIdentity.Create(
@@ -44,7 +45,8 @@ public sealed class StateSource<T>
             resourceId,
             explicitOnly,
             subjectKeySelector,
-            runtimeLifetime
+            runtimeLifetime,
+            modelId
         ) { }
 
     /// <summary>Creates a source with at least a reader.</summary>
@@ -59,7 +61,8 @@ public sealed class StateSource<T>
         ResourceId? resourceId = null,
         bool explicitOnly = false,
         Func<IConfiglueSubject, SubjectKey>? subjectKeySelector = null,
-        RuntimeLifetimeRequirement runtimeLifetime = RuntimeLifetimeRequirement.Shared
+        RuntimeLifetimeRequirement runtimeLifetime = RuntimeLifetimeRequirement.Shared,
+        string? modelId = null
     )
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
@@ -88,6 +91,7 @@ public sealed class StateSource<T>
         _configuredResourceId = resourceId;
         ExplicitOnly = explicitOnly;
         RuntimeLifetime = runtimeLifetime;
+        ModelId = modelId;
         _subjectKeySelector = subjectKeySelector ?? (static subject => subject.Key);
     }
 
@@ -114,6 +118,9 @@ public sealed class StateSource<T>
 
     /// <summary>The optional identity of the physical resource backing this logical source.</summary>
     public ResourceId? ResourceId { get; }
+
+    /// <summary>The stable Configlue model ID backing this logical source, when known.</summary>
+    public string? ModelId { get; private set; }
 
     internal ResourceId? ConfiguredResourceId => _configuredResourceId;
 
@@ -155,7 +162,7 @@ public sealed class StateSource<T>
     )
     {
         ArgumentNullException.ThrowIfNull(subject);
-        return new ConfiglueResourceContext(subject, GetSubjectKey(subject), route);
+        return new ConfiglueResourceContext(ModelId, subject, GetSubjectKey(subject), route);
     }
 
     /// <summary>Reads this source for a subject using its source-specific key mapping.</summary>
@@ -267,12 +274,39 @@ public sealed class StateSource<T>
             _configuredResourceId,
             ExplicitOnly,
             _subjectKeySelector,
-            RuntimeLifetime
+            RuntimeLifetime,
+            ModelId
         )
         {
             _ownedPropertyPaths = ownedPaths,
         };
         return clone;
+    }
+
+    internal StateSource<T> WithModelId(string? modelId)
+    {
+        if (string.Equals(ModelId, modelId, StringComparison.Ordinal))
+        {
+            return this;
+        }
+
+        return new StateSource<T>(
+            Id,
+            Reader,
+            Priority,
+            FallbackCondition,
+            Writer,
+            Watcher,
+            PhysicalOrigin,
+            _configuredResourceId,
+            ExplicitOnly,
+            _subjectKeySelector,
+            RuntimeLifetime,
+            modelId
+        )
+        {
+            _ownedPropertyPaths = [.. _ownedPropertyPaths],
+        };
     }
 
     internal StateSource<T> WithSubjectKeySelector(
@@ -291,7 +325,8 @@ public sealed class StateSource<T>
             _configuredResourceId,
             ExplicitOnly,
             subjectKeySelector,
-            RuntimeLifetime
+            RuntimeLifetime,
+            ModelId
         );
     }
 
@@ -303,6 +338,7 @@ public sealed class StateSource<T>
         ArgumentNullException.ThrowIfNull(target);
         target.ExplicitOnly = explicitOnly ?? ExplicitOnly;
         target.RuntimeLifetime = RuntimeLifetime;
+        target.ModelId = ModelId;
         target._ownedPropertyPaths = [.. _ownedPropertyPaths];
     }
 }

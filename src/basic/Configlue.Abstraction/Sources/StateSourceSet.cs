@@ -57,4 +57,7 @@ public sealed class StateSourceSet<T>
 
     /// <summary>Gets a source by its read-priority position.</summary>
     public StateSource<T> this[int index] => _sources[index];
+
+    internal StateSourceSet<T> WithModelId(string? modelId) =>
+        new(_sources.Select(source => source.WithModelId(modelId)));
 }
