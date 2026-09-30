@@ -1,0 +1,48 @@
+[assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/arika0093/Configlue")]
+namespace Configlue.Resource.WebStorage
+{
+    public enum WebStorageKind
+    {
+        Local = 0,
+        Session = 1,
+    }
+    public sealed class WebStorageResource : Configlue.Resources.IContextualResourceReader, Configlue.Resources.IContextualResourceWriter, Configlue.Resources.IResourceReader, Configlue.Resources.IResourceWriter
+    {
+        public WebStorageResource(Microsoft.JSInterop.IJSRuntime jsRuntime, Configlue.Resource.WebStorage.WebStorageKind kind, string key, System.Func<Configlue.Resources.ConfiglueResourceContext, string>? keySelector = null) { }
+        public string Key { get; }
+        public Configlue.Resource.WebStorage.WebStorageKind Kind { get; }
+        public System.Threading.Tasks.ValueTask<Configlue.Resources.ResourceReadResult> ReadAsync(System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Configlue.Resources.ResourceReadResult> ReadAsync(Configlue.Resources.ConfiglueResourceContext context, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Configlue.State.StateWriteResult> WriteAsync(Configlue.Resources.ResourceWriteRequest request, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Configlue.State.StateWriteResult> WriteAsync(Configlue.Resources.ConfiglueResourceContext context, Configlue.Resources.ResourceWriteRequest request, System.Threading.CancellationToken cancellationToken = default) { }
+    }
+    public sealed class WebStorageSourceOptions
+    {
+        public WebStorageSourceOptions() { }
+        public object? Codec { get; set; }
+        public Configlue.Codecs.StateCodecContext CodecContext { get; set; }
+        public Configlue.Sources.StateFallbackCondition FallbackCondition { get; set; }
+        public string? Id { get; set; }
+        public string Key { get; set; }
+        public System.Func<Configlue.Resources.ConfiglueResourceContext, string>? KeySelector { get; set; }
+        public Configlue.Resource.WebStorage.WebStorageKind Kind { get; set; }
+        public int Priority { get; set; }
+        public bool Writable { get; set; }
+    }
+    public static class WebStorageSourceRegistration
+    {
+        public static Configlue.Extensibility.ConfiglueSourceRegistration FromLocalStorage(this Configlue.ConfiglueSourceSetBuilder sources, Configlue.Resource.WebStorage.WebStorageSourceOptions options) { }
+        public static Configlue.Extensibility.ConfiglueSourceRegistration FromLocalStorage(this Configlue.ConfiglueSourceSetBuilder sources, string key) { }
+        public static Configlue.Extensibility.ConfiglueSourceRegistration FromSessionStorage(this Configlue.ConfiglueSourceSetBuilder sources, Configlue.Resource.WebStorage.WebStorageSourceOptions options) { }
+        public static Configlue.Extensibility.ConfiglueSourceRegistration FromSessionStorage(this Configlue.ConfiglueSourceSetBuilder sources, string key) { }
+        public static void UseLocalStorage<TModel>(this Configlue.ConfiglueModelBuilder<TModel> model, string key, System.Action<Configlue.Resource.WebStorage.WebStorageSourceOptions>? configure = null)
+            where TModel : Configlue.CompilerServices.IConfiglueFacadeModel<TModel> { }
+        public static void UseSessionStorage<TModel>(this Configlue.ConfiglueModelBuilder<TModel> model, string key, System.Action<Configlue.Resource.WebStorage.WebStorageSourceOptions>? configure = null)
+            where TModel : Configlue.CompilerServices.IConfiglueFacadeModel<TModel> { }
+    }
+    public sealed class WebStorageUnavailableException : System.InvalidOperationException
+    {
+        public WebStorageUnavailableException(string message) { }
+        public WebStorageUnavailableException(string message, System.Exception innerException) { }
+    }
+}

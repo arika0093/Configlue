@@ -19,7 +19,9 @@ public class ConfiglueSourceSetBuilder : IConfiglueSourceRegistrationSink
     {
         EnsureMutable();
         ArgumentNullException.ThrowIfNull(source);
-        _sources.Add(new ConfiglueSourceRegistration<TFragment>(_ => source));
+        _sources.Add(
+            new ConfiglueSourceRegistration<TFragment>(_ => source, source.RuntimeLifetime)
+        );
     }
 
     /// <summary>Adds a source factory. The service provider is null in a non-DI context.</summary>
@@ -137,6 +139,10 @@ public class ConfiglueSourceSetBuilder : IConfiglueSourceRegistrationSink
         _sources.AddRange(source._sources);
     }
 
+    /// <summary>The combined lifetime requirement declared by the registered sources.</summary>
+    internal RuntimeLifetimeRequirement DeclaredRuntimeLifetime =>
+        _sources.Select(static source => source.RuntimeLifetime).Combine();
+
     internal void Seal() => _sealed = true;
 
     private void EnsureMutable()
@@ -151,6 +157,8 @@ public class ConfiglueSourceSetBuilder : IConfiglueSourceRegistrationSink
     {
         bool RequiresGeneratedModel { get; }
 
+        RuntimeLifetimeRequirement RuntimeLifetime { get; }
+
         StateSource<TFragment> Create<TFragment>(
             ConfiglueModelSchema? modelSchema,
             IServiceProvider? serviceProvider,
@@ -161,11 +169,14 @@ public class ConfiglueSourceSetBuilder : IConfiglueSourceRegistrationSink
     }
 
     private sealed class ConfiglueSourceRegistration<TFragment>(
-        Func<IServiceProvider?, StateSource<TFragment>> sourceFactory
+        Func<IServiceProvider?, StateSource<TFragment>> sourceFactory,
+        RuntimeLifetimeRequirement runtimeLifetime = RuntimeLifetimeRequirement.Shared
     ) : IConfiglueSourceRegistration
         where TFragment : class, IConfiglueFragment<TFragment>
     {
         public bool RequiresGeneratedModel => false;
+
+        public RuntimeLifetimeRequirement RuntimeLifetime { get; } = runtimeLifetime;
 
         public StateSource<TRequestedFragment> Create<TRequestedFragment>(
             ConfiglueModelSchema? modelSchema,
@@ -196,6 +207,11 @@ public class ConfiglueSourceSetBuilder : IConfiglueSourceRegistrationSink
     ) : IConfiglueSourceRegistration
     {
         public bool RequiresGeneratedModel => true;
+
+        public RuntimeLifetimeRequirement RuntimeLifetime =>
+            options.RuntimeLifetimeOverride
+            ?? (definition as IConfiglueRuntimeLifetimeSource)?.RuntimeLifetime
+            ?? RuntimeLifetimeRequirement.Shared;
 
         public StateSource<TFragment> Create<TFragment>(
             ConfiglueModelSchema? modelSchema,

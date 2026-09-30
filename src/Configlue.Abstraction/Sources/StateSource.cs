@@ -25,7 +25,8 @@ public sealed class StateSource<T>
         ResourceId? resourceId = null,
         string? logicalDescriptor = null,
         bool explicitOnly = false,
-        Func<IConfiglueSubject, SubjectKey>? subjectKeySelector = null
+        Func<IConfiglueSubject, SubjectKey>? subjectKeySelector = null,
+        RuntimeLifetimeRequirement runtimeLifetime = RuntimeLifetimeRequirement.Shared
     )
         : this(
             StateSourceIdentity.Create(
@@ -42,7 +43,8 @@ public sealed class StateSource<T>
             physicalOrigin,
             resourceId,
             explicitOnly,
-            subjectKeySelector
+            subjectKeySelector,
+            runtimeLifetime
         ) { }
 
     /// <summary>Creates a source with at least a reader.</summary>
@@ -56,7 +58,8 @@ public sealed class StateSource<T>
         string? physicalOrigin = null,
         ResourceId? resourceId = null,
         bool explicitOnly = false,
-        Func<IConfiglueSubject, SubjectKey>? subjectKeySelector = null
+        Func<IConfiglueSubject, SubjectKey>? subjectKeySelector = null,
+        RuntimeLifetimeRequirement runtimeLifetime = RuntimeLifetimeRequirement.Shared
     )
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
@@ -84,6 +87,7 @@ public sealed class StateSource<T>
             ?? TryGetResourceId(writer, ConfiglueResourceContext.Default);
         _configuredResourceId = resourceId;
         ExplicitOnly = explicitOnly;
+        RuntimeLifetime = runtimeLifetime;
         _subjectKeySelector = subjectKeySelector ?? (static subject => subject.Key);
     }
 
@@ -115,6 +119,9 @@ public sealed class StateSource<T>
 
     /// <summary>Whether this source is excluded from ordinary inferred write routing.</summary>
     public bool ExplicitOnly { get; private set; }
+
+    /// <summary>The dependency-injection lifetime required by this source.</summary>
+    public RuntimeLifetimeRequirement RuntimeLifetime { get; private set; }
 
     /// <summary>Resolves this logical source's key for an application-defined subject.</summary>
     public SubjectKey GetSubjectKey(IConfiglueSubject subject)
@@ -259,7 +266,8 @@ public sealed class StateSource<T>
             PhysicalOrigin,
             _configuredResourceId,
             ExplicitOnly,
-            _subjectKeySelector
+            _subjectKeySelector,
+            RuntimeLifetime
         )
         {
             _ownedPropertyPaths = ownedPaths,
@@ -282,7 +290,8 @@ public sealed class StateSource<T>
             PhysicalOrigin,
             _configuredResourceId,
             ExplicitOnly,
-            subjectKeySelector
+            subjectKeySelector,
+            RuntimeLifetime
         );
     }
 
@@ -293,6 +302,7 @@ public sealed class StateSource<T>
     {
         ArgumentNullException.ThrowIfNull(target);
         target.ExplicitOnly = explicitOnly ?? ExplicitOnly;
+        target.RuntimeLifetime = RuntimeLifetime;
         target._ownedPropertyPaths = [.. _ownedPropertyPaths];
     }
 }

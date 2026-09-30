@@ -4,6 +4,8 @@ using System.Runtime.Versioning;
 using System.Text;
 using Configlue;
 using Configlue.CompilerServices;
+using Configlue.Extensions.AspNetCore;
+using Configlue.Extensions.Blazor;
 using Configlue.Extensions.MSOptions;
 using Configlue.Generator;
 using Configlue.JsonSchema;
@@ -16,6 +18,7 @@ using Configlue.Resource.Http.AspNetCore;
 using Configlue.Resource.PostgreSql;
 using Configlue.Resource.Redis;
 using Configlue.Resource.S3;
+using Configlue.Resource.WebStorage;
 using Configlue.Resource.Zip;
 using Configlue.Source.CommandLine;
 using Configlue.Source.Environment;
@@ -271,6 +274,19 @@ public sealed class PublicApiCheckTest
 
     [Test]
     public void HttpAspNetCore() => PublicApiCheck.Check<HttpResourceEndpointOptions>();
+
+    [Test]
+    public void AspNetCoreHost() =>
+        PublicApiCheck.CheckAssembly(typeof(HttpContextConfiglueSubjectAccessor<>).Assembly);
+
+    [Test]
+    public void BlazorHost() =>
+        PublicApiCheck.CheckAssembly(
+            typeof(BlazorAuthenticationConfiglueSubjectAccessor<>).Assembly
+        );
+
+    [Test]
+    public void WebStorage() => PublicApiCheck.Check<WebStorageResource>();
 
     [Test]
     public void Dapr() => PublicApiCheck.Check<DaprStateSourceOptions>();

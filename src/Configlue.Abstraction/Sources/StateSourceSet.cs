@@ -43,7 +43,11 @@ public sealed class StateSourceSet<T>
             .ToArray();
         _sources = orderedSources;
         _sourceView = Array.AsReadOnly(orderedSources);
+        RuntimeLifetime = sourceItems.Select(static source => source.RuntimeLifetime).Combine();
     }
+
+    /// <summary>The combined runtime lifetime requirement declared by the sources.</summary>
+    public RuntimeLifetimeRequirement RuntimeLifetime { get; }
 
     /// <summary>The sources in read-priority order.</summary>
     public IReadOnlyList<StateSource<T>> Sources => _sourceView;

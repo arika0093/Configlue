@@ -199,6 +199,20 @@ public sealed class ConfiglueContext : IDisposable, IAsyncDisposable
         {
             foreach (var registration in registrations)
             {
+                if (registration.RuntimeLifetime == RuntimeLifetimeRequirement.Scoped)
+                {
+                    if (serviceProvider is null)
+                    {
+                        throw new InvalidOperationException(
+                            $"Model '{registration.ModelType}' requires a scoped runtime because one of its sources consumes scoped services, "
+                                + "so it cannot be created in a process-wide Configlue context. Register the model through dependency injection instead."
+                        );
+                    }
+
+                    // Scoped runtimes are created and owned by each dependency-injection scope.
+                    continue;
+                }
+
                 var runtime = registration.CreateRuntime(serviceProvider, OwnResource, hostPaths);
                 runtimes.Add(runtime);
                 if (runtime is not IDisposable || runtime is not IAsyncDisposable)
@@ -216,6 +230,12 @@ public sealed class ConfiglueContext : IDisposable, IAsyncDisposable
                 if (!registration.EnableDynamicStates)
                 {
                     continue;
+                }
+                if (registration.RuntimeLifetime == RuntimeLifetimeRequirement.Scoped)
+                {
+                    throw new InvalidOperationException(
+                        $"Dynamic named states are not supported for model '{registration.ModelType}' because it requires a scoped runtime."
+                    );
                 }
                 if (registries.ContainsKey(registration.ModelType))
                 {

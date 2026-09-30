@@ -45,6 +45,7 @@ namespace Configlue
         public Microsoft.Extensions.Logging.ILogger? Logger { get; set; }
         public System.TimeSpan? OnChangeDebounce { get; set; }
         public Configlue.ReadValidationMode ReadValidationMode { get; set; }
+        public Configlue.Sources.RuntimeLifetimeRequirement RuntimeLifetime { get; set; }
         public string StateName { get; set; }
         public bool ValidateDataAnnotations { get; set; }
         public Configlue.WriteConflictResolution WriteConflictResolution { get; set; }
@@ -62,6 +63,8 @@ namespace Configlue
             where TSubject : Configlue.IConfiglueSubject { }
         public void Sources(System.Action<Configlue.ConfiglueSourceSetBuilder<TModel>> configure) { }
         public void UseCloneStrategy(System.Func<TModel, TModel> cloneStrategy) { }
+        public void UseScopedRuntime() { }
+        public void UseSharedRuntime() { }
     }
     public sealed class ConfiglueNamedStateProfile<TModel> : System.IEquatable<Configlue.ConfiglueNamedStateProfile<TModel>>
     {
@@ -125,6 +128,17 @@ namespace Configlue
         public ConfiglueSourceSetBuilder() { }
         public System.Type ModelType { get; }
     }
+    public sealed class ConfiglueSubjectRegistrationBuilder<TSubject>
+        where TSubject : Configlue.IConfiglueSubject
+    {
+        public Microsoft.Extensions.DependencyInjection.IServiceCollection Services { get; }
+        public System.Type SubjectType { get; }
+    }
+    public static class ConfiglueSubjectServiceCollectionExtensions
+    {
+        public static Configlue.ConfiglueSubjectRegistrationBuilder<TSubject> AddConfiglueSubject<TSubject>(this Microsoft.Extensions.DependencyInjection.IServiceCollection services)
+            where TSubject : Configlue.IConfiglueSubject { }
+    }
     public sealed class ConfiglueValidationException : System.Exception
     {
         public ConfiglueValidationException(string stateName, System.Type stateType, System.Collections.Generic.IEnumerable<string> failures) { }
@@ -136,6 +150,7 @@ namespace Configlue
     {
         public Configlue.StateSourceBuilder<T> KeyBy<TSubject>(System.Func<TSubject, Configlue.SubjectKey> selector)
             where TSubject : Configlue.IConfiglueSubject { }
+        public Configlue.StateSourceBuilder<T> WithRuntimeLifetime(Configlue.Sources.RuntimeLifetimeRequirement lifetime) { }
         public Configlue.StateSourceBuilder<T> WithWatcher(Configlue.Sources.ISourceWatcher watcher) { }
         public Configlue.StateSourceBuilder<T> WithWriter(Configlue.Sources.ISourceWriter<T> writer) { }
         public Configlue.StateSourceBuilder<T> WithoutWatcher() { }

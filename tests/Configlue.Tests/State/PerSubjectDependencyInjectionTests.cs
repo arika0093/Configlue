@@ -5,7 +5,8 @@ using Configlue.Sources;
 using Configlue.Testing;
 using Microsoft.Extensions.DependencyInjection;
 #if !NET48
-using Configlue.Resource.Http.AspNetCore;
+using Configlue.Extensions.AspNetCore;
+using Configlue.Extensions.Blazor;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Http;
 #endif
@@ -283,6 +284,28 @@ public sealed class PerSubjectDependencyInjectionTests
         var subject = await accessor.GetCurrentAsync();
         subject.ShouldBe(new SettingsSubject("tenant", "request-user"));
         (await ((IConfiglueSubjectAccessor)accessor).GetCurrentSubjectAsync()).ShouldBe(subject);
+    }
+
+    [Test]
+    public async Task SubjectRegistrationBuilderWiresHttpContextAccessor()
+    {
+        var services = new ServiceCollection();
+        services
+            .AddConfiglueSubject<SettingsSubject>()
+            .FromHttpContext(context => new SettingsSubject(
+                "tenant",
+                context.Request.Headers["X-User"].ToString()
+            ));
+        using var provider = services.BuildServiceProvider();
+        var httpContextAccessor = provider.GetRequiredService<IHttpContextAccessor>();
+        httpContextAccessor.HttpContext = new DefaultHttpContext();
+        httpContextAccessor.HttpContext.Request.Headers["X-User"] = "builder-user";
+        using var scope = provider.CreateScope();
+        var accessor = scope.ServiceProvider.GetRequiredService<
+            IConfiglueSubjectAccessor<SettingsSubject>
+        >();
+
+        (await accessor.GetCurrentAsync()).ShouldBe(new SettingsSubject("tenant", "builder-user"));
     }
 
     [Test]

@@ -38,7 +38,7 @@ public static class ConfiglueServiceCollectionExtensions
         services.AddSingleton<ConfiglueContext>(provider => builder.CreateContext(provider));
         foreach (var registration in builder.Registrations)
         {
-            registration.AddServiceDescriptors(services);
+            registration.AddServiceDescriptors(services, builder.HostPaths);
         }
 
         var visitor = new ConfiglueFacadeRegistrationVisitor(services);
@@ -328,6 +328,10 @@ public static class ConfiglueServiceCollectionExtensions
         public void Visit<TModel>(ConfiglueModelRegistration<TModel> registration)
             where TModel : IConfiglueFacadeModel<TModel>
         {
+            if (registration.RuntimeLifetime == RuntimeLifetimeRequirement.Scoped)
+            {
+                return;
+            }
             if (registration.StateName == Options.DefaultName)
             {
                 Func<IServiceProvider, IWritableState<TModel>> getRuntime =

@@ -1,0 +1,25 @@
+[assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/arika0093/Configlue")]
+namespace Configlue.Extensions.Blazor
+{
+    public static class BlazorAuthenticationConfiglueSubjectAccessorServiceCollectionExtensions
+    {
+        public static Microsoft.Extensions.DependencyInjection.IServiceCollection AddBlazorAuthenticationConfiglueSubjectAccessor<TSubject>(this Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Func<System.Security.Claims.ClaimsPrincipal, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<TSubject>> resolveSubject)
+            where TSubject : Configlue.IConfiglueSubject { }
+    }
+    public sealed class BlazorAuthenticationConfiglueSubjectAccessor<TSubject> : Configlue.IConfiglueSubjectAccessor, Configlue.IConfiglueSubjectAccessor<TSubject>, Configlue.IConfiglueSubjectChangeSource, System.IDisposable
+        where TSubject : Configlue.IConfiglueSubject
+    {
+        public BlazorAuthenticationConfiglueSubjectAccessor(Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider authenticationStateProvider, System.Func<System.Security.Claims.ClaimsPrincipal, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<TSubject>> resolveSubject) { }
+        public void Dispose() { }
+        public System.Threading.Tasks.ValueTask<TSubject> GetCurrentAsync(System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Configlue.IConfiglueSubject> GetCurrentSubjectAsync(System.Threading.CancellationToken cancellationToken = default) { }
+        public System.IDisposable OnChange(System.Action listener) { }
+    }
+    public static class BlazorAuthenticationConfiglueSubjectRegistrationExtensions
+    {
+        public static Configlue.ConfiglueSubjectRegistrationBuilder<TSubject> FromBlazorAuthenticationState<TSubject>(this Configlue.ConfiglueSubjectRegistrationBuilder<TSubject> builder, System.Func<System.Security.Claims.ClaimsPrincipal, TSubject> resolveSubject)
+            where TSubject : Configlue.IConfiglueSubject { }
+        public static Configlue.ConfiglueSubjectRegistrationBuilder<TSubject> FromBlazorAuthenticationState<TSubject>(this Configlue.ConfiglueSubjectRegistrationBuilder<TSubject> builder, System.Func<System.Security.Claims.ClaimsPrincipal, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<TSubject>> resolveSubject)
+            where TSubject : Configlue.IConfiglueSubject { }
+    }
+}

@@ -32,6 +32,9 @@ dotnet add package Configlue
 | Rx.NET と接続する | `Configlue.Extensions.Reactive` |
 | R3 と接続する | `Configlue.Extensions.R3` |
 | ASP.NET Core から Configlue の HTTP リソースを配信する | `Configlue.Resource.Http.AspNetCore` |
+| ASP.NET Core リクエストから subject を解決する | `Configlue.Extensions.AspNetCore` |
+| Blazor 認証状態から subject を解決する | `Configlue.Extensions.Blazor` |
+| ブラウザーの `localStorage` / `sessionStorage` | `Configlue.Resource.WebStorage` |
 | Dapr State Management | `Configlue.Resource.Dapr` |
 | Amazon S3 | `Configlue.Resource.S3` |
 | PostgreSQL への直接保存 | `Configlue.Resource.PostgreSql` |

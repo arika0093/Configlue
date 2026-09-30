@@ -21,6 +21,9 @@ description: Find the NuGet package for each Configlue capability.
 | `Configlue.Source.CommandLine` | Read-only source backed by a `System.CommandLine` parse result, with opt-in common preset integration. |
 | `Configlue.Resource.Http` | HTTP read/write resources with ETag revisions and polling change detection. |
 | `Configlue.Resource.Http.AspNetCore` | ASP.NET Core endpoints for serving HTTP resources. |
+| `Configlue.Extensions.AspNetCore` | Current-request subject integration for ASP.NET Core (`IHttpContextAccessor`). |
+| `Configlue.Extensions.Blazor` | Blazor authentication-state subject integration and circuit change notifications. |
+| `Configlue.Resource.WebStorage` | Browser `localStorage` and `sessionStorage` resources, created per dependency-injection scope. |
 | `Configlue.Resource.Dapr` | Optional Dapr State Management resources and source registration with ETag concurrency checks. |
 | `Configlue.Resource.S3` | Optional Amazon S3 object resources and source registration with ETag revisions. |
 | `Configlue.Resource.PostgreSql` | Optional PostgreSQL byte resources with subject-key rows, atomic revision checks, and `LISTEN`/`NOTIFY` change watching. |
@@ -47,6 +50,9 @@ description: Find the NuGet package for each Configlue capability.
 | `Configlue.Source.CommandLine` | `netstandard2.0;net10.0` | `System.CommandLine` 2.0.12. |
 | `Configlue.Resource.Http` | `netstandard2.0;net10.0` | No direct NuGet dependencies. |
 | `Configlue.Resource.Http.AspNetCore` | `net10.0` | `Microsoft.AspNetCore.App` framework reference. |
+| `Configlue.Extensions.AspNetCore` | `net10.0` | `Microsoft.AspNetCore.App` framework reference. |
+| `Configlue.Extensions.Blazor` | `net10.0` | `Microsoft.AspNetCore.App` framework reference. |
+| `Configlue.Resource.WebStorage` | `net10.0` | `Microsoft.JSInterop` 10.0.0. |
 | `Configlue.Resource.Dapr` | `net8.0;net10.0` | `Dapr.Client` 1.18.10; the backend dependency sets the `net8.0` floor. |
 | `Configlue.Resource.S3` | `netstandard2.0;net10.0` | `AWSSDK.S3` 4.0.103.4. |
 | `Configlue.Resource.PostgreSql` | `net8.0;net10.0` | `Npgsql` 10.0.3; the backend dependency sets the `net8.0` floor. |

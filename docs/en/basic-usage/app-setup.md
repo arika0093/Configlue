@@ -105,14 +105,14 @@ services.AddConfiglue(conf =>
 
 An accessor can also implement `IConfiglueSubjectChangeSource`. Its notifications tell an `OnChange` subscription to resolve the subject again and bind to that subject's watcher. This is useful when authentication or another context changes within a scope. Without this optional interface, a watcher stays bound to the subject resolved when the subscription was created.
 
-The optional `Configlue.Resource.Http.AspNetCore` package includes request and Blazor authentication accessors. They only adapt framework context into the core subject contract; the core package does not depend on ASP.NET Core or claims:
+The optional `Configlue.Extensions.AspNetCore` and `Configlue.Extensions.Blazor` packages include request and Blazor authentication accessors. They only adapt framework context into the core subject contract; the core package does not depend on ASP.NET Core or claims:
 
 ```csharp
-services.AddHttpContextConfiglueSubjectAccessor<TenantSubject>(
-    context => new TenantSubject(context.User.FindFirst("tenant")!.Value));
+services.AddConfiglueSubject<TenantSubject>()
+    .FromHttpContext(context => new TenantSubject(context.User.FindFirst("tenant")!.Value));
 
-services.AddBlazorAuthenticationConfiglueSubjectAccessor<TenantSubject>(
-    (principal, _) => ValueTask.FromResult(
+services.AddConfiglueSubject<TenantSubject>()
+    .FromBlazorAuthenticationState((principal, _) => ValueTask.FromResult(
         new TenantSubject(principal.FindFirst("tenant")!.Value)));
 ```
 

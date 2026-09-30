@@ -113,6 +113,7 @@ public sealed class StateSourceBuilder<T>
     private readonly string? _physicalOrigin;
     private readonly ResourceId? _resourceId;
     private Func<IConfiglueSubject, SubjectKey> _subjectKeySelector = static subject => subject.Key;
+    private RuntimeLifetimeRequirement _runtimeLifetime = RuntimeLifetimeRequirement.Shared;
 
     internal StateSourceBuilder(
         string id,
@@ -179,6 +180,13 @@ public sealed class StateSourceBuilder<T>
         return this;
     }
 
+    /// <summary>Declares the dependency-injection lifetime required by this source.</summary>
+    public StateSourceBuilder<T> WithRuntimeLifetime(RuntimeLifetimeRequirement lifetime)
+    {
+        _runtimeLifetime = lifetime;
+        return this;
+    }
+
     internal StateSource<T> Build() =>
         new(
             _id,
@@ -189,6 +197,7 @@ public sealed class StateSourceBuilder<T>
             _watcher,
             _physicalOrigin,
             _resourceId,
-            subjectKeySelector: _subjectKeySelector
+            subjectKeySelector: _subjectKeySelector,
+            runtimeLifetime: _runtimeLifetime
         );
 }

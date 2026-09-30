@@ -582,6 +582,10 @@ namespace Configlue.Extensibility
         public System.Collections.Generic.IReadOnlyList<System.IDisposable> OwnedResources { get; }
         public Configlue.Sources.StateSource<T> Source { get; }
     }
+    public interface IConfiglueRuntimeLifetimeSource
+    {
+        Configlue.Sources.RuntimeLifetimeRequirement RuntimeLifetime { get; }
+    }
     public interface IConfiglueSourceDefinition
     {
         Configlue.Extensibility.ConfiglueSourceCreation<TFragment> Create<TFragment>(Configlue.Extensibility.ConfiglueSourceCreationContext context)
@@ -841,6 +845,16 @@ namespace Configlue.Sources
     {
         System.Threading.Tasks.ValueTask<Configlue.State.StateWriteResult> WriteAsync(Configlue.State.StateWriteRequest<T> request, System.Threading.CancellationToken cancellationToken = default);
     }
+    public enum RuntimeLifetimeRequirement
+    {
+        Shared = 0,
+        Scoped = 1,
+    }
+    public static class RuntimeLifetimeRequirementExtensions
+    {
+        public static Configlue.Sources.RuntimeLifetimeRequirement Combine(this System.Collections.Generic.IEnumerable<Configlue.Sources.RuntimeLifetimeRequirement> requirements) { }
+        public static Configlue.Sources.RuntimeLifetimeRequirement Combine(this Configlue.Sources.RuntimeLifetimeRequirement left, Configlue.Sources.RuntimeLifetimeRequirement right) { }
+    }
     public static class SourceContextExtensions
     {
         public static System.Threading.Tasks.ValueTask<Configlue.State.StateReadResult<T>> ReadAsync<T>(this Configlue.Sources.ISourceReader<T> reader, Configlue.Resources.ConfiglueResourceContext context, System.Threading.CancellationToken cancellationToken = default) { }
@@ -874,12 +888,13 @@ namespace Configlue.Sources
         public StateSourceSet(System.Collections.Generic.IEnumerable<Configlue.Sources.StateSource<T>> sources) { }
         public int Count { get; }
         public Configlue.Sources.StateSource<T> this[int index] { get; }
+        public Configlue.Sources.RuntimeLifetimeRequirement RuntimeLifetime { get; }
         public System.Collections.Generic.IReadOnlyList<Configlue.Sources.StateSource<T>> Sources { get; }
     }
     public sealed class StateSource<T>
     {
-        public StateSource(Configlue.Sources.ISourceReader<T> reader, int priority = 0, Configlue.Sources.StateFallbackCondition fallbackCondition = 1, Configlue.Sources.ISourceWriter<T>? writer = null, Configlue.Sources.ISourceWatcher? watcher = null, string? physicalOrigin = null, Configlue.Resources.ResourceId? resourceId = default, string? logicalDescriptor = null, bool explicitOnly = false, System.Func<Configlue.IConfiglueSubject, Configlue.SubjectKey>? subjectKeySelector = null) { }
-        public StateSource(string id, Configlue.Sources.ISourceReader<T> reader, int priority = 0, Configlue.Sources.StateFallbackCondition fallbackCondition = 1, Configlue.Sources.ISourceWriter<T>? writer = null, Configlue.Sources.ISourceWatcher? watcher = null, string? physicalOrigin = null, Configlue.Resources.ResourceId? resourceId = default, bool explicitOnly = false, System.Func<Configlue.IConfiglueSubject, Configlue.SubjectKey>? subjectKeySelector = null) { }
+        public StateSource(Configlue.Sources.ISourceReader<T> reader, int priority = 0, Configlue.Sources.StateFallbackCondition fallbackCondition = 1, Configlue.Sources.ISourceWriter<T>? writer = null, Configlue.Sources.ISourceWatcher? watcher = null, string? physicalOrigin = null, Configlue.Resources.ResourceId? resourceId = default, string? logicalDescriptor = null, bool explicitOnly = false, System.Func<Configlue.IConfiglueSubject, Configlue.SubjectKey>? subjectKeySelector = null, Configlue.Sources.RuntimeLifetimeRequirement runtimeLifetime = 0) { }
+        public StateSource(string id, Configlue.Sources.ISourceReader<T> reader, int priority = 0, Configlue.Sources.StateFallbackCondition fallbackCondition = 1, Configlue.Sources.ISourceWriter<T>? writer = null, Configlue.Sources.ISourceWatcher? watcher = null, string? physicalOrigin = null, Configlue.Resources.ResourceId? resourceId = default, bool explicitOnly = false, System.Func<Configlue.IConfiglueSubject, Configlue.SubjectKey>? subjectKeySelector = null, Configlue.Sources.RuntimeLifetimeRequirement runtimeLifetime = 0) { }
         public bool ExplicitOnly { get; }
         public Configlue.Sources.StateFallbackCondition FallbackCondition { get; }
         public string Id { get; }
@@ -887,6 +902,7 @@ namespace Configlue.Sources
         public int Priority { get; }
         public Configlue.Sources.ISourceReader<T> Reader { get; }
         public Configlue.Resources.ResourceId? ResourceId { get; }
+        public Configlue.Sources.RuntimeLifetimeRequirement RuntimeLifetime { get; }
         public Configlue.Sources.ISourceWatcher? Watcher { get; }
         public Configlue.Sources.ISourceWriter<T>? Writer { get; }
         public Configlue.Resources.ConfiglueResourceContext GetResourceContext(Configlue.IConfiglueSubject subject, Configlue.RouteKey route = default) { }

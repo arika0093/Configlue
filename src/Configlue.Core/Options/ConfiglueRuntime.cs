@@ -14,6 +14,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
     : IConfiglueRuntimeState<TModel>,
         IConfiglueValueCloneProvider<TModel>,
         IConfiglueReloadFailureDiagnostics<TModel>,
+        IConfiglueRuntimeLifetimeProvider,
         ISubjectState<TModel>,
         IDisposable,
         IAsyncDisposable
@@ -85,6 +86,9 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
     private TaskCompletionSource? _operationsDrained;
     private int _activeOperations;
     private bool _disposed;
+
+    RuntimeLifetimeRequirement IConfiglueRuntimeLifetimeProvider.RuntimeLifetime =>
+        _sourceSet.RuntimeLifetime;
 
     /// <summary>Creates state backed by the supplied sources.</summary>
     public ConfiglueRuntime(

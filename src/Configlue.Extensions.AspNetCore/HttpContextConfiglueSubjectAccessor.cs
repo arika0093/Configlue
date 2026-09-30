@@ -2,7 +2,7 @@ using Configlue;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace Configlue.Resource.Http.AspNetCore;
+namespace Configlue.Extensions.AspNetCore;
 
 /// <summary>Resolves a Configlue subject from the current ASP.NET Core request.</summary>
 public sealed class HttpContextConfiglueSubjectAccessor<TSubject>
@@ -81,5 +81,34 @@ public static class HttpContextConfiglueSubjectAccessorServiceCollectionExtensio
         return services.AddHttpContextConfiglueSubjectAccessor<TSubject>(
             (context, _) => ValueTask.FromResult(resolveSubject(context))
         );
+    }
+}
+
+/// <summary>Host-registration extensions for ASP.NET Core subject resolution.</summary>
+public static class HttpContextConfiglueSubjectRegistrationExtensions
+{
+    /// <summary>Resolves the current subject from the active HTTP request.</summary>
+    public static ConfiglueSubjectRegistrationBuilder<TSubject> FromHttpContext<TSubject>(
+        this ConfiglueSubjectRegistrationBuilder<TSubject> builder,
+        Func<HttpContext, CancellationToken, ValueTask<TSubject>> resolveSubject
+    )
+        where TSubject : IConfiglueSubject
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        builder.Services.AddHttpContextConfiglueSubjectAccessor(resolveSubject);
+        return builder;
+    }
+
+    /// <summary>Resolves the current subject from the active HTTP request.</summary>
+    public static ConfiglueSubjectRegistrationBuilder<TSubject> FromHttpContext<TSubject>(
+        this ConfiglueSubjectRegistrationBuilder<TSubject> builder,
+        Func<HttpContext, TSubject> resolveSubject
+    )
+        where TSubject : IConfiglueSubject
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(resolveSubject);
+        builder.Services.AddHttpContextConfiglueSubjectAccessor(resolveSubject);
+        return builder;
     }
 }

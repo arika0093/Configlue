@@ -135,6 +135,7 @@ public sealed class ConfiglueModelBuilder<TModel>
     private Func<TModel, TModel>? _cloneStrategy;
     private Func<IConfiglueSubject, RouteKey>? _routeSelector;
     private Type? _subjectAccessorType;
+    private RuntimeLifetimeRequirement? _runtimeLifetime;
     private bool _sealed;
 
     /// <summary>The name used by state instances and profiles. The default is the unnamed instance.</summary>
@@ -294,6 +295,34 @@ public sealed class ConfiglueModelBuilder<TModel>
         EnsureMutable();
         _subjectAccessorType = typeof(TAccessor);
     }
+
+    /// <summary>Overrides the runtime lifetime inferred from the configured sources.</summary>
+    /// <remarks>
+    /// Most models infer their lifetime from their sources. Use this escape hatch only when a
+    /// custom source or resource cannot declare its own requirement through
+    /// <see cref="ConfiglueSourceRegistration.RuntimeLifetime"/> or
+    /// <see cref="IConfiglueRuntimeLifetimeSource"/>.
+    /// </remarks>
+    public RuntimeLifetimeRequirement RuntimeLifetime
+    {
+        get => _runtimeLifetime ?? RuntimeLifetimeRequirement.Shared;
+        set
+        {
+            EnsureMutable();
+            if (!Enum.IsDefined(value))
+            {
+                throw new ArgumentOutOfRangeException(nameof(value));
+            }
+
+            _runtimeLifetime = value;
+        }
+    }
+
+    /// <summary>Requires this model's runtime to be created per dependency-injection scope.</summary>
+    public void UseScopedRuntime() => RuntimeLifetime = RuntimeLifetimeRequirement.Scoped;
+
+    /// <summary>Keeps this model's runtime shared across dependency-injection scopes.</summary>
+    public void UseSharedRuntime() => RuntimeLifetime = RuntimeLifetimeRequirement.Shared;
 
     /// <summary>Configures sources when the runtime is created, with its name and application services.</summary>
     public void ConfigureSources(Action<ConfiglueSourceRegistrationContext<TModel>> configure)
@@ -462,6 +491,10 @@ public sealed class ConfiglueModelBuilder<TModel>
 
     internal Type? SubjectAccessorType => _subjectAccessorType;
 
+    /// <summary>The runtime lifetime inferred from explicit configuration or the source topology.</summary>
+    internal RuntimeLifetimeRequirement EffectiveRuntimeLifetime =>
+        _runtimeLifetime ?? _sources.DeclaredRuntimeLifetime;
+
     /// <summary>Gets the explicitly configured logger or creates one from the service provider.</summary>
     internal ILogger? GetLogger(IServiceProvider? serviceProvider)
     {
@@ -490,6 +523,7 @@ public sealed class ConfiglueModelBuilder<TModel>
             Logger = _logger,
             _routeSelector = _routeSelector,
             _subjectAccessorType = _subjectAccessorType,
+            _runtimeLifetime = _runtimeLifetime,
             HostPaths = HostPaths,
         };
         clone._sources.CopyFrom(_sources);
@@ -527,6 +561,7 @@ internal interface IConfiglueModelRegistration
     Type? SubjectAccessorType { get; }
     bool EnableDynamicStates { get; }
     bool EnableProfiles { get; }
+    RuntimeLifetimeRequirement RuntimeLifetime { get; }
     object CreateRuntime(
         IServiceProvider? serviceProvider,
         Action<IDisposable> ownResource,
@@ -543,7 +578,7 @@ internal interface IConfiglueModelRegistration
         IServiceProvider? serviceProvider,
         Action<IDisposable> ownResource
     );
-    void AddServiceDescriptors(IServiceCollection services);
+    void AddServiceDescriptors(IServiceCollection services, IConfiglueHostPaths hostPaths);
     void Accept(IConfiglueRegistrationVisitor visitor);
 }
 
@@ -571,6 +606,8 @@ internal sealed class ConfiglueModelRegistration<TModel>(ConfiglueModelBuilder<T
 
     public bool EnableProfiles => builder.HasProfileCatalog;
 
+    public RuntimeLifetimeRequirement RuntimeLifetime => builder.EffectiveRuntimeLifetime;
+
     public object CreateRuntime(
         IServiceProvider? serviceProvider,
         Action<IDisposable> ownResource,
@@ -578,11 +615,24 @@ internal sealed class ConfiglueModelRegistration<TModel>(ConfiglueModelBuilder<T
     )
     {
         builder.HostPaths = hostPaths;
-        return ConfiglueModelDescriptor<TModel>.Current.CreateRuntime(
+        var runtime = ConfiglueModelDescriptor<TModel>.Current.CreateRuntime(
             builder,
             serviceProvider,
             ownResource
         );
+        if (
+            RuntimeLifetime != RuntimeLifetimeRequirement.Scoped
+            && runtime is IConfiglueRuntimeLifetimeProvider lifetimeProvider
+            && lifetimeProvider.RuntimeLifetime == RuntimeLifetimeRequirement.Scoped
+        )
+        {
+            throw new InvalidOperationException(
+                $"Model '{typeof(TModel)}' is registered with a shared runtime but one of its sources requires a scoped runtime. "
+                    + "Register the scoped source through the dependency-injection model registration path, or mark the model scoped."
+            );
+        }
+
+        return runtime;
     }
 
     public object CreateProfileManager(
@@ -696,7 +746,7 @@ internal sealed class ConfiglueModelRegistration<TModel>(ConfiglueModelBuilder<T
             reservedNames
         );
 
-    public void AddServiceDescriptors(IServiceCollection services)
+    public void AddServiceDescriptors(IServiceCollection services, IConfiglueHostPaths hostPaths)
     {
         if (EnableDynamicStates)
         {
@@ -709,6 +759,11 @@ internal sealed class ConfiglueModelRegistration<TModel>(ConfiglueModelBuilder<T
             services.AddSingleton<IConfiglueProfiledState<TModel>>(provider =>
                 provider.GetRequiredService<ConfiglueContext>().GetProfiledState<TModel>()
             );
+        }
+        if (RuntimeLifetime == RuntimeLifetimeRequirement.Scoped)
+        {
+            AddScopedStateServices(services, hostPaths);
+            return;
         }
         if (IsPerSubject)
         {
@@ -797,6 +852,167 @@ internal sealed class ConfiglueModelRegistration<TModel>(ConfiglueModelBuilder<T
                         .GetSubjectState<TModel>(StateName)
             );
         }
+    }
+
+    private void AddScopedStateServices(IServiceCollection services, IConfiglueHostPaths hostPaths)
+    {
+        services.AddScoped(provider =>
+        {
+            var resources = new List<IDisposable>();
+            var resourceSet = new HashSet<IDisposable>(ReferenceIdentityComparer.Instance);
+            var runtime =
+                (IConfiglueRuntimeState<TModel>)
+                    CreateRuntime(
+                        provider,
+                        resource =>
+                        {
+                            ArgumentNullException.ThrowIfNull(resource);
+                            if (resourceSet.Add(resource))
+                            {
+                                resources.Add(resource);
+                            }
+                        },
+                        hostPaths
+                    );
+            return new ConfiglueScopedRuntime<TModel>(runtime, resources);
+        });
+
+        if (IsPerSubject)
+        {
+            var subjectAccessorType = SubjectAccessorType!;
+            if (StateName.Length == 0)
+            {
+                services.AddScoped(provider => new CurrentSubjectState<TModel>(
+                    (ISubjectState<TModel>)
+                        provider.GetRequiredService<ConfiglueScopedRuntime<TModel>>().Runtime,
+                    (IConfiglueSubjectAccessor)provider.GetRequiredService(subjectAccessorType)
+                ));
+                services.AddScoped<IReadOnlyState<TModel>>(provider =>
+                    provider.GetRequiredService<CurrentSubjectState<TModel>>()
+                );
+                services.AddScoped<IWritableState<TModel>>(provider =>
+                    provider.GetRequiredService<CurrentSubjectState<TModel>>()
+                );
+                AddScopedRuntimeFacades(
+                    services,
+                    provider =>
+                        provider.GetRequiredService<ConfiglueScopedRuntime<TModel>>().Runtime
+                );
+            }
+            else
+            {
+                services.AddKeyedScoped(
+                    StateName,
+                    (provider, _) =>
+                        new CurrentSubjectState<TModel>(
+                            (ISubjectState<TModel>)
+                                provider
+                                    .GetRequiredService<ConfiglueScopedRuntime<TModel>>()
+                                    .Runtime,
+                            (IConfiglueSubjectAccessor)
+                                provider.GetRequiredService(subjectAccessorType)
+                        )
+                );
+                services.AddKeyedScoped<IReadOnlyState<TModel>>(
+                    StateName,
+                    (provider, key) =>
+                        provider.GetRequiredKeyedService<CurrentSubjectState<TModel>>(key)
+                );
+                services.AddKeyedScoped<IWritableState<TModel>>(
+                    StateName,
+                    (provider, key) =>
+                        provider.GetRequiredKeyedService<CurrentSubjectState<TModel>>(key)
+                );
+                AddKeyedScopedRuntimeFacades(
+                    services,
+                    StateName,
+                    (provider, _) =>
+                        provider.GetRequiredService<ConfiglueScopedRuntime<TModel>>().Runtime
+                );
+            }
+        }
+        else if (StateName.Length == 0)
+        {
+            services.AddScoped<IReadOnlyState<TModel>>(provider =>
+                provider.GetRequiredService<ConfiglueScopedRuntime<TModel>>().Runtime
+            );
+            services.AddScoped<IWritableState<TModel>>(provider =>
+                provider.GetRequiredService<ConfiglueScopedRuntime<TModel>>().Runtime
+            );
+            AddScopedRuntimeFacades(
+                services,
+                provider => provider.GetRequiredService<ConfiglueScopedRuntime<TModel>>().Runtime
+            );
+        }
+        else
+        {
+            services.AddKeyedScoped<IReadOnlyState<TModel>>(
+                StateName,
+                (provider, _) =>
+                    provider.GetRequiredService<ConfiglueScopedRuntime<TModel>>().Runtime
+            );
+            services.AddKeyedScoped<IWritableState<TModel>>(
+                StateName,
+                (provider, _) =>
+                    provider.GetRequiredService<ConfiglueScopedRuntime<TModel>>().Runtime
+            );
+            AddKeyedScopedRuntimeFacades(
+                services,
+                StateName,
+                (provider, _) =>
+                    provider.GetRequiredService<ConfiglueScopedRuntime<TModel>>().Runtime
+            );
+        }
+    }
+
+    private static void AddScopedRuntimeFacades(
+        IServiceCollection services,
+        Func<IServiceProvider, IWritableState<TModel>> getRuntime
+    )
+    {
+        services.AddScoped<ISubjectState<TModel>>(provider =>
+            (ISubjectState<TModel>)getRuntime(provider)
+        );
+        services.AddScoped<IConfiglueInspection<TModel>>(provider =>
+            (IConfiglueInspection<TModel>)getRuntime(provider)
+        );
+        services.AddScoped<IConfiglueEditSessions<TModel>>(provider =>
+            (IConfiglueEditSessions<TModel>)getRuntime(provider)
+        );
+        services.AddScoped<IConfiglueDiagnostics<TModel>>(provider =>
+            (IConfiglueDiagnostics<TModel>)getRuntime(provider)
+        );
+        services.AddScoped<IConfiglueSources<TModel>>(provider =>
+            (IConfiglueSources<TModel>)getRuntime(provider)
+        );
+    }
+
+    private static void AddKeyedScopedRuntimeFacades(
+        IServiceCollection services,
+        object serviceKey,
+        Func<IServiceProvider, object?, IWritableState<TModel>> getRuntime
+    )
+    {
+        services.AddKeyedScoped<ISubjectState<TModel>>(
+            serviceKey,
+            (provider, key) => (ISubjectState<TModel>)getRuntime(provider, key)
+        );
+        services.AddKeyedScoped<IConfiglueInspection<TModel>>(
+            serviceKey,
+            (provider, key) => (IConfiglueInspection<TModel>)getRuntime(provider, key)
+        );
+        services.AddKeyedScoped<IConfiglueEditSessions<TModel>>(
+            serviceKey,
+            (provider, key) => (IConfiglueEditSessions<TModel>)getRuntime(provider, key)
+        );
+        services.AddKeyedScoped<IConfiglueDiagnostics<TModel>>(
+            serviceKey,
+            (provider, key) => (IConfiglueDiagnostics<TModel>)getRuntime(provider, key)
+        );
+        services.AddKeyedScoped<IConfiglueSources<TModel>>(
+            serviceKey,
+            (provider, key) => (IConfiglueSources<TModel>)getRuntime(provider, key)
+        );
     }
 
     public void Accept(IConfiglueRegistrationVisitor visitor) => visitor.Visit(this);

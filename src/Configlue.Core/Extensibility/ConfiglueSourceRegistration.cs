@@ -9,6 +9,7 @@ public sealed class ConfiglueSourceRegistration
     private StateFallbackCondition? _fallbackCondition;
     private bool? _readOnly;
     private bool? _explicitOnly;
+    private RuntimeLifetimeRequirement? _runtimeLifetime;
 
     internal ConfiglueSourceRegistration(Action ensureMutable) => _ensureMutable = ensureMutable;
 
@@ -71,6 +72,29 @@ public sealed class ConfiglueSourceRegistration
         return this;
     }
 
+    /// <summary>Overrides the runtime lifetime required by this source's provider.</summary>
+    /// <remarks>
+    /// Prefer letting the provider or source definition declare its own requirement. This is an
+    /// advanced escape hatch and takes precedence over the provider declaration.
+    /// </remarks>
+    public ConfiglueSourceRegistration RuntimeLifetime(RuntimeLifetimeRequirement lifetime)
+    {
+        _ensureMutable();
+        if (!Enum.IsDefined(lifetime))
+        {
+            throw new ArgumentOutOfRangeException(nameof(lifetime));
+        }
+
+        _runtimeLifetime = lifetime;
+        return this;
+    }
+
+    /// <summary>Requires a runtime created per dependency-injection scope for this source.</summary>
+    public ConfiglueSourceRegistration ScopedRuntime() =>
+        RuntimeLifetime(Sources.RuntimeLifetimeRequirement.Scoped);
+
+    internal RuntimeLifetimeRequirement? RuntimeLifetimeOverride => _runtimeLifetime;
+
     internal StateSource<TFragment> Apply<TFragment>(StateSource<TFragment> source)
         where TFragment : class, IConfiglueFragment<TFragment>
     {
@@ -87,6 +111,7 @@ public sealed class ConfiglueSourceRegistration
             && _fallbackCondition is null
             && _readOnly is null
             && _explicitOnly is null
+            && _runtimeLifetime is null
         )
         {
             return source;
@@ -102,7 +127,8 @@ public sealed class ConfiglueSourceRegistration
             source.PhysicalOrigin,
             source.ConfiguredResourceId,
             _explicitOnly ?? source.ExplicitOnly,
-            source.GetSubjectKey
+            source.GetSubjectKey,
+            _runtimeLifetime ?? source.RuntimeLifetime
         );
         source.CopyRoutingMetadataTo(configured, _explicitOnly);
         return configured;

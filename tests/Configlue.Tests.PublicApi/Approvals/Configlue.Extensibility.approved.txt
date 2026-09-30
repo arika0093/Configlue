@@ -8,6 +8,8 @@ namespace Configlue.Extensibility
         public Configlue.Extensibility.ConfiglueSourceRegistration Named(string name) { }
         public Configlue.Extensibility.ConfiglueSourceRegistration Priority(int priority) { }
         public Configlue.Extensibility.ConfiglueSourceRegistration ReadOnly(bool readOnly = true) { }
+        public Configlue.Extensibility.ConfiglueSourceRegistration RuntimeLifetime(Configlue.Sources.RuntimeLifetimeRequirement lifetime) { }
+        public Configlue.Extensibility.ConfiglueSourceRegistration ScopedRuntime() { }
         public Configlue.Extensibility.ConfiglueSourceRegistration Writable() { }
     }
     public static class ConfiglueSourceSetBuilderMountExtensions

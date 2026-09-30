@@ -112,14 +112,14 @@ services.AddConfiglue(conf =>
 
 アクセサーに `IConfiglueSubjectChangeSource` も実装すると、通知を受けた `OnChange` 購読が subject を再解決し、その subject の watcher に接続し直します。認証状態などが同じスコープ内で変わる場合に使えます。この任意インターフェイスを実装しない場合、watcher は購読開始時に解決した subject を監視し続けます。
 
-任意の `Configlue.Resource.Http.AspNetCore` パッケージには、HTTP リクエストおよび Blazor 認証状態から subject を解決するアクセサーがあります。フレームワーク固有のコンテキストや claims への依存は Core パッケージに入りません。
+任意の `Configlue.Extensions.AspNetCore` / `Configlue.Extensions.Blazor` パッケージには、HTTP リクエストおよび Blazor 認証状態から subject を解決するアクセサーがあります。フレームワーク固有のコンテキストや claims への依存は Core パッケージに入りません。
 
 ```csharp
-services.AddHttpContextConfiglueSubjectAccessor<TenantSubject>(
-    context => new TenantSubject(context.User.FindFirst("tenant")!.Value));
+services.AddConfiglueSubject<TenantSubject>()
+    .FromHttpContext(context => new TenantSubject(context.User.FindFirst("tenant")!.Value));
 
-services.AddBlazorAuthenticationConfiglueSubjectAccessor<TenantSubject>(
-    (principal, _) => ValueTask.FromResult(
+services.AddConfiglueSubject<TenantSubject>()
+    .FromBlazorAuthenticationState((principal, _) => ValueTask.FromResult(
         new TenantSubject(principal.FindFirst("tenant")!.Value)));
 ```
 

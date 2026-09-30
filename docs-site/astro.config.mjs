@@ -97,6 +97,7 @@ export default defineConfig({
                 'sources/environment-and-commandline',
                 'getting-started/07-http-source',
                 'sources/http-and-zip',
+                'sources/web-storage',
                 'sources/fallback-and-custom',
               ],
             },

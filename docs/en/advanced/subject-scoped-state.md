@@ -82,21 +82,26 @@ An accessor may implement `IConfiglueSubjectChangeSource` when its subject can c
 
 ## ASP.NET Core and Blazor Server
 
-The optional `Configlue.Resource.Http.AspNetCore` package supplies adapters for HTTP request and Blazor authentication contexts. The application defines the subject type and decides which claims or services determine its key:
+Host-specific accessors live in dedicated integration packages: `Configlue.Extensions.AspNetCore` for the current HTTP request and `Configlue.Extensions.Blazor` for the current authentication state. The application defines the subject type and decides which claims or services determine its key. Prefer the small registration builder:
 
 ```csharp
-services.AddHttpContextConfiglueSubjectAccessor<TenantSubject>(
-    context => ResolveTenantSubject(context.User));
+services.AddConfiglueSubject<TenantSubject>()
+    .FromHttpContext(context => ResolveTenantSubject(context.User));
 
-services.AddBlazorAuthenticationConfiglueSubjectAccessor<TenantSubject>(
-    (principal, _) => ValueTask.FromResult(ResolveTenantSubject(principal)));
+// Or, for a Blazor circuit:
+services.AddConfiglueSubject<TenantSubject>()
+    .FromBlazorAuthenticationState(
+        (principal, _) => ValueTask.FromResult(ResolveTenantSubject(principal)));
 
 // On the matching model:
 model.PerSubject<HttpContextConfiglueSubjectAccessor<TenantSubject>>();
 // Or use BlazorAuthenticationConfiglueSubjectAccessor<TenantSubject>.
 ```
 
-The HTTP adapter resolves request state for each scoped operation. The Blazor adapter observes authentication-state changes, so active `OnChange` subscriptions follow the new subject. Core has no dependency on ASP.NET Core, Blazor, or claims.
+The lower-level `AddHttpContextConfiglueSubjectAccessor<TSubject>(...)` and `AddBlazorAuthenticationConfiglueSubjectAccessor<TSubject>(...)` methods remain available. The HTTP adapter resolves request state for each scoped operation. The Blazor adapter observes authentication-state changes, so active `OnChange` subscriptions follow the new subject. Core and the HTTP resource host have no dependency on ASP.NET Core request or Blazor authentication types.
+
+Accessors are scoped, but selecting one with `PerSubject` only scopes the current-subject *view*; the underlying runtime stays shared. A source that consumes a scoped host dependency—such as a browser JavaScript runtime—declares a scoped runtime requirement instead, so its whole runtime is created per scope. See [web storage](../sources/web-storage.md).
+
 
 ## Shared change watching
 

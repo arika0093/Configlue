@@ -16,6 +16,8 @@
     <ProjectReference Include="../../src/Configlue.Abstraction/Configlue.Abstraction.csproj" />
     <ProjectReference Include="../../src/Configlue.Core/Configlue.Core.csproj" />
     <ProjectReference Include="../../src/Configlue.Extensions.DI/Configlue.Extensions.DI.csproj" />
+    <ProjectReference Include="../../src/Configlue.Extensions.AspNetCore/Configlue.Extensions.AspNetCore.csproj" />
+    <ProjectReference Include="../../src/Configlue.Extensions.Blazor/Configlue.Extensions.Blazor.csproj" />
     <ProjectReference Include="../../src/Configlue.Extensions.MSOptions/Configlue.Extensions.MSOptions.csproj" />
     <ProjectReference Include="../../src/Configlue.Extensions.R3/Configlue.Extensions.R3.csproj" />
     <ProjectReference Include="../../src/Configlue.Provider.Json/Configlue.Provider.Json.csproj" />
@@ -30,6 +32,7 @@
     <ProjectReference Include="../../src/Configlue.Resource.Http.AspNetCore/Configlue.Resource.Http.AspNetCore.csproj" />
     <ProjectReference Include="../../src/Configlue.Resource.PostgreSql/Configlue.Resource.PostgreSql.csproj" />
     <ProjectReference Include="../../src/Configlue.Resource.Redis/Configlue.Resource.Redis.csproj" />
+    <ProjectReference Include="../../src/Configlue.Resource.WebStorage/Configlue.Resource.WebStorage.csproj" />
     <ProjectReference Include="../../src/Configlue.Testing/Configlue.Testing.csproj" />
     <ProjectReference Include="../../src/Configlue.Transformer.AES/Configlue.Transformer.AES.csproj" />
     <ProjectReference Include="../../src/Configlue.Generator/Configlue.Generator.csproj" />

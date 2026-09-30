@@ -4,7 +4,7 @@ using Configlue;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace Configlue.Resource.Http.AspNetCore;
+namespace Configlue.Extensions.Blazor;
 
 /// <summary>Resolves a Configlue subject from the current Blazor authentication state.</summary>
 public sealed class BlazorAuthenticationConfiglueSubjectAccessor<TSubject>
@@ -127,5 +127,36 @@ public static class BlazorAuthenticationConfiglueSubjectAccessorServiceCollectio
             provider.GetRequiredService<BlazorAuthenticationConfiglueSubjectAccessor<TSubject>>()
         );
         return services;
+    }
+}
+
+/// <summary>Host-registration extensions for Blazor subject resolution.</summary>
+public static class BlazorAuthenticationConfiglueSubjectRegistrationExtensions
+{
+    /// <summary>Resolves the current subject from the Blazor authentication state provider.</summary>
+    public static ConfiglueSubjectRegistrationBuilder<TSubject> FromBlazorAuthenticationState<TSubject>(
+        this ConfiglueSubjectRegistrationBuilder<TSubject> builder,
+        Func<ClaimsPrincipal, CancellationToken, ValueTask<TSubject>> resolveSubject
+    )
+        where TSubject : IConfiglueSubject
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        builder.Services.AddBlazorAuthenticationConfiglueSubjectAccessor(resolveSubject);
+        return builder;
+    }
+
+    /// <summary>Resolves the current subject from the Blazor authentication state provider.</summary>
+    public static ConfiglueSubjectRegistrationBuilder<TSubject> FromBlazorAuthenticationState<TSubject>(
+        this ConfiglueSubjectRegistrationBuilder<TSubject> builder,
+        Func<ClaimsPrincipal, TSubject> resolveSubject
+    )
+        where TSubject : IConfiglueSubject
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(resolveSubject);
+        builder.Services.AddBlazorAuthenticationConfiglueSubjectAccessor(
+            (principal, _) => ValueTask.FromResult(resolveSubject(principal))
+        );
+        return builder;
     }
 }

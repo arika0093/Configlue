@@ -82,21 +82,26 @@ scope の途中で subject が変わる可能性があれば accessor は `IConf
 
 ## ASP.NET Core と Blazor Server
 
-任意の `Configlue.Resource.Http.AspNetCore` package には HTTP request と Blazor authentication context 用の adapter があります。subject 型はアプリケーション側で定義し、どの claim や service から key を決めるかもアプリケーションが選びます。
+ホスト固有の accessor は専用の統合パッケージに入っています。ASP.NET Core の現在リクエストは `Configlue.Extensions.AspNetCore`、Blazor の認証状態は `Configlue.Extensions.Blazor` です。subject 型はアプリケーション側で定義し、どの claim や service から key を決めるかもアプリケーションが選びます。小さな登録ビルダーを推奨します:
 
 ```csharp
-services.AddHttpContextConfiglueSubjectAccessor<TenantSubject>(
-    context => ResolveTenantSubject(context.User));
+services.AddConfiglueSubject<TenantSubject>()
+    .FromHttpContext(context => ResolveTenantSubject(context.User));
 
-services.AddBlazorAuthenticationConfiglueSubjectAccessor<TenantSubject>(
-    (principal, _) => ValueTask.FromResult(ResolveTenantSubject(principal)));
+// Blazor circuit の場合:
+services.AddConfiglueSubject<TenantSubject>()
+    .FromBlazorAuthenticationState(
+        (principal, _) => ValueTask.FromResult(ResolveTenantSubject(principal)));
 
 // 対応する model に指定する:
 model.PerSubject<HttpContextConfiglueSubjectAccessor<TenantSubject>>();
 // または BlazorAuthenticationConfiglueSubjectAccessor<TenantSubject>
 ```
 
-HTTP adapter は各 scoped operation で request state を解決します。Blazor adapter は authentication state の変更を監視し、active な `OnChange` subscription を新しい subject に追従させます。Core は ASP.NET Core、Blazor、claims に依存しません。
+低レベルの `AddHttpContextConfiglueSubjectAccessor<TSubject>(...)` と `AddBlazorAuthenticationConfiglueSubjectAccessor<TSubject>(...)` も利用できます。HTTP adapter は各 scoped operation で request state を解決します。Blazor adapter は authentication state の変更を監視し、active な `OnChange` subscription を新しい subject に追従させます。Core と HTTP resource host は ASP.NET Core の request 型や Blazor 認証型に依存しません。
+
+accessor は scoped ですが、`PerSubject` で選んでもスコープ化されるのは current-subject **ビュー**だけであり、基盤の runtime は共有されたままです。ブラウザー JavaScript runtime のような scoped host 依存を消費する source は、代わりに scoped runtime 要件を宣言し、runtime 全体がスコープ単位で生成されます。[ブラウザー WebStorage](../sources/web-storage.md)を参照してください。
+
 
 ## 共有 change watch
 
