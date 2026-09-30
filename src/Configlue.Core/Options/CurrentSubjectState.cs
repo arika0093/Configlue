@@ -1,10 +1,12 @@
+using Configlue.CompilerServices;
+
 namespace Configlue;
 
 /// <summary>Scoped facade that resolves the accessor's current subject for each operation.</summary>
 internal sealed class CurrentSubjectState<TModel>(
     ISubjectState<TModel> subjectOptions,
     IConfiglueSubjectAccessor subjectAccessor
-) : IWritableState<TModel>
+) : IWritableState<TModel>, IConfiglueDetailsRuntime
 {
     public async ValueTask<TModel> GetValueAsync(CancellationToken cancellationToken = default)
     {
@@ -42,6 +44,24 @@ internal sealed class CurrentSubjectState<TModel>(
         );
         subscription.Start();
         return subscription;
+    }
+
+    async ValueTask<ConfiglueDetailsSnapshot> IConfiglueDetailsRuntime.GetDetailsSnapshotAsync(
+        CancellationToken cancellationToken
+    )
+    {
+        var subject = await subjectAccessor
+            .GetCurrentSubjectAsync(cancellationToken)
+            .ConfigureAwait(false);
+        var options = subjectOptions.ForSubject(subject);
+        if (options is not IConfiglueDetailsRuntime details)
+        {
+            throw new NotSupportedException(
+                "This options implementation does not expose details snapshots."
+            );
+        }
+
+        return await details.GetDetailsSnapshotAsync(cancellationToken).ConfigureAwait(false);
     }
 }
 
