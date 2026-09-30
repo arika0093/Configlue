@@ -9,7 +9,6 @@
   <ItemGroup>
     <ProjectReference Include="../../basic/Configlue.Abstraction/Configlue.Abstraction.csproj" />
     <ProjectReference Include="../../basic/Configlue.Core/Configlue.Core.csproj" />
-    <ProjectReference Include="../../resources/Configlue.Resource.Http/Configlue.Resource.Http.csproj" />
     <PackageReference Include="System.IO.Pipelines" Version="10.0.0" />
     <PackageReference
       Include="System.Text.Json"

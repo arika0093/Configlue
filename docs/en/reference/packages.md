@@ -5,11 +5,11 @@ description: Find the NuGet package for each Configlue capability.
 
 | Package | Purpose |
 | --- | --- |
-| `Configlue` | Portable convenience package: common layered and single-binary presets plus Core (including DI registration), DI HTTP-client adapters, JSON provider, HTTP resources, environment source, and the generator analyzer. AES is opt-in. |
+| `Configlue` | Portable convenience package: common layered and single-binary presets plus Core, the Microsoft dependency-injection integration, JSON provider, HTTP resources (including named `IHttpClientFactory` support), environment source, and the generator analyzer. AES is opt-in. |
 | `Configlue.Abstraction` | Provider, codec, resource, and generated-model contracts. |
-| `Configlue.Core` | Serializer-neutral state resolution runtime, dependency-injection registration, provider-authoring helpers, ZIP resources, and common file-preset SPI. |
-| `Configlue.Extensions.DI` | HTTP source adapters backed by named `IHttpClientFactory` clients. |
-| `Configlue.Extensions.MSOptions` | Optional adapters for Microsoft's options interfaces. |
+| `Configlue.Core` | Framework-neutral serializer-neutral state resolution runtime, builder/context model, provider-authoring helpers, ZIP resources, and common file-preset SPI. Usable without a dependency-injection container. |
+| `Configlue.Extensions.DI` | Microsoft dependency-injection integration: `IServiceCollection` registration for generated state, profiles, per-subject host integration, and scoped/keyed lifetimes. |
+| `Configlue.Extensions.MSOptions` | Optional adapters for Microsoft's options interfaces, including the `IValidateOptions<T>` validator bridge. |
 | `Configlue.Extensions.R3` | Optional R3 observables for composing values, profiles, and reload signals. |
 | `Configlue.Generator` | Generated sparse model support (Roslyn analyzer). |
 | `Configlue.Testing` | In-memory resources and test doubles. |
@@ -19,7 +19,7 @@ description: Find the NuGet package for each Configlue capability.
 | `Configlue.Provider.Yaml` | YAML codec with section resources, file registrations, and common-preset YAML selection. |
 | `Configlue.Source.Environment` | Read-only source backed by process environment variables. |
 | `Configlue.Source.CommandLine` | Read-only source backed by a `System.CommandLine` parse result, with opt-in common preset integration. |
-| `Configlue.Resource.Http` | HTTP read/write resources with ETag revisions and polling change detection. |
+| `Configlue.Resource.Http` | HTTP read/write resources with ETag revisions, polling change detection, JSON-over-HTTP source registration, and named `IHttpClientFactory` source support. |
 | `Configlue.Resource.Http.AspNetCore` | ASP.NET Core endpoints for serving HTTP resources. |
 | `Configlue.Extensions.AspNetCore` | Current-request subject integration for ASP.NET Core (`IHttpContextAccessor`). |
 | `Configlue.Extensions.Blazor` | Blazor authentication-state subject integration and circuit change notifications. |
@@ -34,10 +34,10 @@ description: Find the NuGet package for each Configlue capability.
 | Package | Assets | Direct NuGet dependencies and minimum-TFM notes |
 | --- | --- | --- |
 | `Configlue.Abstraction` | `netstandard2.0;netstandard2.1;net10.0` | `System.Memory` 4.6.3 and `Microsoft.Bcl.AsyncInterfaces` 10.0.5 on `netstandard2.0` only; the `netstandard2.1` asset uses the platform async-iterator surface without compatibility packages. |
-| `Configlue.Core` | `netstandard2.0;netstandard2.1;net10.0` | `Microsoft.Extensions.DependencyInjection.Abstractions` 10.0.0, `Microsoft.Extensions.Logging.Abstractions` 10.0.0, `System.IO.Hashing` 10.0.0, and `System.IO.Pipelines` 10.0.0; `System.ComponentModel.Annotations` 5.0.0 and `System.Threading.Channels` 10.0.5 on both Standard assets, with `Microsoft.Bcl.AsyncInterfaces` 10.0.5 and `System.Threading.Tasks.Extensions` 4.6.3 on `netstandard2.0` only. Core has no `System.Text.Json` package dependency. |
+| `Configlue.Core` | `netstandard2.0;netstandard2.1;net10.0` | `Microsoft.Extensions.Logging.Abstractions` 10.0.0, `System.IO.Hashing` 10.0.0, and `System.IO.Pipelines` 10.0.0; `System.ComponentModel.Annotations` 5.0.0 and `System.Threading.Channels` 10.0.5 on both Standard assets, with `Microsoft.Bcl.AsyncInterfaces` 10.0.5 and `System.Threading.Tasks.Extensions` 4.6.3 on `netstandard2.0` only. Core has no `System.Text.Json` and no Microsoft dependency-injection or options package dependency. |
 | `Configlue` | `netstandard2.0;netstandard2.1;net10.0` | No direct NuGet dependencies; project references provide the portable Core/DI/JSON/HTTP/environment graph. AES is not referenced. |
-| `Configlue.Extensions.DI` | `netstandard2.0;netstandard2.1;net10.0` | `Microsoft.Extensions.DependencyInjection.Abstractions` 10.0.0 and `Microsoft.Extensions.Http` 10.0.0. |
-| `Configlue.Extensions.MSOptions` | `netstandard2.0;netstandard2.1;net10.0` | `Microsoft.Extensions.Options` 10.0.0. |
+| `Configlue.Extensions.DI` | `netstandard2.0;netstandard2.1;net10.0` | `Microsoft.Extensions.DependencyInjection.Abstractions` 10.0.0. |
+| `Configlue.Extensions.MSOptions` | `netstandard2.0;netstandard2.1;net10.0` | `Microsoft.Extensions.Options` 10.0.0 and `Microsoft.Extensions.DependencyInjection.Abstractions` 10.0.0. |
 | `Configlue.Extensions.R3` | `netstandard2.0;netstandard2.1;net10.0` | `R3` 1.3.1. |
 | `Configlue.Generator` | `netstandard2.0` | `Microsoft.CodeAnalysis.CSharp` 4.11.0 and `Microsoft.CodeAnalysis.Analyzers` 3.11.0 (private analyzer dependencies). |
 | `Configlue.Testing` | `netstandard2.0;netstandard2.1;net10.0` | No direct NuGet dependencies. |
@@ -47,7 +47,7 @@ description: Find the NuGet package for each Configlue capability.
 | `Configlue.Provider.Yaml` | `netstandard2.0;netstandard2.1;net10.0` | `SharpYaml` 3.13.1. |
 | `Configlue.Source.Environment` | `netstandard2.0;netstandard2.1;net10.0` | `System.Text.Json` 10.0.0 on both Standard assets. |
 | `Configlue.Source.CommandLine` | `netstandard2.0;netstandard2.1;net10.0` | `System.CommandLine` 2.0.12. |
-| `Configlue.Resource.Http` | `netstandard2.0;netstandard2.1;net10.0` | No direct NuGet dependencies. |
+| `Configlue.Resource.Http` | `netstandard2.0;netstandard2.1;net10.0` | `Configlue.Provider.Json` (JSON-over-HTTP codec), `Microsoft.Extensions.DependencyInjection.Abstractions` 10.0.0, and `Microsoft.Extensions.Http` 10.0.0 for named `IHttpClientFactory` client support. |
 | `Configlue.Resource.Http.AspNetCore` | `net10.0` | `Microsoft.AspNetCore.App` framework reference. |
 | `Configlue.Extensions.AspNetCore` | `net10.0` | `Microsoft.AspNetCore.App` framework reference. |
 | `Configlue.Extensions.Blazor` | `net10.0` | `Microsoft.AspNetCore.App` framework reference. |

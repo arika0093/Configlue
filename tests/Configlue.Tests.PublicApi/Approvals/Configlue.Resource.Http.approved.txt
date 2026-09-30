@@ -1,6 +1,11 @@
 [assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/arika0093/Configlue")]
 namespace Configlue.Resource.Http
 {
+    public static class HttpClientFactorySourceExtensions
+    {
+        public static void FromHttpClientFactory(this Configlue.ConfiglueSourceSetBuilder sources, string clientName, Configlue.Resource.Http.HttpSourceOptions options) { }
+        public static void FromJsonHttpClientFactory(this Configlue.ConfiglueSourceSetBuilder sources, string clientName, Configlue.Resource.Http.JsonHttpSourceOptions options) { }
+    }
     public sealed class HttpResourceOptions
     {
         public HttpResourceOptions() { }
@@ -59,5 +64,27 @@ namespace Configlue.Resource.Http
     public static class HttpSourceRegistration
     {
         public static Configlue.Extensibility.ConfiglueSourceRegistration FromHttp(this Configlue.ConfiglueSourceSetBuilder sources, Configlue.Resource.Http.HttpSourceOptions options) { }
+    }
+    public sealed class JsonHttpSourceOptions
+    {
+        public JsonHttpSourceOptions() { }
+        public System.Net.Http.HttpClient? Client { get; init; }
+        public System.Func<System.IServiceProvider?, System.Net.Http.HttpClient>? ClientFactory { get; init; }
+        public Configlue.Codecs.StateCodecContext CodecContext { get; init; }
+        public Configlue.Codecs.DocumentLayoutOptions? DocumentLayout { get; init; }
+        public required string EndPoint { get; init; }
+        public Configlue.Sources.StateFallbackCondition FallbackCondition { get; init; }
+        public string? Id { get; init; }
+        public int Priority { get; init; }
+        public Configlue.Resources.ResourceId? ResourceId { get; init; }
+        public Configlue.Resource.Http.HttpResourceOptions? ResourceOptions { get; init; }
+        public System.Text.Json.JsonSerializerOptions? SerializerOptions { get; init; }
+        public System.Collections.Generic.IReadOnlyList<Configlue.Transformers.IStateByteTransformer>? Transformers { get; init; }
+        public bool WatchChanges { get; init; }
+        public bool Writable { get; init; }
+    }
+    public static class JsonHttpSourceRegistration
+    {
+        public static Configlue.Extensibility.ConfiglueSourceRegistration FromJsonHttp(this Configlue.ConfiglueSourceSetBuilder sources, Configlue.Resource.Http.JsonHttpSourceOptions options) { }
     }
 }

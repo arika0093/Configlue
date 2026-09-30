@@ -9,5 +9,6 @@
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <ProjectReference Include="../../basic/Configlue.Core/Configlue.Core.csproj" />
+    <ProjectReference Include="../Configlue.Extensions.DI/Configlue.Extensions.DI.csproj" />
   </ItemGroup>
 </Project>

@@ -1,9 +1,47 @@
 [assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/arika0093/Configlue")]
-namespace Configlue.Resource.Http
+namespace Configlue
 {
-    public static class HttpClientFactorySourceExtensions
+    public static class ConfiglueProfiledStateServiceCollectionExtensions
     {
-        public static void FromHttpClientFactory(this Configlue.ConfiglueSourceSetBuilder sources, string clientName, Configlue.Resource.Http.HttpSourceOptions options) { }
-        public static void FromJsonHttpClientFactory(this Configlue.ConfiglueSourceSetBuilder sources, string clientName, Configlue.Provider.Json.JsonHttpSourceOptions options) { }
+        public static Microsoft.Extensions.DependencyInjection.IServiceCollection AddConfiglueProfiledState<TModel, TFragment>(this Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Func<System.IServiceProvider, string, Configlue.Sources.StateSourceSet<TFragment>> profileSourceSetFactory, System.Func<System.IServiceProvider, Configlue.Sources.StateSource<Configlue.ConfiglueProfileCatalog>> catalogSourceFactory, string defaultProfileName = "default", Configlue.StateWriteRoute writeRoute = default, bool validateDataAnnotations = true, System.TimeSpan? onChangeDebounce = default, Configlue.WriteConflictResolution writeConflictResolution = 0)
+            where TModel : Configlue.CompilerServices.IConfiglueModel<TModel, TFragment>
+            where TFragment :  class, Configlue.IConfiglueFragment<TFragment> { }
+    }
+    public static class ConfiglueServiceCollectionExtensions
+    {
+        public static Microsoft.Extensions.DependencyInjection.IServiceCollection AddConfiglue(this Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Action<Configlue.ConfiglueBuilder> configure) { }
+        public static Microsoft.Extensions.DependencyInjection.IServiceCollection AddConfiglueBuilder(this Microsoft.Extensions.DependencyInjection.IServiceCollection services, Configlue.ConfiglueBuilder builder) { }
+        public static Microsoft.Extensions.DependencyInjection.IServiceCollection AddConfiglueState<TModel, TFragment>(this Microsoft.Extensions.DependencyInjection.IServiceCollection services, Configlue.Sources.StateSourceSet<TFragment> sourceSet, Configlue.StateWriteRoute writeRoute = default, bool validateDataAnnotations = true, System.TimeSpan? onChangeDebounce = default, Configlue.ReadValidationMode readValidationMode = 0, Configlue.WriteConflictResolution writeConflictResolution = 0)
+            where TModel : Configlue.CompilerServices.IConfiglueModel<TModel, TFragment>
+            where TFragment :  class, Configlue.IConfiglueFragment<TFragment> { }
+        public static Microsoft.Extensions.DependencyInjection.IServiceCollection AddConfiglueState<TModel, TFragment>(this Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Action<System.IServiceProvider, Configlue.StateSourceSetBuilder<TFragment>> configureSources, Configlue.StateWriteRoute writeRoute = default, bool validateDataAnnotations = true, System.TimeSpan? onChangeDebounce = default, Configlue.ReadValidationMode readValidationMode = 0, Configlue.WriteConflictResolution writeConflictResolution = 0)
+            where TModel : Configlue.CompilerServices.IConfiglueModel<TModel, TFragment>
+            where TFragment :  class, Configlue.IConfiglueFragment<TFragment> { }
+        public static Microsoft.Extensions.DependencyInjection.IServiceCollection AddConfiglueState<TModel, TFragment>(this Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Func<System.IServiceProvider, Configlue.Sources.StateSourceSet<TFragment>> sourceSetFactory, Configlue.StateWriteRoute writeRoute = default, bool validateDataAnnotations = true, System.TimeSpan? onChangeDebounce = default, Configlue.ReadValidationMode readValidationMode = 0, Configlue.WriteConflictResolution writeConflictResolution = 0)
+            where TModel : Configlue.CompilerServices.IConfiglueModel<TModel, TFragment>
+            where TFragment :  class, Configlue.IConfiglueFragment<TFragment> { }
+        public static Microsoft.Extensions.DependencyInjection.IServiceCollection AddConfiglueState<TModel, TFragment>(this Microsoft.Extensions.DependencyInjection.IServiceCollection services, object serviceKey, Configlue.Sources.StateSourceSet<TFragment> sourceSet, Configlue.StateWriteRoute writeRoute = default, bool validateDataAnnotations = true, System.TimeSpan? onChangeDebounce = default, Configlue.ReadValidationMode readValidationMode = 0, Configlue.WriteConflictResolution writeConflictResolution = 0)
+            where TModel : Configlue.CompilerServices.IConfiglueModel<TModel, TFragment>
+            where TFragment :  class, Configlue.IConfiglueFragment<TFragment> { }
+        public static Microsoft.Extensions.DependencyInjection.IServiceCollection AddConfiglueState<TModel, TFragment>(this Microsoft.Extensions.DependencyInjection.IServiceCollection services, object serviceKey, System.Action<System.IServiceProvider, Configlue.StateSourceSetBuilder<TFragment>> configureSources, Configlue.StateWriteRoute writeRoute = default, bool validateDataAnnotations = true, System.TimeSpan? onChangeDebounce = default, Configlue.ReadValidationMode readValidationMode = 0, Configlue.WriteConflictResolution writeConflictResolution = 0)
+            where TModel : Configlue.CompilerServices.IConfiglueModel<TModel, TFragment>
+            where TFragment :  class, Configlue.IConfiglueFragment<TFragment> { }
+        public static Microsoft.Extensions.DependencyInjection.IServiceCollection AddConfiglueState<TModel, TFragment>(this Microsoft.Extensions.DependencyInjection.IServiceCollection services, object serviceKey, System.Func<System.IServiceProvider, Configlue.Sources.StateSourceSet<TFragment>> sourceSetFactory, Configlue.StateWriteRoute writeRoute = default, bool validateDataAnnotations = true, System.TimeSpan? onChangeDebounce = default, Configlue.ReadValidationMode readValidationMode = 0, Configlue.WriteConflictResolution writeConflictResolution = 0)
+            where TModel : Configlue.CompilerServices.IConfiglueModel<TModel, TFragment>
+            where TFragment :  class, Configlue.IConfiglueFragment<TFragment> { }
+        public static Microsoft.Extensions.DependencyInjection.IServiceCollection AddConfiglueStateRegistry<TModel, TFragment>(this Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Func<System.IServiceProvider, string, Configlue.Sources.StateSourceSet<TFragment>> sourceSetFactory, Configlue.StateWriteRoute writeRoute = default, bool validateDataAnnotations = true, System.TimeSpan? onChangeDebounce = default, Configlue.ReadValidationMode readValidationMode = 0, Configlue.WriteConflictResolution writeConflictResolution = 0)
+            where TModel : Configlue.CompilerServices.IConfiglueModel<TModel, TFragment>
+            where TFragment :  class, Configlue.IConfiglueFragment<TFragment> { }
+    }
+    public sealed class ConfiglueSubjectRegistrationBuilder<TSubject>
+        where TSubject : Configlue.IConfiglueSubject
+    {
+        public Microsoft.Extensions.DependencyInjection.IServiceCollection Services { get; }
+        public System.Type SubjectType { get; }
+    }
+    public static class ConfiglueSubjectServiceCollectionExtensions
+    {
+        public static Configlue.ConfiglueSubjectRegistrationBuilder<TSubject> AddConfiglueSubject<TSubject>(this Microsoft.Extensions.DependencyInjection.IServiceCollection services)
+            where TSubject : Configlue.IConfiglueSubject { }
     }
 }

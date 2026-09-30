@@ -4,17 +4,14 @@
     <AssemblyName>Configlue.Extensions.DI</AssemblyName>
     <RootNamespace>Configlue</RootNamespace>
     <IsPackable>true</IsPackable>
-    <PackageDescription>HTTP source adapters for named clients managed by dependency injection.</PackageDescription>
+    <PackageDescription>Microsoft dependency-injection integration for Configlue.</PackageDescription>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../../basic/Configlue.Abstraction/Configlue.Abstraction.csproj" />
     <ProjectReference Include="../../basic/Configlue.Core/Configlue.Core.csproj" />
-    <ProjectReference Include="../../providers/Configlue.Provider.Json/Configlue.Provider.Json.csproj" />
-    <ProjectReference Include="../../resources/Configlue.Resource.Http/Configlue.Resource.Http.csproj" />
     <PackageReference
       Include="Microsoft.Extensions.DependencyInjection.Abstractions"
       Version="10.0.0"
     />
-    <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.0" />
   </ItemGroup>
 </Project>

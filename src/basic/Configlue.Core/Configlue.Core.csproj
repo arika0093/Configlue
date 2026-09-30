@@ -4,15 +4,10 @@
     <AssemblyName>Configlue.Core</AssemblyName>
     <RootNamespace>Configlue</RootNamespace>
     <IsPackable>true</IsPackable>
-    <PackageDescription>Configuration source resolution and runtime for Configlue.</PackageDescription>
+    <PackageDescription>Dependency-injection-free configuration source resolution and runtime for Configlue.</PackageDescription>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../Configlue.Abstraction/Configlue.Abstraction.csproj" />
-    <PackageReference
-      Include="Microsoft.Extensions.DependencyInjection.Abstractions"
-      Version="10.0.0"
-    />
-    <PackageReference Include="Microsoft.Extensions.Options" Version="10.0.0" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.0" />
     <PackageReference Include="System.IO.Hashing" Version="10.0.0" />
     <PackageReference Include="System.IO.Pipelines" Version="10.0.0" />

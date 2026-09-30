@@ -4,10 +4,16 @@
     <AssemblyName>Configlue.Resource.Http</AssemblyName>
     <RootNamespace>Configlue.Resource.Http</RootNamespace>
     <IsPackable>true</IsPackable>
-    <PackageDescription>HTTP resources for Configlue state sources.</PackageDescription>
+    <PackageDescription>HTTP resources and named IHttpClientFactory source support for Configlue.</PackageDescription>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../../basic/Configlue.Abstraction/Configlue.Abstraction.csproj" />
     <ProjectReference Include="../../basic/Configlue.Core/Configlue.Core.csproj" />
+    <ProjectReference Include="../../providers/Configlue.Provider.Json/Configlue.Provider.Json.csproj" />
+    <PackageReference
+      Include="Microsoft.Extensions.DependencyInjection.Abstractions"
+      Version="10.0.0"
+    />
+    <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.0" />
   </ItemGroup>
 </Project>

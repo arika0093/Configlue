@@ -5,4 +5,9 @@ namespace Configlue.Extensions.MSOptions
     {
         public static Microsoft.Extensions.DependencyInjection.IServiceCollection AddConfiglueMicrosoftOptions<TModel>(this Microsoft.Extensions.DependencyInjection.IServiceCollection services) { }
     }
+    public static class ConfiglueMicrosoftOptionsValidationExtensions
+    {
+        public static Microsoft.Extensions.DependencyInjection.IServiceCollection AddConfiglueValidator<TModel>(this Microsoft.Extensions.DependencyInjection.IServiceCollection services, Microsoft.Extensions.Options.IValidateOptions<TModel> validator)
+            where TModel :  class { }
+    }
 }

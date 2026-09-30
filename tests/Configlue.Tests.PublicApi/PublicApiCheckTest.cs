@@ -181,7 +181,7 @@ public sealed class PublicApiCheckTest
 
     [Test]
     public void DependencyInjection() =>
-        PublicApiCheck.CheckAssembly(typeof(HttpClientFactorySourceExtensions).Assembly);
+        PublicApiCheck.CheckAssembly(typeof(ConfiglueServiceCollectionExtensions).Assembly);
 
     [Test]
     public void MicrosoftOptions() =>

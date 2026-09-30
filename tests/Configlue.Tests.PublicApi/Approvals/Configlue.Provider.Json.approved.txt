@@ -72,28 +72,6 @@ namespace Configlue.Provider.Json
     {
         public static Configlue.ConfiglueSourceHandle<TModel> Source<TModel>(this Configlue.IConfiglueSources<TModel> options, Configlue.Provider.Json.JsonFileSourceSelector selector) { }
     }
-    public sealed class JsonHttpSourceOptions
-    {
-        public JsonHttpSourceOptions() { }
-        public System.Net.Http.HttpClient? Client { get; init; }
-        public System.Func<System.IServiceProvider?, System.Net.Http.HttpClient>? ClientFactory { get; init; }
-        public Configlue.Codecs.StateCodecContext CodecContext { get; init; }
-        public Configlue.Codecs.DocumentLayoutOptions? DocumentLayout { get; init; }
-        public required string EndPoint { get; init; }
-        public Configlue.Sources.StateFallbackCondition FallbackCondition { get; init; }
-        public string? Id { get; init; }
-        public int Priority { get; init; }
-        public Configlue.Resources.ResourceId? ResourceId { get; init; }
-        public Configlue.Resource.Http.HttpResourceOptions? ResourceOptions { get; init; }
-        public System.Text.Json.JsonSerializerOptions? SerializerOptions { get; init; }
-        public System.Collections.Generic.IReadOnlyList<Configlue.Transformers.IStateByteTransformer>? Transformers { get; init; }
-        public bool WatchChanges { get; init; }
-        public bool Writable { get; init; }
-    }
-    public static class JsonHttpSourceRegistration
-    {
-        public static Configlue.Extensibility.ConfiglueSourceRegistration FromJsonHttp(this Configlue.ConfiglueSourceSetBuilder sources, Configlue.Provider.Json.JsonHttpSourceOptions options) { }
-    }
     public sealed class JsonSectionResource : Configlue.Resources.IContextualResourceBackupRecovery, Configlue.Resources.IContextualResourceBatchParticipant, Configlue.Resources.IContextualResourceIdentity, Configlue.Resources.IContextualResourceReader, Configlue.Resources.IContextualResourceWriter, Configlue.Resources.IResourceBackupRecovery, Configlue.Resources.IResourceBatchParticipant, Configlue.Resources.IResourceIdentity, Configlue.Resources.IResourceReader, Configlue.Resources.IResourceWriter, Configlue.Resources.ITryContextualResourceIdentity, Configlue.Sources.IContextualSourceWatcher, Configlue.Sources.ISourceWatcher, Configlue.State.IContextualPipelineResourceReader, Configlue.State.IPipelineResourceReader
     {
         public JsonSectionResource(Configlue.Resources.IResourceReader resource, string sectionPath, System.Text.Json.JsonSerializerOptions? serializerOptions = null, Configlue.Resources.ResourceId? resourceId = default) { }

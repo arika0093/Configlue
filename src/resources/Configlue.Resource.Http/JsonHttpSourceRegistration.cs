@@ -1,7 +1,7 @@
 using System.Text.Json;
-using Configlue.Resource.Http;
+using Configlue.Provider.Json;
 
-namespace Configlue.Provider.Json;
+namespace Configlue.Resource.Http;
 
 /// <summary>Options for registering a JSON-over-HTTP source through the one-arity facade.</summary>
 public sealed class JsonHttpSourceOptions

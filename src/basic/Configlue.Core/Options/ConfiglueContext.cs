@@ -1,5 +1,4 @@
 using Configlue.Resources;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace Configlue;
 

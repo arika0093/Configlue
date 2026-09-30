@@ -5,11 +5,11 @@ description: 機能ごとの NuGet パッケージを探す。
 
 | パッケージ | 用途 |
 | --- | --- |
-| `Configlue` | portable な便利パッケージ: 共通レイヤー/単一バイナリプリセットに加え、DI 登録を含む Core・DI HTTP client adapter・JSON Provider・HTTP・環境変数・Generator をまとめます。AES は opt-in です。 |
+| `Configlue` | portable な便利パッケージ: 共通レイヤー/単一バイナリプリセットに加え、Core・Microsoft DI 統合・JSON Provider・HTTP (名前付き `IHttpClientFactory` 対応)・環境変数・Generator をまとめます。AES は opt-in です。 |
 | `Configlue.Abstraction` | プロバイダー・コーデック・リソース・生成モデルの契約。 |
-| `Configlue.Core` | serializer-neutral な状態解決ランタイム、依存性注入登録、Provider 作成支援、ZIP resource、共通ファイル preset SPI。 |
-| `Configlue.Extensions.DI` | 名前付き `IHttpClientFactory` client を使う HTTP source アダプター。 |
-| `Configlue.Extensions.MSOptions` | Microsoft options インターフェイス向けの任意アダプター。 |
+| `Configlue.Core` | framework neutral な serializer-neutral 状態解決ランタイム、builder/context モデル、Provider 作成支援、ZIP resource、共通ファイル preset SPI。依存性注入コンテナなしでも利用できます。 |
+| `Configlue.Extensions.DI` | Microsoft 依存性注入統合: 生成 state・profile・subject 単位の host 統合・scoped/keyed ライフタイムの `IServiceCollection` 登録。 |
+| `Configlue.Extensions.MSOptions` | Microsoft options インターフェイス向けの任意アダプター。`IValidateOptions<T>` validator ブリッジを含みます。 |
 | `Configlue.Extensions.R3` | value・profile・reload signal の合成に使う任意の R3 observable。 |
 | `Configlue.Generator` | 疎モデル生成サポート (Roslyn アナライザー)。 |
 | `Configlue.Testing` | インメモリリソースとテストダブル。 |
@@ -19,7 +19,7 @@ description: 機能ごとの NuGet パッケージを探す。
 | `Configlue.Provider.Yaml` | セクションリソースとファイル登録、共通 preset の YAML 選択つき YAML コーデック。 |
 | `Configlue.Source.Environment` | プロセス環境変数に支えられた読み取り専用ソース。 |
 | `Configlue.Source.CommandLine` | `System.CommandLine` パース結果に支えられた読み取り専用ソース。共通プリセットへの任意追加にも対応します。 |
-| `Configlue.Resource.Http` | ETag リビジョンとポーリング変更検出つき HTTP 読み書きリソース。 |
+| `Configlue.Resource.Http` | ETag リビジョンとポーリング変更検出つき HTTP 読み書きリソース。JSON-over-HTTP source 登録と名前付き `IHttpClientFactory` source 対応を含みます。 |
 | `Configlue.Resource.Http.AspNetCore` | HTTP リソース配信の ASP.NET Core エンドポイント。 |
 | `Configlue.Extensions.AspNetCore` | ASP.NET Core の現在リクエストから subject を解決する統合。 |
 | `Configlue.Extensions.Blazor` | Blazor 認証状態からの subject 解決と circuit 単位の変更通知。 |
@@ -34,10 +34,10 @@ description: 機能ごとの NuGet パッケージを探す。
 | パッケージ | Assets | 直接 NuGet 依存と最低 TFM |
 | --- | --- | --- |
 | `Configlue.Abstraction` | `netstandard2.0;netstandard2.1;net10.0` | `netstandard2.0` のみ `System.Memory` 4.6.3 と `Microsoft.Bcl.AsyncInterfaces` 10.0.5。`netstandard2.1` asset は互換パッケージを使わずプラットフォームの async iterator を利用します。 |
-| `Configlue.Core` | `netstandard2.0;netstandard2.1;net10.0` | `Microsoft.Extensions.DependencyInjection.Abstractions` 10.0.0、`Microsoft.Extensions.Logging.Abstractions` 10.0.0、`System.IO.Hashing` 10.0.0、`System.IO.Pipelines` 10.0.0。`System.ComponentModel.Annotations` 5.0.0 と `System.Threading.Channels` 10.0.5 は両 Standard asset。`Microsoft.Bcl.AsyncInterfaces` 10.0.5 と `System.Threading.Tasks.Extensions` 4.6.3 は `netstandard2.0` のみ。Core は `System.Text.Json` に依存しません。 |
+| `Configlue.Core` | `netstandard2.0;netstandard2.1;net10.0` | `Microsoft.Extensions.Logging.Abstractions` 10.0.0、`System.IO.Hashing` 10.0.0、`System.IO.Pipelines` 10.0.0。`System.ComponentModel.Annotations` 5.0.0 と `System.Threading.Channels` 10.0.5 は両 Standard asset。`Microsoft.Bcl.AsyncInterfaces` 10.0.5 と `System.Threading.Tasks.Extensions` 4.6.3 は `netstandard2.0` のみ。Core は `System.Text.Json`、Microsoft DI、Microsoft options の各パッケージに依存しません。 |
 | `Configlue` | `netstandard2.0;netstandard2.1;net10.0` | 直接 NuGet 依存なし。project reference で portable な Core/DI/JSON/HTTP/環境変数グラフを構成します。AES は参照しません。 |
-| `Configlue.Extensions.DI` | `netstandard2.0;netstandard2.1;net10.0` | `Microsoft.Extensions.DependencyInjection.Abstractions` 10.0.0、`Microsoft.Extensions.Http` 10.0.0。 |
-| `Configlue.Extensions.MSOptions` | `netstandard2.0;netstandard2.1;net10.0` | `Microsoft.Extensions.Options` 10.0.0。 |
+| `Configlue.Extensions.DI` | `netstandard2.0;netstandard2.1;net10.0` | `Microsoft.Extensions.DependencyInjection.Abstractions` 10.0.0。 |
+| `Configlue.Extensions.MSOptions` | `netstandard2.0;netstandard2.1;net10.0` | `Microsoft.Extensions.Options` 10.0.0、`Microsoft.Extensions.DependencyInjection.Abstractions` 10.0.0。 |
 | `Configlue.Extensions.R3` | `netstandard2.0;netstandard2.1;net10.0` | `R3` 1.3.1。 |
 | `Configlue.Generator` | `netstandard2.0` | `Microsoft.CodeAnalysis.CSharp` 4.11.0、`Microsoft.CodeAnalysis.Analyzers` 3.11.0 (analyzer 内部依存)。 |
 | `Configlue.Testing` | `netstandard2.0;netstandard2.1;net10.0` | 直接 NuGet 依存なし。 |
@@ -47,7 +47,7 @@ description: 機能ごとの NuGet パッケージを探す。
 | `Configlue.Provider.Yaml` | `netstandard2.0;netstandard2.1;net10.0` | `SharpYaml` 3.13.1。 |
 | `Configlue.Source.Environment` | `netstandard2.0;netstandard2.1;net10.0` | `System.Text.Json` 10.0.0 は両 Standard asset。 |
 | `Configlue.Source.CommandLine` | `netstandard2.0;netstandard2.1;net10.0` | `System.CommandLine` 2.0.12。 |
-| `Configlue.Resource.Http` | `netstandard2.0;netstandard2.1;net10.0` | 直接 NuGet 依存なし。 |
+| `Configlue.Resource.Http` | `netstandard2.0;netstandard2.1;net10.0` | `Configlue.Provider.Json` (JSON-over-HTTP コーデック)、名前付き `IHttpClientFactory` client 対応のため `Microsoft.Extensions.DependencyInjection.Abstractions` 10.0.0、`Microsoft.Extensions.Http` 10.0.0。 |
 | `Configlue.Resource.Http.AspNetCore` | `net10.0` | `Microsoft.AspNetCore.App` framework reference。 |
 | `Configlue.Extensions.AspNetCore` | `net10.0` | `Microsoft.AspNetCore.App` framework reference。 |
 | `Configlue.Extensions.Blazor` | `net10.0` | `Microsoft.AspNetCore.App` framework reference。 |
