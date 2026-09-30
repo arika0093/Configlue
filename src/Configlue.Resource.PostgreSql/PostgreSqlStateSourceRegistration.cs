@@ -81,7 +81,9 @@ public static class PostgreSqlStateSourceRegistration
             ArgumentException.ThrowIfNullOrWhiteSpace(options.Id);
         }
 
-        return sources.Add(new PostgreSqlStateSourceDefinition(options));
+        return ((IConfiglueSourceRegistrationSink)sources).Add(
+            new PostgreSqlStateSourceDefinition(options)
+        );
     }
 
     private sealed class PostgreSqlStateSourceDefinition(PostgreSqlStateSourceOptions options)

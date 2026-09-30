@@ -40,6 +40,6 @@ namespace Configlue.Resource.PostgreSql
     }
     public static class PostgreSqlStateSourceRegistration
     {
-        public static Configlue.ConfiglueSourceRegistration FromPostgreSql(this Configlue.ConfiglueSourceSetBuilder sources, Configlue.Resource.PostgreSql.PostgreSqlStateSourceOptions options) { }
+        public static Configlue.Extensibility.ConfiglueSourceRegistration FromPostgreSql(this Configlue.ConfiglueSourceSetBuilder sources, Configlue.Resource.PostgreSql.PostgreSqlStateSourceOptions options) { }
     }
 }

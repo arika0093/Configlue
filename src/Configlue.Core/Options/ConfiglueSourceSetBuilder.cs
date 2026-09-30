@@ -1,10 +1,11 @@
 using Configlue.CompilerServices;
+using Configlue.Extensibility;
 using Configlue.Resources;
 
 namespace Configlue;
 
 /// <summary>Collects typed state sources without requiring a Fragment type argument on the model API.</summary>
-public class ConfiglueSourceSetBuilder
+public class ConfiglueSourceSetBuilder : IConfiglueSourceRegistrationSink
 {
     private readonly List<IConfiglueSourceRegistration> _sources = [];
     private bool _sealed;
@@ -21,16 +22,41 @@ public class ConfiglueSourceSetBuilder
         _sources.Add(new ConfiglueSourceRegistration<TFragment>(_ => source));
     }
 
-    /// <summary>Adds a source under a typed key, preserving its reader, writer, watcher, and resource identity.</summary>
-    public void Add<TModel, TFragment>(SourceKey<TModel> sourceKey, StateSource<TFragment> source)
+    /// <summary>Adds a source factory. The service provider is null in a non-DI context.</summary>
+    public void Add<TFragment>(Func<IServiceProvider?, StateSource<TFragment>> sourceFactory)
         where TFragment : class, IConfiglueFragment<TFragment>
     {
-        ArgumentNullException.ThrowIfNull(source);
-        Add(sourceKey, _ => source);
+        EnsureMutable();
+        ArgumentNullException.ThrowIfNull(sourceFactory);
+        _sources.Add(new ConfiglueSourceRegistration<TFragment>(sourceFactory));
     }
 
-    /// <summary>Adds a provider-aware source factory under a typed key.</summary>
-    public void Add<TModel, TFragment>(
+    void IConfiglueSourceRegistrationSink.Add<TModel, TFragment>(
+        SourceKey<TModel> sourceKey,
+        StateSource<TFragment> source
+    )
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        AddKeyed(sourceKey, _ => source);
+    }
+
+    void IConfiglueSourceRegistrationSink.Add<TModel, TFragment>(
+        SourceKey<TModel> sourceKey,
+        Func<IServiceProvider?, StateSource<TFragment>> sourceFactory
+    ) => AddKeyed(sourceKey, sourceFactory);
+
+    ConfiglueSourceRegistration IConfiglueSourceRegistrationSink.Add(
+        IConfiglueSourceDefinition definition
+    )
+    {
+        EnsureMutable();
+        ArgumentNullException.ThrowIfNull(definition);
+        var options = new ConfiglueSourceRegistration(EnsureMutable);
+        _sources.Add(new ConfiglueSourceDefinitionRegistration(definition, options));
+        return options;
+    }
+
+    private void AddKeyed<TModel, TFragment>(
         SourceKey<TModel> sourceKey,
         Func<IServiceProvider?, StateSource<TFragment>> sourceFactory
     )
@@ -64,25 +90,6 @@ public class ConfiglueSourceSetBuilder
                 return keyedSource;
             })
         );
-    }
-
-    /// <summary>Adds a source factory. The service provider is null in a non-DI context.</summary>
-    public void Add<TFragment>(Func<IServiceProvider?, StateSource<TFragment>> sourceFactory)
-        where TFragment : class, IConfiglueFragment<TFragment>
-    {
-        EnsureMutable();
-        ArgumentNullException.ThrowIfNull(sourceFactory);
-        _sources.Add(new ConfiglueSourceRegistration<TFragment>(sourceFactory));
-    }
-
-    /// <summary>Adds a provider-defined source using the generated model's fragment type.</summary>
-    public ConfiglueSourceRegistration Add(IConfiglueSourceDefinition definition)
-    {
-        EnsureMutable();
-        ArgumentNullException.ThrowIfNull(definition);
-        var options = new ConfiglueSourceRegistration(EnsureMutable);
-        _sources.Add(new ConfiglueSourceDefinitionRegistration(definition, options));
-        return options;
     }
 
     internal StateSourceSet<TFragment> Build<TFragment>(IServiceProvider? serviceProvider)

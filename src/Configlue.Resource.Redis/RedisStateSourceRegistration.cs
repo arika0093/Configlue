@@ -88,7 +88,9 @@ public static class RedisStateSourceRegistration
             ArgumentException.ThrowIfNullOrWhiteSpace(options.Id);
         }
 
-        return sources.Add(new RedisStateSourceDefinition(options));
+        return ((IConfiglueSourceRegistrationSink)sources).Add(
+            new RedisStateSourceDefinition(options)
+        );
     }
 
     private sealed class RedisStateSourceDefinition(RedisStateSourceOptions options)

@@ -1,6 +1,15 @@
 [assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/arika0093/Configlue")]
 namespace Configlue.Extensibility
 {
+    public sealed class ConfiglueSourceRegistration
+    {
+        public Configlue.Extensibility.ConfiglueSourceRegistration ExplicitOnly(bool explicitOnly = true) { }
+        public Configlue.Extensibility.ConfiglueSourceRegistration FallbackWhen(Configlue.Sources.StateFallbackCondition condition) { }
+        public Configlue.Extensibility.ConfiglueSourceRegistration Named(string name) { }
+        public Configlue.Extensibility.ConfiglueSourceRegistration Priority(int priority) { }
+        public Configlue.Extensibility.ConfiglueSourceRegistration ReadOnly(bool readOnly = true) { }
+        public Configlue.Extensibility.ConfiglueSourceRegistration Writable() { }
+    }
     public static class ConfiglueSourceSetBuilderMountExtensions
     {
         public static void AddMounted<TRootFragment, TSubtreeFragment>(this Configlue.ConfiglueSourceSetBuilder sources, Configlue.Sources.StateSource<TSubtreeFragment> source, string propertyPath)
@@ -35,6 +44,14 @@ namespace Configlue.Extensibility
             where TRootFragment :  class, Configlue.IConfiglueFragment<TRootFragment>
             where TSubtreeModel :  class, Configlue.CompilerServices.IConfiglueModel<TSubtreeModel, TSubtreeFragment>
             where TSubtreeFragment :  class, Configlue.IConfiglueFragment<TSubtreeFragment> { }
+    }
+    public interface IConfiglueSourceRegistrationSink
+    {
+        Configlue.Extensibility.ConfiglueSourceRegistration Add(Configlue.Extensibility.IConfiglueSourceDefinition definition);
+        void Add<TModel, TFragment>(Configlue.SourceKey<TModel> sourceKey, Configlue.Sources.StateSource<TFragment> source)
+            where TFragment :  class, Configlue.IConfiglueFragment<TFragment>;
+        void Add<TModel, TFragment>(Configlue.SourceKey<TModel> sourceKey, System.Func<System.IServiceProvider?, Configlue.Sources.StateSource<TFragment>> sourceFactory)
+            where TFragment :  class, Configlue.IConfiglueFragment<TFragment>;
     }
     public sealed class SerializedStateReader<T> : Configlue.Resources.IContextualResourceIdentity, Configlue.Resources.IResourceIdentity, Configlue.Resources.ITryContextualResourceIdentity, Configlue.Sources.IContextualSourceReader<T>, Configlue.Sources.ISourceReader<T>
     {

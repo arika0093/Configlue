@@ -11,7 +11,11 @@ public sealed class SourceDefinitionContractTests
         Should.Throw<InvalidOperationException>(() =>
             ConfiglueApp.CreateContext(builder =>
                 builder.Add<AppSettings>(model =>
-                    model.Sources(sources => sources.Add(new FailingSourceDefinition(resource)))
+                    model.Sources(sources =>
+                        ((IConfiglueSourceRegistrationSink)sources).Add(
+                            new FailingSourceDefinition(resource)
+                        )
+                    )
                 )
             )
         );
@@ -24,11 +28,38 @@ public sealed class SourceDefinitionContractTests
         var resource = new DisposableProbe();
         await using var context = ConfiglueApp.CreateContext(builder =>
             builder.Add<AppSettings>(model =>
-                model.Sources(sources => sources.Add(new BorrowedSourceDefinition(resource)))
+                model.Sources(sources =>
+                    ((IConfiglueSourceRegistrationSink)sources).Add(
+                        new BorrowedSourceDefinition(resource)
+                    )
+                )
             )
         );
         await context.DisposeAsync();
         resource.DisposeCallCount.ShouldBe(0);
+    }
+
+    [Test]
+    public async Task ExtensibilityPortRegistersKeyedProviderSourcesOutsideTheApplicationSurface()
+    {
+        var store = new InMemoryStateStore<AppSettings.Fragment>(
+            new AppSettings.Fragment { Label = Optional<string?>.Present("port") }
+        );
+        await using var context = ConfiglueApp.CreateContext(builder =>
+            builder.Add<AppSettings>(model =>
+                model.Sources(sources =>
+                    ((IConfiglueSourceRegistrationSink)sources).Add<
+                        AppSettings,
+                        AppSettings.Fragment
+                    >(
+                        SourceKey<AppSettings>.Named("extensibility-port"),
+                        new StateSource<AppSettings.Fragment>("extensibility-port", store)
+                    )
+                )
+            )
+        );
+
+        (await context.GetState<AppSettings>().GetValueAsync()).Label.ShouldBe("port");
     }
 
     private sealed class FailingSourceDefinition(DisposableProbe resource)
@@ -67,7 +98,11 @@ public sealed class SourceDefinitionContractTests
         var definition = new ProbeSourceDefinition(ownedResource);
         await using var context = ConfiglueApp.CreateContext(builder =>
         {
-            builder.Add<AppSettings>(model => model.Sources(sources => sources.Add(definition)));
+            builder.Add<AppSettings>(model =>
+                model.Sources(sources =>
+                    ((IConfiglueSourceRegistrationSink)sources).Add(definition)
+                )
+            );
         });
 
         await context.GetState<AppSettings>().GetValueAsync();

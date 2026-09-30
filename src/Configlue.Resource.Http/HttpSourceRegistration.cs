@@ -92,7 +92,7 @@ public static class HttpSourceRegistration
             );
         }
 
-        return sources.Add(new HttpSourceDefinition(options));
+        return ((IConfiglueSourceRegistrationSink)sources).Add(new HttpSourceDefinition(options));
     }
 
     private sealed class HttpSourceDefinition(HttpSourceOptions options)

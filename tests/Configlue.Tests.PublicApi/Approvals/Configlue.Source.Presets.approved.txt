@@ -32,7 +32,7 @@ namespace Configlue.Source.Presets
         public void Add<TModel>(System.Action<Configlue.ConfiglueModelBuilder<TModel>>? configure = null)
             where TModel : Configlue.CompilerServices.IConfiglueFacadeModel<TModel> { }
         public Configlue.Source.Presets.CommonSourceBuilder DefaultWriteLayer(Configlue.Source.Presets.CommonSourceLayer layer) { }
-        public Configlue.Source.Presets.CommonCustomSourceBuilder WithCustom(Configlue.Source.Presets.CommonSourceLayer afterLayer, System.Func<Configlue.ConfiglueSourceSetBuilder, Configlue.ConfiglueSourceRegistration> register) { }
+        public Configlue.Source.Presets.CommonCustomSourceBuilder WithCustom(Configlue.Source.Presets.CommonSourceLayer afterLayer, System.Func<Configlue.ConfiglueSourceSetBuilder, Configlue.Extensibility.ConfiglueSourceRegistration> register) { }
         public Configlue.Source.Presets.CommonEnvironmentSourceBuilder WithEnvironment(string prefix) { }
         public Configlue.Source.Presets.CommonFileSourceBuilder WithExplicit(string filepath) { }
         public Configlue.Source.Presets.CommonFileSourceBuilder WithHostGlobal(string applicationId, string filename = "settings.json") { }

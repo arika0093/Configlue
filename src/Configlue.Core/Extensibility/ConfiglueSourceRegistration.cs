@@ -1,4 +1,4 @@
-namespace Configlue;
+namespace Configlue.Extensibility;
 
 /// <summary>Applies common routing and capability settings to a registered provider source.</summary>
 public sealed class ConfiglueSourceRegistration

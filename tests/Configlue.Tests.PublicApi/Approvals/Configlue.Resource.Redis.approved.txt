@@ -43,6 +43,6 @@ namespace Configlue.Resource.Redis
     }
     public static class RedisStateSourceRegistration
     {
-        public static Configlue.ConfiglueSourceRegistration FromRedis(this Configlue.ConfiglueSourceSetBuilder sources, Configlue.Resource.Redis.RedisStateSourceOptions options) { }
+        public static Configlue.Extensibility.ConfiglueSourceRegistration FromRedis(this Configlue.ConfiglueSourceSetBuilder sources, Configlue.Resource.Redis.RedisStateSourceOptions options) { }
     }
 }

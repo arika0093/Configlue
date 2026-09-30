@@ -57,7 +57,7 @@ namespace Configlue.Provider.Json
     }
     public static class JsonFileSourceRegistration
     {
-        public static Configlue.ConfiglueSourceRegistration FromJsonFile(this Configlue.ConfiglueSourceSetBuilder sources, Configlue.Provider.Json.JsonFileSourceOptions options) { }
+        public static Configlue.Extensibility.ConfiglueSourceRegistration FromJsonFile(this Configlue.ConfiglueSourceSetBuilder sources, Configlue.Provider.Json.JsonFileSourceOptions options) { }
         public static Configlue.Provider.Json.JsonFileRegistration<TModel> JsonFile<TModel>(this Configlue.ConfiglueSourceSetBuilder<TModel> sources, string path)
             where TModel : Configlue.CompilerServices.IConfiglueFacadeModel<TModel> { }
         public static void UseDefaultJsonFile<TModel>(this Configlue.ConfiglueModelBuilder<TModel> model)
@@ -92,7 +92,7 @@ namespace Configlue.Provider.Json
     }
     public static class JsonHttpSourceRegistration
     {
-        public static Configlue.ConfiglueSourceRegistration FromJsonHttp(this Configlue.ConfiglueSourceSetBuilder sources, Configlue.Provider.Json.JsonHttpSourceOptions options) { }
+        public static Configlue.Extensibility.ConfiglueSourceRegistration FromJsonHttp(this Configlue.ConfiglueSourceSetBuilder sources, Configlue.Provider.Json.JsonHttpSourceOptions options) { }
     }
     public sealed class JsonSectionResource : Configlue.Resources.IContextualResourceBackupRecovery, Configlue.Resources.IContextualResourceBatchParticipant, Configlue.Resources.IContextualResourceIdentity, Configlue.Resources.IContextualResourceReader, Configlue.Resources.IContextualResourceWriter, Configlue.Resources.IResourceBackupRecovery, Configlue.Resources.IResourceBatchParticipant, Configlue.Resources.IResourceIdentity, Configlue.Resources.IResourceReader, Configlue.Resources.IResourceWriter, Configlue.Resources.ITryContextualResourceIdentity, Configlue.Sources.IContextualSourceWatcher, Configlue.Sources.ISourceWatcher, Configlue.State.IContextualPipelineResourceReader, Configlue.State.IPipelineResourceReader
     {

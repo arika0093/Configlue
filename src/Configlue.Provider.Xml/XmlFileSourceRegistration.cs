@@ -57,7 +57,9 @@ public static class XmlFileSourceRegistration
             throw new ArgumentException("A section path cannot be empty.", nameof(options));
         }
 
-        return sources.Add(new XmlFileSourceDefinition(options));
+        return ((IConfiglueSourceRegistrationSink)sources).Add(
+            new XmlFileSourceDefinition(options)
+        );
     }
 
     private sealed class XmlFileSourceDefinition(XmlFileSourceOptions options)

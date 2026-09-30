@@ -103,15 +103,6 @@ namespace Configlue
         public static Microsoft.Extensions.DependencyInjection.IServiceCollection AddConfiglueValidator<TModel>(this Microsoft.Extensions.DependencyInjection.IServiceCollection services, Microsoft.Extensions.Options.IValidateOptions<TModel> validator)
             where TModel :  class { }
     }
-    public sealed class ConfiglueSourceRegistration
-    {
-        public Configlue.ConfiglueSourceRegistration ExplicitOnly(bool explicitOnly = true) { }
-        public Configlue.ConfiglueSourceRegistration FallbackWhen(Configlue.Sources.StateFallbackCondition condition) { }
-        public Configlue.ConfiglueSourceRegistration Named(string name) { }
-        public Configlue.ConfiglueSourceRegistration Priority(int priority) { }
-        public Configlue.ConfiglueSourceRegistration ReadOnly(bool readOnly = true) { }
-        public Configlue.ConfiglueSourceRegistration Writable() { }
-    }
     public sealed class ConfiglueSourceRegistrationContext<TModel>
         where TModel : Configlue.CompilerServices.IConfiglueFacadeModel<TModel>
     {
@@ -119,18 +110,13 @@ namespace Configlue
         public Configlue.ConfiglueSourceSetBuilder<TModel> Sources { get; }
         public string StateName { get; }
     }
-    public class ConfiglueSourceSetBuilder
+    public class ConfiglueSourceSetBuilder : Configlue.Extensibility.IConfiglueSourceRegistrationSink
     {
         public ConfiglueSourceSetBuilder() { }
         public bool IsSealed { get; }
-        public Configlue.ConfiglueSourceRegistration Add(Configlue.Extensibility.IConfiglueSourceDefinition definition) { }
         public void Add<TFragment>(Configlue.Sources.StateSource<TFragment> source)
             where TFragment :  class, Configlue.IConfiglueFragment<TFragment> { }
         public void Add<TFragment>(System.Func<System.IServiceProvider?, Configlue.Sources.StateSource<TFragment>> sourceFactory)
-            where TFragment :  class, Configlue.IConfiglueFragment<TFragment> { }
-        public void Add<TModel, TFragment>(Configlue.SourceKey<TModel> sourceKey, Configlue.Sources.StateSource<TFragment> source)
-            where TFragment :  class, Configlue.IConfiglueFragment<TFragment> { }
-        public void Add<TModel, TFragment>(Configlue.SourceKey<TModel> sourceKey, System.Func<System.IServiceProvider?, Configlue.Sources.StateSource<TFragment>> sourceFactory)
             where TFragment :  class, Configlue.IConfiglueFragment<TFragment> { }
     }
     public sealed class ConfiglueSourceSetBuilder<TModel> : Configlue.ConfiglueSourceSetBuilder

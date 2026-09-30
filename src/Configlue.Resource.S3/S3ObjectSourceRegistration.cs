@@ -68,7 +68,9 @@ public static class S3ObjectSourceRegistration
             ArgumentException.ThrowIfNullOrWhiteSpace(options.Id);
         }
 
-        return sources.Add(new S3ObjectSourceDefinition(options));
+        return ((IConfiglueSourceRegistrationSink)sources).Add(
+            new S3ObjectSourceDefinition(options)
+        );
     }
 
     private sealed class S3ObjectSourceDefinition(S3ObjectSourceOptions options)

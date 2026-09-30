@@ -148,7 +148,9 @@ public static class JsonFileSourceRegistration
             );
         }
 
-        return sources.Add(new JsonFileSourceDefinition(options));
+        return ((IConfiglueSourceRegistrationSink)sources).Add(
+            new JsonFileSourceDefinition(options)
+        );
     }
 
     private sealed class JsonFileSourceDefinition(JsonFileSourceOptions options)

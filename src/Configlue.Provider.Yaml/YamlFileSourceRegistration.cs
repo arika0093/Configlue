@@ -78,7 +78,9 @@ public static class YamlFileSourceRegistration
             );
         }
 
-        return sources.Add(new YamlFileSourceDefinition(options));
+        return ((IConfiglueSourceRegistrationSink)sources).Add(
+            new YamlFileSourceDefinition(options)
+        );
     }
 
     private sealed class YamlFileSourceDefinition(YamlFileSourceOptions options)

@@ -250,7 +250,9 @@ public sealed partial class ConfiglueFacadeSourceTests
                         return;
                     }
 
-                    registration.Sources.Add(new DisposableProbeSourceDefinition(resource));
+                    ((IConfiglueSourceRegistrationSink)registration.Sources).Add(
+                        new DisposableProbeSourceDefinition(resource)
+                    );
                     registration.Sources.Add<AppSettings.Fragment>(_ =>
                         throw new InvalidOperationException("source factory failed")
                     );

@@ -187,8 +187,8 @@ public sealed class SingleBinaryBuilder
                     isProfile,
                     registration.StateName
                 );
-                registration
-                    .Sources.Add(
+                ((IConfiglueSourceRegistrationSink)registration.Sources)
+                    .Add(
                         new SingleBinarySourceDefinition(
                             path,
                             entryName,

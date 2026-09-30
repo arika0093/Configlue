@@ -58,6 +58,6 @@ namespace Configlue.Resource.Http
     }
     public static class HttpSourceRegistration
     {
-        public static Configlue.ConfiglueSourceRegistration FromHttp(this Configlue.ConfiglueSourceSetBuilder sources, Configlue.Resource.Http.HttpSourceOptions options) { }
+        public static Configlue.Extensibility.ConfiglueSourceRegistration FromHttp(this Configlue.ConfiglueSourceSetBuilder sources, Configlue.Resource.Http.HttpSourceOptions options) { }
     }
 }

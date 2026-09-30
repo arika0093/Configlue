@@ -68,7 +68,9 @@ public static class DaprStateSourceRegistration
             ArgumentException.ThrowIfNullOrWhiteSpace(options.Id);
         }
 
-        return sources.Add(new DaprStateSourceDefinition(options));
+        return ((IConfiglueSourceRegistrationSink)sources).Add(
+            new DaprStateSourceDefinition(options)
+        );
     }
 
     private sealed class DaprStateSourceDefinition(DaprStateSourceOptions options)

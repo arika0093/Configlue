@@ -1,6 +1,21 @@
 # Public API baselines
 
 The tests compare each shipped assembly's public API with the checked-in files in `Approvals/`.
+
+## API audiences
+
+The namespace a type lives in records its intended audience:
+
+- `Configlue` — application-facing API. Ordinary application code should live here (plus
+  provider-specific fluent extension namespaces such as `Configlue.Provider.Json`).
+- `Configlue.Extensibility` — provider and advanced composition SPI. Low-level registration ports
+  such as `IConfiglueSourceRegistrationSink` and `ConfiglueSourceRegistration` live here and are
+  implemented explicitly by root builders so they stay out of ordinary `builder.` / `sources.`
+  completion.
+- `Configlue.CompilerServices` — generated compiler/runtime ABI. These types remain CLR-public
+  across assembly boundaries but are marked `EditorBrowsableState.Never` and are snapshotted
+  separately.
+
 When a public API change is intentional, regenerate the snapshots from the repository root with:
 
 ```powershell

@@ -376,7 +376,9 @@ public static class CommandLineSourceRegistration
             );
         }
 
-        return sources.Add(new Definition(options, mappings.Mappings.ToArray()));
+        return ((IConfiglueSourceRegistrationSink)sources).Add(
+            new Definition(options, mappings.Mappings.ToArray())
+        );
     }
 
     private sealed class Definition(

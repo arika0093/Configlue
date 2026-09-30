@@ -126,7 +126,7 @@ public static class ConfiglueSourceSetBuilderMountExtensions
         ArgumentNullException.ThrowIfNull(sources);
         ArgumentNullException.ThrowIfNull(sourceFactory);
         ArgumentException.ThrowIfNullOrWhiteSpace(propertyPath);
-        sources.Add(
+        ((IConfiglueSourceRegistrationSink)sources).Add(
             new MountedSourceDefinition<TRootFragment, TSubtreeFragment>(
                 sourceFactory,
                 propertyPath,
@@ -149,7 +149,7 @@ public static class ConfiglueSourceSetBuilderMountExtensions
         ArgumentNullException.ThrowIfNull(sourceFactory);
         ArgumentException.ThrowIfNullOrWhiteSpace(propertyPath);
         ArgumentNullException.ThrowIfNull(toSource);
-        sources.Add(
+        ((IConfiglueSourceRegistrationSink)sources).Add(
             new MountedSourceDefinition<TRootFragment, TSubtreeFragment>(
                 sourceFactory,
                 propertyPath,

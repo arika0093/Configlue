@@ -41,7 +41,7 @@ public static class EnvironmentFacadeSourceRegistration
         ArgumentNullException.ThrowIfNull(sources);
         ArgumentNullException.ThrowIfNull(options);
         ArgumentException.ThrowIfNullOrWhiteSpace(options.Prefix);
-        return sources.Add(new Definition(options));
+        return ((IConfiglueSourceRegistrationSink)sources).Add(new Definition(options));
     }
 
     private sealed class Definition(EnvironmentSourceOptions options) : IConfiglueSourceDefinition

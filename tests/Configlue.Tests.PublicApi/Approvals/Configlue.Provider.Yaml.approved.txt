@@ -26,7 +26,7 @@ namespace Configlue.Provider.Yaml
     }
     public static class YamlFileSourceRegistration
     {
-        public static Configlue.ConfiglueSourceRegistration FromYamlFile(this Configlue.ConfiglueSourceSetBuilder sources, Configlue.Provider.Yaml.YamlFileSourceOptions options) { }
+        public static Configlue.Extensibility.ConfiglueSourceRegistration FromYamlFile(this Configlue.ConfiglueSourceSetBuilder sources, Configlue.Provider.Yaml.YamlFileSourceOptions options) { }
     }
     public sealed class YamlFileSourceSelector : System.IEquatable<Configlue.Provider.Yaml.YamlFileSourceSelector> { }
     public static class YamlFileSourceSelectorExtensions

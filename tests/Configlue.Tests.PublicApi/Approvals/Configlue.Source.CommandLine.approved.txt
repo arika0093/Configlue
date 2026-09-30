@@ -29,7 +29,7 @@ namespace Configlue.Source.CommandLine
     public static class CommandLineSourceRegistration
     {
         public static Configlue.Source.CommandLine.CommandLineSourceBuilder CommandLine(this Configlue.ConfiglueSourceSetBuilder sources, System.CommandLine.ParseResult parseResult, System.Action<Configlue.Source.CommandLine.CommandLineMappingBuilder> configureMappings, string id = "command-line") { }
-        public static Configlue.ConfiglueSourceRegistration FromCommandLine(this Configlue.ConfiglueSourceSetBuilder sources, Configlue.Source.CommandLine.CommandLineSourceOptions options, System.Action<Configlue.Source.CommandLine.CommandLineMappingBuilder> configureMappings) { }
+        public static Configlue.Extensibility.ConfiglueSourceRegistration FromCommandLine(this Configlue.ConfiglueSourceSetBuilder sources, Configlue.Source.CommandLine.CommandLineSourceOptions options, System.Action<Configlue.Source.CommandLine.CommandLineMappingBuilder> configureMappings) { }
     }
     public static class CommonCommandLineSourceExtensions
     {
