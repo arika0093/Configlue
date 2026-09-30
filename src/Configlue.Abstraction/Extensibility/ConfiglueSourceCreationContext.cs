@@ -7,11 +7,13 @@ public sealed class ConfiglueSourceCreationContext
 
     internal ConfiglueSourceCreationContext(
         ConfiglueModelSchema modelSchema,
-        IServiceProvider? services
+        IServiceProvider? services,
+        IConfiglueHostPaths hostPaths
     )
     {
         ModelSchema = modelSchema;
         Services = services;
+        HostPaths = hostPaths;
     }
 
     /// <summary>Generated metadata for the source's model.</summary>
@@ -19,6 +21,9 @@ public sealed class ConfiglueSourceCreationContext
 
     /// <summary>The application's services, or null for an independent context.</summary>
     public IServiceProvider? Services { get; }
+
+    /// <summary>The active host's standard storage locations.</summary>
+    public IConfiglueHostPaths HostPaths { get; }
 
     /// <summary>Declares a resource created by the provider as context-owned.</summary>
     /// <remarks>Application-supplied resources must remain borrowed and must not be registered here.</remarks>

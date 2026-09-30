@@ -24,14 +24,33 @@ The fixed order runs from lowest to highest priority:
 
 | Layer | Condition | Location / Source | Writes |
 | --- | --- | --- | :---: |
-| **Global** | `WithGlobal` | OS-standard per-user configuration folder | Writable |
-| **Local** | `WithLocal` | Current directory (`settings.json`) | Writable |
+| **HostGlobal** | `WithHostGlobal` | Host-wide application data, when supported | Writable |
+| **UserGlobal** | `WithUserGlobal` (`WithGlobal` alias) | Persistent data for the current platform user | Writable |
+| **Local** | `WithLocal` | Host's application/deployment-local directory | Writable |
 | **Explicit** | `WithExplicit` | Caller-supplied file path | Writable |
 | **Environment** | `WithEnvironment` | Process environment variables | Read-only |
 | **Arguments** | `WithCommandLine` | Command-line parse result | Read-only |
 | **HTTP** | `WithHttpPolicy` | Remote JSON policy | Read-only |
 
-The preset assigns source identities and priorities internally (0, 100, 200, 300, 400, and 500). Ordinary `SaveAsync` targets the highest-priority configured file layer; `DefaultWriteLayer` can select another configured file. All configured file layers remain available through semantic selectors.
+The preset assigns source identities and priorities internally (0 through 600). Read precedence is HostGlobal < UserGlobal < Local < Explicit < Environment < Arguments < HTTP. Ordinary writes prefer Explicit when configured, then Local, UserGlobal, and HostGlobal. `DefaultWriteLayer` can select another configured file. All configured file layers remain available through semantic selectors.
+
+Standard paths come from the active host profile. The built-in profile preserves ordinary Windows/macOS/Linux behavior; a host integration can replace it once, and individual locations can be overridden or marked unsupported. `WithGlobal` remains a compatibility alias for `WithUserGlobal` only; it never means HostGlobal.
+
+```csharp
+await using var context = ConfiglueApp.CreateContext(builder =>
+{
+    builder.UseHostPaths(hostPathsProvidedByYourHost);
+    builder.UseCommonSources(sources =>
+    {
+        sources.WithHostGlobal("ExampleApp");
+        sources.WithUserGlobal("ExampleApp");
+        sources.WithLocal();
+        sources.Add<AppSettings>();
+    });
+});
+```
+
+The same profile supplies the default backup root for model-backed file resources. `FileResourceOptions.BackupRootDirectory` remains an explicit per-resource override.
 
 Provider selection on a preset file layer is explicit: `.Json()` is built in, while `.Yaml()` and `.Xml()` require the `Configlue.Source.Presets.Yaml` and `Configlue.Source.Presets.Xml` adapter packages. The `Configlue.Source.CommandLine` package adds `WithCommandLine`.
 
@@ -47,7 +66,7 @@ using System.Text.Json;
 await using var context = ConfiglueApp.CreateContext(conf =>
     conf.UseCommonSources(sources =>
 {
-    sources.WithGlobal("ExampleApp", filename: "settings.yaml")
+    sources.WithUserGlobal("ExampleApp", filename: "settings.yaml")
         .Yaml()
         .FileResourceOptions(new FileResourceOptions { CreateBackup = false });
     sources.WithLocal().Json(new JsonSerializerOptions());
@@ -57,7 +76,7 @@ await using var context = ConfiglueApp.CreateContext(conf =>
 );
 ```
 
-Use `WithCustom(CommonSourceLayer.Global, ...)` to insert a custom source between built-in layers. Provider serializer/resource settings and the CommandLine mapping API remain available through their provider-specific APIs.
+Use `WithCustom(CommonSourceLayer.UserGlobal, ...)` to insert a custom source between built-in layers. Provider serializer/resource settings and the CommandLine mapping API remain available through their provider-specific APIs.
 
 Only explicitly declared layers are enabled. The default write target is the highest-priority configured file layer; use `DefaultWriteLayer` when you want another configured file to receive ordinary writes:
 

@@ -17,8 +17,15 @@ public sealed record CommonSourceSelector
 /// <summary>Semantic selectors for the file layers registered by the common source preset.</summary>
 public static class CommonSource
 {
-    /// <summary>Selects the global per-user file layer.</summary>
-    public static CommonSourceSelector Global { get; } = new("f37ac095ae7e46a2bf8a0dfe16d56a55");
+    /// <summary>Selects the host-wide file layer.</summary>
+    public static CommonSourceSelector HostGlobal { get; } = new("host-global");
+
+    /// <summary>Selects the per-user file layer.</summary>
+    public static CommonSourceSelector UserGlobal { get; } =
+        new("f37ac095ae7e46a2bf8a0dfe16d56a55");
+
+    /// <summary>Compatibility alias for <see cref="UserGlobal"/>.</summary>
+    public static CommonSourceSelector Global => UserGlobal;
 
     /// <summary>Selects the local file layer.</summary>
     public static CommonSourceSelector Local { get; } = new("7af05177a67c4b02b52f3da9b052f782");

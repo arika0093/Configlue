@@ -19,6 +19,8 @@ namespace Configlue
         public void Add<TModel>(System.Action<Configlue.ConfiglueModelBuilder<TModel>> configure)
             where TModel : Configlue.CompilerServices.IConfiglueFacadeModel<TModel> { }
         public Configlue.ConfiglueContext CreateContext(System.IServiceProvider? serviceProvider = null) { }
+        public Configlue.ConfiglueBuilder OverrideHostPath(Configlue.Resources.ConfiglueStandardLocation location, System.Func<string, string?> resolver) { }
+        public Configlue.ConfiglueBuilder UseHostPaths(Configlue.Resources.IConfiglueHostPaths hostPaths) { }
     }
     public sealed class ConfiglueContext : System.IAsyncDisposable, System.IDisposable
     {
@@ -131,11 +133,19 @@ namespace Configlue.Migrations
 }
 namespace Configlue.Resources
 {
+    public sealed class ConfiglueHostPathProfile : Configlue.Resources.IConfiglueHostPaths
+    {
+        public static Configlue.Resources.ConfiglueHostPathProfile Default { get; }
+        public bool TryResolve(Configlue.Resources.ConfiglueStandardLocation location, string applicationId, out string directory) { }
+        public Configlue.Resources.ConfiglueHostPathProfile WithOverride(Configlue.Resources.ConfiglueStandardLocation location, System.Func<string, string?> resolver) { }
+        public static Configlue.Resources.ConfiglueHostPathProfile From(Configlue.Resources.IConfiglueHostPaths fallback) { }
+    }
     public static class ConfiglueStandardPaths
     {
         public static string GetPersistentUserDataDirectory() { }
         public static string GetSharedLockDirectory() { }
         public static string GetStandardSaveDirectory(string applicationId) { }
+        public static string ResolveDirectory(Configlue.Resources.IConfiglueHostPaths hostPaths, Configlue.Resources.ConfiglueStandardLocation location, string applicationId = "") { }
     }
     public enum FileBackupDirectoryMode
     {
@@ -145,7 +155,9 @@ namespace Configlue.Resources
     public sealed class FileResource : Configlue.Resources.IResourceBackupRecovery, Configlue.Resources.IResourceBatchWriter, Configlue.Resources.IResourceIdentity, Configlue.Resources.IResourceReader, Configlue.Resources.IResourceWriter, Configlue.Sources.ISourceWatcher, Configlue.State.IPipelineResourceReader, System.IDisposable
     {
         public FileResource(string path, Configlue.Resources.FileResourceOptions? options = null, Configlue.Resources.ResourceId? resourceId = default) { }
+        public FileResource(string path, Configlue.Resources.FileResourceOptions? options, Configlue.Resources.ResourceId? resourceId, Configlue.Resources.IConfiglueHostPaths hostPaths) { }
         public FileResource(string path, Configlue.State.StateSchemaMetadata backupSchema, Configlue.Resources.FileResourceOptions? options = null, Configlue.Resources.ResourceId? resourceId = default) { }
+        public FileResource(string path, Configlue.State.StateSchemaMetadata backupSchema, Configlue.Resources.FileResourceOptions? options, Configlue.Resources.ResourceId? resourceId, Configlue.Resources.IConfiglueHostPaths hostPaths) { }
         public bool AutomaticBackupRecoveryEnabled { get; }
         public bool IsPipelineReadPreferred { get; }
         public string Path { get; }

@@ -69,6 +69,30 @@ public sealed class SingleBinaryBuilderTests
     }
 
     [Test]
+    public async Task SingleBinaryUsesTheSelectedHostProfileForUserGlobalPaths()
+    {
+        using var directory = new TemporaryDirectory();
+        var path = Path.Combine(directory.FullPath, "user", "save.bin");
+
+        await using var context = ConfiglueApp.CreateContext(builder =>
+        {
+            builder.OverrideHostPath(
+                ConfiglueStandardLocation.UserGlobal,
+                _ => Path.GetDirectoryName(path)!
+            );
+            builder.UseSingleBinary(binary =>
+            {
+                binary.WithUserGlobal("Example", "save.bin");
+                binary.Add<AppSettings>(storageKey: "app");
+            });
+        });
+
+        await context.GetState<AppSettings>().SaveAsync(settings => settings.RetryCount = 6);
+
+        File.Exists(path).ShouldBeTrue();
+    }
+
+    [Test]
     public async Task SingleBinaryProfilesPersistTheirCatalogAndSeparateValues()
     {
         using var directory = new TemporaryDirectory();

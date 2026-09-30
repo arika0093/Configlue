@@ -1,3 +1,5 @@
+using Configlue.Resources;
+
 namespace Configlue;
 
 /// <summary>Collects typed state sources without requiring a Fragment type argument on the model API.</summary>
@@ -89,7 +91,8 @@ public class ConfiglueSourceSetBuilder
     internal StateSourceSet<TFragment> Build<TFragment>(
         ConfiglueModelSchema? modelSchema,
         IServiceProvider? serviceProvider,
-        Action<IDisposable> ownResource
+        Action<IDisposable> ownResource,
+        IConfiglueHostPaths? hostPaths = null
     )
         where TFragment : class, IConfiglueFragment<TFragment>
     {
@@ -104,7 +107,14 @@ public class ConfiglueSourceSetBuilder
         var sources = new List<StateSource<TFragment>>(_sources.Count);
         foreach (var registration in _sources)
         {
-            sources.Add(registration.Create<TFragment>(modelSchema, serviceProvider, ownResource));
+            sources.Add(
+                registration.Create<TFragment>(
+                    modelSchema,
+                    serviceProvider,
+                    ownResource,
+                    hostPaths ?? ConfiglueHostPathProfile.Default
+                )
+            );
         }
 
         return new StateSourceSet<TFragment>(sources);
@@ -136,7 +146,8 @@ public class ConfiglueSourceSetBuilder
         StateSource<TFragment> Create<TFragment>(
             ConfiglueModelSchema? modelSchema,
             IServiceProvider? serviceProvider,
-            Action<IDisposable> ownResource
+            Action<IDisposable> ownResource,
+            IConfiglueHostPaths hostPaths
         )
             where TFragment : class, IConfiglueFragment<TFragment>;
     }
@@ -151,7 +162,8 @@ public class ConfiglueSourceSetBuilder
         public StateSource<TRequestedFragment> Create<TRequestedFragment>(
             ConfiglueModelSchema? modelSchema,
             IServiceProvider? serviceProvider,
-            Action<IDisposable> ownResource
+            Action<IDisposable> ownResource,
+            IConfiglueHostPaths hostPaths
         )
             where TRequestedFragment : class, IConfiglueFragment<TRequestedFragment>
         {
@@ -180,7 +192,8 @@ public class ConfiglueSourceSetBuilder
         public StateSource<TFragment> Create<TFragment>(
             ConfiglueModelSchema? modelSchema,
             IServiceProvider? serviceProvider,
-            Action<IDisposable> ownResource
+            Action<IDisposable> ownResource,
+            IConfiglueHostPaths hostPaths
         )
             where TFragment : class, IConfiglueFragment<TFragment>
         {
@@ -189,7 +202,8 @@ public class ConfiglueSourceSetBuilder
                     ?? throw new InvalidOperationException(
                         "Provider source definitions require generated model metadata."
                     ),
-                serviceProvider
+                serviceProvider,
+                hostPaths
             );
             try
             {

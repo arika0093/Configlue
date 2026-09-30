@@ -32,6 +32,42 @@ public sealed class SingleBinaryBuilder
         return this;
     }
 
+    /// <summary>Stores the archive in the host-wide application directory.</summary>
+    public SingleBinaryBuilder WithHostGlobal(string applicationId, string filename = "state.bin")
+    {
+        EnsureMutable();
+        ValidateStandardFilename(filename);
+        _path = Path.GetFullPath(
+            Path.Combine(
+                ConfiglueStandardPaths.ResolveDirectory(
+                    _configlue.HostPaths,
+                    ConfiglueStandardLocation.HostGlobal,
+                    applicationId
+                ),
+                filename
+            )
+        );
+        return this;
+    }
+
+    /// <summary>Stores the archive in the persistent per-user application directory.</summary>
+    public SingleBinaryBuilder WithUserGlobal(string applicationId, string filename = "state.bin")
+    {
+        EnsureMutable();
+        ValidateStandardFilename(filename);
+        _path = Path.GetFullPath(
+            Path.Combine(
+                ConfiglueStandardPaths.ResolveDirectory(
+                    _configlue.HostPaths,
+                    ConfiglueStandardLocation.UserGlobal,
+                    applicationId
+                ),
+                filename
+            )
+        );
+        return this;
+    }
+
     /// <summary>Sets the options used by the underlying local file resource.</summary>
     public SingleBinaryBuilder FileResourceOptions(FileResourceOptions options)
     {
@@ -165,7 +201,8 @@ public sealed class SingleBinaryBuilder
                             resourceOptions,
                             encryption,
                             priority,
-                            ownResource
+                            ownResource,
+                            _configlue.HostPaths
                         ),
                     defaultProfileName
                 );
@@ -232,7 +269,23 @@ public sealed class SingleBinaryBuilder
         if (_path is null)
         {
             throw new InvalidOperationException(
-                "Configure the archive file with WithLocal before adding models."
+                "Configure the archive path with WithLocal, WithUserGlobal, or WithHostGlobal before adding models."
+            );
+        }
+    }
+
+    private static void ValidateStandardFilename(string filename)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(filename);
+        if (
+            filename is "." or ".."
+            || Path.IsPathRooted(filename)
+            || !string.Equals(Path.GetFileName(filename), filename, StringComparison.Ordinal)
+        )
+        {
+            throw new ArgumentException(
+                "The archive name must be a file name, not a path.",
+                nameof(filename)
             );
         }
     }

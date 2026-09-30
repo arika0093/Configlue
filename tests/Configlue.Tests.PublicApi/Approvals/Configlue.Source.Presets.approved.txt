@@ -23,8 +23,10 @@ namespace Configlue.Source.Presets
     public static class CommonSource
     {
         public static Configlue.Source.Presets.CommonSourceSelector Global { get; }
+        public static Configlue.Source.Presets.CommonSourceSelector HostGlobal { get; }
         public static Configlue.Source.Presets.CommonSourceSelector Local { get; }
         public static Configlue.Source.Presets.CommonSourceSelector Specific { get; }
+        public static Configlue.Source.Presets.CommonSourceSelector UserGlobal { get; }
     }
     public sealed class CommonSourceBuilder
     {
@@ -35,9 +37,11 @@ namespace Configlue.Source.Presets
         public Configlue.Source.Presets.CommonEnvironmentSourceBuilder WithEnvironment(string prefix) { }
         public Configlue.Source.Presets.CommonFileSourceBuilder WithExplicit(string filepath) { }
         public Configlue.Source.Presets.CommonFileSourceBuilder WithGlobal(string applicationId, string filename = "settings.json") { }
+        public Configlue.Source.Presets.CommonFileSourceBuilder WithHostGlobal(string applicationId, string filename = "settings.json") { }
         public Configlue.Source.Presets.CommonHttpSourceBuilder WithHttpPolicy(string endpoint, System.Func<System.IServiceProvider?, System.Net.Http.HttpClient> clientFactory, string id = "common.http") { }
         public Configlue.Source.Presets.CommonHttpSourceBuilder WithHttpPolicy(string endpoint, System.Net.Http.HttpClient client, string id = "common.http") { }
         public Configlue.Source.Presets.CommonFileSourceBuilder WithLocal(string filename = "settings.json") { }
+        public Configlue.Source.Presets.CommonFileSourceBuilder WithUserGlobal(string applicationId, string filename = "settings.json") { }
     }
     public static class CommonSourceBuilderExtensions
     {
@@ -45,12 +49,14 @@ namespace Configlue.Source.Presets
     }
     public enum CommonSourceLayer
     {
-        Global = 0,
-        Local = 1,
-        Explicit = 2,
-        Environment = 3,
-        Arguments = 4,
-        Http = 5,
+        HostGlobal = 0,
+        UserGlobal = 1,
+        Global = 1,
+        Local = 2,
+        Explicit = 3,
+        Environment = 4,
+        Arguments = 5,
+        Http = 6,
     }
     public sealed class CommonSourceSelector : System.IEquatable<Configlue.Source.Presets.CommonSourceSelector> { }
     public static class CommonSourceSelectorExtensions
@@ -66,9 +72,11 @@ namespace Configlue.Source.Presets
         public Configlue.Source.Presets.SingleBinaryBuilder WithAesKey(System.ReadOnlyMemory<byte> key) { }
         public Configlue.Source.Presets.SingleBinaryBuilder WithEncrypted(string passphrase) { }
         public Configlue.Source.Presets.SingleBinaryBuilder WithEncryption(Configlue.Transformers.IStateByteTransformer transformer) { }
+        public Configlue.Source.Presets.SingleBinaryBuilder WithHostGlobal(string applicationId, string filename = "state.bin") { }
         public Configlue.Source.Presets.SingleBinaryBuilder WithLocal(string filepath) { }
         public Configlue.Source.Presets.SingleBinaryBuilder WithPassphrase(string passphrase) { }
         public Configlue.Source.Presets.SingleBinaryBuilder WithProfiles(string defaultProfileName = "default") { }
+        public Configlue.Source.Presets.SingleBinaryBuilder WithUserGlobal(string applicationId, string filename = "state.bin") { }
     }
     public static class SingleBinaryBuilderExtensions
     {

@@ -5,8 +5,14 @@ namespace Configlue.Source.Presets;
 /// <summary>The built-in common source layers, ordered from lowest to highest precedence.</summary>
 public enum CommonSourceLayer
 {
-    /// <summary>The per-user global file.</summary>
-    Global,
+    /// <summary>Application data shared across users when supported by the host.</summary>
+    HostGlobal,
+
+    /// <summary>The persistent per-user application data file.</summary>
+    UserGlobal,
+
+    /// <summary>Compatibility alias for <see cref="UserGlobal"/>.</summary>
+    Global = UserGlobal,
 
     /// <summary>The current-directory local file.</summary>
     Local,
@@ -27,7 +33,7 @@ public enum CommonSourceLayer
 /// <summary>Builds common-source registrations and models within one configuration scope.</summary>
 public sealed class CommonSourceBuilder
 {
-    private static readonly int[] LayerPriorities = [0, 100, 200, 300, 400, 500];
+    private static readonly int[] LayerPriorities = [0, 100, 200, 300, 400, 500, 600];
     private readonly ConfiglueBuilder _configlue;
     private readonly List<SourceDeclaration> _declarations = [];
     private readonly int[] _customCounts = new int[LayerPriorities.Length];
@@ -39,8 +45,8 @@ public sealed class CommonSourceBuilder
         _configlue = configlue;
     }
 
-    /// <summary>Registers the per-user global file. The application ID selects its standard directory.</summary>
-    public CommonFileSourceBuilder WithGlobal(
+    /// <summary>Registers a host-wide file; the location may be unsupported by the active host.</summary>
+    public CommonFileSourceBuilder WithHostGlobal(
         string applicationId,
         string filename = "settings.json"
     )
@@ -49,11 +55,47 @@ public sealed class CommonSourceBuilder
         ArgumentException.ThrowIfNullOrWhiteSpace(applicationId);
         ValidateFileName(filename);
         return AddFile(
-            CommonSourceLayer.Global,
-            CommonSource.Global.SourceId,
-            Path.Combine(ConfiglueStandardPaths.GetStandardSaveDirectory(applicationId), filename)
+            CommonSourceLayer.HostGlobal,
+            CommonSource.HostGlobal.SourceId,
+            Path.Combine(
+                ConfiglueStandardPaths.ResolveDirectory(
+                    _configlue.HostPaths,
+                    ConfiglueStandardLocation.HostGlobal,
+                    applicationId
+                ),
+                filename
+            )
         );
     }
+
+    /// <summary>Registers a persistent file belonging to the current platform user.</summary>
+    public CommonFileSourceBuilder WithUserGlobal(
+        string applicationId,
+        string filename = "settings.json"
+    )
+    {
+        EnsureDeclarationsMutable();
+        ArgumentException.ThrowIfNullOrWhiteSpace(applicationId);
+        ValidateFileName(filename);
+        return AddFile(
+            CommonSourceLayer.UserGlobal,
+            CommonSource.UserGlobal.SourceId,
+            Path.Combine(
+                ConfiglueStandardPaths.ResolveDirectory(
+                    _configlue.HostPaths,
+                    ConfiglueStandardLocation.UserGlobal,
+                    applicationId
+                ),
+                filename
+            )
+        );
+    }
+
+    /// <summary>Compatibility alias for <see cref="WithUserGlobal"/>.</summary>
+    public CommonFileSourceBuilder WithGlobal(
+        string applicationId,
+        string filename = "settings.json"
+    ) => WithUserGlobal(applicationId, filename);
 
     /// <summary>Registers a local file, relative to the current directory unless rooted.</summary>
     public CommonFileSourceBuilder WithLocal(string filename = "settings.json")
@@ -63,7 +105,17 @@ public sealed class CommonSourceBuilder
         return AddFile(
             CommonSourceLayer.Local,
             CommonSource.Local.SourceId,
-            Path.GetFullPath(filename)
+            Path.GetFullPath(
+                Path.IsPathRooted(filename)
+                    ? filename
+                    : Path.Combine(
+                        ConfiglueStandardPaths.ResolveDirectory(
+                            _configlue.HostPaths,
+                            ConfiglueStandardLocation.Local
+                        ),
+                        filename
+                    )
+            )
         );
     }
 
@@ -95,7 +147,8 @@ public sealed class CommonSourceBuilder
         if (
             layer
             is not (
-                CommonSourceLayer.Global
+                CommonSourceLayer.UserGlobal
+                or CommonSourceLayer.HostGlobal
                 or CommonSourceLayer.Local
                 or CommonSourceLayer.Explicit
             )
@@ -211,11 +264,20 @@ public sealed class CommonSourceBuilder
         else if (
             defaultWriteLayer is null
             && fileDeclarations.Any(static declaration =>
-                declaration.Layer == CommonSourceLayer.Global
+                declaration.Layer == CommonSourceLayer.UserGlobal
             )
         )
         {
-            defaultWriteLayer = CommonSourceLayer.Global;
+            defaultWriteLayer = CommonSourceLayer.UserGlobal;
+        }
+        else if (
+            defaultWriteLayer is null
+            && fileDeclarations.Any(static declaration =>
+                declaration.Layer == CommonSourceLayer.HostGlobal
+            )
+        )
+        {
+            defaultWriteLayer = CommonSourceLayer.HostGlobal;
         }
         if (
             _defaultWriteLayer is { } requestedLayer

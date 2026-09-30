@@ -50,6 +50,7 @@ public sealed partial class FileResource
     private readonly string _backupDirectory;
     private readonly string[] _previousBackupDirectories;
     private readonly FileResourceOptions _options;
+    private readonly IConfiglueHostPaths _hostPaths;
 
     /// <summary>Creates a file resource at the supplied path.</summary>
     /// <param name="path">The path of the file resource.</param>
@@ -60,7 +61,16 @@ public sealed partial class FileResource
         FileResourceOptions? options = null,
         ResourceId? resourceId = null
     )
-        : this(path, options, resourceId, null) { }
+        : this(path, options, resourceId, null, null) { }
+
+    /// <summary>Creates a file resource using the supplied host profile for default backups.</summary>
+    public FileResource(
+        string path,
+        FileResourceOptions? options,
+        ResourceId? resourceId,
+        IConfiglueHostPaths hostPaths
+    )
+        : this(path, options, resourceId, null, hostPaths) { }
 
     /// <summary>Creates a model-backed file resource at the supplied path.</summary>
     /// <param name="path">The path of the file resource.</param>
@@ -73,13 +83,24 @@ public sealed partial class FileResource
         FileResourceOptions? options = null,
         ResourceId? resourceId = null
     )
-        : this(path, options, resourceId, backupSchema) { }
+        : this(path, options, resourceId, backupSchema, null) { }
+
+    /// <summary>Creates a model-backed file resource using host-specific default backups.</summary>
+    public FileResource(
+        string path,
+        StateSchemaMetadata backupSchema,
+        FileResourceOptions? options,
+        ResourceId? resourceId,
+        IConfiglueHostPaths hostPaths
+    )
+        : this(path, options, resourceId, backupSchema, hostPaths) { }
 
     private FileResource(
         string path,
         FileResourceOptions? options,
         ResourceId? resourceId,
-        StateSchemaMetadata? backupSchema
+        StateSchemaMetadata? backupSchema,
+        IConfiglueHostPaths? hostPaths
     )
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
@@ -89,6 +110,7 @@ public sealed partial class FileResource
         _directory = System.IO.Path.GetDirectoryName(_path)!;
         _fileName = System.IO.Path.GetFileName(_path);
         _options = options ?? new FileResourceOptions();
+        _hostPaths = hostPaths ?? ConfiglueHostPathProfile.Default;
         var backupDirectory = _options.BackupDirectory;
         var previousBackupDirectories = new List<string>();
         var usesPersistentBackupDirectory = false;
@@ -188,7 +210,10 @@ public sealed partial class FileResource
                 string fullBackupRoot;
                 if (backupRoot is null)
                 {
-                    fullBackupRoot = ConfiglueStandardPaths.GetPersistentUserDataDirectory();
+                    fullBackupRoot = ConfiglueStandardPaths.ResolveDirectory(
+                        _hostPaths,
+                        ConfiglueStandardLocation.BackupRoot
+                    );
                 }
                 else if (System.IO.Path.IsPathRooted(backupRoot))
                 {

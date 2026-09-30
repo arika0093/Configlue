@@ -34,6 +34,6 @@ public static class CommonCommandLineSourceExtensions
                         configureMappings
                     )
             )
-            .Priority(400);
+            .Priority(401);
     }
 }

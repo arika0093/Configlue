@@ -28,7 +28,7 @@ public sealed class FileResourceOptions
     public FileBackupDirectoryMode? BackupDirectoryMode { get; init; }
 
     /// <summary>An optional root for persistent user backups. Relative paths use the resource file directory.</summary>
-    /// <remarks>When unset, a platform-specific persistent per-user state directory is used.</remarks>
+    /// <remarks>When unset, the active host profile supplies the persistent backup root.</remarks>
     public string? BackupRootDirectory { get; init; }
 
     /// <summary>The directory name appended to the persistent backup root.</summary>

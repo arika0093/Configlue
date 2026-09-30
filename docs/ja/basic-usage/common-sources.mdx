@@ -26,19 +26,37 @@ Configlue の設定設計において、中心となるのが **CommonSource**�
 
 | 層 | 有効化の条件 | 保存場所・入力源 | 既定の書き込み可否 |
 | --- | --- | --- | :---: |
-| **Global（共通）** | `WithGlobal` | OS 標準のユーザー設定フォルダー | 書き込み可能 |
-| **Local（ローカル）** | `WithLocal` | カレントディレクトリのファイル | 書き込み可能 |
+| **HostGlobal** | `WithHostGlobal` | ホストのアプリケーション共有領域（対応時） | 書き込み可能 |
+| **UserGlobal** | `WithUserGlobal`（`WithGlobal` 互換エイリアス） | 現在のプラットフォームユーザーの永続領域 | 書き込み可能 |
+| **Local（ローカル）** | `WithLocal` | ホストのアプリケーション／配置ローカル領域 | 書き込み可能 |
 | **Explicit（指定ファイル）** | `WithExplicit` | 呼び出し側が指定するファイル | 書き込み可能 |
 | **Environment（環境変数）** | `WithEnvironment` | プロセス環境変数 | 読み取り専用 |
 | **Arguments（引数）** | `WithCommandLine` | コマンドライン引数 | 読み取り専用 |
 | **HTTP** | `WithHttpPolicy` | リモート JSON ポリシー | 読み取り専用 |
 
-source identity と優先度（0、100、200、300、400、500）はプリセット内部で割り当てられます。
-通常の `SaveAsync` は最も優先順位の高いファイル層に書き込みます。`DefaultWriteLayer` で別のファイル層を選択できます。
+source identity と優先度（0〜600）はプリセット内部で割り当てられます。読み取り順は HostGlobal < UserGlobal < Local < Explicit < Environment < Arguments < HTTP です。通常の書き込み先は Explicit があれば Explicit、次に Local、UserGlobal、HostGlobal の順で選ばれます。`DefaultWriteLayer` で別のファイル層を選択できます。
+
+標準パスはアクティブなホストプロファイルが解決します。組み込みプロファイルは通常の Windows/macOS/Linux の動作を維持し、ホスト統合はプロファイルを一度差し替えたり、個別の場所を上書きまたは未対応として指定できます。`WithGlobal` は互換のため残り、`WithUserGlobal` のエイリアスです。HostGlobal を意味することはありません。
+
+```csharp
+await using var context = ConfiglueApp.CreateContext(builder =>
+{
+    builder.UseHostPaths(hostPathsProvidedByYourHost);
+    builder.UseCommonSources(sources =>
+    {
+        sources.WithHostGlobal("ExampleApp");
+        sources.WithUserGlobal("ExampleApp");
+        sources.WithLocal();
+        sources.Add<AppSettings>();
+    });
+});
+```
+
+同じプロファイルはモデル用ファイルリソースのバックアップ既定ルートにも使われます。`FileResourceOptions.BackupRootDirectory` はリソース単位の明示的な上書きとして優先されます。
 登録したすべてのファイル層は semantic selector から明示的に書き込み可能です。
 ## 基本的な使い方
 
-複数モデルに同じプリセットを適用する場合は、`Configlue.Source.Presets` のスコープビルダーを使います。宣言したソースだけが有効になり、優先順位は Global < Local < Explicit < Environment < Arguments < HTTP で固定です。
+複数モデルに同じプリセットを適用する場合は、`Configlue.Source.Presets` のスコープビルダーを使います。宣言したソースだけが有効になり、優先順位は HostGlobal < UserGlobal < Local < Explicit < Environment < Arguments < HTTP で固定です。
 YAML または XML を共通ファイル層で使う場合は、`Configlue.Source.Presets.Yaml` または `Configlue.Source.Presets.Xml` パッケージを追加します。これらは個別の任意依存であり、使用しない形式の Provider は不要です。
 
 ```csharp
@@ -50,7 +68,7 @@ using System.Text.Json;
 await using var context = ConfiglueApp.CreateContext(conf =>
     conf.UseCommonSources(sources =>
 {
-    sources.WithGlobal("ExampleApp", filename: "settings.yaml")
+    sources.WithUserGlobal("ExampleApp", filename: "settings.yaml")
         .Yaml(serializerOptions: new YamlSerializerOptions())
         .FileResourceOptions(new FileResourceOptions { CreateBackup = false });
     sources.WithLocal().Json(new JsonSerializerOptions());
@@ -60,7 +78,7 @@ await using var context = ConfiglueApp.CreateContext(conf =>
 );
 ```
 
-`WithCustom(CommonSourceLayer.Global, ...)` のように指定すると、組み込みレイヤーの間にカスタムソースを追加できます。各 Provider のシリアライザー・リソース設定と、CommandLine のマッピング API を利用できます。
+`WithCustom(CommonSourceLayer.UserGlobal, ...)` のように指定すると、組み込みレイヤーの間にカスタムソースを追加できます。各 Provider のシリアライザー・リソース設定と、CommandLine のマッピング API を利用できます。
 
 宣言した層だけが有効になります。通常の保存先は、設定されたファイル層のうち最も優先順位が高い層です。別のファイル層に保存したい場合は `DefaultWriteLayer` で指定できます。
 

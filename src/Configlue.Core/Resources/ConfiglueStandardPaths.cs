@@ -3,6 +3,35 @@ namespace Configlue.Resources;
 /// <summary>Returns platform-standard directories for per-user application data.</summary>
 public static class ConfiglueStandardPaths
 {
+    /// <summary>Resolves a standard location through a host profile and canonicalizes the result.</summary>
+    public static string ResolveDirectory(
+        IConfiglueHostPaths hostPaths,
+        ConfiglueStandardLocation location,
+        string applicationId = ""
+    )
+    {
+        ArgumentNullException.ThrowIfNull(hostPaths);
+        if (!Enum.IsDefined(location))
+        {
+            throw new ArgumentOutOfRangeException(nameof(location));
+        }
+        if (
+            location is ConfiglueStandardLocation.HostGlobal or ConfiglueStandardLocation.UserGlobal
+        )
+        {
+            ValidateApplicationId(applicationId);
+        }
+
+        if (!hostPaths.TryResolve(location, applicationId, out var directory))
+        {
+            throw new NotSupportedException(
+                $"The active host does not support the '{location}' standard storage location."
+            );
+        }
+        ArgumentException.ThrowIfNullOrWhiteSpace(directory);
+        return Path.GetFullPath(directory);
+    }
+
     /// <summary>Gets the standard per-user save directory for the supplied application identifier.</summary>
     /// <remarks>
     /// Windows uses <c>%APPDATA%/&lt;applicationId&gt;</c>. macOS and Linux honor
@@ -109,6 +138,74 @@ public static class ConfiglueStandardPaths
         return Path.GetFullPath(Path.Combine(runtimeDirectory, "configlue", "locks"));
     }
 #pragma warning restore S5443
+
+    internal static bool TryResolveDefault(
+        ConfiglueStandardLocation location,
+        string applicationId,
+        out string directory
+    )
+    {
+        switch (location)
+        {
+            case ConfiglueStandardLocation.HostGlobal:
+                string sharedBase;
+                if (OperatingSystem.IsWindows())
+                {
+                    sharedBase = Environment.GetFolderPath(
+                        Environment.SpecialFolder.CommonApplicationData
+                    );
+                }
+                else if (OperatingSystem.IsMacOS())
+                {
+                    sharedBase = Path.Combine(
+                        Path.DirectorySeparatorChar.ToString(),
+                        "Library",
+                        "Application Support"
+                    );
+                }
+                else
+                {
+                    sharedBase = Path.Combine(Path.DirectorySeparatorChar.ToString(), "var", "lib");
+                }
+                if (string.IsNullOrWhiteSpace(sharedBase))
+                {
+                    directory = string.Empty;
+                    return false;
+                }
+
+                directory = Path.Combine(sharedBase, applicationId);
+                return true;
+            case ConfiglueStandardLocation.UserGlobal:
+                directory = GetStandardSaveDirectory(applicationId);
+                return true;
+            case ConfiglueStandardLocation.Local:
+                directory = Environment.CurrentDirectory;
+                return true;
+            case ConfiglueStandardLocation.BackupRoot:
+                directory = GetPersistentUserDataDirectory();
+                return true;
+            default:
+                directory = string.Empty;
+                return false;
+        }
+    }
+
+    private static void ValidateApplicationId(string applicationId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(applicationId);
+        if (
+            applicationId is "." or ".."
+            || Path.IsPathRooted(applicationId)
+            || applicationId.Contains('/')
+            || applicationId.Contains('\\')
+        )
+        {
+            throw new ArgumentException(
+                "The application identifier must be a single path segment.",
+                nameof(applicationId)
+            );
+        }
+    }
 
     private static string GetWindowsConfigDirectory()
     {

@@ -82,18 +82,21 @@ public sealed partial class CommonSourceFormatTests
     }
 
     [Test]
-    public async Task CommonSourceBuilder_DefaultsOrdinaryWritesToLocalFile()
+    public async Task CommonSourceBuilder_DefaultsOrdinaryWritesToLocalWhenConfigured()
     {
         using var directory = new TemporaryDirectory();
         var localPath = Path.Combine(directory.FullPath, "local.json");
+        const string applicationId = "Configlue.Tests.WritePreference";
         await using var context = ConfiglueApp.CreateContext(builder =>
+        {
+            builder.OverrideHostPath(ConfiglueStandardLocation.UserGlobal, _ => directory.FullPath);
             builder.UseCommonSources(sources =>
             {
-                sources.WithGlobal($"Configlue.Tests.{Guid.NewGuid():N}");
+                sources.WithGlobal(applicationId);
                 sources.WithLocal(localPath);
                 sources.Add<AppSettings>();
-            })
-        );
+            });
+        });
         var options = (IConfiglueRuntimeState<AppSettings>)context.GetState<AppSettings>();
 
         await options.SaveAsync(settings => settings.Label = "written-to-local");

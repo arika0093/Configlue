@@ -1,3 +1,4 @@
+using Configlue.Resources;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -7,7 +8,33 @@ namespace Configlue;
 public sealed class ConfiglueBuilder
 {
     private readonly List<IConfiglueModelRegistration> _registrations = [];
+    private IConfiglueHostPaths _hostPaths = ConfiglueHostPathProfile.Default;
     private bool _sealed;
+
+    /// <summary>Selects the host profile used to resolve standard storage locations.</summary>
+    public ConfiglueBuilder UseHostPaths(IConfiglueHostPaths hostPaths)
+    {
+        EnsureMutable();
+        ArgumentNullException.ThrowIfNull(hostPaths);
+        _hostPaths = hostPaths;
+        return this;
+    }
+
+    /// <summary>Overrides one standard location while retaining the selected host profile for other locations.</summary>
+    public ConfiglueBuilder OverrideHostPath(
+        ConfiglueStandardLocation location,
+        Func<string, string?> resolver
+    )
+    {
+        EnsureMutable();
+        ArgumentNullException.ThrowIfNull(resolver);
+        var profile =
+            _hostPaths as ConfiglueHostPathProfile ?? ConfiglueHostPathProfile.From(_hostPaths);
+        _hostPaths = profile.WithOverride(location, resolver);
+        return this;
+    }
+
+    internal IConfiglueHostPaths HostPaths => _hostPaths;
 
     /// <summary>Adds one model registration.</summary>
     public void Add<TModel>(Action<ConfiglueModelBuilder<TModel>> configure)
@@ -37,7 +64,7 @@ public sealed class ConfiglueBuilder
 
     /// <summary>Builds an independent context from the collected definitions.</summary>
     public ConfiglueContext CreateContext(IServiceProvider? serviceProvider = null) =>
-        ConfiglueContext.Create(_registrations, serviceProvider);
+        ConfiglueContext.Create(_registrations, serviceProvider, _hostPaths);
 
     /// <summary>Gets the generated schemas for the models registered with this builder.</summary>
     /// <remarks>Multiple named registrations of one model can return the same schema more than once.</remarks>
@@ -73,6 +100,7 @@ public sealed class ConfiglueBuilder
 public sealed class ConfiglueModelBuilder<TModel>
     where TModel : IConfiglueFacadeModel<TModel>
 {
+    internal IConfiglueHostPaths HostPaths { get; set; } = ConfiglueHostPathProfile.Default;
     private readonly ConfiglueSourceSetBuilder<TModel> _sources = new();
     private readonly List<IConfiglueValidator<TModel>> _validators = [];
     private readonly List<object> _migrations = [];
@@ -356,7 +384,7 @@ public sealed class ConfiglueModelBuilder<TModel>
         ArgumentNullException.ThrowIfNull(ownResource);
         if (_sourceConfigurations.Count == 0)
         {
-            return _sources.Build<TFragment>(modelSchema, serviceProvider, ownResource);
+            return _sources.Build<TFragment>(modelSchema, serviceProvider, ownResource, HostPaths);
         }
         var sources = new ConfiglueSourceSetBuilder<TModel>();
         sources.CopyFrom(_sources);
@@ -364,7 +392,7 @@ public sealed class ConfiglueModelBuilder<TModel>
         {
             configure(StateName, serviceProvider, sources);
         }
-        return sources.Build<TFragment>(modelSchema, serviceProvider, ownResource);
+        return sources.Build<TFragment>(modelSchema, serviceProvider, ownResource, HostPaths);
     }
 
     /// <summary>Gets explicit and dependency-injected migrations for the generated fragment type.</summary>
@@ -454,6 +482,7 @@ public sealed class ConfiglueModelBuilder<TModel>
             Logger = _logger,
             _routeSelector = _routeSelector,
             _subjectAccessorType = _subjectAccessorType,
+            HostPaths = HostPaths,
         };
         clone._sources.CopyFrom(_sources);
         clone._cloneStrategy = _cloneStrategy;
@@ -490,10 +519,15 @@ internal interface IConfiglueModelRegistration
     Type? SubjectAccessorType { get; }
     bool EnableDynamicStates { get; }
     bool EnableProfiles { get; }
-    object CreateRuntime(IServiceProvider? serviceProvider, Action<IDisposable> ownResource);
+    object CreateRuntime(
+        IServiceProvider? serviceProvider,
+        Action<IDisposable> ownResource,
+        IConfiglueHostPaths hostPaths
+    );
     object CreateStateRegistry(
         IServiceProvider? serviceProvider,
-        IReadOnlyList<string> reservedNames
+        IReadOnlyList<string> reservedNames,
+        IConfiglueHostPaths hostPaths
     );
     object CreateProfileManager(
         object registry,
@@ -531,8 +565,13 @@ internal sealed class ConfiglueModelRegistration<TModel>(ConfiglueModelBuilder<T
 
     public object CreateRuntime(
         IServiceProvider? serviceProvider,
-        Action<IDisposable> ownResource
-    ) => TModel.Descriptor.CreateRuntime(builder, serviceProvider, ownResource);
+        Action<IDisposable> ownResource,
+        IConfiglueHostPaths hostPaths
+    )
+    {
+        builder.HostPaths = hostPaths;
+        return TModel.Descriptor.CreateRuntime(builder, serviceProvider, ownResource);
+    }
 
     public object CreateProfileManager(
         object registry,
@@ -568,7 +607,8 @@ internal sealed class ConfiglueModelRegistration<TModel>(ConfiglueModelBuilder<T
 
     public object CreateStateRegistry(
         IServiceProvider? serviceProvider,
-        IReadOnlyList<string> reservedNames
+        IReadOnlyList<string> reservedNames,
+        IConfiglueHostPaths hostPaths
     ) =>
         new ConfiglueFacadeStateRegistry<TModel>(
             name =>
@@ -579,6 +619,7 @@ internal sealed class ConfiglueModelRegistration<TModel>(ConfiglueModelBuilder<T
                 try
                 {
                     var dynamicBuilder = builder.CloneForStateName(name);
+                    dynamicBuilder.HostPaths = hostPaths;
                     runtime = TModel.Descriptor.CreateRuntime(
                         dynamicBuilder,
                         serviceProvider,

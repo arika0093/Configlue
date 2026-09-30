@@ -68,11 +68,14 @@ public static class XmlFileSourceRegistration
         )
             where TFragment : class, IConfiglueFragment<TFragment>
         {
-            return context.Complete(CreateSourceCore<TFragment>(context.ModelSchema, context.Own));
+            return context.Complete(
+                CreateSourceCore<TFragment>(context.ModelSchema, context.HostPaths, context.Own)
+            );
         }
 
         private StateSource<TFragment> CreateSourceCore<TFragment>(
             ConfiglueModelSchema modelSchema,
+            IConfiglueHostPaths hostPaths,
             Action<IDisposable> ownResource
         )
             where TFragment : class, IConfiglueFragment<TFragment>
@@ -81,7 +84,8 @@ public static class XmlFileSourceRegistration
                 options.Path,
                 modelSchema.ToMetadata(),
                 options.ResourceOptions,
-                options.ResourceId
+                options.ResourceId,
+                hostPaths
             );
             ownResource(file);
 

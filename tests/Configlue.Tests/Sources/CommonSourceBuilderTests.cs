@@ -57,7 +57,7 @@ public sealed partial class CommonSourceFormatTests
             options
                 .GetDiagnostics()
                 .Sources.Select(static source => source.Priority)
-                .ShouldBe([100, 1, 0]);
+                .ShouldBe([200, 101, 100]);
         }
         finally
         {
@@ -87,7 +87,7 @@ public sealed partial class CommonSourceFormatTests
         (await options.GetValueAsync()).RetryCount.ShouldBe(23);
         var diagnostics = options.GetDiagnostics().Sources;
         diagnostics.Count.ShouldBe(1);
-        diagnostics[0].Priority.ShouldBe(200);
+        diagnostics[0].Priority.ShouldBe(300);
         diagnostics[0].CanWrite.ShouldBeTrue();
     }
 
@@ -118,7 +118,7 @@ public sealed partial class CommonSourceFormatTests
         (await options.GetValueAsync()).RetryCount.ShouldBe(31);
         var commandLine = options
             .GetDiagnostics()
-            .Sources.Single(static source => source.Priority == 400);
+            .Sources.Single(static source => source.Priority == 401);
         commandLine.CanWrite.ShouldBeFalse();
     }
 

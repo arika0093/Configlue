@@ -158,18 +158,21 @@ public static class JsonFileSourceRegistration
         )
             where TFragment : class, IConfiglueFragment<TFragment>
         {
-            return context.Complete(CreateSourceCore<TFragment>(context.ModelSchema, context.Own));
+            return context.Complete(
+                CreateSourceCore<TFragment>(context.ModelSchema, context.HostPaths, context.Own)
+            );
         }
 
         private StateSource<TFragment> CreateSourceCore<TFragment>(
             ConfiglueModelSchema modelSchema,
+            IConfiglueHostPaths hostPaths,
             Action<IDisposable> ownResource
         )
             where TFragment : class, IConfiglueFragment<TFragment>
         {
             if (options.MountPath is null)
             {
-                return CreateSource<TFragment>(modelSchema, ownResource);
+                return CreateSource<TFragment>(modelSchema, hostPaths, ownResource);
             }
 
             var path = options.MountPath.Split('.', StringSplitOptions.None);
@@ -184,7 +187,10 @@ public static class JsonFileSourceRegistration
             try
             {
                 return (StateSource<TFragment>)
-                    method.Invoke(this, [modelSchema, subtreeSchema, path, ownResource])!;
+                    method.Invoke(
+                        this,
+                        [modelSchema, subtreeSchema, path, ownResource, hostPaths]
+                    )!;
             }
             catch (TargetInvocationException exception) when (exception.InnerException is not null)
             {
@@ -197,12 +203,13 @@ public static class JsonFileSourceRegistration
             ConfiglueModelSchema rootSchema,
             ConfiglueModelSchema subtreeSchema,
             string[] path,
-            Action<IDisposable> ownResource
+            Action<IDisposable> ownResource,
+            IConfiglueHostPaths hostPaths
         )
             where TRootFragment : class, IConfiglueFragment<TRootFragment>
             where TSubtreeFragment : class, IConfiglueFragment<TSubtreeFragment>
         {
-            var source = CreateSource<TSubtreeFragment>(subtreeSchema, ownResource);
+            var source = CreateSource<TSubtreeFragment>(subtreeSchema, hostPaths, ownResource);
             return StateSourceProjection.Mount<TSubtreeFragment, TRootFragment>(
                 source,
                 string.Join('.', path),
@@ -212,6 +219,7 @@ public static class JsonFileSourceRegistration
 
         private StateSource<TFragment> CreateSource<TFragment>(
             ConfiglueModelSchema modelSchema,
+            IConfiglueHostPaths hostPaths,
             Action<IDisposable> ownResource
         )
             where TFragment : class, IConfiglueFragment<TFragment>
@@ -228,7 +236,8 @@ public static class JsonFileSourceRegistration
                 options.Path,
                 modelSchema.ToMetadata(),
                 options.ResourceOptions,
-                options.ResourceId
+                options.ResourceId,
+                hostPaths
             );
             ownResource(file);
 

@@ -19,11 +19,14 @@ internal sealed class SingleBinarySourceDefinition(
     )
         where TFragment : class, IConfiglueFragment<TFragment>
     {
-        return context.Complete(CreateSourceCore<TFragment>(context.ModelSchema, context.Own));
+        return context.Complete(
+            CreateSourceCore<TFragment>(context.ModelSchema, context.HostPaths, context.Own)
+        );
     }
 
     private StateSource<TFragment> CreateSourceCore<TFragment>(
         ConfiglueModelSchema modelSchema,
+        IConfiglueHostPaths hostPaths,
         Action<IDisposable> ownResource
     )
         where TFragment : class, IConfiglueFragment<TFragment>
@@ -35,7 +38,8 @@ internal sealed class SingleBinarySourceDefinition(
             entryName,
             resourceOptions,
             encryption,
-            ownResource
+            ownResource,
+            hostPaths
         );
         var converter =
             TFragment.JsonConverter
@@ -60,10 +64,11 @@ internal static class SingleBinarySourceFactory
         string entryName,
         FileResourceOptions? resourceOptions,
         SingleBinaryEncryption? encryption,
-        Action<IDisposable> ownResource
+        Action<IDisposable> ownResource,
+        IConfiglueHostPaths hostPaths
     )
     {
-        var file = new FileResource(path, resourceOptions);
+        var file = new FileResource(path, resourceOptions, null, hostPaths);
         ownResource(file);
         IResourceReader reader = file;
         IResourceBatchWriter? batchWriter = file;
@@ -105,7 +110,8 @@ internal static class SingleBinarySourceFactory
         FileResourceOptions? resourceOptions,
         SingleBinaryEncryption? encryption,
         int priority,
-        Action<IDisposable> ownResource
+        Action<IDisposable> ownResource,
+        IConfiglueHostPaths hostPaths
     )
     {
         var entryName = $"models/{Escape(modelKey)}/profile-catalog/catalog.json";
@@ -114,7 +120,8 @@ internal static class SingleBinarySourceFactory
             entryName,
             resourceOptions,
             encryption,
-            ownResource
+            ownResource,
+            hostPaths
         );
         var codec = new JsonStateCodec<ConfiglueProfileCatalog>(
             SingleBinaryJsonContext.Default.ConfiglueProfileCatalog

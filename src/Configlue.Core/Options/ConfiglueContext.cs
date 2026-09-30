@@ -1,3 +1,4 @@
+using Configlue.Resources;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Configlue;
@@ -174,7 +175,8 @@ public sealed class ConfiglueContext : IDisposable, IAsyncDisposable
 
     internal static ConfiglueContext Create(
         IReadOnlyList<IConfiglueModelRegistration> registrations,
-        IServiceProvider? serviceProvider
+        IServiceProvider? serviceProvider,
+        IConfiglueHostPaths hostPaths
     )
     {
         var states = new Dictionary<(Type ModelType, string Name), object>();
@@ -197,7 +199,7 @@ public sealed class ConfiglueContext : IDisposable, IAsyncDisposable
         {
             foreach (var registration in registrations)
             {
-                var runtime = registration.CreateRuntime(serviceProvider, OwnResource);
+                var runtime = registration.CreateRuntime(serviceProvider, OwnResource, hostPaths);
                 runtimes.Add(runtime);
                 if (runtime is not IDisposable || runtime is not IAsyncDisposable)
                 {
@@ -226,7 +228,8 @@ public sealed class ConfiglueContext : IDisposable, IAsyncDisposable
                     registrations
                         .Where(candidate => candidate.ModelType == registration.ModelType)
                         .Select(candidate => candidate.StateName)
-                        .ToArray()
+                        .ToArray(),
+                    hostPaths
                 );
                 registries.Add(registration.ModelType, registry);
                 runtimes.Add(registry);

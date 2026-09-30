@@ -550,6 +550,7 @@ namespace Configlue.Extensibility
 {
     public sealed class ConfiglueSourceCreationContext
     {
+        public Configlue.Resources.IConfiglueHostPaths HostPaths { get; }
         public Configlue.ConfiglueModelSchema ModelSchema { get; }
         public System.IServiceProvider? Services { get; }
         public Configlue.Extensibility.ConfiglueSourceCreation<T> Complete<T>(Configlue.Sources.StateSource<T> source) { }
@@ -662,6 +663,17 @@ namespace Configlue.Resources
         public Configlue.RouteKey Route { get; init; }
         public Configlue.IConfiglueSubject Subject { get; init; }
         public static Configlue.Resources.ConfiglueResourceContext Default { get; }
+    }
+    public enum ConfiglueStandardLocation
+    {
+        HostGlobal = 0,
+        UserGlobal = 1,
+        Local = 2,
+        BackupRoot = 3,
+    }
+    public interface IConfiglueHostPaths
+    {
+        bool TryResolve(Configlue.Resources.ConfiglueStandardLocation location, string applicationId, out string directory);
     }
     public interface IResourceBackupRecovery
     {
