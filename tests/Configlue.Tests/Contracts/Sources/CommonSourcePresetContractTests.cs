@@ -12,7 +12,7 @@ public sealed class CommonSourcePresetContractTests
             ConfiglueApp.CreateContext(builder =>
                 builder.UseCommonSources(sources =>
                 {
-                    sources.DefaultWriteLayer(CommonSourceLayer.Global);
+                    sources.DefaultWriteLayer(CommonSourceLayer.UserGlobal);
                     sources.WithEnvironment("CONFIGLUE_TEST");
                     sources.Add<AppSettings>();
                 })

@@ -27,7 +27,7 @@ Configlue の設定設計において、中心となるのが **CommonSource**�
 | 層 | 有効化の条件 | 保存場所・入力源 | 既定の書き込み可否 |
 | --- | --- | --- | :---: |
 | **HostGlobal** | `WithHostGlobal` | ホストのアプリケーション共有領域（対応時） | 書き込み可能 |
-| **UserGlobal** | `WithUserGlobal`（`WithGlobal` 互換エイリアス） | 現在のプラットフォームユーザーの永続領域 | 書き込み可能 |
+| **UserGlobal** | `WithUserGlobal` | 現在のプラットフォームユーザーの永続領域 | 書き込み可能 |
 | **Local（ローカル）** | `WithLocal` | ホストのアプリケーション／配置ローカル領域 | 書き込み可能 |
 | **Explicit（指定ファイル）** | `WithExplicit` | 呼び出し側が指定するファイル | 書き込み可能 |
 | **Environment（環境変数）** | `WithEnvironment` | プロセス環境変数 | 読み取り専用 |
@@ -36,7 +36,7 @@ Configlue の設定設計において、中心となるのが **CommonSource**�
 
 source identity と優先度（0〜600）はプリセット内部で割り当てられます。読み取り順は HostGlobal < UserGlobal < Local < Explicit < Environment < Arguments < HTTP です。通常の書き込み先は Explicit があれば Explicit、次に Local、UserGlobal、HostGlobal の順で選ばれます。`DefaultWriteLayer` で別のファイル層を選択できます。
 
-標準パスはアクティブなホストプロファイルが解決します。組み込みプロファイルは通常の Windows/macOS/Linux の動作を維持し、ホスト統合はプロファイルを一度差し替えたり、個別の場所を上書きまたは未対応として指定できます。`WithGlobal` は互換のため残り、`WithUserGlobal` のエイリアスです。HostGlobal を意味することはありません。
+標準パスはアクティブなホストプロファイルが解決します。組み込みプロファイルは通常の Windows/macOS/Linux の動作を維持し、ホスト統合はプロファイルを一度差し替えたり、個別の場所を上書きまたは未対応として指定できます。
 
 ```csharp
 await using var context = ConfiglueApp.CreateContext(builder =>
@@ -89,7 +89,7 @@ using Configlue.Source.Presets;
 await using var context = ConfiglueApp.CreateContext(conf =>
     conf.UseCommonSources(sources =>
     {
-        sources.WithGlobal("ExampleApp", filename: "appsettings.json");
+        sources.WithUserGlobal("ExampleApp", filename: "appsettings.json");
         sources.WithLocal();
         sources.WithExplicit(userSpecifiedPath);
         sources.WithEnvironment("EXAMPLE");
@@ -99,7 +99,7 @@ await using var context = ConfiglueApp.CreateContext(conf =>
 );
 ```
 
-DI 登録では同じ `conf.UseCommonSources(...)` を `AddConfiglue` 内で呼び出します。ファイル層には既存 Provider の API を利用でき、たとえば `sources.WithGlobal("ExampleApp").Yaml()` や `.FileResourceOptions(...)` を指定できます。
+DI 登録では同じ `conf.UseCommonSources(...)` を `AddConfiglue` 内で呼び出します。ファイル層には既存 Provider の API を利用でき、たとえば `sources.WithUserGlobal("ExampleApp").Yaml()` や `.FileResourceOptions(...)` を指定できます。
 
 ## セマンティックセレクターによる明示保存
 
@@ -109,8 +109,8 @@ DI 登録では同じ `conf.UseCommonSources(...)` を `AddConfiglue` 内で呼�
 ```csharp
 var sourceAdmin = context.GetSources<AppSettings>();
 
-// ユーザー共通設定 (Global) に保存
-await sourceAdmin.Source(CommonSource.Global).SaveAsync(patch =>
+// ユーザー共通設定 (UserGlobal) に保存
+await sourceAdmin.Source(CommonSource.UserGlobal).SaveAsync(patch =>
 {
     patch.Theme = "Dark";
 });
@@ -135,7 +135,7 @@ using Configlue.Source.CommandLine;
 
 conf.UseCommonSources(sources =>
 {
-    sources.WithGlobal("ExampleApp");
+    sources.WithUserGlobal("ExampleApp");
     sources.WithLocal();
     sources.WithEnvironment("EXAMPLE");
     sources.WithCommandLine(parseResult, mappings =>
@@ -156,7 +156,7 @@ conf.UseCommonSources(sources =>
 ```csharp
 conf.UseCommonSources(sources =>
 {
-    sources.WithGlobal("ExampleApp");
+    sources.WithUserGlobal("ExampleApp");
     sources.WithLocal();
     sources.WithHttpPolicy(
         "https://policy.example.internal/api/config",

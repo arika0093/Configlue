@@ -15,7 +15,7 @@ Environment variables introduce the first read-only override. This makes the dif
    await using var context = ConfiglueApp.CreateContext(config =>
        config.UseCommonSources(sources =>
        {
-           sources.WithGlobal("TutorialApp");
+           sources.WithUserGlobal("TutorialApp");
            sources.WithLocal();
            sources.WithEnvironment("EXAMPLE");
            sources.Add<AppSettings>();

@@ -22,7 +22,6 @@ namespace Configlue.Source.Presets
     }
     public static class CommonSource
     {
-        public static Configlue.Source.Presets.CommonSourceSelector Global { get; }
         public static Configlue.Source.Presets.CommonSourceSelector HostGlobal { get; }
         public static Configlue.Source.Presets.CommonSourceSelector Local { get; }
         public static Configlue.Source.Presets.CommonSourceSelector Specific { get; }
@@ -36,7 +35,6 @@ namespace Configlue.Source.Presets
         public Configlue.Source.Presets.CommonCustomSourceBuilder WithCustom(Configlue.Source.Presets.CommonSourceLayer afterLayer, System.Func<Configlue.ConfiglueSourceSetBuilder, Configlue.ConfiglueSourceRegistration> register) { }
         public Configlue.Source.Presets.CommonEnvironmentSourceBuilder WithEnvironment(string prefix) { }
         public Configlue.Source.Presets.CommonFileSourceBuilder WithExplicit(string filepath) { }
-        public Configlue.Source.Presets.CommonFileSourceBuilder WithGlobal(string applicationId, string filename = "settings.json") { }
         public Configlue.Source.Presets.CommonFileSourceBuilder WithHostGlobal(string applicationId, string filename = "settings.json") { }
         public Configlue.Source.Presets.CommonHttpSourceBuilder WithHttpPolicy(string endpoint, System.Func<System.IServiceProvider?, System.Net.Http.HttpClient> clientFactory, string id = "common.http") { }
         public Configlue.Source.Presets.CommonHttpSourceBuilder WithHttpPolicy(string endpoint, System.Net.Http.HttpClient client, string id = "common.http") { }
@@ -51,7 +49,6 @@ namespace Configlue.Source.Presets
     {
         HostGlobal = 0,
         UserGlobal = 1,
-        Global = 1,
         Local = 2,
         Explicit = 3,
         Environment = 4,

@@ -258,7 +258,7 @@ public sealed partial class ConfiglueFacadeSourceTests
                         .WithExplicit(specificPath)
                         .FileResourceOptions(new FileResourceOptions { CreateBackup = false });
                     sources
-                        .WithGlobal(appId, "settings.json")
+                        .WithUserGlobal(appId, "settings.json")
                         .FileResourceOptions(new FileResourceOptions { CreateBackup = false });
                     sources
                         .WithLocal(localPath)
@@ -292,7 +292,7 @@ public sealed partial class ConfiglueFacadeSourceTests
             selectedFragment = written.Deserialize(in sequence, default)!;
             (selectedFragment.Label.Value).ShouldBe("explicit-selector-write");
             await options
-                .Source(CommonSource.Global)
+                .Source(CommonSource.UserGlobal)
                 .SaveAsync(
                     new AppSettings.Patch
                     {

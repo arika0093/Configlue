@@ -45,7 +45,7 @@ Here we add an **HTTP source** on top of the standard **CommonSource** architect
 
    conf.UseCommonSources(sources =>
    {
-       sources.WithGlobal("TutorialApp");
+       sources.WithUserGlobal("TutorialApp");
        sources.WithLocal();
        sources
            .WithHttpPolicy("https://policy.example.com/api/policy", httpClient, id: "policy")
@@ -69,7 +69,7 @@ Here we add an **HTTP source** on top of the standard **CommonSource** architect
    builder.Services.AddConfiglue(conf =>
        conf.UseCommonSources(sources =>
        {
-           sources.WithGlobal("TutorialApp");
+           sources.WithUserGlobal("TutorialApp");
            sources.WithLocal();
            sources
                .WithHttpPolicy(

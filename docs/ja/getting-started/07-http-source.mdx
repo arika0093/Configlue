@@ -47,7 +47,7 @@ import { Steps, Tabs, TabItem } from '@astrojs/starlight/components';
 
    conf.UseCommonSources(sources =>
    {
-       sources.WithGlobal("TutorialApp");
+       sources.WithUserGlobal("TutorialApp");
        sources.WithLocal();
        sources
            .WithHttpPolicy("https://policy.example.com/api/policy", httpClient, id: "policy")
@@ -72,7 +72,7 @@ import { Steps, Tabs, TabItem } from '@astrojs/starlight/components';
    builder.Services.AddConfiglue(conf =>
        conf.UseCommonSources(sources =>
        {
-           sources.WithGlobal("TutorialApp");
+           sources.WithUserGlobal("TutorialApp");
            sources.WithLocal();
            sources
                .WithHttpPolicy(

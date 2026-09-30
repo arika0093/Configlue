@@ -65,7 +65,7 @@ public sealed partial class CommonSourceFormatTests
                             [new KeyValuePair<string, string?>("CONFIGLUE_TEST__RetryCount", "4")]
                         );
                     sources.WithExplicit(explicitPath);
-                    sources.WithGlobal(appId);
+                    sources.WithUserGlobal(appId);
                     sources.WithLocal(localPath);
                     sources.Add<AppSettings>();
                 })
@@ -92,7 +92,7 @@ public sealed partial class CommonSourceFormatTests
             builder.OverrideHostPath(ConfiglueStandardLocation.UserGlobal, _ => directory.FullPath);
             builder.UseCommonSources(sources =>
             {
-                sources.WithGlobal(applicationId);
+                sources.WithUserGlobal(applicationId);
                 sources.WithLocal(localPath);
                 sources.Add<AppSettings>();
             });
@@ -127,7 +127,7 @@ public sealed partial class CommonSourceFormatTests
             await using var context = ConfiglueApp.CreateContext(builder =>
                 builder.UseCommonSources(sources =>
                 {
-                    sources.WithGlobal(appId, "settings.yaml").Yaml().YamlSerializerOptions(new());
+                    sources.WithUserGlobal(appId, "settings.yaml").Yaml().YamlSerializerOptions(new());
                     sources.Add<AppSettings>();
                 })
             );
@@ -169,7 +169,7 @@ public sealed partial class CommonSourceFormatTests
             await using var context = ConfiglueApp.CreateContext(builder =>
                 builder.UseCommonSources(sources =>
                 {
-                    sources.WithGlobal(appId);
+                    sources.WithUserGlobal(appId);
                     sources.WithLocal(localPath).Yaml();
                     sources.Add<AppSettings>();
                 })

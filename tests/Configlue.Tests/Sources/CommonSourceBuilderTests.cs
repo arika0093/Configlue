@@ -41,13 +41,13 @@ public sealed partial class CommonSourceFormatTests
                 {
                     sources.WithLocal(localPath);
                     sources.WithCustom(
-                        CommonSourceLayer.Global,
+                        CommonSourceLayer.UserGlobal,
                         builder =>
                             builder.FromJsonFile(
                                 new JsonFileSourceOptions { Id = "custom", Path = customPath }
                             )
                     );
-                    sources.WithGlobal(applicationId, "global.json");
+                    sources.WithUserGlobal(applicationId, "global.json");
                     sources.Add<AppSettings>();
                 })
             );

@@ -11,9 +11,6 @@ public enum CommonSourceLayer
     /// <summary>The persistent per-user application data file.</summary>
     UserGlobal,
 
-    /// <summary>Compatibility alias for <see cref="UserGlobal"/>.</summary>
-    Global = UserGlobal,
-
     /// <summary>The current-directory local file.</summary>
     Local,
 
@@ -90,12 +87,6 @@ public sealed class CommonSourceBuilder
             )
         );
     }
-
-    /// <summary>Compatibility alias for <see cref="WithUserGlobal"/>.</summary>
-    public CommonFileSourceBuilder WithGlobal(
-        string applicationId,
-        string filename = "settings.json"
-    ) => WithUserGlobal(applicationId, filename);
 
     /// <summary>Registers a local file, relative to the current directory unless rooted.</summary>
     public CommonFileSourceBuilder WithLocal(string filename = "settings.json")

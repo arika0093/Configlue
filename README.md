@@ -170,7 +170,7 @@ public partial class SampleSetting
 await using var context = ConfiglueApp.CreateContext(conf =>
     conf.UseCommonSources(sources =>
     {
-        sources.WithGlobal("SampleApp");
+        sources.WithUserGlobal("SampleApp");
         sources.WithLocal();
         sources.WithEnvironment("SAMPLE");
         sources.Add<SampleSetting>();

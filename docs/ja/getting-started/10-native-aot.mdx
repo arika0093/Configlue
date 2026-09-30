@@ -40,7 +40,7 @@ Configlue は、`System.Text.Json` のソース生成コンテキスト（`JsonS
    await using var context = ConfiglueApp.CreateContext(conf =>
        conf.UseCommonSources(sources =>
        {
-           sources.WithGlobal("TutorialApp").Json(AppJsonContext.Default);
+           sources.WithUserGlobal("TutorialApp").Json(AppJsonContext.Default);
            sources.WithLocal().Json(AppJsonContext.Default);
            sources.Add<AppSettings>();
        })
@@ -57,7 +57,7 @@ Configlue は、`System.Text.Json` のソース生成コンテキスト（`JsonS
    builder.Services.AddConfiglue(conf =>
        conf.UseCommonSources(sources =>
        {
-           sources.WithGlobal("TutorialApp").Json(AppJsonContext.Default);
+           sources.WithUserGlobal("TutorialApp").Json(AppJsonContext.Default);
            sources.WithLocal().Json(AppJsonContext.Default);
            sources.Add<AppSettings>();
        })

@@ -55,7 +55,7 @@ API は `Configlue.JsonSchema` パッケージ・名前空間にあり、`Config
    conf.UseCommonSources(sources =>
    {
        sources
-           .WithGlobal("TutorialApp")
+           .WithUserGlobal("TutorialApp")
            .Json(AppJsonContext.Default)
            .SchemaReferenceBaseUri("./schemas/tutorial.settings.v1.json");
        sources.Add<AppSettings>();

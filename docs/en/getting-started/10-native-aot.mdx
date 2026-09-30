@@ -39,7 +39,7 @@ Configlue supports NativeAOT by accepting `System.Text.Json` source generator co
    await using var context = ConfiglueApp.CreateContext(conf =>
        conf.UseCommonSources(sources =>
        {
-           sources.WithGlobal("TutorialApp").Json(AppJsonContext.Default);
+           sources.WithUserGlobal("TutorialApp").Json(AppJsonContext.Default);
            sources.WithLocal().Json(AppJsonContext.Default);
            sources.Add<AppSettings>();
        })
@@ -56,7 +56,7 @@ Configlue supports NativeAOT by accepting `System.Text.Json` source generator co
    builder.Services.AddConfiglue(conf =>
        conf.UseCommonSources(sources =>
        {
-           sources.WithGlobal("TutorialApp").Json(AppJsonContext.Default);
+           sources.WithUserGlobal("TutorialApp").Json(AppJsonContext.Default);
            sources.WithLocal().Json(AppJsonContext.Default);
            sources.Add<AppSettings>();
        })

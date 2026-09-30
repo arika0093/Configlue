@@ -18,7 +18,7 @@ The previous steps had one source. This step introduces layering: a lower-priori
    await using var context = ConfiglueApp.CreateContext(config =>
        config.UseCommonSources(sources =>
        {
-           sources.WithGlobal("TutorialApp");
+           sources.WithUserGlobal("TutorialApp");
            sources.WithLocal();
            sources.Add<AppSettings>();
        }));
@@ -26,11 +26,11 @@ The previous steps had one source. This step introduces layering: a lower-priori
    var state = context.GetState<AppSettings>();
    ```
 
-   `Global` uses the platform-standard per-user configuration directory. `Local` uses `settings.json` in the current working directory and has higher read priority.
+   `UserGlobal` uses the platform-standard per-user configuration directory. `Local` uses `settings.json` in the current working directory and has higher read priority.
 
 2. ### Read the merged value
 
-   A member present in Local overrides the same member from Global. A member missing from Local can still come from Global or, if neither file contributes it, from the model defaults.
+   A member present in Local overrides the same member from UserGlobal. A member missing from Local can still come from UserGlobal or, if neither file contributes it, from the model defaults.
 
 3. ### Inspect where a value came from
 
@@ -45,12 +45,12 @@ The previous steps had one source. This step introduces layering: a lower-priori
 
 4. ### Choose a source explicitly when necessary
 
-   Ordinary `SaveAsync` uses the preset's default writable layer, which is Local in this configuration. To write the lower Global layer intentionally, get the source-administration capability from the context.
+   Ordinary `SaveAsync` uses the preset's default writable layer, which is Local in this configuration. To write the lower UserGlobal layer intentionally, get the source-administration capability from the context.
 
    ```csharp
    var sources = context.GetSources<AppSettings>();
 
-   await sources.Source(CommonSource.Global).SaveAsync(patch =>
+   await sources.Source(CommonSource.UserGlobal).SaveAsync(patch =>
    {
        patch.Name = "Shared default";
    });
