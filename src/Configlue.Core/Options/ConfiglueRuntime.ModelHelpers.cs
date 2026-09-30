@@ -403,6 +403,17 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         }
     }
 
+    private readonly record struct ResolvedSourceProbe
+    {
+        public StateSource<TFragment> Source { get; init; }
+        public StateReadResult<TFragment> Result { get; init; }
+        public bool Contributed { get; init; }
+        public bool FallbackContinued { get; init; }
+        public ConfiglueResourceContext? ResourceContext { get; init; }
+        public ResourceId? ResourceId { get; init; }
+        public Exception? Exception { get; init; }
+    }
+
     private readonly record struct ResolvedState
     {
         public StateReadResult<TModel> Result { get; init; }

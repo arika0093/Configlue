@@ -13,7 +13,7 @@ Console.WriteLine($">> Name: {setting.Name}");
 読み取りは全ソースを優先度順に解決し、ディープコピーを返します。
 DI では同期の `IOptions<T>.Value` / `IOptionsSnapshot<T>` / `IOptionsMonitor<T>` アダプターも使えますが、非同期フローでは async メソッドを使ってください。
 
-`IReadOnlyState<T>` の通常の読み取り API は `GetValueAsync` と `OnChange` です。高度な利用者は `IConfiglueInspection<T>` の `ReadAsync` から状態とリビジョンのメタデータを取得できます。Core に同期 `CurrentValue` プロパティはありません。
+`IReadOnlyState<T>` の通常の読み取り API は `GetValueAsync` と `OnChange` です。高度な利用者は `IConfiglueInspection<T>` の `Check` でソースごとのチェック結果をストリームし、最終的な解決結果を 1 つ取得できます。Core に同期 `CurrentValue` プロパティはありません。
 DI では opt-in の `Configlue.Extensions.MSOptions` パッケージが `IOptions<T>`、`IOptionsSnapshot<T>`、`IOptionsMonitor<T>` アダプターを提供します。
 同期 getter は非同期ソースの読み取り中にブロックするため、非同期処理では `GetValueAsync` を使用してください。
 

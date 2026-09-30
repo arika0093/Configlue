@@ -51,7 +51,9 @@ public sealed partial class StateRuntimeTests
         var writable = serviceProvider.GetRequiredService<IWritableState<AppSettings>>();
 
         (ReferenceEquals(readOnly, writable)).ShouldBeTrue();
-        var resolved = await ((IConfiglueRuntimeState<AppSettings>)readOnly).ReadAsync();
+        var resolved = await (
+            (ConfiglueRuntime<AppSettings, AppSettings.Fragment>)readOnly
+        ).ReadAsync();
         var currentValue = await readOnly.GetValueAsync();
         var saveResult = await writable.SaveAsync(patch =>
         {

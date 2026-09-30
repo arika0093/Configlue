@@ -23,7 +23,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             {
                 if (!hasPrevious)
                 {
-                    previous = await ReadAsync(cancellationToken).ConfigureAwait(false);
+                    previous = await ReadPublicValueAsync(cancellationToken).ConfigureAwait(false);
                     hasPrevious = true;
                 }
 
@@ -34,7 +34,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                     await Task.Delay(_onChangeDebounce, cancellationToken).ConfigureAwait(false);
                 }
 
-                var current = await ReadAsync(cancellationToken).ConfigureAwait(false);
+                var current = await ReadPublicValueAsync(cancellationToken).ConfigureAwait(false);
                 if (
                     current.Status == StateReadStatus.Success
                     && !HaveSameRevisions(previous.Revisions, current.Revisions)

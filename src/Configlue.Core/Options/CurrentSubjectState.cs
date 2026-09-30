@@ -6,8 +6,41 @@ namespace Configlue;
 internal sealed class CurrentSubjectState<TModel>(
     ISubjectState<TModel> subjectOptions,
     IConfiglueSubjectAccessor subjectAccessor
-) : IWritableState<TModel>, IConfiglueDetailsRuntime
+) : IWritableState<TModel>, IConfiglueDetailsRuntime, IConfiglueInspection<TModel>
 {
+    public ConfiglueCheckOperation Check(CancellationToken cancellationToken = default) =>
+        new(
+            (reportSource, token) => CheckWithCurrentSubjectAsync(reportSource, token),
+            cancellationToken
+        );
+
+    private async Task<ConfiglueCheckResult> CheckWithCurrentSubjectAsync(
+        Action<ConfiglueSourceCheckResult> reportSource,
+        CancellationToken cancellationToken
+    )
+    {
+        ArgumentNullException.ThrowIfNull(reportSource);
+        var subject = await subjectAccessor
+            .GetCurrentSubjectAsync(cancellationToken)
+            .ConfigureAwait(false);
+        var options = subjectOptions.ForSubject(subject);
+        if (options is not IConfiglueInspection<TModel> inspection)
+        {
+            throw new NotSupportedException(
+                "This options implementation does not expose state checks."
+            );
+        }
+
+        var operation = inspection.Check(cancellationToken);
+        var result = operation.Result;
+        await foreach (var source in operation.ConfigureAwait(false))
+        {
+            reportSource(source);
+        }
+
+        return await result.ConfigureAwait(false);
+    }
+
     public async ValueTask<TModel> GetValueAsync(CancellationToken cancellationToken = default)
     {
         var subject = await subjectAccessor

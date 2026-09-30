@@ -154,7 +154,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             }
 
             Validate(proposed.Value!);
-            var latest = await ReadAsync(cancellationToken).ConfigureAwait(false);
+            var latest = await ReadPublicValueAsync(cancellationToken).ConfigureAwait(false);
             if (
                 latest.Status != StateReadStatus.Success
                 || !HaveSameRevisions(expectedBaselineRevisions, latest.Revisions)

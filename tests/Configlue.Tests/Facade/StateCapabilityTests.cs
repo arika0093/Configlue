@@ -66,8 +66,8 @@ public sealed class StateCapabilityTests
                 provider.GetRequiredKeyedService<IConfiglueDiagnostics<AppSettings>>("named")
             )
             .ShouldBeTrue();
-        (await context.GetInspection<AppSettings>().ReadAsync()).Status.ShouldBe(
-            StateReadStatus.Success
+        (await context.GetInspection<AppSettings>().Check().Result).Status.ShouldBe(
+            ConfiglueCheckStatus.Success
         );
     }
 }

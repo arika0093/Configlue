@@ -9,7 +9,7 @@ State はアプリが使う読み書きの窓口です。通常の読み書き�
 
 - `IReadOnlyState<T>`: 非同期読み（`GetValueAsync`）と `OnChange`。
 - `IWritableState<T>`: Patch による保存を追加します。
-- `IConfiglueInspection<T>`: 状態と生成された Details の取得。
+- `IConfiglueInspection<T>`: ソースの運用チェックと最終的な解決ステータス。
 - `IConfiglueEditSessions<T>`: 編集セッションの開始。
 - `IConfiglueSources<T>`: ソースローカルの保存・置換・バッチ・移行。
 - `IConfiglueDiagnostics<T>`: 構成の診断と reload failure 通知。

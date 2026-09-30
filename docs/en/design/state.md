@@ -9,7 +9,7 @@ State is the read/write facade apps use. Regular reads and writes stay small; ad
 
 - `IReadOnlyState<T>`: async reads (`GetValueAsync`) and `OnChange`.
 - `IWritableState<T>`: adds patch-based saves.
-- `IConfiglueInspection<T>`: resolved reads and generated details.
+- `IConfiglueInspection<T>`: operational source checks and final resolution status.
 - `IConfiglueEditSessions<T>`: editing drafts and committing changes.
 - `IConfiglueSources<T>`: source-local saves, replacement, batches, and migration.
 - `IConfiglueDiagnostics<T>`: topology and reload-failure notifications.

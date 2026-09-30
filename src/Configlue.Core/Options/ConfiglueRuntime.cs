@@ -486,14 +486,9 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
     }
 
     /// <inheritdoc />
-    public ValueTask<StateReadResult<TModel>> ReadAsync(
-        CancellationToken cancellationToken = default
-    ) => ReadPublicValueAsync(cancellationToken);
-
-    /// <inheritdoc />
     public async ValueTask<TModel> GetValueAsync(CancellationToken cancellationToken = default)
     {
-        var result = await ReadAsync(cancellationToken).ConfigureAwait(false);
+        var result = await ReadPublicValueAsync(cancellationToken).ConfigureAwait(false);
         if (result.Status != StateReadStatus.Success)
         {
             throw new InvalidOperationException(
@@ -503,6 +498,12 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
 
         return result.Value!;
     }
+
+    // Raw resolved read for internal callers and tests. The public read-side capability surface exposes
+    // GetValueAsync, generated GetDetailsAsync, and Check instead.
+    internal ValueTask<StateReadResult<TModel>> ReadAsync(
+        CancellationToken cancellationToken = default
+    ) => ReadPublicValueAsync(cancellationToken);
 
     private async ValueTask<StateReadResult<TModel>> ReadPublicValueAsync(
         CancellationToken cancellationToken
@@ -525,7 +526,8 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
     private async ValueTask<ResolvedState> ResolveCoreAsync(
         IReadOnlyDictionary<string, StateReadResult<TFragment>>? replacements,
         CancellationToken cancellationToken,
-        bool captureContributions = false
+        bool captureContributions = false,
+        Action<ResolvedSourceProbe>? observeSource = null
     )
     {
         using var operation = EnterOperation();
@@ -556,7 +558,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                 ? null
                 : source.GetResourceContext(subject, route);
             var resourceId =
-                captureContributions && resourceContext is not null
+                (captureContributions || observeSource is not null) && resourceContext is not null
                     ? source.GetResourceId(resourceContext.Value)
                     : source.ResourceId;
             StateReadResult<TFragment> sourceResult;
@@ -600,6 +602,17 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                         _stateName,
                         source.PhysicalOrigin,
                         source.ResourceId?.Value
+                    );
+                    observeSource?.Invoke(
+                        new ResolvedSourceProbe
+                        {
+                            Source = source,
+                            Contributed = false,
+                            FallbackContinued = false,
+                            ResourceContext = resourceContext,
+                            ResourceId = resourceId,
+                            Exception = exception,
+                        }
                     );
                     throw;
                 }
@@ -690,6 +703,17 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                     activeResult = result.WithValue(fragment);
                 }
                 successfulCount++;
+                observeSource?.Invoke(
+                    new ResolvedSourceProbe
+                    {
+                        Source = source,
+                        Result = result.WithValue(fragment),
+                        Contributed = true,
+                        FallbackContinued = false,
+                        ResourceContext = resourceContext,
+                        ResourceId = resourceId,
+                    }
+                );
                 continue;
             }
 
@@ -704,6 +728,17 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                 canFallBack ? "continues" : "stops",
                 typeof(TModel).FullName,
                 _stateName
+            );
+            observeSource?.Invoke(
+                new ResolvedSourceProbe
+                {
+                    Source = source,
+                    Result = result,
+                    Contributed = false,
+                    FallbackContinued = canFallBack,
+                    ResourceContext = resourceContext,
+                    ResourceId = resourceId,
+                }
             );
             if (!canFallBack)
             {

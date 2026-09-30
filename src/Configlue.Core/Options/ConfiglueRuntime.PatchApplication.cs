@@ -388,7 +388,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
 
         if (writePlans.Count > 0)
         {
-            var latest = await ReadAsync(cancellationToken).ConfigureAwait(false);
+            var latest = await ReadPublicValueAsync(cancellationToken).ConfigureAwait(false);
             if (
                 latest.Status != StateReadStatus.Success
                 || !HaveSameRevisions(baseline.Result.Revisions, latest.Revisions)

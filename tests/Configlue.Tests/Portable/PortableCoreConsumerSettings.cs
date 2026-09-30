@@ -15,4 +15,19 @@ public static class PortableConsumerOperations
         ConfiglueModelOperations<PortableSettings, PortableSettings.Fragment>.Current.ToFragment(
             model
         );
+
+    public static async Task<bool> CanResolveAsync(
+        IConfiglueInspection<PortableSettings> inspection,
+        CancellationToken cancellationToken = default
+    )
+    {
+        var check = inspection.Check(cancellationToken);
+        await foreach (var source in check)
+        {
+            _ = source.Status;
+        }
+
+        var result = await check.Result;
+        return result.IsResolved;
+    }
 }

@@ -151,7 +151,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
     private sealed class SubjectBoundOptions(
         ConfiglueRuntime<TModel, TFragment> owner,
         IConfiglueSubject subject
-    ) : IWritableState<TModel>, IConfiglueDetailsRuntime
+    ) : IWritableState<TModel>, IConfiglueDetailsRuntime, IConfiglueInspection<TModel>
     {
         public IDisposable OnChange(Action<TModel> listener) =>
             owner.WatchSubject(subject, listener);
@@ -163,6 +163,9 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             IConfigluePatch patch,
             CancellationToken cancellationToken = default
         ) => owner.SaveForSubjectAsync(subject, patch, cancellationToken);
+
+        public ConfiglueCheckOperation Check(CancellationToken cancellationToken = default) =>
+            owner.CreateCheckOperation(subject, cancellationToken);
 
         async ValueTask<ConfiglueDetailsSnapshot> IConfiglueDetailsRuntime.GetDetailsSnapshotAsync(
             CancellationToken cancellationToken

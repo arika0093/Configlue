@@ -120,6 +120,31 @@ namespace Configlue
         public override string ToString() { }
         public static T? op_Implicit(Configlue.ConfigValueDetails<T> details) { }
     }
+    public sealed class ConfiglueCheckOperation : System.Collections.Generic.IAsyncEnumerable<Configlue.ConfiglueSourceCheckResult>
+    {
+        public System.Threading.Tasks.ValueTask<Configlue.ConfiglueCheckResult> Result { get; }
+        public System.Collections.Generic.IAsyncEnumerator<Configlue.ConfiglueSourceCheckResult> GetAsyncEnumerator(System.Threading.CancellationToken cancellationToken = default) { }
+    }
+    public sealed class ConfiglueCheckResult
+    {
+        public System.Exception? Exception { get; }
+        public bool IsResolved { get; }
+        public Configlue.ConfiglueCheckStatus Status { get; }
+        public System.Collections.Generic.IReadOnlyList<string> ValidationIssues { get; }
+        public static Configlue.ConfiglueCheckResult Faulted(System.Exception exception) { }
+        public static Configlue.ConfiglueCheckResult Invalid(System.Collections.Generic.IEnumerable<string>? validationIssues = null) { }
+        public static Configlue.ConfiglueCheckResult NotFound() { }
+        public static Configlue.ConfiglueCheckResult Resolved() { }
+        public static Configlue.ConfiglueCheckResult Unavailable() { }
+    }
+    public enum ConfiglueCheckStatus
+    {
+        Success = 0,
+        NotFound = 1,
+        Unavailable = 2,
+        Invalid = 3,
+        Faulted = 4,
+    }
     public enum ConfiglueEditability
     {
         Editable = 0,
@@ -245,6 +270,17 @@ namespace Configlue
         public string? ActiveProfileName { get; set; }
         public System.Collections.Generic.List<string> ProfileNames { get; set; }
     }
+    public sealed class ConfiglueSourceCheckResult
+    {
+        public ConfiglueSourceCheckResult(Configlue.ConfigSourceDetails source, Configlue.ConfiglueCheckStatus status, bool contributed, bool fallbackContinued, System.Collections.Generic.IReadOnlyList<string>? validationIssues = null, System.Exception? exception = null) { }
+        public bool Contributed { get; }
+        public System.Exception? Exception { get; }
+        public bool FallbackContinued { get; }
+        public bool IsSuccess { get; }
+        public Configlue.ConfigSourceDetails Source { get; }
+        public Configlue.ConfiglueCheckStatus Status { get; }
+        public System.Collections.Generic.IReadOnlyList<string> ValidationIssues { get; }
+    }
     public sealed class ConfiglueSourceDiagnostics
     {
         public ConfiglueSourceDiagnostics(string id, int priority, Configlue.Sources.StateFallbackCondition fallbackCondition, bool canRead, bool canWrite, bool canWatch, bool isActive, string? physicalOrigin, Configlue.Resources.ResourceId? resourceId) { }
@@ -347,7 +383,7 @@ namespace Configlue
     }
     public interface IConfiglueInspection<T>
     {
-        System.Threading.Tasks.ValueTask<Configlue.State.StateReadResult<T>> ReadAsync(System.Threading.CancellationToken cancellationToken = default);
+        Configlue.ConfiglueCheckOperation Check(System.Threading.CancellationToken cancellationToken = default);
     }
     public interface IConfiglueMemberPatch : Configlue.IConfigluePatch
     {

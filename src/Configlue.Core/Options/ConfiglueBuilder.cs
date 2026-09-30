@@ -898,6 +898,9 @@ internal sealed class ConfiglueModelRegistration<TModel>(ConfiglueModelBuilder<T
                     provider =>
                         provider.GetRequiredService<ConfiglueScopedRuntime<TModel>>().Runtime
                 );
+                services.AddScoped<IConfiglueInspection<TModel>>(provider =>
+                    provider.GetRequiredService<CurrentSubjectState<TModel>>()
+                );
             }
             else
             {
@@ -928,6 +931,11 @@ internal sealed class ConfiglueModelRegistration<TModel>(ConfiglueModelBuilder<T
                     StateName,
                     (provider, _) =>
                         provider.GetRequiredService<ConfiglueScopedRuntime<TModel>>().Runtime
+                );
+                services.AddKeyedScoped<IConfiglueInspection<TModel>>(
+                    StateName,
+                    (provider, _) =>
+                        provider.GetRequiredKeyedService<CurrentSubjectState<TModel>>(StateName)
                 );
             }
         }
