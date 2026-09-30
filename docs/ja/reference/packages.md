@@ -24,7 +24,6 @@ description: 機能ごとの NuGet パッケージを探す。
 | `Configlue.Extensions.AspNetCore` | ASP.NET Core の現在リクエストから subject を解決する統合。 |
 | `Configlue.Extensions.Blazor` | Blazor 認証状態からの subject 解決と circuit 単位の変更通知。 |
 | `Configlue.Resource.WebStorage` | ブラウザーの `localStorage` / `sessionStorage` リソース。DI スコープ単位で生成されます。 |
-| `Configlue.Resource.Dapr` | ETag concurrency check つき Dapr State Management resource と source 登録。 |
 | `Configlue.Resource.S3` | ETag revision を使う Amazon S3 object resource と source 登録。 |
 | `Configlue.Resource.PostgreSql` | subject key ごとの row、revision の atomic check、`LISTEN`/`NOTIFY` watcher を備えた任意の PostgreSQL byte resource。 |
 | `Configlue.Resource.Redis` | subject key ごとの key、Lua による revision の atomic check、Pub/Sub invalidation を備えた任意の Redis byte resource。 |
@@ -53,7 +52,6 @@ description: 機能ごとの NuGet パッケージを探す。
 | `Configlue.Extensions.AspNetCore` | `net10.0` | `Microsoft.AspNetCore.App` framework reference。 |
 | `Configlue.Extensions.Blazor` | `net10.0` | `Microsoft.AspNetCore.App` framework reference。 |
 | `Configlue.Resource.WebStorage` | `net10.0` | `Microsoft.JSInterop` 10.0.0。 |
-| `Configlue.Resource.Dapr` | `net8.0;net10.0` | `Dapr.Client` 1.18.10 の最低 TFM により `net8.0` 以上。 |
 | `Configlue.Resource.S3` | `netstandard2.0;netstandard2.1;net10.0` | `AWSSDK.S3` 4.0.103.4。 |
 | `Configlue.Resource.PostgreSql` | `net8.0;net10.0` | `Npgsql` 10.0.3 の最低 TFM により `net8.0` 以上。 |
 | `Configlue.Resource.Redis` | `netstandard2.0;netstandard2.1;net10.0` | `StackExchange.Redis` 3.3.1。 |

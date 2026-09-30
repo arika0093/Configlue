@@ -22,7 +22,6 @@
     <Project Path="src/Configlue.Source.CommandLine/Configlue.Source.CommandLine.csproj" />
   </Folder>
   <Folder Name="/src/Resources/">
-    <Project Path="src/Configlue.Resource.Dapr/Configlue.Resource.Dapr.csproj" />
     <Project Path="src/Configlue.Resource.S3/Configlue.Resource.S3.csproj" />
     <Project Path="src/Configlue.Resource.Http/Configlue.Resource.Http.csproj" />
     <Project Path="src/Configlue.Resource.Http.AspNetCore/Configlue.Resource.Http.AspNetCore.csproj" />

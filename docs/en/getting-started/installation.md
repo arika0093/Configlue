@@ -35,7 +35,6 @@ Add only the packages required by the application.
 | Resolve subjects from an ASP.NET Core request | `Configlue.Extensions.AspNetCore` |
 | Resolve subjects from Blazor authentication state | `Configlue.Extensions.Blazor` |
 | Browser `localStorage` / `sessionStorage` | `Configlue.Resource.WebStorage` |
-| Dapr State Management | `Configlue.Resource.Dapr` |
 | Amazon S3 | `Configlue.Resource.S3` |
 | Direct PostgreSQL storage | `Configlue.Resource.PostgreSql` |
 | Direct Redis storage | `Configlue.Resource.Redis` |

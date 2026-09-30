@@ -35,7 +35,6 @@ dotnet add package Configlue
 | ASP.NET Core リクエストから subject を解決する | `Configlue.Extensions.AspNetCore` |
 | Blazor 認証状態から subject を解決する | `Configlue.Extensions.Blazor` |
 | ブラウザーの `localStorage` / `sessionStorage` | `Configlue.Resource.WebStorage` |
-| Dapr State Management | `Configlue.Resource.Dapr` |
 | Amazon S3 | `Configlue.Resource.S3` |
 | PostgreSQL への直接保存 | `Configlue.Resource.PostgreSql` |
 | Redis への直接保存 | `Configlue.Resource.Redis` |

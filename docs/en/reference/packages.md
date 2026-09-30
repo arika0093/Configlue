@@ -24,7 +24,6 @@ description: Find the NuGet package for each Configlue capability.
 | `Configlue.Extensions.AspNetCore` | Current-request subject integration for ASP.NET Core (`IHttpContextAccessor`). |
 | `Configlue.Extensions.Blazor` | Blazor authentication-state subject integration and circuit change notifications. |
 | `Configlue.Resource.WebStorage` | Browser `localStorage` and `sessionStorage` resources, created per dependency-injection scope. |
-| `Configlue.Resource.Dapr` | Optional Dapr State Management resources and source registration with ETag concurrency checks. |
 | `Configlue.Resource.S3` | Optional Amazon S3 object resources and source registration with ETag revisions. |
 | `Configlue.Resource.PostgreSql` | Optional PostgreSQL byte resources with subject-key rows, atomic revision checks, and `LISTEN`/`NOTIFY` change watching. |
 | `Configlue.Resource.Redis` | Optional Redis byte resources with subject-key keys, atomic Lua revision checks, and multiplexed Pub/Sub invalidation. |
@@ -53,7 +52,6 @@ description: Find the NuGet package for each Configlue capability.
 | `Configlue.Extensions.AspNetCore` | `net10.0` | `Microsoft.AspNetCore.App` framework reference. |
 | `Configlue.Extensions.Blazor` | `net10.0` | `Microsoft.AspNetCore.App` framework reference. |
 | `Configlue.Resource.WebStorage` | `net10.0` | `Microsoft.JSInterop` 10.0.0. |
-| `Configlue.Resource.Dapr` | `net8.0;net10.0` | `Dapr.Client` 1.18.10; the backend dependency sets the `net8.0` floor. |
 | `Configlue.Resource.S3` | `netstandard2.0;netstandard2.1;net10.0` | `AWSSDK.S3` 4.0.103.4. |
 | `Configlue.Resource.PostgreSql` | `net8.0;net10.0` | `Npgsql` 10.0.3; the backend dependency sets the `net8.0` floor. |
 | `Configlue.Resource.Redis` | `netstandard2.0;netstandard2.1;net10.0` | `StackExchange.Redis` 3.3.1. |
