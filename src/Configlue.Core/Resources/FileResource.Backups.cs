@@ -349,7 +349,7 @@ public sealed partial class FileResource
     {
         try
         {
-            File.Move(sourcePath, destinationPath, overwrite: true);
+            MoveReplacing(sourcePath, destinationPath);
             return true;
         }
         catch (IOException)

@@ -132,18 +132,23 @@ internal static class YamlDocumentEditor
 
     private static string Decode(ReadOnlyMemory<byte> content, Encoding? textEncoding)
     {
+        string text;
         if (textEncoding is null)
         {
-            return StrictUtf8.GetString(content.ToArray());
+            text = StrictUtf8.GetString(content.ToArray());
+        }
+        else
+        {
+            using var stream = CreateReadOnlyStream(content);
+            using var reader = new StreamReader(
+                stream,
+                textEncoding,
+                detectEncodingFromByteOrderMarks: true
+            );
+            text = reader.ReadToEnd();
         }
 
-        using var stream = CreateReadOnlyStream(content);
-        using var reader = new StreamReader(
-            stream,
-            textEncoding,
-            detectEncodingFromByteOrderMarks: true
-        );
-        return reader.ReadToEnd();
+        return text.Length > 0 && text[0] == '\uFEFF' ? text.Substring(1) : text;
     }
 
     private static MemoryStream CreateReadOnlyStream(ReadOnlyMemory<byte> content)

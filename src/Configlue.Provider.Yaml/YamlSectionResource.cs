@@ -500,6 +500,11 @@ public sealed class YamlSectionResource
         var text = _textEncoding is null
             ? StrictUtf8.GetString(content.ToArray())
             : DecodeWithEncoding(content, _textEncoding);
+        if (text.Length > 0 && text[0] == '\uFEFF')
+        {
+            text = text.Substring(1);
+        }
+
         if (string.IsNullOrWhiteSpace(text))
         {
             return new YamlMapping();

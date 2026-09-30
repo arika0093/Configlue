@@ -256,6 +256,23 @@ public sealed partial class FileResource
         }
     }
 
+    private static void MoveReplacing(string sourcePath, string destinationPath)
+    {
+#if NETSTANDARD2_0
+        if (File.Exists(destinationPath))
+        {
+            var attributes = File.GetAttributes(destinationPath);
+            var replaceableAttributes =
+                attributes & ~(FileAttributes.Hidden | FileAttributes.ReadOnly);
+            if (replaceableAttributes != attributes)
+            {
+                File.SetAttributes(destinationPath, replaceableAttributes);
+            }
+        }
+#endif
+        File.Move(sourcePath, destinationPath, overwrite: true);
+    }
+
     private async ValueTask WriteAtomicAsync(
         string destinationPath,
         ReadOnlyMemory<byte> content,
@@ -290,7 +307,7 @@ public sealed partial class FileResource
                     stream.Flush(flushToDisk: true);
                 }
 
-                File.Move(temporaryPath, destinationPath, overwrite: true);
+                MoveReplacing(temporaryPath, destinationPath);
                 return;
             }
             catch (IOException) when (attempt < _options.RetryCount)

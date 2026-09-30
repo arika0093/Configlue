@@ -477,7 +477,7 @@ internal static class ConfiglueRuntimeCapabilities
         ?.GetProperty("IsDynamicCodeSupported", BindingFlags.Public | BindingFlags.Static);
 
     public static bool IsDynamicCodeSupported =>
-        IsDynamicCodeSupportedProperty?.GetValue(null) as bool? ?? false;
+        IsDynamicCodeSupportedProperty?.GetValue(null) as bool? ?? true;
 #else
     public static bool IsDynamicCodeSupported => RuntimeFeature.IsDynamicCodeSupported;
 #endif
