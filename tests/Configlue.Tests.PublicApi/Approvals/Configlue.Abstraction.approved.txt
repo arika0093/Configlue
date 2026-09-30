@@ -71,13 +71,24 @@ namespace Configlue
     }
     public sealed class ConfigSourceDetails
     {
-        public ConfigSourceDetails(string key, string kind, string displayName, string? locator, bool canWrite, bool canWatch) { }
+        public ConfigSourceDetails(string key, string kind, string displayName, string? locator, bool canWrite, bool canWatch, Configlue.ConfigSourceResolutionDetails? resolution = null) { }
         public bool CanWatch { get; }
         public bool CanWrite { get; }
         public string DisplayName { get; }
         public string Key { get; }
         public string Kind { get; }
         public string? Locator { get; }
+        public Configlue.ConfigSourceResolutionDetails? Resolution { get; }
+        public override string ToString() { }
+    }
+    public sealed class ConfigSourceResolutionDetails
+    {
+        public ConfigSourceResolutionDetails(Configlue.SubjectKey logicalSubjectKey, Configlue.SubjectKey resourceKey, Configlue.RouteKey route, Configlue.Resources.ResourceId? resourceId, string? physicalOrigin) { }
+        public Configlue.SubjectKey LogicalSubjectKey { get; }
+        public string? PhysicalOrigin { get; }
+        public Configlue.Resources.ResourceId? ResourceId { get; }
+        public Configlue.SubjectKey ResourceKey { get; }
+        public Configlue.RouteKey Route { get; }
         public override string ToString() { }
     }
     public sealed class ConfigSourceValueDetails<T>

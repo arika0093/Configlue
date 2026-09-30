@@ -66,6 +66,104 @@ public sealed class SubjectRoutingTests
     }
 
     [Test]
+    public async Task SubjectDetailsExposeResolvedRoutingAndPlacement()
+    {
+        var subject = new RoutingSubject("strict-jp", true);
+        var store = new RoutedStateStore();
+        store.Set(RouteKey.From("strict-jp"), subject.Key, Fragment("tokyo"));
+        await using var context = CreateRoutedContext(store);
+
+        var details = await context
+            .GetSubjectState<AppSettings>()
+            .ForSubject(subject)
+            .GetDetailsAsync();
+
+        var resolution = details.Label.Source?.Resolution;
+        resolution.ShouldNotBeNull();
+        (resolution!.LogicalSubjectKey).ShouldBe(subject.Key);
+        (resolution.ResourceKey).ShouldBe(subject.Key);
+        (resolution.Route).ShouldBe(RouteKey.From("strict-jp"));
+        (resolution.ResourceId).ShouldBe(new ResourceId("memory:strict-jp"));
+        (resolution.PhysicalOrigin).ShouldBe("memory:strict-jp");
+    }
+
+    [Test]
+    public async Task SubjectDetailsDifferPerResolvedPhysicalLocation()
+    {
+        var japan = new RoutingSubject("strict-jp", true);
+        var europe = new RoutingSubject("strict-eu", true);
+        var store = new RoutedStateStore();
+        store.Set(RouteKey.From("strict-jp"), japan.Key, Fragment("tokyo"));
+        store.Set(RouteKey.From("strict-eu"), europe.Key, Fragment("europe"));
+        await using var context = CreateRoutedContext(store);
+        var options = context.GetSubjectState<AppSettings>();
+
+        var japanDetails = await options.ForSubject(japan).GetDetailsAsync();
+        var europeDetails = await options.ForSubject(europe).GetDetailsAsync();
+
+        var japanResolution = japanDetails.Label.Source?.Resolution;
+        var europeResolution = europeDetails.Label.Source?.Resolution;
+        japanResolution.ShouldNotBeNull();
+        europeResolution.ShouldNotBeNull();
+        (japanResolution!.Route).ShouldBe(RouteKey.From("strict-jp"));
+        (europeResolution!.Route).ShouldBe(RouteKey.From("strict-eu"));
+        (japanResolution.ResourceId).ShouldBe(new ResourceId("memory:strict-jp"));
+        (europeResolution.ResourceId).ShouldBe(new ResourceId("memory:strict-eu"));
+        (japanResolution.PhysicalOrigin).ShouldBe("memory:strict-jp");
+        (europeResolution.PhysicalOrigin).ShouldBe("memory:strict-eu");
+    }
+
+    [Test]
+    public async Task SubjectDetailsResolveRoutingOnceWithoutExtraReads()
+    {
+        var routeCalls = 0;
+        var subject = new RoutingSubject("strict-jp", true);
+        var store = new RoutedStateStore();
+        store.Set(RouteKey.From("strict-jp"), subject.Key, Fragment("tokyo"));
+        await using var context = ConfiglueApp.CreateContext(builder =>
+        {
+            builder.Add<AppSettings>(model =>
+            {
+                model.Routing<RoutingSubject>(candidate =>
+                {
+                    Interlocked.Increment(ref routeCalls);
+                    return candidate.DataStrict
+                        ? RouteKey.From(candidate.Region)
+                        : RouteKey.Default;
+                });
+                model.Sources(sources =>
+                {
+                    sources.Add(new StateSource<AppSettings.Fragment>("first", store));
+                    sources.Add(new StateSource<AppSettings.Fragment>("second", store));
+                });
+            });
+        });
+
+        var details = await context
+            .GetSubjectState<AppSettings>()
+            .ForSubject(subject)
+            .GetDetailsAsync();
+
+        (details.Label.Source?.Resolution).ShouldNotBeNull();
+        Volatile.Read(ref routeCalls).ShouldBe(1);
+        store.ReadCount.ShouldBe(2);
+    }
+
+    private static ConfiglueContext CreateRoutedContext(RoutedStateStore store) =>
+        ConfiglueApp.CreateContext(builder =>
+        {
+            builder.Add<AppSettings>(model =>
+            {
+                model.Routing<RoutingSubject>(candidate =>
+                    candidate.DataStrict ? RouteKey.From(candidate.Region) : RouteKey.Default
+                );
+                model.Sources(sources =>
+                    sources.Add(new StateSource<AppSettings.Fragment>("routed", store))
+                );
+            });
+        });
+
+    [Test]
     public async Task ResolverAndWatcherKeepRouteInContextWhenSubjectKeyIsUnchanged()
     {
         var subject = new RoutingSubject("unused", true);
@@ -164,8 +262,11 @@ public sealed class SubjectRoutingTests
             (SubjectKey Key, RouteKey Route),
             StateReadResult<AppSettings.Fragment>
         > _states = new();
+        private int _readCount;
 
         public ResourceId ResourceId => new("memory:default");
+
+        public int ReadCount => Volatile.Read(ref _readCount);
 
         public ConcurrentQueue<ConfiglueResourceContext> ReadContexts { get; } = new();
 
@@ -194,10 +295,14 @@ public sealed class SubjectRoutingTests
         )
         {
             cancellationToken.ThrowIfCancellationRequested();
+            Interlocked.Increment(ref _readCount);
             ReadContexts.Enqueue(context);
             LastReadContext = context;
             return ValueTaskCompat.FromResult(
-                _states.GetValueOrDefault((context.Key, context.Route))
+                _states.GetValueOrDefault((context.Key, context.Route)) with
+                {
+                    PhysicalOrigin = $"memory:{context.Route.Value}",
+                }
             );
         }
 

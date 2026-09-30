@@ -2,6 +2,7 @@ using System.Collections;
 using System.Collections.Concurrent;
 using System.ComponentModel.DataAnnotations;
 using Configlue.CompilerServices;
+using Configlue.Resources;
 using Configlue.Sources;
 using Microsoft.Extensions.Logging;
 
@@ -329,16 +330,22 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         public StateSource<TFragment> Source { get; init; }
         public StateReadResult<TFragment> Result { get; init; }
         public bool IsModelDefaults { get; init; }
+        public ConfiglueResourceContext? ResourceContext { get; init; }
+        public ResourceId? ResourceId { get; init; }
 
         public ResolvedContribution(
             StateSource<TFragment> Source,
             StateReadResult<TFragment> Result,
-            bool IsModelDefaults = false
+            bool IsModelDefaults = false,
+            ConfiglueResourceContext? ResourceContext = null,
+            ResourceId? ResourceId = null
         )
         {
             this.Source = Source;
             this.Result = Result;
             this.IsModelDefaults = IsModelDefaults;
+            this.ResourceContext = ResourceContext;
+            this.ResourceId = ResourceId;
         }
 
         public void Deconstruct(
@@ -370,11 +377,20 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
     {
         public StateSource<TFragment> Source { get; init; }
         public StateReadResult<TFragment> Result { get; init; }
+        public ConfiglueResourceContext? ResourceContext { get; init; }
+        public ResourceId? ResourceId { get; init; }
 
-        public ResolvedFailure(StateSource<TFragment> Source, StateReadResult<TFragment> Result)
+        public ResolvedFailure(
+            StateSource<TFragment> Source,
+            StateReadResult<TFragment> Result,
+            ConfiglueResourceContext? ResourceContext = null,
+            ResourceId? ResourceId = null
+        )
         {
             this.Source = Source;
             this.Result = Result;
+            this.ResourceContext = ResourceContext;
+            this.ResourceId = ResourceId;
         }
 
         public void Deconstruct(

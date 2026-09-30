@@ -101,6 +101,13 @@ public sealed class PerSubjectDependencyInjectionTests
         (await serverOptionsA.GetValueAsync()).Host.ShouldBe("server.db");
 
         (await sharedSubjectOptions.ForSubject(subjectB).GetValueAsync()).Label.ShouldBe("saved-b");
+
+        var detailsA = await readA.GetDetailsAsync();
+        var resolutionA = detailsA.Label.Source?.Resolution;
+        resolutionA.ShouldNotBeNull();
+        (resolutionA!.LogicalSubjectKey).ShouldBe(subjectA.Key);
+        (resolutionA.ResourceKey).ShouldBe(subjectA.Key);
+        (resolutionA.Route).ShouldBe(RouteKey.Default);
     }
 
     [Test]

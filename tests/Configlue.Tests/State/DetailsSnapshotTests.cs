@@ -64,6 +64,8 @@ public sealed class DetailsSnapshotTests
         (details.Label.Source?.Key).ShouldBe(baseKey);
         (details.Label.Sources[0].State).ShouldBe(ConfigSourceValueState.Missing);
         (details.RetryCount.Sources[2].Source.Kind).ShouldBe("model-defaults");
+        (details.Label.Source?.Resolution).ShouldBeNull();
+        (details.RetryCount.Source?.Resolution).ShouldBeNull();
 
         string? name = details.Label;
         (name).ShouldBe("base");
@@ -87,11 +89,37 @@ public sealed class DetailsSnapshotTests
         (details.RetryCount.Source?.DisplayName).ShouldBe("Model defaults");
         (details.RetryCount.Source?.CanWrite == false).ShouldBeTrue();
         (details.RetryCount.Source?.CanWatch == false).ShouldBeTrue();
+        (details.RetryCount.Source?.Resolution).ShouldBeNull();
         (details.RetryCount.IsEditable).ShouldBeTrue();
         (details.RetryCount.Sources[^1].Value).ShouldBe(3);
         (details.Enabled.Value).ShouldBeTrue();
         (details.Label.Source?.Kind).ShouldBe("model-defaults");
         (details.Label.Value).ShouldBe("default");
+    }
+
+    [Test]
+    public async Task GetDetailsAsync_ReportsDefaultResolutionForNonSubjectPlacement()
+    {
+        await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
+            new StateSourceSet<AppSettings.Fragment>([
+                new(
+                    "local",
+                    new InMemoryStateStore<AppSettings.Fragment>(
+                        new AppSettings.Fragment { Label = Optional<string?>.Present("local") }
+                    ),
+                    physicalOrigin: "custom:placement"
+                ),
+            ])
+        );
+
+        var details = await options.GetDetailsAsync();
+
+        var resolution = details.Label.Source?.Resolution;
+        resolution.ShouldNotBeNull();
+        (resolution!.LogicalSubjectKey).ShouldBe(SubjectKey.Default);
+        (resolution.ResourceKey).ShouldBe(SubjectKey.Default);
+        (resolution.Route).ShouldBe(RouteKey.Default);
+        (resolution.PhysicalOrigin).ShouldBe("custom:placement");
     }
 
     [Test]

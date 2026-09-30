@@ -31,7 +31,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         );
         var failuresById = resolved.Failures.ToDictionary(
             static failure => failure.Source.Id,
-            static failure => failure.Result.Status,
+            static failure => failure,
             StringComparer.Ordinal
         );
         for (var index = 0; index < activeSources.Length; index++)
@@ -39,23 +39,35 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             var source = activeSources[index];
             if (contributionsById.TryGetValue(source.Id, out var contribution))
             {
+                var origin = contribution.Result.PhysicalOrigin ?? source.PhysicalOrigin;
                 fragments[index] = contribution.Result.Value;
                 statuses[index] = StateReadStatus.Success;
                 descriptors[index] = DescribeSource(
                     source,
-                    contribution.Result.PhysicalOrigin ?? source.PhysicalOrigin
+                    origin,
+                    DescribeResolution(
+                        contribution.ResourceContext,
+                        contribution.ResourceId,
+                        origin
+                    )
                 );
             }
             else
             {
-                descriptors[index] = DescribeSource(source, source.PhysicalOrigin);
-                if (failuresById.TryGetValue(source.Id, out var status))
+                if (failuresById.TryGetValue(source.Id, out var failure))
                 {
+                    var origin = failure.Result.PhysicalOrigin ?? source.PhysicalOrigin;
+                    descriptors[index] = DescribeSource(
+                        source,
+                        origin,
+                        DescribeResolution(failure.ResourceContext, failure.ResourceId, origin)
+                    );
                     fragments[index] = null;
-                    statuses[index] = status;
+                    statuses[index] = failure.Result.Status;
                 }
                 else
                 {
+                    descriptors[index] = DescribeSource(source, source.PhysicalOrigin, null);
                     fragments[index] = null;
                     statuses[index] = StateReadStatus.NotFound;
                 }
@@ -203,7 +215,40 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             canWatch: false
         );
 
-    private ConfigSourceDetails DescribeSource<T>(StateSource<T> source, string? origin)
+    private static ConfigSourceResolutionDetails? DescribeResolution(
+        ConfiglueResourceContext? context,
+        ResourceId? resourceId,
+        string? origin
+    )
+    {
+        if (context is null)
+        {
+            return resourceId is null && origin is null
+                ? null
+                : new ConfigSourceResolutionDetails(
+                    SubjectKey.Default,
+                    SubjectKey.Default,
+                    RouteKey.Default,
+                    resourceId,
+                    origin
+                );
+        }
+
+        var resolved = context.Value;
+        return new ConfigSourceResolutionDetails(
+            resolved.Subject.Key,
+            resolved.Key,
+            resolved.Route,
+            resourceId,
+            origin
+        );
+    }
+
+    private ConfigSourceDetails DescribeSource<T>(
+        StateSource<T> source,
+        string? origin,
+        ConfigSourceResolutionDetails? resolution
+    )
     {
         var key = GetDetailsSourceKey(source.Id);
         if (origin is not null)
@@ -221,7 +266,8 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                     $"Environment ({name})",
                     origin,
                     source.Writer is not null,
-                    source.Watcher is not null
+                    source.Watcher is not null,
+                    resolution
                 );
             }
 
@@ -234,7 +280,8 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                     "Command Line",
                     origin,
                     source.Writer is not null,
-                    source.Watcher is not null
+                    source.Watcher is not null,
+                    resolution
                 );
             }
 
@@ -250,7 +297,8 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                     $"HTTP ({host})",
                     origin,
                     source.Writer is not null,
-                    source.Watcher is not null
+                    source.Watcher is not null,
+                    resolution
                 );
             }
         }
@@ -267,7 +315,8 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                 string.IsNullOrEmpty(fileName) ? "File" : $"File ({fileName})",
                 origin,
                 source.Writer is not null,
-                source.Watcher is not null
+                source.Watcher is not null,
+                resolution
             );
         }
 
@@ -282,7 +331,8 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
 #endif
             origin,
             source.Writer is not null,
-            source.Watcher is not null
+            source.Watcher is not null,
+            resolution
         );
     }
 }

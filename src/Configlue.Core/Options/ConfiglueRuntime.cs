@@ -427,6 +427,15 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             ? source.ReadAsync(GetResourceContext(source), cancellationToken)
             : source.Reader.ReadAsync(cancellationToken);
 
+    private static ValueTask<StateReadResult<TFragment>> ReadSourceAsync(
+        StateSource<TFragment> source,
+        ConfiglueResourceContext? context,
+        CancellationToken cancellationToken
+    ) =>
+        context is null
+            ? source.Reader.ReadAsync(cancellationToken)
+            : source.ReadAsync(context.Value, cancellationToken);
+
     private ValueTask<StateWriteResult> WriteSourceAsync(
         StateSource<TFragment> source,
         StateWriteRequest<TFragment> request,
@@ -517,6 +526,10 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
     {
         using var operation = EnterOperation();
         var activeSources = GetActiveSources();
+        var subject = _subjectContext.Value;
+        var route = subject is null
+            ? RouteKey.Default
+            : _routeSelector?.Invoke(subject) ?? RouteKey.Default;
         List<ResolvedContribution>? contributions = captureContributions
             ? new List<ResolvedContribution>(activeSources.Length + 1)
             : null;
@@ -535,6 +548,13 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         foreach (var source in activeSources)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            ConfiglueResourceContext? resourceContext = subject is null
+                ? null
+                : source.GetResourceContext(subject, route);
+            var resourceId =
+                captureContributions && resourceContext is not null
+                    ? source.GetResourceId(resourceContext.Value)
+                    : source.ResourceId;
             StateReadResult<TFragment> sourceResult;
             if (
                 replacements is not null
@@ -556,7 +576,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                 );
                 try
                 {
-                    sourceResult = await ReadSourceAsync(source, cancellationToken)
+                    sourceResult = await ReadSourceAsync(source, resourceContext, cancellationToken)
                         .ConfigureAwait(false);
                 }
                 catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -647,7 +667,12 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                 if (captureContributions)
                 {
                     contributions!.Add(
-                        new ResolvedContribution(source, result.WithValue(fragment))
+                        new ResolvedContribution(
+                            source,
+                            result.WithValue(fragment),
+                            ResourceContext: resourceContext,
+                            ResourceId: resourceId
+                        )
                     );
                 }
                 else
@@ -680,7 +705,14 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             {
                 if (captureContributions)
                 {
-                    (failures ??= []).Add(new ResolvedFailure(source, result));
+                    (failures ??= []).Add(
+                        new ResolvedFailure(
+                            source,
+                            result,
+                            ResourceContext: resourceContext,
+                            ResourceId: resourceId
+                        )
+                    );
                 }
 
                 return new ResolvedState(
@@ -702,7 +734,14 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
 
             if (captureContributions)
             {
-                (failures ??= []).Add(new ResolvedFailure(source, result));
+                (failures ??= []).Add(
+                    new ResolvedFailure(
+                        source,
+                        result,
+                        ResourceContext: resourceContext,
+                        ResourceId: resourceId
+                    )
+                );
             }
         }
 
