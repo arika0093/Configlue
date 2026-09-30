@@ -14,7 +14,10 @@ namespace Configlue.State;
 /// the active writable representation unless a fixed candidate is configured. Candidate resources remain
 /// owned by the caller.
 /// </remarks>
-public sealed class FallbackStateSource<T> : ISourceReader<T>, ISourceWriter<T>, ISourceWatcher
+public sealed class FallbackStateSource<T>
+    : IContextualSourceReader<T>,
+        IContextualSourceWriter<T>,
+        IContextualSourceWatcher
 {
     private readonly StateSourceSet<T> _candidates;
     private readonly StateSourceResolver<T> _reader;

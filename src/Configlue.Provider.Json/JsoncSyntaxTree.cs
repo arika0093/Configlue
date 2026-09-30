@@ -28,7 +28,7 @@ internal sealed class JsoncSyntaxTree
             if (current.Kind != JsonValueKind.Object)
             {
                 throw new JsonException(
-                    $"JSON section path '{string.Join(':', path.Take(length).ToArray())}' crosses a non-object value at '{segment}'."
+                    $"JSON section path '{string.Join(":", path.Take(length).ToArray())}' crosses a non-object value at '{segment}'."
                 );
             }
 

@@ -52,8 +52,13 @@ public sealed partial class FileResource
             .ConfigureAwait(false);
         try
         {
+#if NETSTANDARD2_0
+            using var interprocessLock = await AcquireInterprocessLockAsync(cancellationToken)
+                .ConfigureAwait(false);
+#else
             await using var interprocessLock = await AcquireInterprocessLockAsync(cancellationToken)
                 .ConfigureAwait(false);
+#endif
             var checkRevision = mutations.Any(static mutation => !mutation.Condition.IsNone);
             var canSkipRead =
                 !checkRevision
@@ -138,8 +143,13 @@ public sealed partial class FileResource
             .ConfigureAwait(false);
         try
         {
+#if NETSTANDARD2_0
+            using var interprocessLock = await AcquireInterprocessLockAsync(cancellationToken)
+                .ConfigureAwait(false);
+#else
             await using var interprocessLock = await AcquireInterprocessLockAsync(cancellationToken)
                 .ConfigureAwait(false);
+#endif
             var backupPath = GetLatestBackupPath();
             if (backupPath is null)
             {
@@ -175,8 +185,13 @@ public sealed partial class FileResource
             .ConfigureAwait(false);
         try
         {
+#if NETSTANDARD2_0
+            using var interprocessLock = await AcquireInterprocessLockAsync(cancellationToken)
+                .ConfigureAwait(false);
+#else
             await using var interprocessLock = await AcquireInterprocessLockAsync(cancellationToken)
                 .ConfigureAwait(false);
+#endif
             var current = await TryReadForWriteAsync(cancellationToken).ConfigureAwait(false);
             var currentRevision = current is null ? null : GetRevision(current);
             if (
@@ -254,7 +269,11 @@ public sealed partial class FileResource
             var temporaryPath = destinationPath + "." + Guid.NewGuid().ToString("N") + ".tmp";
             try
             {
+#if NETSTANDARD2_0
+                using (
+#else
                 await using (
+#endif
                     var stream = new FileStream(
                         temporaryPath,
                         FileMode.CreateNew,

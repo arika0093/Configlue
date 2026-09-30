@@ -8,13 +8,13 @@ namespace Configlue.Provider.Xml;
 
 /// <summary>Exposes a nested XML element as a resource while preserving sibling elements.</summary>
 public sealed class XmlSectionResource
-    : IResourceReader,
-        IPipelineResourceReader,
-        IResourceWriter,
-        ISourceWatcher,
-        IResourceIdentity,
-        IResourceBatchParticipant,
-        IResourceBackupRecovery
+    : IContextualResourceReader,
+        IContextualPipelineResourceReader,
+        IContextualResourceWriter,
+        IContextualSourceWatcher,
+        ITryContextualResourceIdentity,
+        IContextualResourceBatchParticipant,
+        IContextualResourceBackupRecovery
 {
     private readonly IResourceReader _reader;
     private readonly IResourceWriter? _writer;
@@ -289,7 +289,7 @@ public sealed class XmlSectionResource
             if (matches.Length > 1)
             {
                 throw new XmlException(
-                    $"Section path '{string.Join(':', _path)}' is ambiguous at '{name}'."
+                    $"Section path '{string.Join(":", _path)}' is ambiguous at '{name}'."
                 );
             }
 
@@ -405,7 +405,7 @@ public sealed class XmlSectionResource
             if (matches.Length > 1)
             {
                 throw new XmlException(
-                    $"Section path '{string.Join(':', _path)}' is ambiguous at '{name}'."
+                    $"Section path '{string.Join(":", _path)}' is ambiguous at '{name}'."
                 );
             }
 
@@ -422,7 +422,7 @@ public sealed class XmlSectionResource
         }
 
         var updatedSection = XElement.Parse(
-            Encoding.UTF8.GetString(sectionContent.Span),
+            Encoding.UTF8.GetString(sectionContent.ToArray()),
             LoadOptions.PreserveWhitespace
         );
         var existing = container
@@ -433,7 +433,7 @@ public sealed class XmlSectionResource
         if (existing.Length > 1)
         {
             throw new XmlException(
-                $"Section path '{string.Join(':', _path)}' is ambiguous at '{_path[^1]}'."
+                $"Section path '{string.Join(":", _path)}' is ambiguous at '{_path[^1]}'."
             );
         }
 
@@ -488,8 +488,11 @@ public sealed class XmlSectionResource
     private static string[] ParsePath(string sectionPath)
     {
         var path = sectionPath
-            .Replace("__", ":", StringComparison.Ordinal)
-            .Split(':', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            .Replace("__", ":")
+            .Split(new[] { ':' }, StringSplitOptions.RemoveEmptyEntries)
+            .Select(static segment => segment.Trim())
+            .Where(static segment => segment.Length > 0)
+            .ToArray();
         return path.Length == 0
             ? throw new ArgumentException(
                 "The section path must contain at least one element name.",

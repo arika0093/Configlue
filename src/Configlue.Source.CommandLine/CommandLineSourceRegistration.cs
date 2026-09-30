@@ -252,13 +252,13 @@ public sealed class CommandLineMappingBuilder
             );
         }
 
-        return string.Join('.', members);
+        return string.Join(".", members);
     }
 
     private void Add(Symbol symbol, string path, Func<ParseResult, MappingValue?> resolve)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
-        var segments = path.Split('.', StringSplitOptions.None);
+        var segments = path.Split(new[] { '.' }, StringSplitOptions.None);
         if (segments.Any(string.IsNullOrWhiteSpace))
         {
             throw new ArgumentException(

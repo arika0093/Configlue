@@ -127,7 +127,10 @@ public sealed partial class CommonSourceFormatTests
             await using var context = ConfiglueApp.CreateContext(builder =>
                 builder.UseCommonSources(sources =>
                 {
-                    sources.WithUserGlobal(appId, "settings.yaml").Yaml().YamlSerializerOptions(new());
+                    sources
+                        .WithUserGlobal(appId, "settings.yaml")
+                        .Yaml()
+                        .YamlSerializerOptions(new());
                     sources.Add<AppSettings>();
                 })
             );

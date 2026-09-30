@@ -11,10 +11,10 @@ namespace Configlue.Resource.Dapr;
 /// as <see cref="StateConflictException"/>.
 /// </remarks>
 public sealed class DaprStateResource
-    : IResourceReader,
-        IPipelineResourceReader,
-        IResourceWriter,
-        IResourceIdentity
+    : IContextualResourceReader,
+        IContextualPipelineResourceReader,
+        IContextualResourceWriter,
+        IContextualResourceIdentity
 {
     private readonly IDaprStateClient _client;
     private readonly DaprStateResourceOptions _options;

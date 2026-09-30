@@ -2,10 +2,10 @@ using Configlue.Extensions.MSOptions;
 using Configlue.Provider.Json;
 using Configlue.Provider.Xml;
 using Configlue.Provider.Yaml;
+using Configlue.Sources;
 using Configlue.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
-using Configlue.Sources;
 
 namespace Configlue.Tests;
 

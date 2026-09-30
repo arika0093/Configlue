@@ -16,6 +16,7 @@ public sealed partial class ConfiglueGenerator
         ImmutableArray<MemberModel> members,
         ImmutableArray<PreviousModelInfo> previousModels,
         ImmutableArray<PocoCloneModel> pocoCloneModels,
+        bool hasJsonFragmentRegistry,
         CancellationToken cancellationToken
     )
     {
@@ -57,12 +58,19 @@ public sealed partial class ConfiglueGenerator
         AppendDeepClone(code, modelType, members, !pocoCloneModels.IsEmpty);
         AppendPocoCloneHelpers(code, pocoCloneModels);
         AppendCollectionCloneHelpers(code);
-        AppendFragment(code, modelType, members, previousModels, !pocoCloneModels.IsEmpty);
+        AppendFragment(
+            code,
+            modelType,
+            members,
+            previousModels,
+            !pocoCloneModels.IsEmpty,
+            hasJsonFragmentRegistry
+        );
         AppendDetailsTree(code, modelType, members);
-        AppendModelFragmentBridge(code, modelType);
         AppendFacadeRuntimeBridge(code, modelType);
         AppendHistoricalDispatcherFactory(code, modelType, previousModels);
         code.AppendLine("}");
+        AppendModelRegistration(code, modelType, hasJsonFragmentRegistry);
         AppendTypedPatchExtensions(code, modelType, name);
         AppendDetailsExtensions(code, modelType, name);
         return code.ToString();
@@ -88,8 +96,8 @@ public sealed partial class ConfiglueGenerator
             "global::System.Threading.CancellationToken cancellationToken = default)"
         );
         code.AppendLineAt(1, "{");
-        code.AppendLineAt(2, "global::System.ArgumentNullException.ThrowIfNull(options);");
-        code.AppendLineAt(2, "global::System.ArgumentNullException.ThrowIfNull(configure);");
+        AppendNullGuard(code, 2, "options");
+        AppendNullGuard(code, 2, "configure");
         code.AppendLineAt(2, "var patch = new " + modelType + ".Patch();");
         code.AppendLineAt(2, "configure(patch);");
         code.AppendLineAt(2, "return options.SaveAsync(patch, cancellationToken);");
@@ -122,12 +130,23 @@ public sealed partial class ConfiglueGenerator
             "global::System.Threading.CancellationToken cancellationToken = default)"
         );
         code.AppendLineAt(1, "{");
-        code.AppendLineAt(2, "global::System.ArgumentNullException.ThrowIfNull(source);");
-        code.AppendLineAt(2, "global::System.ArgumentNullException.ThrowIfNull(configure);");
+        AppendNullGuard(code, 2, "source");
+        AppendNullGuard(code, 2, "configure");
         code.AppendLineAt(2, "var patch = new " + modelType + ".Patch();");
         code.AppendLineAt(2, "configure(patch);");
         code.AppendLineAt(2, "return source." + handleMethodName + "(patch, cancellationToken);");
         code.AppendLineAt(1, "}");
+    }
+
+    private static void AppendNullGuard(IndentedStringBuilder code, int indent, string variable)
+    {
+        code.AppendLineAt(indent, "if (" + variable + " is null)");
+        code.AppendLineAt(indent, "{");
+        code.AppendLineAt(
+            indent + 1,
+            "throw new global::System.ArgumentNullException(nameof(" + variable + "));"
+        );
+        code.AppendLineAt(indent, "}");
     }
 
     private static void AppendCollectionCloneHelpers(IndentedStringBuilder code)
@@ -503,55 +522,64 @@ public sealed partial class ConfiglueGenerator
         }
     }
 
-    private static void AppendModelFragmentBridge(IndentedStringBuilder code, string modelType)
-    {
-        code.AppendIndent(1)
-            .Append(
-                "static Fragment global::Configlue.CompilerServices.IConfiglueModel<"
-                    + modelType
-                    + ", Fragment>.ToFragment("
-            )
-            .Append(modelType)
-            .AppendLine(" value) => Fragment.From(value);");
-        code.AppendIndent(1)
-            .Append(
-                "static Fragment global::Configlue.CompilerServices.IConfiglueModel<"
-                    + modelType
-                    + ", Fragment>.Diff("
-            )
-            .Append(modelType)
-            .Append(" before, ")
-            .Append(modelType)
-            .AppendLine(" after) => Fragment.Diff(before, after);");
-        code.AppendIndent(1)
-            .Append("static ")
-            .Append(modelType)
-            .AppendLine(
-                " global::Configlue.CompilerServices.IConfiglueModel<"
-                    + modelType
-                    + ", Fragment>.FromFragment(Fragment value) => value.ToModel();"
-            );
-    }
-
     private static void AppendFacadeRuntimeBridge(IndentedStringBuilder code, string modelType)
     {
         code.AppendLineAt(
             1,
-            "private static readonly global::Configlue.CompilerServices.ConfiglueModelDescriptor<"
+            "internal static readonly global::Configlue.CompilerServices.ConfiglueModelDescriptor<"
                 + modelType
                 + "> __Descriptor = global::Configlue.CompilerServices.ConfiglueRuntime.Describe<"
                 + modelType
                 + ", "
                 + modelType
-                + ".Fragment>(ConfiglueSchema);"
+                + ".Fragment>(new global::Configlue.CompilerServices.ConfiglueModelOperations<"
+                + modelType
+                + ", "
+                + modelType
+                + ".Fragment>(ConfiglueSchema, "
+                + modelType
+                + ".Fragment.Empty, static value => "
+                + modelType
+                + ".Fragment.From(value), static (before, after) => "
+                + modelType
+                + ".Fragment.Diff(before, after), static value => value.ToModel()));"
         );
+    }
+
+    private static void AppendModelRegistration(
+        IndentedStringBuilder code,
+        string modelType,
+        bool hasJsonFragmentRegistry
+    )
+    {
+        var registrationType =
+            "__ConfiglueRegistration_"
+            + string.Concat(modelType.Where(static character => char.IsLetterOrDigit(character)));
+        code.AppendLine("internal static class " + registrationType);
+        code.AppendLine("{");
+        code.AppendLineAt(1, "[global::System.Runtime.CompilerServices.ModuleInitializer]");
+        code.AppendLineAt(1, "internal static void Register()");
+        code.AppendLineAt(1, "{");
         code.AppendLineAt(
-            1,
-            "static global::Configlue.CompilerServices.ConfiglueModelDescriptor<"
+            2,
+            "global::Configlue.CompilerServices.ConfiglueModelDescriptor<"
                 + modelType
-                + "> global::Configlue.CompilerServices.IConfiglueFacadeModel<"
+                + ">.Register("
                 + modelType
-                + ">.Descriptor => __Descriptor;"
+                + ".__Descriptor);"
         );
+        if (hasJsonFragmentRegistry)
+        {
+            code.AppendLineAt(
+                2,
+                "global::Configlue.Provider.Json.ConfiglueJsonFragmentRegistry<"
+                    + modelType
+                    + ".Fragment>.Register(new "
+                    + modelType
+                    + ".Fragment.FragmentJsonConverter());"
+            );
+        }
+        code.AppendLineAt(1, "}");
+        code.AppendLine("}");
     }
 }

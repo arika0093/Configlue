@@ -1,12 +1,12 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
+    <TargetFrameworks>netstandard2.0;net10.0</TargetFrameworks>
     <AssemblyName>Configlue.Extensions.DI</AssemblyName>
     <RootNamespace>Configlue</RootNamespace>
     <IsPackable>true</IsPackable>
-    <PackageDescription>Dependency injection registration for Configlue state.</PackageDescription>
+    <PackageDescription>HTTP source adapters for named clients managed by dependency injection.</PackageDescription>
   </PropertyGroup>
   <ItemGroup>
-    <InternalsVisibleTo Include="Configlue.Extensions.MSOptions" />
     <ProjectReference Include="../Configlue.Abstraction/Configlue.Abstraction.csproj" />
     <ProjectReference Include="../Configlue.Core/Configlue.Core.csproj" />
     <ProjectReference Include="../Configlue.Provider.Json/Configlue.Provider.Json.csproj" />

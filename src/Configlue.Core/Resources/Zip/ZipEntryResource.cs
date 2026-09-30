@@ -7,12 +7,12 @@ namespace Configlue.Resource.Zip;
 
 /// <summary>A logical resource view over one entry in a shared ZIP archive resource.</summary>
 public sealed class ZipEntryResource
-    : IResourceReader,
-        IPipelineResourceReader,
-        IResourceWriter,
-        ISourceWatcher,
-        IResourceIdentity,
-        IResourceBatchParticipant
+    : IContextualResourceReader,
+        IContextualPipelineResourceReader,
+        IContextualResourceWriter,
+        IContextualSourceWatcher,
+        ITryContextualResourceIdentity,
+        IContextualResourceBatchParticipant
 {
     private readonly struct PollingOptions
     {
@@ -284,9 +284,13 @@ public sealed class ZipEntryResource
             return ResourceReadResult.NotFound(archiveResult.Revision);
         }
 
+#if NETSTANDARD2_0
+        using var entryStream = entry.Open();
+#else
         await using var entryStream = await entry
             .OpenAsync(cancellationToken)
             .ConfigureAwait(false);
+#endif
         var (entryContent, entryRevision) = await ReadEntryAsync(
                 entryStream,
                 entry.Length,
@@ -421,7 +425,8 @@ public sealed class ZipEntryResource
         using var archiveContent = new MemoryStream();
         if (current.Status == StateReadStatus.Success)
         {
-            archiveContent.Write(current.Content.Span);
+            var currentContent = current.Content.ToArray();
+            archiveContent.Write(currentContent, 0, currentContent.Length);
             archiveContent.Position = 0;
         }
 
@@ -447,7 +452,7 @@ public sealed class ZipEntryResource
 
             var entry = archive.CreateEntry(entryName, CompressionLevel.Optimal);
             using var entryStream = entry.Open();
-            entryStream.Write(content);
+            entryStream.Write(content, 0, content.Length);
         }
 
         return archiveContent.ToArray();
@@ -537,7 +542,9 @@ public sealed class ZipEntryResource
         if (length is < 0 or > int.MaxValue)
         {
             using var destination = new MemoryStream();
-            await entryStream.CopyToAsync(destination, cancellationToken).ConfigureAwait(false);
+            await entryStream
+                .CopyToAsync(destination, 81920, cancellationToken)
+                .ConfigureAwait(false);
             var fallback = destination.ToArray();
             return (fallback, GetEntryFingerprint(fallback));
         }
@@ -547,9 +554,15 @@ public sealed class ZipEntryResource
         var offset = 0;
         while (offset < content.Length)
         {
+#if NETSTANDARD2_0
+            var read = await entryStream
+                .ReadAsync(content, offset, content.Length - offset, cancellationToken)
+                .ConfigureAwait(false);
+#else
             var read = await entryStream
                 .ReadAsync(content.AsMemory(offset), cancellationToken)
                 .ConfigureAwait(false);
+#endif
             if (read == 0)
             {
                 break;
@@ -584,7 +597,7 @@ public sealed class ZipEntryResource
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(entryName);
         var normalized = entryName.Replace('\\', '/');
-        var segments = normalized.Split('/', StringSplitOptions.None);
+        var segments = normalized.Split(new[] { '/' }, StringSplitOptions.None);
         if (
             normalized.StartsWith("/", StringComparison.Ordinal)
             || normalized.Contains('\0')

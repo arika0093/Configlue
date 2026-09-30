@@ -1,3 +1,5 @@
+using Configlue.CompilerServices;
+
 namespace Configlue.Tests;
 
 public sealed class GeneratedPathTests

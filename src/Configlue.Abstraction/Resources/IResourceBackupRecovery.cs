@@ -13,7 +13,11 @@ public interface IResourceBackupRecovery
         Func<ResourceReadResult, CancellationToken, ValueTask<bool>> validate,
         CancellationToken cancellationToken = default
     );
+}
 
+/// <summary>Recovers a subject-specific resource from a validated backup.</summary>
+public interface IContextualResourceBackupRecovery : IResourceBackupRecovery
+{
     /// <summary>Recovers a subject-specific resource from a validated backup.</summary>
     ValueTask<ResourceReadResult?> TryRecoverLatestBackupAsync(
         ConfiglueResourceContext context,
@@ -21,6 +25,5 @@ public interface IResourceBackupRecovery
         bool expectedMissing,
         Func<ResourceReadResult, CancellationToken, ValueTask<bool>> validate,
         CancellationToken cancellationToken = default
-    ) =>
-        TryRecoverLatestBackupAsync(expectedRevision, expectedMissing, validate, cancellationToken);
+    );
 }

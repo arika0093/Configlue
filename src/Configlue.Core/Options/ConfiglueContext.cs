@@ -184,7 +184,7 @@ public sealed class ConfiglueContext : IDisposable, IAsyncDisposable
         var profileManagers = new Dictionary<Type, object>();
         var runtimes = new List<object>(registrations.Count);
         var ownedResources = new List<IDisposable>();
-        var ownedResourceSet = new HashSet<IDisposable>(ReferenceEqualityComparer.Instance);
+        var ownedResourceSet = new HashSet<IDisposable>(ReferenceIdentityComparer.Instance);
 
         void OwnResource(IDisposable resource)
         {

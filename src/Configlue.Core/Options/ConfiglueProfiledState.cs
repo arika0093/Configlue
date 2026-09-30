@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Configlue.CompilerServices;
 
 namespace Configlue;
 
@@ -306,7 +307,11 @@ internal sealed partial class ConfiglueProfiledState<TModel, TFragment>
                     )
                 )
                 {
+#if NETSTANDARD2_0
+                    EnqueueActiveProfileNotification(updated.ActiveProfileName!);
+#else
                     EnqueueActiveProfileNotification(updated.ActiveProfileName);
+#endif
                 }
             }
             catch (Exception creationException)

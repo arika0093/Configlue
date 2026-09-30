@@ -13,10 +13,10 @@ namespace Configlue.Resource.PostgreSql;
 /// caller-owned <see cref="NpgsqlDataSource"/> for each physical placement route.
 /// </remarks>
 public sealed class PostgreSqlResource
-    : IResourceReader,
-        IResourceWriter,
-        IResourceIdentity,
-        ISourceWatcher,
+    : IContextualResourceReader,
+        IContextualResourceWriter,
+        IContextualResourceIdentity,
+        IContextualSourceWatcher,
         IDisposable
 {
     private readonly Func<RouteKey, NpgsqlDataSource>? _dataSourceResolver;

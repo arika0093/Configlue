@@ -1,3 +1,5 @@
+using Configlue.CompilerServices;
+
 namespace Configlue.Sources;
 
 /// <summary>Projects a source-specific state contract into a logical model fragment.</summary>
@@ -52,7 +54,7 @@ public static class StateSourceProjection
     {
         ArgumentNullException.ThrowIfNull(source);
         ArgumentException.ThrowIfNullOrWhiteSpace(propertyPath);
-        var path = propertyPath.Split('.', StringSplitOptions.None);
+        var path = propertyPath.Split(new[] { '.' }, StringSplitOptions.None);
         if (path.Any(string.IsNullOrWhiteSpace))
         {
             throw new ArgumentException(
@@ -61,13 +63,13 @@ public static class StateSourceProjection
             );
         }
 
-        var rootSchema = TTarget.Empty.Schema;
-        var sourceSchema = TSource.Empty.Schema;
+        var rootSchema = ConfiglueFragmentRegistry<TTarget>.Empty.Schema;
+        var sourceSchema = ConfiglueFragmentRegistry<TSource>.Empty.Schema;
         _ = CreateMountedFragment(
             rootSchema,
             path,
             0,
-            TSource.Empty,
+            ConfiglueFragmentRegistry<TSource>.Empty,
             sourceSchema.ModelType,
             propertyPath
         );
@@ -298,7 +300,7 @@ public static class StateSourceProjection
         Func<TSource, TTarget> toTarget,
         StateSchemaMetadata? projectedSchema,
         StateSchemaMigrationChain<TSource>? migrationChain
-    ) : ISourceReader<TTarget>
+    ) : IContextualSourceReader<TTarget>
     {
         public async ValueTask<StateReadResult<TTarget>> ReadAsync(
             CancellationToken cancellationToken = default
@@ -427,9 +429,9 @@ public static class StateSourceProjection
         Func<TTarget?, TTarget, TSource?, TSource>? updateSource,
         StateSchemaMigrationChain<TSource>? migrationChain
     )
-        : ISourceWriter<TTarget>,
-            ISourceWriteBatchParticipant<TTarget>,
-            IAsyncSourceWriteBatchParticipant<TTarget>
+        : IContextualSourceWriter<TTarget>,
+            IContextualSourceWriteBatchParticipant<TTarget>,
+            IContextualAsyncSourceWriteBatchParticipant<TTarget>
     {
         public bool CanPrepareBatchWrite =>
             source is ISourceWriteBatchParticipant<TSource>

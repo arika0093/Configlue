@@ -17,4 +17,10 @@ namespace Configlue.Transformer.AES
         public System.ReadOnlyMemory<byte> TransformRead(System.ReadOnlyMemory<byte> source) { }
         public System.ReadOnlyMemory<byte> TransformWrite(System.ReadOnlyMemory<byte> source) { }
     }
+    public static class SingleBinaryAesExtensions
+    {
+        public static Configlue.Source.Presets.SingleBinaryBuilder WithAesKey(this Configlue.Source.Presets.SingleBinaryBuilder builder, System.ReadOnlyMemory<byte> key) { }
+        public static Configlue.Source.Presets.SingleBinaryBuilder WithEncrypted(this Configlue.Source.Presets.SingleBinaryBuilder builder, string passphrase) { }
+        public static Configlue.Source.Presets.SingleBinaryBuilder WithPassphrase(this Configlue.Source.Presets.SingleBinaryBuilder builder, string passphrase) { }
+    }
 }

@@ -26,13 +26,20 @@ internal static class StateSourceIdentity
         }
 
         var canonical = string.Join(
-            '\n',
+            "\n",
             "configlue-source-v1",
             kind.Normalize(NormalizationForm.FormKC),
             locator?.Trim().Normalize(NormalizationForm.FormKC) ?? string.Empty,
             descriptor ?? string.Empty
         );
+#if NETSTANDARD2_0
+        using var algorithm = SHA256.Create();
+        var hash = algorithm.ComputeHash(Encoding.UTF8.GetBytes(canonical));
+        var hashText = BitConverter.ToString(hash).Replace("-", string.Empty).ToLowerInvariant();
+#else
         var hash = SHA256.HashData(Encoding.UTF8.GetBytes(canonical));
-        return $"auto:{Convert.ToHexString(hash).ToLowerInvariant()}";
+        var hashText = Convert.ToHexString(hash).ToLowerInvariant();
+#endif
+        return $"auto:{hashText}";
     }
 }

@@ -1,7 +1,7 @@
 namespace Configlue;
 
 /// <summary>A value that distinguishes an absent member from a present null or default value.</summary>
-public readonly struct Optional<T> : IEquatable<Optional<T>>
+public readonly record struct Optional<T>
 {
     private readonly T? _value;
 
@@ -12,7 +12,7 @@ public readonly struct Optional<T> : IEquatable<Optional<T>>
     }
 
     /// <summary>Whether the member was present in its source.</summary>
-    public bool IsPresent { get; }
+    public bool IsPresent { get; init; }
 
     /// <summary>The member value. Throws when the member is missing.</summary>
     public T? Value =>
@@ -35,23 +35,6 @@ public readonly struct Optional<T> : IEquatable<Optional<T>>
     /// <summary>Whether this member is missing or present with a value.</summary>
     public override string ToString() => IsPresent ? $"Present({_value})" : "Missing";
 
-    /// <inheritdoc />
-    public bool Equals(Optional<T> other) =>
-        IsPresent == other.IsPresent
-        && (!IsPresent || EqualityComparer<T?>.Default.Equals(_value, other._value));
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is Optional<T> other && Equals(other);
-
-    /// <inheritdoc />
-    public override int GetHashCode() => IsPresent ? HashCode.Combine(true, _value) : 0;
-
     /// <summary>Creates a present member from a value.</summary>
     public static implicit operator Optional<T>(T? value) => Present(value);
-
-    /// <summary>Compares optional values.</summary>
-    public static bool operator ==(Optional<T> left, Optional<T> right) => left.Equals(right);
-
-    /// <summary>Compares optional values.</summary>
-    public static bool operator !=(Optional<T> left, Optional<T> right) => !left.Equals(right);
 }

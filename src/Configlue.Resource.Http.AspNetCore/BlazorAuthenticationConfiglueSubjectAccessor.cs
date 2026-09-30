@@ -45,6 +45,11 @@ public sealed class BlazorAuthenticationConfiglueSubjectAccessor<TSubject>
     }
 
     /// <inheritdoc />
+    public async ValueTask<IConfiglueSubject> GetCurrentSubjectAsync(
+        CancellationToken cancellationToken = default
+    ) => await GetCurrentAsync(cancellationToken).ConfigureAwait(false);
+
+    /// <inheritdoc />
     public IDisposable OnChange(Action listener)
     {
         ArgumentNullException.ThrowIfNull(listener);

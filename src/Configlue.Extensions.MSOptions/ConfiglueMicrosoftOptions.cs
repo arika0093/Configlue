@@ -247,8 +247,9 @@ internal sealed class ConfiglueMicrosoftOptionsMonitor<TModel>
         MonitorCacheEntry? removed = null;
         lock (_cacheGate)
         {
-            if (_namedCache.Remove(name, out var cached))
+            if (_namedCache.TryGetValue(name, out var cached))
             {
+                _namedCache.Remove(name);
                 removed = cached;
             }
         }
@@ -534,8 +535,9 @@ internal sealed class ConfiglueMicrosoftOptionsMonitor<TModel>
                 }
 
                 _profileOperationTokens.Remove(name);
-                if (_subscriptions.Remove(name, out var removed))
+                if (_subscriptions.TryGetValue(name, out var removed))
                 {
+                    _subscriptions.Remove(name);
                     subscription = removed.ChangeSubscription;
                 }
             }

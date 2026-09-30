@@ -3,7 +3,7 @@ using Configlue.Tests.ReactiveSupport;
 using Microsoft.Extensions.Time.Testing;
 using R3;
 
-namespace Configlue.Tests.R3;
+namespace Configlue.Tests;
 
 public sealed class ObservableAdapterTests
 {

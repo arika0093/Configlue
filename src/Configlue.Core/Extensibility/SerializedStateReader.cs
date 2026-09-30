@@ -5,7 +5,9 @@ using Configlue.Sources;
 namespace Configlue.Extensibility;
 
 /// <summary>Reads a typed state value by composing a resource and a codec.</summary>
-public sealed class SerializedStateReader<T> : ISourceReader<T>, IResourceIdentity
+public sealed class SerializedStateReader<T>
+    : IContextualSourceReader<T>,
+        ITryContextualResourceIdentity
 {
     private readonly IResourceReader _resource;
     private readonly object _codec;
@@ -186,17 +188,17 @@ public sealed class SerializedStateReader<T> : ISourceReader<T>, IResourceIdenti
                 {
                     if (candidate.Status != StateReadStatus.Success)
                     {
-                        return ValueTask.FromResult(false);
+                        return new ValueTask<bool>(false);
                     }
 
                     try
                     {
                         Deserialize(candidate);
-                        return ValueTask.FromResult(true);
+                        return new ValueTask<bool>(true);
                     }
                     catch (Exception exception) when (IsRecoverableReadException(exception))
                     {
-                        return ValueTask.FromResult(false);
+                        return new ValueTask<bool>(false);
                     }
                 },
                 cancellationToken

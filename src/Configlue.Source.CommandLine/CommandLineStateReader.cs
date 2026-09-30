@@ -2,6 +2,7 @@ using System.Buffers;
 using System.Collections;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
+using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
 using Configlue;
@@ -52,7 +53,7 @@ internal sealed class CommandLineStateReader<TFragment> : ISourceReader<TFragmen
             }
         }
 
-        return ValueTask.FromResult(_cachedResult);
+        return new ValueTask<StateReadResult<TFragment>>(_cachedResult);
     }
 
     private StateReadResult<TFragment> ReadCore(CancellationToken cancellationToken)
@@ -162,7 +163,7 @@ internal sealed class CommandLineStateReader<TFragment> : ISourceReader<TFragmen
             var converted = CommandLineValueConverter.Convert(
                 value,
                 member.ValueType,
-                string.Join('.', path),
+                string.Join(".", path),
                 symbolName
             );
             return fragment.WithMember(member.Id, converted);
@@ -171,7 +172,7 @@ internal sealed class CommandLineStateReader<TFragment> : ISourceReader<TFragmen
         if (member.NestedSchemaFactory is null)
         {
             throw new FormatException(
-                $"Command-line path '{string.Join('.', path)}' continues past non-nested member '{member.Name}'."
+                $"Command-line path '{string.Join(".", path)}' continues past non-nested member '{member.Name}'."
             );
         }
 
@@ -222,6 +223,10 @@ internal sealed class CommandLineStateReader<TFragment> : ISourceReader<TFragmen
     {
         Span<byte> prefix = stackalloc byte[12];
         var prefixLength = WriteLengthPrefix(prefix, value.Length);
+#if NETSTANDARD2_0
+        hash.AppendData(prefix[..prefixLength].ToArray());
+        hash.AppendData(Encoding.UTF8.GetBytes(value));
+#else
         hash.AppendData(prefix[..prefixLength]);
         var byteCount = Encoding.UTF8.GetByteCount(value);
         if (byteCount == 0)
@@ -239,6 +244,7 @@ internal sealed class CommandLineStateReader<TFragment> : ISourceReader<TFragmen
         {
             ArrayPool<byte>.Shared.Return(buffer);
         }
+#endif
     }
 
     private static int WriteLengthPrefix(Span<byte> buffer, int length)
@@ -386,6 +392,7 @@ internal static class CommandLineValueConverter
             return $"{type.FullName}:{dateTimeOffset.ToString("O", CultureInfo.InvariantCulture)}";
         }
 
+#if !NETSTANDARD2_0
         if (value is DateOnly dateOnly)
         {
             return $"{type.FullName}:{dateOnly.ToString("O", CultureInfo.InvariantCulture)}";
@@ -395,6 +402,15 @@ internal static class CommandLineValueConverter
         {
             return $"{type.FullName}:{timeOnly.ToString("O", CultureInfo.InvariantCulture)}";
         }
+#else
+        if (
+            (type.FullName == "System.DateOnly" || type.FullName == "System.TimeOnly")
+            && value is IFormattable dateTimeText
+        )
+        {
+            return $"{type.FullName}:{dateTimeText.ToString("O", CultureInfo.InvariantCulture)}";
+        }
+#endif
 
         if (value is TimeSpan timeSpan)
         {
@@ -508,6 +524,7 @@ internal static class CommandLineValueConverter
                 );
             }
 
+#if !NETSTANDARD2_0
             if (valueType == typeof(DateOnly))
             {
                 return DateOnly.Parse(text, CultureInfo.InvariantCulture);
@@ -517,6 +534,22 @@ internal static class CommandLineValueConverter
             {
                 return TimeOnly.Parse(text, CultureInfo.InvariantCulture);
             }
+#else
+            if (valueType.FullName == "System.DateOnly" || valueType.FullName == "System.TimeOnly")
+            {
+                var parse = valueType.GetMethod(
+                    "Parse",
+                    BindingFlags.Public | BindingFlags.Static,
+                    binder: null,
+                    types: [typeof(string), typeof(IFormatProvider)],
+                    modifiers: null
+                );
+                if (parse is not null)
+                {
+                    return parse.Invoke(null, [text, CultureInfo.InvariantCulture]);
+                }
+            }
+#endif
 
             if (valueType == typeof(TimeSpan))
             {

@@ -1,7 +1,7 @@
 [assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/arika0093/Configlue")]
 namespace Configlue.Resource.Redis
 {
-    public sealed class RedisResource : Configlue.Resources.IResourceIdentity, Configlue.Resources.IResourceReader, Configlue.Resources.IResourceWriter, Configlue.Sources.ISourceWatcher, System.IDisposable
+    public sealed class RedisResource : Configlue.Resources.IContextualResourceIdentity, Configlue.Resources.IContextualResourceReader, Configlue.Resources.IContextualResourceWriter, Configlue.Resources.IResourceIdentity, Configlue.Resources.IResourceReader, Configlue.Resources.IResourceWriter, Configlue.Sources.IContextualSourceWatcher, Configlue.Sources.ISourceWatcher, System.IDisposable
     {
         public RedisResource(StackExchange.Redis.IConnectionMultiplexer connectionMultiplexer, string resourceNamespace, Configlue.Resource.Redis.RedisResourceOptions? options = null) { }
         public RedisResource(System.Func<Configlue.RouteKey, StackExchange.Redis.IConnectionMultiplexer> connectionMultiplexerResolver, string resourceNamespace, Configlue.Resource.Redis.RedisResourceOptions? options = null) { }

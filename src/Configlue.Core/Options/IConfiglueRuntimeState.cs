@@ -1,3 +1,5 @@
+using Configlue.CompilerServices;
+
 namespace Configlue;
 
 // Core's aggregate implementation contract is not an application service.

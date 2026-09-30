@@ -4,9 +4,9 @@ namespace Configlue.Extensibility;
 
 /// <summary>Applies byte transformers around a resource before provider-specific document processing.</summary>
 public sealed class TransformingResource
-    : IResourceReader,
-        IResourceIdentity,
-        IResourceBackupRecovery
+    : IContextualResourceReader,
+        ITryContextualResourceIdentity,
+        IContextualResourceBackupRecovery
 {
     private readonly IResourceReader _reader;
     private readonly IResourceBackupRecovery? _backupRecovery;
@@ -173,7 +173,7 @@ public sealed class TransformingResource
         StateByteTransformerPipeline.TransformWrite(content, _transformers);
 
     private class TransformingWriter(TransformingResource owner, IResourceWriter writer)
-        : IResourceWriter
+        : IContextualResourceWriter
     {
         public ValueTask<StateWriteResult> WriteAsync(
             ResourceWriteRequest request,
@@ -196,7 +196,10 @@ public sealed class TransformingResource
             );
     }
 
-    private sealed class TransformingBatchWriter : TransformingWriter, IResourceBatchWriter
+    private sealed class TransformingBatchWriter
+        : TransformingWriter,
+            IResourceBatchWriter,
+            ITryContextualResourceIdentity
     {
         private readonly TransformingResource _owner;
         private readonly IResourceBatchWriter _batchWriter;
@@ -216,6 +219,9 @@ public sealed class TransformingResource
 
         public ResourceId GetResourceId(ConfiglueResourceContext context) =>
             _owner.GetResourceId(context);
+
+        public bool TryGetResourceId(ConfiglueResourceContext context, out ResourceId resourceId) =>
+            _owner.TryGetResourceId(context, out resourceId);
 
         public ValueTask<StateWriteResult> WriteBatchAsync(
             IReadOnlyList<ResourceWriteMutation> mutations,

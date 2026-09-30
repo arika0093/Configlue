@@ -33,7 +33,6 @@
   <Folder Name="/tests/">
     <Project Path="tests/Configlue.Tests/Configlue.Tests.csproj" />
     <Project Path="tests/Configlue.Tests.PublicApi/Configlue.Tests.PublicApi.csproj" />
-    <Project Path="tests/Configlue.Tests.R3/Configlue.Tests.R3.csproj" />
   </Folder>
   <Folder Name="/benchmarks/">
     <Project Path="benchmarks/Configlue.Benchmarks/Configlue.Benchmarks.csproj" />

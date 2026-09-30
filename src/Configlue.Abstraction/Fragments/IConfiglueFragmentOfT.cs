@@ -5,12 +5,6 @@ namespace Configlue;
 public interface IConfiglueFragment<TSelf> : IConfiglueFragment
     where TSelf : class, IConfiglueFragment<TSelf>
 {
-    /// <summary>The generated converter used by the JSON provider without fragment reflection metadata.</summary>
-    static virtual System.Text.Json.Serialization.JsonConverter<TSelf>? JsonConverter => null;
-
-    /// <summary>An empty fragment with no present members.</summary>
-    static abstract TSelf Empty { get; }
-
     /// <summary>Whether this fragment has no present members.</summary>
     bool IsEmpty { get; }
 

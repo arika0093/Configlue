@@ -1,5 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
+    <TargetFrameworks>netstandard2.0;net10.0</TargetFrameworks>
     <AssemblyName>Configlue.Extensions.R3</AssemblyName>
     <RootNamespace>Configlue.Extensions.R3</RootNamespace>
     <IsPackable>true</IsPackable>

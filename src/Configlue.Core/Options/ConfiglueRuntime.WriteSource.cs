@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Concurrent;
 using System.ComponentModel.DataAnnotations;
+using Configlue.CompilerServices;
 using Microsoft.Extensions.Logging;
 
 namespace Configlue;
@@ -22,7 +23,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         using var operation = EnterOperation();
         after = CloneModel(after);
         Validate(after);
-        var requestedChanges = TModel.Diff(before, after);
+        var requestedChanges = Diff(before, after);
         if (requestedChanges.IsEmpty)
         {
             return StateWriteReceipt.Empty;
@@ -32,7 +33,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         var candidates = searchCandidates
             ? GetActiveSources().Where(static candidate => candidate.Writer is not null).ToArray()
             : [source];
-        var needsSourceOrder = NeedsSourceOrder(TModel.ConfiglueSchema, requestedChanges);
+        var needsSourceOrder = NeedsSourceOrder(ModelSchema, requestedChanges);
         StateSource<TFragment>[]? reversedActiveSources = null;
         string? lastFailure = null;
         foreach (var candidate in candidates)
@@ -88,7 +89,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                         ?? throw new InvalidOperationException(
                             $"State source '{candidate.Id}' returned a null configuration fragment."
                         )
-                    : TFragment.Empty;
+                    : EmptyFragment;
             if (current.Schema is { } schema)
             {
                 sourceFragment = await MigrateAsync(sourceFragment, schema, cancellationToken)
@@ -99,7 +100,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             try
             {
                 plannedChanges = (TFragment)PlanMergeAwareChanges(
-                    TModel.ConfiglueSchema,
+                    ModelSchema,
                     requestedChanges,
                     after,
                     [],
@@ -121,7 +122,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                         [candidate.Id] = StateReadResult<TFragment>.Success(
                             updated,
                             current.Revision,
-                            TModel.ConfiglueSchema.ToMetadata()
+                            ModelSchema.ToMetadata()
                         ),
                     },
                     cancellationToken
@@ -140,7 +141,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                 );
             }
 
-            if (!TModel.Diff(proposed.Value!, after).IsEmpty)
+            if (!Diff(proposed.Value!, after).IsEmpty)
             {
                 lastFailure =
                     $"Candidate source '{candidate.Id}' cannot realize the requested edit while preserving higher-priority contributions.";

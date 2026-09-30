@@ -1,3 +1,5 @@
+using Configlue.CompilerServices;
+using Configlue.Extensibility;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
@@ -403,7 +405,7 @@ public static class ConfiglueServiceCollectionExtensions
     }
 
     private sealed class ValidateOptionsAdapter<TModel>(IValidateOptions<TModel> validator)
-        : IConfiglueValidator<TModel>
+        : INamedConfiglueValidator<TModel>
         where TModel : class
     {
         public IReadOnlyList<string> Validate(TModel value) => Validate(Options.DefaultName, value);

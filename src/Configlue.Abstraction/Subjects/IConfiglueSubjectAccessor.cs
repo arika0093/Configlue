@@ -16,9 +16,4 @@ public interface IConfiglueSubjectAccessor<TSubject> : IConfiglueSubjectAccessor
 {
     /// <summary>Resolves the current subject.</summary>
     ValueTask<TSubject> GetCurrentAsync(CancellationToken cancellationToken = default);
-
-    /// <inheritdoc />
-    async ValueTask<IConfiglueSubject> IConfiglueSubjectAccessor.GetCurrentSubjectAsync(
-        CancellationToken cancellationToken
-    ) => await GetCurrentAsync(cancellationToken).ConfigureAwait(false);
 }

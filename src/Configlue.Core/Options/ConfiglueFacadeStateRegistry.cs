@@ -1,10 +1,11 @@
 using System.Diagnostics;
 using System.Runtime.ExceptionServices;
+using Configlue.CompilerServices;
 
 namespace Configlue;
 
 internal sealed class ConfiglueFacadeStateRegistry<TModel>
-    : IConfiglueStateRegistry<TModel>,
+    : IAsyncConfiglueStateRegistry<TModel>,
         IConfiglueStateRegistryNotificationDeferrer<TModel>
     where TModel : IConfiglueFacadeModel<TModel>
 {
@@ -177,10 +178,11 @@ internal sealed class ConfiglueFacadeStateRegistry<TModel>
         lock (_gate)
         {
             ThrowIfDisposed();
-            if (!_entries.Remove(stateName, out entry))
+            if (!_entries.TryGetValue(stateName, out entry))
             {
                 return false;
             }
+            _entries.Remove(stateName);
             _retiringNames.Add(stateName);
             _pendingRemovals.Add(completed.Task);
             notification = new Notification(

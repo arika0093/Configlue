@@ -1,7 +1,7 @@
 namespace Configlue.Resource.Http;
 
 /// <summary>Writes bytes to an HTTP resource. Create this capability only for writable endpoints.</summary>
-public sealed class HttpResourceWriter : IResourceWriter, IResourceIdentity
+public sealed class HttpResourceWriter : IContextualResourceWriter, ITryContextualResourceIdentity
 {
     private readonly HttpResourceReader _reader;
 

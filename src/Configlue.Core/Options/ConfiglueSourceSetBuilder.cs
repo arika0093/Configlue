@@ -1,3 +1,4 @@
+using Configlue.CompilerServices;
 using Configlue.Resources;
 
 namespace Configlue;

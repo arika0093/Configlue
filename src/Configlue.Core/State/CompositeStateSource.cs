@@ -14,9 +14,9 @@ namespace Configlue.State;
 /// combined fragment.
 /// </remarks>
 public sealed class CompositeStateSource<TFragment>
-    : ISourceReader<TFragment>,
-        ISourceWriter<TFragment>,
-        ISourceWatcher
+    : IContextualSourceReader<TFragment>,
+        IContextualSourceWriter<TFragment>,
+        IContextualSourceWatcher
     where TFragment : class, IConfiglueFragment<TFragment>
 {
     private readonly StateSourceSet<TFragment> _components;

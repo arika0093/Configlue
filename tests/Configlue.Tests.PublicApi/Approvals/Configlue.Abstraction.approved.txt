@@ -135,6 +135,13 @@ namespace Configlue
         public object? Value { get; init; }
         public void Deconstruct(out int Id, out string Name, out object? Value) { }
     }
+    public static class ConfiglueInterfaceExtensions
+    {
+        public static System.Threading.Tasks.ValueTask ClearAsync<T>(this Configlue.IConfiglueStateRegistry<T> registry) { }
+        public static System.IDisposable OnReloadFailed<T>(this Configlue.IConfiglueDiagnostics<T> diagnostics, System.Action<System.Exception> listener) { }
+        public static System.Threading.Tasks.ValueTask<bool> TryRemoveAsync<T>(this Configlue.IConfiglueStateRegistry<T> registry, string stateName) { }
+        public static System.Collections.Generic.IReadOnlyList<string> Validate<T>(this Configlue.IConfiglueValidator<T> validator, string? name, T value) { }
+    }
     public static class ConfiglueMemberExtensions
     {
         public static void CopyFrom<T>(ref this Configlue.FragmentOperation<T> operation, Configlue.Optional<T> source) { }
@@ -295,6 +302,11 @@ namespace Configlue
         public static Configlue.FragmentOperation<T> Set(T? value) { }
         public static Configlue.FragmentOperation<T> op_Implicit(T? value) { }
     }
+    public interface IAsyncConfiglueStateRegistry<T> : Configlue.IConfiglueStateRegistry<T>, System.IAsyncDisposable, System.IDisposable
+    {
+        System.Threading.Tasks.ValueTask ClearAsync();
+        System.Threading.Tasks.ValueTask<bool> TryRemoveAsync(string stateName);
+    }
     public interface IConfiglueDeepCloneable<out T>
     {
         T DeepClone();
@@ -302,7 +314,6 @@ namespace Configlue
     public interface IConfiglueDiagnostics<T>
     {
         Configlue.ConfiglueStateDiagnostics GetDiagnostics();
-        System.IDisposable OnReloadFailed(System.Action<System.Exception> listener);
     }
     public interface IConfiglueEditSessions<T>
     {
@@ -320,8 +331,6 @@ namespace Configlue
         where TSelf :  class, Configlue.IConfiglueFragment<TSelf>
     {
         bool IsEmpty { get; }
-        TSelf Empty { get; }
-        System.Text.Json.Serialization.JsonConverter<TSelf>? JsonConverter { get; }
         TSelf ApplyChanges(TSelf changes);
         TSelf Merge(TSelf higher);
     }
@@ -362,6 +371,10 @@ namespace Configlue
         System.Threading.Tasks.ValueTask RemoveProfileAsync(string profileName, System.Threading.CancellationToken cancellationToken = default);
         System.Threading.Tasks.ValueTask SetActiveProfileAsync(string profileName, System.Threading.CancellationToken cancellationToken = default);
     }
+    public interface IConfiglueReloadFailureDiagnostics<T> : Configlue.IConfiglueDiagnostics<T>
+    {
+        System.IDisposable OnReloadFailed(System.Action<System.Exception> listener);
+    }
     public interface IConfiglueReplacementPatch : Configlue.IConfigluePatch
     {
         Configlue.IConfigluePatch WithUnspecifiedMembersUnset();
@@ -392,12 +405,10 @@ namespace Configlue
         event System.Action<string, Configlue.IWritableState<T>>? StateAdded;
         event System.Action<string>? StateRemoved;
         void Clear();
-        System.Threading.Tasks.ValueTask ClearAsync();
         Configlue.IWritableState<T> Get(string stateName);
         bool TryAdd(string stateName);
         bool TryGet(string stateName, out Configlue.IWritableState<T>? state);
         bool TryRemove(string stateName);
-        System.Threading.Tasks.ValueTask<bool> TryRemoveAsync(string stateName);
     }
     public interface IConfiglueSubject
     {
@@ -419,11 +430,14 @@ namespace Configlue
     public interface IConfiglueValidator<in T>
     {
         System.Collections.Generic.IReadOnlyList<string> Validate(T value);
-        System.Collections.Generic.IReadOnlyList<string> Validate(string? name, T value);
     }
     public interface IConfiglueValueCloneProvider<T>
     {
         T CloneValue(T value);
+    }
+    public interface INamedConfiglueValidator<in T> : Configlue.IConfiglueValidator<T>
+    {
+        System.Collections.Generic.IReadOnlyList<string> Validate(string? name, T value);
     }
     public interface IReadOnlyState<T>
     {
@@ -448,19 +462,14 @@ namespace Configlue
     }
     public readonly struct Optional<T> : System.IEquatable<Configlue.Optional<T>>
     {
-        public bool IsPresent { get; }
+        public bool IsPresent { get; init; }
         public T Value { get; }
         public static Configlue.Optional<T> Missing { get; }
         public void CopyTo(ref Configlue.Optional<T> destination) { }
-        public bool Equals(Configlue.Optional<T> other) { }
-        public override bool Equals(object? obj) { }
-        public override int GetHashCode() { }
         public T? GetValueOrDefault(T? fallback = default) { }
         public override string ToString() { }
         public static Configlue.Optional<T> Present(T? value) { }
         public static Configlue.Optional<T> op_Implicit(T? value) { }
-        public static bool operator !=(Configlue.Optional<T> left, Configlue.Optional<T> right) { }
-        public static bool operator ==(Configlue.Optional<T> left, Configlue.Optional<T> right) { }
     }
     public enum ReadValidationMode
     {
@@ -675,19 +684,37 @@ namespace Configlue.Resources
     {
         bool TryResolve(Configlue.Resources.ConfiglueStandardLocation location, string applicationId, out string directory);
     }
+    public interface IContextualResourceBackupRecovery : Configlue.Resources.IResourceBackupRecovery
+    {
+        System.Threading.Tasks.ValueTask<Configlue.Resources.ResourceReadResult?> TryRecoverLatestBackupAsync(Configlue.Resources.ConfiglueResourceContext context, string? expectedRevision, bool expectedMissing, System.Func<Configlue.Resources.ResourceReadResult, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<bool>> validate, System.Threading.CancellationToken cancellationToken = default);
+    }
+    public interface IContextualResourceBatchParticipant : Configlue.Resources.IResourceBatchParticipant
+    {
+        Configlue.Resources.ResourceWriteMutation CreateMutation(Configlue.Resources.ConfiglueResourceContext context, Configlue.Resources.ResourceWriteRequest request);
+        Configlue.Resources.ResourceId GetResourceId(Configlue.Resources.ConfiglueResourceContext context);
+    }
+    public interface IContextualResourceIdentity : Configlue.Resources.IResourceIdentity
+    {
+        Configlue.Resources.ResourceId GetResourceId(Configlue.Resources.ConfiglueResourceContext context);
+    }
+    public interface IContextualResourceReader : Configlue.Resources.IResourceReader
+    {
+        System.Threading.Tasks.ValueTask<Configlue.Resources.ResourceReadResult> ReadAsync(Configlue.Resources.ConfiglueResourceContext context, System.Threading.CancellationToken cancellationToken = default);
+    }
+    public interface IContextualResourceWriter : Configlue.Resources.IResourceWriter
+    {
+        System.Threading.Tasks.ValueTask<Configlue.State.StateWriteResult> WriteAsync(Configlue.Resources.ConfiglueResourceContext context, Configlue.Resources.ResourceWriteRequest request, System.Threading.CancellationToken cancellationToken = default);
+    }
     public interface IResourceBackupRecovery
     {
         bool AutomaticBackupRecoveryEnabled { get; }
         System.Threading.Tasks.ValueTask<Configlue.Resources.ResourceReadResult?> TryRecoverLatestBackupAsync(string? expectedRevision, bool expectedMissing, System.Func<Configlue.Resources.ResourceReadResult, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<bool>> validate, System.Threading.CancellationToken cancellationToken = default);
-        System.Threading.Tasks.ValueTask<Configlue.Resources.ResourceReadResult?> TryRecoverLatestBackupAsync(Configlue.Resources.ConfiglueResourceContext context, string? expectedRevision, bool expectedMissing, System.Func<Configlue.Resources.ResourceReadResult, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<bool>> validate, System.Threading.CancellationToken cancellationToken = default);
     }
     public interface IResourceBatchParticipant
     {
         Configlue.Resources.IResourceBatchWriter? BatchWriter { get; }
         Configlue.Resources.ResourceId ResourceId { get; }
         Configlue.Resources.ResourceWriteMutation CreateMutation(Configlue.Resources.ResourceWriteRequest request);
-        Configlue.Resources.ResourceWriteMutation CreateMutation(Configlue.Resources.ConfiglueResourceContext context, Configlue.Resources.ResourceWriteRequest request);
-        Configlue.Resources.ResourceId GetResourceId(Configlue.Resources.ConfiglueResourceContext context);
     }
     public interface IResourceBatchWriter : Configlue.Resources.IResourceIdentity, Configlue.Resources.IResourceWriter
     {
@@ -696,18 +723,28 @@ namespace Configlue.Resources
     public interface IResourceIdentity
     {
         Configlue.Resources.ResourceId ResourceId { get; }
-        Configlue.Resources.ResourceId GetResourceId(Configlue.Resources.ConfiglueResourceContext context);
-        bool TryGetResourceId(Configlue.Resources.ConfiglueResourceContext context, out Configlue.Resources.ResourceId resourceId);
     }
     public interface IResourceReader
     {
         System.Threading.Tasks.ValueTask<Configlue.Resources.ResourceReadResult> ReadAsync(System.Threading.CancellationToken cancellationToken = default);
-        System.Threading.Tasks.ValueTask<Configlue.Resources.ResourceReadResult> ReadAsync(Configlue.Resources.ConfiglueResourceContext context, System.Threading.CancellationToken cancellationToken = default);
     }
     public interface IResourceWriter
     {
         System.Threading.Tasks.ValueTask<Configlue.State.StateWriteResult> WriteAsync(Configlue.Resources.ResourceWriteRequest request, System.Threading.CancellationToken cancellationToken = default);
-        System.Threading.Tasks.ValueTask<Configlue.State.StateWriteResult> WriteAsync(Configlue.Resources.ConfiglueResourceContext context, Configlue.Resources.ResourceWriteRequest request, System.Threading.CancellationToken cancellationToken = default);
+    }
+    public interface ITryContextualResourceIdentity : Configlue.Resources.IContextualResourceIdentity, Configlue.Resources.IResourceIdentity
+    {
+        bool TryGetResourceId(Configlue.Resources.ConfiglueResourceContext context, out Configlue.Resources.ResourceId resourceId);
+    }
+    public static class ResourceContextExtensions
+    {
+        public static Configlue.Resources.ResourceWriteMutation CreateMutation(this Configlue.Resources.IResourceBatchParticipant participant, Configlue.Resources.ConfiglueResourceContext context, Configlue.Resources.ResourceWriteRequest request) { }
+        public static Configlue.Resources.ResourceId GetResourceId(this Configlue.Resources.IResourceBatchParticipant participant, Configlue.Resources.ConfiglueResourceContext context) { }
+        public static Configlue.Resources.ResourceId GetResourceId(this Configlue.Resources.IResourceIdentity identity, Configlue.Resources.ConfiglueResourceContext context) { }
+        public static System.Threading.Tasks.ValueTask<Configlue.Resources.ResourceReadResult> ReadAsync(this Configlue.Resources.IResourceReader reader, Configlue.Resources.ConfiglueResourceContext context, System.Threading.CancellationToken cancellationToken = default) { }
+        public static bool TryGetResourceId(this Configlue.Resources.IResourceIdentity identity, Configlue.Resources.ConfiglueResourceContext context, out Configlue.Resources.ResourceId resourceId) { }
+        public static System.Threading.Tasks.ValueTask<Configlue.Resources.ResourceReadResult?> TryRecoverLatestBackupAsync(this Configlue.Resources.IResourceBackupRecovery recovery, Configlue.Resources.ConfiglueResourceContext context, string? expectedRevision, bool expectedMissing, System.Func<Configlue.Resources.ResourceReadResult, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<bool>> validate, System.Threading.CancellationToken cancellationToken = default) { }
+        public static System.Threading.Tasks.ValueTask<Configlue.State.StateWriteResult> WriteAsync(this Configlue.Resources.IResourceWriter writer, Configlue.Resources.ConfiglueResourceContext context, Configlue.Resources.ResourceWriteRequest request, System.Threading.CancellationToken cancellationToken = default) { }
     }
     public readonly struct ResourceId : System.IEquatable<Configlue.Resources.ResourceId>
     {
@@ -756,27 +793,50 @@ namespace Configlue.Sources
     {
         bool CanPrepareBatchWrite { get; }
         System.Threading.Tasks.ValueTask<Configlue.State.StateWriteBatchPlan?> TryCreateBatchWriteAsync(Configlue.State.StateWriteRequest<T> request, System.Threading.CancellationToken cancellationToken = default);
+    }
+    public interface IContextualAsyncSourceWriteBatchParticipant<T> : Configlue.Sources.IAsyncSourceWriteBatchParticipant<T>
+    {
         System.Threading.Tasks.ValueTask<Configlue.State.StateWriteBatchPlan?> TryCreateBatchWriteAsync(Configlue.Resources.ConfiglueResourceContext context, Configlue.State.StateWriteRequest<T> request, System.Threading.CancellationToken cancellationToken = default);
+    }
+    public interface IContextualSourceReader<T> : Configlue.Sources.ISourceReader<T>
+    {
+        System.Threading.Tasks.ValueTask<Configlue.State.StateReadResult<T>> ReadAsync(Configlue.Resources.ConfiglueResourceContext context, System.Threading.CancellationToken cancellationToken = default);
+    }
+    public interface IContextualSourceWatcher : Configlue.Sources.ISourceWatcher
+    {
+        System.Threading.Tasks.ValueTask WaitForChangeAsync(Configlue.Resources.ConfiglueResourceContext context, string? observedRevision, System.Threading.CancellationToken cancellationToken = default);
+    }
+    public interface IContextualSourceWriteBatchParticipant<T> : Configlue.Sources.ISourceWriteBatchParticipant<T>
+    {
+        bool TryCreateBatchWrite(Configlue.Resources.ConfiglueResourceContext context, Configlue.State.StateWriteRequest<T> request, out Configlue.Resources.ResourceId resourceId, out Configlue.Resources.IResourceBatchWriter? batchWriter, out Configlue.Resources.ResourceWriteMutation? mutation);
+    }
+    public interface IContextualSourceWriter<T> : Configlue.Sources.ISourceWriter<T>
+    {
+        System.Threading.Tasks.ValueTask<Configlue.State.StateWriteResult> WriteAsync(Configlue.Resources.ConfiglueResourceContext context, Configlue.State.StateWriteRequest<T> request, System.Threading.CancellationToken cancellationToken = default);
     }
     public interface ISourceReader<T>
     {
         System.Threading.Tasks.ValueTask<Configlue.State.StateReadResult<T>> ReadAsync(System.Threading.CancellationToken cancellationToken = default);
-        System.Threading.Tasks.ValueTask<Configlue.State.StateReadResult<T>> ReadAsync(Configlue.Resources.ConfiglueResourceContext context, System.Threading.CancellationToken cancellationToken = default);
     }
     public interface ISourceWatcher
     {
         System.Threading.Tasks.ValueTask WaitForChangeAsync(string? observedRevision, System.Threading.CancellationToken cancellationToken = default);
-        System.Threading.Tasks.ValueTask WaitForChangeAsync(Configlue.Resources.ConfiglueResourceContext context, string? observedRevision, System.Threading.CancellationToken cancellationToken = default);
     }
     public interface ISourceWriteBatchParticipant<T>
     {
         bool TryCreateBatchWrite(Configlue.State.StateWriteRequest<T> request, out Configlue.Resources.ResourceId resourceId, out Configlue.Resources.IResourceBatchWriter? batchWriter, out Configlue.Resources.ResourceWriteMutation? mutation);
-        bool TryCreateBatchWrite(Configlue.Resources.ConfiglueResourceContext context, Configlue.State.StateWriteRequest<T> request, out Configlue.Resources.ResourceId resourceId, out Configlue.Resources.IResourceBatchWriter? batchWriter, out Configlue.Resources.ResourceWriteMutation? mutation);
     }
     public interface ISourceWriter<T>
     {
         System.Threading.Tasks.ValueTask<Configlue.State.StateWriteResult> WriteAsync(Configlue.State.StateWriteRequest<T> request, System.Threading.CancellationToken cancellationToken = default);
-        System.Threading.Tasks.ValueTask<Configlue.State.StateWriteResult> WriteAsync(Configlue.Resources.ConfiglueResourceContext context, Configlue.State.StateWriteRequest<T> request, System.Threading.CancellationToken cancellationToken = default);
+    }
+    public static class SourceContextExtensions
+    {
+        public static System.Threading.Tasks.ValueTask<Configlue.State.StateReadResult<T>> ReadAsync<T>(this Configlue.Sources.ISourceReader<T> reader, Configlue.Resources.ConfiglueResourceContext context, System.Threading.CancellationToken cancellationToken = default) { }
+        public static bool TryCreateBatchWrite<T>(this Configlue.Sources.ISourceWriteBatchParticipant<T> participant, Configlue.Resources.ConfiglueResourceContext context, Configlue.State.StateWriteRequest<T> request, out Configlue.Resources.ResourceId resourceId, out Configlue.Resources.IResourceBatchWriter? batchWriter, out Configlue.Resources.ResourceWriteMutation? mutation) { }
+        public static System.Threading.Tasks.ValueTask<Configlue.State.StateWriteBatchPlan?> TryCreateBatchWriteAsync<T>(this Configlue.Sources.IAsyncSourceWriteBatchParticipant<T> participant, Configlue.Resources.ConfiglueResourceContext context, Configlue.State.StateWriteRequest<T> request, System.Threading.CancellationToken cancellationToken = default) { }
+        public static System.Threading.Tasks.ValueTask WaitForChangeAsync(this Configlue.Sources.ISourceWatcher watcher, Configlue.Resources.ConfiglueResourceContext context, string? observedRevision, System.Threading.CancellationToken cancellationToken = default) { }
+        public static System.Threading.Tasks.ValueTask<Configlue.State.StateWriteResult> WriteAsync<T>(this Configlue.Sources.ISourceWriter<T> writer, Configlue.Resources.ConfiglueResourceContext context, Configlue.State.StateWriteRequest<T> request, System.Threading.CancellationToken cancellationToken = default) { }
     }
     [System.Flags]
     public enum StateFallbackCondition

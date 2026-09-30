@@ -3,12 +3,19 @@ namespace Configlue.Source.Presets
 {
     public sealed class CommonFileSourceBuilder
     {
+        public CommonFileSourceBuilder(System.Action ensureMutable, System.Action<int> setPriority, string id, string path) { }
         public Configlue.Source.Presets.CommonFileSourceBuilder ExplicitOnly(bool explicitOnly = true) { }
         public Configlue.Source.Presets.CommonFileSourceBuilder FileResourceOptions(Configlue.Resources.FileResourceOptions options) { }
+        public TOptions GetOrCreateProviderOptions<TOptions>(System.Func<TOptions> create)
+            where TOptions :  class { }
         public Configlue.Source.Presets.CommonFileSourceBuilder Priority(int priority) { }
         public Configlue.Source.Presets.CommonFileSourceBuilder ReadOnly(bool readOnly = true) { }
+        public void Register(Configlue.ConfiglueSourceSetBuilder sources, int priority, bool isDefaultWriteTarget) { }
         public Configlue.Source.Presets.CommonFileSourceBuilder SchemaReferenceBaseUri(string schemaReferenceBaseUri) { }
         public Configlue.Source.Presets.CommonFileSourceBuilder Section(string sectionPath) { }
+        public void SetProviderRegistration(System.Action<Configlue.ConfiglueSourceSetBuilder, Configlue.Source.Presets.CommonFileSourceSettings> register) { }
+        public void SetProviderRegistration<TOptions>(TOptions options, System.Action<Configlue.ConfiglueSourceSetBuilder, Configlue.Source.Presets.CommonFileSourceSettings, TOptions> register)
+            where TOptions :  class { }
         public Configlue.Source.Presets.CommonFileSourceBuilder Transformer(Configlue.Transformers.IStateByteTransformer transformer) { }
         public Configlue.Source.Presets.CommonFileSourceBuilder WatchChanges(bool watchChanges = true) { }
     }

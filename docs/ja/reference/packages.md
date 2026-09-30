@@ -5,10 +5,10 @@ description: 機能ごとの NuGet パッケージを探す。
 
 | パッケージ | 用途 |
 | --- | --- |
-| `Configlue` | portable な便利パッケージ: 共通レイヤー/単一バイナリプリセットに加え、Core・DI 統合・JSON Provider・HTTP・環境変数・Generator をまとめます。JSON Schema は `net10.0` asset のみ、AES は opt-in です。 |
+| `Configlue` | portable な便利パッケージ: 共通レイヤー/単一バイナリプリセットに加え、DI 登録を含む Core・DI HTTP client adapter・JSON Provider・HTTP・環境変数・Generator をまとめます。JSON Schema は `net10.0` asset のみ、AES は opt-in です。 |
 | `Configlue.Abstraction` | プロバイダー・コーデック・リソース・生成モデルの契約。 |
-| `Configlue.Core` | serializer-neutral な状態解決ランタイム、Provider 作成支援、ZIP resource、共通ファイル preset SPI。 |
-| `Configlue.Extensions.DI` | Configlue state の依存性注入登録。 |
+| `Configlue.Core` | serializer-neutral な状態解決ランタイム、依存性注入登録、Provider 作成支援、ZIP resource、共通ファイル preset SPI。 |
+| `Configlue.Extensions.DI` | 名前付き `IHttpClientFactory` client を使う HTTP source アダプター。 |
 | `Configlue.Extensions.MSOptions` | Microsoft options インターフェイス向けの任意アダプター。 |
 | `Configlue.Extensions.R3` | value・profile・reload signal の合成に使う任意の R3 observable。 |
 | `Configlue.Generator` | 疎モデル生成サポート (Roslyn アナライザー)。 |

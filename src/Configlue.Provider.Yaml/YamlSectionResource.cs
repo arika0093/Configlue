@@ -7,13 +7,13 @@ namespace Configlue.Provider.Yaml;
 
 /// <summary>Exposes a nested YAML mapping as a resource while preserving sibling nodes.</summary>
 public sealed class YamlSectionResource
-    : IResourceReader,
-        IPipelineResourceReader,
-        IResourceWriter,
-        ISourceWatcher,
-        IResourceIdentity,
-        IResourceBatchParticipant,
-        IResourceBackupRecovery
+    : IContextualResourceReader,
+        IContextualPipelineResourceReader,
+        IContextualResourceWriter,
+        IContextualSourceWatcher,
+        ITryContextualResourceIdentity,
+        IContextualResourceBatchParticipant,
+        IContextualResourceBackupRecovery
 {
     private static readonly UTF8Encoding StrictUtf8 = new(
         encoderShouldEmitUTF8Identifier: false,
@@ -125,8 +125,11 @@ public sealed class YamlSectionResource
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(sectionPath);
         var path = sectionPath
-            .Replace("__", ":", StringComparison.Ordinal)
-            .Split(':', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            .Replace("__", ":")
+            .Split(new[] { ':' }, StringSplitOptions.RemoveEmptyEntries)
+            .Select(static segment => segment.Trim())
+            .Where(static segment => segment.Length > 0)
+            .ToArray();
         if (path.Length == 0)
         {
             throw new ArgumentException(
@@ -355,7 +358,7 @@ public sealed class YamlSectionResource
             if (current is not YamlMapping mapping)
             {
                 throw new SharpYaml.YamlException(
-                    $"Section path '{string.Join(':', _path)}' crosses a non-mapping value at '{name}'."
+                    $"Section path '{string.Join(":", _path)}' crosses a non-mapping value at '{name}'."
                 );
             }
 
@@ -495,7 +498,7 @@ public sealed class YamlSectionResource
     private YamlElement LoadRoot(ReadOnlyMemory<byte> content)
     {
         var text = _textEncoding is null
-            ? StrictUtf8.GetString(content.Span)
+            ? StrictUtf8.GetString(content.ToArray())
             : DecodeWithEncoding(content, _textEncoding);
         if (string.IsNullOrWhiteSpace(text))
         {

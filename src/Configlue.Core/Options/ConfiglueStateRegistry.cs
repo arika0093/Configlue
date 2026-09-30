@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Runtime.ExceptionServices;
+using Configlue.CompilerServices;
 
 namespace Configlue;
 
@@ -7,7 +8,7 @@ namespace Configlue;
 /// <typeparam name="TModel">The configuration model.</typeparam>
 /// <typeparam name="TFragment">The model's generated sparse fragment.</typeparam>
 internal sealed class ConfiglueStateRegistry<TModel, TFragment>
-    : IConfiglueStateRegistry<TModel>,
+    : IAsyncConfiglueStateRegistry<TModel>,
         IConfiglueStateRegistryNotificationDeferrer<TModel>
     where TModel : IConfiglueModel<TModel, TFragment>
     where TFragment : class, IConfiglueFragment<TFragment>
@@ -150,11 +151,12 @@ internal sealed class ConfiglueStateRegistry<TModel, TFragment>
         lock (_gate)
         {
             ThrowIfDisposed();
-            if (!_states.Remove(stateName, out state))
+            if (!_states.TryGetValue(stateName, out state))
             {
                 return false;
             }
 
+            _states.Remove(stateName);
             _retiringStates.Add(stateName);
             _pendingAsyncRemovals.Add(removalCompleted.Task);
             notification = new Notification(

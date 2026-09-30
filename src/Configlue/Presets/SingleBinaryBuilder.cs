@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
+using Configlue.CompilerServices;
 using Configlue.Provider.Json;
-using Configlue.Transformer.AES;
 
 namespace Configlue.Source.Presets;
 
@@ -39,8 +39,7 @@ public sealed class SingleBinaryBuilder
         ValidateStandardFilename(filename);
         _path = Path.GetFullPath(
             Path.Combine(
-                ConfiglueStandardPaths.ResolveDirectory(
-                    _configlue.HostPaths,
+                _configlue.ResolveStandardDirectory(
                     ConfiglueStandardLocation.HostGlobal,
                     applicationId
                 ),
@@ -57,8 +56,7 @@ public sealed class SingleBinaryBuilder
         ValidateStandardFilename(filename);
         _path = Path.GetFullPath(
             Path.Combine(
-                ConfiglueStandardPaths.ResolveDirectory(
-                    _configlue.HostPaths,
+                _configlue.ResolveStandardDirectory(
                     ConfiglueStandardLocation.UserGlobal,
                     applicationId
                 ),
@@ -91,51 +89,18 @@ public sealed class SingleBinaryBuilder
         return this;
     }
 
-    /// <summary>Encrypts the complete ZIP archive using an AES key of 128, 192, or 256 bits.</summary>
-    /// <remarks>
-    /// The key memory is retained for creating named-option and profile sources. Keep it unchanged
-    /// until no context can create additional runtimes from this registration.
-    /// </remarks>
-    public SingleBinaryBuilder WithAesKey(ReadOnlyMemory<byte> key)
+    /// <summary>Encrypts the complete archive using a newly created owned transformer per source.</summary>
+    public SingleBinaryBuilder WithEncryption(Func<IStateByteTransformer> transformerFactory)
     {
         EnsureMutable();
-        if (key.Length is not (16 or 24 or 32))
-        {
-            throw new ArgumentException(
-                "An AES key must contain 16, 24, or 32 bytes.",
-                nameof(key)
-            );
-        }
-
+        ArgumentNullException.ThrowIfNull(transformerFactory);
         _encryption = new SingleBinaryEncryption
         {
-            CreateTransformer = () => new AesGcmStateByteTransformer(key.Span),
+            CreateTransformer = transformerFactory,
             OwnsTransformer = true,
         };
         return this;
     }
-
-    /// <summary>Encrypts the complete ZIP archive using an AES-GCM key derived from a passphrase.</summary>
-    public SingleBinaryBuilder WithPassphrase(string passphrase)
-    {
-        EnsureMutable();
-        ArgumentNullException.ThrowIfNull(passphrase);
-        if (passphrase.Length == 0)
-        {
-            throw new ArgumentException("A passphrase cannot be empty.", nameof(passphrase));
-        }
-
-        _encryption = new SingleBinaryEncryption
-        {
-            CreateTransformer = () => new AesGcmPassphraseStateByteTransformer(passphrase),
-            OwnsTransformer = true,
-        };
-        return this;
-    }
-
-    /// <summary>Encrypts the complete archive using a passphrase.</summary>
-    /// <remarks>This is a convenience alias for <see cref="WithPassphrase"/>.</remarks>
-    public SingleBinaryBuilder WithEncrypted(string passphrase) => WithPassphrase(passphrase);
 
     /// <summary>Enables persisted profiles and stores each model's profile catalog in the archive.</summary>
     public SingleBinaryBuilder WithProfiles(string defaultProfileName = "default")

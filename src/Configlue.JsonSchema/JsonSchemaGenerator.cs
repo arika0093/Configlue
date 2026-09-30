@@ -10,6 +10,7 @@ using System.Text.Json.Nodes;
 using System.Text.Json.Schema;
 using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
+using Configlue.CompilerServices;
 
 namespace Configlue.JsonSchema;
 
@@ -270,7 +271,12 @@ public static partial class JsonSchemaGenerator
     )
         where TModel : IConfiglueModel<TModel, TFragment>
         where TFragment : class, IConfiglueFragment<TFragment> =>
-        Generate([TModel.ConfiglueSchema], resolver, schemaBaseUri, documentLayout);
+        Generate(
+            [ConfiglueModelSchemaRegistry<TModel>.Schema],
+            resolver,
+            schemaBaseUri,
+            documentLayout
+        );
 
     /// <summary>
     /// Generates and writes JSON Schema documents for the supplied versioned options models.
@@ -373,7 +379,13 @@ public static partial class JsonSchemaGenerator
     )
         where TModel : IConfiglueModel<TModel, TFragment>
         where TFragment : class, IConfiglueFragment<TFragment> =>
-        Write([TModel.ConfiglueSchema], outputDirectory, resolver, schemaBaseUri, documentLayout);
+        Write(
+            [ConfiglueModelSchemaRegistry<TModel>.Schema],
+            outputDirectory,
+            resolver,
+            schemaBaseUri,
+            documentLayout
+        );
 
     /// <summary>
     /// Writes schemas when <c>--cw-generate-json-schema &lt;directory&gt;</c> is present in the

@@ -36,7 +36,7 @@ namespace Configlue.Extensibility
             where TSubtreeModel :  class, Configlue.CompilerServices.IConfiglueModel<TSubtreeModel, TSubtreeFragment>
             where TSubtreeFragment :  class, Configlue.IConfiglueFragment<TSubtreeFragment> { }
     }
-    public sealed class SerializedStateReader<T> : Configlue.Resources.IResourceIdentity, Configlue.Sources.ISourceReader<T>
+    public sealed class SerializedStateReader<T> : Configlue.Resources.IContextualResourceIdentity, Configlue.Resources.IResourceIdentity, Configlue.Resources.ITryContextualResourceIdentity, Configlue.Sources.IContextualSourceReader<T>, Configlue.Sources.ISourceReader<T>
     {
         public SerializedStateReader(Configlue.Resources.IResourceReader resource, object codec, Configlue.Codecs.StateCodecContext context = default, Configlue.Migrations.StateSchemaDispatcher<T>? schemaDispatcher = null, System.Collections.Generic.IEnumerable<Configlue.Transformers.IStateByteTransformer>? transformers = null) { }
         public Configlue.Resources.ResourceId ResourceId { get; }
@@ -49,7 +49,7 @@ namespace Configlue.Extensibility
     {
         public static Configlue.Sources.StateSource<T> FromResource<T>(string id, Configlue.Resources.IResourceReader resource, object codec, int priority = 0, Configlue.Sources.StateFallbackCondition fallbackCondition = 1, Configlue.Resources.IResourceWriter? writer = null, Configlue.Sources.ISourceWatcher? watcher = null, string? physicalOrigin = null, Configlue.Codecs.StateCodecContext context = default, Configlue.Resources.ResourceId? resourceId = default, Configlue.Migrations.StateSchemaDispatcher<T>? schemaDispatcher = null, System.Collections.Generic.IEnumerable<Configlue.Transformers.IStateByteTransformer>? transformers = null, System.Collections.Generic.IEnumerable<Configlue.State.IStateMiddleware<T>>? middlewares = null) { }
     }
-    public sealed class SerializedStateWriter<T> : Configlue.Resources.IResourceIdentity, Configlue.Sources.ISourceWriteBatchParticipant<T>, Configlue.Sources.ISourceWriter<T>
+    public sealed class SerializedStateWriter<T> : Configlue.Resources.IContextualResourceIdentity, Configlue.Resources.IResourceIdentity, Configlue.Resources.ITryContextualResourceIdentity, Configlue.Sources.IContextualSourceWriteBatchParticipant<T>, Configlue.Sources.IContextualSourceWriter<T>, Configlue.Sources.ISourceWriteBatchParticipant<T>, Configlue.Sources.ISourceWriter<T>
     {
         public SerializedStateWriter(Configlue.Resources.IResourceWriter resource, object codec, Configlue.Codecs.StateCodecContext context = default, System.Collections.Generic.IEnumerable<Configlue.Transformers.IStateByteTransformer>? transformers = null) { }
         public Configlue.Resources.ResourceId ResourceId { get; }
@@ -60,7 +60,7 @@ namespace Configlue.Extensibility
         public System.Threading.Tasks.ValueTask<Configlue.State.StateWriteResult> WriteAsync(Configlue.State.StateWriteRequest<T> request, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask<Configlue.State.StateWriteResult> WriteAsync(Configlue.Resources.ConfiglueResourceContext context, Configlue.State.StateWriteRequest<T> request, System.Threading.CancellationToken cancellationToken = default) { }
     }
-    public sealed class TransformingResource : Configlue.Resources.IResourceBackupRecovery, Configlue.Resources.IResourceIdentity, Configlue.Resources.IResourceReader
+    public sealed class TransformingResource : Configlue.Resources.IContextualResourceBackupRecovery, Configlue.Resources.IContextualResourceIdentity, Configlue.Resources.IContextualResourceReader, Configlue.Resources.IResourceBackupRecovery, Configlue.Resources.IResourceIdentity, Configlue.Resources.IResourceReader, Configlue.Resources.ITryContextualResourceIdentity
     {
         public TransformingResource(Configlue.Resources.IResourceReader resource, System.Collections.Generic.IEnumerable<Configlue.Transformers.IStateByteTransformer> transformers, Configlue.Resources.ResourceId? resourceId = default) { }
         public bool AutomaticBackupRecoveryEnabled { get; }

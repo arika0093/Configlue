@@ -4,6 +4,7 @@ using System.ComponentModel.DataAnnotations;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using Configlue.CompilerServices;
 using Microsoft.Extensions.Logging;
 
 namespace Configlue;
@@ -71,7 +72,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
 
         if (
             _validateDataAnnotations
-            && RuntimeFeature.IsDynamicCodeSupported
+            && ConfiglueRuntimeCapabilities.IsDynamicCodeSupported
             && HasValidationMetadata(value.GetType())
         )
         {
@@ -120,10 +121,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             CollectMemberFailures(fragment.Schema, fragment, string.Empty, failures);
         }
 
-        CollectValidationFailures(
-            TModel.FromFragment(_modelDefaultsFragment.Merge(fragment)),
-            failures
-        );
+        CollectValidationFailures(FromFragment(_modelDefaultsFragment.Merge(fragment)), failures);
         if (failures.Count > 1)
         {
             failures = failures.Distinct(StringComparer.Ordinal).ToList();
@@ -179,7 +177,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         List<string> failures
     )
     {
-        if (!_validateDataAnnotations || !RuntimeFeature.IsDynamicCodeSupported)
+        if (!_validateDataAnnotations || !ConfiglueRuntimeCapabilities.IsDynamicCodeSupported)
         {
             return fragment;
         }
@@ -229,7 +227,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
     private void ValidateResolvedModel(TModel model, IConfiglueFragment merged)
     {
         var validateDataAnnotations =
-            _validateDataAnnotations && RuntimeFeature.IsDynamicCodeSupported;
+            _validateDataAnnotations && ConfiglueRuntimeCapabilities.IsDynamicCodeSupported;
         var hasMemberValidation =
             validateDataAnnotations && HasMemberValidationMetadata(merged.Schema);
         var hasModelValidation = validateDataAnnotations && HasValidationMetadata(model.GetType());
@@ -318,7 +316,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         List<int>? invalidMemberIds = null
     )
     {
-        if (!RuntimeFeature.IsDynamicCodeSupported)
+        if (!ConfiglueRuntimeCapabilities.IsDynamicCodeSupported)
         {
             return;
         }
@@ -468,4 +466,19 @@ internal static class ConfiglueMemberValidationAttributeCache
         ConfiglueModelSchema schema,
         Func<ConfiglueModelSchema, IReadOnlyDictionary<int, ValidationAttribute[]>> factory
     ) => ById.GetOrAdd(modelType, _ => factory(schema));
+}
+
+internal static class ConfiglueRuntimeCapabilities
+{
+#if NETSTANDARD2_0
+    private static readonly PropertyInfo? IsDynamicCodeSupportedProperty = Type.GetType(
+            "System.Runtime.CompilerServices.RuntimeFeature, System.Runtime"
+        )
+        ?.GetProperty("IsDynamicCodeSupported", BindingFlags.Public | BindingFlags.Static);
+
+    public static bool IsDynamicCodeSupported =>
+        IsDynamicCodeSupportedProperty?.GetValue(null) as bool? ?? false;
+#else
+    public static bool IsDynamicCodeSupported => RuntimeFeature.IsDynamicCodeSupported;
+#endif
 }

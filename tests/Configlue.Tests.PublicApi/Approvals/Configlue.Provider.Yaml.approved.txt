@@ -33,7 +33,7 @@ namespace Configlue.Provider.Yaml
     {
         public static Configlue.ConfiglueSourceHandle<TModel> Source<TModel>(this Configlue.IConfiglueSources<TModel> options, Configlue.Provider.Yaml.YamlFileSourceSelector selector) { }
     }
-    public sealed class YamlSectionResource : Configlue.Resources.IResourceBackupRecovery, Configlue.Resources.IResourceBatchParticipant, Configlue.Resources.IResourceIdentity, Configlue.Resources.IResourceReader, Configlue.Resources.IResourceWriter, Configlue.Sources.ISourceWatcher, Configlue.State.IPipelineResourceReader
+    public sealed class YamlSectionResource : Configlue.Resources.IContextualResourceBackupRecovery, Configlue.Resources.IContextualResourceBatchParticipant, Configlue.Resources.IContextualResourceIdentity, Configlue.Resources.IContextualResourceReader, Configlue.Resources.IContextualResourceWriter, Configlue.Resources.IResourceBackupRecovery, Configlue.Resources.IResourceBatchParticipant, Configlue.Resources.IResourceIdentity, Configlue.Resources.IResourceReader, Configlue.Resources.IResourceWriter, Configlue.Resources.ITryContextualResourceIdentity, Configlue.Sources.IContextualSourceWatcher, Configlue.Sources.ISourceWatcher, Configlue.State.IContextualPipelineResourceReader, Configlue.State.IPipelineResourceReader
     {
         public YamlSectionResource(Configlue.Resources.IResourceReader resource, string sectionPath) { }
         public YamlSectionResource(Configlue.Resources.IResourceReader reader, Configlue.Resources.IResourceWriter? writer, string sectionPath, Configlue.Sources.ISourceWatcher? watcher = null, Configlue.Resources.ResourceId? resourceId = default, System.Text.Encoding? textEncoding = null) { }

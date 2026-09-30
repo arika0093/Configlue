@@ -1,5 +1,6 @@
 using System.Linq.Expressions;
 using System.Reflection;
+using Configlue.CompilerServices;
 
 namespace Configlue;
 
@@ -23,7 +24,7 @@ public sealed class StateWritePlanBuilder<TModel>
         }
 
         var path = GetPropertyPath(property);
-        _ = ConfiglueMemberPath.FromNames(TModel.ConfiglueSchema, path);
+        _ = ConfiglueMemberPath.FromNames(ConfiglueModelSchemaRegistry<TModel>.Schema, path);
         if (!_routes.TryAdd(path, source.Id))
         {
             throw new ArgumentException(
@@ -36,7 +37,8 @@ public sealed class StateWritePlanBuilder<TModel>
     }
 
     /// <summary>Creates the immutable write plan.</summary>
-    public StateWritePlan Build() => new StateWritePlan(_routes).Bind(TModel.ConfiglueSchema);
+    public StateWritePlan Build() =>
+        new StateWritePlan(_routes).Bind(ConfiglueModelSchemaRegistry<TModel>.Schema);
 
     private static string GetPropertyPath<TValue>(Expression<Func<TModel, TValue>> selector)
     {
@@ -75,6 +77,6 @@ public sealed class StateWritePlanBuilder<TModel>
             );
         }
 
-        return string.Join('.', members);
+        return string.Join(".", members);
     }
 }

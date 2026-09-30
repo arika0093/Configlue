@@ -17,13 +17,22 @@ public sealed class CommonFileSourceBuilder
     private bool? _explicitOnly;
     private readonly List<IStateByteTransformer> _transformers = [];
 
-    internal CommonFileSourceBuilder(
+    /// <summary>Creates a common file source builder for a provider-neutral preset.</summary>
+    /// <param name="ensureMutable">Checks that the owning preset has not been applied yet.</param>
+    /// <param name="setPriority">Updates the owning preset's layer priority.</param>
+    /// <param name="id">The logical source identifier.</param>
+    /// <param name="path">The resolved file path.</param>
+    public CommonFileSourceBuilder(
         Action ensureMutable,
         Action<int> setPriority,
         string id,
         string path
     )
     {
+        ArgumentNullException.ThrowIfNull(ensureMutable);
+        ArgumentNullException.ThrowIfNull(setPriority);
+        ArgumentException.ThrowIfNullOrWhiteSpace(id);
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
         _ensureMutable = ensureMutable;
         _setPriority = setPriority;
         _id = id;
@@ -98,12 +107,13 @@ public sealed class CommonFileSourceBuilder
         return this;
     }
 
-    internal void Register(
-        ConfiglueSourceSetBuilder sources,
-        int priority,
-        bool isDefaultWriteTarget
-    )
+    /// <summary>Registers this configured file source in a source set.</summary>
+    /// <param name="sources">The source set being configured.</param>
+    /// <param name="priority">The resolved priority for this source.</param>
+    /// <param name="isDefaultWriteTarget">Whether this source is the default write target.</param>
+    public void Register(ConfiglueSourceSetBuilder sources, int priority, bool isDefaultWriteTarget)
     {
+        ArgumentNullException.ThrowIfNull(sources);
         var registration =
             _providerRegistration
             ?? throw new InvalidOperationException(
@@ -127,7 +137,8 @@ public sealed class CommonFileSourceBuilder
         );
     }
 
-    internal TOptions GetOrCreateProviderOptions<TOptions>(Func<TOptions> create)
+    /// <summary>Gets or creates extension-specific options associated with this file source.</summary>
+    public TOptions GetOrCreateProviderOptions<TOptions>(Func<TOptions> create)
         where TOptions : class
     {
         EnsureMutable();
@@ -142,7 +153,8 @@ public sealed class CommonFileSourceBuilder
         return newOptions;
     }
 
-    internal void SetProviderRegistration<TOptions>(
+    /// <summary>Sets how a provider extension registers this configured file source.</summary>
+    public void SetProviderRegistration<TOptions>(
         TOptions options,
         Action<ConfiglueSourceSetBuilder, CommonFileSourceSettings, TOptions> register
     )
@@ -154,7 +166,8 @@ public sealed class CommonFileSourceBuilder
         _providerRegistration = (sources, settings) => register(sources, settings, options);
     }
 
-    internal void SetProviderRegistration(
+    /// <summary>Sets how a provider extension registers this configured file source.</summary>
+    public void SetProviderRegistration(
         Action<ConfiglueSourceSetBuilder, CommonFileSourceSettings> register
     )
     {
@@ -166,16 +179,36 @@ public sealed class CommonFileSourceBuilder
     private void EnsureMutable() => _ensureMutable();
 }
 
-internal sealed record CommonFileSourceSettings
+/// <summary>Describes the common file settings passed to a file-provider registration.</summary>
+public sealed record CommonFileSourceSettings
 {
+    /// <summary>The logical source identifier.</summary>
     public required string Id { get; init; }
+
+    /// <summary>The fully resolved file path.</summary>
     public required string Path { get; init; }
+
+    /// <summary>The source priority.</summary>
     public int Priority { get; init; }
+
+    /// <summary>The optional provider-specific document section.</summary>
     public string? SectionPath { get; init; }
+
+    /// <summary>The optional schema reference base URI.</summary>
     public string? SchemaReferenceBaseUri { get; init; }
+
+    /// <summary>Whether the source is read-only.</summary>
     public bool ReadOnly { get; init; }
+
+    /// <summary>Whether writes require explicit source selection.</summary>
     public bool ExplicitOnly { get; init; }
+
+    /// <summary>Whether the source watches for external changes.</summary>
     public bool WatchChanges { get; init; }
+
+    /// <summary>Options for the underlying file resource.</summary>
     public FileResourceOptions? ResourceOptions { get; init; }
+
+    /// <summary>Transformers applied to this source.</summary>
     public IReadOnlyList<IStateByteTransformer> Transformers { get; init; } = [];
 }

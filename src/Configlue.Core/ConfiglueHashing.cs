@@ -6,7 +6,9 @@ namespace Configlue;
 
 internal static class ConfiglueHashing
 {
+#if !NETSTANDARD2_0
     private const int StackBufferLimit = 256;
+#endif
 
     public static string GetXxHash3Hex(ReadOnlySpan<byte> content)
     {
@@ -18,6 +20,9 @@ internal static class ConfiglueHashing
     public static string GetXxHash3Hex(string content)
     {
         ArgumentNullException.ThrowIfNull(content);
+#if NETSTANDARD2_0
+        return GetXxHash3Hex(Encoding.UTF8.GetBytes(content));
+#else
         var byteCount = Encoding.UTF8.GetByteCount(content);
         if (byteCount <= StackBufferLimit)
         {
@@ -37,5 +42,6 @@ internal static class ConfiglueHashing
         {
             ArrayPool<byte>.Shared.Return(rented, clearArray: true);
         }
+#endif
     }
 }

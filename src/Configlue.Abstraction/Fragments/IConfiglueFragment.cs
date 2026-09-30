@@ -48,6 +48,5 @@ public interface IConfiglueFragment
     IConfiglueFragment WithMember(int memberId, object? value);
 
     /// <summary>Returns a copy with the specified member absent from this sparse contribution.</summary>
-    IConfiglueFragment WithoutMember(int memberId) =>
-        throw new NotSupportedException("This fragment does not support removing a member.");
+    IConfiglueFragment WithoutMember(int memberId);
 }

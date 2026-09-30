@@ -5,11 +5,11 @@ using Configlue.Sources;
 namespace Configlue.Source.Presets;
 
 internal sealed class SingleBinaryEntryResource
-    : IResourceReader,
-        IPipelineResourceReader,
-        IResourceWriter,
-        ISourceWatcher,
-        IResourceIdentity
+    : IContextualResourceReader,
+        IContextualPipelineResourceReader,
+        IContextualResourceWriter,
+        IContextualSourceWatcher,
+        ITryContextualResourceIdentity
 {
     private const int RevisionMapLimit = 8;
     private const string MissingEntryRevision = "missing";
@@ -291,5 +291,5 @@ internal sealed class SingleBinaryEntryResource
     }
 
     private static string GetEntryRevision(ReadOnlySpan<byte> content) =>
-        "entry:" + Convert.ToHexString(SHA256.HashData(content));
+        "entry:" + Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(content));
 }

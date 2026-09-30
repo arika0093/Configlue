@@ -13,10 +13,10 @@ namespace Configlue.Resource.S3;
 /// implementations may not provide the same ETag or conditional-request guarantees.
 /// </remarks>
 public sealed class S3ObjectResource
-    : IResourceReader,
-        IPipelineResourceReader,
-        IResourceWriter,
-        IResourceIdentity
+    : IContextualResourceReader,
+        IContextualPipelineResourceReader,
+        IContextualResourceWriter,
+        IContextualResourceIdentity
 {
     private readonly IS3ObjectClient _client;
     private readonly S3ObjectResourceOptions _options;
@@ -97,8 +97,8 @@ public sealed class S3ObjectResource
         var key = ResolveKey(context);
         try
         {
-            var result = await GetClient(context)
-                .GetObjectStreamAsync(bucketName, key, cancellationToken)
+            var result = await S3ObjectClientExtensions
+                .GetObjectStreamAsync(GetClient(context), bucketName, key, cancellationToken)
                 .ConfigureAwait(false);
             return PipelineResourceReader.FromStream(result.Content, result.ETag, owner: result);
         }
@@ -208,11 +208,11 @@ public sealed class S3ObjectResource
             route is null ? bucketName + "\n" + key : bucketName + "\n" + key + "\n" + route
         );
         return new ResourceId(
-            $"s3:{Convert.ToHexString(SHA256.HashData(identity)).ToLowerInvariant()}"
+            $"s3:{Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(identity)).ToLowerInvariant()}"
         );
     }
 
-    private sealed class S3ObjectClient : IS3ObjectClient
+    private sealed class S3ObjectClient : IS3ObjectClient, IS3ObjectStreamClient
     {
         private readonly IAmazonS3 _client;
 
@@ -250,15 +250,14 @@ public sealed class S3ObjectResource
             if (length is > 0 and <= int.MaxValue)
             {
                 var buffer = new byte[(int)length];
-                await response
-                    .ResponseStream.ReadExactlyAsync(buffer, cancellationToken)
+                await ReadExactlyAsync(response.ResponseStream, buffer, cancellationToken)
                     .ConfigureAwait(false);
                 return new S3ObjectReadResult(buffer, response.ETag);
             }
 
             using var content = new MemoryStream();
             await response
-                .ResponseStream.CopyToAsync(content, cancellationToken)
+                .ResponseStream.CopyToAsync(content, 81920, cancellationToken)
                 .ConfigureAwait(false);
             return new S3ObjectReadResult(content.ToArray(), response.ETag);
         }
@@ -298,6 +297,27 @@ public sealed class S3ObjectResource
                 .ConfigureAwait(false);
             return new S3ObjectWriteResult(response.ETag);
         }
+
+        private static async Task ReadExactlyAsync(
+            Stream stream,
+            byte[] buffer,
+            CancellationToken cancellationToken
+        )
+        {
+            var offset = 0;
+            while (offset < buffer.Length)
+            {
+                var read = await stream
+                    .ReadAsync(buffer, offset, buffer.Length - offset, cancellationToken)
+                    .ConfigureAwait(false);
+                if (read == 0)
+                {
+                    throw new EndOfStreamException();
+                }
+
+                offset += read;
+            }
+        }
     }
 }
 
@@ -309,20 +329,6 @@ internal interface IS3ObjectClient
         CancellationToken cancellationToken
     );
 
-    async Task<S3ObjectStreamResult> GetObjectStreamAsync(
-        string bucketName,
-        string key,
-        CancellationToken cancellationToken
-    )
-    {
-        var result = await GetObjectAsync(bucketName, key, cancellationToken).ConfigureAwait(false);
-        var content =
-            MemoryMarshal.TryGetArray(result.Content, out var segment) && segment.Array is not null
-                ? new MemoryStream(segment.Array, segment.Offset, segment.Count, writable: false)
-                : new MemoryStream(result.Content.ToArray(), writable: false);
-        return new S3ObjectStreamResult(content, result.ETag);
-    }
-
     Task<S3ObjectWriteResult> PutObjectAsync(
         string bucketName,
         string key,
@@ -331,6 +337,42 @@ internal interface IS3ObjectClient
         bool requireMissing,
         CancellationToken cancellationToken
     );
+}
+
+internal interface IS3ObjectStreamClient
+{
+    Task<S3ObjectStreamResult> GetObjectStreamAsync(
+        string bucketName,
+        string key,
+        CancellationToken cancellationToken
+    );
+}
+
+internal static class S3ObjectClientExtensions
+{
+    public static async Task<S3ObjectStreamResult> GetObjectStreamAsync(
+        IS3ObjectClient client,
+        string bucketName,
+        string key,
+        CancellationToken cancellationToken
+    )
+    {
+        if (client is IS3ObjectStreamClient streamClient)
+        {
+            return await streamClient
+                .GetObjectStreamAsync(bucketName, key, cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        var result = await client
+            .GetObjectAsync(bucketName, key, cancellationToken)
+            .ConfigureAwait(false);
+        var content =
+            MemoryMarshal.TryGetArray(result.Content, out var segment) && segment.Array is not null
+                ? new MemoryStream(segment.Array, segment.Offset, segment.Count, writable: false)
+                : new MemoryStream(result.Content.ToArray(), writable: false);
+        return new S3ObjectStreamResult(content, result.ETag);
+    }
 }
 
 internal sealed class S3ObjectStreamResult : IDisposable

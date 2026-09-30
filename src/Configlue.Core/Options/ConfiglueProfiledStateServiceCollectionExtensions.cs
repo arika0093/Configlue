@@ -1,3 +1,4 @@
+using Configlue.CompilerServices;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Configlue;

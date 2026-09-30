@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Concurrent;
 using System.ComponentModel.DataAnnotations;
+using Configlue.CompilerServices;
 using Microsoft.Extensions.Logging;
 
 namespace Configlue;
@@ -22,7 +23,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         using var operation = EnterOperation();
         after = CloneModel(after);
         Validate(after);
-        var changes = TModel.Diff(before, after);
+        var changes = Diff(before, after);
         if (changes.IsEmpty)
         {
             return StateWriteReceipt.Empty;
@@ -34,10 +35,10 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                 ? fallbackSource.Id
                 : "__configlue_missing_write_owner__";
         var initialRouting = PartitionRoutedChanges(
-            TModel.ConfiglueSchema,
+            ModelSchema,
             changes,
             after,
-            ConfiglueMemberPath.Root(TModel.ConfiglueSchema),
+            ConfiglueMemberPath.Root(ModelSchema),
             routingFallbackSourceId,
             writePlan
         );
@@ -71,10 +72,10 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             )
                 ? initialRouting
                 : PartitionRoutedChanges(
-                    TModel.ConfiglueSchema,
+                    ModelSchema,
                     changes,
                     after,
-                    ConfiglueMemberPath.Root(TModel.ConfiglueSchema),
+                    ConfiglueMemberPath.Root(ModelSchema),
                     candidateId,
                     writePlan
                 );
@@ -147,13 +148,13 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         foreach (var (sourceId, sourceChanges) in routedChanges)
         {
             var plannedChanges = (TFragment)PlanMergeAwareChanges(
-                TModel.ConfiglueSchema,
+                ModelSchema,
                 sourceChanges,
                 after,
                 [],
                 sourceId,
                 baselineContributions,
-                NeedsSourceOrder(TModel.ConfiglueSchema, sourceChanges)
+                NeedsSourceOrder(ModelSchema, sourceChanges)
                     ? reversedActiveSources ??= GetReversedActiveSources()
                     : null
             );
@@ -224,7 +225,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
 
             var sourceFragment = current.Status switch
             {
-                StateReadStatus.NotFound => TFragment.Empty,
+                StateReadStatus.NotFound => EmptyFragment,
                 StateReadStatus.Success => current.Value
                     ?? throw new InvalidOperationException(
                         $"State source '{source.Id}' returned a null configuration fragment."
@@ -251,7 +252,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                 StateReadResult<TFragment>.Success(
                     patchedFragment,
                     current.Revision,
-                    TModel.ConfiglueSchema.ToMetadata()
+                    ModelSchema.ToMetadata()
                 )
             );
         }
@@ -272,10 +273,10 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             throw LogConflict("A state source changed while the write plan was being evaluated.");
         }
 
-        var mismatch = TModel.Diff(proposed.Result.Value!, expectedResolvedModel);
+        var mismatch = Diff(proposed.Result.Value!, expectedResolvedModel);
         if (!mismatch.IsEmpty)
         {
-            var paths = GetReplaceMemberPaths(TModel.ConfiglueSchema, mismatch, []);
+            var paths = GetReplaceMemberPaths(ModelSchema, mismatch, []);
             var readonlySources = proposed
                 .Contributions.Where(static contribution => contribution.Source.Writer is null)
                 .Select(static contribution => contribution.Source.Id)
@@ -314,7 +315,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             }
             else
             {
-                paths.Add(string.Join('.', path));
+                paths.Add(string.Join(".", path));
             }
 
             path.RemoveAt(path.Count - 1);
@@ -350,7 +351,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             }
             else if (member.MergeMode == MergeMode.Replace)
             {
-                paths.Add(string.Join('.', path));
+                paths.Add(string.Join(".", path));
             }
 
             path.RemoveAt(path.Count - 1);
@@ -446,7 +447,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             path.Add(member.Name);
             try
             {
-                var propertyPath = string.Join('.', path);
+                var propertyPath = string.Join(".", path);
                 if (
                     member.NestedSchemaFactory is not null
                     && change.Value is IConfiglueFragment nestedChanges

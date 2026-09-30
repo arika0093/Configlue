@@ -1,3 +1,5 @@
+using Configlue.CompilerServices;
+
 namespace Configlue;
 
 /// <summary>Runs declarative, journaled storage migrations.</summary>
@@ -64,9 +66,13 @@ public static class StateStorageMigrationExtensions
             if (sourceRevisionSnapshot is null)
             {
                 sourceRevisionSnapshot = new Dictionary<string, string?>(
-                    result.SourceRevisions.Revisions,
+                    result.SourceRevisions.Revisions.Count,
                     StringComparer.Ordinal
                 );
+                foreach (var revision in result.SourceRevisions.Revisions)
+                {
+                    sourceRevisionSnapshot.Add(revision.Key, revision.Value);
+                }
             }
             else if (
                 definition.SourceIds.Any(sourceId =>

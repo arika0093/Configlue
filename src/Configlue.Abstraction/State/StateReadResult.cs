@@ -44,7 +44,7 @@ public readonly record struct StateReadResult<T>
         StateRevisionVector? Revisions = null
     )
     {
-        if (!Enum.IsDefined(Status))
+        if (!Enum.IsDefined(typeof(StateReadStatus), Status))
         {
             throw new ArgumentOutOfRangeException(nameof(Status));
         }

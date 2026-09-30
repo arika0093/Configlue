@@ -2,6 +2,7 @@ using System.Linq.Expressions;
 using System.Reflection;
 using System.Runtime.ExceptionServices;
 using System.Text.Json;
+using Configlue.CompilerServices;
 using Configlue.Sources;
 
 namespace Configlue.Provider.Json;
@@ -175,7 +176,7 @@ public static class JsonFileSourceRegistration
                 return CreateSource<TFragment>(modelSchema, hostPaths, ownResource);
             }
 
-            var path = options.MountPath.Split('.', StringSplitOptions.None);
+            var path = options.MountPath.Split(new[] { '.' }, StringSplitOptions.None);
             var subtreeSchema = GetNestedSchema(modelSchema, path, 0, options.MountPath);
             var fragmentType = subtreeSchema.CreateEmptyFragment().GetType();
             var method = typeof(JsonFileSourceDefinition)
@@ -212,7 +213,7 @@ public static class JsonFileSourceRegistration
             var source = CreateSource<TSubtreeFragment>(subtreeSchema, hostPaths, ownResource);
             return StateSourceProjection.Mount<TSubtreeFragment, TRootFragment>(
                 source,
-                string.Join('.', path),
+                string.Join(".", path),
                 rootSchema.ToMetadata()
             );
         }
@@ -285,7 +286,7 @@ public static class JsonFileSourceRegistration
             IResourceWriter? sourceWriter = writer is null ? null : section;
             var codec = new JsonStateCodec<TFragment>(
                 serializerOptions,
-                TFragment.JsonConverter,
+                ConfiglueJsonFragmentRegistry<TFragment>.Converter,
                 options.DocumentLayout
             );
             var stateReader = new SerializedStateReader<TFragment>(resource, codec);
@@ -509,7 +510,7 @@ public sealed class JsonFileRegistration<TModel>
             );
         }
 
-        return string.Join('.', segments);
+        return string.Join(".", segments);
     }
 
     private void EnsureMutable()

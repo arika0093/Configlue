@@ -2,8 +2,8 @@ using System.ComponentModel.DataAnnotations;
 using Configlue;
 using Configlue.Provider.Json;
 using Configlue.Source.Environment;
-using Configlue.Testing;
 using Configlue.Sources;
+using Configlue.Testing;
 
 namespace Configlue.Tests;
 

@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
-using Configlue.Testing;
 using Configlue.Sources;
+using Configlue.Testing;
 
 namespace Configlue.Tests;
 
@@ -302,5 +302,11 @@ public sealed class AsyncProfileSubscriptionTests
         public void Clear() { }
 
         public void Dispose() { }
+
+        public ValueTask DisposeAsync()
+        {
+            Dispose();
+            return ValueTask.CompletedTask;
+        }
     }
 }

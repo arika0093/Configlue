@@ -1,3 +1,5 @@
+using Configlue.CompilerServices;
+
 namespace Configlue;
 
 /// <summary>Runtime source registration inputs for a named generated model.</summary>

@@ -25,7 +25,10 @@ public sealed class AesGcmPassphraseStateByteTransformer
     /// <summary>Creates a transformer using PBKDF2-HMAC-SHA-256 and AES-256-GCM.</summary>
     public AesGcmPassphraseStateByteTransformer(string passphrase)
     {
-        ArgumentNullException.ThrowIfNull(passphrase);
+        if (passphrase is null)
+        {
+            throw new ArgumentNullException(nameof(passphrase));
+        }
         if (passphrase.Length == 0)
         {
             throw new ArgumentException("A passphrase cannot be empty.", nameof(passphrase));
@@ -56,7 +59,11 @@ public sealed class AesGcmPassphraseStateByteTransformer
         try
         {
             var plaintext = new byte[source.Length - HeaderSize];
+#if NETSTANDARD2_1
+            using var aes = new AesGcm(key.ToArray());
+#else
             using var aes = new AesGcm(key, TagSize);
+#endif
             aes.Decrypt(
                 encoded.Slice(FormatMarker.Length + SaltSize, NonceSize),
                 encoded[HeaderSize..],
@@ -87,7 +94,11 @@ public sealed class AesGcmPassphraseStateByteTransformer
         DeriveKey(passphrase, salt, key);
         try
         {
+#if NETSTANDARD2_1
+            using var aes = new AesGcm(key.ToArray());
+#else
             using var aes = new AesGcm(key, TagSize);
+#endif
             aes.Encrypt(nonce, source.Span, encrypted.AsSpan(HeaderSize), tag);
             return encrypted;
         }
@@ -111,7 +122,19 @@ public sealed class AesGcmPassphraseStateByteTransformer
         _passphrase
         ?? throw new ObjectDisposedException(nameof(AesGcmPassphraseStateByteTransformer));
 
-    private static void DeriveKey(string passphrase, ReadOnlySpan<byte> salt, Span<byte> key) =>
+    private static void DeriveKey(string passphrase, ReadOnlySpan<byte> salt, Span<byte> key)
+    {
+#if NETSTANDARD2_1
+        using var derivation = new Rfc2898DeriveBytes(
+            passphrase,
+            salt.ToArray(),
+            Pbkdf2Iterations,
+            HashAlgorithmName.SHA256
+        );
+        var derivedKey = derivation.GetBytes(key.Length);
+        derivedKey.CopyTo(key);
+        CryptographicOperations.ZeroMemory(derivedKey);
+#else
         Rfc2898DeriveBytes.Pbkdf2(
             passphrase.AsSpan(),
             salt,
@@ -119,4 +142,6 @@ public sealed class AesGcmPassphraseStateByteTransformer
             Pbkdf2Iterations,
             HashAlgorithmName.SHA256
         );
+#endif
+    }
 }

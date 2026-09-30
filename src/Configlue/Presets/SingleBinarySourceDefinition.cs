@@ -2,7 +2,6 @@ using Configlue.Provider.Json;
 using Configlue.Resource.Zip;
 using Configlue.Sources;
 using Configlue.State;
-using Configlue.Transformer.AES;
 
 namespace Configlue.Source.Presets;
 
@@ -42,7 +41,7 @@ internal sealed class SingleBinarySourceDefinition(
             hostPaths
         );
         var converter =
-            TFragment.JsonConverter
+            ConfiglueJsonFragmentRegistry<TFragment>.Converter
             ?? throw new InvalidOperationException(
                 $"Generated JSON metadata is unavailable for fragment '{typeof(TFragment)}'."
             );
@@ -150,8 +149,6 @@ internal static class SingleBinarySourceFactory
     private static string Escape(string value)
     {
         var escaped = Uri.EscapeDataString(value);
-        return escaped is "." or ".."
-            ? escaped.Replace(".", "%2E", StringComparison.Ordinal)
-            : escaped;
+        return escaped is "." or ".." ? escaped.Replace(".", "%2E") : escaped;
     }
 }

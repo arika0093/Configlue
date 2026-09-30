@@ -261,7 +261,12 @@ internal sealed class RedisChangeHub : IDisposable
             identityWaiters.TryRemove(waiterId, out _);
             if (identityWaiters.IsEmpty)
             {
-                _waiters.TryRemove(
+                (
+                    (ICollection<
+                        KeyValuePair<string, ConcurrentDictionary<long, TaskCompletionSource>>
+                    >)
+                        _waiters
+                ).Remove(
                     new KeyValuePair<string, ConcurrentDictionary<long, TaskCompletionSource>>(
                         identity,
                         identityWaiters

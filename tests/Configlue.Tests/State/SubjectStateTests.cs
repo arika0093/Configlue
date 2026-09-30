@@ -1,7 +1,7 @@
 using System.Collections.Concurrent;
+using Configlue.Sources;
 using Configlue.Testing;
 using Microsoft.Extensions.DependencyInjection;
-using Configlue.Sources;
 
 namespace Configlue.Tests;
 
@@ -43,7 +43,9 @@ public sealed class SubjectStateTests
         (await a.GetValueAsync()).Label.ShouldBe("user-1");
         (await b.GetValueAsync()).Label.ShouldBe("user-2");
         (
-            await subjectOptions.ForSubject(new SettingsSubject("tenant-a", "missing")).GetValueAsync()
+            await subjectOptions
+                .ForSubject(new SettingsSubject("tenant-a", "missing"))
+                .GetValueAsync()
         ).Label.ShouldBe("tenant-a");
 
         await Task.WhenAll(
@@ -127,7 +129,10 @@ public sealed class SubjectStateTests
         public SubjectKey Key => SubjectKey.FromSegments(TenantId, UserId);
     }
 
-    private sealed class SubjectStateStore<T> : ISourceReader<T>, ISourceWriter<T>, ISourceWatcher
+    private sealed class SubjectStateStore<T>
+        : IContextualSourceReader<T>,
+            IContextualSourceWriter<T>,
+            IContextualSourceWatcher
     {
         private readonly ConcurrentDictionary<SubjectKey, InMemoryStateStore<T>> _states = new();
 

@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Concurrent;
 using System.ComponentModel.DataAnnotations;
+using Configlue.CompilerServices;
 using Microsoft.Extensions.Logging;
 
 namespace Configlue;

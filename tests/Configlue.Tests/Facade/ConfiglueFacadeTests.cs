@@ -194,9 +194,7 @@ public sealed class ConfiglueFacadeTests
         });
 
         (receivedNullProvider).ShouldBeTrue();
-        (await context.GetState<AppSettings>().GetValueAsync()).Label.ShouldBe(
-            "without-provider"
-        );
+        (await context.GetState<AppSettings>().GetValueAsync()).Label.ShouldBe("without-provider");
     }
 
     [Test]
@@ -216,9 +214,7 @@ public sealed class ConfiglueFacadeTests
         });
 
         await using var provider = services.BuildServiceProvider();
-        var keyedOptions = provider.GetRequiredKeyedService<IReadOnlyState<AppSettings>>(
-            "profile"
-        );
+        var keyedOptions = provider.GetRequiredKeyedService<IReadOnlyState<AppSettings>>("profile");
 
         (await keyedOptions.GetValueAsync()).Label.ShouldBe("profile-value");
         (provider.GetRequiredService<IOptionsMonitor<AppSettings>>().Get("profile").Label).ShouldBe(

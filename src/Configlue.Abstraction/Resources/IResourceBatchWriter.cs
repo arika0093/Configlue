@@ -16,18 +16,22 @@ public interface IResourceBatchParticipant
     /// <summary>The physical resource receiving the prepared update.</summary>
     ResourceId ResourceId { get; }
 
-    /// <summary>The physical resource receiving a mutation for one subject.</summary>
-    ResourceId GetResourceId(ConfiglueResourceContext context) => ResourceId;
-
     /// <summary>The physical writer that can combine this update with other disjoint mutations.</summary>
     IResourceBatchWriter? BatchWriter { get; }
 
     /// <summary>Creates a deferred mutation from a logical resource write request.</summary>
     ResourceWriteMutation CreateMutation(ResourceWriteRequest request);
+}
+
+/// <summary>Prepares subject-specific resource mutations for an underlying batch-capable resource.</summary>
+public interface IContextualResourceBatchParticipant : IResourceBatchParticipant
+{
+    /// <summary>The physical resource receiving a mutation for one subject.</summary>
+    ResourceId GetResourceId(ConfiglueResourceContext context);
 
     /// <summary>Creates a deferred mutation for one logical subject.</summary>
     ResourceWriteMutation CreateMutation(
         ConfiglueResourceContext context,
         ResourceWriteRequest request
-    ) => CreateMutation(request).WithContext(context);
+    );
 }

@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Concurrent;
 using System.ComponentModel.DataAnnotations;
+using Configlue.CompilerServices;
 using Microsoft.Extensions.Logging;
 
 namespace Configlue;
@@ -194,7 +195,11 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             return cached.Ids;
         }
 
+#if NETSTANDARD2_0
+        var ids = new HashSet<string>(StringComparer.Ordinal);
+#else
         var ids = new HashSet<string>(activeSources.Length, StringComparer.Ordinal);
+#endif
         foreach (var source in activeSources)
         {
             ids.Add(source.Id);

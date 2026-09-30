@@ -1,10 +1,10 @@
 using System.Collections.Concurrent;
 using Configlue.Extensions.MSOptions;
 using Configlue.Provider.Json;
+using Configlue.Sources;
 using Configlue.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
-using Configlue.Sources;
 
 namespace Configlue.Tests;
 
@@ -558,7 +558,7 @@ public sealed class ProfiledStateTests
     private sealed class ThrowingNotificationDeferralRegistry(
         IConfiglueStateRegistry<AppSettings> inner
     )
-        : IConfiglueStateRegistry<AppSettings>,
+        : IAsyncConfiglueStateRegistry<AppSettings>,
             IConfiglueStateRegistryNotificationDeferrer<AppSettings>
     {
         private int _throwOnAcquisition;

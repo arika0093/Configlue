@@ -1,3 +1,4 @@
+using Configlue.CompilerServices;
 using Configlue.Testing;
 
 namespace Configlue.Tests;
@@ -17,7 +18,7 @@ public sealed class GeneratedModelContractTests
         typeof(IConfiglueFacadeModel<AppSettings>)
             .GetProperties()
             .Select(property => property.Name)
-            .ShouldBe(["Descriptor"]);
+            .ShouldBe([]);
     }
 
     [Test]
@@ -105,22 +106,24 @@ public sealed class GeneratedModelContractTests
         where TModel : IConfiglueModel<TModel, TFragment>
         where TFragment : class, IConfiglueFragment<TFragment>
     {
-        var complete = TModel.ToFragment(before);
+        var operations = ConfiglueModelOperations<TModel, TFragment>.Current;
+        var complete = operations.ToFragment(before);
         return (
-            TModel.ConfiglueSchema,
+            operations.Schema,
             complete,
-            TModel.Diff(before, after),
-            TModel.FromFragment(complete)
+            operations.Diff(before, after),
+            operations.FromFragment(complete)
         );
     }
 
     private static ConfiglueModelSchema GetFacadeSchema<TModel>()
-        where TModel : IConfiglueFacadeModel<TModel> => TModel.Descriptor.Schema;
+        where TModel : IConfiglueFacadeModel<TModel> =>
+        ConfiglueModelDescriptor<TModel>.Current.Schema;
 
     private static IWritableState<TModel> CreateRuntime<TModel>(
         ConfiglueModelBuilder<TModel> configuration,
         Action<IDisposable> ownResource
     )
         where TModel : IConfiglueFacadeModel<TModel> =>
-        TModel.Descriptor.CreateRuntime(configuration, null, ownResource);
+        ConfiglueModelDescriptor<TModel>.Current.CreateRuntime(configuration, null, ownResource);
 }

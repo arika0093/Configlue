@@ -1,6 +1,23 @@
 [assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/arika0093/Configlue")]
+namespace Configlue.Migrations
+{
+    public sealed class FileStateStorageMigrationJournal : Configlue.Migrations.IStateStorageMigrationJournal, Configlue.Migrations.IStateStorageMigrationLeaseProvider
+    {
+        public FileStateStorageMigrationJournal(string directoryPath, Configlue.Resources.FileResourceOptions? resourceOptions = null) { }
+        public string DirectoryPath { get; }
+        public System.Threading.Tasks.ValueTask<System.IDisposable> AcquireMigrationLeaseAsync(string migrationId, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Configlue.Migrations.StateStorageMigrationProgress?> ReadAsync(string migrationId, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask WriteAsync(Configlue.Migrations.StateStorageMigrationProgress progress, System.Threading.CancellationToken cancellationToken = default) { }
+    }
+}
 namespace Configlue.Provider.Json
 {
+    public static class ConfiglueJsonFragmentRegistry<TFragment>
+        where TFragment :  class, Configlue.IConfiglueFragment<TFragment>
+    {
+        public static System.Text.Json.Serialization.JsonConverter<TFragment> Converter { get; }
+        public static void Register(System.Text.Json.Serialization.JsonConverter<TFragment> converter) { }
+    }
     public sealed class JsonFileRegistration<TModel>
         where TModel : Configlue.CompilerServices.IConfiglueFacadeModel<TModel>
     {
@@ -77,7 +94,7 @@ namespace Configlue.Provider.Json
     {
         public static Configlue.ConfiglueSourceRegistration FromJsonHttp(this Configlue.ConfiglueSourceSetBuilder sources, Configlue.Provider.Json.JsonHttpSourceOptions options) { }
     }
-    public sealed class JsonSectionResource : Configlue.Resources.IResourceBackupRecovery, Configlue.Resources.IResourceBatchParticipant, Configlue.Resources.IResourceIdentity, Configlue.Resources.IResourceReader, Configlue.Resources.IResourceWriter, Configlue.Sources.ISourceWatcher, Configlue.State.IPipelineResourceReader
+    public sealed class JsonSectionResource : Configlue.Resources.IContextualResourceBackupRecovery, Configlue.Resources.IContextualResourceBatchParticipant, Configlue.Resources.IContextualResourceIdentity, Configlue.Resources.IContextualResourceReader, Configlue.Resources.IContextualResourceWriter, Configlue.Resources.IResourceBackupRecovery, Configlue.Resources.IResourceBatchParticipant, Configlue.Resources.IResourceIdentity, Configlue.Resources.IResourceReader, Configlue.Resources.IResourceWriter, Configlue.Resources.ITryContextualResourceIdentity, Configlue.Sources.IContextualSourceWatcher, Configlue.Sources.ISourceWatcher, Configlue.State.IContextualPipelineResourceReader, Configlue.State.IPipelineResourceReader
     {
         public JsonSectionResource(Configlue.Resources.IResourceReader resource, string sectionPath, System.Text.Json.JsonSerializerOptions? serializerOptions = null, Configlue.Resources.ResourceId? resourceId = default) { }
         public JsonSectionResource(Configlue.Resources.IResourceReader reader, Configlue.Resources.IResourceWriter? writer, string sectionPath, Configlue.Sources.ISourceWatcher? watcher = null, System.Text.Json.JsonSerializerOptions? serializerOptions = null, Configlue.Resources.ResourceId? resourceId = default) { }

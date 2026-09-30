@@ -33,7 +33,7 @@ public sealed record JsonFileSourceSelector
         var canonicalMount = mountPath?.Trim().Normalize(NormalizationForm.FormKC) ?? string.Empty;
         var identity =
             $"configlue-json-file-v1\n{canonicalPath}\n{canonicalSection}\n{canonicalMount}";
-        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(identity));
+        var hash = System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(identity));
         return $"json-file:{Convert.ToHexString(hash).ToLowerInvariant()}";
     }
 }

@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Concurrent;
 using System.ComponentModel.DataAnnotations;
+using Configlue.CompilerServices;
 using Microsoft.Extensions.Logging;
 
 namespace Configlue;
@@ -18,7 +19,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         using var operation = EnterOperation();
         ArgumentNullException.ThrowIfNull(patch);
         cancellationToken.ThrowIfCancellationRequested();
-        var modelSchema = TModel.ConfiglueSchema;
+        var modelSchema = ModelSchema;
         if (
             patch.Schema.ModelType != typeof(TModel)
             || patch.Schema.Id != modelSchema.Id
@@ -57,7 +58,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             );
         }
 
-        var baselineFragment = baseline.MergedFragment ?? TModel.ToFragment(baseline.Result.Value!);
+        var baselineFragment = baseline.MergedFragment ?? ToFragment(baseline.Result.Value!);
         if (patch.Apply(baselineFragment) is not TFragment requestedFragment)
         {
             throw new InvalidOperationException(
@@ -65,7 +66,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             );
         }
 
-        var expectedResolvedModel = CloneModel(TModel.FromFragment(requestedFragment));
+        var expectedResolvedModel = CloneModel(FromFragment(requestedFragment));
 
         if (_defaultWritePlan.PropertyRoutes.Count > 0)
         {

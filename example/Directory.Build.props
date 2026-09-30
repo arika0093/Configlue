@@ -22,7 +22,4 @@
       ReferenceOutputAssembly="false"
     />
   </ItemGroup>
-  <ItemGroup>
-    <Using Include="Configlue.CompilerServices" />
-  </ItemGroup>
 </Project>

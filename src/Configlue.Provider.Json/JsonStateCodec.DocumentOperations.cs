@@ -221,20 +221,13 @@ internal static partial class JsonStateCodecOperations
             return source;
         }
 
-        var reader = new SequenceReader<byte>(source);
-        if (
-            !reader.TryRead(out var first)
-            || first != 0xEF
-            || !reader.TryRead(out var second)
-            || second != 0xBB
-            || !reader.TryRead(out var third)
-            || third != 0xBF
-        )
+        var prefix = source.Slice(0, 3).ToArray();
+        if (prefix[0] != 0xEF || prefix[1] != 0xBB || prefix[2] != 0xBF)
         {
             return source;
         }
 
-        return source.Slice(reader.Position);
+        return source.Slice(3);
     }
 
     private static ReadOnlySequence<byte> StripSimpleDocument(

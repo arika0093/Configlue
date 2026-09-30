@@ -10,11 +10,15 @@ public interface ISourceWatcher
         string? observedRevision,
         CancellationToken cancellationToken = default
     );
+}
 
+/// <summary>Waits for changes to a source-specific subject key.</summary>
+public interface IContextualSourceWatcher : ISourceWatcher
+{
     /// <summary>Waits for changes to one source-specific subject key.</summary>
     ValueTask WaitForChangeAsync(
         ConfiglueResourceContext context,
         string? observedRevision,
         CancellationToken cancellationToken = default
-    ) => WaitForChangeAsync(observedRevision, cancellationToken);
+    );
 }

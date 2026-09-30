@@ -24,8 +24,10 @@ public sealed class ConfiglueStateDiagnostics
         DefaultWriteSourceId = defaultWriteSourceId;
         DefaultUsesHighestPriorityWritable = defaultUsesHighestPriorityWritable;
         var routes = new Dictionary<string, string>(StringComparer.Ordinal);
-        foreach (var (path, sourceId) in propertyWriteRoutes)
+        foreach (var route in propertyWriteRoutes)
         {
+            var path = route.Key;
+            var sourceId = route.Value;
             ArgumentException.ThrowIfNullOrWhiteSpace(path);
             ArgumentException.ThrowIfNullOrWhiteSpace(sourceId);
             routes.Add(path, sourceId);

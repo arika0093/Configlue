@@ -41,7 +41,7 @@ public sealed partial class ConfiglueGenerator
                 + " value, global::Configlue.CompilerServices.ConfiglueDetailsSnapshot snapshot, global::Configlue.CompilerServices.ConfiglueMemberPath pathPrefix)"
         );
         code.AppendLineAt(1, "{");
-        code.AppendLineAt(2, "global::System.ArgumentNullException.ThrowIfNull(snapshot);");
+        AppendNullGuard(code, 2, "snapshot");
         foreach (var member in members)
         {
             AppendDetailsMember(code, member);
@@ -316,7 +316,7 @@ public sealed partial class ConfiglueGenerator
             "global::System.Threading.CancellationToken cancellationToken = default)"
         );
         code.AppendLineAt(1, "{");
-        code.AppendLineAt(2, "global::System.ArgumentNullException.ThrowIfNull(options);");
+        AppendNullGuard(code, 2, "options");
         code.AppendLineAt(
             2,
             "if (options is not global::Configlue.CompilerServices.IConfiglueDetailsRuntime advanced)"

@@ -37,7 +37,7 @@ public sealed class AesGcmStateByteTransformer
     /// <inheritdoc />
     public ReadOnlyMemory<byte> TransformRead(ReadOnlyMemory<byte> source)
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
+        ThrowIfDisposed();
         if (source.Length < HeaderSize)
         {
             throw new CryptographicException("The encrypted state content is truncated.");
@@ -52,7 +52,11 @@ public sealed class AesGcmStateByteTransformer
         }
 
         var plaintext = new byte[source.Length - HeaderSize];
+#if NETSTANDARD2_1
+        using var aes = new AesGcm(_key);
+#else
         using var aes = new AesGcm(_key, TagSize);
+#endif
         aes.Decrypt(
             encoded.Slice(1, NonceSize),
             encoded[HeaderSize..],
@@ -65,14 +69,18 @@ public sealed class AesGcmStateByteTransformer
     /// <inheritdoc />
     public ReadOnlyMemory<byte> TransformWrite(ReadOnlyMemory<byte> source)
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
+        ThrowIfDisposed();
         var encrypted = new byte[HeaderSize + source.Length];
         encrypted[0] = FormatVersion;
         var nonce = encrypted.AsSpan(1, NonceSize);
         var tag = encrypted.AsSpan(1 + NonceSize, TagSize);
         var ciphertext = encrypted.AsSpan(HeaderSize);
         RandomNumberGenerator.Fill(nonce);
+#if NETSTANDARD2_1
+        using var aes = new AesGcm(_key);
+#else
         using var aes = new AesGcm(_key, TagSize);
+#endif
         aes.Encrypt(nonce, source.Span, ciphertext, tag);
         return encrypted;
     }
@@ -88,6 +96,14 @@ public sealed class AesGcmStateByteTransformer
         {
             CryptographicOperations.ZeroMemory(_key);
             _disposed = true;
+        }
+    }
+
+    private void ThrowIfDisposed()
+    {
+        if (_disposed)
+        {
+            throw new ObjectDisposedException(nameof(AesGcmStateByteTransformer));
         }
     }
 }

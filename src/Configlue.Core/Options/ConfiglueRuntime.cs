@@ -2,6 +2,7 @@ using System.Collections;
 using System.Collections.Concurrent;
 using System.ComponentModel.DataAnnotations;
 using System.Runtime.InteropServices;
+using Configlue.CompilerServices;
 using Microsoft.Extensions.Logging;
 
 namespace Configlue;
@@ -12,6 +13,7 @@ namespace Configlue;
 internal sealed partial class ConfiglueRuntime<TModel, TFragment>
     : IConfiglueRuntimeState<TModel>,
         IConfiglueValueCloneProvider<TModel>,
+        IConfiglueReloadFailureDiagnostics<TModel>,
         ISubjectState<TModel>,
         IDisposable,
         IAsyncDisposable
@@ -40,6 +42,17 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
     > MemberValidationAttributes = new();
     private static readonly ConcurrentDictionary<Type, bool> ModelValidationMetadata = new();
     private static readonly ConcurrentDictionary<Type, bool> MemberValidationMetadata = new();
+    private static ConfiglueModelOperations<TModel, TFragment> ModelOperations =>
+        ConfiglueModelOperations<TModel, TFragment>.Current;
+    private static ConfiglueModelSchema ModelSchema => ModelOperations.Schema;
+    private static TFragment EmptyFragment => ModelOperations.EmptyFragment;
+
+    private static TFragment ToFragment(TModel value) => ModelOperations.ToFragment(value);
+
+    private static TFragment Diff(TModel before, TModel after) =>
+        ModelOperations.Diff(before, after);
+
+    private static TModel FromFragment(TFragment value) => ModelOperations.FromFragment(value);
 
     private readonly StateSourceSet<TFragment> _sourceSet;
     private readonly TFragment _modelDefaultsFragment;
@@ -150,7 +163,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         ArgumentNullException.ThrowIfNull(defaultWritePlan);
         _sourceSet = sourceSet;
         _activeSources = sourceSet.Sources.ToArray();
-        _modelDefaultsFragment = TModel.ToFragment(TModel.FromFragment(TFragment.Empty));
+        _modelDefaultsFragment = ToFragment(FromFragment(EmptyFragment));
         _modelDefaultsSource = new StateSource<TFragment>(
             $"__configlue_model_defaults:{Guid.NewGuid():N}",
             new ModelDefaultsReader(_modelDefaultsFragment)
@@ -193,7 +206,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         }
 
         _migrationChain = new StateSchemaMigrationChain<TFragment>(
-            TModel.ConfiglueSchema.ToMetadata(),
+            ModelSchema.ToMetadata(),
             migrations
         );
     }
@@ -230,7 +243,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
 
         var inferredWritePlan =
             owners.Count == 0 ? StateWritePlan.Empty : new StateWritePlan(owners);
-        return inferredWritePlan.OverrideWith(configuredWritePlan).Bind(TModel.ConfiglueSchema);
+        return inferredWritePlan.OverrideWith(configuredWritePlan).Bind(ModelSchema);
 
         static bool HasOverlappingOwnershipPaths(List<(string Path, string SourceId)> paths)
         {
@@ -743,7 +756,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             merged = merged.Merge(fragment);
         }
 
-        var model = TModel.FromFragment(merged);
+        var model = FromFragment(merged);
         if (replacements is null)
         {
             ValidateResolvedModel(model, merged);
@@ -751,7 +764,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         var resolvedResult = StateReadResult<TModel>.Success(
             model,
             activeSource is null ? null : activeResult.Revision,
-            TModel.ConfiglueSchema.ToMetadata()
+            ModelSchema.ToMetadata()
         ) with
         {
             SourceId = activeSource?.Id,
@@ -787,6 +800,10 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             ? StateRevisionVector.FromSpan(revisions.AsSpan(0, revisionCount))
             : StateRevisionVector.FromSpan(
                 revisions.AsSpan(0, revisionCount),
+#if NETSTANDARD2_0
+                nestedRevisions.ToArray()
+#else
                 CollectionsMarshal.AsSpan(nestedRevisions)
+#endif
             );
 }

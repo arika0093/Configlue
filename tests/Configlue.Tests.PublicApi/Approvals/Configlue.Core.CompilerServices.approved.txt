@@ -7,18 +7,14 @@ namespace Configlue.CompilerServices
         public System.Func<Configlue.IConfiglueStateRegistry<TModel>, Configlue.Sources.StateSource<Configlue.ConfiglueProfileCatalog>, string, Configlue.IConfiglueProfiledState<TModel>> CreateProfiles { get; }
         public System.Func<Configlue.ConfiglueModelBuilder<TModel>, System.IServiceProvider?, System.Action<System.IDisposable>, Configlue.IWritableState<TModel>> CreateRuntime { get; }
         public Configlue.ConfiglueModelSchema Schema { get; }
+        public static Configlue.CompilerServices.ConfiglueModelDescriptor<TModel> Current { get; }
+        public static void Register(Configlue.CompilerServices.ConfiglueModelDescriptor<TModel> descriptor) { }
     }
     public static class ConfiglueRuntime
     {
-        public static Configlue.CompilerServices.ConfiglueModelDescriptor<TModel> Describe<TModel, TFragment>(Configlue.ConfiglueModelSchema schema)
+        public static Configlue.CompilerServices.ConfiglueModelDescriptor<TModel> Describe<TModel, TFragment>(Configlue.CompilerServices.ConfiglueModelOperations<TModel, TFragment> operations)
             where TModel : Configlue.CompilerServices.IConfiglueFacadeModel<TModel>, Configlue.CompilerServices.IConfiglueModel<TModel, TFragment>
             where TFragment :  class, Configlue.IConfiglueFragment<TFragment> { }
     }
-    public interface IConfiglueFacadeModel<TSelf>
-        where TSelf : Configlue.CompilerServices.IConfiglueFacadeModel<TSelf>
-    {
-        Configlue.CompilerServices.ConfiglueModelDescriptor<TSelf> Descriptor { get; }
-    }
+    public interface IConfiglueFacadeModel<TSelf> { }
 }
-// Compiled static interface member modifiers
-IConfiglueFacadeModel.get_Descriptor: static abstract virtual

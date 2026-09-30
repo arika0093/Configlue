@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Configlue.CompilerServices;
 using Configlue.Sources;
 
 namespace Configlue;
@@ -152,7 +153,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
 
             var componentFragment = componentCurrent.Status switch
             {
-                StateReadStatus.NotFound => TFragment.Empty,
+                StateReadStatus.NotFound => EmptyFragment,
                 StateReadStatus.Success => componentCurrent.Value
                     ?? throw new InvalidOperationException(
                         $"Component source '{component.Id}' returned a null fragment."

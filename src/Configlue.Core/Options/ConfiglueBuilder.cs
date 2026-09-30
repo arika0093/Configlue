@@ -1,3 +1,4 @@
+using Configlue.CompilerServices;
 using Configlue.Resources;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -34,7 +35,14 @@ public sealed class ConfiglueBuilder
         return this;
     }
 
-    internal IConfiglueHostPaths HostPaths => _hostPaths;
+    /// <summary>Gets the host path profile selected for this builder.</summary>
+    public IConfiglueHostPaths HostPaths => _hostPaths;
+
+    /// <summary>Resolves one standard host directory using the configured host path profile.</summary>
+    public string ResolveStandardDirectory(
+        ConfiglueStandardLocation location,
+        string applicationId = ""
+    ) => ConfiglueStandardPaths.ResolveDirectory(_hostPaths, location, applicationId);
 
     /// <summary>Adds one model registration.</summary>
     public void Add<TModel>(Action<ConfiglueModelBuilder<TModel>> configure)
@@ -551,7 +559,7 @@ internal sealed class ConfiglueModelRegistration<TModel>(ConfiglueModelBuilder<T
 {
     public Type ModelType => typeof(TModel);
 
-    public ConfiglueModelSchema ModelSchema => TModel.Descriptor.Schema;
+    public ConfiglueModelSchema ModelSchema => ConfiglueModelDescriptor<TModel>.Current.Schema;
 
     public string StateName => builder.StateName;
 
@@ -570,7 +578,11 @@ internal sealed class ConfiglueModelRegistration<TModel>(ConfiglueModelBuilder<T
     )
     {
         builder.HostPaths = hostPaths;
-        return TModel.Descriptor.CreateRuntime(builder, serviceProvider, ownResource);
+        return ConfiglueModelDescriptor<TModel>.Current.CreateRuntime(
+            builder,
+            serviceProvider,
+            ownResource
+        );
     }
 
     public object CreateProfileManager(
@@ -598,7 +610,7 @@ internal sealed class ConfiglueModelRegistration<TModel>(ConfiglueModelBuilder<T
                 $"Default profile '{builder.DefaultProfileName}' conflicts with a fixed StateName."
             );
         }
-        return TModel.Descriptor.CreateProfiles(
+        return ConfiglueModelDescriptor<TModel>.Current.CreateProfiles(
             (IConfiglueStateRegistry<TModel>)registry,
             catalogSource,
             builder.DefaultProfileName
@@ -614,13 +626,13 @@ internal sealed class ConfiglueModelRegistration<TModel>(ConfiglueModelBuilder<T
             name =>
             {
                 var resources = new List<IDisposable>();
-                var resourceSet = new HashSet<IDisposable>(ReferenceEqualityComparer.Instance);
+                var resourceSet = new HashSet<IDisposable>(ReferenceIdentityComparer.Instance);
                 IWritableState<TModel>? runtime = null;
                 try
                 {
                     var dynamicBuilder = builder.CloneForStateName(name);
                     dynamicBuilder.HostPaths = hostPaths;
-                    runtime = TModel.Descriptor.CreateRuntime(
+                    runtime = ConfiglueModelDescriptor<TModel>.Current.CreateRuntime(
                         dynamicBuilder,
                         serviceProvider,
                         resource =>

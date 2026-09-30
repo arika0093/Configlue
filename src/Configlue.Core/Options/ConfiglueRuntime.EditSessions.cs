@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Concurrent;
 using System.ComponentModel.DataAnnotations;
+using Configlue.CompilerServices;
 using Microsoft.Extensions.Logging;
 
 namespace Configlue;
@@ -42,7 +43,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         var source = SelectWriteSource(allowPriorityFallback: true);
         var effectiveWritePlan = _defaultWritePlan
             .OverrideWith(writePlan ?? StateWritePlan.Empty)
-            .Bind(TModel.ConfiglueSchema);
+            .Bind(ModelSchema);
         if (effectiveWritePlan.PropertyRoutes.Count > 0)
         {
             ValidateWritePlan(effectiveWritePlan);
@@ -67,7 +68,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
 
         var draft = CloneModel(resolved.Value!);
         var baseline = CloneModel(resolved.Value!);
-        var defaultValue = CloneModel(TModel.FromFragment(TFragment.Empty));
+        var defaultValue = CloneModel(FromFragment(EmptyFragment));
         var expectedRevisions = resolved.Revisions;
         return new EditSession<TModel>(
             draft,
@@ -152,14 +153,14 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
 
     private TModel RebaseConfigurationEdit(TModel before, TModel desired, TModel current)
     {
-        var changes = TModel.Diff(before, desired);
+        var changes = Diff(before, desired);
         if (changes.IsEmpty)
         {
             return current;
         }
 
-        var rebased = RebaseChanges(TModel.ConfiglueSchema, changes, before, desired, current, []);
-        var currentFragment = TModel.ToFragment(current);
+        var rebased = RebaseChanges(ModelSchema, changes, before, desired, current, []);
+        var currentFragment = ToFragment(current);
         if (currentFragment.ApplyChanges((TFragment)rebased) is not TFragment updated)
         {
             throw new InvalidOperationException(
@@ -167,7 +168,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             );
         }
 
-        var result = TModel.FromFragment(updated);
+        var result = FromFragment(updated);
         return result;
     }
 
@@ -231,7 +232,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                         {
                             throw LogConflict(
                                 reason
-                                    ?? $"The custom merge strategy could not rebase the edit to '{string.Join('.', path)}'."
+                                    ?? $"The custom merge strategy could not rebase the edit to '{string.Join(".", path)}'."
                             );
                         }
 
@@ -250,7 +251,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                         beforeValue,
                         desiredValue,
                         currentValue,
-                        string.Join('.', path)
+                        string.Join(".", path)
                     );
                     if (rebasedCollection is not null)
                     {
@@ -267,7 +268,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                 )
                 {
                     throw LogConflict(
-                        $"The configuration edit conflicts with a concurrent change to '{string.Join('.', path)}'."
+                        $"The configuration edit conflicts with a concurrent change to '{string.Join(".", path)}'."
                     );
                 }
             }

@@ -208,8 +208,10 @@ public sealed class StateSource<T>
         ArgumentNullException.ThrowIfNull(subject);
         if (Watcher is null)
         {
-            return ValueTask.FromException(
-                new InvalidOperationException($"State source '{Id}' does not support watching.")
+            return new ValueTask(
+                Task.FromException(
+                    new InvalidOperationException($"State source '{Id}' does not support watching.")
+                )
             );
         }
 
@@ -223,8 +225,10 @@ public sealed class StateSource<T>
         CancellationToken cancellationToken = default
     ) =>
         Watcher is null
-            ? ValueTask.FromException(
-                new InvalidOperationException($"State source '{Id}' does not support watching.")
+            ? new ValueTask(
+                Task.FromException(
+                    new InvalidOperationException($"State source '{Id}' does not support watching.")
+                )
             )
             : Watcher.WaitForChangeAsync(context, observedRevision, cancellationToken);
 

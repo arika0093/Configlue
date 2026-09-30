@@ -407,7 +407,11 @@ public sealed partial class FileResource
         if (
             fileName.StartsWith(indexPrefix, StringComparison.Ordinal)
             && int.TryParse(
+#if NETSTANDARD2_0
+                fileName.Substring(indexPrefix.Length),
+#else
                 fileName.AsSpan(indexPrefix.Length),
+#endif
                 System.Globalization.NumberStyles.None,
                 System.Globalization.CultureInfo.InvariantCulture,
                 out index

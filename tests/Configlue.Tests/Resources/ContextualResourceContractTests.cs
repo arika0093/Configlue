@@ -107,9 +107,11 @@ public sealed class ContextualResourceContractTests
     }
 
     private sealed class ContextualMemoryResource(bool perSubjectIdentity)
-        : IResourceReader,
-            IPipelineResourceReader,
-            IResourceBatchWriter
+        : IContextualResourceReader,
+            IContextualPipelineResourceReader,
+            IResourceBatchWriter,
+            IContextualResourceWriter,
+            IContextualResourceIdentity
     {
         private readonly ConcurrentDictionary<SubjectKey, ResourceReadResult> _states = new();
 

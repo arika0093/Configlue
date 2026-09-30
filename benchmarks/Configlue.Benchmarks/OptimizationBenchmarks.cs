@@ -66,10 +66,8 @@ public partial class SaveRoutingBenchmarkSettings
 [MemoryDiagnoser]
 public class ReadValidationBenchmarks
 {
-    private ConfiglueRuntime<
-        OptimizationBenchmarkSettings,
-        OptimizationBenchmarkSettings.Fragment
-    > _options = null!;
+    private ConfiglueContext _context = null!;
+    private IWritableState<OptimizationBenchmarkSettings> _options = null!;
 
     [Params(false, true)]
     public bool Validate { get; set; }
@@ -88,19 +86,25 @@ public class ReadValidationBenchmarks
         var sourceSet = new StateSourceSet<OptimizationBenchmarkSettings.Fragment>([
             new StateSource<OptimizationBenchmarkSettings.Fragment>("benchmark", store),
         ]);
-        _options = Validate
-            ? new ConfiglueRuntime<
-                OptimizationBenchmarkSettings,
-                OptimizationBenchmarkSettings.Fragment
-            >(sourceSet, validators: [new MarkerValidator()], validateDataAnnotations: true)
-            : new ConfiglueRuntime<
-                OptimizationBenchmarkSettings,
-                OptimizationBenchmarkSettings.Fragment
-            >(sourceSet, validateDataAnnotations: false);
+        _context = BenchmarkContextFactory.Create<
+            OptimizationBenchmarkSettings,
+            OptimizationBenchmarkSettings.Fragment
+        >(
+            sourceSet,
+            model =>
+            {
+                model.ValidateDataAnnotations = Validate;
+                if (Validate)
+                {
+                    model.AddValidator(new MarkerValidator());
+                }
+            }
+        );
+        _options = _context.GetState<OptimizationBenchmarkSettings>();
     }
 
     [GlobalCleanup]
-    public ValueTask CleanupAsync() => _options.DisposeAsync();
+    public ValueTask CleanupAsync() => _context.DisposeAsync();
 
     [Benchmark]
     public ValueTask<OptimizationBenchmarkSettings> GetValueAsync() => _options.GetValueAsync();
@@ -115,10 +119,8 @@ public class ReadValidationBenchmarks
 [MemoryDiagnoser]
 public class LayeredResolutionFallbackBenchmarks
 {
-    private ConfiglueRuntime<
-        OptimizationBenchmarkSettings,
-        OptimizationBenchmarkSettings.Fragment
-    > _options = null!;
+    private ConfiglueContext _context = null!;
+    private IWritableState<OptimizationBenchmarkSettings> _options = null!;
 
     [Params(1, 4, 16)]
     public int SourceCount { get; set; }
@@ -152,14 +154,15 @@ public class LayeredResolutionFallbackBenchmarks
                 );
             })
             .ToArray();
-        _options = new ConfiglueRuntime<
+        _context = BenchmarkContextFactory.Create<
             OptimizationBenchmarkSettings,
             OptimizationBenchmarkSettings.Fragment
         >(new StateSourceSet<OptimizationBenchmarkSettings.Fragment>(sources));
+        _options = _context.GetState<OptimizationBenchmarkSettings>();
     }
 
     [GlobalCleanup]
-    public ValueTask CleanupAsync() => _options.DisposeAsync();
+    public ValueTask CleanupAsync() => _context.DisposeAsync();
 
     [Benchmark]
     public ValueTask<OptimizationBenchmarkSettings> ResolveSourcesAsync() =>
@@ -207,8 +210,8 @@ public class FragmentMergeBenchmarks
 [MemoryDiagnoser]
 public class NestedModelReadBenchmarks
 {
-    private ConfiglueRuntime<OptimizationRootSettings, OptimizationRootSettings.Fragment> _options =
-        null!;
+    private ConfiglueContext _context = null!;
+    private IWritableState<OptimizationRootSettings> _options = null!;
 
     [GlobalSetup]
     public void Setup()
@@ -226,7 +229,7 @@ public class NestedModelReadBenchmarks
                 ),
             }
         );
-        _options = new ConfiglueRuntime<
+        _context = BenchmarkContextFactory.Create<
             OptimizationRootSettings,
             OptimizationRootSettings.Fragment
         >(
@@ -234,10 +237,11 @@ public class NestedModelReadBenchmarks
                 new StateSource<OptimizationRootSettings.Fragment>("nested", store),
             ])
         );
+        _options = _context.GetState<OptimizationRootSettings>();
     }
 
     [GlobalCleanup]
-    public ValueTask CleanupAsync() => _options.DisposeAsync();
+    public ValueTask CleanupAsync() => _context.DisposeAsync();
 
     [Benchmark]
     public ValueTask<OptimizationRootSettings> GetValueAsync() => _options.GetValueAsync();
@@ -246,12 +250,10 @@ public class NestedModelReadBenchmarks
 [MemoryDiagnoser]
 public class CollectionMergeBenchmarks
 {
-    private ConfiglueRuntime<AppendCollectionSettings, AppendCollectionSettings.Fragment> _append =
-        null!;
-    private ConfiglueRuntime<
-        SetUnionCollectionSettings,
-        SetUnionCollectionSettings.Fragment
-    > _setUnion = null!;
+    private ConfiglueContext _appendContext = null!;
+    private ConfiglueContext _setUnionContext = null!;
+    private IWritableState<AppendCollectionSettings> _append = null!;
+    private IWritableState<SetUnionCollectionSettings> _setUnion = null!;
 
     [Params(2, 8)]
     public int SourceCount { get; set; }
@@ -259,20 +261,23 @@ public class CollectionMergeBenchmarks
     [GlobalSetup]
     public void Setup()
     {
-        _append = new ConfiglueRuntime<AppendCollectionSettings, AppendCollectionSettings.Fragment>(
-            new StateSourceSet<AppendCollectionSettings.Fragment>(CreateAppendSources())
-        );
-        _setUnion = new ConfiglueRuntime<
+        _appendContext = BenchmarkContextFactory.Create<
+            AppendCollectionSettings,
+            AppendCollectionSettings.Fragment
+        >(new StateSourceSet<AppendCollectionSettings.Fragment>(CreateAppendSources()));
+        _append = _appendContext.GetState<AppendCollectionSettings>();
+        _setUnionContext = BenchmarkContextFactory.Create<
             SetUnionCollectionSettings,
             SetUnionCollectionSettings.Fragment
         >(new StateSourceSet<SetUnionCollectionSettings.Fragment>(CreateSetUnionSources()));
+        _setUnion = _setUnionContext.GetState<SetUnionCollectionSettings>();
     }
 
     [GlobalCleanup]
     public async ValueTask CleanupAsync()
     {
-        await _append.DisposeAsync().ConfigureAwait(false);
-        await _setUnion.DisposeAsync().ConfigureAwait(false);
+        await _appendContext.DisposeAsync().ConfigureAwait(false);
+        await _setUnionContext.DisposeAsync().ConfigureAwait(false);
     }
 
     [Benchmark]
@@ -330,14 +335,10 @@ public class CollectionMergeBenchmarks
 [MemoryDiagnoser]
 public class SaveRoutingBenchmarks
 {
-    private ConfiglueRuntime<
-        SaveRoutingBenchmarkSettings,
-        SaveRoutingBenchmarkSettings.Fragment
-    > _single = null!;
-    private ConfiglueRuntime<
-        SaveRoutingBenchmarkSettings,
-        SaveRoutingBenchmarkSettings.Fragment
-    > _multi = null!;
+    private ConfiglueContext _singleContext = null!;
+    private ConfiglueContext _multiContext = null!;
+    private IWritableState<SaveRoutingBenchmarkSettings> _single = null!;
+    private IConfiglueEditSessions<SaveRoutingBenchmarkSettings> _multi = null!;
     private StateWritePlan _writePlan = null!;
     private int _counter;
 
@@ -351,7 +352,10 @@ public class SaveRoutingBenchmarks
                 Name = Optional<string>.Present("single"),
             }
         );
-        _single = new ConfiglueRuntime<
+        _writePlan = new StateWritePlan(
+            new Dictionary<string, string>(StringComparer.Ordinal) { ["Name"] = "right" }
+        );
+        _singleContext = BenchmarkContextFactory.Create<
             SaveRoutingBenchmarkSettings,
             SaveRoutingBenchmarkSettings.Fragment
         >(
@@ -363,6 +367,7 @@ public class SaveRoutingBenchmarks
                 ),
             ])
         );
+        _single = _singleContext.GetState<SaveRoutingBenchmarkSettings>();
 
         var left = new InMemoryStateStore<SaveRoutingBenchmarkSettings.Fragment>(
             new SaveRoutingBenchmarkSettings.Fragment
@@ -374,7 +379,7 @@ public class SaveRoutingBenchmarks
         var right = new InMemoryStateStore<SaveRoutingBenchmarkSettings.Fragment>(
             new SaveRoutingBenchmarkSettings.Fragment { Name = Optional<string>.Present("right") }
         );
-        _multi = new ConfiglueRuntime<
+        _multiContext = BenchmarkContextFactory.Create<
             SaveRoutingBenchmarkSettings,
             SaveRoutingBenchmarkSettings.Fragment
         >(
@@ -393,16 +398,14 @@ public class SaveRoutingBenchmarks
                 ),
             ])
         );
-        _writePlan = new StateWritePlan(
-            new Dictionary<string, string>(StringComparer.Ordinal) { ["Name"] = "right" }
-        );
+        _multi = _multiContext.GetEditSessions<SaveRoutingBenchmarkSettings>();
     }
 
     [GlobalCleanup]
     public async ValueTask CleanupAsync()
     {
-        await _single.DisposeAsync().ConfigureAwait(false);
-        await _multi.DisposeAsync().ConfigureAwait(false);
+        await _singleContext.DisposeAsync().ConfigureAwait(false);
+        await _multiContext.DisposeAsync().ConfigureAwait(false);
     }
 
     [Benchmark]
@@ -471,10 +474,8 @@ public class JsonSectionBenchmarks
     private string _directory = null!;
     private FileResource _file = null!;
     private SerializedStateReader<OptimizationBenchmarkSettings.Fragment> _reader = null!;
-    private ConfiglueRuntime<
-        OptimizationBenchmarkSettings,
-        OptimizationBenchmarkSettings.Fragment
-    > _options = null!;
+    private ConfiglueContext _context = null!;
+    private IWritableState<OptimizationBenchmarkSettings> _options = null!;
     private int _counter;
 
     [GlobalSetup]
@@ -507,7 +508,7 @@ public class JsonSectionBenchmarks
             section,
             codec
         );
-        _options = new ConfiglueRuntime<
+        _context = BenchmarkContextFactory.Create<
             OptimizationBenchmarkSettings,
             OptimizationBenchmarkSettings.Fragment
         >(
@@ -520,12 +521,13 @@ public class JsonSectionBenchmarks
                 ),
             ])
         );
+        _options = _context.GetState<OptimizationBenchmarkSettings>();
     }
 
     [GlobalCleanup]
     public async Task CleanupAsync()
     {
-        await _options.DisposeAsync().ConfigureAwait(false);
+        await _context.DisposeAsync().ConfigureAwait(false);
         _file.Dispose();
         Directory.Delete(_directory, recursive: true);
     }
@@ -611,10 +613,8 @@ public class FileBackupBenchmarks
 {
     private string _directory = null!;
     private FileResource _resource = null!;
-    private ConfiglueRuntime<
-        OptimizationBenchmarkSettings,
-        OptimizationBenchmarkSettings.Fragment
-    > _options = null!;
+    private ConfiglueContext _context = null!;
+    private IWritableState<OptimizationBenchmarkSettings> _options = null!;
     private int _counter;
 
     [Params(1, 3, 10)]
@@ -642,10 +642,11 @@ public class FileBackupBenchmarks
             new JsonStateCodec<OptimizationBenchmarkSettings.Fragment>(),
             physicalOrigin: path
         );
-        _options = new ConfiglueRuntime<
+        _context = BenchmarkContextFactory.Create<
             OptimizationBenchmarkSettings,
             OptimizationBenchmarkSettings.Fragment
         >(new StateSourceSet<OptimizationBenchmarkSettings.Fragment>([source]));
+        _options = _context.GetState<OptimizationBenchmarkSettings>();
         await _resource
             .WriteAsync(
                 new ResourceWriteRequest(Encoding.UTF8.GetBytes("""{"$version":1,"Counter":0}"""))
@@ -656,7 +657,7 @@ public class FileBackupBenchmarks
     [GlobalCleanup]
     public async Task CleanupAsync()
     {
-        await _options.DisposeAsync().ConfigureAwait(false);
+        await _context.DisposeAsync().ConfigureAwait(false);
         _resource.Dispose();
         Directory.Delete(_directory, recursive: true);
     }

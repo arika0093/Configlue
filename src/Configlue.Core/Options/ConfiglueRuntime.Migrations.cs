@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Concurrent;
 using System.ComponentModel.DataAnnotations;
+using Configlue.CompilerServices;
 using Configlue.Sources;
 using Microsoft.Extensions.Logging;
 
@@ -66,7 +67,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                 .ConfigureAwait(false);
         }
 
-        var currentSchema = TModel.ConfiglueSchema.ToMetadata();
+        var currentSchema = ModelSchema.ToMetadata();
         if (
             ReferenceEquals(source, target)
             && (sourceResult.Schema is null || sourceResult.Schema == currentSchema)
@@ -242,7 +243,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
 
             var fragment = result.Status switch
             {
-                StateReadStatus.NotFound => TFragment.Empty,
+                StateReadStatus.NotFound => EmptyFragment,
                 StateReadStatus.Success => result.Value
                     ?? throw new InvalidOperationException(
                         $"State source '{source.Id}' returned a null configuration fragment."
@@ -269,13 +270,13 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             throw new InvalidOperationException($"State source '{missingId}' is not registered.");
         }
 
-        var merged = TFragment.Empty;
+        var merged = EmptyFragment;
         for (var index = sourceContributions.Count - 1; index >= 0; index--)
         {
             merged = merged.Merge(sourceContributions[index].Fragment);
         }
 
-        var currentSchema = TModel.ConfiglueSchema.ToMetadata();
+        var currentSchema = ModelSchema.ToMetadata();
         async ValueTask VerifySourceSnapshotsAsync()
         {
             for (var index = 0; index < sourceContributions.Count; index++)
@@ -308,7 +309,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
 
                 var latestFragment = latest.Status switch
                 {
-                    StateReadStatus.NotFound => TFragment.Empty,
+                    StateReadStatus.NotFound => EmptyFragment,
                     StateReadStatus.Success => latest.Value
                         ?? throw new InvalidOperationException(
                             $"State source '{contribution.Source.Id}' returned a null configuration fragment."
@@ -383,7 +384,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
 
             var currentFragment = current.Status switch
             {
-                StateReadStatus.NotFound => TFragment.Empty,
+                StateReadStatus.NotFound => EmptyFragment,
                 StateReadStatus.Success => current.Value
                     ?? throw new InvalidOperationException(
                         $"State source '{target.Id}' returned a null configuration fragment."

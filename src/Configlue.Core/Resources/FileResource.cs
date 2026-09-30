@@ -362,6 +362,16 @@ public sealed partial class FileResource
         cancellationToken.ThrowIfCancellationRequested();
         try
         {
+#if NETSTANDARD2_0
+            var stream = new FileStream(
+                _path,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.Read,
+                bufferSize: 81920,
+                FileOptions.Asynchronous | FileOptions.SequentialScan
+            );
+#else
             var stream = new FileStream(
                 _path,
                 new FileStreamOptions
@@ -373,21 +383,24 @@ public sealed partial class FileResource
                     Options = FileOptions.Asynchronous | FileOptions.SequentialScan,
                 }
             );
-            return ValueTask.FromResult(
+#endif
+            return new ValueTask<PipelineResourceReadResult>(
                 PipelineResourceReader.FromStream(stream, computeXxHash3Revision: true)
             );
         }
         catch (FileNotFoundException)
         {
-            return ValueTask.FromResult(PipelineResourceReadResult.NotFound());
+            return new ValueTask<PipelineResourceReadResult>(PipelineResourceReadResult.NotFound());
         }
         catch (DirectoryNotFoundException)
         {
-            return ValueTask.FromResult(PipelineResourceReadResult.NotFound());
+            return new ValueTask<PipelineResourceReadResult>(PipelineResourceReadResult.NotFound());
         }
         catch (IOException)
         {
-            return ValueTask.FromResult(PipelineResourceReadResult.Unavailable());
+            return new ValueTask<PipelineResourceReadResult>(
+                PipelineResourceReadResult.Unavailable()
+            );
         }
     }
 

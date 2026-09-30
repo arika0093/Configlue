@@ -38,6 +38,11 @@ public sealed class HttpContextConfiglueSubjectAccessor<TSubject>
 
         return _resolveSubject(context, cancellationToken);
     }
+
+    /// <inheritdoc />
+    public async ValueTask<IConfiglueSubject> GetCurrentSubjectAsync(
+        CancellationToken cancellationToken = default
+    ) => await GetCurrentAsync(cancellationToken).ConfigureAwait(false);
 }
 
 /// <summary>Registers an HTTP-context-backed accessor as a scoped service.</summary>

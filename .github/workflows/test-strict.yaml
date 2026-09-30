@@ -42,7 +42,16 @@ jobs:
       - name: Run tests
         run: >
           dotnet test --solution Configlue.slnx --no-build --no-restore
-          --configuration Release -- --retry-failed-tests 3 --timeout 5m
+          --configuration Release --framework net10.0
+          -- --retry-failed-tests 3 --timeout 5m
+          --report-trx --no-progress
+
+      - name: Run .NET Framework portable tests
+        if: matrix.os == 'windows-latest'
+        run: >
+          dotnet test tests/Configlue.Tests/Configlue.Tests.csproj
+          --framework net48 --no-build --no-restore --configuration Release
+          -- --retry-failed-tests 3 --timeout 5m
           --report-trx --no-progress
 
       - name: Pack NuGet packages

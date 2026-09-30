@@ -6,6 +6,8 @@ namespace Configlue.CompilerServices;
 public sealed class ConfiglueModelDescriptor<TModel>
     where TModel : IConfiglueFacadeModel<TModel>
 {
+    private static ConfiglueModelDescriptor<TModel>? _current;
+
     internal ConfiglueModelDescriptor(
         ConfiglueModelSchema schema,
         Func<
@@ -30,6 +32,25 @@ public sealed class ConfiglueModelDescriptor<TModel>
     /// <summary>Generated model schema.</summary>
     public ConfiglueModelSchema Schema { get; }
 
+    /// <summary>Gets the descriptor registered by generated model code.</summary>
+    public static ConfiglueModelDescriptor<TModel> Current =>
+        _current
+        ?? throw new InvalidOperationException(
+            $"Generated runtime descriptor for model '{typeof(TModel)}' has not been registered."
+        );
+
+    /// <summary>Registers the generated runtime descriptor for its model.</summary>
+    public static void Register(ConfiglueModelDescriptor<TModel> descriptor)
+    {
+        ArgumentNullException.ThrowIfNull(descriptor);
+        if (Interlocked.CompareExchange(ref _current, descriptor, null) is not null)
+        {
+            throw new InvalidOperationException(
+                $"Generated runtime descriptor for model '{typeof(TModel)}' is already registered."
+            );
+        }
+    }
+
     /// <summary>The factory with closed model and fragment types.</summary>
     public Func<
         ConfiglueModelBuilder<TModel>,
@@ -53,12 +74,14 @@ public static class ConfiglueRuntime
 {
     /// <summary>Describes a generated model with its statically closed fragment operations.</summary>
     public static ConfiglueModelDescriptor<TModel> Describe<TModel, TFragment>(
-        ConfiglueModelSchema schema
+        ConfiglueModelOperations<TModel, TFragment> operations
     )
         where TModel : IConfiglueFacadeModel<TModel>, IConfiglueModel<TModel, TFragment>
         where TFragment : class, IConfiglueFragment<TFragment>
     {
-        ArgumentNullException.ThrowIfNull(schema);
+        ArgumentNullException.ThrowIfNull(operations);
+        ConfiglueModelOperations<TModel, TFragment>.Register(operations);
+        var schema = operations.Schema;
         return new ConfiglueModelDescriptor<TModel>(
             schema,
             (configuration, services, ownResource) =>

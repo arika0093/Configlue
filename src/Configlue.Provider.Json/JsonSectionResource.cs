@@ -5,13 +5,13 @@ namespace Configlue.Provider.Json;
 
 /// <summary>Exposes a nested JSON object as an independently revisioned resource view.</summary>
 public sealed class JsonSectionResource
-    : IResourceReader,
-        IPipelineResourceReader,
-        IResourceWriter,
-        ISourceWatcher,
-        IResourceIdentity,
-        IResourceBatchParticipant,
-        IResourceBackupRecovery
+    : IContextualResourceReader,
+        IContextualPipelineResourceReader,
+        IContextualResourceWriter,
+        IContextualSourceWatcher,
+        ITryContextualResourceIdentity,
+        IContextualResourceBatchParticipant,
+        IContextualResourceBackupRecovery
 {
     private readonly IResourceReader _reader;
     private readonly IResourceWriter? _writer;
@@ -139,8 +139,11 @@ public sealed class JsonSectionResource
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(sectionPath);
         var path = sectionPath
-            .Replace("__", ":", StringComparison.Ordinal)
-            .Split(':', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            .Replace("__", ":")
+            .Split(new[] { ':' }, StringSplitOptions.RemoveEmptyEntries)
+            .Select(static segment => segment.Trim())
+            .Where(static segment => segment.Length > 0)
+            .ToArray();
         if (path.Length == 0)
         {
             throw new ArgumentException(
@@ -324,7 +327,7 @@ public sealed class JsonSectionResource
             if (current.Kind != JsonValueKind.Object)
             {
                 throw new JsonException(
-                    $"Section path '{string.Join(':', _path)}' crosses a non-object value at '{name}'."
+                    $"Section path '{string.Join(":", _path)}' crosses a non-object value at '{name}'."
                 );
             }
 

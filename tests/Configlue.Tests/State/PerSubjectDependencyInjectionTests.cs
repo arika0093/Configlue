@@ -2,11 +2,11 @@ using System.Collections.Concurrent;
 using System.Security.Claims;
 using System.Threading.Channels;
 using Configlue.Resource.Http.AspNetCore;
+using Configlue.Sources;
 using Configlue.Testing;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
-using Configlue.Sources;
 
 namespace Configlue.Tests;
 
@@ -249,7 +249,9 @@ public sealed class PerSubjectDependencyInjectionTests
         var fixedSubjectOptions = provider.GetRequiredKeyedService<ISubjectState<AppSettings>>(
             "tenant"
         );
-        (await fixedSubjectOptions.ForSubject(subject).GetValueAsync()).Label.ShouldBe("named-value");
+        (await fixedSubjectOptions.ForSubject(subject).GetValueAsync()).Label.ShouldBe(
+            "named-value"
+        );
     }
 
     [Test]
@@ -335,6 +337,10 @@ public sealed class PerSubjectDependencyInjectionTests
             }
         }
 
+        public async ValueTask<IConfiglueSubject> GetCurrentSubjectAsync(
+            CancellationToken cancellationToken = default
+        ) => await GetCurrentAsync(cancellationToken).ConfigureAwait(false);
+
         public void Set(SettingsSubject subject)
         {
             Action[] listeners;
@@ -391,6 +397,10 @@ public sealed class PerSubjectDependencyInjectionTests
             }
         }
 
+        public async ValueTask<IConfiglueSubject> GetCurrentSubjectAsync(
+            CancellationToken cancellationToken = default
+        ) => await GetCurrentAsync(cancellationToken).ConfigureAwait(false);
+
         public void Set(RoutedSettingsSubject subject)
         {
             Action[] listeners;
@@ -423,7 +433,10 @@ public sealed class PerSubjectDependencyInjectionTests
         }
     }
 
-    private sealed class SubjectStateStore<T> : ISourceReader<T>, ISourceWriter<T>, ISourceWatcher
+    private sealed class SubjectStateStore<T>
+        : IContextualSourceReader<T>,
+            IContextualSourceWriter<T>,
+            IContextualSourceWatcher
     {
         private readonly ConcurrentDictionary<
             (SubjectKey Key, RouteKey Route),

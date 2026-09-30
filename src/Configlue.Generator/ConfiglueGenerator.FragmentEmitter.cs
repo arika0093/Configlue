@@ -16,7 +16,8 @@ public sealed partial class ConfiglueGenerator
         string modelType,
         ImmutableArray<MemberModel> members,
         ImmutableArray<PreviousModelInfo> previousModels,
-        bool usesPocoCloning
+        bool usesPocoCloning,
+        bool hasJsonFragmentRegistry
     )
     {
         code.CancellationToken.ThrowIfCancellationRequested();
@@ -24,10 +25,13 @@ public sealed partial class ConfiglueGenerator
             1,
             "/// <summary>A sparse, presence-aware representation of this model.</summary>"
         );
-        code.AppendLineAt(
-            1,
-            "[global::System.Text.Json.Serialization.JsonConverter(typeof(FragmentJsonConverter))]"
-        );
+        if (hasJsonFragmentRegistry)
+        {
+            code.AppendLineAt(
+                1,
+                "[global::System.Text.Json.Serialization.JsonConverter(typeof(FragmentJsonConverter))]"
+            );
+        }
         code.AppendLineAt(
             1,
             "[global::System.ComponentModel.EditorBrowsable(global::System.ComponentModel.EditorBrowsableState.Never)]"
@@ -37,17 +41,23 @@ public sealed partial class ConfiglueGenerator
             "public sealed class Fragment : global::Configlue.IConfiglueFragment<Fragment>, global::Configlue.IConfiglueDeepCloneable<Fragment>"
         );
         code.AppendLineAt(1, "{");
-        code.AppendLineAt(
-            2,
-            "public static global::System.Text.Json.Serialization.JsonConverter<Fragment> JsonConverter { get; } = new FragmentJsonConverter();"
-        );
-        code.AppendLine();
-        foreach (var member in members)
+        if (hasJsonFragmentRegistry)
         {
             code.AppendLineAt(
                 2,
-                "[global::System.Text.Json.Serialization.JsonIgnore(Condition = global::System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]"
+                "public static global::System.Text.Json.Serialization.JsonConverter<Fragment> JsonConverter { get; } = new FragmentJsonConverter();"
             );
+        }
+        code.AppendLine();
+        foreach (var member in members)
+        {
+            if (hasJsonFragmentRegistry)
+            {
+                code.AppendLineAt(
+                    2,
+                    "[global::System.Text.Json.Serialization.JsonIgnore(Condition = global::System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]"
+                );
+            }
             code.AppendIndent(2)
                 .Append("public global::Configlue.Optional<")
                 .Append(FragmentValueType(member))
@@ -96,7 +106,10 @@ public sealed partial class ConfiglueGenerator
         AppendDiff(code, modelType, members);
         AppendFragmentClone(code, members, usesPocoCloning);
         AppendPatchSupport(code, members);
-        AppendJsonConverter(code, members);
+        if (hasJsonFragmentRegistry)
+        {
+            AppendJsonConverter(code, members);
+        }
         AppendPreviousMappings(code, previousModels);
         code.AppendLineAt(1, "}");
         AppendBuilder(code, members);
@@ -120,7 +133,7 @@ public sealed partial class ConfiglueGenerator
                 .Append(previousModel.Model.ModelTypeName)
                 .AppendLine(".Fragment value)");
             code.AppendLineAt(2, "{");
-            code.AppendLineAt(3, "global::System.ArgumentNullException.ThrowIfNull(value);");
+            AppendNullGuard(code, 3, "value");
             code.AppendLineAt(3, "return new Fragment");
             code.AppendLineAt(3, "{");
             foreach (var mapping in previousModel.Mappings)
@@ -274,7 +287,7 @@ public sealed partial class ConfiglueGenerator
             .Append(modelType)
             .AppendLine(" value)");
         code.AppendLineAt(2, "{");
-        code.AppendLineAt(3, "global::System.ArgumentNullException.ThrowIfNull(value);");
+        AppendNullGuard(code, 3, "value");
         if (usesPocoCloning)
         {
             code.AppendLineAt(
@@ -393,7 +406,7 @@ public sealed partial class ConfiglueGenerator
         );
         code.AppendLineAt(2, "public Fragment Merge(Fragment higherPriority)");
         code.AppendLineAt(2, "{");
-        code.AppendLineAt(3, "global::System.ArgumentNullException.ThrowIfNull(higherPriority);");
+        AppendNullGuard(code, 3, "higherPriority");
         if (!hasCustomMergeStrategy)
         {
             code.AppendLineAt(3, "if (higherPriority.IsEmpty)");
@@ -475,7 +488,7 @@ public sealed partial class ConfiglueGenerator
         );
         code.AppendLineAt(2, "public Fragment ApplyChanges(Fragment changes)");
         code.AppendLineAt(2, "{");
-        code.AppendLineAt(3, "global::System.ArgumentNullException.ThrowIfNull(changes);");
+        AppendNullGuard(code, 3, "changes");
         code.AppendLineAt(3, "return new Fragment");
         code.AppendLineAt(3, "{");
         foreach (var member in members)
@@ -547,8 +560,8 @@ public sealed partial class ConfiglueGenerator
             .Append(modelType)
             .AppendLine(" after)");
         code.AppendLineAt(2, "{");
-        code.AppendLineAt(3, "global::System.ArgumentNullException.ThrowIfNull(before);");
-        code.AppendLineAt(3, "global::System.ArgumentNullException.ThrowIfNull(after);");
+        AppendNullGuard(code, 3, "before");
+        AppendNullGuard(code, 3, "after");
         code.AppendLineAt(3, "return new Fragment");
         code.AppendLineAt(3, "{");
         foreach (var member in members)
@@ -640,7 +653,7 @@ public sealed partial class ConfiglueGenerator
         );
         code.AppendLineAt(2, "public Fragment Apply(Patch patch)");
         code.AppendLineAt(2, "{");
-        code.AppendLineAt(3, "global::System.ArgumentNullException.ThrowIfNull(patch);");
+        AppendNullGuard(code, 3, "patch");
         code.AppendLineAt(3, "return new Fragment");
         code.AppendLineAt(3, "{");
         foreach (var member in members)

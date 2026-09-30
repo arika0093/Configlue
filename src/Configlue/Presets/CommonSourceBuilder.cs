@@ -1,3 +1,4 @@
+using Configlue.CompilerServices;
 using Configlue.Provider.Json;
 
 namespace Configlue.Source.Presets;
@@ -55,8 +56,7 @@ public sealed class CommonSourceBuilder
             CommonSourceLayer.HostGlobal,
             CommonSource.HostGlobal.SourceId,
             Path.Combine(
-                ConfiglueStandardPaths.ResolveDirectory(
-                    _configlue.HostPaths,
+                _configlue.ResolveStandardDirectory(
                     ConfiglueStandardLocation.HostGlobal,
                     applicationId
                 ),
@@ -78,8 +78,7 @@ public sealed class CommonSourceBuilder
             CommonSourceLayer.UserGlobal,
             CommonSource.UserGlobal.SourceId,
             Path.Combine(
-                ConfiglueStandardPaths.ResolveDirectory(
-                    _configlue.HostPaths,
+                _configlue.ResolveStandardDirectory(
                     ConfiglueStandardLocation.UserGlobal,
                     applicationId
                 ),
@@ -100,10 +99,7 @@ public sealed class CommonSourceBuilder
                 Path.IsPathRooted(filename)
                     ? filename
                     : Path.Combine(
-                        ConfiglueStandardPaths.ResolveDirectory(
-                            _configlue.HostPaths,
-                            ConfiglueStandardLocation.Local
-                        ),
+                        _configlue.ResolveStandardDirectory(ConfiglueStandardLocation.Local),
                         filename
                     )
             )

@@ -26,7 +26,7 @@ public sealed record YamlFileSourceSelector
         var canonicalSection =
             sectionPath?.Trim().Normalize(NormalizationForm.FormKC) ?? string.Empty;
         var identity = $"configlue-yaml-file-v1\n{canonicalPath}\n{canonicalSection}";
-        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(identity));
+        var hash = System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(identity));
         return $"yaml-file:{Convert.ToHexString(hash).ToLowerInvariant()}";
     }
 }

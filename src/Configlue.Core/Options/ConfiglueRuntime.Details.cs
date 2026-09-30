@@ -1,3 +1,5 @@
+using Configlue.CompilerServices;
+
 namespace Configlue;
 
 /// <summary>Builds generated configuration details from single resolution snapshots.</summary>
@@ -66,7 +68,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
 
         var contributions = resolved.Contributions;
         return new ConfiglueDetailsSnapshot(
-            TModel.ConfiglueSchema,
+            ModelSchema,
             value,
             Array.AsReadOnly(descriptors),
             Array.AsReadOnly(fragments),
@@ -272,7 +274,12 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         return new ConfigSourceDetails(
             key,
             "Custom",
-            string.IsNullOrEmpty(origin) ? "Custom" : origin,
+            string.IsNullOrEmpty(origin) ? "Custom"
+#if NETSTANDARD2_0
+                : origin!,
+#else
+                : origin,
+#endif
             origin,
             source.Writer is not null,
             source.Watcher is not null

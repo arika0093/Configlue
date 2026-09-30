@@ -23,7 +23,7 @@ internal sealed class YamlTextDocument
             if (current.Kind != YamlTextKind.Mapping)
             {
                 throw new YamlException(
-                    $"YAML section path '{string.Join(':', path)}' crosses a non-mapping value at '{segment}'."
+                    $"YAML section path '{string.Join(":", path)}' crosses a non-mapping value at '{segment}'."
                 );
             }
 
@@ -187,7 +187,7 @@ internal sealed class YamlTextDocument
             return node.End;
         }
 
-        var end = Math.Clamp(node.End, 0, source.Length);
+        var end = Math.Max(0, Math.Min(node.End, source.Length));
         while (end < source.Length && source[end] is not '\r' and not '\n')
         {
             end++;

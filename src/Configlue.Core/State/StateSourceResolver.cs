@@ -7,7 +7,7 @@ using Microsoft.Extensions.Logging;
 namespace Configlue.State;
 
 /// <summary>Reads the first successful state from a priority-ordered set of sources.</summary>
-public sealed class StateSourceResolver<T> : ISourceReader<T>
+public sealed class StateSourceResolver<T> : IContextualSourceReader<T>
 {
     private static readonly EventId ReadEvent = new(1050, "ResolverSourceRead");
     private static readonly EventId FallbackEvent = new(1051, "ResolverSourceFallback");
@@ -157,16 +157,27 @@ public sealed class StateSourceResolver<T> : ISourceReader<T>
                 source.Id,
                 nestedVector
             );
+#if NETSTANDARD2_0
+            revisionVector = StateRevisionVector.FromSpan(
+                new[] { revision },
+                new[] { nestedEntry }
+            );
+#else
             revisionVector = StateRevisionVector.FromSpan(
                 MemoryMarshal.CreateReadOnlySpan(ref revision, 1),
                 MemoryMarshal.CreateReadOnlySpan(ref nestedEntry, 1)
             );
+#endif
         }
         else
         {
+#if NETSTANDARD2_0
+            revisionVector = StateRevisionVector.FromSpan(new[] { revision });
+#else
             revisionVector = StateRevisionVector.FromSpan(
                 MemoryMarshal.CreateReadOnlySpan(ref revision, 1)
             );
+#endif
         }
 
         SetResolution(
@@ -325,7 +336,11 @@ public sealed class StateSourceResolver<T> : ISourceReader<T>
             ? StateRevisionVector.FromSpan(revisions.AsSpan(0, revisionCount))
             : StateRevisionVector.FromSpan(
                 revisions.AsSpan(0, revisionCount),
+#if NETSTANDARD2_0
+                nestedRevisions.ToArray()
+#else
                 System.Runtime.InteropServices.CollectionsMarshal.AsSpan(nestedRevisions)
+#endif
             );
 }
 

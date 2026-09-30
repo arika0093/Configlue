@@ -46,7 +46,7 @@ public sealed class InMemoryResource
         cancellationToken.ThrowIfCancellationRequested();
         lock (_gate)
         {
-            return ValueTask.FromResult(
+            return new ValueTask<ResourceReadResult>(
                 _content is null
                     ? ResourceReadResult.NotFound()
                     : ResourceReadResult.Success(_content.ToArray(), _revision, _schema)
@@ -101,7 +101,7 @@ public sealed class InMemoryResource
         }
 
         changed.TrySetResult();
-        return ValueTask.FromResult(new StateWriteResult(revision));
+        return new ValueTask<StateWriteResult>(new StateWriteResult(revision));
     }
 
     /// <inheritdoc />
@@ -124,8 +124,15 @@ public sealed class InMemoryResource
         await waitTask.WaitAsync(cancellationToken).ConfigureAwait(false);
     }
 
-    private static string GetRevision(ReadOnlySpan<byte> content) =>
-        Convert.ToHexString(SHA256.HashData(content));
+    private static string GetRevision(ReadOnlySpan<byte> content)
+    {
+#if NETSTANDARD2_0
+        using var algorithm = SHA256.Create();
+        return BitConverter.ToString(algorithm.ComputeHash(content.ToArray())).Replace("-", "");
+#else
+        return Convert.ToHexString(SHA256.HashData(content));
+#endif
+    }
 
     private static TaskCompletionSource NewSignal() =>
         new(TaskCreationOptions.RunContinuationsAsynchronously);

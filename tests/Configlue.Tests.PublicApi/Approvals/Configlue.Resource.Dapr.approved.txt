@@ -1,7 +1,7 @@
 [assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/arika0093/Configlue")]
 namespace Configlue.Resource.Dapr
 {
-    public sealed class DaprStateResource : Configlue.Resources.IResourceIdentity, Configlue.Resources.IResourceReader, Configlue.Resources.IResourceWriter, Configlue.State.IPipelineResourceReader
+    public sealed class DaprStateResource : Configlue.Resources.IContextualResourceIdentity, Configlue.Resources.IContextualResourceReader, Configlue.Resources.IContextualResourceWriter, Configlue.Resources.IResourceIdentity, Configlue.Resources.IResourceReader, Configlue.Resources.IResourceWriter, Configlue.State.IContextualPipelineResourceReader, Configlue.State.IPipelineResourceReader
     {
         public DaprStateResource(Dapr.Client.DaprClient client, string storeName, string key, Configlue.Resource.Dapr.DaprStateResourceOptions? options = null) { }
         public bool IsPipelineReadPreferred { get; }

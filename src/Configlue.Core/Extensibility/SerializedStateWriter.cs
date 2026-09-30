@@ -5,9 +5,9 @@ namespace Configlue.Extensibility;
 
 /// <summary>Writes a typed state value by composing a codec and a resource.</summary>
 public sealed class SerializedStateWriter<T>
-    : ISourceWriter<T>,
-        ISourceWriteBatchParticipant<T>,
-        IResourceIdentity
+    : IContextualSourceWriter<T>,
+        IContextualSourceWriteBatchParticipant<T>,
+        ITryContextualResourceIdentity
 {
     private readonly IResourceWriter _resource;
     private readonly object _codec;
@@ -130,7 +130,11 @@ public sealed class SerializedStateWriter<T>
 
     private ResourceWriteRequest CreateResourceRequest(StateWriteRequest<T> request)
     {
+#if NETSTANDARD2_0
         var destination = new ArrayBufferWriter<byte>();
+#else
+        var destination = new ArrayBufferWriter<byte>();
+#endif
         var context = _context;
         switch (_codec)
         {

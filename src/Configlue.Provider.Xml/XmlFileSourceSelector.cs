@@ -26,7 +26,7 @@ public sealed record XmlFileSourceSelector
         var canonicalSection =
             sectionPath?.Trim().Normalize(NormalizationForm.FormKC) ?? string.Empty;
         var identity = $"configlue-xml-file-v1\n{canonicalPath}\n{canonicalSection}";
-        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(identity));
+        var hash = System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(identity));
         return $"xml-file:{Convert.ToHexString(hash).ToLowerInvariant()}";
     }
 }

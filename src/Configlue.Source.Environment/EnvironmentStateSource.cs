@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Configlue;
+using Configlue.CompilerServices;
 
 namespace Configlue.Source.Environment;
 
@@ -24,7 +25,7 @@ public static class EnvironmentStateSource
         where TFragment : class, IConfiglueFragment<TFragment>
     {
         var reader = new EnvironmentStateReader<TFragment>(
-            TModel.ConfiglueSchema,
+            ConfiglueModelOperations<TModel, TFragment>.Current.Schema,
             prefix,
             environmentVariables,
             valueParser,

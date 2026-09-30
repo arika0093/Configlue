@@ -1,3 +1,5 @@
+using System.IO.Hashing;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -39,7 +41,7 @@ public sealed class FileStateStorageMigrationJournal
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(migrationId);
         cancellationToken.ThrowIfCancellationRequested();
-        var hash = ConfiglueHashing.GetXxHash3Hex(migrationId);
+        var hash = GetMigrationIdHash(migrationId);
         using var resource = new FileResource(
             Path.Combine(_directoryPath, hash + ".lease"),
             _resourceOptions
@@ -139,9 +141,25 @@ public sealed class FileStateStorageMigrationJournal
 
     private FileResource CreateResource(string migrationId)
     {
-        var hash = ConfiglueHashing.GetXxHash3Hex(migrationId);
+        var hash = GetMigrationIdHash(migrationId);
         var path = Path.Combine(_directoryPath, hash + ".json");
         return new FileResource(path, _resourceOptions);
+    }
+
+    private static string GetMigrationIdHash(string migrationId)
+    {
+        var content = Encoding.UTF8.GetBytes(migrationId);
+        Span<byte> hash = stackalloc byte[sizeof(ulong)];
+        XxHash3.Hash(content, hash);
+        const string HexDigits = "0123456789ABCDEF";
+        var characters = new char[hash.Length * 2];
+        for (var index = 0; index < hash.Length; index++)
+        {
+            characters[index * 2] = HexDigits[hash[index] >> 4];
+            characters[index * 2 + 1] = HexDigits[hash[index] & 0x0F];
+        }
+
+        return new string(characters);
     }
 }
 

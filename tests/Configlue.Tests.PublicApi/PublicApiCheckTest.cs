@@ -3,6 +3,7 @@ using System.Runtime.CompilerServices;
 using System.Runtime.Versioning;
 using System.Text;
 using Configlue;
+using Configlue.CompilerServices;
 using Configlue.Extensions.MSOptions;
 using Configlue.Generator;
 using Configlue.JsonSchema;
@@ -130,9 +131,12 @@ public static class PublicApiCheck
 
                 var interfaceName = contract.Name[..contract.Name.IndexOf('`')];
                 return $"{interfaceName}.{method.Name}: {string.Join(' ', modifiers)}";
-            });
+            })
+            .ToArray();
 
-        return $"{Environment.NewLine}// Compiled static interface member modifiers{Environment.NewLine}{string.Join(Environment.NewLine, members)}{Environment.NewLine}";
+        return members.Length == 0
+            ? string.Empty
+            : $"{Environment.NewLine}// Compiled static interface member modifiers{Environment.NewLine}{string.Join(Environment.NewLine, members)}{Environment.NewLine}";
     }
 }
 
@@ -176,7 +180,7 @@ public sealed class PublicApiCheckTest
 
     [Test]
     public void DependencyInjection() =>
-        PublicApiCheck.CheckAssembly(typeof(ConfiglueServiceCollectionExtensions).Assembly);
+        PublicApiCheck.CheckAssembly(typeof(HttpClientFactorySourceExtensions).Assembly);
 
     [Test]
     public void MicrosoftOptions() =>

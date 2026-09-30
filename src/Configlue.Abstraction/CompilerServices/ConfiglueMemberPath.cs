@@ -99,15 +99,14 @@ public readonly struct ConfiglueMemberPath : IEquatable<ConfiglueMemberPath>
     /// <inheritdoc />
     public override int GetHashCode()
     {
-        var hash = new HashCode();
-        hash.Add(_root?.ModelType);
-        hash.Add(_root?.Id);
-        hash.Add(_root?.Version);
+        var hash = _root?.ModelType?.GetHashCode() ?? 0;
+        hash = unchecked(hash * 31 + (_root?.Id?.GetHashCode() ?? 0));
+        hash = unchecked(hash * 31 + (_root?.Version.GetHashCode() ?? 0));
         foreach (var id in MemberIds)
         {
-            hash.Add(id);
+            hash = unchecked(hash * 31 + id.GetHashCode());
         }
-        return hash.ToHashCode();
+        return hash;
     }
 
     /// <summary>Looks up the leaf's generated metadata.</summary>
@@ -215,6 +214,6 @@ public readonly struct ConfiglueMemberPath : IEquatable<ConfiglueMemberPath>
                 schema = member.NestedSchemaFactory!();
             }
         }
-        return string.Join('.', names);
+        return string.Join(".", names);
     }
 }

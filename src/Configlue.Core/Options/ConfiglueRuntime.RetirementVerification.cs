@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Concurrent;
 using System.ComponentModel.DataAnnotations;
+using Configlue.CompilerServices;
 using Configlue.Sources;
 using Microsoft.Extensions.Logging;
 
@@ -26,7 +27,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         CancellationToken cancellationToken
     )
     {
-        var currentSchema = TModel.ConfiglueSchema.ToMetadata();
+        var currentSchema = ModelSchema.ToMetadata();
         var replacements = new Dictionary<string, StateReadResult<TFragment>>(
             StringComparer.Ordinal
         );
@@ -35,7 +36,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             replacements.Add(
                 source.Id,
                 StateReadResult<TFragment>
-                    .Success(TFragment.Empty, result.Revision, currentSchema)
+                    .Success(EmptyFragment, result.Revision, currentSchema)
                     .FromSource(source.Id, source.PhysicalOrigin)
             );
         }
@@ -63,7 +64,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
 
             var currentFragment = current.Status switch
             {
-                StateReadStatus.NotFound when desired.IsEmpty => TFragment.Empty,
+                StateReadStatus.NotFound when desired.IsEmpty => EmptyFragment,
                 StateReadStatus.Success => current.Value
                     ?? throw new InvalidOperationException(
                         $"State source '{target.Id}' returned a null configuration fragment."
@@ -101,7 +102,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         if (
             proposed.Result.Status != StateReadStatus.Success
             || baselineModel is not TModel before
-            || !TModel.Diff(before, proposed.Result.Value!).IsEmpty
+            || !Diff(before, proposed.Result.Value!).IsEmpty
         )
         {
             throw LogConflict(

@@ -7,7 +7,7 @@ namespace Configlue.Generator;
 
 public sealed partial class ConfiglueGenerator
 {
-    private readonly struct TypeModel : IEquatable<TypeModel>
+    private readonly record struct TypeModel
     {
         public TypeModel(
             string name,
@@ -26,43 +26,15 @@ public sealed partial class ConfiglueGenerator
             PocoCloneHelperName = pocoCloneHelperName;
         }
 
-        public string Name { get; }
-        public string NonNullableName { get; }
-        public string RuntimeName { get; }
-        public bool IsReferenceType { get; }
-        public bool IsConfiglueType { get; }
-        public string? PocoCloneHelperName { get; }
-
-        public bool Equals(TypeModel other)
-        {
-            return string.Equals(Name, other.Name, StringComparison.Ordinal)
-                && string.Equals(NonNullableName, other.NonNullableName, StringComparison.Ordinal)
-                && string.Equals(RuntimeName, other.RuntimeName, StringComparison.Ordinal)
-                && IsReferenceType == other.IsReferenceType
-                && IsConfiglueType == other.IsConfiglueType
-                && string.Equals(
-                    PocoCloneHelperName,
-                    other.PocoCloneHelperName,
-                    StringComparison.Ordinal
-                );
-        }
-
-        public override bool Equals(object? obj) => obj is TypeModel other && Equals(other);
-
-        public override int GetHashCode()
-        {
-            var hash = StringHash(Name);
-            hash = unchecked(hash * 31 + StringHash(NonNullableName));
-            hash = unchecked(hash * 31 + StringHash(RuntimeName));
-            hash = unchecked(hash * 31 + (IsReferenceType ? 1 : 0));
-            hash = unchecked(hash * 31 + (IsConfiglueType ? 1 : 0));
-            return unchecked(
-                hash * 31 + (PocoCloneHelperName is null ? 0 : StringHash(PocoCloneHelperName))
-            );
-        }
+        public string Name { get; init; }
+        public string NonNullableName { get; init; }
+        public string RuntimeName { get; init; }
+        public bool IsReferenceType { get; init; }
+        public bool IsConfiglueType { get; init; }
+        public string? PocoCloneHelperName { get; init; }
     }
 
-    private readonly struct PropertyModel : IEquatable<PropertyModel>
+    private readonly record struct PropertyModel
     {
         public PropertyModel(
             string name,
@@ -81,56 +53,15 @@ public sealed partial class ConfiglueGenerator
             EnvironmentVariableName = environmentVariableName;
         }
 
-        public string Name { get; }
-        public TypeModel Type { get; }
-        public bool IsRequired { get; }
-        public string? JsonPropertyName { get; }
-        public bool HasExplicitJsonPropertyName { get; }
-        public string? EnvironmentVariableName { get; }
-
-        public bool Equals(PropertyModel other)
-        {
-            return string.Equals(Name, other.Name, StringComparison.Ordinal)
-                && Type.Equals(other.Type)
-                && IsRequired == other.IsRequired
-                && string.Equals(JsonPropertyName, other.JsonPropertyName, StringComparison.Ordinal)
-                && HasExplicitJsonPropertyName == other.HasExplicitJsonPropertyName
-                && string.Equals(
-                    EnvironmentVariableName,
-                    other.EnvironmentVariableName,
-                    StringComparison.Ordinal
-                );
-        }
-
-        public override bool Equals(object? obj) => obj is PropertyModel other && Equals(other);
-
-        public override int GetHashCode()
-        {
-            var hash = unchecked(
-                StringComparer.Ordinal.GetHashCode(Name) * 31 + Type.GetHashCode()
-            );
-            hash = unchecked(hash * 31 + (IsRequired ? 1 : 0));
-            hash = unchecked(
-                hash * 31
-                + (
-                    JsonPropertyName is null
-                        ? 0
-                        : StringComparer.Ordinal.GetHashCode(JsonPropertyName)
-                )
-            );
-            hash = unchecked(hash * 31 + (HasExplicitJsonPropertyName ? 1 : 0));
-            return unchecked(
-                hash * 31
-                + (
-                    EnvironmentVariableName is null
-                        ? 0
-                        : StringComparer.Ordinal.GetHashCode(EnvironmentVariableName)
-                )
-            );
-        }
+        public string Name { get; init; }
+        public TypeModel Type { get; init; }
+        public bool IsRequired { get; init; }
+        public string? JsonPropertyName { get; init; }
+        public bool HasExplicitJsonPropertyName { get; init; }
+        public string? EnvironmentVariableName { get; init; }
     }
 
-    private readonly struct CollectionInfo : IEquatable<CollectionInfo>
+    private readonly record struct CollectionInfo
     {
         public CollectionInfo(
             CollectionKind kind,
@@ -147,46 +78,16 @@ public sealed partial class ConfiglueGenerator
             NamedTypeDefinition = namedTypeDefinition;
         }
 
-        public CollectionKind Kind { get; }
-        public CloneCollectionKind CloneKind { get; }
-        public TypeModel ElementType { get; }
-        public TypeModel? ValueType { get; }
-        public string? NamedTypeDefinition { get; }
+        public CollectionKind Kind { get; init; }
+        public CloneCollectionKind CloneKind { get; init; }
+        public TypeModel ElementType { get; init; }
+        public TypeModel? ValueType { get; init; }
+        public string? NamedTypeDefinition { get; init; }
         public static CollectionInfo Unsupported { get; } =
             new(CollectionKind.Unsupported, CloneCollectionKind.Unsupported, default, null, null);
-
-        public bool Equals(CollectionInfo other)
-        {
-            return Kind == other.Kind
-                && CloneKind == other.CloneKind
-                && ElementType.Equals(other.ElementType)
-                && Nullable.Equals(ValueType, other.ValueType)
-                && string.Equals(
-                    NamedTypeDefinition,
-                    other.NamedTypeDefinition,
-                    StringComparison.Ordinal
-                );
-        }
-
-        public override bool Equals(object? obj) => obj is CollectionInfo other && Equals(other);
-
-        public override int GetHashCode()
-        {
-            var hash = unchecked((int)Kind * 31 + (int)CloneKind);
-            hash = unchecked(hash * 31 + ElementType.GetHashCode());
-            hash = unchecked(hash * 31 + (ValueType?.GetHashCode() ?? 0));
-            return unchecked(
-                hash * 31
-                + (
-                    NamedTypeDefinition is null
-                        ? 0
-                        : StringComparer.Ordinal.GetHashCode(NamedTypeDefinition)
-                )
-            );
-        }
     }
 
-    private readonly struct MemberModel : IEquatable<MemberModel>
+    private readonly record struct MemberModel
     {
         public MemberModel(
             int id,
@@ -205,36 +106,15 @@ public sealed partial class ConfiglueGenerator
             MergeStrategyType = mergeStrategyType;
         }
 
-        public int Id { get; }
-        public PropertyModel Property { get; }
-        public TypeModel? ChildModel { get; }
-        public int MergeMode { get; }
-        public CollectionInfo Collection { get; }
-        public TypeModel? MergeStrategyType { get; }
-
-        public bool Equals(MemberModel other)
-        {
-            return Id == other.Id
-                && Property.Equals(other.Property)
-                && Nullable.Equals(ChildModel, other.ChildModel)
-                && MergeMode == other.MergeMode
-                && Collection.Equals(other.Collection)
-                && Nullable.Equals(MergeStrategyType, other.MergeStrategyType);
-        }
-
-        public override bool Equals(object? obj) => obj is MemberModel other && Equals(other);
-
-        public override int GetHashCode()
-        {
-            var hash = unchecked(Id * 31 + Property.GetHashCode());
-            hash = unchecked(hash * 31 + (ChildModel?.GetHashCode() ?? 0));
-            hash = unchecked(hash * 31 + MergeMode);
-            hash = unchecked(hash * 31 + Collection.GetHashCode());
-            return unchecked(hash * 31 + (MergeStrategyType?.GetHashCode() ?? 0));
-        }
+        public int Id { get; init; }
+        public PropertyModel Property { get; init; }
+        public TypeModel? ChildModel { get; init; }
+        public int MergeMode { get; init; }
+        public CollectionInfo Collection { get; init; }
+        public TypeModel? MergeStrategyType { get; init; }
     }
 
-    private readonly struct ModelInfo : IEquatable<ModelInfo>
+    private readonly record struct ModelInfo
     {
         public ModelInfo(
             string name,
@@ -261,53 +141,19 @@ public sealed partial class ConfiglueGenerator
             Version = version;
         }
 
-        public string Name { get; }
-        public string ModelTypeName { get; }
-        public string FullyQualifiedName { get; }
-        public string Namespace { get; }
-        public bool IsGlobalNamespace { get; }
-        public bool IsStruct { get; }
-        public bool IsRecord { get; }
-        public bool IsPublic { get; }
-        public string ModelId { get; }
-        public int Version { get; }
-
-        public bool Equals(ModelInfo other)
-        {
-            return string.Equals(Name, other.Name, StringComparison.Ordinal)
-                && string.Equals(ModelTypeName, other.ModelTypeName, StringComparison.Ordinal)
-                && string.Equals(
-                    FullyQualifiedName,
-                    other.FullyQualifiedName,
-                    StringComparison.Ordinal
-                )
-                && string.Equals(Namespace, other.Namespace, StringComparison.Ordinal)
-                && IsGlobalNamespace == other.IsGlobalNamespace
-                && IsStruct == other.IsStruct
-                && IsRecord == other.IsRecord
-                && IsPublic == other.IsPublic
-                && string.Equals(ModelId, other.ModelId, StringComparison.Ordinal)
-                && Version == other.Version;
-        }
-
-        public override bool Equals(object? obj) => obj is ModelInfo other && Equals(other);
-
-        public override int GetHashCode()
-        {
-            var hash = StringComparer.Ordinal.GetHashCode(Name);
-            hash = unchecked(hash * 31 + StringComparer.Ordinal.GetHashCode(ModelTypeName));
-            hash = unchecked(hash * 31 + StringComparer.Ordinal.GetHashCode(FullyQualifiedName));
-            hash = unchecked(hash * 31 + StringComparer.Ordinal.GetHashCode(Namespace));
-            hash = unchecked(hash * 31 + (IsGlobalNamespace ? 1 : 0));
-            hash = unchecked(hash * 31 + (IsStruct ? 1 : 0));
-            hash = unchecked(hash * 31 + (IsRecord ? 1 : 0));
-            hash = unchecked(hash * 31 + (IsPublic ? 1 : 0));
-            hash = unchecked(hash * 31 + StringComparer.Ordinal.GetHashCode(ModelId));
-            return unchecked(hash * 31 + Version);
-        }
+        public string Name { get; init; }
+        public string ModelTypeName { get; init; }
+        public string FullyQualifiedName { get; init; }
+        public string Namespace { get; init; }
+        public bool IsGlobalNamespace { get; init; }
+        public bool IsStruct { get; init; }
+        public bool IsRecord { get; init; }
+        public bool IsPublic { get; init; }
+        public string ModelId { get; init; }
+        public int Version { get; init; }
     }
 
-    private readonly struct PreviousMemberMapping : IEquatable<PreviousMemberMapping>
+    private readonly record struct PreviousMemberMapping
     {
         public PreviousMemberMapping(
             MemberModel currentMember,
@@ -322,32 +168,10 @@ public sealed partial class ConfiglueGenerator
             CanMigrateChild = canMigrateChild;
         }
 
-        public MemberModel CurrentMember { get; }
-        public MemberModel PreviousMember { get; }
-        public bool HasSameType { get; }
-        public bool CanMigrateChild { get; }
-
-        public bool Equals(PreviousMemberMapping other)
-        {
-            return CurrentMember.Equals(other.CurrentMember)
-                && PreviousMember.Equals(other.PreviousMember)
-                && HasSameType == other.HasSameType
-                && CanMigrateChild == other.CanMigrateChild;
-        }
-
-        public override bool Equals(object? obj) =>
-            obj is PreviousMemberMapping other && Equals(other);
-
-        public override int GetHashCode()
-        {
-            return unchecked(
-                (
-                    (CurrentMember.GetHashCode() * 31 + PreviousMember.GetHashCode()) * 31
-                    + (HasSameType ? 1 : 0)
-                ) * 31
-                + (CanMigrateChild ? 1 : 0)
-            );
-        }
+        public MemberModel CurrentMember { get; init; }
+        public MemberModel PreviousMember { get; init; }
+        public bool HasSameType { get; init; }
+        public bool CanMigrateChild { get; init; }
     }
 
     private sealed class PreviousModelInfo : IEquatable<PreviousModelInfo>
@@ -735,9 +559,6 @@ public sealed partial class ConfiglueGenerator
             version
         );
     }
-
-    private static int StringHash(string? value) =>
-        value is null ? 0 : StringComparer.Ordinal.GetHashCode(value);
 
     private static bool SequenceEqual<T>(ImmutableArray<T> left, ImmutableArray<T> right)
     {

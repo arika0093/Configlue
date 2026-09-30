@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Concurrent;
 using System.ComponentModel.DataAnnotations;
+using Configlue.CompilerServices;
 using Configlue.Sources;
 using Microsoft.Extensions.Logging;
 
@@ -287,7 +288,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
     {
         public TFragment Changes => changes;
 
-        public ConfiglueModelSchema Schema => TModel.ConfiglueSchema;
+        public ConfiglueModelSchema Schema => ModelSchema;
 
         public bool IsEmpty => changes.IsEmpty;
 
@@ -306,7 +307,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
 
         public IConfigluePatch SelectMembers(ReadOnlySpan<int> memberIds)
         {
-            var selected = TFragment.Empty;
+            var selected = EmptyFragment;
             foreach (var member in changes.EnumeratePresentMembers())
             {
                 for (var index = 0; index < memberIds.Length; index++)
@@ -359,7 +360,9 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         )
         {
             cancellationToken.ThrowIfCancellationRequested();
-            return ValueTask.FromResult(StateReadResult<TFragment>.Success(fragment));
+            return new ValueTask<StateReadResult<TFragment>>(
+                StateReadResult<TFragment>.Success(fragment)
+            );
         }
     }
 

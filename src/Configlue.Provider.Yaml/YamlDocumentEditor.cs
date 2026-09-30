@@ -62,7 +62,7 @@ internal static class YamlDocumentEditor
                 if (parent is null || parent.Kind != YamlTextKind.Mapping)
                 {
                     throw new YamlException(
-                        $"YAML section path '{string.Join(':', path)}' has no containing mapping."
+                        $"YAML section path '{string.Join(":", path)}' has no containing mapping."
                     );
                 }
 
@@ -134,7 +134,7 @@ internal static class YamlDocumentEditor
     {
         if (textEncoding is null)
         {
-            return StrictUtf8.GetString(content.Span);
+            return StrictUtf8.GetString(content.ToArray());
         }
 
         using var stream = CreateReadOnlyStream(content);
@@ -177,9 +177,7 @@ internal static class YamlDocumentEditor
 
     private static string Indent(string text, string indentation, string newline)
     {
-        var lines = text.Replace("\r\n", "\n", StringComparison.Ordinal)
-            .Replace('\r', '\n')
-            .Split('\n');
+        var lines = text.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
         return string.Join(
             newline,
             lines.Select(line => line.Length == 0 ? line : indentation + line)
@@ -252,11 +250,10 @@ internal static class YamlDocumentEditor
             var result = document.Source;
             foreach (var edit in _edits.OrderByDescending(static edit => edit.Start))
             {
-                result = string.Concat(
-                    result.AsSpan(0, edit.Start),
-                    edit.Content,
-                    result.AsSpan(edit.Start + edit.Length)
-                );
+                result =
+                    result.Substring(0, edit.Start)
+                    + edit.Content
+                    + result.Substring(edit.Start + edit.Length);
             }
 
             return result;
@@ -631,13 +628,11 @@ internal static class YamlDocumentEditor
                 .SequenceEqual(right.Source.AsSpan(right.Start, right.End - right.Start));
 
         private static string Slice(string source, int start, int end) =>
-            source[start..Math.Clamp(end, start, source.Length)];
+            source[start..Math.Max(start, Math.Min(end, source.Length))];
 
         internal static string Reindent(string value, string indentation, string newline)
         {
-            var normalized = value
-                .Replace("\r\n", "\n", StringComparison.Ordinal)
-                .Replace('\r', '\n');
+            var normalized = value.Replace("\r\n", "\n").Replace('\r', '\n');
             var lines = normalized.Split('\n');
             var sourceIndent = lines
                 .Where(static line => !string.IsNullOrWhiteSpace(line))
@@ -686,8 +681,8 @@ internal static class YamlDocumentEditor
                         indentation++;
                     }
 
-                    result.Append(line[..indentation]);
-                    result.Append(line[comment..]);
+                    result.Append(line[..indentation].ToString());
+                    result.Append(line[comment..].ToString());
                     result.Append(FindNewline(source));
                 }
 

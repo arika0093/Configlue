@@ -1,8 +1,8 @@
 using System.Security.Cryptography;
 using Configlue.Provider.Json;
+using Configlue.Sources;
 using Configlue.Testing;
 using Configlue.Transformer.AES;
-using Configlue.Sources;
 
 namespace Configlue.Tests;
 

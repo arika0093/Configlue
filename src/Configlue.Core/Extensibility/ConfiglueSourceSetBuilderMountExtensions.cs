@@ -1,4 +1,5 @@
 using System.Linq.Expressions;
+using Configlue.CompilerServices;
 
 namespace Configlue.Extensibility;
 
@@ -237,6 +238,6 @@ public static class ConfiglueSourceSetBuilderMountExtensions
             );
         }
 
-        return string.Join('.', segments);
+        return string.Join(".", segments);
     }
 }

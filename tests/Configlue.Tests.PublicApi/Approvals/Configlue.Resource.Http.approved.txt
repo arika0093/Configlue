@@ -12,7 +12,7 @@ namespace Configlue.Resource.Http
         public System.TimeSpan RequestTimeout { get; init; }
         public string UpdatePath { get; init; }
     }
-    public sealed class HttpResourceReader : Configlue.Resources.IResourceIdentity, Configlue.Resources.IResourceReader, Configlue.Sources.ISourceWatcher, Configlue.State.IPipelineResourceReader
+    public sealed class HttpResourceReader : Configlue.Resources.IContextualResourceIdentity, Configlue.Resources.IContextualResourceReader, Configlue.Resources.IResourceIdentity, Configlue.Resources.IResourceReader, Configlue.Resources.ITryContextualResourceIdentity, Configlue.Sources.IContextualSourceWatcher, Configlue.Sources.ISourceWatcher, Configlue.State.IContextualPipelineResourceReader, Configlue.State.IPipelineResourceReader
     {
         public const string SchemaIdHeaderName = "Configlue-Schema-Id";
         public const string SchemaVersionHeaderName = "Configlue-Schema-Version";
@@ -30,7 +30,7 @@ namespace Configlue.Resource.Http
         public System.Threading.Tasks.ValueTask WaitForChangeAsync(string? observedRevision, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask WaitForChangeAsync(Configlue.Resources.ConfiglueResourceContext context, string? observedRevision, System.Threading.CancellationToken cancellationToken = default) { }
     }
-    public sealed class HttpResourceWriter : Configlue.Resources.IResourceIdentity, Configlue.Resources.IResourceWriter
+    public sealed class HttpResourceWriter : Configlue.Resources.IContextualResourceIdentity, Configlue.Resources.IContextualResourceWriter, Configlue.Resources.IResourceIdentity, Configlue.Resources.IResourceWriter, Configlue.Resources.ITryContextualResourceIdentity
     {
         public HttpResourceWriter(Configlue.Resource.Http.HttpResourceReader reader) { }
         public Configlue.Resources.ResourceId ResourceId { get; }

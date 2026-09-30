@@ -8,7 +8,8 @@ public sealed partial class FileResource
 
     private static readonly Stack<ProcessLockEntry> ProcessLockPool = new();
 
-    internal async ValueTask<IDisposable> AcquireExclusiveLockAsync(
+    /// <summary>Acquires the exclusive lock for this file resource.</summary>
+    public async ValueTask<IDisposable> AcquireExclusiveLockAsync(
         CancellationToken cancellationToken
     )
     {

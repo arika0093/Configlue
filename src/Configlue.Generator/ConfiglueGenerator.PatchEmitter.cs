@@ -410,7 +410,7 @@ public sealed partial class ConfiglueGenerator
             "public global::System.Collections.Generic.IReadOnlyDictionary<string, global::Configlue.IConfigluePatch> Route(global::Configlue.StateWritePlan writePlan, string? fallbackSourceId)"
         );
         code.AppendLineAt(2, "{");
-        code.AppendLineAt(3, "global::System.ArgumentNullException.ThrowIfNull(writePlan);");
+        AppendNullGuard(code, 3, "writePlan");
         code.AppendLineAt(
             3,
             "return RouteCore(global::Configlue.CompilerServices.ConfiglueWriteRouting.Bind(writePlan, ConfiglueSchema), fallbackSourceId, global::Configlue.CompilerServices.ConfiglueMemberPath.Root(ConfiglueSchema));"

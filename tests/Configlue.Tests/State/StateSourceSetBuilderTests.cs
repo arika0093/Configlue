@@ -1,6 +1,6 @@
+using Configlue.Sources;
 using Configlue.Testing;
 using Microsoft.Extensions.DependencyInjection;
-using Configlue.Sources;
 
 namespace Configlue.Tests;
 

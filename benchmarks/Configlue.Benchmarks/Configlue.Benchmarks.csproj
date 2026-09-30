@@ -11,7 +11,6 @@
     <PackageReference Include="Configuration.Writable" Version="0.9.0" />
     <PackageReference Include="System.CommandLine" Version="2.0.12" />
     <ProjectReference Include="../../src/Configlue.Core/Configlue.Core.csproj" />
-    <ProjectReference Include="../../src/Configlue.Extensions.DI/Configlue.Extensions.DI.csproj" />
     <ProjectReference Include="../../src/Configlue.Extensions.MSOptions/Configlue.Extensions.MSOptions.csproj" />
     <ProjectReference Include="../../src/Configlue.Provider.Yaml/Configlue.Provider.Yaml.csproj" />
     <ProjectReference Include="../../src/Configlue.Provider.Xml/Configlue.Provider.Xml.csproj" />

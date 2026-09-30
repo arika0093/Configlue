@@ -43,10 +43,14 @@ public sealed class ConfiglueHostPathProfile : IConfiglueHostPaths
             throw new ArgumentOutOfRangeException(nameof(location));
         }
         ArgumentNullException.ThrowIfNull(resolver);
-        var overrides = new Dictionary<ConfiglueStandardLocation, Func<string, string?>>(_overrides)
+        var overrides = new Dictionary<ConfiglueStandardLocation, Func<string, string?>>(
+            _overrides.Count
+        );
+        foreach (var pair in _overrides)
         {
-            [location] = resolver,
-        };
+            overrides.Add(pair.Key, pair.Value);
+        }
+        overrides[location] = resolver;
         return new ConfiglueHostPathProfile(this, overrides);
     }
 
@@ -62,7 +66,11 @@ public sealed class ConfiglueHostPathProfile : IConfiglueHostPaths
             var resolved = resolver(applicationId);
             if (!string.IsNullOrWhiteSpace(resolved))
             {
+#if NETSTANDARD2_0
+                directory = resolved!;
+#else
                 directory = resolved;
+#endif
                 return true;
             }
 

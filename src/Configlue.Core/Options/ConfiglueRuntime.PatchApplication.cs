@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Concurrent;
 using System.ComponentModel.DataAnnotations;
+using Configlue.CompilerServices;
 using Configlue.Sources;
 using Microsoft.Extensions.Logging;
 
@@ -60,7 +61,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             );
         }
 
-        var modelSchema = TModel.ConfiglueSchema;
+        var modelSchema = ModelSchema;
         foreach (var schema in patchRequests.Select(static request => request.Patch.Schema))
         {
             if (
@@ -164,7 +165,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
 
             var sourceFragment = current.Status switch
             {
-                StateReadStatus.NotFound => TFragment.Empty,
+                StateReadStatus.NotFound => EmptyFragment,
                 StateReadStatus.Success => current.Value
                     ?? throw new InvalidOperationException(
                         $"State source '{source.Id}' returned a null configuration fragment."
@@ -295,10 +296,10 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
 
             if (
                 expectedResolvedModel is TModel expectedModel
-                && TModel.Diff(proposed.Result.Value!, expectedModel) is { IsEmpty: false } mismatch
+                && Diff(proposed.Result.Value!, expectedModel) is { IsEmpty: false } mismatch
             )
             {
-                var paths = GetReplaceMemberPaths(TModel.ConfiglueSchema, mismatch, []);
+                var paths = GetReplaceMemberPaths(ModelSchema, mismatch, []);
                 if (paths.Count > 0)
                 {
                     var readonlySources = proposed

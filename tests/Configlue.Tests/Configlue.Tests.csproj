@@ -1,14 +1,54 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <ItemGroup>
-    <PackageReference Include="Npgsql" Version="10.0.3" />
+  <PropertyGroup>
+    <TargetFrameworks>netstandard2.0;net10.0;net48</TargetFrameworks>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
+    <IsTestProject>false</IsTestProject>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net48'">
+    <PolyArgumentExceptions>true</PolyArgumentExceptions>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(TargetFramework)' != 'netstandard2.0'">
     <PackageReference Include="StackExchange.Redis" Version="3.3.1" />
-    <PackageReference Include="Microsoft.AspNetCore.TestHost" Version="10.0.0" />
     <PackageReference Include="System.CommandLine" Version="2.0.12" />
   </ItemGroup>
-  <ItemGroup>
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0'">
+    <PackageReference Include="Npgsql" Version="10.0.3" />
+    <PackageReference Include="Microsoft.AspNetCore.TestHost" Version="10.0.0" />
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
-  <ItemGroup>
+  <ItemGroup Condition="'$(TargetFramework)' == 'net48'">
+    <PackageReference Include="Polyfill" Version="11.4.1" PrivateAssets="all" />
+    <PackageReference
+      Include="Microsoft.NETFramework.ReferenceAssemblies"
+      Version="1.0.3"
+      PrivateAssets="all"
+    />
+    <Compile Remove="Formats/JsonSchemaGeneratorTests.cs" />
+    <Compile Remove="Resources/DaprStateResourceTests.cs" />
+    <Compile Remove="Resources/HttpResourceEndpointTests.cs" />
+    <Compile Remove="Resources/PostgreSqlResourceTests.cs" />
+    <Compile Remove="State/StatePipelineTests.cs" />
+    <Compile Remove="Contracts/Transformers/TransformerRecoveryPolicyContractTests.cs" />
+    <Compile Remove="Extensions/ObservableAdapterTests.cs" />
+    <Compile Remove="ReactiveSupport/ReactiveFixtures.cs" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
+    <PackageReference Remove="TUnit;Shouldly;Microsoft.Testing.Extensions.Retry" />
+    <Using Remove="Shouldly;Configlue.Codecs;Configlue.Migrations;Configlue.Resources;Configlue.Sources;Configlue.Extensibility;Configlue.State;Configlue.Transformers" />
+    <PackageReference Include="Polyfill" Version="11.4.1" PrivateAssets="all" />
+    <Compile Remove="**/*.cs" />
+    <Compile Include="Portable/**/*.cs" />
+    <ProjectReference Include="../../src/Configlue.Abstraction/Configlue.Abstraction.csproj" />
+    <ProjectReference Include="../../src/Configlue.Core/Configlue.Core.csproj" />
+    <ProjectReference Include="../../src/Configlue.Provider.Json/Configlue.Provider.Json.csproj" />
+    <ProjectReference
+      Include="../../src/Configlue.Generator/Configlue.Generator.csproj"
+      OutputItemType="Analyzer"
+      ReferenceOutputAssembly="false"
+    />
+  </ItemGroup>
+  <ItemGroup Condition="'$(TargetFramework)' != 'netstandard2.0'">
     <ProjectReference Include="../../src/Configlue/Configlue.csproj" />
     <ProjectReference Include="../../src/Configlue.Core/Configlue.Core.csproj" />
     <ProjectReference Include="../../src/Configlue.Extensions.DI/Configlue.Extensions.DI.csproj" />
@@ -19,18 +59,22 @@
       ReferenceOutputAssembly="false"
     />
     <ProjectReference Include="../../src/Configlue.Provider.Json/Configlue.Provider.Json.csproj" />
-    <ProjectReference Include="../../src/Configlue.JsonSchema/Configlue.JsonSchema.csproj" />
     <ProjectReference Include="../../src/Configlue.Provider.Xml/Configlue.Provider.Xml.csproj" />
     <ProjectReference Include="../../src/Configlue.Provider.Yaml/Configlue.Provider.Yaml.csproj" />
     <ProjectReference Include="../../src/Configlue.Source.Environment/Configlue.Source.Environment.csproj" />
     <ProjectReference Include="../../src/Configlue.Source.CommandLine/Configlue.Source.CommandLine.csproj" />
-    <ProjectReference Include="../../src/Configlue.Resource.Dapr/Configlue.Resource.Dapr.csproj" />
     <ProjectReference Include="../../src/Configlue.Resource.S3/Configlue.Resource.S3.csproj" />
     <ProjectReference Include="../../src/Configlue.Resource.Http/Configlue.Resource.Http.csproj" />
-    <ProjectReference Include="../../src/Configlue.Resource.Http.AspNetCore/Configlue.Resource.Http.AspNetCore.csproj" />
-    <ProjectReference Include="../../src/Configlue.Resource.PostgreSql/Configlue.Resource.PostgreSql.csproj" />
     <ProjectReference Include="../../src/Configlue.Resource.Redis/Configlue.Resource.Redis.csproj" />
     <ProjectReference Include="../../src/Configlue.Testing/Configlue.Testing.csproj" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0'">
+    <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" Version="10.0.0" />
+    <ProjectReference Include="../../src/Configlue.Extensions.R3/Configlue.Extensions.R3.csproj" />
+    <ProjectReference Include="../../src/Configlue.JsonSchema/Configlue.JsonSchema.csproj" />
+    <ProjectReference Include="../../src/Configlue.Resource.Dapr/Configlue.Resource.Dapr.csproj" />
+    <ProjectReference Include="../../src/Configlue.Resource.Http.AspNetCore/Configlue.Resource.Http.AspNetCore.csproj" />
+    <ProjectReference Include="../../src/Configlue.Resource.PostgreSql/Configlue.Resource.PostgreSql.csproj" />
     <ProjectReference Include="../../src/Configlue.Transformer.AES/Configlue.Transformer.AES.csproj" />
   </ItemGroup>
 </Project>

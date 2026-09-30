@@ -30,7 +30,7 @@ public sealed class InMemoryStateStore<T> : ISourceReader<T>, ISourceWriter<T>, 
         cancellationToken.ThrowIfCancellationRequested();
         lock (_gate)
         {
-            return ValueTask.FromResult(
+            return new ValueTask<StateReadResult<T>>(
                 _status switch
                 {
                     StateReadStatus.Success => StateReadResult<T>.Success(_value, _revision),
@@ -67,7 +67,7 @@ public sealed class InMemoryStateStore<T> : ISourceReader<T>, ISourceWriter<T>, 
         }
 
         changed.TrySetResult();
-        return ValueTask.FromResult(new StateWriteResult(revision));
+        return new ValueTask<StateWriteResult>(new StateWriteResult(revision));
     }
 
     /// <summary>Changes this source to report temporary unavailability.</summary>

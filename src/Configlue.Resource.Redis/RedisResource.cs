@@ -14,10 +14,10 @@ namespace Configlue.Resource.Redis;
 /// multiplexers for physical placement; Redis remains a persistent state resource, not a cache policy.
 /// </remarks>
 public sealed class RedisResource
-    : IResourceReader,
-        IResourceWriter,
-        IResourceIdentity,
-        ISourceWatcher,
+    : IContextualResourceReader,
+        IContextualResourceWriter,
+        IContextualResourceIdentity,
+        IContextualSourceWatcher,
         IDisposable
 {
     private readonly Func<RouteKey, IConnectionMultiplexer>? _multiplexerResolver;
@@ -29,7 +29,7 @@ public sealed class RedisResource
     private readonly ConcurrentDictionary<
         IConnectionMultiplexer,
         Lazy<IRedisStateBackend>
-    > _backends = new(ReferenceEqualityComparer.Instance);
+    > _backends = new(MultiplexerReferenceComparer.Instance);
     private readonly ConcurrentDictionary<RouteKey, Lazy<IRedisStateBackend>> _testBackends = new();
     private int _disposed;
 
@@ -292,10 +292,21 @@ internal static class RedisIdentityHash
         {
             var bytes = Encoding.UTF8.GetBytes(value);
             BinaryPrimitives.WriteInt32BigEndian(length, bytes.Length);
-            hash.AppendData(length);
+            hash.AppendData(length.ToArray());
             hash.AppendData(bytes);
         }
 
         return Convert.ToHexString(hash.GetHashAndReset()).ToLowerInvariant();
     }
+}
+
+internal sealed class MultiplexerReferenceComparer : IEqualityComparer<IConnectionMultiplexer>
+{
+    public static MultiplexerReferenceComparer Instance { get; } = new();
+
+    public bool Equals(IConnectionMultiplexer? left, IConnectionMultiplexer? right) =>
+        ReferenceEquals(left, right);
+
+    public int GetHashCode(IConnectionMultiplexer value) =>
+        System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(value);
 }

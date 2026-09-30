@@ -11,10 +11,10 @@ namespace Configlue.Resource.Http;
 
 /// <summary>Reads and watches a byte resource exposed through the Configlue HTTP resource protocol.</summary>
 public sealed class HttpResourceReader
-    : IResourceReader,
-        IPipelineResourceReader,
-        ISourceWatcher,
-        IResourceIdentity
+    : IContextualResourceReader,
+        IContextualPipelineResourceReader,
+        IContextualSourceWatcher,
+        ITryContextualResourceIdentity
 {
     /// <summary>Response and request header carrying the source schema identifier.</summary>
     public const string SchemaIdHeaderName = "Configlue-Schema-Id";
@@ -221,7 +221,11 @@ public sealed class HttpResourceReader
             responseOwnershipTransferred = true;
             return pipelineResult;
         }
+#if NETSTANDARD2_0
+        catch (HttpRequestException)
+#else
         catch (HttpRequestException exception) when (exception.StatusCode is null)
+#endif
         {
             var unavailable = ResourceReadResult.Unavailable();
             SetLastSnapshot(Snapshot(unavailable));
@@ -691,7 +695,11 @@ public sealed class HttpResourceReader
             var result = ResourceReadResult.Success(content, revision, schema);
             return new HttpReadResponse(result, Snapshot(result), NotModified: false);
         }
+#if NETSTANDARD2_0
+        catch (HttpRequestException)
+#else
         catch (HttpRequestException exception) when (exception.StatusCode is null)
+#endif
         {
             var unavailable = ResourceReadResult.Unavailable();
             return new HttpReadResponse(unavailable, Snapshot(unavailable), NotModified: false);
@@ -704,7 +712,8 @@ public sealed class HttpResourceReader
     }
 
     private static bool IsTemporarilyUnavailable(HttpStatusCode statusCode) =>
-        statusCode is HttpStatusCode.RequestTimeout or HttpStatusCode.TooManyRequests
+        statusCode == HttpStatusCode.RequestTimeout
+        || (int)statusCode == 429
         || (int)statusCode is >= 500 and <= 599;
 
     private CancellationTokenSource CreateRequestCancellation(CancellationToken cancellationToken)
@@ -830,7 +839,7 @@ public sealed class HttpResourceReader
     }
 
     private static string GetContentFingerprint(ReadOnlySpan<byte> content) =>
-        Convert.ToHexString(SHA256.HashData(content));
+        Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(content));
 
     private static HttpContent CreateContent(ReadOnlyMemory<byte> content)
     {
@@ -892,7 +901,9 @@ public sealed class HttpResourceReader
         var identity = Encoding.UTF8.GetBytes(
             root.AbsoluteUri + "\n" + getUri.AbsoluteUri + "\n" + updateUri.AbsoluteUri
         );
-        return new ResourceId("http:" + Convert.ToHexString(SHA256.HashData(identity)));
+        return new ResourceId(
+            "http:" + Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(identity))
+        );
     }
 
     private HttpResourceSnapshot? GetLastSnapshot()
@@ -1057,11 +1068,13 @@ public sealed class HttpResourceReader
         protected override Task SerializeToStreamAsync(Stream stream, TransportContext? context) =>
             stream.WriteAsync(_content).AsTask();
 
+#if !NETSTANDARD2_0
         protected override Task SerializeToStreamAsync(
             Stream stream,
             TransportContext? context,
             CancellationToken cancellationToken
         ) => stream.WriteAsync(_content, cancellationToken).AsTask();
+#endif
 
         protected override bool TryComputeLength(out long length)
         {

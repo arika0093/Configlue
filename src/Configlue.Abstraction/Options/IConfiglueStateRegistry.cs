@@ -31,37 +31,24 @@ public interface IConfiglueStateRegistry<T> : IDisposable, IAsyncDisposable
     /// <summary>Removes a state and waits for its runtime, watchers, and notification to complete.</summary>
     bool TryRemove(string stateName);
 
-    /// <summary>
-    /// Removes a state and waits for its runtime, watchers, and notification to complete.
-    /// Implementations that do not provide asynchronous cleanup use the synchronous removal path.
-    /// </summary>
-    ValueTask<bool> TryRemoveAsync(string stateName) => ValueTask.FromResult(TryRemove(stateName));
-
     /// <summary>Removes every state and waits for its runtimes, watchers, and notifications to complete.</summary>
     void Clear();
-
-    /// <summary>
-    /// Removes every state and waits for its runtimes, watchers, and notifications to complete.
-    /// Implementations that do not provide asynchronous cleanup use the synchronous clear path.
-    /// </summary>
-    ValueTask ClearAsync()
-    {
-        Clear();
-        return ValueTask.CompletedTask;
-    }
-
-    /// <summary>Uses synchronous disposal when an implementation does not provide async cleanup.</summary>
-    ValueTask IAsyncDisposable.DisposeAsync()
-    {
-        Dispose();
-        return ValueTask.CompletedTask;
-    }
 
     /// <summary>Raised after a state is registered.</summary>
     event Action<string, IWritableState<T>>? StateAdded;
 
     /// <summary>Raised after a state is removed.</summary>
     event Action<string>? StateRemoved;
+}
+
+/// <summary>Provides asynchronous cleanup for a state registry when supported.</summary>
+public interface IAsyncConfiglueStateRegistry<T> : IConfiglueStateRegistry<T>
+{
+    /// <summary>Removes a state and waits for its runtime, watchers, and notification to complete.</summary>
+    ValueTask<bool> TryRemoveAsync(string stateName);
+
+    /// <summary>Removes every state and waits for its runtimes, watchers, and notifications to complete.</summary>
+    ValueTask ClearAsync();
 }
 
 /// <summary>Allows a registry to defer notifications while a state-manager operation is in progress.</summary>

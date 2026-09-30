@@ -247,6 +247,7 @@ public sealed class PipelineResourceReadResult : IAsyncDisposable
             return read;
         }
 
+#if !NETSTANDARD2_0
         public override int Read(Span<byte> buffer)
         {
             var read = _source.Read(buffer);
@@ -263,6 +264,7 @@ public sealed class PipelineResourceReadResult : IAsyncDisposable
             Observe(buffer.Span[..read], read);
             return read;
         }
+#endif
 
         public override async Task<int> ReadAsync(
             byte[] buffer,
@@ -283,7 +285,11 @@ public sealed class PipelineResourceReadResult : IAsyncDisposable
             if (read > 0)
             {
                 _revisionHasher?.Append(content);
+#if NETSTANDARD2_0
+                _fingerprintHasher?.AppendData(content.ToArray());
+#else
                 _fingerprintHasher?.AppendData(content);
+#endif
                 return;
             }
 
@@ -328,12 +334,21 @@ public sealed class PipelineResourceReadResult : IAsyncDisposable
             base.Dispose(disposing);
         }
 
+#if NETSTANDARD2_0
+        public ValueTask DisposeAsync()
+        {
+            _fingerprintHasher?.Dispose();
+            _source.Dispose();
+            return default;
+        }
+#else
         public override async ValueTask DisposeAsync()
         {
             _fingerprintHasher?.Dispose();
             await _source.DisposeAsync().ConfigureAwait(false);
             GC.SuppressFinalize(this);
         }
+#endif
     }
 }
 
@@ -359,13 +374,13 @@ public static class PipelineResourceReader
         cancellationToken.ThrowIfCancellationRequested();
         if (result.Status != StateReadStatus.Success)
         {
-            return ValueTask.FromResult(
+            return new ValueTask<PipelineResourceReadResult>(
                 new PipelineResourceReadResult(result.Status, null, result.Revision, result.Schema)
             );
         }
 
         var reader = PipeReader.Create(new ReadOnlySequence<byte>(result.Content));
-        return ValueTask.FromResult(
+        return new ValueTask<PipelineResourceReadResult>(
             PipelineResourceReadResult.Success(reader, result.Revision, result.Schema)
         );
     }
@@ -398,7 +413,7 @@ public static class PipelineResourceReader
         public ValueTask DisposeAsync()
         {
             disposable.Dispose();
-            return ValueTask.CompletedTask;
+            return default;
         }
     }
 }

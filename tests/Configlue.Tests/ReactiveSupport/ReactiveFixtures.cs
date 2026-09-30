@@ -1,6 +1,8 @@
 namespace Configlue.Tests.ReactiveSupport;
 
-internal sealed class FakeOptions<T>(T value) : IWritableState<T>, IConfiglueDiagnostics<T>
+internal sealed class FakeOptions<T>(T value)
+    : IWritableState<T>,
+        IConfiglueReloadFailureDiagnostics<T>
 {
     private event Action<T>? Changed;
     private event Action<Exception>? Failed;
@@ -69,10 +71,8 @@ internal sealed class FakeProfiles : IConfiglueProfiledState<int>
     private event Action<string>? ProfileChanged;
     public Dictionary<string, FakeOptions<int>> ProfileOptions { get; } =
         new(StringComparer.Ordinal) { ["default"] = new(1), ["other"] = new(2) };
-    public Dictionary<
-        string,
-        TaskCompletionSource<IWritableState<int>>
-    > PendingProfiles { get; } = new(StringComparer.Ordinal);
+    public Dictionary<string, TaskCompletionSource<IWritableState<int>>> PendingProfiles { get; } =
+        new(StringComparer.Ordinal);
     public Dictionary<string, CancellationToken> ProfileReadTokens { get; } =
         new(StringComparer.Ordinal);
     public string Name { get; set; } = "default";

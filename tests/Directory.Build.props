@@ -24,21 +24,30 @@
     <NoWarn>$(NoWarn);IL2026;IL2070;IL2104;IL3000;IL3050;IL3053</NoWarn>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="TUnit" Version="1.66.27" />
-    <PackageReference Include="Shouldly" Version="4.3.0" />
-    <PackageReference Include="Microsoft.Testing.Extensions.Retry" Version="2.4.1" />
+    <PackageReference
+      Include="TUnit"
+      Version="1.66.27"
+      Condition="'$(TargetFramework)' != 'netstandard2.0'"
+    />
+    <PackageReference
+      Include="Shouldly"
+      Version="4.3.0"
+      Condition="'$(TargetFramework)' != 'netstandard2.0'"
+    />
+    <PackageReference
+      Include="Microsoft.Testing.Extensions.Retry"
+      Version="2.4.1"
+      Condition="'$(TargetFramework)' != 'netstandard2.0'"
+    />
   </ItemGroup>
   <ItemGroup>
-    <Using Include="Shouldly" />
-    <Using Include="Configlue.Codecs" />
-    <Using Include="Configlue.Migrations" />
-    <Using Include="Configlue.Resources" />
-    <Using Include="Configlue.Sources" />
-    <Using Include="Configlue.Extensibility" />
-    <Using Include="Configlue.State" />
-    <Using Include="Configlue.Transformers" />
-  </ItemGroup>
-  <ItemGroup>
-    <Using Include="Configlue.CompilerServices" />
+    <Using Include="Shouldly" Condition="'$(TargetFramework)' != 'netstandard2.0'" />
+    <Using Include="Configlue.Codecs" Condition="'$(TargetFramework)' != 'netstandard2.0'" />
+    <Using Include="Configlue.Migrations" Condition="'$(TargetFramework)' != 'netstandard2.0'" />
+    <Using Include="Configlue.Resources" Condition="'$(TargetFramework)' != 'netstandard2.0'" />
+    <Using Include="Configlue.Sources" Condition="'$(TargetFramework)' != 'netstandard2.0'" />
+    <Using Include="Configlue.Extensibility" Condition="'$(TargetFramework)' != 'netstandard2.0'" />
+    <Using Include="Configlue.State" Condition="'$(TargetFramework)' != 'netstandard2.0'" />
+    <Using Include="Configlue.Transformers" Condition="'$(TargetFramework)' != 'netstandard2.0'" />
   </ItemGroup>
 </Project>

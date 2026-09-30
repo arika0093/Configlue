@@ -5,10 +5,10 @@ description: Find the NuGet package for each Configlue capability.
 
 | Package | Purpose |
 | --- | --- |
-| `Configlue` | Portable convenience package: common layered and single-binary presets plus Core, DI integration, JSON provider, HTTP resources, environment source, and the generator analyzer. JSON Schema is included only in its `net10.0` asset; AES is opt-in. |
+| `Configlue` | Portable convenience package: common layered and single-binary presets plus Core (including DI registration), DI HTTP-client adapters, JSON provider, HTTP resources, environment source, and the generator analyzer. JSON Schema is included only in its `net10.0` asset; AES is opt-in. |
 | `Configlue.Abstraction` | Provider, codec, resource, and generated-model contracts. |
-| `Configlue.Core` | Serializer-neutral state resolution runtime, provider-authoring helpers, ZIP resources, and common file-preset SPI. |
-| `Configlue.Extensions.DI` | Dependency-injection registration for Configlue state. |
+| `Configlue.Core` | Serializer-neutral state resolution runtime, dependency-injection registration, provider-authoring helpers, ZIP resources, and common file-preset SPI. |
+| `Configlue.Extensions.DI` | HTTP source adapters backed by named `IHttpClientFactory` clients. |
 | `Configlue.Extensions.MSOptions` | Optional adapters for Microsoft's options interfaces. |
 | `Configlue.Extensions.R3` | Optional R3 observables for composing values, profiles, and reload signals. |
 | `Configlue.Generator` | Generated sparse model support (Roslyn analyzer). |

@@ -261,7 +261,11 @@ public sealed class JsonStateCodec<T>
         ArgumentNullException.ThrowIfNull(content);
         if (_options.UnmappedMemberHandling == JsonUnmappedMemberHandling.Disallow)
         {
+#if NETSTANDARD2_0
+            using var strictStream = content.AsStream(leaveOpen: true);
+#else
             await using var strictStream = content.AsStream(leaveOpen: true);
+#endif
             using var document = await JsonDocument
                 .ParseAsync(strictStream, JsoncSyntaxTree.DocumentOptions, cancellationToken)
                 .ConfigureAwait(false);
@@ -290,7 +294,11 @@ public sealed class JsonStateCodec<T>
                 : StateReadResult<T>.Success(strictValue, schema: strictSchema);
         }
 
+#if NETSTANDARD2_0
+        using var source = content.AsStream(leaveOpen: true);
+#else
         await using var source = content.AsStream(leaveOpen: true);
+#endif
         using var capturingStream = new CapturingJsonStream(source);
         T? value = default;
         JsonException? deserializeException = null;
@@ -392,7 +400,11 @@ public sealed class JsonStateCodec<T>
             }
         }
 
+#if NETSTANDARD2_0
+        public async ValueTask<int> ReadAsync(
+#else
         public override async ValueTask<int> ReadAsync(
+#endif
             Memory<byte> buffer,
             CancellationToken cancellationToken = default
         )
@@ -412,7 +424,23 @@ public sealed class JsonStateCodec<T>
                 return copied;
             }
 
+#if NETSTANDARD2_0
+            var rented = ArrayPool<byte>.Shared.Rent(buffer.Length);
+            int read;
+            try
+            {
+                read = await _source
+                    .ReadAsync(rented, 0, buffer.Length, cancellationToken)
+                    .ConfigureAwait(false);
+                rented.AsMemory(0, read).CopyTo(buffer);
+            }
+            finally
+            {
+                ArrayPool<byte>.Shared.Return(rented, clearArray: true);
+            }
+#else
             var read = await _source.ReadAsync(buffer, cancellationToken).ConfigureAwait(false);
+#endif
             if (read > 0)
             {
                 Append(buffer.Span[..read]);
@@ -438,7 +466,12 @@ public sealed class JsonStateCodec<T>
             while (_prefixCount < _prefix.Length)
             {
                 var read = await _source
-                    .ReadAsync(_prefix.AsMemory(_prefixCount), cancellationToken)
+                    .ReadAsync(
+                        _prefix,
+                        _prefixCount,
+                        _prefix.Length - _prefixCount,
+                        cancellationToken
+                    )
                     .ConfigureAwait(false);
                 if (read == 0)
                 {

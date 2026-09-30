@@ -80,7 +80,7 @@ internal sealed class JsoncDocumentEditor
                 if (parent is null || parent.Kind != JsonValueKind.Object)
                 {
                     throw new JsonException(
-                        $"JSON section path '{string.Join(':', path)}' has no containing object."
+                        $"JSON section path '{string.Join(":", path)}' has no containing object."
                     );
                 }
 
@@ -115,7 +115,7 @@ internal sealed class JsoncDocumentEditor
 
         var codec = new JsonStateCodec<TFragment>(
             serializerOptions,
-            TFragment.JsonConverter,
+            ConfiglueJsonFragmentRegistry<TFragment>.Converter,
             layout
         );
         var buffer = new ArrayBufferWriter<byte>();
@@ -426,7 +426,7 @@ internal sealed class JsoncDocumentEditor
         var properties = current.Properties!;
         var retainedIndexes = retained
             .Select(property => properties.IndexOf(property))
-            .Order()
+            .OrderBy(static index => index)
             .ToArray();
         var commasToKeep = new HashSet<int>();
         for (var index = 1; index < retainedIndexes.Length; index++)
@@ -544,7 +544,9 @@ internal sealed class JsoncDocumentEditor
     private static void WriteUtf8(ArrayBufferWriter<byte> output, string value)
     {
         var destination = output.GetSpan(Encoding.UTF8.GetMaxByteCount(value.Length));
-        var written = Encoding.UTF8.GetBytes(value.AsSpan(), destination);
+        var bytes = Encoding.UTF8.GetBytes(value);
+        bytes.CopyTo(destination);
+        var written = bytes.Length;
         output.Advance(written);
     }
 

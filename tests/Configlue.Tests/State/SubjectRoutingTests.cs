@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
-using Configlue.Testing;
 using Configlue.Sources;
+using Configlue.Testing;
 
 namespace Configlue.Tests;
 
@@ -31,9 +31,15 @@ public sealed class SubjectRoutingTests
         });
 
         var options = context.GetSubjectState<AppSettings>();
-        var defaultValue = await options.ForSubject(new RoutingSubject("default", false)).GetValueAsync();
-        var tokyoValue = await options.ForSubject(new RoutingSubject("strict-jp", true)).GetValueAsync();
-        var europeValue = await options.ForSubject(new RoutingSubject("strict-eu", true)).GetValueAsync();
+        var defaultValue = await options
+            .ForSubject(new RoutingSubject("default", false))
+            .GetValueAsync();
+        var tokyoValue = await options
+            .ForSubject(new RoutingSubject("strict-jp", true))
+            .GetValueAsync();
+        var europeValue = await options
+            .ForSubject(new RoutingSubject("strict-eu", true))
+            .GetValueAsync();
 
         defaultValue.Label.ShouldBe("default");
         tokyoValue.Label.ShouldBe("tokyo");
@@ -149,10 +155,10 @@ public sealed class SubjectRoutingTests
     }
 
     private sealed class RoutedStateStore
-        : ISourceReader<AppSettings.Fragment>,
-            ISourceWriter<AppSettings.Fragment>,
-            ISourceWatcher,
-            IResourceIdentity
+        : IContextualSourceReader<AppSettings.Fragment>,
+            IContextualSourceWriter<AppSettings.Fragment>,
+            IContextualSourceWatcher,
+            IContextualResourceIdentity
     {
         private readonly ConcurrentDictionary<
             (SubjectKey Key, RouteKey Route),

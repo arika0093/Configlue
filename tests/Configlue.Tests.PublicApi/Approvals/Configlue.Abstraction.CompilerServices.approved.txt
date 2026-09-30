@@ -19,6 +19,12 @@ namespace Configlue.CompilerServices
         public System.Collections.Generic.IReadOnlyList<Configlue.ConfigSourceDetails> Sources { get; }
         public object? Value { get; }
     }
+    public static class ConfiglueFragmentRegistry<TFragment>
+        where TFragment :  class, Configlue.IConfiglueFragment<TFragment>
+    {
+        public static TFragment Empty { get; }
+        public static void Register(TFragment empty) { }
+    }
     public readonly struct ConfiglueMemberPath : System.IEquatable<Configlue.CompilerServices.ConfiglueMemberPath>
     {
         public int Length { get; }
@@ -36,6 +42,25 @@ namespace Configlue.CompilerServices
         public static Configlue.CompilerServices.ConfiglueMemberPath FromNames(Configlue.ConfiglueModelSchema schema, string propertyPath) { }
         public static Configlue.CompilerServices.ConfiglueMemberPath Root(Configlue.ConfiglueModelSchema schema) { }
     }
+    public sealed class ConfiglueModelOperations<TModel, TFragment>
+        where TModel : Configlue.CompilerServices.IConfiglueModel<TModel, TFragment>
+        where TFragment :  class, Configlue.IConfiglueFragment<TFragment>
+    {
+        public ConfiglueModelOperations(Configlue.ConfiglueModelSchema schema, TFragment emptyFragment, System.Func<TModel, TFragment> toFragment, System.Func<TModel, TModel, TFragment> diff, System.Func<TFragment, TModel> fromFragment) { }
+        public System.Func<TModel, TModel, TFragment> Diff { get; }
+        public TFragment EmptyFragment { get; }
+        public System.Func<TFragment, TModel> FromFragment { get; }
+        public Configlue.ConfiglueModelSchema Schema { get; }
+        public System.Func<TModel, TFragment> ToFragment { get; }
+        public static Configlue.CompilerServices.ConfiglueModelOperations<TModel, TFragment> Current { get; }
+        public static void Register(Configlue.CompilerServices.ConfiglueModelOperations<TModel, TFragment> operations) { }
+    }
+    public static class ConfiglueModelSchemaRegistry<TModel>
+        where TModel : Configlue.CompilerServices.IConfiglueModel
+    {
+        public static Configlue.ConfiglueModelSchema Schema { get; }
+        public static void Register(Configlue.ConfiglueModelSchema schema) { }
+    }
     public static class ConfiglueWriteRouting
     {
         public static Configlue.StateWritePlan Bind(Configlue.StateWritePlan plan, Configlue.ConfiglueModelSchema schema) { }
@@ -46,16 +71,8 @@ namespace Configlue.CompilerServices
     {
         System.Threading.Tasks.ValueTask<Configlue.CompilerServices.ConfiglueDetailsSnapshot> GetDetailsSnapshotAsync(System.Threading.CancellationToken cancellationToken = default);
     }
-    public interface IConfiglueModel
-    {
-        Configlue.ConfiglueModelSchema ConfiglueSchema { get; }
-    }
-    public interface IConfiglueModel<TSelf, TFragment> : Configlue.CompilerServices.IConfiglueModel, Configlue.IConfiglueDeepCloneable<TSelf>
-        where TSelf : Configlue.CompilerServices.IConfiglueModel<TSelf, TFragment>
-        where TFragment :  class, Configlue.IConfiglueFragment<TFragment>
-    {
-        TFragment Diff(TSelf before, TSelf after);
-        TSelf FromFragment(TFragment value);
-        TFragment ToFragment(TSelf value);
-    }
+    public interface IConfiglueModel { }
+    public interface IConfiglueModel<out TSelf, TFragment> : Configlue.CompilerServices.IConfiglueModel, Configlue.IConfiglueDeepCloneable<TSelf>
+        where out TSelf : Configlue.CompilerServices.IConfiglueModel<TSelf, TFragment>
+        where TFragment :  class, Configlue.IConfiglueFragment<TFragment> { }
 }

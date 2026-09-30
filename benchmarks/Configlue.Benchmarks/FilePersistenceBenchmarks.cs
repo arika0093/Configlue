@@ -41,18 +41,12 @@ public class FilePersistenceBenchmarks
     private string _directory = null!;
     private FileResource _resource = null!;
     private FileResource _resourceWithoutBackup = null!;
-    private ConfiglueRuntime<
-        PersistenceBenchmarkSettings,
-        PersistenceBenchmarkSettings.Fragment
-    > _configlue = null!;
-    private ConfiglueRuntime<
-        PersistenceBenchmarkSettings,
-        PersistenceBenchmarkSettings.Fragment
-    > _configlueWithoutBackup = null!;
-    private ConfiglueRuntime<
-        PersistenceBenchmarkSettings,
-        PersistenceBenchmarkSettings.Fragment
-    > _configlueInMemory = null!;
+    private ConfiglueContext _configlueContext = null!;
+    private ConfiglueContext _configlueWithoutBackupContext = null!;
+    private ConfiglueContext _configlueInMemoryContext = null!;
+    private IWritableState<PersistenceBenchmarkSettings> _configlue = null!;
+    private IWritableState<PersistenceBenchmarkSettings> _configlueWithoutBackup = null!;
+    private IWritableState<PersistenceBenchmarkSettings> _configlueInMemory = null!;
     private Configuration.Writable.IWritableOptions<WritablePersistenceBenchmarkSettings> _writable =
         null!;
     private int _counter;
@@ -65,25 +59,22 @@ public class FilePersistenceBenchmarks
 
         var configluePath = Path.Combine(_directory, "configlue.json");
         _resource = new FileResource(configluePath);
-        _configlue = CreateConfiglueRuntime(configluePath, _resource);
-        _ = await ((Configlue.IReadOnlyState<PersistenceBenchmarkSettings>)_configlue)
-            .GetValueAsync()
-            .ConfigureAwait(false);
+        _configlueContext = CreateConfiglueContext(configluePath, _resource);
+        _configlue = _configlueContext.GetState<PersistenceBenchmarkSettings>();
+        _ = await _configlue.GetValueAsync().ConfigureAwait(false);
 
         var configluePathWithoutBackup = Path.Combine(_directory, "configlue-no-backup.json");
         _resourceWithoutBackup = new FileResource(
             configluePathWithoutBackup,
             new FileResourceOptions { CreateBackup = false, BackupMaxCount = 0 }
         );
-        _configlueWithoutBackup = CreateConfiglueRuntime(
+        _configlueWithoutBackupContext = CreateConfiglueContext(
             configluePathWithoutBackup,
             _resourceWithoutBackup
         );
-        _ = await (
-            (Configlue.IReadOnlyState<PersistenceBenchmarkSettings>)_configlueWithoutBackup
-        )
-            .GetValueAsync()
-            .ConfigureAwait(false);
+        _configlueWithoutBackup =
+            _configlueWithoutBackupContext.GetState<PersistenceBenchmarkSettings>();
+        _ = await _configlueWithoutBackup.GetValueAsync().ConfigureAwait(false);
 
         var inMemoryStore = new InMemoryStateStore<PersistenceBenchmarkSettings.Fragment>(
             new PersistenceBenchmarkSettings.Fragment
@@ -93,7 +84,7 @@ public class FilePersistenceBenchmarks
                 Enabled = Optional<bool>.Present(true),
             }
         );
-        _configlueInMemory = new ConfiglueRuntime<
+        _configlueInMemoryContext = BenchmarkContextFactory.Create<
             PersistenceBenchmarkSettings,
             PersistenceBenchmarkSettings.Fragment
         >(
@@ -105,6 +96,7 @@ public class FilePersistenceBenchmarks
                 ),
             ])
         );
+        _configlueInMemory = _configlueInMemoryContext.GetState<PersistenceBenchmarkSettings>();
 
         var writablePath = Path.Combine(_directory, "writable.json");
         WritableOptions.Initialize(configuration =>
@@ -114,17 +106,15 @@ public class FilePersistenceBenchmarks
             );
         });
         _writable = WritableOptions.GetOptions<WritablePersistenceBenchmarkSettings>();
-        _ = await ((Configlue.IReadOnlyState<PersistenceBenchmarkSettings>)_configlue)
-            .GetValueAsync()
-            .ConfigureAwait(false);
+        _ = await _configlue.GetValueAsync().ConfigureAwait(false);
     }
 
     [GlobalCleanup]
     public async Task CleanupAsync()
     {
-        await _configlue.DisposeAsync().ConfigureAwait(false);
-        await _configlueWithoutBackup.DisposeAsync().ConfigureAwait(false);
-        await _configlueInMemory.DisposeAsync().ConfigureAwait(false);
+        await _configlueContext.DisposeAsync().ConfigureAwait(false);
+        await _configlueWithoutBackupContext.DisposeAsync().ConfigureAwait(false);
+        await _configlueInMemoryContext.DisposeAsync().ConfigureAwait(false);
         if (_writable is IAsyncDisposable asyncDisposable)
         {
             await asyncDisposable.DisposeAsync().ConfigureAwait(false);
@@ -140,7 +130,7 @@ public class FilePersistenceBenchmarks
 
     [Benchmark]
     public ValueTask<PersistenceBenchmarkSettings> ConfiglueGetValueAsync() =>
-        ((Configlue.IReadOnlyState<PersistenceBenchmarkSettings>)_configlue).GetValueAsync();
+        _configlue.GetValueAsync();
 
     [Benchmark]
     public WritablePersistenceBenchmarkSettings ConfigurationWritableCurrentValue() =>
@@ -176,10 +166,7 @@ public class FilePersistenceBenchmarks
         await _writable.SaveAsync(settings => settings.Counter = next).ConfigureAwait(false);
     }
 
-    private static ConfiglueRuntime<
-        PersistenceBenchmarkSettings,
-        PersistenceBenchmarkSettings.Fragment
-    > CreateConfiglueRuntime(string path, FileResource resource)
+    private static ConfiglueContext CreateConfiglueContext(string path, FileResource resource)
     {
         var source = SerializedStateSource.FromResource<PersistenceBenchmarkSettings.Fragment>(
             "benchmark",
@@ -189,7 +176,7 @@ public class FilePersistenceBenchmarks
             ),
             physicalOrigin: path
         );
-        return new ConfiglueRuntime<
+        return BenchmarkContextFactory.Create<
             PersistenceBenchmarkSettings,
             PersistenceBenchmarkSettings.Fragment
         >(new StateSourceSet<PersistenceBenchmarkSettings.Fragment>([source]));
@@ -199,7 +186,8 @@ public class FilePersistenceBenchmarks
 [MemoryDiagnoser]
 public class LayeredResolutionBenchmarks
 {
-    private ConfiglueRuntime<BenchmarkSettings, BenchmarkSettings.Fragment> _options = null!;
+    private ConfiglueContext _context = null!;
+    private IWritableState<BenchmarkSettings> _options = null!;
 
     [Params(1, 4, 16)]
     public int SourceCount { get; set; }
@@ -226,13 +214,14 @@ public class LayeredResolutionBenchmarks
                 );
             })
             .ToArray();
-        _options = new ConfiglueRuntime<BenchmarkSettings, BenchmarkSettings.Fragment>(
+        _context = BenchmarkContextFactory.Create<BenchmarkSettings, BenchmarkSettings.Fragment>(
             new StateSourceSet<BenchmarkSettings.Fragment>(sources)
         );
+        _options = _context.GetState<BenchmarkSettings>();
     }
 
     [GlobalCleanup]
-    public ValueTask CleanupAsync() => _options.DisposeAsync();
+    public ValueTask CleanupAsync() => _context.DisposeAsync();
 
     [Benchmark]
     public ValueTask<BenchmarkSettings> ResolveSourcesAsync() =>

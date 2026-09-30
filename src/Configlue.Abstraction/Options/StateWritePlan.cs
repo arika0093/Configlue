@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Linq.Expressions;
+using Configlue.CompilerServices;
 
 namespace Configlue;
 
@@ -24,7 +25,11 @@ public sealed class StateWritePlan
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(route.Key);
             ArgumentException.ThrowIfNullOrWhiteSpace(route.Value);
-            if (route.Key.Split('.', StringSplitOptions.None).Any(string.IsNullOrWhiteSpace))
+            if (
+                route
+                    .Key.Split(new[] { '.' }, StringSplitOptions.None)
+                    .Any(string.IsNullOrWhiteSpace)
+            )
             {
                 throw new ArgumentException(
                     $"Property path '{route.Key}' contains an empty member name.",
@@ -65,8 +70,10 @@ public sealed class StateWritePlan
             static route => route.Value,
             StringComparer.Ordinal
         );
-        foreach (var (path, sourceId) in overrides.PropertyRoutes)
+        foreach (var route in overrides.PropertyRoutes)
         {
+            var path = route.Key;
+            var sourceId = route.Value;
             routes[path] = sourceId;
         }
 

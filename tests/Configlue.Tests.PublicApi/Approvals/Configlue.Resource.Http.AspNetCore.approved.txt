@@ -12,6 +12,7 @@ namespace Configlue.Resource.Http.AspNetCore
         public BlazorAuthenticationConfiglueSubjectAccessor(Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider authenticationStateProvider, System.Func<System.Security.Claims.ClaimsPrincipal, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<TSubject>> resolveSubject) { }
         public void Dispose() { }
         public System.Threading.Tasks.ValueTask<TSubject> GetCurrentAsync(System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Configlue.IConfiglueSubject> GetCurrentSubjectAsync(System.Threading.CancellationToken cancellationToken = default) { }
         public System.IDisposable OnChange(System.Action listener) { }
     }
     public static class HttpContextConfiglueSubjectAccessorServiceCollectionExtensions
@@ -26,6 +27,7 @@ namespace Configlue.Resource.Http.AspNetCore
     {
         public HttpContextConfiglueSubjectAccessor(Microsoft.AspNetCore.Http.IHttpContextAccessor httpContextAccessor, System.Func<Microsoft.AspNetCore.Http.HttpContext, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<TSubject>> resolveSubject) { }
         public System.Threading.Tasks.ValueTask<TSubject> GetCurrentAsync(System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Configlue.IConfiglueSubject> GetCurrentSubjectAsync(System.Threading.CancellationToken cancellationToken = default) { }
     }
     public sealed class HttpResourceEndpointOptions
     {

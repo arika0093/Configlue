@@ -81,7 +81,9 @@ public sealed class EnvironmentStateReader<TFragment> : ISourceReader<TFragment>
         var revision = CreateRevision(values, keys, cancellationToken);
         if (values.Count == 0)
         {
-            return ValueTask.FromResult(StateReadResult<TFragment>.NotFound(revision));
+            return new ValueTask<StateReadResult<TFragment>>(
+                StateReadResult<TFragment>.NotFound(revision)
+            );
         }
 
         var assignments = new Dictionary<string, EnvironmentAssignment>(
@@ -109,7 +111,7 @@ public sealed class EnvironmentStateReader<TFragment> : ISourceReader<TFragment>
                     targetPath = ResolveCanonicalPath(_schema, segments, key);
                     if (targetPath is not null)
                     {
-                        target = string.Join('.', targetPath);
+                        target = string.Join(".", targetPath);
                     }
                 }
             }
@@ -169,7 +171,7 @@ public sealed class EnvironmentStateReader<TFragment> : ISourceReader<TFragment>
             matchedAny |= applied.Matched;
         }
 
-        return ValueTask.FromResult(
+        return new ValueTask<StateReadResult<TFragment>>(
             matchedAny
                 ? StateReadResult<TFragment>.Success(
                     (TFragment)fragment,
@@ -205,7 +207,7 @@ public sealed class EnvironmentStateReader<TFragment> : ISourceReader<TFragment>
                     mappings.Add(environmentName, matches);
                 }
 
-                matches.Add(new EnvironmentMapping(string.Join('.', path), path));
+                matches.Add(new EnvironmentMapping(string.Join(".", path), path));
             }
 
             if (member.NestedSchemaFactory is not null)
@@ -267,7 +269,7 @@ public sealed class EnvironmentStateReader<TFragment> : ISourceReader<TFragment>
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(prefix);
         var normalized = prefix.TrimEnd('_');
-        if (normalized.Length == 0 || normalized.Contains(':', StringComparison.Ordinal))
+        if (normalized.Length == 0 || normalized.IndexOf(':') >= 0)
         {
             throw new ArgumentException(
                 "The environment prefix must contain a name and cannot contain ':'.",
@@ -422,6 +424,11 @@ public sealed class EnvironmentStateReader<TFragment> : ISourceReader<TFragment>
     private static void AppendHashedString(IncrementalHash hash, string value)
     {
         Span<byte> prefix = stackalloc byte[12];
+#if NETSTANDARD2_0
+        var prefixLength = WriteLengthPrefix(prefix, value.Length);
+        hash.AppendData(prefix[..prefixLength].ToArray());
+        hash.AppendData(Encoding.UTF8.GetBytes(value));
+#else
         var prefixLength = WriteLengthPrefix(prefix, value.Length);
         hash.AppendData(prefix[..prefixLength]);
         var byteCount = Encoding.UTF8.GetByteCount(value);
@@ -440,6 +447,7 @@ public sealed class EnvironmentStateReader<TFragment> : ISourceReader<TFragment>
         {
             ArrayPool<byte>.Shared.Return(buffer);
         }
+#endif
     }
 
     private static int WriteLengthPrefix(Span<byte> buffer, int length)
@@ -515,6 +523,7 @@ public sealed class EnvironmentStateReader<TFragment> : ISourceReader<TFragment>
                 DateTimeStyles.RoundtripKind
             );
         }
+#if !NETSTANDARD2_0
         if (valueType == typeof(DateOnly))
         {
             return DateOnly.Parse(value, CultureInfo.InvariantCulture);
@@ -523,6 +532,7 @@ public sealed class EnvironmentStateReader<TFragment> : ISourceReader<TFragment>
         {
             return TimeOnly.Parse(value, CultureInfo.InvariantCulture);
         }
+#endif
         if (valueType == typeof(TimeSpan))
         {
             return TimeSpan.Parse(value, CultureInfo.InvariantCulture);

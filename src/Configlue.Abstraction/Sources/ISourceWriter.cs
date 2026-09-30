@@ -11,11 +11,15 @@ public interface ISourceWriter<T>
         StateWriteRequest<T> request,
         CancellationToken cancellationToken = default
     );
+}
 
+/// <summary>Writes state for a source-specific subject key.</summary>
+public interface IContextualSourceWriter<T> : ISourceWriter<T>
+{
     /// <summary>Writes state for a source-specific subject key.</summary>
     ValueTask<StateWriteResult> WriteAsync(
         ConfiglueResourceContext context,
         StateWriteRequest<T> request,
         CancellationToken cancellationToken = default
-    ) => WriteAsync(request, cancellationToken);
+    );
 }
