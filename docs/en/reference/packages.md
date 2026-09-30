@@ -5,7 +5,7 @@ description: Find the NuGet package for each Configlue capability.
 
 | Package | Purpose |
 | --- | --- |
-| `Configlue` | Portable convenience package: common layered and single-binary presets plus Core (including DI registration), DI HTTP-client adapters, JSON provider, HTTP resources, environment source, and the generator analyzer. JSON Schema is included only in its `net10.0` asset; AES is opt-in. |
+| `Configlue` | Portable convenience package: common layered and single-binary presets plus Core (including DI registration), DI HTTP-client adapters, JSON provider, HTTP resources, environment source, and the generator analyzer. AES is opt-in. |
 | `Configlue.Abstraction` | Provider, codec, resource, and generated-model contracts. |
 | `Configlue.Core` | Serializer-neutral state resolution runtime, dependency-injection registration, provider-authoring helpers, ZIP resources, and common file-preset SPI. |
 | `Configlue.Extensions.DI` | HTTP source adapters backed by named `IHttpClientFactory` clients. |
@@ -14,7 +14,7 @@ description: Find the NuGet package for each Configlue capability.
 | `Configlue.Generator` | Generated sparse model support (Roslyn analyzer). |
 | `Configlue.Testing` | In-memory resources and test doubles. |
 | `Configlue.Provider.Json` | JSON codec, section resources, file registrations, and common-preset JSON selection. |
-| `Configlue.JsonSchema` | JSON Schema generation and export for Configlue models; included by the `Configlue` meta-package. |
+| `Configlue.JsonSchema.MSBuild` | Build-time JSON Schema generation for Configlue models. Direct-only development dependency; not included by the `Configlue` meta-package. |
 | `Configlue.Provider.Xml` | XML codec with section resources, file registrations, and common-preset XML selection. |
 | `Configlue.Provider.Yaml` | YAML codec with section resources, file registrations, and common-preset YAML selection. |
 | `Configlue.Source.Environment` | Read-only source backed by process environment variables. |
@@ -35,14 +35,14 @@ description: Find the NuGet package for each Configlue capability.
 | --- | --- | --- |
 | `Configlue.Abstraction` | `netstandard2.0;netstandard2.1;net10.0` | `System.Memory` 4.6.3 and `Microsoft.Bcl.AsyncInterfaces` 10.0.5 on `netstandard2.0` only; the `netstandard2.1` asset uses the platform async-iterator surface without compatibility packages. |
 | `Configlue.Core` | `netstandard2.0;netstandard2.1;net10.0` | `Microsoft.Extensions.DependencyInjection.Abstractions` 10.0.0, `Microsoft.Extensions.Logging.Abstractions` 10.0.0, `System.IO.Hashing` 10.0.0, and `System.IO.Pipelines` 10.0.0; `System.ComponentModel.Annotations` 5.0.0 and `System.Threading.Channels` 10.0.5 on both Standard assets, with `Microsoft.Bcl.AsyncInterfaces` 10.0.5 and `System.Threading.Tasks.Extensions` 4.6.3 on `netstandard2.0` only. Core has no `System.Text.Json` package dependency. |
-| `Configlue` | `netstandard2.0;netstandard2.1;net10.0` | No direct NuGet dependencies; project references provide the portable Core/DI/JSON/HTTP/environment graph. JSON Schema is referenced only by `net10.0`; AES is not referenced. |
+| `Configlue` | `netstandard2.0;netstandard2.1;net10.0` | No direct NuGet dependencies; project references provide the portable Core/DI/JSON/HTTP/environment graph. AES is not referenced. |
 | `Configlue.Extensions.DI` | `netstandard2.0;netstandard2.1;net10.0` | `Microsoft.Extensions.DependencyInjection.Abstractions` 10.0.0 and `Microsoft.Extensions.Http` 10.0.0. |
 | `Configlue.Extensions.MSOptions` | `netstandard2.0;netstandard2.1;net10.0` | `Microsoft.Extensions.Options` 10.0.0. |
 | `Configlue.Extensions.R3` | `netstandard2.0;netstandard2.1;net10.0` | `R3` 1.3.1. |
 | `Configlue.Generator` | `netstandard2.0` | `Microsoft.CodeAnalysis.CSharp` 4.11.0 and `Microsoft.CodeAnalysis.Analyzers` 3.11.0 (private analyzer dependencies). |
 | `Configlue.Testing` | `netstandard2.0;netstandard2.1;net10.0` | No direct NuGet dependencies. |
 | `Configlue.Provider.Json` | `netstandard2.0;netstandard2.1;net10.0` | `System.IO.Pipelines` 10.0.0; `System.Text.Json` 10.0.0 on both Standard assets. |
-| `Configlue.JsonSchema` | `net10.0` | No direct NuGet dependencies; the implementation uses the .NET 10 JSON Schema exporter APIs. |
+| `Configlue.JsonSchema.MSBuild` | `build/` and `tasks/net10.0` (no `lib` assets) | Development-only build tooling. Ships the pinned `JsonSchema.Net` generation stack privately under `tasks/net10.0`; declares no propagated NuGet dependencies. |
 | `Configlue.Provider.Xml` | `netstandard2.0;netstandard2.1;net10.0` | No direct NuGet dependencies. |
 | `Configlue.Provider.Yaml` | `netstandard2.0;netstandard2.1;net10.0` | `SharpYaml` 3.13.1. |
 | `Configlue.Source.Environment` | `netstandard2.0;netstandard2.1;net10.0` | `System.Text.Json` 10.0.0 on both Standard assets. |

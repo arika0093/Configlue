@@ -5,43 +5,38 @@ description: 版つきスキーマの出力とインメモリダブルによる�
 
 ## JSON Schema 出力
 
-`JsonSchemaGenerator.Generate`・`Write` は独立パッケージ `Configlue.JsonSchema` (名前空間 `Configlue.JsonSchema`) にあり、モデルの生成済み `ConfiglueModelSchema` から版つきスキーマを出力します。`Configlue` メタパッケージにも含まれます。トリミング/NativeAOT 向けのメタデータとしてソース生成の `IJsonTypeInfoResolver` を渡します。対応する DataAnnotations はスキーマ制約に写像されます。
+JSON Schema 生成はビルド時パッケージ `Configlue.JsonSchema.MSBuild` が担います。アプリケーションと `Configlue` メタパッケージにはランタイムのスキーマ生成 API も `JsonSchema.Net` 依存もありません。パッケージはビルド後のアセンブリから `[ConfiglueModel]` 型をリフレクションで検出し、`Build` 後にスキーマを書き出します。
 
-```csharp
-var result = JsonSchemaGenerator.Generate(
-    [SampleSetting.ConfiglueSchema],
-    SampleSettingJsonContext.Default);
+```shell
+dotnet add package Configlue.JsonSchema.MSBuild
 ```
 
-`Generate` はメモリ上に文書を作り、`Write` は永続化します。生成やファイル出力の診断を確認してください。ファイルの置き場所は自由です — `main` ブランチのフォルダ、CDN、リリース資産など — エディターに指し示してください。
+パッケージを参照するだけで、アプリケーションコードなしに生成が有効になります。`ConfiglueGenerateSchemas` を `false` にすると無効化でき、ツールや CI 向けには `GenerateConfiglueSchemas` ターゲットを明示的に使えます:
+
+```shell
+dotnet msbuild -t:GenerateConfiglueSchemas
+```
 
 チュートリアル形式で進める場合は [JSON Schema を出力する](../getting-started/08-json-schema.md) を参照してください。
 
-旧来の `--cw-generate-json-schema <directory>` 起動経路を使うには、`ConfiglueBuilder` に登録を集め、アプリを構築する前に `TryWriteFromCommandLine` を呼びます。helper は通常の結果を返し、プロセスの終了方法はホスト側に委ねます:
+### 出力とレイアウト
 
-```csharp
-var config = new ConfiglueBuilder();
-config.Add<AppSettings>(_ => { /* source と state を登録 */ });
+既定の出力ルートは次の順で解決されます:
 
-if (JsonSchemaGenerator.TryWriteFromCommandLine(
-    args,
-    config.ModelSchemas,
-    AppJsonContext.Default,
-    out var schemaResult))
-{
-    var generation = schemaResult!;
-    foreach (var diagnostic in generation.Diagnostics)
-        Console.Error.WriteLine($"{diagnostic.Code}: {diagnostic.Message}");
+1. 明示された `ConfiglueSchemaOutputPath`
+2. 利用可能なら `$(SolutionDir)/schemas`
+3. `.sln` または `.slnx` を含む最も近い親ディレクトリの `schemas`
+4. `$(MSBuildProjectDirectory)/schemas`
 
-    return generation.Succeeded ? 0 : 1;
-}
+スキーマはマルチターゲットでもプロジェクトビルドごとに一度だけ書き出されます (`ConfiglueSchemaTargetFramework` が検査対象フレームワークを選び、既定は先頭)。内容が変わっていないファイルは再書き込みされません。
 
-using var context = config.CreateContext();
-```
+`https://example.com/schemas/` のような絶対 URI を `ConfiglueSchemaBaseUri` に渡すと、生成スキーマのルート `$id` は URI と版付きファイル名を結合した値になります (例: `https://example.com/schemas/AppSettings.v1.json`)。末尾の `/` は省略できます。query と fragment は指定できません。既定では生成スキーマはシンプルな保存文書を表し、`$version` と任意の設定項目がルートに並び、モデル ID は保存しません。`$configlue`/`$value` エンベロープが必要な場合は `ConfiglueSchemaDocumentLayout` に `Detailed` を、バージョンプロパティ名を変える場合は `ConfiglueSchemaVersionProperty` を設定します。base URI を指定すると、出力スキーマのルートに任意の `$schema` プロパティが加わります。
 
-option の後に出力ディレクトリが必要です。`--cw-generate-json-schema=schemas` 形式も使えます。DI では command-line 判定後に同じ builder を `services.AddConfiglueBuilder(config)` に渡してください。
+JSON または YAML ファイルソースが書き込むファイルに参照を含めるには、`SchemaReferenceBaseUri` を設定します。writer がモデル別の版つきファイル名を追加します。JSON はルート `$schema` メンバー、YAML は `yaml-language-server` ディレクティブコメントを保存します。Section source はルート文書の形が異なるため、この指定を拒否します。MSBuild パッケージはローカルディレクトリにスキーマを書き、公開作業は別途必要です。
 
-`https://example.com/schemas/` のような絶対 URI を `schemaBaseUri` に渡すと、生成スキーマのルート `$id` は URI と版付きファイル名を結合した値になります (例: `https://example.com/schemas/AppSettings.v1.json`)。末尾の `/` は省略できます。query と fragment は指定できません。無効な値は診断 `CWSC012` を返します。既定では生成スキーマはシンプルな保存文書を表し、`$version` と疎な設定項目がルートに並び、モデル ID は保存しません。`DocumentLayout.Detailed` を選ぶと `$configlue`/`$value` エンベロープを使います。null 以外を渡すと、出力スキーマのルートに任意の `$schema` プロパティが加わります。JSON または YAML ファイルソースが書き込むファイルに参照を含めるには、`SchemaReferenceBaseUri` を設定します。writer がモデル別の版つきファイル名を追加します。JSON はルート `$schema` メンバー、YAML は `yaml-language-server` ディレクティブコメントを保存します。Section source はルート文書の形が異なるため、この指定を拒否します。`Write` は引き続きローカルディレクトリにスキーマを書き、公開作業は別途必要です。
+### 依存バージョンポリシー
+
+スキーマツールは `JsonSchema.Net` 生成スタックを承認済みの pre-OSMF バージョンに固定します。参照バージョン、承認済みバージョンポリシー (`AllowedJsonSchemaNetVersion` など)、`packages.lock.json` はそれぞれ独立に検証されるため、承認済みの依存境界を越える更新はポリシーを意図的に変更しない限り通常のビルドで失敗します。
 
 ## テスト
 

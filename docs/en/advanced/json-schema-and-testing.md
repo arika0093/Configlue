@@ -5,43 +5,38 @@ description: Export versioned schemas and test with in-memory doubles.
 
 ## JSON Schema export
 
-`JsonSchemaGenerator.Generate` and `Write` live in the separate `Configlue.JsonSchema` package and `Configlue.JsonSchema` namespace; the `Configlue` meta-package includes it. They export versioned schemas from a model's generated `ConfiglueModelSchema`; pass a source-generated `IJsonTypeInfoResolver` for trimming and NativeAOT-friendly metadata. Supported DataAnnotations are mapped to schema constraints.
+JSON Schema generation lives in the build-time `Configlue.JsonSchema.MSBuild` package. The application and the `Configlue` meta-package have no runtime schema-generation API and no `JsonSchema.Net` dependency. The package discovers `[ConfiglueModel]` types in the built assembly by reflection and writes schemas after `Build`.
 
-```csharp
-var result = JsonSchemaGenerator.Generate(
-    [SampleSetting.ConfiglueSchema],
-    SampleSettingJsonContext.Default);
+```shell
+dotnet add package Configlue.JsonSchema.MSBuild
 ```
 
-`Generate` builds the documents in memory; `Write` persists them. Check the result diagnostics for generation and file-output issues. Host the files wherever fits — a `main`-branch folder, a CDN, or release assets — and point editors at them.
+Referencing the package enables generation without any application code. Set `ConfiglueGenerateSchemas` to `false` to opt out, and use the explicit `GenerateConfiglueSchemas` target for tooling or CI:
+
+```shell
+dotnet msbuild -t:GenerateConfiglueSchemas
+```
 
 For a guided walkthrough, see [Export JSON Schema](../getting-started/08-json-schema.md).
 
-To restore the legacy `--cw-generate-json-schema <directory>` startup path, collect registrations in a `ConfiglueBuilder` and call `TryWriteFromCommandLine` before building the application. The helper returns a result and leaves process exit behavior to the host:
+### Output and layout
 
-```csharp
-var config = new ConfiglueBuilder();
-config.Add<AppSettings>(_ => { /* register sources and state */ });
+The default output root is resolved in this order:
 
-if (JsonSchemaGenerator.TryWriteFromCommandLine(
-    args,
-    config.ModelSchemas,
-    AppJsonContext.Default,
-    out var schemaResult))
-{
-    var generation = schemaResult!;
-    foreach (var diagnostic in generation.Diagnostics)
-        Console.Error.WriteLine($"{diagnostic.Code}: {diagnostic.Message}");
+1. the explicit `ConfiglueSchemaOutputPath`,
+2. `$(SolutionDir)/schemas` when available,
+3. the nearest parent directory containing a `.sln` or `.slnx`, followed by `schemas`,
+4. `$(MSBuildProjectDirectory)/schemas`.
 
-    return generation.Succeeded ? 0 : 1;
-}
+Schemas are written once per project build even when the project multi-targets (`ConfiglueSchemaTargetFramework` selects the framework whose output is inspected, defaulting to the first), and unchanged files are not rewritten.
 
-using var context = config.CreateContext();
-```
+Pass an absolute `ConfiglueSchemaBaseUri` such as `https://example.com/schemas/` to set each generated schema's root `$id` to that URI plus its versioned file name (for example, `https://example.com/schemas/AppSettings.v1.json`). The final slash is added when needed; the URI cannot contain a query or fragment. By default, the generated schema describes the simple persisted document, with `$version` and optional model members at the root and no model ID. Set `ConfiglueSchemaDocumentLayout` to `Detailed` when you need the `$configlue`/`$value` envelope, and `ConfiglueSchemaVersionProperty` to change the version property name used by the simple layout. A base URI also adds an optional root `$schema` property to the exported schema.
 
-The output directory is required after the option; `--cw-generate-json-schema=schemas` is also accepted. For DI, pass the same collected builder to `services.AddConfiglueBuilder(config)` after the command-line check.
+To put a reference in files written by a JSON or YAML file source, set its `SchemaReferenceBaseUri`; the writer appends the versioned model-specific filename. JSON stores a root `$schema` member, while YAML stores a `yaml-language-server` directive comment. Section sources reject this option because their root document shape differs. The MSBuild package writes schema files to the local output directory; publishing those files is a separate step.
 
-Pass an absolute `schemaBaseUri` such as `https://example.com/schemas/` to set each generated schema's root `$id` to that URI plus its versioned file name (for example, `https://example.com/schemas/AppSettings.v1.json`). The final slash is added when needed. The URI cannot contain a query or fragment; invalid values return diagnostic `CWSC012`. By default, the generated schema describes the simple persisted document, with `$version` and sparse model members at the root and no model ID. Select `DocumentLayout.Detailed` when you need the `$configlue`/`$value` envelope. A non-null value adds an optional root `$schema` property to the exported schema. To put a reference in files written by a JSON or YAML file source, set its `SchemaReferenceBaseUri`; the writer appends the versioned model-specific filename. JSON stores a root `$schema` member, while YAML stores a `yaml-language-server` directive comment. Section sources reject this option because their root document shape differs. `Write` still writes generated schema files to the local output directory; publishing those files is a separate step.
+### Dependency policy
+
+The schema tool pins its `JsonSchema.Net` generation stack to explicitly approved pre-OSMF versions. The references, the approved-version policy (`AllowedJsonSchemaNetVersion` and related properties), and `packages.lock.json` are validated independently, so an update that crosses the approved dependency boundary fails the ordinary build unless the policy is changed deliberately.
 
 ## Testing
 

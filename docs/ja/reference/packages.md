@@ -5,7 +5,7 @@ description: 機能ごとの NuGet パッケージを探す。
 
 | パッケージ | 用途 |
 | --- | --- |
-| `Configlue` | portable な便利パッケージ: 共通レイヤー/単一バイナリプリセットに加え、DI 登録を含む Core・DI HTTP client adapter・JSON Provider・HTTP・環境変数・Generator をまとめます。JSON Schema は `net10.0` asset のみ、AES は opt-in です。 |
+| `Configlue` | portable な便利パッケージ: 共通レイヤー/単一バイナリプリセットに加え、DI 登録を含む Core・DI HTTP client adapter・JSON Provider・HTTP・環境変数・Generator をまとめます。AES は opt-in です。 |
 | `Configlue.Abstraction` | プロバイダー・コーデック・リソース・生成モデルの契約。 |
 | `Configlue.Core` | serializer-neutral な状態解決ランタイム、依存性注入登録、Provider 作成支援、ZIP resource、共通ファイル preset SPI。 |
 | `Configlue.Extensions.DI` | 名前付き `IHttpClientFactory` client を使う HTTP source アダプター。 |
@@ -14,7 +14,7 @@ description: 機能ごとの NuGet パッケージを探す。
 | `Configlue.Generator` | 疎モデル生成サポート (Roslyn アナライザー)。 |
 | `Configlue.Testing` | インメモリリソースとテストダブル。 |
 | `Configlue.Provider.Json` | JSON コーデック、セクションリソース、ファイル登録、共通 preset の JSON 選択。 |
-| `Configlue.JsonSchema` | Configlue モデルから JSON Schema を生成・出力。`Configlue` メタパッケージの `net10.0` asset に含まれます。 |
+| `Configlue.JsonSchema.MSBuild` | Configlue モデルからビルド時に JSON Schema を生成。直接参照専用の開発依存で、`Configlue` メタパッケージには含まれません。 |
 | `Configlue.Provider.Xml` | セクションリソースとファイル登録、共通 preset の XML 選択つき XML コーデック。 |
 | `Configlue.Provider.Yaml` | セクションリソースとファイル登録、共通 preset の YAML 選択つき YAML コーデック。 |
 | `Configlue.Source.Environment` | プロセス環境変数に支えられた読み取り専用ソース。 |
@@ -35,14 +35,14 @@ description: 機能ごとの NuGet パッケージを探す。
 | --- | --- | --- |
 | `Configlue.Abstraction` | `netstandard2.0;netstandard2.1;net10.0` | `netstandard2.0` のみ `System.Memory` 4.6.3 と `Microsoft.Bcl.AsyncInterfaces` 10.0.5。`netstandard2.1` asset は互換パッケージを使わずプラットフォームの async iterator を利用します。 |
 | `Configlue.Core` | `netstandard2.0;netstandard2.1;net10.0` | `Microsoft.Extensions.DependencyInjection.Abstractions` 10.0.0、`Microsoft.Extensions.Logging.Abstractions` 10.0.0、`System.IO.Hashing` 10.0.0、`System.IO.Pipelines` 10.0.0。`System.ComponentModel.Annotations` 5.0.0 と `System.Threading.Channels` 10.0.5 は両 Standard asset。`Microsoft.Bcl.AsyncInterfaces` 10.0.5 と `System.Threading.Tasks.Extensions` 4.6.3 は `netstandard2.0` のみ。Core は `System.Text.Json` に依存しません。 |
-| `Configlue` | `netstandard2.0;netstandard2.1;net10.0` | 直接 NuGet 依存なし。project reference で portable な Core/DI/JSON/HTTP/環境変数グラフを構成します。JSON Schema は `net10.0` のみ参照し、AES は参照しません。 |
+| `Configlue` | `netstandard2.0;netstandard2.1;net10.0` | 直接 NuGet 依存なし。project reference で portable な Core/DI/JSON/HTTP/環境変数グラフを構成します。AES は参照しません。 |
 | `Configlue.Extensions.DI` | `netstandard2.0;netstandard2.1;net10.0` | `Microsoft.Extensions.DependencyInjection.Abstractions` 10.0.0、`Microsoft.Extensions.Http` 10.0.0。 |
 | `Configlue.Extensions.MSOptions` | `netstandard2.0;netstandard2.1;net10.0` | `Microsoft.Extensions.Options` 10.0.0。 |
 | `Configlue.Extensions.R3` | `netstandard2.0;netstandard2.1;net10.0` | `R3` 1.3.1。 |
 | `Configlue.Generator` | `netstandard2.0` | `Microsoft.CodeAnalysis.CSharp` 4.11.0、`Microsoft.CodeAnalysis.Analyzers` 3.11.0 (analyzer 内部依存)。 |
 | `Configlue.Testing` | `netstandard2.0;netstandard2.1;net10.0` | 直接 NuGet 依存なし。 |
 | `Configlue.Provider.Json` | `netstandard2.0;netstandard2.1;net10.0` | `System.IO.Pipelines` 10.0.0。`System.Text.Json` 10.0.0 は両 Standard asset。 |
-| `Configlue.JsonSchema` | `net10.0` | 直接 NuGet 依存なし。.NET 10 の JSON Schema exporter API を使用します。 |
+| `Configlue.JsonSchema.MSBuild` | `build/` と `tasks/net10.0` (`lib` asset なし) | 開発専用のビルドツール。固定した `JsonSchema.Net` 生成スタックを `tasks/net10.0` に同梱し、伝播する NuGet 依存を宣言しません。 |
 | `Configlue.Provider.Xml` | `netstandard2.0;netstandard2.1;net10.0` | 直接 NuGet 依存なし。 |
 | `Configlue.Provider.Yaml` | `netstandard2.0;netstandard2.1;net10.0` | `SharpYaml` 3.13.1。 |
 | `Configlue.Source.Environment` | `netstandard2.0;netstandard2.1;net10.0` | `System.Text.Json` 10.0.0 は両 Standard asset。 |

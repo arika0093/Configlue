@@ -3,49 +3,34 @@ title: "Export JSON Schema"
 description: Generate schemas from models for editor autocompletion and CI validation.
 ---
 
-import { Steps } from '@astrojs/starlight/components';
+import { Steps } from '@astrojs/starlight';
 
-To catch configuration typos before runtime, Configlue exports JSON Schema from a model's generated `ConfiglueModelSchema`.
+To catch configuration typos before runtime, Configlue exports JSON Schema from the models in your built application.
 This enables rich autocompletion in editors such as VS Code and static validation in CI workflows.
 
-Schema export runs as a build-time or offline task and does not depend on dependency injection.
-The API is in the `Configlue.JsonSchema` package and namespace; the `Configlue` meta-package includes it.
+Schema generation is a build-time concern. The `Configlue.JsonSchema.MSBuild` package discovers `[ConfiglueModel]` types in the built assembly by reflection and writes versioned schema files during `Build`.
+It is a direct-only development dependency: referencing it does not add `JsonSchema.Net` or any schema-generation code to your application's runtime or package graph.
 
 <Steps>
 
-1. ### Declare a serializer context
+1. ### Reference the build package
 
-   Declare a `System.Text.Json` source generator context to ensure trimming-safe and NativeAOT-ready schema metadata:
-
-   ```csharp
-   using System.Text.Json.Serialization;
-   using Configlue.JsonSchema;
-
-   [JsonSerializable(typeof(AppSettings))]
-   [JsonSerializable(typeof(AppSettings.Fragment))]
-   internal partial class AppJsonContext : JsonSerializerContext
-   {
-   }
+   ```shell
+   dotnet add package Configlue.JsonSchema.MSBuild
    ```
 
-2. ### Write the schema
+   Your project must define at least one `[ConfiglueModel]` type; the analyzer from `Configlue.Generator` emits the model.
 
-   Call `JsonSchemaGenerator.Write` to output versioned schema documents into a target directory:
+2. ### Build the project
 
-   ```csharp
-   using Configlue.JsonSchema;
+   Building generates one schema per model. For a model declared as `[ConfiglueModel("tutorial.settings", Version = 1)]`, this writes `schemas/tutorial.settings.v1.json` under the solution root.
+   Supported DataAnnotations (`[Range]`, `[MinLength]`, `[EmailAddress]`, and so on) map to JSON Schema constraints.
 
-   var result = JsonSchemaGenerator.Write<AppSettings, AppSettings.Fragment>(
-       "schemas",
-       AppJsonContext.Default);
-
-   Console.WriteLine($"Wrote: {string.Join(", ", result.WrittenFiles)}");
+   ```shell
+   dotnet build
    ```
 
-   For a model declared with `Version = 1`, this writes `schemas/tutorial.settings.v1.json`.
-   DataAnnotations rules (such as `[Range]` and `[Required]`) map directly to JSON Schema constraints.
-
-   `Write` is a convenience wrapper over `Generate`. For absolute `$id` URIs, `$configlue`/`$value` layouts, the legacy `--cw-generate-json-schema` startup path, and test doubles, see [JSON Schema and testing](../advanced/json-schema-and-testing.md).
+   The generated schema describes the persisted document shape: `$version` is pinned with `const`, every model member is optional, and unknown members are rejected.
 
 3. ### Reference the schema in settings
 
@@ -65,6 +50,28 @@ The API is in the `Configlue.JsonSchema` package and namespace; the `Configlue` 
 
 </Steps>
 
+## Configuration
+
+Set these MSBuild properties to customize generation:
+
+| Property | Default | Purpose |
+| --- | --- | --- |
+| `ConfiglueGenerateSchemas` | `true` | Set to `false` to opt out of automatic generation. |
+| `ConfiglueSchemaOutputPath` | solution-root `schemas` | Explicit output directory; relative paths resolve against the project directory. |
+| `ConfiglueSchemaBaseUri` | empty | Absolute URI used for generated `$id` values and to add a root `$schema` property. |
+| `ConfiglueSchemaDocumentLayout` | `Simple` | `Simple` stores `$version` inline; `Detailed` uses the `$configlue`/`$value` envelope. |
+| `ConfiglueSchemaVersionProperty` | `$version` | Version property name used by the `Simple` layout. |
+| `ConfiglueSchemaTargetFramework` | first target framework | Target framework whose build output is inspected. |
+
+The default output root is the explicit `ConfiglueSchemaOutputPath` when set, then `$(SolutionDir)/schemas`, then the nearest ancestor directory containing a `.sln` or `.slnx` followed by `schemas`, and finally `$(MSBuildProjectDirectory)/schemas`.
+Schemas are written once per project build even when the project multi-targets, and unchanged schema files are not rewritten.
+
+To regenerate schemas explicitly for tooling or CI, run the `GenerateConfiglueSchemas` target after a build:
+
+```shell
+dotnet msbuild -t:GenerateConfiglueSchemas
+```
+
 ## Next steps
 
-See [JSON Schema and testing](../advanced/json-schema-and-testing.md) for document layouts, schema references, diagnostics, and test helpers.
+See [JSON Schema and testing](../advanced/json-schema-and-testing.md) for document layouts, schema references, and testing helpers.

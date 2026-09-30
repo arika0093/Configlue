@@ -3,66 +3,38 @@ title: "JSON Schema を出力する"
 description: 生成モデルからスキーマを出力し、エディター補完や CI 検査に活用します。
 ---
 
-import { Steps } from '@astrojs/starlight/components';
+import { Steps } from '@astrojs/starlight';
 
-設定ファイルの記述ミスを実行前に検知するために、Configlue は生成モデル（`ConfiglueModelSchema`）から JSON Schema を出力する機能を備えています。
+設定ファイルの記述ミスを実行前に検知するために、Configlue はビルド済みアプリケーション内のモデルから JSON Schema を出力します。
 VS Code などのエディター補完や CI パイプラインでの静的検査に活用できます。
 
-スキーマ生成はビルド時や事前生成ツールで実行する機能であり、DI の有無には依存しません。
-API は `Configlue.JsonSchema` パッケージ・名前空間にあり、`Configlue` メタパッケージにも含まれます。
+スキーマ生成はビルド時の関心事です。`Configlue.JsonSchema.MSBuild` パッケージがビルド後のアセンブリから `[ConfiglueModel]` 型をリフレクションで検出し、`Build` 時に版つきスキーマファイルを書き出します。
+これは直接参照専用の開発依存であり、参照しても `JsonSchema.Net` やスキーマ生成コードがアプリケーションのランタイムやパッケージグラフに追加されることはありません。
 
 <Steps>
 
-1. ### シリアライザーコンテキストを宣言する
+1. ### ビルドパッケージを参照する
 
-   AOT やトリミング環境にも対応するため、`System.Text.Json` のソース生成コンテキストを定義します。
-
-   ```csharp
-   using System.Text.Json.Serialization;
-   using Configlue.JsonSchema;
-
-   [JsonSerializable(typeof(AppSettings))]
-   [JsonSerializable(typeof(AppSettings.Fragment))]
-   internal partial class AppJsonContext : JsonSerializerContext
-   {
-   }
+   ```shell
+   dotnet add package Configlue.JsonSchema.MSBuild
    ```
 
-2. ### スキーマを書き出す
+   プロジェクトに 1 つ以上の `[ConfiglueModel]` 型が必要です。モデルは `Configlue.Generator` のアナライザーが生成します。
 
-   `JsonSchemaGenerator.Write` メソッドを呼び出すと、指定したフォルダーにバージョン付きスキーマファイルが出力されます。
+2. ### プロジェクトをビルドする
 
-   ```csharp
-   using Configlue.JsonSchema;
+   ビルドするとモデルごとに 1 つのスキーマが生成されます。`[ConfiglueModel("tutorial.settings", Version = 1)]` と指定している場合、ソリューションルート配下の `schemas/tutorial.settings.v1.json` が生成されます。
+   対応する DataAnnotations (`[Range]`、`[MinLength]`、`[EmailAddress]` など) は JSON Schema の制約に写像されます。
 
-   var result = JsonSchemaGenerator.Write<AppSettings, AppSettings.Fragment>(
-       "schemas",
-       AppJsonContext.Default);
-
-   Console.WriteLine($"出力完了: {string.Join(", ", result.WrittenFiles)}");
+   ```shell
+   dotnet build
    ```
 
-   モデルに `[ConfiglueModel("tutorial.settings", Version = 1)]` と指定している場合、`schemas/tutorial.settings.v1.json` が生成されます。
-   モデルに付与した DataAnnotations の制約（`Range` や `Required` など）もスキーマ定義に反映されます。
-
-   `Write` は `Generate` の簡易ラッパーです。絶対 `$id` URI、`$configlue`/`$value` レイアウト、旧来の `--cw-generate-json-schema` 起動経路、テストダブルについては [JSON Schema とテスト](../advanced/json-schema-and-testing.md) を参照してください。
+   生成スキーマは保存文書の形を表します。`$version` は `const` で固定され、モデルの各項目は任意、未知の項目は拒否されます。
 
 3. ### 設定ファイルにスキーマ参照を埋め込む
 
    CommonSource や JSON ファイルソースの登録時に `SchemaReferenceBaseUri` を指定すると、保存時に `$schema` プロパティが自動付与されます。
-
-   ```csharp
-   conf.UseCommonSources(sources =>
-   {
-       sources
-           .WithUserGlobal("TutorialApp")
-           .Json(AppJsonContext.Default)
-           .SchemaReferenceBaseUri("./schemas/tutorial.settings.v1.json");
-       sources.Add<AppSettings>();
-   });
-   ```
-
-   保存された `settings.json` の例:
 
    ```json
    {
@@ -76,10 +48,30 @@ API は `Configlue.JsonSchema` パッケージ・名前空間にあり、`Config
    }
    ```
 
-   エディターでこの JSON を開くと、スキーマに基づいた入力補完やエラー検出が有効になります。
-
 </Steps>
+
+## 構成
+
+生成をカスタマイズするには次の MSBuild プロパティを設定します:
+
+| プロパティ | 既定値 | 用途 |
+| --- | --- | --- |
+| `ConfiglueGenerateSchemas` | `true` | `false` で自動生成を無効化します。 |
+| `ConfiglueSchemaOutputPath` | ソリューションルートの `schemas` | 出力ディレクトリの明示指定。相対パスはプロジェクトディレクトリから解決されます。 |
+| `ConfiglueSchemaBaseUri` | 空 | 生成される `$id` に使う絶対 URI。ルート `$schema` プロパティの付与も有効にします。 |
+| `ConfiglueSchemaDocumentLayout` | `Simple` | `Simple` は `$version` をインラインに、`Detailed` は `$configlue`/`$value` エンベロープを使います。 |
+| `ConfiglueSchemaVersionProperty` | `$version` | `Simple` レイアウトで使うバージョンプロパティ名。 |
+| `ConfiglueSchemaTargetFramework` | 先頭のターゲットフレームワーク | 検査対象となるビルド出力のターゲットフレームワーク。 |
+
+既定の出力ルートは、明示された `ConfiglueSchemaOutputPath`、次に `$(SolutionDir)/schemas`、次に `.sln` または `.slnx` を含む最も近い親ディレクトリの `schemas`、最後に `$(MSBuildProjectDirectory)/schemas` の順に解決されます。
+スキーマはマルチターゲットでもプロジェクトビルドごとに一度だけ書き出され、内容が変わっていないスキーマファイルは再書き込みされません。
+
+ツールや CI 向けに明示的に再生成するには、ビルド後に `GenerateConfiglueSchemas` ターゲットを実行します:
+
+```shell
+dotnet msbuild -t:GenerateConfiglueSchemas
+```
 
 ## 次に読む
 
-ドキュメントレイアウト、schema reference、診断、テスト用ヘルパーは [JSON Schema とテスト](../advanced/json-schema-and-testing.md) を参照してください。
+ドキュメントレイアウト、schema reference、テスト用ヘルパーは [JSON Schema とテスト](../advanced/json-schema-and-testing.md) を参照してください。

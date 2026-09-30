@@ -8,7 +8,6 @@ using Configlue.Extensions.AspNetCore;
 using Configlue.Extensions.Blazor;
 using Configlue.Extensions.MSOptions;
 using Configlue.Generator;
-using Configlue.JsonSchema;
 using Configlue.Provider.Json;
 using Configlue.Provider.Xml;
 using Configlue.Provider.Yaml;
@@ -213,9 +212,6 @@ public sealed class PublicApiCheckTest
             "Configlue.Provider.Json.Presets",
             static type => type == typeof(CommonJsonFileSourceExtensions)
         );
-
-    [Test]
-    public void JsonSchema() => PublicApiCheck.Check<JsonSchemaGenerationResult>();
 
     [Test]
     public void Xml() =>

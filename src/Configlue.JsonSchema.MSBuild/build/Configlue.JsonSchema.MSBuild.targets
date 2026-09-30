@@ -1,0 +1,47 @@
+<Project>
+  <PropertyGroup>
+    <_ConfiglueJsonSchemaTasksAssembly>$(MSBuildThisFileDirectory)../tasks/net10.0/Configlue.JsonSchema.MSBuild.dll</_ConfiglueJsonSchemaTasksAssembly>
+
+    <!-- One schema-generation execution per project build: pick an explicit or the first target framework. -->
+    <_ConfiglueSchemaTargetFramework Condition="'$(ConfiglueSchemaTargetFramework)' != ''"
+      >$(ConfiglueSchemaTargetFramework)</_ConfiglueSchemaTargetFramework>
+    <_ConfiglueSchemaTargetFramework
+      Condition="'$(_ConfiglueSchemaTargetFramework)' == '' and '$(TargetFrameworks)' != ''"
+      >$(TargetFrameworks.Split(';')[0])</_ConfiglueSchemaTargetFramework>
+    <_ConfiglueSchemaTargetFramework Condition="'$(_ConfiglueSchemaTargetFramework)' == ''"
+      >$(TargetFramework)</_ConfiglueSchemaTargetFramework>
+    <_ConfiglueSchemaShouldRun
+      Condition="'$(ConfiglueGenerateSchemas)' == 'true' and '$(TargetFramework)' == '$(_ConfiglueSchemaTargetFramework)'"
+      >true</_ConfiglueSchemaShouldRun>
+  </PropertyGroup>
+
+  <UsingTask
+    TaskName="Configlue.JsonSchema.MSBuild.GenerateConfiglueSchemas"
+    AssemblyFile="$(_ConfiglueJsonSchemaTasksAssembly)"
+  />
+
+  <!--
+    Generates Configlue JSON Schemas from the built assembly. Runs automatically after Build
+    once per project (not once per inner TFM) and can be invoked explicitly for CI/tooling.
+  -->
+  <Target
+    Name="GenerateConfiglueSchemas"
+    AfterTargets="Build"
+    Condition="'$(_ConfiglueSchemaShouldRun)' == 'true'"
+  >
+    <GenerateConfiglueSchemas
+      AssemblyPath="$(TargetPath)"
+      ProjectDirectory="$(MSBuildProjectDirectory)"
+      SolutionDirectory="$(SolutionDir)"
+      OutputPath="$(ConfiglueSchemaOutputPath)"
+      DocumentLayout="$(ConfiglueSchemaDocumentLayout)"
+      VersionProperty="$(ConfiglueSchemaVersionProperty)"
+      SchemaBaseUri="$(ConfiglueSchemaBaseUri)"
+      TargetFramework="$(TargetFramework)"
+    >
+      <Output TaskParameter="WrittenFiles" ItemName="ConfiglueSchemaWrittenFile" />
+      <Output TaskParameter="UpToDateFiles" ItemName="ConfiglueSchemaUpToDateFile" />
+      <Output TaskParameter="ResolvedOutputPath" PropertyName="ConfiglueSchemaResolvedOutputPath" />
+    </GenerateConfiglueSchemas>
+  </Target>
+</Project>

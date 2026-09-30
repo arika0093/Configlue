@@ -7,7 +7,10 @@
     <MSBuildTreatAllWarningsAsErrors>true</MSBuildTreatAllWarningsAsErrors>
     <RestoreTreatWarningsAsErrors>true</RestoreTreatWarningsAsErrors>
     <AnalysisLevel>latest</AnalysisLevel>
-    <GenerateDocumentationFile Condition="'$(MSBuildProjectName)' != 'Configlue.Generator'"
+    <ConfiglueTooling
+      Condition="'$(MSBuildProjectName)' == 'Configlue.Generator' or '$(MSBuildProjectName)' == 'Configlue.JsonSchema.MSBuild'"
+      >true</ConfiglueTooling>
+    <GenerateDocumentationFile Condition="'$(ConfiglueTooling)' != 'true'"
       >true</GenerateDocumentationFile>
     <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
     <RepositoryUrl>https://github.com/arika0093/Configlue</RepositoryUrl>
@@ -15,8 +18,10 @@
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PolyArgumentExceptions>true</PolyArgumentExceptions>
     <PolyUseEmbeddedAttribute>true</PolyUseEmbeddedAttribute>
-    <ConfiglueNetStandard20 Condition="'$(TargetFramework)' == 'netstandard2.0'">true</ConfiglueNetStandard20>
-    <ConfiglueNetStandard Condition="'$(ConfiglueNetStandard20)' == 'true' or '$(TargetFramework)' == 'netstandard2.1'"
+    <ConfiglueNetStandard20 Condition="'$(TargetFramework)' == 'netstandard2.0'"
+      >true</ConfiglueNetStandard20>
+    <ConfiglueNetStandard
+      Condition="'$(ConfiglueNetStandard20)' == 'true' or '$(TargetFramework)' == 'netstandard2.1'"
       >true</ConfiglueNetStandard>
   </PropertyGroup>
   <ItemGroup>
@@ -31,7 +36,7 @@
     </PackageReference>
     <None Include="$(MSBuildThisFileDirectory)../README.md" Pack="true" PackagePath="/" />
   </ItemGroup>
-  <ItemGroup Condition="'$(MSBuildProjectName)' != 'Configlue.Generator'">
+  <ItemGroup Condition="'$(ConfiglueTooling)' != 'true'">
     <Using Include="Configlue.Codecs" />
     <Using Include="Configlue.Migrations" />
     <Using Include="Configlue.Resources" />
@@ -40,11 +45,11 @@
     <Using Include="Configlue.State" />
     <Using Include="Configlue.Transformers" />
   </ItemGroup>
-  <ItemGroup Condition="'$(ConfiglueNetStandard20)' == 'true' and '$(MSBuildProjectName)' != 'Configlue.Generator'">
+  <ItemGroup Condition="'$(ConfiglueNetStandard20)' == 'true' and '$(ConfiglueTooling)' != 'true'">
     <PackageReference Include="Microsoft.Bcl.AsyncInterfaces" Version="10.0.5" />
     <PackageReference Include="System.Threading.Tasks.Extensions" Version="4.6.3" />
   </ItemGroup>
-  <ItemGroup Condition="'$(ConfiglueNetStandard)' == 'true' and '$(MSBuildProjectName)' != 'Configlue.Generator'">
+  <ItemGroup Condition="'$(ConfiglueNetStandard)' == 'true' and '$(ConfiglueTooling)' != 'true'">
     <PackageReference Include="Polyfill" Version="11.4.1" PrivateAssets="all" />
     <PackageReference Include="System.Threading.Channels" Version="10.0.5" />
   </ItemGroup>

@@ -27,7 +27,7 @@
       Version="1.0.3"
       PrivateAssets="all"
     />
-    <Compile Remove="Formats/JsonSchemaGeneratorTests.cs" />
+    <Compile Remove="Formats/ConfiglueSchemaMsBuildTests.cs" />
     <Compile Remove="Resources/HttpResourceEndpointTests.cs" />
     <Compile Remove="Resources/PostgreSqlResourceTests.cs" />
     <Compile Remove="State/StatePipelineTests.cs" />
@@ -76,7 +76,8 @@
     <ProjectReference Include="../../src/Configlue.Extensions.R3/Configlue.Extensions.R3.csproj" />
     <ProjectReference Include="../../src/Configlue.Extensions.AspNetCore/Configlue.Extensions.AspNetCore.csproj" />
     <ProjectReference Include="../../src/Configlue.Extensions.Blazor/Configlue.Extensions.Blazor.csproj" />
-    <ProjectReference Include="../../src/Configlue.JsonSchema/Configlue.JsonSchema.csproj" />
+    <ProjectReference Include="../../src/Configlue.JsonSchema.MSBuild/Configlue.JsonSchema.MSBuild.csproj" />
+    <ProjectReference Include="../Configlue.JsonSchema.MSBuild.Fixtures/Configlue.JsonSchema.MSBuild.Fixtures.csproj" />
     <ProjectReference Include="../../src/Configlue.Resource.Http.AspNetCore/Configlue.Resource.Http.AspNetCore.csproj" />
     <ProjectReference Include="../../src/Configlue.Resource.PostgreSql/Configlue.Resource.PostgreSql.csproj" />
     <ProjectReference Include="../../src/Configlue.Resource.WebStorage/Configlue.Resource.WebStorage.csproj" />

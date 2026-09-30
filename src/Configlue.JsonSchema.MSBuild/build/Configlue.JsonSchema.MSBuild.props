@@ -1,0 +1,28 @@
+<Project>
+  <PropertyGroup>
+    <!-- Generated schemas are produced by default when the package is referenced. Set to false to opt out. -->
+    <ConfiglueGenerateSchemas Condition="'$(ConfiglueGenerateSchemas)' == ''"
+      >true</ConfiglueGenerateSchemas>
+
+    <!-- Explicit output path for generated schemas. Empty means resolve the solution-root schemas directory. -->
+    <ConfiglueSchemaOutputPath
+      Condition="'$(ConfiglueSchemaOutputPath)' == ''"
+    ></ConfiglueSchemaOutputPath>
+
+    <!-- Absolute base URI (for example https://example.com/schemas/) applied to generated schema $id values. -->
+    <ConfiglueSchemaBaseUri Condition="'$(ConfiglueSchemaBaseUri)' == ''"></ConfiglueSchemaBaseUri>
+
+    <!-- Persisted document layout described by the generated schema: Simple or Detailed. -->
+    <ConfiglueSchemaDocumentLayout Condition="'$(ConfiglueSchemaDocumentLayout)' == ''"
+      >Simple</ConfiglueSchemaDocumentLayout>
+
+    <!-- Property that carries the schema version in the Simple layout. -->
+    <ConfiglueSchemaVersionProperty Condition="'$(ConfiglueSchemaVersionProperty)' == ''"
+      >$version</ConfiglueSchemaVersionProperty>
+
+    <!-- Optional target framework whose build output is inspected for [ConfiglueModel] types. -->
+    <ConfiglueSchemaTargetFramework
+      Condition="'$(ConfiglueSchemaTargetFramework)' == ''"
+    ></ConfiglueSchemaTargetFramework>
+  </PropertyGroup>
+</Project>

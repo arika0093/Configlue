@@ -16,7 +16,7 @@ For YAML, generate a `YamlSerializerContext` covering the model, fragment, and s
 dotnet publish example/Example.ConsoleApp.NativeAot --configuration Release --runtime linux-x64 --self-contained true
 ```
 
-Prefer the `JsonTypeInfo`-based codec constructors (also used by the [legacy decoders](../migration/adopting-configuration-writable.md)) over the reflection-based overloads in trimmed applications. `JsonSchemaGenerator.Generate` likewise takes a source-generated `IJsonTypeInfoResolver` — see [JSON Schema and testing](./json-schema-and-testing.md).
+Prefer the `JsonTypeInfo`-based codec constructors (also used by the [legacy decoders](../migration/adopting-configuration-writable.md)) over the reflection-based overloads in trimmed applications. JSON Schema generation is a build-time concern and does not affect trimming — see [JSON Schema and testing](./json-schema-and-testing.md).
 
 `XmlStateCodec` uses `XmlSerializer` reflection and runtime code generation. Its codec methods are annotated with trimming and dynamic-code requirements, so calls from trimmed or NativeAOT applications produce analyzer warnings; there is currently no generated XML codec path.
 

@@ -16,7 +16,7 @@ YAML にはモデル・フラグメント・スカラー型を網羅する `Yaml
 dotnet publish example/Example.ConsoleApp.NativeAot --configuration Release --runtime linux-x64 --self-contained true
 ```
 
-トリムするアプリではリフレクションベースのオーバーロードより `JsonTypeInfo` ベースのコンストラクター ([旧来デコーダー](../migration/adopting-configuration-writable.md) も同様) を使ってください。`JsonSchemaGenerator.Generate` もソース生成の `IJsonTypeInfoResolver` を取ります — [JSON Schema とテスト](./json-schema-and-testing.md) 参照。
+トリムするアプリではリフレクションベースのオーバーロードより `JsonTypeInfo` ベースのコンストラクター ([旧来デコーダー](../migration/adopting-configuration-writable.md) も同様) を使ってください。JSON Schema 生成はビルド時の関心事であり、トリミングには影響しません — [JSON Schema とテスト](./json-schema-and-testing.md) 参照。
 
 `XmlStateCodec` は `XmlSerializer` のリフレクションと実行時コード生成を使います。コーデックメソッドにはトリミングと動的コードの要件を注釈し、トリム対象や NativeAOT アプリケーションから呼ぶとアナライザー警告が出るようにしています。現在、XML の生成コード経路はありません。
 

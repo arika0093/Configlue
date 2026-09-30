@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsTestProject>false</IsTestProject>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Remove="TUnit;Shouldly;Microsoft.Testing.Extensions.Retry" />
+    <Using Remove="Shouldly;Configlue.Codecs;Configlue.Migrations;Configlue.Resources;Configlue.Sources;Configlue.Extensibility;Configlue.State;Configlue.Transformers" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/Configlue.Core/Configlue.Core.csproj" />
+    <ProjectReference Include="../../src/Configlue.Abstraction/Configlue.Abstraction.csproj" />
+    <ProjectReference
+      Include="../../src/Configlue.Generator/Configlue.Generator.csproj"
+      OutputItemType="Analyzer"
+      ReferenceOutputAssembly="false"
+    />
+  </ItemGroup>
+</Project>

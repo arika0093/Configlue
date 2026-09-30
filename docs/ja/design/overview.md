@@ -41,7 +41,7 @@ Resource は「バイトがどこにあるか」だけを表します。値の�
 
 Codec は Resource の I/O なしに、バイトと型付き値を相互変換します。「どう置くか」ではなく「どう読むか」の担当です。
 
-* **JSON**: `JsonStateCodec`。セクション Resource・ファイル登録と組み合わせます。ソース生成の `JsonSerializerContext` を渡すとトリミング安全・NativeAOT 対応になります。JSON Schema 出力は独立パッケージ `Configlue.JsonSchema` が担います。
+* **JSON**: `JsonStateCodec`。セクション Resource・ファイル登録と組み合わせます。ソース生成の `JsonSerializerContext` を渡すとトリミング安全・NativeAOT 対応になります。JSON Schema 出力はビルド時パッケージ `Configlue.JsonSchema.MSBuild` が担います。
 * **XML**: XML 用 Codec。セクション Resource とファイル登録があります。
 * **YAML**: YAML 用 Codec。セクション Resource とファイル登録があります。キャメルケース名の例は `example/Example.ConsoleApp.Yaml` を見てください。
 * **ドキュメントレイアウト**: JSON・YAML コーデックはシンプルレイアウト (`{ "$version": 1, ... }`、書き込み既定) と詳細 `$configlue`/`$value` エンベロープの両方を読みます。書き込みレイアウトはコーデックやファイルオプションの `DocumentLayoutOptions` で選びます。旧来 `Configuration.Writable` のファイルはシンプルドキュメントとして読みます。詳しくは[取り込みガイド](../migration/adopting-configuration-writable.md)を見てください。
@@ -91,7 +91,7 @@ Fragment と Patch は、解決・移行・投影・書き込み計画が動く�
 
 **resource** はファイル・ZIP エントリ・HTTP 応答のような物理的な端点を表します。**codec** は Resource I/O を行わずにバイトと型付き値を相互変換します。**source** は論理的な設定スナップショットを寄与し、読み・書き・監視の機能を独立に公開できます。生成された **fragment** は各モデル項目が「無い」か「ある（`null` や既定値を含む）」かを保持します。解決・移行・投影・書き込み計画は fragment の上で動き、アプリコードは普通のモデル値を編集します。
 
-プロジェクトは `src/` 直下にあります。`Configlue` は DI 登録を含む Core・DI HTTP client adapter・JSON プロバイダー・JSON Schema 出力・HTTP リソース・共通レイヤーソース・環境変数ソース・ソースジェネレーターアナライザーを束ねるアセンブリなしメタパッケージです。`Configlue.Abstraction` が契約、`Configlue.Core` が解決・DI 登録・永続化ランタイム (汎用ファイルリソース含む) を持ちます。`Configlue.Extensibility` はシリアル化・変換リソース・マウント登録を行うプロバイダー SDK です。`Configlue.Extensions.DI` は名前付き `IHttpClientFactory` source adapter を追加し、任意の `Configlue.Extensions.MSOptions` は Microsoft options アダプターを提供します。`Configlue.Generator` が疎フラグメントとパッチを生成します。`Configlue.Provider.Json`・`.Xml`・`.Yaml` に形式コーデック・セクションリソース・ファイル登録があり、`Configlue.JsonSchema` がモデルから JSON Schema を生成します。`Configlue.Source.Environment`・`.CommandLine`・`.Presets` がソースと定番の重ね合わせプリセットを提供します（任意の `.Presets.Yaml`・`.Presets.Xml` アダプターつき）。`Configlue.Resource.Http`・`.S3`・`.Zip`・`.Http.AspNetCore` が転送と保存を担い、`Configlue.Testing` はインメモリダブルです。
+プロジェクトは `src/` 直下にあります。`Configlue` は DI 登録を含む Core・DI HTTP client adapter・JSON プロバイダー・HTTP リソース・共通レイヤーソース・環境変数ソース・ソースジェネレーターアナライザーを束ねるアセンブリなしメタパッケージです。`Configlue.Abstraction` が契約、`Configlue.Core` が解決・DI 登録・永続化ランタイム (汎用ファイルリソース含む) を持ちます。`Configlue.Extensibility` はシリアル化・変換リソース・マウント登録を行うプロバイダー SDK です。`Configlue.Extensions.DI` は名前付き `IHttpClientFactory` source adapter を追加し、任意の `Configlue.Extensions.MSOptions` は Microsoft options アダプターを提供します。`Configlue.Generator` が疎フラグメントとパッチを生成します。`Configlue.Provider.Json`・`.Xml`・`.Yaml` に形式コーデック・セクションリソース・ファイル登録があり、`Configlue.JsonSchema.MSBuild` がビルド時にモデルから JSON Schema を生成します。`Configlue.Source.Environment`・`.CommandLine`・`.Presets` がソースと定番の重ね合わせプリセットを提供します（任意の `.Presets.Yaml`・`.Presets.Xml` アダプターつき）。`Configlue.Resource.Http`・`.S3`・`.Zip`・`.Http.AspNetCore` が転送と保存を担い、`Configlue.Testing` はインメモリダブルです。
 
 基盤は揃っています。バックエンド非依存の読み書き監視契約、優先度つき解決、スキーマ移行とストレージ移行、投影、provenance details、トポロジ診断、任意の構造化ログ、セクションと ZIP のリソース、バックアップ世代と復元、生成された疎フラグメント、形式コーデック、JSON Schema 出力です。現在の API は完成品というより建築上の基盤です。
 
