@@ -1,5 +1,0 @@
-<Project>
-  <ItemGroup>
-    <Compile Remove="**/artifacts/**/*.cs" />
-  </ItemGroup>
-</Project>
