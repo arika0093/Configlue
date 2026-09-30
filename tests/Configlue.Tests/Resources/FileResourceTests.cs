@@ -443,10 +443,7 @@ public sealed partial class FileResourceTests
         );
         Directory.CreateDirectory(previousBackupDirectory);
         var previousBackupPath = Path.Combine(previousBackupDirectory, "settings.json.bak");
-        await File.WriteAllBytesAsync(
-            previousBackupPath,
-            Encoding.UTF8.GetBytes("recoverable")
-        );
+        await File.WriteAllBytesAsync(previousBackupPath, Encoding.UTF8.GetBytes("recoverable"));
         using var resource = new FileResource(
             resourcePath,
             new StateSchemaMetadata("settings-model", 3),
