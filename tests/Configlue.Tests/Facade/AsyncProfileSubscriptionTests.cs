@@ -207,7 +207,7 @@ public sealed class AsyncProfileSubscriptionTests
         public TaskCompletionSource Bound { get; } = Signal();
         public Action<Action<AppSettings>>? DuringSubscribe { get; set; }
         public Func<CancellationToken, ValueTask<AppSettings>> Read { get; set; } =
-            _ => ValueTask.FromResult(new AppSettings { RetryCount = 9 });
+            _ => ValueTaskCompat.FromResult(new AppSettings { RetryCount = 9 });
         public int ListenerCount
         {
             get

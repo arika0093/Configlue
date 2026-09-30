@@ -352,7 +352,7 @@ public sealed class FormatSectionResourceTests
             OtherSection:
               Value: keep-root
             # Keep the trailing comment.
-            """.Replace("\r\n", "\n", StringComparison.Ordinal).Replace(
+            """.Replace("\r\n", "\n").Replace(
             "\n",
             "\r\n",
             StringComparison.Ordinal
@@ -387,7 +387,7 @@ public sealed class FormatSectionResourceTests
         var updatedBytes = (await resource.ReadAsync()).Content.ToArray();
         updatedBytes.AsSpan(0, preamble.Length).SequenceEqual(preamble).ShouldBeTrue();
         var updatedText = Encoding.UTF8.GetString(updatedBytes.AsSpan(preamble.Length));
-        updatedText.Replace("\r\n", "", StringComparison.Ordinal).ShouldNotContain("\n");
+        updatedText.Replace("\r\n", "").ShouldNotContain("\n");
         var updatedRoot = LoadYaml(Encoding.UTF8.GetBytes(updatedText));
         var app = GetMapping(updatedRoot, "App");
         var settings = GetMapping(app, "Settings");

@@ -125,7 +125,7 @@ public sealed class PipelineStateCodecContractTests
         {
             cancellationToken.ThrowIfCancellationRequested();
             MemoryReadCount++;
-            return ValueTask.FromResult(ResourceReadResult.Success(_content));
+            return ValueTaskCompat.FromResult(ResourceReadResult.Success(_content));
         }
 
         public ValueTask<PipelineResourceReadResult> ReadPipelineAsync(
@@ -136,7 +136,7 @@ public sealed class PipelineStateCodecContractTests
             PipelineReadCount++;
             var stream = new MemoryStream(_content, writable: false);
             var pipe = PipeReader.Create(stream);
-            return ValueTask.FromResult(PipelineResourceReadResult.Success(pipe));
+            return ValueTaskCompat.FromResult(PipelineResourceReadResult.Success(pipe));
         }
     }
 

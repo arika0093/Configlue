@@ -23,7 +23,7 @@ public sealed class ConfiglueStandardPathsTests
 
         var path = ConfiglueStandardPaths.GetStandardSaveDirectory(applicationId);
 
-        (Path.IsPathFullyQualified(path)).ShouldBeTrue();
+        Path.GetFullPath(path).ShouldBe(path);
         (path).ShouldBe(Path.GetFullPath(Path.Combine(expectedBase, applicationId)));
     }
 

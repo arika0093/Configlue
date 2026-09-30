@@ -139,7 +139,7 @@ public sealed class ContextualResourceContractTests
         )
         {
             cancellationToken.ThrowIfCancellationRequested();
-            return ValueTask.FromResult(
+            return ValueTaskCompat.FromResult(
                 _states.TryGetValue(context.Key, out var state)
                     ? state
                     : ResourceReadResult.NotFound()
@@ -210,7 +210,7 @@ public sealed class ContextualResourceContractTests
                 result = new StateWriteResult(revision);
             }
 
-            return ValueTask.FromResult(result);
+            return ValueTaskCompat.FromResult(result);
         }
 
         private static string Revision(ReadOnlySpan<byte> content) =>

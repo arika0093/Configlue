@@ -313,7 +313,7 @@ public sealed partial class NestedSourceBindingTests
             RemoteDatabaseContract.Fragment value,
             CancellationToken cancellationToken = default
         ) =>
-            ValueTask.FromResult(
+            ValueTaskCompat.FromResult(
                 new RemoteDatabaseContract.Fragment
                 {
                     Endpoint = value.Endpoint,
@@ -327,7 +327,7 @@ public sealed partial class NestedSourceBindingTests
     {
         public ValueTask<StateReadResult<T>> ReadAsync(
             CancellationToken cancellationToken = default
-        ) => ValueTask.FromResult(result);
+        ) => ValueTaskCompat.FromResult(result);
     }
 
     private static NestedSettings.Fragment MergeNestedSettings(

@@ -660,15 +660,34 @@ public sealed class HttpResourceReader
         }
 
         using var requestCancellation = CreateRequestCancellation(cancellationToken);
+        HttpResponseMessage response;
         try
         {
-            using var response = await _httpClient
+            response = await _httpClient
                 .SendAsync(
                     request,
                     HttpCompletionOption.ResponseHeadersRead,
                     requestCancellation.Token
                 )
                 .ConfigureAwait(false);
+        }
+#if NETSTANDARD2_0
+        catch (HttpRequestException)
+#else
+        catch (HttpRequestException exception) when (exception.StatusCode is null)
+#endif
+        {
+            var unavailable = ResourceReadResult.Unavailable();
+            return new HttpReadResponse(unavailable, Snapshot(unavailable), NotModified: false);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            var unavailable = ResourceReadResult.Unavailable();
+            return new HttpReadResponse(unavailable, Snapshot(unavailable), NotModified: false);
+        }
+
+        using (response)
+        {
             if (conditional && response.StatusCode == HttpStatusCode.NotModified)
             {
                 return HttpReadResponse.Unchanged;
@@ -695,21 +714,6 @@ public sealed class HttpResourceReader
             var result = ResourceReadResult.Success(content, revision, schema);
             return new HttpReadResponse(result, Snapshot(result), NotModified: false);
         }
-#if NETSTANDARD2_0
-        catch (HttpRequestException)
-#else
-        catch (HttpRequestException exception) when (exception.StatusCode is null)
-#endif
-        {
-            var unavailable = ResourceReadResult.Unavailable();
-            return new HttpReadResponse(unavailable, Snapshot(unavailable), NotModified: false);
-        }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-        {
-            var unavailable = ResourceReadResult.Unavailable();
-            return new HttpReadResponse(unavailable, Snapshot(unavailable), NotModified: false);
-        }
-    }
 
     private static bool IsTemporarilyUnavailable(HttpStatusCode statusCode) =>
         statusCode == HttpStatusCode.RequestTimeout

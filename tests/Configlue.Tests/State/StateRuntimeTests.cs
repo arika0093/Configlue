@@ -493,7 +493,7 @@ public sealed partial class StateRuntimeTests
         )
         {
             cancellationToken.ThrowIfCancellationRequested();
-            return ValueTask.FromResult(result);
+            return ValueTaskCompat.FromResult(result);
         }
     }
 
@@ -532,7 +532,7 @@ public sealed partial class StateRuntimeTests
             cancellationToken.ThrowIfCancellationRequested();
             lock (_gate)
             {
-                return ValueTask.FromResult(_result);
+                return ValueTaskCompat.FromResult(_result);
             }
         }
 
@@ -643,7 +643,7 @@ public sealed partial class StateRuntimeTests
             cancellationToken.ThrowIfCancellationRequested();
             var builder = value.ToBuilder();
             builder.Label = Optional<string?>.Present("migrated");
-            return ValueTask.FromResult(builder.Build());
+            return ValueTaskCompat.FromResult(builder.Build());
         }
     }
 
@@ -661,7 +661,7 @@ public sealed partial class StateRuntimeTests
             cancellationToken.ThrowIfCancellationRequested();
             var builder = value.ToBuilder();
             builder.Port = Optional<int>.Present(7400);
-            return ValueTask.FromResult(builder.Build());
+            return ValueTaskCompat.FromResult(builder.Build());
         }
     }
 

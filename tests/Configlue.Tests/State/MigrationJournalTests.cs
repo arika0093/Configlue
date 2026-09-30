@@ -125,7 +125,7 @@ public sealed class MigrationJournalTests
         public ValueTask<StateStorageMigrationProgress?> ReadAsync(
             string migrationId,
             CancellationToken cancellationToken = default
-        ) => ValueTask.FromResult<StateStorageMigrationProgress?>(null);
+        ) => ValueTaskCompat.FromResult<StateStorageMigrationProgress?>(null);
 
         public ValueTask WriteAsync(
             StateStorageMigrationProgress progress,
@@ -139,7 +139,7 @@ public sealed class MigrationJournalTests
         {
             cancellationToken.ThrowIfCancellationRequested();
             Acquired = true;
-            return ValueTask.FromResult<IDisposable>(new Lease(this));
+            return ValueTaskCompat.FromResult<IDisposable>(new Lease(this));
         }
 
         private sealed class Lease(TrackingMigrationJournal owner) : IDisposable

@@ -26,7 +26,7 @@ public sealed class ResourceBackupRecoveryContractTests
             {
                 validationCalled = true;
                 Encoding.UTF8.GetString(candidate.Content.Span).ShouldBe("backup");
-                return ValueTask.FromResult(false);
+                return ValueTaskCompat.FromResult(false);
             }
         );
 
@@ -56,7 +56,7 @@ public sealed class ResourceBackupRecoveryContractTests
             (candidate, _) =>
             {
                 validatedBackup = candidate;
-                return ValueTask.FromResult(true);
+                return ValueTaskCompat.FromResult(true);
             }
         );
 

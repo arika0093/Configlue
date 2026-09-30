@@ -280,7 +280,7 @@ public sealed class ZipEntryResourceTests
         {
             cancellationToken.ThrowIfCancellationRequested();
             ReadCount++;
-            return ValueTask.FromResult(
+            return ValueTaskCompat.FromResult(
                 ResourceReadResult.Success(ReadOnlyMemory<byte>.Empty, Revision)
             );
         }

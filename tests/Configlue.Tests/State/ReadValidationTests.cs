@@ -346,7 +346,7 @@ public sealed class ReadValidationTests
     {
         public ValueTask<StateReadResult<AppSettings.Fragment>> ReadAsync(
             CancellationToken cancellationToken = default
-        ) => ValueTask.FromResult(result);
+        ) => ValueTaskCompat.FromResult(result);
     }
 
     private sealed class InvalidLabelValidator : IConfiglueValidator<AppSettings>

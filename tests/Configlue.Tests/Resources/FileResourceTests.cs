@@ -458,7 +458,7 @@ public sealed partial class FileResourceTests
             expectedRevision: null,
             expectedMissing: true,
             static (candidate, _) =>
-                ValueTask.FromResult(
+                ValueTaskCompat.FromResult(
                     Encoding.UTF8.GetString(candidate.Content.Span) == "recoverable"
                 )
         );
@@ -611,7 +611,7 @@ public sealed partial class FileResourceTests
             await resource.TryRecoverLatestBackupAsync(
                 "stale-revision",
                 expectedMissing: false,
-                static (_, _) => ValueTask.FromResult(true),
+                static (_, _) => ValueTaskCompat.FromResult(true),
                 CancellationToken.None
             )
         );

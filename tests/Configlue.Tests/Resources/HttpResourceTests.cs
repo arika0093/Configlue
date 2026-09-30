@@ -183,7 +183,7 @@ public sealed class HttpResourceTests
         var timedOut = await ReadWithStatus(HttpStatusCode.RequestTimeout);
         timedOut.Status.ShouldBe(StateReadStatus.Unavailable);
 
-        var throttled = await ReadWithStatus(HttpStatusCode.TooManyRequests);
+        var throttled = await ReadWithStatus((HttpStatusCode)429);
         throttled.Status.ShouldBe(StateReadStatus.Unavailable);
 
         var unavailable = await ReadWithStatus(HttpStatusCode.ServiceUnavailable);
@@ -193,19 +193,25 @@ public sealed class HttpResourceTests
         {
             await ReadWithStatus(HttpStatusCode.Unauthorized);
         });
+#if !NETFRAMEWORK
         unauthorized.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+#endif
 
         var forbidden = await Should.ThrowAsync<HttpRequestException>(async () =>
         {
             await ReadWithStatus(HttpStatusCode.Forbidden);
         });
+#if !NETFRAMEWORK
         forbidden.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+#endif
 
         var invalidRequest = await Should.ThrowAsync<HttpRequestException>(async () =>
         {
             await ReadWithStatus(HttpStatusCode.BadRequest);
         });
+#if !NETFRAMEWORK
         invalidRequest.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+#endif
     }
 
     [Test]

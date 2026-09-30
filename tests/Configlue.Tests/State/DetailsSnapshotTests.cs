@@ -435,7 +435,7 @@ public sealed class DetailsSnapshotTests
         )
         {
             cancellationToken.ThrowIfCancellationRequested();
-            return ValueTask.FromResult(result);
+            return ValueTaskCompat.FromResult(result);
         }
     }
 
@@ -451,7 +451,7 @@ public sealed class DetailsSnapshotTests
         {
             cancellationToken.ThrowIfCancellationRequested();
             Interlocked.Increment(ref _readCount);
-            return ValueTask.FromResult(result);
+            return ValueTaskCompat.FromResult(result);
         }
     }
 }

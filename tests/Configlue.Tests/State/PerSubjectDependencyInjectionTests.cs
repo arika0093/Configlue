@@ -286,7 +286,7 @@ public sealed class PerSubjectDependencyInjectionTests
         services.AddSingleton<AuthenticationStateProvider>(authenticationStateProvider);
         services.AddBlazorAuthenticationConfiglueSubjectAccessor<SettingsSubject>(
             (principal, _) =>
-                ValueTask.FromResult(
+                ValueTaskCompat.FromResult(
                     new SettingsSubject("tenant", principal.FindFirst("user")!.Value)
                 )
         );
@@ -392,7 +392,7 @@ public sealed class PerSubjectDependencyInjectionTests
             cancellationToken.ThrowIfCancellationRequested();
             lock (_gate)
             {
-                return ValueTask.FromResult(
+                return ValueTaskCompat.FromResult(
                     _subject
                         ?? throw new InvalidOperationException(
                             "A test subject has not been selected."

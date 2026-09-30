@@ -148,7 +148,7 @@ public sealed class RedisResourceTests
                 _ =>
                 {
                     firstRead.TrySetResult();
-                    return ValueTask.FromResult(ResourceReadResult.Success(new byte[] { 1 }, "1"));
+                    return ValueTaskCompat.FromResult(ResourceReadResult.Success(new byte[] { 1 }, "1"));
                 },
                 CancellationToken.None
             )
@@ -159,7 +159,7 @@ public sealed class RedisResourceTests
                 _ =>
                 {
                     secondRead.TrySetResult();
-                    return ValueTask.FromResult(ResourceReadResult.Success(new byte[] { 2 }, "1"));
+                    return ValueTaskCompat.FromResult(ResourceReadResult.Success(new byte[] { 2 }, "1"));
                 },
                 CancellationToken.None
             )
@@ -256,7 +256,7 @@ public sealed class RedisResourceTests
             cancellationToken.ThrowIfCancellationRequested();
             lock (_gate)
             {
-                return ValueTask.FromResult(
+                return ValueTaskCompat.FromResult(
                     _states.TryGetValue((address.Database, address.Key), out var state)
                         ? ResourceReadResult.Success(
                             state.Content,
@@ -297,7 +297,7 @@ public sealed class RedisResourceTests
                 notification.TrySetResult();
             }
 
-            return ValueTask.FromResult(
+            return ValueTaskCompat.FromResult(
                 new StateWriteResult(revision.ToString(CultureInfo.InvariantCulture))
             );
         }
