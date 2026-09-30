@@ -78,9 +78,7 @@
     <ProjectReference Include="../../src/extensions/Configlue.Extensions.Blazor/Configlue.Extensions.Blazor.csproj" />
     <ProjectReference Include="../../src/tools/Configlue.JsonSchema.MSBuild/Configlue.JsonSchema.MSBuild.csproj" />
     <ProjectReference Include="../Configlue.JsonSchema.MSBuild.Fixtures/Configlue.JsonSchema.MSBuild.Fixtures.csproj" />
-    <ProjectReference Include="../../src/resources/Configlue.Resource.Http.AspNetCore/Configlue.Resource.Http.AspNetCore.csproj" />
     <ProjectReference Include="../../src/resources/Configlue.Resource.PostgreSql/Configlue.Resource.PostgreSql.csproj" />
-    <ProjectReference Include="../../src/resources/Configlue.Resource.WebStorage/Configlue.Resource.WebStorage.csproj" />
     <ProjectReference Include="../../src/transformers/Configlue.Transformer.AES/Configlue.Transformer.AES.csproj" />
   </ItemGroup>
 </Project>

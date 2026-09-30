@@ -3,16 +3,16 @@ title: HTTP リソースプロトコル
 description: Configlue バイトリソースを HTTP 配信し、状態ソースとして使う。
 ---
 
-`Configlue.Resource.Http` は HTTP リーダーと opt-in のライターを提供します。任意パッケージ `Configlue.Resource.Http.AspNetCore` は同じバイトプロトコルを ASP.NET Core Minimal API にマップします。どちらもシリアル化はアプリの状態コーデックに任せます。
+`Configlue.Resource.Http` は HTTP リーダーと opt-in のライターを提供します。任意パッケージ `Configlue.Extensions.AspNetCore` は同じバイトプロトコルを ASP.NET Core Minimal API にマップします。どちらもシリアル化はアプリの状態コーデックに任せます。
 
 ## ASP.NET Core エンドポイント
 
-ASP.NET Core アプリに `Configlue.Resource.Http.AspNetCore` を入れ、`IResourceReader` を渡します。HTTP 経由で変更してよいリソースにだけ `IResourceWriter` を渡します:
+ASP.NET Core アプリに `Configlue.Extensions.AspNetCore` を入れ、`IResourceReader` を渡します。HTTP 経由で変更してよいリソースにだけ `IResourceWriter` を渡します:
 
 ```csharp
 using Configlue.Resources;
 using Configlue.State;
-using Configlue.Resource.Http.AspNetCore;
+using Configlue.Extensions.AspNetCore;
 using Microsoft.AspNetCore.Authentication.Cookies;
 
 var builder = WebApplication.CreateBuilder(args);

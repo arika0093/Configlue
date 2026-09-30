@@ -4,12 +4,13 @@ using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Text;
 using Configlue;
+using Configlue.Resource.Http;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.Routing.Patterns;
 
-namespace Configlue.Resource.Http.AspNetCore;
+namespace Configlue.Extensions.AspNetCore;
 
 /// <summary>Maps the Configlue byte-resource HTTP protocol to ASP.NET Core endpoints.</summary>
 public static class HttpResourceEndpointRouteBuilderExtensions

@@ -20,10 +20,8 @@ description: 機能ごとの NuGet パッケージを探す。
 | `Configlue.Source.Environment` | プロセス環境変数に支えられた読み取り専用ソース。 |
 | `Configlue.Source.CommandLine` | `System.CommandLine` パース結果に支えられた読み取り専用ソース。共通プリセットへの任意追加にも対応します。 |
 | `Configlue.Resource.Http` | ETag リビジョンとポーリング変更検出つき HTTP 読み書きリソース。JSON-over-HTTP source 登録と名前付き `IHttpClientFactory` source 対応を含みます。 |
-| `Configlue.Resource.Http.AspNetCore` | HTTP リソース配信の ASP.NET Core エンドポイント。 |
-| `Configlue.Extensions.AspNetCore` | ASP.NET Core の現在リクエストから subject を解決する統合。 |
-| `Configlue.Extensions.Blazor` | Blazor 認証状態からの subject 解決と circuit 単位の変更通知。 |
-| `Configlue.Resource.WebStorage` | ブラウザーの `localStorage` / `sessionStorage` リソース。DI スコープ単位で生成されます。 |
+| `Configlue.Extensions.AspNetCore` | ASP.NET Core host 統合: 現在リクエストからの subject 解決 (`IHttpContextAccessor`) と HTTP リソース配信エンドポイント。 |
+| `Configlue.Extensions.Blazor` | Blazor host 統合: 認証状態からの subject 解決と circuit 単位の変更通知、ブラウザー `localStorage` / `sessionStorage` リソース。 |
 | `Configlue.Resource.S3` | ETag revision を使う Amazon S3 object resource と source 登録。 |
 | `Configlue.Resource.PostgreSql` | subject key ごとの row、revision の atomic check、`LISTEN`/`NOTIFY` watcher を備えた任意の PostgreSQL byte resource。 |
 | `Configlue.Resource.Redis` | subject key ごとの key、Lua による revision の atomic check、Pub/Sub invalidation を備えた任意の Redis byte resource。 |
@@ -48,10 +46,8 @@ description: 機能ごとの NuGet パッケージを探す。
 | `Configlue.Source.Environment` | `netstandard2.0;netstandard2.1;net10.0` | `System.Text.Json` 10.0.0 は両 Standard asset。 |
 | `Configlue.Source.CommandLine` | `netstandard2.0;netstandard2.1;net10.0` | `System.CommandLine` 2.0.12。 |
 | `Configlue.Resource.Http` | `netstandard2.0;netstandard2.1;net10.0` | `Configlue.Provider.Json` (JSON-over-HTTP コーデック)、名前付き `IHttpClientFactory` client 対応のため `Microsoft.Extensions.DependencyInjection.Abstractions` 10.0.0、`Microsoft.Extensions.Http` 10.0.0。 |
-| `Configlue.Resource.Http.AspNetCore` | `net10.0` | `Microsoft.AspNetCore.App` framework reference。 |
-| `Configlue.Extensions.AspNetCore` | `net10.0` | `Microsoft.AspNetCore.App` framework reference。 |
-| `Configlue.Extensions.Blazor` | `net10.0` | `Microsoft.AspNetCore.App` framework reference。 |
-| `Configlue.Resource.WebStorage` | `net10.0` | `Microsoft.JSInterop` 10.0.0。 |
+| `Configlue.Extensions.AspNetCore` | `net10.0` | `Microsoft.AspNetCore.App` framework reference と `Configlue.Resource.Http`。 |
+| `Configlue.Extensions.Blazor` | `net10.0` | `Microsoft.AspNetCore.App` framework reference と `Configlue.Provider.Json` (ブラウザー storage の既定 JSON コーデック)。 |
 | `Configlue.Resource.S3` | `netstandard2.0;netstandard2.1;net10.0` | `AWSSDK.S3` 4.0.103.4。 |
 | `Configlue.Resource.PostgreSql` | `net8.0;net10.0` | `Npgsql` 10.0.3 の最低 TFM により `net8.0` 以上。 |
 | `Configlue.Resource.Redis` | `netstandard2.0;netstandard2.1;net10.0` | `StackExchange.Redis` 3.3.1。 |

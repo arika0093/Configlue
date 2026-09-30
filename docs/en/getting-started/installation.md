@@ -31,10 +31,8 @@ Add only the packages required by the application.
 | Microsoft `IOptions<T>` adapters | `Configlue.Extensions.MSOptions` |
 | Rx.NET integration | `Configlue.Extensions.Reactive` |
 | R3 integration | `Configlue.Extensions.R3` |
-| Serve Configlue HTTP resources from ASP.NET Core | `Configlue.Resource.Http.AspNetCore` |
-| Resolve subjects from an ASP.NET Core request | `Configlue.Extensions.AspNetCore` |
-| Resolve subjects from Blazor authentication state | `Configlue.Extensions.Blazor` |
-| Browser `localStorage` / `sessionStorage` | `Configlue.Resource.WebStorage` |
+| ASP.NET Core integration (request subjects and HTTP resource endpoints) | `Configlue.Extensions.AspNetCore` |
+| Blazor integration (authentication-state subjects and browser storage) | `Configlue.Extensions.Blazor` |
 | Amazon S3 | `Configlue.Resource.S3` |
 | Direct PostgreSQL storage | `Configlue.Resource.PostgreSql` |
 | Direct Redis storage | `Configlue.Resource.Redis` |

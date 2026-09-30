@@ -40,7 +40,7 @@ sources.FromHttp(new HttpSourceOptions
 });
 ```
 
-エンドポイントが更新に対応するときだけ `writer: reader.CreateWriter()` を `SerializedStateSource.FromResource` に渡します。任意パッケージ `Configlue.Resource.Http.AspNetCore` は同じプロトコルをユーザー提供のリソースハンドラー上にマップします — [HTTP リソースプロトコル](../reference/http-resource-protocol.md) 参照。読みの不達 (`404`) や一時的利用不可はフォールスルー/未検出意味にマップされ、恒久的エラーはアプリに伝わります。
+エンドポイントが更新に対応するときだけ `writer: reader.CreateWriter()` を `SerializedStateSource.FromResource` に渡します。任意パッケージ `Configlue.Extensions.AspNetCore` は同じプロトコルをユーザー提供のリソースハンドラー上にマップします — [HTTP リソースプロトコル](../reference/http-resource-protocol.md) 参照。読みの不達 (`404`) や一時的利用不可はフォールスルー/未検出意味にマップされ、恒久的エラーはアプリに伝わります。
 
 ホストアプリは標準の `AddHttpClient` API で名前つきクライアントを登録し、`FromHttpClientFactory` でファサードソースに渡せます。JSON エンドポイントには `FromJsonHttp`・`FromJsonHttpClientFactory` が JSON コーデックを自動生成します。`Writable = true` はエンドポイントが更新対応のときだけ設定します。これらのソースは既定で読み取り専用です。クライアントは Configlue コンテキスト生成時に解決され、`IHttpClientFactory` が背後のハンドラーを管理し、ソースは返却クライアントを破棄しません。JSON 以外のコーデックには `FromHttp` を使います。
 

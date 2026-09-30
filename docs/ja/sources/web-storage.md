@@ -3,14 +3,14 @@ title: ブラウザー WebStorage
 description: Blazor から localStorage / sessionStorage に状態を保存する方法。スコープ付き lifetime と prerender 時の意味を明示します。
 ---
 
-`Configlue.Resource.WebStorage` は 1 つのシリアル化値をブラウザーの `localStorage` または `sessionStorage` に保存します。Blazor Server では circuit スコープの `IJSRuntime` を通じて動作し、Blazor WebAssembly / Hybrid では JavaScript runtime がアプリケーション lifetime のときにそのまま動作します。
+`Configlue.Extensions.Blazor` は 1 つのシリアル化値をブラウザーの `localStorage` または `sessionStorage` に保存します。Blazor Server では circuit スコープの `IJSRuntime` を通じて動作し、Blazor WebAssembly / Hybrid では JavaScript runtime がアプリケーション lifetime のときにそのまま動作します。
 
 ## storage source を登録する
 
 モデル単位ヘルパーは source を登録し、書き込み先に設定します:
 
 ```csharp
-using Configlue.Resource.WebStorage;
+using Configlue.Extensions.Blazor;
 
 services.AddConfiglue(builder =>
 {

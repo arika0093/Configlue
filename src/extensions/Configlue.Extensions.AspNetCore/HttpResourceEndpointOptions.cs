@@ -1,4 +1,4 @@
-namespace Configlue.Resource.Http.AspNetCore;
+namespace Configlue.Extensions.AspNetCore;
 
 /// <summary>Configures paths and the payload media type for an HTTP resource endpoint.</summary>
 public sealed class HttpResourceEndpointOptions

@@ -1,7 +1,7 @@
 using Configlue.CompilerServices;
 using Configlue.Provider.Json;
 
-namespace Configlue.Resource.WebStorage;
+namespace Configlue.Extensions.Blazor;
 
 /// <summary>Options for registering a browser storage source.</summary>
 public sealed class WebStorageSourceOptions

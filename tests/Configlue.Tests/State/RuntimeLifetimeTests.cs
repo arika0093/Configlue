@@ -1,4 +1,4 @@
-using Configlue.Resource.WebStorage;
+using Configlue.Extensions.Blazor;
 using Configlue.Sources;
 using Configlue.Testing;
 using Microsoft.Extensions.DependencyInjection;

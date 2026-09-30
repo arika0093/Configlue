@@ -3,14 +3,14 @@ title: Browser WebStorage
 description: Persist state in localStorage and sessionStorage from Blazor, with scoped lifetimes and explicit prerender semantics.
 ---
 
-`Configlue.Resource.WebStorage` stores one serialized value in the browser's `localStorage` or `sessionStorage`. It works in Blazor Server through the circuit-scoped `IJSRuntime`, and in Blazor WebAssembly/Hybrid where the JavaScript runtime is application-lifetime.
+`Configlue.Extensions.Blazor` stores one serialized value in the browser's `localStorage` or `sessionStorage`. It works in Blazor Server through the circuit-scoped `IJSRuntime`, and in Blazor WebAssembly/Hybrid where the JavaScript runtime is application-lifetime.
 
 ## Register a storage source
 
 The model-level helpers register the source and set it as the write destination:
 
 ```csharp
-using Configlue.Resource.WebStorage;
+using Configlue.Extensions.Blazor;
 
 services.AddConfiglue(builder =>
 {

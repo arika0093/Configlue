@@ -22,4 +22,17 @@ namespace Configlue.Extensions.AspNetCore
         public static Configlue.ConfiglueSubjectRegistrationBuilder<TSubject> FromHttpContext<TSubject>(this Configlue.ConfiglueSubjectRegistrationBuilder<TSubject> builder, System.Func<Microsoft.AspNetCore.Http.HttpContext, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<TSubject>> resolveSubject)
             where TSubject : Configlue.IConfiglueSubject { }
     }
+    public sealed class HttpResourceEndpointOptions
+    {
+        public HttpResourceEndpointOptions() { }
+        public string ContentType { get; init; }
+        public string GetPath { get; init; }
+        public long? MaximumRequestBodySize { get; init; }
+        public bool RequireAuthorization { get; init; }
+        public string UpdatePath { get; init; }
+    }
+    public static class HttpResourceEndpointRouteBuilderExtensions
+    {
+        public static Microsoft.AspNetCore.Routing.RouteGroupBuilder MapConfiglueHttpResource(this Microsoft.AspNetCore.Routing.IEndpointRouteBuilder endpoints, string routeRoot, Configlue.Resources.IResourceReader reader, Configlue.Resources.IResourceWriter? writer = null, Configlue.Extensions.AspNetCore.HttpResourceEndpointOptions? options = null) { }
+    }
 }

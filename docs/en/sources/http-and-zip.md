@@ -40,7 +40,7 @@ sources.FromHttp(new HttpSourceOptions
 });
 ```
 
-Only pass `writer: reader.CreateWriter()` to `SerializedStateSource.FromResource` when the endpoint supports updates. The optional `Configlue.Resource.Http.AspNetCore` package maps the same protocol over user-provided resource handlers — see the [HTTP resource protocol](../reference/http-resource-protocol.md). Reads that miss (`404`) or are temporarily unavailable map to fallback/not-found semantics; permanent errors surface to the application.
+Only pass `writer: reader.CreateWriter()` to `SerializedStateSource.FromResource` when the endpoint supports updates. The optional `Configlue.Extensions.AspNetCore` package maps the same protocol over user-provided resource handlers — see the [HTTP resource protocol](../reference/http-resource-protocol.md). Reads that miss (`404`) or are temporarily unavailable map to fallback/not-found semantics; permanent errors surface to the application.
 
 Host applications can register named clients with the standard `AddHttpClient` APIs and pass them to facade sources through `FromHttpClientFactory`. For JSON endpoints, `FromJsonHttp` and `FromJsonHttpClientFactory` create the JSON codec for you; set `Writable = true` only when the endpoint supports updates. These sources are read-only by default. The source resolves its client when the Configlue context is created; `IHttpClientFactory` manages the underlying handlers, and the source does not dispose the returned client. Use `FromHttp` when an endpoint uses a codec other than JSON.
 

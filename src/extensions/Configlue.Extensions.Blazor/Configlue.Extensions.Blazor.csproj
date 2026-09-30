@@ -4,11 +4,12 @@
     <AssemblyName>Configlue.Extensions.Blazor</AssemblyName>
     <RootNamespace>Configlue.Extensions.Blazor</RootNamespace>
     <IsPackable>true</IsPackable>
-    <PackageDescription>Blazor host integration for Configlue per-subject state.</PackageDescription>
+    <PackageDescription>Blazor host integration for Configlue: per-subject state from authentication state and browser localStorage/sessionStorage resources.</PackageDescription>
   </PropertyGroup>
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <ProjectReference Include="../../basic/Configlue.Core/Configlue.Core.csproj" />
     <ProjectReference Include="../Configlue.Extensions.DI/Configlue.Extensions.DI.csproj" />
+    <ProjectReference Include="../../providers/Configlue.Provider.Json/Configlue.Provider.Json.csproj" />
   </ItemGroup>
 </Project>

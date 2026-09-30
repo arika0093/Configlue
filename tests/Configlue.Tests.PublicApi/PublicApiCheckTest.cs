@@ -12,11 +12,9 @@ using Configlue.Provider.Json;
 using Configlue.Provider.Xml;
 using Configlue.Provider.Yaml;
 using Configlue.Resource.Http;
-using Configlue.Resource.Http.AspNetCore;
 using Configlue.Resource.PostgreSql;
 using Configlue.Resource.Redis;
 using Configlue.Resource.S3;
-using Configlue.Resource.WebStorage;
 using Configlue.Resource.Zip;
 using Configlue.Source.CommandLine;
 using Configlue.Source.Environment;
@@ -268,9 +266,6 @@ public sealed class PublicApiCheckTest
     public void Http() => PublicApiCheck.Check<HttpResourceReader>();
 
     [Test]
-    public void HttpAspNetCore() => PublicApiCheck.Check<HttpResourceEndpointOptions>();
-
-    [Test]
     public void AspNetCoreHost() =>
         PublicApiCheck.CheckAssembly(typeof(HttpContextConfiglueSubjectAccessor<>).Assembly);
 
@@ -279,9 +274,6 @@ public sealed class PublicApiCheckTest
         PublicApiCheck.CheckAssembly(
             typeof(BlazorAuthenticationConfiglueSubjectAccessor<>).Assembly
         );
-
-    [Test]
-    public void WebStorage() => PublicApiCheck.Check<WebStorageResource>();
 
     [Test]
     public void S3() => PublicApiCheck.Check<S3ObjectSourceOptions>();
