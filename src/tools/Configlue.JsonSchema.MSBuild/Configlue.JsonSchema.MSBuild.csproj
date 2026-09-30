@@ -12,8 +12,23 @@
     <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
-    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
-    <RestoreLockedMode Condition="'$(RestoreLockedMode)' == ''">true</RestoreLockedMode>
+    <!--
+      Locked restore pins the approved dependency graph for the default RID-less
+      restore. Referencing projects can trigger runtime-specific restores (the
+      runtime arrives as RuntimeIdentifiers) that cannot satisfy a RID-less
+      packages.lock.json. Those restores opt out of the lock file and redirect it
+      to obj so the checked-in lock file stays untouched.
+    -->
+    <ConfiglueRuntimeRestore
+      Condition="'$(RuntimeIdentifier)' != '' or '$(RuntimeIdentifiers)' != ''"
+      >true</ConfiglueRuntimeRestore>
+    <RestorePackagesWithLockFile Condition="'$(ConfiglueRuntimeRestore)' != 'true'"
+      >true</RestorePackagesWithLockFile>
+    <RestoreLockedMode
+      Condition="'$(RestoreLockedMode)' == '' and '$(ConfiglueRuntimeRestore)' != 'true'"
+      >true</RestoreLockedMode>
+    <NuGetLockFilePath Condition="'$(ConfiglueRuntimeRestore)' == 'true'"
+      >$(BaseIntermediateOutputPath)packages.runtime.lock.json</NuGetLockFilePath>
     <NoWarn>$(NoWarn);NU5100;NU5128</NoWarn>
   </PropertyGroup>
 
