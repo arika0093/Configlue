@@ -13,27 +13,27 @@
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="../../src/Configlue.Abstraction/Configlue.Abstraction.csproj" />
-    <ProjectReference Include="../../src/Configlue.Core/Configlue.Core.csproj" />
-    <ProjectReference Include="../../src/Configlue.Extensions.DI/Configlue.Extensions.DI.csproj" />
-    <ProjectReference Include="../../src/Configlue.Extensions.AspNetCore/Configlue.Extensions.AspNetCore.csproj" />
-    <ProjectReference Include="../../src/Configlue.Extensions.Blazor/Configlue.Extensions.Blazor.csproj" />
-    <ProjectReference Include="../../src/Configlue.Extensions.MSOptions/Configlue.Extensions.MSOptions.csproj" />
-    <ProjectReference Include="../../src/Configlue.Extensions.R3/Configlue.Extensions.R3.csproj" />
-    <ProjectReference Include="../../src/Configlue.Provider.Json/Configlue.Provider.Json.csproj" />
-    <ProjectReference Include="../../src/Configlue.Provider.Xml/Configlue.Provider.Xml.csproj" />
-    <ProjectReference Include="../../src/Configlue.Provider.Yaml/Configlue.Provider.Yaml.csproj" />
-    <ProjectReference Include="../../src/Configlue.Source.Environment/Configlue.Source.Environment.csproj" />
-    <ProjectReference Include="../../src/Configlue.Source.CommandLine/Configlue.Source.CommandLine.csproj" />
-    <ProjectReference Include="../../src/Configlue.Resource.S3/Configlue.Resource.S3.csproj" />
-    <ProjectReference Include="../../src/Configlue.Resource.Http/Configlue.Resource.Http.csproj" />
-    <ProjectReference Include="../../src/Configlue.Resource.Http.AspNetCore/Configlue.Resource.Http.AspNetCore.csproj" />
-    <ProjectReference Include="../../src/Configlue.Resource.PostgreSql/Configlue.Resource.PostgreSql.csproj" />
-    <ProjectReference Include="../../src/Configlue.Resource.Redis/Configlue.Resource.Redis.csproj" />
-    <ProjectReference Include="../../src/Configlue.Resource.WebStorage/Configlue.Resource.WebStorage.csproj" />
-    <ProjectReference Include="../../src/Configlue.Testing/Configlue.Testing.csproj" />
-    <ProjectReference Include="../../src/Configlue.Transformer.AES/Configlue.Transformer.AES.csproj" />
-    <ProjectReference Include="../../src/Configlue.Generator/Configlue.Generator.csproj" />
+    <ProjectReference Include="../../src/basic/Configlue.Abstraction/Configlue.Abstraction.csproj" />
+    <ProjectReference Include="../../src/basic/Configlue.Core/Configlue.Core.csproj" />
+    <ProjectReference Include="../../src/extensions/Configlue.Extensions.DI/Configlue.Extensions.DI.csproj" />
+    <ProjectReference Include="../../src/extensions/Configlue.Extensions.AspNetCore/Configlue.Extensions.AspNetCore.csproj" />
+    <ProjectReference Include="../../src/extensions/Configlue.Extensions.Blazor/Configlue.Extensions.Blazor.csproj" />
+    <ProjectReference Include="../../src/extensions/Configlue.Extensions.MSOptions/Configlue.Extensions.MSOptions.csproj" />
+    <ProjectReference Include="../../src/extensions/Configlue.Extensions.R3/Configlue.Extensions.R3.csproj" />
+    <ProjectReference Include="../../src/providers/Configlue.Provider.Json/Configlue.Provider.Json.csproj" />
+    <ProjectReference Include="../../src/providers/Configlue.Provider.Xml/Configlue.Provider.Xml.csproj" />
+    <ProjectReference Include="../../src/providers/Configlue.Provider.Yaml/Configlue.Provider.Yaml.csproj" />
+    <ProjectReference Include="../../src/sources/Configlue.Source.Environment/Configlue.Source.Environment.csproj" />
+    <ProjectReference Include="../../src/sources/Configlue.Source.CommandLine/Configlue.Source.CommandLine.csproj" />
+    <ProjectReference Include="../../src/resources/Configlue.Resource.S3/Configlue.Resource.S3.csproj" />
+    <ProjectReference Include="../../src/resources/Configlue.Resource.Http/Configlue.Resource.Http.csproj" />
+    <ProjectReference Include="../../src/resources/Configlue.Resource.Http.AspNetCore/Configlue.Resource.Http.AspNetCore.csproj" />
+    <ProjectReference Include="../../src/resources/Configlue.Resource.PostgreSql/Configlue.Resource.PostgreSql.csproj" />
+    <ProjectReference Include="../../src/resources/Configlue.Resource.Redis/Configlue.Resource.Redis.csproj" />
+    <ProjectReference Include="../../src/resources/Configlue.Resource.WebStorage/Configlue.Resource.WebStorage.csproj" />
+    <ProjectReference Include="../../src/basic/Configlue.Testing/Configlue.Testing.csproj" />
+    <ProjectReference Include="../../src/transformers/Configlue.Transformer.AES/Configlue.Transformer.AES.csproj" />
+    <ProjectReference Include="../../src/tools/Configlue.Generator/Configlue.Generator.csproj" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Approvals/**/*.approved.txt" CopyToOutputDirectory="PreserveNewest" />

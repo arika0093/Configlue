@@ -10,15 +10,15 @@
     <PackageReference Include="BenchmarkDotNet" Version="0.15.8" />
     <PackageReference Include="Configuration.Writable" Version="0.9.0" />
     <PackageReference Include="System.CommandLine" Version="2.0.12" />
-    <ProjectReference Include="../../src/Configlue.Core/Configlue.Core.csproj" />
-    <ProjectReference Include="../../src/Configlue.Extensions.MSOptions/Configlue.Extensions.MSOptions.csproj" />
-    <ProjectReference Include="../../src/Configlue.Provider.Yaml/Configlue.Provider.Yaml.csproj" />
-    <ProjectReference Include="../../src/Configlue.Provider.Xml/Configlue.Provider.Xml.csproj" />
-    <ProjectReference Include="../../src/Configlue.Source.CommandLine/Configlue.Source.CommandLine.csproj" />
-    <ProjectReference Include="../../src/Configlue.Source.Environment/Configlue.Source.Environment.csproj" />
-    <ProjectReference Include="../../src/Configlue.Testing/Configlue.Testing.csproj" />
+    <ProjectReference Include="../../src/basic/Configlue.Core/Configlue.Core.csproj" />
+    <ProjectReference Include="../../src/extensions/Configlue.Extensions.MSOptions/Configlue.Extensions.MSOptions.csproj" />
+    <ProjectReference Include="../../src/providers/Configlue.Provider.Yaml/Configlue.Provider.Yaml.csproj" />
+    <ProjectReference Include="../../src/providers/Configlue.Provider.Xml/Configlue.Provider.Xml.csproj" />
+    <ProjectReference Include="../../src/sources/Configlue.Source.CommandLine/Configlue.Source.CommandLine.csproj" />
+    <ProjectReference Include="../../src/sources/Configlue.Source.Environment/Configlue.Source.Environment.csproj" />
+    <ProjectReference Include="../../src/basic/Configlue.Testing/Configlue.Testing.csproj" />
     <ProjectReference
-      Include="../../src/Configlue.Generator/Configlue.Generator.csproj"
+      Include="../../src/tools/Configlue.Generator/Configlue.Generator.csproj"
       OutputItemType="Analyzer"
       ReferenceOutputAssembly="false"
     />

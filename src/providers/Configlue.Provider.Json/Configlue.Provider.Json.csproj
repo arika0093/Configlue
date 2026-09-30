@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>netstandard2.0;netstandard2.1;net10.0</TargetFrameworks>
+    <AssemblyName>Configlue.Provider.Json</AssemblyName>
+    <RootNamespace>Configlue.Provider.Json</RootNamespace>
+    <IsPackable>true</IsPackable>
+    <PackageDescription>JSON codec and resource integration for Configlue.</PackageDescription>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../basic/Configlue.Abstraction/Configlue.Abstraction.csproj" />
+    <ProjectReference Include="../../basic/Configlue.Core/Configlue.Core.csproj" />
+    <ProjectReference Include="../../resources/Configlue.Resource.Http/Configlue.Resource.Http.csproj" />
+    <PackageReference Include="System.IO.Pipelines" Version="10.0.0" />
+    <PackageReference
+      Include="System.Text.Json"
+      Version="10.0.0"
+      Condition="'$(ConfiglueNetStandard)' == 'true'"
+    />
+  </ItemGroup>
+</Project>

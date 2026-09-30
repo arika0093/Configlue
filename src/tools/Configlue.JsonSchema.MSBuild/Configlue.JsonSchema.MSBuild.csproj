@@ -1,0 +1,73 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <Import Project="DependencyPolicy.props" />
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <AssemblyName>Configlue.JsonSchema.MSBuild</AssemblyName>
+    <RootNamespace>Configlue.JsonSchema.MSBuild</RootNamespace>
+    <IsPackable>true</IsPackable>
+    <DevelopmentDependency>true</DevelopmentDependency>
+    <PackageDescription>Build-time JSON Schema generation for Configlue models.</PackageDescription>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <RestoreLockedMode Condition="'$(RestoreLockedMode)' == ''">true</RestoreLockedMode>
+    <NoWarn>$(NoWarn);NU5100;NU5128</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../basic/Configlue.Abstraction/Configlue.Abstraction.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference
+      Include="Microsoft.Build.Utilities.Core"
+      Version="17.14.28"
+      PrivateAssets="all"
+      ExcludeAssets="runtime"
+    />
+    <PackageReference Include="JsonSchema.Net" Version="$(JsonSchemaNetVersion)" />
+    <PackageReference
+      Include="JsonSchema.Net.Generation"
+      Version="$(JsonSchemaNetGenerationVersion)"
+    />
+    <PackageReference
+      Include="JsonSchema.Net.Generation.DataAnnotations"
+      Version="$(JsonSchemaNetDataAnnotationsVersion)"
+    />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None
+      Include="build/Configlue.JsonSchema.MSBuild.props"
+      Pack="true"
+      PackagePath="build/"
+      Visible="false"
+    />
+    <None
+      Include="build/Configlue.JsonSchema.MSBuild.targets"
+      Pack="true"
+      PackagePath="build/"
+      Visible="false"
+    />
+  </ItemGroup>
+
+  <Import Project="DependencyPolicy.targets" />
+
+  <PropertyGroup>
+    <TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);ConfigluePackTaskAssemblies</TargetsForTfmSpecificContentInPackage>
+  </PropertyGroup>
+
+  <Target Name="ConfigluePackTaskAssemblies">
+    <ItemGroup>
+      <TfmSpecificPackageFile
+        Include="$(TargetDir)*.dll"
+        Exclude="$(TargetDir)CSharpier.MsBuild.dll;$(TargetDir)SonarAnalyzer*.dll"
+      >
+        <PackagePath>tasks/net10.0/</PackagePath>
+      </TfmSpecificPackageFile>
+    </ItemGroup>
+  </Target>
+</Project>

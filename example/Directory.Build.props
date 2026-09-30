@@ -15,9 +15,9 @@
     <Using Include="Configlue.Extensibility" />
     <Using Include="Configlue.State" />
     <Using Include="Configlue.Transformers" />
-    <ProjectReference Include="../../src/Configlue.Core/Configlue.Core.csproj" />
+    <ProjectReference Include="../../src/basic/Configlue.Core/Configlue.Core.csproj" />
     <ProjectReference
-      Include="../../src/Configlue.Generator/Configlue.Generator.csproj"
+      Include="../../src/tools/Configlue.Generator/Configlue.Generator.csproj"
       OutputItemType="Analyzer"
       ReferenceOutputAssembly="false"
     />

@@ -10,10 +10,10 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../../src/Configlue.Core/Configlue.Core.csproj" />
-    <ProjectReference Include="../../src/Configlue.Abstraction/Configlue.Abstraction.csproj" />
+    <ProjectReference Include="../../src/basic/Configlue.Core/Configlue.Core.csproj" />
+    <ProjectReference Include="../../src/basic/Configlue.Abstraction/Configlue.Abstraction.csproj" />
     <ProjectReference
-      Include="../../src/Configlue.Generator/Configlue.Generator.csproj"
+      Include="../../src/tools/Configlue.Generator/Configlue.Generator.csproj"
       OutputItemType="Analyzer"
       ReferenceOutputAssembly="false"
     />

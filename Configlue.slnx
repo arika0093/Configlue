@@ -1,36 +1,40 @@
 <Solution>
-  <Folder Name="/src/">
-    <Project Path="src/Configlue.Abstraction/Configlue.Abstraction.csproj" />
-    <Project Path="src/Configlue.Core/Configlue.Core.csproj" />
-    <Project Path="src/Configlue.JsonSchema.MSBuild/Configlue.JsonSchema.MSBuild.csproj" />
-    <Project Path="src/Configlue.Generator/Configlue.Generator.csproj" />
-    <Project Path="src/Configlue.Extensions.DI/Configlue.Extensions.DI.csproj" />
-    <Project Path="src/Configlue.Extensions.AspNetCore/Configlue.Extensions.AspNetCore.csproj" />
-    <Project Path="src/Configlue.Extensions.Blazor/Configlue.Extensions.Blazor.csproj" />
-    <Project Path="src/Configlue.Extensions.MSOptions/Configlue.Extensions.MSOptions.csproj" />
-    <Project Path="src/Configlue.Extensions.R3/Configlue.Extensions.R3.csproj" />
-    <Project Path="src/Configlue.Testing/Configlue.Testing.csproj" />
-    <Project Path="src/Configlue/Configlue.csproj" />
+  <Folder Name="/src/basic/">
+    <Project Path="src/basic/Configlue.Abstraction/Configlue.Abstraction.csproj" />
+    <Project Path="src/basic/Configlue.Core/Configlue.Core.csproj" />
+    <Project Path="src/basic/Configlue.Testing/Configlue.Testing.csproj" />
+    <Project Path="src/basic/Configlue/Configlue.csproj" />
   </Folder>
-  <Folder Name="/src/Providers/">
-    <Project Path="src/Configlue.Provider.Json/Configlue.Provider.Json.csproj" />
-    <Project Path="src/Configlue.Provider.Xml/Configlue.Provider.Xml.csproj" />
-    <Project Path="src/Configlue.Provider.Yaml/Configlue.Provider.Yaml.csproj" />
+  <Folder Name="/src/extensions/">
+    <Project Path="src/extensions/Configlue.Extensions.AspNetCore/Configlue.Extensions.AspNetCore.csproj" />
+    <Project Path="src/extensions/Configlue.Extensions.Blazor/Configlue.Extensions.Blazor.csproj" />
+    <Project Path="src/extensions/Configlue.Extensions.DI/Configlue.Extensions.DI.csproj" />
+    <Project Path="src/extensions/Configlue.Extensions.MSOptions/Configlue.Extensions.MSOptions.csproj" />
+    <Project Path="src/extensions/Configlue.Extensions.R3/Configlue.Extensions.R3.csproj" />
   </Folder>
-  <Folder Name="/src/Sources/">
-    <Project Path="src/Configlue.Source.Environment/Configlue.Source.Environment.csproj" />
-    <Project Path="src/Configlue.Source.CommandLine/Configlue.Source.CommandLine.csproj" />
+  <Folder Name="/src/providers/">
+    <Project Path="src/providers/Configlue.Provider.Json/Configlue.Provider.Json.csproj" />
+    <Project Path="src/providers/Configlue.Provider.Xml/Configlue.Provider.Xml.csproj" />
+    <Project Path="src/providers/Configlue.Provider.Yaml/Configlue.Provider.Yaml.csproj" />
   </Folder>
-  <Folder Name="/src/Resources/">
-    <Project Path="src/Configlue.Resource.S3/Configlue.Resource.S3.csproj" />
-    <Project Path="src/Configlue.Resource.Http/Configlue.Resource.Http.csproj" />
-    <Project Path="src/Configlue.Resource.Http.AspNetCore/Configlue.Resource.Http.AspNetCore.csproj" />
-    <Project Path="src/Configlue.Resource.PostgreSql/Configlue.Resource.PostgreSql.csproj" />
-    <Project Path="src/Configlue.Resource.Redis/Configlue.Resource.Redis.csproj" />
-    <Project Path="src/Configlue.Resource.WebStorage/Configlue.Resource.WebStorage.csproj" />
+  <Folder Name="/src/resources/">
+    <Project Path="src/resources/Configlue.Resource.Http/Configlue.Resource.Http.csproj" />
+    <Project Path="src/resources/Configlue.Resource.Http.AspNetCore/Configlue.Resource.Http.AspNetCore.csproj" />
+    <Project Path="src/resources/Configlue.Resource.PostgreSql/Configlue.Resource.PostgreSql.csproj" />
+    <Project Path="src/resources/Configlue.Resource.Redis/Configlue.Resource.Redis.csproj" />
+    <Project Path="src/resources/Configlue.Resource.S3/Configlue.Resource.S3.csproj" />
+    <Project Path="src/resources/Configlue.Resource.WebStorage/Configlue.Resource.WebStorage.csproj" />
   </Folder>
-  <Folder Name="/src/Transformers/">
-    <Project Path="src/Configlue.Transformer.AES/Configlue.Transformer.AES.csproj" />
+  <Folder Name="/src/sources/">
+    <Project Path="src/sources/Configlue.Source.CommandLine/Configlue.Source.CommandLine.csproj" />
+    <Project Path="src/sources/Configlue.Source.Environment/Configlue.Source.Environment.csproj" />
+  </Folder>
+  <Folder Name="/src/transformers/">
+    <Project Path="src/transformers/Configlue.Transformer.AES/Configlue.Transformer.AES.csproj" />
+  </Folder>
+  <Folder Name="/src/tools/">
+    <Project Path="src/tools/Configlue.Generator/Configlue.Generator.csproj" />
+    <Project Path="src/tools/Configlue.JsonSchema.MSBuild/Configlue.JsonSchema.MSBuild.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Configlue.Tests/Configlue.Tests.csproj" />

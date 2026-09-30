@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <AssemblyName>Configlue.Resource.WebStorage</AssemblyName>
+    <RootNamespace>Configlue.Resource.WebStorage</RootNamespace>
+    <IsPackable>true</IsPackable>
+    <PackageDescription>Browser localStorage and sessionStorage resources for Configlue.</PackageDescription>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../basic/Configlue.Core/Configlue.Core.csproj" />
+    <ProjectReference Include="../../providers/Configlue.Provider.Json/Configlue.Provider.Json.csproj" />
+    <PackageReference Include="Microsoft.JSInterop" Version="10.0.0" />
+  </ItemGroup>
+</Project>
