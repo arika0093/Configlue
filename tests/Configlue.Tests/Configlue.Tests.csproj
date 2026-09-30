@@ -6,6 +6,7 @@
     <IsTestProject>false</IsTestProject>
   </PropertyGroup>
   <PropertyGroup Condition="'$(TargetFramework)' == 'net48'">
+    <OutputType>Exe</OutputType>
     <PolyArgumentExceptions>true</PolyArgumentExceptions>
   </PropertyGroup>
   <ItemGroup Condition="'$(TargetFramework)' != 'netstandard2.0'">
