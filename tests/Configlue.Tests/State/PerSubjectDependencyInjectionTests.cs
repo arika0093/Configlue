@@ -1,16 +1,14 @@
 using System.Collections.Concurrent;
 using System.Security.Claims;
 using System.Threading.Channels;
-#if !NET48
-using Configlue.Resource.Http.AspNetCore;
-#endif
 using Configlue.Sources;
 using Configlue.Testing;
+using Microsoft.Extensions.DependencyInjection;
 #if !NET48
+using Configlue.Resource.Http.AspNetCore;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Http;
 #endif
-using Microsoft.Extensions.DependencyInjection;
 
 namespace Configlue.Tests;
 
