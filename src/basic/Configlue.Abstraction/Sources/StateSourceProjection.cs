@@ -63,8 +63,8 @@ public static class StateSourceProjection
             );
         }
 
-        var rootSchema = ConfiglueFragmentRegistry<TTarget>.Empty.Schema;
-        var sourceSchema = ConfiglueFragmentRegistry<TSource>.Empty.Schema;
+        var rootSchema = ConfiglueFragmentRegistry<TTarget>.Empty.ConfiglueSchema;
+        var sourceSchema = ConfiglueFragmentRegistry<TSource>.Empty.ConfiglueSchema;
         _ = CreateMountedFragment(
             rootSchema,
             path,
