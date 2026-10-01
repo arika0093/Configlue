@@ -118,7 +118,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         var failures = new List<string>();
         if (_validateDataAnnotations)
         {
-            CollectMemberFailures(fragment.Schema, fragment, string.Empty, failures);
+            CollectMemberFailures(fragment.ConfiglueSchema, fragment, string.Empty, failures);
         }
 
         CollectValidationFailures(FromFragment(_modelDefaultsFragment.Merge(fragment)), failures);
@@ -153,7 +153,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
     )
     {
         var failures = new List<string>();
-        fragment = PruneInvalidMembers(fragment.Schema, fragment, string.Empty, failures);
+        fragment = PruneInvalidMembers(fragment.ConfiglueSchema, fragment, string.Empty, failures);
         if (failures.Count == 0)
         {
             return fragment;
@@ -229,7 +229,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         var validateDataAnnotations =
             _validateDataAnnotations && ConfiglueRuntimeCapabilities.IsDynamicCodeSupported;
         var hasMemberValidation =
-            validateDataAnnotations && HasMemberValidationMetadata(merged.Schema);
+            validateDataAnnotations && HasMemberValidationMetadata(merged.ConfiglueSchema);
         var hasModelValidation = validateDataAnnotations && HasValidationMetadata(model.GetType());
         if (_validators.Length == 0 && !hasMemberValidation && !hasModelValidation)
         {
@@ -239,7 +239,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         var failures = new List<string>();
         if (hasMemberValidation)
         {
-            CollectMemberFailures(merged.Schema, merged, string.Empty, failures);
+            CollectMemberFailures(merged.ConfiglueSchema, merged, string.Empty, failures);
         }
 
         CollectValidationFailures(model, failures);
