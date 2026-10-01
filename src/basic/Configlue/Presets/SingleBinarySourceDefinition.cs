@@ -26,7 +26,7 @@ internal sealed class SingleBinarySourceDefinition(
     private StateSource<TFragment> CreateSourceCore<TFragment>(
         ConfiglueModelSchema modelSchema,
         IConfiglueHostPaths hostPaths,
-        Action<IDisposable> ownResource
+        Action<object> ownResource
     )
         where TFragment : class, IConfiglueFragment<TFragment>
     {
@@ -63,7 +63,7 @@ internal static class SingleBinarySourceFactory
         string entryName,
         FileResourceOptions? resourceOptions,
         SingleBinaryEncryption? encryption,
-        Action<IDisposable> ownResource,
+        Action<object> ownResource,
         IConfiglueHostPaths hostPaths
     )
     {
@@ -109,7 +109,7 @@ internal static class SingleBinarySourceFactory
         FileResourceOptions? resourceOptions,
         SingleBinaryEncryption? encryption,
         int priority,
-        Action<IDisposable> ownResource,
+        Action<object> ownResource,
         IConfiglueHostPaths hostPaths
     )
     {

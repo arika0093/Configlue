@@ -118,7 +118,7 @@ public sealed class ConfiglueModelBuilder<TModel>
     private StateSource<ConfiglueProfileCatalog>? _profileCatalogSource;
     private Func<
         IServiceProvider?,
-        Action<IDisposable>,
+        Action<object>,
         StateSource<ConfiglueProfileCatalog>
     >? _profileCatalogSourceFactory;
     private string _defaultProfileName = "default";
@@ -356,7 +356,7 @@ public sealed class ConfiglueModelBuilder<TModel>
     public void EnableProfiles(
         Func<
             IServiceProvider?,
-            Action<IDisposable>,
+            Action<object>,
             StateSource<ConfiglueProfileCatalog>
         > catalogSourceFactory,
         string defaultProfileName = "default"
@@ -396,7 +396,7 @@ public sealed class ConfiglueModelBuilder<TModel>
     /// <summary>Builds the source set and reports resources created by helper definitions.</summary>
     internal StateSourceSet<TFragment> BuildSources<TFragment>(
         IServiceProvider? serviceProvider,
-        Action<IDisposable> ownResource
+        Action<object> ownResource
     )
         where TFragment : class, IConfiglueFragment<TFragment> =>
         BuildSources<TFragment>(default!, serviceProvider, ownResource);
@@ -405,7 +405,7 @@ public sealed class ConfiglueModelBuilder<TModel>
     internal StateSourceSet<TFragment> BuildSources<TFragment>(
         ConfiglueModelSchema modelSchema,
         IServiceProvider? serviceProvider,
-        Action<IDisposable> ownResource
+        Action<object> ownResource
     )
         where TFragment : class, IConfiglueFragment<TFragment>
     {
@@ -464,7 +464,7 @@ public sealed class ConfiglueModelBuilder<TModel>
 
     internal Func<
         IServiceProvider?,
-        Action<IDisposable>,
+        Action<object>,
         StateSource<ConfiglueProfileCatalog>
     >? ProfileCatalogSourceFactory => _profileCatalogSourceFactory;
 
@@ -546,7 +546,7 @@ internal interface IConfiglueModelRegistration
     RuntimeLifetimeRequirement RuntimeLifetime { get; }
     object CreateRuntime(
         IServiceProvider? serviceProvider,
-        Action<IDisposable> ownResource,
+        Action<object> ownResource,
         IConfiglueHostPaths hostPaths
     );
     object CreateStateRegistry(
@@ -558,7 +558,7 @@ internal interface IConfiglueModelRegistration
         object registry,
         IReadOnlyList<string> reservedNames,
         IServiceProvider? serviceProvider,
-        Action<IDisposable> ownResource
+        Action<object> ownResource
     );
     void Accept(IConfiglueRegistrationVisitor visitor);
 }
@@ -591,7 +591,7 @@ internal sealed class ConfiglueModelRegistration<TModel>(ConfiglueModelBuilder<T
 
     public object CreateRuntime(
         IServiceProvider? serviceProvider,
-        Action<IDisposable> ownResource,
+        Action<object> ownResource,
         IConfiglueHostPaths hostPaths
     )
     {
@@ -620,7 +620,7 @@ internal sealed class ConfiglueModelRegistration<TModel>(ConfiglueModelBuilder<T
         object registry,
         IReadOnlyList<string> reservedNames,
         IServiceProvider? serviceProvider,
-        Action<IDisposable> ownResource
+        Action<object> ownResource
     )
     {
         var catalogSource =
@@ -656,8 +656,8 @@ internal sealed class ConfiglueModelRegistration<TModel>(ConfiglueModelBuilder<T
         new ConfiglueFacadeStateRegistry<TModel>(
             name =>
             {
-                var resources = new List<IDisposable>();
-                var resourceSet = new HashSet<IDisposable>(ReferenceIdentityComparer.Instance);
+                var resources = new List<object>();
+                var resourceSet = new HashSet<object>(ReferenceIdentityComparer.Instance);
                 IWritableState<TModel>? runtime = null;
                 try
                 {
@@ -669,6 +669,14 @@ internal sealed class ConfiglueModelRegistration<TModel>(ConfiglueModelBuilder<T
                         resource =>
                         {
                             ArgumentNullException.ThrowIfNull(resource);
+                            if (resource is not IDisposable && resource is not IAsyncDisposable)
+                            {
+                                throw new ArgumentException(
+                                    "An owned resource must implement IDisposable or IAsyncDisposable.",
+                                    nameof(resource)
+                                );
+                            }
+
                             if (resourceSet.Add(resource))
                             {
                                 resources.Add(resource);
@@ -688,15 +696,7 @@ internal sealed class ConfiglueModelRegistration<TModel>(ConfiglueModelBuilder<T
                     List<Exception>? cleanupErrors = null;
                     try
                     {
-                        if (runtime is IAsyncDisposable asyncDisposable)
-                        {
-                            // Synchronous construction-failure cleanup or IDisposable boundary; normal source I/O stays asynchronous.
-                            asyncDisposable.DisposeAsync().AsTask().GetAwaiter().GetResult();
-                        }
-                        else if (runtime is IDisposable disposable)
-                        {
-                            disposable.Dispose();
-                        }
+                        ConfiglueOwnedResources.Dispose(runtime!);
                     }
                     catch (Exception cleanupException)
                     {
@@ -706,7 +706,7 @@ internal sealed class ConfiglueModelRegistration<TModel>(ConfiglueModelBuilder<T
                     {
                         try
                         {
-                            resource.Dispose();
+                            ConfiglueOwnedResources.Dispose(resource);
                         }
                         catch (Exception cleanupException)
                         {

@@ -117,14 +117,26 @@ public sealed class ProfiledStateTests
         var profiles = serviceProvider.GetRequiredService<IConfiglueProfiledState<AppSettings>>();
         await profiles.GetProfileNamesAsync();
 
-        var invalidNameRejected = false;
+        await profiles.CreateProfileAsync("name__with__underscores");
+        await profiles.CreateProfileAsync("name:with:colons");
+        await profiles.CreateProfileAsync(nameof(ConfiglueProfileCatalog.ActiveProfileName));
+        await profiles.CreateProfileAsync(nameof(ConfiglueProfileCatalog.ProfileNames));
+
+        var names = await profiles.GetProfileNamesAsync();
+        (names).ShouldContain("name__with__underscores");
+        (names).ShouldContain("name:with:colons");
+        (names).ShouldContain(nameof(ConfiglueProfileCatalog.ActiveProfileName));
+        (names).ShouldContain(nameof(ConfiglueProfileCatalog.ProfileNames));
+        (await profiles.GetProfileAsync("name:with:colons")).ShouldNotBeNull();
+
+        var emptyNameRejected = false;
         try
         {
-            await profiles.CreateProfileAsync("invalid__name");
+            await profiles.CreateProfileAsync("  ");
         }
         catch (ArgumentException)
         {
-            invalidNameRejected = true;
+            emptyNameRejected = true;
         }
 
         var defaultRemovalRejected = false;
@@ -158,7 +170,7 @@ public sealed class ProfiledStateTests
             duplicateProfileRejected = true;
         }
 
-        (invalidNameRejected).ShouldBeTrue();
+        (emptyNameRejected).ShouldBeTrue();
         (defaultRemovalRejected).ShouldBeTrue();
         (unknownProfileRejected).ShouldBeTrue();
         (duplicateProfileRejected).ShouldBeTrue();
@@ -442,6 +454,188 @@ public sealed class ProfiledStateTests
         secondRegistry.TryGet("Stale", out _).ShouldBeFalse();
         secondRegistry.TryGet("Other", out _).ShouldBeTrue();
         secondRegistry.TryGet("Third", out _).ShouldBeTrue();
+    }
+
+    [Test]
+    public async Task ProfileCatalog_AdoptsMaterializedDynamicState()
+    {
+        var (catalog, _) = CreateProfileCatalog();
+        var backing = CreateBackingStore();
+        await using var context = CreateProfiledContext(catalog, backing);
+
+        var registry = context.GetStateRegistry<AppSettings>();
+        (registry.TryAdd("Adopted")).ShouldBeTrue();
+        var materialized = registry.Get("Adopted");
+
+        var profiles = context.GetProfiledState<AppSettings>();
+        await profiles.CreateProfileAsync("Adopted");
+
+        (await profiles.GetProfileNamesAsync()).ShouldContain("Adopted");
+        var adopted = await profiles.GetProfileAsync("Adopted");
+        ReferenceEquals(adopted, materialized).ShouldBeTrue();
+    }
+
+    [Test]
+    public async Task ProfileCatalog_RejectsNameConflictingWithFixedState()
+    {
+        var (catalog, _) = CreateProfileCatalog();
+        var backing = CreateBackingStore();
+        await using var context = ConfiglueApp.CreateContext(builder =>
+        {
+            builder.Add<AppSettings>(model =>
+            {
+                model.StateName = "fixed";
+                model.Sources(sources => sources.Add(CreateBackingSource(backing, "fixed")));
+            });
+            builder.Add<AppSettings>(model =>
+            {
+                model.EnableProfiles(catalog);
+                model.ConfigureSources(registration =>
+                    registration.Sources.Add(_ =>
+                        CreateBackingSource(backing, registration.StateName)
+                    )
+                );
+            });
+        });
+
+        var profiles = context.GetProfiledState<AppSettings>();
+        await Should.ThrowAsync<InvalidOperationException>(async () =>
+            await profiles.CreateProfileAsync("fixed")
+        );
+        (await profiles.GetProfileNamesAsync()).ShouldNotContain("fixed");
+
+        await profiles.CreateProfileAsync("Work");
+        (await profiles.GetProfileNamesAsync()).ShouldContain("Work");
+    }
+
+    [Test]
+    public async Task ProfileCatalog_RemovalKeepsBackingDataForRematerialization()
+    {
+        var (catalog, _) = CreateProfileCatalog();
+        var backing = CreateBackingStore();
+        await using var context = CreateProfiledContext(catalog, backing);
+        var profiles = context.GetProfiledState<AppSettings>();
+        await profiles.GetProfileNamesAsync();
+        await profiles.CreateProfileAsync("Work");
+
+        var created = await profiles.GetProfileAsync("Work");
+        await created.SaveAsync(patch => patch.Label = "persisted");
+
+        await profiles.RemoveProfileAsync("Work");
+        (await profiles.GetProfileNamesAsync()).ShouldNotContain("Work");
+        await Should.ThrowAsync<KeyNotFoundException>(async () =>
+            await profiles.GetProfileAsync("Work")
+        );
+
+        await profiles.CreateProfileAsync("Work");
+        var rematerialized = await profiles.GetProfileAsync("Work");
+        ((await rematerialized.GetValueAsync()).Label).ShouldBe("persisted");
+    }
+
+    [Test]
+    public async Task ProfileCatalog_RegistryUnloadDoesNotDeleteCatalogMembership()
+    {
+        var (catalog, _) = CreateProfileCatalog();
+        var backing = CreateBackingStore();
+        await using var context = CreateProfiledContext(catalog, backing);
+        var profiles = context.GetProfiledState<AppSettings>();
+        await profiles.GetProfileNamesAsync();
+        await profiles.CreateProfileAsync("Persistent");
+
+        var registry = context.GetStateRegistry<AppSettings>();
+        (await registry.TryRemoveAsync("Persistent")).ShouldBeTrue();
+        registry.TryGet("Persistent", out _).ShouldBeFalse();
+
+        (await profiles.GetProfileNamesAsync()).ShouldContain("Persistent");
+        var rematerialized = await profiles.GetProfileAsync("Persistent");
+        (registry.TryGet("Persistent", out var current)).ShouldBeTrue();
+        ReferenceEquals(current, rematerialized).ShouldBeTrue();
+    }
+
+    [Test]
+    public async Task ProfileCatalogFactoryCanOwnAsyncDisposableResources()
+    {
+        var resource = new AsyncDisposableProbe();
+        var (catalog, _) = CreateProfileCatalog();
+        var backing = CreateBackingStore();
+        await using (var context = ConfiglueApp.CreateContext(builder =>
+        {
+            builder.Add<AppSettings>(model =>
+            {
+                model.EnableProfiles(
+                    (_, ownResource) =>
+                    {
+                        ownResource(resource);
+                        return catalog;
+                    }
+                );
+                model.ConfigureSources(registration =>
+                    registration.Sources.Add(_ =>
+                        CreateBackingSource(backing, registration.StateName)
+                    )
+                );
+            });
+        }))
+        {
+            await context.GetProfiledState<AppSettings>().GetProfileNamesAsync();
+            resource.DisposeAsyncCallCount.ShouldBe(0);
+            await context.DisposeAsync();
+        }
+
+        resource.DisposeAsyncCallCount.ShouldBe(1);
+        resource.DisposeCallCount.ShouldBe(0);
+    }
+
+    private static (StateSource<ConfiglueProfileCatalog> Catalog, InMemoryStateSource<ConfiglueProfileCatalog> Store)
+        CreateProfileCatalog()
+    {
+        var store = new InMemoryStateSource<ConfiglueProfileCatalog>();
+        return (
+            new StateSource<ConfiglueProfileCatalog>(
+                "catalog",
+                store,
+                writer: store,
+                watcher: store
+            ),
+            store
+        );
+    }
+
+    private static ConcurrentDictionary<string, InMemoryStateSource<AppSettings.Fragment>>
+        CreateBackingStore() => new(StringComparer.Ordinal);
+
+    private static ConfiglueContext CreateProfiledContext(
+        StateSource<ConfiglueProfileCatalog> catalog,
+        ConcurrentDictionary<string, InMemoryStateSource<AppSettings.Fragment>> backing
+    ) =>
+        ConfiglueApp.CreateContext(builder =>
+            builder.Add<AppSettings>(model =>
+            {
+                model.EnableProfiles(catalog);
+                model.ConfigureSources(registration =>
+                    registration.Sources.Add(_ =>
+                        CreateBackingSource(backing, registration.StateName)
+                    )
+                );
+            })
+        );
+
+    private static StateSource<AppSettings.Fragment> CreateBackingSource(
+        ConcurrentDictionary<string, InMemoryStateSource<AppSettings.Fragment>> backing,
+        string stateName
+    )
+    {
+        var store = backing.GetOrAdd(
+            stateName,
+            static _ => new InMemoryStateSource<AppSettings.Fragment>()
+        );
+        var sourceId = string.IsNullOrEmpty(stateName) ? "default" : stateName;
+        return new StateSource<AppSettings.Fragment>(
+            sourceId,
+            store,
+            writer: store,
+            watcher: store
+        );
     }
 
     private static async Task<bool> TryCreateProfileAsync(

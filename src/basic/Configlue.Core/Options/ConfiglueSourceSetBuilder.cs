@@ -102,7 +102,7 @@ public class ConfiglueSourceSetBuilder : IConfiglueSourceRegistrationSink
     internal StateSourceSet<TFragment> Build<TFragment>(
         ConfiglueModelSchema? modelSchema,
         IServiceProvider? serviceProvider,
-        Action<IDisposable> ownResource,
+        Action<object> ownResource,
         IConfiglueHostPaths? hostPaths = null
     )
         where TFragment : class, IConfiglueFragment<TFragment>
@@ -162,7 +162,7 @@ public class ConfiglueSourceSetBuilder : IConfiglueSourceRegistrationSink
         StateSource<TFragment> Create<TFragment>(
             ConfiglueModelSchema? modelSchema,
             IServiceProvider? serviceProvider,
-            Action<IDisposable> ownResource,
+            Action<object> ownResource,
             IConfiglueHostPaths hostPaths
         )
             where TFragment : class, IConfiglueFragment<TFragment>;
@@ -181,7 +181,7 @@ public class ConfiglueSourceSetBuilder : IConfiglueSourceRegistrationSink
         public StateSource<TRequestedFragment> Create<TRequestedFragment>(
             ConfiglueModelSchema? modelSchema,
             IServiceProvider? serviceProvider,
-            Action<IDisposable> ownResource,
+            Action<object> ownResource,
             IConfiglueHostPaths hostPaths
         )
             where TRequestedFragment : class, IConfiglueFragment<TRequestedFragment>
@@ -216,7 +216,7 @@ public class ConfiglueSourceSetBuilder : IConfiglueSourceRegistrationSink
         public StateSource<TFragment> Create<TFragment>(
             ConfiglueModelSchema? modelSchema,
             IServiceProvider? serviceProvider,
-            Action<IDisposable> ownResource,
+            Action<object> ownResource,
             IConfiglueHostPaths hostPaths
         )
             where TFragment : class, IConfiglueFragment<TFragment>

@@ -62,6 +62,45 @@ public sealed class SourceDefinitionContractTests
         (await context.GetState<AppSettings>().GetValueAsync()).Label.ShouldBe("port");
     }
 
+    [Test]
+    public async Task ContextOwnershipAwaitsAsyncDisposableSourceResources()
+    {
+        var resource = new AsyncDisposableProbe();
+        var context = ConfiglueApp.CreateContext(builder =>
+            builder.Add<AppSettings>(model =>
+                model.Sources(sources =>
+                    ((IConfiglueSourceRegistrationSink)sources).Add(
+                        new AsyncOwningSourceDefinition(resource)
+                    )
+                )
+            )
+        );
+        await using (context)
+        {
+            await context.GetState<AppSettings>().GetValueAsync();
+            resource.DisposeAsyncCallCount.ShouldBe(0);
+            resource.DisposeCallCount.ShouldBe(0);
+            await context.DisposeAsync();
+        }
+
+        resource.DisposeAsyncCallCount.ShouldBe(1);
+        resource.DisposeCallCount.ShouldBe(0);
+    }
+
+    private sealed class AsyncOwningSourceDefinition(AsyncDisposableProbe resource)
+        : IConfiglueSourceDefinition
+    {
+        public ConfiglueSourceCreation<TFragment> Create<TFragment>(
+            ConfiglueSourceCreationContext context
+        )
+            where TFragment : class, IConfiglueFragment<TFragment>
+        {
+            context.Own(resource);
+            var store = new InMemoryStateSource<TFragment>();
+            return context.Complete(new StateSource<TFragment>("async-owned", store));
+        }
+    }
+
     private sealed class FailingSourceDefinition(DisposableProbe resource)
         : IConfiglueSourceDefinition
     {

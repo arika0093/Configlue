@@ -23,19 +23,8 @@ public static class ConfiglueProfiledStateServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(profileSourceSetFactory);
         ArgumentNullException.ThrowIfNull(catalogSourceFactory);
+        // Profiles share the logical state-name namespace; only empty or whitespace names are invalid.
         ArgumentException.ThrowIfNullOrWhiteSpace(defaultProfileName);
-        if (
-            defaultProfileName.Contains(':')
-            || defaultProfileName.Contains("__", StringComparison.Ordinal)
-            || defaultProfileName == nameof(ConfiglueProfileCatalog.ActiveProfileName)
-            || defaultProfileName == nameof(ConfiglueProfileCatalog.ProfileNames)
-        )
-        {
-            throw new ArgumentException(
-                $"'{defaultProfileName}' is not a valid profile name.",
-                nameof(defaultProfileName)
-            );
-        }
 
         services.AddConfiglueStateRegistry<TModel, TFragment>(
             profileSourceSetFactory,
