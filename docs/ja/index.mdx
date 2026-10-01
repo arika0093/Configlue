@@ -23,13 +23,13 @@ JSON ファイルがひとつだけなら、設定管理ライブラリは必要
 難しくなるのは、アプリケーションが成長して設定管理そのものが infrastructure になったときです。
 
 <CardGrid stagger>
-  <Card title="Git" icon="terminal">
+  <Card title="Git" icon="layers">
     CLI であっても system、global、local、worktree、command と複数の scope を持ちます。読み取りには優先順位があり、書き込みでは対象 scope を決める必要があります。
   </Card>
   <Card title="Visual Studio Code" icon="puzzle">
     User、Remote、Workspace、Folder、language、profile、policy、同期設定が共存し、その一方で人間が JSON を直接編集する使い方も残っています。
   </Card>
-  <Card title="Chrome" icon="seti:config">
+  <Card title="Chrome" icon="magnifier">
     ユーザー設定と中央管理された policy が共存し、所有者や優先順位が異なり、ユーザー自身には変更できない値もあります。
   </Card>
 </CardGrid>
@@ -83,7 +83,7 @@ source の構成、serialization、write routing、migration、validation、encr
   <Card title="複数設定の統合" icon="layers">
     user、local、environment、command-line、remote、database、custom source を重ねながら、値の出どころと編集可能性を保持します。
   </Card>
-  <Card title="疎な書き込み" icon="edit">
+  <Card title="疎な書き込み" icon="pencil">
     generated patch により、missing、default、`null`、set、unset を区別し、モデル全体を雑に上書きしません。
   </Card>
   <Card title="schema の成長" icon="arrow-right">
@@ -100,16 +100,16 @@ source の構成、serialization、write routing、migration、validation、encr
 ## ひとつの state model を、さまざまな .NET アプリで
 
 <CardGrid>
-  <Card title="Plain .NET" icon="terminal">
+  <Card title="Plain .NET" icon="layers">
     `ConfiglueApp.Initialize(...)` で一度初期化し、`ConfiglueApp.GetState<T>()` から process-wide な型付き state を利用します。
   </Card>
-  <Card title="Generic Host / ASP.NET Core" icon="server">
+  <Card title="Generic Host / ASP.NET Core" icon="puzzle">
     DI に Configlue を登録し、アプリケーションには `IReadOnlyState<T>` / `IWritableState<T>` だけを inject します。host integration から user / tenant 単位の state も構成できます。
   </Card>
-  <Card title="Blazor / Desktop UI" icon="window">
+  <Card title="Blazor / Desktop UI" icon="pencil">
     Blazor の `StateReader<T>` / `StateEditor<T>`、または共通 ComponentModel adapter を使い、各 host の native dispatcher と接続できます。
   </Card>
-  <Card title="MAUI / Unity / Godot" icon="rocket">
+  <Card title="MAUI / Unity / Godot" icon="arrow-right">
     state abstraction はそのままに、各 host が適切な application path、lifecycle、storage、threading、runtime semantics を提供します。
   </Card>
 </CardGrid>
