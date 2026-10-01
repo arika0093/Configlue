@@ -39,7 +39,7 @@ public sealed partial class ConfiglueGenerator
         );
         code.AppendLineAt(
             1,
-            "public sealed class Fragment : global::Configlue.IConfiglueFragment<Fragment>, global::Configlue.IConfiglueDeepCloneable<Fragment>"
+            "public sealed class Fragment : global::Configlue.IConfiglueFragment<Fragment>, global::SparseFragments.ISparseDeepCloneable<Fragment>"
         );
         code.AppendLineAt(1, "{");
         if (hasJsonFragmentRegistry)
