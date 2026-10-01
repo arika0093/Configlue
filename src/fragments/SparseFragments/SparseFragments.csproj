@@ -7,7 +7,6 @@
     <PackageDescription>Standalone sparse-fragment model algebra extracted from Configlue.</PackageDescription>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Polyfill" Version="11.4.1" PrivateAssets="all" />
     <PackageReference Include="System.Memory" Version="4.6.3" />
   </ItemGroup>
   <ItemGroup>

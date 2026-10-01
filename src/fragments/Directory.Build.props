@@ -2,5 +2,16 @@
   <PropertyGroup>
     <ConfiglueUtility>true</ConfiglueUtility>
   </PropertyGroup>
+  <!--
+    Projects under src/fragments are single-target netstandard2.0 libraries. The shared
+    Directory.Build.props netstandard conditions never fire for single-target projects
+    (TargetFramework is still empty when that file is evaluated), so reference Polyfill
+    here instead. This keeps the polyfill dependency consistent across fragments
+    without pulling the shared netstandard2.0 runtime shims (System.Threading.Channels,
+    Microsoft.Bcl.AsyncInterfaces) that these projects do not use.
+  -->
+  <ItemGroup>
+    <PackageReference Include="Polyfill" Version="11.4.1" PrivateAssets="all" />
+  </ItemGroup>
   <Import Project="../Directory.Build.props" />
 </Project>
