@@ -327,7 +327,7 @@ public sealed partial class ConfiglueGenerator
                 .Append(previousType)
                 .Append(".Fragment>(")
                 .Append(previousType)
-                .Append(".FragmentSchema.ToMetadata(), previousV")
+                .Append(".ConfiglueFragmentSchema.ToMetadata(), previousV")
                 .Append(version)
                 .Append("Codec, migrateV")
                 .Append(version)
@@ -442,7 +442,7 @@ public sealed partial class ConfiglueGenerator
         code.CancellationToken.ThrowIfCancellationRequested();
         code.AppendIndent(1)
             .Append(
-                "public static global::Configlue.ConfiglueModelSchema FragmentSchema { get; } = new(typeof("
+                "public static global::Configlue.ConfiglueModelSchema ConfiglueFragmentSchema { get; } = new(typeof("
             )
             .Append(modelType)
             .Append("), ")
@@ -474,7 +474,7 @@ public sealed partial class ConfiglueGenerator
             {
                 code.Append("static () => ")
                     .Append(member.ChildSchemaType!)
-                    .Append(".FragmentSchema!");
+                    .Append(".ConfiglueFragmentSchema!");
             }
 
             code.Append(", null, null, ")
