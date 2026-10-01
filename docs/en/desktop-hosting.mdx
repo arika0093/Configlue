@@ -1,0 +1,33 @@
+---
+title: Desktop hosting
+---
+
+The WPF and Windows Forms packages provide native UI dispatch for the shared `Configlue.Extensions.ComponentModel` adapters. They use the ordinary desktop path profile and do not own the application's UI thread, windows, controls, or configuration context.
+
+## WPF
+
+Install `Configlue.Hosting.Wpf` and explicitly select the dispatcher of the bound window:
+
+```csharp
+var dispatcher = new WpfConfiglueDispatcher(window.Dispatcher);
+using var reader = new ConfiglueStateReader<AppSettings>(
+    context.GetState<AppSettings>(), dispatcher);
+await reader.InitializeAsync();
+```
+
+An application with multiple UI threads creates a dispatcher adapter for each bound window. No adapter uses `Application.Current` or assumes a single global dispatcher. Posts use DataBind priority. New posts fail when shutdown is detected; callbacks already accepted can be aborted by WPF during shutdown, following [WPF Dispatcher behavior](https://learn.microsoft.com/en-us/dotnet/api/system.windows.threading.dispatcher?view=windowsdesktop-10.0).
+
+## Windows Forms
+
+Install `Configlue.Hosting.WinForms`. Construct the adapter on the UI thread after an application-owned form/control handle has been created, for example in the form's load handler:
+
+```csharp
+var dispatcher = new WinFormsConfiglueDispatcher(this);
+using var reader = new ConfiglueStateReader<AppSettings>(
+    context.GetState<AppSettings>(), dispatcher);
+await reader.InitializeAsync();
+```
+
+Keep the reader for the desired form lifetime and dispose it when that lifetime ends; the `using` above illustrates ownership. The adapter neither creates a hidden control nor forces handle creation. Construction rejects an uncreated handle and a different UI thread. Posts reject absent handles (including a handle recreation interval) and disposing/disposed controls; queued callbacks follow native [Control.BeginInvoke behavior](https://learn.microsoft.com/en-us/dotnet/api/system.windows.forms.control.begininvoke?view=windowsdesktop-10.0).
+
+Both packages target .NET 10 Windows and .NET Framework 4.8. Native dispatcher tests use independent STA threads and real WPF/Windows Forms message loops, including background notifications through the shared state reader and generated observable model.
