@@ -17,6 +17,6 @@
     "starlight-theme-nova": "^0.12.3"
   },
   "devDependencies": {
-    "typescript": "^6.0.3"
+    "typescript": "^7.0.2"
   }
 }
