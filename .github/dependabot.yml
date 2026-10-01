@@ -1,0 +1,32 @@
+version: 2
+updates:
+  - package-ecosystem: "nuget"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    ignore:
+      # Roslyn analyzer itself. Pinned because it is tightly coupled to the
+      # .NET SDK / compiler version.
+      # Raising this version breaks operation in older environments, so it is
+      # intentionally kept low.
+      - dependency-name: "Microsoft.CodeAnalysis.Analyzers"
+      - dependency-name: "Microsoft.CodeAnalysis.CSharp"
+      # --------
+      # JsonSchema.Net family referenced by Configlue.JsonSchema.MSBuild.
+      # Pinned to the approved pre-OSMF versions to avoid the Open Source
+      # Maintenance Fee (keep in sync with DependencyPolicy.props).
+      - dependency-name: "JsonSchema.Net"
+      - dependency-name: "JsonSchema.Net.Generation"
+      - dependency-name: "JsonSchema.Net.Generation.DataAnnotations"
+      - dependency-name: "JsonPointer.Net"
+      - dependency-name: "Json.More.Net"
+
+  - package-ecosystem: "npm"
+    directory: "/docs-site"
+    schedule:
+      interval: "weekly"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
