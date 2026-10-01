@@ -122,7 +122,6 @@ public sealed class ConfiglueModelBuilder<TModel>
         StateSource<ConfiglueProfileCatalog>
     >? _profileCatalogSourceFactory;
     private string _defaultProfileName = "default";
-    private StateWriteRoute _writeRoute;
     private StateWritePlan _writePlan = StateWritePlan.Empty;
     private bool _validateDataAnnotations = true;
     private ReadValidationMode _readValidationMode = ReadValidationMode.EffectiveThrow;
@@ -147,19 +146,8 @@ public sealed class ConfiglueModelBuilder<TModel>
         }
     }
 
-    /// <summary>Selects the logical source used for ordinary writes.</summary>
-    public StateWriteRoute WriteRoute
-    {
-        get => _writeRoute;
-        set
-        {
-            EnsureMutable();
-            _writeRoute = value;
-        }
-    }
-
-    /// <summary>Sets the default write owner for model property paths.</summary>
-    /// <remarks>Most-specific paths apply. Operation-level write plans replace routes with matching paths.</remarks>
+    /// <summary>Sets the write ownership plan for ordinary edits.</summary>
+    /// <remarks>Most-specific paths apply. Operation-level write plans replace ownership with matching paths.</remarks>
     public StateWritePlan WritePlan
     {
         get => _writePlan;
@@ -168,6 +156,25 @@ public sealed class ConfiglueModelBuilder<TModel>
             EnsureMutable();
             _writePlan = value ?? throw new ArgumentNullException(nameof(value));
         }
+    }
+
+    /// <summary>Configures deterministic write ownership for ordinary edits.</summary>
+    /// <example>
+    /// <code>
+    /// model.Writes(write =>
+    /// {
+    ///     write.DefaultTo(userSource);
+    ///     write.Route(x => x.Database, databaseSource);
+    /// });
+    /// </code>
+    /// </example>
+    public void Writes(Action<StateWritePlanBuilder<TModel>> configure)
+    {
+        EnsureMutable();
+        ArgumentNullException.ThrowIfNull(configure);
+        var builder = new StateWritePlanBuilder<TModel>();
+        configure(builder);
+        _writePlan = builder.Build();
     }
 
     /// <summary>Enables runtime registration of named instances for this model.</summary>
@@ -490,7 +497,6 @@ public sealed class ConfiglueModelBuilder<TModel>
         var clone = new ConfiglueModelBuilder<TModel>
         {
             StateName = stateName,
-            WriteRoute = _writeRoute,
             WritePlan = _writePlan,
             ValidateDataAnnotations = _validateDataAnnotations,
             ReadValidationMode = _readValidationMode,

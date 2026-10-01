@@ -3,18 +3,23 @@ using Configlue.Sources;
 
 namespace Configlue.State;
 
-/// <summary>Routes writes independently from read-source selection.</summary>
+/// <summary>Routes writes independently from read-source selection using deterministic ownership.</summary>
 public sealed class StateSourceWriter<T> : ISourceWriter<T>
 {
     private readonly StateSourceSet<T> _sourceSet;
-    private readonly StateWriteRoute _route;
+    private readonly string? _defaultSourceId;
 
-    /// <summary>Creates a source writer using the highest-priority writable source by default.</summary>
-    public StateSourceWriter(StateSourceSet<T> sourceSet, StateWriteRoute route = default)
+    /// <summary>Creates a source writer with an optional default write owner.</summary>
+    public StateSourceWriter(StateSourceSet<T> sourceSet, string? defaultSourceId = null)
     {
         ArgumentNullException.ThrowIfNull(sourceSet);
+        if (defaultSourceId is not null)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(defaultSourceId);
+        }
+
         _sourceSet = sourceSet;
-        _route = route;
+        _defaultSourceId = defaultSourceId;
     }
 
     /// <inheritdoc />
@@ -24,28 +29,7 @@ public sealed class StateSourceWriter<T> : ISourceWriter<T>
         CancellationToken cancellationToken = default
     )
     {
-        var source = _route.SourceId is { } id
-            ? _sourceSet.Sources.FirstOrDefault(candidate =>
-                string.Equals(candidate.Id, id, StringComparison.Ordinal)
-            )
-            : _sourceSet.Sources.FirstOrDefault(static candidate => candidate.Writer is not null);
-
-        if (source is null)
-        {
-            throw new InvalidOperationException(
-                _route.SourceId is { } sourceId
-                    ? $"State source '{sourceId}' is not registered."
-                    : "No writable state source is registered."
-            );
-        }
-
-        if (source.Writer is null)
-        {
-            throw new InvalidOperationException(
-                $"State source '{source.Id}' does not support writes."
-            );
-        }
-
+        var source = ResolveSource();
         var sourceContext = ReferenceEquals(
             context.Subject,
             ConfiglueResourceContext.DefaultSubject
@@ -53,5 +37,59 @@ public sealed class StateSourceWriter<T> : ISourceWriter<T>
             ? context
             : source.GetResourceContext(context.Subject);
         return source.WriteAsync(sourceContext, request, cancellationToken);
+    }
+
+    private StateSource<T> ResolveSource()
+    {
+        if (_defaultSourceId is { } defaultSourceId)
+        {
+            var explicitSource = _sourceSet.Sources.FirstOrDefault(candidate =>
+                string.Equals(candidate.Id, defaultSourceId, StringComparison.Ordinal)
+            );
+            if (explicitSource is null)
+            {
+                throw new InvalidOperationException(
+                    $"State source '{defaultSourceId}' is not registered."
+                );
+            }
+
+            if (explicitSource.Writer is null)
+            {
+                throw new InvalidOperationException(
+                    $"State source '{explicitSource.Id}' does not support writes."
+                );
+            }
+
+            return explicitSource;
+        }
+
+        StateSource<T>? inferred = null;
+        foreach (var candidate in _sourceSet.Sources)
+        {
+            if (
+                candidate.Writer is null
+                || candidate.ExplicitOnly
+                || candidate.OwnedPropertyPaths.Count > 0
+            )
+            {
+                continue;
+            }
+
+            if (inferred is not null)
+            {
+                throw new InvalidOperationException(
+                    $"Multiple writable root sources ('{inferred.Id}' and '{candidate.Id}') are registered. Configure a default write owner."
+                );
+            }
+
+            inferred = candidate;
+        }
+
+        if (inferred is null)
+        {
+            throw new InvalidOperationException("No writable root state source is registered.");
+        }
+
+        return inferred;
     }
 }

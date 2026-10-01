@@ -39,20 +39,17 @@ public sealed partial class StateRuntimeTests
     }
 
     [Test]
-    public async Task PatchSaveRequiresAWriteRouteWhenMultipleSourcesAreWritable()
+    public void ContextCreationRejectsAmbiguousWritableRootsWithoutADefaultOwner()
     {
         var first = new InMemoryStateSource<AppSettings.Fragment>();
         var second = new InMemoryStateSource<AppSettings.Fragment>();
-        await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
-            new StateSourceSet<AppSettings.Fragment>([
-                new StateSource<AppSettings.Fragment>("first", first, writer: first),
-                new StateSource<AppSettings.Fragment>("second", second, writer: second),
-            ])
-        );
 
-        await Should.ThrowAsync<InvalidOperationException>(async () =>
-            await options.SaveAsync(
-                new AppSettings.Patch { Label = FragmentOperation<string?>.Set("ambiguous") }
+        Should.Throw<InvalidOperationException>(() =>
+            new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
+                new StateSourceSet<AppSettings.Fragment>([
+                    new StateSource<AppSettings.Fragment>("first", first, writer: first),
+                    new StateSource<AppSettings.Fragment>("second", second, writer: second),
+                ])
             )
         );
     }
@@ -356,7 +353,7 @@ public sealed partial class StateRuntimeTests
                 watcher: fallback
             ),
         ]);
-        var runtime = new CompositeStateRuntime<string>(sources, StateWriteRoute.To("local"));
+        var runtime = new CompositeStateRuntime<string>(sources, "local");
 
         var resolved = await runtime.Reader.ReadAsync();
         await runtime.Writer.WriteAsync(

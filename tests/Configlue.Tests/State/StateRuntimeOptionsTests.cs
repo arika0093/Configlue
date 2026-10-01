@@ -480,7 +480,8 @@ public sealed partial class StateRuntimeTests
                 new("user", user, priority: 100, writer: user),
                 new("database", database, priority: 50, writer: database),
                 new("defaults", defaults),
-            ])
+            ]),
+            StateWritePlan.DefaultTo("user")
         );
         var writePlan = new StateWritePlan(
             new Dictionary<string, string>(StringComparer.Ordinal)

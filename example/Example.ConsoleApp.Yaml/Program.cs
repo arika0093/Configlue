@@ -20,7 +20,7 @@ await using var context = ConfiglueApp.CreateContext(builder =>
     builder.Add<SampleSetting>(model =>
     {
         model.Sources(sources => sources.Add(source));
-        model.WriteRoute = StateWriteRoute.To("settings");
+        model.Writes(write => write.DefaultTo("settings"));
         model.OnChangeDebounce = TimeSpan.Zero;
     });
 });

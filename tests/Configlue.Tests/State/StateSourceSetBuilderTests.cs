@@ -87,7 +87,7 @@ public sealed class StateSourceSetBuilderTests
                     priority: 0
                 );
             },
-            StateWriteRoute.To("user"),
+            StateWritePlan.DefaultTo("user"),
             onChangeDebounce: TimeSpan.Zero
         );
         using var serviceProvider = services.BuildServiceProvider();

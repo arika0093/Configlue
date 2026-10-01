@@ -95,7 +95,7 @@ await using var context = ConfiglueApp.CreateContext(app =>
                 sourceSet.Add(source);
             }
         });
-        model.WriteRoute = StateWriteRoute.To("explicit");
+        model.Writes(write => write.DefaultTo("explicit"));
         model.OnChangeDebounce = TimeSpan.Zero;
     })
 );

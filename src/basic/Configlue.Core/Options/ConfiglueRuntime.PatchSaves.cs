@@ -32,22 +32,25 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             );
         }
 
+        var fallbackSource = ResolveDefaultWriteSource();
         if (patch.IsEmpty)
         {
-            var emptyPatchSource = SelectWriteSource(allowPriorityFallback: true);
-            var current = await ReadSourceAsync(emptyPatchSource, cancellationToken)
+            if (fallbackSource is null)
+            {
+                return StateWriteReceipt.Empty;
+            }
+
+            var current = await ReadSourceAsync(fallbackSource, cancellationToken)
                 .ConfigureAwait(false);
             if (current.Status == StateReadStatus.Unavailable)
             {
                 throw new InvalidOperationException(
-                    $"Cannot safely patch configuration because source '{emptyPatchSource.Id}' is unavailable."
+                    $"Cannot safely patch configuration because source '{fallbackSource.Id}' is unavailable."
                 );
             }
 
             return StateWriteReceipt.Empty;
         }
-
-        var fallbackSource = TrySelectDefaultWriteSource();
 
         var baseline = await ResolveCoreAsync(null, cancellationToken, captureContributions: true)
             .ConfigureAwait(false);
@@ -68,13 +71,13 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
 
         var expectedResolvedModel = CloneModel(FromFragment(requestedFragment));
 
-        if (_defaultWritePlan.PropertyRoutes.Count > 0)
+        if (_writePlan.PropertyRoutes.Count > 0)
         {
-            ValidateWritePlan(_defaultWritePlan);
+            ValidateWritePlan(_writePlan);
         }
 
         IReadOnlyDictionary<string, IConfigluePatch> patchesBySource;
-        if (_defaultWritePlan.PropertyRoutes.Count == 0 && fallbackSource is not null)
+        if (_writePlan.PropertyRoutes.Count == 0 && fallbackSource is not null)
         {
             // With a single default writable source every member routes to it, so the
             // per-member routing work can be skipped entirely.
@@ -85,7 +88,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         }
         else if (patch is IConfiglueRoutablePatch routablePatch)
         {
-            patchesBySource = routablePatch.Route(_defaultWritePlan, fallbackSource?.Id);
+            patchesBySource = routablePatch.Route(_writePlan, _writePlan.DefaultSourceId);
         }
         else if (patch is IConfiglueMemberPatch memberPatch)
         {
@@ -98,9 +101,8 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                     continue;
                 }
 
-                var targetSourceId = _defaultWritePlan.ResolveSourceIdOrNull(
-                    ConfiglueMemberPath.Root(modelSchema).Append(member.Id),
-                    fallbackSource?.Id
+                var targetSourceId = _writePlan.ResolveSourceIdOrNull(
+                    ConfiglueMemberPath.Root(modelSchema).Append(member.Id)
                 );
                 if (targetSourceId is null)
                 {

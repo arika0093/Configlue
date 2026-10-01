@@ -421,7 +421,8 @@ public sealed class LegacySettingsAdoptionTests
             priority: 500
         );
         var options = new ConfiglueRuntime<HistoricalSettings, HistoricalSettings.Fragment>(
-            new StateSourceSet<HistoricalSettings.Fragment>([higherPrioritySource, source, target])
+            new StateSourceSet<HistoricalSettings.Fragment>([higherPrioritySource, source, target]),
+            StateWritePlan.DefaultTo("current-settings")
         );
 
         var result = await source.Reader.ReadAsync();

@@ -55,7 +55,7 @@ public sealed partial class StateRuntimeTests
         ]);
         var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             sourceSet,
-            StateWriteRoute.To("remote-database")
+            StateWritePlan.DefaultTo("remote-database")
         );
 
         var resolved = await options.ReadAsync();
@@ -340,7 +340,8 @@ public sealed partial class StateRuntimeTests
                 new("legacy", legacy, priority: 50),
                 new("primary", primaryTarget, priority: 0, writer: primaryTarget),
                 new("retry-only", retryTarget, priority: -1, writer: retryTarget),
-            ])
+            ]),
+            StateWritePlan.DefaultTo("primary")
         );
         var targets = new Dictionary<
             SourceKey<AppSettings>,
@@ -406,7 +407,7 @@ public sealed partial class StateRuntimeTests
                     writer: new FailOnceStateWriter<AppSettings.Fragment>(secondTarget)
                 ),
             ]),
-            writeRoute: StateWriteRoute.To("first-target")
+            defaultWritePlan: StateWritePlan.DefaultTo("first-target")
         );
         var targets = new Dictionary<string, Func<IConfiglueFragment, IConfiglueFragment>>(
             StringComparer.Ordinal

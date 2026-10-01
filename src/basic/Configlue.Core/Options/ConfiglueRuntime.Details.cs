@@ -95,7 +95,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         IReadOnlyList<ResolvedContribution> contributions
     )
     {
-        var targetId = _defaultWritePlan.ResolveSourceIdOrNull(propertyPath, _writeRoute.SourceId);
+        var targetId = _writePlan.ResolveSourceIdOrNull(propertyPath);
         StateSource<TFragment>? target;
         if (targetId is not null)
         {
@@ -115,11 +115,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         }
         else
         {
-            target = GetActiveSources().FirstOrDefault(static source => source.Writer is not null);
-            if (target is null)
-            {
-                return ConfiglueEditability.NoWriteTarget;
-            }
+            return ConfiglueEditability.NoWriteTarget;
         }
 
         var member = propertyPath.ResolveMember();

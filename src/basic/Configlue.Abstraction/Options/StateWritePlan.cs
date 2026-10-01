@@ -4,12 +4,14 @@ using Configlue.CompilerServices;
 
 namespace Configlue;
 
-/// <summary>Routes changed model property paths to source-local write targets.</summary>
+/// <summary>Describes deterministic write ownership for model property paths.</summary>
 /// <remarks>
-/// The most specific configured path applies. A route for a nested model also applies to its descendants;
-/// paths without a matching route use the state instance's configured write source. Registration routes
-/// can be combined with per-operation routes; per-operation routes replace registration routes for the same path.
-/// Nested changes can be split across routes. Replacing a nested value with null fails if a route exists below it.
+/// The plan combines one default write owner with optional property-path routes. The most specific
+/// configured path applies; a route for a nested model also applies to its descendants. Writable mounted
+/// sources contribute their mounted subtree as an owned route. Paths without a matching route use the
+/// default owner. Registration routes can be combined with per-operation routes; operation routes replace
+/// registration routes for the same path. Nested changes can be split across owners. Replacing a nested
+/// value with null fails if an owner exists below it.
 /// </remarks>
 public sealed class StateWritePlan
 {
@@ -18,8 +20,22 @@ public sealed class StateWritePlan
 
     /// <summary>Creates a write plan from model property paths to logical source IDs.</summary>
     public StateWritePlan(IReadOnlyDictionary<string, string> propertyRoutes)
+        : this(null, propertyRoutes) { }
+
+    /// <summary>Creates a write plan with a default owner and model property path routes.</summary>
+    /// <param name="defaultSourceId">The logical source that owns paths without a more specific route.</param>
+    /// <param name="propertyRoutes">Routes from model property paths to logical source IDs.</param>
+    public StateWritePlan(
+        string? defaultSourceId,
+        IReadOnlyDictionary<string, string> propertyRoutes
+    )
     {
         ArgumentNullException.ThrowIfNull(propertyRoutes);
+        if (defaultSourceId is not null)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(defaultSourceId);
+        }
+
         var routes = new Dictionary<string, string>(StringComparer.Ordinal);
         foreach (var route in propertyRoutes)
         {
@@ -46,22 +62,33 @@ public sealed class StateWritePlan
             }
         }
 
+        DefaultSourceId = defaultSourceId;
         PropertyRoutes = new ReadOnlyDictionary<string, string>(routes);
     }
 
-    /// <summary>Creates a plan with no overrides; all changed paths use the configured write source.</summary>
+    /// <summary>Creates a plan with no owners; every changed path has no write target.</summary>
     public static StateWritePlan Empty { get; } =
-        new(new Dictionary<string, string>(StringComparer.Ordinal));
+        new((string?)null, new Dictionary<string, string>(StringComparer.Ordinal));
 
-    /// <summary>Starts a strongly typed write-routing plan for one generated model.</summary>
+    /// <summary>Starts a strongly typed write-ownership plan for one generated model.</summary>
     public static StateWritePlanBuilder<TModel> For<TModel>()
         where TModel : IConfiglueModel => new();
+
+    /// <summary>Creates a plan whose default owner is the supplied logical source.</summary>
+    public static StateWritePlan DefaultTo(string sourceId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sourceId);
+        return new StateWritePlan(sourceId, new Dictionary<string, string>(StringComparer.Ordinal));
+    }
+
+    /// <summary>The logical source that owns model paths without a more specific route.</summary>
+    public string? DefaultSourceId { get; }
 
     /// <summary>Configured model property paths and their target logical source IDs.</summary>
     public IReadOnlyDictionary<string, string> PropertyRoutes { get; }
 
-    /// <summary>Combines this registration plan with routes supplied for one operation.</summary>
-    /// <remarks>Operation routes replace registration routes with the same path. Longest-prefix matching still applies.</remarks>
+    /// <summary>Combines this registration plan with owners supplied for one operation.</summary>
+    /// <remarks>Operation owners replace registration owners with the same path. Longest-prefix matching still applies.</remarks>
     public StateWritePlan OverrideWith(StateWritePlan overrides)
     {
         ArgumentNullException.ThrowIfNull(overrides);
@@ -72,9 +99,7 @@ public sealed class StateWritePlan
         );
         foreach (var route in overrides.PropertyRoutes)
         {
-            var path = route.Key;
-            var sourceId = route.Value;
-            routes[path] = sourceId;
+            routes[route.Key] = route.Value;
         }
 
         if (
@@ -90,9 +115,21 @@ public sealed class StateWritePlan
                 nameof(overrides)
             );
         }
-        var merged = routes.Count == 0 ? Empty : new StateWritePlan(routes);
+
+        var defaultSourceId = overrides.DefaultSourceId ?? DefaultSourceId;
+        var merged = new StateWritePlan(defaultSourceId, routes);
         var schema = _schema ?? overrides._schema;
         return schema is not null ? merged.Bind(schema) : merged;
+    }
+
+    /// <summary>Resolves a path using the longest configured path prefix, or returns the default owner.</summary>
+    public string ResolveSourceId(string propertyPath)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(propertyPath);
+        return ResolveSourceIdOrNull(propertyPath, DefaultSourceId)
+            ?? throw new InvalidOperationException(
+                $"No write owner is configured for model path '{propertyPath}'."
+            );
     }
 
     /// <summary>Resolves a path using the longest configured path prefix, or returns the fallback source ID.</summary>
@@ -103,7 +140,7 @@ public sealed class StateWritePlan
         return ResolveSourceIdOrNull(propertyPath, fallbackSourceId)!;
     }
 
-    /// <summary>Resolves a path to its most specific source, or returns null when no owner is configured.</summary>
+    /// <summary>Resolves a path to its most specific owner, or returns the fallback when no owner is configured.</summary>
     public string? ResolveSourceIdOrNull(string propertyPath, string? fallbackSourceId = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(propertyPath);
@@ -114,7 +151,8 @@ public sealed class StateWritePlan
                 fallbackSourceId
             );
         }
-        string? result = fallbackSourceId;
+
+        string? result = fallbackSourceId ?? DefaultSourceId;
         var length = -1;
         foreach (var route in PropertyRoutes)
         {
@@ -147,6 +185,7 @@ public sealed class StateWritePlan
 
     private StateWritePlan(StateWritePlan plan, ConfiglueModelSchema schema)
     {
+        DefaultSourceId = plan.DefaultSourceId;
         PropertyRoutes = plan.PropertyRoutes;
         _schema = schema;
         _routes = new KeyValuePair<ConfiglueMemberPath, string>[PropertyRoutes.Count];
@@ -155,6 +194,17 @@ public sealed class StateWritePlan
         {
             _routes[index++] = new(ConfiglueMemberPath.FromNames(schema, route.Key), route.Value);
         }
+    }
+
+    internal StateWritePlan WithDefaultSourceId(string? defaultSourceId)
+    {
+        if (string.Equals(DefaultSourceId, defaultSourceId, StringComparison.Ordinal))
+        {
+            return this;
+        }
+
+        var plan = new StateWritePlan(defaultSourceId, PropertyRoutes);
+        return _schema is not null ? plan.Bind(_schema) : plan;
     }
 
     internal StateWritePlan Bind(ConfiglueModelSchema schema)
@@ -192,7 +242,7 @@ public sealed class StateWritePlan
             );
         }
         var bestLength = -1;
-        var result = fallbackSourceId;
+        var result = fallbackSourceId ?? DefaultSourceId;
         for (var index = 0; index < _routes.Length; index++)
         {
             var route = _routes[index];

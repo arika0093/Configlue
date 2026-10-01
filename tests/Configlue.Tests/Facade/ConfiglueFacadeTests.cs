@@ -63,6 +63,7 @@ public sealed class ConfiglueFacadeTests
             builder.Add<AppSettings>(model =>
             {
                 model.WritePlan = new StateWritePlan(
+                    "user-overlay",
                     new Dictionary<string, string>(StringComparer.Ordinal)
                     {
                         ["RetryCount"] = "user-overlay",

@@ -12,7 +12,7 @@ public sealed class ConfiglueStateDiagnostics
         string stateName,
         IEnumerable<ConfiglueSourceDiagnostics> sources,
         string? defaultWriteSourceId,
-        bool defaultUsesHighestPriorityWritable,
+        bool defaultWriteSourceIsInferred,
         IReadOnlyDictionary<string, string> propertyWriteRoutes
     )
     {
@@ -22,7 +22,7 @@ public sealed class ConfiglueStateDiagnostics
         StateName = stateName;
         Sources = Array.AsReadOnly(sources.ToArray());
         DefaultWriteSourceId = defaultWriteSourceId;
-        DefaultUsesHighestPriorityWritable = defaultUsesHighestPriorityWritable;
+        DefaultWriteSourceIsInferred = defaultWriteSourceIsInferred;
         var routes = new Dictionary<string, string>(StringComparer.Ordinal);
         foreach (var route in propertyWriteRoutes)
         {
@@ -46,8 +46,8 @@ public sealed class ConfiglueStateDiagnostics
     /// <summary>The default write owner, or null when the runtime has no configured writable source.</summary>
     public string? DefaultWriteSourceId { get; }
 
-    /// <summary>Whether the default write owner is selected from the highest-priority writable source.</summary>
-    public bool DefaultUsesHighestPriorityWritable { get; }
+    /// <summary>Whether the default write owner was inferred from a single writable root source.</summary>
+    public bool DefaultWriteSourceIsInferred { get; }
 
     /// <summary>Registration-level model paths and their configured write owners.</summary>
     public IReadOnlyDictionary<string, string> PropertyWriteRoutes { get; }

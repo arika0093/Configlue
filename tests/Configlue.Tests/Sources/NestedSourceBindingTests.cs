@@ -251,7 +251,7 @@ public sealed partial class NestedSourceBindingTests
     }
 
     [Test]
-    public async Task MountedOwnerDoesNotRequireAnUnambiguousRootWriter()
+    public async Task MountedOwnerOwnsItsSubtreeEvenWhenARootDefaultIsConfigured()
     {
         var firstRootStore = new InMemoryStateSource<AppSettings.Fragment>();
         var secondRootStore = new InMemoryStateSource<AppSettings.Fragment>();
@@ -262,6 +262,7 @@ public sealed partial class NestedSourceBindingTests
         await using var context = ConfiglueApp.CreateContext(builder =>
         {
             builder.Add<AppSettings>(model =>
+            {
                 model.Sources(sources =>
                 {
                     sources.Add(
@@ -291,8 +292,9 @@ public sealed partial class NestedSourceBindingTests
                         ),
                         settings => settings.Database
                     );
-                })
-            );
+                });
+                model.Writes(write => write.DefaultTo("first-root"));
+            });
         });
 
         var options = (IConfiglueRuntimeState<AppSettings>)context.GetState<AppSettings>();
