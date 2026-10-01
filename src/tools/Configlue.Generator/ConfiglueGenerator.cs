@@ -15,7 +15,6 @@ public sealed partial class ConfiglueGenerator : IIncrementalGenerator
     private const string ModelAttributeName = "Configlue.ConfiglueModelAttribute";
     private const string PreviousVersionAttributeName =
         "Configlue.ConfigluePreviousVersionAttribute";
-    private const string MergeAttributeName = "Configlue.ConfiglueMergeAttribute";
     private const int CustomMergeMode = 4;
     private const int InitialSchemaVersion = 1;
     private static readonly SymbolDisplayFormat TypeFormat =
