@@ -84,7 +84,7 @@ internal static class SparseFragmentEmitter
                 1,
                 "/// <summary>Generated shape for an undecorated structural member type.</summary>"
             );
-            code.AppendLineAt(1, "public sealed class " + structuralModel.HostName);
+            code.AppendLineAt(1, "public sealed partial class " + structuralModel.HostName);
             code.AppendLineAt(1, "{");
             code.IndentOffset++;
             AppendFragment(
@@ -234,7 +234,7 @@ internal static class SparseFragmentEmitter
             "[global::System.ComponentModel.EditorBrowsable(global::System.ComponentModel.EditorBrowsableState.Never)]"
         );
         code.AppendIndent(1)
-            .Append("public sealed class Fragment : ")
+            .Append("public sealed partial class Fragment : ")
             .Append(FragmentOfT)
             .Append("<Fragment>, ")
             .Append(DeepCloneable)
@@ -256,13 +256,11 @@ internal static class SparseFragmentEmitter
         {
             code.AppendIndent(2)
                 .Append("internal static readonly ")
-                .Append(MergeStrategy)
-                .Append("<")
-                .Append(member.Property.Type.Name)
-                .Append("> ")
+                .Append(member.MergeStrategyType!.Value.Name)
+                .Append(" ")
                 .Append(MergeStrategyField(member))
                 .Append(" = new ")
-                .Append(member.MergeStrategyType!.Value.Name)
+                .Append(member.MergeStrategyType.Value.Name)
                 .AppendLine("();");
         }
 
