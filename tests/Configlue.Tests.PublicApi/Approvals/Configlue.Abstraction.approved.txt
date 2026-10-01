@@ -745,7 +745,6 @@ namespace Configlue.Resources
 {
     public readonly struct ConfiglueResourceContext : System.IEquatable<Configlue.Resources.ConfiglueResourceContext>
     {
-        public ConfiglueResourceContext(Configlue.IConfiglueSubject Subject, Configlue.SubjectKey Key) { }
         public ConfiglueResourceContext(Configlue.IConfiglueSubject Subject, Configlue.SubjectKey Key, Configlue.RouteKey Route) { }
         public ConfiglueResourceContext(string? ModelId, Configlue.IConfiglueSubject Subject, Configlue.SubjectKey Key, Configlue.RouteKey Route) { }
         public Configlue.SubjectKey Key { get; init; }
@@ -845,7 +844,6 @@ namespace Configlue.Resources
         public string? Scope { get; }
         public System.ReadOnlyMemory<byte> Apply(Configlue.Resources.ResourceReadResult current) { }
         public Configlue.Resources.ResourceWriteMutation WithContext(Configlue.Resources.ConfiglueResourceContext context) { }
-        public static Configlue.Resources.ResourceWriteMutation Replace(Configlue.Resources.ResourceWriteRequest request) { }
         public static Configlue.Resources.ResourceWriteMutation Replace(Configlue.Resources.ResourceWriteRequest request, Configlue.Resources.ConfiglueResourceContext context) { }
         public static void ValidateBatch(System.Collections.Generic.IReadOnlyList<Configlue.Resources.ResourceWriteMutation> mutations) { }
     }

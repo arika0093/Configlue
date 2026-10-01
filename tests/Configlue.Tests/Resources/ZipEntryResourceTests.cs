@@ -168,8 +168,16 @@ public sealed class ZipEntryResourceTests
         var archive = new InMemoryResource();
         var firstSubject = new ResourceSubject("one");
         var secondSubject = new ResourceSubject("two");
-        var firstContext = new ConfiglueResourceContext(firstSubject, firstSubject.Key);
-        var secondContext = new ConfiglueResourceContext(secondSubject, secondSubject.Key);
+        var firstContext = new ConfiglueResourceContext(
+            firstSubject,
+            firstSubject.Key,
+            RouteKey.Default
+        );
+        var secondContext = new ConfiglueResourceContext(
+            secondSubject,
+            secondSubject.Key,
+            RouteKey.Default
+        );
         var firstEntryName = $"settings/{firstSubject.Key.Value}.json";
         var secondEntryName = $"settings/{secondSubject.Key.Value}.json";
         await archive.WriteAsync(

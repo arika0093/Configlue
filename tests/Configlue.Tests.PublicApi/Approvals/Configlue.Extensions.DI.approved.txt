@@ -6,6 +6,9 @@ namespace Configlue
         public static Microsoft.Extensions.DependencyInjection.IServiceCollection AddConfiglueProfiledState<TModel, TFragment>(this Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Func<System.IServiceProvider, string, Configlue.Sources.StateSourceSet<TFragment>> profileSourceSetFactory, System.Func<System.IServiceProvider, Configlue.Sources.StateSource<Configlue.ConfiglueProfileCatalog>> catalogSourceFactory, string defaultProfileName = "default", Configlue.StateWritePlan? writePlan = null, bool validateDataAnnotations = true, System.TimeSpan? onChangeDebounce = default, Configlue.WriteConflictResolution writeConflictResolution = 0)
             where TModel : Configlue.CompilerServices.IConfiglueModel<TModel, TFragment>
             where TFragment :  class, Configlue.IConfiglueFragment<TFragment> { }
+        public static Microsoft.Extensions.DependencyInjection.IServiceCollection AddConfiglueProfiledState<TModel, TFragment>(this Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Func<System.IServiceProvider, string, Configlue.Sources.StateSourceSet<TFragment>> profileSourceSetFactory, System.Func<System.IServiceProvider, System.Action<object>, Configlue.Sources.StateSource<Configlue.ConfiglueProfileCatalog>> catalogSourceFactory, string defaultProfileName = "default", Configlue.StateWritePlan? writePlan = null, bool validateDataAnnotations = true, System.TimeSpan? onChangeDebounce = default, Configlue.WriteConflictResolution writeConflictResolution = 0)
+            where TModel : Configlue.CompilerServices.IConfiglueModel<TModel, TFragment>
+            where TFragment :  class, Configlue.IConfiglueFragment<TFragment> { }
     }
     public static class ConfiglueServiceCollectionExtensions
     {

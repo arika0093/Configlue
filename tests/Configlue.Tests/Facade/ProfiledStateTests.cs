@@ -586,6 +586,39 @@ public sealed class ProfiledStateTests
         resource.DisposeCallCount.ShouldBe(0);
     }
 
+    [Test]
+    public async Task DiProfileCatalogFactoryCanOwnAsyncDisposableResources()
+    {
+        var resource = new AsyncDisposableProbe();
+        var (catalog, _) = CreateProfileCatalog();
+        var backing = CreateBackingStore();
+        var services = new ServiceCollection();
+        services.AddConfiglueMicrosoftOptions<AppSettings>();
+        services.AddConfiglueProfiledState<AppSettings, AppSettings.Fragment>(
+            (_, stateName) =>
+                new StateSourceSet<AppSettings.Fragment>([CreateBackingSource(backing, stateName)]),
+            (_, ownResource) =>
+            {
+                ownResource(resource);
+                return catalog;
+            },
+            onChangeDebounce: TimeSpan.Zero
+        );
+
+        var provider = services.BuildServiceProvider();
+        await using (provider)
+        {
+            await provider
+                .GetRequiredService<IConfiglueProfiledState<AppSettings>>()
+                .GetProfileNamesAsync();
+            resource.DisposeAsyncCallCount.ShouldBe(0);
+            await provider.DisposeAsync();
+        }
+
+        resource.DisposeAsyncCallCount.ShouldBe(1);
+        resource.DisposeCallCount.ShouldBe(0);
+    }
+
     private static (StateSource<ConfiglueProfileCatalog> Catalog, InMemoryStateSource<ConfiglueProfileCatalog> Store)
         CreateProfileCatalog()
     {

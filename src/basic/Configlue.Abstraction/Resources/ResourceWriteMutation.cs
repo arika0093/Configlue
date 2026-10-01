@@ -77,10 +77,6 @@ public sealed class ResourceWriteMutation
         return false;
     }
 
-    /// <summary>Creates a full-resource replacement mutation.</summary>
-    public static ResourceWriteMutation Replace(ResourceWriteRequest request) =>
-        Replace(request, ConfiglueResourceContext.Default);
-
     /// <summary>Creates a full-resource replacement mutation for one subject.</summary>
     public static ResourceWriteMutation Replace(
         ResourceWriteRequest request,

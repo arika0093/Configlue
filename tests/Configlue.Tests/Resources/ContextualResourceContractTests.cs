@@ -94,7 +94,7 @@ public sealed class ContextualResourceContractTests
     }
 
     private static ConfiglueResourceContext Context(SettingsSubject subject) =>
-        new(subject, subject.Key);
+        new(subject, subject.Key, RouteKey.Default);
 
     private static AppSettings.Fragment Fragment(string? label) =>
         new() { Label = Optional<string?>.Present(label) };

@@ -3,10 +3,6 @@ namespace Configlue.Resources;
 /// <summary>Identifies the stable model, logical subject, and source-specific key for a resource operation.</summary>
 public readonly record struct ConfiglueResourceContext
 {
-    /// <summary>Creates context for one logical subject and its source-specific key.</summary>
-    public ConfiglueResourceContext(IConfiglueSubject Subject, SubjectKey Key)
-        : this(Subject, Key, RouteKey.Default) { }
-
     /// <summary>Creates context for one logical subject, source-specific key, and physical route.</summary>
     public ConfiglueResourceContext(IConfiglueSubject Subject, SubjectKey Key, RouteKey Route)
         : this(null, Subject, Key, Route) { }
@@ -43,7 +39,7 @@ public readonly record struct ConfiglueResourceContext
 
     /// <summary>Context used by legacy, server-wide resource operations.</summary>
     public static ConfiglueResourceContext Default { get; } =
-        new(DefaultSubject, SubjectKey.Default);
+        new(DefaultSubject, SubjectKey.Default, RouteKey.Default);
 
     private sealed class DefaultSubjectInstance : IConfiglueSubject
     {

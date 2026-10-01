@@ -16,6 +16,7 @@ internal sealed partial class ConfiglueProfiledState<TModel, TFragment>
     private readonly IConfiglueStateRegistry<TModel> _registry;
     private readonly StateSource<ConfiglueProfileCatalog> _catalogSource;
     private readonly string _defaultProfileName;
+    private readonly IReadOnlyList<object> _ownedResources;
     private readonly HashSet<string> _catalogRuntimeNames = new(StringComparer.Ordinal);
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly object _activeProfileNotificationGate = new();
@@ -35,7 +36,8 @@ internal sealed partial class ConfiglueProfiledState<TModel, TFragment>
     public ConfiglueProfiledState(
         IConfiglueStateRegistry<TModel> registry,
         StateSource<ConfiglueProfileCatalog> catalogSource,
-        string defaultProfileName = "default"
+        string defaultProfileName = "default",
+        IReadOnlyList<object>? ownedResources = null
     )
     {
         ArgumentNullException.ThrowIfNull(registry);
@@ -52,6 +54,7 @@ internal sealed partial class ConfiglueProfiledState<TModel, TFragment>
         _registry = registry;
         _catalogSource = catalogSource;
         _defaultProfileName = defaultProfileName;
+        _ownedResources = ownedResources ?? [];
     }
 
     /// <inheritdoc />

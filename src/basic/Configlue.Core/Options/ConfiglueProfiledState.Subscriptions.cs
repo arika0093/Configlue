@@ -64,7 +64,6 @@ internal sealed partial class ConfiglueProfiledState<TModel, TFragment>
                 _profileSubscription = null;
                 _profile = null;
                 _notifications.Clear();
-                _notifications.Clear();
                 _owner.ActiveProfileChanged -= OnActiveProfileChanged;
                 // Cancellation can invoke arbitrary source callbacks, so perform it outside the lock.
                 _completion = CompleteDisposalAsync(_pendingTasks.ToArray());

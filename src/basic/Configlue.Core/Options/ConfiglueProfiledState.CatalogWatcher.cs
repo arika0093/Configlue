@@ -155,5 +155,10 @@ internal sealed partial class ConfiglueProfiledState<TModel, TFragment>
         await _gate.WaitAsync(CancellationToken.None).ConfigureAwait(false);
         _gate.Release();
         _watcherCancellation.Dispose();
+
+        foreach (var resource in _ownedResources)
+        {
+            await ConfiglueOwnedResources.DisposeAsync(resource).ConfigureAwait(false);
+        }
     }
 }

@@ -75,9 +75,9 @@ internal static class SingleBinarySourceFactory
         if (encryption is not null)
         {
             var transformer = encryption.CreateTransformer();
-            if (encryption.OwnsTransformer && transformer is IDisposable disposable)
+            if (encryption.OwnsTransformer && transformer is IDisposable or IAsyncDisposable)
             {
-                ownResource(disposable);
+                ownResource(transformer);
             }
 
             var transforming = new TransformingResource(file, [transformer]);
