@@ -434,7 +434,7 @@ public sealed partial class ConfiglueGenerator
         var property = new PropertyModel(
             member.Property.Name,
             CreateTypeModel(member.Property.Type, cancellationToken),
-            member.Property.IsRequired,
+            SparseFragments.Generator.Shared.RoslynSymbolCompat.IsRequired(member.Property),
             jsonPropertyName,
             hasExplicitJsonPropertyName,
             GetEnvironmentVariableName(member.Property, cancellationToken)

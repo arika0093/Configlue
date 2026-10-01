@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.3.1" PrivateAssets="all" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/basic/Configlue.Abstraction/Configlue.Abstraction.csproj" />
+    <ProjectReference Include="../../src/basic/Configlue.Core/Configlue.Core.csproj" />
+    <ProjectReference Include="../../src/providers/Configlue.Provider.Json/Configlue.Provider.Json.csproj" />
+    <ProjectReference Include="../../src/tools/Configlue.Generator/Configlue.Generator.csproj" />
+  </ItemGroup>
+</Project>

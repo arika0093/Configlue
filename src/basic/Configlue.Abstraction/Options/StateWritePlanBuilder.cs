@@ -70,6 +70,7 @@ public sealed class StateWritePlanBuilder<TModel>
         ArgumentNullException.ThrowIfNull(property);
         ArgumentException.ThrowIfNullOrWhiteSpace(sourceId);
         var path = GetPropertyPath(property);
+        EnsureModelRegistered();
         if (ConfiglueModelSchemaCatalog.TryGet(typeof(TModel), out var schema))
         {
             _ = ConfiglueMemberPath.FromNames(schema, path);
@@ -89,11 +90,17 @@ public sealed class StateWritePlanBuilder<TModel>
     /// <summary>Creates the immutable write plan.</summary>
     public StateWritePlan Build()
     {
+        EnsureModelRegistered();
         var plan = new StateWritePlan(_defaultSourceId, _routes);
         return ConfiglueModelSchemaCatalog.TryGet(typeof(TModel), out var schema)
             ? plan.Bind(schema)
             : plan;
     }
+
+    private static void EnsureModelRegistered() =>
+        System.Runtime.CompilerServices.RuntimeHelpers.RunClassConstructor(
+            typeof(TModel).TypeHandle
+        );
 
     private static string GetPropertyPath<TValue>(Expression<Func<TModel, TValue>> selector)
     {

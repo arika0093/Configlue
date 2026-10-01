@@ -8,6 +8,16 @@ public sealed class ConfiglueModelOperations<TModel, TFragment>
 {
     private static ConfiglueModelOperations<TModel, TFragment>? _current;
 
+    static ConfiglueModelOperations()
+    {
+        // Generated operations are registered from the model's own type initializer.
+        // Running the model's class constructor here makes first use of the operations
+        // reflection-free and AOT-friendly without a module initializer (unsupported by Unity).
+        System.Runtime.CompilerServices.RuntimeHelpers.RunClassConstructor(
+            typeof(TModel).TypeHandle
+        );
+    }
+
     /// <summary>Creates a generated operation table.</summary>
     public ConfiglueModelOperations(
         ConfiglueModelSchema schema,

@@ -189,7 +189,7 @@ public sealed partial class ConfiglueGenerator
                 );
             }
 
-            if (member.Property.IsRequired)
+            if (SparseFragments.Generator.Shared.RoslynSymbolCompat.IsRequired(member.Property))
             {
                 diagnostics.Add(
                     GeneratorDiagnosticInfo.Create(

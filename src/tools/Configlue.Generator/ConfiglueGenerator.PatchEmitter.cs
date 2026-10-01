@@ -498,7 +498,9 @@ public sealed partial class ConfiglueGenerator
                 );
                 code.AppendLineAt(
                     5,
-                    "MergeRoutedPatch(routed, sourceId, (Patch)SelectMembers([" + member.Id + "]));"
+                    "MergeRoutedPatch(routed, sourceId, (Patch)SelectMembers(new[] { "
+                        + member.Id
+                        + " }));"
                 );
                 code.AppendLineAt(4, "}");
             }
@@ -519,7 +521,9 @@ public sealed partial class ConfiglueGenerator
                 );
                 code.AppendLineAt(
                     5,
-                    "MergeRoutedPatch(routed, sourceId, (Patch)SelectMembers([" + member.Id + "]));"
+                    "MergeRoutedPatch(routed, sourceId, (Patch)SelectMembers(new[] { "
+                        + member.Id
+                        + " }));"
                 );
                 code.AppendLineAt(4, "}");
             }

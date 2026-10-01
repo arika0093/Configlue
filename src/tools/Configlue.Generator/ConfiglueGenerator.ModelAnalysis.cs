@@ -274,7 +274,7 @@ public sealed partial class ConfiglueGenerator
                 if (
                     !hasPublicGetter
                     || !hasPublicSetter
-                    || property.IsRequired
+                    || SparseFragments.Generator.Shared.RoslynSymbolCompat.IsRequired(property)
                     || property.SetMethod?.IsInitOnly == true
                 )
                 {

@@ -83,7 +83,7 @@ internal static class SparseModelAnalyzer
                 );
             }
 
-            if (member.Property.IsRequired)
+            if (RoslynSymbolCompat.IsRequired(member.Property))
             {
                 diagnostics.Add(
                     new SparseGeneratorDiagnostic(
@@ -256,7 +256,9 @@ internal static class SparseModelAnalyzer
             foreach (var attribute in property.GetAttributes())
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                if (attribute.AttributeClass?.ToDisplayString() == config.MergeAttributeMetadataName)
+                if (
+                    attribute.AttributeClass?.ToDisplayString() == config.MergeAttributeMetadataName
+                )
                 {
                     merge = attribute;
                     break;
@@ -574,7 +576,7 @@ internal static class SparseModelAnalyzer
                 if (
                     !hasPublicGetter
                     || !hasPublicSetter
-                    || property.IsRequired
+                    || RoslynSymbolCompat.IsRequired(property)
                     || property.SetMethod?.IsInitOnly == true
                 )
                 {
@@ -758,7 +760,11 @@ internal static class SparseModelAnalyzer
         SparseTypeModel? mergeStrategyType = null;
         if (member.MergeStrategyType is not null)
         {
-            mergeStrategyType = CreateTypeModel(member.MergeStrategyType, config, cancellationToken);
+            mergeStrategyType = CreateTypeModel(
+                member.MergeStrategyType,
+                config,
+                cancellationToken
+            );
         }
 
         return new SparseMemberModel(
@@ -821,7 +827,8 @@ internal static class SparseModelAnalyzer
                 .WithNullableAnnotation(NullableAnnotation.NotAnnotated)
                 .ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
             pocoCloneHelperName =
-                SparseWellKnownNames.CloneHelperPrefix + SparseNaming.GetStableTypeHash(cloneTypeName, cancellationToken);
+                SparseWellKnownNames.CloneHelperPrefix
+                + SparseNaming.GetStableTypeHash(cloneTypeName, cancellationToken);
         }
 
         return new SparseTypeModel(
@@ -845,7 +852,8 @@ internal static class SparseModelAnalyzer
             .ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
         return new SparsePocoCloneModel(
             CreateModelInfo(pocoType, string.Empty),
-            SparseWellKnownNames.CloneHelperPrefix + SparseNaming.GetStableTypeHash(typeName, cancellationToken),
+            SparseWellKnownNames.CloneHelperPrefix
+                + SparseNaming.GetStableTypeHash(typeName, cancellationToken),
             CreateMemberModels(
                 GetMembers(pocoType, config, cancellationToken).ToImmutableArray(),
                 config,
@@ -918,5 +926,4 @@ internal static class SparseModelAnalyzer
 
         return false;
     }
-
 }

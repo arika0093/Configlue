@@ -8,6 +8,16 @@ public sealed class ConfiglueModelDescriptor<TModel>
 {
     private static ConfiglueModelDescriptor<TModel>? _current;
 
+    static ConfiglueModelDescriptor()
+    {
+        // The generated model registers its descriptor from its own type initializer.
+        // Running the model's class constructor here keeps registration reflection-free
+        // and AOT-friendly without relying on a module initializer (unsupported by Unity).
+        System.Runtime.CompilerServices.RuntimeHelpers.RunClassConstructor(
+            typeof(TModel).TypeHandle
+        );
+    }
+
     internal ConfiglueModelDescriptor(
         ConfiglueModelSchema schema,
         Func<

@@ -274,7 +274,7 @@ public sealed partial class ConfiglueGenerator
         code.AppendLineAt(2, "{");
         code.AppendLineAt(
             3,
-            "var elementSourceIndices = global::System.Linq.Enumerable.Take(global::System.Linq.Enumerable.Distinct(global::System.Linq.Enumerable.SelectMany(elementData, element => element.SourceIndices)), 2).ToArray();"
+            "var elementSourceIndices = global::System.Linq.Enumerable.ToArray(global::System.Linq.Enumerable.Take(global::System.Linq.Enumerable.Distinct(global::System.Linq.Enumerable.SelectMany(elementData, element => element.SourceIndices)), 2));"
         );
         code.AppendLineAt(
             3,
@@ -283,7 +283,7 @@ public sealed partial class ConfiglueGenerator
         code.AppendLineAt(2, "}");
         code.AppendLineAt(
             2,
-            "var elements = elementData.Select(element => new global::Configlue.ConfigCollectionElementDetails<E>(element.Index, (E?)element.Value, element.SourceIndices.Select(sourceIndex => new global::Configlue.ConfigSourceValueDetails<E?>(snapshot.Sources[sourceIndex], global::Configlue.ConfigSourceValueState.Present, (E?)element.Value)).ToArray())).ToArray();"
+            "var elements = global::System.Linq.Enumerable.ToArray(global::System.Linq.Enumerable.Select(elementData, element => new global::Configlue.ConfigCollectionElementDetails<E>(element.Index, (E?)element.Value, global::System.Linq.Enumerable.ToArray(global::System.Linq.Enumerable.Select(element.SourceIndices, sourceIndex => new global::Configlue.ConfigSourceValueDetails<E?>(snapshot.Sources[sourceIndex], global::Configlue.ConfigSourceValueState.Present, (E?)element.Value))))));"
         );
         code.AppendLineAt(
             2,
