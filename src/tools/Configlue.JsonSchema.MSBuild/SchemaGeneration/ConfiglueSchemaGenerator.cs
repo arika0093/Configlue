@@ -18,6 +18,7 @@ public static class ConfiglueSchemaGenerator
     private const string ModelAttributeName = "Configlue.ConfiglueModelAttribute";
     private const string SchemasDirectoryName = "schemas";
     private static readonly object DataAnnotationsGate = new();
+    private static readonly object SchemaGenerationGate = new();
     private static bool _dataAnnotationsRegistered;
 
     /// <summary>Runs schema generation for the supplied options.</summary>
@@ -420,6 +421,23 @@ public static class ConfiglueSchemaGenerator
     }
 
     private static JsonObject GenerateDocument(
+        ConfiglueModelInfo model,
+        string fileName,
+        string versionProperty,
+        string? schemaBaseUri,
+        DocumentLayout layout
+    )
+    {
+        // Concurrent calls into the pinned schema libraries have raised collection-corruption
+        // exceptions. Serialize their generation/serialization boundary within this process;
+        // assembly discovery and atomic writes can still run concurrently.
+        lock (SchemaGenerationGate)
+        {
+            return GenerateDocumentCore(model, fileName, versionProperty, schemaBaseUri, layout);
+        }
+    }
+
+    private static JsonObject GenerateDocumentCore(
         ConfiglueModelInfo model,
         string fileName,
         string versionProperty,
