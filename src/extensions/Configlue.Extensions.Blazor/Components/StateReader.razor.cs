@@ -1,5 +1,4 @@
 using Microsoft.AspNetCore.Components;
-using Microsoft.AspNetCore.Components.Rendering;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Configlue.Extensions.Blazor;
@@ -12,7 +11,7 @@ namespace Configlue.Extensions.Blazor;
 /// Subscribes to <see cref="IReadOnlyState{T}.OnChange"/> so effective upstream changes re-resolve the
 /// snapshot. Reload failures never replace the last successfully rendered value.
 /// </remarks>
-public sealed class StateReader<T> : ComponentBase, IDisposable
+public sealed partial class StateReader<T> : ComponentBase, IDisposable
 {
     private readonly StateReaderContext<T> _context;
     private IDisposable? _changeSubscription;
@@ -67,36 +66,6 @@ public sealed class StateReader<T> : ComponentBase, IDisposable
         }
 
         await ReloadAsync().ConfigureAwait(true);
-    }
-
-    /// <inheritdoc />
-    protected override void BuildRenderTree(RenderTreeBuilder builder)
-    {
-        ArgumentNullException.ThrowIfNull(builder);
-        if (Snapshot is not null)
-        {
-            if (ChildContent is not null)
-            {
-                builder.AddContent(0, ChildContent(_context));
-            }
-
-            return;
-        }
-
-        if (IsLoading)
-        {
-            if (LoadingContent is not null)
-            {
-                builder.AddContent(1, LoadingContent);
-            }
-
-            return;
-        }
-
-        if (LoadFailure is not null && LoadFailedContent is not null)
-        {
-            builder.AddContent(2, LoadFailedContent(LoadFailure));
-        }
     }
 
     /// <inheritdoc />

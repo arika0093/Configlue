@@ -1,6 +1,5 @@
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
-using Microsoft.AspNetCore.Components.Rendering;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Configlue.Extensions.Blazor;
@@ -14,7 +13,7 @@ namespace Configlue.Extensions.Blazor;
 /// The component does not render its own form. Child content is expected to supply an
 /// <c>EditForm</c> bound to <see cref="StateEditorContext{T}.EditContext"/>.
 /// </remarks>
-public sealed class StateEditor<T> : ComponentBase, IDisposable
+public sealed partial class StateEditor<T> : ComponentBase, IDisposable
     where T : class
 {
     private readonly StateEditorContext<T> _context;
@@ -103,36 +102,6 @@ public sealed class StateEditor<T> : ComponentBase, IDisposable
         }
 
         await OpenSessionAsync().ConfigureAwait(true);
-    }
-
-    /// <inheritdoc />
-    protected override void BuildRenderTree(RenderTreeBuilder builder)
-    {
-        ArgumentNullException.ThrowIfNull(builder);
-        if (_session is not null && _editContext is not null)
-        {
-            if (ChildContent is not null)
-            {
-                builder.AddContent(0, ChildContent(_context));
-            }
-
-            return;
-        }
-
-        if (IsLoading)
-        {
-            if (LoadingContent is not null)
-            {
-                builder.AddContent(1, LoadingContent);
-            }
-
-            return;
-        }
-
-        if (LoadFailure is not null && LoadFailedContent is not null)
-        {
-            builder.AddContent(2, LoadFailedContent(LoadFailure));
-        }
     }
 
     /// <inheritdoc />

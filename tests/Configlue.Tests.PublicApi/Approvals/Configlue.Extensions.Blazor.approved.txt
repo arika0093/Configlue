@@ -98,7 +98,7 @@ namespace Configlue.Extensions.Blazor
         public Microsoft.AspNetCore.Components.EventCallback<Configlue.Extensions.Blazor.StateEditorSubjectChangedEventArgs> OnSubjectChanged { get; set; }
         [Microsoft.AspNetCore.Components.Inject]
         public System.IServiceProvider Services { get; set; }
-        protected override void BuildRenderTree(Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder builder) { }
+        protected override void BuildRenderTree(Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder @__builder) { }
         public void Dispose() { }
         protected override System.Threading.Tasks.Task OnInitializedAsync() { }
     }
@@ -126,7 +126,7 @@ namespace Configlue.Extensions.Blazor
         public System.IServiceProvider Services { get; set; }
         [Microsoft.AspNetCore.Components.Inject]
         public Configlue.IReadOnlyState<T> State { get; set; }
-        protected override void BuildRenderTree(Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder builder) { }
+        protected override void BuildRenderTree(Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder @__builder) { }
         public void Dispose() { }
         protected override System.Threading.Tasks.Task OnInitializedAsync() { }
     }
