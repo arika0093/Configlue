@@ -22,7 +22,7 @@ public partial class AppSettings
 
     public DatabaseSettings? Database { get; set; } = new();
 
-    [ConfiglueMerge(MergeMode.Append)]
+    [SparseFragments.SparseMerge(SparseFragments.MergeMode.Append)]
     public IReadOnlyList<string> Plugins { get; set; } = [];
 }
 
@@ -48,7 +48,7 @@ public partial class DatabaseSettings
 [ConfiglueModel("set-union-settings", Version = 1)]
 public partial class SetUnionSettings
 {
-    [ConfiglueMerge(MergeMode.SetUnion)]
+    [SparseFragments.SparseMerge(SparseFragments.MergeMode.SetUnion)]
     public IReadOnlyList<string> Tags { get; set; } = [];
 }
 
