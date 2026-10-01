@@ -55,6 +55,11 @@ jobs:
           dotnet pack Configlue.slnx --no-build --no-restore
           --configuration Release --output artifacts
 
+      - name: Verify packed target assets
+        if: matrix.os == 'ubuntu-latest'
+        shell: pwsh
+        run: ./eng/VerifyPackages.ps1 -PackageDirectory artifacts
+
   native-aot:
     timeout-minutes: 30
     runs-on: ubuntu-latest
