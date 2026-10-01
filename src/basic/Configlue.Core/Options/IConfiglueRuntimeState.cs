@@ -9,4 +9,5 @@ internal interface IConfiglueRuntimeState<T>
         IConfiglueEditSessions<T>,
         IConfiglueDiagnostics<T>,
         IConfiglueSources<T>,
-        IConfiglueDetailsRuntime { }
+        IConfiglueDetailsRuntime,
+        IConfiglueStateSnapshotRuntime<T> { }

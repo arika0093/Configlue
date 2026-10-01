@@ -151,7 +151,12 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
     private sealed class SubjectBoundOptions(
         ConfiglueRuntime<TModel, TFragment> owner,
         IConfiglueSubject subject
-    ) : IWritableState<TModel>, IConfiglueDetailsRuntime, IConfiglueInspection<TModel>
+    )
+        : IWritableState<TModel>,
+            IConfiglueDetailsRuntime,
+            IConfiglueStateSnapshotRuntime<TModel>,
+            IConfiglueInspection<TModel>,
+            IConfiglueEditSessions<TModel>
     {
         public IDisposable OnChange(Action<TModel> listener) =>
             owner.WatchSubject(subject, listener);
@@ -167,6 +172,19 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         public ConfiglueCheckOperation Check(CancellationToken cancellationToken = default) =>
             owner.CreateCheckOperation(subject, cancellationToken);
 
+        public ValueTask<EditSession<TModel>> OpenEditSessionAsync(
+            CancellationToken cancellationToken = default
+        ) => owner.OpenEditSessionForSubjectAsync(subject, null, cancellationToken);
+
+        public ValueTask<EditSession<TModel>> OpenEditSessionAsync(
+            StateWritePlan writePlan,
+            CancellationToken cancellationToken = default
+        )
+        {
+            ArgumentNullException.ThrowIfNull(writePlan);
+            return owner.OpenEditSessionForSubjectAsync(subject, writePlan, cancellationToken);
+        }
+
         async ValueTask<ConfiglueDetailsSnapshot> IConfiglueDetailsRuntime.GetDetailsSnapshotAsync(
             CancellationToken cancellationToken
         )
@@ -174,6 +192,18 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             using var scope = owner.EnterSubject(subject);
             return await ((IConfiglueDetailsRuntime)owner)
                 .GetDetailsSnapshotAsync(cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        async ValueTask<
+            StateSnapshot<TModel>
+        > IConfiglueStateSnapshotRuntime<TModel>.GetSnapshotAsync(
+            CancellationToken cancellationToken
+        )
+        {
+            using var scope = owner.EnterSubject(subject);
+            return await ((IConfiglueStateSnapshotRuntime<TModel>)owner)
+                .GetSnapshotAsync(cancellationToken)
                 .ConfigureAwait(false);
         }
     }

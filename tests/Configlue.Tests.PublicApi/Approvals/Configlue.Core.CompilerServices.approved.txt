@@ -5,7 +5,7 @@ namespace Configlue.CompilerServices
         where TModel : Configlue.CompilerServices.IConfiglueFacadeModel<TModel>
     {
         public System.Func<Configlue.IConfiglueStateRegistry<TModel>, Configlue.Sources.StateSource<Configlue.ConfiglueProfileCatalog>, string, Configlue.IConfiglueProfiledState<TModel>> CreateProfiles { get; }
-        public System.Func<Configlue.ConfiglueModelBuilder<TModel>, System.IServiceProvider?, System.Action<System.IDisposable>, Configlue.IWritableState<TModel>> CreateRuntime { get; }
+        public System.Func<Configlue.ConfiglueModelBuilder<TModel>, System.IServiceProvider?, System.Action<object>, Configlue.IWritableState<TModel>> CreateRuntime { get; }
         public Configlue.ConfiglueModelSchema Schema { get; }
         public static Configlue.CompilerServices.ConfiglueModelDescriptor<TModel> Current { get; }
         public static void Register(Configlue.CompilerServices.ConfiglueModelDescriptor<TModel> descriptor) { }

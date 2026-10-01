@@ -13,7 +13,8 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
     /// <inheritdoc />
     public ValueTask<EditSession<TModel>> OpenEditSessionAsync(
         CancellationToken cancellationToken = default
-    ) => OpenEditSessionCoreAsync(null, cancellationToken);
+    ) =>
+        OpenEditSessionCoreAsync(null, cancellationToken, pinnedSubject: null, upstreamState: this);
 
     /// <inheritdoc />
     public ValueTask<EditSession<TModel>> OpenEditSessionAsync(
@@ -22,16 +23,46 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
     )
     {
         ArgumentNullException.ThrowIfNull(writePlan);
-        return OpenEditSessionCoreAsync(writePlan, cancellationToken);
+        return OpenEditSessionCoreAsync(
+            writePlan,
+            cancellationToken,
+            pinnedSubject: null,
+            upstreamState: this
+        );
     }
 
-    private async ValueTask<EditSession<TModel>> OpenEditSessionCoreAsync(
+    private ValueTask<EditSession<TModel>> OpenEditSessionForSubjectAsync(
+        IConfiglueSubject subject,
         StateWritePlan? writePlan,
         CancellationToken cancellationToken
     )
     {
+        ArgumentNullException.ThrowIfNull(subject);
+        return OpenEditSessionCoreAsync(
+            writePlan,
+            cancellationToken,
+            pinnedSubject: subject,
+            upstreamState: new SubjectBoundOptions(this, subject)
+        );
+    }
+
+    private async ValueTask<EditSession<TModel>> OpenEditSessionCoreAsync(
+        StateWritePlan? writePlan,
+        CancellationToken cancellationToken,
+        IConfiglueSubject? pinnedSubject,
+        IReadOnlyState<TModel>? upstreamState
+    )
+    {
         using var operation = EnterOperation();
-        var resolvedState = await ResolveCoreAsync(null, cancellationToken).ConfigureAwait(false);
+        using IDisposable? subjectScope = pinnedSubject is null
+            ? null
+            : EnterSubject(pinnedSubject);
+        var resolvedState = await ResolveCoreAsync(
+                null,
+                cancellationToken,
+                captureContributions: true
+            )
+            .ConfigureAwait(false);
         var resolved = resolvedState.Result;
         if (resolved.Status != StateReadStatus.Success)
         {
@@ -56,52 +87,87 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             ValidateWritePlan(effectiveWritePlan);
         }
 
+        var details = BuildDetailsSnapshot(resolvedState);
         var draft = CloneModel(resolved.Value!);
+        var sessionStart = new StateSnapshot<TModel>(CloneModel(resolved.Value!), details);
         var baseline = CloneModel(resolved.Value!);
         var defaultValue = CloneModel(FromFragment(EmptyFragment));
         var expectedRevisions = resolved.Revisions;
+
+        async ValueTask<StateWriteReceipt> SaveSessionValueAsync(
+            TModel value,
+            CancellationToken token
+        )
+        {
+            using IDisposable? saveScope = pinnedSubject is null
+                ? null
+                : EnterSubject(pinnedSubject);
+            var latestState = await ResolveCoreAsync(null, token, captureContributions: true)
+                .ConfigureAwait(false);
+            var latest = latestState.Result;
+            if (latest.Status != StateReadStatus.Success)
+            {
+                throw new InvalidOperationException(
+                    $"Configuration state could not be read before saving: {latest.Status}."
+                );
+            }
+
+            var hasRevisionChanges = !HaveSameRevisions(expectedRevisions, latest.Revisions);
+            var saveBaseline = baseline;
+            var saveValue = value;
+            var saveContributions = latestState.Contributions;
+            var saveRevisions = latest.Revisions;
+            if (hasRevisionChanges)
+            {
+                saveBaseline = latest.Value!;
+                saveValue = RebaseConfigurationEdit(baseline, value, saveBaseline);
+            }
+
+            var writeResult = await WriteChangesToSourcesAsync(
+                    saveBaseline,
+                    saveValue,
+                    saveRevisions,
+                    saveContributions,
+                    effectiveWritePlan,
+                    token
+                )
+                .ConfigureAwait(false);
+
+            baseline = value;
+            expectedRevisions = latest.Revisions;
+            return writeResult;
+        }
+
+        async ValueTask<StateSnapshot<TModel>> ResolveSessionUpstreamAsync(CancellationToken token)
+        {
+            using IDisposable? resolveScope = pinnedSubject is null
+                ? null
+                : EnterSubject(pinnedSubject);
+            var latestState = await ResolveCoreAsync(null, token, captureContributions: true)
+                .ConfigureAwait(false);
+            var latest = latestState.Result;
+            if (latest.Status != StateReadStatus.Success || latest.Value is null)
+            {
+                throw new InvalidOperationException(
+                    $"Configuration state could not be read before rebasing: {latest.Status}."
+                );
+            }
+
+            baseline = latest.Value;
+            expectedRevisions = latest.Revisions;
+            return new StateSnapshot<TModel>(latest.Value, BuildDetailsSnapshot(latestState));
+        }
+
         return new EditSession<TModel>(
             draft,
-            async (value, token) =>
-            {
-                var latestState = await ResolveCoreAsync(null, token, captureContributions: true)
-                    .ConfigureAwait(false);
-                var latest = latestState.Result;
-                if (latest.Status != StateReadStatus.Success)
-                {
-                    throw new InvalidOperationException(
-                        $"Configuration state could not be read before saving: {latest.Status}."
-                    );
-                }
-
-                var hasRevisionChanges = !HaveSameRevisions(expectedRevisions, latest.Revisions);
-                var saveBaseline = baseline;
-                var saveValue = value;
-                var saveContributions = latestState.Contributions;
-                var saveRevisions = latest.Revisions;
-                if (hasRevisionChanges)
-                {
-                    saveBaseline = latest.Value!;
-                    saveValue = RebaseConfigurationEdit(baseline, value, saveBaseline);
-                }
-
-                var writeResult = await WriteChangesToSourcesAsync(
-                        saveBaseline,
-                        saveValue,
-                        saveRevisions,
-                        saveContributions,
-                        effectiveWritePlan,
-                        token
-                    )
-                    .ConfigureAwait(false);
-
-                baseline = value;
-                expectedRevisions = latest.Revisions;
-                return writeResult;
-            },
+            sessionStart,
+            SaveSessionValueAsync,
+            RebaseConfigurationEdit,
+            static (value, baselineValue) => !Diff(baselineValue, value).IsEmpty,
+            ResolveSessionUpstreamAsync,
             CloneModel,
-            baseline,
-            defaultValue
+            defaultValue,
+            upstreamState
         );
     }
 
