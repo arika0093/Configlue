@@ -383,5 +383,5 @@ public sealed class EditSession<T> : IDisposable
     }
 
     private static T Clone(T value) =>
-        value is IConfiglueDeepCloneable<T> deepCloneable ? deepCloneable.DeepClone() : value;
+        value is ISparseDeepCloneable<T> deepCloneable ? deepCloneable.DeepClone() : value;
 }
