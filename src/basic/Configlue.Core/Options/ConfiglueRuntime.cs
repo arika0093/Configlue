@@ -21,23 +21,6 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
     where TModel : IConfiglueModel<TModel, TFragment>
     where TFragment : class, IConfiglueFragment<TFragment>
 {
-    private static readonly EventId SourceReadEvent = new(1000, "SourceRead");
-    private static readonly EventId SourceReadFailedEvent = new(1001, "SourceReadFailed");
-    private static readonly EventId SourceFallbackEvent = new(1002, "SourceFallback");
-    private static readonly EventId SourceSelectedEvent = new(1003, "SourceSelected");
-    private static readonly EventId PhysicalWriteEvent = new(1010, "PhysicalWrite");
-    private static readonly EventId PhysicalWriteFailedEvent = new(1011, "PhysicalWriteFailed");
-    private static readonly EventId MigrationEvent = new(1020, "StorageMigration");
-    private static readonly EventId ConflictEvent = new(1030, "WriteConflict");
-    private static readonly EventId WatchFailureEvent = new(1040, "WatcherFailure");
-    private static readonly EventId ListenerFailureEvent = new(1041, "ChangeListenerFailure");
-    private static readonly EventId WatchReloadEvent = new(1042, "WatcherReload");
-    private static readonly EventId ReloadFailureListenerEvent = new(
-        1043,
-        "ReloadFailureListenerFailure"
-    );
-    private static readonly EventId ReloadListenerEvent = new(1045, "ReloadListenerFailure");
-    private static readonly EventId ReadValidationEvent = new(1044, "ReadValidation");
     private static readonly ConcurrentDictionary<
         (Type ModelType, string MemberName),
         ValidationAttribute[]
@@ -79,7 +62,6 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
     private readonly ReadValidationMode _readValidationMode;
     private readonly WriteConflictResolution _writeConflictResolution;
     private readonly TimeSpan _onChangeDebounce;
-    private readonly ILogger? _logger;
     private readonly RuntimeDiagnosticRecorder _diagnostics;
     private readonly object _changeGate = new();
     private readonly AsyncLocal<IConfiglueSubject?> _subjectContext = new();
@@ -157,7 +139,6 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         _cloneStrategy = cloneStrategy;
         _validators = validators?.ToArray() ?? [];
         _stateName = stateName ?? string.Empty;
-        _logger = logger;
         _validateDataAnnotations = validateDataAnnotations;
         if (!Enum.IsDefined(readValidationMode))
         {
@@ -208,7 +189,8 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                 null,
                 null,
                 null
-            ))
+            )),
+            logger
         );
     }
 
@@ -758,15 +740,6 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             }
             else
             {
-                _logger?.LogTrace(
-                    SourceReadEvent,
-                    "Reading configuration source {SourceId} for {ModelType} state {StateName} at {PhysicalOrigin} ({ResourceId}).",
-                    source.Id,
-                    typeof(TModel).FullName,
-                    _stateName,
-                    source.PhysicalOrigin,
-                    source.ResourceId?.Value
-                );
                 try
                 {
                     sourceResult = await ReadSourceAsync(
@@ -785,16 +758,6 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
 #pragma warning disable S2139
                 catch (Exception exception)
                 {
-                    _logger?.LogError(
-                        SourceReadFailedEvent,
-                        exception,
-                        "Reading configuration source {SourceId} failed for {ModelType} state {StateName} at {PhysicalOrigin} ({ResourceId}).",
-                        source.Id,
-                        typeof(TModel).FullName,
-                        _stateName,
-                        source.PhysicalOrigin,
-                        source.ResourceId?.Value
-                    );
                     observeSource?.Invoke(
                         new ResolvedSourceProbe
                         {
@@ -812,16 +775,6 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             }
 
             var result = sourceResult.FromSource(source.Id, source.PhysicalOrigin);
-            _logger?.LogDebug(
-                SourceReadEvent,
-                "Configuration source {SourceId} returned {ReadStatus} for {ModelType} state {StateName} at {PhysicalOrigin} ({ResourceId}).",
-                source.Id,
-                result.Status,
-                typeof(TModel).FullName,
-                _stateName,
-                source.PhysicalOrigin,
-                source.ResourceId?.Value
-            );
             revisions[revisionCount++] = new StateRevision(source.Id, result.Revision);
             if (sourceResult.Revisions is { } nestedVector)
             {
@@ -842,15 +795,6 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                 var fragment = result.Value;
                 if (result.Schema is { } sourceSchema)
                 {
-                    _logger?.LogInformation(
-                        MigrationEvent,
-                        "Migrating schema from source {SourceId} from {SourceModelId} version {SourceVersion} for {ModelType} state {StateName}.",
-                        source.Id,
-                        sourceSchema.ModelId,
-                        sourceSchema.Version,
-                        typeof(TModel).FullName,
-                        _stateName
-                    );
                     fragment = await MigrateAsync(
                             fragment,
                             sourceSchema,
@@ -926,16 +870,6 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                     readStatus: result.Status
                 );
             }
-            _logger?.Log(
-                result.Status == StateReadStatus.Unavailable ? LogLevel.Warning : LogLevel.Debug,
-                SourceFallbackEvent,
-                "Configuration source {SourceId} returned {ReadStatus}; fallback {FallbackAction} for {ModelType} state {StateName}.",
-                source.Id,
-                result.Status,
-                canFallBack ? "continues" : "stops",
-                typeof(TModel).FullName,
-                _stateName
-            );
             observeSource?.Invoke(
                 new ResolvedSourceProbe
                 {
@@ -1056,16 +990,6 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             PhysicalOrigin = activeSource is null ? null : activeResult.PhysicalOrigin,
             Revisions = CreateRevisionVector(revisions, revisionCount, nestedRevisions),
         };
-        if (activeSource is not null)
-        {
-            _logger?.LogDebug(
-                SourceSelectedEvent,
-                "Configuration source {SourceId} is the highest-priority contributor for {ModelType} state {StateName}.",
-                activeSource.Id,
-                typeof(TModel).FullName,
-                _stateName
-            );
-        }
 
         return new ResolvedState(
             resolvedResult,

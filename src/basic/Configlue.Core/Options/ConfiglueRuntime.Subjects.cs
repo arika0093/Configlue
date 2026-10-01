@@ -19,6 +19,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         var hasPrevious = false;
         while (!cancellationToken.IsCancellationRequested)
         {
+            var reloadStarted = false;
             try
             {
                 if (!hasPrevious)
@@ -40,6 +41,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                     await Task.Delay(_onChangeDebounce, cancellationToken).ConfigureAwait(false);
                 }
 
+                reloadStarted = true;
                 var (current, valueChanged) = await ReadReloadAsync(
                         previousEffective,
                         hasEffective,
@@ -59,27 +61,15 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                         }
                         catch (Exception exception)
                         {
-                            _logger?.LogError(
-                                ListenerFailureEvent,
-                                exception,
-                                "A change listener failed for {ModelType} state {StateName} and subject {SubjectKey}.",
-                                typeof(TModel).FullName,
-                                _stateName,
-                                subscription.Subject.Key.Value
+                            _diagnostics.Record(
+                                ConfiglueDiagnosticEventKind.ObserverFailed,
+                                errorCategory: exception.GetType().FullName
                             );
                         }
                     }
                 }
                 else if (current.Status != StateReadStatus.Success)
                 {
-                    _logger?.LogWarning(
-                        WatchFailureEvent,
-                        "A configuration reload resolved to {ReadStatus} for {ModelType} state {StateName} and subject {SubjectKey}.",
-                        current.Status,
-                        typeof(TModel).FullName,
-                        _stateName,
-                        subscription.Subject.Key.Value
-                    );
                     await Task.Delay(TimeSpan.FromMilliseconds(250), cancellationToken)
                         .ConfigureAwait(false);
                 }
@@ -97,14 +87,11 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             }
             catch (Exception exception)
             {
-                _logger?.LogError(
-                    WatchFailureEvent,
-                    exception,
-                    "Watching configuration changes failed for {ModelType} state {StateName} and subject {SubjectKey}.",
-                    typeof(TModel).FullName,
-                    _stateName,
-                    subscription.Subject.Key.Value
-                );
+                if (!reloadStarted)
+                    _diagnostics.Record(
+                        ConfiglueDiagnosticEventKind.ReloadFailed,
+                        errorCategory: exception.GetType().FullName
+                    );
                 try
                 {
                     await Task.Delay(TimeSpan.FromMilliseconds(250), cancellationToken)

@@ -136,14 +136,6 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             return;
         }
 
-        _logger?.LogWarning(
-            ReadValidationEvent,
-            "Configuration source {SourceId} contributed invalid values for {ModelType} state {StateName}: {Failures}.",
-            source.Id,
-            typeof(TModel).FullName,
-            _stateName,
-            string.Join("; ", failures)
-        );
         throw new ConfiglueValidationException(
             _stateName,
             typeof(TModel),
@@ -163,14 +155,6 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             return fragment;
         }
 
-        _logger?.LogWarning(
-            ReadValidationEvent,
-            "Ignoring invalid values from configuration source {SourceId} for {ModelType} state {StateName}: {Failures}.",
-            source.Id,
-            typeof(TModel).FullName,
-            _stateName,
-            string.Join("; ", failures)
-        );
         _diagnostics.Record(
             ConfiglueDiagnosticEventKind.ValidationFailed,
             sourceId: source.Id,
@@ -262,13 +246,6 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             failures = failures.Distinct(StringComparer.Ordinal).ToList();
         }
 
-        _logger?.LogWarning(
-            ReadValidationEvent,
-            "Resolved configuration for {ModelType} state {StateName} failed validation: {Failures}.",
-            typeof(TModel).FullName,
-            _stateName,
-            string.Join("; ", failures)
-        );
         throw new ConfiglueValidationException(_stateName, typeof(TModel), failures);
     }
 

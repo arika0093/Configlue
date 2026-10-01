@@ -21,6 +21,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         var hasPrevious = false;
         while (!cancellationToken.IsCancellationRequested)
         {
+            var reloadStarted = false;
             try
             {
                 if (!hasPrevious)
@@ -42,6 +43,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                     await Task.Delay(_onChangeDebounce, cancellationToken).ConfigureAwait(false);
                 }
 
+                reloadStarted = true;
                 var (current, valueChanged) = await ReadReloadAsync(
                         previousEffective,
                         hasEffective,
@@ -53,15 +55,6 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                     && !HaveSameRevisions(previous.Revisions, current.Revisions)
                 )
                 {
-                    _logger?.LogDebug(
-                        WatchReloadEvent,
-                        "Configuration changed for {ModelType} state {StateName}; observed sources {SourceIds}.",
-                        typeof(TModel).FullName,
-                        _stateName,
-                        current.Revisions is { } revisions
-                            ? string.Join(",", revisions.Revisions.Keys)
-                            : string.Empty
-                    );
                     if (valueChanged)
                     {
                         NotifyListeners(current.Value!);
@@ -95,23 +88,11 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             }
             catch (Exception exception)
             {
-                var watcherSources = GetActiveSources()
-                    .Where(static source => source.Watcher is not null)
-                    .ToArray();
-                _logger?.LogError(
-                    WatchFailureEvent,
-                    exception,
-                    "Watching configuration changes failed for {ModelType} state {StateName}; sources {SourceIds}, resources {ResourceIds}.",
-                    typeof(TModel).FullName,
-                    _stateName,
-                    string.Join(",", watcherSources.Select(static source => source.Id)),
-                    string.Join(
-                        ",",
-                        watcherSources
-                            .Where(static source => source.ResourceId is not null)
-                            .Select(static source => source.ResourceId!.Value.Value)
-                    )
-                );
+                if (!reloadStarted)
+                    _diagnostics.Record(
+                        ConfiglueDiagnosticEventKind.ReloadFailed,
+                        errorCategory: exception.GetType().FullName
+                    );
                 NotifyReloadFailed(exception);
                 try
                 {
@@ -276,12 +257,9 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             }
             catch (Exception exception)
             {
-                _logger?.LogError(
-                    ListenerFailureEvent,
-                    exception,
-                    "A configuration change listener failed for {ModelType} state {StateName}.",
-                    typeof(TModel).FullName,
-                    _stateName
+                _diagnostics.Record(
+                    ConfiglueDiagnosticEventKind.ObserverFailed,
+                    errorCategory: exception.GetType().FullName
                 );
             }
         }
@@ -308,12 +286,9 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             }
             catch (Exception listenerException)
             {
-                _logger?.LogError(
-                    ReloadListenerEvent,
-                    listenerException,
-                    "A reload listener failed for {ModelType} state {StateName}.",
-                    typeof(TModel).FullName,
-                    _stateName
+                _diagnostics.Record(
+                    ConfiglueDiagnosticEventKind.ObserverFailed,
+                    errorCategory: listenerException.GetType().FullName
                 );
             }
         }
@@ -340,12 +315,9 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             }
             catch (Exception listenerException)
             {
-                _logger?.LogError(
-                    ReloadFailureListenerEvent,
-                    listenerException,
-                    "A reload-failure listener failed for {ModelType} state {StateName}.",
-                    typeof(TModel).FullName,
-                    _stateName
+                _diagnostics.Record(
+                    ConfiglueDiagnosticEventKind.ObserverFailed,
+                    errorCategory: listenerException.GetType().FullName
                 );
             }
         }

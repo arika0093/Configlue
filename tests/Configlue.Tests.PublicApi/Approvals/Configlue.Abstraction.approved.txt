@@ -163,7 +163,8 @@ namespace Configlue
                     System.TimeSpan Duration,
                     string? ErrorCategory,
                     bool Canceled,
-                    bool? EffectiveValueChanged) { }
+                    bool? EffectiveValueChanged,
+                    string? TraceId = null) { }
         public bool Canceled { get; init; }
         public System.TimeSpan Duration { get; init; }
         public bool? EffectiveValueChanged { get; init; }
@@ -180,6 +181,7 @@ namespace Configlue
         public string? SourceKind { get; init; }
         public string StateName { get; init; }
         public System.DateTimeOffset Timestamp { get; init; }
+        public string? TraceId { get; init; }
     }
     public enum ConfiglueDiagnosticEventKind
     {
@@ -205,6 +207,7 @@ namespace Configlue
         MigrationStarted = 19,
         MigrationCompleted = 20,
         MigrationFailed = 21,
+        ObserverFailed = 22,
     }
     public enum ConfiglueEditability
     {

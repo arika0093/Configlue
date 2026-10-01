@@ -128,11 +128,9 @@ public sealed class StateSourceResolver<T> : ISourceReader<T>
             ).FromSource(source.Id, source.PhysicalOrigin);
             _logger?.LogDebug(
                 ReadEvent,
-                "State source {SourceId} returned {ReadStatus} at {PhysicalOrigin} ({ResourceId}).",
+                "State source {SourceId} returned {ReadStatus}.",
                 source.Id,
-                result.Status,
-                source.PhysicalOrigin,
-                source.ResourceId?.Value
+                result.Status
             );
             revisions[revisionCount++] = new StateRevision(source.Id, result.Revision);
             if (result.Revisions is { } nestedVector)
@@ -195,11 +193,9 @@ public sealed class StateSourceResolver<T> : ISourceReader<T>
         ).FromSource(source.Id, source.PhysicalOrigin);
         _logger?.LogDebug(
             ReadEvent,
-            "State source {SourceId} returned {ReadStatus} at {PhysicalOrigin} ({ResourceId}).",
+            "State source {SourceId} returned {ReadStatus}.",
             source.Id,
-            result.Status,
-            source.PhysicalOrigin,
-            source.ResourceId?.Value
+            result.Status
         );
         var revision = new StateRevision(source.Id, result.Revision);
         StateRevisionVector revisionVector;
@@ -247,13 +243,7 @@ public sealed class StateSourceResolver<T> : ISourceReader<T>
         CancellationToken cancellationToken
     )
     {
-        _logger?.LogTrace(
-            ReadEvent,
-            "Reading state source {SourceId} at {PhysicalOrigin} ({ResourceId}).",
-            source.Id,
-            source.PhysicalOrigin,
-            source.ResourceId?.Value
-        );
+        _logger?.LogTrace(ReadEvent, "Reading state source {SourceId}.", source.Id);
         try
         {
             return await source
@@ -273,11 +263,9 @@ public sealed class StateSourceResolver<T> : ISourceReader<T>
         {
             _logger?.LogError(
                 ReadEvent,
-                exception,
-                "Reading state source {SourceId} failed at {PhysicalOrigin} ({ResourceId}).",
+                "Reading state source {SourceId} failed ({ErrorCategory}).",
                 source.Id,
-                source.PhysicalOrigin,
-                source.ResourceId?.Value
+                exception.GetType().FullName
             );
             throw;
         }
@@ -417,12 +405,7 @@ public sealed class StateSourceResolver<T> : ISourceReader<T>
             )
             {
                 Interlocked.Decrement(ref _subjectResolutionCount);
-                _logger?.LogTrace(
-                    SubjectCacheEvictionEvent,
-                    "Evicted idle subject resolution for {SubjectKey} route {RouteKey}.",
-                    pair.Key.SubjectKey.Value,
-                    pair.Key.Route.Value
-                );
+                _logger?.LogTrace(SubjectCacheEvictionEvent, "Evicted an idle subject resolution.");
             }
         }
     }

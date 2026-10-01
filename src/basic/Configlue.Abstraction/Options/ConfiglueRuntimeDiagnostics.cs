@@ -68,6 +68,9 @@ public enum ConfiglueDiagnosticEventKind
 
     /// <summary>A schema migration failed.</summary>
     MigrationFailed,
+
+    /// <summary>An application notification callback failed; its exception message is not included.</summary>
+    ObserverFailed,
 }
 
 /// <summary>A structured runtime event that never contains model or fragment values.</summary>
@@ -87,6 +90,7 @@ public enum ConfiglueDiagnosticEventKind
 /// <param name="ErrorCategory">The exception type name, never its message or stack trace.</param>
 /// <param name="Canceled">Whether the operation was canceled by its caller.</param>
 /// <param name="EffectiveValueChanged">Whether a reload changed the effective model.</param>
+/// <param name="TraceId">The current distributed trace identifier, when a trace is active.</param>
 public readonly record struct ConfiglueDiagnosticEvent(
     long Sequence,
     long OperationId,
@@ -103,7 +107,8 @@ public readonly record struct ConfiglueDiagnosticEvent(
     TimeSpan Duration,
     string? ErrorCategory,
     bool Canceled,
-    bool? EffectiveValueChanged
+    bool? EffectiveValueChanged,
+    string? TraceId = null
 );
 
 /// <summary>The last observed state of a configured source, without performing a source read.</summary>

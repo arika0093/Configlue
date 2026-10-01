@@ -101,6 +101,11 @@ namespace Configlue
         public ConfiglueSourceSetBuilder() { }
         public System.Type ModelType { get; }
     }
+    public static class ConfiglueTelemetry
+    {
+        public const string ActivitySourceName = "Configlue";
+        public const string MeterName = "Configlue";
+    }
     public sealed class ConfiglueValidationException : System.Exception
     {
         public ConfiglueValidationException(string stateName, System.Type stateType, System.Collections.Generic.IEnumerable<string> failures) { }

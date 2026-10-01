@@ -86,14 +86,6 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             );
         }
 
-        _logger?.LogInformation(
-            MigrationEvent,
-            "Migrating configuration contribution from source {SourceId} to {TargetSourceId} for {ModelType} state {StateName}.",
-            source.Id,
-            target.Id,
-            typeof(TModel).FullName,
-            _stateName
-        );
         var sourceResult = await ReadMigrationSourceAsync(source, cancellationToken)
             .ConfigureAwait(false);
         if (sourceResult.Status != StateReadStatus.Success)
@@ -143,17 +135,14 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             );
         }
 
-        var write = await WriteStateAsync(
+        var write = await WriteObservedAsync(
                 target,
                 target.Writer,
                 new StateWriteRequest<TFragment>(
                     sourceFragment,
                     Condition: RevisionCondition.FromRevision(targetResult.Revision)
                 ),
-                "source migration",
-                cancellationToken,
-                source.Id,
-                MigrationEvent
+                cancellationToken
             )
             .ConfigureAwait(false);
         var verification = await ReadMigrationSourceAsync(target, cancellationToken)
@@ -196,14 +185,6 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             target.Id,
             sourceResult.Revision,
             write.Revision
-        );
-        _logger?.LogInformation(
-            MigrationEvent,
-            "Migrated configuration contribution from source {SourceId} to {TargetSourceId} for {ModelType} state {StateName}.",
-            source.Id,
-            target.Id,
-            typeof(TModel).FullName,
-            _stateName
         );
         return migrationResult;
     }
@@ -321,14 +302,6 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                 TFragment Fragment
             )>();
         var sourceRevisions = new List<StateRevision>();
-        _logger?.LogInformation(
-            MigrationEvent,
-            "Starting storage migration for {ModelType} state {StateName} from sources {SourceIds} to targets {TargetSourceIds}.",
-            typeof(TModel).FullName,
-            _stateName,
-            string.Join(",", requestedSourceIds),
-            string.Join(",", targetProjections.Keys)
-        );
         foreach (var source in _sourceSet.Sources.Where(source => selectedIds.Contains(source.Id)))
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -561,13 +534,6 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                 }
 
                 await VerifySourceSnapshotsAsync().ConfigureAwait(false);
-                _logger?.LogInformation(
-                    MigrationEvent,
-                    "Storage migration target {TargetSourceId} already contains the verified contribution for {ModelType} state {StateName}.",
-                    target.Id,
-                    typeof(TModel).FullName,
-                    _stateName
-                );
                 targetResults.Add(
                     new StateStorageMigrationTargetResult(
                         target.Id,
@@ -580,17 +546,14 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             }
 
             await VerifySourceSnapshotsAsync().ConfigureAwait(false);
-            var write = await WriteStateAsync(
+            var write = await WriteObservedAsync(
                     target,
                     writer,
                     new StateWriteRequest<TFragment>(
                         desired,
                         Condition: RevisionCondition.FromRevision(current.Revision)
                     ),
-                    "storage migration",
-                    cancellationToken,
-                    string.Join(",", sourceContributions.Select(static item => item.Source.Id)),
-                    MigrationEvent
+                    cancellationToken
                 )
                 .ConfigureAwait(false);
             var verification = await ReadMigrationSourceAsync(target, cancellationToken)
@@ -630,15 +593,6 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                 );
             }
 
-            _logger?.LogInformation(
-                MigrationEvent,
-                "Verified storage migration target {TargetSourceId} for {ModelType} state {StateName} from sources {SourceIds}.",
-                target.Id,
-                typeof(TModel).FullName,
-                _stateName,
-                string.Join(",", sourceContributions.Select(static item => item.Source.Id))
-            );
-
             targetResults.Add(
                 new StateStorageMigrationTargetResult(
                     target.Id,
@@ -666,24 +620,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                 .Select(static contribution => contribution.Source.Id)
                 .ToArray();
             RetireSourcesFromOptions(retiredSourceIds);
-            _logger?.LogInformation(
-                MigrationEvent,
-                "Retired migrated sources {SourceIds} from {ModelType} state {StateName}.",
-                string.Join(",", retiredSourceIds),
-                typeof(TModel).FullName,
-                _stateName
-            );
         }
-
-        _logger?.LogInformation(
-            MigrationEvent,
-            "Completed storage migration for {ModelType} state {StateName} from sources {SourceIds} to targets {TargetSourceIds}; retired {RetiredSourceIds}.",
-            typeof(TModel).FullName,
-            _stateName,
-            string.Join(",", sourceContributions.Select(static item => item.Source.Id)),
-            string.Join(",", targetPlans.Select(static item => item.Target.Id)),
-            string.Join(",", retiredSourceIds)
-        );
 
         return new StateStorageMigrationResult(
             sourceContributions.Select(static contribution => contribution.Source.Id),

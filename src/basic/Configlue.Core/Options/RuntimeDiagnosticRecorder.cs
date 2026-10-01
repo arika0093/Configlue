@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Microsoft.Extensions.Logging;
 
 namespace Configlue;
 
@@ -10,6 +11,7 @@ internal sealed class RuntimeDiagnosticRecorder : IConfiglueRuntimeDiagnostics
     private readonly string _modelId;
     private readonly int _modelVersion;
     private readonly ConfiglueRuntimeDiagnosticOptions _options;
+    private readonly ILogger? _logger;
     private readonly ConfiglueDiagnosticEvent[] _history;
     private readonly Dictionary<string, ConfiglueRuntimeSourceSnapshot> _sources;
     private readonly Dictionary<string, int> _watchCounts = new(StringComparer.Ordinal);
@@ -28,7 +30,8 @@ internal sealed class RuntimeDiagnosticRecorder : IConfiglueRuntimeDiagnostics
         string modelId,
         int modelVersion,
         ConfiglueRuntimeDiagnosticOptions options,
-        IEnumerable<ConfiglueRuntimeSourceSnapshot> sources
+        IEnumerable<ConfiglueRuntimeSourceSnapshot> sources,
+        ILogger? logger = null
     )
     {
         options.Validate();
@@ -36,12 +39,26 @@ internal sealed class RuntimeDiagnosticRecorder : IConfiglueRuntimeDiagnostics
         _modelId = modelId;
         _modelVersion = modelVersion;
         _options = options;
+        _logger = logger;
         _history = new ConfiglueDiagnosticEvent[options.EventHistoryCapacity];
         _sources = sources.ToDictionary(static source => source.Id, StringComparer.Ordinal);
     }
 
     internal bool IsEnabled =>
-        _options.TrackSnapshot || _history.Length != 0 || Volatile.Read(ref _listeners).Length != 0;
+        _options.TrackSnapshot
+        || _history.Length != 0
+        || Volatile.Read(ref _listeners).Length != 0
+        || ConfiglueTelemetry.IsEnabled
+        || LoggerIsEnabled();
+
+    private bool LoggerIsEnabled() =>
+        _logger is not null
+        && (
+            _logger.IsEnabled(LogLevel.Trace)
+            || _logger.IsEnabled(LogLevel.Debug)
+            || _logger.IsEnabled(LogLevel.Warning)
+            || _logger.IsEnabled(LogLevel.Error)
+        );
 
     internal DiagnosticOperation Start(
         ConfiglueDiagnosticEventKind kind,
@@ -53,8 +70,39 @@ internal sealed class RuntimeDiagnosticRecorder : IConfiglueRuntimeDiagnostics
             return default;
         var operationId = Interlocked.Increment(ref _nextOperationId);
         var started = Stopwatch.GetTimestamp();
+        Activity? activity = null;
+        if (
+            ConfiglueTelemetry.Activities.HasListeners()
+            && ConfiglueTelemetry.ActivityName(kind) is { } activityName
+        )
+        {
+            activity = ConfiglueTelemetry.Activities.StartActivity(activityName);
+            if (activity?.IsAllDataRequested == true)
+            {
+                activity.SetTag("configlue.state", _stateName);
+                activity.SetTag("configlue.model.id", _modelId);
+                activity.SetTag("configlue.model.version", _modelVersion);
+                activity.SetTag("configlue.operation.id", operationId);
+                if (sourceId is not null)
+                {
+                    activity.SetTag("configlue.source.id", sourceId);
+                    lock (_gate)
+                    {
+                        if (_sources.TryGetValue(sourceId, out var source))
+                            activity.SetTag("configlue.source.kind", source.Kind);
+                    }
+                }
+            }
+        }
         Record(kind, operationId, parentOperationId, sourceId);
-        return new DiagnosticOperation(this, operationId, parentOperationId, sourceId, started);
+        return new DiagnosticOperation(
+            this,
+            operationId,
+            parentOperationId,
+            sourceId,
+            started,
+            activity
+        );
     }
 
     internal void Record(
@@ -95,7 +143,8 @@ internal sealed class RuntimeDiagnosticRecorder : IConfiglueRuntimeDiagnostics
                 duration,
                 errorCategory,
                 canceled,
-                effectiveValueChanged
+                effectiveValueChanged,
+                Activity.Current?.TraceId.ToString()
             );
             if (_options.TrackSnapshot)
                 UpdateSnapshot(diagnosticEvent);
@@ -106,6 +155,9 @@ internal sealed class RuntimeDiagnosticRecorder : IConfiglueRuntimeDiagnostics
                 _historyCount = Math.Min(_historyCount + 1, _history.Length);
             }
         }
+
+        ConfiglueTelemetry.Record(diagnosticEvent);
+        RuntimeDiagnosticLogging.Log(_logger, diagnosticEvent);
 
         foreach (var listener in Volatile.Read(ref _listeners))
         {
@@ -269,7 +321,8 @@ internal sealed class RuntimeDiagnosticRecorder : IConfiglueRuntimeDiagnostics
         long operationId,
         long parentOperationId,
         string? sourceId,
-        long started
+        long started,
+        Activity? activity
     )
     {
         internal long Id { get; } = operationId;
@@ -279,7 +332,8 @@ internal sealed class RuntimeDiagnosticRecorder : IConfiglueRuntimeDiagnostics
             StateReadStatus? status = null,
             bool hasRevision = false,
             bool? effectiveValueChanged = null
-        ) =>
+        )
+        {
             owner?.Record(
                 kind,
                 Id,
@@ -290,12 +344,27 @@ internal sealed class RuntimeDiagnosticRecorder : IConfiglueRuntimeDiagnostics
                 Elapsed(),
                 effectiveValueChanged: effectiveValueChanged
             );
+            if (activity?.IsAllDataRequested == true)
+            {
+                activity.SetTag("configlue.has_revision", hasRevision);
+                if (status is { } readStatus)
+                    activity.SetTag("configlue.read.status", readStatus.ToString());
+                if (effectiveValueChanged is { } changed)
+                    activity.SetTag("configlue.effective_value_changed", changed);
+                if (kind == ConfiglueDiagnosticEventKind.ReloadFailed)
+                    activity.SetStatus(ActivityStatusCode.Error);
+                if (kind == ConfiglueDiagnosticEventKind.WriteCompleted)
+                    activity.SetTag("configlue.write.result", "success");
+            }
+            activity?.Dispose();
+        }
 
         internal void Fail(
             ConfiglueDiagnosticEventKind kind,
             Exception exception,
             bool canceled = false
-        ) =>
+        )
+        {
             owner?.Record(
                 kind,
                 Id,
@@ -305,6 +374,24 @@ internal sealed class RuntimeDiagnosticRecorder : IConfiglueRuntimeDiagnostics
                 errorCategory: exception.GetType().FullName,
                 canceled: canceled
             );
+            if (activity?.IsAllDataRequested == true)
+            {
+                activity.SetTag("configlue.canceled", canceled);
+                activity.SetTag("error.type", exception.GetType().FullName);
+                if (
+                    kind
+                    is ConfiglueDiagnosticEventKind.WriteFailed
+                        or ConfiglueDiagnosticEventKind.WriteConflict
+                )
+                    activity.SetTag(
+                        "configlue.write.result",
+                        kind == ConfiglueDiagnosticEventKind.WriteConflict ? "conflict" : "failed"
+                    );
+                if (!canceled)
+                    activity.SetStatus(ActivityStatusCode.Error);
+            }
+            activity?.Dispose();
+        }
 
         private TimeSpan Elapsed() =>
             TimeSpan.FromSeconds(

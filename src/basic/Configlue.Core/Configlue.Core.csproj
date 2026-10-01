@@ -9,6 +9,7 @@
   <ItemGroup>
     <ProjectReference Include="../Configlue.Abstraction/Configlue.Abstraction.csproj" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.0" />
+    <PackageReference Include="System.Diagnostics.DiagnosticSource" Version="10.0.5" />
     <PackageReference Include="System.IO.Hashing" Version="10.0.0" />
     <PackageReference Include="System.IO.Pipelines" Version="10.0.0" />
     <PackageReference

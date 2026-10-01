@@ -420,19 +420,9 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                 );
             }
 
-            var sourceIds = string.Join(",", group.Select(static plan => plan.Source.Id));
-            var resourceId = group[0].ResourceId?.Value;
             if (group.Count == 1)
             {
                 var plan = group[0];
-                _logger?.LogInformation(
-                    PhysicalWriteEvent,
-                    "Writing configuration state for {ModelType} state {StateName} through source {SourceId} at resource {ResourceId}.",
-                    typeof(TModel).FullName,
-                    _stateName,
-                    plan.Source.Id,
-                    resourceId
-                );
                 StateWriteResult write;
                 try
                 {
@@ -459,15 +449,6 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
 #pragma warning disable S2139
                 catch (Exception exception)
                 {
-                    _logger?.LogError(
-                        PhysicalWriteFailedEvent,
-                        exception,
-                        "Writing configuration state failed for {ModelType} state {StateName} through source {SourceId} at resource {ResourceId}.",
-                        typeof(TModel).FullName,
-                        _stateName,
-                        plan.Source.Id,
-                        resourceId
-                    );
                     if (physicalWriteCount > 0)
                     {
                         throw CreatePartialWriteException(
@@ -486,27 +467,11 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                     plan.Source.Id,
                     new StateSourceWriteResult(plan.Source.Id, plan.ResourceId, write.Revision)
                 );
-                _logger?.LogDebug(
-                    PhysicalWriteEvent,
-                    "Wrote configuration state through source {SourceId} at resource {ResourceId} for {ModelType} state {StateName}.",
-                    plan.Source.Id,
-                    resourceId,
-                    typeof(TModel).FullName,
-                    _stateName
-                );
                 physicalWriteCount++;
                 continue;
             }
 
             var batchWriter = group[0].BatchWriter!;
-            _logger?.LogInformation(
-                PhysicalWriteEvent,
-                "Writing a physical batch for {ModelType} state {StateName} through sources {SourceIds} at resource {ResourceId}.",
-                typeof(TModel).FullName,
-                _stateName,
-                sourceIds,
-                resourceId
-            );
             StateWriteResult batchResult;
             try
             {
@@ -538,15 +503,6 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
 #pragma warning disable S2139
             catch (Exception exception)
             {
-                _logger?.LogError(
-                    PhysicalWriteFailedEvent,
-                    exception,
-                    "The physical batch write failed for {ModelType} state {StateName} through sources {SourceIds} at resource {ResourceId}.",
-                    typeof(TModel).FullName,
-                    _stateName,
-                    sourceIds,
-                    resourceId
-                );
                 if (physicalWriteCount > 0)
                 {
                     throw CreatePartialWriteException(
@@ -574,14 +530,6 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             }
 
             physicalWriteCount++;
-            _logger?.LogDebug(
-                PhysicalWriteEvent,
-                "Wrote one physical batch for {ModelType} state {StateName} through sources {SourceIds} at resource {ResourceId}.",
-                typeof(TModel).FullName,
-                _stateName,
-                sourceIds,
-                resourceId
-            );
         }
 
         return new StateWriteReceipt(results.Values, physicalWriteCount);

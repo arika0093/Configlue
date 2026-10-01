@@ -1,0 +1,56 @@
+---
+title: Runtime diagnostics
+---
+
+Runtime diagnostics describe operations without retaining configuration values. They are available through `context.GetDiagnostics<TModel>()` or `IConfiglueRuntimeDiagnostics` on a runtime.
+
+## Cached observations
+
+`GetRuntimeSnapshot()` synchronously returns the latest observed resolution, reload, write, migration, and configured source status. It performs no reads, starts no watchers, and does not clone a model. An unobserved source has no last-read result. The snapshot records observations rather than checking current backend availability.
+
+`GetDetailsAsync()` and `GetSnapshotAsync()` are separate, active inspection APIs: they can read providers and return configuration data. Their results are not the value-free runtime diagnostic snapshot.
+
+Configure each model independently:
+
+```csharp
+builder.Add<AppSettings>(model =>
+{
+    model.Diagnostics = new ConfiglueRuntimeDiagnosticOptions
+    {
+        TrackSnapshot = true,
+        EventHistoryCapacity = 64,
+    };
+});
+```
+
+History is disabled by default. Its capacity must be between 0 and 4096; a full buffer replaces its oldest event. Returned snapshots and histories do not change as later operations run. `OnDiagnosticEvent` subscribes to future events and returns a disposable subscription; it does not start source watchers. Observer exceptions do not fail provider operations.
+
+`ConfiglueRuntimeDiagnosticOptions.Disabled` disables snapshot updates and retention. Explicit event subscriptions, enabled loggers, and tracing/metrics listeners still receive observations.
+
+## Logging and redaction
+
+An optional model logger receives structured event kind, model/state/source identifiers, operation and parent identifiers, result, duration, error category, and trace identifier. Start/stop messages use Trace, routine completions use Debug, conflicts/validation failures and unavailable fallback use Warning, and failed operations use Error. Cancellation uses Debug.
+
+Events and log records exclude model values, exception messages and exception objects, physical origins, resource identifiers, subject keys, route keys, endpoints, and revision contents. Revision presence is a Boolean. Configured model, state and source identifiers are retained, so use nonsensitive names for these identifiers.
+
+## Distributed tracing
+
+Subscribe to the `Configlue` ActivitySource (`ConfiglueTelemetry.ActivitySourceName`). Spans cover resolution, source reads, physical writes, reloads, and migrations. They inherit the caller's current activity; nested reads inherit their resolution span. Events and logs carry the associated trace identifier. Span tags describe configured model/state/source identifiers, operation identifiers, outcomes, revision presence, and error type; they follow the same value/locator redaction policy.
+
+Configlue references `System.Diagnostics.DiagnosticSource` and does not require an OpenTelemetry SDK. An application using that SDK can register `.AddSource(ConfiglueTelemetry.ActivitySourceName)` and `.AddMeter(ConfiglueTelemetry.MeterName)` with its tracing and metrics providers.
+
+## Metrics
+
+The `Configlue` Meter publishes duration histograms in seconds:
+
+- `configlue.resolve.duration`
+- `configlue.source.read.duration`
+- `configlue.source.write.duration`
+- `configlue.reload.duration`
+- `configlue.migration.duration`
+
+Counters are `configlue.reload.failures`, `configlue.source.write.conflicts`, `configlue.migrations` (successful migrations), `configlue.migration.failures`, and `configlue.watch.signals`. Cancellation does not increment failure counters.
+
+Metric labels are limited to a fixed `configlue.result` outcome and, when applicable, `configlue.source.kind` (the configured reader type). They exclude state/source/model identifiers, subjects, resources, paths, revisions, and error text to avoid unbounded series growth.
+
+`RuntimeDiagnosticBenchmarks` measures disabled instrumentation, the default cached snapshot, and bounded history for one source and a four-source fallback chain. Run it in Release with no diagnostic listeners attached when comparing baseline overhead.
