@@ -44,14 +44,14 @@ public partial class OptimizationRootSettings
 [ConfiglueModel("bench-append-collection", Version = 1)]
 public partial class AppendCollectionSettings
 {
-    [ConfiglueMerge(MergeMode.Append)]
+    [SparseFragments.SparseMerge(SparseFragments.MergeMode.Append)]
     public IReadOnlyList<string> Items { get; set; } = [];
 }
 
 [ConfiglueModel("bench-set-union-collection", Version = 1)]
 public partial class SetUnionCollectionSettings
 {
-    [ConfiglueMerge(MergeMode.SetUnion)]
+    [SparseFragments.SparseMerge(SparseFragments.MergeMode.SetUnion)]
     public IReadOnlyList<string> Items { get; set; } = [];
 }
 
