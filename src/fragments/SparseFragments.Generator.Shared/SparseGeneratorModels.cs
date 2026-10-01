@@ -1,4 +1,6 @@
+using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Linq;
 using Microsoft.CodeAnalysis;
 using SparseFragments.Generator.Shared;
 
@@ -76,13 +78,39 @@ internal sealed record SparseStructuralModel(
     string HostName,
     string ValueTypeName,
     ImmutableArray<SparseMemberModel> Members
-);
+)
+{
+    public bool Equals(SparseStructuralModel? other) =>
+        other is not null
+        && HostName == other.HostName
+        && ValueTypeName == other.ValueTypeName
+        && SparseSequence.Equal(Members, other.Members);
+
+    public override int GetHashCode() =>
+        unchecked(
+            (HostName.GetHashCode() * 31 + ValueTypeName.GetHashCode()) * 31
+            + SparseSequence.Hash(Members)
+        );
+}
 
 internal sealed record SparsePocoCloneModel(
     SparseModelInfo Model,
     string CloneHelperName,
     ImmutableArray<SparseMemberModel> Members
-);
+)
+{
+    public bool Equals(SparsePocoCloneModel? other) =>
+        other is not null
+        && Model == other.Model
+        && CloneHelperName == other.CloneHelperName
+        && SparseSequence.Equal(Members, other.Members);
+
+    public override int GetHashCode() =>
+        unchecked(
+            (Model.GetHashCode() * 31 + CloneHelperName.GetHashCode()) * 31
+            + SparseSequence.Hash(Members)
+        );
+}
 
 internal sealed record SparseGenerationAnalysis(
     SparseModelInfo? Model,
@@ -90,13 +118,66 @@ internal sealed record SparseGenerationAnalysis(
     ImmutableArray<SparsePocoCloneModel> PocoCloneModels,
     ImmutableArray<SparseStructuralModel> StructuralModels,
     ImmutableArray<SparseGeneratorDiagnostic> Diagnostics
-);
+)
+{
+    public bool Equals(SparseGenerationAnalysis? other) =>
+        other is not null
+        && Model == other.Model
+        && SparseSequence.Equal(Members, other.Members)
+        && SparseSequence.Equal(PocoCloneModels, other.PocoCloneModels)
+        && SparseSequence.Equal(StructuralModels, other.StructuralModels)
+        && SparseSequence.Equal(Diagnostics, other.Diagnostics);
+
+    public override int GetHashCode()
+    {
+        var hash = Model?.GetHashCode() ?? 0;
+        hash = unchecked(hash * 31 + SparseSequence.Hash(Members));
+        hash = unchecked(hash * 31 + SparseSequence.Hash(PocoCloneModels));
+        hash = unchecked(hash * 31 + SparseSequence.Hash(StructuralModels));
+        return unchecked(hash * 31 + SparseSequence.Hash(Diagnostics));
+    }
+}
 
 internal sealed record SparseGenerationResult(
     string? HintName,
     string? Source,
     ImmutableArray<SparseGeneratorDiagnostic> Diagnostics
-);
+)
+{
+    public bool Equals(SparseGenerationResult? other) =>
+        other is not null
+        && HintName == other.HintName
+        && Source == other.Source
+        && SparseSequence.Equal(Diagnostics, other.Diagnostics);
+
+    public override int GetHashCode() =>
+        unchecked(
+            ((HintName?.GetHashCode() ?? 0) * 31 + (Source?.GetHashCode() ?? 0)) * 31
+            + SparseSequence.Hash(Diagnostics)
+        );
+}
+
+internal static class SparseSequence
+{
+    public static bool Equal<T>(ImmutableArray<T> left, ImmutableArray<T> right) =>
+        left.IsDefault || right.IsDefault
+            ? left.IsDefault == right.IsDefault
+            : left.SequenceEqual(right);
+
+    public static int Hash<T>(ImmutableArray<T> values)
+    {
+        if (values.IsDefault)
+            return 0;
+        var hash = 17;
+        foreach (var value in values)
+        {
+            hash = unchecked(
+                hash * 31 + (value is null ? 0 : EqualityComparer<T>.Default.GetHashCode(value))
+            );
+        }
+        return hash;
+    }
+}
 
 internal readonly record struct SparseGeneratorDiagnostic(
     string DescriptorId,

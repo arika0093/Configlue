@@ -8,6 +8,64 @@ namespace Configlue.Generator.Compatibility.Tests;
 
 public sealed class GeneratorHostCompatibilityTests
 {
+    [Test]
+    public void SparseGenerator_ReusesEquivalentAnalysis_AndInvalidatesChangedMembers()
+    {
+        const string source = """
+            using SparseFragments;
+            using System.Collections.Generic;
+            [SparseFragmentModel]
+            public partial class Settings
+            {
+                public Nested Child { get; set; }
+                public List<Nested> Children { get; set; }
+            }
+            public class Nested { public int Value { get; set; } }
+            """;
+        var parseOptions = new CSharpParseOptions(LanguageVersion.CSharp9);
+        var tree = CSharpSyntaxTree.ParseText(source, parseOptions);
+        var compilation = CreateCompilation(tree);
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(
+            new[] { new SparseFragments.Generator.SparseFragmentsGenerator().AsSourceGenerator() },
+            parseOptions: parseOptions,
+            driverOptions: new GeneratorDriverOptions(IncrementalGeneratorOutputKind.None, true)
+        );
+        driver = driver.RunGenerators(compilation);
+        driver.GetRunResult().Results.Single().Exception.ShouldBeNull();
+        var original = driver.GetRunResult().GeneratedTrees.Single().ToString();
+
+        var equivalentTree = CSharpSyntaxTree.ParseText(source + "\n", parseOptions);
+        compilation = compilation.ReplaceSyntaxTree(tree, equivalentTree);
+        driver = driver.RunGenerators(compilation);
+        var equivalent = driver.GetRunResult().Results.Single();
+        equivalent.Exception.ShouldBeNull();
+        equivalent
+            .TrackedSteps["SparseFragmentsGenerator.Analysis"]
+            .Single()
+            .Outputs.Single()
+            .Reason.ShouldBe(IncrementalStepRunReason.Unchanged);
+        equivalent
+            .TrackedSteps["SparseFragmentsGenerator.Output"]
+            .Single()
+            .Outputs.Single()
+            .Reason.ShouldBe(IncrementalStepRunReason.Cached);
+
+        var changedTree = CSharpSyntaxTree.ParseText(
+            source.Replace("int Value", "string Value"),
+            parseOptions
+        );
+        compilation = compilation.ReplaceSyntaxTree(equivalentTree, changedTree);
+        driver = driver.RunGenerators(compilation);
+        var changed = driver.GetRunResult().Results.Single();
+        changed.Exception.ShouldBeNull();
+        changed
+            .TrackedSteps["SparseFragmentsGenerator.Output"]
+            .Single()
+            .Outputs.Single()
+            .Reason.ShouldBe(IncrementalStepRunReason.Modified);
+        driver.GetRunResult().GeneratedTrees.Single().ToString().ShouldNotBe(original);
+    }
+
     private const string ModelSource = """
         using System.Collections.Generic;
         using Configlue;
