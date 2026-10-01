@@ -18,6 +18,7 @@ public sealed partial class ConfiglueGenerator
         ImmutableArray<PocoCloneModel> pocoCloneModels,
         ImmutableArray<StructuralModel> structuralModels,
         bool hasJsonFragmentRegistry,
+        bool hasMessagePackFragmentRegistry,
         CancellationToken cancellationToken
     )
     {
@@ -70,7 +71,8 @@ public sealed partial class ConfiglueGenerator
             previousModels,
             !model.IsStruct,
             !pocoCloneModels.IsEmpty,
-            hasJsonFragmentRegistry
+            hasJsonFragmentRegistry,
+            hasMessagePackFragmentRegistry
         );
         AppendDetailsTree(code, modelType, members);
         if (!model.IsStruct)
@@ -82,9 +84,16 @@ public sealed partial class ConfiglueGenerator
             code,
             structuralModels,
             !pocoCloneModels.IsEmpty,
-            hasJsonFragmentRegistry
+            hasJsonFragmentRegistry,
+            hasMessagePackFragmentRegistry
         );
-        AppendFacadeRuntimeBridge(code, modelType, hasJsonFragmentRegistry);
+        AppendFacadeRuntimeBridge(
+            code,
+            modelType,
+            structuralModels,
+            hasJsonFragmentRegistry,
+            hasMessagePackFragmentRegistry
+        );
         AppendHistoricalDispatcherFactory(code, modelType, previousModels);
         code.AppendLine("}");
         AppendTypedPatchExtensions(code, modelType, name);
@@ -102,7 +111,8 @@ public sealed partial class ConfiglueGenerator
         IndentedStringBuilder code,
         ImmutableArray<StructuralModel> structuralModels,
         bool usesPocoCloning,
-        bool hasJsonFragmentRegistry
+        bool hasJsonFragmentRegistry,
+        bool hasMessagePackFragmentRegistry
     )
     {
         code.CancellationToken.ThrowIfCancellationRequested();
@@ -143,7 +153,8 @@ public sealed partial class ConfiglueGenerator
                 ImmutableArray<PreviousModelInfo>.Empty,
                 true,
                 usesPocoCloning,
-                hasJsonFragmentRegistry
+                hasJsonFragmentRegistry,
+                hasMessagePackFragmentRegistry
             );
             code.IndentOffset--;
             code.AppendLineAt(1, "}");
@@ -593,7 +604,9 @@ public sealed partial class ConfiglueGenerator
     private static void AppendFacadeRuntimeBridge(
         IndentedStringBuilder code,
         string modelType,
-        bool hasJsonFragmentRegistry
+        ImmutableArray<StructuralModel> structuralModels,
+        bool hasJsonFragmentRegistry,
+        bool hasMessagePackFragmentRegistry
     )
     {
         code.AppendLineAt(
@@ -643,6 +656,30 @@ public sealed partial class ConfiglueGenerator
                     + modelType
                     + ".Fragment.FragmentJsonConverter());"
             );
+        }
+
+        if (hasMessagePackFragmentRegistry)
+        {
+            code.AppendLineAt(
+                2,
+                "global::Configlue.Provider.MessagePack.ConfiglueMessagePackFragmentRegistry<"
+                    + modelType
+                    + ".Fragment>.Register("
+                    + modelType
+                    + ".Fragment.MessagePackFormatter);"
+            );
+            foreach (var structuralModel in structuralModels)
+            {
+                var fragmentType = structuralModel.HostName + ".Fragment";
+                code.AppendLineAt(
+                    2,
+                    "global::Configlue.Provider.MessagePack.ConfiglueMessagePackFragmentRegistry<"
+                        + fragmentType
+                        + ">.Register("
+                        + fragmentType
+                        + ".MessagePackFormatter);"
+                );
+            }
         }
 
         code.AppendLineAt(2, "return descriptor;");

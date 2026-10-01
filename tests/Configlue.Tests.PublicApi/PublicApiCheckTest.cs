@@ -10,6 +10,7 @@ using Configlue.Extensions.ComponentModel;
 using Configlue.Extensions.MSOptions;
 using Configlue.Generator;
 using Configlue.Provider.Json;
+using Configlue.Provider.MessagePack;
 using Configlue.Provider.Xml;
 using Configlue.Provider.Yaml;
 using Configlue.Resource.Http;
@@ -23,6 +24,7 @@ using Configlue.Source.PostgreSql.Migrations;
 using Configlue.Source.Presets;
 using Configlue.Testing;
 using Configlue.Transformer.AES;
+using Configlue.Transformer.Compression;
 using PublicApiGenerator;
 
 namespace Configlue.Tests.PublicApi;
@@ -218,6 +220,13 @@ public sealed class PublicApiCheckTest
         );
 
     [Test]
+    public void MessagePack() =>
+        PublicApiCheck.Check<MessagePackStateCodec<object>>(
+            "Configlue.Provider.MessagePack",
+            static type => type.Namespace == "Configlue.Provider.MessagePack"
+        );
+
+    [Test]
     public void Xml() =>
         PublicApiCheck.Check<XmlStateCodec<object>>(
             "Configlue.Provider.Xml",
@@ -302,4 +311,11 @@ public sealed class PublicApiCheckTest
     [Test]
     public void AesPassphraseTransformer() =>
         PublicApiCheck.Check<AesGcmPassphraseStateByteTransformer>();
+
+    [Test]
+    public void CompressionTransformer() =>
+        PublicApiCheck.Check<CompressionStateByteTransformer>(
+            "Configlue.Transformer.Compression",
+            static type => type.Namespace == "Configlue.Transformer.Compression"
+        );
 }

@@ -18,7 +18,8 @@ public sealed partial class ConfiglueGenerator
         ImmutableArray<PreviousModelInfo> previousModels,
         bool modelIsReferenceType,
         bool usesPocoCloning,
-        bool hasJsonFragmentRegistry
+        bool hasJsonFragmentRegistry,
+        bool hasMessagePackFragmentRegistry
     )
     {
         code.CancellationToken.ThrowIfCancellationRequested();
@@ -47,6 +48,13 @@ public sealed partial class ConfiglueGenerator
             code.AppendLineAt(
                 2,
                 "public static global::System.Text.Json.Serialization.JsonConverter<Fragment> JsonConverter { get; } = new FragmentJsonConverter();"
+            );
+        }
+        if (hasMessagePackFragmentRegistry)
+        {
+            code.AppendLineAt(
+                2,
+                "public static global::MessagePack.Formatters.IMessagePackFormatter<Fragment> MessagePackFormatter { get; } = new FragmentMessagePackFormatter();"
             );
         }
         code.AppendLine();
@@ -110,6 +118,10 @@ public sealed partial class ConfiglueGenerator
         if (hasJsonFragmentRegistry)
         {
             AppendJsonConverter(code, members);
+        }
+        if (hasMessagePackFragmentRegistry)
+        {
+            AppendMessagePackFormatter(code, members);
         }
         AppendPreviousMappings(code, previousModels);
         code.AppendLineAt(1, "}");

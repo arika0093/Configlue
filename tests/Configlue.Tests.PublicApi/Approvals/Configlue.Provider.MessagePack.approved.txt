@@ -1,0 +1,70 @@
+[assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/arika0093/Configlue")]
+namespace Configlue.Provider.MessagePack
+{
+    public static class ConfiglueMessagePackFragmentRegistry
+    {
+        public static MessagePack.Formatters.IMessagePackFormatter<T>? GetOrNull<T>() { }
+        public static void Register(System.Type fragmentType, object formatter) { }
+        public static bool TryGetFormatter<T>([System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out MessagePack.Formatters.IMessagePackFormatter<T>? formatter) { }
+    }
+    public static class ConfiglueMessagePackFragmentRegistry<TFragment>
+        where TFragment :  class, Configlue.IConfiglueFragment<TFragment>
+    {
+        public static MessagePack.Formatters.IMessagePackFormatter<TFragment> Formatter { get; }
+        public static void Register(MessagePack.Formatters.IMessagePackFormatter<TFragment> formatter) { }
+        public static bool TryGetFormatter([System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out MessagePack.Formatters.IMessagePackFormatter<TFragment>? formatter) { }
+    }
+    public sealed class ConfiglueMessagePackResolver : MessagePack.IFormatterResolver
+    {
+        public ConfiglueMessagePackResolver() { }
+        public ConfiglueMessagePackResolver(MessagePack.IFormatterResolver? fallback) { }
+        public static Configlue.Provider.MessagePack.ConfiglueMessagePackResolver Instance { get; }
+        public MessagePack.Formatters.IMessagePackFormatter<T>? GetFormatter<T>() { }
+    }
+    public sealed class MessagePackFileSourceOptions
+    {
+        public MessagePackFileSourceOptions() { }
+        public bool ExplicitOnly { get; init; }
+        public Configlue.Sources.StateFallbackCondition FallbackCondition { get; init; }
+        public string? Id { get; init; }
+        public required string Path { get; init; }
+        public int Priority { get; init; }
+        public bool ReadOnly { get; init; }
+        public Configlue.Resources.ResourceId? ResourceId { get; init; }
+        public Configlue.Resources.FileResourceOptions? ResourceOptions { get; init; }
+        public string? SectionPath { get; init; }
+        public MessagePack.MessagePackSerializerOptions? SerializerOptions { get; init; }
+        public System.Collections.Generic.IReadOnlyList<Configlue.Transformers.IStateByteTransformer>? Transformers { get; init; }
+        public bool WatchChanges { get; init; }
+    }
+    public static class MessagePackFileSourceRegistration
+    {
+        public static Configlue.Extensibility.ConfiglueSourceRegistration FromMessagePackFile(this Configlue.ConfiglueSourceSetBuilder sources, Configlue.Provider.MessagePack.MessagePackFileSourceOptions options) { }
+        public static void UseMessagePackFile<TModel>(this Configlue.ConfiglueModelBuilder<TModel> model, Configlue.Provider.MessagePack.MessagePackFileSourceOptions options)
+            where TModel : Configlue.CompilerServices.IConfiglueFacadeModel<TModel> { }
+        public static void UseMessagePackFile<TModel>(this Configlue.ConfiglueModelBuilder<TModel> model, string path)
+            where TModel : Configlue.CompilerServices.IConfiglueFacadeModel<TModel> { }
+    }
+    public sealed class MessagePackStateCodec : Configlue.Codecs.IStateCodec, Configlue.Codecs.IStateCodecRecoveryPolicy, Configlue.Codecs.IStateSchemaMetadataReader
+    {
+        public MessagePackStateCodec(MessagePack.MessagePackSerializerOptions? options = null) { }
+        public object? Deserialize(System.Type type, in System.Buffers.ReadOnlySequence<byte> source, in Configlue.Codecs.StateCodecContext context) { }
+        public bool IsRecoverableReadException(System.Exception exception) { }
+        public Configlue.State.StateSchemaMetadata? ReadSchemaMetadata(in System.Buffers.ReadOnlySequence<byte> source) { }
+        public void Serialize(System.Type type, object? value, System.Buffers.IBufferWriter<byte> destination, in Configlue.Codecs.StateCodecContext context) { }
+    }
+    public sealed class MessagePackStateCodec<T> : Configlue.Codecs.IStateCodecRecoveryPolicy, Configlue.Codecs.IStateCodec<T>, Configlue.Codecs.IStateSchemaMetadataReader
+    {
+        public MessagePackStateCodec(MessagePack.MessagePackSerializerOptions? options = null) { }
+        public T? Deserialize(in System.Buffers.ReadOnlySequence<byte> source, in Configlue.Codecs.StateCodecContext context) { }
+        public bool IsRecoverableReadException(System.Exception exception) { }
+        public Configlue.State.StateSchemaMetadata? ReadSchemaMetadata(in System.Buffers.ReadOnlySequence<byte> source) { }
+        public void Serialize(T? value, System.Buffers.IBufferWriter<byte> destination, in Configlue.Codecs.StateCodecContext context) { }
+    }
+    public sealed class MessagePackStateValueSerializer<T>
+    {
+        public MessagePackStateValueSerializer(MessagePack.MessagePackSerializerOptions? options = null) { }
+        public T? Deserialize(in System.Buffers.ReadOnlySequence<byte> source) { }
+        public void Serialize(T? value, System.Buffers.IBufferWriter<byte> destination) { }
+    }
+}

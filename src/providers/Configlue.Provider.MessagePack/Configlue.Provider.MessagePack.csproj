@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>netstandard2.0;netstandard2.1;net10.0</TargetFrameworks>
+    <AssemblyName>Configlue.Provider.MessagePack</AssemblyName>
+    <RootNamespace>Configlue.Provider.MessagePack</RootNamespace>
+    <IsPackable>true</IsPackable>
+    <PackageDescription>MessagePack codec and resource integration for Configlue.</PackageDescription>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../basic/Configlue.Abstraction/Configlue.Abstraction.csproj" />
+    <ProjectReference Include="../../basic/Configlue.Core/Configlue.Core.csproj" />
+    <PackageReference Include="MessagePack" Version="3.1.10" />
+  </ItemGroup>
+</Project>

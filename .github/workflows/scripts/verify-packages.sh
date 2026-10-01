@@ -27,6 +27,7 @@ declare -A portable_package_assets=(
     [Configlue.Extensions.R3]="netstandard2.0 netstandard2.1 net10.0"
     [Configlue.Testing]="netstandard2.0 netstandard2.1 net10.0"
     [Configlue.Provider.Json]="netstandard2.0 netstandard2.1 net10.0"
+    [Configlue.Provider.MessagePack]="netstandard2.0 netstandard2.1 net10.0"
     [Configlue.Provider.Xml]="netstandard2.0 netstandard2.1 net10.0"
     [Configlue.Provider.Yaml]="netstandard2.0 netstandard2.1 net10.0"
     [Configlue.Source.Environment]="netstandard2.0 netstandard2.1 net10.0"
@@ -39,6 +40,7 @@ declare -A portable_package_assets=(
 # Package-specific higher floors.
 declare -A floored_package_assets=(
     [Configlue.Transformer.AES]="netstandard2.1 net10.0"
+    [Configlue.Transformer.Compression]="netstandard2.1 net10.0"
     [Configlue.Hosting.AspNetCore]="net10.0"
     [Configlue.Hosting.Blazor]="net10.0"
     [Configlue.Source.PostgreSql]="net8.0 net10.0"

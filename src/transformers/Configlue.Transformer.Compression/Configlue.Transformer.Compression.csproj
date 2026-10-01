@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>netstandard2.1;net10.0</TargetFrameworks>
+    <AssemblyName>Configlue.Transformer.Compression</AssemblyName>
+    <RootNamespace>Configlue.Transformer.Compression</RootNamespace>
+    <IsPackable>true</IsPackable>
+    <PackageDescription>LZ4 and Zstandard byte transformations for Configlue state resources.</PackageDescription>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../basic/Configlue.Abstraction/Configlue.Abstraction.csproj" />
+    <ProjectReference Include="../../basic/Configlue/Configlue.csproj" />
+    <PackageReference Include="NativeCompressions" Version="0.6.1" />
+  </ItemGroup>
+</Project>

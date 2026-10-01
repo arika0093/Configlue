@@ -48,6 +48,7 @@
     <Compile Remove="ReactiveSupport/ReactiveFixtures.cs" />
     <Compile Remove="Blazor/**/*.cs" />
     <Compile Remove="ComponentModel/**/*.cs" />
+    <Compile Remove="MessagePack/**/*.cs" />
   </ItemGroup>
   <ItemGroup Condition="'$(ConfiglueNetStandard)' == 'true'">
     <PackageReference Remove="TUnit;Shouldly;Microsoft.Testing.Extensions.Retry" />
@@ -95,5 +96,7 @@
     <ProjectReference Include="../../src/sources/Configlue.Source.PostgreSql/Configlue.Source.PostgreSql.csproj" />
     <ProjectReference Include="../../src/sources/Configlue.Source.PostgreSql.Migrations/Configlue.Source.PostgreSql.Migrations.csproj" />
     <ProjectReference Include="../../src/transformers/Configlue.Transformer.AES/Configlue.Transformer.AES.csproj" />
+    <ProjectReference Include="../../src/providers/Configlue.Provider.MessagePack/Configlue.Provider.MessagePack.csproj" />
+    <ProjectReference Include="../../src/transformers/Configlue.Transformer.Compression/Configlue.Transformer.Compression.csproj" />
   </ItemGroup>
 </Project>

@@ -14,15 +14,21 @@ public sealed partial class ConfiglueGenerator
 {
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
-        var hasJsonFragmentRegistry = context
+        var providerRegistries = context
             .CompilationProvider.Select(
                 static (compilation, _) =>
-                    compilation.GetTypeByMetadataName(
-                        "Configlue.Provider.Json.ConfiglueJsonFragmentRegistry`1"
+                    (
+                        Json: compilation.GetTypeByMetadataName(
+                            "Configlue.Provider.Json.ConfiglueJsonFragmentRegistry`1"
+                        )
+                            is not null,
+                        MessagePack: compilation.GetTypeByMetadataName(
+                            "Configlue.Provider.MessagePack.ConfiglueMessagePackFragmentRegistry`1"
+                        )
+                            is not null
                     )
-                        is not null
             )
-            .WithComparer(EqualityComparer<bool>.Default);
+            .WithComparer(EqualityComparer<(bool Json, bool MessagePack)>.Default);
 
         var analyzed = context
             .SyntaxProvider.ForAttributeWithMetadataName(
@@ -34,9 +40,10 @@ public sealed partial class ConfiglueGenerator
             .WithComparer(EqualityComparer<GenerationAnalysis>.Default)
             .WithTrackingName("ConfiglueGenerator.Analysis");
         var generated = analyzed
-            .Combine(hasJsonFragmentRegistry)
+            .Combine(providerRegistries)
             .Select(
-                (input, cancellationToken) => Render(input.Left, input.Right, cancellationToken)
+                (input, cancellationToken) =>
+                    Render(input.Left, input.Right.Json, input.Right.MessagePack, cancellationToken)
             )
             .WithComparer(EqualityComparer<GenerationResult>.Default)
             .WithTrackingName("ConfiglueGenerator.Output");
@@ -80,6 +87,7 @@ public sealed partial class ConfiglueGenerator
     private static GenerationResult Render(
         GenerationAnalysis analysis,
         bool hasJsonFragmentRegistry,
+        bool hasMessagePackFragmentRegistry,
         CancellationToken cancellationToken
     )
     {
@@ -97,6 +105,7 @@ public sealed partial class ConfiglueGenerator
             analysis.PocoCloneModels,
             analysis.StructuralModels,
             hasJsonFragmentRegistry,
+            hasMessagePackFragmentRegistry,
             cancellationToken
         );
         return new GenerationResult(analysis.HintName, source, analysis.Diagnostics);
