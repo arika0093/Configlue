@@ -341,7 +341,7 @@ public sealed class PostgreSqlSourceTests
 
     private sealed record TestFragment(string ModelId, int Version) : IConfiglueFragment
     {
-        public ConfiglueModelSchema Schema =>
+        public ConfiglueModelSchema ConfiglueSchema =>
             new(typeof(TestFragment), ModelId, Version, []);
 
         public IEnumerable<SparseFragmentMember> EnumeratePresentMembers() => [];
