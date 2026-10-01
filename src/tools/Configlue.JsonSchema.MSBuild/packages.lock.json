@@ -117,6 +117,12 @@
         "contentHash": "CJW+x/F6fmRQ7N6K8paasTw9PDZp4t7G76UjGNlSDgoHPF0h08vTzLYbLZpOLEJSg35d5wy2jCXGo84EN05DpQ=="
       },
       "configlue.abstraction": {
+        "type": "Project",
+        "dependencies": {
+          "SparseFragments.Abstractions": "[0.1.0, )"
+        }
+      },
+      "sparsefragments.abstractions": {
         "type": "Project"
       }
     }
