@@ -131,7 +131,7 @@ public sealed class SerializedStateWriter<T>
 
         var schema =
             context.Schema
-            ?? (request.Value is IConfiglueFragment fragment ? fragment.Schema.ToMetadata() : null);
+            ?? (request.Value is IConfiglueFragment fragment ? fragment.ConfiglueSchema.ToMetadata() : null);
         return new ResourceWriteRequest(
             StateByteTransformerPipeline.TransformWrite(destination.WrittenMemory, _transformers),
             Condition: request.Condition,
