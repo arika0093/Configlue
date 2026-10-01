@@ -233,9 +233,7 @@ public sealed class EditSessionSnapshotTests
     {
         var store = new SignalingStore<AppSettings.Fragment>(Fragment("start", retryCount: 3));
         await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
-            new StateSourceSet<AppSettings.Fragment>([
-                new("user", store, writer: store, watcher: store),
-            ]),
+            new StateSourceSet<AppSettings.Fragment>([new("user", store, writer: store)]),
             onChangeDebounce: TimeSpan.Zero
         );
         using var session = await options.OpenEditSessionAsync();
