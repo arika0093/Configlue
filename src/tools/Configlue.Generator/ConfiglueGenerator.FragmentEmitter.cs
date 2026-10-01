@@ -193,7 +193,7 @@ public sealed partial class ConfiglueGenerator
             .Append("public global::Configlue.ConfiglueModelSchema Schema => FragmentSchema;");
         code.AppendLineAt(
             2,
-            "public global::System.Collections.Generic.IEnumerable<global::Configlue.ConfiglueFragmentMember> EnumeratePresentMembers()"
+            "public global::System.Collections.Generic.IEnumerable<global::SparseFragments.SparseFragmentMember> EnumeratePresentMembers()"
         );
         code.AppendLineAt(2, "{");
         foreach (var member in members)
@@ -214,7 +214,7 @@ public sealed partial class ConfiglueGenerator
         code.AppendLineAt(2, "}");
         code.AppendLineAt(
             2,
-            "public global::Configlue.IConfiglueFragment WithMember(int memberId, object? value)"
+            "public global::SparseFragments.ISparseFragment WithMember(int memberId, object? value)"
         );
         code.AppendLineAt(2, "{");
         code.AppendLineAt(3, "var builder = ToBuilder();");
@@ -244,7 +244,7 @@ public sealed partial class ConfiglueGenerator
         code.AppendLineAt(2, "}");
         code.AppendLineAt(
             2,
-            "public global::Configlue.IConfiglueFragment WithoutMember(int memberId)"
+            "public global::SparseFragments.ISparseFragment WithoutMember(int memberId)"
         );
         code.AppendLineAt(2, "{");
         code.AppendLineAt(3, "var builder = ToBuilder();");
@@ -624,7 +624,7 @@ public sealed partial class ConfiglueGenerator
             else if (member.ChildModel is null)
             {
                 condition =
-                    $"global::Configlue.ConfiglueValueComparer.AreEqual({before}, {after}) ? default : global::SparseFragments.Optional<{valueType}>.Present({after})";
+                    $"global::SparseFragments.SparseValueComparer.AreEqual({before}, {after}) ? default : global::SparseFragments.Optional<{valueType}>.Present({after})";
             }
             else
             {
