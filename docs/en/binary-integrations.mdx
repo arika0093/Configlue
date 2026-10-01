@@ -18,6 +18,11 @@ compiler constraints are described in its [compiler manual](https://docs.unity3d
 
 ## MessagePack wire contract
 
+The `.MessagePack(options)` integration uses
+[MessagePack-CSharp](https://github.com/MessagePack-CSharp/MessagePack-CSharp)
+(the `MessagePack` NuGet package). Configlue's generated formatters implement its
+`IMessagePackFormatter<T>` interface and use its reader, writer, and serializer options.
+
 Reference `Configlue.Provider.MessagePack`. When the provider is referenced during
 generation, Configlue emits formatters for generated Fragments and nested structural
 Fragments. It does not rely on another source generator discovering generated types.
