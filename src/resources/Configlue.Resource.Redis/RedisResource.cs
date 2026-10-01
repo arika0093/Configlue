@@ -100,6 +100,7 @@ public sealed class RedisResource
                 + RedisIdentityHash.Create(
                     address.KeyPrefix,
                     ResourceNamespace,
+                    context.ModelId ?? string.Empty,
                     context.Key.Value,
                     address.Database.ToString(CultureInfo.InvariantCulture),
                     _routeAwareIdentity ? context.Route.Value : string.Empty
@@ -176,11 +177,13 @@ public sealed class RedisResource
         ArgumentException.ThrowIfNullOrWhiteSpace(prefix);
         var database = _options.DatabaseSelector?.Invoke(context) ?? _options.Database;
         RedisResourceOptions.ValidateDatabase(database);
-        var rowIdentity = RedisIdentityHash.Create(ResourceNamespace, context.Key.Value);
+        var modelId = context.ModelId ?? string.Empty;
+        var rowIdentity = RedisIdentityHash.Create(ResourceNamespace, modelId, context.Key.Value);
         var redisKey = $"{prefix}:{rowIdentity}";
         var notificationIdentity = RedisIdentityHash.Create(
             prefix,
             ResourceNamespace,
+            modelId,
             context.Key.Value,
             database.ToString(CultureInfo.InvariantCulture)
         );
