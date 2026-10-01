@@ -43,6 +43,7 @@ public sealed partial class ConfiglueGenerator
         code.AppendLineAt(4, "writer.WriteMapHeader(" + countExpression + ");");
         foreach (var member in members)
         {
+            code.CancellationToken.ThrowIfCancellationRequested();
             var property = EscapeIdentifier(member.Property.Name);
             code.AppendIndent(4).Append("if (value.").Append(property).AppendLine(".IsPresent)");
             code.AppendLineAt(4, "{");
@@ -91,24 +92,24 @@ public sealed partial class ConfiglueGenerator
         code.AppendLineAt(4, "options.Security.DepthStep(ref reader);");
         code.AppendLineAt(4, "try");
         code.AppendLineAt(4, "{");
-        code.IndentOffset++;
-        code.AppendLineAt(4, "var length = reader.ReadMapHeader();");
-        code.AppendLineAt(4, "var builder = new FragmentBuilder();");
-        code.AppendLineAt(4, "for (var index = 0; index < length; index++)");
-        code.AppendLineAt(4, "{");
-        code.AppendLineAt(5, "var memberName = reader.ReadString();");
-        code.AppendLineAt(5, "switch (memberName)");
+        code.AppendLineAt(5, "var length = reader.ReadMapHeader();");
+        code.AppendLineAt(5, "var builder = new FragmentBuilder();");
+        code.AppendLineAt(5, "for (var index = 0; index < length; index++)");
         code.AppendLineAt(5, "{");
+        code.AppendLineAt(6, "var memberName = reader.ReadString();");
+        code.AppendLineAt(6, "switch (memberName)");
+        code.AppendLineAt(6, "{");
         foreach (var member in members)
         {
+            code.CancellationToken.ThrowIfCancellationRequested();
             var property = EscapeIdentifier(member.Property.Name);
             code.AppendLineAt(
-                6,
+                7,
                 "case " + SymbolDisplay.FormatLiteral(member.Property.Name, true) + ":"
             );
             if (member.ChildModel is null)
             {
-                code.AppendIndent(7)
+                code.AppendIndent(8)
                     .Append("builder.")
                     .Append(property)
                     .Append(" = global::Configlue.Optional<")
@@ -120,7 +121,7 @@ public sealed partial class ConfiglueGenerator
             else
             {
                 var childFragment = member.ChildFragmentType!;
-                code.AppendIndent(7)
+                code.AppendIndent(8)
                     .Append("builder.")
                     .Append(property)
                     .Append(" = global::Configlue.Optional<")
@@ -130,14 +131,13 @@ public sealed partial class ConfiglueGenerator
                     .AppendLine(".MessagePackFormatter.Deserialize(ref reader, options));");
             }
 
-            code.AppendLineAt(7, "break;");
+            code.AppendLineAt(8, "break;");
         }
 
-        code.AppendLineAt(6, "default: reader.Skip(); break;");
+        code.AppendLineAt(7, "default: reader.Skip(); break;");
+        code.AppendLineAt(6, "}");
         code.AppendLineAt(5, "}");
-        code.AppendLineAt(4, "}");
-        code.AppendLineAt(4, "return builder.Build();");
-        code.IndentOffset--;
+        code.AppendLineAt(5, "return builder.Build();");
         code.AppendLineAt(4, "}");
         code.AppendLineAt(4, "finally { reader.Depth--; }");
         code.AppendLineAt(3, "}");

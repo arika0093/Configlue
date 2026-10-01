@@ -96,6 +96,8 @@ public sealed class GeneratorHostCompatibilityTests
         var modelIndent = namespaced ? "    " : "";
         generated.ShouldContain("\n" + modelIndent + "partial " + declaration + " @event :");
         generated.ShouldContain("\n" + modelIndent + "    public sealed class Fragment");
+        generated.ShouldContain("\n" + modelIndent + "    public sealed class Details");
+        generated.ShouldContain("\n" + modelIndent + "        public Details(");
         generated.ShouldContain(
             "\n" + modelIndent + "    public sealed class __ConfiglueStructural_"
         );
@@ -178,7 +180,9 @@ public sealed class GeneratorHostCompatibilityTests
         var tree = CSharpSyntaxTree.ParseText("internal class Empty { }", parseOptions);
         var compilation = CreateCompilation(tree);
 
-        (ConfiglueGenerator.ShouldEmitIsExternalInit(compilation, configured: true)).ShouldBeFalse();
+        (
+            ConfiglueGenerator.ShouldEmitIsExternalInit(compilation, configured: true)
+        ).ShouldBeFalse();
     }
 
     [Test]

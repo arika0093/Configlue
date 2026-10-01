@@ -20,43 +20,53 @@ public sealed partial class ConfiglueGenerator
     )
     {
         code.CancellationToken.ThrowIfCancellationRequested();
-        code.AppendLine("public sealed class Details");
-        code.AppendLine("{");
-        code.AppendLineAt(
-            1,
-            "public Details("
-                + modelType
-                + " value, global::Configlue.CompilerServices.ConfiglueDetailsSnapshot snapshot)"
-        );
-        code.AppendLineAt(
-            1,
-            "    : this(value, snapshot, global::Configlue.CompilerServices.ConfiglueMemberPath.Root(snapshot.Schema))"
-        );
-        code.AppendLineAt(1, "{");
-        code.AppendLineAt(1, "}");
-        code.AppendLineAt(
-            1,
-            "public Details("
-                + modelType
-                + " value, global::Configlue.CompilerServices.ConfiglueDetailsSnapshot snapshot, global::Configlue.CompilerServices.ConfiglueMemberPath pathPrefix)"
-        );
-        code.AppendLineAt(1, "{");
-        AppendNullGuard(code, 2, "snapshot");
-        foreach (var member in members)
+        code.IndentOffset++;
+        try
         {
-            AppendDetailsMember(code, member);
-        }
+            code.AppendLine("public sealed class Details");
+            code.AppendLine("{");
+            code.AppendLineAt(
+                1,
+                "public Details("
+                    + modelType
+                    + " value, global::Configlue.CompilerServices.ConfiglueDetailsSnapshot snapshot)"
+            );
+            code.AppendLineAt(
+                1,
+                "    : this(value, snapshot, global::Configlue.CompilerServices.ConfiglueMemberPath.Root(snapshot.Schema))"
+            );
+            code.AppendLineAt(1, "{");
+            code.AppendLineAt(1, "}");
+            code.AppendLineAt(
+                1,
+                "public Details("
+                    + modelType
+                    + " value, global::Configlue.CompilerServices.ConfiglueDetailsSnapshot snapshot, global::Configlue.CompilerServices.ConfiglueMemberPath pathPrefix)"
+            );
+            code.AppendLineAt(1, "{");
+            AppendNullGuard(code, 2, "snapshot");
+            foreach (var member in members)
+            {
+                code.CancellationToken.ThrowIfCancellationRequested();
+                AppendDetailsMember(code, member);
+            }
 
-        code.AppendLineAt(1, "}");
-        foreach (var member in members)
+            code.AppendLineAt(1, "}");
+            foreach (var member in members)
+            {
+                code.CancellationToken.ThrowIfCancellationRequested();
+                AppendDetailsProperty(code, member);
+            }
+
+            AppendDetailsLeafHelper(code);
+            AppendDetailsCollectionHelper(code);
+            AppendDetailsStatusHelper(code);
+            code.AppendLine("}");
+        }
+        finally
         {
-            AppendDetailsProperty(code, member);
+            code.IndentOffset--;
         }
-
-        AppendDetailsLeafHelper(code);
-        AppendDetailsCollectionHelper(code);
-        AppendDetailsStatusHelper(code);
-        code.AppendLine("}");
     }
 
     private static void AppendDetailsMember(IndentedStringBuilder code, MemberModel member)
