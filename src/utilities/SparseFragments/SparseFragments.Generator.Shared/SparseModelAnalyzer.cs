@@ -33,7 +33,7 @@ internal static class SparseModelAnalyzer
 
         if (declaration is null || !declaration.Modifiers.Any(SyntaxKind.PartialKeyword))
         {
-            return Failure("SPF001", location, model.Name);
+            return Failure(SparseDiagnosticIds.MustBePartial, location, model.Name);
         }
 
         if (
@@ -43,7 +43,7 @@ internal static class SparseModelAnalyzer
             || model.IsAbstract
         )
         {
-            return Failure("SPF002", location, model.Name);
+            return Failure(SparseDiagnosticIds.UnsupportedModel, location, model.Name);
         }
 
         if (
@@ -51,7 +51,7 @@ internal static class SparseModelAnalyzer
             && !HasPublicParameterlessConstructor(model, cancellationToken)
         )
         {
-            return Failure("SPF003", location, model.Name);
+            return Failure(SparseDiagnosticIds.MissingConstructor, location, model.Name);
         }
 
         var members = GetMembers(model, config, cancellationToken).ToImmutableArray();
@@ -76,7 +76,7 @@ internal static class SparseModelAnalyzer
             {
                 diagnostics.Add(
                     new SparseGeneratorDiagnostic(
-                        "SPF004",
+                        SparseDiagnosticIds.InvalidMergeStrategy,
                         member.Property.Locations.FirstOrDefault(),
                         member.Property.Name
                     )
@@ -87,7 +87,7 @@ internal static class SparseModelAnalyzer
             {
                 diagnostics.Add(
                     new SparseGeneratorDiagnostic(
-                        "SPF006",
+                        SparseDiagnosticIds.UnsupportedRequired,
                         member.Property.Locations.FirstOrDefault(),
                         member.Property.Name
                     )
@@ -98,7 +98,7 @@ internal static class SparseModelAnalyzer
             {
                 diagnostics.Add(
                     new SparseGeneratorDiagnostic(
-                        "SPF005",
+                        SparseDiagnosticIds.UnsupportedMerge,
                         member.Property.Locations.FirstOrDefault(),
                         member.Property.Name
                     )
@@ -109,7 +109,7 @@ internal static class SparseModelAnalyzer
             {
                 diagnostics.Add(
                     new SparseGeneratorDiagnostic(
-                        "SPF005",
+                        SparseDiagnosticIds.UnsupportedMerge,
                         member.Property.Locations.FirstOrDefault(),
                         member.Property.Name
                     )
@@ -123,7 +123,7 @@ internal static class SparseModelAnalyzer
             {
                 diagnostics.Add(
                     new SparseGeneratorDiagnostic(
-                        "SPF005",
+                        SparseDiagnosticIds.UnsupportedMerge,
                         member.Property.Locations.FirstOrDefault(),
                         member.Property.Name
                     )
@@ -147,7 +147,7 @@ internal static class SparseModelAnalyzer
             SparseNaming.Sanitize(fullyQualifiedName, cancellationToken)
             + "_"
             + SparseNaming.GetStableTypeHash(fullyQualifiedName, cancellationToken)
-            + ".SparseFragments.g.cs";
+            + SparseWellKnownNames.HintNameSuffix;
         var memberModels = CreateMemberModels(members, config, cancellationToken);
         var pocoCloneModels = GetPocoCloneTypes(members, config, cancellationToken)
             .Select(pocoType => CreatePocoCloneModel(pocoType, config, cancellationToken))
@@ -198,7 +198,7 @@ internal static class SparseModelAnalyzer
         return false;
     }
 
-    private static IEnumerable<SymbolMember> GetMembers(
+    internal static IEnumerable<SparseSymbolMemberModel> GetMembers(
         INamedTypeSymbol model,
         SparseGeneratorConfig config,
         CancellationToken cancellationToken
@@ -282,7 +282,7 @@ internal static class SparseModelAnalyzer
                 mode = int.MaxValue;
             }
 
-            yield return new SymbolMember(
+            yield return new SparseSymbolMemberModel(
                 index++,
                 property,
                 child,
@@ -530,7 +530,7 @@ internal static class SparseModelAnalyzer
         var name = type.WithNullableAnnotation(NullableAnnotation.NotAnnotated)
             .ToDisplayString(SparseNaming.TypeFormat);
         var assembly = type.ContainingAssembly?.Name ?? string.Empty;
-        return "__SparseStructural_"
+        return SparseWellKnownNames.StructuralHostPrefix
             + SparseNaming.GetStableTypeHash(assembly + "|" + name, cancellationToken);
     }
 
@@ -601,7 +601,7 @@ internal static class SparseModelAnalyzer
     }
 
     private static ImmutableArray<INamedTypeSymbol> GetPocoCloneTypes(
-        ImmutableArray<SymbolMember> members,
+        ImmutableArray<SparseSymbolMemberModel> members,
         SparseGeneratorConfig config,
         CancellationToken cancellationToken
     )
@@ -656,7 +656,7 @@ internal static class SparseModelAnalyzer
     }
 
     private static ImmutableArray<INamedTypeSymbol> CollectStructuralTypes(
-        ImmutableArray<SymbolMember> members,
+        ImmutableArray<SparseSymbolMemberModel> members,
         SparseGeneratorConfig config,
         CancellationToken cancellationToken
     )
@@ -715,7 +715,7 @@ internal static class SparseModelAnalyzer
         );
 
     private static ImmutableArray<SparseMemberModel> CreateMemberModels(
-        ImmutableArray<SymbolMember> members,
+        ImmutableArray<SparseSymbolMemberModel> members,
         SparseGeneratorConfig config,
         CancellationToken cancellationToken
     )
@@ -731,7 +731,7 @@ internal static class SparseModelAnalyzer
     }
 
     private static SparseMemberModel CreateMemberModel(
-        SymbolMember member,
+        SparseSymbolMemberModel member,
         SparseGeneratorConfig config,
         CancellationToken cancellationToken
     )
@@ -752,7 +752,7 @@ internal static class SparseModelAnalyzer
             var host = childIsStructural
                 ? StructuralHostName(member.ChildModel, cancellationToken)
                 : SparseNaming.NonNullableTypeName(member.ChildModel);
-            childFragmentType = host + ".Fragment";
+            childFragmentType = host + "." + SparseWellKnownNames.FragmentTypeName;
         }
 
         SparseTypeModel? mergeStrategyType = null;
@@ -821,7 +821,7 @@ internal static class SparseModelAnalyzer
                 .WithNullableAnnotation(NullableAnnotation.NotAnnotated)
                 .ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
             pocoCloneHelperName =
-                "__Clone_" + SparseNaming.GetStableTypeHash(cloneTypeName, cancellationToken);
+                SparseWellKnownNames.CloneHelperPrefix + SparseNaming.GetStableTypeHash(cloneTypeName, cancellationToken);
         }
 
         return new SparseTypeModel(
@@ -845,7 +845,7 @@ internal static class SparseModelAnalyzer
             .ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
         return new SparsePocoCloneModel(
             CreateModelInfo(pocoType, string.Empty),
-            "__Clone_" + SparseNaming.GetStableTypeHash(typeName, cancellationToken),
+            SparseWellKnownNames.CloneHelperPrefix + SparseNaming.GetStableTypeHash(typeName, cancellationToken),
             CreateMemberModels(
                 GetMembers(pocoType, config, cancellationToken).ToImmutableArray(),
                 config,
@@ -919,20 +919,4 @@ internal static class SparseModelAnalyzer
         return false;
     }
 
-    private sealed class SymbolMember(
-        int id,
-        IPropertySymbol property,
-        INamedTypeSymbol? childModel,
-        int mergeMode,
-        SparseSymbolCollectionInfo collection,
-        INamedTypeSymbol? mergeStrategyType
-    )
-    {
-        public int Id { get; } = id;
-        public IPropertySymbol Property { get; } = property;
-        public INamedTypeSymbol? ChildModel { get; } = childModel;
-        public int MergeMode { get; } = mergeMode;
-        public SparseSymbolCollectionInfo Collection { get; } = collection;
-        public INamedTypeSymbol? MergeStrategyType { get; } = mergeStrategyType;
-    }
 }

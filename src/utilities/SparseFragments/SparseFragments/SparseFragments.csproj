@@ -9,4 +9,19 @@
   <ItemGroup Condition="'$(ConfiglueNetStandard20)' == 'true'">
     <PackageReference Include="System.Memory" Version="4.6.3" />
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference
+      Include="../SparseFragments.Generator/SparseFragments.Generator.csproj"
+      OutputItemType="Analyzer"
+      ReferenceOutputAssembly="false"
+    />
+  </ItemGroup>
+  <ItemGroup>
+    <None
+      Include="../SparseFragments.Generator/bin/$(Configuration)/netstandard2.0/SparseFragments.Generator.dll"
+      Pack="true"
+      PackagePath="analyzers/dotnet/cs"
+      Visible="false"
+    />
+  </ItemGroup>
 </Project>

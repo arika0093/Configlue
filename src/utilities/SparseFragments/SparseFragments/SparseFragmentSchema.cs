@@ -4,7 +4,7 @@ namespace SparseFragments;
 public readonly record struct SparseFragmentMemberSchema
 {
     /// <summary>Initializes a new instance of this record.</summary>
-    /// <param name="Id">The stable member identifier.</param>
+    /// <param name="Id">The schema-local member ordinal.</param>
     /// <param name="Name">The source member name.</param>
     /// <param name="ValueType">The member value type.</param>
     /// <param name="MergeMode">The merge operation used for the member.</param>
@@ -33,7 +33,7 @@ public readonly record struct SparseFragmentMemberSchema
         this.DefaultValueFactory = DefaultValueFactory;
     }
 
-    /// <summary>The stable member identifier.</summary>
+    /// <summary>The schema-local member ordinal. It may change when the model shape changes.</summary>
     public int Id { get; init; }
 
     /// <summary>The source member name.</summary>
@@ -85,7 +85,7 @@ public sealed class SparseFragmentSchema
     /// <summary>The ordinary model type.</summary>
     public Type ModelType => _modelType;
 
-    /// <summary>The member schemas ordered by identifier.</summary>
+    /// <summary>The member schemas ordered by schema-local ordinal.</summary>
     public IReadOnlyList<SparseFragmentMemberSchema> Members => _members;
 
     /// <summary>Creates an empty fragment instance.</summary>

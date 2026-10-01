@@ -59,6 +59,21 @@ public partial class StrategySettings
     public List<int> Values { get; set; } = [];
 }
 
+[SparseFragmentModel]
+public partial class SetSettings
+{
+    [SparseMerge(MergeMode.SetUnion)]
+    public ISet<string> Values { get; set; } =
+        new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+}
+
+[SparseFragmentModel]
+public partial class DictionarySettings
+{
+    public Dictionary<string, int> Values { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase);
+}
+
 public sealed class SparseFragmentGenerationTests
 {
     [Test]
@@ -214,4 +229,67 @@ public sealed class SparseFragmentGenerationTests
         var removed = (Settings.Fragment)fragment.WithoutMember(4);
         removed.RetryCount.IsPresent.ShouldBeFalse();
     }
+
+    [Test]
+    public void DiffTreatsSetsAsOrderIndependentAndUsesSetComparer()
+    {
+        var before = new SetSettings
+        {
+            Values = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "alpha", "beta" },
+        };
+        var after = new SetSettings
+        {
+            Values = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "BETA", "ALPHA" },
+        };
+
+        var diff = SetSettings.Fragment.Diff(before, after);
+
+        diff.Values.IsPresent.ShouldBeFalse();
+    }
+
+    [Test]
+    public void SetUnionPreservesConcreteHashSetComparer()
+    {
+        var lower = new SetSettings.Fragment
+        {
+            Values = Optional<ISet<string>>.Present(
+                new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "alpha" }
+            ),
+        };
+        var higher = new SetSettings.Fragment
+        {
+            Values = Optional<ISet<string>>.Present(new HashSet<string> { "ALPHA", "beta" }),
+        };
+
+        var merged = lower.Merge(higher).Values.Value!;
+
+        merged.Count.ShouldBe(2);
+        merged.Contains("BETA").ShouldBeTrue();
+    }
+
+    [Test]
+    public void DiffTreatsDictionariesAsOrderIndependentAndUsesDictionaryComparer()
+    {
+        var before = new DictionarySettings
+        {
+            Values = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["first"] = 1,
+                ["second"] = 2,
+            },
+        };
+        var after = new DictionarySettings
+        {
+            Values = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["SECOND"] = 2,
+                ["FIRST"] = 1,
+            },
+        };
+
+        var diff = DictionarySettings.Fragment.Diff(before, after);
+
+        diff.Values.IsPresent.ShouldBeFalse();
+    }
+
 }

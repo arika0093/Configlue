@@ -10,8 +10,6 @@
     <ConfiglueTooling
       Condition="'$(MSBuildProjectName)' == 'Configlue.Generator' or '$(MSBuildProjectName)' == 'Configlue.JsonSchema.MSBuild'"
       >true</ConfiglueTooling>
-    <ConfiglueUtility Condition="$(MSBuildProjectName.StartsWith('SparseFragments'))"
-      >true</ConfiglueUtility>
     <GenerateDocumentationFile Condition="'$(ConfiglueTooling)' != 'true'"
       >true</GenerateDocumentationFile>
     <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
