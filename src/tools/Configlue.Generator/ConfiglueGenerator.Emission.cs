@@ -400,7 +400,7 @@ public sealed partial class ConfiglueGenerator
                 .Append(
                     member.MergeStrategyType is null
                         ? "null"
-                        : "Fragment.__configlue_merge_strategy_" + member.Id
+                        : "Fragment.__sparse_merge_strategy_" + member.Id
                 )
                 .Append(", static () => default(")
                 .Append(member.Property.Type.Name)
@@ -481,7 +481,7 @@ public sealed partial class ConfiglueGenerator
                 .Append(
                     member.MergeStrategyType is null
                         ? "null"
-                        : "Fragment.__configlue_merge_strategy_" + member.Id
+                        : "Fragment.__sparse_merge_strategy_" + member.Id
                 );
             code.Append(", static () => default(")
                 .Append(member.Property.Type.Name)
