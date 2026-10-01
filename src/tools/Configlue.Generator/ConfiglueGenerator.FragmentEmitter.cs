@@ -60,7 +60,7 @@ public sealed partial class ConfiglueGenerator
                 );
             }
             code.AppendIndent(2)
-                .Append("public global::Configlue.Optional<")
+                .Append("public global::SparseFragments.Optional<")
                 .Append(FragmentValueType(member))
                 .Append("> ")
                 .Append(EscapeIdentifier(member.Property.Name))
@@ -162,7 +162,7 @@ public sealed partial class ConfiglueGenerator
                         .Append(name)
                         .Append(" = ")
                         .Append(previousAccess)
-                        .Append(".IsPresent ? global::Configlue.Optional<")
+                        .Append(".IsPresent ? global::SparseFragments.Optional<")
                         .Append(childValueType)
                         .Append(">.Present(")
                         .Append(previousAccess)
@@ -170,7 +170,7 @@ public sealed partial class ConfiglueGenerator
                         .Append(childType)
                         .Append(".FromPrevious(")
                         .Append(previousAccess)
-                        .Append(".Value!)) : global::Configlue.Optional<")
+                        .Append(".Value!)) : global::SparseFragments.Optional<")
                         .Append(childValueType)
                         .AppendLine(">.Missing,");
                 }
@@ -228,7 +228,7 @@ public sealed partial class ConfiglueGenerator
                 .Append(member.Id)
                 .Append(": builder.")
                 .Append(name)
-                .Append(" = global::Configlue.Optional<")
+                .Append(" = global::SparseFragments.Optional<")
                 .Append(FragmentValueType(member))
                 .Append(">.Present((")
                 .Append(FragmentValueType(member))
@@ -257,7 +257,7 @@ public sealed partial class ConfiglueGenerator
                 .Append(member.Id)
                 .Append(": builder.")
                 .Append(EscapeIdentifier(member.Property.Name))
-                .Append(" = global::Configlue.Optional<")
+                .Append(" = global::SparseFragments.Optional<")
                 .Append(FragmentValueType(member))
                 .AppendLine(">.Missing; break;");
         }
@@ -317,7 +317,7 @@ public sealed partial class ConfiglueGenerator
             }
             code.AppendIndent(4)
                 .Append(EscapeIdentifier(member.Property.Name))
-                .Append(" = global::Configlue.Optional<")
+                .Append(" = global::SparseFragments.Optional<")
                 .Append(FragmentValueType(member))
                 .Append(">.Present(")
                 .Append(value)
@@ -479,13 +479,13 @@ public sealed partial class ConfiglueGenerator
             else if (member.MergeMode == 1 && member.ChildModel is not null)
             {
                 expression =
-                    $"{higher}.IsPresent ? global::Configlue.Optional<{FragmentValueType(member)}>.Present(({lower}.IsPresent && (object?){lower}.Value is not null && (object?){higher}.Value is not null) ? {lower}.Value!.Merge({higher}.Value!) : {higher}.Value) : {lower}";
+                    $"{higher}.IsPresent ? global::SparseFragments.Optional<{FragmentValueType(member)}>.Present(({lower}.IsPresent && (object?){lower}.Value is not null && (object?){higher}.Value is not null) ? {lower}.Value!.Merge({higher}.Value!) : {higher}.Value) : {lower}";
             }
             else if (member.MergeMode is 2 or 3)
             {
                 var merged = BuildCollectionMerge(member, lower + ".Value!", higher + ".Value!");
                 expression =
-                    $"{higher}.IsPresent ? ({lower}.IsPresent && (object?){lower}.Value is not null && (object?){higher}.Value is not null ? global::Configlue.Optional<{FragmentValueType(member)}>.Present({merged}) : {higher}) : {lower}";
+                    $"{higher}.IsPresent ? ({lower}.IsPresent && (object?){lower}.Value is not null && (object?){higher}.Value is not null ? global::SparseFragments.Optional<{FragmentValueType(member)}>.Present({merged}) : {higher}) : {lower}";
             }
             else
             {
@@ -521,7 +521,7 @@ public sealed partial class ConfiglueGenerator
             var type = FragmentValueType(member);
             var expression = member.ChildModel is null
                 ? $"changes.{name}.IsPresent ? changes.{name} : this.{name}"
-                : $"changes.{name}.IsPresent ? global::Configlue.Optional<{type}>.Present((this.{name}.IsPresent && (object?)this.{name}.Value is not null && (object?)changes.{name}.Value is not null) ? this.{name}.Value!.ApplyChanges(changes.{name}.Value!) : changes.{name}.Value) : this.{name}";
+                : $"changes.{name}.IsPresent ? global::SparseFragments.Optional<{type}>.Present((this.{name}.IsPresent && (object?)this.{name}.Value is not null && (object?)changes.{name}.Value is not null) ? this.{name}.Value!.ApplyChanges(changes.{name}.Value!) : changes.{name}.Value) : this.{name}";
             code.AppendIndent(4).Append(name).Append(" = ").Append(expression).AppendLine(",");
         }
 
@@ -544,7 +544,7 @@ public sealed partial class ConfiglueGenerator
             var fragment = member.ChildFragmentType!;
             var name = EscapeIdentifier(member.Property.Name);
             code.AppendIndent(2)
-                .Append("private static global::Configlue.Optional<")
+                .Append("private static global::SparseFragments.Optional<")
                 .Append(FragmentValueType(member))
                 .Append("> __Diff_")
                 .Append(name)
@@ -558,7 +558,7 @@ public sealed partial class ConfiglueGenerator
                     .Append(type)
                     .AppendLine(">.Default.Equals(before, after)) { return default; }");
                 code.AppendIndent(3)
-                    .Append("return global::Configlue.Optional<")
+                    .Append("return global::SparseFragments.Optional<")
                     .Append(FragmentValueType(member))
                     .Append(">.Present(")
                     .Append(fragment)
@@ -574,7 +574,7 @@ public sealed partial class ConfiglueGenerator
                 "if (global::System.Object.ReferenceEquals(before, after)) { return default; }"
             );
             code.AppendIndent(3)
-                .Append("if (before is null || after is null) { return global::Configlue.Optional<")
+                .Append("if (before is null || after is null) { return global::SparseFragments.Optional<")
                 .Append(FragmentValueType(member))
                 .Append(">.Present(after is null ? null : ")
                 .Append(fragment)
@@ -584,7 +584,7 @@ public sealed partial class ConfiglueGenerator
                 .Append(fragment)
                 .AppendLine(".Diff(before, after);");
             code.AppendIndent(3)
-                .Append("return difference.IsEmpty ? default : global::Configlue.Optional<")
+                .Append("return difference.IsEmpty ? default : global::SparseFragments.Optional<")
                 .Append(FragmentValueType(member))
                 .AppendLine(">.Present(difference); ");
             code.AppendLineAt(2, "}");
@@ -619,12 +619,12 @@ public sealed partial class ConfiglueGenerator
             if (member.MergeStrategyType is not null)
             {
                 condition =
-                    $"{MergeStrategyField(member)}.AreEqual({before}, {after}) ? default : global::Configlue.Optional<{valueType}>.Present({after})";
+                    $"{MergeStrategyField(member)}.AreEqual({before}, {after}) ? default : global::SparseFragments.Optional<{valueType}>.Present({after})";
             }
             else if (member.ChildModel is null)
             {
                 condition =
-                    $"global::Configlue.ConfiglueValueComparer.AreEqual({before}, {after}) ? default : global::Configlue.Optional<{valueType}>.Present({after})";
+                    $"global::Configlue.ConfiglueValueComparer.AreEqual({before}, {after}) ? default : global::SparseFragments.Optional<{valueType}>.Present({after})";
             }
             else
             {
@@ -673,7 +673,7 @@ public sealed partial class ConfiglueGenerator
                 .Append(name)
                 .Append(" = this.")
                 .Append(name)
-                .Append(".IsPresent ? global::Configlue.Optional<")
+                .Append(".IsPresent ? global::SparseFragments.Optional<")
                 .Append(type)
                 .Append(">.Present(")
                 .Append(expression)
