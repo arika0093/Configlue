@@ -201,7 +201,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                 );
                 if (failures.Count != priorFailureCount)
                 {
-                    fragment = fragment.WithMember(found.Id, prunedNested);
+                    fragment = (IConfiglueFragment)fragment.WithMember(found.Id, prunedNested);
                 }
 
                 continue;
@@ -217,7 +217,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             )
             {
                 failures.Add($"{path}: {message}");
-                fragment = fragment.WithoutMember(found.Id);
+                fragment = (IConfiglueFragment)fragment.WithoutMember(found.Id);
             }
         }
 
