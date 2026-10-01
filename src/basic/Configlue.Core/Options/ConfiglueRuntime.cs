@@ -36,6 +36,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         1043,
         "ReloadFailureListenerFailure"
     );
+    private static readonly EventId ReloadListenerEvent = new(1045, "ReloadListenerFailure");
     private static readonly EventId ReadValidationEvent = new(1044, "ReadValidation");
     private static readonly ConcurrentDictionary<
         (Type ModelType, string MemberName),
@@ -85,6 +86,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         new();
     private readonly List<Action<TModel>> _changeListeners = [];
     private readonly List<Action<Exception>> _reloadFailureListeners = [];
+    private readonly List<Action<StateRevisionVector?>> _reloadListeners = [];
     private CancellationTokenSource? _watchCancellation;
     private Task? _watchTask;
     private TaskCompletionSource? _operationsDrained;
@@ -384,6 +386,20 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         }
 
         return new ChangeSubscription(this, listener);
+    }
+
+    /// <inheritdoc />
+    public IDisposable OnReload(Action<StateRevisionVector?> listener)
+    {
+        ArgumentNullException.ThrowIfNull(listener);
+        lock (_changeGate)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            _reloadListeners.Add(listener);
+            EnsureWatcherStarted();
+        }
+
+        return new ReloadSubscription(this, listener);
     }
 
     /// <inheritdoc />

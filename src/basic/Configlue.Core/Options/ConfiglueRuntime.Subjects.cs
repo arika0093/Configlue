@@ -14,6 +14,8 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
     {
         using var scope = EnterSubject(subscription.Subject);
         StateReadResult<TModel> previous = default;
+        TModel previousEffective = default!;
+        var hasEffective = false;
         var hasPrevious = false;
         while (!cancellationToken.IsCancellationRequested)
         {
@@ -22,6 +24,12 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                 if (!hasPrevious)
                 {
                     previous = await ReadPublicValueAsync(cancellationToken).ConfigureAwait(false);
+                    if (previous.Status == StateReadStatus.Success)
+                    {
+                        previousEffective = previous.Value!;
+                        hasEffective = true;
+                    }
+
                     hasPrevious = true;
                 }
 
@@ -38,20 +46,23 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                     && !HaveSameRevisions(previous.Revisions, current.Revisions)
                 )
                 {
-                    try
+                    if (!hasEffective || !Diff(previousEffective, current.Value!).IsEmpty)
                     {
-                        subscription.Listener(CloneModel(current.Value!));
-                    }
-                    catch (Exception exception)
-                    {
-                        _logger?.LogError(
-                            ListenerFailureEvent,
-                            exception,
-                            "A change listener failed for {ModelType} state {StateName} and subject {SubjectKey}.",
-                            typeof(TModel).FullName,
-                            _stateName,
-                            subscription.Subject.Key.Value
-                        );
+                        try
+                        {
+                            subscription.Listener(CloneModel(current.Value!));
+                        }
+                        catch (Exception exception)
+                        {
+                            _logger?.LogError(
+                                ListenerFailureEvent,
+                                exception,
+                                "A change listener failed for {ModelType} state {StateName} and subject {SubjectKey}.",
+                                typeof(TModel).FullName,
+                                _stateName,
+                                subscription.Subject.Key.Value
+                            );
+                        }
                     }
                 }
                 else if (current.Status != StateReadStatus.Success)
@@ -69,6 +80,11 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                 }
 
                 previous = current;
+                if (current.Status == StateReadStatus.Success)
+                {
+                    previousEffective = current.Value!;
+                    hasEffective = true;
+                }
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {

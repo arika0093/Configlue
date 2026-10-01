@@ -72,6 +72,79 @@ public sealed partial class StateRuntimeTests
     }
 
     [Test]
+    public async Task Options_ShadowedReloadNotifiesReloadListenersWithoutAChangeNotification()
+    {
+        var user = new InMemoryStateSource<AppSettings.Fragment>(
+            new AppSettings.Fragment { RetryCount = Optional<int>.Present(8) }
+        );
+        var defaults = new InMemoryStateSource<AppSettings.Fragment>(
+            new AppSettings.Fragment { RetryCount = Optional<int>.Present(3) }
+        );
+        var sourceSet = new StateSourceSet<AppSettings.Fragment>([
+            new("user", user, priority: 100, watcher: user),
+            new("defaults", defaults, priority: 0, watcher: defaults),
+        ]);
+        await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
+            sourceSet
+        );
+        var changeNotifications = new List<int>();
+        using var changeSubscription = options.OnChange(value =>
+        {
+            lock (changeNotifications)
+            {
+                changeNotifications.Add(value.RetryCount);
+            }
+        });
+        var reloaded = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        using var reloadSubscription = ((IConfiglueReloadDiagnostics)options).OnReload(_ =>
+            reloaded.TrySetResult()
+        );
+
+        defaults.Set(new AppSettings.Fragment { RetryCount = Optional<int>.Present(5) });
+        await reloaded.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        (await options.GetValueAsync()).RetryCount.ShouldBe(8);
+        lock (changeNotifications)
+        {
+            changeNotifications.ShouldBeEmpty();
+        }
+    }
+
+    [Test]
+    public async Task Options_EffectiveChangeNotifiesChangeListenerButNotReloadListener()
+    {
+        var user = new InMemoryStateSource<AppSettings.Fragment>(
+            new AppSettings.Fragment { RetryCount = Optional<int>.Present(8) }
+        );
+        var defaults = new InMemoryStateSource<AppSettings.Fragment>(
+            new AppSettings.Fragment { RetryCount = Optional<int>.Present(3) }
+        );
+        var sourceSet = new StateSourceSet<AppSettings.Fragment>([
+            new("user", user, priority: 100, watcher: user),
+            new("defaults", defaults, priority: 0, watcher: defaults),
+        ]);
+        await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
+            sourceSet
+        );
+        var changed = new TaskCompletionSource<int>(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        using var changeSubscription = options.OnChange(value => changed.TrySetResult(value.RetryCount));
+        var reloadCount = 0;
+        using var reloadSubscription = ((IConfiglueReloadDiagnostics)options).OnReload(_ =>
+            Interlocked.Increment(ref reloadCount)
+        );
+
+        user.Set(new AppSettings.Fragment { RetryCount = Optional<int>.Present(9) });
+        var updated = await changed.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        (updated).ShouldBe(9);
+        Volatile.Read(ref reloadCount).ShouldBe(0);
+    }
+
+    [Test]
     public async Task Options_CompositeReaderPreservesNestedIdentityAndPhysicalOrigin()
     {
         var primary = new OpaqueRevisionStateStore<AppSettings.Fragment>(

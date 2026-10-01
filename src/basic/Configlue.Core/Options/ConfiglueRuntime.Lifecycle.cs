@@ -24,6 +24,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             _disposed = true;
             _changeListeners.Clear();
             _reloadFailureListeners.Clear();
+            _reloadListeners.Clear();
             _watchCancellation?.Cancel();
             foreach (var subscription in _subjectSubscriptions.Keys.ToArray())
             {

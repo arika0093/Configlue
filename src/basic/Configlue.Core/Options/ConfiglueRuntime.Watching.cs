@@ -16,6 +16,8 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
     private async Task WatchChangesAsync(CancellationToken cancellationToken)
     {
         StateReadResult<TModel> previous = default;
+        TModel previousEffective = default!;
+        var hasEffective = false;
         var hasPrevious = false;
         while (!cancellationToken.IsCancellationRequested)
         {
@@ -24,6 +26,12 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                 if (!hasPrevious)
                 {
                     previous = await ReadPublicValueAsync(cancellationToken).ConfigureAwait(false);
+                    if (previous.Status == StateReadStatus.Success)
+                    {
+                        previousEffective = previous.Value!;
+                        hasEffective = true;
+                    }
+
                     hasPrevious = true;
                 }
 
@@ -49,7 +57,14 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                             ? string.Join(",", revisions.Revisions.Keys)
                             : string.Empty
                     );
-                    NotifyListeners(current.Value!);
+                    if (!hasEffective || !Diff(previousEffective, current.Value!).IsEmpty)
+                    {
+                        NotifyListeners(current.Value!);
+                    }
+                    else
+                    {
+                        NotifyReloaded(current.Revisions);
+                    }
                 }
                 else if (current.Status != StateReadStatus.Success)
                 {
@@ -63,6 +78,11 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                 }
 
                 previous = current;
+                if (current.Status == StateReadStatus.Success)
+                {
+                    previousEffective = current.Value!;
+                    hasEffective = true;
+                }
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
@@ -247,6 +267,38 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                     ListenerFailureEvent,
                     exception,
                     "A configuration change listener failed for {ModelType} state {StateName}.",
+                    typeof(TModel).FullName,
+                    _stateName
+                );
+            }
+        }
+    }
+
+    private void NotifyReloaded(StateRevisionVector? revisions)
+    {
+        Action<StateRevisionVector?>[] listeners;
+        lock (_changeGate)
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            listeners = _reloadListeners.ToArray();
+        }
+
+        foreach (var listener in listeners)
+        {
+            try
+            {
+                listener(revisions);
+            }
+            catch (Exception listenerException)
+            {
+                _logger?.LogError(
+                    ReloadListenerEvent,
+                    listenerException,
+                    "A reload listener failed for {ModelType} state {StateName}.",
                     typeof(TModel).FullName,
                     _stateName
                 );

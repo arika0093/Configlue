@@ -285,6 +285,14 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         }
     }
 
+    private void RemoveReloadListener(Action<StateRevisionVector?> listener)
+    {
+        lock (_changeGate)
+        {
+            _reloadListeners.Remove(listener);
+        }
+    }
+
     private sealed class FragmentChangesPatch(TFragment changes) : IConfiglueMemberPatch
     {
         public TFragment Changes => changes;
@@ -470,6 +478,17 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
 
         public void Dispose() =>
             Interlocked.Exchange(ref _owner, null)?.RemoveReloadFailureListener(listener);
+    }
+
+    private sealed class ReloadSubscription(
+        ConfiglueRuntime<TModel, TFragment> owner,
+        Action<StateRevisionVector?> listener
+    ) : IDisposable
+    {
+        private ConfiglueRuntime<TModel, TFragment>? _owner = owner;
+
+        public void Dispose() =>
+            Interlocked.Exchange(ref _owner, null)?.RemoveReloadListener(listener);
     }
 
     private static bool CanFallBack(StateFallbackCondition condition, StateReadStatus status) =>

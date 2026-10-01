@@ -10,4 +10,5 @@ internal interface IConfiglueRuntimeState<T>
         IConfiglueDiagnostics<T>,
         IConfiglueSources<T>,
         IConfiglueDetailsRuntime,
+        IConfiglueReloadDiagnostics,
         IConfiglueStateSnapshotRuntime<T> { }
