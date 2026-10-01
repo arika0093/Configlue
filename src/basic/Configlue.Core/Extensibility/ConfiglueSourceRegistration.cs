@@ -37,7 +37,10 @@ public sealed class ConfiglueSourceRegistration
         if (
             (
                 condition
-                & ~(StateFallbackCondition.NotFoundOrUnavailable | StateFallbackCondition.Invalid)
+                & ~(
+                    StateFallbackCondition.NotFoundOrUnavailable
+                    | StateFallbackCondition.InvalidPayload
+                )
             ) != 0
         )
         {

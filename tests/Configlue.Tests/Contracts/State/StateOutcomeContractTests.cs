@@ -20,10 +20,10 @@ public sealed class StateOutcomeContractTests
         StateReadResult<int>.Success(0).Status.ShouldBe(StateReadStatus.Success);
         StateReadResult<string>.NotFound("tombstone").Value.ShouldBeNull();
         StateReadResult<string>.Unavailable("unreachable").Value.ShouldBeNull();
-        var invalid = StateReadResult<string>.Invalid("invalid value", "revision");
-        invalid.Status.ShouldBe(StateReadStatus.Invalid);
+        var invalid = StateReadResult<string>.InvalidPayload("invalid value", "revision");
+        invalid.Status.ShouldBe(StateReadStatus.InvalidPayload);
         invalid.Value.ShouldBe("invalid value");
-        invalid.FromSource("source", "origin").Status.ShouldBe(StateReadStatus.Invalid);
+        invalid.FromSource("source", "origin").Status.ShouldBe(StateReadStatus.InvalidPayload);
         ((int)StateReadStatus.Success).ShouldBe(0);
         ((int)StateReadStatus.NotFound).ShouldBe(1);
         typeof(StateReadResult<string>).GetProperty("Status")!.SetMethod.ShouldBeNull();
@@ -208,7 +208,7 @@ public sealed class StateOutcomeContractTests
             new JsonStateCodec<string>()
         );
         var result = await source.Reader.ReadAsync();
-        result.Status.ShouldBe(StateReadStatus.Invalid);
+        result.Status.ShouldBe(StateReadStatus.InvalidPayload);
         result.Value.ShouldBeNull();
         result.Revision.ShouldNotBeNull();
     }

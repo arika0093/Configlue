@@ -305,7 +305,7 @@ public sealed partial class ConfiglueGenerator
         );
         code.AppendLineAt(
             2,
-            "global::Configlue.State.StateReadStatus.Invalid => global::Configlue.ConfigSourceValueState.Invalid,"
+            "global::Configlue.State.StateReadStatus.InvalidPayload => global::Configlue.ConfigSourceValueState.Invalid,"
         );
         code.AppendLineAt(2, "_ => global::Configlue.ConfigSourceValueState.Missing,");
         code.AppendLineAt(1, "};");

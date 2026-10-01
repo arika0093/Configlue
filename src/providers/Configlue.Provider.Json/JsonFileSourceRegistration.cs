@@ -423,7 +423,10 @@ public sealed class JsonFileRegistration<TModel>
         if (
             (
                 condition
-                & ~(StateFallbackCondition.NotFoundOrUnavailable | StateFallbackCondition.Invalid)
+                & ~(
+                    StateFallbackCondition.NotFoundOrUnavailable
+                    | StateFallbackCondition.InvalidPayload
+                )
             ) != 0
         )
         {

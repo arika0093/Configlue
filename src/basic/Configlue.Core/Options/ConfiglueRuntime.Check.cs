@@ -91,7 +91,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                 StateReadStatus.Success => ConfiglueCheckStatus.Success,
                 StateReadStatus.NotFound => ConfiglueCheckStatus.NotFound,
                 StateReadStatus.Unavailable => ConfiglueCheckStatus.Unavailable,
-                StateReadStatus.Invalid => ConfiglueCheckStatus.Invalid,
+                StateReadStatus.InvalidPayload => ConfiglueCheckStatus.Invalid,
                 _ => ConfiglueCheckStatus.Faulted,
             };
 
@@ -101,7 +101,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             StateReadStatus.Success => ConfiglueCheckResult.Resolved(),
             StateReadStatus.NotFound => ConfiglueCheckResult.NotFound(),
             StateReadStatus.Unavailable => ConfiglueCheckResult.Unavailable(),
-            StateReadStatus.Invalid => ConfiglueCheckResult.Invalid(),
+            StateReadStatus.InvalidPayload => ConfiglueCheckResult.Invalid(),
             _ => ConfiglueCheckResult.Faulted(
                 new InvalidOperationException(
                     $"Configuration state check produced an unexpected status '{result.Status}'."

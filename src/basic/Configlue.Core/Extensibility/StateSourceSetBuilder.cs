@@ -91,7 +91,10 @@ public sealed class StateSourceSetBuilder<T>
         if (
             (
                 fallbackCondition
-                & ~(StateFallbackCondition.NotFoundOrUnavailable | StateFallbackCondition.Invalid)
+                & ~(
+                    StateFallbackCondition.NotFoundOrUnavailable
+                    | StateFallbackCondition.InvalidPayload
+                )
             ) != 0
         )
         {

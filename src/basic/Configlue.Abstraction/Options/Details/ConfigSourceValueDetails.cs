@@ -12,7 +12,7 @@ public enum ConfigSourceValueState
     /// <summary>The source could not be read for this snapshot.</summary>
     Unavailable,
 
-    /// <summary>The source returned a value that failed validation.</summary>
+    /// <summary>The source returned a malformed or undecodable payload (a source-local read outcome).</summary>
     Invalid,
 }
 

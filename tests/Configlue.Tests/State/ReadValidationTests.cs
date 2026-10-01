@@ -198,17 +198,19 @@ public sealed class ReadValidationTests
     }
 
     [Test]
-    public async Task InvalidFallbackConditionContinuesToLowerPrioritySource()
+    public async Task InvalidPayloadFallbackConditionContinuesToLowerPrioritySource()
     {
         var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
                 new StateSource<AppSettings.Fragment>(
                     "invalid",
                     new StubReader(
-                        StateReadResult<AppSettings.Fragment>.Invalid(new AppSettings.Fragment())
+                        StateReadResult<AppSettings.Fragment>.InvalidPayload(
+                            new AppSettings.Fragment()
+                        )
                     ),
                     priority: 100,
-                    fallbackCondition: StateFallbackCondition.Invalid
+                    fallbackCondition: StateFallbackCondition.InvalidPayload
                 ),
                 new StateSource<AppSettings.Fragment>(
                     "valid",
@@ -223,6 +225,40 @@ public sealed class ReadValidationTests
 
         (resolved.Status).ShouldBe(StateReadStatus.Success);
         (resolved.Value!.RetryCount).ShouldBe(8);
+    }
+
+    [Test]
+    public async Task EffectiveValidationFailure_DoesNotTriggerSourceFallback()
+    {
+        // The high-priority source returns a successful read with a value that fails DataAnnotations.
+        // Even though it advertises every source-local fallback condition, a validation failure must be
+        // handled by ReadValidationMode and must never be mistaken for a source-local read outcome that
+        // allows the lower-priority source to take over.
+        var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
+            new StateSourceSet<AppSettings.Fragment>([
+                new StateSource<AppSettings.Fragment>(
+                    "invalid-value",
+                    new InMemoryStateSource<AppSettings.Fragment>(
+                        new AppSettings.Fragment { RetryCount = Optional<int>.Present(150) }
+                    ),
+                    priority: 100,
+                    fallbackCondition: StateFallbackCondition.NotFoundOrUnavailable
+                        | StateFallbackCondition.InvalidPayload
+                ),
+                new StateSource<AppSettings.Fragment>(
+                    "valid",
+                    new InMemoryStateSource<AppSettings.Fragment>(
+                        new AppSettings.Fragment { RetryCount = Optional<int>.Present(8) }
+                    )
+                ),
+            ])
+        );
+
+        var failure = await Should.ThrowAsync<ConfiglueValidationException>(async () =>
+            await options.ReadAsync()
+        );
+
+        (failure.Failures.Count > 0).ShouldBeTrue();
     }
 
     [Test]
@@ -251,14 +287,14 @@ public sealed class ReadValidationTests
     }
 
     [Test]
-    public async Task InvalidStatus_FlowsThroughProvenanceWithoutThrowingOnRead()
+    public async Task InvalidPayloadStatus_FlowsThroughProvenanceWithoutThrowingOnRead()
     {
         var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
                 new StateSource<AppSettings.Fragment>(
                     "invalid-layer",
                     new StubReader(
-                        StateReadResult<AppSettings.Fragment>.Invalid(
+                        StateReadResult<AppSettings.Fragment>.InvalidPayload(
                             new AppSettings.Fragment(),
                             "rev-1"
                         )
@@ -269,7 +305,7 @@ public sealed class ReadValidationTests
 
         var result = await options.ReadAsync();
 
-        (result.Status).ShouldBe(StateReadStatus.Invalid);
+        (result.Status).ShouldBe(StateReadStatus.InvalidPayload);
         (result.SourceId).ShouldBe("invalid-layer");
         var readable = (IConfiglueRuntimeState<AppSettings>)options;
         await Should.ThrowAsync<InvalidOperationException>(async () =>
