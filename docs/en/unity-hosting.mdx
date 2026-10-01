@@ -1,0 +1,53 @@
+---
+title: Unity hosting
+---
+
+`Configlue.Hosting.Unity` contains native Unity 6 path and main-thread glue over
+Core and the shared ComponentModel adapters. It does not add PlayerPrefs, a
+Unity-specific codec, or a different state API.
+
+## Build and integration status
+
+Native Unity compilation and Editor / player / IL2CPP / stripping validation were
+**skipped at the maintainer's request** because no licensed Unity 6 Editor was
+available in the working environment. The adapter source is prepared; its native
+build and runtime behavior remain unverified.
+
+The native reference assemblies are deliberately required for a build:
+
+```powershell
+dotnet build Configlue.Hosting.Unity.slnx `
+  -p:UnityEditorManagedPath='C:/path/to/Unity/Editor/Data/Managed' `
+  -p:ShouldUnsetParentConfigurationAndPlatform=false
+```
+
+The project references `UnityEngine.CoreModule.dll` from that Editor and does not
+copy/distribute it as part of the Configlue package. The initial distribution
+scope is NuGet/manual integration; UPM is outside this milestone.
+
+## Paths and dispatch
+
+Call `builder.UseUnity()` on Unity's initialized main thread. `UserGlobal` is
+`Application.persistentDataPath`; `BackupRoot` is its `Configlue/Backups`
+subdirectory. The already application-specific root receives no extra identifier.
+`HostGlobal` and `Local` remain unsupported. An empty persistent-data root is also
+unsupported. See Unity's
+[persistentDataPath documentation](https://docs.unity.com/en-us/engine/6000.0/script-reference/unityengine/application/persistentdatapath).
+
+Construct `UnityConfiglueDispatcher` on the main thread and pass it to shared
+`ConfiglueStateReader<T>` / `ConfiglueStateEditor<T>` adapters. It validates the
+native main-thread awaiter and captures Unity's own synchronization context rather
+than accepting an arbitrary context. The captured `Application.exitCancellationToken`
+rejects new posts after that play/player lifetime exits and skips callbacks still
+queued when exit occurs. Create a new dispatcher for a new play lifetime.
+
+The application owns and disposes its readers/context before teardown. The adapter
+adds no permanent GameObject or player-loop hook. Unity's main-thread context pumps
+callbacks as part of the native loop; see its
+[async continuation documentation](https://docs.unity.com/en-us/engine/6000.0/manual/scripting/optimization/async-await-support/async-awaitable-continuations).
+
+Future native validation should cover Core plus a generated model, JSON provider
+composition, host paths, background notifications into an Observable on the main
+thread, play/exit behavior, a player build where practical, and managed stripping /
+IL2CPP where practical. Generic MessagePack-CSharp, compression, and R3 remain in
+their generic packages.

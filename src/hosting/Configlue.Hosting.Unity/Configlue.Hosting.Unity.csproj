@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <IsPackable>true</IsPackable>
+    <PackageDescription>Unity 6 persistent-data paths and lifecycle-aware main-thread dispatch for Configlue.</PackageDescription>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../extensions/Configlue.Extensions.ComponentModel/Configlue.Extensions.ComponentModel.csproj" />
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>$(UnityEditorManagedPath)/UnityEngine/UnityEngine.CoreModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+  <Target
+    Name="RequireUnityEditorReferences"
+    BeforeTargets="ResolveAssemblyReferences"
+    Condition="!Exists('$(UnityEditorManagedPath)/UnityEngine/UnityEngine.CoreModule.dll')"
+  >
+    <Error Text="Set UnityEditorManagedPath to a Unity 6 Editor's Data/Managed directory. Native Unity reference assemblies are required; no substitute engine API is used." />
+  </Target>
+</Project>

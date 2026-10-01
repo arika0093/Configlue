@@ -1,0 +1,5 @@
+<Solution>
+  <Folder Name="/src/hosting/">
+    <Project Path="src/hosting/Configlue.Hosting.Unity/Configlue.Hosting.Unity.csproj" />
+  </Folder>
+</Solution>
