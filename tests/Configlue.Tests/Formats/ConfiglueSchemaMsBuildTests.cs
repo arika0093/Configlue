@@ -1,5 +1,8 @@
+using System.Diagnostics;
 using System.Reflection;
+using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Xml.Linq;
 using Configlue.JsonSchema.MSBuild;
 using Configlue.JsonSchema.MSBuild.Fixtures;
 
@@ -318,5 +321,250 @@ public sealed class ConfiglueSchemaMsBuildTests
         {
             DeleteDirectory(projectDirectory);
         }
+    }
+
+    [Test]
+    public async Task Generate_IsRaceSafeWhenRunsShareAnOutputDirectory()
+    {
+        var projectDirectory = CreateTempDirectory();
+        var outputDirectory = CreateTempDirectory();
+        try
+        {
+            var options = new ConfiglueSchemaGenerationOptions
+            {
+                AssemblyPath = FixtureAssemblyPath,
+                ProjectDirectory = projectDirectory,
+                OutputPath = outputDirectory,
+            };
+
+            var results = await Task.WhenAll(
+                Enumerable
+                    .Range(0, 8)
+                    .Select(_ =>
+                        Task.Run(() => ConfiglueSchemaGenerator.Generate(options))
+                    )
+            );
+
+            (results.All(static result => result.Succeeded)).ShouldBeTrue(
+                string.Join(
+                    " | ",
+                    results
+                        .SelectMany(static result => result.Diagnostics)
+                        .Select(static diagnostic => $"{diagnostic.Code}:{diagnostic.Message}")
+                )
+            );
+            (results.SelectMany(static result => result.Diagnostics)).ShouldBeEmpty();
+            foreach (var file in Directory.GetFiles(outputDirectory, "*.json"))
+            {
+                (JsonNode.Parse(await File.ReadAllTextAsync(file))).ShouldNotBeNull();
+            }
+        }
+        finally
+        {
+            DeleteDirectory(projectDirectory);
+            DeleteDirectory(outputDirectory);
+        }
+    }
+
+    [Test]
+    public void DependencyPolicy_ApprovedVersionsMatchReferencesAndLockedGraph()
+    {
+        var toolingDirectory = Path.Combine(
+            RepositoryRoot,
+            "src",
+            "tools",
+            "Configlue.JsonSchema.MSBuild"
+        );
+        var root = XDocument.Load(Path.Combine(toolingDirectory, "DependencyPolicy.props")).Root!;
+        string Property(string name) => root.Descendants(name).Single().Value;
+
+        (Property("JsonSchemaNetVersion")).ShouldBe(Property("AllowedJsonSchemaNetVersion"));
+        (Property("JsonSchemaNetGenerationVersion")).ShouldBe(
+            Property("AllowedJsonSchemaNetGenerationVersion")
+        );
+        (Property("JsonSchemaNetDataAnnotationsVersion")).ShouldBe(
+            Property("AllowedJsonSchemaNetDataAnnotationsVersion")
+        );
+
+        using var lockDocument = JsonDocument.Parse(
+            File.ReadAllText(Path.Combine(toolingDirectory, "packages.lock.json"))
+        );
+        var locked = lockDocument
+            .RootElement.GetProperty("dependencies")
+            .GetProperty("net10.0");
+
+        var propertyValues = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (
+            var property in root
+                .Descendants()
+                .Where(static element => element.Parent?.Name.LocalName == "PropertyGroup")
+        )
+        {
+            propertyValues[property.Name.LocalName] = property.Value;
+        }
+
+        string Expand(string value) =>
+            value.StartsWith("$(", StringComparison.Ordinal) && value.EndsWith(')')
+                ? propertyValues[value[2..^1]]
+                : value;
+
+        var approved = root
+            .Descendants("ConfiglueJsonSchemaApprovedDependency")
+            .ToDictionary(
+                static item => item.Attribute("Include")!.Value,
+                item => Expand(item.Attribute("Version")!.Value)
+            );
+        (approved.Count).ShouldBeGreaterThan(0);
+        foreach (var (id, version) in approved)
+        {
+            (locked.TryGetProperty(id, out var entry)).ShouldBeTrue(
+                $"The approved dependency '{id}' is missing from packages.lock.json."
+            );
+            (entry.GetProperty("resolved").GetString()).ShouldBe(version);
+        }
+    }
+
+    [Test]
+    public async Task SchemaGenerationTarget_RunsOnceForTheFirstTargetFramework()
+    {
+        var directory = CreateTempDirectory();
+        try
+        {
+            var firstFramework = WriteMsBuildHarness(directory, "netstandard2.0", extraProperties: null);
+            var secondFramework = WriteMsBuildHarness(directory, "net10.0", extraProperties: null);
+
+            var results = await Task.WhenAll(
+                EvaluateMsBuildPropertyAsync(firstFramework, "_ConfiglueSchemaShouldRun"),
+                EvaluateMsBuildPropertyAsync(secondFramework, "_ConfiglueSchemaShouldRun")
+            );
+
+            (results[0]).ShouldBe("true");
+            (results[1]).ShouldBeEmpty();
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    [Test]
+    public async Task SchemaGenerationTarget_CanBeOptedOutOrTargetedExplicitly()
+    {
+        var directory = CreateTempDirectory();
+        try
+        {
+            var optedOut = WriteMsBuildHarness(
+                directory,
+                "netstandard2.0",
+                "<ConfiglueGenerateSchemas>false</ConfiglueGenerateSchemas>"
+            );
+            var explicitTarget = WriteMsBuildHarness(
+                directory,
+                "net10.0",
+                "<ConfiglueSchemaTargetFramework>net10.0</ConfiglueSchemaTargetFramework>"
+            );
+            var nonTarget = WriteMsBuildHarness(
+                directory,
+                "netstandard2.0",
+                "<ConfiglueSchemaTargetFramework>net10.0</ConfiglueSchemaTargetFramework>"
+            );
+
+            var results = await Task.WhenAll(
+                EvaluateMsBuildPropertyAsync(optedOut, "_ConfiglueSchemaShouldRun"),
+                EvaluateMsBuildPropertyAsync(explicitTarget, "_ConfiglueSchemaShouldRun"),
+                EvaluateMsBuildPropertyAsync(nonTarget, "_ConfiglueSchemaShouldRun")
+            );
+
+            (results[0]).ShouldBeEmpty();
+            (results[1]).ShouldBe("true");
+            (results[2]).ShouldBeEmpty();
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    private static string RepositoryRoot { get; } = FindRepositoryRoot();
+
+    private static string FindRepositoryRoot()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null)
+        {
+            if (File.Exists(Path.Combine(directory.FullName, "Configlue.slnx")))
+            {
+                return directory.FullName;
+            }
+
+            directory = directory.Parent;
+        }
+
+        throw new InvalidOperationException(
+            "The repository root (containing Configlue.slnx) could not be located."
+        );
+    }
+
+    private static string WriteMsBuildHarness(
+        string directory,
+        string targetFramework,
+        string? extraProperties
+    )
+    {
+        var buildDirectory = Path.Combine(
+            RepositoryRoot,
+            "src",
+            "tools",
+            "Configlue.JsonSchema.MSBuild",
+            "build"
+        );
+        var content = $"""
+            <Project>
+              <PropertyGroup>
+                <TargetFrameworks>netstandard2.0;net10.0</TargetFrameworks>
+                <TargetFramework>{targetFramework}</TargetFramework>
+                {extraProperties}
+              </PropertyGroup>
+              <Import Project="{Path.Combine(buildDirectory, "Configlue.JsonSchema.MSBuild.props")}" />
+              <Import Project="{Path.Combine(buildDirectory, "Configlue.JsonSchema.MSBuild.targets")}" />
+            </Project>
+            """;
+        var path = Path.Combine(directory, $"harness-{Guid.NewGuid():N}.proj");
+        File.WriteAllText(path, content);
+        return path;
+    }
+
+    private static async Task<string> EvaluateMsBuildPropertyAsync(
+        string projectPath,
+        string propertyName
+    )
+    {
+        var startInfo = new ProcessStartInfo("dotnet")
+        {
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+        };
+        startInfo.ArgumentList.Add("msbuild");
+        startInfo.ArgumentList.Add(projectPath);
+        startInfo.ArgumentList.Add($"-getProperty:{propertyName}");
+        startInfo.ArgumentList.Add("-nologo");
+
+        using var process =
+            Process.Start(startInfo)
+            ?? throw new InvalidOperationException("The dotnet CLI could not be started.");
+        var standardOutput = await process.StandardOutput.ReadToEndAsync();
+        var standardError = await process.StandardError.ReadToEndAsync();
+        await process.WaitForExitAsync();
+
+        if (process.ExitCode != 0)
+        {
+            throw new InvalidOperationException(
+                $"dotnet msbuild exited with code {process.ExitCode}: {standardError}"
+            );
+        }
+
+        return standardOutput.Trim();
     }
 }

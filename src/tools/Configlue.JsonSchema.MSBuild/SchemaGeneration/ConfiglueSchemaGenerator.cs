@@ -274,19 +274,22 @@ public static class ConfiglueSchemaGenerator
             var outputPath = Path.Combine(outputDirectory, document.FileName);
             try
             {
-                var isCurrent =
-                    File.Exists(outputPath)
-                    && Normalize(File.ReadAllText(outputPath)) == Normalize(document.Content);
-                if (isCurrent)
+                WriteDocumentAtomically(
+                    outputDirectory,
+                    outputPath,
+                    document.Content,
+                    out var written
+                );
+                if (written)
+                {
+                    writtenFiles.Add(outputPath);
+                    writtenDocuments.Add(document with { Written = true });
+                }
+                else
                 {
                     upToDateFiles.Add(outputPath);
                     writtenDocuments.Add(document with { Written = false });
-                    continue;
                 }
-
-                File.WriteAllText(outputPath, document.Content);
-                writtenFiles.Add(outputPath);
-                writtenDocuments.Add(document with { Written = true });
             }
             catch (Exception exception)
                 when (exception
@@ -317,6 +320,103 @@ public static class ConfiglueSchemaGenerator
             UpToDateFiles = upToDateFiles,
             Diagnostics = diagnostics,
         };
+    }
+
+    // Writes through a unique temporary file and an atomic move so that concurrent builds sharing an
+    // output directory never observe or produce a partially written schema. When another writer has
+    // already published identical content the file is reported as up to date instead of rewritten.
+    private static void WriteDocumentAtomically(
+        string outputDirectory,
+        string outputPath,
+        string content,
+        out bool written
+    )
+    {
+        written = false;
+        if (IsCurrent(outputPath, content))
+        {
+            return;
+        }
+
+        var tempPath = Path.Combine(
+            outputDirectory,
+            $"{Path.GetFileName(outputPath)}.{Guid.NewGuid():N}.tmp"
+        );
+        try
+        {
+            File.WriteAllText(tempPath, content);
+            Exception? lastError = null;
+            for (var attempt = 0; attempt < 10; attempt++)
+            {
+                try
+                {
+                    File.Move(tempPath, outputPath, overwrite: true);
+                    written = true;
+                    return;
+                }
+                catch (Exception exception)
+                    when (exception is IOException or UnauthorizedAccessException)
+                {
+                    lastError = exception;
+                    if (IsCurrent(outputPath, content))
+                    {
+                        return;
+                    }
+
+                    Thread.Sleep(15 * (attempt + 1));
+                }
+            }
+
+            throw lastError!;
+        }
+        finally
+        {
+            TryDeleteTemporaryFile(tempPath);
+        }
+    }
+
+    private static bool IsCurrent(string outputPath, string content)
+    {
+        if (!File.Exists(outputPath))
+        {
+            return false;
+        }
+
+        try
+        {
+            // Share delete so a concurrent generator can replace this file while it is being read.
+            using var stream = new FileStream(
+                outputPath,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.ReadWrite | FileShare.Delete
+            );
+            using var reader = new StreamReader(stream);
+            return Normalize(reader.ReadToEnd()) == Normalize(content);
+        }
+        catch (Exception exception)
+            when (exception is IOException or NotSupportedException or UnauthorizedAccessException)
+        {
+            return false;
+        }
+    }
+
+    private static void TryDeleteTemporaryFile(string tempPath)
+    {
+        try
+        {
+            File.Delete(tempPath);
+        }
+        catch (Exception exception)
+            when (exception is IOException or NotSupportedException or UnauthorizedAccessException)
+        {
+            // Best-effort cleanup; a leftover temporary file does not affect the published schema.
+            System.Diagnostics.Trace.TraceWarning(
+                "Configlue.JsonSchema.MSBuild: could not delete temporary schema file '{0}': {1}",
+                tempPath,
+                exception.Message
+            );
+        }
     }
 
     private static JsonObject GenerateDocument(
