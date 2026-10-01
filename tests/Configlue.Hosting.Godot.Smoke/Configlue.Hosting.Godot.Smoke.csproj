@@ -1,0 +1,30 @@
+<Project Sdk="Godot.NET.Sdk/4.7.2">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <EnableDynamicLoading>true</EnableDynamicLoading>
+    <IsTestProject>false</IsTestProject>
+    <OutputType>Library</OutputType>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Remove="TUnit;Shouldly;Microsoft.Testing.Extensions.Retry" />
+    <Using Remove="Shouldly" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(ConfigluePackageVersion)' == ''">
+    <ProjectReference Include="../../src/hosting/Configlue.Hosting.Godot/Configlue.Hosting.Godot.csproj" />
+    <ProjectReference Include="../../src/providers/Configlue.Provider.Json/Configlue.Provider.Json.csproj" />
+    <ProjectReference
+      Include="../../src/tools/Configlue.Generator/Configlue.Generator.csproj"
+      OutputItemType="Analyzer"
+      ReferenceOutputAssembly="false"
+    />
+  </ItemGroup>
+  <ItemGroup Condition="'$(ConfigluePackageVersion)' != ''">
+    <PackageReference Include="Configlue.Hosting.Godot" Version="$(ConfigluePackageVersion)" />
+    <PackageReference Include="Configlue.Provider.Json" Version="$(ConfigluePackageVersion)" />
+    <PackageReference
+      Include="Configlue.Generator"
+      Version="$(ConfigluePackageVersion)"
+      PrivateAssets="all"
+    />
+  </ItemGroup>
+</Project>

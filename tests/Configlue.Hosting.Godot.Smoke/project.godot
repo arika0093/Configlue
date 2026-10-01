@@ -1,0 +1,11 @@
+config_version=5
+
+[application]
+config/name="ConfiglueGodotSmoke"
+run/main_scene="res://Smoke.tscn"
+
+[dotnet]
+project/assembly_name="Configlue.Hosting.Godot.Smoke"
+
+[rendering]
+renderer/rendering_method="gl_compatibility"

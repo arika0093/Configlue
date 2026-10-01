@@ -1,0 +1,19 @@
+[assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/arika0093/Configlue")]
+namespace Configlue.Hosting.Godot
+{
+    public static class GodotConfiglueBuilderExtensions
+    {
+        public static Configlue.ConfiglueBuilder UseGodot(this Configlue.ConfiglueBuilder builder) { }
+    }
+    public sealed class GodotConfiglueDispatcher : Configlue.Extensions.ComponentModel.IConfiglueDispatcher
+    {
+        public GodotConfiglueDispatcher() { }
+        public bool CheckAccess() { }
+        public void Post(System.Action action) { }
+    }
+    public sealed class GodotHostPaths : Configlue.Resources.IConfiglueHostPaths
+    {
+        public GodotHostPaths() { }
+        public bool TryResolve(Configlue.Resources.ConfiglueStandardLocation location, string applicationId, out string directory) { }
+    }
+}

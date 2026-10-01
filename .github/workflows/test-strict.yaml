@@ -23,7 +23,9 @@ jobs:
       - name: Set up .NET
         uses: actions/setup-dotnet@v6
         with:
-          dotnet-version: 10.0.x
+          dotnet-version: |
+            8.0.x
+            10.0.x
 
       - name: Restore .NET tools
         if: matrix.os == 'ubuntu-latest'
@@ -91,6 +93,49 @@ jobs:
         run: >
           dotnet pack Configlue.Hosting.Windows.slnx --no-build --no-restore
           --configuration Release --output artifacts
+
+  native-godot:
+    timeout-minutes: 20
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+
+      - name: Pack consumer dependencies
+        run: dotnet pack Configlue.slnx --configuration Release --output artifacts/packages
+
+      - name: Build the packed Godot consumer
+        shell: pwsh
+        run: |
+          $package = Get-ChildItem artifacts/packages -Filter 'Configlue.Hosting.Godot.*.nupkg' | Select-Object -First 1
+          $version = [regex]::Match($package.Name, '^Configlue\.Hosting\.Godot\.(.+)\.nupkg$').Groups[1].Value
+          if (!$version) { throw 'Godot hosting package was not produced.' }
+          $feed = (Resolve-Path artifacts/packages).Path
+          dotnet build tests/Configlue.Hosting.Godot.Smoke/Configlue.Hosting.Godot.Smoke.csproj -p:ConfigluePackageVersion=$version -p:RestoreAdditionalProjectSources=$feed
+          if ($LASTEXITCODE -ne 0) { throw 'Packed Godot consumer build failed.' }
+
+      - name: Run native Godot smoke
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          New-Item -ItemType Directory -Force artifacts/engines | Out-Null
+          Invoke-WebRequest 'https://github.com/godotengine/godot-builds/releases/download/4.7.2-stable/Godot_v4.7.2-stable_mono_win64.zip' -OutFile artifacts/engines/godot.zip
+          Expand-Archive artifacts/engines/godot.zip artifacts/engines/godot
+          $engine = (Get-ChildItem artifacts/engines/godot -Recurse -Filter '*console.exe' | Select-Object -First 1).FullName
+          & $engine --headless --path tests/Configlue.Hosting.Godot.Smoke --editor --import --quit
+          if ($LASTEXITCODE -ne 0) { throw 'Godot import failed.' }
+          $output = & $engine --headless --path tests/Configlue.Hosting.Godot.Smoke --quit-after 1200 --max-fps 60 2>&1
+          $output | Write-Output
+          if ($LASTEXITCODE -ne 0 -or ($output -join "`n") -notmatch 'CONFIGLUE_GODOT_SMOKE_PASS') { throw 'Native Godot smoke failed or timed out.' }
 
   native-aot:
     timeout-minutes: 30

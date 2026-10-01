@@ -198,6 +198,10 @@ public sealed class PublicApiCheckTest
         PublicApiCheck.Check<global::Configlue.Hosting.Maui.MauiHostPaths>();
 
     [Test]
+    public void GodotHosting() =>
+        PublicApiCheck.Check<global::Configlue.Hosting.Godot.GodotHostPaths>();
+
+    [Test]
     public void MicrosoftOptions() =>
         PublicApiCheck.CheckAssembly(
             typeof(ConfiglueMicrosoftOptionsServiceCollectionExtensions).Assembly

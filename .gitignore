@@ -1,6 +1,7 @@
 bin/
 obj/
 artifacts/
+.godot/
 TestResults/
 publish/
 docs-site/.astro/

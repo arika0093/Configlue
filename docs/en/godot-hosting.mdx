@@ -1,0 +1,54 @@
+---
+title: Godot hosting
+---
+
+Install `Configlue.Hosting.Godot` in a Godot .NET project. This package targets
+.NET 8/.NET 10 and GodotSharp 4.7.2. Match the Godot SDK/runtime to that dependency.
+It contains path and dispatch glue; shared state, editing, and observable semantics
+remain in Core and `Configlue.Extensions.ComponentModel`.
+
+## Paths
+
+Call `builder.UseGodot()` when configuring your context in the running engine.
+`UserGlobal` resolves `ProjectSettings.GlobalizePath("user://")`. `BackupRoot` is
+its persistent `Configlue/Backups` subdirectory. The project user-data root is
+already app-specific, so an additional application identifier is not appended.
+
+`HostGlobal` and `Local` remain unsupported and fail explicitly through the standard
+directory API. The profile does not map `res://` to writable storage: exported
+project resources can be read-only. See Godot's
+[data paths documentation](https://docs.godotengine.org/en/stable/tutorials/io/data_paths.html).
+
+## Dispatcher and ownership
+
+Pass `new GodotConfiglueDispatcher()` to a shared `ConfiglueStateReader<T>` or
+`ConfiglueStateEditor<T>`. Access checks compare the native caller/main thread IDs.
+Posts use `Callable.From(action).CallDeferred()` so background notifications update
+bound state through the engine's main-thread queue. Create/use the adapter while
+Godot is running and dispose readers and contexts before engine shutdown. The
+adapter owns neither a Node nor the scene tree.
+
+There is no Godot-specific state API or ConfigFile provider. Compose ordinary
+JSON/YAML/etc. codecs and file resources under the resolved user-data directory.
+
+## Native consumer smoke
+
+`tests/Configlue.Hosting.Godot.Smoke` is a real Godot project. It checks host paths,
+unsupported locations, Core plus a generated model, JSON files under user data,
+native deferred callbacks from a background thread, and file reload to a generated
+Observable on the engine thread. It exits with an error on failure and prints
+`CONFIGLUE_GODOT_SMOKE_PASS` on success.
+
+```powershell
+dotnet build tests/Configlue.Hosting.Godot.Smoke/Configlue.Hosting.Godot.Smoke.csproj
+& $godot --headless --path tests/Configlue.Hosting.Godot.Smoke --editor --import --quit
+& $godot --headless --path tests/Configlue.Hosting.Godot.Smoke --quit-after 1200 --max-fps 60
+```
+
+Set `$godot` to the Godot 4.7.2 .NET console executable. The consumer also supports
+`-p:ConfigluePackageVersion=<version> -p:RestoreAdditionalProjectSources=<feed>`;
+that switches its Configlue references to NuGet packages, including the generator.
+The Windows CI job packs those dependencies and runs this package consumer in the
+actual headless runtime. Both project-reference and package-reference modes passed
+locally on Windows with Godot 4.7.2. Other OS/exported-player paths are not claimed
+by this initial smoke.
