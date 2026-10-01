@@ -7,6 +7,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
+using SparseFragments.Generator.Shared;
 
 namespace Configlue.Generator;
 
@@ -71,6 +72,14 @@ public sealed partial class ConfiglueGenerator
             context.ReportDiagnostic(roslynDiagnostic);
         }
 
+        if (result.SparseHintName is not null && result.SparseSource is not null)
+        {
+            context.AddSource(
+                result.SparseHintName,
+                SourceText.From(result.SparseSource, Encoding.UTF8)
+            );
+        }
+
         if (result.HintName is not null && result.Source is not null)
         {
             context.AddSource(result.HintName, SourceText.From(result.Source, Encoding.UTF8));
@@ -86,10 +95,18 @@ public sealed partial class ConfiglueGenerator
         cancellationToken.ThrowIfCancellationRequested();
         if (!analysis.Model.HasValue)
         {
-            return new GenerationResult(null, null, analysis.Diagnostics);
+            return new GenerationResult(null, null, null, null, analysis.Diagnostics);
         }
 
         var model = analysis.Model.Value;
+        var sparseHintName = analysis.HintName + ".SparseCore.cs";
+        var sparseSource = SparseFragmentEmitter.BuildSource(
+            ToSparseModelInfo(model, sparseHintName),
+            ToSparseMembers(analysis.Members),
+            ToSparsePocoCloneModels(analysis.PocoCloneModels),
+            ToSparseStructuralModels(analysis.StructuralModels),
+            cancellationToken
+        );
         var source = BuildSource(
             model,
             analysis.Members,
@@ -99,7 +116,13 @@ public sealed partial class ConfiglueGenerator
             hasJsonFragmentRegistry,
             cancellationToken
         );
-        return new GenerationResult(analysis.HintName, source, analysis.Diagnostics);
+        return new GenerationResult(
+            analysis.HintName,
+            source,
+            sparseHintName,
+            sparseSource,
+            analysis.Diagnostics
+        );
     }
 
     private static GenerationAnalysis Analyze(
