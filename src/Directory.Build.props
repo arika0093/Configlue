@@ -46,7 +46,7 @@
     <Using Include="Configlue.Transformers" />
   </ItemGroup>
   <ItemGroup Condition="'$(ConfiglueNetStandard20)' == 'true' and '$(ConfiglueTooling)' != 'true'">
-    <PackageReference Include="Microsoft.Bcl.AsyncInterfaces" Version="10.0.5" />
+    <PackageReference Include="Microsoft.Bcl.AsyncInterfaces" Version="10.0.12" />
     <PackageReference Include="System.Threading.Tasks.Extensions" Version="4.6.3" />
   </ItemGroup>
   <ItemGroup Condition="'$(ConfiglueNetStandard)' == 'true' and '$(ConfiglueTooling)' != 'true'">
