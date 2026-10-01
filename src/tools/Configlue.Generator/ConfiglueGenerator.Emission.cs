@@ -44,9 +44,7 @@ public sealed partial class ConfiglueGenerator
         }
         code.Append(generatedType)
             .Append(name)
-            .Append(" : global::SparseFragments.ISparseDeepCloneable<")
-            .Append(modelType)
-            .Append(">, global::Configlue.CompilerServices.IConfiglueModel<")
+            .Append(" : global::Configlue.CompilerServices.IConfiglueModel<")
             .Append(modelType)
             .Append(", ")
             .Append(modelType)
@@ -56,16 +54,11 @@ public sealed partial class ConfiglueGenerator
         code.AppendLine("{");
         AppendModelSchema(code, modelType, modelId, version, members);
         AppendFragmentSchema(code, modelType, modelId, version, members);
-        AppendDeepClone(code, modelType, members, !pocoCloneModels.IsEmpty);
-        AppendPocoCloneHelpers(code, pocoCloneModels);
-        AppendCollectionCloneHelpers(code);
         AppendFragment(
             code,
             modelType,
             members,
             previousModels,
-            !model.IsStruct,
-            !pocoCloneModels.IsEmpty,
             hasJsonFragmentRegistry
         );
         AppendDetailsTree(code, modelType, members);
@@ -103,7 +96,7 @@ public sealed partial class ConfiglueGenerator
                 1,
                 "/// <summary>Root-owned generated shape for an undecorated structural configuration type.</summary>"
             );
-            code.AppendLineAt(1, "public sealed class " + structuralModel.HostName);
+            code.AppendLineAt(1, "public sealed partial class " + structuralModel.HostName);
             code.AppendLineAt(1, "{");
             code.IndentOffset++;
             AppendModelSchema(
@@ -132,8 +125,6 @@ public sealed partial class ConfiglueGenerator
                 structuralModel.ValueTypeName,
                 structuralModel.Members,
                 ImmutableArray<PreviousModelInfo>.Empty,
-                true,
-                usesPocoCloning,
                 hasJsonFragmentRegistry
             );
             code.IndentOffset--;
