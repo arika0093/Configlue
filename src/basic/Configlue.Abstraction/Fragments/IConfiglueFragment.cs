@@ -1,6 +1,8 @@
 namespace Configlue;
 
-/// <summary>Adds Configlue schema metadata to a generic sparse fragment.</summary>
+/// <summary>
+/// A sparse fragment that also carries Configlue persistence/schema metadata.
+/// </summary>
 public interface IConfiglueFragment : ISparseFragment
 {
     /// <summary>Generated Configlue schema metadata for this fragment.</summary>
