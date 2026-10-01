@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
+    <WindowsPackageType>None</WindowsPackageType>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/hosting/Configlue.Hosting.WinUI/Configlue.Hosting.WinUI.csproj" />
+    <ProjectReference
+      Include="../../src/tools/Configlue.Generator/Configlue.Generator.csproj"
+      OutputItemType="Analyzer"
+      ReferenceOutputAssembly="false"
+    />
+    <Compile Include="../Hosting.Shared/DispatcherTestState.cs" Link="DispatcherTestState.cs" />
+  </ItemGroup>
+</Project>
