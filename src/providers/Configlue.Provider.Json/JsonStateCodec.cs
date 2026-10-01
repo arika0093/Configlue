@@ -73,7 +73,7 @@ public sealed class JsonStateCodec
 
         var schema =
             context.Schema
-            ?? (value is IConfiglueFragment fragment ? fragment.Schema.ToMetadata() : null);
+            ?? (value is IConfiglueFragment fragment ? fragment.ConfiglueSchema.ToMetadata() : null);
         var effectiveContext = schema is { } metadata
             ? new StateCodecContext(metadata, context.Services, context.SchemaReferenceBaseUri)
             : context;
@@ -599,7 +599,7 @@ public sealed class JsonStateCodec<T>
 
         var schema =
             context.Schema
-            ?? (value is IConfiglueFragment fragment ? fragment.Schema.ToMetadata() : null);
+            ?? (value is IConfiglueFragment fragment ? fragment.ConfiglueSchema.ToMetadata() : null);
         var effectiveContext = schema is { } metadata
             ? new StateCodecContext(metadata, context.Services, context.SchemaReferenceBaseUri)
             : context;
