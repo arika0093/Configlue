@@ -1,0 +1,16 @@
+<Project>
+  <PropertyGroup>
+    <!--
+      Generated fragments use `get; init;`, which requires
+      System.Runtime.CompilerServices.IsExternalInit on runtimes that do not ship it
+      (for example Unity 6). The generator emits a polyfill automatically when the
+      compilation does not already provide the type. Set to false when another
+      polyfill source (for example PolySharp/Polyfill) already supplies it.
+    -->
+    <ConfiglueEmitIsExternalInit Condition="'$(ConfiglueEmitIsExternalInit)' == ''"
+      >true</ConfiglueEmitIsExternalInit>
+  </PropertyGroup>
+  <ItemGroup>
+    <CompilerVisibleProperty Include="ConfiglueEmitIsExternalInit" />
+  </ItemGroup>
+</Project>

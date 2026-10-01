@@ -27,6 +27,15 @@
       PackagePath="analyzers/dotnet/cs"
       Visible="false"
     />
+    <None
+      Include="build/Configlue.Generator.props"
+      Pack="true"
+      PackagePath="build/"
+      Visible="false"
+    />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Configlue.Generator.Compatibility.Tests" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="..\..\fragments\SparseFragments.Generator.Shared\**\*.cs" LinkBase="Shared" />

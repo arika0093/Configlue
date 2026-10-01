@@ -69,7 +69,8 @@ public sealed class GeneratorHostCompatibilityTests
 
         var generatedSource = GetGeneratedSource(outputCompilation, modelTree);
         (generatedSource).ShouldNotContain("ModuleInitializer");
-        (generatedSource).ShouldNotContain("get; init;");
+        (generatedSource).ShouldContain("get; init;");
+        (generatedSource).ShouldNotContain("class IsExternalInit");
         (generatedSource).ShouldNotContain("Assembly.Load");
         (generatedSource).ShouldNotContain("GetTypes(");
         (generatedSource).ShouldContain("namespace UnityCompat.Sample");
@@ -77,6 +78,40 @@ public sealed class GeneratorHostCompatibilityTests
 
         var emit = outputCompilation.Emit(Stream.Null);
         (emit.Success).ShouldBeTrue(BuildDiagnosticMessage(emit.Diagnostics));
+    }
+
+    [Test]
+    public void ShouldEmitIsExternalInit_WhenCompilationLacksMarker()
+    {
+        var empty = CSharpCompilation.Create("ConfiglueGeneratorNoMarkerCompatibility");
+
+        (ConfiglueGenerator.ShouldEmitIsExternalInit(empty, configured: true)).ShouldBeTrue();
+        (ConfiglueGenerator.ShouldEmitIsExternalInit(empty, configured: false)).ShouldBeFalse();
+    }
+
+    [Test]
+    public void ShouldEmitIsExternalInit_WhenCompilationProvidesMarker()
+    {
+        var parseOptions = new CSharpParseOptions(LanguageVersion.CSharp9);
+        var tree = CSharpSyntaxTree.ParseText("internal class Empty { }", parseOptions);
+        var compilation = CreateCompilation(tree);
+
+        (ConfiglueGenerator.ShouldEmitIsExternalInit(compilation, configured: true)).ShouldBeFalse();
+    }
+
+    [Test]
+    public void IsExternalInitSource_IsCSharp9Compatible()
+    {
+        var tree = CSharpSyntaxTree.ParseText(
+            ConfiglueGenerator.IsExternalInitSource,
+            new CSharpParseOptions(LanguageVersion.CSharp9)
+        );
+
+        (tree.GetDiagnostics()).ShouldBeEmpty();
+        (ConfiglueGenerator.IsExternalInitSource).ShouldContain(
+            "namespace System.Runtime.CompilerServices"
+        );
+        (ConfiglueGenerator.IsExternalInitSource).ShouldContain("class IsExternalInit");
     }
 
     private static CSharpCompilation CreateCompilation(SyntaxTree syntaxTree)

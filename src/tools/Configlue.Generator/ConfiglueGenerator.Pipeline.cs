@@ -52,6 +52,43 @@ public sealed partial class ConfiglueGenerator
             generated,
             (productionContext, result) => Emit(productionContext, result)
         );
+
+        var hasModels = analyzed
+            .Select(static (analysis, _) => analysis.Model.HasValue)
+            .Collect()
+            .Select(static (presence, _) => presence.Any(static value => value))
+            .WithComparer(EqualityComparer<bool>.Default);
+        var shouldEmitIsExternalInit = context
+            .CompilationProvider.Combine(context.AnalyzerConfigOptionsProvider)
+            .Combine(hasModels)
+            .Select(
+                static (input, _) =>
+                {
+                    var ((compilation, options), anyModels) = input;
+                    return anyModels
+                        && ShouldEmitIsExternalInit(
+                            compilation,
+                            IsExternalInitEmissionEnabled(options)
+                        );
+                }
+            )
+            .WithComparer(EqualityComparer<bool>.Default)
+            .WithTrackingName("ConfiglueGenerator.IsExternalInit");
+        context.RegisterSourceOutput(
+            shouldEmitIsExternalInit,
+            static (productionContext, emit) =>
+            {
+                if (!emit)
+                {
+                    return;
+                }
+
+                productionContext.AddSource(
+                    IsExternalInitHintName,
+                    SourceText.From(IsExternalInitSource, Encoding.UTF8)
+                );
+            }
+        );
     }
 
     private static void Emit(SourceProductionContext context, GenerationResult result)

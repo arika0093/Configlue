@@ -72,7 +72,7 @@ public sealed partial class ConfiglueGenerator
                 .Append(FragmentValueType(member))
                 .Append("> ")
                 .Append(EscapeIdentifier(member.Property.Name))
-                .AppendLine(" { get; set; }");
+                .AppendLine(" { get; init; }");
         }
 
         foreach (var member in members.Where(static member => member.MergeStrategyType is not null))
