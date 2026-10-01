@@ -18,6 +18,53 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         CancellationToken cancellationToken = default
     )
     {
+        var diagnostic = _diagnostics.Start(
+            ConfiglueDiagnosticEventKind.MigrationStarted,
+            sourceId
+        );
+        try
+        {
+            var result = await MigrateSourceImplementationAsync(
+                    sourceId,
+                    targetId,
+                    cancellationToken
+                )
+                .ConfigureAwait(false);
+            diagnostic.Complete(
+                ConfiglueDiagnosticEventKind.MigrationCompleted,
+                hasRevision: result.TargetRevision is not null
+            );
+            return result;
+        }
+        catch (Exception exception)
+        {
+            diagnostic.Fail(
+                ConfiglueDiagnosticEventKind.MigrationFailed,
+                exception,
+                exception is OperationCanceledException && cancellationToken.IsCancellationRequested
+            );
+            throw;
+        }
+    }
+
+    /// <inheritdoc />
+    public ValueTask<StateSourceMigrationResult> MigrateSourceAsync(
+        SourceKey<TModel> sourceKey,
+        SourceKey<TModel> targetKey,
+        CancellationToken cancellationToken = default
+    )
+    {
+        ValidateSourceKey(sourceKey, nameof(sourceKey));
+        ValidateSourceKey(targetKey, nameof(targetKey));
+        return MigrateSourceAsync(sourceKey.Id, targetKey.Id, cancellationToken);
+    }
+
+    private async ValueTask<StateSourceMigrationResult> MigrateSourceImplementationAsync(
+        string sourceId,
+        string targetId,
+        CancellationToken cancellationToken
+    )
+    {
         using var operation = EnterOperation();
         ArgumentException.ThrowIfNullOrWhiteSpace(sourceId);
         ArgumentException.ThrowIfNullOrWhiteSpace(targetId);
@@ -161,18 +208,6 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         return migrationResult;
     }
 
-    /// <inheritdoc />
-    public ValueTask<StateSourceMigrationResult> MigrateSourceAsync(
-        SourceKey<TModel> sourceKey,
-        SourceKey<TModel> targetKey,
-        CancellationToken cancellationToken = default
-    )
-    {
-        ValidateSourceKey(sourceKey, nameof(sourceKey));
-        ValidateSourceKey(targetKey, nameof(targetKey));
-        return MigrateSourceAsync(sourceKey.Id, targetKey.Id, cancellationToken);
-    }
-
     /// <summary>
     /// Migrates selected source contributions to one or more projected targets. Successful targets are
     /// re-read and verified; repeating the operation skips targets already holding the requested fragment.
@@ -182,6 +217,37 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         IReadOnlyDictionary<string, Func<TFragment, TFragment>> targetProjections,
         CancellationToken cancellationToken = default,
         bool retireSources = false
+    )
+    {
+        var diagnostic = _diagnostics.Start(ConfiglueDiagnosticEventKind.MigrationStarted);
+        try
+        {
+            var result = await MigrateSourcesImplementationAsync(
+                    sourceIds,
+                    targetProjections,
+                    cancellationToken,
+                    retireSources
+                )
+                .ConfigureAwait(false);
+            diagnostic.Complete(ConfiglueDiagnosticEventKind.MigrationCompleted);
+            return result;
+        }
+        catch (Exception exception)
+        {
+            diagnostic.Fail(
+                ConfiglueDiagnosticEventKind.MigrationFailed,
+                exception,
+                exception is OperationCanceledException && cancellationToken.IsCancellationRequested
+            );
+            throw;
+        }
+    }
+
+    private async ValueTask<StateStorageMigrationResult> MigrateSourcesImplementationAsync(
+        IEnumerable<string> sourceIds,
+        IReadOnlyDictionary<string, Func<TFragment, TFragment>> targetProjections,
+        CancellationToken cancellationToken,
+        bool retireSources
     )
     {
         using var operation = EnterOperation();

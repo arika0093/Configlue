@@ -59,6 +59,10 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         CollectValidationFailures(value, failures);
         if (failures.Count > 0)
         {
+            _diagnostics.Record(
+                ConfiglueDiagnosticEventKind.ValidationFailed,
+                errorCategory: typeof(ConfiglueValidationException).FullName
+            );
             throw new ConfiglueValidationException(_stateName, typeof(TModel), failures);
         }
     }
@@ -166,6 +170,11 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             typeof(TModel).FullName,
             _stateName,
             string.Join("; ", failures)
+        );
+        _diagnostics.Record(
+            ConfiglueDiagnosticEventKind.ValidationFailed,
+            sourceId: source.Id,
+            errorCategory: typeof(ConfiglueValidationException).FullName
         );
         return fragment;
     }

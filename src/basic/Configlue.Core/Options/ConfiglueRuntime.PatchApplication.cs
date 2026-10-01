@@ -510,8 +510,9 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             StateWriteResult batchResult;
             try
             {
-                batchResult = await batchWriter
-                    .WriteBatchAsync(
+                batchResult = await WriteObservedBatchAsync(
+                        group[0].Source.Id,
+                        batchWriter,
                         group.Select(static plan => plan.Mutation!).ToArray(),
                         cancellationToken
                     )

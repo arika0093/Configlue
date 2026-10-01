@@ -2,7 +2,7 @@ using Configlue.Testing;
 
 namespace Configlue.Tests;
 
-public sealed class RuntimeDiagnosticTests
+public sealed partial class RuntimeDiagnosticTests
 {
     [Test]
     public async Task ConcurrentResolutions_RetainOnlyABoundedOrderedHistory()

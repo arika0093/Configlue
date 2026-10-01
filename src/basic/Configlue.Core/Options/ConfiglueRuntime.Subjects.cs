@@ -40,13 +40,18 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                     await Task.Delay(_onChangeDebounce, cancellationToken).ConfigureAwait(false);
                 }
 
-                var current = await ReadPublicValueAsync(cancellationToken).ConfigureAwait(false);
+                var (current, valueChanged) = await ReadReloadAsync(
+                        previousEffective,
+                        hasEffective,
+                        cancellationToken
+                    )
+                    .ConfigureAwait(false);
                 if (
                     current.Status == StateReadStatus.Success
                     && !HaveSameRevisions(previous.Revisions, current.Revisions)
                 )
                 {
-                    if (!hasEffective || !Diff(previousEffective, current.Value!).IsEmpty)
+                    if (valueChanged)
                     {
                         try
                         {

@@ -187,12 +187,8 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         StateWriteResult result;
         try
         {
-            var context = GetResourceContext(target);
-            result = _subjectContext.Value is not null
-                ? await target.WriteAsync(context, request, cancellationToken).ConfigureAwait(false)
-                : await writer
-                    .WriteAsync(context, request, cancellationToken)
-                    .ConfigureAwait(false);
+            result = await WriteObservedAsync(target, writer, request, cancellationToken)
+                .ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -278,6 +274,10 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
     private StateConflictException LogConflict(string message)
     {
         var exception = new StateConflictException(message);
+        _diagnostics.Record(
+            ConfiglueDiagnosticEventKind.WriteConflict,
+            errorCategory: typeof(StateConflictException).FullName
+        );
         _logger?.LogWarning(
             ConflictEvent,
             exception,

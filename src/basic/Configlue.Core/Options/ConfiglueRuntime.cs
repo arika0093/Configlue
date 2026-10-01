@@ -539,13 +539,49 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         StateSource<TFragment> source,
         StateWriteRequest<TFragment> request,
         CancellationToken cancellationToken
-    ) => source.WriteAsync(GetResourceContext(source), request, cancellationToken);
+    ) => WriteObservedAsync(source, source.Writer!, request, cancellationToken);
 
-    private ValueTask WaitForSourceChangeAsync(
+    private async ValueTask WaitForSourceChangeAsync(
         StateSource<TFragment> source,
         string? revision,
         CancellationToken cancellationToken
-    ) => source.WaitForChangeAsync(GetResourceContext(source), revision, cancellationToken);
+    )
+    {
+        var diagnostic = _diagnostics.Start(ConfiglueDiagnosticEventKind.WatchStarted, source.Id);
+        Exception? failure = null;
+        try
+        {
+            await source
+                .WaitForChangeAsync(GetResourceContext(source), revision, cancellationToken)
+                .ConfigureAwait(false);
+            _diagnostics.Record(
+                ConfiglueDiagnosticEventKind.WatchSignaled,
+                diagnostic.Id,
+                sourceId: source.Id
+            );
+        }
+        catch (Exception exception)
+        {
+            failure = exception;
+            throw;
+        }
+        finally
+        {
+            if (failure is null)
+            {
+                diagnostic.Complete(ConfiglueDiagnosticEventKind.WatchStopped);
+            }
+            else
+            {
+                diagnostic.Fail(
+                    ConfiglueDiagnosticEventKind.WatchStopped,
+                    failure,
+                    failure is OperationCanceledException
+                        && cancellationToken.IsCancellationRequested
+                );
+            }
+        }
+    }
 
     private ConfiglueResourceContext GetResourceContext(StateSource<TFragment> source) =>
         _subjectContext.Value is { } subject
@@ -590,10 +626,12 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
     ) => ReadPublicValueAsync(cancellationToken);
 
     private async ValueTask<StateReadResult<TModel>> ReadPublicValueAsync(
-        CancellationToken cancellationToken
+        CancellationToken cancellationToken,
+        long parentOperationId = 0
     )
     {
-        var result = await ReadCoreAsync(null, cancellationToken).ConfigureAwait(false);
+        var result = await ReadCoreAsync(null, cancellationToken, parentOperationId)
+            .ConfigureAwait(false);
         return
             _cloneStrategy is not null
             && result.Status == StateReadStatus.Success
@@ -604,14 +642,24 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
 
     private async ValueTask<StateReadResult<TModel>> ReadCoreAsync(
         IReadOnlyDictionary<string, StateReadResult<TFragment>>? replacements,
-        CancellationToken cancellationToken
-    ) => (await ResolveCoreAsync(replacements, cancellationToken).ConfigureAwait(false)).Result;
+        CancellationToken cancellationToken,
+        long parentOperationId = 0
+    ) =>
+        (
+            await ResolveCoreAsync(
+                    replacements,
+                    cancellationToken,
+                    parentOperationId: parentOperationId
+                )
+                .ConfigureAwait(false)
+        ).Result;
 
     private async ValueTask<ResolvedState> ResolveCoreAsync(
         IReadOnlyDictionary<string, StateReadResult<TFragment>>? replacements,
         CancellationToken cancellationToken,
         bool captureContributions = false,
-        Action<ResolvedSourceProbe>? observeSource = null
+        Action<ResolvedSourceProbe>? observeSource = null,
+        long parentOperationId = 0
     )
     {
         if (replacements is not null)
@@ -624,7 +672,10 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                 )
                 .ConfigureAwait(false);
         }
-        var diagnostic = _diagnostics.Start(ConfiglueDiagnosticEventKind.ResolveStarted);
+        var diagnostic = _diagnostics.Start(
+            ConfiglueDiagnosticEventKind.ResolveStarted,
+            parentOperationId: parentOperationId
+        );
         try
         {
             var result = await ResolveImplementationAsync(
@@ -800,7 +851,13 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                         typeof(TModel).FullName,
                         _stateName
                     );
-                    fragment = await MigrateAsync(fragment, sourceSchema, cancellationToken)
+                    fragment = await MigrateAsync(
+                            fragment,
+                            sourceSchema,
+                            cancellationToken,
+                            source.Id,
+                            operationId
+                        )
                         .ConfigureAwait(false);
                 }
 

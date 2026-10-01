@@ -12,6 +12,7 @@ internal sealed class RuntimeDiagnosticRecorder : IConfiglueRuntimeDiagnostics
     private readonly ConfiglueRuntimeDiagnosticOptions _options;
     private readonly ConfiglueDiagnosticEvent[] _history;
     private readonly Dictionary<string, ConfiglueRuntimeSourceSnapshot> _sources;
+    private readonly Dictionary<string, int> _watchCounts = new(StringComparer.Ordinal);
     private Action<ConfiglueDiagnosticEvent>[] _listeners = [];
     private long _sequence;
     private long _nextOperationId;
@@ -160,10 +161,14 @@ internal sealed class RuntimeDiagnosticRecorder : IConfiglueRuntimeDiagnostics
                 };
                 break;
             case ConfiglueDiagnosticEventKind.WatchStarted:
+                _watchCounts.TryGetValue(sourceId, out var count);
+                _watchCounts[sourceId] = count + 1;
                 source = source with { IsWatching = true };
                 break;
             case ConfiglueDiagnosticEventKind.WatchStopped:
-                source = source with { IsWatching = false };
+                _watchCounts.TryGetValue(sourceId, out var activeCount);
+                _watchCounts[sourceId] = Math.Max(0, activeCount - 1);
+                source = source with { IsWatching = activeCount > 1 };
                 break;
             case ConfiglueDiagnosticEventKind.WatchSignaled:
                 source = source with { LastWatchSignal = diagnosticEvent.Timestamp };
