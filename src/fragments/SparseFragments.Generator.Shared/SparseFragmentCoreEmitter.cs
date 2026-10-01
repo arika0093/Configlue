@@ -302,6 +302,28 @@ internal sealed class SparseFragmentCoreEmitter(
     {
         code.AppendIndent(2).Append("public ").Append(modelType).AppendLine(" ToModel()");
         code.AppendLineAt(2, "{");
+        var construction = ModelConstructionPlan.ForMembers(members);
+        if (construction.CanOverlayAfterConstruction)
+        {
+            code.AppendLineAt(3, "var value = new " + modelType + "();");
+            foreach (var member in members)
+            {
+                var name = SparseNaming.EscapeIdentifier(member.Property.Name);
+                var projected = name + ".Value!";
+                if (member.ChildModel is not null)
+                    projected = member.ChildIsReferenceType
+                        ? name + ".Value?.ToModel()!"
+                        : name + ".Value!.ToModel()";
+                code.AppendLineAt(
+                    3,
+                    "if (" + name + ".IsPresent) value." + name + " = " + projected + ";"
+                );
+            }
+            code.AppendLineAt(3, "return value;");
+            code.AppendLineAt(2, "}");
+            code.AppendLine();
+            return;
+        }
         if (!members.IsEmpty)
         {
             code.AppendIndent(3).Append("if (");

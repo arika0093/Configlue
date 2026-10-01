@@ -48,7 +48,7 @@ internal static class SparseModelAnalyzer
 
         if (
             model.TypeKind == TypeKind.Class
-            && !HasPublicParameterlessConstructor(model, cancellationToken)
+            && !ModelConstructionPlan.HasRootParameterlessConstructor(model, cancellationToken)
         )
         {
             return Failure(SparseDiagnosticIds.MissingConstructor, location, model.Name);
@@ -722,7 +722,8 @@ internal static class SparseModelAnalyzer
     {
         var property = new SparsePropertyModel(
             member.Property.Name,
-            CreateTypeModel(member.Property.Type, config, cancellationToken)
+            CreateTypeModel(member.Property.Type, config, cancellationToken),
+            member.Property.SetMethod?.IsInitOnly == true
         );
         SparseTypeModel? childModel = null;
         string? childFragmentType = null;

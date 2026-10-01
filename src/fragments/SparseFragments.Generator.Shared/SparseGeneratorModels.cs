@@ -15,7 +15,11 @@ internal readonly record struct SparseTypeModel(
     string? PocoCloneHelperName
 );
 
-internal readonly record struct SparsePropertyModel(string Name, SparseTypeModel Type);
+internal readonly record struct SparsePropertyModel(
+    string Name,
+    SparseTypeModel Type,
+    bool IsInitOnly = false
+);
 
 internal readonly record struct SparseCollectionInfo(
     SparseCollectionKind Kind,

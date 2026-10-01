@@ -42,7 +42,8 @@ public sealed partial class ConfiglueGenerator
             bool isRequired,
             string? jsonPropertyName,
             bool hasExplicitJsonPropertyName,
-            string? environmentVariableName
+            string? environmentVariableName,
+            bool isInitOnly = false
         )
         {
             Name = name;
@@ -51,11 +52,13 @@ public sealed partial class ConfiglueGenerator
             JsonPropertyName = jsonPropertyName;
             HasExplicitJsonPropertyName = hasExplicitJsonPropertyName;
             EnvironmentVariableName = environmentVariableName;
+            IsInitOnly = isInitOnly;
         }
 
         public string Name { get; init; }
         public TypeModel Type { get; init; }
         public bool IsRequired { get; init; }
+        public bool IsInitOnly { get; init; }
         public string? JsonPropertyName { get; init; }
         public bool HasExplicitJsonPropertyName { get; init; }
         public string? EnvironmentVariableName { get; init; }
@@ -437,7 +440,8 @@ public sealed partial class ConfiglueGenerator
             SparseFragments.Generator.Shared.RoslynSymbolCompat.IsRequired(member.Property),
             jsonPropertyName,
             hasExplicitJsonPropertyName,
-            GetEnvironmentVariableName(member.Property, cancellationToken)
+            GetEnvironmentVariableName(member.Property, cancellationToken),
+            member.Property.SetMethod?.IsInitOnly == true
         );
         TypeModel? childModel = null;
         string? childFragmentType = null;

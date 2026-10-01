@@ -35,7 +35,11 @@ public sealed partial class ConfiglueGenerator
     private static SparseMemberModel ToSparseMember(MemberModel member) =>
         new(
             member.Id,
-            new SparsePropertyModel(member.Property.Name, ToSparseType(member.Property.Type)),
+            new SparsePropertyModel(
+                member.Property.Name,
+                ToSparseType(member.Property.Type),
+                member.Property.IsInitOnly
+            ),
             member.ChildModel is { } child ? ToSparseType(child) : null,
             member.MergeMode,
             new SparseCollectionInfo(

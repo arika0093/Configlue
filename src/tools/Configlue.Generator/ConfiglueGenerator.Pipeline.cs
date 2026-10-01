@@ -181,7 +181,10 @@ public sealed partial class ConfiglueGenerator
 
         if (
             model.TypeKind == TypeKind.Class
-            && !HasPublicParameterlessConstructor(model, cancellationToken)
+            && !SparseFragments.Generator.Shared.ModelConstructionPlan.HasRootParameterlessConstructor(
+                model,
+                cancellationToken
+            )
         )
         {
             return AnalysisFailure(MissingConstructor, location, model.Name);

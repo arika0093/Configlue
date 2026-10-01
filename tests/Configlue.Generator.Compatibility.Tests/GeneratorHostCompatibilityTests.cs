@@ -9,6 +9,70 @@ namespace Configlue.Generator.Compatibility.Tests;
 public sealed class GeneratorHostCompatibilityTests
 {
     [Test]
+    [Arguments(false)]
+    [Arguments(true)]
+    public void PrivateRootConstructorAndSparseDefaultsConstructOnce(bool standalone)
+    {
+        var runtime = standalone ? "SparseFragments" : "Configlue";
+        var attribute = standalone
+            ? "SparseFragmentModel"
+            : "ConfiglueModel(\"constructor-parity\")";
+        var source = $$"""
+            using {{runtime}};
+            [{{attribute}}]
+            public partial class Settings
+            {
+                public static int Calls;
+                private Settings() { Identity = ++Calls; }
+                public int Identity { get; set; }
+                public int Count { get; set; } = 5;
+            }
+            public static class Probe
+            {
+                public static string Run()
+                {
+                    var empty = Settings.Fragment.Empty.ToModel();
+                    if (Settings.Calls != 1 || empty.Identity != 1 || empty.Count != 5)
+                        throw new System.Exception("empty projection");
+                    var sparse = new Settings.Fragment { Count = Optional<int>.Present(0) }.ToModel();
+                    if (Settings.Calls != 2 || sparse.Identity != 2 || sparse.Count != 0)
+                        throw new System.Exception("sparse projection");
+                    var complete = Settings.Fragment.From(sparse).ToModel();
+                    if (Settings.Calls != 3 || complete.Identity != 2 || complete.Count != 0)
+                        throw new System.Exception("complete projection");
+                    return "passed";
+                }
+            }
+            """;
+        var options = new CSharpParseOptions(LanguageVersion.Latest);
+        var compilation = CreateCompilation(CSharpSyntaxTree.ParseText(source, options));
+        IIncrementalGenerator generator = standalone
+            ? new SparseFragments.Generator.SparseFragmentsGenerator()
+            : new ConfiglueGenerator();
+        CSharpGeneratorDriver
+            .Create(new[] { generator.AsSourceGenerator() }, parseOptions: options)
+            .RunGeneratorsAndUpdateCompilation(compilation, out var output, out var diagnostics);
+        diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error).ShouldBeEmpty();
+        using var stream = new MemoryStream();
+        var emission = output.Emit(stream);
+        emission.Success.ShouldBeTrue(BuildDiagnosticMessage(emission.Diagnostics));
+        var context = new System.Runtime.Loader.AssemblyLoadContext(
+            Guid.NewGuid().ToString(),
+            isCollectible: true
+        );
+        try
+        {
+            stream.Position = 0;
+            var assembly = context.LoadFromStream(stream);
+            assembly.GetType("Probe")!.GetMethod("Run")!.Invoke(null, null).ShouldBe("passed");
+        }
+        finally
+        {
+            context.Unload();
+        }
+    }
+
+    [Test]
     public void SharedFragmentOperationsHaveRuntimeParity()
     {
         string? previousResult = null;
