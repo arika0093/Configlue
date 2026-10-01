@@ -229,6 +229,64 @@ public sealed class EditSessionSnapshotTests
     }
 
     [Test]
+    public async Task RebaseAsync_LastWriteWinsKeepsTheDraftForTheSameMember()
+    {
+        var store = new SignalingStore<AppSettings.Fragment>(Fragment("start", retryCount: 3));
+        await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
+            new StateSourceSet<AppSettings.Fragment>([
+                new("user", store, writer: store, watcher: store),
+            ]),
+            onChangeDebounce: TimeSpan.Zero,
+            writeConflictResolution: WriteConflictResolution.LastWriteWins
+        );
+        using var session = await options.OpenEditSessionAsync();
+
+        session.Value.RetryCount = 6;
+        store.Set(Fragment("start", retryCount: 9));
+
+        await session.RebaseAsync();
+
+        (session.Value.RetryCount).ShouldBe(6);
+        (session.Value.Label).ShouldBe("start");
+        (session.HasUpstreamChanges).ShouldBeFalse();
+        (session.HasLocalChanges).ShouldBeTrue();
+
+        await session.CommitAsync();
+        ((await store.ReadAsync()).Value!.RetryCount.Value).ShouldBe(6);
+    }
+
+    [Test]
+    public async Task RebaseAsync_LastWriteWinsKeepsTheDraftForACollectionMember()
+    {
+        static AppSettings.Fragment WithPlugins(IReadOnlyList<string> plugins) =>
+            new()
+            {
+                Label = Optional<string?>.Present("start"),
+                RetryCount = Optional<int>.Present(3),
+                Plugins = Optional<IReadOnlyList<string>>.Present(plugins),
+            };
+
+        var store = new SignalingStore<AppSettings.Fragment>(WithPlugins(["base"]));
+        await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
+            new StateSourceSet<AppSettings.Fragment>([
+                new("user", store, writer: store, watcher: store),
+            ]),
+            onChangeDebounce: TimeSpan.Zero,
+            writeConflictResolution: WriteConflictResolution.LastWriteWins
+        );
+        using var session = await options.OpenEditSessionAsync();
+
+        session.Value.Plugins = ["base", "mine"];
+        store.Set(WithPlugins(["base", "theirs"]));
+
+        await session.RebaseAsync();
+
+        (session.Value.Plugins).ShouldBe(["base", "mine"]);
+        (session.HasUpstreamChanges).ShouldBeFalse();
+        (session.HasLocalChanges).ShouldBeTrue();
+    }
+
+    [Test]
     public async Task ResetToUpstream_PerformsNoIo()
     {
         var store = new SignalingStore<AppSettings.Fragment>(Fragment("start", retryCount: 3));
