@@ -110,7 +110,7 @@ public sealed class YamlStateCodec
         {
             var payload = FragmentYamlConverterFactory.ToYamlValue(
                 fragment,
-                schema ?? fragment.Schema,
+                schema ?? fragment.ConfiglueSchema,
                 _namingPolicy
             );
             yaml = YamlSerializer.Serialize(payload, payload.GetType(), _options);
@@ -158,7 +158,7 @@ public sealed class YamlStateCodec
             object? payloadNode = value is IConfiglueFragment fragment
                 ? FragmentYamlConverterFactory.ToYamlValue(
                     fragment,
-                    schema ?? fragment.Schema,
+                    schema ?? fragment.ConfiglueSchema,
                     _namingPolicy
                 )
                 : YamlSerializer.Deserialize<Dictionary<string, object?>>(payloadYaml, _options);
@@ -188,7 +188,7 @@ public sealed class YamlStateCodec
             [YamlStateCodecOperations.PayloadKey] = value is IConfiglueFragment sparseFragment
                 ? FragmentYamlConverterFactory.ToYamlValue(
                     sparseFragment,
-                    schema ?? sparseFragment.Schema,
+                    schema ?? sparseFragment.ConfiglueSchema,
                     _namingPolicy
                 )
                 : value,
@@ -203,7 +203,7 @@ public sealed class YamlStateCodec
     private static ConfiglueModelSchema? GetSchema(
         object? value,
         ConfiglueModelSchema? configuredSchema
-    ) => value is IConfiglueFragment fragment ? fragment.Schema : configuredSchema;
+    ) => value is IConfiglueFragment fragment ? fragment.ConfiglueSchema : configuredSchema;
 }
 
 /// <summary>A typed YAML state codec fast path.</summary>
