@@ -198,7 +198,7 @@ public sealed partial class FileResource
     {
         try
         {
-            var content = await File.ReadAllBytesAsync(_path, cancellationToken)
+            var content = await ReadFileSnapshotAsync(_path, cancellationToken)
                 .ConfigureAwait(false);
             return GetRevision(content);
         }

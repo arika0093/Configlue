@@ -369,7 +369,7 @@ public sealed partial class FileResource
                 _path,
                 FileMode.Open,
                 FileAccess.Read,
-                FileShare.Read,
+                FileShare.Read | FileShare.Delete,
                 bufferSize: 81920,
                 FileOptions.Asynchronous | FileOptions.SequentialScan
             );
@@ -380,7 +380,7 @@ public sealed partial class FileResource
                 {
                     Mode = FileMode.Open,
                     Access = FileAccess.Read,
-                    Share = FileShare.Read,
+                    Share = FileShare.Read | FileShare.Delete,
                     BufferSize = 81920,
                     Options = FileOptions.Asynchronous | FileOptions.SequentialScan,
                 }

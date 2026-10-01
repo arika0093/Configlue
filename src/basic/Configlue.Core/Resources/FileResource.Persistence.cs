@@ -16,7 +16,7 @@ public sealed partial class FileResource
         _ = context;
         try
         {
-            var content = await File.ReadAllBytesAsync(_path, cancellationToken)
+            var content = await ReadFileSnapshotAsync(_path, cancellationToken)
                 .ConfigureAwait(false);
             return ResourceReadResult.Success(content, GetRevision(content));
         }
@@ -254,7 +254,7 @@ public sealed partial class FileResource
     {
         try
         {
-            return await File.ReadAllBytesAsync(_path, cancellationToken).ConfigureAwait(false);
+            return await ReadFileSnapshotAsync(_path, cancellationToken).ConfigureAwait(false);
         }
         catch (FileNotFoundException)
         {
@@ -266,11 +266,55 @@ public sealed partial class FileResource
         }
     }
 
+    private static async ValueTask<byte[]> ReadFileSnapshotAsync(
+        string path,
+        CancellationToken cancellationToken
+    )
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        // An open reader owns the old file snapshot while an atomic replacement publishes
+        // a new file. Delete sharing allows that replacement on Windows as well as Unix.
+#if NETSTANDARD
+        using var stream = new FileStream(
+            path,
+            FileMode.Open,
+            FileAccess.Read,
+#else
+        await using var stream = new FileStream(
+            path,
+            FileMode.Open,
+            FileAccess.Read,
+#endif
+            FileShare.Read | FileShare.Delete,
+            bufferSize: 1,
+            FileOptions.Asynchronous | FileOptions.SequentialScan
+        );
+        if (stream.Length > int.MaxValue)
+        {
+            throw new IOException("The file is too large to read into memory.");
+        }
+        var content = new byte[(int)stream.Length];
+        var offset = 0;
+        while (offset < content.Length)
+        {
+            var count = await stream
+                .ReadAsync(content.AsMemory(offset), cancellationToken)
+                .ConfigureAwait(false);
+            if (count == 0)
+            {
+                Array.Resize(ref content, offset);
+                break;
+            }
+            offset += count;
+        }
+        return content;
+    }
+
     private static void MoveReplacing(string sourcePath, string destinationPath)
     {
-#if NETSTANDARD
         if (File.Exists(destinationPath))
         {
+#if NETSTANDARD
             var attributes = File.GetAttributes(destinationPath);
             var replaceableAttributes =
                 attributes & ~(FileAttributes.Hidden | FileAttributes.ReadOnly);
@@ -278,9 +322,13 @@ public sealed partial class FileResource
             {
                 File.SetAttributes(destinationPath, replaceableAttributes);
             }
-        }
 #endif
-        File.Move(sourcePath, destinationPath, overwrite: true);
+            // ReplaceFile supports open readers with delete sharing on Windows. It also
+            // avoids the copy/delete overwrite polyfill used by .NET Standard consumers.
+            File.Replace(sourcePath, destinationPath, destinationBackupFileName: null);
+            return;
+        }
+        File.Move(sourcePath, destinationPath);
     }
 
     private async ValueTask WriteAtomicAsync(

@@ -9,6 +9,30 @@ namespace Configlue.Tests;
 public sealed partial class FileResourceTests
 {
     [Test]
+    public async Task AtomicReplacement_DoesNotBlockOpenPipelineReaders_AndPreservesTheirSnapshot()
+    {
+        var directory = CreateTemporaryDirectory();
+        Directory.CreateDirectory(directory);
+        using var cleanup = new DirectoryCleanup(directory);
+        var path = System.IO.Path.Combine(directory, "open-reader.bin");
+        var oldContent = Encoding.UTF8.GetBytes("original-snapshot");
+        var newContent = Encoding.UTF8.GetBytes("replacement-snapshot");
+        await File.WriteAllBytesAsync(path, oldContent);
+        using var resource = new FileResource(path);
+        var oldRevision = (await resource.ReadAsync()).Revision;
+        await using var pipeline = await resource.ReadPipelineAsync();
+
+        var write = await resource.WriteAsync(new ResourceWriteRequest(newContent));
+        var original = await pipeline.ReadAllAsync();
+        original.ToArray().ShouldBe(oldContent);
+        pipeline.Revision.ShouldBe(oldRevision);
+        pipeline.Content!.AdvanceTo(original.End);
+        var current = await resource.ReadAsync();
+        current.Content.ToArray().ShouldBe(newContent);
+        current.Revision.ShouldBe(write.Revision);
+    }
+
+    [Test]
     public async Task FileResource_PipelineReadMatchesMemoryRead()
     {
         var directory = CreateTemporaryDirectory();
