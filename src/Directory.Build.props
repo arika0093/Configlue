@@ -37,6 +37,7 @@
     <None Include="$(MSBuildThisFileDirectory)../README.md" Pack="true" PackagePath="/" />
   </ItemGroup>
   <ItemGroup Condition="'$(ConfiglueTooling)' != 'true' and '$(ConfiglueUtility)' != 'true'">
+    <Using Include="SparseFragments" />
     <Using Include="Configlue.Codecs" />
     <Using Include="Configlue.Migrations" />
     <Using Include="Configlue.Resources" />
