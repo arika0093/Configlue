@@ -3,7 +3,7 @@ namespace SparseFragments;
 /// <summary>Describes one present value in a generated sparse fragment.</summary>
 public readonly record struct SparseFragmentMember
 {
-    /// <summary>Gets or initializes the <see cref="Id"/> value.</summary>
+    /// <summary>Gets or initializes the schema-local member ordinal.</summary>
     public int Id { get; init; }
 
     /// <summary>Gets or initializes the <see cref="Name"/> value.</summary>
@@ -13,7 +13,7 @@ public readonly record struct SparseFragmentMember
     public object? Value { get; init; }
 
     /// <summary>Initializes a new instance of this record.</summary>
-    /// <param name="Id">The initial value for the <see cref="Id"/> property.</param>
+    /// <param name="Id">The schema-local member ordinal.</param>
     /// <param name="Name">The initial value for the <see cref="Name"/> property.</param>
     /// <param name="Value">The initial value for the <see cref="Value"/> property.</param>
     public SparseFragmentMember(int Id, string Name, object? Value)
@@ -24,7 +24,7 @@ public readonly record struct SparseFragmentMember
     }
 
     /// <summary>Deconstructs this record into its property values.</summary>
-    /// <param name="Id">Receives the current <see cref="Id"/> value.</param>
+    /// <param name="Id">Receives the schema-local member ordinal.</param>
     /// <param name="Name">Receives the current <see cref="Name"/> value.</param>
     /// <param name="Value">Receives the current <see cref="Value"/> value.</param>
     public void Deconstruct(out int Id, out string Name, out object? Value)

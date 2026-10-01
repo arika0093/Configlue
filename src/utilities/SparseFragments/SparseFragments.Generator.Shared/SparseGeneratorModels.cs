@@ -33,6 +33,23 @@ internal readonly record struct SparseCollectionInfo(
         );
 }
 
+internal sealed class SparseSymbolMemberModel(
+    int id,
+    IPropertySymbol property,
+    INamedTypeSymbol? childModel,
+    int mergeMode,
+    SparseSymbolCollectionInfo collection,
+    INamedTypeSymbol? mergeStrategyType
+)
+{
+    public int Id { get; } = id;
+    public IPropertySymbol Property { get; } = property;
+    public INamedTypeSymbol? ChildModel { get; } = childModel;
+    public int MergeMode { get; } = mergeMode;
+    public SparseSymbolCollectionInfo Collection { get; } = collection;
+    public INamedTypeSymbol? MergeStrategyType { get; } = mergeStrategyType;
+}
+
 internal readonly record struct SparseMemberModel(
     int Id,
     SparsePropertyModel Property,

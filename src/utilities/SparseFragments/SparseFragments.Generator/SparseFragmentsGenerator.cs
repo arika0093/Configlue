@@ -23,7 +23,7 @@ public sealed class SparseFragmentsGenerator : IIncrementalGenerator
     );
 
     private static readonly DiagnosticDescriptor MustBePartial = new(
-        "SPF001",
+        SparseDiagnosticIds.MustBePartial,
         "Sparse fragment model must be partial",
         "Model '{0}' must be declared partial",
         "SparseFragments",
@@ -31,7 +31,7 @@ public sealed class SparseFragmentsGenerator : IIncrementalGenerator
         true
     );
     private static readonly DiagnosticDescriptor UnsupportedModel = new(
-        "SPF002",
+        SparseDiagnosticIds.UnsupportedModel,
         "Unsupported sparse fragment model",
         "Model '{0}' must be a top-level, non-generic, non-abstract class or struct",
         "SparseFragments",
@@ -39,7 +39,7 @@ public sealed class SparseFragmentsGenerator : IIncrementalGenerator
         true
     );
     private static readonly DiagnosticDescriptor MissingConstructor = new(
-        "SPF003",
+        SparseDiagnosticIds.MissingConstructor,
         "Model needs a public parameterless constructor",
         "Class model '{0}' must have a public parameterless constructor",
         "SparseFragments",
@@ -47,7 +47,7 @@ public sealed class SparseFragmentsGenerator : IIncrementalGenerator
         true
     );
     private static readonly DiagnosticDescriptor InvalidMergeStrategy = new(
-        "SPF004",
+        SparseDiagnosticIds.InvalidMergeStrategy,
         "Invalid custom merge strategy",
         "Merge strategy for member '{0}' must derive from FragmentMergeStrategy<TMember> and be a concrete, accessible type",
         "SparseFragments",
@@ -55,7 +55,7 @@ public sealed class SparseFragmentsGenerator : IIncrementalGenerator
         true
     );
     private static readonly DiagnosticDescriptor UnsupportedMerge = new(
-        "SPF005",
+        SparseDiagnosticIds.UnsupportedMerge,
         "Unsupported merge mode",
         "The configured merge mode is not supported for member '{0}'",
         "SparseFragments",
@@ -63,7 +63,7 @@ public sealed class SparseFragmentsGenerator : IIncrementalGenerator
         true
     );
     private static readonly DiagnosticDescriptor UnsupportedRequired = new(
-        "SPF006",
+        SparseDiagnosticIds.UnsupportedRequired,
         "Required model members are unsupported",
         "Required member '{0}' cannot be omitted from a sparse fragment",
         "SparseFragments",
@@ -142,11 +142,12 @@ public sealed class SparseFragmentsGenerator : IIncrementalGenerator
     private static DiagnosticDescriptor GetDescriptor(string id) =>
         id switch
         {
-            "SPF001" => MustBePartial,
-            "SPF002" => UnsupportedModel,
-            "SPF003" => MissingConstructor,
-            "SPF004" => InvalidMergeStrategy,
-            "SPF006" => UnsupportedRequired,
-            _ => UnsupportedMerge,
+            SparseDiagnosticIds.MustBePartial => MustBePartial,
+            SparseDiagnosticIds.UnsupportedModel => UnsupportedModel,
+            SparseDiagnosticIds.MissingConstructor => MissingConstructor,
+            SparseDiagnosticIds.InvalidMergeStrategy => InvalidMergeStrategy,
+            SparseDiagnosticIds.UnsupportedMerge => UnsupportedMerge,
+            SparseDiagnosticIds.UnsupportedRequired => UnsupportedRequired,
+            _ => throw new global::System.ArgumentOutOfRangeException(nameof(id), id, null),
         };
 }

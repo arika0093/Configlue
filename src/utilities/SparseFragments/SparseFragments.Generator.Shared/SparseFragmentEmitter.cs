@@ -11,17 +11,18 @@ namespace SparseFragments.Generator.Shared;
 /// <summary>Builds standalone generated source for a <c>[SparseFragmentModel]</c>.</summary>
 internal static class SparseFragmentEmitter
 {
-    private const string Runtime = "global::SparseFragments";
-    private const string Optional = Runtime + ".Optional";
-    private const string FragmentMember = Runtime + ".SparseFragmentMember";
-    private const string FragmentInterface = Runtime + ".ISparseFragment";
-    private const string FragmentOfT = Runtime + ".ISparseFragment";
-    private const string DeepCloneable = Runtime + ".ISparseDeepCloneable";
-    private const string Schema = Runtime + ".SparseFragmentSchema";
-    private const string MemberSchema = Runtime + ".SparseFragmentMemberSchema";
-    private const string MergeStrategy = Runtime + ".FragmentMergeStrategy";
-    private const string ValueComparer = Runtime + ".SparseValueComparer";
-    private const string ReferenceComparer = Runtime + ".SparseReferenceEqualityComparer";
+    private const string Runtime = SparseWellKnownNames.RuntimeNamespace;
+    private const string Optional = SparseWellKnownNames.OptionalType;
+    private const string FragmentMember = SparseWellKnownNames.FragmentMemberType;
+    private const string FragmentInterface = SparseWellKnownNames.FragmentInterfaceType;
+    private const string FragmentOfT = SparseWellKnownNames.FragmentInterfaceType;
+    private const string DeepCloneable = SparseWellKnownNames.DeepCloneableType;
+    private const string Schema = SparseWellKnownNames.SchemaType;
+    private const string MemberSchema = SparseWellKnownNames.MemberSchemaType;
+    private const string MergeStrategy = SparseWellKnownNames.MergeStrategyType;
+    private const string ValueComparer = SparseWellKnownNames.ValueComparerType;
+    private const string ReferenceComparer = SparseWellKnownNames.ReferenceComparerType;
+    private const string CollectionMerger = SparseWellKnownNames.CollectionMergerType;
 
     public static string BuildSource(
         SparseModelInfo model,
@@ -803,7 +804,7 @@ internal static class SparseFragmentEmitter
             else if (member.ChildModel is null)
             {
                 condition =
-                    $"{ValueComparer}.AreEqual({before}, {after}) ? default : {Optional}<{valueType}>.Present({after})";
+                    $"{ValueEqualityExpression(member, before, after)} ? default : {Optional}<{valueType}>.Present({after})";
             }
             else
             {
@@ -872,7 +873,27 @@ internal static class SparseFragmentEmitter
         member.ChildModel is null ? member.Property.Type.Name : member.ChildFragmentType + "?";
 
     private static string MergeStrategyField(SparseMemberModel member) =>
-        "__sparse_merge_strategy_" + member.Id;
+        SparseWellKnownNames.MergeStrategyFieldPrefix + member.Id;
+
+    private static string ValueEqualityExpression(
+        SparseMemberModel member,
+        string left,
+        string right
+    )
+    {
+        var collection = member.Collection;
+        return collection.CloneKind switch
+        {
+            SparseCloneCollectionKind.Set
+            or SparseCloneCollectionKind.SortedSet
+            or SparseCloneCollectionKind.ImmutableSet =>
+                $"{ValueComparer}.AreSetEqual<{collection.ElementType.Name}>({left}, {right})",
+            SparseCloneCollectionKind.Dictionary
+            or SparseCloneCollectionKind.ImmutableDictionary when collection.ValueType is not null =>
+                $"{ValueComparer}.AreDictionaryEqual<{collection.ElementType.Name}, {collection.ValueType.Value.Name}>({left}, {right})",
+            _ => $"{ValueComparer}.AreEqual({left}, {right})",
+        };
+    }
 
     private static string CloneValueExpression(SparseTypeModel type, string access)
     {
@@ -1052,6 +1073,11 @@ internal static class SparseFragmentEmitter
     )
     {
         var elementType = member.Collection.ElementType.Name;
+        if (member.Collection.Kind == SparseCollectionKind.Set)
+        {
+            return $"{CollectionMerger}.MergeSet<{elementType}>({lower}, {higher})";
+        }
+
         var combined = $"global::System.Linq.Enumerable.Concat({lower}, {higher})";
         if (member.MergeMode == 3)
         {
@@ -1062,8 +1088,6 @@ internal static class SparseFragmentEmitter
         {
             SparseCollectionKind.List =>
                 $"new global::System.Collections.Generic.List<{elementType}>({combined})",
-            SparseCollectionKind.Set =>
-                $"new global::System.Collections.Generic.HashSet<{elementType}>({combined})",
             _ => $"global::System.Linq.Enumerable.ToArray({combined})",
         };
     }

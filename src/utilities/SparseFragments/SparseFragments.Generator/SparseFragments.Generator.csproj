@@ -5,7 +5,7 @@
     <RootNamespace>SparseFragments.Generator</RootNamespace>
     <IsRoslynComponent>true</IsRoslynComponent>
     <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
-    <IsPackable>true</IsPackable>
+    <IsPackable>false</IsPackable>
     <IncludeBuildOutput>false</IncludeBuildOutput>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
     <PackageDescription>Standalone source generator for SparseFragments models.</PackageDescription>
@@ -26,13 +26,5 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="..\SparseFragments.Generator.Shared\**\*.cs" LinkBase="Shared" />
-  </ItemGroup>
-  <ItemGroup>
-    <None
-      Include="$(OutputPath)SparseFragments.Generator.dll"
-      Pack="true"
-      PackagePath="analyzers/dotnet/cs"
-      Visible="false"
-    />
   </ItemGroup>
 </Project>
