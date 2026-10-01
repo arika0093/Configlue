@@ -15,6 +15,74 @@ public partial class RuntimeLifetimeSettings
 public sealed partial class RuntimeLifetimeTests
 {
     [Test]
+    public async Task Shutdown_WaitsForCanceledSourceWatchersToReleaseResources()
+    {
+        var store = new InMemoryStateSource<RuntimeLifetimeSettings.Fragment>(
+            new RuntimeLifetimeSettings.Fragment { Label = "initial" }
+        );
+        var immediate = new ShutdownWatcher(delayCleanup: false);
+        var delayed = new ShutdownWatcher(delayCleanup: true);
+        var runtime = new ConfiglueRuntime<
+            RuntimeLifetimeSettings,
+            RuntimeLifetimeSettings.Fragment
+        >(
+            new StateSourceSet<RuntimeLifetimeSettings.Fragment>([
+                new("immediate", store, watcher: immediate),
+                new("delayed", store, watcher: delayed),
+            ])
+        );
+        using var subscription = runtime.OnChange(_ => { });
+        await immediate.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await delayed.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var shutdown = runtime.DisposeAsync().AsTask();
+        try
+        {
+            await delayed.Canceled.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            var completed = await Task.WhenAny(shutdown, Task.Delay(100));
+            ReferenceEquals(completed, shutdown)
+                .ShouldBeFalse(
+                    "Shutdown must wait until every source watcher releases its resources."
+                );
+        }
+        finally
+        {
+            delayed.Release.TrySetResult();
+            await shutdown.WaitAsync(TimeSpan.FromSeconds(5));
+        }
+    }
+
+    private sealed class ShutdownWatcher(bool delayCleanup) : ISourceWatcher
+    {
+        public TaskCompletionSource Started { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource Canceled { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource Release { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public async ValueTask WaitForChangeAsync(
+            ConfiglueResourceContext context,
+            string? observedRevision,
+            CancellationToken cancellationToken = default
+        )
+        {
+            Started.TrySetResult();
+            try
+            {
+                await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            }
+            finally
+            {
+                Canceled.TrySetResult();
+                if (delayCleanup)
+                {
+                    await Release.Task;
+                }
+            }
+        }
+    }
+
+    [Test]
     public void SharedSourceKeepsConfigurationRuntimeSharedAcrossScopes()
     {
         var store = new InMemoryStateSource<RuntimeLifetimeSettings.Fragment>();

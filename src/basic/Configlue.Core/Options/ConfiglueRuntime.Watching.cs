@@ -174,20 +174,28 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         }
         finally
         {
-            await waitCancellation.CancelAsync().ConfigureAwait(false);
-        }
-
-        try
-        {
-            await Task.WhenAll(waitTasks).ConfigureAwait(false);
-        }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-        {
-            // The remaining source waits are canceled after the first source reports a change.
-        }
-        finally
-        {
-            waitTasks.Clear();
+            try
+            {
+                await waitCancellation.CancelAsync().ConfigureAwait(false);
+            }
+            finally
+            {
+                try
+                {
+                    // Drain every source wait even when the winning wait throws or shutdown
+                    // cancels it. Otherwise asynchronous watcher cleanup outlives the runtime.
+                    await Task.WhenAll(waitTasks).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (waitCancellation.IsCancellationRequested)
+                {
+                    // Cancellation of losing waits is expected; the winning exception, if
+                    // any, propagates from the try block after all waits finish cleanup.
+                }
+                finally
+                {
+                    waitTasks.Clear();
+                }
+            }
         }
     }
 
