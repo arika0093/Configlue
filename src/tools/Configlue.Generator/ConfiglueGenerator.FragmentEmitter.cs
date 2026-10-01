@@ -294,7 +294,7 @@ public sealed partial class ConfiglueGenerator
         {
             code.AppendLineAt(
                 3,
-                "var __configlue_clone_context = new global::System.Collections.Generic.Dictionary<object, object>(global::Configlue.CompilerServices.ConfiglueReferenceEqualityComparer.Instance);"
+                "var __configlue_clone_context = new global::System.Collections.Generic.Dictionary<object, object>(global::SparseFragments.SparseReferenceEqualityComparer.Instance);"
             );
         }
         code.AppendLineAt(3, "return new Fragment");
@@ -655,7 +655,7 @@ public sealed partial class ConfiglueGenerator
         {
             code.AppendLineAt(
                 3,
-                "var __configlue_clone_context = new global::System.Collections.Generic.Dictionary<object, object>(global::Configlue.CompilerServices.ConfiglueReferenceEqualityComparer.Instance);"
+                "var __configlue_clone_context = new global::System.Collections.Generic.Dictionary<object, object>(global::SparseFragments.SparseReferenceEqualityComparer.Instance);"
             );
         }
         code.AppendLineAt(3, "return new Fragment");
