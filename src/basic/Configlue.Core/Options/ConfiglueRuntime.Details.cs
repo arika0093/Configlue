@@ -12,14 +12,34 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
     {
         var resolved = await ResolveCoreAsync(null, cancellationToken, captureContributions: true)
             .ConfigureAwait(false);
+        EnsureResolvable(resolved, "Configuration details");
+        return BuildDetailsSnapshot(resolved);
+    }
+
+    /// <inheritdoc />
+    async ValueTask<StateSnapshot<TModel>> IConfiglueStateSnapshotRuntime<TModel>.GetSnapshotAsync(
+        CancellationToken cancellationToken
+    )
+    {
+        var resolved = await ResolveCoreAsync(null, cancellationToken, captureContributions: true)
+            .ConfigureAwait(false);
+        EnsureResolvable(resolved, "Configuration snapshot");
+        return new StateSnapshot<TModel>(resolved.Result.Value!, BuildDetailsSnapshot(resolved));
+    }
+
+    private static void EnsureResolvable(ResolvedState resolved, string description)
+    {
         if (resolved.Result.Status != StateReadStatus.Success || resolved.Result.Value is null)
         {
             throw new InvalidOperationException(
-                $"Configuration details could not be read: {resolved.Result.Status}."
+                $"{description} could not be read: {resolved.Result.Status}."
             );
         }
+    }
 
-        var value = resolved.Result.Value;
+    private ConfiglueDetailsSnapshot BuildDetailsSnapshot(ResolvedState resolved)
+    {
+        var value = resolved.Result.Value!;
         var activeSources = GetActiveSources();
         var descriptors = new ConfigSourceDetails[activeSources.Length + 1];
         var fragments = new IConfiglueFragment?[activeSources.Length + 1];

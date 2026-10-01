@@ -393,6 +393,13 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         return new SubjectBoundOptions(this, subject);
     }
 
+    /// <inheritdoc />
+    public IConfiglueEditSessions<TModel> EditSessionsForSubject(IConfiglueSubject subject)
+    {
+        ArgumentNullException.ThrowIfNull(subject);
+        return new SubjectBoundOptions(this, subject);
+    }
+
     private async ValueTask<TModel> GetValueForSubjectAsync(
         IConfiglueSubject subject,
         CancellationToken cancellationToken

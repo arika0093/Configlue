@@ -6,7 +6,12 @@ namespace Configlue;
 internal sealed class CurrentSubjectState<TModel>(
     ISubjectState<TModel> subjectOptions,
     IConfiglueSubjectAccessor subjectAccessor
-) : IWritableState<TModel>, IConfiglueDetailsRuntime, IConfiglueInspection<TModel>
+)
+    : IWritableState<TModel>,
+        IConfiglueDetailsRuntime,
+        IConfiglueStateSnapshotRuntime<TModel>,
+        IConfiglueInspection<TModel>,
+        IConfiglueEditSessions<TModel>
 {
     public ConfiglueCheckOperation Check(CancellationToken cancellationToken = default) =>
         new(
@@ -95,6 +100,64 @@ internal sealed class CurrentSubjectState<TModel>(
         }
 
         return await details.GetDetailsSnapshotAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    async ValueTask<StateSnapshot<TModel>> IConfiglueStateSnapshotRuntime<TModel>.GetSnapshotAsync(
+        CancellationToken cancellationToken
+    )
+    {
+        var subject = await subjectAccessor
+            .GetCurrentSubjectAsync(cancellationToken)
+            .ConfigureAwait(false);
+        var options = subjectOptions.ForSubject(subject);
+        if (options is not IConfiglueStateSnapshotRuntime<TModel> runtime)
+        {
+            throw new NotSupportedException(
+                "This options implementation does not expose resolved snapshots."
+            );
+        }
+
+        return await runtime.GetSnapshotAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    public async ValueTask<EditSession<TModel>> OpenEditSessionAsync(
+        CancellationToken cancellationToken = default
+    )
+    {
+        var sessions = await ResolveSubjectEditSessionsAsync(cancellationToken)
+            .ConfigureAwait(false);
+        return await sessions.OpenEditSessionAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    public async ValueTask<EditSession<TModel>> OpenEditSessionAsync(
+        StateWritePlan writePlan,
+        CancellationToken cancellationToken = default
+    )
+    {
+        ArgumentNullException.ThrowIfNull(writePlan);
+        var sessions = await ResolveSubjectEditSessionsAsync(cancellationToken)
+            .ConfigureAwait(false);
+        return await sessions
+            .OpenEditSessionAsync(writePlan, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    private async ValueTask<IConfiglueEditSessions<TModel>> ResolveSubjectEditSessionsAsync(
+        CancellationToken cancellationToken
+    )
+    {
+        var subject = await subjectAccessor
+            .GetCurrentSubjectAsync(cancellationToken)
+            .ConfigureAwait(false);
+        var options = subjectOptions.ForSubject(subject);
+        if (options is not IConfiglueEditSessions<TModel> sessions)
+        {
+            throw new NotSupportedException(
+                "This options implementation does not expose edit sessions."
+            );
+        }
+
+        return sessions;
     }
 }
 

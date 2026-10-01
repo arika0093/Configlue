@@ -7,11 +7,9 @@ namespace Configlue.Testing
         public bool IsPipelineReadPreferred { get; }
         public Configlue.Resources.ResourceId ResourceId { get; }
         public long WriteCount { get; }
-        public System.Threading.Tasks.ValueTask<Configlue.Resources.ResourceReadResult> ReadAsync(System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask<Configlue.Resources.ResourceReadResult> ReadAsync(Configlue.Resources.ConfiglueResourceContext context, System.Threading.CancellationToken cancellationToken = default) { }
-        public System.Threading.Tasks.ValueTask<Configlue.Resources.PipelineResourceReadResult> ReadPipelineAsync(System.Threading.CancellationToken cancellationToken = default) { }
-        public System.Threading.Tasks.ValueTask WaitForChangeAsync(string? observedRevision, System.Threading.CancellationToken cancellationToken = default) { }
-        public System.Threading.Tasks.ValueTask<Configlue.State.StateWriteResult> WriteAsync(Configlue.Resources.ResourceWriteRequest request, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Configlue.Resources.PipelineResourceReadResult> ReadPipelineAsync(Configlue.Resources.ConfiglueResourceContext context, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask WaitForChangeAsync(Configlue.Resources.ConfiglueResourceContext context, string? observedRevision, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask<Configlue.State.StateWriteResult> WriteAsync(Configlue.Resources.ConfiglueResourceContext context, Configlue.Resources.ResourceWriteRequest request, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask<Configlue.State.StateWriteResult> WriteBatchAsync(System.Collections.Generic.IReadOnlyList<Configlue.Resources.ResourceWriteMutation> mutations, System.Threading.CancellationToken cancellationToken = default) { }
     }
@@ -19,11 +17,11 @@ namespace Configlue.Testing
     {
         public InMemoryStateSource() { }
         public InMemoryStateSource(T? initialValue) { }
-        public System.Threading.Tasks.ValueTask<Configlue.State.StateReadResult<T>> ReadAsync(System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Configlue.State.StateReadResult<T>> ReadAsync(Configlue.Resources.ConfiglueResourceContext context, System.Threading.CancellationToken cancellationToken = default) { }
         public void Set(T? value) { }
         public void SetNotFound() { }
         public void SetUnavailable() { }
-        public System.Threading.Tasks.ValueTask WaitForChangeAsync(string? observedRevision, System.Threading.CancellationToken cancellationToken = default) { }
-        public System.Threading.Tasks.ValueTask<Configlue.State.StateWriteResult> WriteAsync(Configlue.State.StateWriteRequest<T> request, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask WaitForChangeAsync(Configlue.Resources.ConfiglueResourceContext context, string? observedRevision, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Configlue.State.StateWriteResult> WriteAsync(Configlue.Resources.ConfiglueResourceContext context, Configlue.State.StateWriteRequest<T> request, System.Threading.CancellationToken cancellationToken = default) { }
     }
 }

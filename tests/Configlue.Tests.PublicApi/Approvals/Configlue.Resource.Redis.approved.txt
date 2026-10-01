@@ -1,7 +1,7 @@
 [assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/arika0093/Configlue")]
 namespace Configlue.Resource.Redis
 {
-    public sealed class RedisResource : Configlue.Resources.IContextualResourceIdentity, Configlue.Resources.IResourceIdentity, Configlue.Resources.IResourceReader, Configlue.Resources.IResourceWriter, Configlue.Sources.IContextualSourceWatcher, Configlue.Sources.ISourceWatcher, System.IDisposable
+    public sealed class RedisResource : Configlue.Resources.IContextualResourceIdentity, Configlue.Resources.IResourceIdentity, Configlue.Resources.IResourceReader, Configlue.Resources.IResourceWriter, Configlue.Sources.ISourceWatcher, System.IDisposable
     {
         public RedisResource(StackExchange.Redis.IConnectionMultiplexer connectionMultiplexer, string resourceNamespace, Configlue.Resource.Redis.RedisResourceOptions? options = null) { }
         public RedisResource(System.Func<Configlue.RouteKey, StackExchange.Redis.IConnectionMultiplexer> connectionMultiplexerResolver, string resourceNamespace, Configlue.Resource.Redis.RedisResourceOptions? options = null) { }
@@ -9,11 +9,8 @@ namespace Configlue.Resource.Redis
         public string ResourceNamespace { get; }
         public void Dispose() { }
         public Configlue.Resources.ResourceId GetResourceId(Configlue.Resources.ConfiglueResourceContext context) { }
-        public System.Threading.Tasks.ValueTask<Configlue.Resources.ResourceReadResult> ReadAsync(System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask<Configlue.Resources.ResourceReadResult> ReadAsync(Configlue.Resources.ConfiglueResourceContext context, System.Threading.CancellationToken cancellationToken = default) { }
-        public System.Threading.Tasks.ValueTask WaitForChangeAsync(string? observedRevision, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask WaitForChangeAsync(Configlue.Resources.ConfiglueResourceContext context, string? observedRevision, System.Threading.CancellationToken cancellationToken = default) { }
-        public System.Threading.Tasks.ValueTask<Configlue.State.StateWriteResult> WriteAsync(Configlue.Resources.ResourceWriteRequest request, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask<Configlue.State.StateWriteResult> WriteAsync(Configlue.Resources.ConfiglueResourceContext context, Configlue.Resources.ResourceWriteRequest request, System.Threading.CancellationToken cancellationToken = default) { }
     }
     public sealed class RedisResourceOptions

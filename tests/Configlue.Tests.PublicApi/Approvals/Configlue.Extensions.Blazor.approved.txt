@@ -32,9 +32,7 @@ namespace Configlue.Extensions.Blazor
         public WebStorageResource(Microsoft.JSInterop.IJSRuntime jsRuntime, Configlue.Extensions.Blazor.WebStorageKind kind, string key, System.Func<Configlue.Resources.ConfiglueResourceContext, string>? keySelector = null) { }
         public string Key { get; }
         public Configlue.Extensions.Blazor.WebStorageKind Kind { get; }
-        public System.Threading.Tasks.ValueTask<Configlue.Resources.ResourceReadResult> ReadAsync(System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask<Configlue.Resources.ResourceReadResult> ReadAsync(Configlue.Resources.ConfiglueResourceContext context, System.Threading.CancellationToken cancellationToken = default) { }
-        public System.Threading.Tasks.ValueTask<Configlue.State.StateWriteResult> WriteAsync(Configlue.Resources.ResourceWriteRequest request, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask<Configlue.State.StateWriteResult> WriteAsync(Configlue.Resources.ConfiglueResourceContext context, Configlue.Resources.ResourceWriteRequest request, System.Threading.CancellationToken cancellationToken = default) { }
     }
     public sealed class WebStorageSourceOptions

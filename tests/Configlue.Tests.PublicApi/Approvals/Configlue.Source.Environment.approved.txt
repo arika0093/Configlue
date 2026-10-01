@@ -20,7 +20,7 @@ namespace Configlue.Source.Environment
         where TFragment :  class, Configlue.IConfiglueFragment<TFragment>
     {
         public EnvironmentStateReader(Configlue.ConfiglueModelSchema schema, string prefix, System.Func<System.Collections.Generic.IEnumerable<System.Collections.Generic.KeyValuePair<string, string?>>>? environmentVariables = null, System.Func<string, System.Type, object?>? valueParser = null, System.Text.Json.JsonSerializerOptions? jsonSerializerOptions = null) { }
-        public System.Threading.Tasks.ValueTask<Configlue.State.StateReadResult<TFragment>> ReadAsync(System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Configlue.State.StateReadResult<TFragment>> ReadAsync(Configlue.Resources.ConfiglueResourceContext context, System.Threading.CancellationToken cancellationToken = default) { }
     }
     public static class EnvironmentStateSource
     {

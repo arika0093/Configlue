@@ -336,6 +336,32 @@ public sealed partial class ConfiglueGenerator
             "return new " + modelType + ".Details((" + modelType + ")snapshot.Value!, snapshot);"
         );
         code.AppendLineAt(1, "}");
+        code.AppendLineAt(
+            1,
+            "public static "
+                + modelType
+                + ".Details GetDetails(this global::Configlue.StateSnapshot<"
+                + modelType
+                + "> snapshot)"
+        );
+        code.AppendLineAt(1, "{");
+        AppendNullGuard(code, 2, "snapshot");
+        code.AppendLineAt(2, "if (snapshot.Details is null)");
+        code.AppendLineAt(2, "{");
+        code.AppendLineAt(
+            3,
+            "throw new global::System.InvalidOperationException(\"This snapshot does not carry configuration details.\");"
+        );
+        code.AppendLineAt(2, "}");
+        code.AppendLineAt(
+            2,
+            "return new "
+                + modelType
+                + ".Details(("
+                + modelType
+                + ")snapshot.Value!, snapshot.Details);"
+        );
+        code.AppendLineAt(1, "}");
         code.AppendLine("}");
     }
 }

@@ -55,6 +55,11 @@ namespace Configlue.CompilerServices
         public static Configlue.CompilerServices.ConfiglueModelOperations<TModel, TFragment> Current { get; }
         public static void Register(Configlue.CompilerServices.ConfiglueModelOperations<TModel, TFragment> operations) { }
     }
+    public static class ConfiglueModelSchemaCatalog
+    {
+        public static void Register(System.Type modelType, Configlue.ConfiglueModelSchema schema) { }
+        public static bool TryGet(System.Type modelType, out Configlue.ConfiglueModelSchema schema) { }
+    }
     public static class ConfiglueModelSchemaRegistry<TModel>
         where TModel : Configlue.CompilerServices.IConfiglueModel
     {
