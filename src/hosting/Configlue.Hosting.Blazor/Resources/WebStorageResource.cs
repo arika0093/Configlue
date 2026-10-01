@@ -4,7 +4,7 @@ using System.Text.Json;
 using Configlue.Resources;
 using Microsoft.JSInterop;
 
-namespace Configlue.Extensions.Blazor;
+namespace Configlue.Hosting.Blazor;
 
 /// <summary>Selects which browser storage area backs a WebStorage resource.</summary>
 public enum WebStorageKind

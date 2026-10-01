@@ -1,5 +1,5 @@
 [assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/arika0093/Configlue")]
-namespace Configlue.Extensions.Blazor
+namespace Configlue.Hosting.Blazor
 {
     public static class BlazorAuthenticationConfiglueSubjectAccessorServiceCollectionExtensions
     {
@@ -31,7 +31,7 @@ namespace Configlue.Extensions.Blazor
         public bool IsLoading { get; }
         public bool IsSaving { get; }
         public bool IsSubjectChanged { get; }
-        public Configlue.Extensions.Blazor.StateEditorErrorEventArgs<T>? LastError { get; }
+        public Configlue.Hosting.Blazor.StateEditorErrorEventArgs<T>? LastError { get; }
         public Configlue.StateWriteReceipt? LastReceipt { get; }
         public System.Exception? LoadFailure { get; }
         public Configlue.EditSession<T> Session { get; }
@@ -45,12 +45,12 @@ namespace Configlue.Extensions.Blazor
     }
     public sealed class StateEditorErrorEventArgs<T> : System.EventArgs
     {
-        public StateEditorErrorEventArgs(Configlue.Extensions.Blazor.StateEditorOperation operation, Configlue.Extensions.Blazor.StateEditorErrorKind kind, System.Exception exception) { }
+        public StateEditorErrorEventArgs(Configlue.Hosting.Blazor.StateEditorOperation operation, Configlue.Hosting.Blazor.StateEditorErrorKind kind, System.Exception exception) { }
         public Configlue.State.StateConflictException? ConflictException { get; }
         public System.Exception Exception { get; }
-        public Configlue.Extensions.Blazor.StateEditorErrorKind Kind { get; }
+        public Configlue.Hosting.Blazor.StateEditorErrorKind Kind { get; }
         public Configlue.StateMultiWriteException? MultiWriteException { get; }
-        public Configlue.Extensions.Blazor.StateEditorOperation Operation { get; }
+        public Configlue.Hosting.Blazor.StateEditorOperation Operation { get; }
         public Configlue.ConfiglueValidationException? ValidationException { get; }
     }
     public enum StateEditorErrorKind
@@ -85,7 +85,7 @@ namespace Configlue.Extensions.Blazor
         [Microsoft.AspNetCore.Components.Parameter]
         public bool AutoRebaseOnCleanUpstreamChange { get; set; }
         [Microsoft.AspNetCore.Components.Parameter]
-        public Microsoft.AspNetCore.Components.RenderFragment<Configlue.Extensions.Blazor.StateEditorContext<T>>? ChildContent { get; set; }
+        public Microsoft.AspNetCore.Components.RenderFragment<Configlue.Hosting.Blazor.StateEditorContext<T>>? ChildContent { get; set; }
         [Microsoft.AspNetCore.Components.Inject]
         public Configlue.IConfiglueEditSessions<T> EditSessions { get; set; }
         [Microsoft.AspNetCore.Components.Parameter]
@@ -93,9 +93,9 @@ namespace Configlue.Extensions.Blazor
         [Microsoft.AspNetCore.Components.Parameter]
         public Microsoft.AspNetCore.Components.RenderFragment? LoadingContent { get; set; }
         [Microsoft.AspNetCore.Components.Parameter]
-        public Microsoft.AspNetCore.Components.EventCallback<Configlue.Extensions.Blazor.StateEditorErrorEventArgs<T>> OnError { get; set; }
+        public Microsoft.AspNetCore.Components.EventCallback<Configlue.Hosting.Blazor.StateEditorErrorEventArgs<T>> OnError { get; set; }
         [Microsoft.AspNetCore.Components.Parameter]
-        public Microsoft.AspNetCore.Components.EventCallback<Configlue.Extensions.Blazor.StateEditorSubjectChangedEventArgs> OnSubjectChanged { get; set; }
+        public Microsoft.AspNetCore.Components.EventCallback<Configlue.Hosting.Blazor.StateEditorSubjectChangedEventArgs> OnSubjectChanged { get; set; }
         [Microsoft.AspNetCore.Components.Inject]
         public System.IServiceProvider Services { get; set; }
         protected override void BuildRenderTree(Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder @__builder) { }
@@ -115,7 +115,7 @@ namespace Configlue.Extensions.Blazor
     {
         public StateReader() { }
         [Microsoft.AspNetCore.Components.Parameter]
-        public Microsoft.AspNetCore.Components.RenderFragment<Configlue.Extensions.Blazor.StateReaderContext<T>>? ChildContent { get; set; }
+        public Microsoft.AspNetCore.Components.RenderFragment<Configlue.Hosting.Blazor.StateReaderContext<T>>? ChildContent { get; set; }
         [Microsoft.AspNetCore.Components.Parameter]
         public Microsoft.AspNetCore.Components.RenderFragment<System.Exception>? LoadFailedContent { get; set; }
         [Microsoft.AspNetCore.Components.Parameter]
@@ -137,9 +137,9 @@ namespace Configlue.Extensions.Blazor
     }
     public sealed class WebStorageResource : Configlue.Resources.IResourceReader, Configlue.Resources.IResourceWriter
     {
-        public WebStorageResource(Microsoft.JSInterop.IJSRuntime jsRuntime, Configlue.Extensions.Blazor.WebStorageKind kind, string key, System.Func<Configlue.Resources.ConfiglueResourceContext, string>? keySelector = null) { }
+        public WebStorageResource(Microsoft.JSInterop.IJSRuntime jsRuntime, Configlue.Hosting.Blazor.WebStorageKind kind, string key, System.Func<Configlue.Resources.ConfiglueResourceContext, string>? keySelector = null) { }
         public string Key { get; }
-        public Configlue.Extensions.Blazor.WebStorageKind Kind { get; }
+        public Configlue.Hosting.Blazor.WebStorageKind Kind { get; }
         public System.Threading.Tasks.ValueTask<Configlue.Resources.ResourceReadResult> ReadAsync(Configlue.Resources.ConfiglueResourceContext context, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask<Configlue.State.StateWriteResult> WriteAsync(Configlue.Resources.ConfiglueResourceContext context, Configlue.Resources.ResourceWriteRequest request, System.Threading.CancellationToken cancellationToken = default) { }
     }
@@ -152,19 +152,19 @@ namespace Configlue.Extensions.Blazor
         public string? Id { get; set; }
         public string Key { get; set; }
         public System.Func<Configlue.Resources.ConfiglueResourceContext, string>? KeySelector { get; set; }
-        public Configlue.Extensions.Blazor.WebStorageKind Kind { get; set; }
+        public Configlue.Hosting.Blazor.WebStorageKind Kind { get; set; }
         public int Priority { get; set; }
         public bool Writable { get; set; }
     }
     public static class WebStorageSourceRegistration
     {
-        public static Configlue.Extensibility.ConfiglueSourceRegistration FromLocalStorage(this Configlue.ConfiglueSourceSetBuilder sources, Configlue.Extensions.Blazor.WebStorageSourceOptions options) { }
+        public static Configlue.Extensibility.ConfiglueSourceRegistration FromLocalStorage(this Configlue.ConfiglueSourceSetBuilder sources, Configlue.Hosting.Blazor.WebStorageSourceOptions options) { }
         public static Configlue.Extensibility.ConfiglueSourceRegistration FromLocalStorage(this Configlue.ConfiglueSourceSetBuilder sources, string key) { }
-        public static Configlue.Extensibility.ConfiglueSourceRegistration FromSessionStorage(this Configlue.ConfiglueSourceSetBuilder sources, Configlue.Extensions.Blazor.WebStorageSourceOptions options) { }
+        public static Configlue.Extensibility.ConfiglueSourceRegistration FromSessionStorage(this Configlue.ConfiglueSourceSetBuilder sources, Configlue.Hosting.Blazor.WebStorageSourceOptions options) { }
         public static Configlue.Extensibility.ConfiglueSourceRegistration FromSessionStorage(this Configlue.ConfiglueSourceSetBuilder sources, string key) { }
-        public static void UseLocalStorage<TModel>(this Configlue.ConfiglueModelBuilder<TModel> model, string key, System.Action<Configlue.Extensions.Blazor.WebStorageSourceOptions>? configure = null)
+        public static void UseLocalStorage<TModel>(this Configlue.ConfiglueModelBuilder<TModel> model, string key, System.Action<Configlue.Hosting.Blazor.WebStorageSourceOptions>? configure = null)
             where TModel : Configlue.CompilerServices.IConfiglueFacadeModel<TModel> { }
-        public static void UseSessionStorage<TModel>(this Configlue.ConfiglueModelBuilder<TModel> model, string key, System.Action<Configlue.Extensions.Blazor.WebStorageSourceOptions>? configure = null)
+        public static void UseSessionStorage<TModel>(this Configlue.ConfiglueModelBuilder<TModel> model, string key, System.Action<Configlue.Hosting.Blazor.WebStorageSourceOptions>? configure = null)
             where TModel : Configlue.CompilerServices.IConfiglueFacadeModel<TModel> { }
     }
     public sealed class WebStorageUnavailableException : System.InvalidOperationException

@@ -2,7 +2,7 @@ using Configlue;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace Configlue.Extensions.AspNetCore;
+namespace Configlue.Hosting.AspNetCore;
 
 /// <summary>Resolves a Configlue subject from the current ASP.NET Core request.</summary>
 public sealed class HttpContextConfiglueSubjectAccessor<TSubject>

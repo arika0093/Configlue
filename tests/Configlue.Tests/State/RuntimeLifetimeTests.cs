@@ -1,4 +1,4 @@
-using Configlue.Extensions.Blazor;
+using Configlue.Hosting.Blazor;
 using Configlue.Sources;
 using Configlue.Testing;
 using Microsoft.Extensions.DependencyInjection;

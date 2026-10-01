@@ -4,7 +4,7 @@ using Configlue;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace Configlue.Extensions.Blazor;
+namespace Configlue.Hosting.Blazor;
 
 /// <summary>Resolves a Configlue subject from the current Blazor authentication state.</summary>
 public sealed class BlazorAuthenticationConfiglueSubjectAccessor<TSubject>

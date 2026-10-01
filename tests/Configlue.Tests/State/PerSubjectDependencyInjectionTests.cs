@@ -5,8 +5,8 @@ using Configlue.Sources;
 using Configlue.Testing;
 using Microsoft.Extensions.DependencyInjection;
 #if !NET48
-using Configlue.Extensions.AspNetCore;
-using Configlue.Extensions.Blazor;
+using Configlue.Hosting.AspNetCore;
+using Configlue.Hosting.Blazor;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Http;
 #endif

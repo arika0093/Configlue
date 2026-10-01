@@ -9,6 +9,7 @@ $portablePackageAssets = @{
     'Configlue'                      = @('netstandard2.0', 'netstandard2.1', 'net10.0')
     'Configlue.Abstraction'          = @('netstandard2.0', 'netstandard2.1', 'net10.0')
     'Configlue.Core'                 = @('netstandard2.0', 'netstandard2.1', 'net10.0')
+    'Configlue.Extensions.ComponentModel' = @('netstandard2.0', 'netstandard2.1', 'net10.0')
     'Configlue.Extensions.DI'        = @('netstandard2.0', 'netstandard2.1', 'net10.0')
     'Configlue.Extensions.MSOptions' = @('netstandard2.0', 'netstandard2.1', 'net10.0')
     'Configlue.Extensions.R3'        = @('netstandard2.0', 'netstandard2.1', 'net10.0')
@@ -26,8 +27,8 @@ $portablePackageAssets = @{
 # Package-specific higher floors.
 $flooredPackageAssets = @{
     'Configlue.Transformer.AES'             = @('netstandard2.1', 'net10.0')
-    'Configlue.Extensions.AspNetCore'       = @('net10.0')
-    'Configlue.Extensions.Blazor'           = @('net10.0')
+    'Configlue.Hosting.AspNetCore'       = @('net10.0')
+    'Configlue.Hosting.Blazor'           = @('net10.0')
     'Configlue.Source.PostgreSql'           = @('net8.0', 'net10.0')
     'Configlue.Source.PostgreSql.Migrations' = @('net8.0', 'net10.0')
 }

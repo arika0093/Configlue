@@ -1,0 +1,72 @@
+[assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/arika0093/Configlue")]
+namespace Configlue.Extensions.ComponentModel
+{
+    public static class ConfiglueDispatcher
+    {
+        public static Configlue.Extensions.ComponentModel.IConfiglueDispatcher Immediate { get; }
+        public static Configlue.Extensions.ComponentModel.IConfiglueDispatcher FromCurrentSynchronizationContext() { }
+    }
+    public sealed class ConfiglueStateEditor<T> : System.ComponentModel.IDataErrorInfo, System.ComponentModel.INotifyDataErrorInfo, System.ComponentModel.INotifyPropertyChanged, System.IDisposable
+        where T :  class
+    {
+        public ConfiglueStateEditor(Configlue.IConfiglueEditSessions<T> editSessions, Configlue.Extensions.ComponentModel.IConfiglueDispatcher? dispatcher = null, Configlue.IConfiglueDiagnostics<T>? diagnostics = null, Configlue.IConfiglueSubjectChangeSource? subjectChangeSource = null) { }
+        public bool AllowSavingInvalidatedDraft { get; set; }
+        public bool AutoRebaseOnCleanUpstreamChange { get; set; }
+        public string Error { get; }
+        public bool HasErrors { get; }
+        public bool HasUpstreamChanges { get; }
+        public bool IsDirty { get; }
+        public bool IsLoading { get; }
+        public bool IsSaving { get; }
+        public bool IsSubjectChanged { get; }
+        public string this[string columnName] { get; }
+        public System.Exception? LastException { get; }
+        public Configlue.StateWriteReceipt? LastReceipt { get; }
+        public Configlue.StateSnapshot<T>? LatestUpstream { get; }
+        public System.Exception? LoadFailure { get; }
+        public Configlue.EditSession<T>? Session { get; }
+        public Configlue.StateSnapshot<T>? SessionStart { get; }
+        public System.Collections.Generic.IReadOnlyList<string> ValidationFailures { get; }
+        public object? Value { get; }
+        public event System.EventHandler<System.ComponentModel.DataErrorsChangedEventArgs>? ErrorsChanged;
+        public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
+        public void Dispose() { }
+        public System.Collections.IEnumerable GetErrors(string? propertyName) { }
+        public System.Threading.Tasks.ValueTask InitializeAsync(System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask RebaseAsync(System.Threading.CancellationToken cancellationToken = default) { }
+        public void ResetToDefault() { }
+        public void ResetToSessionStart() { }
+        public void ResetToUpstream() { }
+        public System.Threading.Tasks.ValueTask SaveAsync(System.Threading.CancellationToken cancellationToken = default) { }
+    }
+    public sealed class ConfiglueStateReader<T> : System.ComponentModel.INotifyPropertyChanged, System.IDisposable
+    {
+        public ConfiglueStateReader(Configlue.IReadOnlyState<T> state, Configlue.Extensions.ComponentModel.IConfiglueDispatcher? dispatcher = null, Configlue.IConfiglueDiagnostics<T>? diagnostics = null) { }
+        public bool HasValue { get; }
+        public bool IsLoading { get; }
+        public System.Exception? LoadFailure { get; }
+        public System.Exception? ReloadFailure { get; }
+        public Configlue.StateSnapshot<T>? Snapshot { get; }
+        public object? Value { get; }
+        public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
+        public void Dispose() { }
+        public System.Threading.Tasks.ValueTask InitializeAsync(System.Threading.CancellationToken cancellationToken = default) { }
+    }
+    public interface IConfiglueDispatcher
+    {
+        bool CheckAccess();
+        void Post(System.Action action);
+    }
+    public sealed class ImmediateConfiglueDispatcher : Configlue.Extensions.ComponentModel.IConfiglueDispatcher
+    {
+        public static Configlue.Extensions.ComponentModel.ImmediateConfiglueDispatcher Instance { get; }
+        public bool CheckAccess() { }
+        public void Post(System.Action action) { }
+    }
+    public sealed class SynchronizationContextConfiglueDispatcher : Configlue.Extensions.ComponentModel.IConfiglueDispatcher
+    {
+        public SynchronizationContextConfiglueDispatcher(System.Threading.SynchronizationContext context) { }
+        public bool CheckAccess() { }
+        public void Post(System.Action action) { }
+    }
+}

@@ -69,6 +69,11 @@ public sealed partial class ConfiglueGenerator
             hasJsonFragmentRegistry
         );
         AppendDetailsTree(code, modelType, members);
+        if (!model.IsStruct)
+        {
+            AppendObservableModel(code, modelType, true, members);
+        }
+
         AppendStructuralModels(
             code,
             structuralModels,
@@ -116,6 +121,12 @@ public sealed partial class ConfiglueGenerator
                 structuralModel.Members
             );
             AppendDetailsTree(code, structuralModel.ValueTypeName, structuralModel.Members);
+            AppendObservableModel(
+                code,
+                structuralModel.ValueTypeName,
+                true,
+                structuralModel.Members
+            );
             AppendFragment(
                 code,
                 structuralModel.ValueTypeName,

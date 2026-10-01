@@ -1,4 +1,4 @@
-namespace Configlue.Extensions.Blazor;
+namespace Configlue.Hosting.Blazor;
 
 /// <summary>Read-only view over a component-resolved configuration snapshot.</summary>
 /// <typeparam name="T">The configuration model type.</typeparam>

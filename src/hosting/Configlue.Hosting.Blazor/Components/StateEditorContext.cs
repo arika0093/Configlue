@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
 
-namespace Configlue.Extensions.Blazor;
+namespace Configlue.Hosting.Blazor;
 
 /// <summary>Edit context exposed to <see cref="StateEditor{T}"/> child content.</summary>
 /// <typeparam name="T">The configuration model type.</typeparam>

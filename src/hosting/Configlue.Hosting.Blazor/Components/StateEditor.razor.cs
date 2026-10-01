@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace Configlue.Extensions.Blazor;
+namespace Configlue.Hosting.Blazor;
 
 /// <summary>
 /// Headless component that owns a Core <see cref="EditSession{T}"/> and exposes it to standard

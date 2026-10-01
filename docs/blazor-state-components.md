@@ -1,6 +1,6 @@
 # Headless Blazor settings page
 
-`Configlue.Extensions.Blazor` provides two headless components that adapt the Core
+`Configlue.Hosting.Blazor` provides two headless components that adapt the Core
 snapshot and edit-session APIs to Blazor. They render no visual controls and do not
 wrap `EditForm`; the application supplies its own markup and form components.
 

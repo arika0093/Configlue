@@ -1,5 +1,5 @@
 [assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/arika0093/Configlue")]
-namespace Configlue.Extensions.AspNetCore
+namespace Configlue.Hosting.AspNetCore
 {
     public static class HttpContextConfiglueSubjectAccessorServiceCollectionExtensions
     {
@@ -33,6 +33,6 @@ namespace Configlue.Extensions.AspNetCore
     }
     public static class HttpResourceEndpointRouteBuilderExtensions
     {
-        public static Microsoft.AspNetCore.Routing.RouteGroupBuilder MapConfiglueHttpResource(this Microsoft.AspNetCore.Routing.IEndpointRouteBuilder endpoints, string routeRoot, Configlue.Resources.IResourceReader reader, Configlue.Resources.IResourceWriter? writer = null, Configlue.Extensions.AspNetCore.HttpResourceEndpointOptions? options = null) { }
+        public static Microsoft.AspNetCore.Routing.RouteGroupBuilder MapConfiglueHttpResource(this Microsoft.AspNetCore.Routing.IEndpointRouteBuilder endpoints, string routeRoot, Configlue.Resources.IResourceReader reader, Configlue.Resources.IResourceWriter? writer = null, Configlue.Hosting.AspNetCore.HttpResourceEndpointOptions? options = null) { }
     }
 }

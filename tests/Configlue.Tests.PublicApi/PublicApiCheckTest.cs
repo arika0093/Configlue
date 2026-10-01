@@ -4,8 +4,9 @@ using System.Runtime.Versioning;
 using System.Text;
 using Configlue;
 using Configlue.CompilerServices;
-using Configlue.Extensions.AspNetCore;
-using Configlue.Extensions.Blazor;
+using Configlue.Hosting.AspNetCore;
+using Configlue.Hosting.Blazor;
+using Configlue.Extensions.ComponentModel;
 using Configlue.Extensions.MSOptions;
 using Configlue.Generator;
 using Configlue.Provider.Json;
@@ -181,6 +182,10 @@ public sealed class PublicApiCheckTest
     [Test]
     public void DependencyInjection() =>
         PublicApiCheck.CheckAssembly(typeof(ConfiglueServiceCollectionExtensions).Assembly);
+
+    [Test]
+    public void ComponentModel() =>
+        PublicApiCheck.CheckAssembly(typeof(ConfiglueStateReader<>).Assembly);
 
     [Test]
     public void MicrosoftOptions() =>

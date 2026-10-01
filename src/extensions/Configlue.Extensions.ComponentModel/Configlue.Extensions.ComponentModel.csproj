@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>netstandard2.0;netstandard2.1;net10.0</TargetFrameworks>
+    <AssemblyName>Configlue.Extensions.ComponentModel</AssemblyName>
+    <RootNamespace>Configlue.Extensions.ComponentModel</RootNamespace>
+    <IsPackable>true</IsPackable>
+    <PackageDescription>Host-neutral ComponentModel binding adapters for Configlue: INotifyPropertyChanged/INotifyDataErrorInfo read and edit views over snapshots and edit sessions, with a UI dispatch abstraction.</PackageDescription>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../basic/Configlue.Abstraction/Configlue.Abstraction.csproj" />
+    <ProjectReference Include="../../basic/Configlue.Core/Configlue.Core.csproj" />
+  </ItemGroup>
+</Project>

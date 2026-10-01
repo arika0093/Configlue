@@ -1,7 +1,7 @@
 using System.Linq.Expressions;
 using Bunit;
 using Configlue;
-using Configlue.Extensions.Blazor;
+using Configlue.Hosting.Blazor;
 using Configlue.Testing;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;

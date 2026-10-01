@@ -47,6 +47,7 @@
     <Compile Remove="Extensions/ObservableAdapterTests.cs" />
     <Compile Remove="ReactiveSupport/ReactiveFixtures.cs" />
     <Compile Remove="Blazor/**/*.cs" />
+    <Compile Remove="ComponentModel/**/*.cs" />
   </ItemGroup>
   <ItemGroup Condition="'$(ConfiglueNetStandard)' == 'true'">
     <PackageReference Remove="TUnit;Shouldly;Microsoft.Testing.Extensions.Retry" />
@@ -86,8 +87,9 @@
   <ItemGroup Condition="'$(TargetFramework)' == 'net10.0'">
     <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" Version="10.0.0" />
     <ProjectReference Include="../../src/extensions/Configlue.Extensions.R3/Configlue.Extensions.R3.csproj" />
-    <ProjectReference Include="../../src/extensions/Configlue.Extensions.AspNetCore/Configlue.Extensions.AspNetCore.csproj" />
-    <ProjectReference Include="../../src/extensions/Configlue.Extensions.Blazor/Configlue.Extensions.Blazor.csproj" />
+    <ProjectReference Include="../../src/extensions/Configlue.Extensions.ComponentModel/Configlue.Extensions.ComponentModel.csproj" />
+    <ProjectReference Include="../../src/hosting/Configlue.Hosting.AspNetCore/Configlue.Hosting.AspNetCore.csproj" />
+    <ProjectReference Include="../../src/hosting/Configlue.Hosting.Blazor/Configlue.Hosting.Blazor.csproj" />
     <ProjectReference Include="../../src/tools/Configlue.JsonSchema.MSBuild/Configlue.JsonSchema.MSBuild.csproj" />
     <ProjectReference Include="../Configlue.JsonSchema.MSBuild.Fixtures/Configlue.JsonSchema.MSBuild.Fixtures.csproj" />
     <ProjectReference Include="../../src/sources/Configlue.Source.PostgreSql/Configlue.Source.PostgreSql.csproj" />

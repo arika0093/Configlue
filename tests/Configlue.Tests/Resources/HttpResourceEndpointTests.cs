@@ -3,7 +3,7 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Encodings.Web;
 using Configlue;
-using Configlue.Extensions.AspNetCore;
+using Configlue.Hosting.AspNetCore;
 using Configlue.Resource.Http;
 using Configlue.Testing;
 using Microsoft.AspNetCore.Authentication;

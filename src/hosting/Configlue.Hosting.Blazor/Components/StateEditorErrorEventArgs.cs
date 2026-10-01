@@ -1,4 +1,4 @@
-namespace Configlue.Extensions.Blazor;
+namespace Configlue.Hosting.Blazor;
 
 /// <summary>The editor operation that produced an error.</summary>
 public enum StateEditorOperation

@@ -6,11 +6,14 @@
     <Project Path="src/basic/Configlue/Configlue.csproj" />
   </Folder>
   <Folder Name="/src/extensions/">
-    <Project Path="src/extensions/Configlue.Extensions.AspNetCore/Configlue.Extensions.AspNetCore.csproj" />
-    <Project Path="src/extensions/Configlue.Extensions.Blazor/Configlue.Extensions.Blazor.csproj" />
+    <Project Path="src/extensions/Configlue.Extensions.ComponentModel/Configlue.Extensions.ComponentModel.csproj" />
     <Project Path="src/extensions/Configlue.Extensions.DI/Configlue.Extensions.DI.csproj" />
     <Project Path="src/extensions/Configlue.Extensions.MSOptions/Configlue.Extensions.MSOptions.csproj" />
     <Project Path="src/extensions/Configlue.Extensions.R3/Configlue.Extensions.R3.csproj" />
+  </Folder>
+  <Folder Name="/src/hosting/">
+    <Project Path="src/hosting/Configlue.Hosting.AspNetCore/Configlue.Hosting.AspNetCore.csproj" />
+    <Project Path="src/hosting/Configlue.Hosting.Blazor/Configlue.Hosting.Blazor.csproj" />
   </Folder>
   <Folder Name="/src/providers/">
     <Project Path="src/providers/Configlue.Provider.Json/Configlue.Provider.Json.csproj" />
