@@ -136,7 +136,11 @@ public sealed class SparseFragmentsGenerator : IIncrementalGenerator
             analysis.StructuralModels,
             cancellationToken
         );
-        return new SparseGenerationResult(model.HintName, source, analysis.Diagnostics);
+        return new SparseGenerationResult(
+            model.HintName,
+            GeneratedSourceFormatter.Format(source, cancellationToken),
+            analysis.Diagnostics
+        );
     }
 
     private static DiagnosticDescriptor GetDescriptor(string id) =>

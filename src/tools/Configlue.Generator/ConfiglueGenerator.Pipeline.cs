@@ -108,7 +108,14 @@ public sealed partial class ConfiglueGenerator
             hasMessagePackFragmentRegistry,
             cancellationToken
         );
-        return new GenerationResult(analysis.HintName, source, analysis.Diagnostics);
+        return new GenerationResult(
+            analysis.HintName,
+            SparseFragments.Generator.Shared.GeneratedSourceFormatter.Format(
+                source,
+                cancellationToken
+            ),
+            analysis.Diagnostics
+        );
     }
 
     private static GenerationAnalysis Analyze(

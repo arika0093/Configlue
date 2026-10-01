@@ -31,7 +31,7 @@ public sealed partial class ConfiglueGenerator
         }
         else
         {
-            generatedType = model.IsRecord ? "partial record class " : "partial class ";
+            generatedType = model.IsRecord ? "partial record " : "partial class ";
         }
         var name = EscapeIdentifier(model.Name);
         var modelId = model.ModelId;

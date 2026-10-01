@@ -46,6 +46,84 @@ public sealed class GeneratorHostCompatibilityTests
         """;
 
     [Test]
+    [Arguments("class", true)]
+    [Arguments("class", false)]
+    [Arguments("struct", true)]
+    [Arguments("struct", false)]
+    [Arguments("record", true)]
+    [Arguments("record", false)]
+    public void GeneratedSource_FormatsNestedTypes_AndPreservesLiterals(
+        string declaration,
+        bool namespaced
+    )
+    {
+        var source = $$"""
+            using Configlue;
+            {{(namespaced ? "namespace Formatting.Sample {" : "")}}
+            [ConfiglueModel("format.{model}")]
+            public partial {{declaration}} @event
+            {
+                public string @class { get; set; }
+                public Nested Child { get; set; }
+            }
+            public class Nested
+            {
+                public int Value { get; set; }
+            }
+            {{(namespaced ? "}" : "")}}
+            """;
+        var parseOptions = new CSharpParseOptions(LanguageVersion.CSharp9);
+        var modelTree = CSharpSyntaxTree.ParseText(source, parseOptions);
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(
+            new[] { new ConfiglueGenerator().AsSourceGenerator() },
+            parseOptions: parseOptions
+        );
+        driver.RunGeneratorsAndUpdateCompilation(
+            CreateCompilation(modelTree),
+            out var output,
+            out var diagnostics
+        );
+        diagnostics.ShouldBeEmpty();
+        var emit = output.Emit(Stream.Null);
+        emit.Success.ShouldBeTrue(BuildDiagnosticMessage(emit.Diagnostics));
+
+        var generated = GetGeneratedSource(output, modelTree);
+        generated.ShouldContain("\"format.{model}\"");
+        generated.ShouldNotContain("\t");
+        generated.ShouldNotContain("\r");
+        var modelIndent = namespaced ? "    " : "";
+        generated.ShouldContain("\n" + modelIndent + "partial " + declaration + " @event :");
+        generated.ShouldContain("\n" + modelIndent + "    public sealed class Fragment");
+        generated.ShouldContain(
+            "\n" + modelIndent + "    public sealed class __ConfiglueStructural_"
+        );
+        foreach (var line in generated.Split('\n'))
+        {
+            line.ShouldBe(line.TrimEnd(), "Generated lines must not contain trailing whitespace.");
+        }
+    }
+
+    [Test]
+    public void Generator_EmitsMessagePackSupportOnRoslyn431Host()
+    {
+        var parseOptions = new CSharpParseOptions(LanguageVersion.CSharp9);
+        var modelTree = CSharpSyntaxTree.ParseText(ModelSource, parseOptions);
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(
+            new[] { new ConfiglueGenerator().AsSourceGenerator() },
+            parseOptions: parseOptions
+        );
+        driver.RunGeneratorsAndUpdateCompilation(
+            CreateCompilation(modelTree),
+            out var output,
+            out var diagnostics
+        );
+        diagnostics.ShouldBeEmpty();
+        GetGeneratedSource(output, modelTree).ShouldContain("FragmentMessagePackFormatter");
+        var emit = output.Emit(Stream.Null);
+        emit.Success.ShouldBeTrue(BuildDiagnosticMessage(emit.Diagnostics));
+    }
+
+    [Test]
     public void Generator_RunsOnRoslyn431Host_AndEmitsCSharp9Source()
     {
         var parseOptions = new CSharpParseOptions(LanguageVersion.CSharp9);
@@ -140,7 +218,7 @@ public sealed class GeneratorHostCompatibilityTests
                 continue;
             }
 
-            builder.AppendLine(tree.ToString());
+            builder.Append(tree.ToString()).Append('\n');
         }
 
         return builder.ToString();
