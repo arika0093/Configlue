@@ -212,6 +212,21 @@ public sealed partial class ConfiglueGenerator
             modelIdValid && modelVersionValid
                 ? GetPreviousModels(model, modelId, modelVersion, cancellationToken, diagnostics)
                 : ImmutableArray<SymbolPreviousModelInfo>.Empty;
+        foreach (
+            var member in SparseFragments.Generator.Shared.ModelConstructionPlan.UnsupportedRequiredMembers(
+                model,
+                members.Select(static member => member.Property),
+                cancellationToken
+            )
+        )
+            diagnostics.Add(
+                GeneratorDiagnosticInfo.Create(
+                    UnsupportedRequired,
+                    member.Locations.FirstOrDefault(),
+                    member.Name
+                )
+            );
+
         foreach (var member in members)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -233,17 +248,6 @@ public sealed partial class ConfiglueGenerator
                         InvalidMergeStrategy,
                         member.Property.Locations.FirstOrDefault(),
                         member.MergeStrategyType?.ToDisplayString() ?? "<missing>",
-                        member.Property.Name
-                    )
-                );
-            }
-
-            if (SparseFragments.Generator.Shared.RoslynSymbolCompat.IsRequired(member.Property))
-            {
-                diagnostics.Add(
-                    GeneratorDiagnosticInfo.Create(
-                        UnsupportedRequired,
-                        member.Property.Locations.FirstOrDefault(),
                         member.Property.Name
                     )
                 );

@@ -57,16 +57,16 @@ public sealed partial class ConfiglueGenerator : IIncrementalGenerator
     );
     private static readonly DiagnosticDescriptor MissingConstructor = new(
         "CFG003",
-        "Model needs a public parameterless constructor",
-        "Class model '{0}' must have a public parameterless constructor",
+        "Model needs a parameterless constructor",
+        "Class model '{0}' must have a parameterless constructor",
         "Configlue",
         DiagnosticSeverity.Error,
         true
     );
     private static readonly DiagnosticDescriptor UnsupportedRequired = new(
         "CFG004",
-        "Required model members are unsupported",
-        "Required member '{0}' cannot be omitted from a sparse fragment",
+        "Required member cannot be constructed",
+        "Required member '{0}' must be represented by an accessible public property in the fragment construction plan",
         "Configlue",
         DiagnosticSeverity.Error,
         true

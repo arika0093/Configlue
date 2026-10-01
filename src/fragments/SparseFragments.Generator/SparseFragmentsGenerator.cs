@@ -40,8 +40,8 @@ public sealed class SparseFragmentsGenerator : IIncrementalGenerator
     );
     private static readonly DiagnosticDescriptor MissingConstructor = new(
         SparseDiagnosticIds.MissingConstructor,
-        "Model needs a public parameterless constructor",
-        "Class model '{0}' must have a public parameterless constructor",
+        "Model needs a parameterless constructor",
+        "Class model '{0}' must have a parameterless constructor",
         "SparseFragments",
         DiagnosticSeverity.Error,
         true
@@ -64,8 +64,8 @@ public sealed class SparseFragmentsGenerator : IIncrementalGenerator
     );
     private static readonly DiagnosticDescriptor UnsupportedRequired = new(
         SparseDiagnosticIds.UnsupportedRequired,
-        "Required model members are unsupported",
-        "Required member '{0}' cannot be omitted from a sparse fragment",
+        "Required member cannot be constructed",
+        "Required member '{0}' must be represented by an accessible public property in the fragment construction plan",
         "SparseFragments",
         DiagnosticSeverity.Error,
         true

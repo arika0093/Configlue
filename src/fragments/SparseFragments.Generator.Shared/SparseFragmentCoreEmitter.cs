@@ -303,6 +303,8 @@ internal sealed class SparseFragmentCoreEmitter(
         if (ModelConstructionPlan.ForMembers(members).CanOverlayAfterConstruction)
             return;
         code.AppendLineAt(1, "private readonly struct __SparseProjectionToken { }");
+        if (members.Any(static member => member.Property.IsRequired))
+            code.AppendLineAt(1, "[global::System.Diagnostics.CodeAnalysis.SetsRequiredMembers]");
         code.AppendLineAt(
             1,
             "private "
@@ -319,10 +321,24 @@ internal sealed class SparseFragmentCoreEmitter(
                 value = member.ChildIsReferenceType
                     ? access + ".Value?.ToModel()!"
                     : access + ".Value!.ToModel()";
-            code.AppendLineAt(
-                2,
-                "if (" + access + ".IsPresent) this." + name + " = " + value + ";"
-            );
+            if (member.Property.IsRequired)
+                code.AppendLineAt(
+                    2,
+                    "this."
+                        + name
+                        + " = "
+                        + access
+                        + ".IsPresent ? "
+                        + value
+                        + " : this."
+                        + name
+                        + "!;"
+                );
+            else
+                code.AppendLineAt(
+                    2,
+                    "if (" + access + ".IsPresent) this." + name + " = " + value + ";"
+                );
         }
         code.AppendLineAt(1, "}");
     }

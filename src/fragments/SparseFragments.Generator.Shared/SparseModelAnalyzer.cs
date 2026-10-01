@@ -57,6 +57,21 @@ internal static class SparseModelAnalyzer
         var members = GetMembers(model, config, cancellationToken).ToImmutableArray();
         var diagnostics = ImmutableArray.CreateBuilder<SparseGeneratorDiagnostic>();
 
+        foreach (
+            var member in ModelConstructionPlan.UnsupportedRequiredMembers(
+                model,
+                members.Select(static member => member.Property),
+                cancellationToken
+            )
+        )
+            diagnostics.Add(
+                new SparseGeneratorDiagnostic(
+                    SparseDiagnosticIds.UnsupportedRequired,
+                    member.Locations.FirstOrDefault(),
+                    member.Name
+                )
+            );
+
         foreach (var member in members)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -77,17 +92,6 @@ internal static class SparseModelAnalyzer
                 diagnostics.Add(
                     new SparseGeneratorDiagnostic(
                         SparseDiagnosticIds.InvalidMergeStrategy,
-                        member.Property.Locations.FirstOrDefault(),
-                        member.Property.Name
-                    )
-                );
-            }
-
-            if (RoslynSymbolCompat.IsRequired(member.Property))
-            {
-                diagnostics.Add(
-                    new SparseGeneratorDiagnostic(
-                        SparseDiagnosticIds.UnsupportedRequired,
                         member.Property.Locations.FirstOrDefault(),
                         member.Property.Name
                     )
@@ -723,7 +727,8 @@ internal static class SparseModelAnalyzer
         var property = new SparsePropertyModel(
             member.Property.Name,
             CreateTypeModel(member.Property.Type, config, cancellationToken),
-            member.Property.SetMethod?.IsInitOnly == true
+            member.Property.SetMethod?.IsInitOnly == true,
+            RoslynSymbolCompat.IsRequired(member.Property)
         );
         SparseTypeModel? childModel = null;
         string? childFragmentType = null;

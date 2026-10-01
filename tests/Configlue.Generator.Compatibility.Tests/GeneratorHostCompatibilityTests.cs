@@ -9,12 +9,48 @@ namespace Configlue.Generator.Compatibility.Tests;
 public sealed class GeneratorHostCompatibilityTests
 {
     [Test]
-    [Arguments(false, false)]
-    [Arguments(true, false)]
-    [Arguments(false, true)]
-    [Arguments(true, true)]
-    public void PrivateRootConstructorAndSparseDefaultsConstructOnce(bool standalone, bool initOnly)
+    [Arguments(false)]
+    [Arguments(true)]
+    public void RequiredFieldHasActionableConstructionDiagnostic(bool standalone)
     {
+        var runtime = standalone ? "SparseFragments" : "Configlue";
+        var attribute = standalone ? "SparseFragmentModel" : "ConfiglueModel(\"required-field\")";
+        var source = $$"""
+            using {{runtime}};
+            [{{attribute}}]
+            public partial class Settings { public required int Value; }
+            """;
+        var options = new CSharpParseOptions(LanguageVersion.Preview);
+        var compilation = CreateCompilation(CSharpSyntaxTree.ParseText(source, options));
+        IIncrementalGenerator generator = standalone
+            ? new SparseFragments.Generator.SparseFragmentsGenerator()
+            : new ConfiglueGenerator();
+        var result = CSharpGeneratorDriver
+            .Create(new[] { generator.AsSourceGenerator() }, parseOptions: options)
+            .RunGenerators(compilation)
+            .GetRunResult();
+        result.Results.Single().Exception.ShouldBeNull();
+        var diagnostic = result.Diagnostics.Single(d => d.Id == (standalone ? "SPF006" : "CFG004"));
+        diagnostic.GetMessage().ShouldContain("public property");
+        diagnostic.GetMessage().ShouldContain("Value");
+    }
+
+    [Test]
+    [Arguments(false, false, false)]
+    [Arguments(true, false, false)]
+    [Arguments(false, true, false)]
+    [Arguments(true, true, false)]
+    [Arguments(false, false, true)]
+    [Arguments(true, false, true)]
+    [Arguments(false, true, true)]
+    [Arguments(true, true, true)]
+    public void PrivateRootConstructorAndSparseDefaultsConstructOnce(
+        bool standalone,
+        bool initOnly,
+        bool required
+    )
+    {
+        var requiredKeyword = required ? "required " : string.Empty;
         var setter = initOnly ? "init" : "set";
         var runtime = standalone ? "SparseFragments" : "Configlue";
         var attribute = standalone
@@ -32,8 +68,8 @@ public sealed class GeneratorHostCompatibilityTests
             {
                 public static int Calls;
                 private Settings() { Identity = ++Calls; }
-                public int Identity { get; {{setter}}; }
-                public int Count { get; {{setter}}; } = 5;
+                public {{requiredKeyword}}int Identity { get; {{setter}}; }
+                public {{requiredKeyword}}int Count { get; {{setter}}; } = 5;
             }
             public static class Probe
             {
@@ -53,7 +89,10 @@ public sealed class GeneratorHostCompatibilityTests
                 }
             }
             """;
-        var options = new CSharpParseOptions(LanguageVersion.Latest);
+        // Roslyn 4.3.1 exposes C# 11 required members through its preview parser.
+        var options = new CSharpParseOptions(
+            required ? LanguageVersion.Preview : LanguageVersion.Latest
+        );
         var compilation = CreateCompilation(CSharpSyntaxTree.ParseText(source, options));
         IIncrementalGenerator generator = standalone
             ? new SparseFragments.Generator.SparseFragmentsGenerator()

@@ -38,7 +38,8 @@ public sealed partial class ConfiglueGenerator
             new SparsePropertyModel(
                 member.Property.Name,
                 ToSparseType(member.Property.Type),
-                member.Property.IsInitOnly
+                member.Property.IsInitOnly,
+                member.Property.IsRequired
             ),
             member.ChildModel is { } child ? ToSparseType(child) : null,
             member.MergeMode,
