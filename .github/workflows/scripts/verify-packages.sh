@@ -43,6 +43,7 @@ declare -A floored_package_assets=(
     [Configlue.Transformer.Compression]="netstandard2.1 net10.0"
     [Configlue.Hosting.AspNetCore]="net10.0"
     [Configlue.Hosting.Blazor]="net10.0"
+    [Configlue.Hosting.Avalonia]="net8.0 net10.0"
     [Configlue.Source.PostgreSql]="net8.0 net10.0"
     [Configlue.Source.PostgreSql.Migrations]="net8.0 net10.0"
 )

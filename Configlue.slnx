@@ -14,8 +14,7 @@
   <Folder Name="/src/hosting/">
     <Project Path="src/hosting/Configlue.Hosting.AspNetCore/Configlue.Hosting.AspNetCore.csproj" />
     <Project Path="src/hosting/Configlue.Hosting.Blazor/Configlue.Hosting.Blazor.csproj" />
-    <Project Path="src/hosting/Configlue.Hosting.Wpf/Configlue.Hosting.Wpf.csproj" />
-    <Project Path="src/hosting/Configlue.Hosting.WinForms/Configlue.Hosting.WinForms.csproj" />
+    <Project Path="src/hosting/Configlue.Hosting.Avalonia/Configlue.Hosting.Avalonia.csproj" />
   </Folder>
   <Folder Name="/src/providers/">
     <Project Path="src/providers/Configlue.Provider.Json/Configlue.Provider.Json.csproj" />
@@ -48,7 +47,7 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Configlue.Tests/Configlue.Tests.csproj" />
-    <Project Path="tests/Configlue.Hosting.Desktop.Tests/Configlue.Hosting.Desktop.Tests.csproj" />
+    <Project Path="tests/Configlue.Hosting.Avalonia.Tests/Configlue.Hosting.Avalonia.Tests.csproj" />
     <Project Path="tests/Configlue.Tests.PublicApi/Configlue.Tests.PublicApi.csproj" />
     <Project Path="tests/Configlue.Generator.Compatibility.Tests/Configlue.Generator.Compatibility.Tests.csproj" />
     <Project Path="tests/Configlue.JsonSchema.MSBuild.Fixtures/Configlue.JsonSchema.MSBuild.Fixtures.csproj" />

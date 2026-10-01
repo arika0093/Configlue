@@ -50,6 +50,26 @@ jobs:
           -- --retry-failed-tests 3 --timeout 5m
           --report-trx --no-progress
 
+      - name: Build Windows host integrations
+        if: matrix.os == 'windows-latest'
+        run: >
+          dotnet build Configlue.Hosting.Windows.slnx --configuration Release
+          -p:ShouldUnsetParentConfigurationAndPlatform=false
+
+      - name: Run WPF and Windows Forms native UI tests
+        if: matrix.os == 'windows-latest'
+        run: >
+          dotnet run --project tests/Configlue.Hosting.Desktop.Tests
+          --no-build --no-restore --configuration Release
+          -- --timeout 5m --report-trx --no-progress
+
+      - name: Run WinUI native queue tests
+        if: matrix.os == 'windows-latest'
+        run: >
+          dotnet run --project tests/Configlue.Hosting.WinUI.Tests
+          --no-build --no-restore --configuration Release
+          -- --timeout 5m --report-trx --no-progress
+
       - name: Pack NuGet packages
         run: >
           dotnet pack Configlue.slnx --no-build --no-restore
@@ -58,6 +78,12 @@ jobs:
       - name: Verify packed target assets
         if: matrix.os == 'ubuntu-latest'
         run: bash ./.github/workflows/scripts/verify-packages.sh artifacts
+
+      - name: Pack Windows host integrations
+        if: matrix.os == 'windows-latest'
+        run: >
+          dotnet pack Configlue.Hosting.Windows.slnx --no-build --no-restore
+          --configuration Release --output artifacts
 
   native-aot:
     timeout-minutes: 30

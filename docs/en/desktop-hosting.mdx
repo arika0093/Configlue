@@ -31,3 +31,31 @@ await reader.InitializeAsync();
 Keep the reader for the desired form lifetime and dispose it when that lifetime ends; the `using` above illustrates ownership. The adapter neither creates a hidden control nor forces handle creation. Construction rejects an uncreated handle and a different UI thread. Posts reject absent handles (including a handle recreation interval) and disposing/disposed controls; queued callbacks follow native [Control.BeginInvoke behavior](https://learn.microsoft.com/en-us/dotnet/api/system.windows.forms.control.begininvoke?view=windowsdesktop-10.0).
 
 Both packages target .NET 10 Windows and .NET Framework 4.8. Native dispatcher tests use independent STA threads and real WPF/Windows Forms message loops, including background notifications through the shared state reader and generated observable model.
+
+## WinUI
+
+Install `Configlue.Hosting.WinUI` and pass the bound window's queue to
+`new WinUIConfiglueDispatcher(window.DispatcherQueue)`. Use that instance as the
+dispatcher argument of `ConfiglueStateReader<T>` or `ConfiglueStateEditor<T>`.
+It never selects a process-global queue. `Post` throws `InvalidOperationException`
+when `TryEnqueue` returns false, including after queue shutdown, following
+[DispatcherQueue.TryEnqueue semantics](https://learn.microsoft.com/en-us/windows/windows-app-sdk/api/winrt/microsoft.ui.dispatching.dispatcherqueue.tryenqueue).
+
+The package targets .NET 10 Windows (Windows SDK 10.0.19041). It references the
+SDK Foundation and InteractiveExperiences components for the native queue;
+applications retain responsibility for their normal Windows App SDK bootstrap
+and deployment. The native smoke test uses a self-contained dedicated SDK queue.
+
+## Avalonia
+
+Install `Configlue.Hosting.Avalonia` and use `new AvaloniaConfiglueDispatcher()`
+for `Dispatcher.UIThread`, or pass an explicit Avalonia dispatcher. The adapter
+posts at normal priority and follows the application's native dispatcher lifetime.
+It supports .NET 8 and .NET 10 without a Windows dependency or a path override.
+See [Avalonia's threading model](https://docs.avaloniaui.net/docs/app-development/threading).
+
+The Avalonia test runs a real headless UI dispatcher loop and checks background
+notifications through the shared reader and generated Observable. It is included
+in the Linux, macOS, and Windows CI matrix; local verification was on Windows.
+The Windows native packages and tests are in `Configlue.Hosting.Windows.slnx`,
+which the Windows CI job builds, runs, and packs separately from the portable solution.

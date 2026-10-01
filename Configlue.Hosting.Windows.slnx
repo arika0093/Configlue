@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/hosting/">
+    <Project Path="src/hosting/Configlue.Hosting.Wpf/Configlue.Hosting.Wpf.csproj" />
+    <Project Path="src/hosting/Configlue.Hosting.WinForms/Configlue.Hosting.WinForms.csproj" />
+    <Project Path="src/hosting/Configlue.Hosting.WinUI/Configlue.Hosting.WinUI.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Configlue.Hosting.Desktop.Tests/Configlue.Hosting.Desktop.Tests.csproj" />
+    <Project Path="tests/Configlue.Hosting.WinUI.Tests/Configlue.Hosting.WinUI.Tests.csproj" />
+  </Folder>
+</Solution>
