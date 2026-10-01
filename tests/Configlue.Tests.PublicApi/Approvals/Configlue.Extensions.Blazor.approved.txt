@@ -22,6 +22,114 @@ namespace Configlue.Extensions.Blazor
         public static Configlue.ConfiglueSubjectRegistrationBuilder<TSubject> FromBlazorAuthenticationState<TSubject>(this Configlue.ConfiglueSubjectRegistrationBuilder<TSubject> builder, System.Func<System.Security.Claims.ClaimsPrincipal, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<TSubject>> resolveSubject)
             where TSubject : Configlue.IConfiglueSubject { }
     }
+    public sealed class StateEditorContext<T>
+        where T :  class
+    {
+        public Microsoft.AspNetCore.Components.Forms.EditContext EditContext { get; }
+        public bool HasLocalChanges { get; }
+        public bool HasUpstreamChanges { get; }
+        public bool IsLoading { get; }
+        public bool IsSaving { get; }
+        public bool IsSubjectChanged { get; }
+        public Configlue.Extensions.Blazor.StateEditorErrorEventArgs<T>? LastError { get; }
+        public Configlue.StateWriteReceipt? LastReceipt { get; }
+        public System.Exception? LoadFailure { get; }
+        public Configlue.EditSession<T> Session { get; }
+        public Configlue.StateSnapshot<T> SessionStart { get; }
+        public T Value { get; }
+        public System.Threading.Tasks.ValueTask RebaseAsync(System.Threading.CancellationToken cancellationToken = default) { }
+        public void ResetToDefault() { }
+        public void ResetToSessionStart() { }
+        public void ResetToUpstream() { }
+        public System.Threading.Tasks.ValueTask SaveAsync(System.Threading.CancellationToken cancellationToken = default) { }
+    }
+    public sealed class StateEditorErrorEventArgs<T> : System.EventArgs
+    {
+        public StateEditorErrorEventArgs(Configlue.Extensions.Blazor.StateEditorOperation operation, Configlue.Extensions.Blazor.StateEditorErrorKind kind, System.Exception exception) { }
+        public Configlue.State.StateConflictException? ConflictException { get; }
+        public System.Exception Exception { get; }
+        public Configlue.Extensions.Blazor.StateEditorErrorKind Kind { get; }
+        public Configlue.StateMultiWriteException? MultiWriteException { get; }
+        public Configlue.Extensions.Blazor.StateEditorOperation Operation { get; }
+        public Configlue.ConfiglueValidationException? ValidationException { get; }
+    }
+    public enum StateEditorErrorKind
+    {
+        Validation = 0,
+        Conflict = 1,
+        MultiWrite = 2,
+        Reload = 3,
+        SubjectChanged = 4,
+        Unknown = 5,
+    }
+    public enum StateEditorOperation
+    {
+        Load = 0,
+        Save = 1,
+        Rebase = 2,
+        Reset = 3,
+        SubjectChange = 4,
+        Reload = 5,
+    }
+    public sealed class StateEditorSubjectChangedEventArgs : System.EventArgs
+    {
+        public StateEditorSubjectChangedEventArgs(bool hasUnsavedChanges) { }
+        public bool HasUnsavedChanges { get; }
+    }
+    public sealed class StateEditor<T> : Microsoft.AspNetCore.Components.ComponentBase, System.IDisposable
+        where T :  class
+    {
+        public StateEditor() { }
+        [Microsoft.AspNetCore.Components.Parameter]
+        public bool AllowSavingInvalidatedDraft { get; set; }
+        [Microsoft.AspNetCore.Components.Parameter]
+        public bool AutoRebaseOnCleanUpstreamChange { get; set; }
+        [Microsoft.AspNetCore.Components.Parameter]
+        public Microsoft.AspNetCore.Components.RenderFragment<Configlue.Extensions.Blazor.StateEditorContext<T>>? ChildContent { get; set; }
+        [Microsoft.AspNetCore.Components.Inject]
+        public Configlue.IConfiglueEditSessions<T> EditSessions { get; set; }
+        [Microsoft.AspNetCore.Components.Parameter]
+        public Microsoft.AspNetCore.Components.RenderFragment<System.Exception>? LoadFailedContent { get; set; }
+        [Microsoft.AspNetCore.Components.Parameter]
+        public Microsoft.AspNetCore.Components.RenderFragment? LoadingContent { get; set; }
+        [Microsoft.AspNetCore.Components.Parameter]
+        public Microsoft.AspNetCore.Components.EventCallback<Configlue.Extensions.Blazor.StateEditorErrorEventArgs<T>> OnError { get; set; }
+        [Microsoft.AspNetCore.Components.Parameter]
+        public Microsoft.AspNetCore.Components.EventCallback<Configlue.Extensions.Blazor.StateEditorSubjectChangedEventArgs> OnSubjectChanged { get; set; }
+        [Microsoft.AspNetCore.Components.Inject]
+        public System.IServiceProvider Services { get; set; }
+        protected override void BuildRenderTree(Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder builder) { }
+        public void Dispose() { }
+        protected override System.Threading.Tasks.Task OnInitializedAsync() { }
+    }
+    public sealed class StateReaderContext<T>
+    {
+        public bool HasValue { get; }
+        public bool IsLoading { get; }
+        public System.Exception? LoadFailure { get; }
+        public System.Exception? ReloadFailure { get; }
+        public Configlue.StateSnapshot<T>? Snapshot { get; }
+        public T Value { get; }
+    }
+    public sealed class StateReader<T> : Microsoft.AspNetCore.Components.ComponentBase, System.IDisposable
+    {
+        public StateReader() { }
+        [Microsoft.AspNetCore.Components.Parameter]
+        public Microsoft.AspNetCore.Components.RenderFragment<Configlue.Extensions.Blazor.StateReaderContext<T>>? ChildContent { get; set; }
+        [Microsoft.AspNetCore.Components.Parameter]
+        public Microsoft.AspNetCore.Components.RenderFragment<System.Exception>? LoadFailedContent { get; set; }
+        [Microsoft.AspNetCore.Components.Parameter]
+        public Microsoft.AspNetCore.Components.RenderFragment? LoadingContent { get; set; }
+        [Microsoft.AspNetCore.Components.Parameter]
+        public Microsoft.AspNetCore.Components.EventCallback<System.Exception> OnReloadFailed { get; set; }
+        [Microsoft.AspNetCore.Components.Inject]
+        public System.IServiceProvider Services { get; set; }
+        [Microsoft.AspNetCore.Components.Inject]
+        public Configlue.IReadOnlyState<T> State { get; set; }
+        protected override void BuildRenderTree(Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder builder) { }
+        public void Dispose() { }
+        protected override System.Threading.Tasks.Task OnInitializedAsync() { }
+    }
     public enum WebStorageKind
     {
         Local = 0,
