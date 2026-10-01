@@ -6,6 +6,20 @@ namespace Configlue;
 
 /// <summary>Builds deterministic write ownership for one generated model.</summary>
 /// <typeparam name="TModel">The generated configuration model.</typeparam>
+/// <remarks>
+/// Read priority never selects a write destination. Ordinary writes resolve their owner as follows:
+/// <list type="number">
+/// <item>A writable mounted source owns its mounted subtree.</item>
+/// <item>An explicit property route configured here routes that path to the selected source.</item>
+/// <item>Remaining root-level changes go to the configured <see cref="DefaultTo(SourceKey{TModel})"/> owner.</item>
+/// <item>If exactly one non-explicit writable root source exists, it is inferred automatically.</item>
+/// <item>If multiple non-explicit writable root sources exist and no default is configured, context creation fails as ambiguous.</item>
+/// <item>Explicit-only sources are excluded from ordinary ownership inference and are writable only through explicit source operations.</item>
+/// </list>
+/// Once ownership selects a source, a write that cannot realize the requested edit because of
+/// higher-priority or read-only contributions fails as a conflict instead of silently choosing
+/// another persistence target.
+/// </remarks>
 public sealed class StateWritePlanBuilder<TModel>
 {
     private readonly Dictionary<string, string> _routes = new(StringComparer.Ordinal);
