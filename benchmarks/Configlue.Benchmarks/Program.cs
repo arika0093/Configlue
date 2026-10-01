@@ -163,5 +163,5 @@ public class StateSourceResolverBenchmarks
 
     [Benchmark]
     public ValueTask<StateReadResult<BenchmarkSettings.Fragment>> ResolveSourcesAsync() =>
-        _resolver.ReadAsync();
+        _resolver.ReadAsync(Configlue.Resources.ConfiglueResourceContext.Default);
 }

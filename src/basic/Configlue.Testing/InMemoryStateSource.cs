@@ -1,3 +1,4 @@
+using Configlue.Resources;
 using Configlue.Sources;
 
 namespace Configlue.Testing;
@@ -25,8 +26,12 @@ public sealed class InMemoryStateSource<T> : ISourceReader<T>, ISourceWriter<T>,
     }
 
     /// <inheritdoc />
-    public ValueTask<StateReadResult<T>> ReadAsync(CancellationToken cancellationToken = default)
+    public ValueTask<StateReadResult<T>> ReadAsync(
+        ConfiglueResourceContext context,
+        CancellationToken cancellationToken = default
+    )
     {
+        _ = context;
         cancellationToken.ThrowIfCancellationRequested();
         lock (_gate)
         {
@@ -43,10 +48,12 @@ public sealed class InMemoryStateSource<T> : ISourceReader<T>, ISourceWriter<T>,
 
     /// <inheritdoc />
     public ValueTask<StateWriteResult> WriteAsync(
+        ConfiglueResourceContext context,
         StateWriteRequest<T> request,
         CancellationToken cancellationToken = default
     )
     {
+        _ = context;
         cancellationToken.ThrowIfCancellationRequested();
         TaskCompletionSource changed;
         string revision;
@@ -111,10 +118,12 @@ public sealed class InMemoryStateSource<T> : ISourceReader<T>, ISourceWriter<T>,
 
     /// <inheritdoc />
     public async ValueTask WaitForChangeAsync(
+        ConfiglueResourceContext context,
         string? observedRevision,
         CancellationToken cancellationToken = default
     )
     {
+        _ = context;
         Task waitTask;
         lock (_gate)
         {

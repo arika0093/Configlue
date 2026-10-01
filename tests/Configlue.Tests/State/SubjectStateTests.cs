@@ -130,9 +130,9 @@ public sealed class SubjectStateTests
     }
 
     private sealed class SubjectStateStore<T>
-        : IContextualSourceReader<T>,
-            IContextualSourceWriter<T>,
-            IContextualSourceWatcher
+        : ISourceReader<T>,
+            ISourceWriter<T>,
+            ISourceWatcher
     {
         private readonly ConcurrentDictionary<SubjectKey, InMemoryStateSource<T>> _states = new();
 

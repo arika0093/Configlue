@@ -196,8 +196,13 @@ public sealed class AsyncProfileSubscriptionTests
     ) : ISourceReader<ConfiglueProfileCatalog>
     {
         public ValueTask<StateReadResult<ConfiglueProfileCatalog>> ReadAsync(
+            ConfiglueResourceContext context,
             CancellationToken cancellationToken = default
-        ) => read(cancellationToken);
+        )
+        {
+            _ = context;
+            return read(cancellationToken);
+        }
     }
 
     private sealed class TestOptions : IWritableState<AppSettings>

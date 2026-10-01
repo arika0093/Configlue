@@ -17,12 +17,6 @@ public sealed class HttpResourceWriter : IResourceWriter, ITryContextualResource
 
     /// <inheritdoc />
     public ValueTask<StateWriteResult> WriteAsync(
-        ResourceWriteRequest request,
-        CancellationToken cancellationToken = default
-    ) => _reader.WriteAsync(request, cancellationToken);
-
-    /// <inheritdoc />
-    public ValueTask<StateWriteResult> WriteAsync(
         ConfiglueResourceContext context,
         ResourceWriteRequest request,
         CancellationToken cancellationToken = default

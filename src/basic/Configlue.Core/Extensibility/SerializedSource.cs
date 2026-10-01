@@ -10,9 +10,8 @@ namespace Configlue.Extensibility;
 /// exposing its read, write, watch, batch, and identity capabilities as a single object.
 /// </summary>
 public sealed class SerializedSource<T>
-    : IContextualSourceReader<T>,
-        IContextualSourceWatcher,
-        IContextualSourceWriteBatchParticipant<T>,
+    : ISourceWatcher,
+        ISourceWriteBatchParticipant<T>,
         ISourceCapabilities<T>,
         ITryContextualResourceIdentity
 {
@@ -124,58 +123,20 @@ public sealed class SerializedSource<T>
     }
 
     /// <inheritdoc />
-    public ValueTask<StateReadResult<T>> ReadAsync(CancellationToken cancellationToken = default) =>
-        _reader.ReadAsync(cancellationToken);
-
-    /// <inheritdoc />
     public ValueTask<StateReadResult<T>> ReadAsync(
         ConfiglueResourceContext context,
         CancellationToken cancellationToken = default
-    ) =>
-        _reader is IContextualSourceReader<T> contextualReader
-            ? contextualReader.ReadAsync(context, cancellationToken)
-            : _reader.ReadAsync(cancellationToken);
+    ) => _reader.ReadAsync(context, cancellationToken);
 
     /// <inheritdoc />
     public ValueTask<StateWriteResult> WriteAsync(
+        ConfiglueResourceContext context,
         StateWriteRequest<T> request,
         CancellationToken cancellationToken = default
     ) =>
         _writer is null
             ? throw new InvalidOperationException("This serialized source does not support writes.")
-            : _writer.WriteAsync(request, cancellationToken);
-
-    /// <inheritdoc />
-    public ValueTask<StateWriteResult> WriteAsync(
-        ConfiglueResourceContext context,
-        StateWriteRequest<T> request,
-        CancellationToken cancellationToken = default
-    )
-    {
-        if (_writer is null)
-        {
-            throw new InvalidOperationException("This serialized source does not support writes.");
-        }
-
-        return _writer is IContextualSourceWriter<T> contextualWriter
-            ? contextualWriter.WriteAsync(context, request, cancellationToken)
-            : _writer.WriteAsync(request, cancellationToken);
-    }
-
-    /// <inheritdoc />
-    public bool TryCreateBatchWrite(
-        StateWriteRequest<T> request,
-        out ResourceId resourceId,
-        out IResourceBatchWriter? batchWriter,
-        out ResourceWriteMutation? mutation
-    ) =>
-        TryCreateBatchWrite(
-            ConfiglueResourceContext.Default,
-            request,
-            out resourceId,
-            out batchWriter,
-            out mutation
-        );
+            : _writer.WriteAsync(context, request, cancellationToken);
 
     /// <inheritdoc />
     public bool TryCreateBatchWrite(
@@ -186,17 +147,6 @@ public sealed class SerializedSource<T>
         out ResourceWriteMutation? mutation
     )
     {
-        if (_writer is IContextualSourceWriteBatchParticipant<T> contextualParticipant)
-        {
-            return contextualParticipant.TryCreateBatchWrite(
-                context,
-                request,
-                out resourceId,
-                out batchWriter,
-                out mutation
-            );
-        }
-
         if (_writer is ISourceWriteBatchParticipant<T> participant)
         {
             return participant.TryCreateBatchWrite(
@@ -216,21 +166,6 @@ public sealed class SerializedSource<T>
 
     /// <inheritdoc />
     public ValueTask WaitForChangeAsync(
-        string? observedRevision,
-        CancellationToken cancellationToken = default
-    ) =>
-        _watcher is null
-            ? new ValueTask(
-                Task.FromException(
-                    new InvalidOperationException(
-                        "This serialized source does not support watching."
-                    )
-                )
-            )
-            : _watcher.WaitForChangeAsync(observedRevision, cancellationToken);
-
-    /// <inheritdoc />
-    public ValueTask WaitForChangeAsync(
         ConfiglueResourceContext context,
         string? observedRevision,
         CancellationToken cancellationToken = default
@@ -247,8 +182,6 @@ public sealed class SerializedSource<T>
             );
         }
 
-        return _watcher is IContextualSourceWatcher contextualWatcher
-            ? contextualWatcher.WaitForChangeAsync(context, observedRevision, cancellationToken)
-            : _watcher.WaitForChangeAsync(observedRevision, cancellationToken);
+        return _watcher.WaitForChangeAsync(context, observedRevision, cancellationToken);
     }
 }

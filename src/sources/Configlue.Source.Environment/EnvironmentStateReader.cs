@@ -5,6 +5,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Configlue;
+using Configlue.Resources;
 using Configlue.Sources;
 
 namespace Configlue.Source.Environment;
@@ -52,9 +53,11 @@ public sealed class EnvironmentStateReader<TFragment> : ISourceReader<TFragment>
 
     /// <inheritdoc />
     public ValueTask<StateReadResult<TFragment>> ReadAsync(
+        ConfiglueResourceContext context,
         CancellationToken cancellationToken = default
     )
     {
+        _ = context;
         cancellationToken.ThrowIfCancellationRequested();
         var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         foreach (var pair in _environmentVariables())

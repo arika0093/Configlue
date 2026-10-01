@@ -9,9 +9,9 @@ namespace Configlue.Provider.Xml;
 /// <summary>Exposes a nested XML element as a resource while preserving sibling elements.</summary>
 public sealed class XmlSectionResource
     : IResourceReader,
-        IContextualPipelineResourceReader,
+        IPipelineResourceReader,
         IResourceWriter,
-        IContextualSourceWatcher,
+        ISourceWatcher,
         ITryContextualResourceIdentity,
         IContextualResourceBatchParticipant,
         IContextualResourceBackupRecovery
@@ -121,17 +121,6 @@ public sealed class XmlSectionResource
 
     /// <inheritdoc />
     public async ValueTask<PipelineResourceReadResult> ReadPipelineAsync(
-        CancellationToken cancellationToken = default
-    )
-    {
-        var result = await ReadAsync(cancellationToken).ConfigureAwait(false);
-        return await PipelineResourceReader
-            .FromMemoryAsync(result, cancellationToken)
-            .ConfigureAwait(false);
-    }
-
-    /// <inheritdoc />
-    public async ValueTask<PipelineResourceReadResult> ReadPipelineAsync(
         ConfiglueResourceContext context,
         CancellationToken cancellationToken = default
     )
@@ -145,10 +134,6 @@ public sealed class XmlSectionResource
     /// <inheritdoc />
     public bool AutomaticBackupRecoveryEnabled =>
         _reader is IResourceBackupRecovery recovery && recovery.AutomaticBackupRecoveryEnabled;
-
-    /// <inheritdoc />
-    public ValueTask<ResourceReadResult> ReadAsync(CancellationToken cancellationToken = default) =>
-        ReadAsync(ConfiglueResourceContext.Default, cancellationToken);
 
     /// <inheritdoc />
     public async ValueTask<ResourceReadResult> ReadAsync(
@@ -306,12 +291,6 @@ public sealed class XmlSectionResource
     }
 
     /// <inheritdoc />
-    public ValueTask<StateWriteResult> WriteAsync(
-        ResourceWriteRequest request,
-        CancellationToken cancellationToken = default
-    ) => WriteAsync(ConfiglueResourceContext.Default, request, cancellationToken);
-
-    /// <inheritdoc />
     public async ValueTask<StateWriteResult> WriteAsync(
         ConfiglueResourceContext context,
         ResourceWriteRequest request,
@@ -449,12 +428,6 @@ public sealed class XmlSectionResource
 
         return Encoding.UTF8.GetBytes(document.ToString(SaveOptions.DisableFormatting));
     }
-
-    /// <inheritdoc />
-    public ValueTask WaitForChangeAsync(
-        string? observedRevision,
-        CancellationToken cancellationToken = default
-    ) => WaitForChangeAsync(ConfiglueResourceContext.Default, observedRevision, cancellationToken);
 
     /// <inheritdoc />
     public async ValueTask WaitForChangeAsync(

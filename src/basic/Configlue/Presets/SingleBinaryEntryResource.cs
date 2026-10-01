@@ -6,9 +6,9 @@ namespace Configlue.Source.Presets;
 
 internal sealed class SingleBinaryEntryResource
     : IResourceReader,
-        IContextualPipelineResourceReader,
+        IPipelineResourceReader,
         IResourceWriter,
-        IContextualSourceWatcher,
+        ISourceWatcher,
         ITryContextualResourceIdentity
 {
     private const int RevisionMapLimit = 8;
@@ -47,9 +47,6 @@ internal sealed class SingleBinaryEntryResource
 
     public bool IsPipelineReadPreferred => false;
 
-    public ValueTask<ResourceReadResult> ReadAsync(CancellationToken cancellationToken = default) =>
-        ReadAsync(ConfiglueResourceContext.Default, cancellationToken);
-
     public async ValueTask<ResourceReadResult> ReadAsync(
         ConfiglueResourceContext context,
         CancellationToken cancellationToken = default
@@ -72,16 +69,6 @@ internal sealed class SingleBinaryEntryResource
     }
 
     public async ValueTask<PipelineResourceReadResult> ReadPipelineAsync(
-        CancellationToken cancellationToken = default
-    )
-    {
-        var result = await ReadAsync(cancellationToken).ConfigureAwait(false);
-        return await PipelineResourceReader
-            .FromMemoryAsync(result, cancellationToken)
-            .ConfigureAwait(false);
-    }
-
-    public async ValueTask<PipelineResourceReadResult> ReadPipelineAsync(
         ConfiglueResourceContext context,
         CancellationToken cancellationToken = default
     )
@@ -91,11 +78,6 @@ internal sealed class SingleBinaryEntryResource
             .FromMemoryAsync(result, cancellationToken)
             .ConfigureAwait(false);
     }
-
-    public ValueTask<StateWriteResult> WriteAsync(
-        ResourceWriteRequest request,
-        CancellationToken cancellationToken = default
-    ) => WriteAsync(ConfiglueResourceContext.Default, request, cancellationToken);
 
     public ValueTask<StateWriteResult> WriteAsync(
         ConfiglueResourceContext context,
@@ -117,11 +99,6 @@ internal sealed class SingleBinaryEntryResource
             cancellationToken
         );
     }
-
-    public ValueTask WaitForChangeAsync(
-        string? observedRevision,
-        CancellationToken cancellationToken = default
-    ) => WaitForChangeAsync(ConfiglueResourceContext.Default, observedRevision, cancellationToken);
 
     public ValueTask WaitForChangeAsync(
         ConfiglueResourceContext context,

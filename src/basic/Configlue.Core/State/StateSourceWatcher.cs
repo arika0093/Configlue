@@ -4,7 +4,7 @@ using Configlue.Sources;
 namespace Configlue.State;
 
 /// <summary>Watches the active source and higher-priority sources that may become active again.</summary>
-public sealed class StateSourceWatcher<T> : IContextualSourceWatcher
+public sealed class StateSourceWatcher<T> : ISourceWatcher
 {
     private readonly StateSourceResolver<T> _resolver;
 
@@ -17,39 +17,20 @@ public sealed class StateSourceWatcher<T> : IContextualSourceWatcher
 
     /// <inheritdoc />
     public ValueTask WaitForChangeAsync(
-        string? observedRevision,
-        CancellationToken cancellationToken = default
-    ) => WaitCoreAsync(null, RouteKey.Default, observedRevision, cancellationToken);
-
-    /// <summary>Waits for source changes affecting one subject.</summary>
-    public ValueTask WaitForChangeAsync(
-        IConfiglueSubject subject,
+        ConfiglueResourceContext context,
         string? observedRevision,
         CancellationToken cancellationToken = default
     )
     {
-        ArgumentNullException.ThrowIfNull(subject);
-        return WaitCoreAsync(subject, RouteKey.Default, observedRevision, cancellationToken);
+        var subject = ReferenceEquals(context.Subject, ConfiglueResourceContext.DefaultSubject)
+            ? null
+            : context.Subject;
+        return WaitCoreAsync(subject, context, observedRevision, cancellationToken);
     }
-
-    /// <inheritdoc />
-    public ValueTask WaitForChangeAsync(
-        ConfiglueResourceContext context,
-        string? observedRevision,
-        CancellationToken cancellationToken = default
-    ) =>
-        WaitCoreAsync(
-            ReferenceEquals(context.Subject, ConfiglueResourceContext.DefaultSubject)
-                ? null
-                : context.Subject,
-            context.Route,
-            observedRevision,
-            cancellationToken
-        );
 
     private async ValueTask WaitCoreAsync(
         IConfiglueSubject? subject,
-        RouteKey route,
+        ConfiglueResourceContext context,
         string? observedRevision,
         CancellationToken cancellationToken
     )
@@ -64,23 +45,21 @@ public sealed class StateSourceWatcher<T> : IContextualSourceWatcher
                 var target in (
                     subject is null
                         ? _resolver.GetSourcesForWatch(observedRevision)
-                        : _resolver.GetSourcesForWatch(subject, route, observedRevision)
+                        : _resolver.GetSourcesForWatch(subject, context.Route, observedRevision)
                 ).Where(static target => target.Source.Watcher is not null)
             )
             {
+                var sourceContext = subject is null
+                    ? context
+                    : target.Source.GetResourceContext(subject);
                 watchers.Add(
-                    (
-                        subject is null
-                            ? target.Source.Watcher!.WaitForChangeAsync(
-                                target.ObservedRevision,
-                                watchCancellation.Token
-                            )
-                            : target.Source.WaitForChangeAsync(
-                                target.Source.GetResourceContext(subject, route),
-                                target.ObservedRevision,
-                                watchCancellation.Token
-                            )
-                    ).AsTask()
+                    target
+                        .Source.WaitForChangeAsync(
+                            sourceContext,
+                            target.ObservedRevision,
+                            watchCancellation.Token
+                        )
+                        .AsTask()
                 );
             }
 

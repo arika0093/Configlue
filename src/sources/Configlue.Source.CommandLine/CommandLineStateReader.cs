@@ -6,6 +6,7 @@ using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
 using Configlue;
+using Configlue.Resources;
 using Configlue.Sources;
 
 namespace Configlue.Source.CommandLine;
@@ -37,9 +38,11 @@ internal sealed class CommandLineStateReader<TFragment> : ISourceReader<TFragmen
     }
 
     public ValueTask<StateReadResult<TFragment>> ReadAsync(
+        ConfiglueResourceContext context,
         CancellationToken cancellationToken = default
     )
     {
+        _ = context;
         cancellationToken.ThrowIfCancellationRequested();
         if (!_hasCachedResult)
         {

@@ -356,9 +356,11 @@ public sealed partial class FileResource
 
     /// <inheritdoc />
     public ValueTask<PipelineResourceReadResult> ReadPipelineAsync(
+        ConfiglueResourceContext context,
         CancellationToken cancellationToken = default
     )
     {
+        _ = context;
         cancellationToken.ThrowIfCancellationRequested();
         try
         {

@@ -8,16 +8,12 @@ namespace Configlue.Resources;
 public sealed partial class FileResource
 {
     /// <inheritdoc />
-    public ValueTask<ResourceReadResult> ReadAsync(
-        ConfiglueResourceContext context,
-        CancellationToken cancellationToken = default
-    ) => ReadAsync(cancellationToken);
-
-    /// <inheritdoc />
     public async ValueTask<ResourceReadResult> ReadAsync(
+        ConfiglueResourceContext context,
         CancellationToken cancellationToken = default
     )
     {
+        _ = context;
         try
         {
             var content = await File.ReadAllBytesAsync(_path, cancellationToken)
@@ -43,13 +39,14 @@ public sealed partial class FileResource
         ConfiglueResourceContext context,
         ResourceWriteRequest request,
         CancellationToken cancellationToken = default
-    ) => WriteAsync(request, cancellationToken);
-
-    /// <inheritdoc />
-    public ValueTask<StateWriteResult> WriteAsync(
-        ResourceWriteRequest request,
-        CancellationToken cancellationToken = default
-    ) => WriteBatchAsync([ResourceWriteMutation.Replace(request)], cancellationToken);
+    )
+    {
+        _ = context;
+        return WriteBatchAsync(
+            [ResourceWriteMutation.Replace(request, context)],
+            cancellationToken
+        );
+    }
 
     /// <inheritdoc />
     public async ValueTask<StateWriteResult> WriteBatchAsync(

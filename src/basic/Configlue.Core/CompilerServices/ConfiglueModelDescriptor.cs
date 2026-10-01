@@ -97,8 +97,7 @@ public static class ConfiglueRuntime
                     configuration.GetLogger(services),
                     configuration.CloneStrategy,
                     configuration.ReadValidationMode,
-                    configuration.WriteConflictResolution,
-                    configuration.RouteSelector
+                    configuration.WriteConflictResolution
                 ),
             static (registry, catalog, name) =>
                 new ConfiglueProfiledState<TModel, TFragment>(registry, catalog, name)

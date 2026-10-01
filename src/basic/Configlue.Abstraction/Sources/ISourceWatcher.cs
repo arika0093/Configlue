@@ -5,17 +5,7 @@ namespace Configlue.Sources;
 /// <summary>Waits for an upstream invalidation signal.</summary>
 public interface ISourceWatcher
 {
-    /// <summary>Waits until the source may have changed. The caller must read again for the new value.</summary>
-    ValueTask WaitForChangeAsync(
-        string? observedRevision,
-        CancellationToken cancellationToken = default
-    );
-}
-
-/// <summary>Waits for changes to a source-specific subject key.</summary>
-public interface IContextualSourceWatcher : ISourceWatcher
-{
-    /// <summary>Waits for changes to one source-specific subject key.</summary>
+    /// <summary>Waits until the source may have changed for one model, subject, key, and route.</summary>
     ValueTask WaitForChangeAsync(
         ConfiglueResourceContext context,
         string? observedRevision,

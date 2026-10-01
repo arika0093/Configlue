@@ -459,9 +459,11 @@ public sealed class DetailsSnapshotTests
     private sealed class FixedReader<T>(StateReadResult<T> result) : ISourceReader<T>
     {
         public ValueTask<StateReadResult<T>> ReadAsync(
+            ConfiglueResourceContext context,
             CancellationToken cancellationToken = default
         )
         {
+            _ = context;
             cancellationToken.ThrowIfCancellationRequested();
             return ValueTaskCompat.FromResult(result);
         }
@@ -474,9 +476,11 @@ public sealed class DetailsSnapshotTests
         public int ReadCount => Volatile.Read(ref _readCount);
 
         public ValueTask<StateReadResult<T>> ReadAsync(
+            ConfiglueResourceContext context,
             CancellationToken cancellationToken = default
         )
         {
+            _ = context;
             cancellationToken.ThrowIfCancellationRequested();
             Interlocked.Increment(ref _readCount);
             return ValueTaskCompat.FromResult(result);

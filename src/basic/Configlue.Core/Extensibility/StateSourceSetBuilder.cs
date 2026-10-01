@@ -113,6 +113,7 @@ public sealed class StateSourceBuilder<T>
     private readonly string? _physicalOrigin;
     private readonly ResourceId? _resourceId;
     private Func<IConfiglueSubject, SubjectKey> _subjectKeySelector = static subject => subject.Key;
+    private Func<IConfiglueSubject, RouteKey> _routeSelector = static _ => RouteKey.Default;
     private RuntimeLifetimeRequirement _runtimeLifetime = RuntimeLifetimeRequirement.Shared;
 
     internal StateSourceBuilder(
@@ -180,6 +181,20 @@ public sealed class StateSourceBuilder<T>
         return this;
     }
 
+    /// <summary>Routes this source's physical placement from a strongly typed application subject.</summary>
+    public StateSourceBuilder<T> RouteBy<TSubject>(Func<TSubject, RouteKey> selector)
+        where TSubject : IConfiglueSubject
+    {
+        ArgumentNullException.ThrowIfNull(selector);
+        _routeSelector = subject =>
+            subject is TSubject typed
+                ? selector(typed)
+                : throw new InvalidOperationException(
+                    $"Source '{_id}' requires a subject of type '{typeof(TSubject)}', but received '{subject.GetType()}'."
+                );
+        return this;
+    }
+
     /// <summary>Declares the dependency-injection lifetime required by this source.</summary>
     public StateSourceBuilder<T> WithRuntimeLifetime(RuntimeLifetimeRequirement lifetime)
     {
@@ -198,6 +213,7 @@ public sealed class StateSourceBuilder<T>
             _physicalOrigin,
             _resourceId,
             subjectKeySelector: _subjectKeySelector,
-            runtimeLifetime: _runtimeLifetime
+            runtimeLifetime: _runtimeLifetime,
+            routeSelector: _routeSelector
         );
 }

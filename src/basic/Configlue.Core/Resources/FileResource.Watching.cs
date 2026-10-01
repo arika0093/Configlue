@@ -37,10 +37,12 @@ public sealed partial class FileResource
 
     /// <inheritdoc />
     public async ValueTask WaitForChangeAsync(
+        ConfiglueResourceContext context,
         string? observedRevision,
         CancellationToken cancellationToken = default
     )
     {
+        _ = context;
         ObjectDisposedException.ThrowIf(_disposed, this);
         if (
             !string.Equals(

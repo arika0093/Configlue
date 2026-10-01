@@ -12,8 +12,8 @@ namespace Configlue.Resource.Http;
 /// <summary>Reads and watches a byte resource exposed through the Configlue HTTP resource protocol.</summary>
 public sealed class HttpResourceReader
     : IResourceReader,
-        IContextualPipelineResourceReader,
-        IContextualSourceWatcher,
+        IPipelineResourceReader,
+        ISourceWatcher,
         ITryContextualResourceIdentity
 {
     /// <summary>Response and request header carrying the source schema identifier.</summary>
@@ -158,13 +158,6 @@ public sealed class HttpResourceReader
 
     /// <inheritdoc />
     public async ValueTask<PipelineResourceReadResult> ReadPipelineAsync(
-        CancellationToken cancellationToken = default
-    ) =>
-        await ReadPipelineAsync(ConfiglueResourceContext.Default, cancellationToken)
-            .ConfigureAwait(false);
-
-    /// <inheritdoc />
-    public async ValueTask<PipelineResourceReadResult> ReadPipelineAsync(
         ConfiglueResourceContext context,
         CancellationToken cancellationToken = default
     )
@@ -172,7 +165,7 @@ public sealed class HttpResourceReader
         if (_endpointRootSelector is not null)
         {
             return await CreateContextReader(context)
-                .ReadPipelineAsync(cancellationToken)
+                .ReadPipelineAsync(context, cancellationToken)
                 .ConfigureAwait(false);
         }
 
@@ -252,11 +245,6 @@ public sealed class HttpResourceReader
 
     /// <inheritdoc />
     public async ValueTask<ResourceReadResult> ReadAsync(
-        CancellationToken cancellationToken = default
-    ) => await ReadAsync(ConfiglueResourceContext.Default, cancellationToken).ConfigureAwait(false);
-
-    /// <inheritdoc />
-    public async ValueTask<ResourceReadResult> ReadAsync(
         ConfiglueResourceContext context,
         CancellationToken cancellationToken = default
     )
@@ -264,7 +252,7 @@ public sealed class HttpResourceReader
         if (_endpointRootSelector is not null)
         {
             return await CreateContextReader(context)
-                .ReadAsync(cancellationToken)
+                .ReadAsync(context, cancellationToken)
                 .ConfigureAwait(false);
         }
 
@@ -277,18 +265,6 @@ public sealed class HttpResourceReader
         SetLastSnapshot(response.ObservedSnapshot);
         return response.Result;
     }
-
-    /// <inheritdoc />
-    public async ValueTask WaitForChangeAsync(
-        string? observedRevision,
-        CancellationToken cancellationToken = default
-    ) =>
-        await WaitForChangeAsync(
-                ConfiglueResourceContext.Default,
-                observedRevision,
-                cancellationToken
-            )
-            .ConfigureAwait(false);
 
     /// <inheritdoc />
     public async ValueTask WaitForChangeAsync(
@@ -484,13 +460,6 @@ public sealed class HttpResourceReader
     }
 
     internal async ValueTask<StateWriteResult> WriteAsync(
-        ResourceWriteRequest resourceRequest,
-        CancellationToken cancellationToken
-    ) =>
-        await WriteAsync(ConfiglueResourceContext.Default, resourceRequest, cancellationToken)
-            .ConfigureAwait(false);
-
-    internal async ValueTask<StateWriteResult> WriteAsync(
         ConfiglueResourceContext context,
         ResourceWriteRequest resourceRequest,
         CancellationToken cancellationToken
@@ -499,7 +468,7 @@ public sealed class HttpResourceReader
         if (_endpointRootSelector is not null)
         {
             return await CreateContextReader(context)
-                .WriteAsync(resourceRequest, cancellationToken)
+                .WriteAsync(context, resourceRequest, cancellationToken)
                 .ConfigureAwait(false);
         }
 
@@ -599,7 +568,11 @@ public sealed class HttpResourceReader
         try
         {
             await watcher
-                .Reader.WaitForChangeAsync(observedRevision, cancellationToken)
+                .Reader.WaitForChangeAsync(
+                    ConfiglueResourceContext.Default,
+                    observedRevision,
+                    cancellationToken
+                )
                 .ConfigureAwait(false);
         }
         finally

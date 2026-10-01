@@ -14,10 +14,7 @@ namespace Configlue.State;
 /// the active writable representation unless a fixed candidate is configured. Candidate resources remain
 /// owned by the caller.
 /// </remarks>
-public sealed class FallbackStateSource<T>
-    : IContextualSourceReader<T>,
-        IContextualSourceWriter<T>,
-        IContextualSourceWatcher
+public sealed class FallbackStateSource<T> : ISourceReader<T>, ISourceWriter<T>, ISourceWatcher
 {
     private readonly StateSourceSet<T> _candidates;
     private readonly StateSourceResolver<T> _reader;
@@ -88,23 +85,6 @@ public sealed class FallbackStateSource<T>
 
     /// <inheritdoc />
     public async ValueTask<StateReadResult<T>> ReadAsync(
-        CancellationToken cancellationToken = default
-    )
-    {
-        var result = await _reader.ReadAsync(cancellationToken).ConfigureAwait(false);
-        if (result.Status != StateReadStatus.Success)
-        {
-            return result;
-        }
-
-        return result with
-        {
-            Revision = CreateRevisionToken(result),
-        };
-    }
-
-    /// <inheritdoc />
-    public async ValueTask<StateReadResult<T>> ReadAsync(
         ConfiglueResourceContext context,
         CancellationToken cancellationToken = default
     )
@@ -123,17 +103,6 @@ public sealed class FallbackStateSource<T>
 
     /// <inheritdoc />
     public async ValueTask<StateWriteResult> WriteAsync(
-        StateWriteRequest<T> request,
-        CancellationToken cancellationToken = default
-    )
-    {
-        var current = await _reader.ReadAsync(cancellationToken).ConfigureAwait(false);
-        return await WriteCoreAsync(null, current, request, cancellationToken)
-            .ConfigureAwait(false);
-    }
-
-    /// <inheritdoc />
-    public async ValueTask<StateWriteResult> WriteAsync(
         ConfiglueResourceContext context,
         StateWriteRequest<T> request,
         CancellationToken cancellationToken = default
@@ -145,7 +114,7 @@ public sealed class FallbackStateSource<T>
     }
 
     private async ValueTask<StateWriteResult> WriteCoreAsync(
-        ConfiglueResourceContext? context,
+        ConfiglueResourceContext context,
         StateReadResult<T> current,
         StateWriteRequest<T> request,
         CancellationToken cancellationToken
@@ -171,23 +140,22 @@ public sealed class FallbackStateSource<T>
         }
 
         var target = ResolveWriteSource(current);
+        var targetContext = ReferenceEquals(
+            context.Subject,
+            ConfiglueResourceContext.DefaultSubject
+        )
+            ? context
+            : target.GetResourceContext(context.Subject);
         StateReadResult<T> targetState;
         if (string.Equals(current.SourceId, target.Id, StringComparison.Ordinal))
         {
             targetState = current;
         }
-        else if (context is { } readContext)
-        {
-            targetState = await target
-                .ReadAsync(
-                    target.GetResourceContext(readContext.Subject, readContext.Route),
-                    cancellationToken
-                )
-                .ConfigureAwait(false);
-        }
         else
         {
-            targetState = await target.Reader.ReadAsync(cancellationToken).ConfigureAwait(false);
+            targetState = await target
+                .ReadAsync(targetContext, cancellationToken)
+                .ConfigureAwait(false);
         }
         if (targetState.Status == StateReadStatus.Unavailable)
         {
@@ -200,27 +168,10 @@ public sealed class FallbackStateSource<T>
             request.Value,
             Condition: RevisionCondition.FromRevision(targetState.Revision)
         );
-        if (context is { } writeContext)
-        {
-            return await target
-                .WriteAsync(
-                    target.GetResourceContext(writeContext.Subject, writeContext.Route),
-                    targetRequest,
-                    cancellationToken
-                )
-                .ConfigureAwait(false);
-        }
-
         return await target
-            .Writer!.WriteAsync(targetRequest, cancellationToken)
+            .WriteAsync(targetContext, targetRequest, cancellationToken)
             .ConfigureAwait(false);
     }
-
-    /// <inheritdoc />
-    public ValueTask WaitForChangeAsync(
-        string? observedRevision,
-        CancellationToken cancellationToken = default
-    ) => _watcher.WaitForChangeAsync(observedRevision, cancellationToken);
 
     /// <inheritdoc />
     public ValueTask WaitForChangeAsync(

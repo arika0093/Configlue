@@ -57,10 +57,11 @@ public sealed class SerializedStateSourceCompositionTests
         : ISourceReader<string>
     {
         public async ValueTask<StateReadResult<string>> ReadAsync(
+            ConfiglueResourceContext context,
             CancellationToken cancellationToken = default
         )
         {
-            var result = await next.ReadAsync(cancellationToken);
+            var result = await next.ReadAsync(context, cancellationToken);
             return result.Status == StateReadStatus.Success
                 ? StateReadResult<string>.Success(
                     result.Value + suffix,
@@ -80,8 +81,14 @@ public sealed class SerializedStateSourceCompositionTests
         : ISourceWriter<string>
     {
         public ValueTask<StateWriteResult> WriteAsync(
+            ConfiglueResourceContext context,
             StateWriteRequest<string> request,
             CancellationToken cancellationToken = default
-        ) => next.WriteAsync(request with { Value = request.Value + suffix }, cancellationToken);
+        ) =>
+            next.WriteAsync(
+                context,
+                request with { Value = request.Value + suffix },
+                cancellationToken
+            );
     }
 }

@@ -6,14 +6,7 @@ namespace Configlue.Sources;
 /// <summary>Reads the current logical state from a backend.</summary>
 public interface ISourceReader<T>
 {
-    /// <summary>Reads the current state.</summary>
-    ValueTask<StateReadResult<T>> ReadAsync(CancellationToken cancellationToken = default);
-}
-
-/// <summary>Reads a source-specific state for one logical subject key.</summary>
-public interface IContextualSourceReader<T> : ISourceReader<T>
-{
-    /// <summary>Reads state for a source-specific subject key.</summary>
+    /// <summary>Reads the current state for one model, subject, source-specific key, and route.</summary>
     ValueTask<StateReadResult<T>> ReadAsync(
         ConfiglueResourceContext context,
         CancellationToken cancellationToken = default

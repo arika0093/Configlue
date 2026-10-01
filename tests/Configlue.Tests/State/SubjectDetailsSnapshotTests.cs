@@ -43,12 +43,18 @@ public sealed class SubjectDetailsSnapshotTests
         {
             builder.Add<AppSettings>(model =>
             {
-                model.Routing<RoutingSubject>(subject =>
-                    subject.DataStrict ? RouteKey.From(subject.Region) : RouteKey.Default
-                );
                 model.Sources(sources =>
-                    sources.Add(new StateSource<AppSettings.Fragment>("routed", store))
-                );
+                {
+                    var routed = new StateSourceSetBuilder<AppSettings.Fragment>();
+                    routed
+                        .Add("routed", store)
+                        .RouteBy<RoutingSubject>(subject =>
+                            subject.DataStrict
+                                ? RouteKey.From(subject.Region)
+                                : RouteKey.Default
+                        );
+                    sources.Add(routed.Build().Sources[0]);
+                });
             });
         });
         var subjectState = context.GetSubjectState<AppSettings>();
@@ -259,9 +265,9 @@ public sealed class SubjectDetailsSnapshotTests
     }
 
     private sealed class SubjectStateStore<T>
-        : IContextualSourceReader<T>,
-            IContextualSourceWriter<T>,
-            IContextualSourceWatcher
+        : ISourceReader<T>,
+            ISourceWriter<T>,
+            ISourceWatcher
     {
         private readonly ConcurrentDictionary<
             (SubjectKey Key, RouteKey Route),
@@ -314,9 +320,9 @@ public sealed class SubjectDetailsSnapshotTests
     }
 
     private sealed class RoutedStateStore
-        : IContextualSourceReader<AppSettings.Fragment>,
-            IContextualSourceWriter<AppSettings.Fragment>,
-            IContextualSourceWatcher
+        : ISourceReader<AppSettings.Fragment>,
+            ISourceWriter<AppSettings.Fragment>,
+            ISourceWatcher
     {
         private readonly ConcurrentDictionary<
             (SubjectKey Key, RouteKey Route),

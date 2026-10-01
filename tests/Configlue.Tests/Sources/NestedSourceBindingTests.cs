@@ -326,8 +326,13 @@ public sealed partial class NestedSourceBindingTests
     private sealed class FixedReader<T>(StateReadResult<T> result) : ISourceReader<T>
     {
         public ValueTask<StateReadResult<T>> ReadAsync(
+            ConfiglueResourceContext context,
             CancellationToken cancellationToken = default
-        ) => ValueTaskCompat.FromResult(result);
+        )
+        {
+            _ = context;
+            return ValueTaskCompat.FromResult(result);
+        }
     }
 
     private static NestedSettings.Fragment MergeNestedSettings(

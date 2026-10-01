@@ -534,7 +534,7 @@ public class JsonSectionBenchmarks
 
     [Benchmark]
     public ValueTask<StateReadResult<OptimizationBenchmarkSettings.Fragment>> ReadAsync() =>
-        _reader.ReadAsync();
+        _reader.ReadAsync(ConfiglueResourceContext.Default);
 
     [Benchmark]
     public async Task SaveAsync()
@@ -566,7 +566,7 @@ public class EnvironmentSourceBenchmarks
 
     [Benchmark]
     public ValueTask<StateReadResult<OptimizationBenchmarkSettings.Fragment>> ReadAsync() =>
-        _source.Reader.ReadAsync();
+        _source.Reader.ReadAsync(ConfiglueResourceContext.Default);
 }
 
 [MemoryDiagnoser]
@@ -649,6 +649,7 @@ public class FileBackupBenchmarks
         _options = _context.GetState<OptimizationBenchmarkSettings>();
         await _resource
             .WriteAsync(
+                ConfiglueResourceContext.Default,
                 new ResourceWriteRequest(Encoding.UTF8.GetBytes("""{"$version":1,"Counter":0}"""))
             )
             .ConfigureAwait(false);

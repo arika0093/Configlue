@@ -69,10 +69,6 @@ public sealed class WebStorageResource : IResourceReader, IResourceWriter
     private string StorageName => Kind == WebStorageKind.Local ? "localStorage" : "sessionStorage";
 
     /// <inheritdoc />
-    public ValueTask<ResourceReadResult> ReadAsync(CancellationToken cancellationToken = default) =>
-        ReadAsync(ConfiglueResourceContext.Default, cancellationToken);
-
-    /// <inheritdoc />
     public async ValueTask<ResourceReadResult> ReadAsync(
         ConfiglueResourceContext context,
         CancellationToken cancellationToken = default
@@ -94,12 +90,6 @@ public sealed class WebStorageResource : IResourceReader, IResourceWriter
             return ResourceReadResult.Unavailable();
         }
     }
-
-    /// <inheritdoc />
-    public ValueTask<StateWriteResult> WriteAsync(
-        ResourceWriteRequest request,
-        CancellationToken cancellationToken = default
-    ) => WriteAsync(ConfiglueResourceContext.Default, request, cancellationToken);
 
     /// <inheritdoc />
     public async ValueTask<StateWriteResult> WriteAsync(

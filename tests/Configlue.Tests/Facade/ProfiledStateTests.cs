@@ -539,6 +539,7 @@ public sealed class ProfiledStateTests
         private int _shouldThrow = 1;
 
         public async ValueTask<StateWriteResult> WriteAsync(
+            ConfiglueResourceContext context,
             StateWriteRequest<ConfiglueProfileCatalog> request,
             CancellationToken cancellationToken = default
         )
@@ -547,11 +548,11 @@ public sealed class ProfiledStateTests
             {
                 if (commitBeforeThrow)
                 {
-                    await inner.WriteAsync(request, cancellationToken);
+                    await inner.WriteAsync(context, request, cancellationToken);
                 }
                 throw new IOException("The catalog writer failed after an ambiguous commit.");
             }
-            return await inner.WriteAsync(request, cancellationToken);
+            return await inner.WriteAsync(context, request, cancellationToken);
         }
     }
 

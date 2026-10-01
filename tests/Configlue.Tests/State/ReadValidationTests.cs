@@ -345,8 +345,13 @@ public sealed class ReadValidationTests
         : ISourceReader<AppSettings.Fragment>
     {
         public ValueTask<StateReadResult<AppSettings.Fragment>> ReadAsync(
+            ConfiglueResourceContext context,
             CancellationToken cancellationToken = default
-        ) => ValueTaskCompat.FromResult(result);
+        )
+        {
+            _ = context;
+            return ValueTaskCompat.FromResult(result);
+        }
     }
 
     private sealed class InvalidLabelValidator : IConfiglueValidator<AppSettings>

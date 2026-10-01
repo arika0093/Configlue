@@ -19,14 +19,18 @@ public sealed class SubjectRoutingTests
         {
             builder.Add<AppSettings>(model =>
             {
-                model.Routing<RoutingSubject>(subject =>
-                    subject.DataStrict ? RouteKey.From(subject.Region) : RouteKey.Default
-                );
                 model.Sources(sources =>
-                    sources.Add(
-                        new StateSource<AppSettings.Fragment>("routed", store, writer: store)
-                    )
-                );
+                {
+                    var routed = new StateSourceSetBuilder<AppSettings.Fragment>();
+                    routed
+                        .Add("routed", store)
+                        .RouteBy<RoutingSubject>(subject =>
+                            subject.DataStrict
+                                ? RouteKey.From(subject.Region)
+                                : RouteKey.Default
+                        );
+                    sources.Add(routed.Build().Sources[0]);
+                });
             });
         });
 
@@ -63,6 +67,45 @@ public sealed class SubjectRoutingTests
         store
             .ReadContexts.Select(static resourceContext => resourceContext.Route)
             .ShouldContain(RouteKey.From("strict-eu"));
+    }
+
+    [Test]
+    public async Task SourcesOnOneModelCanUseDifferentRoutePolicies()
+    {
+        var subject = new RoutingSubject("strict-jp", true);
+        var labelStore = new RoutedStateStore();
+        var retryStore = new RoutedStateStore();
+        labelStore.Set(RouteKey.From("strict-jp"), subject.Key, Fragment("japan"));
+        retryStore.Set(RouteKey.From("strict-eu"), subject.Key, FragmentWithRetry(7));
+        await using var context = ConfiglueApp.CreateContext(builder =>
+        {
+            builder.Add<AppSettings>(model =>
+                model.Sources(sources =>
+                {
+                    var first = new StateSourceSetBuilder<AppSettings.Fragment>();
+                    first
+                        .Add("first", labelStore)
+                        .RouteBy<RoutingSubject>(_ => RouteKey.From("strict-jp"));
+                    var second = new StateSourceSetBuilder<AppSettings.Fragment>();
+                    second
+                        .Add("second", retryStore)
+                        .RouteBy<RoutingSubject>(_ => RouteKey.From("strict-eu"));
+                    sources.Add(first.Build().Sources[0]);
+                    sources.Add(second.Build().Sources[0]);
+                })
+            );
+        });
+
+        var value = await context.GetSubjectState<AppSettings>().ForSubject(subject).GetValueAsync();
+
+        value.Label.ShouldBe("japan");
+        value.RetryCount.ShouldBe(7);
+        labelStore
+            .ReadContexts.Select(static context => context.Route)
+            .ShouldAllBe(route => route == RouteKey.From("strict-jp"));
+        retryStore
+            .ReadContexts.Select(static context => context.Route)
+            .ShouldAllBe(route => route == RouteKey.From("strict-eu"));
     }
 
     [Test]
@@ -124,16 +167,19 @@ public sealed class SubjectRoutingTests
         {
             builder.Add<AppSettings>(model =>
             {
-                model.Routing<RoutingSubject>(candidate =>
-                {
-                    Interlocked.Increment(ref routeCalls);
-                    return candidate.DataStrict
-                        ? RouteKey.From(candidate.Region)
-                        : RouteKey.Default;
-                });
                 model.Sources(sources =>
                 {
-                    sources.Add(new StateSource<AppSettings.Fragment>("first", store));
+                    var first = new StateSourceSetBuilder<AppSettings.Fragment>();
+                    first
+                        .Add("first", store)
+                        .RouteBy<RoutingSubject>(candidate =>
+                        {
+                            Interlocked.Increment(ref routeCalls);
+                            return candidate.DataStrict
+                                ? RouteKey.From(candidate.Region)
+                                : RouteKey.Default;
+                        });
+                    sources.Add(first.Build().Sources[0]);
                     sources.Add(new StateSource<AppSettings.Fragment>("second", store));
                 });
             });
@@ -154,38 +200,42 @@ public sealed class SubjectRoutingTests
         {
             builder.Add<AppSettings>(model =>
             {
-                model.Routing<RoutingSubject>(candidate =>
-                    candidate.DataStrict ? RouteKey.From(candidate.Region) : RouteKey.Default
-                );
                 model.Sources(sources =>
-                    sources.Add(new StateSource<AppSettings.Fragment>("routed", store))
-                );
+                {
+                    var routed = new StateSourceSetBuilder<AppSettings.Fragment>();
+                    routed
+                        .Add("routed", store)
+                        .RouteBy<RoutingSubject>(candidate =>
+                            candidate.DataStrict
+                                ? RouteKey.From(candidate.Region)
+                                : RouteKey.Default
+                        );
+                    sources.Add(routed.Build().Sources[0]);
+                });
             });
         });
 
     [Test]
     public async Task ResolverAndWatcherKeepRouteInContextWhenSubjectKeyIsUnchanged()
     {
-        var subject = new RoutingSubject("unused", true);
+        var japan = new RoutingSubject("strict-jp", true);
+        var europe = new RoutingSubject("strict-eu", true);
         var store = new RoutedStateStore();
-        var source = new StateSource<AppSettings.Fragment>(
-            "routed",
-            store,
-            writer: store,
-            watcher: store
-        );
-        store.Set(RouteKey.From("strict-jp"), source.GetSubjectKey(subject), Fragment("tokyo"));
-        store.Set(RouteKey.From("strict-eu"), source.GetSubjectKey(subject), Fragment("europe"));
+        var builder = new StateSourceSetBuilder<AppSettings.Fragment>();
+        builder
+            .Add("routed", store)
+            .RouteBy<RoutingSubject>(candidate =>
+                candidate.DataStrict ? RouteKey.From(candidate.Region) : RouteKey.Default
+            );
+        var source = builder.Build().Sources[0];
+        store.Set(RouteKey.From("strict-jp"), source.GetSubjectKey(japan), Fragment("tokyo"));
+        store.Set(RouteKey.From("strict-eu"), source.GetSubjectKey(europe), Fragment("europe"));
         var resolver = new StateSourceResolver<AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([source])
         );
 
-        var tokyoContext = new ConfiglueResourceContext(
-            subject,
-            source.GetSubjectKey(subject),
-            RouteKey.From("strict-jp")
-        );
-        var europeContext = tokyoContext with { Route = RouteKey.From("strict-eu") };
+        var tokyoContext = source.GetResourceContext(japan);
+        var europeContext = source.GetResourceContext(europe);
         (await resolver.ReadAsync(tokyoContext)).Value!.Label.Value.ShouldBe("tokyo");
         (await resolver.ReadAsync(europeContext)).Value!.Label.Value.ShouldBe("europe");
         source.GetResourceId(tokyoContext).ShouldBe(new ResourceId("memory:strict-jp"));
@@ -202,44 +252,48 @@ public sealed class SubjectRoutingTests
     {
         var subject = new RoutingSubject("strict-jp", true);
         var route = RouteKey.From("strict-jp");
-        var context = new ConfiglueResourceContext(subject, subject.Key, route);
 
         var fallbackStore = new RoutedStateStore();
         fallbackStore.Set(route, subject.Key, Fragment("fallback-before"));
-        var fallbackCandidate = new StateSource<AppSettings.Fragment>(
-            "fallback-candidate",
-            fallbackStore,
-            writer: fallbackStore,
-            watcher: fallbackStore
-        );
+        var fallbackBuilder = new StateSourceSetBuilder<AppSettings.Fragment>();
+        fallbackBuilder
+            .Add("fallback-candidate", fallbackStore)
+            .RouteBy<RoutingSubject>(candidate =>
+                candidate.DataStrict ? RouteKey.From(candidate.Region) : RouteKey.Default
+            );
+        var fallbackCandidate = fallbackBuilder.Build().Sources[0];
         var fallback = new FallbackStateSource<AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([fallbackCandidate])
         );
-        var fallbackRead = await fallback.ReadAsync(context);
+        var fallbackContext = fallbackCandidate.GetResourceContext(subject);
+        var fallbackRead = await fallback.ReadAsync(fallbackContext);
         fallbackRead.Value!.Label.Value.ShouldBe("fallback-before");
         await fallback.WriteAsync(
-            context,
+            fallbackContext,
             new StateWriteRequest<AppSettings.Fragment>(
                 Fragment("fallback-after"),
                 RevisionCondition.FromRevision(fallbackRead.Revision)
             )
         );
-        await fallback.WaitForChangeAsync(context, fallbackRead.Revision);
+        await fallback.WaitForChangeAsync(fallbackContext, fallbackRead.Revision);
         fallbackStore.LastWriteContext!.Value.Route.ShouldBe(route);
         fallbackStore.LastWatchContext!.Value.Route.ShouldBe(route);
 
         var compositeStore = new RoutedStateStore();
         compositeStore.Set(route, subject.Key, Fragment("composite"));
-        var component = new StateSource<AppSettings.Fragment>(
-            "component",
-            compositeStore,
-            watcher: compositeStore
-        );
+        var compositeBuilder = new StateSourceSetBuilder<AppSettings.Fragment>();
+        compositeBuilder
+            .Add("component", compositeStore)
+            .RouteBy<RoutingSubject>(candidate =>
+                candidate.DataStrict ? RouteKey.From(candidate.Region) : RouteKey.Default
+            );
+        var component = compositeBuilder.Build().Sources[0];
         var composite = new CompositeStateSource<AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([component])
         );
-        (await composite.ReadAsync(context)).Value!.Label.Value.ShouldBe("composite");
-        await composite.WaitForChangeAsync(context, "revision");
+        var compositeContext = component.GetResourceContext(subject);
+        (await composite.ReadAsync(compositeContext)).Value!.Label.Value.ShouldBe("composite");
+        await composite.WaitForChangeAsync(compositeContext, "revision");
         compositeStore.LastReadContext!.Value.Route.ShouldBe(route);
         compositeStore.LastWatchContext!.Value.Route.ShouldBe(route);
     }
@@ -247,15 +301,18 @@ public sealed class SubjectRoutingTests
     private static AppSettings.Fragment Fragment(string? label) =>
         new() { Label = Optional<string?>.Present(label) };
 
+    private static AppSettings.Fragment FragmentWithRetry(int retryCount) =>
+        new() { RetryCount = Optional<int>.Present(retryCount) };
+
     private sealed record RoutingSubject(string Region, bool DataStrict) : IConfiglueSubject
     {
         public SubjectKey Key => SubjectKey.From("same-logical-subject");
     }
 
     private sealed class RoutedStateStore
-        : IContextualSourceReader<AppSettings.Fragment>,
-            IContextualSourceWriter<AppSettings.Fragment>,
-            IContextualSourceWatcher,
+        : ISourceReader<AppSettings.Fragment>,
+            ISourceWriter<AppSettings.Fragment>,
+            ISourceWatcher,
             IContextualResourceIdentity
     {
         private readonly ConcurrentDictionary<

@@ -17,7 +17,7 @@ public sealed class RedisResource
     : IResourceReader,
         IResourceWriter,
         IContextualResourceIdentity,
-        IContextualSourceWatcher,
+        ISourceWatcher,
         IDisposable
 {
     private readonly Func<RouteKey, IConnectionMultiplexer>? _multiplexerResolver;
@@ -108,10 +108,6 @@ public sealed class RedisResource
     }
 
     /// <inheritdoc />
-    public ValueTask<ResourceReadResult> ReadAsync(CancellationToken cancellationToken = default) =>
-        ReadAsync(ConfiglueResourceContext.Default, cancellationToken);
-
-    /// <inheritdoc />
     public ValueTask<ResourceReadResult> ReadAsync(
         ConfiglueResourceContext context,
         CancellationToken cancellationToken = default
@@ -119,22 +115,10 @@ public sealed class RedisResource
 
     /// <inheritdoc />
     public ValueTask<StateWriteResult> WriteAsync(
-        ResourceWriteRequest request,
-        CancellationToken cancellationToken = default
-    ) => WriteAsync(ConfiglueResourceContext.Default, request, cancellationToken);
-
-    /// <inheritdoc />
-    public ValueTask<StateWriteResult> WriteAsync(
         ConfiglueResourceContext context,
         ResourceWriteRequest request,
         CancellationToken cancellationToken = default
     ) => GetBackend(context.Route).WriteAsync(ResolveAddress(context), request, cancellationToken);
-
-    /// <inheritdoc />
-    public ValueTask WaitForChangeAsync(
-        string? observedRevision,
-        CancellationToken cancellationToken = default
-    ) => WaitForChangeAsync(ConfiglueResourceContext.Default, observedRevision, cancellationToken);
 
     /// <inheritdoc />
     public ValueTask WaitForChangeAsync(

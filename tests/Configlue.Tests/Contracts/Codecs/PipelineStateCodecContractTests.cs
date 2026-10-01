@@ -130,9 +130,11 @@ public sealed class PipelineStateCodecContractTests
         }
 
         public ValueTask<PipelineResourceReadResult> ReadPipelineAsync(
+            ConfiglueResourceContext context,
             CancellationToken cancellationToken = default
         )
         {
+            _ = context;
             cancellationToken.ThrowIfCancellationRequested();
             PipelineReadCount++;
             var stream = new MemoryStream(_content, writable: false);

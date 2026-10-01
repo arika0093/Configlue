@@ -31,10 +31,11 @@ public sealed class InMemoryResource
 
     /// <inheritdoc />
     public async ValueTask<PipelineResourceReadResult> ReadPipelineAsync(
+        ConfiglueResourceContext context,
         CancellationToken cancellationToken = default
     )
     {
-        var result = await ReadAsync(cancellationToken).ConfigureAwait(false);
+        var result = await ReadAsync(context, cancellationToken).ConfigureAwait(false);
         return await PipelineResourceReader
             .FromMemoryAsync(result, cancellationToken)
             .ConfigureAwait(false);
@@ -44,11 +45,9 @@ public sealed class InMemoryResource
     public ValueTask<ResourceReadResult> ReadAsync(
         ConfiglueResourceContext context,
         CancellationToken cancellationToken = default
-    ) => ReadAsync(cancellationToken);
-
-    /// <inheritdoc />
-    public ValueTask<ResourceReadResult> ReadAsync(CancellationToken cancellationToken = default)
+    )
     {
+        _ = context;
         cancellationToken.ThrowIfCancellationRequested();
         lock (_gate)
         {
@@ -65,13 +64,7 @@ public sealed class InMemoryResource
         ConfiglueResourceContext context,
         ResourceWriteRequest request,
         CancellationToken cancellationToken = default
-    ) => WriteAsync(request, cancellationToken);
-
-    /// <inheritdoc />
-    public ValueTask<StateWriteResult> WriteAsync(
-        ResourceWriteRequest request,
-        CancellationToken cancellationToken = default
-    ) => WriteBatchAsync([ResourceWriteMutation.Replace(request)], cancellationToken);
+    ) => WriteBatchAsync([ResourceWriteMutation.Replace(request, context)], cancellationToken);
 
     /// <inheritdoc />
     public ValueTask<StateWriteResult> WriteBatchAsync(
@@ -119,10 +112,12 @@ public sealed class InMemoryResource
 
     /// <inheritdoc />
     public async ValueTask WaitForChangeAsync(
+        ConfiglueResourceContext context,
         string? observedRevision,
         CancellationToken cancellationToken = default
     )
     {
+        _ = context;
         Task waitTask;
         lock (_gate)
         {

@@ -5,8 +5,8 @@ namespace Configlue.Extensibility;
 
 /// <summary>Writes a typed state value by composing a codec and a resource.</summary>
 public sealed class SerializedStateWriter<T>
-    : IContextualSourceWriter<T>,
-        IContextualSourceWriteBatchParticipant<T>,
+    : ISourceWriter<T>,
+        ISourceWriteBatchParticipant<T>,
         ITryContextualResourceIdentity
 {
     private readonly IResourceWriter _resource;
@@ -61,12 +61,6 @@ public sealed class SerializedStateWriter<T>
         return false;
     }
 
-    /// <inheritdoc />
-    public ValueTask<StateWriteResult> WriteAsync(
-        StateWriteRequest<T> request,
-        CancellationToken cancellationToken = default
-    ) => WriteAsync(ConfiglueResourceContext.Default, request, cancellationToken);
-
     /// <summary>Writes serialized state for one logical subject and source-specific key.</summary>
     public ValueTask<StateWriteResult> WriteAsync(
         ConfiglueResourceContext context,
@@ -77,21 +71,6 @@ public sealed class SerializedStateWriter<T>
         cancellationToken.ThrowIfCancellationRequested();
         return _resource.WriteAsync(context, CreateResourceRequest(request), cancellationToken);
     }
-
-    /// <inheritdoc />
-    public bool TryCreateBatchWrite(
-        StateWriteRequest<T> request,
-        out ResourceId resourceId,
-        out IResourceBatchWriter? batchWriter,
-        out ResourceWriteMutation? mutation
-    ) =>
-        TryCreateBatchWrite(
-            ConfiglueResourceContext.Default,
-            request,
-            out resourceId,
-            out batchWriter,
-            out mutation
-        );
 
     /// <summary>Prepares a resource batch mutation for one logical subject.</summary>
     public bool TryCreateBatchWrite(
