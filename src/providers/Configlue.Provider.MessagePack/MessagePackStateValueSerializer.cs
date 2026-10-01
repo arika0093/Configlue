@@ -36,8 +36,6 @@ public sealed class MessagePackStateValueSerializer<T>
     public T? Deserialize(in ReadOnlySequence<byte> source)
     {
         var reader = new MessagePackReader(source);
-        return _formatter is not null
-            ? _formatter.Deserialize(ref reader, _options)
-            : MessagePackSerializer.Deserialize<T>(ref reader, _options);
+        return MessagePackStateCodecOperations.ReadPayload(ref reader, _options, _formatter);
     }
 }

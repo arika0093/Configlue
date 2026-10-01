@@ -61,7 +61,7 @@ public sealed class MessagePackStateCodec
 
     /// <inheritdoc />
     public bool IsRecoverableReadException(Exception exception) =>
-        exception is MessagePackSerializationException and not FormatterNotRegisteredException;
+        MessagePackStateCodecOperations.IsRecoverableReadException(exception);
 }
 
 /// <summary>A typed MessagePack state codec with generated-fragment support.</summary>
@@ -112,5 +112,5 @@ public sealed class MessagePackStateCodec<T>
 
     /// <inheritdoc />
     public bool IsRecoverableReadException(Exception exception) =>
-        exception is MessagePackSerializationException and not FormatterNotRegisteredException;
+        MessagePackStateCodecOperations.IsRecoverableReadException(exception);
 }

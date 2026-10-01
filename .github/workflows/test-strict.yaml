@@ -90,6 +90,13 @@ jobs:
           --timeout 5m
           --progress off
 
+      - name: Run NativeAOT MessagePack test
+        run: >
+          tests/Configlue.Tests/bin/Release/net10.0/linux-x64/publish/Configlue.Tests
+          --treenode-filter '/*/*/*/*MessagePackAot*'
+          --timeout 5m
+          --progress off
+
       - name: Publish NativeAOT console example
         run: >
           dotnet publish example/Example.ConsoleApp.NativeAot/Example.ConsoleApp.NativeAot.csproj

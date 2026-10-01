@@ -18,7 +18,7 @@ public sealed partial class ConfiglueGenerator
         code.CancellationToken.ThrowIfCancellationRequested();
         code.AppendLineAt(
             2,
-            "/// <summary>Reads and writes the sparse fragment as a member-id keyed MessagePack map.</summary>"
+            "/// <summary>Reads and writes the sparse fragment as a member-name keyed MessagePack map.</summary>"
         );
         code.AppendLineAt(
             2,
@@ -46,7 +46,10 @@ public sealed partial class ConfiglueGenerator
             var property = EscapeIdentifier(member.Property.Name);
             code.AppendIndent(4).Append("if (value.").Append(property).AppendLine(".IsPresent)");
             code.AppendLineAt(4, "{");
-            code.AppendLineAt(5, "writer.Write(" + member.Id + ");");
+            code.AppendLineAt(
+                5,
+                "writer.Write(" + SymbolDisplay.FormatLiteral(member.Property.Name, true) + ");"
+            );
             if (member.ChildModel is null)
             {
                 code.AppendIndent(5)
@@ -85,17 +88,23 @@ public sealed partial class ConfiglueGenerator
         );
         code.AppendLineAt(3, "{");
         code.AppendLineAt(4, "if (reader.TryReadNil()) { return null!; }");
+        code.AppendLineAt(4, "options.Security.DepthStep(ref reader);");
+        code.AppendLineAt(4, "try");
+        code.AppendLineAt(4, "{");
         code.AppendLineAt(4, "var length = reader.ReadMapHeader();");
         code.AppendLineAt(4, "var builder = new FragmentBuilder();");
         code.AppendLineAt(4, "for (var index = 0; index < length; index++)");
         code.AppendLineAt(4, "{");
-        code.AppendLineAt(5, "var memberId = reader.ReadInt32();");
-        code.AppendLineAt(5, "switch (memberId)");
+        code.AppendLineAt(5, "var memberName = reader.ReadString();");
+        code.AppendLineAt(5, "switch (memberName)");
         code.AppendLineAt(5, "{");
         foreach (var member in members)
         {
             var property = EscapeIdentifier(member.Property.Name);
-            code.AppendLineAt(6, "case " + member.Id + ":");
+            code.AppendLineAt(
+                6,
+                "case " + SymbolDisplay.FormatLiteral(member.Property.Name, true) + ":"
+            );
             if (member.ChildModel is null)
             {
                 code.AppendIndent(7)
@@ -127,6 +136,8 @@ public sealed partial class ConfiglueGenerator
         code.AppendLineAt(5, "}");
         code.AppendLineAt(4, "}");
         code.AppendLineAt(4, "return builder.Build();");
+        code.AppendLineAt(4, "}");
+        code.AppendLineAt(4, "finally { reader.Depth--; }");
         code.AppendLineAt(3, "}");
         code.AppendLineAt(2, "}");
     }

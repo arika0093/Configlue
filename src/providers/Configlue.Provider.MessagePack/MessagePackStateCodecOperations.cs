@@ -9,7 +9,7 @@ namespace Configlue.Provider.MessagePack;
 /// <remarks>
 /// A stored document is a two-entry map: <c>"$configlue"</c> carries the schema identifier and
 /// version, and <c>"$value"</c> carries the payload. The payload for a generated fragment is a
-/// sparse map keyed by stable generated member identifiers, so the binary shape never depends on
+/// sparse map keyed by ordinal case-sensitive CLR member names, so the binary shape never depends on
 /// declaration or property order.
 /// </remarks>
 internal static class MessagePackStateCodecOperations
@@ -183,14 +183,45 @@ internal static class MessagePackStateCodecOperations
         return schema;
     }
 
-    private static T? ReadPayload<T>(
+    internal static T? ReadPayload<T>(
         ref MessagePackReader reader,
         MessagePackSerializerOptions options,
         IMessagePackFormatter<T>? formatter
-    ) =>
-        formatter is not null
-            ? formatter.Deserialize(ref reader, options)
-            : MessagePackSerializer.Deserialize<T>(ref reader, options);
+    )
+    {
+        try
+        {
+            return formatter is not null
+                ? formatter.Deserialize(ref reader, options)
+                : MessagePackSerializer.Deserialize<T>(ref reader, options);
+        }
+        catch (Exception exception)
+            when (exception is EndOfStreamException or InsufficientExecutionStackException)
+        {
+            throw new MessagePackSerializationException(
+                "The MessagePack payload is truncated or exceeds the configured depth limit.",
+                exception
+            );
+        }
+    }
+
+    internal static bool IsRecoverableReadException(Exception exception)
+    {
+        if (exception is not MessagePackSerializationException)
+        {
+            return false;
+        }
+
+        for (Exception? current = exception; current is not null; current = current.InnerException)
+        {
+            if (current is FormatterNotRegisteredException)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
 
     private static void WriteSchema(ref MessagePackWriter writer, StateSchemaMetadata? schema)
     {
@@ -260,11 +291,31 @@ internal static class MessagePackStateCodecOperations
 
     private static bool TryReadEnvelopeHeader(MessagePackReader reader)
     {
-        if (!reader.TryReadMapHeader(out _) || !reader.TryReadStringSpan(out var key))
+        if (!reader.TryReadMapHeader(out var count))
         {
             return false;
         }
 
-        return key.SequenceEqual(MetadataPropertyUtf8) || key.SequenceEqual(PayloadPropertyUtf8);
+        for (var index = 0; index < count; index++)
+        {
+            if (reader.TryReadStringSpan(out var key))
+            {
+                if (
+                    key.SequenceEqual(MetadataPropertyUtf8)
+                    || key.SequenceEqual(PayloadPropertyUtf8)
+                )
+                {
+                    return true;
+                }
+            }
+            else
+            {
+                reader.Skip();
+            }
+
+            reader.Skip();
+        }
+
+        return false;
     }
 }
