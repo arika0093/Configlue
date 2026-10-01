@@ -20,9 +20,9 @@ public static class ConfiglueFragmentComparer
         if (
             left is null
             || right is null
-            || left.Schema.ModelType != right.Schema.ModelType
-            || left.Schema.Id != right.Schema.Id
-            || left.Schema.Version != right.Schema.Version
+            || left.ConfiglueSchema.ModelType != right.ConfiglueSchema.ModelType
+            || left.ConfiglueSchema.Id != right.ConfiglueSchema.Id
+            || left.ConfiglueSchema.Version != right.ConfiglueSchema.Version
         )
         {
             return false;
