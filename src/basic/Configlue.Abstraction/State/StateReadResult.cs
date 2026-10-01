@@ -8,7 +8,7 @@ public readonly record struct StateReadResult<T>
     /// <summary>The read outcome selected by its factory.</summary>
     public StateReadStatus Status => _status ?? StateReadStatus.NotFound;
 
-    /// <summary>The successful or invalid value; missing and unavailable results carry no value.</summary>
+    /// <summary>The successful or malformed-payload value; missing and unavailable results carry no value.</summary>
     public T? Value { get; }
 
     /// <summary>Gets or initializes the <see cref="Revision"/> value.</summary>
@@ -127,9 +127,12 @@ public readonly record struct StateReadResult<T>
     public static StateReadResult<T> Unavailable(string? revision = null) =>
         new(StateReadStatus.Unavailable, default, revision);
 
-    /// <summary>Creates a result for a value that failed validation.</summary>
-    public static StateReadResult<T> Invalid(T? value, string? revision = null) =>
-        new(StateReadStatus.Invalid, value, revision);
+    /// <summary>
+    /// Creates a result for a source-local malformed or undecodable payload. This is not an effective-model
+    /// validation failure; those are handled by <see cref="Configlue.ReadValidationMode"/>.
+    /// </summary>
+    public static StateReadResult<T> InvalidPayload(T? value, string? revision = null) =>
+        new(StateReadStatus.InvalidPayload, value, revision);
 
     /// <summary>
     /// Returns this result associated with its logical source. An existing physical origin is preserved;

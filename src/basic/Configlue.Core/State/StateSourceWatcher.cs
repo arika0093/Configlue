@@ -38,15 +38,16 @@ public sealed class StateSourceWatcher<T> : ISourceWatcher
         using var watchCancellation = CancellationTokenSource.CreateLinkedTokenSource(
             cancellationToken
         );
+        using var watchTargets = subject is null
+            ? _resolver.GetSourcesForWatch(observedRevision)
+            : _resolver.GetSourcesForWatch(subject, context.Route, observedRevision);
         var watchers = new List<Task>();
         try
         {
             foreach (
-                var target in (
-                    subject is null
-                        ? _resolver.GetSourcesForWatch(observedRevision)
-                        : _resolver.GetSourcesForWatch(subject, context.Route, observedRevision)
-                ).Where(static target => target.Source.Watcher is not null)
+                var target in watchTargets.Targets.Where(static target =>
+                    target.Source.Watcher is not null
+                )
             )
             {
                 var sourceContext = subject is null

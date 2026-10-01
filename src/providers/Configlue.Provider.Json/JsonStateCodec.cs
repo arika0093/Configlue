@@ -287,7 +287,7 @@ public sealed class JsonStateCodec<T>
                 )
                 : payload.Deserialize((JsonTypeInfo<T>)_pipelineOptions.GetTypeInfo(typeof(T)));
             return strictValue is null
-                ? StateReadResult<T>.Invalid(default) with
+                ? StateReadResult<T>.InvalidPayload(default) with
                 {
                     Schema = strictSchema,
                 }
@@ -351,7 +351,7 @@ public sealed class JsonStateCodec<T>
         }
 
         return value is null
-            ? StateReadResult<T>.Invalid(default) with
+            ? StateReadResult<T>.InvalidPayload(default) with
             {
                 Schema = schema,
             }

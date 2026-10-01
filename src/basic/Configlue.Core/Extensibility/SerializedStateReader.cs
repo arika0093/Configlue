@@ -327,7 +327,7 @@ public sealed class SerializedStateReader<T> : ISourceReader<T>, ITryContextualR
         }
 
         return value is null
-            ? StateReadResult<T>.Invalid(default, revision) with
+            ? StateReadResult<T>.InvalidPayload(default, revision) with
             {
                 Schema = schema,
             }

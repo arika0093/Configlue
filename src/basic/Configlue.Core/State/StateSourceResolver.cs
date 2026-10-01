@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using Configlue.Resources;
 using Configlue.Sources;
@@ -7,28 +8,86 @@ using Microsoft.Extensions.Logging;
 namespace Configlue.State;
 
 /// <summary>Reads the first successful state from a priority-ordered set of sources.</summary>
+/// <remarks>
+/// Per-subject resolutions are cached so routing and watcher fan-out stay stable across reads. The cache is
+/// bounded: entries are evicted once they have been idle for <see cref="SubjectResolutionIdleTimeout"/> and no
+/// active watch still references them. Eviction is opportunistic and performed on access, so the resolver does
+/// not run a timer or task per subject.
+/// </remarks>
 public sealed class StateSourceResolver<T> : ISourceReader<T>
 {
     private static readonly EventId ReadEvent = new(1050, "ResolverSourceRead");
     private static readonly EventId FallbackEvent = new(1051, "ResolverSourceFallback");
+    private static readonly EventId SubjectCacheEvictionEvent = new(
+        1052,
+        "ResolverSubjectCacheEviction"
+    );
+
+    /// <summary>The idle timeout applied to per-subject resolutions when none is supplied.</summary>
+    public static readonly TimeSpan SubjectResolutionIdleTimeout = TimeSpan.FromMinutes(5);
+
+    /// <summary>The entry count at which opportunistic sweeps are considered even before the idle timeout.</summary>
+    public const int SubjectResolutionSweepThreshold = 256;
+
     private readonly StateSourceSet<T> _sourceSet;
     private readonly ILogger? _logger;
     private Resolution? _resolution;
     private readonly ConcurrentDictionary<
         (SubjectKey SubjectKey, RouteKey Route),
-        Resolution
+        SubjectResolution
     > _subjectResolutions = new();
+    private readonly long _subjectResolutionIdleTicks;
+    private readonly int _subjectResolutionSweepThreshold;
+    private int _subjectResolutionCount;
+    private int _subjectResolutionSweepCountdown;
+    private long _subjectResolutionLastSweepTimestamp;
 
     /// <summary>Creates a source resolver.</summary>
-    public StateSourceResolver(StateSourceSet<T> sourceSet, ILogger? logger = null)
+    /// <param name="sourceSet">The priority-ordered sources to resolve.</param>
+    /// <param name="logger">An optional logger.</param>
+    /// <param name="subjectResolutionIdleTimeout">
+    /// Optional idle timeout for cached per-subject resolutions. Defaults to
+    /// <see cref="SubjectResolutionIdleTimeout"/>. Use <see cref="TimeSpan.Zero"/> to evict any entry that was
+    /// not touched since the previous access.
+    /// </param>
+    /// <param name="subjectResolutionSweepThreshold">
+    /// The approximate cached entry count at which sweeps are attempted on access even before the idle timeout
+    /// elapses. Defaults to <see cref="SubjectResolutionSweepThreshold"/>.
+    /// </param>
+    public StateSourceResolver(
+        StateSourceSet<T> sourceSet,
+        ILogger? logger = null,
+        TimeSpan? subjectResolutionIdleTimeout = null,
+        int subjectResolutionSweepThreshold = SubjectResolutionSweepThreshold
+    )
     {
         ArgumentNullException.ThrowIfNull(sourceSet);
+        if (subjectResolutionSweepThreshold <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(subjectResolutionSweepThreshold));
+        }
+
+        var idleTimeout = subjectResolutionIdleTimeout ?? SubjectResolutionIdleTimeout;
+        if (idleTimeout < TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(nameof(subjectResolutionIdleTimeout));
+        }
+
         _sourceSet = sourceSet;
         _logger = logger;
+        _subjectResolutionSweepThreshold = subjectResolutionSweepThreshold;
+        _subjectResolutionIdleTicks = (long)(
+            idleTimeout.TotalMilliseconds * Stopwatch.Frequency / 1000.0
+        );
+        _subjectResolutionSweepCountdown = subjectResolutionSweepThreshold;
+        _subjectResolutionLastSweepTimestamp = Stopwatch.GetTimestamp();
     }
 
     /// <summary>The source that most recently supplied a value.</summary>
     public StateSource<T>? ActiveSource => Volatile.Read(ref _resolution)?.ActiveSource;
+
+    /// <summary>The approximate number of cached per-subject resolutions.</summary>
+    internal int SubjectResolutionCount => Volatile.Read(ref _subjectResolutionCount);
 
     /// <inheritdoc />
     public ValueTask<StateReadResult<T>> ReadAsync(
@@ -225,26 +284,39 @@ public sealed class StateSourceResolver<T> : ISourceReader<T>
 #pragma warning restore S2139
     }
 
-    internal IReadOnlyList<StateSourceWatchTarget<T>> GetSourcesForWatch(string? fallbackRevision)
+    internal StateSourceWatchTargets<T> GetSourcesForWatch(string? fallbackRevision)
     {
         return GetSourcesForWatchCore(null, RouteKey.Default, fallbackRevision);
     }
 
-    internal IReadOnlyList<StateSourceWatchTarget<T>> GetSourcesForWatch(
+    internal StateSourceWatchTargets<T> GetSourcesForWatch(
         IConfiglueSubject subject,
         RouteKey route,
         string? fallbackRevision
     ) => GetSourcesForWatchCore(subject, route, fallbackRevision);
 
-    private IReadOnlyList<StateSourceWatchTarget<T>> GetSourcesForWatchCore(
+    private StateSourceWatchTargets<T> GetSourcesForWatchCore(
         IConfiglueSubject? subject,
         RouteKey route,
         string? fallbackRevision
     )
     {
-        var resolution = subject is null
-            ? Volatile.Read(ref _resolution)
-            : _subjectResolutions.GetValueOrDefault((subject.Key, route));
+        Resolution? resolution;
+        IDisposable? watchLease = null;
+        if (subject is null)
+        {
+            resolution = Volatile.Read(ref _resolution);
+        }
+        else if (_subjectResolutions.TryGetValue((subject.Key, route), out var entry))
+        {
+            watchLease = entry.AcquireWatchLease();
+            resolution = entry.Resolution;
+        }
+        else
+        {
+            resolution = null;
+        }
+
         var active = resolution?.ActiveSource;
         var sources = new List<StateSourceWatchTarget<T>>(_sourceSet.Count);
         for (var index = 0; index < _sourceSet.Count; index++)
@@ -274,7 +346,7 @@ public sealed class StateSourceResolver<T> : ISourceReader<T>
             sources.Add(new StateSourceWatchTarget<T>(source, revision));
         }
 
-        return sources;
+        return new StateSourceWatchTargets<T>(sources, watchLease);
     }
 
     private void SetResolution(
@@ -286,12 +358,100 @@ public sealed class StateSourceResolver<T> : ISourceReader<T>
         if (subject is null)
         {
             Volatile.Write(ref _resolution, resolution);
+            return;
         }
-        else
+
+        var now = Stopwatch.GetTimestamp();
+        if (!_subjectResolutions.TryGetValue((subject.Key, context.Route), out var entry))
         {
-            _subjectResolutions[(subject.Key, context.Route)] = resolution;
+            var candidate = new SubjectResolution(resolution);
+            entry = _subjectResolutions.GetOrAdd((subject.Key, context.Route), candidate);
+            if (ReferenceEquals(entry, candidate))
+            {
+                Interlocked.Increment(ref _subjectResolutionCount);
+            }
+        }
+
+        entry.Update(resolution, now);
+        MaybeSweepSubjectResolutions(now);
+    }
+
+    private void MaybeSweepSubjectResolutions(long now)
+    {
+        var idleElapsed =
+            now - Volatile.Read(ref _subjectResolutionLastSweepTimestamp)
+            > _subjectResolutionIdleTicks;
+        var atCapacity =
+            Volatile.Read(ref _subjectResolutionCount) >= _subjectResolutionSweepThreshold;
+        if (!idleElapsed && !atCapacity)
+        {
+            return;
+        }
+
+        // Capacity-driven sweeps are amortized so a large live set is not rescanned on every access.
+        if (
+            atCapacity
+            && !idleElapsed
+            && Interlocked.Decrement(ref _subjectResolutionSweepCountdown) > 0
+        )
+        {
+            return;
+        }
+
+        Interlocked.Exchange(
+            ref _subjectResolutionSweepCountdown,
+            _subjectResolutionSweepThreshold
+        );
+        Volatile.Write(ref _subjectResolutionLastSweepTimestamp, now);
+        SweepSubjectResolutions(now);
+    }
+
+    private void SweepSubjectResolutions(long now)
+    {
+        var idleTicks = _subjectResolutionIdleTicks;
+        foreach (var pair in _subjectResolutions)
+        {
+            if (
+                pair.Value.IsEvictable(now, idleTicks)
+                && _subjectResolutions.TryRemove(pair.Key, out _)
+            )
+            {
+                Interlocked.Decrement(ref _subjectResolutionCount);
+                _logger?.LogTrace(
+                    SubjectCacheEvictionEvent,
+                    "Evicted idle subject resolution for {SubjectKey} route {RouteKey}.",
+                    pair.Key.SubjectKey.Value,
+                    pair.Key.Route.Value
+                );
+            }
         }
     }
+
+    private static bool CanFallBack(StateFallbackCondition condition, StateReadStatus status) =>
+        status switch
+        {
+            StateReadStatus.NotFound => (condition & StateFallbackCondition.NotFound) != 0,
+            StateReadStatus.Unavailable => (condition & StateFallbackCondition.Unavailable) != 0,
+            StateReadStatus.InvalidPayload => (condition & StateFallbackCondition.InvalidPayload)
+                != 0,
+            _ => false,
+        };
+
+    private static StateRevisionVector CreateRevisionVector(
+        StateRevision[] revisions,
+        int revisionCount,
+        List<KeyValuePair<string, StateRevisionVector>>? nestedRevisions
+    ) =>
+        nestedRevisions is null
+            ? StateRevisionVector.FromSpan(revisions.AsSpan(0, revisionCount))
+            : StateRevisionVector.FromSpan(
+                revisions.AsSpan(0, revisionCount),
+#if NETSTANDARD
+                nestedRevisions.ToArray()
+#else
+                System.Runtime.InteropServices.CollectionsMarshal.AsSpan(nestedRevisions)
+#endif
+            );
 
     private sealed record Resolution
     {
@@ -311,30 +471,77 @@ public sealed class StateSourceResolver<T> : ISourceReader<T>
         }
     }
 
-    private static bool CanFallBack(StateFallbackCondition condition, StateReadStatus status) =>
-        status switch
-        {
-            StateReadStatus.NotFound => (condition & StateFallbackCondition.NotFound) != 0,
-            StateReadStatus.Unavailable => (condition & StateFallbackCondition.Unavailable) != 0,
-            StateReadStatus.Invalid => (condition & StateFallbackCondition.Invalid) != 0,
-            _ => false,
-        };
+    private sealed class SubjectResolution
+    {
+        private Resolution _resolution;
+        private long _lastAccessTimestamp;
+        private int _watchReferenceCount;
 
-    private static StateRevisionVector CreateRevisionVector(
-        StateRevision[] revisions,
-        int revisionCount,
-        List<KeyValuePair<string, StateRevisionVector>>? nestedRevisions
-    ) =>
-        nestedRevisions is null
-            ? StateRevisionVector.FromSpan(revisions.AsSpan(0, revisionCount))
-            : StateRevisionVector.FromSpan(
-                revisions.AsSpan(0, revisionCount),
-#if NETSTANDARD
-                nestedRevisions.ToArray()
-#else
-                System.Runtime.InteropServices.CollectionsMarshal.AsSpan(nestedRevisions)
-#endif
-            );
+        public SubjectResolution(Resolution resolution)
+        {
+            _resolution = resolution;
+            _lastAccessTimestamp = Stopwatch.GetTimestamp();
+        }
+
+        public Resolution Resolution => Volatile.Read(ref _resolution);
+
+        public void Update(Resolution resolution, long timestamp)
+        {
+            Volatile.Write(ref _resolution, resolution);
+            Volatile.Write(ref _lastAccessTimestamp, timestamp);
+        }
+
+        public IDisposable AcquireWatchLease()
+        {
+            Interlocked.Increment(ref _watchReferenceCount);
+            Volatile.Write(ref _lastAccessTimestamp, Stopwatch.GetTimestamp());
+            return new WatchLease(this);
+        }
+
+        public bool IsEvictable(long now, long idleTicks) =>
+            Volatile.Read(ref _watchReferenceCount) == 0
+            && now - Volatile.Read(ref _lastAccessTimestamp) > idleTicks;
+
+        private void ReleaseWatchReference() => Interlocked.Decrement(ref _watchReferenceCount);
+
+        private sealed class WatchLease(SubjectResolution owner) : IDisposable
+        {
+            private SubjectResolution? _owner = owner;
+
+            public void Dispose() =>
+                Interlocked.Exchange(ref _owner, null)?.ReleaseWatchReference();
+        }
+    }
+}
+
+/// <summary>
+/// A captured set of watch targets plus an optional lease that keeps the underlying subject resolution cached
+/// while a watcher is still using it. Disposing the lease releases the active-watch reference.
+/// </summary>
+internal sealed class StateSourceWatchTargets<T> : IDisposable
+{
+    private IDisposable? _lease;
+    private int _disposed;
+
+    public StateSourceWatchTargets(
+        IReadOnlyList<StateSourceWatchTarget<T>> targets,
+        IDisposable? lease
+    )
+    {
+        Targets = targets;
+        _lease = lease;
+    }
+
+    /// <summary>The captured watch targets. The list remains valid after disposal.</summary>
+    public IReadOnlyList<StateSourceWatchTarget<T>> Targets { get; }
+
+    public void Dispose()
+    {
+        if (Interlocked.Exchange(ref _disposed, 1) == 0)
+        {
+            Interlocked.Exchange(ref _lease, null)?.Dispose();
+        }
+    }
 }
 
 internal readonly record struct StateSourceWatchTarget<T>

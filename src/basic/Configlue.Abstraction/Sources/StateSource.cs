@@ -134,7 +134,10 @@ public sealed class StateSource<T>
         if (
             (
                 fallbackCondition
-                & ~(StateFallbackCondition.NotFoundOrUnavailable | StateFallbackCondition.Invalid)
+                & ~(
+                    StateFallbackCondition.NotFoundOrUnavailable
+                    | StateFallbackCondition.InvalidPayload
+                )
             ) != 0
         )
         {

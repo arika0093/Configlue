@@ -191,7 +191,7 @@ public sealed class PostgreSqlSource<T>
 
         var value = _serializer.Deserialize(new ReadOnlySequence<byte>(result.Content));
         return value is null
-            ? StateReadResult<T>.Invalid(default, result.Revision) with
+            ? StateReadResult<T>.InvalidPayload(default, result.Revision) with
             {
                 Schema = result.Schema,
             }
