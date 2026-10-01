@@ -13,12 +13,185 @@ public sealed partial class ConfiglueGenerator
 {
     private static bool IsConfiglueModel(ITypeSymbol type, CancellationToken cancellationToken)
     {
-        if (type is not INamedTypeSymbol { TypeKind: TypeKind.Class } named)
+        if (
+            type
+            is not INamedTypeSymbol
+            {
+                TypeKind: TypeKind.Class or TypeKind.Struct,
+                IsAbstract: false,
+            } named
+        )
         {
             return false;
         }
 
         return HasConfiglueModelAttribute(named, cancellationToken);
+    }
+
+    private enum StructuralTypeKind
+    {
+        RootModel,
+        StructuralObject,
+        Collection,
+        Scalar,
+    }
+
+    private static StructuralTypeKind ClassifyStructuralType(
+        ITypeSymbol type,
+        CancellationToken cancellationToken
+    )
+    {
+        if (
+            type is IArrayTypeSymbol
+            || (
+                type is INamedTypeSymbol arrayLike
+                && GetCollectionInfo(arrayLike).Kind != CollectionKind.Unsupported
+            )
+        )
+        {
+            return StructuralTypeKind.Collection;
+        }
+
+        if (
+            type
+                is not INamedTypeSymbol
+                {
+                    TypeKind: TypeKind.Class,
+                    IsAbstract: false,
+                    Arity: 0,
+                } named
+            || named.SpecialType != SpecialType.None
+            || IsFrameworkType(named)
+            || !HasPublicParameterlessConstructor(named, cancellationToken)
+        )
+        {
+            return StructuralTypeKind.Scalar;
+        }
+
+        if (IsConfiglueModel(named, cancellationToken))
+        {
+            return StructuralTypeKind.RootModel;
+        }
+
+        if (
+            HasUnsupportedPocoMembers(named, cancellationToken)
+            || !HasPublicSettableMember(named, cancellationToken)
+        )
+        {
+            return StructuralTypeKind.Scalar;
+        }
+
+        return StructuralTypeKind.StructuralObject;
+    }
+
+    private static bool IsStructuralType(ITypeSymbol type, CancellationToken cancellationToken)
+    {
+        return type is INamedTypeSymbol named
+            && ClassifyStructuralType(type, cancellationToken)
+                == StructuralTypeKind.StructuralObject
+            && IsAccessibleForGeneration(named);
+    }
+
+    private static bool IsFrameworkType(INamedTypeSymbol type)
+    {
+        var namespaceName = type.ContainingNamespace.ToDisplayString();
+        if (
+            namespaceName == "System"
+            || namespaceName.StartsWith("System.", StringComparison.Ordinal)
+            || namespaceName == "Microsoft"
+            || namespaceName.StartsWith("Microsoft.", StringComparison.Ordinal)
+        )
+        {
+            return true;
+        }
+
+        var assemblyName = type.ContainingAssembly?.Name;
+        return assemblyName is not null
+            && (
+                assemblyName.StartsWith("System.", StringComparison.Ordinal)
+                || assemblyName.StartsWith("Microsoft.", StringComparison.Ordinal)
+            );
+    }
+
+    private static bool IsAccessibleForGeneration(INamedTypeSymbol type)
+    {
+        for (var current = type; current is not null; current = current.ContainingType)
+        {
+            if (current.DeclaredAccessibility != Accessibility.Public)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool IsAccessibleForClone(INamedTypeSymbol type)
+    {
+        if (type.DeclaredAccessibility is not (Accessibility.Public or Accessibility.Internal))
+        {
+            return false;
+        }
+
+        for (
+            var current = type.ContainingType;
+            current is not null;
+            current = current.ContainingType
+        )
+        {
+            if (
+                current.DeclaredAccessibility
+                is not (Accessibility.Public or Accessibility.Internal)
+            )
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool HasPublicSettableMember(
+        INamedTypeSymbol type,
+        CancellationToken cancellationToken
+    )
+    {
+        for (
+            var current = type;
+            current is not null && current.SpecialType != SpecialType.System_Object;
+            current = current.BaseType
+        )
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            foreach (var property in current.GetMembers().OfType<IPropertySymbol>())
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (
+                    !property.IsStatic
+                    && !property.IsIndexer
+                    && property.GetMethod?.DeclaredAccessibility == Accessibility.Public
+                    && property.SetMethod?.DeclaredAccessibility == Accessibility.Public
+                )
+                {
+                    return true;
+                }
+            }
+
+            foreach (var field in current.GetMembers().OfType<IFieldSymbol>())
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (
+                    !field.IsStatic
+                    && !field.IsConst
+                    && field.DeclaredAccessibility == Accessibility.Public
+                )
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     private static bool TryGetPocoCloneType(
@@ -28,28 +201,14 @@ public sealed partial class ConfiglueGenerator
     )
     {
         if (
-            type
-                is INamedTypeSymbol
-                {
-                    TypeKind: TypeKind.Class,
-                    IsAbstract: false,
-                    Arity: 0,
-                    ContainingType: null,
-                } named
-            && named.SpecialType == SpecialType.None
-            && named.ContainingNamespace.ToDisplayString() != "System"
-            && !named
-                .ContainingNamespace.ToDisplayString()
-                .StartsWith("System.", StringComparison.Ordinal)
-            && !IsConfiglueModel(named, cancellationToken)
-            && named.InstanceConstructors.Any(static constructor =>
-                constructor.DeclaredAccessibility == Accessibility.Public
-                && constructor.Parameters.Length == 0
-            )
+            type is INamedTypeSymbol named
+            && ClassifyStructuralType(type, cancellationToken)
+                == StructuralTypeKind.StructuralObject
+            && IsAccessibleForClone(named)
         )
         {
             var members = GetMembers(named, cancellationToken).ToArray();
-            if (members.Length == 0 || HasUnsupportedPocoMembers(named, cancellationToken))
+            if (members.Length == 0)
             {
                 pocoType = null!;
                 return false;
@@ -61,6 +220,18 @@ public sealed partial class ConfiglueGenerator
 
         pocoType = null!;
         return false;
+    }
+
+    private static string StructuralHostName(
+        INamedTypeSymbol type,
+        CancellationToken cancellationToken
+    )
+    {
+        var name = type.WithNullableAnnotation(NullableAnnotation.NotAnnotated)
+            .ToDisplayString(TypeFormat);
+        var assembly = type.ContainingAssembly?.Name ?? string.Empty;
+        return "__ConfiglueStructural_"
+            + GetStableTypeHash(assembly + "|" + name, cancellationToken);
     }
 
     private static bool HasUnsupportedPocoMembers(

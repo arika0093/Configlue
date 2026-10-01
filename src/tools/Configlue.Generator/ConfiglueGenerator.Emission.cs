@@ -16,6 +16,7 @@ public sealed partial class ConfiglueGenerator
         ImmutableArray<MemberModel> members,
         ImmutableArray<PreviousModelInfo> previousModels,
         ImmutableArray<PocoCloneModel> pocoCloneModels,
+        ImmutableArray<StructuralModel> structuralModels,
         bool hasJsonFragmentRegistry,
         CancellationToken cancellationToken
     )
@@ -63,10 +64,17 @@ public sealed partial class ConfiglueGenerator
             modelType,
             members,
             previousModels,
+            !model.IsStruct,
             !pocoCloneModels.IsEmpty,
             hasJsonFragmentRegistry
         );
         AppendDetailsTree(code, modelType, members);
+        AppendStructuralModels(
+            code,
+            structuralModels,
+            !pocoCloneModels.IsEmpty,
+            hasJsonFragmentRegistry
+        );
         AppendFacadeRuntimeBridge(code, modelType);
         AppendHistoricalDispatcherFactory(code, modelType, previousModels);
         code.AppendLine("}");
@@ -74,6 +82,52 @@ public sealed partial class ConfiglueGenerator
         AppendTypedPatchExtensions(code, modelType, name);
         AppendDetailsExtensions(code, modelType, name);
         return code.ToString();
+    }
+
+    private static void AppendStructuralModels(
+        IndentedStringBuilder code,
+        ImmutableArray<StructuralModel> structuralModels,
+        bool usesPocoCloning,
+        bool hasJsonFragmentRegistry
+    )
+    {
+        code.CancellationToken.ThrowIfCancellationRequested();
+        foreach (var structuralModel in structuralModels)
+        {
+            code.AppendLineAt(
+                1,
+                "/// <summary>Root-owned generated shape for an undecorated structural configuration type.</summary>"
+            );
+            code.AppendLineAt(1, "public sealed class " + structuralModel.HostName);
+            code.AppendLineAt(1, "{");
+            code.IndentOffset++;
+            AppendModelSchema(
+                code,
+                structuralModel.ValueTypeName,
+                structuralModel.ValueTypeName,
+                InitialSchemaVersion,
+                structuralModel.Members
+            );
+            AppendFragmentSchema(
+                code,
+                structuralModel.ValueTypeName,
+                structuralModel.ValueTypeName,
+                InitialSchemaVersion,
+                structuralModel.Members
+            );
+            AppendDetailsTree(code, structuralModel.ValueTypeName, structuralModel.Members);
+            AppendFragment(
+                code,
+                structuralModel.ValueTypeName,
+                structuralModel.Members,
+                ImmutableArray<PreviousModelInfo>.Empty,
+                true,
+                usesPocoCloning,
+                hasJsonFragmentRegistry
+            );
+            code.IndentOffset--;
+            code.AppendLineAt(1, "}");
+        }
     }
 
     private static void AppendTypedPatchExtensions(
@@ -328,8 +382,8 @@ public sealed partial class ConfiglueGenerator
             else
             {
                 code.Append("static () => ")
-                    .Append(member.ChildModel.Value.NonNullableName)
-                    .Append(".ConfiglueSchema");
+                    .Append(member.ChildSchemaType!)
+                    .Append(".ConfiglueSchema!");
             }
 
             code.Append(", ")
@@ -351,10 +405,7 @@ public sealed partial class ConfiglueGenerator
                 .AppendLine(")),");
         }
 
-        code.AppendIndent(1)
-            .Append("}, static () => ")
-            .Append(modelType)
-            .AppendLine(".Fragment.Empty);");
+        code.AppendIndent(1).Append("}, static () => Fragment.Empty);");
     }
 
     private static string CollectionValueFactory(MemberModel member)
@@ -402,7 +453,7 @@ public sealed partial class ConfiglueGenerator
         {
             var valueType = member.ChildModel is null
                 ? member.Property.Type.NonNullableName
-                : member.ChildModel.Value.NonNullableName + ".Fragment";
+                : member.ChildFragmentType!;
             code.AppendIndent(2)
                 .Append("new(")
                 .Append(member.Id)
@@ -420,8 +471,8 @@ public sealed partial class ConfiglueGenerator
             else
             {
                 code.Append("static () => ")
-                    .Append(member.ChildModel.Value.NonNullableName)
-                    .Append(".FragmentSchema");
+                    .Append(member.ChildSchemaType!)
+                    .Append(".FragmentSchema!");
             }
 
             code.Append(", null, null, ")
@@ -435,10 +486,7 @@ public sealed partial class ConfiglueGenerator
                 .AppendLine(")),");
         }
 
-        code.AppendIndent(1)
-            .Append("}, static () => ")
-            .Append(modelType)
-            .AppendLine(".Fragment.Empty);");
+        code.AppendIndent(1).Append("}, static () => Fragment.Empty);");
     }
 
     private static void AppendDeepClone(

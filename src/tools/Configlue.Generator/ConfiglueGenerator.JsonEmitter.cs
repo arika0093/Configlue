@@ -83,7 +83,7 @@ public sealed partial class ConfiglueGenerator
                 }
                 else
                 {
-                    var childFragment = member.ChildModel.Value.NonNullableName + ".Fragment";
+                    var childFragment = member.ChildFragmentType!;
                     code.AppendIndent(6)
                         .Append("builder.")
                         .Append(property)
@@ -163,7 +163,7 @@ public sealed partial class ConfiglueGenerator
             }
             else
             {
-                var childFragment = member.ChildModel.Value.NonNullableName + ".Fragment";
+                var childFragment = member.ChildFragmentType!;
                 code.AppendIndent(5)
                     .Append("if (value.")
                     .Append(property)

@@ -15,14 +15,17 @@ internal sealed class IndentedStringBuilder
 
     public CancellationToken CancellationToken => _cancellationToken;
 
+    public int IndentOffset { get; set; }
+
     public IndentedStringBuilder AppendIndent(int level)
     {
-        if (level < 0)
+        var effective = level + IndentOffset;
+        if (effective < 0)
         {
             throw new ArgumentOutOfRangeException(nameof(level));
         }
 
-        _builder.Append(' ', level * 4);
+        _builder.Append(' ', effective * 4);
         return this;
     }
 

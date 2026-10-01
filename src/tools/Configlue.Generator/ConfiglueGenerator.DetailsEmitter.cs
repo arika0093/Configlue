@@ -87,7 +87,23 @@ public sealed partial class ConfiglueGenerator
 
         if (member.ChildModel is not null)
         {
-            var childType = member.ChildModel.Value.NonNullableName;
+            var childType = member.ChildDetailsType!;
+            if (!member.ChildIsReferenceType)
+            {
+                code.AppendIndent(2)
+                    .Append("this.")
+                    .Append(name)
+                    .Append(" = new ")
+                    .Append(childType)
+                    .Append("(")
+                    .Append("value.")
+                    .Append(name)
+                    .Append(", snapshot, pathPrefix.Append(")
+                    .Append(member.Id)
+                    .AppendLine("));");
+                return;
+            }
+
             code.AppendIndent(2)
                 .Append("this.")
                 .Append(name)
@@ -95,7 +111,7 @@ public sealed partial class ConfiglueGenerator
                 .Append(name)
                 .Append(" is not null ? new ")
                 .Append(childType)
-                .Append(".Details(")
+                .Append("(")
                 .Append("value.")
                 .Append(name)
                 .Append("!, snapshot, pathPrefix.Append(")
@@ -135,8 +151,8 @@ public sealed partial class ConfiglueGenerator
         {
             code.AppendIndent(1)
                 .Append("public ")
-                .Append(member.ChildModel.Value.NonNullableName)
-                .Append(".Details? ")
+                .Append(member.ChildDetailsType!)
+                .Append("? ")
                 .Append(name)
                 .AppendLine(" { get; }");
             return;

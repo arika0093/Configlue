@@ -157,7 +157,10 @@ Save the code below to `example.cs` and run it with `dotnet run example.cs` (req
 using Configlue;
 using Configlue.Source.Presets;
 
-// 1. Declare the settings model. The generator creates Fragment/Patch support.
+// 1. Declare the root settings model. [ConfiglueModel] registers the root's
+// schema/state identity and makes the generator create Fragment/Patch support.
+// Undecorated nested POCOs reached through properties automatically participate in
+// sparse fragments, deep merge, diff/patch, and deep clone without needing [ConfiglueModel].
 [ConfiglueModel("SampleSetting", Version = 1)]
 public partial class SampleSetting
 {

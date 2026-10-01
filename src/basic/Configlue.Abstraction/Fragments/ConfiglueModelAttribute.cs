@@ -1,6 +1,11 @@
 namespace Configlue;
 
-/// <summary>Requests generated sparse-fragment support for a partial model.</summary>
+/// <summary>
+/// Marks a partial type as a root Configlue model with its own persisted schema/state identity.
+/// The generator also discovers undecorated structural POCOs reachable from a root and gives
+/// them root-owned sparse fragment, deep merge, diff/patch, and deep-clone support without
+/// requiring this attribute, <c>partial</c>, or a standalone schema id on every child type.
+/// </summary>
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct, Inherited = false)]
 public sealed class ConfiglueModelAttribute : Attribute
 {
