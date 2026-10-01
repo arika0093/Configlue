@@ -144,11 +144,11 @@ public sealed partial class ConfiglueGenerator
         code.AppendLineAt(3, "var patch = new Patch();");
         code.AppendLineAt(
             3,
-            "if (operation.Kind == global::Configlue.FragmentOperationKind.Unset) { patch.Unset(); }"
+            "if (operation.Kind == global::SparseFragments.FragmentOperationKind.Unset) { patch.Unset(); }"
         );
         code.AppendLineAt(
             3,
-            "else if (operation.Kind == global::Configlue.FragmentOperationKind.Set)"
+            "else if (operation.Kind == global::SparseFragments.FragmentOperationKind.Set)"
         );
         code.AppendLineAt(3, "{");
         code.AppendLineAt(
@@ -204,7 +204,7 @@ public sealed partial class ConfiglueGenerator
         code.AppendLineAt(2, "public bool IsEmpty => ");
         code.AppendIndent(3)
             .Append(
-                "__configlue_whole_operation.Kind == global::Configlue.FragmentOperationKind.Unchanged && "
+                "__configlue_whole_operation.Kind == global::SparseFragments.FragmentOperationKind.Unchanged && "
             )
             .Append(
                 members.Length == 0
@@ -214,7 +214,7 @@ public sealed partial class ConfiglueGenerator
                         static member =>
                             member.ChildModel is null
                                 ? EscapeIdentifier(member.Property.Name)
-                                    + ".Kind == global::Configlue.FragmentOperationKind.Unchanged"
+                                    + ".Kind == global::SparseFragments.FragmentOperationKind.Unchanged"
                                 : "("
                                     + MemberBackingField(member)
                                     + " is null || "
@@ -231,11 +231,11 @@ public sealed partial class ConfiglueGenerator
         code.AppendLineAt(2, "{");
         code.AppendLineAt(
             3,
-            "if (__configlue_whole_operation.Kind == global::Configlue.FragmentOperationKind.Unset) { current = global::SparseFragments.Optional<Fragment?>.Missing; }"
+            "if (__configlue_whole_operation.Kind == global::SparseFragments.FragmentOperationKind.Unset) { current = global::SparseFragments.Optional<Fragment?>.Missing; }"
         );
         code.AppendLineAt(
             3,
-            "else if (__configlue_whole_operation.Kind == global::Configlue.FragmentOperationKind.Set) { current = global::SparseFragments.Optional<Fragment?>.Present(__configlue_whole_operation.Value); }"
+            "else if (__configlue_whole_operation.Kind == global::SparseFragments.FragmentOperationKind.Set) { current = global::SparseFragments.Optional<Fragment?>.Present(__configlue_whole_operation.Value); }"
         );
         code.AppendLineAt(
             3,
@@ -290,7 +290,7 @@ public sealed partial class ConfiglueGenerator
         code.AppendLineAt(3, "var replacement = ClonePatch();");
         code.AppendLineAt(
             3,
-            "if (replacement.__configlue_whole_operation.Kind == global::Configlue.FragmentOperationKind.Unchanged)"
+            "if (replacement.__configlue_whole_operation.Kind == global::SparseFragments.FragmentOperationKind.Unchanged)"
         );
         code.AppendLineAt(3, "{");
         foreach (var member in members)
@@ -302,7 +302,7 @@ public sealed partial class ConfiglueGenerator
                     4,
                     "if (replacement."
                         + field
-                        + ".Kind == global::Configlue.FragmentOperationKind.Unchanged) { replacement."
+                        + ".Kind == global::SparseFragments.FragmentOperationKind.Unchanged) { replacement."
                         + field
                         + " = global::SparseFragments.FragmentOperation<"
                         + FragmentValueType(member)
@@ -423,7 +423,7 @@ public sealed partial class ConfiglueGenerator
         );
         code.AppendLineAt(
             3,
-            "if (__configlue_whole_operation.Kind != global::Configlue.FragmentOperationKind.Unchanged)"
+            "if (__configlue_whole_operation.Kind != global::SparseFragments.FragmentOperationKind.Unchanged)"
         );
         code.AppendLineAt(3, "{");
         code.AppendLineAt(
@@ -506,7 +506,7 @@ public sealed partial class ConfiglueGenerator
             {
                 code.AppendLineAt(
                     4,
-                    "if (" + name + ".Kind != global::Configlue.FragmentOperationKind.Unchanged)"
+                    "if (" + name + ".Kind != global::SparseFragments.FragmentOperationKind.Unchanged)"
                 );
                 code.AppendLineAt(4, "{");
                 code.AppendLineAt(
@@ -544,7 +544,7 @@ public sealed partial class ConfiglueGenerator
         code.AppendLineAt(3, "var merged = ClonePatch();");
         code.AppendLineAt(
             3,
-            "if (other.__configlue_whole_operation.Kind != global::Configlue.FragmentOperationKind.Unchanged)"
+            "if (other.__configlue_whole_operation.Kind != global::SparseFragments.FragmentOperationKind.Unchanged)"
         );
         code.AppendLineAt(3, "{");
         code.AppendLineAt(
@@ -565,7 +565,7 @@ public sealed partial class ConfiglueGenerator
                     3,
                     "if (other."
                         + field
-                        + ".Kind != global::Configlue.FragmentOperationKind.Unchanged) merged."
+                        + ".Kind != global::SparseFragments.FragmentOperationKind.Unchanged) merged."
                         + field
                         + " = other."
                         + field
@@ -608,7 +608,7 @@ public sealed partial class ConfiglueGenerator
                 static member =>
                     member.ChildModel is null
                         ? EscapeIdentifier(member.Property.Name)
-                            + ".Kind == global::Configlue.FragmentOperationKind.Unchanged"
+                            + ".Kind == global::SparseFragments.FragmentOperationKind.Unchanged"
                         : "("
                             + MemberBackingField(member)
                             + " is null || "
