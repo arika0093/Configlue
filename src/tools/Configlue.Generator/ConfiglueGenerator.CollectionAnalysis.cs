@@ -96,16 +96,22 @@ public sealed partial class ConfiglueGenerator
         public GenerationResult(
             string? hintName,
             string? source,
+            string? sparseHintName,
+            string? sparseSource,
             ImmutableArray<GeneratorDiagnosticInfo> diagnostics
         )
         {
             HintName = hintName;
             Source = source;
+            SparseHintName = sparseHintName;
+            SparseSource = sparseSource;
             Diagnostics = diagnostics;
         }
 
         public string? HintName { get; }
         public string? Source { get; }
+        public string? SparseHintName { get; }
+        public string? SparseSource { get; }
         public ImmutableArray<GeneratorDiagnosticInfo> Diagnostics { get; }
 
         public bool Equals(GenerationResult? other)
@@ -119,6 +125,8 @@ public sealed partial class ConfiglueGenerator
                 other is null
                 || !string.Equals(HintName, other.HintName, StringComparison.Ordinal)
                 || !string.Equals(Source, other.Source, StringComparison.Ordinal)
+                || !string.Equals(SparseHintName, other.SparseHintName, StringComparison.Ordinal)
+                || !string.Equals(SparseSource, other.SparseSource, StringComparison.Ordinal)
                 || Diagnostics.Length != other.Diagnostics.Length
             )
             {
@@ -143,6 +151,16 @@ public sealed partial class ConfiglueGenerator
             var hash = unchecked(
                 (HintName is null ? 0 : StringComparer.Ordinal.GetHashCode(HintName)) * 31
                 + (Source is null ? 0 : StringComparer.Ordinal.GetHashCode(Source))
+            );
+            hash = unchecked(
+                hash * 31
+                + (SparseHintName is null
+                    ? 0
+                    : StringComparer.Ordinal.GetHashCode(SparseHintName))
+            );
+            hash = unchecked(
+                hash * 31
+                + (SparseSource is null ? 0 : StringComparer.Ordinal.GetHashCode(SparseSource))
             );
             foreach (var diagnostic in Diagnostics)
             {
