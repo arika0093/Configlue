@@ -359,7 +359,10 @@ public sealed class ReadValidationTests
             {
                 try
                 {
-                    File.Move(temporaryPath, path, overwrite: true);
+                    if (File.Exists(path))
+                        File.Replace(temporaryPath, path, destinationBackupFileName: null);
+                    else
+                        File.Move(temporaryPath, path);
                     return;
                 }
                 catch (IOException) when (attempt < 50)
