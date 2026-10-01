@@ -1,0 +1,11 @@
+[assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/arika0093/Configlue")]
+namespace Configlue.Hosting.Avalonia
+{
+    public sealed class AvaloniaConfiglueDispatcher : Configlue.Extensions.ComponentModel.IConfiglueDispatcher
+    {
+        public AvaloniaConfiglueDispatcher() { }
+        public AvaloniaConfiglueDispatcher(Avalonia.Threading.Dispatcher dispatcher) { }
+        public bool CheckAccess() { }
+        public void Post(System.Action action) { }
+    }
+}

@@ -1,0 +1,25 @@
+[assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/arika0093/Configlue")]
+namespace Configlue.Hosting.Maui
+{
+    public static class MauiConfiglueBuilderExtensions
+    {
+        public static Configlue.ConfiglueBuilder UseMaui(this Configlue.ConfiglueBuilder builder, Microsoft.Maui.Storage.IFileSystem? fileSystem = null) { }
+    }
+    public sealed class MauiConfiglueDispatcher : Configlue.Extensions.ComponentModel.IConfiglueDispatcher
+    {
+        public MauiConfiglueDispatcher() { }
+        public bool CheckAccess() { }
+        public void Post(System.Action action) { }
+    }
+    public sealed class MauiHostPaths : Configlue.Resources.IConfiglueHostPaths
+    {
+        public MauiHostPaths(Microsoft.Maui.Storage.IFileSystem fileSystem) { }
+        public bool TryResolve(Configlue.Resources.ConfiglueStandardLocation location, string applicationId, out string directory) { }
+    }
+    public sealed class SecureStorageResource : Configlue.Resources.IResourceReader, Configlue.Resources.IResourceWriter
+    {
+        public SecureStorageResource(Microsoft.Maui.Storage.ISecureStorage storage, string key, int maximumContentBytes = 1024) { }
+        public System.Threading.Tasks.ValueTask<Configlue.Resources.ResourceReadResult> ReadAsync(Configlue.Resources.ConfiglueResourceContext context, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Configlue.State.StateWriteResult> WriteAsync(Configlue.Resources.ConfiglueResourceContext context, Configlue.Resources.ResourceWriteRequest request, System.Threading.CancellationToken cancellationToken = default) { }
+    }
+}

@@ -19,6 +19,8 @@
     <ProjectReference Include="../../src/extensions/Configlue.Extensions.DI/Configlue.Extensions.DI.csproj" />
     <ProjectReference Include="../../src/hosting/Configlue.Hosting.AspNetCore/Configlue.Hosting.AspNetCore.csproj" />
     <ProjectReference Include="../../src/hosting/Configlue.Hosting.Blazor/Configlue.Hosting.Blazor.csproj" />
+    <ProjectReference Include="../../src/hosting/Configlue.Hosting.Avalonia/Configlue.Hosting.Avalonia.csproj" />
+    <ProjectReference Include="../../src/hosting/Configlue.Hosting.Maui/Configlue.Hosting.Maui.csproj" />
     <ProjectReference Include="../../src/extensions/Configlue.Extensions.MSOptions/Configlue.Extensions.MSOptions.csproj" />
     <ProjectReference Include="../../src/extensions/Configlue.Extensions.R3/Configlue.Extensions.R3.csproj" />
     <ProjectReference Include="../../src/providers/Configlue.Provider.Json/Configlue.Provider.Json.csproj" />

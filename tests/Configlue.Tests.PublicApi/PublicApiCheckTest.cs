@@ -4,11 +4,11 @@ using System.Runtime.Versioning;
 using System.Text;
 using Configlue;
 using Configlue.CompilerServices;
-using Configlue.Hosting.AspNetCore;
-using Configlue.Hosting.Blazor;
 using Configlue.Extensions.ComponentModel;
 using Configlue.Extensions.MSOptions;
 using Configlue.Generator;
+using Configlue.Hosting.AspNetCore;
+using Configlue.Hosting.Blazor;
 using Configlue.Provider.Json;
 using Configlue.Provider.MessagePack;
 using Configlue.Provider.Xml;
@@ -188,6 +188,14 @@ public sealed class PublicApiCheckTest
     [Test]
     public void ComponentModel() =>
         PublicApiCheck.CheckAssembly(typeof(ConfiglueStateReader<>).Assembly);
+
+    [Test]
+    public void AvaloniaHosting() =>
+        PublicApiCheck.Check<global::Configlue.Hosting.Avalonia.AvaloniaConfiglueDispatcher>();
+
+    [Test]
+    public void MauiHosting() =>
+        PublicApiCheck.Check<global::Configlue.Hosting.Maui.MauiHostPaths>();
 
     [Test]
     public void MicrosoftOptions() =>
