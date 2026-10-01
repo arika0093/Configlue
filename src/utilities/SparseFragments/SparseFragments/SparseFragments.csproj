@@ -4,12 +4,12 @@
     <AssemblyName>SparseFragments</AssemblyName>
     <RootNamespace>SparseFragments</RootNamespace>
     <IsPackable>true</IsPackable>
-    <PackageDescription>Standalone sparse-fragment model algebra extracted from Configlue.</PackageDescription>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <PackageDescription>Source-generated presence-aware sparse model fragments, diffs, and merge operations.</PackageDescription>
   </PropertyGroup>
-  <ItemGroup Condition="'$(ConfiglueNetStandard20)' == 'true'">
-    <PackageReference Include="System.Memory" Version="4.6.3" />
-  </ItemGroup>
   <ItemGroup>
+    <Compile Remove="**/*.cs" />
+    <ProjectReference Include="../SparseFragments.Abstractions/SparseFragments.Abstractions.csproj" />
     <ProjectReference
       Include="../SparseFragments.Generator/SparseFragments.Generator.csproj"
       OutputItemType="Analyzer"
