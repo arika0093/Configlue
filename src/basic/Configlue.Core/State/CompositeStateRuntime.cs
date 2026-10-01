@@ -6,11 +6,11 @@ namespace Configlue.State;
 public sealed class CompositeStateRuntime<T>
 {
     /// <summary>Creates the runtime for a logical state.</summary>
-    public CompositeStateRuntime(StateSourceSet<T> sourceSet, StateWriteRoute writeRoute = default)
+    public CompositeStateRuntime(StateSourceSet<T> sourceSet, string? defaultWriteSourceId = null)
     {
         ArgumentNullException.ThrowIfNull(sourceSet);
         Reader = new StateSourceResolver<T>(sourceSet);
-        Writer = new StateSourceWriter<T>(sourceSet, writeRoute);
+        Writer = new StateSourceWriter<T>(sourceSet, defaultWriteSourceId);
         Watcher = new StateSourceWatcher<T>(Reader);
     }
 

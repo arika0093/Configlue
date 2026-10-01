@@ -122,66 +122,32 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         public void Dispose() => owner?.ExitOperation();
     }
 
-    private StateSource<TFragment> SelectWriteSource(bool allowPriorityFallback = false)
+    private StateSource<TFragment>? ResolveDefaultWriteSource()
     {
-        var activeSources = GetActiveSources();
-        StateSource<TFragment>? source;
-        if (_writeRoute.SourceId is { } id)
+        if (_writePlan.DefaultSourceId is not { } defaultSourceId)
         {
-            source = activeSources.FirstOrDefault(candidate =>
-                string.Equals(candidate.Id, id, StringComparison.Ordinal)
+            return null;
+        }
+
+        var source = GetActiveSources()
+            .FirstOrDefault(candidate =>
+                string.Equals(candidate.Id, defaultSourceId, StringComparison.Ordinal)
             );
-        }
-        else
-        {
-            source = null;
-            foreach (var candidate in activeSources)
-            {
-                if (
-                    candidate.Writer is null
-                    || candidate.ExplicitOnly
-                    || candidate.OwnedPropertyPaths.Count > 0
-                )
-                {
-                    continue;
-                }
-
-                if (source is not null && !allowPriorityFallback)
-                {
-                    throw new InvalidOperationException(
-                        "Multiple writable state sources are registered. Configure a default write route."
-                    );
-                }
-
-                source ??= candidate;
-            }
-
-            if (source is null && allowPriorityFallback)
-            {
-                source = activeSources.FirstOrDefault(candidate =>
-                    candidate.Writer is not null && !candidate.ExplicitOnly
-                );
-            }
-        }
-
         if (source is null)
         {
             if (
-                _writeRoute.SourceId is { } retiredId
-                && _sourceSet.Sources.Any(candidate =>
-                    string.Equals(candidate.Id, retiredId, StringComparison.Ordinal)
+                _sourceSet.Sources.Any(candidate =>
+                    string.Equals(candidate.Id, defaultSourceId, StringComparison.Ordinal)
                 )
             )
             {
                 throw new InvalidOperationException(
-                    $"State source '{retiredId}' has been retired from this state instance."
+                    $"State source '{defaultSourceId}' has been retired from this state instance."
                 );
             }
 
             throw new InvalidOperationException(
-                _writeRoute.SourceId is { } sourceId
-                    ? $"State source '{sourceId}' is not registered."
-                    : "No writable state source is registered."
+                $"State source '{defaultSourceId}' is not registered."
             );
         }
 
@@ -190,37 +156,6 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             throw new InvalidOperationException(
                 $"State source '{source.Id}' does not support writes."
             );
-        }
-
-        return source;
-    }
-
-    private StateSource<TFragment>? TrySelectDefaultWriteSource()
-    {
-        if (_writeRoute.SourceId is not null)
-        {
-            return SelectWriteSource();
-        }
-
-        var activeSources = GetActiveSources();
-        StateSource<TFragment>? source = null;
-        foreach (var candidate in activeSources)
-        {
-            if (
-                candidate.Writer is null
-                || candidate.ExplicitOnly
-                || candidate.OwnedPropertyPaths.Count > 0
-            )
-            {
-                continue;
-            }
-
-            if (source is not null)
-            {
-                return null;
-            }
-
-            source = candidate;
         }
 
         return source;

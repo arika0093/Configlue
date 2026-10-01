@@ -24,7 +24,7 @@ builder.Services.AddConfiglueState<SampleSetting, SampleSetting.Fragment>(
         );
         return new StateSourceSet<SampleSetting.Fragment>([source]);
     },
-    StateWriteRoute.To("settings"),
+    StateWritePlan.DefaultTo("settings"),
     onChangeDebounce: TimeSpan.Zero
 );
 builder.Services.AddHostedService<Worker>();

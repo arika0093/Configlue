@@ -87,7 +87,6 @@ public static class ConfiglueRuntime
             (configuration, services, ownResource) =>
                 new ConfiglueRuntime<TModel, TFragment>(
                     configuration.BuildSources<TFragment>(schema, services, ownResource),
-                    configuration.WriteRoute,
                     configuration.WritePlan,
                     configuration.GetMigrations<TFragment>(services),
                     configuration.GetValidators(services),

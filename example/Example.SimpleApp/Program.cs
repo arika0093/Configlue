@@ -21,7 +21,7 @@ await using var context = ConfiglueApp.CreateContext(app =>
     app.Add<SampleSetting>(model =>
     {
         model.Sources(sources => sources.Add(source));
-        model.WriteRoute = StateWriteRoute.To("settings");
+        model.Writes(write => write.DefaultTo("settings"));
     })
 );
 var writable = context.GetState<SampleSetting>();

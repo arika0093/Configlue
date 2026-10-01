@@ -68,8 +68,8 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
     private readonly Dictionary<string, string> _detailsSourceKeys = new(StringComparer.Ordinal);
     private StateSource<TFragment>[] _activeSources;
     private TaskCompletionSource _sourceTopologyChanged = NewTopologySignal();
-    private readonly StateWriteRoute _writeRoute;
-    private readonly StateWritePlan _defaultWritePlan;
+    private readonly StateWritePlan _writePlan;
+    private readonly bool _defaultWriteSourceIsInferred;
     private readonly Func<TModel, TModel>? _cloneStrategy;
     private readonly Func<IConfiglueSubject, RouteKey>? _routeSelector;
     private readonly StateSchemaMigrationChain<TFragment> _migrationChain;
@@ -98,7 +98,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
     /// <summary>Creates state backed by the supplied sources.</summary>
     public ConfiglueRuntime(
         StateSourceSet<TFragment> sourceSet,
-        StateWriteRoute writeRoute = default,
+        StateWritePlan? defaultWritePlan = null,
         IEnumerable<IStateSchemaMigration<TFragment>>? migrations = null,
         IEnumerable<IConfiglueValidator<TModel>>? validators = null,
         bool validateDataAnnotations = true,
@@ -110,35 +110,6 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
     )
         : this(
             sourceSet,
-            writeRoute,
-            StateWritePlan.Empty,
-            migrations,
-            validators,
-            validateDataAnnotations,
-            onChangeDebounce,
-            stateName,
-            logger,
-            readValidationMode: readValidationMode,
-            writeConflictResolution: writeConflictResolution
-        ) { }
-
-    /// <summary>Creates state backed by sources and registration-level property write routes.</summary>
-    public ConfiglueRuntime(
-        StateSourceSet<TFragment> sourceSet,
-        StateWriteRoute writeRoute,
-        StateWritePlan defaultWritePlan,
-        IEnumerable<IStateSchemaMigration<TFragment>>? migrations = null,
-        IEnumerable<IConfiglueValidator<TModel>>? validators = null,
-        bool validateDataAnnotations = true,
-        TimeSpan? onChangeDebounce = null,
-        string? stateName = null,
-        ILogger? logger = null,
-        ReadValidationMode readValidationMode = ReadValidationMode.EffectiveThrow,
-        WriteConflictResolution writeConflictResolution = WriteConflictResolution.FailOnConflict
-    )
-        : this(
-            sourceSet,
-            writeRoute,
             defaultWritePlan,
             migrations,
             validators,
@@ -154,8 +125,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
     /// <summary>Creates state with a custom model clone strategy.</summary>
     public ConfiglueRuntime(
         StateSourceSet<TFragment> sourceSet,
-        StateWriteRoute writeRoute,
-        StateWritePlan defaultWritePlan,
+        StateWritePlan? defaultWritePlan,
         IEnumerable<IStateSchemaMigration<TFragment>>? migrations,
         IEnumerable<IConfiglueValidator<TModel>>? validators,
         bool validateDataAnnotations,
@@ -169,7 +139,6 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
     )
     {
         ArgumentNullException.ThrowIfNull(sourceSet);
-        ArgumentNullException.ThrowIfNull(defaultWritePlan);
         _sourceSet = sourceSet.WithModelId(ModelSchema.Id);
         _activeSources = _sourceSet.Sources.ToArray();
         _modelDefaultsFragment = ToFragment(FromFragment(EmptyFragment));
@@ -177,8 +146,10 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             $"__configlue_model_defaults:{Guid.NewGuid():N}",
             new ModelDefaultsReader(_modelDefaultsFragment)
         );
-        _writeRoute = writeRoute;
-        _defaultWritePlan = BuildWritePlanWithMountedOwners(_activeSources, defaultWritePlan);
+        (_writePlan, _defaultWriteSourceIsInferred) = ResolveWriteOwnership(
+            _activeSources,
+            defaultWritePlan ?? StateWritePlan.Empty
+        );
         _cloneStrategy = cloneStrategy;
         _routeSelector = routeSelector;
         _validators = validators?.ToArray() ?? [];
@@ -220,7 +191,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         );
     }
 
-    private static StateWritePlan BuildWritePlanWithMountedOwners(
+    private static (StateWritePlan Plan, bool DefaultInferred) ResolveWriteOwnership(
         IReadOnlyList<StateSource<TFragment>> sources,
         StateWritePlan configuredWritePlan
     )
@@ -250,9 +221,55 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             owners.Add(path, sourceId);
         }
 
-        var inferredWritePlan =
+        var mountedWritePlan =
             owners.Count == 0 ? StateWritePlan.Empty : new StateWritePlan(owners);
-        return inferredWritePlan.OverrideWith(configuredWritePlan).Bind(ModelSchema);
+        var merged = mountedWritePlan.OverrideWith(configuredWritePlan);
+
+        var defaultSourceId = configuredWritePlan.DefaultSourceId;
+        var defaultInferred = false;
+        if (defaultSourceId is null)
+        {
+            StateSource<TFragment>? singleRoot = null;
+            foreach (var source in sources)
+            {
+                if (
+                    source.Writer is null
+                    || source.ExplicitOnly
+                    || source.OwnedPropertyPaths.Count > 0
+                )
+                {
+                    continue;
+                }
+
+                if (singleRoot is not null)
+                {
+                    throw new InvalidOperationException(
+                        $"Model '{typeof(TModel)}' has multiple writable root sources ('{singleRoot.Id}' and '{source.Id}') and no default write owner. "
+                            + "Configure a default write owner with model.Writes(write => write.DefaultTo(...))."
+                    );
+                }
+
+                singleRoot = source;
+            }
+
+            if (singleRoot is not null)
+            {
+                defaultSourceId = singleRoot.Id;
+                defaultInferred = true;
+            }
+        }
+        else if (
+            !sources.Any(source =>
+                string.Equals(source.Id, defaultSourceId, StringComparison.Ordinal)
+            )
+        )
+        {
+            throw new InvalidOperationException(
+                $"The configured default write source '{defaultSourceId}' is not registered for model '{typeof(TModel)}'."
+            );
+        }
+
+        return (merged.WithDefaultSourceId(defaultSourceId).Bind(ModelSchema), defaultInferred);
 
         static bool HasOverlappingOwnershipPaths(List<(string Path, string SourceId)> paths)
         {
@@ -336,13 +353,6 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         var activeIds = activeSources
             .Select(static source => source.Id)
             .ToHashSet(StringComparer.Ordinal);
-        var inferredRootWriteSources = activeSources
-            .Where(static source =>
-                source.Writer is not null
-                && !source.ExplicitOnly
-                && source.OwnedPropertyPaths.Count == 0
-            )
-            .ToArray();
         var sources = _sourceSet
             .Sources.Select(source => new ConfiglueSourceDiagnostics(
                 source.Id,
@@ -356,15 +366,12 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                 resourceId: source.ResourceId
             ))
             .ToArray();
-        var defaultWriteSource =
-            _writeRoute.SourceId
-            ?? (inferredRootWriteSources.Length == 1 ? inferredRootWriteSources[0].Id : null);
         return new ConfiglueStateDiagnostics(
             _stateName,
             sources,
-            defaultWriteSource,
-            _writeRoute.SourceId is null && inferredRootWriteSources.Length == 1,
-            _defaultWritePlan.PropertyRoutes
+            _writePlan.DefaultSourceId,
+            _defaultWriteSourceIsInferred,
+            _writePlan.PropertyRoutes
         );
     }
 

@@ -137,7 +137,7 @@ public sealed partial class CommonSourceFormatTests
             var options = (IConfiglueRuntimeState<AppSettings>)context.GetState<AppSettings>();
 
             (await options.GetValueAsync()).RetryCount.ShouldBe(11);
-            options.GetDiagnostics().DefaultUsesHighestPriorityWritable.ShouldBeTrue();
+            options.GetDiagnostics().DefaultWriteSourceIsInferred.ShouldBeFalse();
             await options.SaveAsync(settings => settings.Label = "written-to-yaml");
             var contents = await File.ReadAllTextAsync(globalPath);
             contents.ShouldContain("written-to-yaml");

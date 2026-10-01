@@ -42,7 +42,6 @@ public sealed class ValueCloneProviderContractTests
             new StateSourceSet<AppSettings.Fragment>([
                 new("defaults", new InMemoryStateSource<AppSettings.Fragment>()),
             ]),
-            writeRoute: default,
             defaultWritePlan: StateWritePlan.Empty,
             migrations: null,
             validators: null,

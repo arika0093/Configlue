@@ -99,7 +99,7 @@ public static class WebStorageSourceRegistration
         );
         if (options.Writable && options.Id is { } id)
         {
-            model.WriteRoute = StateWriteRoute.To(id);
+            model.Writes(write => write.DefaultTo(id));
         }
     }
 

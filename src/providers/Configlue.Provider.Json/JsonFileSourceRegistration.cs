@@ -114,7 +114,7 @@ public static class JsonFileSourceRegistration
         model.Sources(sources => sources.FromJsonFile(options));
         if (!options.ReadOnly && options.Id is { } id)
         {
-            model.WriteRoute = StateWriteRoute.To(id);
+            model.Writes(write => write.DefaultTo(id));
         }
     }
 

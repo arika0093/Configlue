@@ -44,7 +44,7 @@ public sealed partial class StateRuntimeTests
         services.AddConfiglueMicrosoftOptions<AppSettings>();
         services.AddConfiglueState<AppSettings, AppSettings.Fragment>(
             _ => sources,
-            StateWriteRoute.To("user")
+            StateWritePlan.DefaultTo("user")
         );
         using var serviceProvider = services.BuildServiceProvider();
         var readOnly = serviceProvider.GetRequiredService<IReadOnlyState<AppSettings>>();

@@ -52,7 +52,10 @@ public sealed class ZipEntryResourceTests
                 priority: 50
             ),
         ]);
-        var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(sources);
+        var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
+            sources,
+            StateWritePlan.DefaultTo("user")
+        );
         var plan = new StateWritePlan(
             new Dictionary<string, string>(StringComparer.Ordinal)
             {

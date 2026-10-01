@@ -40,30 +40,20 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             );
         }
 
-        var source = SelectWriteSource(allowPriorityFallback: true);
-        var effectiveWritePlan = _defaultWritePlan
-            .OverrideWith(writePlan ?? StateWritePlan.Empty)
-            .Bind(ModelSchema);
+        var effectiveWritePlan = _writePlan.OverrideWith(writePlan ?? StateWritePlan.Empty);
+        if (
+            effectiveWritePlan.DefaultSourceId is null
+            && effectiveWritePlan.PropertyRoutes.Count == 0
+        )
+        {
+            throw new InvalidOperationException(
+                "No writable state source is registered for this model."
+            );
+        }
+
         if (effectiveWritePlan.PropertyRoutes.Count > 0)
         {
             ValidateWritePlan(effectiveWritePlan);
-        }
-
-        string? expectedRevision;
-        if (
-            resolved.Revisions is null
-            || !resolved.Revisions.TryGetRevision(source.Id, out expectedRevision)
-        )
-        {
-            var current = await ReadSourceAsync(source, cancellationToken).ConfigureAwait(false);
-            if (current.Status == StateReadStatus.Unavailable)
-            {
-                throw new InvalidOperationException(
-                    $"Cannot safely begin editing because source '{source.Id}' is unavailable."
-                );
-            }
-
-            expectedRevision = current.Revision;
         }
 
         var draft = CloneModel(resolved.Value!);
@@ -89,60 +79,24 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                 var saveValue = value;
                 var saveContributions = latestState.Contributions;
                 var saveRevisions = latest.Revisions;
-                string? saveExpectedRevision = null;
-                if (
-                    saveRevisions is null
-                    || !saveRevisions.TryGetRevision(source.Id, out saveExpectedRevision)
-                )
-                {
-                    var current = await ReadSourceAsync(source, token).ConfigureAwait(false);
-                    if (current.Status == StateReadStatus.Unavailable)
-                    {
-                        throw new InvalidOperationException(
-                            $"Cannot safely begin editing because source '{source.Id}' is unavailable."
-                        );
-                    }
-
-                    saveExpectedRevision = current.Revision;
-                }
-
                 if (hasRevisionChanges)
                 {
                     saveBaseline = latest.Value!;
                     saveValue = RebaseConfigurationEdit(baseline, value, saveBaseline);
                 }
 
-                StateWriteReceipt writeResult;
-                if (effectiveWritePlan.PropertyRoutes.Count == 0)
-                {
-                    writeResult = await WriteChangesToSourceAsync(
-                            source,
-                            saveBaseline,
-                            saveValue,
-                            saveExpectedRevision,
-                            saveContributions,
-                            saveRevisions,
-                            token
-                        )
-                        .ConfigureAwait(false);
-                }
-                else
-                {
-                    writeResult = await WriteChangesToSourcesAsync(
-                            source,
-                            saveBaseline,
-                            saveValue,
-                            saveRevisions,
-                            saveContributions,
-                            effectiveWritePlan,
-                            token
-                        )
-                        .ConfigureAwait(false);
-                }
+                var writeResult = await WriteChangesToSourcesAsync(
+                        saveBaseline,
+                        saveValue,
+                        saveRevisions,
+                        saveContributions,
+                        effectiveWritePlan,
+                        token
+                    )
+                    .ConfigureAwait(false);
 
                 baseline = value;
                 expectedRevisions = latest.Revisions;
-                expectedRevision = saveExpectedRevision;
                 return writeResult;
             },
             CloneModel,

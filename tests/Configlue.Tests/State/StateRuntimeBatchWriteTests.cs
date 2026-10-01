@@ -30,7 +30,8 @@ public sealed partial class StateRuntimeTests
             priority: 0
         );
         var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
-            new StateSourceSet<AppSettings.Fragment>([firstSource, secondSource])
+            new StateSourceSet<AppSettings.Fragment>([firstSource, secondSource]),
+            StateWritePlan.DefaultTo("first")
         );
 
         var result = await options.ApplyPatchesAsync([
@@ -74,7 +75,8 @@ public sealed partial class StateRuntimeTests
             codec
         );
         var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
-            new StateSourceSet<AppSettings.Fragment>([first, second])
+            new StateSourceSet<AppSettings.Fragment>([first, second]),
+            StateWritePlan.DefaultTo("first")
         );
 
         try
@@ -125,7 +127,8 @@ public sealed partial class StateRuntimeTests
                     codec,
                     priority: 0
                 ),
-            ])
+            ]),
+            StateWritePlan.DefaultTo("parent")
         );
         var failed = false;
         try
@@ -159,7 +162,8 @@ public sealed partial class StateRuntimeTests
                     xml,
                     new XmlStateCodec<AppSettings.Fragment>()
                 ),
-            ])
+            ]),
+            StateWritePlan.DefaultTo("json")
         );
         var domainConflict = false;
         try
@@ -200,7 +204,8 @@ public sealed partial class StateRuntimeTests
             xmlCodec
         );
         var xmlOptions = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
-            new StateSourceSet<AppSettings.Fragment>([xmlFirst, xmlSecond])
+            new StateSourceSet<AppSettings.Fragment>([xmlFirst, xmlSecond]),
+            StateWritePlan.DefaultTo("xml-first")
         );
         var xmlResult = await xmlOptions.ApplyPatchesAsync([
             new StateSourcePatch(
@@ -228,7 +233,8 @@ public sealed partial class StateRuntimeTests
             yamlCodec
         );
         var yamlOptions = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
-            new StateSourceSet<AppSettings.Fragment>([yamlFirst, yamlSecond])
+            new StateSourceSet<AppSettings.Fragment>([yamlFirst, yamlSecond]),
+            StateWritePlan.DefaultTo("yaml-first")
         );
         var yamlResult = await yamlOptions.ApplyPatchesAsync([
             new StateSourcePatch(

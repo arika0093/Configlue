@@ -49,7 +49,7 @@ public static class ConfiglueServiceCollectionExtensions
     public static IServiceCollection AddConfiglueState<TModel, TFragment>(
         this IServiceCollection services,
         Action<IServiceProvider, StateSourceSetBuilder<TFragment>> configureSources,
-        StateWriteRoute writeRoute = default,
+        StateWritePlan? writePlan = null,
         bool validateDataAnnotations = true,
         TimeSpan? onChangeDebounce = null,
         ReadValidationMode readValidationMode = ReadValidationMode.EffectiveThrow,
@@ -67,7 +67,7 @@ public static class ConfiglueServiceCollectionExtensions
                 configureSources(provider, sources);
                 return sources.Build();
             },
-            writeRoute,
+            writePlan,
             validateDataAnnotations,
             onChangeDebounce,
             readValidationMode,
@@ -79,7 +79,7 @@ public static class ConfiglueServiceCollectionExtensions
     public static IServiceCollection AddConfiglueState<TModel, TFragment>(
         this IServiceCollection services,
         Func<IServiceProvider, StateSourceSet<TFragment>> sourceSetFactory,
-        StateWriteRoute writeRoute = default,
+        StateWritePlan? writePlan = null,
         bool validateDataAnnotations = true,
         TimeSpan? onChangeDebounce = null,
         ReadValidationMode readValidationMode = ReadValidationMode.EffectiveThrow,
@@ -93,7 +93,7 @@ public static class ConfiglueServiceCollectionExtensions
 
         services.AddSingleton(provider => new ConfiglueRuntime<TModel, TFragment>(
             sourceSetFactory(provider),
-            writeRoute,
+            writePlan,
             provider.GetServices<IStateSchemaMigration<TFragment>>(),
             provider.GetServices<IConfiglueValidator<TModel>>(),
             validateDataAnnotations,
@@ -129,7 +129,7 @@ public static class ConfiglueServiceCollectionExtensions
     public static IServiceCollection AddConfiglueState<TModel, TFragment>(
         this IServiceCollection services,
         StateSourceSet<TFragment> sourceSet,
-        StateWriteRoute writeRoute = default,
+        StateWritePlan? writePlan = null,
         bool validateDataAnnotations = true,
         TimeSpan? onChangeDebounce = null,
         ReadValidationMode readValidationMode = ReadValidationMode.EffectiveThrow,
@@ -141,7 +141,7 @@ public static class ConfiglueServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(sourceSet);
         return services.AddConfiglueState<TModel, TFragment>(
             _ => sourceSet,
-            writeRoute,
+            writePlan,
             validateDataAnnotations,
             onChangeDebounce,
             readValidationMode,
@@ -154,7 +154,7 @@ public static class ConfiglueServiceCollectionExtensions
         this IServiceCollection services,
         object serviceKey,
         Action<IServiceProvider, StateSourceSetBuilder<TFragment>> configureSources,
-        StateWriteRoute writeRoute = default,
+        StateWritePlan? writePlan = null,
         bool validateDataAnnotations = true,
         TimeSpan? onChangeDebounce = null,
         ReadValidationMode readValidationMode = ReadValidationMode.EffectiveThrow,
@@ -173,7 +173,7 @@ public static class ConfiglueServiceCollectionExtensions
                 configureSources(provider, sources);
                 return sources.Build();
             },
-            writeRoute,
+            writePlan,
             validateDataAnnotations,
             onChangeDebounce,
             readValidationMode,
@@ -186,7 +186,7 @@ public static class ConfiglueServiceCollectionExtensions
         this IServiceCollection services,
         object serviceKey,
         Func<IServiceProvider, StateSourceSet<TFragment>> sourceSetFactory,
-        StateWriteRoute writeRoute = default,
+        StateWritePlan? writePlan = null,
         bool validateDataAnnotations = true,
         TimeSpan? onChangeDebounce = null,
         ReadValidationMode readValidationMode = ReadValidationMode.EffectiveThrow,
@@ -204,7 +204,7 @@ public static class ConfiglueServiceCollectionExtensions
             (provider, key) =>
                 new ConfiglueRuntime<TModel, TFragment>(
                     sourceSetFactory(provider),
-                    writeRoute,
+                    writePlan,
                     provider.GetServices<IStateSchemaMigration<TFragment>>(),
                     provider.GetServices<IConfiglueValidator<TModel>>(),
                     validateDataAnnotations,
@@ -262,7 +262,7 @@ public static class ConfiglueServiceCollectionExtensions
         this IServiceCollection services,
         object serviceKey,
         StateSourceSet<TFragment> sourceSet,
-        StateWriteRoute writeRoute = default,
+        StateWritePlan? writePlan = null,
         bool validateDataAnnotations = true,
         TimeSpan? onChangeDebounce = null,
         ReadValidationMode readValidationMode = ReadValidationMode.EffectiveThrow,
@@ -275,7 +275,7 @@ public static class ConfiglueServiceCollectionExtensions
         return services.AddConfiglueState<TModel, TFragment>(
             serviceKey,
             _ => sourceSet,
-            writeRoute,
+            writePlan,
             validateDataAnnotations,
             onChangeDebounce,
             readValidationMode,
@@ -287,7 +287,7 @@ public static class ConfiglueServiceCollectionExtensions
     public static IServiceCollection AddConfiglueStateRegistry<TModel, TFragment>(
         this IServiceCollection services,
         Func<IServiceProvider, string, StateSourceSet<TFragment>> sourceSetFactory,
-        StateWriteRoute writeRoute = default,
+        StateWritePlan? writePlan = null,
         bool validateDataAnnotations = true,
         TimeSpan? onChangeDebounce = null,
         ReadValidationMode readValidationMode = ReadValidationMode.EffectiveThrow,
@@ -303,7 +303,7 @@ public static class ConfiglueServiceCollectionExtensions
             provider => new ConfiglueStateRegistry<TModel, TFragment>(
                 profileName => new ConfiglueRuntime<TModel, TFragment>(
                     sourceSetFactory(provider, profileName),
-                    writeRoute,
+                    writePlan,
                     provider.GetServices<IStateSchemaMigration<TFragment>>(),
                     provider.GetServices<IConfiglueValidator<TModel>>(),
                     validateDataAnnotations,

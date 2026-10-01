@@ -63,6 +63,7 @@ public sealed class ConfiglueModelOperations<TModel, TFragment>
         }
 
         ConfiglueModelSchemaRegistry<TModel>.Register(operations.Schema);
+        ConfiglueModelSchemaCatalog.Register(typeof(TModel), operations.Schema);
         ConfiglueFragmentRegistry<TFragment>.Register(operations.EmptyFragment);
     }
 }

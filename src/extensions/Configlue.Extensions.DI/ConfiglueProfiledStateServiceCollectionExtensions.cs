@@ -12,7 +12,7 @@ public static class ConfiglueProfiledStateServiceCollectionExtensions
         Func<IServiceProvider, string, StateSourceSet<TFragment>> profileSourceSetFactory,
         Func<IServiceProvider, StateSource<ConfiglueProfileCatalog>> catalogSourceFactory,
         string defaultProfileName = "default",
-        StateWriteRoute writeRoute = default,
+        StateWritePlan? writePlan = null,
         bool validateDataAnnotations = true,
         TimeSpan? onChangeDebounce = null,
         WriteConflictResolution writeConflictResolution = WriteConflictResolution.FailOnConflict
@@ -39,7 +39,7 @@ public static class ConfiglueProfiledStateServiceCollectionExtensions
 
         services.AddConfiglueStateRegistry<TModel, TFragment>(
             profileSourceSetFactory,
-            writeRoute,
+            writePlan,
             validateDataAnnotations,
             onChangeDebounce,
             readValidationMode: ReadValidationMode.EffectiveThrow,
