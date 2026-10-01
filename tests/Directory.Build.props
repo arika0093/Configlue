@@ -27,6 +27,9 @@
     <NoWarn>$(NoWarn);IL2026;IL2070;IL2104;IL3000;IL3050;IL3053</NoWarn>
   </PropertyGroup>
   <ItemGroup>
+    <Using Include="SparseFragments" />
+  </ItemGroup>
+  <ItemGroup>
     <PackageReference
       Include="TUnit"
       Version="1.66.27"
