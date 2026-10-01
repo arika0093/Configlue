@@ -1,8 +1,5 @@
 namespace Configlue;
 
-/// <summary>Implemented by source-generated models that support deep cloning.</summary>
-public interface IConfiglueDeepCloneable<out T>
-{
-    /// <summary>Creates an independent deep clone.</summary>
-    T DeepClone();
-}
+/// <summary>Configlue compatibility marker for the generic sparse deep-clone contract.</summary>
+/// <typeparam name="TSelf">The cloned type.</typeparam>
+public interface IConfiglueDeepCloneable<TSelf> : ISparseDeepCloneable<TSelf> { }
