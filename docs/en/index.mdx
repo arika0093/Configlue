@@ -23,13 +23,13 @@ One JSON file does not need a configuration framework. Read it, deserialize it, 
 The difficulty appears when the application grows and configuration becomes infrastructure.
 
 <CardGrid stagger>
-  <Card title="Git" icon="terminal">
+  <Card title="Git" icon="layers">
     Even a CLI needs system, global, local, worktree, and command scopes. Reading follows precedence rules; writing needs a target scope.
   </Card>
   <Card title="Visual Studio Code" icon="puzzle">
     User, remote, workspace, folder, language, profile, policy, and synchronized settings all coexist, while humans still edit JSON directly.
   </Card>
-  <Card title="Chrome" icon="seti:config">
+  <Card title="Chrome" icon="magnifier">
     User preferences can coexist with centrally managed policy, different ownership levels, precedence, and values the user may not be allowed to change.
   </Card>
 </CardGrid>
@@ -83,7 +83,7 @@ Source layout, serialization, write routing, migration, validation, encryption, 
   <Card title="Layered configuration" icon="layers">
     Combine user, local, environment, command-line, remote, database, and custom sources while retaining provenance and editability.
   </Card>
-  <Card title="Sparse writes" icon="edit">
+  <Card title="Sparse writes" icon="pencil">
     Generated patches preserve missing, default, `null`, set, and unset semantics instead of blindly rewriting the whole model.
   </Card>
   <Card title="Schema evolution" icon="arrow-right">
@@ -100,16 +100,16 @@ Source layout, serialization, write routing, migration, validation, encryption, 
 ## One state model, every kind of .NET app
 
 <CardGrid>
-  <Card title="Plain .NET" icon="terminal">
+  <Card title="Plain .NET" icon="layers">
     Initialize once with `ConfiglueApp.Initialize(...)`, then access process-wide typed state through `ConfiglueApp.GetState<T>()`.
   </Card>
-  <Card title="Generic Host & ASP.NET Core" icon="server">
+  <Card title="Generic Host & ASP.NET Core" icon="puzzle">
     Register Configlue through DI and inject only `IReadOnlyState<T>` or `IWritableState<T>`. Host integration can add subject-aware state for users or tenants.
   </Card>
-  <Card title="Blazor & desktop UI" icon="window">
+  <Card title="Blazor & desktop UI" icon="pencil">
     Use Blazor `StateReader<T>` / `StateEditor<T>` or the shared ComponentModel adapters, with host-native dispatcher integration.
   </Card>
-  <Card title="MAUI, Unity & Godot" icon="rocket">
+  <Card title="MAUI, Unity & Godot" icon="arrow-right">
     Keep the same state abstraction while each host supplies the correct application paths, lifecycle, storage, threading, and runtime semantics.
   </Card>
 </CardGrid>
