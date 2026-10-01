@@ -1,60 +1,16 @@
 namespace Configlue;
 
-/// <summary>A source contribution supplied to a custom merge strategy.</summary>
-public readonly record struct ConfiglueMergeSourceValue
-{
-    /// <summary>Gets or initializes the <see cref="SourceId"/> value.</summary>
-    public string SourceId { get; init; }
+/// <summary>A source contribution supplied to a custom Configlue merge strategy.</summary>
+public readonly record struct ConfiglueMergeSourceValue(
+    string SourceId,
+    Optional<object?> Value
+);
 
-    /// <summary>Gets or initializes the <see cref="Value"/> value.</summary>
-    public Optional<object?> Value { get; init; }
-
-    /// <summary>Initializes a new instance of this record.</summary>
-    /// <param name="SourceId">The initial value for the <see cref="SourceId"/> property.</param>
-    /// <param name="Value">The initial value for the <see cref="Value"/> property.</param>
-    public ConfiglueMergeSourceValue(string SourceId, Optional<object?> Value)
-    {
-        this.SourceId = SourceId;
-        this.Value = Value;
-    }
-
-    /// <summary>Deconstructs this record into its property values.</summary>
-    /// <param name="SourceId">Receives the current <see cref="SourceId"/> value.</param>
-    /// <param name="Value">Receives the current <see cref="Value"/> value.</param>
-    public void Deconstruct(out string SourceId, out Optional<object?> Value)
-    {
-        SourceId = this.SourceId;
-        Value = this.Value;
-    }
-}
-
-/// <summary>A source contribution supplied to a typed custom merge strategy.</summary>
-public readonly record struct ConfiglueMergeSourceValue<T>
-{
-    /// <summary>Gets or initializes the <see cref="SourceId"/> value.</summary>
-    public string SourceId { get; init; }
-
-    /// <summary>Gets or initializes the <see cref="Value"/> value.</summary>
-    public Optional<T> Value { get; init; }
-
-    /// <summary>Initializes a new instance of this record.</summary>
-    /// <param name="SourceId">The initial value for the <see cref="SourceId"/> property.</param>
-    /// <param name="Value">The initial value for the <see cref="Value"/> property.</param>
-    public ConfiglueMergeSourceValue(string SourceId, Optional<T> Value)
-    {
-        this.SourceId = SourceId;
-        this.Value = Value;
-    }
-
-    /// <summary>Deconstructs this record into its property values.</summary>
-    /// <param name="SourceId">Receives the current <see cref="SourceId"/> value.</param>
-    /// <param name="Value">Receives the current <see cref="Value"/> value.</param>
-    public void Deconstruct(out string SourceId, out Optional<T> Value)
-    {
-        SourceId = this.SourceId;
-        Value = this.Value;
-    }
-}
+/// <summary>A source contribution supplied to a typed custom Configlue merge strategy.</summary>
+public readonly record struct ConfiglueMergeSourceValue<T>(
+    string SourceId,
+    Optional<T> Value
+);
 
 /// <summary>Identifies the sources that contributed an effective collection element.</summary>
 public sealed class ConfiglueMergeElementProvenance
@@ -75,18 +31,11 @@ public sealed class ConfiglueMergeElementProvenance
     public IReadOnlyList<string> SourceIds { get; }
 }
 
-/// <summary>Untyped operations used by generated metadata and the runtime.</summary>
-public interface IConfiglueMergeStrategy
+/// <summary>
+/// Extends the generic sparse merge algebra with Configlue-specific rebase, write-planning, and provenance operations.
+/// </summary>
+public interface IConfiglueMergeStrategy : ISparseMergeStrategy
 {
-    /// <summary>The member value type handled by this strategy.</summary>
-    Type ValueType { get; }
-
-    /// <summary>Merges lower and higher priority values, including missing and null values.</summary>
-    Optional<object?> Merge(Optional<object?> lowerPriority, Optional<object?> higherPriority);
-
-    /// <summary>Compares two member values using the strategy's semantic equality.</summary>
-    bool AreEqual(object? left, object? right);
-
     /// <summary>Reapplies an edit to a newer value, or returns a reason that it cannot be rebased.</summary>
     bool TryRebase(
         object? editBase,
@@ -113,22 +62,11 @@ public interface IConfiglueMergeStrategy
 }
 
 /// <summary>
-/// Implements every operation required for a member-specific merge algebra. Source values are ordered from
-/// lowest to highest priority; callers receive a reason when a rebase or source-local edit is not representable.
+/// Extends <see cref="FragmentMergeStrategy{T}"/> with the operations required by Configlue's source-aware write algebra.
 /// </summary>
-/// <remarks>
-/// Generated models keep one strategy instance and may call it concurrently. Implementations must be stateless or
-/// thread-safe.
-/// </remarks>
 /// <typeparam name="T">The model member type.</typeparam>
-public abstract class ConfiglueMergeStrategy<T> : IConfiglueMergeStrategy
+public abstract class ConfiglueMergeStrategy<T> : FragmentMergeStrategy<T>, IConfiglueMergeStrategy
 {
-    /// <summary>Merges two presence-aware member values.</summary>
-    public abstract Optional<T> Merge(Optional<T> lowerPriority, Optional<T> higherPriority);
-
-    /// <summary>Compares two presence-aware member values according to this algebra.</summary>
-    public abstract bool AreEqual(T? left, T? right);
-
     /// <summary>Reapplies an edit based on an earlier value to the current value.</summary>
     public abstract bool TryRebase(
         T? editBase,
@@ -148,21 +86,10 @@ public abstract class ConfiglueMergeStrategy<T> : IConfiglueMergeStrategy
     );
 
     /// <summary>Maps effective collection elements to the source IDs that contributed each element.</summary>
-    /// <remarks>Return one entry per effective element. Source IDs must refer to supplied contributions.</remarks>
     public abstract IReadOnlyList<ConfiglueMergeElementProvenance> ExplainElements(
         T? effective,
         IReadOnlyList<ConfiglueMergeSourceValue<T>> sourceValuesLowToHigh
     );
-
-    Type IConfiglueMergeStrategy.ValueType => typeof(T);
-
-    Optional<object?> IConfiglueMergeStrategy.Merge(
-        Optional<object?> lowerPriority,
-        Optional<object?> higherPriority
-    ) => Box(Merge(Unbox(lowerPriority), Unbox(higherPriority)));
-
-    bool IConfiglueMergeStrategy.AreEqual(object? left, object? right) =>
-        AreEqual((T?)left, (T?)right);
 
     bool IConfiglueMergeStrategy.TryRebase(
         object? editBase,
