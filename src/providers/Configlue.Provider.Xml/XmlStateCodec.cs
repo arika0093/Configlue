@@ -116,7 +116,7 @@ internal static class XmlStateCodecOperations
             writer.WriteStartDocument();
             if (value is IConfiglueFragment fragment)
             {
-                WriteFragment(writer, fragment, schema ?? fragment.Schema.ToMetadata(), RootName);
+                WriteFragment(writer, fragment, schema ?? fragment.ConfiglueSchema.ToMetadata(), RootName);
             }
             else if (
                 value is not null
@@ -126,7 +126,7 @@ internal static class XmlStateCodecOperations
                 WriteFragment(
                     writer,
                     generatedFragment,
-                    schema ?? generatedFragment.Schema.ToMetadata(),
+                    schema ?? generatedFragment.ConfiglueSchema.ToMetadata(),
                     RootName
                 );
             }
@@ -215,7 +215,7 @@ internal static class XmlStateCodecOperations
         WriteSchemaAttributes(writer, schema);
         foreach (var present in fragment.EnumeratePresentMembers())
         {
-            var member = fragment.Schema.Members.First(item => item.Id == present.Id);
+            var member = fragment.ConfiglueSchema.Members.First(item => item.Id == present.Id);
             writer.WriteStartElement(MemberName);
             writer.WriteAttributeString(
                 "id",
@@ -243,7 +243,7 @@ internal static class XmlStateCodecOperations
     {
         if (value is IConfiglueFragment nestedFragment)
         {
-            WriteFragment(writer, nestedFragment, nestedFragment.Schema.ToMetadata(), FragmentName);
+            WriteFragment(writer, nestedFragment, nestedFragment.ConfiglueSchema.ToMetadata(), FragmentName);
             return;
         }
 
@@ -308,7 +308,7 @@ internal static class XmlStateCodecOperations
                 throw new XmlException($"Duplicate Configlue XML member id '{id}'.");
             }
 
-            var member = fragment.Schema.Members.FirstOrDefault(candidate => candidate.Id == id);
+            var member = fragment.ConfiglueSchema.Members.FirstOrDefault(candidate => candidate.Id == id);
             if (member.Name is null)
             {
                 continue;
