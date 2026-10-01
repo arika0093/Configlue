@@ -15,7 +15,7 @@ public partial class StructuralRoot
 
     public Uri? Endpoint { get; set; }
 
-    [ConfiglueMerge(MergeMode.Replace)]
+    [SparseFragments.SparseMerge(SparseFragments.MergeMode.Replace)]
     public PlainConnection? Replaced { get; set; }
 }
 
