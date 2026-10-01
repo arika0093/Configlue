@@ -11,7 +11,7 @@ public partial class SampleSetting
 
     public string Region { get; set; } = "Global region";
 
-    [ConfiglueMerge(typeof(FeatureMergeStrategy))]
+    [SparseFragments.SparseMerge(typeof(FeatureMergeStrategy))]
     public IReadOnlyList<string> Features { get; set; } = [];
 
     public sealed class FeatureMergeStrategy : ConfiglueMergeStrategy<IReadOnlyList<string>>
