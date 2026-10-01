@@ -30,22 +30,6 @@ public sealed partial class ConfiglueGenerator
         return Expressions.CloneModelExpression(ToSparseMember(member), access);
     }
 
-    private static string CloneFragmentExpression(
-        MemberModel member,
-        string access,
-        CancellationToken cancellationToken
-    )
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        return Expressions.CloneFragmentExpression(ToSparseMember(member), access);
-    }
-
-    private static string BuildCollectionMerge(MemberModel member, string lower, string higher) =>
-        Expressions.BuildCollectionMerge(ToSparseMember(member), lower, higher);
-
-    private static string MergeStrategyField(MemberModel member) =>
-        "__configlue_merge_strategy_" + member.Id;
-
     private static string FragmentValueType(MemberModel member)
     {
         if (member.ChildModel is null)

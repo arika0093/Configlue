@@ -10,6 +10,18 @@ namespace Configlue.Generator;
 
 public sealed partial class ConfiglueGenerator
 {
+    private static readonly SparseFragmentCoreEmitter FragmentCore = new(
+        "global::Configlue.Optional",
+        "__configlue_merge_strategy_",
+        "__configlue_clone_context",
+        "global::Configlue.CompilerServices.ConfiglueReferenceEqualityComparer",
+        new SparseFragmentExpressions(
+            "__configlue_clone_context",
+            "global::Configlue.ConfiglueValueComparer",
+            "global::Configlue.ConfiglueCollectionMerger"
+        )
+    );
+
     private static SparseTypeModel ToSparseType(TypeModel type) =>
         new(
             type.Name,
