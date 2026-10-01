@@ -329,6 +329,8 @@ internal sealed class PostgreSqlStateBackend : IPostgreSqlStateBackend
             await using var connection = await _dataSource
                 .OpenConnectionAsync(cancellationToken)
                 .ConfigureAwait(false);
+            bool hasStateTable;
+            bool hasComponentsTable;
             await using (var probe = connection.CreateCommand())
             {
                 probe.CommandText =
@@ -340,44 +342,36 @@ internal sealed class PostgreSqlStateBackend : IPostgreSqlStateBackend
                     .ConfigureAwait(false);
                 if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
                 {
-                    throw MissingSchema();
+                    throw MissingSchema(_qualifiedTable, _qualifiedComponentsTable);
                 }
 
-                var hasStateTable = !reader.IsDBNull(0);
-                var hasComponentsTable = !reader.IsDBNull(1);
-                if (!hasStateTable || !hasComponentsTable)
-                {
-                    throw MissingSchema();
-                }
+                hasStateTable = !reader.IsDBNull(0);
+                hasComponentsTable = !reader.IsDBNull(1);
             }
 
-            await using (var versionCommand = connection.CreateCommand())
+            int? componentVersion = null;
+            if (hasStateTable && hasComponentsTable)
             {
+                await using var versionCommand = connection.CreateCommand();
                 versionCommand.CommandText =
                     $"SELECT \"version\" FROM {_qualifiedComponentsTable} WHERE \"component\" = @component";
                 AddText(versionCommand, "component", PostgreSqlSchemaVersions.CoreComponent);
                 var value = await versionCommand
                     .ExecuteScalarAsync(cancellationToken)
                     .ConfigureAwait(false);
-                if (value is null or DBNull)
+                if (value is not null and not DBNull)
                 {
-                    throw new PostgreSqlSchemaException(
-                        $"The PostgreSQL schema component '{PostgreSqlSchemaVersions.CoreComponent}' is not registered. "
-                            + "Apply the database schema with Configlue.Source.PostgreSql.Migrations before using the source."
-                    );
-                }
-
-                var version = Convert.ToInt32(value, CultureInfo.InvariantCulture);
-                if (version < PostgreSqlSchemaVersions.CoreVersion)
-                {
-                    throw new PostgreSqlSchemaException(
-                        $"The PostgreSQL schema component '{PostgreSqlSchemaVersions.CoreComponent}' has version {version}, "
-                            + $"but version {PostgreSqlSchemaVersions.CoreVersion} or later is required. "
-                            + "Upgrade the database schema with Configlue.Source.PostgreSql.Migrations."
-                    );
+                    componentVersion = Convert.ToInt32(value, CultureInfo.InvariantCulture);
                 }
             }
 
+            EnsureSchemaCompatible(
+                hasStateTable,
+                hasComponentsTable,
+                componentVersion,
+                _qualifiedTable,
+                _qualifiedComponentsTable
+            );
             _verified = true;
         }
         finally
@@ -386,9 +380,43 @@ internal sealed class PostgreSqlStateBackend : IPostgreSqlStateBackend
         }
     }
 
-    private PostgreSqlSchemaException MissingSchema() =>
+    internal static void EnsureSchemaCompatible(
+        bool hasStateTable,
+        bool hasComponentsTable,
+        int? componentVersion,
+        string qualifiedTable,
+        string qualifiedComponentsTable
+    )
+    {
+        if (!hasStateTable || !hasComponentsTable)
+        {
+            throw MissingSchema(qualifiedTable, qualifiedComponentsTable);
+        }
+
+        if (componentVersion is null)
+        {
+            throw new PostgreSqlSchemaException(
+                $"The PostgreSQL schema component '{PostgreSqlSchemaVersions.CoreComponent}' is not registered. "
+                    + "Apply the database schema with Configlue.Source.PostgreSql.Migrations before using the source."
+            );
+        }
+
+        if (componentVersion < PostgreSqlSchemaVersions.CoreVersion)
+        {
+            throw new PostgreSqlSchemaException(
+                $"The PostgreSQL schema component '{PostgreSqlSchemaVersions.CoreComponent}' has version {componentVersion}, "
+                    + $"but version {PostgreSqlSchemaVersions.CoreVersion} or later is required. "
+                    + "Upgrade the database schema with Configlue.Source.PostgreSql.Migrations."
+            );
+        }
+    }
+
+    private static PostgreSqlSchemaException MissingSchema(
+        string qualifiedTable,
+        string qualifiedComponentsTable
+    ) =>
         new(
-            $"The PostgreSQL schema objects '{_qualifiedTable}' and '{_qualifiedComponentsTable}' were not found. "
+            $"The PostgreSQL schema objects '{qualifiedTable}' and '{qualifiedComponentsTable}' were not found. "
                 + "The runtime source does not create database objects; apply the schema with Configlue.Source.PostgreSql.Migrations."
         );
 }

@@ -40,6 +40,7 @@
     <Compile Remove="Formats/ConfiglueSchemaMsBuildTests.cs" />
     <Compile Remove="Resources/HttpResourceEndpointTests.cs" />
     <Compile Remove="Resources/PostgreSqlSourceTests.cs" />
+    <Compile Remove="Resources/PostgreSqlSchemaGuardTests.cs" />
     <Compile Remove="State/StatePipelineTests.cs" />
     <Compile Remove="State/RuntimeLifetimeTests.cs" />
     <Compile Remove="Contracts/Transformers/TransformerRecoveryPolicyContractTests.cs" />
