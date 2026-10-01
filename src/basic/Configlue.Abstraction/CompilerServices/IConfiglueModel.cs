@@ -5,7 +5,7 @@ namespace Configlue.CompilerServices;
 /// <typeparam name="TFragment">The model's generated sparse fragment.</typeparam>
 [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
 public interface IConfiglueModel<out TSelf, TFragment>
-    : IConfiglueDeepCloneable<TSelf>,
+    : ISparseDeepCloneable<TSelf>,
         IConfiglueModel
     where TSelf : IConfiglueModel<TSelf, TFragment>
     where TFragment : class, IConfiglueFragment<TFragment> { }
