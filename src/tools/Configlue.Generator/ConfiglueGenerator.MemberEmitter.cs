@@ -298,14 +298,7 @@ public sealed partial class ConfiglueGenerator
         type.WithNullableAnnotation(NullableAnnotation.NotAnnotated).ToDisplayString(TypeFormat);
 
     private static string MergeModeName(int mode) =>
-        mode switch
-        {
-            1 => "Deep",
-            2 => "Append",
-            3 => "SetUnion",
-            4 => "Custom",
-            _ => "Replace",
-        };
+        SparseFragments.Generator.Shared.SparseNaming.MergeModeName(mode);
 
     private static string GetModelId(INamedTypeSymbol model, CancellationToken cancellationToken)
     {
@@ -394,36 +387,13 @@ public sealed partial class ConfiglueGenerator
     }
 
     private static string EscapeIdentifier(string identifier) =>
-        SyntaxFacts.GetKeywordKind(identifier) != SyntaxKind.None
-        || SyntaxFacts.GetContextualKeywordKind(identifier) != SyntaxKind.None
-            ? "@" + identifier
-            : identifier;
+        SparseFragments.Generator.Shared.SparseNaming.EscapeIdentifier(identifier);
 
-    private static string Sanitize(string identifier, CancellationToken cancellationToken)
-    {
-        var builder = new StringBuilder(identifier.Length);
-        foreach (var character in identifier)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            builder.Append(char.IsLetterOrDigit(character) ? character : '_');
-        }
+    private static string Sanitize(string identifier, CancellationToken cancellationToken) =>
+        SparseFragments.Generator.Shared.SparseNaming.Sanitize(identifier, cancellationToken);
 
-        return builder.ToString();
-    }
-
-    private static string GetStableTypeHash(string value, CancellationToken cancellationToken)
-    {
-        const uint offsetBasis = 2166136261;
-        const uint prime = 16777619;
-        var hash = offsetBasis;
-        foreach (var character in value)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            hash = unchecked((hash ^ character) * prime);
-        }
-
-        return hash.ToString("X8", CultureInfo.InvariantCulture);
-    }
+    private static string GetStableTypeHash(string value, CancellationToken cancellationToken) =>
+        SparseFragments.Generator.Shared.SparseNaming.GetStableTypeHash(value, cancellationToken);
 
     private static string JoinMemberExpressions(
         ImmutableArray<MemberModel> members,

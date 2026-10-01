@@ -1,14 +1,14 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>
-    <AssemblyName>Configlue.Generator</AssemblyName>
-    <RootNamespace>Configlue.Generator</RootNamespace>
+    <AssemblyName>SparseFragments.Generator</AssemblyName>
+    <RootNamespace>SparseFragments.Generator</RootNamespace>
     <IsRoslynComponent>true</IsRoslynComponent>
     <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
     <IsPackable>true</IsPackable>
     <IncludeBuildOutput>false</IncludeBuildOutput>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
-    <PackageDescription>Source generator for Configlue models.</PackageDescription>
+    <PackageDescription>Standalone source generator for SparseFragments models.</PackageDescription>
     <NoWarn>$(NoWarn);RS2008;NU5128</NoWarn>
   </PropertyGroup>
   <ItemGroup>
@@ -25,17 +25,14 @@
     />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="..\SparseFragments.Generator.Shared\**\*.cs" LinkBase="Shared" />
+  </ItemGroup>
+  <ItemGroup>
     <None
-      Include="$(OutputPath)Configlue.Generator.dll"
+      Include="$(OutputPath)SparseFragments.Generator.dll"
       Pack="true"
       PackagePath="analyzers/dotnet/cs"
       Visible="false"
-    />
-  </ItemGroup>
-  <ItemGroup>
-    <Compile
-      Include="..\..\utilities\SparseFragments\SparseFragments.Generator.Shared\**\*.cs"
-      LinkBase="Shared"
     />
   </ItemGroup>
 </Project>

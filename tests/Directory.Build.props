@@ -45,12 +45,12 @@
   </ItemGroup>
   <ItemGroup>
     <Using Include="Shouldly" Condition="'$(ConfiglueNetStandard)' != 'true'" />
-    <Using Include="Configlue.Codecs" Condition="'$(ConfiglueNetStandard)' != 'true'" />
-    <Using Include="Configlue.Migrations" Condition="'$(ConfiglueNetStandard)' != 'true'" />
-    <Using Include="Configlue.Resources" Condition="'$(ConfiglueNetStandard)' != 'true'" />
-    <Using Include="Configlue.Sources" Condition="'$(ConfiglueNetStandard)' != 'true'" />
-    <Using Include="Configlue.Extensibility" Condition="'$(ConfiglueNetStandard)' != 'true'" />
-    <Using Include="Configlue.State" Condition="'$(ConfiglueNetStandard)' != 'true'" />
-    <Using Include="Configlue.Transformers" Condition="'$(ConfiglueNetStandard)' != 'true'" />
+    <Using Include="Configlue.Codecs" Condition="'$(ConfiglueNetStandard)' != 'true' and '$(MSBuildProjectName)' != 'SparseFragments.Tests'" />
+    <Using Include="Configlue.Migrations" Condition="'$(ConfiglueNetStandard)' != 'true' and '$(MSBuildProjectName)' != 'SparseFragments.Tests'" />
+    <Using Include="Configlue.Resources" Condition="'$(ConfiglueNetStandard)' != 'true' and '$(MSBuildProjectName)' != 'SparseFragments.Tests'" />
+    <Using Include="Configlue.Sources" Condition="'$(ConfiglueNetStandard)' != 'true' and '$(MSBuildProjectName)' != 'SparseFragments.Tests'" />
+    <Using Include="Configlue.Extensibility" Condition="'$(ConfiglueNetStandard)' != 'true' and '$(MSBuildProjectName)' != 'SparseFragments.Tests'" />
+    <Using Include="Configlue.State" Condition="'$(ConfiglueNetStandard)' != 'true' and '$(MSBuildProjectName)' != 'SparseFragments.Tests'" />
+    <Using Include="Configlue.Transformers" Condition="'$(ConfiglueNetStandard)' != 'true' and '$(MSBuildProjectName)' != 'SparseFragments.Tests'" />
   </ItemGroup>
 </Project>

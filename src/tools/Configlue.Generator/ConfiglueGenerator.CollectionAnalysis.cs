@@ -11,84 +11,6 @@ namespace Configlue.Generator;
 
 public sealed partial class ConfiglueGenerator
 {
-    private static SymbolCollectionInfo GetCollectionInfo(ITypeSymbol type)
-    {
-        if (type is IArrayTypeSymbol array)
-        {
-            return new SymbolCollectionInfo(
-                CollectionKind.Array,
-                CloneCollectionKind.Array,
-                array.ElementType,
-                null,
-                null
-            );
-        }
-
-        if (type is not INamedTypeSymbol named || named.TypeArguments.Length is < 1 or > 2)
-        {
-            return SymbolCollectionInfo.Unsupported;
-        }
-
-        var elementType = named.TypeArguments[0];
-        var definition = named.ConstructedFrom.ToDisplayString();
-        var kind = definition switch
-        {
-            "System.Collections.Generic.List<T>" => CollectionKind.List,
-            "System.Collections.Generic.IEnumerable<T>"
-            or "System.Collections.Generic.IReadOnlyCollection<T>"
-            or "System.Collections.Generic.IReadOnlyList<T>" => CollectionKind.Array,
-            "System.Collections.Generic.HashSet<T>"
-            or "System.Collections.Generic.ISet<T>"
-            or "System.Collections.Generic.IReadOnlySet<T>" => CollectionKind.Set,
-            _ => CollectionKind.Unsupported,
-        };
-
-        var cloneKind = definition switch
-        {
-            "System.Collections.Generic.List<T>" => CloneCollectionKind.List,
-            "System.Collections.Generic.IEnumerable<T>"
-            or "System.Collections.Generic.IReadOnlyCollection<T>"
-            or "System.Collections.Generic.IReadOnlyList<T>" => CloneCollectionKind.Array,
-            "System.Collections.Generic.HashSet<T>"
-            or "System.Collections.Generic.ISet<T>"
-            or "System.Collections.Generic.IReadOnlySet<T>" => CloneCollectionKind.Set,
-            "System.Collections.Generic.Dictionary<TKey, TValue>"
-            or "System.Collections.Generic.IDictionary<TKey, TValue>"
-            or "System.Collections.Generic.IReadOnlyDictionary<TKey, TValue>" =>
-                CloneCollectionKind.Dictionary,
-            "System.Collections.Generic.Queue<T>" => CloneCollectionKind.Queue,
-            "System.Collections.Generic.Stack<T>" => CloneCollectionKind.Stack,
-            "System.Collections.Concurrent.ConcurrentQueue<T>" =>
-                CloneCollectionKind.ConcurrentQueue,
-            "System.Collections.Concurrent.ConcurrentStack<T>" =>
-                CloneCollectionKind.ConcurrentStack,
-            "System.Collections.Concurrent.BlockingCollection<T>" =>
-                CloneCollectionKind.BlockingCollection,
-            "System.Collections.Generic.LinkedList<T>" => CloneCollectionKind.LinkedList,
-            "System.Collections.Generic.SortedSet<T>" => CloneCollectionKind.SortedSet,
-            "System.Collections.Generic.PriorityQueue<TElement, TPriority>" =>
-                CloneCollectionKind.PriorityQueue,
-            "System.Collections.ObjectModel.ObservableCollection<T>" =>
-                CloneCollectionKind.ObservableCollection,
-            "System.Collections.ObjectModel.ReadOnlyCollection<T>" =>
-                CloneCollectionKind.ReadOnlyCollection,
-            "System.Collections.Immutable.ImmutableArray<T>" => CloneCollectionKind.ImmutableArray,
-            "System.Collections.Immutable.ImmutableList<T>" => CloneCollectionKind.ImmutableList,
-            "System.Collections.Immutable.ImmutableHashSet<T>" => CloneCollectionKind.ImmutableSet,
-            "System.Collections.Immutable.ImmutableDictionary<TKey, TValue>" =>
-                CloneCollectionKind.ImmutableDictionary,
-            _ => CloneCollectionKind.Unsupported,
-        };
-
-        return new SymbolCollectionInfo(
-            kind,
-            cloneKind,
-            elementType,
-            named.TypeArguments.Length == 2 ? named.TypeArguments[1] : null,
-            named
-        );
-    }
-
     private static bool IsValidMergeStrategy(
         INamedTypeSymbol strategyType,
         ITypeSymbol memberType,
@@ -167,54 +89,6 @@ public sealed partial class ConfiglueGenerator
     {
         public INamedTypeSymbol Model { get; } = model;
         public ImmutableArray<SymbolMemberModel> Members { get; } = members;
-    }
-
-    private sealed class SymbolCollectionInfo(
-        CollectionKind kind,
-        CloneCollectionKind cloneKind,
-        ITypeSymbol elementType,
-        ITypeSymbol? valueType,
-        INamedTypeSymbol? namedType
-    )
-    {
-        public CollectionKind Kind { get; } = kind;
-        public CloneCollectionKind CloneKind { get; } = cloneKind;
-        public ITypeSymbol ElementType { get; } = elementType;
-        public ITypeSymbol? ValueType { get; } = valueType;
-        public INamedTypeSymbol? NamedType { get; } = namedType;
-        public static SymbolCollectionInfo Unsupported { get; } =
-            new(CollectionKind.Unsupported, CloneCollectionKind.Unsupported, null!, null, null);
-    }
-
-    private enum CollectionKind
-    {
-        Unsupported,
-        Array,
-        List,
-        Set,
-    }
-
-    private enum CloneCollectionKind
-    {
-        Unsupported,
-        Array,
-        List,
-        Set,
-        Dictionary,
-        Queue,
-        Stack,
-        ConcurrentQueue,
-        ConcurrentStack,
-        BlockingCollection,
-        PriorityQueue,
-        LinkedList,
-        SortedSet,
-        ObservableCollection,
-        ReadOnlyCollection,
-        ImmutableArray,
-        ImmutableList,
-        ImmutableSet,
-        ImmutableDictionary,
     }
 
     private sealed class GenerationResult : IEquatable<GenerationResult>

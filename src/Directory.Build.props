@@ -10,6 +10,8 @@
     <ConfiglueTooling
       Condition="'$(MSBuildProjectName)' == 'Configlue.Generator' or '$(MSBuildProjectName)' == 'Configlue.JsonSchema.MSBuild'"
       >true</ConfiglueTooling>
+    <ConfiglueUtility Condition="$(MSBuildProjectName.StartsWith('SparseFragments'))"
+      >true</ConfiglueUtility>
     <GenerateDocumentationFile Condition="'$(ConfiglueTooling)' != 'true'"
       >true</GenerateDocumentationFile>
     <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
@@ -36,7 +38,7 @@
     </PackageReference>
     <None Include="$(MSBuildThisFileDirectory)../README.md" Pack="true" PackagePath="/" />
   </ItemGroup>
-  <ItemGroup Condition="'$(ConfiglueTooling)' != 'true'">
+  <ItemGroup Condition="'$(ConfiglueTooling)' != 'true' and '$(ConfiglueUtility)' != 'true'">
     <Using Include="Configlue.Codecs" />
     <Using Include="Configlue.Migrations" />
     <Using Include="Configlue.Resources" />

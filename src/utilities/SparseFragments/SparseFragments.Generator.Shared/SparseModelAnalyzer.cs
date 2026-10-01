@@ -1,0 +1,938 @@
+using System.Collections.Generic;
+using System.Collections.Immutable;
+using System.Linq;
+using System.Threading;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
+
+namespace SparseFragments.Generator.Shared;
+
+internal sealed record SparseGeneratorConfig(
+    string ModelAttributeMetadataName,
+    string MergeAttributeMetadataName,
+    string MergeStrategyBaseMetadataName
+);
+
+internal static class SparseModelAnalyzer
+{
+    private const int CustomMergeMode = 4;
+
+    public static SparseGenerationAnalysis Analyze(
+        INamedTypeSymbol model,
+        SparseGeneratorConfig config,
+        CancellationToken cancellationToken
+    )
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var location = model.Locations.FirstOrDefault();
+        var declaration = model
+            .DeclaringSyntaxReferences.Select(reference => reference.GetSyntax(cancellationToken))
+            .OfType<TypeDeclarationSyntax>()
+            .FirstOrDefault();
+
+        if (declaration is null || !declaration.Modifiers.Any(SyntaxKind.PartialKeyword))
+        {
+            return Failure("SPF001", location, model.Name);
+        }
+
+        if (
+            model.ContainingType is not null
+            || model.Arity != 0
+            || (model.TypeKind != TypeKind.Class && model.TypeKind != TypeKind.Struct)
+            || model.IsAbstract
+        )
+        {
+            return Failure("SPF002", location, model.Name);
+        }
+
+        if (
+            model.TypeKind == TypeKind.Class
+            && !HasPublicParameterlessConstructor(model, cancellationToken)
+        )
+        {
+            return Failure("SPF003", location, model.Name);
+        }
+
+        var members = GetMembers(model, config, cancellationToken).ToImmutableArray();
+        var diagnostics = ImmutableArray.CreateBuilder<SparseGeneratorDiagnostic>();
+
+        foreach (var member in members)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (
+                member.MergeMode == CustomMergeMode
+                && (
+                    member.MergeStrategyType is null
+                    || !IsValidMergeStrategy(
+                        member.MergeStrategyType,
+                        member.Property.Type,
+                        member.ChildModel is not null,
+                        config,
+                        cancellationToken
+                    )
+                )
+            )
+            {
+                diagnostics.Add(
+                    new SparseGeneratorDiagnostic(
+                        "SPF004",
+                        member.Property.Locations.FirstOrDefault(),
+                        member.Property.Name
+                    )
+                );
+            }
+
+            if (member.Property.IsRequired)
+            {
+                diagnostics.Add(
+                    new SparseGeneratorDiagnostic(
+                        "SPF006",
+                        member.Property.Locations.FirstOrDefault(),
+                        member.Property.Name
+                    )
+                );
+            }
+
+            if (member.MergeMode is < 0 or > CustomMergeMode)
+            {
+                diagnostics.Add(
+                    new SparseGeneratorDiagnostic(
+                        "SPF005",
+                        member.Property.Locations.FirstOrDefault(),
+                        member.Property.Name
+                    )
+                );
+            }
+
+            if (member.MergeMode == 1 && member.ChildModel is null)
+            {
+                diagnostics.Add(
+                    new SparseGeneratorDiagnostic(
+                        "SPF005",
+                        member.Property.Locations.FirstOrDefault(),
+                        member.Property.Name
+                    )
+                );
+            }
+
+            if (
+                (member.MergeMode == 2 || member.MergeMode == 3)
+                && member.Collection.Kind == SparseCollectionKind.Unsupported
+            )
+            {
+                diagnostics.Add(
+                    new SparseGeneratorDiagnostic(
+                        "SPF005",
+                        member.Property.Locations.FirstOrDefault(),
+                        member.Property.Name
+                    )
+                );
+            }
+        }
+
+        if (diagnostics.Count > 0)
+        {
+            return new SparseGenerationAnalysis(
+                null,
+                ImmutableArray<SparseMemberModel>.Empty,
+                ImmutableArray<SparsePocoCloneModel>.Empty,
+                ImmutableArray<SparseStructuralModel>.Empty,
+                diagnostics.ToImmutable()
+            );
+        }
+
+        var fullyQualifiedName = model.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+        var hintName =
+            SparseNaming.Sanitize(fullyQualifiedName, cancellationToken)
+            + "_"
+            + SparseNaming.GetStableTypeHash(fullyQualifiedName, cancellationToken)
+            + ".SparseFragments.g.cs";
+        var memberModels = CreateMemberModels(members, config, cancellationToken);
+        var pocoCloneModels = GetPocoCloneTypes(members, config, cancellationToken)
+            .Select(pocoType => CreatePocoCloneModel(pocoType, config, cancellationToken))
+            .ToImmutableArray();
+        var structuralModels = CollectStructuralTypes(members, config, cancellationToken)
+            .Select(type => CreateStructuralModel(type, config, cancellationToken))
+            .ToImmutableArray();
+
+        return new SparseGenerationAnalysis(
+            CreateModelInfo(model, hintName),
+            memberModels,
+            pocoCloneModels,
+            structuralModels,
+            ImmutableArray<SparseGeneratorDiagnostic>.Empty
+        );
+    }
+
+    private static SparseGenerationAnalysis Failure(
+        string descriptorId,
+        Location? location,
+        string argument
+    ) =>
+        new(
+            null,
+            ImmutableArray<SparseMemberModel>.Empty,
+            ImmutableArray<SparsePocoCloneModel>.Empty,
+            ImmutableArray<SparseStructuralModel>.Empty,
+            ImmutableArray.Create(new SparseGeneratorDiagnostic(descriptorId, location, argument))
+        );
+
+    private static bool HasPublicParameterlessConstructor(
+        INamedTypeSymbol model,
+        CancellationToken cancellationToken
+    )
+    {
+        foreach (var constructor in model.InstanceConstructors)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (
+                constructor.DeclaredAccessibility == Accessibility.Public
+                && constructor.Parameters.Length == 0
+            )
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static IEnumerable<SymbolMember> GetMembers(
+        INamedTypeSymbol model,
+        SparseGeneratorConfig config,
+        CancellationToken cancellationToken
+    )
+    {
+        var hierarchy = new Stack<INamedTypeSymbol>();
+        for (
+            var current = model;
+            current is not null && current.SpecialType != SpecialType.System_Object;
+            current = current.BaseType
+        )
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            hierarchy.Push(current);
+        }
+
+        var properties = new Dictionary<string, IPropertySymbol>(StringComparer.Ordinal);
+        while (hierarchy.Count > 0)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            foreach (var property in hierarchy.Pop().GetMembers().OfType<IPropertySymbol>())
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (
+                    property.IsStatic
+                    || property.IsIndexer
+                    || property.DeclaredAccessibility != Accessibility.Public
+                    || property.GetMethod?.DeclaredAccessibility != Accessibility.Public
+                    || property.SetMethod?.DeclaredAccessibility != Accessibility.Public
+                )
+                {
+                    continue;
+                }
+
+                properties[property.Name] = property;
+            }
+        }
+
+        var index = 0;
+        foreach (
+            var property in properties.Values.OrderBy(
+                static property => property.Name,
+                StringComparer.Ordinal
+            )
+        )
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var child =
+                IsFragmentModel(property.Type, config, cancellationToken)
+                || IsStructuralType(property.Type, config, cancellationToken)
+                    ? (INamedTypeSymbol)property.Type
+                    : null;
+            var mode = child is not null ? 1 : 0;
+            AttributeData? merge = null;
+            foreach (var attribute in property.GetAttributes())
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (attribute.AttributeClass?.ToDisplayString() == config.MergeAttributeMetadataName)
+                {
+                    merge = attribute;
+                    break;
+                }
+            }
+
+            INamedTypeSymbol? mergeStrategyType = null;
+            if (
+                merge?.ConstructorArguments.FirstOrDefault() is
+                { Kind: TypedConstantKind.Type } strategyConstant
+            )
+            {
+                mergeStrategyType = strategyConstant.Value as INamedTypeSymbol;
+                mode = CustomMergeMode;
+            }
+            else if (merge?.ConstructorArguments.FirstOrDefault().Value is int requestedMode)
+            {
+                mode = requestedMode;
+            }
+
+            if (mode is < 0 or > CustomMergeMode)
+            {
+                mode = int.MaxValue;
+            }
+
+            yield return new SymbolMember(
+                index++,
+                property,
+                child,
+                mode,
+                SparseCollectionAnalyzer.GetCollectionInfo(property.Type),
+                mergeStrategyType
+            );
+        }
+    }
+
+    private static bool IsFragmentModel(
+        ITypeSymbol type,
+        SparseGeneratorConfig config,
+        CancellationToken cancellationToken
+    )
+    {
+        if (
+            type
+            is not INamedTypeSymbol
+            {
+                TypeKind: TypeKind.Class or TypeKind.Struct,
+                IsAbstract: false,
+            } named
+        )
+        {
+            return false;
+        }
+
+        foreach (var attribute in named.GetAttributes())
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (attribute.AttributeClass?.ToDisplayString() == config.ModelAttributeMetadataName)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private enum StructuralTypeKind
+    {
+        RootModel,
+        StructuralObject,
+        Collection,
+        Scalar,
+    }
+
+    private static StructuralTypeKind ClassifyStructuralType(
+        ITypeSymbol type,
+        SparseGeneratorConfig config,
+        CancellationToken cancellationToken
+    )
+    {
+        if (
+            type is IArrayTypeSymbol
+            || (
+                type is INamedTypeSymbol arrayLike
+                && SparseCollectionAnalyzer.GetCollectionInfo(arrayLike).Kind
+                    != SparseCollectionKind.Unsupported
+            )
+        )
+        {
+            return StructuralTypeKind.Collection;
+        }
+
+        if (
+            type
+                is not INamedTypeSymbol
+                {
+                    TypeKind: TypeKind.Class,
+                    IsAbstract: false,
+                    Arity: 0,
+                } named
+            || named.SpecialType != SpecialType.None
+            || IsFrameworkType(named)
+            || !HasPublicParameterlessConstructor(named, cancellationToken)
+        )
+        {
+            return StructuralTypeKind.Scalar;
+        }
+
+        if (IsFragmentModel(named, config, cancellationToken))
+        {
+            return StructuralTypeKind.RootModel;
+        }
+
+        if (
+            HasUnsupportedPocoMembers(named, cancellationToken)
+            || !HasPublicSettableMember(named, cancellationToken)
+        )
+        {
+            return StructuralTypeKind.Scalar;
+        }
+
+        return StructuralTypeKind.StructuralObject;
+    }
+
+    private static bool IsStructuralType(
+        ITypeSymbol type,
+        SparseGeneratorConfig config,
+        CancellationToken cancellationToken
+    ) =>
+        type is INamedTypeSymbol named
+        && ClassifyStructuralType(type, config, cancellationToken)
+            == StructuralTypeKind.StructuralObject
+        && IsAccessibleForGeneration(named);
+
+    private static bool IsFrameworkType(INamedTypeSymbol type)
+    {
+        var namespaceName = type.ContainingNamespace.ToDisplayString();
+        if (
+            namespaceName == "System"
+            || namespaceName.StartsWith("System.", StringComparison.Ordinal)
+            || namespaceName == "Microsoft"
+            || namespaceName.StartsWith("Microsoft.", StringComparison.Ordinal)
+        )
+        {
+            return true;
+        }
+
+        var assemblyName = type.ContainingAssembly?.Name;
+        return assemblyName is not null
+            && (
+                assemblyName.StartsWith("System.", StringComparison.Ordinal)
+                || assemblyName.StartsWith("Microsoft.", StringComparison.Ordinal)
+            );
+    }
+
+    private static bool IsAccessibleForGeneration(INamedTypeSymbol type)
+    {
+        for (var current = type; current is not null; current = current.ContainingType)
+        {
+            if (current.DeclaredAccessibility != Accessibility.Public)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool IsAccessibleForClone(INamedTypeSymbol type)
+    {
+        if (type.DeclaredAccessibility is not (Accessibility.Public or Accessibility.Internal))
+        {
+            return false;
+        }
+
+        for (
+            var current = type.ContainingType;
+            current is not null;
+            current = current.ContainingType
+        )
+        {
+            if (
+                current.DeclaredAccessibility
+                is not (Accessibility.Public or Accessibility.Internal)
+            )
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool HasPublicSettableMember(
+        INamedTypeSymbol type,
+        CancellationToken cancellationToken
+    )
+    {
+        for (
+            var current = type;
+            current is not null && current.SpecialType != SpecialType.System_Object;
+            current = current.BaseType
+        )
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            foreach (var property in current.GetMembers().OfType<IPropertySymbol>())
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (
+                    !property.IsStatic
+                    && !property.IsIndexer
+                    && property.GetMethod?.DeclaredAccessibility == Accessibility.Public
+                    && property.SetMethod?.DeclaredAccessibility == Accessibility.Public
+                )
+                {
+                    return true;
+                }
+            }
+
+            foreach (var field in current.GetMembers().OfType<IFieldSymbol>())
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (
+                    !field.IsStatic
+                    && !field.IsConst
+                    && field.DeclaredAccessibility == Accessibility.Public
+                )
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private static bool TryGetPocoCloneType(
+        ITypeSymbol type,
+        SparseGeneratorConfig config,
+        CancellationToken cancellationToken,
+        out INamedTypeSymbol pocoType
+    )
+    {
+        if (
+            type is INamedTypeSymbol named
+            && ClassifyStructuralType(type, config, cancellationToken)
+                == StructuralTypeKind.StructuralObject
+            && IsAccessibleForClone(named)
+        )
+        {
+            var members = GetMembers(named, config, cancellationToken).ToArray();
+            if (members.Length == 0)
+            {
+                pocoType = null!;
+                return false;
+            }
+
+            pocoType = named;
+            return true;
+        }
+
+        pocoType = null!;
+        return false;
+    }
+
+    private static string StructuralHostName(
+        INamedTypeSymbol type,
+        CancellationToken cancellationToken
+    )
+    {
+        var name = type.WithNullableAnnotation(NullableAnnotation.NotAnnotated)
+            .ToDisplayString(SparseNaming.TypeFormat);
+        var assembly = type.ContainingAssembly?.Name ?? string.Empty;
+        return "__SparseStructural_"
+            + SparseNaming.GetStableTypeHash(assembly + "|" + name, cancellationToken);
+    }
+
+    private static bool HasUnsupportedPocoMembers(
+        INamedTypeSymbol pocoType,
+        CancellationToken cancellationToken
+    )
+    {
+        var hierarchy = new Stack<INamedTypeSymbol>();
+        for (
+            var current = pocoType;
+            current is not null && current.SpecialType != SpecialType.System_Object;
+            current = current.BaseType
+        )
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            hierarchy.Push(current);
+        }
+
+        while (hierarchy.Count > 0)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var current = hierarchy.Pop();
+            foreach (var property in current.GetMembers().OfType<IPropertySymbol>())
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (property.IsStatic || property.IsIndexer)
+                {
+                    continue;
+                }
+
+                var hasPublicGetter =
+                    property.GetMethod?.DeclaredAccessibility == Accessibility.Public;
+                var hasPublicSetter =
+                    property.SetMethod?.DeclaredAccessibility == Accessibility.Public;
+                if (!hasPublicGetter && !hasPublicSetter)
+                {
+                    continue;
+                }
+
+                if (
+                    !hasPublicGetter
+                    || !hasPublicSetter
+                    || property.IsRequired
+                    || property.SetMethod?.IsInitOnly == true
+                )
+                {
+                    return true;
+                }
+            }
+
+            if (
+                current
+                    .GetMembers()
+                    .OfType<IFieldSymbol>()
+                    .Any(static field =>
+                        !field.IsStatic
+                        && !field.IsConst
+                        && field.DeclaredAccessibility == Accessibility.Public
+                    )
+            )
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static ImmutableArray<INamedTypeSymbol> GetPocoCloneTypes(
+        ImmutableArray<SymbolMember> members,
+        SparseGeneratorConfig config,
+        CancellationToken cancellationToken
+    )
+    {
+        var result = ImmutableArray.CreateBuilder<INamedTypeSymbol>();
+        var seen = new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default);
+        var pending = new Stack<ITypeSymbol>();
+        foreach (var type in members.Select(static member => member.Property.Type))
+        {
+            pending.Push(type);
+        }
+
+        while (pending.Count > 0)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var type = pending.Pop();
+            var collection = SparseCollectionAnalyzer.GetCollectionInfo(type);
+            if (collection.CloneKind != SparseCloneCollectionKind.Unsupported)
+            {
+                if (collection.ElementType is not null)
+                {
+                    pending.Push(collection.ElementType);
+                }
+
+                if (collection.ValueType is not null)
+                {
+                    pending.Push(collection.ValueType);
+                }
+
+                continue;
+            }
+
+            if (
+                !TryGetPocoCloneType(type, config, cancellationToken, out var poco)
+                || !seen.Add(poco)
+            )
+            {
+                continue;
+            }
+
+            result.Add(poco);
+            foreach (
+                var nestedType in GetMembers(poco, config, cancellationToken)
+                    .Select(static member => member.Property.Type)
+            )
+            {
+                pending.Push(nestedType);
+            }
+        }
+
+        return result.ToImmutable();
+    }
+
+    private static ImmutableArray<INamedTypeSymbol> CollectStructuralTypes(
+        ImmutableArray<SymbolMember> members,
+        SparseGeneratorConfig config,
+        CancellationToken cancellationToken
+    )
+    {
+        var result = ImmutableArray.CreateBuilder<INamedTypeSymbol>();
+        var seen = new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default);
+        var pending = new Stack<INamedTypeSymbol>();
+        foreach (var child in members.Select(static member => member.ChildModel))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (child is not null && IsStructuralType(child, config, cancellationToken))
+            {
+                pending.Push(child);
+            }
+        }
+
+        while (pending.Count > 0)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var type = pending.Pop();
+            if (!seen.Add(type))
+            {
+                continue;
+            }
+
+            result.Add(type);
+            foreach (
+                var nested in GetMembers(type, config, cancellationToken)
+                    .Select(static member => member.ChildModel)
+            )
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (nested is not null && IsStructuralType(nested, config, cancellationToken))
+                {
+                    pending.Push(nested);
+                }
+            }
+        }
+
+        return result.ToImmutable();
+    }
+
+    private static SparseStructuralModel CreateStructuralModel(
+        INamedTypeSymbol type,
+        SparseGeneratorConfig config,
+        CancellationToken cancellationToken
+    ) =>
+        new(
+            StructuralHostName(type, cancellationToken),
+            SparseNaming.NonNullableTypeName(type),
+            CreateMemberModels(
+                GetMembers(type, config, cancellationToken).ToImmutableArray(),
+                config,
+                cancellationToken
+            )
+        );
+
+    private static ImmutableArray<SparseMemberModel> CreateMemberModels(
+        ImmutableArray<SymbolMember> members,
+        SparseGeneratorConfig config,
+        CancellationToken cancellationToken
+    )
+    {
+        var result = ImmutableArray.CreateBuilder<SparseMemberModel>(members.Length);
+        foreach (var member in members)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            result.Add(CreateMemberModel(member, config, cancellationToken));
+        }
+
+        return result.ToImmutable();
+    }
+
+    private static SparseMemberModel CreateMemberModel(
+        SymbolMember member,
+        SparseGeneratorConfig config,
+        CancellationToken cancellationToken
+    )
+    {
+        var property = new SparsePropertyModel(
+            member.Property.Name,
+            CreateTypeModel(member.Property.Type, config, cancellationToken)
+        );
+        SparseTypeModel? childModel = null;
+        string? childFragmentType = null;
+        var childIsStructural = false;
+        var childIsReferenceType = true;
+        if (member.ChildModel is not null)
+        {
+            childModel = CreateTypeModel(member.ChildModel, config, cancellationToken);
+            childIsReferenceType = member.ChildModel.IsReferenceType;
+            childIsStructural = !IsFragmentModel(member.ChildModel, config, cancellationToken);
+            var host = childIsStructural
+                ? StructuralHostName(member.ChildModel, cancellationToken)
+                : SparseNaming.NonNullableTypeName(member.ChildModel);
+            childFragmentType = host + ".Fragment";
+        }
+
+        SparseTypeModel? mergeStrategyType = null;
+        if (member.MergeStrategyType is not null)
+        {
+            mergeStrategyType = CreateTypeModel(member.MergeStrategyType, config, cancellationToken);
+        }
+
+        return new SparseMemberModel(
+            member.Id,
+            property,
+            childModel,
+            member.MergeMode,
+            CreateCollectionInfo(member.Collection, config, cancellationToken),
+            mergeStrategyType,
+            childFragmentType,
+            childIsStructural,
+            childIsReferenceType
+        );
+    }
+
+    private static SparseCollectionInfo CreateCollectionInfo(
+        SparseSymbolCollectionInfo collection,
+        SparseGeneratorConfig config,
+        CancellationToken cancellationToken
+    )
+    {
+        if (
+            collection.Kind == SparseCollectionKind.Unsupported
+            && collection.CloneKind == SparseCloneCollectionKind.Unsupported
+        )
+        {
+            return SparseCollectionInfo.Unsupported;
+        }
+
+        SparseTypeModel? valueType = null;
+        if (collection.ValueType is not null)
+        {
+            valueType = CreateTypeModel(collection.ValueType, config, cancellationToken);
+        }
+
+        return new SparseCollectionInfo(
+            collection.Kind,
+            collection.CloneKind,
+            CreateTypeModel(collection.ElementType, config, cancellationToken),
+            valueType,
+            collection.NamedType?.ConstructedFrom.ToDisplayString()
+        );
+    }
+
+    private static SparseTypeModel CreateTypeModel(
+        ITypeSymbol type,
+        SparseGeneratorConfig config,
+        CancellationToken cancellationToken
+    )
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var isFragmentModel = IsFragmentModel(type, config, cancellationToken);
+        string? pocoCloneHelperName = null;
+        if (
+            !isFragmentModel
+            && TryGetPocoCloneType(type, config, cancellationToken, out var pocoType)
+        )
+        {
+            var cloneTypeName = pocoType
+                .WithNullableAnnotation(NullableAnnotation.NotAnnotated)
+                .ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+            pocoCloneHelperName =
+                "__Clone_" + SparseNaming.GetStableTypeHash(cloneTypeName, cancellationToken);
+        }
+
+        return new SparseTypeModel(
+            SparseNaming.TypeName(type),
+            SparseNaming.NonNullableTypeName(type),
+            type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+            type.IsReferenceType,
+            isFragmentModel,
+            pocoCloneHelperName
+        );
+    }
+
+    private static SparsePocoCloneModel CreatePocoCloneModel(
+        INamedTypeSymbol pocoType,
+        SparseGeneratorConfig config,
+        CancellationToken cancellationToken
+    )
+    {
+        var typeName = pocoType
+            .WithNullableAnnotation(NullableAnnotation.NotAnnotated)
+            .ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+        return new SparsePocoCloneModel(
+            CreateModelInfo(pocoType, string.Empty),
+            "__Clone_" + SparseNaming.GetStableTypeHash(typeName, cancellationToken),
+            CreateMemberModels(
+                GetMembers(pocoType, config, cancellationToken).ToImmutableArray(),
+                config,
+                cancellationToken
+            )
+        );
+    }
+
+    private static SparseModelInfo CreateModelInfo(INamedTypeSymbol model, string hintName) =>
+        new(
+            model.Name,
+            SparseNaming.NonNullableTypeName(model),
+            model.ContainingNamespace.ToDisplayString(),
+            model.ContainingNamespace.IsGlobalNamespace,
+            model.TypeKind == TypeKind.Struct,
+            model.IsRecord,
+            hintName
+        );
+
+    private static bool IsValidMergeStrategy(
+        INamedTypeSymbol strategyType,
+        ITypeSymbol memberType,
+        bool isNestedModel,
+        SparseGeneratorConfig config,
+        CancellationToken cancellationToken
+    )
+    {
+        if (
+            isNestedModel
+            || strategyType.TypeKind != TypeKind.Class
+            || strategyType.IsAbstract
+            || strategyType.Arity != 0
+        )
+        {
+            return false;
+        }
+
+        for (var current = strategyType; current is not null; current = current.ContainingType)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (
+                current.DeclaredAccessibility
+                is not (Accessibility.Public or Accessibility.Internal)
+            )
+            {
+                return false;
+            }
+        }
+
+        var hasConstructor = strategyType.InstanceConstructors.Any(static constructor =>
+            constructor.Parameters.Length == 0
+            && constructor.DeclaredAccessibility is Accessibility.Public or Accessibility.Internal
+        );
+        if (!hasConstructor)
+        {
+            return false;
+        }
+
+        for (var current = strategyType; current is not null; current = current.BaseType)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (
+                current.OriginalDefinition.ToDisplayString() == config.MergeStrategyBaseMetadataName
+                && SymbolEqualityComparer.Default.Equals(current.TypeArguments[0], memberType)
+            )
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private sealed class SymbolMember(
+        int id,
+        IPropertySymbol property,
+        INamedTypeSymbol? childModel,
+        int mergeMode,
+        SparseSymbolCollectionInfo collection,
+        INamedTypeSymbol? mergeStrategyType
+    )
+    {
+        public int Id { get; } = id;
+        public IPropertySymbol Property { get; } = property;
+        public INamedTypeSymbol? ChildModel { get; } = childModel;
+        public int MergeMode { get; } = mergeMode;
+        public SparseSymbolCollectionInfo Collection { get; } = collection;
+        public INamedTypeSymbol? MergeStrategyType { get; } = mergeStrategyType;
+    }
+}
