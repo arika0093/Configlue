@@ -12,8 +12,8 @@
     <ProjectReference Include="../../providers/Configlue.Provider.Json/Configlue.Provider.Json.csproj" />
     <PackageReference
       Include="Microsoft.Extensions.DependencyInjection.Abstractions"
-      Version="10.0.0"
+      Version="10.0.12"
     />
-    <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.12" />
   </ItemGroup>
 </Project>
