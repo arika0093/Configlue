@@ -44,7 +44,7 @@ public sealed partial class ConfiglueGenerator
         }
         code.Append(generatedType)
             .Append(name)
-            .Append(" : global::Configlue.IConfiglueDeepCloneable<")
+            .Append(" : global::SparseFragments.ISparseDeepCloneable<")
             .Append(modelType)
             .Append(">, global::Configlue.CompilerServices.IConfiglueModel<")
             .Append(modelType)
