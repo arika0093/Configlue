@@ -6,6 +6,9 @@
     <IsPackable>true</IsPackable>
     <PackageDescription>Backend-neutral contracts for Configlue.</PackageDescription>
   </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../utilities/SparseFragments/SparseFragments.Abstractions/SparseFragments.Abstractions.csproj" />
+  </ItemGroup>
   <ItemGroup Condition="'$(ConfiglueNetStandard20)' == 'true'">
     <PackageReference Include="System.Memory" Version="4.6.3" />
   </ItemGroup>
