@@ -344,11 +344,11 @@ public sealed class PostgreSqlSourceTests
         public ConfiglueModelSchema Schema =>
             new(typeof(TestFragment), ModelId, Version, []);
 
-        public IEnumerable<ConfiglueFragmentMember> EnumeratePresentMembers() => [];
+        public IEnumerable<SparseFragmentMember> EnumeratePresentMembers() => [];
 
-        public IConfiglueFragment WithMember(int memberId, object? value) => this;
+        public ISparseFragment WithMember(int memberId, object? value) => this;
 
-        public IConfiglueFragment WithoutMember(int memberId) => this;
+        public ISparseFragment WithoutMember(int memberId) => this;
     }
 
     private sealed class TestFragmentConverter : JsonConverter<TestFragment>
