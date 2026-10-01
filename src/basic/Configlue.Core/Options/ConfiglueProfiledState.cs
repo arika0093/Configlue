@@ -470,7 +470,8 @@ internal sealed partial class ConfiglueProfiledState<TModel, TFragment>
         foreach (var profileName in catalog.ProfileNames)
         {
             if (
-                !_registry.TryGet(profileName, out _)
+                !_catalogRuntimeNames.Contains(profileName)
+                && !_registry.TryGet(profileName, out _)
                 && !_registry.TryAdd(profileName)
                 && !_registry.TryGet(profileName, out _)
             )

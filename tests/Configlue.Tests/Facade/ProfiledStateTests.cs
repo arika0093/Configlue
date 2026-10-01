@@ -535,7 +535,7 @@ public sealed class ProfiledStateTests
     [Test]
     public async Task ProfileCatalog_RegistryUnloadDoesNotDeleteCatalogMembership()
     {
-        var (catalog, _) = CreateProfileCatalog();
+        var (catalog, store) = CreateProfileCatalog();
         var backing = CreateBackingStore();
         await using var context = CreateProfiledContext(catalog, backing);
         var profiles = context.GetProfiledState<AppSettings>();
@@ -544,6 +544,31 @@ public sealed class ProfiledStateTests
 
         var registry = context.GetStateRegistry<AppSettings>();
         (await registry.TryRemoveAsync("Persistent")).ShouldBeTrue();
+        registry.TryGet("Persistent", out _).ShouldBeFalse();
+
+        // Force a catalog refresh after unload. Its registry notification is deferred
+        // until synchronization completes, so this is an ordering barrier, not a delay.
+        var refreshed = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        registry.StateAdded += (name, _) =>
+        {
+            if (name == "RefreshMarker")
+                refreshed.TrySetResult();
+        };
+        var currentCatalog = await store.ReadAsync(ConfiglueResourceContext.Default);
+        await store.WriteAsync(
+            ConfiglueResourceContext.Default,
+            new StateWriteRequest<ConfiglueProfileCatalog>(
+                new ConfiglueProfileCatalog
+                {
+                    ProfileNames = [.. currentCatalog.Value!.ProfileNames, "RefreshMarker"],
+                    ActiveProfileName = currentCatalog.Value.ActiveProfileName,
+                },
+                Condition: RevisionCondition.FromRevision(currentCatalog.Revision)
+            )
+        );
+        await refreshed.Task.WaitAsync(TimeSpan.FromSeconds(10));
         registry.TryGet("Persistent", out _).ShouldBeFalse();
 
         (await profiles.GetProfileNamesAsync()).ShouldContain("Persistent");
@@ -558,24 +583,26 @@ public sealed class ProfiledStateTests
         var resource = new AsyncDisposableProbe();
         var (catalog, _) = CreateProfileCatalog();
         var backing = CreateBackingStore();
-        await using (var context = ConfiglueApp.CreateContext(builder =>
-        {
-            builder.Add<AppSettings>(model =>
+        await using (
+            var context = ConfiglueApp.CreateContext(builder =>
             {
-                model.EnableProfiles(
-                    (_, ownResource) =>
-                    {
-                        ownResource(resource);
-                        return catalog;
-                    }
-                );
-                model.ConfigureSources(registration =>
-                    registration.Sources.Add(_ =>
-                        CreateBackingSource(backing, registration.StateName)
-                    )
-                );
-            });
-        }))
+                builder.Add<AppSettings>(model =>
+                {
+                    model.EnableProfiles(
+                        (_, ownResource) =>
+                        {
+                            ownResource(resource);
+                            return catalog;
+                        }
+                    );
+                    model.ConfigureSources(registration =>
+                        registration.Sources.Add(_ =>
+                            CreateBackingSource(backing, registration.StateName)
+                        )
+                    );
+                });
+            })
+        )
         {
             await context.GetProfiledState<AppSettings>().GetProfileNamesAsync();
             resource.DisposeAsyncCallCount.ShouldBe(0);
@@ -619,8 +646,10 @@ public sealed class ProfiledStateTests
         resource.DisposeCallCount.ShouldBe(0);
     }
 
-    private static (StateSource<ConfiglueProfileCatalog> Catalog, InMemoryStateSource<ConfiglueProfileCatalog> Store)
-        CreateProfileCatalog()
+    private static (
+        StateSource<ConfiglueProfileCatalog> Catalog,
+        InMemoryStateSource<ConfiglueProfileCatalog> Store
+    ) CreateProfileCatalog()
     {
         var store = new InMemoryStateSource<ConfiglueProfileCatalog>();
         return (
@@ -634,8 +663,10 @@ public sealed class ProfiledStateTests
         );
     }
 
-    private static ConcurrentDictionary<string, InMemoryStateSource<AppSettings.Fragment>>
-        CreateBackingStore() => new(StringComparer.Ordinal);
+    private static ConcurrentDictionary<
+        string,
+        InMemoryStateSource<AppSettings.Fragment>
+    > CreateBackingStore() => new(StringComparer.Ordinal);
 
     private static ConfiglueContext CreateProfiledContext(
         StateSource<ConfiglueProfileCatalog> catalog,
