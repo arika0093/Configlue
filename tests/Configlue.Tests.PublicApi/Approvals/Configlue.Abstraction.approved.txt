@@ -145,6 +145,67 @@ namespace Configlue
         Invalid = 3,
         Faulted = 4,
     }
+    public readonly struct ConfiglueDiagnosticEvent : System.IEquatable<Configlue.ConfiglueDiagnosticEvent>
+    {
+        public ConfiglueDiagnosticEvent(
+                    long Sequence,
+                    long OperationId,
+                    long ParentOperationId,
+                    System.DateTimeOffset Timestamp,
+                    Configlue.ConfiglueDiagnosticEventKind Kind,
+                    string StateName,
+                    string ModelId,
+                    int ModelVersion,
+                    string? SourceId,
+                    string? SourceKind,
+                    Configlue.State.StateReadStatus? ReadStatus,
+                    bool HasRevision,
+                    System.TimeSpan Duration,
+                    string? ErrorCategory,
+                    bool Canceled,
+                    bool? EffectiveValueChanged) { }
+        public bool Canceled { get; init; }
+        public System.TimeSpan Duration { get; init; }
+        public bool? EffectiveValueChanged { get; init; }
+        public string? ErrorCategory { get; init; }
+        public bool HasRevision { get; init; }
+        public Configlue.ConfiglueDiagnosticEventKind Kind { get; init; }
+        public string ModelId { get; init; }
+        public int ModelVersion { get; init; }
+        public long OperationId { get; init; }
+        public long ParentOperationId { get; init; }
+        public Configlue.State.StateReadStatus? ReadStatus { get; init; }
+        public long Sequence { get; init; }
+        public string? SourceId { get; init; }
+        public string? SourceKind { get; init; }
+        public string StateName { get; init; }
+        public System.DateTimeOffset Timestamp { get; init; }
+    }
+    public enum ConfiglueDiagnosticEventKind
+    {
+        ResolveStarted = 0,
+        ResolveCompleted = 1,
+        ResolveFailed = 2,
+        SourceReadStarted = 3,
+        SourceReadCompleted = 4,
+        SourceReadFailed = 5,
+        SourceFallback = 6,
+        WatchStarted = 7,
+        WatchStopped = 8,
+        WatchSignaled = 9,
+        ReloadStarted = 10,
+        ReloadCompleted = 11,
+        ReloadFailed = 12,
+        EffectiveValueChanged = 13,
+        WriteStarted = 14,
+        WriteCompleted = 15,
+        WriteConflict = 16,
+        WriteFailed = 17,
+        ValidationFailed = 18,
+        MigrationStarted = 19,
+        MigrationCompleted = 20,
+        MigrationFailed = 21,
+    }
     public enum ConfiglueEditability
     {
         Editable = 0,
@@ -269,6 +330,38 @@ namespace Configlue
         public ConfiglueProfileCatalog() { }
         public string? ActiveProfileName { get; set; }
         public System.Collections.Generic.List<string> ProfileNames { get; set; }
+    }
+    public static class ConfiglueRuntimeDiagnosticExtensions
+    {
+        public static System.Collections.Generic.IReadOnlyList<Configlue.ConfiglueDiagnosticEvent> GetRecentEvents<T>(this Configlue.IConfiglueDiagnostics<T> diagnostics) { }
+        public static Configlue.ConfiglueRuntimeDiagnosticSnapshot GetRuntimeSnapshot<T>(this Configlue.IConfiglueDiagnostics<T> diagnostics) { }
+        public static System.IDisposable OnDiagnosticEvent<T>(this Configlue.IConfiglueDiagnostics<T> diagnostics, System.Action<Configlue.ConfiglueDiagnosticEvent> listener) { }
+    }
+    public sealed class ConfiglueRuntimeDiagnosticSnapshot
+    {
+        public ConfiglueRuntimeDiagnosticSnapshot(string stateName, string modelId, int modelVersion, System.Collections.Generic.IEnumerable<Configlue.ConfiglueRuntimeSourceSnapshot> sources, Configlue.ConfiglueDiagnosticEvent? lastResolution, Configlue.ConfiglueDiagnosticEvent? lastReload, Configlue.ConfiglueDiagnosticEvent? lastWrite, Configlue.ConfiglueDiagnosticEvent? lastMigration) { }
+        public Configlue.ConfiglueDiagnosticEvent? LastMigration { get; }
+        public Configlue.ConfiglueDiagnosticEvent? LastReload { get; }
+        public Configlue.ConfiglueDiagnosticEvent? LastResolution { get; }
+        public Configlue.ConfiglueDiagnosticEvent? LastWrite { get; }
+        public string ModelId { get; }
+        public int ModelVersion { get; }
+        public System.Collections.Generic.IReadOnlyList<Configlue.ConfiglueRuntimeSourceSnapshot> Sources { get; }
+        public string StateName { get; }
+    }
+    public readonly struct ConfiglueRuntimeSourceSnapshot : System.IEquatable<Configlue.ConfiglueRuntimeSourceSnapshot>
+    {
+        public ConfiglueRuntimeSourceSnapshot(string Id, string Kind, bool IsActive, bool CanRead, bool CanWrite, bool CanWatch, bool IsWatching, Configlue.ConfiglueDiagnosticEvent? LastRead, System.DateTimeOffset? LastSuccessfulRead, System.DateTimeOffset? LastWatchSignal) { }
+        public bool CanRead { get; init; }
+        public bool CanWatch { get; init; }
+        public bool CanWrite { get; init; }
+        public string Id { get; init; }
+        public bool IsActive { get; init; }
+        public bool IsWatching { get; init; }
+        public string Kind { get; init; }
+        public Configlue.ConfiglueDiagnosticEvent? LastRead { get; init; }
+        public System.DateTimeOffset? LastSuccessfulRead { get; init; }
+        public System.DateTimeOffset? LastWatchSignal { get; init; }
     }
     public sealed class ConfiglueSourceCheckResult
     {
@@ -440,6 +533,12 @@ namespace Configlue
     public interface IConfiglueRoutablePatch : Configlue.IConfiglueMemberPatch, Configlue.IConfigluePatch
     {
         System.Collections.Generic.IReadOnlyDictionary<string, Configlue.IConfigluePatch> Route(Configlue.StateWritePlan writePlan, string? fallbackSourceId);
+    }
+    public interface IConfiglueRuntimeDiagnostics
+    {
+        System.Collections.Generic.IReadOnlyList<Configlue.ConfiglueDiagnosticEvent> GetRecentEvents();
+        Configlue.ConfiglueRuntimeDiagnosticSnapshot GetRuntimeSnapshot();
+        System.IDisposable OnDiagnosticEvent(System.Action<Configlue.ConfiglueDiagnosticEvent> listener);
     }
     public interface IConfiglueSources<T>
     {

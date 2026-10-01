@@ -80,6 +80,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
     private readonly WriteConflictResolution _writeConflictResolution;
     private readonly TimeSpan _onChangeDebounce;
     private readonly ILogger? _logger;
+    private readonly RuntimeDiagnosticRecorder _diagnostics;
     private readonly object _changeGate = new();
     private readonly AsyncLocal<IConfiglueSubject?> _subjectContext = new();
     private readonly ConcurrentDictionary<SubjectWatchSubscription, byte> _subjectSubscriptions =
@@ -107,7 +108,8 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         string? stateName = null,
         ILogger? logger = null,
         ReadValidationMode readValidationMode = ReadValidationMode.EffectiveThrow,
-        WriteConflictResolution writeConflictResolution = WriteConflictResolution.FailOnConflict
+        WriteConflictResolution writeConflictResolution = WriteConflictResolution.FailOnConflict,
+        ConfiglueRuntimeDiagnosticOptions? diagnostics = null
     )
         : this(
             sourceSet,
@@ -120,7 +122,8 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             logger,
             cloneStrategy: null,
             readValidationMode: readValidationMode,
-            writeConflictResolution: writeConflictResolution
+            writeConflictResolution: writeConflictResolution,
+            diagnostics: diagnostics
         ) { }
 
     /// <summary>Creates state with a custom model clone strategy.</summary>
@@ -135,7 +138,8 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         ILogger? logger,
         Func<TModel, TModel>? cloneStrategy,
         ReadValidationMode readValidationMode = ReadValidationMode.EffectiveThrow,
-        WriteConflictResolution writeConflictResolution = WriteConflictResolution.FailOnConflict
+        WriteConflictResolution writeConflictResolution = WriteConflictResolution.FailOnConflict,
+        ConfiglueRuntimeDiagnosticOptions? diagnostics = null
     )
     {
         ArgumentNullException.ThrowIfNull(sourceSet);
@@ -188,6 +192,42 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             ModelSchema.ToMetadata(),
             migrations
         );
+        _diagnostics = new RuntimeDiagnosticRecorder(
+            _stateName,
+            ModelSchema.Id,
+            ModelSchema.Version,
+            diagnostics ?? ConfiglueRuntimeDiagnosticOptions.Default,
+            _activeSources.Select(static source => new ConfiglueRuntimeSourceSnapshot(
+                source.Id,
+                source.Reader.GetType().FullName ?? source.Reader.GetType().Name,
+                true,
+                true,
+                source.Writer is not null,
+                source.Watcher is not null,
+                false,
+                null,
+                null,
+                null
+            ))
+        );
+    }
+
+    /// <inheritdoc />
+    public ConfiglueRuntimeDiagnosticSnapshot GetRuntimeSnapshot() =>
+        _diagnostics.GetRuntimeSnapshot();
+
+    /// <inheritdoc />
+    public IReadOnlyList<ConfiglueDiagnosticEvent> GetRecentEvents() =>
+        _diagnostics.GetRecentEvents();
+
+    /// <inheritdoc />
+    public IDisposable OnDiagnosticEvent(Action<ConfiglueDiagnosticEvent> listener)
+    {
+        lock (_changeGate)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            return _diagnostics.OnDiagnosticEvent(listener);
+        }
     }
 
     private static (StateWritePlan Plan, bool DefaultInferred) ResolveWriteOwnership(
@@ -458,13 +498,42 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
     private ValueTask<StateReadResult<TFragment>> ReadSourceAsync(
         StateSource<TFragment> source,
         CancellationToken cancellationToken
-    ) => source.ReadAsync(GetResourceContext(source), cancellationToken);
+    ) => ReadSourceAsync(source, GetResourceContext(source), cancellationToken);
 
-    private static ValueTask<StateReadResult<TFragment>> ReadSourceAsync(
+    private async ValueTask<StateReadResult<TFragment>> ReadSourceAsync(
         StateSource<TFragment> source,
         ConfiglueResourceContext? context,
-        CancellationToken cancellationToken
-    ) => source.ReadAsync(context ?? DefaultResourceContext, cancellationToken);
+        CancellationToken cancellationToken,
+        long parentOperationId = 0
+    )
+    {
+        var diagnostic = _diagnostics.Start(
+            ConfiglueDiagnosticEventKind.SourceReadStarted,
+            source.Id,
+            parentOperationId
+        );
+        try
+        {
+            var result = await source
+                .ReadAsync(context ?? DefaultResourceContext, cancellationToken)
+                .ConfigureAwait(false);
+            diagnostic.Complete(
+                ConfiglueDiagnosticEventKind.SourceReadCompleted,
+                result.Status,
+                result.Revision is not null
+            );
+            return result;
+        }
+        catch (Exception exception)
+        {
+            diagnostic.Fail(
+                ConfiglueDiagnosticEventKind.SourceReadFailed,
+                exception,
+                exception is OperationCanceledException && cancellationToken.IsCancellationRequested
+            );
+            throw;
+        }
+    }
 
     private ValueTask<StateWriteResult> WriteSourceAsync(
         StateSource<TFragment> source,
@@ -545,6 +614,61 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         Action<ResolvedSourceProbe>? observeSource = null
     )
     {
+        if (replacements is not null)
+        {
+            return await ResolveImplementationAsync(
+                    replacements,
+                    cancellationToken,
+                    captureContributions,
+                    observeSource
+                )
+                .ConfigureAwait(false);
+        }
+        var diagnostic = _diagnostics.Start(ConfiglueDiagnosticEventKind.ResolveStarted);
+        try
+        {
+            var result = await ResolveImplementationAsync(
+                    null,
+                    cancellationToken,
+                    captureContributions,
+                    observeSource,
+                    diagnostic.Id
+                )
+                .ConfigureAwait(false);
+            diagnostic.Complete(
+                ConfiglueDiagnosticEventKind.ResolveCompleted,
+                result.Result.Status,
+                result.Result.Revision is not null
+            );
+            return result;
+        }
+        catch (Exception exception)
+        {
+            if (exception is ConfiglueValidationException)
+            {
+                _diagnostics.Record(
+                    ConfiglueDiagnosticEventKind.ValidationFailed,
+                    diagnostic.Id,
+                    errorCategory: exception.GetType().FullName
+                );
+            }
+            diagnostic.Fail(
+                ConfiglueDiagnosticEventKind.ResolveFailed,
+                exception,
+                exception is OperationCanceledException && cancellationToken.IsCancellationRequested
+            );
+            throw;
+        }
+    }
+
+    private async ValueTask<ResolvedState> ResolveImplementationAsync(
+        IReadOnlyDictionary<string, StateReadResult<TFragment>>? replacements,
+        CancellationToken cancellationToken,
+        bool captureContributions = false,
+        Action<ResolvedSourceProbe>? observeSource = null,
+        long operationId = 0
+    )
+    {
         using var operation = EnterOperation();
         var activeSources = GetActiveSources();
         var subject = _subjectContext.Value;
@@ -594,7 +718,12 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                 );
                 try
                 {
-                    sourceResult = await ReadSourceAsync(source, resourceContext, cancellationToken)
+                    sourceResult = await ReadSourceAsync(
+                            source,
+                            resourceContext,
+                            cancellationToken,
+                            operationId
+                        )
                         .ConfigureAwait(false);
                 }
                 catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -731,6 +860,15 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
 
             lastFailure = result;
             var canFallBack = CanFallBack(source.FallbackCondition, result.Status);
+            if (canFallBack && replacements is null)
+            {
+                _diagnostics.Record(
+                    ConfiglueDiagnosticEventKind.SourceFallback,
+                    operationId,
+                    sourceId: source.Id,
+                    readStatus: result.Status
+                );
+            }
             _logger?.Log(
                 result.Status == StateReadStatus.Unavailable ? LogLevel.Warning : LogLevel.Debug,
                 SourceFallbackEvent,

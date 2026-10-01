@@ -41,6 +41,7 @@ namespace Configlue
         where TModel : Configlue.CompilerServices.IConfiglueFacadeModel<TModel>
     {
         public ConfiglueModelBuilder() { }
+        public Configlue.ConfiglueRuntimeDiagnosticOptions Diagnostics { get; set; }
         public bool EnableDynamicStates { get; set; }
         public Microsoft.Extensions.Logging.ILogger? Logger { get; set; }
         public System.TimeSpan? OnChangeDebounce { get; set; }
@@ -69,6 +70,14 @@ namespace Configlue
         public ConfiglueNamedStateProfile(string Name) { }
         public System.Type ModelType { get; }
         public string Name { get; init; }
+    }
+    public sealed class ConfiglueRuntimeDiagnosticOptions : System.IEquatable<Configlue.ConfiglueRuntimeDiagnosticOptions>
+    {
+        public ConfiglueRuntimeDiagnosticOptions() { }
+        public int EventHistoryCapacity { get; init; }
+        public bool TrackSnapshot { get; init; }
+        public static Configlue.ConfiglueRuntimeDiagnosticOptions Default { get; }
+        public static Configlue.ConfiglueRuntimeDiagnosticOptions Disabled { get; }
     }
     public sealed class ConfiglueSourceRegistrationContext<TModel>
         where TModel : Configlue.CompilerServices.IConfiglueFacadeModel<TModel>

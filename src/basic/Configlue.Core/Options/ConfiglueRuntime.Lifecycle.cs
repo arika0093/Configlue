@@ -25,6 +25,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             _changeListeners.Clear();
             _reloadFailureListeners.Clear();
             _reloadListeners.Clear();
+            _diagnostics.ClearListeners();
             _watchCancellation?.Cancel();
             foreach (var subscription in _subjectSubscriptions.Keys.ToArray())
             {
@@ -337,6 +338,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                         .Sources.Where(source => !_retiredSourceIds.Contains(source.Id))
                         .ToArray()
                 );
+                _diagnostics.SetActiveSources(_activeSources.Select(static source => source.Id));
                 topologyChanged = _sourceTopologyChanged;
                 _sourceTopologyChanged = NewTopologySignal();
             }

@@ -8,6 +8,7 @@ internal interface IConfiglueRuntimeState<T>
         IConfiglueInspection<T>,
         IConfiglueEditSessions<T>,
         IConfiglueDiagnostics<T>,
+        IConfiglueRuntimeDiagnostics,
         IConfiglueSources<T>,
         IConfiglueDetailsRuntime,
         IConfiglueReloadDiagnostics,

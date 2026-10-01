@@ -130,6 +130,8 @@ public sealed class ConfiglueModelBuilder<TModel>
     private bool _enableDynamicStates;
     private TimeSpan? _onChangeDebounce;
     private ILogger? _logger;
+    private ConfiglueRuntimeDiagnosticOptions _diagnostics =
+        ConfiglueRuntimeDiagnosticOptions.Default;
     private Func<TModel, TModel>? _cloneStrategy;
     private Type? _subjectAccessorType;
     private RuntimeLifetimeRequirement? _runtimeLifetime;
@@ -196,6 +198,19 @@ public sealed class ConfiglueModelBuilder<TModel>
         {
             EnsureMutable();
             _logger = value;
+        }
+    }
+
+    /// <summary>Controls cached runtime snapshots and bounded event retention.</summary>
+    public ConfiglueRuntimeDiagnosticOptions Diagnostics
+    {
+        get => _diagnostics;
+        set
+        {
+            EnsureMutable();
+            ArgumentNullException.ThrowIfNull(value);
+            value.Validate();
+            _diagnostics = value;
         }
     }
 
@@ -504,6 +519,7 @@ public sealed class ConfiglueModelBuilder<TModel>
             EnableDynamicStates = _enableDynamicStates,
             OnChangeDebounce = _onChangeDebounce,
             Logger = _logger,
+            Diagnostics = _diagnostics,
             _subjectAccessorType = _subjectAccessorType,
             _runtimeLifetime = _runtimeLifetime,
             HostPaths = HostPaths,
