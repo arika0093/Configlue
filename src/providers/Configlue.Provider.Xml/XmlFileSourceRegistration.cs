@@ -78,7 +78,7 @@ public static class XmlFileSourceRegistration
         private StateSource<TFragment> CreateSourceCore<TFragment>(
             ConfiglueModelSchema modelSchema,
             IConfiglueHostPaths hostPaths,
-            Action<IDisposable> ownResource
+            Action<object> ownResource
         )
             where TFragment : class, IConfiglueFragment<TFragment>
         {

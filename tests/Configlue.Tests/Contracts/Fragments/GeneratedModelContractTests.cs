@@ -122,7 +122,7 @@ public sealed class GeneratedModelContractTests
 
     private static IWritableState<TModel> CreateRuntime<TModel>(
         ConfiglueModelBuilder<TModel> configuration,
-        Action<IDisposable> ownResource
+        Action<object> ownResource
     )
         where TModel : IConfiglueFacadeModel<TModel> =>
         ConfiglueModelDescriptor<TModel>.Current.CreateRuntime(configuration, null, ownResource);

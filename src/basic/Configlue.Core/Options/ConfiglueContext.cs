@@ -9,19 +9,19 @@ public sealed class ConfiglueContext : IDisposable, IAsyncDisposable
     private readonly Dictionary<Type, object> _registries;
     private readonly Dictionary<Type, object> _profileManagers;
     private readonly object[] _runtimes;
-    private readonly IDisposable[] _ownedResources;
+    private readonly object[] _ownedResources;
     private readonly object _disposeGate = new();
     private Task? _disposeTask;
     private int _disposed;
 
-    internal IReadOnlyList<IDisposable> OwnedResourcesForTests => _ownedResources;
+    internal IReadOnlyList<object> OwnedResourcesForTests => _ownedResources;
 
     private ConfiglueContext(
         Dictionary<(Type ModelType, string Name), object> states,
         Dictionary<Type, object> registries,
         Dictionary<Type, object> profileManagers,
         object[] runtimes,
-        IDisposable[] ownedResources
+        object[] ownedResources
     )
     {
         _states = states;
@@ -134,14 +134,7 @@ public sealed class ConfiglueContext : IDisposable, IAsyncDisposable
         {
             try
             {
-                if (runtime is IAsyncDisposable asyncDisposable)
-                {
-                    await asyncDisposable.DisposeAsync().ConfigureAwait(false);
-                }
-                else if (runtime is IDisposable disposable)
-                {
-                    disposable.Dispose();
-                }
+                await ConfiglueOwnedResources.DisposeAsync(runtime).ConfigureAwait(false);
             }
             catch (Exception exception)
             {
@@ -153,7 +146,7 @@ public sealed class ConfiglueContext : IDisposable, IAsyncDisposable
         {
             try
             {
-                resource.Dispose();
+                await ConfiglueOwnedResources.DisposeAsync(resource).ConfigureAwait(false);
             }
             catch (Exception exception)
             {
@@ -182,12 +175,20 @@ public sealed class ConfiglueContext : IDisposable, IAsyncDisposable
         var registries = new Dictionary<Type, object>();
         var profileManagers = new Dictionary<Type, object>();
         var runtimes = new List<object>(registrations.Count);
-        var ownedResources = new List<IDisposable>();
-        var ownedResourceSet = new HashSet<IDisposable>(ReferenceIdentityComparer.Instance);
+        var ownedResources = new List<object>();
+        var ownedResourceSet = new HashSet<object>(ReferenceIdentityComparer.Instance);
 
-        void OwnResource(IDisposable resource)
+        void OwnResource(object resource)
         {
             ArgumentNullException.ThrowIfNull(resource);
+            if (resource is not IDisposable && resource is not IAsyncDisposable)
+            {
+                throw new ArgumentException(
+                    "An owned resource must implement IDisposable or IAsyncDisposable.",
+                    nameof(resource)
+                );
+            }
+
             if (ownedResourceSet.Add(resource))
             {
                 ownedResources.Add(resource);
@@ -283,15 +284,7 @@ public sealed class ConfiglueContext : IDisposable, IAsyncDisposable
             {
                 try
                 {
-                    if (runtime is IAsyncDisposable asyncDisposable)
-                    {
-                        // Synchronous construction-failure cleanup or IDisposable boundary; normal source I/O stays asynchronous.
-                        asyncDisposable.DisposeAsync().AsTask().GetAwaiter().GetResult();
-                    }
-                    else if (runtime is IDisposable disposable)
-                    {
-                        disposable.Dispose();
-                    }
+                    ConfiglueOwnedResources.Dispose(runtime);
                 }
                 catch (Exception exception)
                 {
@@ -303,7 +296,7 @@ public sealed class ConfiglueContext : IDisposable, IAsyncDisposable
             {
                 try
                 {
-                    resource.Dispose();
+                    ConfiglueOwnedResources.Dispose(resource);
                 }
                 catch (Exception exception)
                 {

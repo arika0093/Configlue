@@ -516,8 +516,8 @@ public static class ConfiglueServiceCollectionExtensions
         {
             services.AddScoped(provider =>
             {
-                var resources = new List<IDisposable>();
-                var resourceSet = new HashSet<IDisposable>(ReferenceIdentityComparer.Instance);
+                var resources = new List<object>();
+                var resourceSet = new HashSet<object>(ReferenceIdentityComparer.Instance);
                 var runtime =
                     (IConfiglueRuntimeState<TModel>)
                         registration.CreateRuntime(
@@ -525,6 +525,14 @@ public static class ConfiglueServiceCollectionExtensions
                             resource =>
                             {
                                 ArgumentNullException.ThrowIfNull(resource);
+                                if (resource is not IDisposable && resource is not IAsyncDisposable)
+                                {
+                                    throw new ArgumentException(
+                                        "An owned resource must implement IDisposable or IAsyncDisposable.",
+                                        nameof(resource)
+                                    );
+                                }
+
                                 if (resourceSet.Add(resource))
                                 {
                                     resources.Add(resource);

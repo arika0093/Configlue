@@ -12,15 +12,15 @@ internal sealed class ConfiglueFacadeStateRegistry<TModel>
     private sealed record Entry
     {
         public IWritableState<TModel> Runtime { get; init; }
-        public IDisposable[] Resources { get; init; }
+        public object[] Resources { get; init; }
 
-        public Entry(IWritableState<TModel> Runtime, IDisposable[] Resources)
+        public Entry(IWritableState<TModel> Runtime, object[] Resources)
         {
             this.Runtime = Runtime;
             this.Resources = Resources;
         }
 
-        public void Deconstruct(out IWritableState<TModel> Runtime, out IDisposable[] Resources)
+        public void Deconstruct(out IWritableState<TModel> Runtime, out object[] Resources)
         {
             Runtime = this.Runtime;
             Resources = this.Resources;
@@ -56,7 +56,7 @@ internal sealed class ConfiglueFacadeStateRegistry<TModel>
     private bool _disposed;
 
     public ConfiglueFacadeStateRegistry(
-        Func<string, (IWritableState<TModel> Runtime, IDisposable[] Resources)> factory,
+        Func<string, (IWritableState<TModel> Runtime, object[] Resources)> factory,
         IEnumerable<string> reservedNames
     )
     {
@@ -114,7 +114,7 @@ internal sealed class ConfiglueFacadeStateRegistry<TModel>
         }
     }
 
-    internal IReadOnlyList<IDisposable> GetOwnedResourcesForTests(string stateName)
+    internal IReadOnlyList<object> GetOwnedResourcesForTests(string stateName)
     {
         lock (_gate)
         {
@@ -485,14 +485,7 @@ internal sealed class ConfiglueFacadeStateRegistry<TModel>
         List<Exception>? errors = null;
         try
         {
-            if (entry.Runtime is IAsyncDisposable asyncDisposable)
-            {
-                await asyncDisposable.DisposeAsync().ConfigureAwait(false);
-            }
-            else if (entry.Runtime is IDisposable disposable)
-            {
-                disposable.Dispose();
-            }
+            await ConfiglueOwnedResources.DisposeAsync(entry.Runtime).ConfigureAwait(false);
         }
         catch (Exception exception)
         {
@@ -502,7 +495,7 @@ internal sealed class ConfiglueFacadeStateRegistry<TModel>
         {
             try
             {
-                resource.Dispose();
+                await ConfiglueOwnedResources.DisposeAsync(resource).ConfigureAwait(false);
             }
             catch (Exception exception)
             {

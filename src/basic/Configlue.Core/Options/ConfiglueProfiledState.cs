@@ -13,12 +13,6 @@ internal sealed partial class ConfiglueProfiledState<TModel, TFragment>
     where TModel : IConfiglueModel<TModel, TFragment>
     where TFragment : class, IConfiglueFragment<TFragment>
 {
-    private static readonly HashSet<string> ReservedNames = new(StringComparer.Ordinal)
-    {
-        nameof(ConfiglueProfileCatalog.ActiveProfileName),
-        nameof(ConfiglueProfileCatalog.ProfileNames),
-    };
-
     private readonly IConfiglueStateRegistry<TModel> _registry;
     private readonly StateSource<ConfiglueProfileCatalog> _catalogSource;
     private readonly string _defaultProfileName;
@@ -183,7 +177,7 @@ internal sealed partial class ConfiglueProfiledState<TModel, TFragment>
             notificationScope = DeferRegistryNotifications();
             await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
             EnsureProfileExists(profileName);
-            return _registry.Get(profileName);
+            return Materialize(profileName);
         }
         finally
         {
@@ -210,7 +204,7 @@ internal sealed partial class ConfiglueProfiledState<TModel, TFragment>
         {
             notificationScope = DeferRegistryNotifications();
             await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
-            return _registry.Get(_catalog!.ActiveProfileName!);
+            return Materialize(_catalog!.ActiveProfileName!);
         }
         finally
         {
@@ -279,18 +273,30 @@ internal sealed partial class ConfiglueProfiledState<TModel, TFragment>
                 updated.ActiveProfileName = profileName;
             }
 
-            if (!_registry.TryAdd(profileName))
+            // A dynamic named state already materialized in the registry is adopted into the
+            // catalog instead of failing, provided it does not conflict with a fixed StateName.
+            var adopted = _registry.TryGet(profileName, out var existingRuntime);
+            IWritableState<TModel> createdRuntime;
+            if (adopted)
             {
-                throw new InvalidOperationException(
-                    $"The profile name '{profileName}' is already registered or reserved by a fixed StateName."
-                );
+                createdRuntime = existingRuntime!;
             }
-            var createdRuntime = _registry.Get(profileName);
+            else
+            {
+                if (!_registry.TryAdd(profileName))
+                {
+                    throw new InvalidOperationException(
+                        $"The profile name '{profileName}' conflicts with a fixed StateName."
+                    );
+                }
+                createdRuntime = _registry.Get(profileName);
+            }
+
             try
             {
                 if (hasSourceValue)
                 {
-                    using var session = await AsAdvancedState(_registry.Get(profileName))
+                    using var session = await AsAdvancedState(createdRuntime)
                         .OpenEditSessionAsync(cancellationToken)
                         .ConfigureAwait(false);
                     session.Value = sourceValue;
@@ -319,6 +325,12 @@ internal sealed partial class ConfiglueProfiledState<TModel, TFragment>
                 // A writer may fail after committing. Force the next manager operation to
                 // reread the catalog before trusting either the old or proposed state.
                 _initialized = false;
+                if (adopted)
+                {
+                    // The runtime existed before this operation and remains an ordinary dynamic state.
+                    throw;
+                }
+
                 try
                 {
                     await _registry.TryRemoveAsync(profileName).ConfigureAwait(false);
@@ -532,6 +544,30 @@ internal sealed partial class ConfiglueProfiledState<TModel, TFragment>
         }
     }
 
+    // The registry is a materialization cache; the catalog is the source of truth. Rematerialize
+    // a catalog-managed named state whose runtime was unloaded from the registry.
+    private IWritableState<TModel> Materialize(string profileName)
+    {
+        if (_registry.TryGet(profileName, out var existing) && existing is not null)
+        {
+            return existing;
+        }
+
+        if (_registry.TryAdd(profileName))
+        {
+            return _registry.Get(profileName);
+        }
+
+        if (_registry.TryGet(profileName, out existing) && existing is not null)
+        {
+            return existing;
+        }
+
+        throw new InvalidOperationException(
+            $"The profile name '{profileName}' conflicts with a fixed StateName."
+        );
+    }
+
     private static ConfiglueProfileCatalog Clone(ConfiglueProfileCatalog source) =>
         new()
         {
@@ -593,18 +629,8 @@ internal sealed partial class ConfiglueProfiledState<TModel, TFragment>
 
     private static void ValidateProfileName(string profileName)
     {
+        // Profiles share the logical state-name namespace; only empty or whitespace names are invalid.
         ArgumentException.ThrowIfNullOrWhiteSpace(profileName);
-        if (
-            profileName.Contains(':')
-            || profileName.Contains("__", StringComparison.Ordinal)
-            || ReservedNames.Contains(profileName)
-        )
-        {
-            throw new ArgumentException(
-                $"'{profileName}' is not a valid profile name.",
-                nameof(profileName)
-            );
-        }
     }
 
     private void NotifyActiveProfileChanged(string profileName)

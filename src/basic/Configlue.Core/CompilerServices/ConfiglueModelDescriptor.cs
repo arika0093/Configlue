@@ -13,7 +13,7 @@ public sealed class ConfiglueModelDescriptor<TModel>
         Func<
             ConfiglueModelBuilder<TModel>,
             IServiceProvider?,
-            Action<IDisposable>,
+            Action<object>,
             IWritableState<TModel>
         > createRuntime,
         Func<
@@ -55,7 +55,7 @@ public sealed class ConfiglueModelDescriptor<TModel>
     public Func<
         ConfiglueModelBuilder<TModel>,
         IServiceProvider?,
-        Action<IDisposable>,
+        Action<object>,
         IWritableState<TModel>
     > CreateRuntime { get; }
 

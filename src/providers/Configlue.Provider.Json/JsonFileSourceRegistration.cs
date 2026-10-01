@@ -169,7 +169,7 @@ public static class JsonFileSourceRegistration
         private StateSource<TFragment> CreateSourceCore<TFragment>(
             ConfiglueModelSchema modelSchema,
             IConfiglueHostPaths hostPaths,
-            Action<IDisposable> ownResource
+            Action<object> ownResource
         )
             where TFragment : class, IConfiglueFragment<TFragment>
         {
@@ -206,7 +206,7 @@ public static class JsonFileSourceRegistration
             ConfiglueModelSchema rootSchema,
             ConfiglueModelSchema subtreeSchema,
             string[] path,
-            Action<IDisposable> ownResource,
+            Action<object> ownResource,
             IConfiglueHostPaths hostPaths
         )
             where TRootFragment : class, IConfiglueFragment<TRootFragment>
@@ -223,7 +223,7 @@ public static class JsonFileSourceRegistration
         private StateSource<TFragment> CreateSource<TFragment>(
             ConfiglueModelSchema modelSchema,
             IConfiglueHostPaths hostPaths,
-            Action<IDisposable> ownResource
+            Action<object> ownResource
         )
             where TFragment : class, IConfiglueFragment<TFragment>
         {

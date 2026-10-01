@@ -13,12 +13,12 @@ namespace Configlue;
 internal sealed class ConfiglueScopedRuntime<TModel> : IDisposable, IAsyncDisposable
     where TModel : IConfiglueFacadeModel<TModel>
 {
-    private readonly IDisposable[] _resources;
+    private readonly object[] _resources;
     private int _disposed;
 
     internal ConfiglueScopedRuntime(
         IConfiglueRuntimeState<TModel> runtime,
-        IReadOnlyList<IDisposable> resources
+        IReadOnlyList<object> resources
     )
     {
         Runtime = runtime;
@@ -42,14 +42,7 @@ internal sealed class ConfiglueScopedRuntime<TModel> : IDisposable, IAsyncDispos
         List<Exception>? errors = null;
         try
         {
-            if (Runtime is IAsyncDisposable asyncDisposable)
-            {
-                await asyncDisposable.DisposeAsync().ConfigureAwait(false);
-            }
-            else if (Runtime is IDisposable disposable)
-            {
-                disposable.Dispose();
-            }
+            await ConfiglueOwnedResources.DisposeAsync(Runtime).ConfigureAwait(false);
         }
         catch (Exception exception)
         {
@@ -60,7 +53,7 @@ internal sealed class ConfiglueScopedRuntime<TModel> : IDisposable, IAsyncDispos
         {
             try
             {
-                resource.Dispose();
+                await ConfiglueOwnedResources.DisposeAsync(resource).ConfigureAwait(false);
             }
             catch (Exception exception)
             {
