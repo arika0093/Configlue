@@ -71,7 +71,7 @@ public sealed partial class ConfiglueGenerator
                     code.AppendIndent(6)
                         .Append("builder.")
                         .Append(property)
-                        .Append(" = global::Configlue.Optional<")
+                        .Append(" = global::SparseFragments.Optional<")
                         .Append(FragmentValueType(member))
                         .Append(
                             ">.Present(global::System.Text.Json.JsonSerializer.Deserialize(ref reader, (global::System.Text.Json.Serialization.Metadata.JsonTypeInfo<"
@@ -87,7 +87,7 @@ public sealed partial class ConfiglueGenerator
                     code.AppendIndent(6)
                         .Append("builder.")
                         .Append(property)
-                        .Append(" = global::Configlue.Optional<")
+                        .Append(" = global::SparseFragments.Optional<")
                         .Append(FragmentValueType(member))
                         .Append(
                             ">.Present(reader.TokenType == global::System.Text.Json.JsonTokenType.Null ? null : "
