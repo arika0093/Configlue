@@ -25,13 +25,13 @@ public sealed partial class ConfiglueGenerator
             var name = EscapeIdentifier(member.Property.Name);
             var field = MemberBackingField(member);
             code.AppendIndent(2)
-                .Append("private global::Configlue.Optional<")
+                .Append("private global::SparseFragments.Optional<")
                 .Append(FragmentValueType(member))
                 .Append("> ")
                 .Append(field)
                 .AppendLine(";");
             code.AppendIndent(2)
-                .Append("public ref global::Configlue.Optional<")
+                .Append("public ref global::SparseFragments.Optional<")
                 .Append(FragmentValueType(member))
                 .Append("> ")
                 .Append(name)
@@ -87,13 +87,13 @@ public sealed partial class ConfiglueGenerator
             if (member.ChildModel is null)
             {
                 code.AppendIndent(2)
-                    .Append("private global::Configlue.FragmentOperation<")
+                    .Append("private global::SparseFragments.FragmentOperation<")
                     .Append(FragmentValueType(member))
                     .Append("> ")
                     .Append(field)
                     .AppendLine(";");
                 code.AppendIndent(2)
-                    .Append("public ref global::Configlue.FragmentOperation<")
+                    .Append("public ref global::SparseFragments.FragmentOperation<")
                     .Append(FragmentValueType(member))
                     .Append("> ")
                     .Append(name)
@@ -120,25 +120,25 @@ public sealed partial class ConfiglueGenerator
 
         code.AppendLineAt(
             2,
-            "private global::Configlue.FragmentOperation<Fragment?> __configlue_whole_operation;"
+            "private global::SparseFragments.FragmentOperation<Fragment?> __configlue_whole_operation;"
         );
         code.AppendLineAt(
             2,
             "public void Set("
                 + modelType
-                + " value) => __configlue_whole_operation = global::Configlue.FragmentOperation<Fragment?>.Set(Fragment.From(value));"
+                + " value) => __configlue_whole_operation = global::SparseFragments.FragmentOperation<Fragment?>.Set(Fragment.From(value));"
         );
         code.AppendLineAt(
             2,
-            "public void SetNull() => __configlue_whole_operation = global::Configlue.FragmentOperation<Fragment?>.Set(null);"
+            "public void SetNull() => __configlue_whole_operation = global::SparseFragments.FragmentOperation<Fragment?>.Set(null);"
         );
         code.AppendLineAt(
             2,
-            "public void Unset() => __configlue_whole_operation = global::Configlue.FragmentOperation<Fragment?>.Unset;"
+            "public void Unset() => __configlue_whole_operation = global::SparseFragments.FragmentOperation<Fragment?>.Unset;"
         );
         code.AppendLineAt(
             2,
-            "public static implicit operator Patch(global::Configlue.FragmentOperation<Fragment?> operation)"
+            "public static implicit operator Patch(global::SparseFragments.FragmentOperation<Fragment?> operation)"
         );
         code.AppendLineAt(2, "{");
         code.AppendLineAt(3, "var patch = new Patch();");
@@ -153,7 +153,7 @@ public sealed partial class ConfiglueGenerator
         code.AppendLineAt(3, "{");
         code.AppendLineAt(
             4,
-            "patch.__configlue_whole_operation = global::Configlue.FragmentOperation<Fragment?>.Set(operation.Value);"
+            "patch.__configlue_whole_operation = global::SparseFragments.FragmentOperation<Fragment?>.Set(operation.Value);"
         );
         code.AppendLineAt(3, "}");
         code.AppendLineAt(3, "return patch;");
@@ -170,7 +170,7 @@ public sealed partial class ConfiglueGenerator
                     .Append(name)
                     .Append(" = fragment.")
                     .Append(name)
-                    .Append(".IsPresent ? global::Configlue.FragmentOperation<")
+                    .Append(".IsPresent ? global::SparseFragments.FragmentOperation<")
                     .Append(FragmentValueType(member))
                     .Append(">.Set(fragment.")
                     .Append(name)
@@ -226,16 +226,16 @@ public sealed partial class ConfiglueGenerator
             .AppendLine(";");
         code.AppendLineAt(
             2,
-            "internal global::Configlue.Optional<Fragment?> ApplyNested(global::Configlue.Optional<Fragment?> current)"
+            "internal global::SparseFragments.Optional<Fragment?> ApplyNested(global::SparseFragments.Optional<Fragment?> current)"
         );
         code.AppendLineAt(2, "{");
         code.AppendLineAt(
             3,
-            "if (__configlue_whole_operation.Kind == global::Configlue.FragmentOperationKind.Unset) { current = global::Configlue.Optional<Fragment?>.Missing; }"
+            "if (__configlue_whole_operation.Kind == global::Configlue.FragmentOperationKind.Unset) { current = global::SparseFragments.Optional<Fragment?>.Missing; }"
         );
         code.AppendLineAt(
             3,
-            "else if (__configlue_whole_operation.Kind == global::Configlue.FragmentOperationKind.Set) { current = global::Configlue.Optional<Fragment?>.Present(__configlue_whole_operation.Value); }"
+            "else if (__configlue_whole_operation.Kind == global::Configlue.FragmentOperationKind.Set) { current = global::SparseFragments.Optional<Fragment?>.Present(__configlue_whole_operation.Value); }"
         );
         code.AppendLineAt(
             3,
@@ -247,7 +247,7 @@ public sealed partial class ConfiglueGenerator
         );
         code.AppendLineAt(
             3,
-            "return global::Configlue.Optional<Fragment?>.Present(basis.Apply(this));"
+            "return global::SparseFragments.Optional<Fragment?>.Present(basis.Apply(this));"
         );
         code.AppendLineAt(2, "}");
         code.AppendLineAt(2, "internal Patch ClonePatch()");
@@ -304,7 +304,7 @@ public sealed partial class ConfiglueGenerator
                         + field
                         + ".Kind == global::Configlue.FragmentOperationKind.Unchanged) { replacement."
                         + field
-                        + " = global::Configlue.FragmentOperation<"
+                        + " = global::SparseFragments.FragmentOperation<"
                         + FragmentValueType(member)
                         + ">.Unset; }"
                 );
