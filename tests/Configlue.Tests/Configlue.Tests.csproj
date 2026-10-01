@@ -1,6 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFrameworks>netstandard2.0;netstandard2.1;net10.0;net48</TargetFrameworks>
+    <!-- The .NET SDK infers a win-x86 RuntimeIdentifier for the .NET Framework executable
+         target on Windows, but NuGet restore does not, which causes NETSDK1047 for
+         net48/win-x86. Declaring the RID here keeps restore and build in agreement. -->
+    <RuntimeIdentifiers Condition="'$(OS)' == 'Windows_NT'">win-x86</RuntimeIdentifiers>
   </PropertyGroup>
   <PropertyGroup Condition="'$(TargetFramework)' == 'net10.0'">
     <!-- bunit 1.40.0 pins AngleSharp 1.2.0, which has advisory GHSA-pgww-w46g-26qg.

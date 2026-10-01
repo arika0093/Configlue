@@ -503,7 +503,7 @@ public sealed partial class ConfiglueGenerator
         {
             code.AppendLineAt(
                 2,
-                "var __configlue_clone_context = new global::System.Collections.Generic.Dictionary<object, object>(global::System.Collections.Generic.ReferenceEqualityComparer.Instance);"
+                "var __configlue_clone_context = new global::System.Collections.Generic.Dictionary<object, object>(global::Configlue.CompilerServices.ConfiglueReferenceEqualityComparer.Instance);"
             );
         }
         code.AppendIndent(2).Append("return new ").Append(modelType).AppendLine();

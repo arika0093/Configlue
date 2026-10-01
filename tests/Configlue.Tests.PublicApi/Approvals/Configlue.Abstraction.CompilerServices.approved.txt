@@ -66,6 +66,12 @@ namespace Configlue.CompilerServices
         public static Configlue.ConfiglueModelSchema Schema { get; }
         public static void Register(Configlue.ConfiglueModelSchema schema) { }
     }
+    public sealed class ConfiglueReferenceEqualityComparer : System.Collections.Generic.IEqualityComparer<object>
+    {
+        public static Configlue.CompilerServices.ConfiglueReferenceEqualityComparer Instance { get; }
+        public bool Equals(object? left, object? right) { }
+        public int GetHashCode(object value) { }
+    }
     public static class ConfiglueWriteRouting
     {
         public static Configlue.StateWritePlan Bind(Configlue.StateWritePlan plan, Configlue.ConfiglueModelSchema schema) { }
