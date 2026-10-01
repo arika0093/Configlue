@@ -9,14 +9,22 @@ namespace Configlue.Generator.Compatibility.Tests;
 public sealed class GeneratorHostCompatibilityTests
 {
     [Test]
-    [Arguments(false)]
-    [Arguments(true)]
-    public void PrivateRootConstructorAndSparseDefaultsConstructOnce(bool standalone)
+    [Arguments(false, false)]
+    [Arguments(true, false)]
+    [Arguments(false, true)]
+    [Arguments(true, true)]
+    public void PrivateRootConstructorAndSparseDefaultsConstructOnce(bool standalone, bool initOnly)
     {
+        var setter = initOnly ? "init" : "set";
         var runtime = standalone ? "SparseFragments" : "Configlue";
         var attribute = standalone
             ? "SparseFragmentModel"
             : "ConfiglueModel(\"constructor-parity\")";
+        var observableCheck = standalone
+            ? string.Empty
+            : "if (typeof(Settings.Observable).GetProperty(nameof(Settings.Count))!.CanWrite != "
+                + (initOnly ? "false" : "true")
+                + ") throw new System.Exception(\"observable mutability\");";
         var source = $$"""
             using {{runtime}};
             [{{attribute}}]
@@ -24,13 +32,14 @@ public sealed class GeneratorHostCompatibilityTests
             {
                 public static int Calls;
                 private Settings() { Identity = ++Calls; }
-                public int Identity { get; set; }
-                public int Count { get; set; } = 5;
+                public int Identity { get; {{setter}}; }
+                public int Count { get; {{setter}}; } = 5;
             }
             public static class Probe
             {
                 public static string Run()
                 {
+                    {{observableCheck}}
                     var empty = Settings.Fragment.Empty.ToModel();
                     if (Settings.Calls != 1 || empty.Identity != 1 || empty.Count != 5)
                         throw new System.Exception("empty projection");

@@ -294,15 +294,59 @@ internal sealed class SparseFragmentCoreEmitter(
         code.AppendLine();
     }
 
+    public static void AppendRootProjectionConstructor(
+        SharedIndentedBuilder code,
+        string modelName,
+        ImmutableArray<SparseMemberModel> members
+    )
+    {
+        if (ModelConstructionPlan.ForMembers(members).CanOverlayAfterConstruction)
+            return;
+        code.AppendLineAt(1, "private readonly struct __SparseProjectionToken { }");
+        code.AppendLineAt(
+            1,
+            "private "
+                + modelName
+                + "(Fragment __sparse_projection, __SparseProjectionToken _) : this()"
+        );
+        code.AppendLineAt(1, "{");
+        foreach (var member in members)
+        {
+            var name = SparseNaming.EscapeIdentifier(member.Property.Name);
+            var access = "__sparse_projection." + name;
+            var value = access + ".Value!";
+            if (member.ChildModel is not null)
+                value = member.ChildIsReferenceType
+                    ? access + ".Value?.ToModel()!"
+                    : access + ".Value!.ToModel()";
+            code.AppendLineAt(
+                2,
+                "if (" + access + ".IsPresent) this." + name + " = " + value + ";"
+            );
+        }
+        code.AppendLineAt(1, "}");
+    }
+
     public static void AppendToModel(
         SharedIndentedBuilder code,
         string modelType,
-        ImmutableArray<SparseMemberModel> members
+        ImmutableArray<SparseMemberModel> members,
+        bool hasRootProjectionConstructor = false
     )
     {
         code.AppendIndent(2).Append("public ").Append(modelType).AppendLine(" ToModel()");
         code.AppendLineAt(2, "{");
         var construction = ModelConstructionPlan.ForMembers(members);
+        if (!construction.CanOverlayAfterConstruction && hasRootProjectionConstructor)
+        {
+            code.AppendLineAt(
+                3,
+                "return new " + modelType + "(this, default(__SparseProjectionToken));"
+            );
+            code.AppendLineAt(2, "}");
+            code.AppendLine();
+            return;
+        }
         if (construction.CanOverlayAfterConstruction)
         {
             code.AppendLineAt(3, "var value = new " + modelType + "();");

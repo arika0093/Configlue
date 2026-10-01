@@ -50,6 +50,7 @@ internal static class SparseFragmentEmitter
             .Append(modelType)
             .AppendLine(">");
         code.AppendLine("{");
+        SparseFragmentCoreEmitter.AppendRootProjectionConstructor(code, name, members);
         Core.AppendDeepClone(code, modelType, members, !pocoCloneModels.IsEmpty);
         foreach (var poco in pocoCloneModels)
             Core.AppendPocoCloneHelper(
@@ -96,7 +97,8 @@ internal static class SparseFragmentEmitter
                 structuralModel.ValueTypeName,
                 structuralModel.Members,
                 true,
-                usesPocoCloning
+                usesPocoCloning,
+                isRootModel: false
             );
             code.IndentOffset--;
             code.AppendLineAt(1, "}");
@@ -108,14 +110,15 @@ internal static class SparseFragmentEmitter
         string modelType,
         ImmutableArray<SparseMemberModel> members,
         bool modelIsReferenceType,
-        bool usesPocoCloning
+        bool usesPocoCloning,
+        bool isRootModel = true
     )
     {
         SparseFragmentCoreEmitter.AppendDeclaration(code, FragmentOfT, DeepCloneable);
         Core.AppendMembers(code, members, MergeStrategy);
         AppendFragmentDescriptor(code, modelType, members);
         Core.AppendFromModel(code, modelType, members, modelIsReferenceType, usesPocoCloning);
-        SparseFragmentCoreEmitter.AppendToModel(code, modelType, members);
+        SparseFragmentCoreEmitter.AppendToModel(code, modelType, members, isRootModel);
         Core.AppendMerge(code, members);
         Core.AppendApplyChanges(code, members);
         Core.AppendDiff(code, modelType, members, modelIsReferenceType);

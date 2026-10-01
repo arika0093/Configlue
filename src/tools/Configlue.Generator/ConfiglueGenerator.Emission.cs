@@ -61,6 +61,11 @@ public sealed partial class ConfiglueGenerator
         code.AppendLine("{");
         AppendModelSchema(code, modelType, modelId, version, members);
         AppendFragmentSchema(code, modelType, modelId, version, members);
+        SparseFragments.Generator.Shared.SparseFragmentCoreEmitter.AppendRootProjectionConstructor(
+            code,
+            name,
+            members.Select(ToSparseMember).ToImmutableArray()
+        );
         FragmentCore.AppendDeepClone(
             code,
             modelType,
@@ -167,7 +172,8 @@ public sealed partial class ConfiglueGenerator
                 true,
                 usesPocoCloning,
                 hasJsonFragmentRegistry,
-                hasMessagePackFragmentRegistry
+                hasMessagePackFragmentRegistry,
+                isRootModel: false
             );
             code.IndentOffset--;
             code.AppendLineAt(1, "}");
