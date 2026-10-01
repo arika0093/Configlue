@@ -379,7 +379,7 @@ public sealed partial class ConfiglueGenerator
                 .Append(SymbolDisplay.FormatLiteral(member.Property.Name, true))
                 .Append(", typeof(")
                 .Append((member.ChildModel ?? member.Property.Type).NonNullableName)
-                .Append("), global::Configlue.MergeMode.")
+                .Append("), global::SparseFragments.MergeMode.")
                 .Append(MergeModeName(member.MergeMode))
                 .Append(", static value => ((")
                 .Append(modelType)
@@ -472,7 +472,7 @@ public sealed partial class ConfiglueGenerator
                 .Append(SymbolDisplay.FormatLiteral(member.Property.Name, true))
                 .Append(", typeof(")
                 .Append(valueType)
-                .Append("), global::Configlue.MergeMode.")
+                .Append("), global::SparseFragments.MergeMode.")
                 .Append(MergeModeName(member.MergeMode))
                 .Append(", null, ");
             if (member.ChildModel is null)
