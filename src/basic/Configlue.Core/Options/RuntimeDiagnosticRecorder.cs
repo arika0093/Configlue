@@ -44,11 +44,11 @@ internal sealed class RuntimeDiagnosticRecorder : IConfiglueRuntimeDiagnostics
         _sources = sources.ToDictionary(static source => source.Id, StringComparer.Ordinal);
     }
 
-    internal bool IsEnabled =>
+    private bool IsEnabled(ConfiglueDiagnosticEventKind kind) =>
         _options.TrackSnapshot
         || _history.Length != 0
         || Volatile.Read(ref _listeners).Length != 0
-        || ConfiglueTelemetry.IsEnabled
+        || ConfiglueTelemetry.IsEnabled(kind)
         || LoggerIsEnabled();
 
     private bool LoggerIsEnabled() =>
@@ -66,7 +66,7 @@ internal sealed class RuntimeDiagnosticRecorder : IConfiglueRuntimeDiagnostics
         long parentOperationId = 0
     )
     {
-        if (!IsEnabled)
+        if (!IsEnabled(kind))
             return default;
         var operationId = Interlocked.Increment(ref _nextOperationId);
         var started = Stopwatch.GetTimestamp();
@@ -118,7 +118,7 @@ internal sealed class RuntimeDiagnosticRecorder : IConfiglueRuntimeDiagnostics
         bool? effectiveValueChanged = null
     )
     {
-        if (!IsEnabled)
+        if (!IsEnabled(kind))
             return;
         ConfiglueDiagnosticEvent diagnosticEvent;
         lock (_gate)

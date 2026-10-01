@@ -482,7 +482,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         CancellationToken cancellationToken
     ) => ReadSourceAsync(source, GetResourceContext(source), cancellationToken);
 
-    private async ValueTask<StateReadResult<TFragment>> ReadSourceAsync(
+    private ValueTask<StateReadResult<TFragment>> ReadSourceAsync(
         StateSource<TFragment> source,
         ConfiglueResourceContext? context,
         CancellationToken cancellationToken,
@@ -494,6 +494,18 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             source.Id,
             parentOperationId
         );
+        return diagnostic.Id == 0
+            ? source.ReadAsync(context ?? DefaultResourceContext, cancellationToken)
+            : ReadObservedSourceAsync(source, context, cancellationToken, diagnostic);
+    }
+
+    private static async ValueTask<StateReadResult<TFragment>> ReadObservedSourceAsync(
+        StateSource<TFragment> source,
+        ConfiglueResourceContext? context,
+        CancellationToken cancellationToken,
+        RuntimeDiagnosticRecorder.DiagnosticOperation diagnostic
+    )
+    {
         try
         {
             var result = await source
@@ -636,7 +648,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                 .ConfigureAwait(false)
         ).Result;
 
-    private async ValueTask<ResolvedState> ResolveCoreAsync(
+    private ValueTask<ResolvedState> ResolveCoreAsync(
         IReadOnlyDictionary<string, StateReadResult<TFragment>>? replacements,
         CancellationToken cancellationToken,
         bool captureContributions = false,
@@ -646,18 +658,39 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
     {
         if (replacements is not null)
         {
-            return await ResolveImplementationAsync(
-                    replacements,
-                    cancellationToken,
-                    captureContributions,
-                    observeSource
-                )
-                .ConfigureAwait(false);
+            return ResolveImplementationAsync(
+                replacements,
+                cancellationToken,
+                captureContributions,
+                observeSource
+            );
         }
         var diagnostic = _diagnostics.Start(
             ConfiglueDiagnosticEventKind.ResolveStarted,
             parentOperationId: parentOperationId
         );
+        return diagnostic.Id == 0
+            ? ResolveImplementationAsync(
+                null,
+                cancellationToken,
+                captureContributions,
+                observeSource
+            )
+            : ResolveObservedAsync(
+                cancellationToken,
+                captureContributions,
+                observeSource,
+                diagnostic
+            );
+    }
+
+    private async ValueTask<ResolvedState> ResolveObservedAsync(
+        CancellationToken cancellationToken,
+        bool captureContributions,
+        Action<ResolvedSourceProbe>? observeSource,
+        RuntimeDiagnosticRecorder.DiagnosticOperation diagnostic
+    )
+    {
         try
         {
             var result = await ResolveImplementationAsync(

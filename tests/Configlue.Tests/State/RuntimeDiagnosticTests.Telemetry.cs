@@ -56,7 +56,9 @@ public sealed partial class RuntimeDiagnosticTests
     }
 
     [Test]
-    public async Task Metrics_EmitDurations_WithOnlyBoundedLabels()
+    [Arguments(false)]
+    [Arguments(true)]
+    public async Task Metrics_EmitDurations_WithOnlyBoundedLabels(bool sourceReadOnly)
     {
         using var root = new Activity("metrics-test").SetIdFormat(ActivityIdFormat.W3C).Start();
         var measurements =
@@ -67,9 +69,12 @@ public sealed partial class RuntimeDiagnosticTests
             )>();
         using var listener = new MeterListener
         {
-            InstrumentPublished = static (instrument, owner) =>
+            InstrumentPublished = (instrument, owner) =>
             {
-                if (instrument.Meter.Name == ConfiglueTelemetry.MeterName)
+                if (
+                    instrument.Meter.Name == ConfiglueTelemetry.MeterName
+                    && (!sourceReadOnly || instrument.Name == "configlue.source.read.duration")
+                )
                     owner.EnableMeasurementEvents(instrument);
             },
         };
@@ -84,12 +89,19 @@ public sealed partial class RuntimeDiagnosticTests
         var store = new InMemoryStateSource<AppSettings.Fragment>(
             new AppSettings.Fragment { RetryCount = 3 }
         );
-        await using var runtime = CreateRuntime([new("unbounded-source-id", store)]);
+        await using var runtime = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
+            new StateSourceSet<AppSettings.Fragment>([new("unbounded-source-id", store)]),
+            diagnostics: ConfiglueRuntimeDiagnosticOptions.Disabled
+        );
         await runtime.GetValueAsync();
         var observed = measurements.ToArray();
         observed
             .Select(static item => item.Name)
-            .ShouldBe(new[] { "configlue.source.read.duration", "configlue.resolve.duration" });
+            .ShouldBe(
+                sourceReadOnly
+                    ? new[] { "configlue.source.read.duration" }
+                    : new[] { "configlue.source.read.duration", "configlue.resolve.duration" }
+            );
         foreach (var measurement in observed)
         {
             measurement.Value.ShouldBeGreaterThanOrEqualTo(0);

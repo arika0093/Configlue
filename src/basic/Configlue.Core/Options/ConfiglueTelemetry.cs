@@ -50,18 +50,35 @@ public static class ConfiglueTelemetry
         "configlue.watch.signals"
     );
 
-    internal static bool IsEnabled =>
+    internal static bool IsEnabled(ConfiglueDiagnosticEventKind kind) =>
         Activities.HasListeners()
-        || ResolveDuration.Enabled
-        || ReadDuration.Enabled
-        || WriteDuration.Enabled
-        || ReloadDuration.Enabled
-        || MigrationDuration.Enabled
-        || ReloadFailures.Enabled
-        || WriteConflicts.Enabled
-        || Migrations.Enabled
-        || MigrationFailures.Enabled
-        || WatchSignals.Enabled;
+        || kind switch
+        {
+            ConfiglueDiagnosticEventKind.ResolveStarted
+            or ConfiglueDiagnosticEventKind.ResolveCompleted
+            or ConfiglueDiagnosticEventKind.ResolveFailed => ResolveDuration.Enabled,
+            ConfiglueDiagnosticEventKind.SourceReadStarted
+            or ConfiglueDiagnosticEventKind.SourceReadCompleted
+            or ConfiglueDiagnosticEventKind.SourceReadFailed => ReadDuration.Enabled,
+            ConfiglueDiagnosticEventKind.WriteStarted
+            or ConfiglueDiagnosticEventKind.WriteCompleted
+            or ConfiglueDiagnosticEventKind.WriteFailed
+            or ConfiglueDiagnosticEventKind.WriteConflict => WriteDuration.Enabled
+                || WriteConflicts.Enabled,
+            ConfiglueDiagnosticEventKind.ReloadStarted
+            or ConfiglueDiagnosticEventKind.ReloadCompleted
+            or ConfiglueDiagnosticEventKind.ReloadFailed => ReloadDuration.Enabled
+                || ReloadFailures.Enabled,
+            ConfiglueDiagnosticEventKind.MigrationStarted
+            or ConfiglueDiagnosticEventKind.MigrationCompleted
+            or ConfiglueDiagnosticEventKind.MigrationFailed => MigrationDuration.Enabled
+                || Migrations.Enabled
+                || MigrationFailures.Enabled,
+            ConfiglueDiagnosticEventKind.WatchStarted
+            or ConfiglueDiagnosticEventKind.WatchStopped
+            or ConfiglueDiagnosticEventKind.WatchSignaled => WatchSignals.Enabled,
+            _ => false,
+        };
 
     internal static string? ActivityName(ConfiglueDiagnosticEventKind kind) =>
         kind switch
