@@ -57,8 +57,7 @@ jobs:
 
       - name: Verify packed target assets
         if: matrix.os == 'ubuntu-latest'
-        shell: pwsh
-        run: ./eng/VerifyPackages.ps1 -PackageDirectory artifacts
+        run: bash ./.github/workflows/scripts/verify-packages.sh artifacts
 
   native-aot:
     timeout-minutes: 30
