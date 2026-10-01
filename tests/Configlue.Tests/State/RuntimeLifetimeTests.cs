@@ -103,6 +103,50 @@ public sealed partial class RuntimeLifetimeTests
     }
 
     [Test]
+    public async Task ScopedWebStorageRuntimeIsIsolatedBetweenCircuits()
+    {
+        var services = new ServiceCollection();
+        services.AddScoped<FakeJsRuntime>();
+        services.AddScoped<IJSRuntime>(provider => provider.GetRequiredService<FakeJsRuntime>());
+        services.AddConfiglue(builder =>
+            builder.Add<RuntimeLifetimeSettings>(model => model.UseLocalStorage("circuit-ui"))
+        );
+        using var provider = services.BuildServiceProvider();
+        using var circuitA = provider.CreateScope();
+        using var circuitB = provider.CreateScope();
+
+        var runtimeA = circuitA.ServiceProvider.GetRequiredService<FakeJsRuntime>();
+        var runtimeB = circuitB.ServiceProvider.GetRequiredService<FakeJsRuntime>();
+        ReferenceEquals(runtimeA, runtimeB).ShouldBeFalse();
+
+        var stateA = circuitA.ServiceProvider.GetRequiredService<
+            IWritableState<RuntimeLifetimeSettings>
+        >();
+        var stateB = circuitB.ServiceProvider.GetRequiredService<
+            IWritableState<RuntimeLifetimeSettings>
+        >();
+
+        await stateA.SaveAsync(
+            new RuntimeLifetimeSettings.Patch
+            {
+                Label = FragmentOperation<string?>.Set("circuit-a"),
+            }
+        );
+        await stateB.SaveAsync(
+            new RuntimeLifetimeSettings.Patch
+            {
+                Label = FragmentOperation<string?>.Set("circuit-b"),
+            }
+        );
+
+        (await stateA.GetValueAsync()).Label.ShouldBe("circuit-a");
+        (await stateB.GetValueAsync()).Label.ShouldBe("circuit-b");
+        runtimeA.Values.ShouldContainKey("circuit-ui");
+        runtimeB.Values.ShouldContainKey("circuit-ui");
+        runtimeA.Values["circuit-ui"].ShouldNotBe(runtimeB.Values["circuit-ui"]);
+    }
+
+    [Test]
     public void ProcessWideContextRejectsScopedOnlySource()
     {
         var builder = new ConfiglueBuilder();
