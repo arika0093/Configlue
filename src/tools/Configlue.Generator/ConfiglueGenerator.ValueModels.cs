@@ -95,7 +95,13 @@ public sealed partial class ConfiglueGenerator
             TypeModel? childModel,
             int mergeMode,
             CollectionInfo collection,
-            TypeModel? mergeStrategyType
+            TypeModel? mergeStrategyType,
+            string? childFragmentType = null,
+            string? childPatchType = null,
+            string? childSchemaType = null,
+            string? childDetailsType = null,
+            bool childIsStructural = false,
+            bool childIsReferenceType = true
         )
         {
             Id = id;
@@ -104,6 +110,12 @@ public sealed partial class ConfiglueGenerator
             MergeMode = mergeMode;
             Collection = collection;
             MergeStrategyType = mergeStrategyType;
+            ChildFragmentType = childFragmentType;
+            ChildPatchType = childPatchType;
+            ChildSchemaType = childSchemaType;
+            ChildDetailsType = childDetailsType;
+            ChildIsStructural = childIsStructural;
+            ChildIsReferenceType = childIsReferenceType;
         }
 
         public int Id { get; init; }
@@ -112,6 +124,12 @@ public sealed partial class ConfiglueGenerator
         public int MergeMode { get; init; }
         public CollectionInfo Collection { get; init; }
         public TypeModel? MergeStrategyType { get; init; }
+        public string? ChildFragmentType { get; init; }
+        public string? ChildPatchType { get; init; }
+        public string? ChildSchemaType { get; init; }
+        public string? ChildDetailsType { get; init; }
+        public bool ChildIsStructural { get; init; }
+        public bool ChildIsReferenceType { get; init; }
     }
 
     private readonly record struct ModelInfo
@@ -257,6 +275,51 @@ public sealed partial class ConfiglueGenerator
         }
     }
 
+    private sealed class StructuralModel : IEquatable<StructuralModel>
+    {
+        public StructuralModel(
+            string hostName,
+            string valueTypeName,
+            ImmutableArray<MemberModel> members
+        )
+        {
+            HostName = hostName;
+            ValueTypeName = valueTypeName;
+            Members = members;
+        }
+
+        public string HostName { get; }
+        public string ValueTypeName { get; }
+        public ImmutableArray<MemberModel> Members { get; }
+
+        public bool Equals(StructuralModel? other)
+        {
+            return ReferenceEquals(this, other)
+                || (
+                    other is not null
+                    && string.Equals(HostName, other.HostName, StringComparison.Ordinal)
+                    && string.Equals(ValueTypeName, other.ValueTypeName, StringComparison.Ordinal)
+                    && SequenceEqual(Members, other.Members)
+                );
+        }
+
+        public override bool Equals(object? obj) => obj is StructuralModel other && Equals(other);
+
+        public override int GetHashCode()
+        {
+            var hash = unchecked(
+                StringComparer.Ordinal.GetHashCode(HostName) * 31
+                + StringComparer.Ordinal.GetHashCode(ValueTypeName)
+            );
+            foreach (var member in Members)
+            {
+                hash = unchecked(hash * 31 + member.GetHashCode());
+            }
+
+            return hash;
+        }
+    }
+
     private sealed class GenerationAnalysis : IEquatable<GenerationAnalysis>
     {
         public GenerationAnalysis(
@@ -265,6 +328,7 @@ public sealed partial class ConfiglueGenerator
             ImmutableArray<MemberModel> members,
             ImmutableArray<PreviousModelInfo> previousModels,
             ImmutableArray<PocoCloneModel> pocoCloneModels,
+            ImmutableArray<StructuralModel> structuralModels,
             ImmutableArray<GeneratorDiagnosticInfo> diagnostics
         )
         {
@@ -273,6 +337,7 @@ public sealed partial class ConfiglueGenerator
             Members = members;
             PreviousModels = previousModels;
             PocoCloneModels = pocoCloneModels;
+            StructuralModels = structuralModels;
             Diagnostics = diagnostics;
         }
 
@@ -281,6 +346,7 @@ public sealed partial class ConfiglueGenerator
         public ImmutableArray<MemberModel> Members { get; }
         public ImmutableArray<PreviousModelInfo> PreviousModels { get; }
         public ImmutableArray<PocoCloneModel> PocoCloneModels { get; }
+        public ImmutableArray<StructuralModel> StructuralModels { get; }
         public ImmutableArray<GeneratorDiagnosticInfo> Diagnostics { get; }
 
         public bool Equals(GenerationAnalysis? other)
@@ -293,6 +359,7 @@ public sealed partial class ConfiglueGenerator
                     && SequenceEqual(Members, other.Members)
                     && SequenceEqual(PreviousModels, other.PreviousModels)
                     && SequenceEqual(PocoCloneModels, other.PocoCloneModels)
+                    && SequenceEqual(StructuralModels, other.StructuralModels)
                     && SequenceEqual(Diagnostics, other.Diagnostics)
                 );
         }
@@ -317,6 +384,10 @@ public sealed partial class ConfiglueGenerator
             foreach (var pocoModel in PocoCloneModels)
             {
                 hash = unchecked(hash * 31 + pocoModel.GetHashCode());
+            }
+            foreach (var structuralModel in StructuralModels)
+            {
+                hash = unchecked(hash * 31 + structuralModel.GetHashCode());
             }
             foreach (var diagnostic in Diagnostics)
             {
@@ -369,9 +440,33 @@ public sealed partial class ConfiglueGenerator
             GetEnvironmentVariableName(member.Property, cancellationToken)
         );
         TypeModel? childModel = null;
+        string? childFragmentType = null;
+        string? childPatchType = null;
+        string? childSchemaType = null;
+        string? childDetailsType = null;
+        var childIsStructural = false;
+        var childIsReferenceType = true;
         if (member.ChildModel is not null)
         {
             childModel = CreateTypeModel(member.ChildModel, cancellationToken);
+            childIsReferenceType = member.ChildModel.IsReferenceType;
+            if (IsConfiglueModel(member.ChildModel, cancellationToken))
+            {
+                var childType = NonNullableTypeName(member.ChildModel);
+                childFragmentType = childType + ".Fragment";
+                childPatchType = childType + ".Patch";
+                childSchemaType = childType;
+                childDetailsType = childType + ".Details";
+            }
+            else
+            {
+                var host = StructuralHostName(member.ChildModel, cancellationToken);
+                childIsStructural = true;
+                childFragmentType = host + ".Fragment";
+                childPatchType = host + ".Patch";
+                childSchemaType = host;
+                childDetailsType = host + ".Details";
+            }
         }
 
         TypeModel? mergeStrategyType = null;
@@ -386,7 +481,13 @@ public sealed partial class ConfiglueGenerator
             childModel,
             member.MergeMode,
             collection,
-            mergeStrategyType
+            mergeStrategyType,
+            childFragmentType,
+            childPatchType,
+            childSchemaType,
+            childDetailsType,
+            childIsStructural,
+            childIsReferenceType
         );
     }
 

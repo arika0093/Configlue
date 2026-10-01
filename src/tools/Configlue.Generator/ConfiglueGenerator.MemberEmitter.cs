@@ -44,15 +44,19 @@ public sealed partial class ConfiglueGenerator
         CancellationToken cancellationToken
     )
     {
-        if (member.ChildModel is not null)
+        if (member.ChildModel is not null && !member.ChildIsStructural)
         {
-            return $"{access} is null ? null! : {access}.DeepClone()";
+            return member.ChildIsReferenceType
+                ? $"{access} is null ? null! : {access}.DeepClone()"
+                : $"(({member.Property.Type.Name}){access}).DeepClone()";
         }
 
         var cloneHelperName = member.Property.Type.PocoCloneHelperName;
         if (cloneHelperName is not null)
         {
-            return $"{access} is null ? null! : {cloneHelperName}({access}, __configlue_clone_context)";
+            return member.Property.Type.IsReferenceType
+                ? $"{access} is null ? null! : {cloneHelperName}({access}, __configlue_clone_context)"
+                : $"{cloneHelperName}({access}, __configlue_clone_context)";
         }
 
         var cloned = CloneCollectionExpression(member, access, cancellationToken);
@@ -244,7 +248,7 @@ public sealed partial class ConfiglueGenerator
             return member.Property.Type.Name;
         }
 
-        return member.ChildModel.Value.NonNullableName + ".Fragment?";
+        return member.ChildFragmentType + "?";
     }
 
     private static string MemberBackingField(MemberModel member) =>
@@ -284,9 +288,7 @@ public sealed partial class ConfiglueGenerator
     }
 
     private static string FragmentRuntimeValueType(MemberModel member) =>
-        member.ChildModel is null
-            ? member.Property.Type.RuntimeName
-            : member.ChildModel.Value.NonNullableName + ".Fragment";
+        member.ChildModel is null ? member.Property.Type.RuntimeName : member.ChildFragmentType!;
 
     private static string TypeName(ITypeSymbol type) => type.ToDisplayString(TypeFormat);
 

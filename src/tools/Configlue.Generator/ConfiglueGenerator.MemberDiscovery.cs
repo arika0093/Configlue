@@ -78,9 +78,11 @@ public sealed partial class ConfiglueGenerator
         )
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var child = IsConfiglueModel(property.Type, cancellationToken)
-                ? (INamedTypeSymbol)property.Type
-                : null;
+            var child =
+                IsConfiglueModel(property.Type, cancellationToken)
+                || IsStructuralType(property.Type, cancellationToken)
+                    ? (INamedTypeSymbol)property.Type
+                    : null;
             var mode = child is not null ? 1 : 0;
             AttributeData? merge = null;
             foreach (var attribute in property.GetAttributes())

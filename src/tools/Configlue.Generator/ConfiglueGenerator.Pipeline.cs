@@ -95,6 +95,7 @@ public sealed partial class ConfiglueGenerator
             analysis.Members,
             analysis.PreviousModels,
             analysis.PocoCloneModels,
+            analysis.StructuralModels,
             hasJsonFragmentRegistry,
             cancellationToken
         );
@@ -259,6 +260,7 @@ public sealed partial class ConfiglueGenerator
                 ImmutableArray<MemberModel>.Empty,
                 ImmutableArray<PreviousModelInfo>.Empty,
                 ImmutableArray<PocoCloneModel>.Empty,
+                ImmutableArray<StructuralModel>.Empty,
                 diagnostics.ToImmutable()
             );
         }
@@ -279,13 +281,75 @@ public sealed partial class ConfiglueGenerator
         var pocoCloneModels = GetPocoCloneTypes(members, cancellationToken)
             .Select(pocoType => CreatePocoCloneModel(pocoType, cancellationToken))
             .ToImmutableArray();
+        var structuralModels = CollectStructuralTypes(members, cancellationToken)
+            .Select(type => CreateStructuralModel(type, cancellationToken))
+            .ToImmutableArray();
         return new GenerationAnalysis(
             fileName,
             CreateModelInfo(model, modelId, modelVersion, cancellationToken),
             memberModels,
             previousModelInfos,
             pocoCloneModels,
+            structuralModels,
             ImmutableArray<GeneratorDiagnosticInfo>.Empty
+        );
+    }
+
+    private static ImmutableArray<INamedTypeSymbol> CollectStructuralTypes(
+        ImmutableArray<SymbolMemberModel> members,
+        CancellationToken cancellationToken
+    )
+    {
+        var result = ImmutableArray.CreateBuilder<INamedTypeSymbol>();
+        var seen = new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default);
+        var pending = new Stack<INamedTypeSymbol>();
+        foreach (var child in members.Select(static member => member.ChildModel))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (child is not null && IsStructuralType(child, cancellationToken))
+            {
+                pending.Push(child);
+            }
+        }
+
+        while (pending.Count > 0)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var type = pending.Pop();
+            if (!seen.Add(type))
+            {
+                continue;
+            }
+
+            result.Add(type);
+            foreach (
+                var nested in GetMembers(type, cancellationToken)
+                    .Select(static member => member.ChildModel)
+            )
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (nested is not null && IsStructuralType(nested, cancellationToken))
+                {
+                    pending.Push(nested);
+                }
+            }
+        }
+
+        return result.ToImmutable();
+    }
+
+    private static StructuralModel CreateStructuralModel(
+        INamedTypeSymbol type,
+        CancellationToken cancellationToken
+    )
+    {
+        return new StructuralModel(
+            StructuralHostName(type, cancellationToken),
+            NonNullableTypeName(type),
+            CreateMemberModels(
+                GetMembers(type, cancellationToken).ToImmutableArray(),
+                cancellationToken
+            )
         );
     }
 
@@ -301,6 +365,7 @@ public sealed partial class ConfiglueGenerator
             ImmutableArray<MemberModel>.Empty,
             ImmutableArray<PreviousModelInfo>.Empty,
             ImmutableArray<PocoCloneModel>.Empty,
+            ImmutableArray<StructuralModel>.Empty,
             ImmutableArray.Create(GeneratorDiagnosticInfo.Create(descriptor, location, argument1))
         );
     }

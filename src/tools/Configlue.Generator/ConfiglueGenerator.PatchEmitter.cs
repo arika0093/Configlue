@@ -79,9 +79,7 @@ public sealed partial class ConfiglueGenerator
         );
         code.AppendLineAt(1, "{");
         code.AppendIndent(2)
-            .Append("public global::Configlue.ConfiglueModelSchema Schema => ")
-            .Append(modelType)
-            .AppendLine(".ConfiglueSchema;");
+            .Append("public global::Configlue.ConfiglueModelSchema Schema => ConfiglueSchema;");
         foreach (var member in members)
         {
             var name = EscapeIdentifier(member.Property.Name);
@@ -128,9 +126,7 @@ public sealed partial class ConfiglueGenerator
             2,
             "public void Set("
                 + modelType
-                + " value) => __configlue_whole_operation = global::Configlue.FragmentOperation<Fragment?>.Set("
-                + modelType
-                + ".Fragment.From(value));"
+                + " value) => __configlue_whole_operation = global::Configlue.FragmentOperation<Fragment?>.Set(Fragment.From(value));"
         );
         code.AppendLineAt(
             2,
@@ -602,8 +598,7 @@ public sealed partial class ConfiglueGenerator
         code.AppendLineAt(2, "}");
     }
 
-    private static string NestedPatchType(MemberModel member) =>
-        member.ChildModel!.Value.NonNullableName + ".Patch";
+    private static string NestedPatchType(MemberModel member) => member.ChildPatchType!;
 
     private static string NestedOperationsEmptyExpression(ImmutableArray<MemberModel> members) =>
         members.Length == 0

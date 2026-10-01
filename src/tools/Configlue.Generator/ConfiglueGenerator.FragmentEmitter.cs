@@ -16,6 +16,7 @@ public sealed partial class ConfiglueGenerator
         string modelType,
         ImmutableArray<MemberModel> members,
         ImmutableArray<PreviousModelInfo> previousModels,
+        bool modelIsReferenceType,
         bool usesPocoCloning,
         bool hasJsonFragmentRegistry
     )
@@ -98,12 +99,12 @@ public sealed partial class ConfiglueGenerator
             )
             .AppendLine(";");
         code.AppendLine();
-        AppendFragmentDescriptor(code, modelType, members);
-        AppendFromModel(code, modelType, members, usesPocoCloning);
+        AppendFragmentDescriptor(code, members);
+        AppendFromModel(code, modelType, members, modelIsReferenceType, usesPocoCloning);
         AppendToModel(code, modelType, members);
         AppendMerge(code, members);
         AppendApplyChanges(code, members);
-        AppendDiff(code, modelType, members);
+        AppendDiff(code, modelType, members, modelIsReferenceType);
         AppendFragmentClone(code, members, usesPocoCloning);
         AppendPatchSupport(code, members);
         if (hasJsonFragmentRegistry)
@@ -154,8 +155,8 @@ public sealed partial class ConfiglueGenerator
 
                 if (mapping.CanMigrateChild)
                 {
-                    var childType = member.ChildModel!.Value.NonNullableName;
-                    var childValueType = childType + ".Fragment?";
+                    var childType = member.ChildFragmentType!;
+                    var childValueType = childType + "?";
                     var previousAccess = "value." + previousName;
                     code.AppendIndent(4)
                         .Append(name)
@@ -167,7 +168,7 @@ public sealed partial class ConfiglueGenerator
                         .Append(previousAccess)
                         .Append(".Value is null ? null : ")
                         .Append(childType)
-                        .Append(".Fragment.FromPrevious(")
+                        .Append(".FromPrevious(")
                         .Append(previousAccess)
                         .Append(".Value!)) : global::Configlue.Optional<")
                         .Append(childValueType)
@@ -183,16 +184,13 @@ public sealed partial class ConfiglueGenerator
 
     private static void AppendFragmentDescriptor(
         IndentedStringBuilder code,
-        string modelType,
         ImmutableArray<MemberModel> members
     )
     {
         code.CancellationToken.ThrowIfCancellationRequested();
         code.AppendLineAt(2, "public static Fragment Empty { get; } = new();");
         code.AppendIndent(2)
-            .Append("public global::Configlue.ConfiglueModelSchema Schema => ")
-            .Append(modelType)
-            .AppendLine(".FragmentSchema;");
+            .Append("public global::Configlue.ConfiglueModelSchema Schema => FragmentSchema;");
         code.AppendLineAt(
             2,
             "public global::System.Collections.Generic.IEnumerable<global::Configlue.ConfiglueFragmentMember> EnumeratePresentMembers()"
@@ -278,6 +276,7 @@ public sealed partial class ConfiglueGenerator
         IndentedStringBuilder code,
         string modelType,
         ImmutableArray<MemberModel> members,
+        bool modelIsReferenceType,
         bool usesPocoCloning
     )
     {
@@ -287,7 +286,10 @@ public sealed partial class ConfiglueGenerator
             .Append(modelType)
             .AppendLine(" value)");
         code.AppendLineAt(2, "{");
-        AppendNullGuard(code, 3, "value");
+        if (modelIsReferenceType)
+        {
+            AppendNullGuard(code, 3, "value");
+        }
         if (usesPocoCloning)
         {
             code.AppendLineAt(
@@ -300,9 +302,19 @@ public sealed partial class ConfiglueGenerator
         foreach (var member in members)
         {
             var access = "value." + EscapeIdentifier(member.Property.Name);
-            var value = member.ChildModel is null
-                ? CloneModelExpression(member, access, code.CancellationToken)
-                : $"({access} is null ? null : {member.ChildModel.Value.NonNullableName}.Fragment.From({access}))";
+            string value;
+            if (member.ChildModel is null)
+            {
+                value = CloneModelExpression(member, access, code.CancellationToken);
+            }
+            else if (!member.ChildIsReferenceType)
+            {
+                value = $"{member.ChildFragmentType}.From({access})";
+            }
+            else
+            {
+                value = $"({access} is null ? null : {member.ChildFragmentType}.From({access}))";
+            }
             code.AppendIndent(4)
                 .Append(EscapeIdentifier(member.Property.Name))
                 .Append(" = global::Configlue.Optional<")
@@ -364,7 +376,19 @@ public sealed partial class ConfiglueGenerator
         foreach (var member in members)
         {
             var name = EscapeIdentifier(member.Property.Name);
-            var value = member.ChildModel is null ? name + ".Value!" : name + ".Value?.ToModel()!";
+            string value;
+            if (member.ChildModel is null)
+            {
+                value = name + ".Value!";
+            }
+            else if (!member.ChildIsReferenceType)
+            {
+                value = name + ".Value!.ToModel()";
+            }
+            else
+            {
+                value = name + ".Value?.ToModel()!";
+            }
             code.AppendIndent(indent + 1)
                 .Append(name)
                 .Append(" = ")
@@ -509,24 +533,41 @@ public sealed partial class ConfiglueGenerator
     private static void AppendDiff(
         IndentedStringBuilder code,
         string modelType,
-        ImmutableArray<MemberModel> members
+        ImmutableArray<MemberModel> members,
+        bool modelIsReferenceType
     )
     {
         code.CancellationToken.ThrowIfCancellationRequested();
         foreach (var member in members.Where(static member => member.ChildModel is not null))
         {
             var type = member.ChildModel!.Value.NonNullableName;
+            var fragment = member.ChildFragmentType!;
             var name = EscapeIdentifier(member.Property.Name);
             code.AppendIndent(2)
                 .Append("private static global::Configlue.Optional<")
                 .Append(FragmentValueType(member))
                 .Append("> __Diff_")
                 .Append(name)
-                .Append('(')
-                .Append(type)
-                .Append("? before, ")
-                .Append(type)
-                .AppendLine("? after)");
+                .Append('(');
+            if (!member.ChildIsReferenceType)
+            {
+                code.Append(type).Append(" before, ").Append(type).AppendLine(" after)");
+                code.AppendLineAt(2, "{");
+                code.AppendIndent(3)
+                    .Append("if (global::System.Collections.Generic.EqualityComparer<")
+                    .Append(type)
+                    .AppendLine(">.Default.Equals(before, after)) { return default; }");
+                code.AppendIndent(3)
+                    .Append("return global::Configlue.Optional<")
+                    .Append(FragmentValueType(member))
+                    .Append(">.Present(")
+                    .Append(fragment)
+                    .AppendLine(".Diff(before, after));");
+                code.AppendLineAt(2, "}");
+                continue;
+            }
+
+            code.Append(type).Append("? before, ").Append(type).AppendLine("? after)");
             code.AppendLineAt(2, "{");
             code.AppendLineAt(
                 3,
@@ -536,12 +577,12 @@ public sealed partial class ConfiglueGenerator
                 .Append("if (before is null || after is null) { return global::Configlue.Optional<")
                 .Append(FragmentValueType(member))
                 .Append(">.Present(after is null ? null : ")
-                .Append(type)
-                .AppendLine(".Fragment.From(after)); }");
+                .Append(fragment)
+                .AppendLine(".From(after)); }");
             code.AppendIndent(3)
                 .Append("var difference = ")
-                .Append(type)
-                .AppendLine(".Fragment.Diff(before, after);");
+                .Append(fragment)
+                .AppendLine(".Diff(before, after);");
             code.AppendIndent(3)
                 .Append("return difference.IsEmpty ? default : global::Configlue.Optional<")
                 .Append(FragmentValueType(member))
@@ -560,8 +601,12 @@ public sealed partial class ConfiglueGenerator
             .Append(modelType)
             .AppendLine(" after)");
         code.AppendLineAt(2, "{");
-        AppendNullGuard(code, 3, "before");
-        AppendNullGuard(code, 3, "after");
+        if (modelIsReferenceType)
+        {
+            AppendNullGuard(code, 3, "before");
+            AppendNullGuard(code, 3, "after");
+        }
+
         code.AppendLineAt(3, "return new Fragment");
         code.AppendLineAt(3, "{");
         foreach (var member in members)
