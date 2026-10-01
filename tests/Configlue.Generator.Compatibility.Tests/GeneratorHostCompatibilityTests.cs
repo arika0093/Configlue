@@ -9,6 +9,166 @@ namespace Configlue.Generator.Compatibility.Tests;
 public sealed class GeneratorHostCompatibilityTests
 {
     [Test]
+    public void SharedFragmentOperationsHaveRuntimeParity()
+    {
+        string? previousResult = null;
+        foreach (var standalone in new[] { false, true })
+        {
+            var runtime = standalone ? "SparseFragments" : "Configlue";
+            var modelAttribute = standalone
+                ? "SparseFragmentModel"
+                : "ConfiglueModel(\"algebra-parity\")";
+            var mergeAttribute = standalone ? "SparseMerge" : "ConfiglueMerge";
+            var source = $$"""
+                using System;
+                using System.Collections.Generic;
+                using {{runtime}};
+                [{{modelAttribute}}]
+                public partial class Settings
+                {
+                    public int Count { get; set; } = 3;
+                    public string? Label { get; set; } = "default";
+                    public Child? Nested { get; set; } = new Child();
+                    [{{mergeAttribute}}(MergeMode.Append)]
+                    public List<int> Items { get; set; } = new List<int>();
+                    [{{mergeAttribute}}(MergeMode.SetUnion)]
+                    public ISet<string> Tags { get; set; } = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    public Dictionary<string, int> Map { get; set; } = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+                }
+                public class Child
+                {
+                    public int First { get; set; } = 10;
+                    public int Second { get; set; } = 20;
+                }
+                public static class Probe
+                {
+                    public static string Run()
+                    {
+                        var original = new Settings
+                        {
+                            Count = 4,
+                            Nested = new Child { First = 11 },
+                            Items = new List<int> { 1 },
+                            Tags = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "alpha" },
+                            Map = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase) { ["first"] = 1, ["second"] = 2 },
+                        };
+                        var clone = original.DeepClone();
+                        clone.Nested!.First = 90;
+                        clone.Items.Add(90);
+                        clone.Map["first"] = 90;
+                        if (original.Nested!.First != 11 || original.Items.Count != 1 || original.Map["first"] != 1)
+                            throw new Exception("model isolation");
+                        var lower = Settings.Fragment.From(original);
+                        original.Items.Add(100);
+                        if (lower.Items.Value!.Count != 1) throw new Exception("From isolation");
+                        var higher = new Settings.Fragment
+                        {
+                            Count = Optional<int>.Present(0),
+                            Label = Optional<string?>.Present(null),
+                            Items = Optional<List<int>>.Present(new List<int> { 2 }),
+                            Tags = Optional<ISet<string>>.Present(new HashSet<string> { "ALPHA", "beta" }),
+                        };
+                        var merged = lower.Merge(higher).DeepClone().ToModel();
+                        if (merged.Items.Count != 2 || merged.Tags.Count != 2 || !merged.Tags.Contains("BETA"))
+                            throw new Exception("collection merge");
+                        var changed = lower.ToModel();
+                        changed.Nested = new Child { First = 11, Second = 21 };
+                        changed.Tags = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "ALPHA" };
+                        changed.Map = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase) { ["SECOND"] = 2, ["FIRST"] = 1 };
+                        var diff = Settings.Fragment.Diff(lower.ToModel(), changed);
+                        if (diff.Tags.IsPresent || diff.Map.IsPresent || !diff.Nested.IsPresent)
+                            throw new Exception("semantic diff");
+                        var applied = lower.ApplyChanges(diff).ToModel();
+                        var projected = new Settings.Fragment { Count = Optional<int>.Present(0) }.ToModel();
+                        return string.Join("|", merged.Count, merged.Label is null, merged.Items.Count,
+                            merged.Tags.Count, applied.Nested!.First, applied.Nested.Second,
+                            projected.Count, projected.Label, lower.Count.Value);
+                    }
+                }
+                """;
+            var options = new CSharpParseOptions(LanguageVersion.Latest);
+            var compilation = CreateCompilation(CSharpSyntaxTree.ParseText(source, options));
+            IIncrementalGenerator generator = standalone
+                ? new SparseFragments.Generator.SparseFragmentsGenerator()
+                : new ConfiglueGenerator();
+            CSharpGeneratorDriver
+                .Create(new[] { generator.AsSourceGenerator() }, parseOptions: options)
+                .RunGeneratorsAndUpdateCompilation(
+                    compilation,
+                    out var output,
+                    out var diagnostics
+                );
+            diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error).ShouldBeEmpty();
+            using var stream = new MemoryStream();
+            var emission = output.Emit(stream);
+            emission.Success.ShouldBeTrue(BuildDiagnosticMessage(emission.Diagnostics));
+            var context = new System.Runtime.Loader.AssemblyLoadContext(
+                Guid.NewGuid().ToString(),
+                isCollectible: true
+            );
+            try
+            {
+                stream.Position = 0;
+                var assembly = context.LoadFromStream(stream);
+                var result = (string)
+                    assembly.GetType("Probe")!.GetMethod("Run")!.Invoke(null, null)!;
+                result.ShouldBe("0|True|2|2|11|21|0|default|4");
+                if (previousResult is not null)
+                    result.ShouldBe(previousResult);
+                previousResult = result;
+            }
+            finally
+            {
+                context.Unload();
+            }
+        }
+    }
+
+    [Test]
+    [Arguments("ISet<string>", "Append", false)]
+    [Arguments("HashSet<string>", "Append", false)]
+    [Arguments("ISet<string>", "SetUnion", true)]
+    [Arguments("List<string>", "Append", true)]
+    [Arguments("int", "Deep", false)]
+    [Arguments("int", "Append", false)]
+    public void BuiltInMergeValidationHasParity(string type, string mode, bool supported)
+    {
+        foreach (var standalone in new[] { false, true })
+        {
+            var runtime = standalone ? "SparseFragments" : "Configlue";
+            var modelAttribute = standalone ? "SparseFragmentModel" : "ConfiglueModel(\"parity\")";
+            var mergeAttribute = standalone ? "SparseMerge" : "ConfiglueMerge";
+            var source = $$"""
+                using {{runtime}};
+                using System.Collections.Generic;
+                [{{modelAttribute}}]
+                public partial class Settings
+                {
+                    [{{mergeAttribute}}(MergeMode.{{mode}})]
+                    public {{type}} Value { get; set; }
+                }
+                """;
+            var options = new CSharpParseOptions(LanguageVersion.CSharp9);
+            var compilation = CreateCompilation(CSharpSyntaxTree.ParseText(source, options));
+            IIncrementalGenerator generator = standalone
+                ? new SparseFragments.Generator.SparseFragmentsGenerator()
+                : new ConfiglueGenerator();
+            var driver = CSharpGeneratorDriver.Create(
+                new[] { generator.AsSourceGenerator() },
+                parseOptions: options
+            );
+            var result = driver.RunGenerators(compilation).GetRunResult();
+
+            result.Results.Single().Exception.ShouldBeNull();
+            result
+                .Diagnostics.Any(d => d.Severity == DiagnosticSeverity.Error)
+                .ShouldBe(!supported);
+            if (!supported)
+                result.Diagnostics.ShouldContain(d => d.Id == (standalone ? "SPF005" : "CFG005"));
+        }
+    }
+
+    [Test]
     public void SparseGenerator_ReusesEquivalentAnalysis_AndInvalidatesChangedMembers()
     {
         const string source = """

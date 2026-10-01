@@ -22,27 +22,19 @@ public sealed partial class ConfiglueGenerator
         bool hasMessagePackFragmentRegistry
     )
     {
-        code.CancellationToken.ThrowIfCancellationRequested();
-        code.AppendLineAt(
-            1,
-            "/// <summary>A sparse, presence-aware representation of this model.</summary>"
+        var coreMembers = members.Select(ToSparseMember).ToImmutableArray();
+        SparseFragments.Generator.Shared.SparseFragmentCoreEmitter.AppendDeclaration(
+            code,
+            "global::Configlue.IConfiglueFragment",
+            "global::Configlue.IConfiglueDeepCloneable",
+            hasJsonFragmentRegistry
+                ? static writer =>
+                    writer.AppendLineAt(
+                        1,
+                        "[global::System.Text.Json.Serialization.JsonConverter(typeof(FragmentJsonConverter))]"
+                    )
+                : null
         );
-        if (hasJsonFragmentRegistry)
-        {
-            code.AppendLineAt(
-                1,
-                "[global::System.Text.Json.Serialization.JsonConverter(typeof(FragmentJsonConverter))]"
-            );
-        }
-        code.AppendLineAt(
-            1,
-            "[global::System.ComponentModel.EditorBrowsable(global::System.ComponentModel.EditorBrowsableState.Never)]"
-        );
-        code.AppendLineAt(
-            1,
-            "public sealed class Fragment : global::Configlue.IConfiglueFragment<Fragment>, global::Configlue.IConfiglueDeepCloneable<Fragment>"
-        );
-        code.AppendLineAt(1, "{");
         if (hasJsonFragmentRegistry)
         {
             code.AppendLineAt(
@@ -58,57 +50,19 @@ public sealed partial class ConfiglueGenerator
             );
         }
         code.AppendLine();
-        foreach (var member in members)
-        {
-            if (hasJsonFragmentRegistry)
-            {
-                code.AppendLineAt(
-                    2,
-                    "[global::System.Text.Json.Serialization.JsonIgnore(Condition = global::System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]"
-                );
-            }
-            code.AppendIndent(2)
-                .Append("public global::Configlue.Optional<")
-                .Append(FragmentValueType(member))
-                .Append("> ")
-                .Append(EscapeIdentifier(member.Property.Name))
-                .AppendLine(" { get; init; }");
-        }
-
-        foreach (var member in members.Where(static member => member.MergeStrategyType is not null))
-        {
-            code.AppendIndent(2)
-                .Append("internal static readonly global::Configlue.ConfiglueMergeStrategy<")
-                .Append(TypeName(member.Property.Type))
-                .Append("> ")
-                .Append("__configlue_merge_strategy_")
-                .Append(member.Id)
-                .Append(" = new ")
-                .Append(TypeName(member.MergeStrategyType!.Value))
-                .AppendLine("();");
-        }
-
-        code.AppendLine();
-        code.AppendLineAt(
-            2,
-            "/// <summary>Whether this fragment has no present members.</summary>"
-        );
-        code.AppendIndent(2)
-            .Append("public bool IsEmpty => ")
-            .Append(
-                members.Length == 0
-                    ? "true"
-                    : JoinMemberExpressions(
-                        members,
-                        static member =>
-                            "!" + EscapeIdentifier(member.Property.Name) + ".IsPresent",
-                        code.CancellationToken
+        FragmentCore.AppendMembers(
+            code,
+            coreMembers,
+            "global::Configlue.ConfiglueMergeStrategy",
+            hasJsonFragmentRegistry
+                ? static writer =>
+                    writer.AppendLineAt(
+                        2,
+                        "[global::System.Text.Json.Serialization.JsonIgnore(Condition = global::System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]"
                     )
-            )
-            .AppendLine(";");
-        code.AppendLine();
+                : null
+        );
         AppendFragmentDescriptor(code, members);
-        var coreMembers = members.Select(ToSparseMember).ToImmutableArray();
         FragmentCore.AppendFromModel(
             code,
             modelType,

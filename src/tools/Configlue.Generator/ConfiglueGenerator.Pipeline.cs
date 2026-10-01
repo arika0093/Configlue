@@ -246,52 +246,19 @@ public sealed partial class ConfiglueGenerator
                 );
             }
 
-            if (member.MergeMode is < 0 or > CustomMergeMode)
-            {
-                diagnostics.Add(
-                    GeneratorDiagnosticInfo.Create(
-                        UnsupportedMerge,
-                        member.Property.Locations.FirstOrDefault(),
-                        member.MergeMode.ToString(),
-                        member.Property.Name
-                    )
+            var unsupportedReason =
+                SparseFragments.Generator.Shared.SparseMergeValidation.GetUnsupportedReason(
+                    member.MergeMode,
+                    member.ChildModel is not null,
+                    member.Collection.Kind
                 );
-            }
-
-            if (member.MergeMode == 1 && member.ChildModel is null)
+            if (unsupportedReason is not null)
             {
                 diagnostics.Add(
                     GeneratorDiagnosticInfo.Create(
                         UnsupportedMerge,
                         member.Property.Locations.FirstOrDefault(),
-                        "Deep",
-                        member.Property.Name
-                    )
-                );
-            }
-
-            if (
-                (member.MergeMode == 2 || member.MergeMode == 3)
-                && member.Collection.Kind == CollectionKind.Unsupported
-            )
-            {
-                diagnostics.Add(
-                    GeneratorDiagnosticInfo.Create(
-                        UnsupportedMerge,
-                        member.Property.Locations.FirstOrDefault(),
-                        member.MergeMode == 2 ? "Append" : "SetUnion",
-                        member.Property.Name
-                    )
-                );
-            }
-
-            if (member.MergeMode == 2 && member.Collection.Kind == CollectionKind.Set)
-            {
-                diagnostics.Add(
-                    GeneratorDiagnosticInfo.Create(
-                        UnsupportedMerge,
-                        member.Property.Locations.FirstOrDefault(),
-                        "Append on set types (use an ordered collection or SetUnion)",
+                        unsupportedReason,
                         member.Property.Name
                     )
                 );

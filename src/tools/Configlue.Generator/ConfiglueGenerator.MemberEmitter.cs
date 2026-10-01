@@ -13,23 +13,6 @@ namespace Configlue.Generator;
 
 public sealed partial class ConfiglueGenerator
 {
-    private static readonly SparseFragments.Generator.Shared.SparseFragmentExpressions Expressions =
-        new(
-            "__configlue_clone_context",
-            "global::Configlue.ConfiglueValueComparer",
-            "global::Configlue.ConfiglueCollectionMerger"
-        );
-
-    private static string CloneModelExpression(
-        MemberModel member,
-        string access,
-        CancellationToken cancellationToken
-    )
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        return Expressions.CloneModelExpression(ToSparseMember(member), access);
-    }
-
     private static string FragmentValueType(MemberModel member)
     {
         if (member.ChildModel is null)

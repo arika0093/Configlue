@@ -61,9 +61,22 @@ public sealed partial class ConfiglueGenerator
         code.AppendLine("{");
         AppendModelSchema(code, modelType, modelId, version, members);
         AppendFragmentSchema(code, modelType, modelId, version, members);
-        AppendDeepClone(code, modelType, members, !pocoCloneModels.IsEmpty);
-        AppendPocoCloneHelpers(code, pocoCloneModels);
-        AppendCollectionCloneHelpers(code);
+        FragmentCore.AppendDeepClone(
+            code,
+            modelType,
+            members.Select(ToSparseMember).ToImmutableArray(),
+            !pocoCloneModels.IsEmpty
+        );
+        foreach (var poco in pocoCloneModels)
+            FragmentCore.AppendPocoCloneHelper(
+                code,
+                poco.Model.ModelTypeName,
+                poco.CloneHelperName,
+                poco.Members.Select(ToSparseMember).ToImmutableArray()
+            );
+        SparseFragments.Generator.Shared.SparseFragmentCoreEmitter.AppendCollectionCloneHelpers(
+            code
+        );
         AppendFragment(
             code,
             modelType,
@@ -232,34 +245,6 @@ public sealed partial class ConfiglueGenerator
             "throw new global::System.ArgumentNullException(nameof(" + variable + "));"
         );
         code.AppendLineAt(indent, "}");
-    }
-
-    private static void AppendCollectionCloneHelpers(IndentedStringBuilder code)
-    {
-        code.AppendLineAt(
-            1,
-            "private static global::System.Collections.Concurrent.BlockingCollection<T> __CloneBlockingCollection<T>(global::System.Collections.Concurrent.BlockingCollection<T> original, global::System.Collections.Generic.IEnumerable<T> items)"
-        );
-        code.AppendLineAt(1, "{");
-        code.AppendLineAt(
-            2,
-            "var queue = new global::System.Collections.Concurrent.ConcurrentQueue<T>(items);"
-        );
-        code.AppendLineAt(2, "var clone = original.BoundedCapacity > 0");
-        code.AppendLineAt(
-            3,
-            "? new global::System.Collections.Concurrent.BlockingCollection<T>(queue, original.BoundedCapacity)"
-        );
-        code.AppendLineAt(
-            3,
-            ": new global::System.Collections.Concurrent.BlockingCollection<T>(queue);"
-        );
-        code.AppendLineAt(2, "if (original.IsAddingCompleted)");
-        code.AppendLineAt(2, "{");
-        code.AppendLineAt(3, "clone.CompleteAdding();");
-        code.AppendLineAt(2, "}");
-        code.AppendLineAt(2, "return clone;");
-        code.AppendLineAt(1, "}");
     }
 
     private static void AppendHistoricalDispatcherFactory(
@@ -515,87 +500,6 @@ public sealed partial class ConfiglueGenerator
         }
 
         code.AppendLineAt(1, "}, static () => Fragment.Empty);");
-    }
-
-    private static void AppendDeepClone(
-        IndentedStringBuilder code,
-        string modelType,
-        ImmutableArray<MemberModel> members,
-        bool usesPocoCloning
-    )
-    {
-        code.CancellationToken.ThrowIfCancellationRequested();
-        code.AppendIndent(1).Append("public ").Append(modelType).AppendLine(" DeepClone()");
-        code.AppendLineAt(1, "{");
-        if (usesPocoCloning)
-        {
-            code.AppendLineAt(
-                2,
-                "var __configlue_clone_context = new global::System.Collections.Generic.Dictionary<object, object>(global::Configlue.CompilerServices.ConfiglueReferenceEqualityComparer.Instance);"
-            );
-        }
-        code.AppendIndent(2).Append("return new ").Append(modelType).AppendLine();
-        code.AppendLineAt(1, "{");
-        foreach (var member in members)
-        {
-            code.AppendIndent(2)
-                .Append(EscapeIdentifier(member.Property.Name))
-                .Append(" = ")
-                .Append(
-                    CloneModelExpression(
-                        member,
-                        "this." + EscapeIdentifier(member.Property.Name),
-                        code.CancellationToken
-                    )
-                )
-                .AppendLine(",");
-        }
-
-        code.AppendLineAt(1, "};");
-        code.AppendLineAt(1, "}");
-    }
-
-    private static void AppendPocoCloneHelpers(
-        IndentedStringBuilder code,
-        ImmutableArray<PocoCloneModel> pocoTypes
-    )
-    {
-        code.CancellationToken.ThrowIfCancellationRequested();
-        foreach (var pocoType in pocoTypes)
-        {
-            var typeName = pocoType.Model.ModelTypeName;
-            code.AppendIndent(1)
-                .Append("private static ")
-                .Append(typeName)
-                .Append(' ')
-                .Append(pocoType.CloneHelperName)
-                .Append('(')
-                .Append(typeName)
-                .AppendLine(
-                    " value, global::System.Collections.Generic.Dictionary<object, object> __configlue_clone_context)"
-                );
-            code.AppendLineAt(1, "{");
-            code.AppendLineAt(
-                2,
-                "if (__configlue_clone_context.TryGetValue(value, out var existing)) { return ("
-                    + typeName
-                    + ")existing; }"
-            );
-            code.AppendIndent(2).Append("var clone = new ").Append(typeName).AppendLine("();");
-            code.AppendLineAt(2, "__configlue_clone_context.Add(value, clone);");
-            foreach (var member in pocoType.Members)
-            {
-                var name = EscapeIdentifier(member.Property.Name);
-                code.AppendIndent(2)
-                    .Append("clone.")
-                    .Append(name)
-                    .Append(" = ")
-                    .Append(CloneModelExpression(member, "value." + name, code.CancellationToken))
-                    .AppendLine(";");
-            }
-            code.AppendLineAt(2, "return clone;");
-            code.AppendLineAt(1, "}");
-        }
     }
 
     private static void AppendFacadeRuntimeBridge(

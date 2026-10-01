@@ -18,7 +18,7 @@ internal sealed class SparseFragmentCoreEmitter(
     private string ReferenceComparer { get; } = referenceComparer;
     private SparseFragmentExpressions Expressions { get; } = expressions;
 
-    private string MergeStrategyField(SparseMemberModel member) =>
+    public string MergeStrategyField(SparseMemberModel member) =>
         MergeStrategyFieldPrefix + member.Id;
 
     private static string FragmentValueType(SparseMemberModel member) =>
@@ -43,6 +43,197 @@ internal sealed class SparseFragmentCoreEmitter(
             "throw new global::System.ArgumentNullException(nameof(" + variable + "));"
         );
         code.AppendLineAt(indent, "}");
+    }
+
+    public static void AppendDeclaration(
+        SharedIndentedBuilder code,
+        string fragmentInterface,
+        string deepCloneable,
+        System.Action<SharedIndentedBuilder>? appendAttributes = null
+    )
+    {
+        code.CancellationToken.ThrowIfCancellationRequested();
+        code.AppendLineAt(
+            1,
+            "/// <summary>A sparse, presence-aware representation of this model.</summary>"
+        );
+        appendAttributes?.Invoke(code);
+        code.AppendLineAt(
+            1,
+            "[global::System.ComponentModel.EditorBrowsable(global::System.ComponentModel.EditorBrowsableState.Never)]"
+        );
+        code.AppendLineAt(
+            1,
+            "public sealed class Fragment : "
+                + fragmentInterface
+                + "<Fragment>, "
+                + deepCloneable
+                + "<Fragment>"
+        );
+        code.AppendLineAt(1, "{");
+    }
+
+    public void AppendMembers(
+        SharedIndentedBuilder code,
+        ImmutableArray<SparseMemberModel> members,
+        string mergeStrategy,
+        System.Action<SharedIndentedBuilder>? appendMemberAttributes = null
+    )
+    {
+        foreach (var member in members)
+        {
+            code.CancellationToken.ThrowIfCancellationRequested();
+            appendMemberAttributes?.Invoke(code);
+            code.AppendIndent(2)
+                .Append("public ")
+                .Append(Optional)
+                .Append("<")
+                .Append(FragmentValueType(member))
+                .Append("> ")
+                .Append(SparseNaming.EscapeIdentifier(member.Property.Name))
+                .AppendLine(" { get; init; }");
+        }
+        foreach (var member in members.Where(static member => member.MergeStrategyType is not null))
+        {
+            code.AppendIndent(2)
+                .Append("internal static readonly ")
+                .Append(mergeStrategy)
+                .Append("<")
+                .Append(member.Property.Type.Name)
+                .Append("> ")
+                .Append(MergeStrategyField(member))
+                .Append(" = new ")
+                .Append(member.MergeStrategyType!.Value.Name)
+                .AppendLine("();");
+        }
+        code.AppendLine();
+        code.AppendLineAt(
+            2,
+            "/// <summary>Whether this fragment has no present members.</summary>"
+        );
+        code.AppendIndent(2)
+            .Append("public bool IsEmpty => ")
+            .Append(
+                members.Length == 0
+                    ? "true"
+                    : string.Join(
+                        " && ",
+                        members.Select(member =>
+                            "!" + SparseNaming.EscapeIdentifier(member.Property.Name) + ".IsPresent"
+                        )
+                    )
+            )
+            .AppendLine(";");
+        code.AppendLine();
+    }
+
+    public static void AppendCollectionCloneHelpers(SharedIndentedBuilder code)
+    {
+        code.AppendLineAt(
+            1,
+            "private static global::System.Collections.Concurrent.BlockingCollection<T> __CloneBlockingCollection<T>(global::System.Collections.Concurrent.BlockingCollection<T> original, global::System.Collections.Generic.IEnumerable<T> items)"
+        );
+        code.AppendLineAt(1, "{");
+        code.AppendLineAt(
+            2,
+            "var queue = new global::System.Collections.Concurrent.ConcurrentQueue<T>(items);"
+        );
+        code.AppendLineAt(2, "var clone = original.BoundedCapacity > 0");
+        code.AppendLineAt(
+            3,
+            "? new global::System.Collections.Concurrent.BlockingCollection<T>(queue, original.BoundedCapacity)"
+        );
+        code.AppendLineAt(
+            3,
+            ": new global::System.Collections.Concurrent.BlockingCollection<T>(queue);"
+        );
+        code.AppendLineAt(2, "if (original.IsAddingCompleted)");
+        code.AppendLineAt(2, "{");
+        code.AppendLineAt(3, "clone.CompleteAdding();");
+        code.AppendLineAt(2, "}");
+        code.AppendLineAt(2, "return clone;");
+        code.AppendLineAt(1, "}");
+    }
+
+    public void AppendDeepClone(
+        SharedIndentedBuilder code,
+        string modelType,
+        ImmutableArray<SparseMemberModel> members,
+        bool usesPocoCloning
+    )
+    {
+        code.CancellationToken.ThrowIfCancellationRequested();
+        code.AppendIndent(1).Append("public ").Append(modelType).AppendLine(" DeepClone()");
+        code.AppendLineAt(1, "{");
+        if (usesPocoCloning)
+        {
+            AppendCloneContext(code, 2);
+        }
+
+        code.AppendIndent(2).Append("return new ").Append(modelType).AppendLine();
+        code.AppendLineAt(1, "{");
+        foreach (var member in members)
+        {
+            code.AppendIndent(2)
+                .Append(SparseNaming.EscapeIdentifier(member.Property.Name))
+                .Append(" = ")
+                .Append(
+                    Expressions.CloneModelExpression(
+                        member,
+                        "this." + SparseNaming.EscapeIdentifier(member.Property.Name)
+                    )
+                )
+                .AppendLine(",");
+        }
+
+        code.AppendLineAt(1, "};");
+        code.AppendLineAt(1, "}");
+    }
+
+    public void AppendPocoCloneHelper(
+        SharedIndentedBuilder code,
+        string typeName,
+        string cloneHelperName,
+        ImmutableArray<SparseMemberModel> members
+    )
+    {
+        code.CancellationToken.ThrowIfCancellationRequested();
+        code.AppendIndent(1)
+            .Append("private static ")
+            .Append(typeName)
+            .Append(' ')
+            .Append(cloneHelperName)
+            .Append('(')
+            .Append(typeName)
+            .AppendLine(
+                " value, global::System.Collections.Generic.Dictionary<object, object> "
+                    + CloneContext
+                    + ")"
+            );
+        code.AppendLineAt(1, "{");
+        code.AppendLineAt(
+            2,
+            "if ("
+                + CloneContext
+                + ".TryGetValue(value, out var existing)) { return ("
+                + typeName
+                + ")existing; }"
+        );
+        code.AppendIndent(2).Append("var clone = new ").Append(typeName).AppendLine("();");
+        code.AppendLineAt(2, CloneContext + ".Add(value, clone);");
+        foreach (var member in members)
+        {
+            var memberName = SparseNaming.EscapeIdentifier(member.Property.Name);
+            code.AppendIndent(2)
+                .Append("clone.")
+                .Append(memberName)
+                .Append(" = ")
+                .Append(Expressions.CloneModelExpression(member, "value." + memberName))
+                .AppendLine(";");
+        }
+
+        code.AppendLineAt(2, "return clone;");
+        code.AppendLineAt(1, "}");
     }
 
     public void AppendFromModel(

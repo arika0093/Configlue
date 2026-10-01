@@ -94,31 +94,13 @@ internal static class SparseModelAnalyzer
                 );
             }
 
-            if (member.MergeMode is < 0 or > CustomMergeMode)
-            {
-                diagnostics.Add(
-                    new SparseGeneratorDiagnostic(
-                        SparseDiagnosticIds.UnsupportedMerge,
-                        member.Property.Locations.FirstOrDefault(),
-                        member.Property.Name
-                    )
-                );
-            }
-
-            if (member.MergeMode == 1 && member.ChildModel is null)
-            {
-                diagnostics.Add(
-                    new SparseGeneratorDiagnostic(
-                        SparseDiagnosticIds.UnsupportedMerge,
-                        member.Property.Locations.FirstOrDefault(),
-                        member.Property.Name
-                    )
-                );
-            }
-
             if (
-                (member.MergeMode == 2 || member.MergeMode == 3)
-                && member.Collection.Kind == SparseCollectionKind.Unsupported
+                SparseMergeValidation.GetUnsupportedReason(
+                    member.MergeMode,
+                    member.ChildModel is not null,
+                    member.Collection.Kind
+                )
+                is not null
             )
             {
                 diagnostics.Add(

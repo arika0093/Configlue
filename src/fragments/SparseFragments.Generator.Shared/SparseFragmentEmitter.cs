@@ -50,9 +50,15 @@ internal static class SparseFragmentEmitter
             .Append(modelType)
             .AppendLine(">");
         code.AppendLine("{");
-        AppendDeepClone(code, modelType, members, !pocoCloneModels.IsEmpty);
-        AppendPocoCloneHelpers(code, pocoCloneModels);
-        AppendCollectionCloneHelpers(code);
+        Core.AppendDeepClone(code, modelType, members, !pocoCloneModels.IsEmpty);
+        foreach (var poco in pocoCloneModels)
+            Core.AppendPocoCloneHelper(
+                code,
+                poco.Model.ModelTypeName,
+                poco.CloneHelperName,
+                poco.Members
+            );
+        SparseFragmentCoreEmitter.AppendCollectionCloneHelpers(code);
         AppendFragment(code, modelType, members, !model.IsStruct, !pocoCloneModels.IsEmpty);
         AppendStructuralModels(code, structuralModels, !pocoCloneModels.IsEmpty);
         code.AppendLine("}");
@@ -97,123 +103,6 @@ internal static class SparseFragmentEmitter
         }
     }
 
-    private static void AppendCollectionCloneHelpers(SharedIndentedBuilder code)
-    {
-        code.AppendLineAt(
-            1,
-            "private static global::System.Collections.Concurrent.BlockingCollection<T> __CloneBlockingCollection<T>(global::System.Collections.Concurrent.BlockingCollection<T> original, global::System.Collections.Generic.IEnumerable<T> items)"
-        );
-        code.AppendLineAt(1, "{");
-        code.AppendLineAt(
-            2,
-            "var queue = new global::System.Collections.Concurrent.ConcurrentQueue<T>(items);"
-        );
-        code.AppendLineAt(2, "var clone = original.BoundedCapacity > 0");
-        code.AppendLineAt(
-            3,
-            "? new global::System.Collections.Concurrent.BlockingCollection<T>(queue, original.BoundedCapacity)"
-        );
-        code.AppendLineAt(
-            3,
-            ": new global::System.Collections.Concurrent.BlockingCollection<T>(queue);"
-        );
-        code.AppendLineAt(2, "if (original.IsAddingCompleted)");
-        code.AppendLineAt(2, "{");
-        code.AppendLineAt(3, "clone.CompleteAdding();");
-        code.AppendLineAt(2, "}");
-        code.AppendLineAt(2, "return clone;");
-        code.AppendLineAt(1, "}");
-    }
-
-    private static void AppendDeepClone(
-        SharedIndentedBuilder code,
-        string modelType,
-        ImmutableArray<SparseMemberModel> members,
-        bool usesPocoCloning
-    )
-    {
-        code.CancellationToken.ThrowIfCancellationRequested();
-        code.AppendIndent(1).Append("public ").Append(modelType).AppendLine(" DeepClone()");
-        code.AppendLineAt(1, "{");
-        if (usesPocoCloning)
-        {
-            AppendCloneContext(code, 2);
-        }
-
-        code.AppendIndent(2).Append("return new ").Append(modelType).AppendLine();
-        code.AppendLineAt(1, "{");
-        foreach (var member in members)
-        {
-            code.AppendIndent(2)
-                .Append(SparseNaming.EscapeIdentifier(member.Property.Name))
-                .Append(" = ")
-                .Append(
-                    Expressions.CloneModelExpression(
-                        member,
-                        "this." + SparseNaming.EscapeIdentifier(member.Property.Name)
-                    )
-                )
-                .AppendLine(",");
-        }
-
-        code.AppendLineAt(1, "};");
-        code.AppendLineAt(1, "}");
-    }
-
-    private static void AppendPocoCloneHelpers(
-        SharedIndentedBuilder code,
-        ImmutableArray<SparsePocoCloneModel> pocoTypes
-    )
-    {
-        code.CancellationToken.ThrowIfCancellationRequested();
-        foreach (var pocoType in pocoTypes)
-        {
-            var typeName = pocoType.Model.ModelTypeName;
-            code.AppendIndent(1)
-                .Append("private static ")
-                .Append(typeName)
-                .Append(' ')
-                .Append(pocoType.CloneHelperName)
-                .Append('(')
-                .Append(typeName)
-                .AppendLine(
-                    " value, global::System.Collections.Generic.Dictionary<object, object> __sparse_clone_context)"
-                );
-            code.AppendLineAt(1, "{");
-            code.AppendLineAt(
-                2,
-                "if (__sparse_clone_context.TryGetValue(value, out var existing)) { return ("
-                    + typeName
-                    + ")existing; }"
-            );
-            code.AppendIndent(2).Append("var clone = new ").Append(typeName).AppendLine("();");
-            code.AppendLineAt(2, "__sparse_clone_context.Add(value, clone);");
-            foreach (var member in pocoType.Members)
-            {
-                var memberName = SparseNaming.EscapeIdentifier(member.Property.Name);
-                code.AppendIndent(2)
-                    .Append("clone.")
-                    .Append(memberName)
-                    .Append(" = ")
-                    .Append(Expressions.CloneModelExpression(member, "value." + memberName))
-                    .AppendLine(";");
-            }
-
-            code.AppendLineAt(2, "return clone;");
-            code.AppendLineAt(1, "}");
-        }
-    }
-
-    private static void AppendCloneContext(SharedIndentedBuilder code, int indent)
-    {
-        code.AppendIndent(indent)
-            .Append(
-                "var __sparse_clone_context = new global::System.Collections.Generic.Dictionary<object, object>("
-            )
-            .Append(ReferenceComparer)
-            .AppendLine(".Instance);");
-    }
-
     private static void AppendFragment(
         SharedIndentedBuilder code,
         string modelType,
@@ -222,67 +111,8 @@ internal static class SparseFragmentEmitter
         bool usesPocoCloning
     )
     {
-        code.CancellationToken.ThrowIfCancellationRequested();
-        code.AppendLineAt(
-            1,
-            "/// <summary>A sparse, presence-aware representation of this model.</summary>"
-        );
-        code.AppendLineAt(
-            1,
-            "[global::System.ComponentModel.EditorBrowsable(global::System.ComponentModel.EditorBrowsableState.Never)]"
-        );
-        code.AppendIndent(1)
-            .Append("public sealed class Fragment : ")
-            .Append(FragmentOfT)
-            .Append("<Fragment>, ")
-            .Append(DeepCloneable)
-            .AppendLine("<Fragment>");
-        code.AppendLineAt(1, "{");
-        foreach (var member in members)
-        {
-            code.AppendIndent(2)
-                .Append("public ")
-                .Append(Optional)
-                .Append("<")
-                .Append(FragmentValueType(member))
-                .Append("> ")
-                .Append(SparseNaming.EscapeIdentifier(member.Property.Name))
-                .AppendLine(" { get; init; }");
-        }
-
-        foreach (var member in members.Where(static member => member.MergeStrategyType is not null))
-        {
-            code.AppendIndent(2)
-                .Append("internal static readonly ")
-                .Append(MergeStrategy)
-                .Append("<")
-                .Append(member.Property.Type.Name)
-                .Append("> ")
-                .Append(MergeStrategyField(member))
-                .Append(" = new ")
-                .Append(member.MergeStrategyType!.Value.Name)
-                .AppendLine("();");
-        }
-
-        code.AppendLine();
-        code.AppendLineAt(
-            2,
-            "/// <summary>Whether this fragment has no present members.</summary>"
-        );
-        code.AppendIndent(2)
-            .Append("public bool IsEmpty => ")
-            .Append(
-                members.Length == 0
-                    ? "true"
-                    : string.Join(
-                        " && ",
-                        members.Select(member =>
-                            "!" + SparseNaming.EscapeIdentifier(member.Property.Name) + ".IsPresent"
-                        )
-                    )
-            )
-            .AppendLine(";");
-        code.AppendLine();
+        SparseFragmentCoreEmitter.AppendDeclaration(code, FragmentOfT, DeepCloneable);
+        Core.AppendMembers(code, members, MergeStrategy);
         AppendFragmentDescriptor(code, modelType, members);
         Core.AppendFromModel(code, modelType, members, modelIsReferenceType, usesPocoCloning);
         SparseFragmentCoreEmitter.AppendToModel(code, modelType, members);
@@ -342,7 +172,7 @@ internal static class SparseFragmentEmitter
             }
 
             code.Append(", ")
-                .Append(member.MergeStrategyType is null ? "null" : MergeStrategyField(member))
+                .Append(member.MergeStrategyType is null ? "null" : Core.MergeStrategyField(member))
                 .Append(", static () => default(")
                 .Append(member.Property.Type.Name)
                 .AppendLine(")),");
@@ -472,9 +302,6 @@ internal static class SparseFragmentEmitter
 
     private static string FragmentValueType(SparseMemberModel member) =>
         member.ChildModel is null ? member.Property.Type.Name : member.ChildFragmentType + "?";
-
-    private static string MergeStrategyField(SparseMemberModel member) =>
-        SparseWellKnownNames.MergeStrategyFieldPrefix + member.Id;
 
     private static readonly SparseFragmentExpressions Expressions = new("__sparse_clone_context");
 
