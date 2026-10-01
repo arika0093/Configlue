@@ -12,7 +12,7 @@ public sealed partial class ConfiglueGenerator
 {
     private static readonly SparseGeneratorConfig SparseConfiguration = new(
         ModelAttributeName,
-        MergeAttributeName,
+        "SparseFragments.SparseMergeAttribute",
         "Configlue.ConfiglueMergeStrategy<T>"
     );
 
