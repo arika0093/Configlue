@@ -5,6 +5,6 @@ namespace Configlue;
 /// </summary>
 public interface IConfiglueFragment : ISparseFragment
 {
-    /// <summary>Generated Configlue schema metadata for this fragment.</summary>
-    ConfiglueModelSchema Schema { get; }
+    /// <summary>Generated Configlue persisted-schema metadata for this fragment.</summary>
+    ConfiglueModelSchema ConfiglueSchema { get; }
 }
