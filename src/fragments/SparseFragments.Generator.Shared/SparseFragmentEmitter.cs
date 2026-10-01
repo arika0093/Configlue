@@ -349,7 +349,7 @@ internal static class SparseFragmentEmitter
                 .AppendLine(")),");
         }
 
-        code.AppendIndent(2).Append("}, static () => Fragment.Empty);");
+        code.AppendLineAt(2, "}, static () => Fragment.Empty);");
         code.AppendIndent(2).Append("public ").Append(Schema).AppendLine(" Schema => FragmentSchema;");
         code.AppendLineAt(
             2,

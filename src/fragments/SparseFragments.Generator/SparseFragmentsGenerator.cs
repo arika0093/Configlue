@@ -87,12 +87,12 @@ public sealed class SparseFragmentsGenerator : IIncrementalGenerator
             )
             .WithTrackingName("SparseFragmentsGenerator.Analysis");
         var generated = analyzed
-            .Select((analysis, cancellationToken) => Render(analysis, cancellationToken))
+            .Select(static (analysis, cancellationToken) => Render(analysis, cancellationToken))
             .WithTrackingName("SparseFragmentsGenerator.Output");
 
         context.RegisterSourceOutput(
             generated,
-            (productionContext, result) => Emit(productionContext, result)
+            static (productionContext, result) => Emit(productionContext, result)
         );
     }
 
@@ -136,11 +136,7 @@ public sealed class SparseFragmentsGenerator : IIncrementalGenerator
             analysis.StructuralModels,
             cancellationToken
         );
-        return new SparseGenerationResult(
-            model.HintName,
-            GeneratedSourceFormatter.Format(source, cancellationToken),
-            analysis.Diagnostics
-        );
+        return new SparseGenerationResult(model.HintName, source, analysis.Diagnostics);
     }
 
     private static DiagnosticDescriptor GetDescriptor(string id) =>

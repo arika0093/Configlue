@@ -42,7 +42,7 @@ public sealed partial class ConfiglueGenerator
         var generated = analyzed
             .Combine(providerRegistries)
             .Select(
-                (input, cancellationToken) =>
+                static (input, cancellationToken) =>
                     Render(input.Left, input.Right.Json, input.Right.MessagePack, cancellationToken)
             )
             .WithComparer(EqualityComparer<GenerationResult>.Default)
@@ -50,7 +50,7 @@ public sealed partial class ConfiglueGenerator
 
         context.RegisterSourceOutput(
             generated,
-            (productionContext, result) => Emit(productionContext, result)
+            static (productionContext, result) => Emit(productionContext, result)
         );
     }
 
@@ -108,14 +108,7 @@ public sealed partial class ConfiglueGenerator
             hasMessagePackFragmentRegistry,
             cancellationToken
         );
-        return new GenerationResult(
-            analysis.HintName,
-            SparseFragments.Generator.Shared.GeneratedSourceFormatter.Format(
-                source,
-                cancellationToken
-            ),
-            analysis.Diagnostics
-        );
+        return new GenerationResult(analysis.HintName, source, analysis.Diagnostics);
     }
 
     private static GenerationAnalysis Analyze(

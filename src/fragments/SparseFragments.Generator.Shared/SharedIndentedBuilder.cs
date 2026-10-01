@@ -9,6 +9,7 @@ internal sealed class SharedIndentedBuilder
 {
     private readonly StringBuilder _builder = new();
     private readonly CancellationToken _cancellationToken;
+    private bool _atLineStart = true;
 
     public SharedIndentedBuilder(CancellationToken cancellationToken) =>
         _cancellationToken = cancellationToken;
@@ -25,37 +26,75 @@ internal sealed class SharedIndentedBuilder
             throw new ArgumentOutOfRangeException(nameof(level));
         }
 
+        if (!_atLineStart)
+        {
+            throw new InvalidOperationException(
+                "Explicit indentation requires the start of a line."
+            );
+        }
+
         _builder.Append(' ', effective * 4);
+        _atLineStart = false;
         return this;
     }
 
     public SharedIndentedBuilder Append(string value)
     {
-        _builder.Append(value);
+        var start = 0;
+        while (start < value.Length)
+        {
+            _cancellationToken.ThrowIfCancellationRequested();
+            var newline = value.IndexOf('\n', start);
+            var end = newline < 0 ? value.Length : newline;
+            if (end > start)
+            {
+                if (_atLineStart)
+                {
+                    AppendIndent(0);
+                }
+                _builder.Append(value, start, end - start);
+            }
+            if (newline < 0)
+            {
+                break;
+            }
+            _builder.Append('\n');
+            _atLineStart = true;
+            start = newline + 1;
+        }
         return this;
     }
 
     public SharedIndentedBuilder Append(char value)
     {
+        if (value != '\n' && _atLineStart)
+        {
+            AppendIndent(0);
+        }
         _builder.Append(value);
+        _atLineStart = value == '\n';
         return this;
     }
 
     public SharedIndentedBuilder Append(int value)
     {
-        _builder.Append(value.ToString(CultureInfo.InvariantCulture));
+        Append(value.ToString(CultureInfo.InvariantCulture));
         return this;
     }
 
     public SharedIndentedBuilder AppendLine(string value = "")
     {
-        _builder.Append(value).Append('\n');
+        Append(value);
+        Append('\n');
         return this;
     }
 
     public SharedIndentedBuilder AppendLineAt(int level, string value)
     {
-        AppendIndent(level);
+        if (value.Length != 0)
+        {
+            AppendIndent(level);
+        }
         return AppendLine(value);
     }
 

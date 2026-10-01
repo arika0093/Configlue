@@ -159,7 +159,7 @@ public sealed partial class ConfiglueGenerator
                     .Append(FragmentValueType(member))
                     .Append(">)options.GetTypeInfo(typeof(")
                     .Append(FragmentRuntimeValueType(member))
-                    .AppendLine("))); ");
+                    .AppendLine(")));");
             }
             else
             {

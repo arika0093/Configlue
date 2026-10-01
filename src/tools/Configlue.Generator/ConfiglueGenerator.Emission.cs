@@ -282,7 +282,7 @@ public sealed partial class ConfiglueGenerator
             var previousType = previousModel.ModelTypeName + ".Fragment";
             var codecName = "previousV" + version + "Codec";
             parameters.Add(
-                "        global::Configlue.Codecs.IStateCodec<" + previousType + "> " + codecName
+                "global::Configlue.Codecs.IStateCodec<" + previousType + "> " + codecName
             );
             parameterDocs.Add(
                 "/// <param name=\""
@@ -299,7 +299,7 @@ public sealed partial class ConfiglueGenerator
             var previousType = previousModel.ModelTypeName + ".Fragment";
             var migrationName = "migrateV" + version;
             parameters.Add(
-                "        global::System.Func<"
+                "global::System.Func<"
                     + previousType
                     + ", "
                     + modelType
@@ -334,11 +334,8 @@ public sealed partial class ConfiglueGenerator
             .AppendLine(".Fragment> CreateSchemaDispatcher(");
         for (var index = 0; index < parameters.Count; index++)
         {
-            code.Append(parameters[index]);
-            if (index < parameters.Count - 1)
-            {
-                code.AppendLine(",");
-            }
+            code.CancellationToken.ThrowIfCancellationRequested();
+            code.AppendLineAt(2, parameters[index] + (index < parameters.Count - 1 ? "," : ""));
         }
 
         code.AppendLineAt(1, ")");
@@ -436,7 +433,7 @@ public sealed partial class ConfiglueGenerator
                 .AppendLine(")),");
         }
 
-        code.AppendIndent(1).Append("}, static () => Fragment.Empty);");
+        code.AppendLineAt(1, "}, static () => Fragment.Empty);");
     }
 
     private static string CollectionValueFactory(MemberModel member)
@@ -517,7 +514,7 @@ public sealed partial class ConfiglueGenerator
                 .AppendLine(")),");
         }
 
-        code.AppendIndent(1).Append("}, static () => Fragment.Empty);");
+        code.AppendLineAt(1, "}, static () => Fragment.Empty);");
     }
 
     private static void AppendDeepClone(

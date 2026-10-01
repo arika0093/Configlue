@@ -201,8 +201,10 @@ public sealed partial class ConfiglueGenerator
     {
         code.CancellationToken.ThrowIfCancellationRequested();
         code.AppendLineAt(2, "public static Fragment Empty { get; } = new();");
-        code.AppendIndent(2)
-            .Append("public global::Configlue.ConfiglueModelSchema Schema => FragmentSchema;");
+        code.AppendLineAt(
+            2,
+            "public global::Configlue.ConfiglueModelSchema Schema => FragmentSchema;"
+        );
         code.AppendLineAt(
             2,
             "public global::System.Collections.Generic.IEnumerable<global::Configlue.ConfiglueFragmentMember> EnumeratePresentMembers()"
@@ -598,7 +600,7 @@ public sealed partial class ConfiglueGenerator
             code.AppendIndent(3)
                 .Append("return difference.IsEmpty ? default : global::Configlue.Optional<")
                 .Append(FragmentValueType(member))
-                .AppendLine(">.Present(difference); ");
+                .AppendLine(">.Present(difference);");
             code.AppendLineAt(2, "}");
         }
 

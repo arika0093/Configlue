@@ -78,8 +78,10 @@ public sealed partial class ConfiglueGenerator
             "public sealed class Patch : global::Configlue.IConfiglueRoutablePatch, global::Configlue.IConfiglueReplacementPatch"
         );
         code.AppendLineAt(1, "{");
-        code.AppendIndent(2)
-            .Append("public global::Configlue.ConfiglueModelSchema Schema => ConfiglueSchema;");
+        code.AppendLineAt(
+            2,
+            "public global::Configlue.ConfiglueModelSchema Schema => ConfiglueSchema;"
+        );
         foreach (var member in members)
         {
             var name = EscapeIdentifier(member.Property.Name);
@@ -201,7 +203,7 @@ public sealed partial class ConfiglueGenerator
         }
 
         code.AppendLineAt(2, "}");
-        code.AppendLineAt(2, "public bool IsEmpty => ");
+        code.AppendLineAt(2, "public bool IsEmpty =>");
         code.AppendIndent(3)
             .Append(
                 "__configlue_whole_operation.Kind == global::Configlue.FragmentOperationKind.Unchanged && "

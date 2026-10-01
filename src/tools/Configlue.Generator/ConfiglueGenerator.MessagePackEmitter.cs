@@ -91,6 +91,7 @@ public sealed partial class ConfiglueGenerator
         code.AppendLineAt(4, "options.Security.DepthStep(ref reader);");
         code.AppendLineAt(4, "try");
         code.AppendLineAt(4, "{");
+        code.IndentOffset++;
         code.AppendLineAt(4, "var length = reader.ReadMapHeader();");
         code.AppendLineAt(4, "var builder = new FragmentBuilder();");
         code.AppendLineAt(4, "for (var index = 0; index < length; index++)");
@@ -136,6 +137,7 @@ public sealed partial class ConfiglueGenerator
         code.AppendLineAt(5, "}");
         code.AppendLineAt(4, "}");
         code.AppendLineAt(4, "return builder.Build();");
+        code.IndentOffset--;
         code.AppendLineAt(4, "}");
         code.AppendLineAt(4, "finally { reader.Depth--; }");
         code.AppendLineAt(3, "}");

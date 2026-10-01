@@ -78,11 +78,13 @@ public sealed class GeneratorHostCompatibilityTests
             new[] { new ConfiglueGenerator().AsSourceGenerator() },
             parseOptions: parseOptions
         );
-        driver.RunGeneratorsAndUpdateCompilation(
+        driver = driver.RunGeneratorsAndUpdateCompilation(
             CreateCompilation(modelTree),
             out var output,
             out var diagnostics
         );
+        var exception = driver.GetRunResult().Results.Single().Exception;
+        exception.ShouldBeNull(exception?.ToString());
         diagnostics.ShouldBeEmpty();
         var emit = output.Emit(Stream.Null);
         emit.Success.ShouldBeTrue(BuildDiagnosticMessage(emit.Diagnostics));
@@ -112,11 +114,13 @@ public sealed class GeneratorHostCompatibilityTests
             new[] { new ConfiglueGenerator().AsSourceGenerator() },
             parseOptions: parseOptions
         );
-        driver.RunGeneratorsAndUpdateCompilation(
+        driver = driver.RunGeneratorsAndUpdateCompilation(
             CreateCompilation(modelTree),
             out var output,
             out var diagnostics
         );
+        var exception = driver.GetRunResult().Results.Single().Exception;
+        exception.ShouldBeNull(exception?.ToString());
         diagnostics.ShouldBeEmpty();
         GetGeneratedSource(output, modelTree).ShouldContain("FragmentMessagePackFormatter");
         var emit = output.Emit(Stream.Null);
