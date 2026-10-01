@@ -214,7 +214,7 @@ public sealed class PostgreSqlSource<T>
 
         cancellationToken.ThrowIfCancellationRequested();
         var schema = request.Value is IConfiglueFragment fragment
-            ? (StateSchemaMetadata?)fragment.Schema.ToMetadata()
+            ? (StateSchemaMetadata?)fragment.ConfiglueSchema.ToMetadata()
             : null;
         ValidateSchemaModelId(context, schema);
         var buffer = new ArrayBufferWriter<byte>();
