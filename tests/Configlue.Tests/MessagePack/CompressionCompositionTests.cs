@@ -1,4 +1,5 @@
 using Configlue.Extensibility;
+using Configlue.Provider.Json;
 using Configlue.Provider.MessagePack;
 using Configlue.State;
 using Configlue.Testing;
@@ -10,11 +11,18 @@ namespace Configlue.Tests;
 public sealed class CompressionCompositionTests
 {
     [Test]
-    public async Task Compression_ComposesWithMessagePackAndAesThroughTransformerPipeline()
+    [Arguments(CompressionAlgorithm.Lz4, false)]
+    [Arguments(CompressionAlgorithm.Zstandard, false)]
+    [Arguments(CompressionAlgorithm.Lz4, true)]
+    [Arguments(CompressionAlgorithm.Zstandard, true)]
+    public async Task Compression_ComposesWithMessagePackAndAesThroughTransformerPipeline(
+        CompressionAlgorithm algorithm,
+        bool useJson
+    )
     {
         var resource = new InMemoryResource();
         using var aes = new AesGcmStateByteTransformer(new byte[32]);
-        var compression = CompressionStateByteTransformer.Zstandard();
+        var compression = new CompressionStateByteTransformer(algorithm);
         var fragment = MessagePackSampleSettings.Fragment.From(
             new MessagePackSampleSettings
             {
@@ -22,10 +30,15 @@ public sealed class CompressionCompositionTests
                 Items = Enumerable.Range(0, 64).Select(index => index.ToString()).ToList(),
             }
         );
+        IStateCodec<MessagePackSampleSettings.Fragment> codec = useJson
+            ? new JsonStateCodec<MessagePackSampleSettings.Fragment>()
+            : new MessagePackStateCodec<MessagePackSampleSettings.Fragment>(
+                TestMessagePack.Options
+            );
         var source = SerializedStateSource.FromResource<MessagePackSampleSettings.Fragment>(
             "composed",
             resource,
-            new MessagePackStateCodec<MessagePackSampleSettings.Fragment>(TestMessagePack.Options),
+            codec,
             transformers: [aes, compression]
         );
 

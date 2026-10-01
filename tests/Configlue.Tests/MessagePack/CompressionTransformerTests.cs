@@ -6,6 +6,25 @@ namespace Configlue.Tests;
 public sealed class CompressionTransformerTests
 {
     [Test]
+    [Arguments(CompressionAlgorithm.Lz4, 0)]
+    [Arguments(CompressionAlgorithm.Lz4, 1)]
+    [Arguments(CompressionAlgorithm.Lz4, 255)]
+    [Arguments(CompressionAlgorithm.Zstandard, 0)]
+    [Arguments(CompressionAlgorithm.Zstandard, 1)]
+    [Arguments(CompressionAlgorithm.Zstandard, 255)]
+    public void RoundTrip_PreservesEmptyAndIncompressibleContent(
+        CompressionAlgorithm algorithm,
+        int length
+    )
+    {
+        var source = new byte[length];
+        new Random(42).NextBytes(source);
+        var transformer = new CompressionStateByteTransformer(algorithm);
+        var compressed = transformer.TransformWrite(source);
+        transformer.TransformRead(compressed).ToArray().ShouldBe(source);
+    }
+
+    [Test]
     public void Lz4_RoundTripsAndRejectsMalformedInput()
     {
         var transformer = CompressionStateByteTransformer.Lz4();
