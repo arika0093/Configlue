@@ -26,6 +26,7 @@ declare -A portable_package_assets=(
     [Configlue.Extensions.MSOptions]="netstandard2.0 netstandard2.1 net10.0"
     [Configlue.Extensions.R3]="netstandard2.0 netstandard2.1 net10.0"
     [Configlue.Testing]="netstandard2.0 netstandard2.1 net10.0"
+    [Configlue.Hosting.Maui]="netstandard2.0 netstandard2.1 net10.0"
     [Configlue.Provider.Json]="netstandard2.0 netstandard2.1 net10.0"
     [Configlue.Provider.MessagePack]="netstandard2.0 netstandard2.1 net10.0"
     [Configlue.Provider.Xml]="netstandard2.0 netstandard2.1 net10.0"

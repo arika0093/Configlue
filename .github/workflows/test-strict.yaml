@@ -75,6 +75,13 @@ jobs:
           dotnet pack Configlue.slnx --no-build --no-restore
           --configuration Release --output artifacts
 
+      - name: Run native MAUI Windows smoke tests
+        if: matrix.os == 'windows-latest'
+        run: >
+          dotnet run --project tests/Configlue.Hosting.Maui.Windows.Tests
+          --no-build --no-restore --configuration Release
+          -- --timeout 5m --report-trx --no-progress
+
       - name: Verify packed target assets
         if: matrix.os == 'ubuntu-latest'
         run: bash ./.github/workflows/scripts/verify-packages.sh artifacts

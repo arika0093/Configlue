@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>netstandard2.0;netstandard2.1;net10.0</TargetFrameworks>
+    <IsPackable>true</IsPackable>
+    <PackageDescription>MAUI app-data paths, main-thread dispatch, and small-secret SecureStorage resources for Configlue.</PackageDescription>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Maui.Essentials" Version="10.0.110" />
+    <ProjectReference Include="../../extensions/Configlue.Extensions.ComponentModel/Configlue.Extensions.ComponentModel.csproj" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="../../src/hosting/Configlue.Hosting.Maui/Configlue.Hosting.Maui.csproj" />
+    <ProjectReference Include="../../src/providers/Configlue.Provider.Json/Configlue.Provider.Json.csproj" />
+    <ProjectReference
+      Include="../../src/tools/Configlue.Generator/Configlue.Generator.csproj"
+      OutputItemType="Analyzer"
+      ReferenceOutputAssembly="false"
+    />
+    <Compile Include="../Hosting.Shared/DispatcherTestState.cs" Link="DispatcherTestState.cs" />
+  </ItemGroup>
+</Project>
