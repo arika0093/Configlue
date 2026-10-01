@@ -85,11 +85,13 @@ public sealed class SubjectRoutingTests
                     var first = new StateSourceSetBuilder<AppSettings.Fragment>();
                     first
                         .Add("first", labelStore)
-                        .RouteBy<RoutingSubject>(_ => RouteKey.From("strict-jp"));
+                        .RouteBy<RoutingSubject>(_ => RouteKey.From("strict-jp"))
+                        .WithoutWriter();
                     var second = new StateSourceSetBuilder<AppSettings.Fragment>();
                     second
                         .Add("second", retryStore)
-                        .RouteBy<RoutingSubject>(_ => RouteKey.From("strict-eu"));
+                        .RouteBy<RoutingSubject>(_ => RouteKey.From("strict-eu"))
+                        .WithoutWriter();
                     sources.Add(first.Build().Sources[0]);
                     sources.Add(second.Build().Sources[0]);
                 })

@@ -57,7 +57,8 @@ public sealed class CrossResourceMigrationIntegrationTests
             );
             var sourceBefore = (await sourceFile.ReadAsync()).Content.ToArray();
             await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
-                new StateSourceSet<AppSettings.Fragment>([source, target])
+                new StateSourceSet<AppSettings.Fragment>([source, target]),
+                StateWritePlan.DefaultTo("json-file")
             );
 
             var migration = await options.MigrateSourceAsync("json-file", "yaml-section");
@@ -165,7 +166,8 @@ public sealed class CrossResourceMigrationIntegrationTests
                     yamlSource,
                     jsonTarget,
                     yamlTarget,
-                ])
+                ]),
+                StateWritePlan.DefaultTo("json-file")
             );
             var projections = new Dictionary<
                 string,
@@ -275,7 +277,10 @@ public sealed class CrossResourceMigrationIntegrationTests
         await using var options = new ConfiglueRuntime<
             HistoricalSettings,
             HistoricalSettings.Fragment
-        >(new StateSourceSet<HistoricalSettings.Fragment>([source, target]));
+        >(
+            new StateSourceSet<HistoricalSettings.Fragment>([source, target]),
+            StateWritePlan.DefaultTo("legacy-json")
+        );
 
         await options.MigrateSourceAsync("legacy-json", "current-yaml");
 
@@ -308,7 +313,8 @@ public sealed class CrossResourceMigrationIntegrationTests
             new StateSourceSet<AppSettings.Fragment>([
                 new("source", source, priority: 100),
                 new("target", target, priority: 0, writer: target),
-            ])
+            ]),
+            StateWritePlan.DefaultTo("source")
         );
 
         var rejected = false;
@@ -365,6 +371,7 @@ public sealed class CrossResourceMigrationIntegrationTests
     private sealed class NonRetainingStateTarget<T>(T retained) : ISourceReader<T>, ISourceWriter<T>
     {
         public ValueTask<StateReadResult<T>> ReadAsync(
+            ConfiglueResourceContext context,
             CancellationToken cancellationToken = default
         )
         {
@@ -373,6 +380,7 @@ public sealed class CrossResourceMigrationIntegrationTests
         }
 
         public ValueTask<StateWriteResult> WriteAsync(
+            ConfiglueResourceContext context,
             StateWriteRequest<T> request,
             CancellationToken cancellationToken = default
         )
