@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>netstandard2.0;netstandard2.1;net10.0</TargetFrameworks>
+    <AssemblyName>SparseFragments.Abstractions</AssemblyName>
+    <RootNamespace>SparseFragments</RootNamespace>
+    <IsPackable>true</IsPackable>
+    <PackageDescription>Runtime primitives for generated presence-aware sparse fragments.</PackageDescription>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../SparseFragments/*.cs" Link="%(Filename)%(Extension)" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(ConfiglueNetStandard20)' == 'true'">
+    <PackageReference Include="System.Memory" Version="4.6.3" />
+  </ItemGroup>
+</Project>
