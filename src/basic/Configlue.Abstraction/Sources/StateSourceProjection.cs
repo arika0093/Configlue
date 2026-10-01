@@ -122,7 +122,7 @@ public static class StateSourceProjection
         var present = fragment
             .EnumeratePresentMembers()
             .Where(candidate => candidate.Id == member.Id)
-            .Select(static candidate => (ConfiglueFragmentMember?)candidate)
+            .Select(static candidate => (SparseFragmentMember?)candidate)
             .FirstOrDefault();
         if (present is null)
         {
@@ -397,7 +397,7 @@ public static class StateSourceProjection
                 );
             }
 
-            return targetSchema.CreateEmptyFragment().WithMember(member.Id, sourceFragment);
+            return (IConfiglueFragment)targetSchema.CreateEmptyFragment().WithMember(member.Id, sourceFragment);
         }
 
         var nestedFragment = CreateMountedFragment(
@@ -408,7 +408,7 @@ public static class StateSourceProjection
             sourceModelType,
             propertyPath
         );
-        return targetSchema.CreateEmptyFragment().WithMember(member.Id, nestedFragment);
+        return (IConfiglueFragment)targetSchema.CreateEmptyFragment().WithMember(member.Id, nestedFragment);
     }
 
     private sealed class ProjectedWriter<TSource, TTarget>(
