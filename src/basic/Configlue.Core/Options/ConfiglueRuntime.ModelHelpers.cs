@@ -26,7 +26,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
     }
 
     private static TFragment CloneFragment(TFragment value) =>
-        value is IConfiglueDeepCloneable<TFragment> cloneable ? cloneable.DeepClone() : value;
+        value is ISparseDeepCloneable<TFragment> cloneable ? cloneable.DeepClone() : value;
 
     TModel IConfiglueValueCloneProvider<TModel>.CloneValue(TModel value) => CloneModel(value);
 
