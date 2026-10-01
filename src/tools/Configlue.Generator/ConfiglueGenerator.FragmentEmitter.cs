@@ -16,16 +16,10 @@ public sealed partial class ConfiglueGenerator
         string modelType,
         ImmutableArray<MemberModel> members,
         ImmutableArray<PreviousModelInfo> previousModels,
-        bool modelIsReferenceType,
-        bool usesPocoCloning,
         bool hasJsonFragmentRegistry
     )
     {
         code.CancellationToken.ThrowIfCancellationRequested();
-        code.AppendLineAt(
-            1,
-            "/// <summary>A sparse, presence-aware representation of this model.</summary>"
-        );
         if (hasJsonFragmentRegistry)
         {
             code.AppendLineAt(
@@ -33,13 +27,10 @@ public sealed partial class ConfiglueGenerator
                 "[global::System.Text.Json.Serialization.JsonConverter(typeof(FragmentJsonConverter))]"
             );
         }
+
         code.AppendLineAt(
             1,
-            "[global::System.ComponentModel.EditorBrowsable(global::System.ComponentModel.EditorBrowsableState.Never)]"
-        );
-        code.AppendLineAt(
-            1,
-            "public sealed class Fragment : global::Configlue.IConfiglueFragment<Fragment>, global::SparseFragments.ISparseDeepCloneable<Fragment>"
+            "public sealed partial class Fragment : global::Configlue.IConfiglueFragment<Fragment>, global::Configlue.IConfiglueDeepCloneable<Fragment>"
         );
         code.AppendLineAt(1, "{");
         if (hasJsonFragmentRegistry)
@@ -49,68 +40,18 @@ public sealed partial class ConfiglueGenerator
                 "public static global::System.Text.Json.Serialization.JsonConverter<Fragment> JsonConverter { get; } = new FragmentJsonConverter();"
             );
         }
-        code.AppendLine();
-        foreach (var member in members)
-        {
-            if (hasJsonFragmentRegistry)
-            {
-                code.AppendLineAt(
-                    2,
-                    "[global::System.Text.Json.Serialization.JsonIgnore(Condition = global::System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]"
-                );
-            }
-            code.AppendIndent(2)
-                .Append("public global::SparseFragments.Optional<")
-                .Append(FragmentValueType(member))
-                .Append("> ")
-                .Append(EscapeIdentifier(member.Property.Name))
-                .AppendLine(" { get; init; }");
-        }
 
-        foreach (var member in members.Where(static member => member.MergeStrategyType is not null))
-        {
-            code.AppendIndent(2)
-                .Append("internal static readonly global::Configlue.ConfiglueMergeStrategy<")
-                .Append(TypeName(member.Property.Type))
-                .Append("> ")
-                .Append("__configlue_merge_strategy_")
-                .Append(member.Id)
-                .Append(" = new ")
-                .Append(TypeName(member.MergeStrategyType!.Value))
-                .AppendLine("();");
-        }
-
-        code.AppendLine();
         code.AppendLineAt(
             2,
-            "/// <summary>Whether this fragment has no present members.</summary>"
+            "public global::Configlue.ConfiglueModelSchema ConfiglueSchema => ConfiglueFragmentSchema;"
         );
-        code.AppendIndent(2)
-            .Append("public bool IsEmpty => ")
-            .Append(
-                members.Length == 0
-                    ? "true"
-                    : JoinMemberExpressions(
-                        members,
-                        static member =>
-                            "!" + EscapeIdentifier(member.Property.Name) + ".IsPresent",
-                        code.CancellationToken
-                    )
-            )
-            .AppendLine(";");
         code.AppendLine();
-        AppendFragmentDescriptor(code, members);
-        AppendFromModel(code, modelType, members, modelIsReferenceType, usesPocoCloning);
-        AppendToModel(code, modelType, members);
-        AppendMerge(code, members);
-        AppendApplyChanges(code, members);
-        AppendDiff(code, modelType, members, modelIsReferenceType);
-        AppendFragmentClone(code, members, usesPocoCloning);
         AppendPatchSupport(code, members);
         if (hasJsonFragmentRegistry)
         {
             AppendJsonConverter(code, members);
         }
+
         AppendPreviousMappings(code, previousModels);
         code.AppendLineAt(1, "}");
         AppendBuilder(code, members);
