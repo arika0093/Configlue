@@ -134,8 +134,8 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                     }
 
                     changes = targetContribution.IsPresent
-                        ? changes.WithMember(member.Id, targetContribution.Value)
-                        : changes.WithoutMember(member.Id);
+                        ? (IConfiglueFragment)changes.WithMember(member.Id, targetContribution.Value)
+                        : (IConfiglueFragment)changes.WithoutMember(member.Id);
                     continue;
                 }
 
@@ -181,7 +181,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                     ),
                     _ => desired,
                 };
-                changes = changes.WithMember(
+                changes = (IConfiglueFragment)changes.WithMember(
                     member.Id,
                     member.CollectionValueFactory(targetValues)
                 );
