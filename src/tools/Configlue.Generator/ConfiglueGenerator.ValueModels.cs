@@ -496,7 +496,10 @@ public sealed partial class ConfiglueGenerator
         CancellationToken cancellationToken
     )
     {
-        if (collection.Kind == CollectionKind.Unsupported)
+        if (
+            collection.Kind == CollectionKind.Unsupported
+            && collection.CloneKind == CloneCollectionKind.Unsupported
+        )
         {
             return CollectionInfo.Unsupported;
         }

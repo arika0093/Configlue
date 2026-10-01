@@ -10,6 +10,35 @@ namespace Configlue.Generator;
 
 public sealed partial class ConfiglueGenerator
 {
+    private static SparseTypeModel ToSparseType(TypeModel type) =>
+        new(
+            type.Name,
+            type.NonNullableName,
+            type.RuntimeName,
+            type.IsReferenceType,
+            type.IsConfiglueType,
+            type.PocoCloneHelperName
+        );
+
+    private static SparseMemberModel ToSparseMember(MemberModel member) =>
+        new(
+            member.Id,
+            new SparsePropertyModel(member.Property.Name, ToSparseType(member.Property.Type)),
+            member.ChildModel is { } child ? ToSparseType(child) : null,
+            member.MergeMode,
+            new SparseCollectionInfo(
+                member.Collection.Kind,
+                member.Collection.CloneKind,
+                ToSparseType(member.Collection.ElementType),
+                member.Collection.ValueType is { } value ? ToSparseType(value) : null,
+                member.Collection.NamedTypeDefinition
+            ),
+            member.MergeStrategyType is { } strategy ? ToSparseType(strategy) : null,
+            member.ChildFragmentType,
+            member.ChildIsStructural,
+            member.ChildIsReferenceType
+        );
+
     private static readonly SparseGeneratorConfig SparseConfiguration = new(
         ModelAttributeName,
         MergeAttributeName,

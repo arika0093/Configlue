@@ -638,7 +638,7 @@ public sealed partial class ConfiglueGenerator
             else if (member.ChildModel is null)
             {
                 condition =
-                    $"global::Configlue.ConfiglueValueComparer.AreEqual({before}, {after}) ? default : global::Configlue.Optional<{valueType}>.Present({after})";
+                    $"{Expressions.ValueEqualityExpression(ToSparseMember(member), before, after)} ? default : global::Configlue.Optional<{valueType}>.Present({after})";
             }
             else
             {

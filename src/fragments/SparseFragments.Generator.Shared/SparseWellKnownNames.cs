@@ -11,7 +11,8 @@ internal static class SparseWellKnownNames
     public const string MemberSchemaType = RuntimeNamespace + ".SparseFragmentMemberSchema";
     public const string MergeStrategyType = RuntimeNamespace + ".FragmentMergeStrategy";
     public const string ValueComparerType = RuntimeNamespace + ".SparseValueComparer";
-    public const string ReferenceComparerType = RuntimeNamespace + ".SparseReferenceEqualityComparer";
+    public const string ReferenceComparerType =
+        RuntimeNamespace + ".SparseReferenceEqualityComparer";
     public const string CollectionMergerType = RuntimeNamespace + ".SparseCollectionMerger";
 
     public const string FragmentTypeName = "Fragment";

@@ -145,6 +145,10 @@ namespace Configlue
         Invalid = 3,
         Faulted = 4,
     }
+    public static class ConfiglueCollectionMerger
+    {
+        public static System.Collections.Generic.HashSet<T> MergeSet<T>(System.Collections.Generic.IEnumerable<T> lower, System.Collections.Generic.IEnumerable<T> higher) { }
+    }
     public readonly struct ConfiglueDiagnosticEvent : System.IEquatable<Configlue.ConfiglueDiagnosticEvent>
     {
         public ConfiglueDiagnosticEvent(
@@ -416,7 +420,10 @@ namespace Configlue
     }
     public static class ConfiglueValueComparer
     {
+        public static bool AreDictionaryEqual<TKey, TValue>(System.Collections.Generic.IEnumerable<System.Collections.Generic.KeyValuePair<TKey, TValue>>? left, System.Collections.Generic.IEnumerable<System.Collections.Generic.KeyValuePair<TKey, TValue>>? right) { }
+        public static bool AreEqual(object? left, object? right) { }
         public static bool AreEqual<T>(T? left, T? right) { }
+        public static bool AreSetEqual<T>(System.Collections.Generic.IEnumerable<T>? left, System.Collections.Generic.IEnumerable<T>? right) { }
     }
     public sealed class EditSession<T> : System.IDisposable
     {

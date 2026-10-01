@@ -20,9 +20,7 @@ internal static class SparseFragmentEmitter
     private const string Schema = SparseWellKnownNames.SchemaType;
     private const string MemberSchema = SparseWellKnownNames.MemberSchemaType;
     private const string MergeStrategy = SparseWellKnownNames.MergeStrategyType;
-    private const string ValueComparer = SparseWellKnownNames.ValueComparerType;
     private const string ReferenceComparer = SparseWellKnownNames.ReferenceComparerType;
-    private const string CollectionMerger = SparseWellKnownNames.CollectionMergerType;
 
     public static string BuildSource(
         SparseModelInfo model,
@@ -267,7 +265,10 @@ internal static class SparseFragmentEmitter
         }
 
         code.AppendLine();
-        code.AppendLineAt(2, "/// <summary>Whether this fragment has no present members.</summary>");
+        code.AppendLineAt(
+            2,
+            "/// <summary>Whether this fragment has no present members.</summary>"
+        );
         code.AppendIndent(2)
             .Append("public bool IsEmpty => ")
             .Append(
@@ -341,19 +342,22 @@ internal static class SparseFragmentEmitter
             }
 
             code.Append(", ")
-                .Append(
-                    member.MergeStrategyType is null ? "null" : MergeStrategyField(member)
-                )
+                .Append(member.MergeStrategyType is null ? "null" : MergeStrategyField(member))
                 .Append(", static () => default(")
                 .Append(member.Property.Type.Name)
                 .AppendLine(")),");
         }
 
         code.AppendLineAt(2, "}, static () => Fragment.Empty);");
-        code.AppendIndent(2).Append("public ").Append(Schema).AppendLine(" Schema => FragmentSchema;");
+        code.AppendIndent(2)
+            .Append("public ")
+            .Append(Schema)
+            .AppendLine(" Schema => FragmentSchema;");
         code.AppendLineAt(
             2,
-            "public global::System.Collections.Generic.IEnumerable<" + FragmentMember + "> EnumeratePresentMembers()"
+            "public global::System.Collections.Generic.IEnumerable<"
+                + FragmentMember
+                + "> EnumeratePresentMembers()"
         );
         code.AppendLineAt(2, "{");
         foreach (var member in members)
@@ -402,9 +406,16 @@ internal static class SparseFragmentEmitter
                 code.AppendIndent(6)
                     .Append(copyName)
                     .Append(" = ")
-                    .Append(copyName == name
-                        ? Optional + "<" + FragmentValueType(copy) + ">.Present((" + FragmentValueType(copy) + ")value!)"
-                        : "this." + copyName)
+                    .Append(
+                        copyName == name
+                            ? Optional
+                                + "<"
+                                + FragmentValueType(copy)
+                                + ">.Present(("
+                                + FragmentValueType(copy)
+                                + ")value!)"
+                            : "this." + copyName
+                    )
                     .AppendLine(",");
             }
 
@@ -581,7 +592,9 @@ internal static class SparseFragmentEmitter
             code.AppendIndent(indent + 1)
                 .Append(name)
                 .Append(" = ")
-                .Append(useDefaults ? name + ".IsPresent ? " + value + " : defaults." + name : value)
+                .Append(
+                    useDefaults ? name + ".IsPresent ? " + value + " : defaults." + name : value
+                )
                 .AppendLine(",");
         }
 
@@ -604,13 +617,19 @@ internal static class SparseFragmentEmitter
                 continue;
             }
 
-            if ((member.MergeMode == 1 && member.ChildModel is not null) || member.MergeMode is 2 or 3)
+            if (
+                (member.MergeMode == 1 && member.ChildModel is not null)
+                || member.MergeMode is 2 or 3
+            )
             {
                 replaceOnly = false;
             }
         }
 
-        code.AppendLineAt(2, "/// <summary>Merges a higher-priority fragment over this fragment.</summary>");
+        code.AppendLineAt(
+            2,
+            "/// <summary>Merges a higher-priority fragment over this fragment.</summary>"
+        );
         code.AppendLineAt(2, "public Fragment Merge(Fragment higherPriority)");
         code.AppendLineAt(2, "{");
         AppendNullGuard(code, 3, "higherPriority");
@@ -688,7 +707,10 @@ internal static class SparseFragmentEmitter
         ImmutableArray<SparseMemberModel> members
     )
     {
-        code.AppendLineAt(2, "/// <summary>Applies a sparse semantic diff to this contribution.</summary>");
+        code.AppendLineAt(
+            2,
+            "/// <summary>Applies a sparse semantic diff to this contribution.</summary>"
+        );
         code.AppendLineAt(2, "public Fragment ApplyChanges(Fragment changes)");
         code.AppendLineAt(2, "{");
         AppendNullGuard(code, 3, "changes");
@@ -751,7 +773,10 @@ internal static class SparseFragmentEmitter
 
             code.Append(type).Append("? before, ").Append(type).AppendLine("? after)");
             code.AppendLineAt(2, "{");
-            code.AppendLineAt(3, "if (global::System.Object.ReferenceEquals(before, after)) { return default; }");
+            code.AppendLineAt(
+                3,
+                "if (global::System.Object.ReferenceEquals(before, after)) { return default; }"
+            );
             code.AppendIndent(3)
                 .Append("if (before is null || after is null) { return ")
                 .Append(Optional)
@@ -773,7 +798,10 @@ internal static class SparseFragmentEmitter
             code.AppendLineAt(2, "}");
         }
 
-        code.AppendLineAt(2, "/// <summary>Creates a sparse semantic diff between two ordinary model values.</summary>");
+        code.AppendLineAt(
+            2,
+            "/// <summary>Creates a sparse semantic diff between two ordinary model values.</summary>"
+        );
         code.AppendIndent(2)
             .Append("public static Fragment Diff(")
             .Append(modelType)
@@ -825,7 +853,10 @@ internal static class SparseFragmentEmitter
         bool usesPocoCloning
     )
     {
-        code.AppendLineAt(2, "/// <summary>Copies the fragment and its generated nested values.</summary>");
+        code.AppendLineAt(
+            2,
+            "/// <summary>Copies the fragment and its generated nested values.</summary>"
+        );
         code.AppendLineAt(2, "public Fragment DeepClone()");
         code.AppendLineAt(2, "{");
         if (usesPocoCloning)
@@ -875,220 +906,23 @@ internal static class SparseFragmentEmitter
     private static string MergeStrategyField(SparseMemberModel member) =>
         SparseWellKnownNames.MergeStrategyFieldPrefix + member.Id;
 
+    private static readonly SparseFragmentExpressions Expressions = new("__sparse_clone_context");
+
     private static string ValueEqualityExpression(
         SparseMemberModel member,
         string left,
         string right
-    )
-    {
-        var collection = member.Collection;
-        return collection.CloneKind switch
-        {
-            SparseCloneCollectionKind.Set
-            or SparseCloneCollectionKind.SortedSet
-            or SparseCloneCollectionKind.ImmutableSet =>
-                $"{ValueComparer}.AreSetEqual<{collection.ElementType.Name}>({left}, {right})",
-            SparseCloneCollectionKind.Dictionary
-            or SparseCloneCollectionKind.ImmutableDictionary when collection.ValueType is not null =>
-                $"{ValueComparer}.AreDictionaryEqual<{collection.ElementType.Name}, {collection.ValueType.Value.Name}>({left}, {right})",
-            _ => $"{ValueComparer}.AreEqual({left}, {right})",
-        };
-    }
+    ) => Expressions.ValueEqualityExpression(member, left, right);
 
-    private static string CloneValueExpression(SparseTypeModel type, string access)
-    {
-        if (type.IsFragmentModel)
-        {
-            return type.IsReferenceType
-                ? $"{access} is null ? default! : (({type.Name}){access}).DeepClone()"
-                : $"(({type.Name}){access}).DeepClone()";
-        }
+    private static string CloneModelExpression(SparseMemberModel member, string access) =>
+        Expressions.CloneModelExpression(member, access);
 
-        var cloneHelperName = type.PocoCloneHelperName;
-        if (cloneHelperName is not null)
-        {
-            return type.IsReferenceType
-                ? $"{access} is null ? default! : {cloneHelperName}({access}, __sparse_clone_context)"
-                : $"{cloneHelperName}({access}, __sparse_clone_context)";
-        }
-
-        return access;
-    }
-
-    private static string CloneModelExpression(SparseMemberModel member, string access)
-    {
-        if (member.ChildModel is not null && !member.ChildIsStructural)
-        {
-            return member.ChildIsReferenceType
-                ? $"{access} is null ? null! : {access}.DeepClone()"
-                : $"(({member.Property.Type.Name}){access}).DeepClone()";
-        }
-
-        var cloneHelperName = member.Property.Type.PocoCloneHelperName;
-        if (cloneHelperName is not null)
-        {
-            return member.Property.Type.IsReferenceType
-                ? $"{access} is null ? null! : {cloneHelperName}({access}, __sparse_clone_context)"
-                : $"{cloneHelperName}({access}, __sparse_clone_context)";
-        }
-
-        var cloned = CloneCollectionExpression(member, access);
-        return member.Property.Type.IsReferenceType
-            ? $"{access} is null ? null! : {cloned}"
-            : cloned;
-    }
-
-    private static string CloneFragmentExpression(SparseMemberModel member, string access)
-    {
-        if (member.ChildModel is not null)
-        {
-            return $"{access}?.DeepClone()";
-        }
-
-        var cloneHelperName = member.Property.Type.PocoCloneHelperName;
-        if (cloneHelperName is not null)
-        {
-            return $"{access} is null ? null : {cloneHelperName}({access}!, __sparse_clone_context)";
-        }
-
-        var cloned = CloneCollectionExpression(member, access + "!");
-        return $"(object?){access} is null ? default : {cloned}";
-    }
-
-    private static string CloneCollectionExpression(SparseMemberModel member, string access)
-    {
-        var collection = member.Collection;
-        if (collection.CloneKind == SparseCloneCollectionKind.Unsupported)
-        {
-            return access;
-        }
-
-        var elementType = collection.ElementType.Name;
-        var elements = access;
-        if (
-            collection.ElementType.IsFragmentModel
-            || collection.ElementType.PocoCloneHelperName is not null
-        )
-        {
-            elements =
-                $"global::System.Linq.Enumerable.Select({access}, item => {CloneValueExpression(collection.ElementType, "item")})";
-        }
-
-        if (collection.ValueType is not null)
-        {
-            if (collection.CloneKind == SparseCloneCollectionKind.PriorityQueue)
-            {
-                var priorityType = collection.ValueType.Value.Name;
-                var elementSelector = CloneValueExpression(collection.ElementType, "item.Element");
-                var prioritySelector = CloneValueExpression(collection.ValueType.Value, "item.Priority");
-                var entries =
-                    $"global::System.Linq.Enumerable.Select({access}.UnorderedItems, item => ({elementSelector}, {prioritySelector}))";
-                return $"new global::System.Collections.Generic.PriorityQueue<{elementType}, {priorityType}>({entries}, {access}.Comparer)";
-            }
-
-            if (collection.CloneKind == SparseCloneCollectionKind.Dictionary)
-            {
-                var isConcreteDictionary =
-                    collection.NamedTypeDefinition == "System.Collections.Generic.Dictionary<TKey, TValue>";
-                var comparer = isConcreteDictionary ? access + ".Comparer" : null;
-                var keySelector =
-                    $"pair => {CloneValueExpression(collection.ElementType, "pair.Key")}";
-                var valueSelector =
-                    $"pair => {CloneValueExpression(collection.ValueType.Value, "pair.Value")}";
-                return comparer is null
-                    ? $"global::System.Linq.Enumerable.ToDictionary({access}, {keySelector}, {valueSelector})"
-                    : $"global::System.Linq.Enumerable.ToDictionary({access}, {keySelector}, {valueSelector}, {comparer})";
-            }
-
-            if (collection.CloneKind == SparseCloneCollectionKind.ImmutableDictionary)
-            {
-                var keySelector =
-                    $"pair => {CloneValueExpression(collection.ElementType, "pair.Key")}";
-                var valueSelector =
-                    $"pair => {CloneValueExpression(collection.ValueType.Value, "pair.Value")}";
-                return $"global::System.Collections.Immutable.ImmutableDictionary.ToImmutableDictionary({access}, {keySelector}, {valueSelector}, {access}.KeyComparer, {access}.ValueComparer)";
-            }
-
-            return access;
-        }
-
-        return collection.CloneKind switch
-        {
-            SparseCloneCollectionKind.Array => $"global::System.Linq.Enumerable.ToArray({elements})",
-            SparseCloneCollectionKind.List =>
-                $"new global::System.Collections.Generic.List<{elementType}>({elements})",
-            SparseCloneCollectionKind.Set => CloneSetExpression(collection, access, elements, elementType),
-            SparseCloneCollectionKind.ImmutableSet =>
-                CloneSetExpression(collection, access, elements, elementType),
-            SparseCloneCollectionKind.Queue =>
-                $"new global::System.Collections.Generic.Queue<{elementType}>({elements})",
-            SparseCloneCollectionKind.Stack =>
-                $"new global::System.Collections.Generic.Stack<{elementType}>(global::System.Linq.Enumerable.Reverse({elements}))",
-            SparseCloneCollectionKind.ConcurrentQueue =>
-                $"new global::System.Collections.Concurrent.ConcurrentQueue<{elementType}>({elements})",
-            SparseCloneCollectionKind.ConcurrentStack =>
-                $"new global::System.Collections.Concurrent.ConcurrentStack<{elementType}>(global::System.Linq.Enumerable.Reverse({elements}))",
-            SparseCloneCollectionKind.BlockingCollection =>
-                $"__CloneBlockingCollection({access}, {elements})",
-            SparseCloneCollectionKind.LinkedList =>
-                $"new global::System.Collections.Generic.LinkedList<{elementType}>({elements})",
-            SparseCloneCollectionKind.SortedSet =>
-                $"new global::System.Collections.Generic.SortedSet<{elementType}>({elements}, {access}.Comparer)",
-            SparseCloneCollectionKind.ObservableCollection =>
-                $"new global::System.Collections.ObjectModel.ObservableCollection<{elementType}>({elements})",
-            SparseCloneCollectionKind.ReadOnlyCollection =>
-                $"new global::System.Collections.ObjectModel.ReadOnlyCollection<{elementType}>(new global::System.Collections.Generic.List<{elementType}>({elements}))",
-            SparseCloneCollectionKind.ImmutableArray =>
-                $"{access}.IsDefault ? {access} : global::System.Collections.Immutable.ImmutableArray.CreateRange({elements})",
-            SparseCloneCollectionKind.ImmutableList =>
-                $"global::System.Collections.Immutable.ImmutableList.CreateRange({elements})",
-            _ => access,
-        };
-    }
-
-    private static string CloneSetExpression(
-        SparseCollectionInfo collection,
-        string access,
-        string elements,
-        string elementType
-    )
-    {
-        var definition = collection.NamedTypeDefinition;
-        return definition switch
-        {
-            "System.Collections.Generic.HashSet<T>" =>
-                $"new global::System.Collections.Generic.HashSet<{elementType}>({elements}, {access}.Comparer)",
-            "System.Collections.Generic.SortedSet<T>" =>
-                $"new global::System.Collections.Generic.SortedSet<{elementType}>({elements}, {access}.Comparer)",
-            "System.Collections.Immutable.ImmutableHashSet<T>" =>
-                $"global::System.Collections.Immutable.ImmutableHashSet.CreateRange({access}.KeyComparer, {elements})",
-            _ => $"new global::System.Collections.Generic.HashSet<{elementType}>({elements})",
-        };
-    }
+    private static string CloneFragmentExpression(SparseMemberModel member, string access) =>
+        Expressions.CloneFragmentExpression(member, access);
 
     private static string BuildCollectionMerge(
         SparseMemberModel member,
         string lower,
         string higher
-    )
-    {
-        var elementType = member.Collection.ElementType.Name;
-        if (member.Collection.Kind == SparseCollectionKind.Set)
-        {
-            return $"{CollectionMerger}.MergeSet<{elementType}>({lower}, {higher})";
-        }
-
-        var combined = $"global::System.Linq.Enumerable.Concat({lower}, {higher})";
-        if (member.MergeMode == 3)
-        {
-            combined = $"global::System.Linq.Enumerable.Distinct({combined})";
-        }
-
-        return member.Collection.Kind switch
-        {
-            SparseCollectionKind.List =>
-                $"new global::System.Collections.Generic.List<{elementType}>({combined})",
-            _ => $"global::System.Linq.Enumerable.ToArray({combined})",
-        };
-    }
+    ) => Expressions.BuildCollectionMerge(member, lower, higher);
 }

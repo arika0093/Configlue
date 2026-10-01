@@ -4,9 +4,20 @@
     <AssemblyName>Configlue.Abstraction</AssemblyName>
     <RootNamespace>Configlue</RootNamespace>
     <IsPackable>true</IsPackable>
+    <DefineConstants>$(DefineConstants);CONFIGLUE_FRAGMENT_RUNTIME</DefineConstants>
     <PackageDescription>Backend-neutral contracts for Configlue.</PackageDescription>
   </PropertyGroup>
   <ItemGroup Condition="'$(ConfiglueNetStandard20)' == 'true'">
     <PackageReference Include="System.Memory" Version="4.6.3" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile
+      Include="../../fragments/SparseFragments/SparseValueComparer.cs"
+      Link="Fragments/ConfiglueValueComparer.cs"
+    />
+    <Compile
+      Include="../../fragments/SparseFragments/SparseCollectionMerger.cs"
+      Link="Fragments/ConfiglueCollectionMerger.cs"
+    />
   </ItemGroup>
 </Project>

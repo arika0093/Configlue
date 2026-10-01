@@ -1,9 +1,19 @@
 using System.Collections;
 
+#if CONFIGLUE_FRAGMENT_RUNTIME
+namespace Configlue;
+
+#else
 namespace SparseFragments;
 
+#endif
+
 /// <summary>Default semantic equality used by generated sparse fragments.</summary>
+#if CONFIGLUE_FRAGMENT_RUNTIME
+public static class ConfiglueValueComparer
+#else
 public static class SparseValueComparer
+#endif
 {
     /// <summary>Compares two values, treating ordinary sequences element-wise.</summary>
     public static bool AreEqual(object? left, object? right)
@@ -26,24 +36,31 @@ public static class SparseValueComparer
         if (left is IEnumerable leftItems && right is IEnumerable rightItems)
         {
             var leftEnumerator = leftItems.GetEnumerator();
-            var rightEnumerator = rightItems.GetEnumerator();
-            while (true)
+            IEnumerator? rightEnumerator = null;
+            try
             {
-                var leftMoved = leftEnumerator.MoveNext();
-                var rightMoved = rightEnumerator.MoveNext();
-                if (leftMoved != rightMoved)
+                rightEnumerator = rightItems.GetEnumerator();
+                while (true)
                 {
-                    return false;
+                    var leftMoved = leftEnumerator.MoveNext();
+                    var rightMoved = rightEnumerator.MoveNext();
+                    if (leftMoved != rightMoved)
+                        return false;
+                    if (!leftMoved)
+                        return true;
+                    if (!AreEqual(leftEnumerator.Current, rightEnumerator.Current))
+                        return false;
                 }
-
-                if (!leftMoved)
+            }
+            finally
+            {
+                try
                 {
-                    return true;
+                    (rightEnumerator as IDisposable)?.Dispose();
                 }
-
-                if (!AreEqual(leftEnumerator.Current, rightEnumerator.Current))
+                finally
                 {
-                    return false;
+                    (leftEnumerator as IDisposable)?.Dispose();
                 }
             }
         }
