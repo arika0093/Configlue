@@ -30,7 +30,7 @@ Consider applications you already use.
 
 [Git](https://git-scm.com/docs/git-config) is a CLI tool, yet its configuration already has `system`, `global`, `local`, `worktree`, and command scopes. Reads follow precedence rules. Writes need an explicit target scope. Git can even tell you which scope and file a value came from.
 
-[Visual Studio Code](https://code.visualstudio.com/docs/configure/settings) goes further. It has default, user, remote, workspace, workspace-folder, language-specific, profile, and policy settings. Some values are edited by humans in JSON, so editor assistance and schema-aware validation matter too.
+[Visual Studio Code](https://code.visualstudio.com/docs/configure/settings) goes further. It has default, user, remote, workspace, workspace-folder, language-specific, profile, and policy settings, plus Settings Sync across machines. Some values are edited by humans in JSON, so editor assistance and schema-aware validation matter too.
 
 Managed [Chrome](https://support.google.com/chrome/a/answer/9037717) adds another dimension: platform, machine-cloud, OS-user, and cloud-user policies, each with its own precedence and management semantics.
 
@@ -225,7 +225,7 @@ Add platform, provider, resource, transformer, or integration packages only when
 
 The following single-file program uses a normal per-user configuration file without exposing file handling to the application code.
 
-Save it as `example.cs` and run it with `dotnet run example.cs`.
+Save it as `example.cs` and run it with `dotnet run example.cs` (.NET 10 or later).
 
 ```csharp
 #!/usr/bin/env dotnet
@@ -326,7 +326,7 @@ The lower-level packages are there when you want control. Most applications can 
 
 **Configuration + glue = Configlue.**
 
-Configlue glues configuration infrastructure together so the rest of the application does not have to.
+Configlue glues configuration infrastructure together so the rest of the application does not have to become configuration glue code.
 
 There is also a small Japanese wordplay: **コンフィグる** (*config-ru*) reads naturally as "to config."
 
