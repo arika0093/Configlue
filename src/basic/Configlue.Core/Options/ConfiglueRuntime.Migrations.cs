@@ -109,6 +109,41 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                 MigrationEvent
             )
             .ConfigureAwait(false);
+        var verification = await ReadMigrationSourceAsync(target, cancellationToken)
+            .ConfigureAwait(false);
+        if (
+            verification.Status != StateReadStatus.Success
+            || !string.Equals(verification.Revision, write.Revision, StringComparison.Ordinal)
+        )
+        {
+            throw LogConflict(
+                $"Target source '{target.Id}' changed before migration verification completed."
+            );
+        }
+
+        var verifiedFragment =
+            verification.Value
+            ?? throw new InvalidOperationException(
+                $"State source '{target.Id}' returned a null configuration fragment after migration."
+            );
+        if (verification.Schema is { } verificationSchema)
+        {
+            verifiedFragment = await MigrateAsync(
+                    verifiedFragment,
+                    verificationSchema,
+                    cancellationToken
+                )
+                .ConfigureAwait(false);
+        }
+
+        if (
+            (verification.Schema is { } actualSchema && actualSchema != currentSchema)
+            || !ConfiglueFragmentComparer.AreEqual(verifiedFragment, sourceFragment)
+        )
+        {
+            throw LogConflict($"Target source '{target.Id}' did not retain the migrated fragment.");
+        }
+
         var migrationResult = new StateSourceMigrationResult(
             source.Id,
             target.Id,

@@ -4,7 +4,11 @@ namespace Configlue;
 /// <typeparam name="T">The configuration model.</typeparam>
 public interface IConfiglueSources<T>
 {
-    /// <summary>Migrates one source's contribution into another writable source without merging unrelated sources.</summary>
+    /// <summary>
+    /// Migrates one source's contribution into another writable source without merging unrelated sources.
+    /// The written fragment is re-read through the target and verified, so a target that did not retain
+    /// the migrated fragment (or reports a stale schema) is reported as a conflict.
+    /// </summary>
     ValueTask<StateSourceMigrationResult> MigrateSourceAsync(
         string sourceId,
         string targetId,
