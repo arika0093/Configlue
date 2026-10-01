@@ -262,7 +262,9 @@ namespace Configlue.State
     }
     public sealed class StateSourceResolver<T> : Configlue.Sources.ISourceReader<T>
     {
-        public StateSourceResolver(Configlue.Sources.StateSourceSet<T> sourceSet, Microsoft.Extensions.Logging.ILogger? logger = null) { }
+        public const int SubjectResolutionSweepThreshold = 256;
+        public static readonly System.TimeSpan SubjectResolutionIdleTimeout;
+        public StateSourceResolver(Configlue.Sources.StateSourceSet<T> sourceSet, Microsoft.Extensions.Logging.ILogger? logger = null, System.TimeSpan? subjectResolutionIdleTimeout = default, int subjectResolutionSweepThreshold = 256) { }
         public Configlue.Sources.StateSource<T>? ActiveSource { get; }
         public System.Threading.Tasks.ValueTask<Configlue.State.StateReadResult<T>> ReadAsync(Configlue.Resources.ConfiglueResourceContext context, System.Threading.CancellationToken cancellationToken = default) { }
     }

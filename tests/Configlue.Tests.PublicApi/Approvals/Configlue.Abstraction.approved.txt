@@ -904,7 +904,7 @@ namespace Configlue.Sources
         NotFound = 1,
         Unavailable = 2,
         NotFoundOrUnavailable = 3,
-        Invalid = 4,
+        InvalidPayload = 4,
     }
     public static class StateSourceProjection
     {
@@ -989,7 +989,7 @@ namespace Configlue.State
         public T Value { get; }
         public void Deconstruct(out Configlue.State.StateReadStatus Status, out T? Value, out string? Revision, out string? SourceId, out string? PhysicalOrigin, out Configlue.State.StateSchemaMetadata? Schema, out Configlue.State.StateRevisionVector? Revisions) { }
         public Configlue.State.StateReadResult<T> FromSource(string sourceId, string? physicalOrigin = null) { }
-        public static Configlue.State.StateReadResult<T> Invalid(T? value, string? revision = null) { }
+        public static Configlue.State.StateReadResult<T> InvalidPayload(T? value, string? revision = null) { }
         public static Configlue.State.StateReadResult<T> NotFound(string? revision = null) { }
         public static Configlue.State.StateReadResult<T> Success(T? value, string? revision = null, Configlue.State.StateSchemaMetadata? schema = default) { }
         public static Configlue.State.StateReadResult<T> Unavailable(string? revision = null) { }
@@ -999,7 +999,7 @@ namespace Configlue.State
         Success = 0,
         NotFound = 1,
         Unavailable = 2,
-        Invalid = 3,
+        InvalidPayload = 3,
     }
     public readonly struct StateRevision : System.IEquatable<Configlue.State.StateRevision>
     {
