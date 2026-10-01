@@ -103,6 +103,89 @@ public sealed class RedisResourceTests
     }
 
     [Test]
+    public async Task RowsAreIsolatedByModelId()
+    {
+        var backend = new FakeRedisStateBackend();
+        using var resource = CreateResource(_ => backend);
+        var modelOne = CreateContext("tenant-a", modelId: "model-one");
+        var modelTwo = CreateContext("tenant-a", modelId: "model-two");
+
+        await resource.WriteAsync(
+            modelOne,
+            new ResourceWriteRequest(new byte[] { 1 }, RevisionCondition.MustNotExist)
+        );
+        await resource.WriteAsync(
+            modelTwo,
+            new ResourceWriteRequest(new byte[] { 2 }, RevisionCondition.MustNotExist)
+        );
+
+        resource.GetResourceId(modelOne).ShouldNotBe(resource.GetResourceId(modelTwo));
+        (await resource.ReadAsync(modelOne)).Content.ToArray().ShouldBe(new byte[] { 1 });
+        (await resource.ReadAsync(modelTwo)).Content.ToArray().ShouldBe(new byte[] { 2 });
+
+        var addresses = backend.Addresses.ToArray();
+        addresses.Select(static address => address.Key).Distinct().Count().ShouldBe(2);
+        addresses
+            .Select(static address => address.NotificationIdentity)
+            .Distinct()
+            .Count()
+            .ShouldBe(2);
+    }
+
+    [Test]
+    public void SameModelNamespaceAndKeyProduceStableIdentity()
+    {
+        var backend = new FakeRedisStateBackend();
+        using var resource = CreateResource(_ => backend);
+        var first = CreateContext("tenant-a", modelId: "model-one");
+        var second = CreateContext("tenant-a", modelId: "model-one");
+
+        resource.GetResourceId(first).ShouldBe(resource.GetResourceId(second));
+    }
+
+    [Test]
+    public async Task NullModelIdRemainsSupported()
+    {
+        var backend = new FakeRedisStateBackend();
+        using var resource = CreateResource(_ => backend);
+        var context = CreateContext("tenant-a");
+
+        await resource.WriteAsync(
+            context,
+            new ResourceWriteRequest(new byte[] { 7 }, RevisionCondition.MustNotExist)
+        );
+
+        (await resource.ReadAsync(context)).Content.ToArray().ShouldBe(new byte[] { 7 });
+        resource.GetResourceId(context).ShouldBe(resource.GetResourceId(CreateContext("tenant-a")));
+    }
+
+    [Test]
+    public async Task WaitersAreInvalidatedOnlyForTheirModel()
+    {
+        var backend = new FakeRedisStateBackend();
+        using var resource = CreateResource(_ => backend);
+        var modelOne = CreateContext("tenant-a", modelId: "model-one");
+        var modelTwo = CreateContext("tenant-a", modelId: "model-two");
+        await resource.WriteAsync(modelOne, new ResourceWriteRequest(new byte[] { 1 }));
+        await resource.WriteAsync(modelTwo, new ResourceWriteRequest(new byte[] { 2 }));
+
+        var wait = resource.WaitForChangeAsync(modelOne, "1").AsTask();
+        await backend.WaitForWaiterCountAsync(1).WaitAsync(TimeSpan.FromSeconds(2));
+
+        await resource.WriteAsync(
+            modelTwo,
+            new ResourceWriteRequest(new byte[] { 3 }, RevisionCondition.Match("1"))
+        );
+        wait.IsCompleted.ShouldBeFalse();
+
+        await resource.WriteAsync(
+            modelOne,
+            new ResourceWriteRequest(new byte[] { 4 }, RevisionCondition.Match("1"))
+        );
+        await wait.WaitAsync(TimeSpan.FromSeconds(2));
+    }
+
+    [Test]
     public async Task WaitersAreInvalidatedOnlyForTheirRedisRow()
     {
         var backend = new FakeRedisStateBackend();
@@ -211,10 +294,14 @@ public sealed class RedisResourceTests
         RedisResourceOptions? options = null
     ) => new(resolver, resourceNamespace, options);
 
-    private static ConfiglueResourceContext CreateContext(string subject, RouteKey route = default)
+    private static ConfiglueResourceContext CreateContext(
+        string subject,
+        RouteKey route = default,
+        string? modelId = null
+    )
     {
         var key = SubjectKey.From(subject);
-        return new ConfiglueResourceContext(new FakeSubject(key), key, route);
+        return new ConfiglueResourceContext(modelId, new FakeSubject(key), key, route);
     }
 
     private static async Task<bool> TryWriteAsync(
@@ -252,12 +339,15 @@ public sealed class RedisResourceTests
             TaskCreationOptions.RunContinuationsAsynchronously
         );
 
+        public ConcurrentQueue<RedisResourceAddress> Addresses { get; } = new();
+
         public ValueTask<ResourceReadResult> ReadAsync(
             RedisResourceAddress address,
             CancellationToken cancellationToken
         )
         {
             cancellationToken.ThrowIfCancellationRequested();
+            Addresses.Enqueue(address);
             lock (_gate)
             {
                 return ValueTaskCompat.FromResult(
@@ -279,6 +369,7 @@ public sealed class RedisResourceTests
         )
         {
             cancellationToken.ThrowIfCancellationRequested();
+            Addresses.Enqueue(address);
             TaskCompletionSource[] notifications;
             long revision;
             var key = (address.Database, address.Key);
