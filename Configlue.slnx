@@ -39,6 +39,7 @@
     <Project Path="src/tools/Configlue.JsonSchema.MSBuild/Configlue.JsonSchema.MSBuild.csproj" />
   </Folder>
   <Folder Name="/src/utilities/">
+    <Project Path="src/utilities/SparseFragments/SparseFragments.Abstractions/SparseFragments.Abstractions.csproj" />
     <Project Path="src/utilities/SparseFragments/SparseFragments/SparseFragments.csproj" />
     <Project Path="src/utilities/SparseFragments/SparseFragments.Generator/SparseFragments.Generator.csproj" />
   </Folder>
