@@ -363,9 +363,11 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
     private sealed class ModelDefaultsReader(TFragment fragment) : ISourceReader<TFragment>
     {
         public ValueTask<StateReadResult<TFragment>> ReadAsync(
+            ConfiglueResourceContext context,
             CancellationToken cancellationToken = default
         )
         {
+            _ = context;
             cancellationToken.ThrowIfCancellationRequested();
             return new ValueTask<StateReadResult<TFragment>>(
                 StateReadResult<TFragment>.Success(fragment)

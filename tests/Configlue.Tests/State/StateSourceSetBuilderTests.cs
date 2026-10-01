@@ -142,8 +142,13 @@ public sealed class StateSourceSetBuilderTests
     private sealed class ReaderOnly<T>(T value) : ISourceReader<T>
     {
         public ValueTask<StateReadResult<T>> ReadAsync(
+            ConfiglueResourceContext context,
             CancellationToken cancellationToken = default
-        ) => ValueTaskCompat.FromResult(StateReadResult<T>.Success(value, "reader-only"));
+        )
+        {
+            _ = context;
+            return ValueTaskCompat.FromResult(StateReadResult<T>.Success(value, "reader-only"));
+        }
     }
 }
 

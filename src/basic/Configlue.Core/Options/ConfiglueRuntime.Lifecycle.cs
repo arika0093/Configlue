@@ -250,11 +250,12 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         StateWriteResult result;
         try
         {
+            var context = GetResourceContext(target);
             result = _subjectContext.Value is not null
-                ? await target
-                    .WriteAsync(GetResourceContext(target), request, cancellationToken)
-                    .ConfigureAwait(false)
-                : await writer.WriteAsync(request, cancellationToken).ConfigureAwait(false);
+                ? await target.WriteAsync(context, request, cancellationToken).ConfigureAwait(false)
+                : await writer
+                    .WriteAsync(context, request, cancellationToken)
+                    .ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {

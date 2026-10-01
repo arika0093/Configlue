@@ -182,18 +182,16 @@ public sealed class PerSubjectDependencyInjectionTests
             builder.Add<AppSettings>(model =>
             {
                 model.PerSubject<MutableRoutedSubjectAccessor>();
-                model.Routing<RoutedSettingsSubject>(static subject => subject.Route);
                 model.OnChangeDebounce = TimeSpan.Zero;
                 model.Sources(sources =>
-                    sources.Add(
-                        new StateSource<AppSettings.Fragment>(
-                            "users",
-                            users,
-                            watcher: users,
-                            subjectKeySelector: _ => key
-                        )
-                    )
-                );
+                {
+                    var routed = new StateSourceSetBuilder<AppSettings.Fragment>();
+                    routed
+                        .Add("users", users)
+                        .KeyBy<RoutedSettingsSubject>(_ => key)
+                        .RouteBy<RoutedSettingsSubject>(static subject => subject.Route);
+                    sources.Add(routed.Build().Sources[0]);
+                });
             })
         );
 
@@ -468,9 +466,9 @@ public sealed class PerSubjectDependencyInjectionTests
     }
 
     private sealed class SubjectStateStore<T>
-        : IContextualSourceReader<T>,
-            IContextualSourceWriter<T>,
-            IContextualSourceWatcher
+        : ISourceReader<T>,
+            ISourceWriter<T>,
+            ISourceWatcher
     {
         private readonly ConcurrentDictionary<
             (SubjectKey Key, RouteKey Route),

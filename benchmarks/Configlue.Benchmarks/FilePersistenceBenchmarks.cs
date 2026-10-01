@@ -259,7 +259,8 @@ public class FileResourceReadBenchmarks
     }
 
     [Benchmark]
-    public ValueTask<ResourceReadResult> ReadAsync() => _resource.ReadAsync();
+    public ValueTask<ResourceReadResult> ReadAsync() =>
+        _resource.ReadAsync(ConfiglueResourceContext.Default);
 }
 
 [MemoryDiagnoser]
@@ -313,12 +314,12 @@ public class SerializedFileReadBenchmarks
 
     [Benchmark]
     public ValueTask<StateReadResult<SerializedReadBenchmarkSettings.Fragment>> ReadAsync() =>
-        _reader.ReadAsync();
+        _reader.ReadAsync(ConfiglueResourceContext.Default);
 
     [Benchmark]
     public ValueTask<
         StateReadResult<SerializedReadBenchmarkSettings.Fragment>
-    > ReadMemoryFallbackAsync() => _memoryReader.ReadAsync();
+    > ReadMemoryFallbackAsync() => _memoryReader.ReadAsync(ConfiglueResourceContext.Default);
 
     private sealed class MemoryOnlyResourceReader(IResourceReader inner) : IResourceReader
     {
@@ -368,5 +369,8 @@ public class FileResourceWriteBenchmarks
 
     [Benchmark]
     public ValueTask<StateWriteResult> WriteAsync() =>
-        _resource.WriteAsync(new ResourceWriteRequest(_content));
+        _resource.WriteAsync(
+            ConfiglueResourceContext.Default,
+            new ResourceWriteRequest(_content)
+        );
 }

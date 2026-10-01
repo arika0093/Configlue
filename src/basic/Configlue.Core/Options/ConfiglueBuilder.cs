@@ -132,7 +132,6 @@ public sealed class ConfiglueModelBuilder<TModel>
     private TimeSpan? _onChangeDebounce;
     private ILogger? _logger;
     private Func<TModel, TModel>? _cloneStrategy;
-    private Func<IConfiglueSubject, RouteKey>? _routeSelector;
     private Type? _subjectAccessorType;
     private RuntimeLifetimeRequirement? _runtimeLifetime;
     private bool _sealed;
@@ -267,20 +266,6 @@ public sealed class ConfiglueModelBuilder<TModel>
         EnsureMutable();
         ArgumentNullException.ThrowIfNull(configure);
         configure(_sources);
-    }
-
-    /// <summary>Routes subject-specific resource operations using application metadata.</summary>
-    public void Routing<TSubject>(Func<TSubject, RouteKey> selector)
-        where TSubject : IConfiglueSubject
-    {
-        EnsureMutable();
-        ArgumentNullException.ThrowIfNull(selector);
-        _routeSelector = subject =>
-            subject is TSubject typed
-                ? selector(typed)
-                : throw new InvalidOperationException(
-                    $"The routing policy for '{typeof(TModel)}' requires a subject of type '{typeof(TSubject)}', but received '{subject.GetType()}'."
-                );
     }
 
     /// <summary>Resolves the current subject from a scoped dependency-injection accessor.</summary>
@@ -481,8 +466,6 @@ public sealed class ConfiglueModelBuilder<TModel>
     /// <summary>The optional custom clone strategy configured for this model.</summary>
     internal Func<TModel, TModel>? CloneStrategy => _cloneStrategy;
 
-    internal Func<IConfiglueSubject, RouteKey>? RouteSelector => _routeSelector;
-
     internal Type? SubjectAccessorType => _subjectAccessorType;
 
     /// <summary>The runtime lifetime inferred from explicit configuration or the source topology.</summary>
@@ -515,7 +498,6 @@ public sealed class ConfiglueModelBuilder<TModel>
             EnableDynamicStates = _enableDynamicStates,
             OnChangeDebounce = _onChangeDebounce,
             Logger = _logger,
-            _routeSelector = _routeSelector,
             _subjectAccessorType = _subjectAccessorType,
             _runtimeLifetime = _runtimeLifetime,
             HostPaths = HostPaths,

@@ -5,9 +5,7 @@ using Configlue.Sources;
 namespace Configlue.Extensibility;
 
 /// <summary>Reads a typed state value by composing a resource and a codec.</summary>
-public sealed class SerializedStateReader<T>
-    : IContextualSourceReader<T>,
-        ITryContextualResourceIdentity
+public sealed class SerializedStateReader<T> : ISourceReader<T>, ITryContextualResourceIdentity
 {
     private readonly IResourceReader _resource;
     private readonly object _codec;
@@ -63,11 +61,6 @@ public sealed class SerializedStateReader<T>
         resourceId = default;
         return false;
     }
-
-    /// <inheritdoc />
-    public async ValueTask<StateReadResult<T>> ReadAsync(
-        CancellationToken cancellationToken = default
-    ) => await ReadAsync(ConfiglueResourceContext.Default, cancellationToken).ConfigureAwait(false);
 
     /// <summary>Reads and deserializes state for one logical subject and source-specific key.</summary>
     public async ValueTask<StateReadResult<T>> ReadAsync(

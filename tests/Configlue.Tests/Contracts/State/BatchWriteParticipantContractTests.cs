@@ -1,4 +1,5 @@
 using Configlue.Provider.Json;
+using Configlue.Resources;
 using Configlue.Sources;
 using Configlue.Testing;
 
@@ -26,7 +27,13 @@ public sealed class BatchWriteParticipantContractTests
         var syncParticipant = (ISourceWriteBatchParticipant<AppSettings.Fragment>)projected.Writer!;
 
         syncParticipant
-            .TryCreateBatchWrite(request, out var resourceId, out var batchWriter, out var mutation)
+            .TryCreateBatchWrite(
+                ConfiglueResourceContext.Default,
+                request,
+                out var resourceId,
+                out var batchWriter,
+                out var mutation
+            )
             .ShouldBeTrue();
         resourceId.ShouldBe(resource.ResourceId);
         batchWriter.ShouldBeSameAs(resource);
@@ -36,7 +43,10 @@ public sealed class BatchWriteParticipantContractTests
         var asyncParticipant =
             (IAsyncSourceWriteBatchParticipant<AppSettings.Fragment>)projected.Writer!;
         asyncParticipant.CanPrepareBatchWrite.ShouldBeTrue();
-        var plan = await asyncParticipant.TryCreateBatchWriteAsync(request);
+        var plan = await asyncParticipant.TryCreateBatchWriteAsync(
+            ConfiglueResourceContext.Default,
+            request
+        );
 
         plan.ShouldNotBeNull();
         plan.Value.ResourceId.ShouldBe(resource.ResourceId);
@@ -59,13 +69,24 @@ public sealed class BatchWriteParticipantContractTests
             (IAsyncSourceWriteBatchParticipant<AppSettings.Fragment>)projected.Writer!;
 
         syncParticipant
-            .TryCreateBatchWrite(request, out var resourceId, out var batchWriter, out var mutation)
+            .TryCreateBatchWrite(
+                ConfiglueResourceContext.Default,
+                request,
+                out var resourceId,
+                out var batchWriter,
+                out var mutation
+            )
             .ShouldBeFalse();
         resourceId.ShouldBe(default(ResourceId));
         batchWriter.ShouldBeNull();
         mutation.ShouldBeNull();
         asyncParticipant.CanPrepareBatchWrite.ShouldBeFalse();
-        (await asyncParticipant.TryCreateBatchWriteAsync(request)).ShouldBeNull();
+        (
+            await asyncParticipant.TryCreateBatchWriteAsync(
+                ConfiglueResourceContext.Default,
+                request
+            )
+        ).ShouldBeNull();
     }
 
     private static StateSource<AppSettings.Fragment> Project(

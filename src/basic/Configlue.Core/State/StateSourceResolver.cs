@@ -7,7 +7,7 @@ using Microsoft.Extensions.Logging;
 namespace Configlue.State;
 
 /// <summary>Reads the first successful state from a priority-ordered set of sources.</summary>
-public sealed class StateSourceResolver<T> : IContextualSourceReader<T>
+public sealed class StateSourceResolver<T> : ISourceReader<T>
 {
     private static readonly EventId ReadEvent = new(1050, "ResolverSourceRead");
     private static readonly EventId FallbackEvent = new(1051, "ResolverSourceFallback");
@@ -31,20 +31,6 @@ public sealed class StateSourceResolver<T> : IContextualSourceReader<T>
     public StateSource<T>? ActiveSource => Volatile.Read(ref _resolution)?.ActiveSource;
 
     /// <inheritdoc />
-    public ValueTask<StateReadResult<T>> ReadAsync(CancellationToken cancellationToken = default) =>
-        ReadCoreAsync(null, RouteKey.Default, cancellationToken);
-
-    /// <summary>Reads the first successful state for one subject.</summary>
-    public ValueTask<StateReadResult<T>> ReadAsync(
-        IConfiglueSubject subject,
-        CancellationToken cancellationToken = default
-    )
-    {
-        ArgumentNullException.ThrowIfNull(subject);
-        return ReadCoreAsync(subject, RouteKey.Default, cancellationToken);
-    }
-
-    /// <inheritdoc />
     public ValueTask<StateReadResult<T>> ReadAsync(
         ConfiglueResourceContext context,
         CancellationToken cancellationToken = default
@@ -53,19 +39,19 @@ public sealed class StateSourceResolver<T> : IContextualSourceReader<T>
             ReferenceEquals(context.Subject, ConfiglueResourceContext.DefaultSubject)
                 ? null
                 : context.Subject,
-            context.Route,
+            context,
             cancellationToken
         );
 
     private async ValueTask<StateReadResult<T>> ReadCoreAsync(
         IConfiglueSubject? subject,
-        RouteKey route,
+        ConfiglueResourceContext context,
         CancellationToken cancellationToken
     )
     {
         if (_sourceSet.Count == 1)
         {
-            return await ReadSingleSourceAsync(_sourceSet[0], subject, route, cancellationToken)
+            return await ReadSingleSourceAsync(_sourceSet[0], subject, context, cancellationToken)
                 .ConfigureAwait(false);
         }
 
@@ -78,7 +64,7 @@ public sealed class StateSourceResolver<T> : IContextualSourceReader<T>
             var source = _sourceSet[index];
             cancellationToken.ThrowIfCancellationRequested();
             var result = (
-                await ReadSourceAsync(source, subject, route, cancellationToken)
+                await ReadSourceAsync(source, subject, context, cancellationToken)
                     .ConfigureAwait(false)
             ).FromSource(source.Id, source.PhysicalOrigin);
             _logger?.LogDebug(
@@ -105,7 +91,7 @@ public sealed class StateSourceResolver<T> : IContextualSourceReader<T>
                     revisionCount,
                     nestedRevisions
                 );
-                SetResolution(subject, route, new Resolution(source, revisionVector));
+                SetResolution(subject, context, new Resolution(source, revisionVector));
                 return result with { Revisions = revisionVector };
             }
 
@@ -125,7 +111,7 @@ public sealed class StateSourceResolver<T> : IContextualSourceReader<T>
                     revisionCount,
                     nestedRevisions
                 );
-                SetResolution(subject, route, new Resolution(null, revisionVector));
+                SetResolution(subject, context, new Resolution(null, revisionVector));
                 return result with { Revisions = revisionVector };
             }
 
@@ -133,20 +119,20 @@ public sealed class StateSourceResolver<T> : IContextualSourceReader<T>
         }
 
         var finalVector = CreateRevisionVector(revisions, revisionCount, nestedRevisions);
-        SetResolution(subject, route, new Resolution(null, finalVector));
+        SetResolution(subject, context, new Resolution(null, finalVector));
         return lastResult with { Revisions = finalVector };
     }
 
     private async ValueTask<StateReadResult<T>> ReadSingleSourceAsync(
         StateSource<T> source,
         IConfiglueSubject? subject,
-        RouteKey route,
+        ConfiglueResourceContext context,
         CancellationToken cancellationToken
     )
     {
         cancellationToken.ThrowIfCancellationRequested();
         var result = (
-            await ReadSourceAsync(source, subject, route, cancellationToken).ConfigureAwait(false)
+            await ReadSourceAsync(source, subject, context, cancellationToken).ConfigureAwait(false)
         ).FromSource(source.Id, source.PhysicalOrigin);
         _logger?.LogDebug(
             ReadEvent,
@@ -189,7 +175,7 @@ public sealed class StateSourceResolver<T> : IContextualSourceReader<T>
 
         SetResolution(
             subject,
-            route,
+            context,
             new Resolution(result.Status == StateReadStatus.Success ? source : null, revisionVector)
         );
         return result with { Revisions = revisionVector };
@@ -198,7 +184,7 @@ public sealed class StateSourceResolver<T> : IContextualSourceReader<T>
     private async ValueTask<StateReadResult<T>> ReadSourceAsync(
         StateSource<T> source,
         IConfiglueSubject? subject,
-        RouteKey route,
+        ConfiglueResourceContext context,
         CancellationToken cancellationToken
     )
     {
@@ -211,11 +197,12 @@ public sealed class StateSourceResolver<T> : IContextualSourceReader<T>
         );
         try
         {
-            return subject is null
-                ? await source.Reader.ReadAsync(cancellationToken).ConfigureAwait(false)
-                : await source
-                    .ReadAsync(source.GetResourceContext(subject, route), cancellationToken)
-                    .ConfigureAwait(false);
+            return await source
+                .ReadAsync(
+                    subject is null ? context : source.GetResourceContext(subject),
+                    cancellationToken
+                )
+                .ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -242,11 +229,6 @@ public sealed class StateSourceResolver<T> : IContextualSourceReader<T>
     {
         return GetSourcesForWatchCore(null, RouteKey.Default, fallbackRevision);
     }
-
-    internal IReadOnlyList<StateSourceWatchTarget<T>> GetSourcesForWatch(
-        IConfiglueSubject subject,
-        string? fallbackRevision
-    ) => GetSourcesForWatchCore(subject, RouteKey.Default, fallbackRevision);
 
     internal IReadOnlyList<StateSourceWatchTarget<T>> GetSourcesForWatch(
         IConfiglueSubject subject,
@@ -295,7 +277,11 @@ public sealed class StateSourceResolver<T> : IContextualSourceReader<T>
         return sources;
     }
 
-    private void SetResolution(IConfiglueSubject? subject, RouteKey route, Resolution resolution)
+    private void SetResolution(
+        IConfiglueSubject? subject,
+        ConfiglueResourceContext context,
+        Resolution resolution
+    )
     {
         if (subject is null)
         {
@@ -303,7 +289,7 @@ public sealed class StateSourceResolver<T> : IContextualSourceReader<T>
         }
         else
         {
-            _subjectResolutions[(subject.Key, route)] = resolution;
+            _subjectResolutions[(subject.Key, context.Route)] = resolution;
         }
     }
 

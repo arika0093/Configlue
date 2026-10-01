@@ -58,7 +58,9 @@ public sealed class FileStateStorageMigrationJournal
         ArgumentException.ThrowIfNullOrWhiteSpace(migrationId);
         cancellationToken.ThrowIfCancellationRequested();
         using var resource = CreateResource(migrationId);
-        var read = await resource.ReadAsync(cancellationToken).ConfigureAwait(false);
+        var read = await resource
+            .ReadAsync(ConfiglueResourceContext.Default, cancellationToken)
+            .ConfigureAwait(false);
         if (read.Status == StateReadStatus.NotFound)
         {
             return null;
@@ -107,7 +109,9 @@ public sealed class FileStateStorageMigrationJournal
         ArgumentNullException.ThrowIfNull(progress);
         cancellationToken.ThrowIfCancellationRequested();
         using var resource = CreateResource(progress.MigrationId);
-        var current = await resource.ReadAsync(cancellationToken).ConfigureAwait(false);
+        var current = await resource
+            .ReadAsync(ConfiglueResourceContext.Default, cancellationToken)
+            .ConfigureAwait(false);
         if (current.Status is not (StateReadStatus.Success or StateReadStatus.NotFound))
         {
             throw new IOException(
@@ -130,6 +134,7 @@ public sealed class FileStateStorageMigrationJournal
         );
         await resource
             .WriteAsync(
+                ConfiglueResourceContext.Default,
                 new ResourceWriteRequest(
                     content,
                     Condition: RevisionCondition.FromRevision(current.Revision)

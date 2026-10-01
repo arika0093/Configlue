@@ -4,7 +4,7 @@ using Configlue.Sources;
 namespace Configlue.State;
 
 /// <summary>Routes writes independently from read-source selection.</summary>
-public sealed class StateSourceWriter<T> : IContextualSourceWriter<T>
+public sealed class StateSourceWriter<T> : ISourceWriter<T>
 {
     private readonly StateSourceSet<T> _sourceSet;
     private readonly StateWriteRoute _route;
@@ -19,36 +19,9 @@ public sealed class StateSourceWriter<T> : IContextualSourceWriter<T>
 
     /// <inheritdoc />
     public ValueTask<StateWriteResult> WriteAsync(
-        StateWriteRequest<T> request,
-        CancellationToken cancellationToken = default
-    ) => WriteCoreAsync(null, request, cancellationToken);
-
-    /// <summary>Writes state to the selected source for one subject.</summary>
-    public ValueTask<StateWriteResult> WriteAsync(
-        IConfiglueSubject subject,
-        StateWriteRequest<T> request,
-        CancellationToken cancellationToken = default
-    )
-    {
-        ArgumentNullException.ThrowIfNull(subject);
-        return WriteCoreAsync(
-            new ConfiglueResourceContext(subject, subject.Key),
-            request,
-            cancellationToken
-        );
-    }
-
-    /// <inheritdoc />
-    public ValueTask<StateWriteResult> WriteAsync(
         ConfiglueResourceContext context,
         StateWriteRequest<T> request,
         CancellationToken cancellationToken = default
-    ) => WriteCoreAsync(context, request, cancellationToken);
-
-    private ValueTask<StateWriteResult> WriteCoreAsync(
-        ConfiglueResourceContext? context,
-        StateWriteRequest<T> request,
-        CancellationToken cancellationToken
     )
     {
         var source = _route.SourceId is { } id
@@ -73,15 +46,12 @@ public sealed class StateSourceWriter<T> : IContextualSourceWriter<T>
             );
         }
 
-        return source.WriteAsync(
-            context is { } provided
-                ? source.GetResourceContext(provided.Subject, provided.Route)
-                : source.GetResourceContext(
-                    ConfiglueResourceContext.Default.Subject,
-                    RouteKey.Default
-                ),
-            request,
-            cancellationToken
-        );
+        var sourceContext = ReferenceEquals(
+            context.Subject,
+            ConfiglueResourceContext.DefaultSubject
+        )
+            ? context
+            : source.GetResourceContext(context.Subject);
+        return source.WriteAsync(sourceContext, request, cancellationToken);
     }
 }

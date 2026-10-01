@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Configlue.CompilerServices;
+using Configlue.Resources;
 
 namespace Configlue;
 
@@ -20,7 +21,7 @@ internal sealed partial class ConfiglueProfiledState<TModel, TFragment>
         for (var attempt = 0; attempt < 5; attempt++)
         {
             var result = await _catalogSource
-                .Reader.ReadAsync(cancellationToken)
+                .Reader.ReadAsync(ConfiglueResourceContext.Default, cancellationToken)
                 .ConfigureAwait(false);
             ConfiglueProfileCatalog catalog;
             bool needsWrite;
@@ -55,6 +56,7 @@ internal sealed partial class ConfiglueProfiledState<TModel, TFragment>
                 {
                     var writeResult = await _catalogSource
                         .Writer!.WriteAsync(
+                            ConfiglueResourceContext.Default,
                             new StateWriteRequest<ConfiglueProfileCatalog>(
                                 catalog,
                                 Condition: RevisionCondition.FromRevision(result.Revision)
@@ -102,7 +104,7 @@ internal sealed partial class ConfiglueProfiledState<TModel, TFragment>
         {
             var expectedCatalog = _catalog!;
             var current = await _catalogSource
-                .Reader.ReadAsync(cancellationToken)
+                .Reader.ReadAsync(ConfiglueResourceContext.Default, cancellationToken)
                 .ConfigureAwait(false);
             if (current.Status != StateReadStatus.Success || current.Value is null)
             {
@@ -127,6 +129,7 @@ internal sealed partial class ConfiglueProfiledState<TModel, TFragment>
             {
                 var writeResult = await _catalogSource
                     .Writer!.WriteAsync(
+                        ConfiglueResourceContext.Default,
                         new StateWriteRequest<ConfiglueProfileCatalog>(
                             catalog,
                             Condition: RevisionCondition.FromRevision(current.Revision)

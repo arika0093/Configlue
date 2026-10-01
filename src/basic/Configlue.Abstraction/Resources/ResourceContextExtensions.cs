@@ -1,35 +1,8 @@
 namespace Configlue.Resources;
 
-/// <summary>Context-free convenience and context-aware fallback resource operations.</summary>
+/// <summary>Context-aware resource operations with portable fallback behavior.</summary>
 public static class ResourceContextExtensions
 {
-    /// <summary>Reads the resource using the default context.</summary>
-    public static ValueTask<ResourceReadResult> ReadAsync(
-        this IResourceReader reader,
-        CancellationToken cancellationToken = default
-    )
-    {
-        if (reader is null)
-        {
-            throw new ArgumentNullException(nameof(reader));
-        }
-        return reader.ReadAsync(ConfiglueResourceContext.Default, cancellationToken);
-    }
-
-    /// <summary>Writes the resource using the default context.</summary>
-    public static ValueTask<StateWriteResult> WriteAsync(
-        this IResourceWriter writer,
-        ResourceWriteRequest request,
-        CancellationToken cancellationToken = default
-    )
-    {
-        if (writer is null)
-        {
-            throw new ArgumentNullException(nameof(writer));
-        }
-        return writer.WriteAsync(ConfiglueResourceContext.Default, request, cancellationToken);
-    }
-
     /// <summary>Recovers a subject-specific resource from a validated backup.</summary>
     public static ValueTask<ResourceReadResult?> TryRecoverLatestBackupAsync(
         this IResourceBackupRecovery recovery,

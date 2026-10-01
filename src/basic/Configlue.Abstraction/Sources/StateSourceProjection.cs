@@ -289,7 +289,8 @@ public static class StateSourceProjection
             source.Watcher,
             source.PhysicalOrigin,
             source.ConfiguredResourceId,
-            subjectKeySelector: source.GetSubjectKey
+            subjectKeySelector: source.GetSubjectKey,
+            routeSelector: source.GetRouteKey
         );
         source.CopyRoutingMetadataTo(projected);
         return projected;
@@ -300,25 +301,14 @@ public static class StateSourceProjection
         Func<TSource, TTarget> toTarget,
         StateSchemaMetadata? projectedSchema,
         StateSchemaMigrationChain<TSource>? migrationChain
-    ) : IContextualSourceReader<TTarget>
+    ) : ISourceReader<TTarget>
     {
-        public async ValueTask<StateReadResult<TTarget>> ReadAsync(
-            CancellationToken cancellationToken = default
-        ) => await ReadCoreAsync(null, cancellationToken).ConfigureAwait(false);
-
         public async ValueTask<StateReadResult<TTarget>> ReadAsync(
             ConfiglueResourceContext context,
             CancellationToken cancellationToken = default
-        ) => await ReadCoreAsync(context, cancellationToken).ConfigureAwait(false);
-
-        private async ValueTask<StateReadResult<TTarget>> ReadCoreAsync(
-            ConfiglueResourceContext? context,
-            CancellationToken cancellationToken
         )
         {
-            var result = context is { } resourceContext
-                ? await source.ReadAsync(resourceContext, cancellationToken).ConfigureAwait(false)
-                : await source.ReadAsync(cancellationToken).ConfigureAwait(false);
+            var result = await source.ReadAsync(context, cancellationToken).ConfigureAwait(false);
             if (result.Status != StateReadStatus.Success)
             {
                 return StateReadResult<TTarget>.Create(
@@ -429,29 +419,18 @@ public static class StateSourceProjection
         Func<TTarget?, TTarget, TSource?, TSource>? updateSource,
         StateSchemaMigrationChain<TSource>? migrationChain
     )
-        : IContextualSourceWriter<TTarget>,
-            IContextualSourceWriteBatchParticipant<TTarget>,
-            IContextualAsyncSourceWriteBatchParticipant<TTarget>
+        : ISourceWriter<TTarget>,
+            ISourceWriteBatchParticipant<TTarget>,
+            IAsyncSourceWriteBatchParticipant<TTarget>
     {
         public bool CanPrepareBatchWrite =>
             source is ISourceWriteBatchParticipant<TSource>
             || source is IAsyncSourceWriteBatchParticipant<TSource> { CanPrepareBatchWrite: true };
 
         public async ValueTask<StateWriteResult> WriteAsync(
-            StateWriteRequest<TTarget> request,
-            CancellationToken cancellationToken = default
-        ) => await WriteCoreAsync(null, request, cancellationToken).ConfigureAwait(false);
-
-        public async ValueTask<StateWriteResult> WriteAsync(
             ConfiglueResourceContext context,
             StateWriteRequest<TTarget> request,
             CancellationToken cancellationToken = default
-        ) => await WriteCoreAsync(context, request, cancellationToken).ConfigureAwait(false);
-
-        private async ValueTask<StateWriteResult> WriteCoreAsync(
-            ConfiglueResourceContext? context,
-            StateWriteRequest<TTarget> request,
-            CancellationToken cancellationToken
         )
         {
             var mapped = updateSource is null
@@ -466,26 +445,10 @@ public static class StateSourceProjection
                 mapped,
                 Condition: request.Condition
             );
-            return context is { } resourceContext
-                ? await source
-                    .WriteAsync(resourceContext, sourceRequest, cancellationToken)
-                    .ConfigureAwait(false)
-                : await source.WriteAsync(sourceRequest, cancellationToken).ConfigureAwait(false);
+            return await source
+                .WriteAsync(context, sourceRequest, cancellationToken)
+                .ConfigureAwait(false);
         }
-
-        public bool TryCreateBatchWrite(
-            StateWriteRequest<TTarget> request,
-            out ResourceId resourceId,
-            out IResourceBatchWriter? batchWriter,
-            out ResourceWriteMutation? mutation
-        ) =>
-            TryCreateBatchWrite(
-                ConfiglueResourceContext.Default,
-                request,
-                out resourceId,
-                out batchWriter,
-                out mutation
-            );
 
         public bool TryCreateBatchWrite(
             ConfiglueResourceContext context,
@@ -522,17 +485,6 @@ public static class StateSourceProjection
             mutation = null;
             return false;
         }
-
-        public async ValueTask<StateWriteBatchPlan?> TryCreateBatchWriteAsync(
-            StateWriteRequest<TTarget> request,
-            CancellationToken cancellationToken = default
-        ) =>
-            await TryCreateBatchWriteAsync(
-                    ConfiglueResourceContext.Default,
-                    request,
-                    cancellationToken
-                )
-                .ConfigureAwait(false);
 
         public async ValueTask<StateWriteBatchPlan?> TryCreateBatchWriteAsync(
             ConfiglueResourceContext context,
@@ -585,13 +537,11 @@ public static class StateSourceProjection
 
         private async ValueTask<TSource> UpdateSourceAsync(
             StateWriteRequest<TTarget> request,
-            ConfiglueResourceContext? context,
+            ConfiglueResourceContext context,
             CancellationToken cancellationToken
         )
         {
-            var current = context is { } resourceContext
-                ? await reader.ReadAsync(resourceContext, cancellationToken).ConfigureAwait(false)
-                : await reader.ReadAsync(cancellationToken).ConfigureAwait(false);
+            var current = await reader.ReadAsync(context, cancellationToken).ConfigureAwait(false);
             if (
                 !request.Condition.IsSatisfiedBy(
                     current.Revision,

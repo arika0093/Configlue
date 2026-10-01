@@ -14,7 +14,7 @@ namespace Configlue.Resource.S3;
 /// </remarks>
 public sealed class S3ObjectResource
     : IResourceReader,
-        IContextualPipelineResourceReader,
+        IPipelineResourceReader,
         IResourceWriter,
         IContextualResourceIdentity
 {
@@ -82,13 +82,6 @@ public sealed class S3ObjectResource
 
     /// <inheritdoc />
     public async ValueTask<PipelineResourceReadResult> ReadPipelineAsync(
-        CancellationToken cancellationToken = default
-    ) =>
-        await ReadPipelineAsync(ConfiglueResourceContext.Default, cancellationToken)
-            .ConfigureAwait(false);
-
-    /// <inheritdoc />
-    public async ValueTask<PipelineResourceReadResult> ReadPipelineAsync(
         ConfiglueResourceContext context,
         CancellationToken cancellationToken = default
     )
@@ -110,11 +103,6 @@ public sealed class S3ObjectResource
 
     /// <inheritdoc />
     public async ValueTask<ResourceReadResult> ReadAsync(
-        CancellationToken cancellationToken = default
-    ) => await ReadAsync(ConfiglueResourceContext.Default, cancellationToken).ConfigureAwait(false);
-
-    /// <inheritdoc />
-    public async ValueTask<ResourceReadResult> ReadAsync(
         ConfiglueResourceContext context,
         CancellationToken cancellationToken = default
     )
@@ -133,14 +121,6 @@ public sealed class S3ObjectResource
             return ResourceReadResult.NotFound();
         }
     }
-
-    /// <inheritdoc />
-    public async ValueTask<StateWriteResult> WriteAsync(
-        ResourceWriteRequest request,
-        CancellationToken cancellationToken = default
-    ) =>
-        await WriteAsync(ConfiglueResourceContext.Default, request, cancellationToken)
-            .ConfigureAwait(false);
 
     /// <inheritdoc />
     public async ValueTask<StateWriteResult> WriteAsync(

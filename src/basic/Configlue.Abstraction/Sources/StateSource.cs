@@ -7,6 +7,7 @@ public sealed class StateSource<T>
 {
     private string[] _ownedPropertyPaths = [];
     private readonly Func<IConfiglueSubject, SubjectKey> _subjectKeySelector;
+    private Func<IConfiglueSubject, RouteKey> RouteSelector { get; set; }
     private readonly ResourceId? _configuredResourceId;
 
     /// <summary>Creates a source with an automatically generated opaque logical identity.</summary>
@@ -27,7 +28,8 @@ public sealed class StateSource<T>
         bool explicitOnly = false,
         Func<IConfiglueSubject, SubjectKey>? subjectKeySelector = null,
         RuntimeLifetimeRequirement runtimeLifetime = RuntimeLifetimeRequirement.Shared,
-        string? modelId = null
+        string? modelId = null,
+        Func<IConfiglueSubject, RouteKey>? routeSelector = null
     )
         : this(
             StateSourceIdentity.Create(
@@ -46,7 +48,8 @@ public sealed class StateSource<T>
             explicitOnly,
             subjectKeySelector,
             runtimeLifetime,
-            modelId
+            modelId,
+            routeSelector
         ) { }
 
     /// <summary>Creates a source from one object that supplies its read, write, and watch capabilities.</summary>
@@ -60,7 +63,8 @@ public sealed class StateSource<T>
         bool explicitOnly = false,
         Func<IConfiglueSubject, SubjectKey>? subjectKeySelector = null,
         RuntimeLifetimeRequirement runtimeLifetime = RuntimeLifetimeRequirement.Shared,
-        string? modelId = null
+        string? modelId = null,
+        Func<IConfiglueSubject, RouteKey>? routeSelector = null
     )
         : this(
             (ISourceReader<T>)source,
@@ -74,7 +78,8 @@ public sealed class StateSource<T>
             explicitOnly,
             subjectKeySelector,
             runtimeLifetime,
-            modelId
+            modelId,
+            routeSelector
         ) { }
 
     /// <summary>Creates a source from one capability-supplying object with an explicit logical identity.</summary>
@@ -88,7 +93,8 @@ public sealed class StateSource<T>
         bool explicitOnly = false,
         Func<IConfiglueSubject, SubjectKey>? subjectKeySelector = null,
         RuntimeLifetimeRequirement runtimeLifetime = RuntimeLifetimeRequirement.Shared,
-        string? modelId = null
+        string? modelId = null,
+        Func<IConfiglueSubject, RouteKey>? routeSelector = null
     )
         : this(
             id,
@@ -102,7 +108,8 @@ public sealed class StateSource<T>
             explicitOnly,
             subjectKeySelector,
             runtimeLifetime,
-            modelId
+            modelId,
+            routeSelector
         ) { }
 
     /// <summary>Creates a source with at least a reader.</summary>
@@ -118,7 +125,8 @@ public sealed class StateSource<T>
         bool explicitOnly = false,
         Func<IConfiglueSubject, SubjectKey>? subjectKeySelector = null,
         RuntimeLifetimeRequirement runtimeLifetime = RuntimeLifetimeRequirement.Shared,
-        string? modelId = null
+        string? modelId = null,
+        Func<IConfiglueSubject, RouteKey>? routeSelector = null
     )
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
@@ -149,6 +157,7 @@ public sealed class StateSource<T>
         RuntimeLifetime = runtimeLifetime;
         ModelId = modelId;
         _subjectKeySelector = subjectKeySelector ?? (static subject => subject.Key);
+        RouteSelector = routeSelector ?? (static _ => RouteKey.Default);
     }
 
     /// <summary>The stable logical identifier of the source.</summary>
@@ -193,6 +202,13 @@ public sealed class StateSource<T>
         return _subjectKeySelector(subject);
     }
 
+    /// <summary>Resolves this logical source's physical route for an application-defined subject.</summary>
+    public RouteKey GetRouteKey(IConfiglueSubject subject)
+    {
+        ArgumentNullException.ThrowIfNull(subject);
+        return RouteSelector(subject);
+    }
+
     /// <summary>Resolves the physical resource identity for one application-defined subject.</summary>
     public ResourceId? GetResourceId(IConfiglueSubject subject)
     {
@@ -211,14 +227,16 @@ public sealed class StateSource<T>
         return TryGetResourceId(Writer, context) ?? TryGetResourceId(Reader, context) ?? ResourceId;
     }
 
-    /// <summary>Creates the resource context for a subject and this source's key mapping.</summary>
-    public ConfiglueResourceContext GetResourceContext(
-        IConfiglueSubject subject,
-        RouteKey route = default
-    )
+    /// <summary>Creates the complete resource context for a subject using this source's key and route mapping.</summary>
+    public ConfiglueResourceContext GetResourceContext(IConfiglueSubject subject)
     {
         ArgumentNullException.ThrowIfNull(subject);
-        return new ConfiglueResourceContext(ModelId, subject, GetSubjectKey(subject), route);
+        return new ConfiglueResourceContext(
+            ModelId,
+            subject,
+            GetSubjectKey(subject),
+            GetRouteKey(subject)
+        );
     }
 
     /// <summary>Reads this source for a subject using its source-specific key mapping.</summary>
@@ -331,7 +349,8 @@ public sealed class StateSource<T>
             ExplicitOnly,
             _subjectKeySelector,
             RuntimeLifetime,
-            ModelId
+            ModelId,
+            RouteSelector
         )
         {
             _ownedPropertyPaths = ownedPaths,
@@ -358,7 +377,8 @@ public sealed class StateSource<T>
             ExplicitOnly,
             _subjectKeySelector,
             RuntimeLifetime,
-            modelId
+            modelId,
+            RouteSelector
         )
         {
             _ownedPropertyPaths = [.. _ownedPropertyPaths],
@@ -382,7 +402,8 @@ public sealed class StateSource<T>
             ExplicitOnly,
             subjectKeySelector,
             RuntimeLifetime,
-            ModelId
+            ModelId,
+            RouteSelector
         );
     }
 
@@ -395,6 +416,7 @@ public sealed class StateSource<T>
         target.ExplicitOnly = explicitOnly ?? ExplicitOnly;
         target.RuntimeLifetime = RuntimeLifetime;
         target.ModelId = ModelId;
+        target.RouteSelector = RouteSelector;
         target._ownedPropertyPaths = [.. _ownedPropertyPaths];
     }
 }

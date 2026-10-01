@@ -410,9 +410,11 @@ public sealed class StateCheckTests
         public int Reads => Volatile.Read(ref _reads);
 
         public ValueTask<StateReadResult<T>> ReadAsync(
+            ConfiglueResourceContext context,
             CancellationToken cancellationToken = default
         )
         {
+            _ = context;
             cancellationToken.ThrowIfCancellationRequested();
             Interlocked.Increment(ref _reads);
             return ValueTaskCompat.FromResult(result);
@@ -422,20 +424,18 @@ public sealed class StateCheckTests
     private sealed class ThrowingReader<T> : ISourceReader<T>
     {
         public ValueTask<StateReadResult<T>> ReadAsync(
+            ConfiglueResourceContext context,
             CancellationToken cancellationToken = default
         )
         {
+            _ = context;
             cancellationToken.ThrowIfCancellationRequested();
             throw new InvalidOperationException("reader failed");
         }
     }
 
-    private sealed class SubjectReader : IContextualSourceReader<AppSettings.Fragment>
+    private sealed class SubjectReader : ISourceReader<AppSettings.Fragment>
     {
-        public ValueTask<StateReadResult<AppSettings.Fragment>> ReadAsync(
-            CancellationToken cancellationToken = default
-        ) => ReadAsync(ConfiglueResourceContext.Default, cancellationToken);
-
         public ValueTask<StateReadResult<AppSettings.Fragment>> ReadAsync(
             ConfiglueResourceContext context,
             CancellationToken cancellationToken = default

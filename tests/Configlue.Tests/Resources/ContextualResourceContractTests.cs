@@ -117,7 +117,7 @@ public sealed class ContextualResourceContractTests
 
     private sealed class ContextualMemoryResource(bool perSubjectIdentity)
         : IResourceReader,
-            IContextualPipelineResourceReader,
+            IPipelineResourceReader,
             IResourceBatchWriter,
             IResourceWriter,
             IContextualResourceIdentity

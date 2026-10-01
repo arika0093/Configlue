@@ -14,9 +14,9 @@ namespace Configlue.State;
 /// combined fragment.
 /// </remarks>
 public sealed class CompositeStateSource<TFragment>
-    : IContextualSourceReader<TFragment>,
-        IContextualSourceWriter<TFragment>,
-        IContextualSourceWatcher
+    : ISourceReader<TFragment>,
+        ISourceWriter<TFragment>,
+        ISourceWatcher
     where TFragment : class, IConfiglueFragment<TFragment>
 {
     private readonly StateSourceSet<TFragment> _components;
@@ -96,36 +96,29 @@ public sealed class CompositeStateSource<TFragment>
 
     internal async ValueTask<StateReadResult<TFragment>> ReadWithOverridesAsync(
         IReadOnlyDictionary<string, TFragment> overrides,
-        CancellationToken cancellationToken
-    ) =>
-        await ReadCoreAsync(overrides, null, RouteKey.Default, cancellationToken)
-            .ConfigureAwait(false);
-
-    internal async ValueTask<StateReadResult<TFragment>> ReadWithOverridesAsync(
-        IReadOnlyDictionary<string, TFragment> overrides,
         ConfiglueResourceContext context,
         CancellationToken cancellationToken
     ) =>
-        await ReadCoreAsync(overrides, context.Subject, context.Route, cancellationToken)
+        await ReadCoreAsync(overrides, ConfigurationSubject(context), context, cancellationToken)
             .ConfigureAwait(false);
-
-    /// <inheritdoc />
-    public async ValueTask<StateReadResult<TFragment>> ReadAsync(
-        CancellationToken cancellationToken = default
-    ) => await ReadCoreAsync(null, null, RouteKey.Default, cancellationToken).ConfigureAwait(false);
 
     /// <inheritdoc />
     public async ValueTask<StateReadResult<TFragment>> ReadAsync(
         ConfiglueResourceContext context,
         CancellationToken cancellationToken = default
     ) =>
-        await ReadCoreAsync(null, context.Subject, context.Route, cancellationToken)
+        await ReadCoreAsync(null, ConfigurationSubject(context), context, cancellationToken)
             .ConfigureAwait(false);
+
+    private static IConfiglueSubject? ConfigurationSubject(ConfiglueResourceContext context) =>
+        ReferenceEquals(context.Subject, ConfiglueResourceContext.DefaultSubject)
+            ? null
+            : context.Subject;
 
     private async ValueTask<StateReadResult<TFragment>> ReadCoreAsync(
         IReadOnlyDictionary<string, TFragment>? overrides,
         IConfiglueSubject? subject,
-        RouteKey route,
+        ConfiglueResourceContext context,
         CancellationToken cancellationToken
     )
     {
@@ -141,11 +134,12 @@ public sealed class CompositeStateSource<TFragment>
         {
             var source = _components[index];
             cancellationToken.ThrowIfCancellationRequested();
-            var result = subject is null
-                ? await source.Reader.ReadAsync(cancellationToken).ConfigureAwait(false)
-                : await source
-                    .ReadAsync(source.GetResourceContext(subject, route), cancellationToken)
-                    .ConfigureAwait(false);
+            var result = await source
+                .ReadAsync(
+                    subject is null ? context : source.GetResourceContext(subject),
+                    cancellationToken
+                )
+                .ConfigureAwait(false);
             result = result.FromSource(source.Id, source.PhysicalOrigin);
             if (
                 result.Status == StateReadStatus.NotFound
@@ -215,12 +209,12 @@ public sealed class CompositeStateSource<TFragment>
             lastFailure = result;
             if (!CanFallBack(source.FallbackCondition, result.Status))
             {
-                SetWatchTargets(watchTargets, subject, route);
+                SetWatchTargets(watchTargets, subject, context);
                 return result with { Revisions = CreateRevisionVector(revisions, nestedRevisions) };
             }
         }
 
-        SetWatchTargets(watchTargets, subject, route);
+        SetWatchTargets(watchTargets, subject, context);
         if (successful.Count == 0)
         {
             return lastFailure with
@@ -251,25 +245,20 @@ public sealed class CompositeStateSource<TFragment>
             ? new StateRevisionVector(revisions)
             : new StateRevisionVector(revisions, nestedRevisions);
 
-    /// <summary>Composite writes must be expressed as member patches so ownership stays component-local.</summary>
+    /// <inheritdoc />
     public ValueTask<StateWriteResult> WriteAsync(
+        ConfiglueResourceContext context,
         StateWriteRequest<TFragment> request,
         CancellationToken cancellationToken = default
     )
     {
+        _ = context;
         _ = request;
         cancellationToken.ThrowIfCancellationRequested();
         throw new NotSupportedException(
             "Composite sources accept member-routed patches; writing a merged fragment directly is unsafe."
         );
     }
-
-    /// <inheritdoc />
-    public ValueTask<StateWriteResult> WriteAsync(
-        ConfiglueResourceContext context,
-        StateWriteRequest<TFragment> request,
-        CancellationToken cancellationToken = default
-    ) => WriteAsync(request, cancellationToken);
 
     private static StateSource<TFragment> GetWritableComponent(
         StateSourceSet<TFragment> components,
@@ -297,17 +286,6 @@ public sealed class CompositeStateSource<TFragment>
     }
 
     /// <inheritdoc />
-    public async ValueTask WaitForChangeAsync(
-        string? observedRevision,
-        CancellationToken cancellationToken = default
-    )
-    {
-        _ = observedRevision;
-        await WaitForChangeCoreAsync(null, RouteKey.Default, cancellationToken)
-            .ConfigureAwait(false);
-    }
-
-    /// <inheritdoc />
     public ValueTask WaitForChangeAsync(
         ConfiglueResourceContext context,
         string? observedRevision,
@@ -315,16 +293,19 @@ public sealed class CompositeStateSource<TFragment>
     )
     {
         _ = observedRevision;
-        return WaitForChangeCoreAsync(context.Subject, context.Route, cancellationToken);
+        var subject = ReferenceEquals(context.Subject, ConfiglueResourceContext.DefaultSubject)
+            ? null
+            : context.Subject;
+        return WaitForChangeCoreAsync(subject, context, cancellationToken);
     }
 
     private async ValueTask WaitForChangeCoreAsync(
         IConfiglueSubject? subject,
-        RouteKey route,
+        ConfiglueResourceContext context,
         CancellationToken cancellationToken
     )
     {
-        var cacheKey = (subject?.Key ?? SubjectKey.Default, route);
+        var cacheKey = (subject?.Key ?? SubjectKey.Default, context.Route);
         var targets = _watchTargets.GetValueOrDefault(cacheKey) ?? [];
         using var watchCancellation = CancellationTokenSource.CreateLinkedTokenSource(
             cancellationToken
@@ -335,21 +316,19 @@ public sealed class CompositeStateSource<TFragment>
             foreach (var target in targets)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                if (target.Source.Watcher is not { } watcher)
+                if (target.Source.Watcher is null)
                 {
                     continue;
                 }
 
                 watchers.Add(
-                    (
-                        subject is null
-                            ? watcher.WaitForChangeAsync(target.Revision, watchCancellation.Token)
-                            : target.Source.WaitForChangeAsync(
-                                target.Source.GetResourceContext(subject, route),
-                                target.Revision,
-                                watchCancellation.Token
-                            )
-                    ).AsTask()
+                    target
+                        .Source.WaitForChangeAsync(
+                            subject is null ? context : target.Source.GetResourceContext(subject),
+                            target.Revision,
+                            watchCancellation.Token
+                        )
+                        .AsTask()
                 );
             }
 
@@ -391,8 +370,8 @@ public sealed class CompositeStateSource<TFragment>
     private void SetWatchTargets(
         List<WatchTarget> targets,
         IConfiglueSubject? subject,
-        RouteKey route
-    ) => _watchTargets[(subject?.Key ?? SubjectKey.Default, route)] = targets.ToArray();
+        ConfiglueResourceContext context
+    ) => _watchTargets[(subject?.Key ?? SubjectKey.Default, context.Route)] = targets.ToArray();
 
     private static string? GetPhysicalOrigin(List<ComponentResult> successful)
     {

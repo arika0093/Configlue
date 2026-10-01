@@ -73,7 +73,9 @@ public static class HttpResourceEndpointRouteBuilderExtensions
             return;
         }
 
-        var result = await reader.ReadAsync(context.RequestAborted).ConfigureAwait(false);
+        var result = await reader
+            .ReadAsync(ConfiglueResourceContext.Default, context.RequestAborted)
+            .ConfigureAwait(false);
         var entityTag = FormatEntityTag(result.Revision);
         if (entityTag is not null)
         {
@@ -199,6 +201,7 @@ public static class HttpResourceEndpointRouteBuilderExtensions
         {
             result = await writer
                 .WriteAsync(
+                    ConfiglueResourceContext.Default,
                     new ResourceWriteRequest(
                         content.GetBuffer().AsMemory(0, checked((int)content.Length)),
                         Condition: condition,

@@ -91,10 +91,6 @@ public sealed class TransformingResource
         _backupRecovery?.AutomaticBackupRecoveryEnabled == true;
 
     /// <inheritdoc />
-    public ValueTask<ResourceReadResult> ReadAsync(CancellationToken cancellationToken = default) =>
-        ReadAsync(ConfiglueResourceContext.Default, cancellationToken);
-
-    /// <inheritdoc />
     public async ValueTask<ResourceReadResult> ReadAsync(
         ConfiglueResourceContext context,
         CancellationToken cancellationToken = default

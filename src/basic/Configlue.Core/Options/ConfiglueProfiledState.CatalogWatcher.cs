@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Configlue.CompilerServices;
+using Configlue.Resources;
 
 namespace Configlue;
 
@@ -34,7 +35,11 @@ internal sealed partial class ConfiglueProfiledState<TModel, TFragment>
                 try
                 {
                     await _catalogSource
-                        .Watcher!.WaitForChangeAsync(_catalogRevision, cancellationToken)
+                        .Watcher!.WaitForChangeAsync(
+                            ConfiglueResourceContext.Default,
+                            _catalogRevision,
+                            cancellationToken
+                        )
                         .ConfigureAwait(false);
                     refreshPending = true;
                 }

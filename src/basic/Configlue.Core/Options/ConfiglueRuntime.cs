@@ -71,7 +71,6 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
     private readonly StateWriteRoute _writeRoute;
     private readonly StateWritePlan _defaultWritePlan;
     private readonly Func<TModel, TModel>? _cloneStrategy;
-    private readonly Func<IConfiglueSubject, RouteKey>? _routeSelector;
     private readonly StateSchemaMigrationChain<TFragment> _migrationChain;
     private readonly IConfiglueValidator<TModel>[] _validators;
     private readonly string _stateName;
@@ -164,8 +163,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         ILogger? logger,
         Func<TModel, TModel>? cloneStrategy,
         ReadValidationMode readValidationMode = ReadValidationMode.EffectiveThrow,
-        WriteConflictResolution writeConflictResolution = WriteConflictResolution.FailOnConflict,
-        Func<IConfiglueSubject, RouteKey>? routeSelector = null
+        WriteConflictResolution writeConflictResolution = WriteConflictResolution.FailOnConflict
     )
     {
         ArgumentNullException.ThrowIfNull(sourceSet);
@@ -180,7 +178,6 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         _writeRoute = writeRoute;
         _defaultWritePlan = BuildWritePlanWithMountedOwners(_activeSources, defaultWritePlan);
         _cloneStrategy = cloneStrategy;
-        _routeSelector = routeSelector;
         _validators = validators?.ToArray() ?? [];
         _stateName = stateName ?? string.Empty;
         _logger = logger;
@@ -431,11 +428,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
     private ValueTask<StateReadResult<TFragment>> ReadSourceAsync(
         StateSource<TFragment> source,
         CancellationToken cancellationToken
-    ) =>
-        source.ReadAsync(
-            _subjectContext.Value is not null ? GetResourceContext(source) : DefaultResourceContext,
-            cancellationToken
-        );
+    ) => source.ReadAsync(GetResourceContext(source), cancellationToken);
 
     private static ValueTask<StateReadResult<TFragment>> ReadSourceAsync(
         StateSource<TFragment> source,
@@ -457,10 +450,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
 
     private ConfiglueResourceContext GetResourceContext(StateSource<TFragment> source) =>
         _subjectContext.Value is { } subject
-            ? source.GetResourceContext(
-                subject,
-                _routeSelector?.Invoke(subject) ?? RouteKey.Default
-            )
+            ? source.GetResourceContext(subject)
             : DefaultResourceContext;
 
     private ResourceId? GetResourceId(StateSource<TFragment> source) =>
@@ -528,9 +518,6 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         using var operation = EnterOperation();
         var activeSources = GetActiveSources();
         var subject = _subjectContext.Value;
-        var route = subject is null
-            ? RouteKey.Default
-            : _routeSelector?.Invoke(subject) ?? RouteKey.Default;
         List<ResolvedContribution>? contributions = captureContributions
             ? new List<ResolvedContribution>(activeSources.Length + 1)
             : null;
@@ -551,7 +538,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             cancellationToken.ThrowIfCancellationRequested();
             ConfiglueResourceContext? resourceContext = subject is null
                 ? null
-                : source.GetResourceContext(subject, route);
+                : source.GetResourceContext(subject);
             var resourceId =
                 (captureContributions || observeSource is not null) && resourceContext is not null
                     ? source.GetResourceId(resourceContext.Value)

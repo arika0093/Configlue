@@ -530,9 +530,11 @@ public sealed partial class StateRuntimeTests
     private sealed class FixedStateReader<T>(StateReadResult<T> result) : ISourceReader<T>
     {
         public ValueTask<StateReadResult<T>> ReadAsync(
+            ConfiglueResourceContext context,
             CancellationToken cancellationToken = default
         )
         {
+            _ = context;
             cancellationToken.ThrowIfCancellationRequested();
             return ValueTaskCompat.FromResult(result);
         }
@@ -567,9 +569,11 @@ public sealed partial class StateRuntimeTests
         public Task WatchStarted => _watchStarted.Task;
 
         public ValueTask<StateReadResult<T>> ReadAsync(
+            ConfiglueResourceContext context,
             CancellationToken cancellationToken = default
         )
         {
+            _ = context;
             cancellationToken.ThrowIfCancellationRequested();
             lock (_gate)
             {
@@ -578,10 +582,12 @@ public sealed partial class StateRuntimeTests
         }
 
         public async ValueTask WaitForChangeAsync(
+            ConfiglueResourceContext context,
             string? observedRevision,
             CancellationToken cancellationToken = default
         )
         {
+            _ = context;
             Task waitTask;
             lock (_gate)
             {
@@ -631,10 +637,12 @@ public sealed partial class StateRuntimeTests
         public Task<bool> CancellationObserved => _cancellationObserved.Task;
 
         public ValueTask WaitForChangeAsync(
+            ConfiglueResourceContext context,
             string? observedRevision,
             CancellationToken cancellationToken = default
         )
         {
+            _ = context;
             _started.TrySetResult(true);
             _ = cancellationToken.Register(
                 static state => ((TaskCompletionSource<bool>)state!).TrySetResult(true),
@@ -647,6 +655,7 @@ public sealed partial class StateRuntimeTests
     private sealed class SynchronousThrowingStateWatcher : ISourceWatcher
     {
         public ValueTask WaitForChangeAsync(
+            ConfiglueResourceContext context,
             string? observedRevision,
             CancellationToken cancellationToken = default
         ) => throw new InvalidOperationException("Simulated synchronous watcher startup failure.");
@@ -657,6 +666,7 @@ public sealed partial class StateRuntimeTests
         private int _shouldFail = 1;
 
         public ValueTask<StateWriteResult> WriteAsync(
+            ConfiglueResourceContext context,
             StateWriteRequest<T> request,
             CancellationToken cancellationToken = default
         )
@@ -666,7 +676,7 @@ public sealed partial class StateRuntimeTests
                 throw new IOException("Simulated transient target failure.");
             }
 
-            return inner.WriteAsync(request, cancellationToken);
+            return inner.WriteAsync(context, request, cancellationToken);
         }
     }
 
@@ -768,10 +778,11 @@ public sealed partial class StateRuntimeTests
         public int ReadCount { get; private set; }
 
         public async ValueTask<StateReadResult<T>> ReadAsync(
+            ConfiglueResourceContext context,
             CancellationToken cancellationToken = default
         )
         {
-            var result = await inner.ReadAsync(cancellationToken).ConfigureAwait(false);
+            var result = await inner.ReadAsync(context, cancellationToken).ConfigureAwait(false);
             var readCount = ++ReadCount;
             afterRead?.Invoke(readCount);
             return result;

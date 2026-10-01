@@ -8,9 +8,9 @@ namespace Configlue.Resource.Zip;
 /// <summary>A logical resource view over one entry in a shared ZIP archive resource.</summary>
 public sealed class ZipEntryResource
     : IResourceReader,
-        IContextualPipelineResourceReader,
+        IPipelineResourceReader,
         IResourceWriter,
-        IContextualSourceWatcher,
+        ISourceWatcher,
         ITryContextualResourceIdentity,
         IContextualResourceBatchParticipant
 {
@@ -229,17 +229,6 @@ public sealed class ZipEntryResource
 
     /// <inheritdoc />
     public async ValueTask<PipelineResourceReadResult> ReadPipelineAsync(
-        CancellationToken cancellationToken = default
-    )
-    {
-        var result = await ReadAsync(cancellationToken).ConfigureAwait(false);
-        return await PipelineResourceReader
-            .FromMemoryAsync(result, cancellationToken)
-            .ConfigureAwait(false);
-    }
-
-    /// <inheritdoc />
-    public async ValueTask<PipelineResourceReadResult> ReadPipelineAsync(
         ConfiglueResourceContext context,
         CancellationToken cancellationToken = default
     )
@@ -249,10 +238,6 @@ public sealed class ZipEntryResource
             .FromMemoryAsync(result, cancellationToken)
             .ConfigureAwait(false);
     }
-
-    /// <inheritdoc />
-    public ValueTask<ResourceReadResult> ReadAsync(CancellationToken cancellationToken = default) =>
-        ReadAsync(ConfiglueResourceContext.Default, cancellationToken);
 
     /// <inheritdoc />
     public async ValueTask<ResourceReadResult> ReadAsync(
@@ -300,12 +285,6 @@ public sealed class ZipEntryResource
         StoreSnapshot(context, archiveResult.Revision, entryRevision);
         return ResourceReadResult.Success(entryContent, archiveResult.Revision);
     }
-
-    /// <inheritdoc />
-    public ValueTask<StateWriteResult> WriteAsync(
-        ResourceWriteRequest request,
-        CancellationToken cancellationToken = default
-    ) => WriteAsync(ConfiglueResourceContext.Default, request, cancellationToken);
 
     /// <inheritdoc />
     public ValueTask<StateWriteResult> WriteAsync(
@@ -374,12 +353,6 @@ public sealed class ZipEntryResource
 
     private string ResolveEntryName(ConfiglueResourceContext context) =>
         _entryNameSelector is null ? _entryName : NormalizeEntryName(_entryNameSelector(context));
-
-    /// <inheritdoc />
-    public ValueTask WaitForChangeAsync(
-        string? observedRevision,
-        CancellationToken cancellationToken = default
-    ) => WaitForChangeAsync(ConfiglueResourceContext.Default, observedRevision, cancellationToken);
 
     /// <inheritdoc />
     public async ValueTask WaitForChangeAsync(

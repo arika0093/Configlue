@@ -13,9 +13,8 @@ namespace Configlue.Source.PostgreSql;
 /// Configlue.Source.PostgreSql.Migrations.
 /// </remarks>
 public sealed class PostgreSqlSource<T>
-    : IContextualSourceReader<T>,
-        IContextualSourceWriter<T>,
-        IContextualSourceWatcher,
+    : ISourceWriter<T>,
+        ISourceWatcher,
         ISourceCapabilities<T>,
         ITryContextualResourceIdentity,
         IDisposable
@@ -165,11 +164,6 @@ public sealed class PostgreSqlSource<T>
 
     /// <inheritdoc />
     public async ValueTask<StateReadResult<T>> ReadAsync(
-        CancellationToken cancellationToken = default
-    ) => await ReadAsync(ConfiglueResourceContext.Default, cancellationToken).ConfigureAwait(false);
-
-    /// <inheritdoc />
-    public async ValueTask<StateReadResult<T>> ReadAsync(
         ConfiglueResourceContext context,
         CancellationToken cancellationToken = default
     )
@@ -206,12 +200,6 @@ public sealed class PostgreSqlSource<T>
 
     /// <inheritdoc />
     public ValueTask<StateWriteResult> WriteAsync(
-        StateWriteRequest<T> request,
-        CancellationToken cancellationToken = default
-    ) => WriteAsync(ConfiglueResourceContext.Default, request, cancellationToken);
-
-    /// <inheritdoc />
-    public ValueTask<StateWriteResult> WriteAsync(
         ConfiglueResourceContext context,
         StateWriteRequest<T> request,
         CancellationToken cancellationToken = default
@@ -245,12 +233,6 @@ public sealed class PostgreSqlSource<T>
                 cancellationToken
             );
     }
-
-    /// <inheritdoc />
-    public ValueTask WaitForChangeAsync(
-        string? observedRevision,
-        CancellationToken cancellationToken = default
-    ) => WaitForChangeAsync(ConfiglueResourceContext.Default, observedRevision, cancellationToken);
 
     /// <inheritdoc />
     public ValueTask WaitForChangeAsync(
