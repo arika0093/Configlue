@@ -29,9 +29,6 @@
     />
   </ItemGroup>
   <ItemGroup>
-    <Compile
-      Include="..\..\utilities\SparseFragments\SparseFragments.Generator.Shared\**\*.cs"
-      LinkBase="Shared"
-    />
+    <Compile Include="..\..\fragments\SparseFragments.Generator.Shared\**\*.cs" LinkBase="Shared" />
   </ItemGroup>
 </Project>

@@ -1,12 +1,13 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFrameworks>netstandard2.0;netstandard2.1;net10.0</TargetFrameworks>
+    <TargetFramework>netstandard2.0</TargetFramework>
     <AssemblyName>SparseFragments</AssemblyName>
     <RootNamespace>SparseFragments</RootNamespace>
     <IsPackable>true</IsPackable>
     <PackageDescription>Standalone sparse-fragment model algebra extracted from Configlue.</PackageDescription>
   </PropertyGroup>
-  <ItemGroup Condition="'$(ConfiglueNetStandard20)' == 'true'">
+  <ItemGroup>
+    <PackageReference Include="Polyfill" Version="11.4.1" PrivateAssets="all" />
     <PackageReference Include="System.Memory" Version="4.6.3" />
   </ItemGroup>
   <ItemGroup>
