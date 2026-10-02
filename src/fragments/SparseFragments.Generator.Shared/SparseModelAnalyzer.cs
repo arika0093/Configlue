@@ -244,7 +244,10 @@ internal static class SparseModelAnalyzer
         if (named.IsValueType)
         {
             if (IsFrameworkType(named))
-                return named.TypeArguments.Length == 0;
+                return IsSafeToCopyValue(
+                    named,
+                    new HashSet<ITypeSymbol>(SymbolEqualityComparer.Default)
+                );
             return IsSafeToCopyValue(
                 named,
                 new HashSet<ITypeSymbol>(SymbolEqualityComparer.Default)
@@ -345,7 +348,13 @@ internal static class SparseModelAnalyzer
         if (!named.IsValueType)
             return named.ToDisplayString() is "System.Uri" or "System.Version" or "System.Type";
         if (IsFrameworkType(named))
-            return true;
+        {
+            if (named.TypeArguments.Length == 0)
+                return true;
+            if (named.OriginalDefinition.SpecialType == SpecialType.System_Nullable_T)
+                return IsSafeToCopyValue(named.TypeArguments[0], visited);
+            return !named.TypeArguments.Any(argument => !IsSafeToCopyValue(argument, visited));
+        }
         if (!visited.Add(named))
             return true;
         return !named

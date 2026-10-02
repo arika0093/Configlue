@@ -56,4 +56,31 @@ public sealed class CloneGraphTests
         clone.Next.Value = 9;
         child.Value.ShouldBe(7);
     }
+
+    [Test]
+    public void EditSessionClonesItsInputGraphBeforeEditing()
+    {
+        var root = new CloneGraphNode();
+        var child = new CloneGraphNode { Value = 7, Next = root };
+        root.Next = child;
+        root.Peer = child;
+        root.Nodes.Add(child);
+        root.Nodes.Add(root);
+        child.Nodes = root.Nodes;
+
+        using var session = new EditSession<CloneGraphNode>(
+            root,
+            static (_, _) => ValueTask.FromResult(StateWriteReceipt.Empty)
+        );
+
+        ReferenceEquals(session.Value, root).ShouldBeFalse();
+        ReferenceEquals(session.Value.Next, session.Value.Peer).ShouldBeTrue();
+        ReferenceEquals(session.Value.Next!.Next, session.Value).ShouldBeTrue();
+        ReferenceEquals(session.Value.Nodes, session.Value.Next.Nodes).ShouldBeTrue();
+        session.Value.Next.Value = 42;
+        session.Value.Nodes.Clear();
+        child.Value.ShouldBe(7);
+        root.Nodes.Count.ShouldBe(2);
+        session.SessionStart.Value.Next!.Value.ShouldBe(7);
+    }
 }
