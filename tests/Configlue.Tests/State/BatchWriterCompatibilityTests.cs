@@ -175,7 +175,9 @@ public sealed class BatchWriterCompatibilityTests
             StateWritePlan.DefaultTo("sync")
         );
 
-        asyncSource.Writer.ShouldBeAssignableTo<IAsyncSourceWriteBatchParticipant<AppSettings.Fragment>>();
+        asyncSource.Writer.ShouldBeAssignableTo<
+            IAsyncSourceWriteBatchParticipant<AppSettings.Fragment>
+        >();
         var result = await runtime.ApplyPatchesAsync([
             new StateSourcePatch(
                 "sync",
@@ -189,6 +191,177 @@ public sealed class BatchWriterCompatibilityTests
 
         result.PhysicalWriteCount.ShouldBe(1);
         resource.WriteCount.ShouldBe(1);
+    }
+
+    [Test]
+    public async Task ContextSensitiveWritersAreRejectedForTheLaterMutationContextBeforeWriting()
+    {
+        var keyA = SubjectKey.From("context-a");
+        var keyB = SubjectKey.From("context-b");
+        var store = new SharedBatchStore("memory:context-sensitive-subject");
+        var first = new ContextSensitiveBatchResource(
+            store,
+            context => context.Key == keyA ? "shared" : "first-only"
+        );
+        var second = new ContextSensitiveBatchResource(
+            store,
+            context => context.Key == keyA ? "shared" : "second-only"
+        );
+        var runtime = BuildContextRuntime(
+            first,
+            second,
+            firstSubjectKey: _ => keyA,
+            secondSubjectKey: _ => keyB
+        );
+
+        ResourceBatchCompatibility.AreCompatible(first, second, Context(keyA)).ShouldBeTrue();
+        ResourceBatchCompatibility.AreCompatible(first, second, Context(keyB)).ShouldBeFalse();
+
+        await Should.ThrowAsync<NotSupportedException>(async () =>
+            await runtime
+                .ForSubject(new TestSubject("tenant"))
+                .SaveAsync(
+                    new AppSettings.Patch
+                    {
+                        RetryCount = FragmentOperation<int>.Set(7),
+                        Label = FragmentOperation<string?>.Set("second"),
+                    }
+                )
+        );
+
+        store.WriteCount.ShouldBe(0);
+    }
+
+    [Test]
+    public async Task ContextSensitiveWritersBatchWhenTokensMatchInEveryMutationContext()
+    {
+        var keyA = SubjectKey.From("context-a");
+        var keyB = SubjectKey.From("context-b");
+        var store = new SharedBatchStore("memory:context-compatible-subject");
+        var first = new ContextSensitiveBatchResource(store, static context => context.Key);
+        var second = new ContextSensitiveBatchResource(store, static context => context.Key);
+        var runtime = BuildContextRuntime(
+            first,
+            second,
+            firstSubjectKey: _ => keyA,
+            secondSubjectKey: _ => keyB
+        );
+
+        var result = await runtime
+            .ForSubject(new TestSubject("tenant"))
+            .SaveAsync(
+                new AppSettings.Patch
+                {
+                    RetryCount = FragmentOperation<int>.Set(7),
+                    Label = FragmentOperation<string?>.Set("second"),
+                }
+            );
+
+        result.PhysicalWriteCount.ShouldBe(1);
+        store.WriteCount.ShouldBe(1);
+    }
+
+    [Test]
+    public async Task ContextSensitiveWritersRejectDifferentRoutesForOnePhysicalResource()
+    {
+        var routeA = RouteKey.From("route-a");
+        var routeB = RouteKey.From("route-b");
+        var store = new SharedBatchStore("memory:context-sensitive-route");
+        var first = new ContextSensitiveBatchResource(
+            store,
+            context => context.Route == routeA ? "shared" : "first-only"
+        );
+        var second = new ContextSensitiveBatchResource(
+            store,
+            context => context.Route == routeA ? "shared" : "second-only"
+        );
+        var runtime = BuildContextRuntime(
+            first,
+            second,
+            firstRoute: _ => routeA,
+            secondRoute: _ => routeB
+        );
+
+        await Should.ThrowAsync<NotSupportedException>(async () =>
+            await runtime
+                .ForSubject(new TestSubject("tenant"))
+                .SaveAsync(
+                    new AppSettings.Patch
+                    {
+                        RetryCount = FragmentOperation<int>.Set(7),
+                        Label = FragmentOperation<string?>.Set("second"),
+                    }
+                )
+        );
+
+        store.WriteCount.ShouldBe(0);
+    }
+
+    [Test]
+    public async Task ReferenceEqualCanonicalWriterBatchesAcrossDifferentMutationContexts()
+    {
+        var store = new SharedBatchStore("memory:reference-equal");
+        var shared = new SharedBatchResource(store);
+        var runtime = BuildContextRuntime(
+            shared,
+            shared,
+            firstSubjectKey: _ => SubjectKey.From("context-a"),
+            secondSubjectKey: _ => SubjectKey.From("context-b")
+        );
+
+        var result = await runtime
+            .ForSubject(new TestSubject("tenant"))
+            .SaveAsync(
+                new AppSettings.Patch
+                {
+                    RetryCount = FragmentOperation<int>.Set(7),
+                    Label = FragmentOperation<string?>.Set("second"),
+                }
+            );
+
+        result.PhysicalWriteCount.ShouldBe(1);
+        store.WriteCount.ShouldBe(1);
+    }
+
+    private static ConfiglueResourceContext Context(SubjectKey key) =>
+        new(AppSettings.ConfiglueSchema.Id, new TestSubject("tenant"), key, RouteKey.Default);
+
+    private static ConfiglueRuntime<AppSettings, AppSettings.Fragment> BuildContextRuntime(
+        IResourceReader firstResource,
+        IResourceReader secondResource,
+        Func<IConfiglueSubject, SubjectKey>? firstSubjectKey = null,
+        Func<IConfiglueSubject, SubjectKey>? secondSubjectKey = null,
+        Func<IConfiglueSubject, RouteKey>? firstRoute = null,
+        Func<IConfiglueSubject, RouteKey>? secondRoute = null
+    )
+    {
+        var codec = new JsonStateCodec<AppSettings.Fragment>();
+        var firstSection = new JsonSectionResource(firstResource, "App:First");
+        var secondSection = new JsonSectionResource(secondResource, "App:Second");
+        var writePlan = StateWritePlan
+            .For<AppSettings>()
+            .DefaultTo("second")
+            .Route(static settings => settings.Label, "first")
+            .Build();
+        var firstSource = new StateSource<AppSettings.Fragment>(
+            "first",
+            new SerializedStateReader<AppSettings.Fragment>(firstSection, codec),
+            priority: 10,
+            writer: new SerializedStateWriter<AppSettings.Fragment>(firstSection, codec),
+            subjectKeySelector: firstSubjectKey,
+            routeSelector: firstRoute
+        );
+        var secondSource = new StateSource<AppSettings.Fragment>(
+            "second",
+            new SerializedStateReader<AppSettings.Fragment>(secondSection, codec),
+            writer: new SerializedStateWriter<AppSettings.Fragment>(secondSection, codec),
+            subjectKeySelector: secondSubjectKey,
+            routeSelector: secondRoute
+        );
+        return new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
+            new StateSourceSet<AppSettings.Fragment>([firstSource, secondSource]),
+            writePlan
+        );
     }
 
     private static ConfiglueRuntime<AppSettings, AppSettings.Fragment> BuildRuntime(
@@ -290,10 +463,7 @@ public sealed class BatchWriterCompatibilityTests
             Convert.ToHexString(SHA256.HashData(content));
     }
 
-    private class SharedBatchResource
-        : IResourceReader,
-            IResourceBatchWriter,
-            IResourceIdentity
+    private class SharedBatchResource : IResourceReader, IResourceBatchWriter, IResourceIdentity
     {
         public SharedBatchResource(SharedBatchStore store) => Store = store;
 
@@ -315,11 +485,7 @@ public sealed class BatchWriterCompatibilityTests
             ConfiglueResourceContext context,
             ResourceWriteRequest request,
             CancellationToken cancellationToken = default
-        ) =>
-            WriteBatchAsync(
-                [ResourceWriteMutation.Replace(request, context)],
-                cancellationToken
-            );
+        ) => WriteBatchAsync([ResourceWriteMutation.Replace(request, context)], cancellationToken);
 
         public ValueTask<StateWriteResult> WriteBatchAsync(
             IReadOnlyList<ResourceWriteMutation> mutations,
@@ -333,16 +499,29 @@ public sealed class BatchWriterCompatibilityTests
         }
     }
 
-    private sealed class CompatibleSharedBatchResource(
-        SharedBatchStore store,
-        object token
-    ) : SharedBatchResource(store), IResourceBatchCompatibility
+    private sealed class CompatibleSharedBatchResource(SharedBatchStore store, object token)
+        : SharedBatchResource(store),
+            IResourceBatchCompatibility
     {
         public object? GetBatchCompatibilityToken(ConfiglueResourceContext context)
         {
             _ = context;
             return token;
         }
+    }
+
+    private sealed class ContextSensitiveBatchResource(
+        SharedBatchStore store,
+        Func<ConfiglueResourceContext, object?> tokenSelector
+    ) : SharedBatchResource(store), IResourceBatchCompatibility
+    {
+        public object? GetBatchCompatibilityToken(ConfiglueResourceContext context) =>
+            tokenSelector(context);
+    }
+
+    private sealed record TestSubject(string Id) : IConfiglueSubject
+    {
+        public SubjectKey Key => SubjectKey.From(Id);
     }
 
     private sealed class PassthroughTransformer : IStateByteTransformer

@@ -17,13 +17,26 @@ namespace Configlue.Resources;
 /// context. Writers that do not implement this interface, or that return <see langword="null"/>, can only
 /// batch with themselves. Compatibility is validated before any physical write is attempted.
 /// </para>
+/// <para>
+/// A single physical batch may admit mutations that carry different <see cref="ConfiglueResourceContext"/>
+/// values. The runtime executes the whole batch through one canonical writer (the writer of the first
+/// admitted mutation), so it validates that writer against every other admitted writer using the other
+/// writer's own operation context. A writer is never admitted based on another mutation's context, and a
+/// context-sensitive token must therefore describe compatibility for the context in which the mutation is
+/// actually contributed. Tokens establish per-operation substitutability; different token values across
+/// contexts alone do not restrict which contexts may coexist in a batch. If a writer requires an invariant
+/// across the complete set of mutations, its WriteBatchAsync implementation must validate that invariant
+/// and reject unsupported groups before performing any physical mutation. This requirement also applies
+/// when every mutation contributes the same writer object.
+/// </para>
 /// </remarks>
 public interface IResourceBatchCompatibility
 {
     /// <summary>
     /// Gets a token that identifies this writer's batch-writer semantics for one operation context.
     /// Two distinct writers can share one physical batch write only when both return equal, non-null
-    /// tokens. Returning <see langword="null"/> means only reference equality establishes compatibility.
+    /// tokens for the context of each mutation being admitted. Returning <see langword="null"/> means only
+    /// reference equality establishes compatibility.
     /// </summary>
     /// <param name="context">The logical subject and source-specific key for the batch operation.</param>
     object? GetBatchCompatibilityToken(ConfiglueResourceContext context);
@@ -37,7 +50,11 @@ public static class ResourceBatchCompatibility
     /// </summary>
     /// <param name="left">The first batch writer.</param>
     /// <param name="right">The second batch writer.</param>
-    /// <param name="context">The logical subject and source-specific key for the batch operation.</param>
+    /// <param name="context">
+    /// The logical subject and source-specific key of the operation being admitted to the batch. Both
+    /// writers are queried with this context, so callers validating a multi-context batch must pass the
+    /// context of the mutation whose writer is being admitted rather than a representative context.
+    /// </param>
     /// <returns>
     /// <see langword="true"/> when the writers are the same object, or when both opt in to an equal,
     /// non-null compatibility token for <paramref name="context"/>.
