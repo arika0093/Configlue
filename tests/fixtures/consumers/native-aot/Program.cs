@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Configlue;
 using Configlue.Extensibility;
 using Configlue.Provider.Json;
@@ -60,6 +61,8 @@ try
     );
     Require(updated.RunCount == 1, $"Expected persisted run count 1, got '{updated.RunCount}'.");
 
+    await RunGeneratedFragmentFacade(Path.Combine(directory, "facade-settings.json"));
+
     Console.WriteLine("CONFIGLUE_NATIVE_AOT_PASS");
     return 0;
 }
@@ -83,4 +86,64 @@ static void Require(bool condition, string message)
     {
         throw new InvalidOperationException(message);
     }
+}
+
+static async Task RunGeneratedFragmentFacade(string settingsPath)
+{
+    var missingResolverWasRejected = false;
+    try
+    {
+        _ = ConfiglueApp.CreateContext(builder =>
+            builder.Add<SampleAotSetting>(model =>
+                model.Sources(sources =>
+                    sources.FromJsonFile(
+                        new JsonFileSourceOptions { Path = settingsPath, WatchChanges = false }
+                    )
+                )
+            )
+        );
+    }
+    catch (InvalidOperationException exception)
+    {
+        missingResolverWasRejected = exception.Message.Contains(
+            "JsonSerializerOptions.TypeInfoResolver",
+            StringComparison.Ordinal
+        );
+    }
+    Require(missingResolverWasRejected, "The JSON facade accepted missing source-generated metadata.");
+
+    var options = new JsonSerializerOptions
+    {
+        TypeInfoResolver = SampleAotJsonContext.Default,
+    };
+    await using var context = ConfiglueApp.CreateContext(builder =>
+        builder.Add<SampleAotSetting>(model =>
+            model.Sources(sources =>
+                sources.FromJsonFile(
+                    new JsonFileSourceOptions
+                    {
+                        Path = settingsPath,
+                        WatchChanges = false,
+                        SerializerOptions = options,
+                    }
+                )
+            )
+        )
+    );
+
+    var state = context.GetState<SampleAotSetting>();
+    var current = await state.GetValueAsync();
+    Require(current.Name == "World", $"Unexpected facade default name '{current.Name}'.");
+    await state.SaveAsync(settings =>
+    {
+        settings.Name = "NativeAOT facade";
+        settings.RunCount = current.RunCount + 1;
+    });
+
+    var updated = await state.GetValueAsync();
+    Require(
+        updated.Name == "NativeAOT facade",
+        $"Expected facade value 'NativeAOT facade', got '{updated.Name}'."
+    );
+    Require(updated.RunCount == 1, $"Expected facade run count 1, got '{updated.RunCount}'.");
 }

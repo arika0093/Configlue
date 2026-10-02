@@ -59,9 +59,6 @@ public sealed partial class ConfiglueGenerator
         return false;
     }
 
-    private static string FragmentRuntimeValueType(MemberModel member) =>
-        member.ChildModel is null ? member.Property.Type.RuntimeName : member.ChildFragmentType!;
-
     private static string TypeName(ITypeSymbol type) => type.ToDisplayString(TypeFormat);
 
     private static string TypeName(TypeModel type) => type.Name;

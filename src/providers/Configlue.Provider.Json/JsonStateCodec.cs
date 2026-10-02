@@ -154,11 +154,34 @@ public sealed class JsonStateCodec<T>
         );
     }
 
-    /// <summary>Creates a codec that uses a generated fragment converter.</summary>
+    /// <summary>Creates a codec that uses a generated fragment converter and default JSON options.</summary>
+    /// <remarks>
+    /// Generated fragment converters still require type metadata for scalar and collection member types. In
+    /// NativeAOT applications, use the overload that accepts options with a source-generated type resolver.
+    /// </remarks>
     public static JsonStateCodec<T> FromConverter(JsonConverter<T> converter)
     {
         ArgumentNullException.ThrowIfNull(converter);
         return new JsonStateCodec<T>(null, converter, null);
+    }
+
+    /// <summary>Creates a codec that uses a generated fragment converter and caller-supplied JSON metadata.</summary>
+    /// <param name="converter">The generated converter for the fragment shape.</param>
+    /// <param name="options">Options whose resolver provides metadata for non-generated member types.</param>
+    /// <param name="documentLayout">Optional document layout configuration.</param>
+    /// <remarks>
+    /// For NativeAOT, <paramref name="options"/> should use a source-generated <c>JsonSerializerContext</c>
+    /// covering every scalar and collection member type delegated by the fragment converter.
+    /// </remarks>
+    public static JsonStateCodec<T> FromConverter(
+        JsonConverter<T> converter,
+        JsonSerializerOptions options,
+        DocumentLayoutOptions? documentLayout = null
+    )
+    {
+        ArgumentNullException.ThrowIfNull(converter);
+        ArgumentNullException.ThrowIfNull(options);
+        return new JsonStateCodec<T>(options, converter, documentLayout);
     }
 
     internal JsonStateCodec(
@@ -205,7 +228,7 @@ public sealed class JsonStateCodec<T>
         if (!JsonSerializer.IsReflectionEnabledByDefault)
         {
             throw new InvalidOperationException(
-                "A source-generated JsonSerializerContext must be supplied for JSON facade sources when reflection-based JSON serialization is disabled."
+                "JSON facade serialization requires JsonSerializerOptions.TypeInfoResolver when reflection is disabled. Supply a source-generated JsonSerializerContext that covers the model and the scalar/collection member types used by Configlue's generated fragment converter."
             );
         }
 

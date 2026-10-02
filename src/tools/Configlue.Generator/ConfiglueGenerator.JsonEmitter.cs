@@ -28,6 +28,27 @@ public sealed partial class ConfiglueGenerator
         code.AppendLineAt(2, "{");
         code.AppendLineAt(
             3,
+            "private static global::System.Text.Json.Serialization.Metadata.JsonTypeInfo<TMember> GetMemberTypeInfo<TMember>(global::System.Text.Json.JsonSerializerOptions options)"
+        );
+        code.AppendLineAt(3, "{");
+        code.AppendLineAt(4, "try");
+        code.AppendLineAt(4, "{");
+        code.AppendLineAt(
+            5,
+            "return (global::System.Text.Json.Serialization.Metadata.JsonTypeInfo<TMember>)options.GetTypeInfo(typeof(TMember));"
+        );
+        code.AppendLineAt(4, "}");
+        code.AppendLineAt(4, "catch (global::System.NotSupportedException exception)");
+        code.AppendLineAt(4, "{");
+        code.AppendLineAt(
+            5,
+            "throw new global::System.InvalidOperationException(\"Configlue's generated fragment converter requires JsonTypeInfo metadata for member type '\" + typeof(TMember) + \"'. Add the model/member types to a source-generated JsonSerializerContext and set it as JsonSerializerOptions.TypeInfoResolver.\", exception);"
+        );
+        code.AppendLineAt(4, "}");
+        code.AppendLineAt(3, "}");
+        code.AppendLine();
+        code.AppendLineAt(
+            3,
             "public override Fragment Read(ref global::System.Text.Json.Utf8JsonReader reader, global::System.Type typeToConvert, global::System.Text.Json.JsonSerializerOptions options)"
         );
         code.AppendLineAt(3, "{");
@@ -75,12 +96,10 @@ public sealed partial class ConfiglueGenerator
                         .Append(" = global::Configlue.Optional<")
                         .Append(FragmentValueType(member))
                         .Append(
-                            ">.Present(global::System.Text.Json.JsonSerializer.Deserialize(ref reader, (global::System.Text.Json.Serialization.Metadata.JsonTypeInfo<"
+                            ">.Present(global::System.Text.Json.JsonSerializer.Deserialize(ref reader, GetMemberTypeInfo<"
                         )
                         .Append(FragmentValueType(member))
-                        .Append(">)options.GetTypeInfo(typeof(")
-                        .Append(FragmentRuntimeValueType(member))
-                        .AppendLine("))));");
+                        .AppendLine(">(options)));");
                 }
                 else
                 {
@@ -151,13 +170,9 @@ public sealed partial class ConfiglueGenerator
                     .Append(FragmentValueType(member))
                     .Append(">(writer, value.")
                     .Append(property)
-                    .Append(
-                        ".Value!, (global::System.Text.Json.Serialization.Metadata.JsonTypeInfo<"
-                    )
+                    .Append(".Value!, GetMemberTypeInfo<")
                     .Append(FragmentValueType(member))
-                    .Append(">)options.GetTypeInfo(typeof(")
-                    .Append(FragmentRuntimeValueType(member))
-                    .AppendLine(")));");
+                    .AppendLine(">(options));");
             }
             else
             {

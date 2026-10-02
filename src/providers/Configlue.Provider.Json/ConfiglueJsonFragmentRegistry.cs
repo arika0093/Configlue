@@ -2,7 +2,12 @@ using System.Text.Json.Serialization;
 
 namespace Configlue.Provider.Json;
 
-/// <summary>Provides generated JSON converters to provider code without coupling Abstraction to JSON.</summary>
+/// <summary>Provides generated fragment-shape converters to JSON provider code.</summary>
+/// <remarks>
+/// The converter handles the Configlue fragment envelope and nested generated fragments. Scalar and collection
+/// members still use System.Text.Json metadata from the supplied <see cref="System.Text.Json.JsonSerializerOptions.TypeInfoResolver"/>.
+/// NativeAOT applications must supply a source-generated resolver that covers those member types.
+/// </remarks>
 [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
 public static class ConfiglueJsonFragmentRegistry<TFragment>
     where TFragment : class, IConfiglueFragment<TFragment>

@@ -131,6 +131,7 @@ namespace Configlue.Provider.Json
             "tor sets _typeInfo and never enters the reflection fallback.")]
         public void Serialize(T? value, System.Buffers.IBufferWriter<byte> destination, in Configlue.Codecs.StateCodecContext context) { }
         public static Configlue.Provider.Json.JsonStateCodec<T> FromConverter(System.Text.Json.Serialization.JsonConverter<T> converter) { }
+        public static Configlue.Provider.Json.JsonStateCodec<T> FromConverter(System.Text.Json.Serialization.JsonConverter<T> converter, System.Text.Json.JsonSerializerOptions options, Configlue.Codecs.DocumentLayoutOptions? documentLayout = null) { }
     }
     public sealed class JsonStateValueSerializer<T>
     {

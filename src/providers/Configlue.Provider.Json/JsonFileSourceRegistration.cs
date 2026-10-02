@@ -36,6 +36,12 @@ public sealed class JsonFileSourceOptions
     public bool WatchChanges { get; init; } = true;
 
     /// <summary>JSON serialization and property naming options.</summary>
+    /// <remarks>
+    /// With generated fragment converters, the resolver must provide metadata for every scalar and collection
+    /// member type that the converter delegates to System.Text.Json. For NativeAOT, register a source-generated
+    /// <c>JsonSerializerContext</c>, for example with <c>[JsonSerializable(typeof(MySettings))]</c>, and set it as
+    /// <see cref="JsonSerializerOptions.TypeInfoResolver"/>. Register metadata for member types not reached from the model.
+    /// </remarks>
     public JsonSerializerOptions? SerializerOptions { get; init; }
 
     /// <summary>The persisted document structure. Reads accept both layouts; writes use the selected one.</summary>
