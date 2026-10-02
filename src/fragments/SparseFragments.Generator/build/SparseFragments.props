@@ -1,0 +1,10 @@
+<Project>
+  <PropertyGroup>
+    <!-- Generated init accessors need IsExternalInit on legacy reference assemblies. -->
+    <SparseFragmentsEmitIsExternalInit Condition="'$(SparseFragmentsEmitIsExternalInit)' == ''"
+      >true</SparseFragmentsEmitIsExternalInit>
+  </PropertyGroup>
+  <ItemGroup>
+    <CompilerVisibleProperty Include="SparseFragmentsEmitIsExternalInit" />
+  </ItemGroup>
+</Project>

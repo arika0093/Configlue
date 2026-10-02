@@ -27,7 +27,7 @@ public sealed partial class ConfiglueGenerator : IIncrementalGenerator
         + "#nullable enable\n"
         + "namespace System.Runtime.CompilerServices\n"
         + "{\n"
-        + "    internal static class IsExternalInit\n"
+        + "    internal static partial class IsExternalInit\n"
         + "    {\n"
         + "    }\n"
         + "}\n";

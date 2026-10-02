@@ -71,6 +71,14 @@ jobs:
             dotnet "tests/fixtures/consumers/package-sparse/bin/Release/$framework/PackageSparse.Consumer.dll"
           done
 
+      - name: Build standalone consumer without built-in IsExternalInit
+        run: |
+          set -euo pipefail
+          dotnet build tests/fixtures/consumers/package-sparse-netstandard/PackageSparse.NetStandard.Consumer.csproj \
+            --configuration Release \
+            -p:ConfigluePackageVersion="$CONFIGLUE_PACKAGE_VERSION" \
+            -p:RestoreAdditionalProjectSources="$CONFIGLUE_PACKAGE_FEED"
+
       - name: Upload failure artifacts
         if: failure() || cancelled()
         uses: actions/upload-artifact@v7

@@ -23,5 +23,11 @@
       PackagePath="analyzers/dotnet/cs"
       Visible="false"
     />
+    <None
+      Include="../SparseFragments.Generator/build/SparseFragments.props"
+      Pack="true"
+      PackagePath="build/SparseFragments.props"
+      Visible="false"
+    />
   </ItemGroup>
 </Project>
