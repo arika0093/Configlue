@@ -50,7 +50,7 @@ public sealed partial class ConfiglueGenerator : IIncrementalGenerator
     private static readonly DiagnosticDescriptor UnsupportedModel = new(
         "CFG002",
         "Unsupported Configlue model",
-        "Model '{0}' must be a top-level, non-generic class or struct",
+        "Model '{0}' must be a top-level, non-generic, non-abstract, non-file-local class or struct and cannot be ref-like",
         "Configlue",
         DiagnosticSeverity.Error,
         true

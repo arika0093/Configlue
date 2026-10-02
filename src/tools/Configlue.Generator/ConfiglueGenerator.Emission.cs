@@ -48,7 +48,9 @@ public sealed partial class ConfiglueGenerator
         string generatedType;
         if (model.IsStruct)
         {
-            generatedType = model.IsRecord ? "partial record struct " : "partial struct ";
+            generatedType =
+                (model.IsReadOnly ? "readonly " : "")
+                + (model.IsRecord ? "partial record struct " : "partial struct ");
         }
         else
         {

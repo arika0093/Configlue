@@ -11,6 +11,17 @@ namespace Configlue.Generator;
 
 public sealed partial class ConfiglueGenerator
 {
+    private static bool IsSupportedRootModelShape(
+        INamedTypeSymbol model,
+        TypeDeclarationSyntax declaration
+    ) =>
+        model.ContainingType is null
+        && model.Arity == 0
+        && model.TypeKind is TypeKind.Class or TypeKind.Struct
+        && !model.IsAbstract
+        && !model.IsRefLikeType
+        && !declaration.Modifiers.Any(static modifier => modifier.Text == "file");
+
     private static bool IsConfiglueModel(ITypeSymbol type, CancellationToken cancellationToken)
     {
         if (
