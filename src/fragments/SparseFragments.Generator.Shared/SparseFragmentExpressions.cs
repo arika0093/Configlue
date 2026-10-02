@@ -33,8 +33,8 @@ internal sealed class SparseFragmentExpressions(
         if (type.IsFragmentModel)
         {
             return type.IsReferenceType
-                ? $"{access} is null ? default! : (({type.Name}){access}).DeepClone()"
-                : $"(({type.Name}){access}).DeepClone()";
+                ? $"{access} is null ? default! : (({type.Name}){access}).DeepClone({CloneContext})"
+                : $"(({type.Name}){access}).DeepClone({CloneContext})";
         }
 
         var cloneHelperName = type.PocoCloneHelperName;
@@ -53,8 +53,8 @@ internal sealed class SparseFragmentExpressions(
         if (member.ChildModel is not null && !member.ChildIsStructural)
         {
             return member.ChildIsReferenceType
-                ? $"{access} is null ? null! : {access}.DeepClone()"
-                : $"(({member.Property.Type.Name}){access}).DeepClone()";
+                ? $"{access} is null ? null! : {access}.DeepClone({CloneContext})"
+                : $"(({member.Property.Type.Name}){access}).DeepClone({CloneContext})";
         }
 
         var cloneHelperName = member.Property.Type.PocoCloneHelperName;

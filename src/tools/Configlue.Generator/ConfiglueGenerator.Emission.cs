@@ -72,7 +72,8 @@ public sealed partial class ConfiglueGenerator
             modelType,
             members.Select(ToSparseMember).ToImmutableArray(),
             !pocoCloneModels.IsEmpty,
-            model.Constructor
+            model.Constructor,
+            !model.IsStruct
         );
         foreach (var poco in pocoCloneModels)
             FragmentCore.AppendPocoCloneHelper(

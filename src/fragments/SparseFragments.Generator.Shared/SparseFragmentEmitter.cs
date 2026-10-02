@@ -56,7 +56,14 @@ internal static class SparseFragmentEmitter
             members,
             model.Constructor
         );
-        Core.AppendDeepClone(code, modelType, members, !pocoCloneModels.IsEmpty, model.Constructor);
+        Core.AppendDeepClone(
+            code,
+            modelType,
+            members,
+            !pocoCloneModels.IsEmpty,
+            model.Constructor,
+            !model.IsStruct
+        );
         foreach (var poco in pocoCloneModels)
             Core.AppendPocoCloneHelper(
                 code,
@@ -186,7 +193,7 @@ internal static class SparseFragmentEmitter
             {
                 code.Append("static () => ")
                     .Append(member.ChildFragmentType!)
-                    .Append(".FragmentSchema");
+                    .Append(".FragmentSchema!");
             }
 
             code.Append(", ")
