@@ -38,11 +38,9 @@ public sealed partial class RuntimeLifetimeTests
         try
         {
             await delayed.Canceled.Task.WaitAsync(TimeSpan.FromSeconds(5));
-            var completed = await Task.WhenAny(shutdown, Task.Delay(100));
-            ReferenceEquals(completed, shutdown)
-                .ShouldBeFalse(
-                    "Shutdown must wait until every source watcher releases its resources."
-                );
+            shutdown.IsCompleted.ShouldBeFalse(
+                "Shutdown must wait until every source watcher releases its resources."
+            );
         }
         finally
         {
@@ -68,9 +66,7 @@ public sealed partial class RuntimeLifetimeTests
             onChangeDebounce: TimeSpan.Zero
         );
         ISubjectState<RuntimeLifetimeSettings> subjectState = runtime;
-        var subscription = subjectState
-            .ForSubject(new LifetimeSubject())
-            .OnChange(_ => { });
+        var subscription = subjectState.ForSubject(new LifetimeSubject()).OnChange(_ => { });
         await delayed.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
         subscription.Dispose();
@@ -78,17 +74,138 @@ public sealed partial class RuntimeLifetimeTests
         var shutdown = runtime.DisposeAsync().AsTask();
         try
         {
-            var completed = await Task.WhenAny(shutdown, Task.Delay(100));
-            ReferenceEquals(completed, shutdown)
-                .ShouldBeFalse(
-                    "Shutdown must drain a subject watcher whose subscription was already disposed."
-                );
+            shutdown.IsCompleted.ShouldBeFalse(
+                "Shutdown must drain a subject watcher whose subscription was already disposed."
+            );
         }
         finally
         {
             delayed.Release.TrySetResult();
             await shutdown.WaitAsync(TimeSpan.FromSeconds(5));
         }
+    }
+
+    [Test]
+    [Arguments(false)]
+    [Arguments(true)]
+    public async Task ShutdownWaitsForSubjectWatcherLifetimeCleanupAfterWatchLoopCompletes(
+        bool cleanupFails
+    )
+    {
+        var store = new InMemoryStateSource<RuntimeLifetimeSettings.Fragment>(
+            new RuntimeLifetimeSettings.Fragment { Label = "initial" }
+        );
+        var watcher = new ShutdownWatcher(delayCleanup: false);
+        var runtime = new ConfiglueRuntime<
+            RuntimeLifetimeSettings,
+            RuntimeLifetimeSettings.Fragment
+        >(
+            new StateSourceSet<RuntimeLifetimeSettings.Fragment>([
+                new("watcher", store, watcher: watcher),
+            ]),
+            onChangeDebounce: TimeSpan.Zero
+        );
+        var cleanupEntered = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        var cleanupRelease = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        runtime.WatcherCleanupBarrier = async () =>
+        {
+            cleanupEntered.TrySetResult();
+            await cleanupRelease.Task;
+            if (cleanupFails)
+                throw new InvalidOperationException("Watcher cleanup failed.");
+        };
+
+        ISubjectState<RuntimeLifetimeSettings> subjectState = runtime;
+        subjectState.ForSubject(new LifetimeSubject()).OnChange(_ => { });
+        await watcher.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        var shutdown = runtime.DisposeAsync().AsTask();
+        try
+        {
+            await cleanupEntered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+            // The watch loop returned before cleanup; only the final lifetime cleanup is blocked.
+            watcher.Canceled.Task.IsCompleted.ShouldBeTrue();
+            shutdown.IsCompleted.ShouldBeFalse(
+                "Shutdown must wait for the subject watcher's complete lifetime cleanup."
+            );
+            runtime.WatcherOperationCount.ShouldBe(1);
+        }
+        finally
+        {
+            cleanupRelease.TrySetResult();
+        }
+
+        if (cleanupFails)
+        {
+            await Should.ThrowAsync<AggregateException>(async () =>
+                await shutdown.WaitAsync(TimeSpan.FromSeconds(5))
+            );
+        }
+        else
+        {
+            await shutdown.WaitAsync(TimeSpan.FromSeconds(5));
+        }
+        // The cancellation source is disposed before tracking removal, so an empty dictionary
+        // proves both lifetime resources were released.
+        runtime.WatcherOperationCount.ShouldBe(0);
+    }
+
+    [Test]
+    public async Task ShutdownDrainsSubjectWatcherCleanupAfterManualDisposal()
+    {
+        var store = new InMemoryStateSource<RuntimeLifetimeSettings.Fragment>(
+            new RuntimeLifetimeSettings.Fragment { Label = "initial" }
+        );
+        var watcher = new ShutdownWatcher(delayCleanup: false);
+        var runtime = new ConfiglueRuntime<
+            RuntimeLifetimeSettings,
+            RuntimeLifetimeSettings.Fragment
+        >(
+            new StateSourceSet<RuntimeLifetimeSettings.Fragment>([
+                new("watcher", store, watcher: watcher),
+            ]),
+            onChangeDebounce: TimeSpan.Zero
+        );
+        var cleanupEntered = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        var cleanupRelease = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        runtime.WatcherCleanupBarrier = async () =>
+        {
+            cleanupEntered.TrySetResult();
+            await cleanupRelease.Task;
+        };
+
+        ISubjectState<RuntimeLifetimeSettings> subjectState = runtime;
+        var subscription = subjectState.ForSubject(new LifetimeSubject()).OnChange(_ => { });
+        await watcher.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        subscription.Dispose();
+        var shutdown = runtime.DisposeAsync().AsTask();
+        try
+        {
+            await cleanupEntered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+            watcher.Canceled.Task.IsCompleted.ShouldBeTrue();
+            runtime.WatcherOperationCount.ShouldBe(1);
+            shutdown.IsCompleted.ShouldBeFalse(
+                "Shutdown must drain cleanup started by an earlier manual subscription disposal."
+            );
+        }
+        finally
+        {
+            cleanupRelease.TrySetResult();
+        }
+
+        await shutdown.WaitAsync(TimeSpan.FromSeconds(5));
+        runtime.WatcherOperationCount.ShouldBe(0);
     }
 
     private sealed record LifetimeSubject : IConfiglueSubject

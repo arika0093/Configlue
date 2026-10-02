@@ -67,6 +67,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
     private readonly AsyncLocal<IConfiglueSubject?> _subjectContext = new();
     private readonly ConcurrentDictionary<SubjectWatchSubscription, byte> _watcherOperations =
         new();
+    private Func<Task>? _watcherCleanupBarrier;
     private readonly List<Action<TModel>> _changeListeners = [];
     private readonly List<Action<Exception>> _reloadFailureListeners = [];
     private readonly List<Action<StateRevisionVector?>> _reloadListeners = [];
@@ -78,6 +79,20 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
 
     RuntimeLifetimeRequirement IConfiglueRuntimeLifetimeProvider.RuntimeLifetime =>
         _sourceSet.RuntimeLifetime;
+
+    /// <summary>
+    /// Internal synchronization hook invoked immediately before a subject watcher removes itself
+    /// from tracking and disposes its cancellation source. Tests use it to block the final
+    /// lifetime cleanup while asserting that shutdown drains the owned completion.
+    /// </summary>
+    internal Func<Task>? WatcherCleanupBarrier
+    {
+        get => Volatile.Read(ref _watcherCleanupBarrier);
+        set => Volatile.Write(ref _watcherCleanupBarrier, value);
+    }
+
+    /// <summary>Number of subject watchers whose complete lifetime has not yet been drained.</summary>
+    internal int WatcherOperationCount => _watcherOperations.Count;
 
     /// <summary>Creates state backed by the supplied sources.</summary>
     public ConfiglueRuntime(

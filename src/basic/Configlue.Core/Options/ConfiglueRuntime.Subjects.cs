@@ -242,13 +242,14 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
 
         public IConfiglueSubject Subject { get; } = subject;
         public Action<TModel> Listener { get; } = listener;
+
+        // The completion task covers the entire owned lifetime: the watch loop plus the
+        // tracking removal and cancellation-source disposal that follow it. The runtime
+        // drains this single task during shutdown, so no unowned cleanup continuation can
+        // outlive DisposeAsync.
         public Task Completion => Volatile.Read(ref _task) ?? Task.CompletedTask;
 
-        public void Start()
-        {
-            _task = owner.WatchSubjectChangesAsync(this, _cancellation.Token);
-            _ = ReleaseAfterCompletionAsync(_task);
-        }
+        public void Start() => _task = RunLifetimeAsync();
 
         public void Dispose()
         {
@@ -272,21 +273,28 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             }
         }
 
-        private async Task ReleaseAfterCompletionAsync(Task completion)
+        private async Task RunLifetimeAsync()
         {
             try
             {
-                await completion.ConfigureAwait(false);
-            }
-            catch (Exception)
-            {
-                // Shutdown observes watcher failures through Completion; this continuation
-                // only releases the operation's lifetime resources.
+                await owner
+                    .WatchSubjectChangesAsync(this, _cancellation.Token)
+                    .ConfigureAwait(false);
             }
             finally
             {
-                owner._watcherOperations.TryRemove(this, out _);
-                _cancellation.Dispose();
+                try
+                {
+                    if (owner.WatcherCleanupBarrier is { } barrier)
+                    {
+                        await barrier().ConfigureAwait(false);
+                    }
+                }
+                finally
+                {
+                    _cancellation.Dispose();
+                    owner._watcherOperations.TryRemove(this, out _);
+                }
             }
         }
     }
