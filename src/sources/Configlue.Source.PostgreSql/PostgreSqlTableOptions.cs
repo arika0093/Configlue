@@ -15,6 +15,10 @@ public sealed class PostgreSqlTableOptions
     /// <summary>An optional fixed identity overriding the identity derived from the row and route.</summary>
     public ResourceId? ResourceId { get; init; }
 
+    internal TimeSpan BackendCacheIdleTimeout { get; init; } = TimeSpan.FromMinutes(5);
+
+    internal int BackendCacheCapacity { get; init; } = 256;
+
     internal void Validate()
     {
         ValidateIdentifier(SchemaName, nameof(SchemaName));

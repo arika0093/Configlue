@@ -85,6 +85,7 @@ public sealed class RedisResourceTests
         );
 
         resolverCalls[routeA].ShouldBe(1);
+        resource.CachedBackendCount.ShouldBe(1);
         (await resource.ReadAsync(contexts[17])).Content.ToArray().ShouldBe(new byte[] { 17 });
         resource.GetResourceId(contexts[0]).ShouldNotBe(resource.GetResourceId(contexts[1]));
 
@@ -94,6 +95,7 @@ public sealed class RedisResourceTests
             new ResourceWriteRequest(new byte[] { 200 }, RevisionCondition.MustNotExist)
         );
         resolverCalls[routeB].ShouldBe(1);
+        resource.CachedBackendCount.ShouldBe(2);
         (await resource.ReadAsync(sameSubjectOnOtherRoute))
             .Content.ToArray()
             .ShouldBe(new byte[] { 200 });

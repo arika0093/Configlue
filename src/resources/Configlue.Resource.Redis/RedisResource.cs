@@ -1,8 +1,8 @@
 using System.Buffers.Binary;
-using System.Collections.Concurrent;
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
+using Configlue.Internal;
 using Configlue.Sources;
 using StackExchange.Redis;
 
@@ -12,6 +12,8 @@ namespace Configlue.Resource.Redis;
 /// <remarks>
 /// Each row uses a provider-generated Redis key. Route resolvers choose shared, caller-owned
 /// multiplexers for physical placement; Redis remains a persistent state resource, not a cache policy.
+/// The route resolver is invoked for every operation and its caller-owned multiplexer remains
+/// externally owned; only Configlue-owned backends are cached and disposed.
 /// </remarks>
 public sealed class RedisResource
     : IResourceReader,
@@ -20,17 +22,11 @@ public sealed class RedisResource
         ISourceWatcher,
         IDisposable
 {
-    private readonly Func<RouteKey, IConnectionMultiplexer>? _multiplexerResolver;
-    private readonly Func<RouteKey, IRedisStateBackend>? _testBackendResolver;
+    private readonly Func<RouteKey, object>? _connectionResolver;
     private readonly RedisResourceOptions _options;
     private readonly bool _routeAwareIdentity;
-    private readonly ConcurrentDictionary<RouteKey, Lazy<IConnectionMultiplexer>> _multiplexers =
-        new();
-    private readonly ConcurrentDictionary<
-        IConnectionMultiplexer,
-        Lazy<IRedisStateBackend>
-    > _backends = new(MultiplexerReferenceComparer.Instance);
-    private readonly ConcurrentDictionary<RouteKey, Lazy<IRedisStateBackend>> _testBackends = new();
+    private readonly ResidencyCache<object, IRedisStateBackend>? _backendCache;
+    private readonly ResidencyCache<RouteKey, IRedisStateBackend>? _testBackendCache;
     private int _disposed;
 
     /// <summary>Creates a resource that uses one shared multiplexer.</summary>
@@ -60,9 +56,46 @@ public sealed class RedisResource
         ValidateNamespace(resourceNamespace);
         _options = options ?? new RedisResourceOptions();
         _options.Validate();
-        _multiplexerResolver = connectionMultiplexerResolver;
+        _connectionResolver = route =>
+            (object?)connectionMultiplexerResolver(route)
+            ?? throw new InvalidOperationException(
+                "The Redis connection multiplexer resolver returned null."
+            );
+        var backendFactory = (object connection) =>
+            new RedisStateBackend((IConnectionMultiplexer)connection, _options);
         _routeAwareIdentity = routeAwareIdentity;
         ResourceNamespace = resourceNamespace;
+        _backendCache = new ResidencyCache<object, IRedisStateBackend>(
+            backendFactory,
+            ReferenceComparer<object>.Instance,
+            _options.BackendCacheIdleTimeout,
+            _options.BackendCacheCapacity
+        );
+    }
+
+    internal RedisResource(
+        Func<RouteKey, object> connectionResolver,
+        Func<object, IRedisStateBackend> backendFactory,
+        string resourceNamespace,
+        RedisResourceOptions? options
+    )
+    {
+        ArgumentNullException.ThrowIfNull(connectionResolver);
+        ArgumentNullException.ThrowIfNull(backendFactory);
+        ValidateNamespace(resourceNamespace);
+        _options = options ?? new RedisResourceOptions();
+        _options.Validate();
+        _connectionResolver = route =>
+            connectionResolver(route)
+            ?? throw new InvalidOperationException("The Redis connection resolver returned null.");
+        _routeAwareIdentity = true;
+        ResourceNamespace = resourceNamespace;
+        _backendCache = new ResidencyCache<object, IRedisStateBackend>(
+            backendFactory,
+            ReferenceComparer<object>.Instance,
+            _options.BackendCacheIdleTimeout,
+            _options.BackendCacheCapacity
+        );
     }
 
     internal RedisResource(
@@ -75,13 +108,25 @@ public sealed class RedisResource
         ValidateNamespace(resourceNamespace);
         _options = options ?? new RedisResourceOptions();
         _options.Validate();
-        _testBackendResolver = backendResolver;
         _routeAwareIdentity = true;
         ResourceNamespace = resourceNamespace;
+        _testBackendCache = new ResidencyCache<RouteKey, IRedisStateBackend>(
+            route =>
+                backendResolver(route)
+                ?? throw new InvalidOperationException(
+                    "The Redis state backend resolver returned null."
+                ),
+            null,
+            _options.BackendCacheIdleTimeout,
+            _options.BackendCacheCapacity
+        );
     }
 
     /// <summary>The namespace that separates this resource's Redis keys.</summary>
     public string ResourceNamespace { get; }
+
+    /// <summary>The number of cached Configlue-owned backends, for diagnostics and tests.</summary>
+    internal int CachedBackendCount => _testBackendCache?.Count ?? _backendCache?.Count ?? 0;
 
     /// <inheritdoc />
     public ResourceId ResourceId => GetResourceId(ConfiglueResourceContext.Default);
@@ -109,26 +154,42 @@ public sealed class RedisResource
     }
 
     /// <inheritdoc />
-    public ValueTask<ResourceReadResult> ReadAsync(
+    public async ValueTask<ResourceReadResult> ReadAsync(
         ConfiglueResourceContext context,
         CancellationToken cancellationToken = default
-    ) => GetBackend(context.Route).ReadAsync(ResolveAddress(context), cancellationToken);
+    )
+    {
+        using var backend = AcquireBackend(context.Route);
+        return await backend
+            .Value.ReadAsync(ResolveAddress(context), cancellationToken)
+            .ConfigureAwait(false);
+    }
 
     /// <inheritdoc />
-    public ValueTask<StateWriteResult> WriteAsync(
+    public async ValueTask<StateWriteResult> WriteAsync(
         ConfiglueResourceContext context,
         ResourceWriteRequest request,
         CancellationToken cancellationToken = default
-    ) => GetBackend(context.Route).WriteAsync(ResolveAddress(context), request, cancellationToken);
+    )
+    {
+        using var backend = AcquireBackend(context.Route);
+        return await backend
+            .Value.WriteAsync(ResolveAddress(context), request, cancellationToken)
+            .ConfigureAwait(false);
+    }
 
     /// <inheritdoc />
-    public ValueTask WaitForChangeAsync(
+    public async ValueTask WaitForChangeAsync(
         ConfiglueResourceContext context,
         string? observedRevision,
         CancellationToken cancellationToken = default
-    ) =>
-        GetBackend(context.Route)
-            .WaitForChangeAsync(ResolveAddress(context), observedRevision, cancellationToken);
+    )
+    {
+        using var backend = AcquireBackend(context.Route);
+        await backend
+            .Value.WaitForChangeAsync(ResolveAddress(context), observedRevision, cancellationToken)
+            .ConfigureAwait(false);
+    }
 
     /// <inheritdoc />
     public void Dispose()
@@ -138,21 +199,29 @@ public sealed class RedisResource
             return;
         }
 
-        foreach (var backend in _backends.Values)
+        _backendCache?.Dispose();
+        _testBackendCache?.Dispose();
+    }
+
+    /// <summary>Forces an idle sweep and enforces the backend capacity bound, for tests.</summary>
+    internal void TrimBackendCache()
+    {
+        _backendCache?.Trim();
+        _testBackendCache?.Trim();
+    }
+
+    private BackendLease AcquireBackend(RouteKey route)
+    {
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
+        if (_testBackendCache is { } testCache)
         {
-            if (backend.IsValueCreated)
-            {
-                backend.Value.Dispose();
-            }
+            var testLease = testCache.Acquire(route);
+            return new BackendLease(testLease.Value, testLease);
         }
 
-        foreach (var backend in _testBackends.Values)
-        {
-            if (backend.IsValueCreated)
-            {
-                backend.Value.Dispose();
-            }
-        }
+        var connection = _connectionResolver!(route);
+        var backendLease = _backendCache!.Acquire(connection);
+        return new BackendLease(backendLease.Value, backendLease);
     }
 
     private RedisResourceAddress ResolveAddress(ConfiglueResourceContext context)
@@ -180,46 +249,6 @@ public sealed class RedisResource
         );
     }
 
-    private IRedisStateBackend GetBackend(RouteKey route)
-    {
-        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
-        if (_testBackendResolver is { } testResolver)
-        {
-            return _testBackends
-                .GetOrAdd(
-                    route,
-                    key => new Lazy<IRedisStateBackend>(
-                        () => testResolver(key),
-                        LazyThreadSafetyMode.ExecutionAndPublication
-                    )
-                )
-                .Value;
-        }
-
-        var multiplexer = _multiplexers
-            .GetOrAdd(
-                route,
-                key => new Lazy<IConnectionMultiplexer>(
-                    () =>
-                        _multiplexerResolver!(key)
-                        ?? throw new InvalidOperationException(
-                            "The Redis connection multiplexer resolver returned null."
-                        ),
-                    LazyThreadSafetyMode.ExecutionAndPublication
-                )
-            )
-            .Value;
-        return _backends
-            .GetOrAdd(
-                multiplexer,
-                connection => new Lazy<IRedisStateBackend>(
-                    () => new RedisStateBackend(connection, _options),
-                    LazyThreadSafetyMode.ExecutionAndPublication
-                )
-            )
-            .Value;
-    }
-
     private static Func<RouteKey, IConnectionMultiplexer> CreateFixedResolver(
         IConnectionMultiplexer connectionMultiplexer
     )
@@ -238,6 +267,21 @@ public sealed class RedisResource
                 nameof(resourceNamespace)
             );
         }
+    }
+
+    private readonly struct BackendLease : IDisposable
+    {
+        private readonly IDisposable _lease;
+
+        public BackendLease(IRedisStateBackend value, IDisposable lease)
+        {
+            Value = value;
+            _lease = lease;
+        }
+
+        public IRedisStateBackend Value { get; }
+
+        public void Dispose() => _lease.Dispose();
     }
 }
 
@@ -287,13 +331,13 @@ internal static class RedisIdentityHash
     }
 }
 
-internal sealed class MultiplexerReferenceComparer : IEqualityComparer<IConnectionMultiplexer>
+internal sealed class ReferenceComparer<T> : IEqualityComparer<T>
+    where T : class
 {
-    public static MultiplexerReferenceComparer Instance { get; } = new();
+    public static ReferenceComparer<T> Instance { get; } = new();
 
-    public bool Equals(IConnectionMultiplexer? left, IConnectionMultiplexer? right) =>
-        ReferenceEquals(left, right);
+    public bool Equals(T? x, T? y) => ReferenceEquals(x, y);
 
-    public int GetHashCode(IConnectionMultiplexer value) =>
-        System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(value);
+    public int GetHashCode(T obj) =>
+        System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(obj);
 }

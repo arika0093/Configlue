@@ -77,6 +77,7 @@ public sealed class PostgreSqlSourceTests
         );
 
         resolverCalls[routeA].ShouldBe(1);
+        source.CachedBackendCount.ShouldBe(1);
         (await source.ReadAsync(contexts[17])).Value.ShouldBe("17");
         source.GetResourceId(contexts[0]).ShouldNotBe(source.GetResourceId(contexts[1]));
 
@@ -86,6 +87,7 @@ public sealed class PostgreSqlSourceTests
             new StateWriteRequest<string>("200", RevisionCondition.MustNotExist)
         );
         resolverCalls[routeB].ShouldBe(1);
+        source.CachedBackendCount.ShouldBe(2);
         (await source.ReadAsync(sameSubjectOnOtherRoute)).Value.ShouldBe("200");
         (await source.ReadAsync(CreateContext("tenant-0", routeA))).Value.ShouldBe("0");
 

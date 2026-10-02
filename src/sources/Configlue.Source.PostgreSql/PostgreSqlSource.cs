@@ -1,5 +1,5 @@
 using System.Buffers;
-using System.Collections.Concurrent;
+using Configlue.Internal;
 using Configlue.Provider.Json;
 using Configlue.Sources;
 using Npgsql;
@@ -10,7 +10,8 @@ namespace Configlue.Source.PostgreSql;
 /// <remarks>
 /// Rows are addressed by the model ID, resource namespace, and subject key, and store structured JSONB
 /// payloads. This type performs DML only; create or upgrade the database schema with
-/// Configlue.Source.PostgreSql.Migrations.
+/// Configlue.Source.PostgreSql.Migrations. The route resolver is invoked for every operation and its
+/// caller-owned data source remains externally owned; only Configlue-owned backends are cached and disposed.
 /// </remarks>
 public sealed class PostgreSqlSource<T>
     : ISourceWriter<T>,
@@ -19,19 +20,13 @@ public sealed class PostgreSqlSource<T>
         ITryContextualResourceIdentity,
         IDisposable
 {
-    private readonly Func<RouteKey, NpgsqlDataSource>? _dataSourceResolver;
-    private readonly Func<RouteKey, IPostgreSqlStateBackend>? _testBackendResolver;
+    private readonly Func<RouteKey, object>? _connectionResolver;
     private readonly PostgreSqlTableOptions _tableOptions;
     private readonly JsonStateValueSerializer<T> _serializer;
     private readonly bool _writable;
     private readonly bool _routeAwareIdentity;
-    private readonly ConcurrentDictionary<RouteKey, Lazy<NpgsqlDataSource>> _dataSources = new();
-    private readonly ConcurrentDictionary<
-        NpgsqlDataSource,
-        Lazy<IPostgreSqlStateBackend>
-    > _backends = new(ReferenceEqualityComparer.Instance);
-    private readonly ConcurrentDictionary<RouteKey, Lazy<IPostgreSqlStateBackend>> _testBackends =
-        new();
+    private readonly ResidencyCache<object, IPostgreSqlStateBackend>? _backendCache;
+    private readonly ResidencyCache<RouteKey, IPostgreSqlStateBackend>? _testBackendCache;
     private int _disposed;
 
     /// <summary>Creates a source whose subject operations use one shared data source.</summary>
@@ -79,22 +74,58 @@ public sealed class PostgreSqlSource<T>
     {
         ArgumentNullException.ThrowIfNull(dataSourceResolver);
         ArgumentNullException.ThrowIfNull(serializer);
-        ArgumentException.ThrowIfNullOrWhiteSpace(resourceNamespace);
-        if (resourceNamespace.Contains('\0'))
-        {
-            throw new ArgumentException(
-                "A PostgreSQL text namespace cannot contain NUL.",
-                nameof(resourceNamespace)
-            );
-        }
-
+        ValidateNamespace(resourceNamespace);
         _tableOptions = tableOptions ?? new PostgreSqlTableOptions();
         _tableOptions.Validate();
-        _dataSourceResolver = dataSourceResolver;
+        _connectionResolver = route =>
+            (object?)dataSourceResolver(route)
+            ?? throw new InvalidOperationException(
+                "The PostgreSQL data source resolver returned null."
+            );
+        var backendFactory = (object connection) =>
+            new PostgreSqlStateBackend((NpgsqlDataSource)connection, _tableOptions);
         _routeAwareIdentity = routeAwareIdentity;
         _serializer = serializer;
         _writable = writable;
         ResourceNamespace = resourceNamespace;
+        _backendCache = new ResidencyCache<object, IPostgreSqlStateBackend>(
+            backendFactory,
+            ReferenceEqualityComparer.Instance,
+            _tableOptions.BackendCacheIdleTimeout,
+            _tableOptions.BackendCacheCapacity
+        );
+    }
+
+    internal PostgreSqlSource(
+        Func<RouteKey, object> connectionResolver,
+        Func<object, IPostgreSqlStateBackend> backendFactory,
+        string resourceNamespace,
+        JsonStateValueSerializer<T> serializer,
+        PostgreSqlTableOptions? tableOptions = null,
+        bool writable = true
+    )
+    {
+        ArgumentNullException.ThrowIfNull(connectionResolver);
+        ArgumentNullException.ThrowIfNull(backendFactory);
+        ArgumentNullException.ThrowIfNull(serializer);
+        ValidateNamespace(resourceNamespace);
+        _tableOptions = tableOptions ?? new PostgreSqlTableOptions();
+        _tableOptions.Validate();
+        _connectionResolver = route =>
+            connectionResolver(route)
+            ?? throw new InvalidOperationException(
+                "The PostgreSQL connection resolver returned null."
+            );
+        _routeAwareIdentity = true;
+        _serializer = serializer;
+        _writable = writable;
+        ResourceNamespace = resourceNamespace;
+        _backendCache = new ResidencyCache<object, IPostgreSqlStateBackend>(
+            backendFactory,
+            ReferenceEqualityComparer.Instance,
+            _tableOptions.BackendCacheIdleTimeout,
+            _tableOptions.BackendCacheCapacity
+        );
     }
 
     internal PostgreSqlSource(
@@ -107,26 +138,30 @@ public sealed class PostgreSqlSource<T>
     {
         ArgumentNullException.ThrowIfNull(backendResolver);
         ArgumentNullException.ThrowIfNull(serializer);
-        ArgumentException.ThrowIfNullOrWhiteSpace(resourceNamespace);
-        if (resourceNamespace.Contains('\0'))
-        {
-            throw new ArgumentException(
-                "A PostgreSQL text namespace cannot contain NUL.",
-                nameof(resourceNamespace)
-            );
-        }
-
+        ValidateNamespace(resourceNamespace);
         _tableOptions = tableOptions ?? new PostgreSqlTableOptions();
         _tableOptions.Validate();
-        _testBackendResolver = backendResolver;
         _routeAwareIdentity = true;
         _serializer = serializer;
         _writable = writable;
         ResourceNamespace = resourceNamespace;
+        _testBackendCache = new ResidencyCache<RouteKey, IPostgreSqlStateBackend>(
+            route =>
+                backendResolver(route)
+                ?? throw new InvalidOperationException(
+                    "The PostgreSQL state backend resolver returned null."
+                ),
+            null,
+            _tableOptions.BackendCacheIdleTimeout,
+            _tableOptions.BackendCacheCapacity
+        );
     }
 
     /// <summary>The namespace that separates this source's rows.</summary>
     public string ResourceNamespace { get; }
+
+    /// <summary>The number of cached Configlue-owned backends, for diagnostics and tests.</summary>
+    internal int CachedBackendCount => _testBackendCache?.Count ?? _backendCache?.Count ?? 0;
 
     /// <inheritdoc />
     public bool CanWrite => _writable;
@@ -168,8 +203,9 @@ public sealed class PostgreSqlSource<T>
         CancellationToken cancellationToken = default
     )
     {
-        var result = await GetBackend(context.Route)
-            .ReadAsync(
+        using var backend = AcquireBackend(context.Route);
+        var result = await backend
+            .Value.ReadAsync(
                 ResourceNamespace,
                 context.ModelId ?? string.Empty,
                 context.Key.Value,
@@ -199,7 +235,7 @@ public sealed class PostgreSqlSource<T>
     }
 
     /// <inheritdoc />
-    public ValueTask<StateWriteResult> WriteAsync(
+    public async ValueTask<StateWriteResult> WriteAsync(
         ConfiglueResourceContext context,
         StateWriteRequest<T> request,
         CancellationToken cancellationToken = default
@@ -224,30 +260,36 @@ public sealed class PostgreSqlSource<T>
             request.Condition,
             schema
         );
-        return GetBackend(context.Route)
-            .WriteAsync(
+        using var backend = AcquireBackend(context.Route);
+        return await backend
+            .Value.WriteAsync(
                 ResourceNamespace,
                 context.ModelId ?? string.Empty,
                 context.Key.Value,
                 resourceRequest,
                 cancellationToken
-            );
+            )
+            .ConfigureAwait(false);
     }
 
     /// <inheritdoc />
-    public ValueTask WaitForChangeAsync(
+    public async ValueTask WaitForChangeAsync(
         ConfiglueResourceContext context,
         string? observedRevision,
         CancellationToken cancellationToken = default
-    ) =>
-        GetBackend(context.Route)
-            .WaitForChangeAsync(
+    )
+    {
+        using var backend = AcquireBackend(context.Route);
+        await backend
+            .Value.WaitForChangeAsync(
                 ResourceNamespace,
                 context.ModelId ?? string.Empty,
                 context.Key.Value,
                 observedRevision,
                 cancellationToken
-            );
+            )
+            .ConfigureAwait(false);
+    }
 
     /// <inheritdoc />
     public void Dispose()
@@ -257,61 +299,29 @@ public sealed class PostgreSqlSource<T>
             return;
         }
 
-        foreach (var backend in _backends.Values)
-        {
-            if (backend.IsValueCreated)
-            {
-                backend.Value.Dispose();
-            }
-        }
-
-        foreach (var backend in _testBackends.Values)
-        {
-            if (backend.IsValueCreated)
-            {
-                backend.Value.Dispose();
-            }
-        }
+        _backendCache?.Dispose();
+        _testBackendCache?.Dispose();
     }
 
-    private IPostgreSqlStateBackend GetBackend(RouteKey route)
+    /// <summary>Forces an idle sweep and enforces the backend capacity bound, for tests.</summary>
+    internal void TrimBackendCache()
+    {
+        _backendCache?.Trim();
+        _testBackendCache?.Trim();
+    }
+
+    private BackendLease AcquireBackend(RouteKey route)
     {
         ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
-        if (_testBackendResolver is { } testResolver)
+        if (_testBackendCache is { } testCache)
         {
-            return _testBackends
-                .GetOrAdd(
-                    route,
-                    key => new Lazy<IPostgreSqlStateBackend>(
-                        () => testResolver(key),
-                        LazyThreadSafetyMode.ExecutionAndPublication
-                    )
-                )
-                .Value;
+            var testLease = testCache.Acquire(route);
+            return new BackendLease(testLease.Value, testLease);
         }
 
-        var dataSource = _dataSources
-            .GetOrAdd(
-                route,
-                key => new Lazy<NpgsqlDataSource>(
-                    () =>
-                        _dataSourceResolver!(key)
-                        ?? throw new InvalidOperationException(
-                            "The PostgreSQL data source resolver returned null."
-                        ),
-                    LazyThreadSafetyMode.ExecutionAndPublication
-                )
-            )
-            .Value;
-        return _backends
-            .GetOrAdd(
-                dataSource,
-                source => new Lazy<IPostgreSqlStateBackend>(
-                    () => new PostgreSqlStateBackend(source, _tableOptions),
-                    LazyThreadSafetyMode.ExecutionAndPublication
-                )
-            )
-            .Value;
+        var connection = _connectionResolver!(route);
+        var backendLease = _backendCache!.Acquire(connection);
+        return new BackendLease(backendLease.Value, backendLease);
     }
 
     private static void ValidateSchemaModelId(
@@ -330,12 +340,39 @@ public sealed class PostgreSqlSource<T>
         }
     }
 
+    private static void ValidateNamespace(string resourceNamespace)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(resourceNamespace);
+        if (resourceNamespace.Contains('\0'))
+        {
+            throw new ArgumentException(
+                "A PostgreSQL text namespace cannot contain NUL.",
+                nameof(resourceNamespace)
+            );
+        }
+    }
+
     private static Func<RouteKey, NpgsqlDataSource> CreateDataSourceResolver(
         NpgsqlDataSource dataSource
     )
     {
         ArgumentNullException.ThrowIfNull(dataSource);
         return _ => dataSource;
+    }
+
+    private readonly struct BackendLease : IDisposable
+    {
+        private readonly IDisposable _lease;
+
+        public BackendLease(IPostgreSqlStateBackend value, IDisposable lease)
+        {
+            Value = value;
+            _lease = lease;
+        }
+
+        public IPostgreSqlStateBackend Value { get; }
+
+        public void Dispose() => _lease.Dispose();
     }
 }
 
