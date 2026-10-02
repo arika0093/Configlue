@@ -648,6 +648,217 @@ public sealed class ConfiglueFacadeTests
         await dispose;
     }
 
+    [Test]
+    [Arguments(false)]
+    [Arguments(true)]
+    public async Task FacadeDisposeAsyncCompletesOnlyAfterOwnedStateRemovedNotificationDrains(
+        bool cleanupFails
+    )
+    {
+        var gate = new DisposalGate { FailOnRelease = cleanupFails };
+        const string stateName = "dispose-owned";
+        var registry = CreateGatedRegistry(gate);
+        registry.TryAdd(stateName).ShouldBeTrue();
+
+        var notificationStarted = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        var releaseNotification = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        var completionObservedDuringNotification = new TaskCompletionSource<bool>(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        var disposeTaskHolder = new TaskCompletionSource<Task>(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        registry.StateRemoved += name =>
+        {
+            if (name != stateName)
+            {
+                return;
+            }
+
+            completionObservedDuringNotification.TrySetResult(
+                disposeTaskHolder.Task.GetAwaiter().GetResult().IsCompleted
+            );
+            notificationStarted.TrySetResult();
+            releaseNotification.Task.GetAwaiter().GetResult();
+        };
+
+        var disposeTask = registry.DisposeAsync().AsTask();
+        disposeTaskHolder.TrySetResult(disposeTask);
+
+        await gate.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        (disposeTask.IsCompleted).ShouldBeFalse();
+        gate.Release();
+
+        await notificationStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        (
+            await completionObservedDuringNotification.Task.WaitAsync(TimeSpan.FromSeconds(5))
+        ).ShouldBeFalse();
+        (disposeTask.IsCompleted).ShouldBeFalse();
+
+        var repeatedDispose = registry.DisposeAsync().AsTask();
+        (ReferenceEquals(repeatedDispose, disposeTask)).ShouldBeTrue();
+
+        releaseNotification.TrySetResult();
+        if (cleanupFails)
+        {
+            await Should.ThrowAsync<AggregateException>(async () =>
+                await disposeTask.WaitAsync(TimeSpan.FromSeconds(5))
+            );
+            await Should.ThrowAsync<AggregateException>(async () => await registry.DisposeAsync());
+        }
+        else
+        {
+            await disposeTask.WaitAsync(TimeSpan.FromSeconds(5));
+        }
+    }
+
+    [Test]
+    [Arguments(false)]
+    [Arguments(true)]
+    public async Task DisposalStartedInsideNotification_ExternalWaitIncludesThatNotification(
+        bool useCoreRegistry
+    )
+    {
+        var services = new ServiceCollection();
+        services.AddConfiglueStateRegistry<AppSettings, AppSettings.Fragment>(
+            (_, name) =>
+            {
+                var store = new InMemoryStateSource<AppSettings.Fragment>();
+                return new StateSourceSet<AppSettings.Fragment>([
+                    new(name, store, writer: store, watcher: store),
+                ]);
+            }
+        );
+        using var provider = services.BuildServiceProvider();
+        IConfiglueStateRegistry<AppSettings> registry = useCoreRegistry
+            ? provider.GetRequiredService<IConfiglueStateRegistry<AppSettings>>()
+            : CreateFacadeRegistry();
+        var reentrantCompleted = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var removed = false;
+        registry.StateAdded += (_, _) =>
+        {
+            registry.DisposeAsync().GetAwaiter().GetResult();
+            reentrantCompleted.TrySetResult();
+            release.Task.GetAwaiter().GetResult();
+        };
+        registry.StateRemoved += _ => removed = true;
+        var adding = Task.Run(() => registry.TryAdd("reentrant-origin"));
+        try
+        {
+            await reentrantCompleted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            var external = registry.DisposeAsync().AsTask();
+            external.IsCompleted.ShouldBeFalse();
+            removed.ShouldBeFalse();
+            release.SetResult();
+            await external.WaitAsync(TimeSpan.FromSeconds(5));
+            removed.ShouldBeTrue();
+        }
+        finally
+        {
+            release.TrySetResult();
+            await adding.WaitAsync(TimeSpan.FromSeconds(5));
+        }
+    }
+
+    [Test]
+    public async Task FacadeDisposeAsyncIsDeadlockFreeWhenNotificationReentersDisposal()
+    {
+        var registry = CreateFacadeRegistry();
+        registry.TryAdd("reentrant").ShouldBeTrue();
+        var reentered = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        var reentrantCompletedSynchronously = false;
+        registry.StateRemoved += name =>
+        {
+            if (name != "reentrant")
+            {
+                return;
+            }
+
+            var nested = registry.DisposeAsync();
+            reentrantCompletedSynchronously = nested.IsCompletedSuccessfully;
+            reentered.TrySetResult();
+        };
+
+        await Task.Run(async () => await registry.DisposeAsync())
+            .WaitAsync(TimeSpan.FromSeconds(5));
+        await reentered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        (reentrantCompletedSynchronously).ShouldBeTrue();
+    }
+
+    [Test]
+    public async Task FacadeDisposeAsyncContinuesAfterRemovalNotificationFailure()
+    {
+        var registry = CreateFacadeRegistry();
+        registry.TryAdd("failure").ShouldBeTrue();
+        var laterListenerCalled = false;
+        registry.StateRemoved += _ => throw new InvalidOperationException("listener failure");
+        registry.StateRemoved += name =>
+        {
+            if (name == "failure")
+            {
+                laterListenerCalled = true;
+            }
+        };
+
+        await registry.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(5));
+
+        (laterListenerCalled).ShouldBeTrue();
+    }
+
+    private static ConfiglueFacadeStateRegistry<AppSettings> CreateFacadeRegistry() =>
+        CreateGatedRegistry(gate: null);
+
+    private static ConfiglueFacadeStateRegistry<AppSettings> CreateGatedRegistry(
+        DisposalGate? gate
+    ) =>
+        new(
+            name =>
+            {
+                var store = new InMemoryStateSource<AppSettings.Fragment>();
+                var source = new StateSource<AppSettings.Fragment>(
+                    $"facade-{name}",
+                    store,
+                    writer: store,
+                    watcher: store
+                );
+                var runtime = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
+                    new StateSourceSet<AppSettings.Fragment>([source])
+                );
+                return (runtime, gate is null ? [] : [gate]);
+            },
+            reservedNames: []
+        );
+
+    private sealed class DisposalGate : IAsyncDisposable
+    {
+        public bool FailOnRelease { get; init; }
+        private readonly TaskCompletionSource _release = new(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+
+        public TaskCompletionSource Started { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public void Release() => _release.TrySetResult();
+
+        public async ValueTask DisposeAsync()
+        {
+            Started.TrySetResult();
+            await _release.Task.ConfigureAwait(false);
+            if (FailOnRelease)
+                throw new InvalidOperationException("Resource disposal failed.");
+        }
+    }
+
     private static StateSource<AppSettings.Fragment> CreateSource(string id, string label)
     {
         var store = new InMemoryStateSource<AppSettings.Fragment>(

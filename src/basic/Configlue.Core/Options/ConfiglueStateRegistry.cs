@@ -307,6 +307,7 @@ internal sealed class ConfiglueStateRegistry<TModel, TFragment>
         Task<Exception?>[] pendingRemovals;
         TaskCompletionSource notificationReady;
         TaskCompletionSource completion;
+        TaskCompletionSource cleanupCompletion;
         Notification[] notificationsToAwait;
         bool waitForNotifications;
         lock (_gate)
@@ -335,6 +336,9 @@ internal sealed class ConfiglueStateRegistry<TModel, TFragment>
             completion = new TaskCompletionSource(
                 TaskCreationOptions.RunContinuationsAsynchronously
             );
+            cleanupCompletion = new TaskCompletionSource(
+                TaskCreationOptions.RunContinuationsAsynchronously
+            );
             _disposeTask = completion.Task;
         }
 
@@ -342,19 +346,21 @@ internal sealed class ConfiglueStateRegistry<TModel, TFragment>
             removed,
             pendingRemovals,
             notificationsToAwait,
-            waitForNotifications,
             notificationReady,
+            waitForNotifications ? null : cleanupCompletion,
             completion
         );
-        return new ValueTask(completion.Task);
+        // The caller inside a notification must return so the owning drain can continue.
+        // External callers share the task that also awaits the notification boundary.
+        return new ValueTask(waitForNotifications ? completion.Task : cleanupCompletion.Task);
     }
 
     private async Task FinishDisposeAsync(
         KeyValuePair<string, ConfiglueRuntime<TModel, TFragment>>[] removed,
         Task<Exception?>[] pendingRemovals,
         Notification[] notificationsToAwait,
-        bool waitForNotifications,
         TaskCompletionSource notificationReady,
+        TaskCompletionSource? cleanupCompletion,
         TaskCompletionSource completion
     )
     {
@@ -411,8 +417,17 @@ internal sealed class ConfiglueStateRegistry<TModel, TFragment>
             }
         }
 
+        if (disposalFailure is null)
+        {
+            cleanupCompletion?.TrySetResult();
+        }
+        else
+        {
+            cleanupCompletion?.TrySetException(disposalFailure);
+        }
+
         DrainNotifications();
-        await WaitForNotifications(notificationsToAwait, waitForNotifications)
+        await WaitForNotifications(notificationsToAwait, waitForNotifications: true)
             .ConfigureAwait(false);
 
         if (disposalFailure is null)

@@ -346,6 +346,7 @@ internal sealed class ConfiglueFacadeStateRegistry<TModel>
         KeyValuePair<string, Entry>[] removed;
         Task<Exception?>[] pendingRemovals;
         TaskCompletionSource completion;
+        TaskCompletionSource cleanupCompletion;
         TaskCompletionSource notificationReady;
         Notification[] notificationsToAwait;
         bool waitForNotifications;
@@ -378,29 +379,35 @@ internal sealed class ConfiglueFacadeStateRegistry<TModel>
             completion = new TaskCompletionSource(
                 TaskCreationOptions.RunContinuationsAsynchronously
             );
+            cleanupCompletion = new TaskCompletionSource(
+                TaskCreationOptions.RunContinuationsAsynchronously
+            );
             _disposeTask = completion.Task;
         }
         _ = FinishDisposeAsync(
             pendingRemovals,
             removed,
             notificationsToAwait,
-            waitForNotifications,
             notificationReady,
+            waitForNotifications ? null : cleanupCompletion,
             completion
         );
-        return new ValueTask(completion.Task);
+        // The caller inside a notification must return so the owning drain can continue.
+        // External callers share the task that also awaits the notification boundary.
+        return new ValueTask(waitForNotifications ? completion.Task : cleanupCompletion.Task);
     }
 
     private async Task FinishDisposeAsync(
         Task<Exception?>[] pendingRemovals,
         KeyValuePair<string, Entry>[] removed,
         Notification[] notificationsToAwait,
-        bool waitForNotifications,
         TaskCompletionSource notificationReady,
+        TaskCompletionSource? cleanupCompletion,
         TaskCompletionSource completion
     )
     {
         List<Exception>? errors = null;
+        Exception? failure = null;
         try
         {
             if (pendingRemovals.Length > 0)
@@ -426,6 +433,20 @@ internal sealed class ConfiglueFacadeStateRegistry<TModel>
             {
                 AddCleanupError(ref errors, exception);
             }
+            if (errors is not null)
+            {
+                failure = new AggregateException(
+                    "One or more dynamic Configlue state failed to dispose.",
+                    errors
+                );
+            }
+        }
+        catch (Exception exception)
+        {
+            failure = exception;
+        }
+        finally
+        {
             lock (_gate)
             {
                 foreach (var (name, _) in removed)
@@ -434,26 +455,28 @@ internal sealed class ConfiglueFacadeStateRegistry<TModel>
                 }
                 notificationReady.TrySetResult();
             }
-            if (errors is null)
-            {
-                completion.TrySetResult();
-            }
-            else
-            {
-                completion.TrySetException(
-                    new AggregateException(
-                        "One or more dynamic Configlue state failed to dispose.",
-                        errors
-                    )
-                );
-            }
-            DrainNotifications();
-            await WaitForNotifications(notificationsToAwait, waitForNotifications)
-                .ConfigureAwait(false);
         }
-        catch (Exception exception)
+
+        if (failure is null)
         {
-            completion.TrySetException(exception);
+            cleanupCompletion?.TrySetResult();
+        }
+        else
+        {
+            cleanupCompletion?.TrySetException(failure);
+        }
+
+        DrainNotifications();
+        await WaitForNotifications(notificationsToAwait, waitForNotifications: true)
+            .ConfigureAwait(false);
+
+        if (failure is null)
+        {
+            completion.TrySetResult();
+        }
+        else
+        {
+            completion.TrySetException(failure);
         }
     }
 
