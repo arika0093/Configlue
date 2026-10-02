@@ -30,4 +30,5 @@ internal static class SparseDiagnosticIds
     public const string InvalidMergeStrategy = "SPF004";
     public const string UnsupportedMerge = "SPF005";
     public const string UnsupportedRequired = "SPF006";
+    public const string UnsupportedStructural = "SPF007";
 }

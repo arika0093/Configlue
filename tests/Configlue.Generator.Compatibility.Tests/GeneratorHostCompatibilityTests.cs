@@ -9,6 +9,44 @@ namespace Configlue.Generator.Compatibility.Tests;
 public sealed class GeneratorHostCompatibilityTests
 {
     [Test]
+    [Arguments(false, false)]
+    [Arguments(true, false)]
+    [Arguments(false, true)]
+    [Arguments(true, true)]
+    public void UnsupportedStructuralChildRequiresExplicitReplace(bool standalone, bool replace)
+    {
+        var runtime = standalone ? "SparseFragments" : "Configlue";
+        var attribute = standalone
+            ? "SparseFragmentModel"
+            : "ConfiglueModel(\"unsupported-child\")";
+        var merge = standalone ? "SparseMerge" : "ConfiglueMerge";
+        var optOut = replace ? "[" + merge + "(MergeMode.Replace)]" : string.Empty;
+        var source =
+            $"using {runtime}; [{attribute}] public partial class Settings {{ {optOut} public Child Child {{ get; set; }} = new(); }} public class Child {{ public int Count {{ get; init; }} = 7; }}";
+        var options = new CSharpParseOptions(LanguageVersion.Latest);
+        var compilation = CreateCompilation(CSharpSyntaxTree.ParseText(source, options));
+        IIncrementalGenerator generator = standalone
+            ? new SparseFragments.Generator.SparseFragmentsGenerator()
+            : new ConfiglueGenerator();
+        var result = CSharpGeneratorDriver
+            .Create(new[] { generator.AsSourceGenerator() }, parseOptions: options)
+            .RunGenerators(compilation)
+            .GetRunResult();
+        result.Results.Single().Exception.ShouldBeNull();
+        var errors = result
+            .Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error)
+            .ToArray();
+        if (replace)
+            errors.ShouldBeEmpty();
+        else
+        {
+            errors.Length.ShouldBe(1);
+            errors[0].Id.ShouldBe(standalone ? "SPF007" : "CFG010");
+            errors[0].GetMessage().ShouldContain("MergeMode.Replace");
+        }
+    }
+
+    [Test]
     [Arguments(false, 0)]
     [Arguments(true, 0)]
     [Arguments(false, 1)]

@@ -62,6 +62,15 @@ public sealed class SparseFragmentsGenerator : IIncrementalGenerator
         DiagnosticSeverity.Error,
         true
     );
+    private static readonly DiagnosticDescriptor UnsupportedStructural = new(
+        SparseDiagnosticIds.UnsupportedStructural,
+        "Unsupported structural member construction",
+        "Member '{0}' has an unsupported structural type; provide a supported public constructor and properties, decorate it as a fragment model, or explicitly select MergeMode.Replace",
+        "SparseFragments",
+        DiagnosticSeverity.Error,
+        true
+    );
+
     private static readonly DiagnosticDescriptor UnsupportedRequired = new(
         SparseDiagnosticIds.UnsupportedRequired,
         "Required member cannot be constructed",
@@ -148,6 +157,7 @@ public sealed class SparseFragmentsGenerator : IIncrementalGenerator
             SparseDiagnosticIds.InvalidMergeStrategy => InvalidMergeStrategy,
             SparseDiagnosticIds.UnsupportedMerge => UnsupportedMerge,
             SparseDiagnosticIds.UnsupportedRequired => UnsupportedRequired,
+            SparseDiagnosticIds.UnsupportedStructural => UnsupportedStructural,
             _ => throw new global::System.ArgumentOutOfRangeException(nameof(id), id, null),
         };
 }

@@ -72,6 +72,15 @@ internal static class SparseModelAnalyzer
                 )
             );
 
+        foreach (var property in UnsupportedStructuralMembers(model, config, cancellationToken))
+            diagnostics.Add(
+                new SparseGeneratorDiagnostic(
+                    SparseDiagnosticIds.UnsupportedStructural,
+                    property.Locations.FirstOrDefault(),
+                    property.Name
+                )
+            );
+
         foreach (var member in members)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -163,6 +172,61 @@ internal static class SparseModelAnalyzer
             ImmutableArray<SparseStructuralModel>.Empty,
             ImmutableArray.Create(new SparseGeneratorDiagnostic(descriptorId, location, argument))
         );
+
+    public static IEnumerable<IPropertySymbol> UnsupportedStructuralMembers(
+        INamedTypeSymbol model,
+        SparseGeneratorConfig config,
+        CancellationToken cancellationToken
+    )
+    {
+        var pending = new Stack<INamedTypeSymbol>();
+        var seen = new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default);
+        pending.Push(model);
+        while (pending.Count > 0)
+        {
+            var current = pending.Pop();
+            if (!seen.Add(current))
+                continue;
+            foreach (
+                var property in GetMembers(current, config, cancellationToken)
+                    .Select(static member => member.Property)
+            )
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (
+                    property.Type
+                        is not INamedTypeSymbol
+                        {
+                            TypeKind: TypeKind.Class,
+                            SpecialType: SpecialType.None
+                        } type
+                    || IsFrameworkType(type)
+                    || IsFragmentModel(type, config, cancellationToken)
+                )
+                    continue;
+                if (
+                    SparseCollectionAnalyzer.GetCollectionInfo(type).CloneKind
+                    != SparseCloneCollectionKind.Unsupported
+                )
+                    continue;
+                if (IsStructuralType(type, config, cancellationToken))
+                {
+                    pending.Push(type);
+                    continue;
+                }
+                var replace = property
+                    .GetAttributes()
+                    .Any(attribute =>
+                        attribute.AttributeClass?.ToDisplayString()
+                            == config.MergeAttributeMetadataName
+                        && attribute.ConstructorArguments.FirstOrDefault().Value is int mode
+                        && mode == 0
+                    );
+                if (!replace)
+                    yield return property;
+            }
+        }
+    }
 
     internal static IEnumerable<IPropertySymbol> GetReadableProperties(
         INamedTypeSymbol model,

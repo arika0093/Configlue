@@ -70,3 +70,11 @@ selected constructor annotated with `SetsRequiredMembers`; any `init` properties
 must also be bound to its parameters. Unbound `init` properties are not yet
 supported by this construction path. Preservation of aliases and cycles
 throughout the entire model graph is tracked separately from constructor binding.
+
+An unsupported user-defined child class produces `SPF007` (SparseFragments) or
+`CFG010` (Configlue), including when discovered inside another supported structural
+child. Provide a supported constructor and properties, decorate the child as a
+fragment model, or explicitly specify `[SparseMerge(MergeMode.Replace)]` /
+`[ConfiglueMerge(MergeMode.Replace)]` to choose replacement semantics. Choosing
+`Replace` determines merge behavior; it does not establish a deep-clone policy for
+an otherwise unsupported reference type.

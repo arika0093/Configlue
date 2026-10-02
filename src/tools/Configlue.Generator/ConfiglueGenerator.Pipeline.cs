@@ -228,6 +228,21 @@ public sealed partial class ConfiglueGenerator
                 )
             );
 
+        foreach (
+            var property in SparseFragments.Generator.Shared.SparseModelAnalyzer.UnsupportedStructuralMembers(
+                model,
+                SparseConfiguration,
+                cancellationToken
+            )
+        )
+            diagnostics.Add(
+                GeneratorDiagnosticInfo.Create(
+                    UnsupportedStructural,
+                    property.Locations.FirstOrDefault(),
+                    property.Name
+                )
+            );
+
         foreach (var member in members)
         {
             cancellationToken.ThrowIfCancellationRequested();

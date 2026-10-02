@@ -63,6 +63,15 @@ public sealed partial class ConfiglueGenerator : IIncrementalGenerator
         DiagnosticSeverity.Error,
         true
     );
+    private static readonly DiagnosticDescriptor UnsupportedStructural = new(
+        "CFG010",
+        "Unsupported structural member construction",
+        "Member '{0}' has an unsupported structural type; provide a supported public constructor and properties, decorate it as a fragment model, or explicitly select MergeMode.Replace",
+        "Configlue",
+        DiagnosticSeverity.Error,
+        true
+    );
+
     private static readonly DiagnosticDescriptor UnsupportedRequired = new(
         "CFG004",
         "Required member cannot be constructed",
