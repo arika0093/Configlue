@@ -1,4 +1,5 @@
 using System.Text;
+using Configlue.Codecs;
 using Configlue.Provider.Json;
 using Configlue.Provider.Xml;
 using Configlue.Provider.Yaml;
@@ -372,7 +373,7 @@ public sealed class SectionSchemaMetadataContractTests
         string format
     )
     {
-        object codec = format switch
+        IStateCodec<AppSettings.Fragment> codec = format switch
         {
             "json" => new JsonStateCodec<AppSettings.Fragment>(),
             "yaml" => new YamlStateCodec<AppSettings.Fragment>(

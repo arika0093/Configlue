@@ -1,3 +1,4 @@
+using Configlue.Codecs;
 using Configlue.CompilerServices;
 using Configlue.Provider.Json;
 
@@ -16,9 +17,9 @@ public sealed class WebStorageSourceOptions
     public string? Id { get; set; }
 
     /// <summary>
-    /// The codec for the serialized state. When omitted, the JSON fragment codec is used.
+    /// The codec binding for the serialized state. When omitted, the generated JSON fragment codec is used.
     /// </summary>
-    public object? Codec { get; set; }
+    public StateCodecBinding? Codec { get; set; }
 
     /// <summary>Higher values are read first.</summary>
     public int Priority { get; set; }
@@ -151,8 +152,10 @@ public static class WebStorageSourceRegistration
 
             var codec =
                 options.Codec
-                ?? JsonStateCodec<TFragment>.FromConverter(
-                    ConfiglueJsonFragmentRegistry<TFragment>.Converter
+                ?? StateCodecBinding.Typed(
+                    JsonStateCodec<TFragment>.FromConverter(
+                        ConfiglueJsonFragmentRegistry<TFragment>.Converter
+                    )
                 );
             var serialized = new SerializedSource<TFragment>(
                 resource,

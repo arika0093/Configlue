@@ -1,3 +1,4 @@
+using Configlue.Codecs;
 using Configlue.Sources;
 
 namespace Configlue.Provider.Xml;
@@ -116,7 +117,7 @@ public static class XmlFileSourceRegistration
                 sourceWriter = writer is null ? null : section;
             }
             ISourceWatcher? watcher = options.WatchChanges ? file : null;
-            var codec = new XmlStateCodec();
+            var codec = StateCodecBinding.Dynamic(new XmlStateCodec());
             var serialized = new SerializedSource<TFragment>(
                 resource,
                 codec,

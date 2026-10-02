@@ -34,7 +34,32 @@ public sealed class SerializedSource<T>
     /// <param name="middlewares">Typed state decorators; the first middleware is outermost.</param>
     public SerializedSource(
         IResourceReader resource,
-        object codec,
+        IStateCodec<T> codec,
+        StateCodecContext context = default,
+        StateSchemaDispatcher<T>? schemaDispatcher = null,
+        IEnumerable<IStateByteTransformer>? transformers = null,
+        IResourceWriter? writer = null,
+        ISourceWatcher? watcher = null,
+        IEnumerable<IStateMiddleware<T>>? middlewares = null
+    )
+        : this(
+            resource,
+            StateCodecBinding.Typed(codec),
+            context,
+            schemaDispatcher,
+            transformers,
+            writer,
+            watcher,
+            middlewares
+        ) { }
+
+    /// <summary>
+    /// Creates a serialized source from an explicit typed or dynamic codec binding. Write and watch
+    /// capabilities are supplied explicitly as facets of the same source object.
+    /// </summary>
+    public SerializedSource(
+        IResourceReader resource,
+        StateCodecBinding codec,
         StateCodecContext context = default,
         StateSchemaDispatcher<T>? schemaDispatcher = null,
         IEnumerable<IStateByteTransformer>? transformers = null,

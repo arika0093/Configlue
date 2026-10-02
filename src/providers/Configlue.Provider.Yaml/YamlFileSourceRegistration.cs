@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Configlue.Codecs;
 using Configlue.Sources;
 using SharpYaml;
 
@@ -158,11 +159,13 @@ public static class YamlFileSourceRegistration
                 );
             resource = section;
             IResourceWriter? sourceWriter = writer is null ? null : section;
-            var codec = new YamlStateCodec(
-                options.PropertyNamingPolicy,
-                modelSchema,
-                options.SerializerOptions,
-                options.DocumentLayout
+            var codec = StateCodecBinding.Dynamic(
+                new YamlStateCodec(
+                    options.PropertyNamingPolicy,
+                    modelSchema,
+                    options.SerializerOptions,
+                    options.DocumentLayout
+                )
             );
             var serialized = new SerializedSource<TFragment>(
                 resource,

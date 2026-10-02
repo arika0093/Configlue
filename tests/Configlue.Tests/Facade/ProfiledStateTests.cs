@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using Configlue.Codecs;
 using Configlue.Extensions.MSOptions;
 using Configlue.Provider.Json;
 using Configlue.Sources;
@@ -878,7 +879,7 @@ public sealed class ProfiledStateTests
                 var source = SerializedStateSource.FromResource<AppSettings.Fragment>(
                     profileName,
                     section,
-                    new JsonStateCodec()
+                    StateCodecBinding.Dynamic(new JsonStateCodec())
                 );
                 return new StateSourceSet<AppSettings.Fragment>([source]);
             },
@@ -889,7 +890,7 @@ public sealed class ProfiledStateTests
                 return SerializedStateSource.FromResource<ConfiglueProfileCatalog>(
                     "profile-catalog",
                     section,
-                    new JsonStateCodec()
+                    StateCodecBinding.Dynamic(new JsonStateCodec())
                 );
             },
             onChangeDebounce: TimeSpan.Zero
