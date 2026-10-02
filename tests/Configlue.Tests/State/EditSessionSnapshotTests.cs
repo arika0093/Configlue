@@ -166,7 +166,7 @@ public sealed class EditSessionSnapshotTests
         );
         using var session = await options.OpenEditSessionAsync();
 
-        store.Set(Fragment("external", retryCount: 9));
+        await SetAndObserveUpstreamAsync(store, session, Fragment("external", retryCount: 9));
         await session.RebaseAsync();
 
         (session.Value.Label).ShouldBe("external");
@@ -188,7 +188,11 @@ public sealed class EditSessionSnapshotTests
         using var session = await options.OpenEditSessionAsync();
 
         session.Value.RetryCount = 6;
-        store.Set(Fragment("start", retryCount: 3, enabled: false));
+        await SetAndObserveUpstreamAsync(
+            store,
+            session,
+            Fragment("start", retryCount: 3, enabled: false)
+        );
         await session.RebaseAsync();
 
         (session.Value.RetryCount).ShouldBe(6);
@@ -238,7 +242,7 @@ public sealed class EditSessionSnapshotTests
         using var session = await options.OpenEditSessionAsync();
 
         session.Value.RetryCount = 6;
-        store.Set(Fragment("start", retryCount: 9));
+        await SetAndObserveUpstreamAsync(store, session, Fragment("start", retryCount: 9));
 
         await session.RebaseAsync();
 
@@ -273,7 +277,7 @@ public sealed class EditSessionSnapshotTests
         using var session = await options.OpenEditSessionAsync();
 
         session.Value.Plugins = ["base", "mine"];
-        store.Set(WithPlugins(["base", "theirs"]));
+        await SetAndObserveUpstreamAsync(store, session, WithPlugins(["base", "theirs"]));
 
         await session.RebaseAsync();
 
@@ -771,6 +775,30 @@ public sealed class EditSessionSnapshotTests
         public ValueTask<AppSettings> GetValueAsync(
             CancellationToken cancellationToken = default
         ) => throw new NotSupportedException();
+    }
+
+    private static async Task SetAndObserveUpstreamAsync(
+        SignalingStore<AppSettings.Fragment> store,
+        EditSession<AppSettings> session,
+        AppSettings.Fragment value
+    )
+    {
+        // A zero debounce does not guarantee the watcher publishes before RebaseAsync
+        // returns. Establish that ordering explicitly when asserting the rebase clears
+        // the previously observed upstream change.
+        await store.WatchStarted.WaitAsync(TimeSpan.FromSeconds(5));
+        var observed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        void OnUpstreamChanged() => observed.TrySetResult();
+        session.UpstreamChanged += OnUpstreamChanged;
+        try
+        {
+            store.Set(value);
+            await observed.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        }
+        finally
+        {
+            session.UpstreamChanged -= OnUpstreamChanged;
+        }
     }
 
     private sealed class SignalingStore<T> : ISourceReader<T>, ISourceWriter<T>, ISourceWatcher
