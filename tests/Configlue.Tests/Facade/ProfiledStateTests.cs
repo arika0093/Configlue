@@ -177,6 +177,89 @@ public sealed class ProfiledStateTests
     }
 
     [Test]
+    public async Task ProfileCatalog_SameBaselineConcurrentWritesConflictExactlyOnce()
+    {
+        var store = new InMemoryStateSource<ConfiglueProfileCatalog>(
+            new ConfiglueProfileCatalog
+            {
+                ProfileNames = ["default"],
+                ActiveProfileName = "default",
+            }
+        );
+        var barrier = new CatalogWriteBarrier();
+        await using var firstRegistry = CreateProfileRegistry();
+        await using var secondRegistry = CreateProfileRegistry();
+        await using var first = CreateBarrieredProfiles(firstRegistry, store, barrier, manager: 0);
+        await using var second = CreateBarrieredProfiles(
+            secondRegistry,
+            store,
+            barrier,
+            manager: 1
+        );
+        await Task.WhenAll(
+            first.GetProfileNamesAsync().AsTask(),
+            second.GetProfileNamesAsync().AsTask()
+        );
+
+        // Force both managers to observe the same baseline revision before either commits.
+        barrier.Arm();
+
+        bool[] added;
+        try
+        {
+            added = await Task.WhenAll(
+                    TryCreateProfileAsync(first, "First"),
+                    TryCreateProfileAsync(second, "Second")
+                )
+                .WaitAsync(TimeSpan.FromSeconds(5));
+        }
+        finally
+        {
+            barrier.Release();
+        }
+
+        (added.Count(static succeeded => succeeded)).ShouldBe(1);
+
+        var reads = barrier.Reads;
+        reads.Length.ShouldBe(2);
+        reads
+            .Select(static read => read.Manager)
+            .OrderBy(static manager => manager)
+            .ShouldBe(new[] { 0, 1 });
+        reads[0].Revision.ShouldNotBeNull();
+        reads[0].Revision.ShouldBe(reads[1].Revision);
+
+        var writes = barrier.Writes;
+        writes.Length.ShouldBe(2);
+        (writes.Count(static write => write.Succeeded)).ShouldBe(1);
+        foreach (var write in writes)
+        {
+            (write.Revision).ShouldBe(reads[0].Revision);
+        }
+
+        var refreshedRevision = (await store.ReadAsync(ConfiglueResourceContext.Default)).Revision;
+        refreshedRevision.ShouldNotBe(reads[0].Revision);
+        if (!added[0])
+        {
+            await first.CreateProfileAsync("First");
+        }
+
+        if (!added[1])
+        {
+            await second.CreateProfileAsync("Second");
+        }
+
+        var writesAfterRetry = barrier.Writes;
+        writesAfterRetry.Length.ShouldBe(3);
+        writesAfterRetry[^1].Succeeded.ShouldBeTrue();
+        writesAfterRetry[^1].Revision.ShouldBe(refreshedRevision);
+        var durable = await store.ReadAsync(ConfiglueResourceContext.Default);
+        (durable.Value!.ProfileNames)
+            .OrderBy(static name => name)
+            .ShouldBe(new[] { "default", "First", "Second" }.OrderBy(static name => name));
+    }
+
+    [Test]
     public async Task ProfileCatalog_ConcurrentManagersDoNotOverwriteEachOther()
     {
         using var directory = new TemporaryDirectory();
@@ -195,7 +278,9 @@ public sealed class ProfiledStateTests
             TryCreateProfileAsync(second, "Second")
         );
 
-        (added.Count(static succeeded => succeeded)).ShouldBe(1);
+        // Scheduler order is not a contract: a fully serialized schedule may let both initial
+        // writes succeed, while a same-baseline conflict makes one manager retry. Either way a
+        // successfully committed profile must never be dropped.
         if (!added[0])
         {
             await first.CreateProfileAsync("First");
@@ -213,6 +298,31 @@ public sealed class ProfiledStateTests
         ((restoredNames))
             .OrderBy(static item => item)
             .ShouldBe((new[] { "default", "First", "Second" }).OrderBy(static item => item));
+    }
+
+    [Test]
+    public async Task ProfileCatalog_SerializedInitialCallsBothSucceedAndRemainDurable()
+    {
+        using var directory = new TemporaryDirectory();
+        var path = Path.Combine(directory.FullPath, "profiles.json");
+        using var firstProvider = CreateServiceProvider(path);
+        using var secondProvider = CreateServiceProvider(path);
+        var first = firstProvider.GetRequiredService<IConfiglueProfiledState<AppSettings>>();
+        var second = secondProvider.GetRequiredService<IConfiglueProfiledState<AppSettings>>();
+        await first.GetProfileNamesAsync();
+        (await TryCreateProfileAsync(first, "First")).ShouldBeTrue();
+        // Establish the serialized schedule explicitly: the second manager observes the
+        // first commit before its initial mutation, without waiting for a file watcher.
+        (await second.GetProfileNamesAsync()).ShouldContain("First");
+        (await TryCreateProfileAsync(second, "Second")).ShouldBeTrue();
+        using var restarted = CreateServiceProvider(path);
+        (
+            await restarted
+                .GetRequiredService<IConfiglueProfiledState<AppSettings>>()
+                .GetProfileNamesAsync()
+        )
+            .OrderBy(static name => name)
+            .ShouldBe(new[] { "default", "First", "Second" }.OrderBy(static name => name));
     }
 
     [Test]
@@ -731,6 +841,27 @@ public sealed class ProfiledStateTests
             );
         });
 
+    // The catalog reader/writer seam is the injectable StateSource. Wrapping the reader parks each
+    // manager after it observes the shared baseline revision and releases both only once both have
+    // read, so the subsequent conditional writes race on the same revision deterministically.
+    private static ConfiglueProfiledState<
+        AppSettings,
+        AppSettings.Fragment
+    > CreateBarrieredProfiles(
+        IConfiglueStateRegistry<AppSettings> registry,
+        InMemoryStateSource<ConfiglueProfileCatalog> store,
+        CatalogWriteBarrier barrier,
+        int manager
+    ) =>
+        new(
+            registry,
+            new StateSource<ConfiglueProfileCatalog>(
+                "catalog",
+                new BarrierCatalogReader(manager, barrier, store),
+                writer: new BarrierCatalogWriter(barrier, store)
+            )
+        );
+
     private static ServiceProvider CreateServiceProvider(string filePath)
     {
         var services = new ServiceCollection();
@@ -888,6 +1019,132 @@ public sealed class ProfiledStateTests
                 {
                     throw new InvalidOperationException("Deferral disposal failed.");
                 }
+            }
+        }
+    }
+
+    private sealed class CatalogWriteBarrier
+    {
+        private readonly object _gate = new();
+        private readonly List<(int Manager, string? Revision)> _reads = [];
+        private readonly List<(string? Revision, bool Succeeded)> _writes = [];
+        private readonly TaskCompletionSource _release = new(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        private bool _armed;
+        private bool _released;
+        private int _arrivals;
+
+        public (int Manager, string? Revision)[] Reads
+        {
+            get
+            {
+                lock (_gate)
+                {
+                    return [.. _reads];
+                }
+            }
+        }
+
+        public (string? Revision, bool Succeeded)[] Writes
+        {
+            get
+            {
+                lock (_gate)
+                {
+                    return [.. _writes];
+                }
+            }
+        }
+
+        public void Arm()
+        {
+            lock (_gate)
+            {
+                _armed = true;
+            }
+        }
+
+        public void Release()
+        {
+            lock (_gate)
+            {
+                _released = true;
+                _release.TrySetResult();
+            }
+        }
+
+        public Task ArriveReadAsync(int manager, string? revision)
+        {
+            lock (_gate)
+            {
+                if (!_armed || _released)
+                {
+                    return Task.CompletedTask;
+                }
+
+                _reads.Add((manager, revision));
+                _arrivals++;
+                if (_arrivals >= 2)
+                {
+                    _released = true;
+                    _release.TrySetResult();
+                    return Task.CompletedTask;
+                }
+
+                return _release.Task;
+            }
+        }
+
+        public void RecordWrite(string? revision, bool succeeded)
+        {
+            lock (_gate)
+            {
+                _writes.Add((revision, succeeded));
+            }
+        }
+    }
+
+    private sealed class BarrierCatalogReader(
+        int manager,
+        CatalogWriteBarrier barrier,
+        ISourceReader<ConfiglueProfileCatalog> inner
+    ) : ISourceReader<ConfiglueProfileCatalog>
+    {
+        public async ValueTask<StateReadResult<ConfiglueProfileCatalog>> ReadAsync(
+            ConfiglueResourceContext context,
+            CancellationToken cancellationToken = default
+        )
+        {
+            var result = await inner.ReadAsync(context, cancellationToken).ConfigureAwait(false);
+            await barrier.ArriveReadAsync(manager, result.Revision).ConfigureAwait(false);
+            return result;
+        }
+    }
+
+    private sealed class BarrierCatalogWriter(
+        CatalogWriteBarrier barrier,
+        ISourceWriter<ConfiglueProfileCatalog> inner
+    ) : ISourceWriter<ConfiglueProfileCatalog>
+    {
+        public async ValueTask<StateWriteResult> WriteAsync(
+            ConfiglueResourceContext context,
+            StateWriteRequest<ConfiglueProfileCatalog> request,
+            CancellationToken cancellationToken = default
+        )
+        {
+            try
+            {
+                var result = await inner
+                    .WriteAsync(context, request, cancellationToken)
+                    .ConfigureAwait(false);
+                barrier.RecordWrite(request.Condition.Revision, succeeded: true);
+                return result;
+            }
+            catch (StateConflictException)
+            {
+                barrier.RecordWrite(request.Condition.Revision, succeeded: false);
+                throw;
             }
         }
     }
