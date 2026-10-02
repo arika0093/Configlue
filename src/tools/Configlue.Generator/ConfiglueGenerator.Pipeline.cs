@@ -200,6 +200,18 @@ public sealed partial class ConfiglueGenerator
         }
 
         var members = GetMembers(model, cancellationToken).ToImmutableArray();
+        var generatedNameCollision = members.FirstOrDefault(static member =>
+            IsGeneratedNameCollision(member.Property.Name)
+        );
+        if (generatedNameCollision is not null)
+        {
+            return AnalysisFailure(
+                GeneratedNameCollision,
+                generatedNameCollision.Property.Locations.FirstOrDefault(),
+                generatedNameCollision.Property.Name
+            );
+        }
+
         var diagnostics = ImmutableArray.CreateBuilder<GeneratorDiagnosticInfo>();
         for (var leftIndex = 0; leftIndex < members.Length; leftIndex++)
         {
@@ -388,6 +400,25 @@ public sealed partial class ConfiglueGenerator
             ImmutableArray<GeneratorDiagnosticInfo>.Empty
         );
     }
+
+    private static bool IsGeneratedNameCollision(string memberName) =>
+        memberName
+            is "Fragment"
+                or "Patch"
+                or "Details"
+                or "Observable"
+                or "ConfiglueSchema"
+                or "FragmentBuilder"
+                or "Empty"
+                or "Schema"
+                or "IsEmpty"
+                or "Merge"
+                or "ApplyChanges"
+                or "Diff"
+                or "DeepClone"
+                or "ToBuilder"
+                or "ToPatch"
+                or "Build";
 
     private static ImmutableArray<INamedTypeSymbol> CollectStructuralTypes(
         ImmutableArray<SymbolMemberModel> members,
