@@ -324,11 +324,12 @@ public sealed partial class ConfiglueGenerator
     private static void AppendDetailsExtensions(
         IndentedStringBuilder code,
         string modelType,
-        string modelName
+        string modelName,
+        bool isPublic
     )
     {
         var extensionType = modelName + "DetailsExtensions";
-        code.AppendLine("public static class " + extensionType);
+        code.AppendLine((isPublic ? "public" : "internal") + " static class " + extensionType);
         code.AppendLine("{");
         code.AppendLineAt(
             1,
