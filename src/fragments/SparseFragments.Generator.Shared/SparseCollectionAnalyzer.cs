@@ -97,7 +97,8 @@ internal static class SparseCollectionAnalyzer
 
         var cloneKind = definition switch
         {
-            "System.Collections.Generic.List<T>" => SparseCloneCollectionKind.List,
+            "System.Collections.Generic.List<T>" or "System.Collections.Generic.IList<T>" =>
+                SparseCloneCollectionKind.List,
             "System.Collections.Generic.IEnumerable<T>"
             or "System.Collections.Generic.IReadOnlyCollection<T>"
             or "System.Collections.Generic.IReadOnlyList<T>" => SparseCloneCollectionKind.Array,

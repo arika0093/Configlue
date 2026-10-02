@@ -152,9 +152,9 @@ internal sealed class SparseFragmentExpressions(
         return collection.CloneKind switch
         {
             SparseCloneCollectionKind.Array =>
-                $"__CloneArray<{elementType}>({access}, {CloneContext}, item => {CloneValueExpression(collection.ElementType, "item")})",
+                $"__CloneArray<{elementType}, {member.Property.Type.Name}>({access}, {CloneContext}, item => {CloneValueExpression(collection.ElementType, "item")})",
             SparseCloneCollectionKind.List =>
-                $"__CloneList<{elementType}>({access}, {CloneContext}, item => {CloneValueExpression(collection.ElementType, "item")})",
+                $"__CloneList<{elementType}, {member.Property.Type.Name}>({access}, {CloneContext}, item => {CloneValueExpression(collection.ElementType, "item")})",
             SparseCloneCollectionKind.Set => CloneSetExpression(
                 collection,
                 access,
