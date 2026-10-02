@@ -105,7 +105,12 @@ public sealed class BlazorAuthenticationConfiglueSubjectAccessor<TSubject>
     }
 }
 
-/// <summary>Registers a scoped subject accessor backed by Blazor authentication state.</summary>
+/// <summary>
+/// Registers a scoped subject accessor backed by Blazor authentication state. The unkeyed
+/// <see cref="IConfiglueSubjectChangeSource"/> service resolves to this same scoped instance;
+/// as with other unkeyed Microsoft DI registrations, the last registration wins when multiple
+/// subject accessors are registered in one scope.
+/// </summary>
 public static class BlazorAuthenticationConfiglueSubjectAccessorServiceCollectionExtensions
 {
     /// <summary>Registers a scoped accessor that maps each authentication principal.</summary>
@@ -124,6 +129,9 @@ public static class BlazorAuthenticationConfiglueSubjectAccessorServiceCollectio
             )
         );
         services.AddScoped<IConfiglueSubjectAccessor<TSubject>>(provider =>
+            provider.GetRequiredService<BlazorAuthenticationConfiglueSubjectAccessor<TSubject>>()
+        );
+        services.AddScoped<IConfiglueSubjectChangeSource>(provider =>
             provider.GetRequiredService<BlazorAuthenticationConfiglueSubjectAccessor<TSubject>>()
         );
         return services;
