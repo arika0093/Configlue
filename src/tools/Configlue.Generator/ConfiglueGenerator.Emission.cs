@@ -183,8 +183,8 @@ public sealed partial class ConfiglueGenerator
         );
         AppendHistoricalDispatcherFactory(code, modelType, previousModels);
         code.AppendLine("}");
-        AppendTypedPatchExtensions(code, modelType, name);
-        AppendDetailsExtensions(code, modelType, name);
+        AppendTypedPatchExtensions(code, modelType, name, model.IsPublic);
+        AppendDetailsExtensions(code, modelType, name, model.IsPublic);
         if (hasNamespace)
         {
             code.IndentOffset--;
@@ -255,11 +255,12 @@ public sealed partial class ConfiglueGenerator
     private static void AppendTypedPatchExtensions(
         IndentedStringBuilder code,
         string modelType,
-        string modelName
+        string modelName,
+        bool isPublic
     )
     {
         var extensionType = modelName + "PatchOptionsExtensions";
-        code.AppendLine("public static class " + extensionType);
+        code.AppendLine((isPublic ? "public" : "internal") + " static class " + extensionType);
         code.AppendLine("{");
         code.AppendLineAt(
             1,
