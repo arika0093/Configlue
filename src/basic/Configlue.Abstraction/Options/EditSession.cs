@@ -22,7 +22,7 @@ public sealed class EditSession<T> : IDisposable
     private StateSnapshot<T>? _latestUpstream;
     private T _baseline;
     private bool _hasUpstreamChanges;
-    private long _upstreamGeneration;
+    private readonly UpstreamGenerationCounter _upstreamGeneration;
     private int _state;
     private int _isCommitted;
 
@@ -39,7 +39,8 @@ public sealed class EditSession<T> : IDisposable
             Clone,
             value,
             hasDefaultValue: false,
-            upstreamState: null
+            upstreamState: null,
+            upstreamGeneration: null
         ) { }
 
     /// <summary>Creates a configure session with independent loaded and default baselines.</summary>
@@ -60,7 +61,8 @@ public sealed class EditSession<T> : IDisposable
             clone,
             defaultValue,
             hasDefaultValue: true,
-            upstreamState: null
+            upstreamState: null,
+            upstreamGeneration: null
         ) { }
 
     /// <summary>Creates a snapshot-backed configure session with upstream rebasing support.</summary>
@@ -94,7 +96,34 @@ public sealed class EditSession<T> : IDisposable
             clone,
             defaultValue,
             hasDefaultValue: true,
-            upstreamState
+            upstreamState,
+            upstreamGeneration: null
+        ) { }
+
+    internal EditSession(
+        T value,
+        StateSnapshot<T> sessionStart,
+        Func<T, CancellationToken, ValueTask<StateCommitResult<T>>> save,
+        Func<T, T, T, T> rebase,
+        Func<T, T, bool> hasChanges,
+        Func<CancellationToken, ValueTask<StateSnapshot<T>>> resolveUpstream,
+        Func<T, T> clone,
+        T defaultValue,
+        IReadOnlyState<T>? upstreamState,
+        UpstreamGenerationCounter upstreamGeneration
+    )
+        : this(
+            value,
+            sessionStart,
+            save,
+            rebase,
+            hasChanges,
+            resolveUpstream,
+            clone,
+            defaultValue,
+            hasDefaultValue: true,
+            upstreamState,
+            upstreamGeneration
         ) { }
 
     private EditSession(
@@ -107,7 +136,8 @@ public sealed class EditSession<T> : IDisposable
         Func<T, T> clone,
         T defaultValue,
         bool hasDefaultValue,
-        IReadOnlyState<T>? upstreamState
+        IReadOnlyState<T>? upstreamState,
+        UpstreamGenerationCounter? upstreamGeneration
     )
     {
         ArgumentNullException.ThrowIfNull(sessionStart);
@@ -124,6 +154,7 @@ public sealed class EditSession<T> : IDisposable
             || !ReferenceEquals(sessionStart.Value, _sessionStartValue);
         _defaultValue = _clone(defaultValue);
         _hasDefaultValue = hasDefaultValue;
+        _upstreamGeneration = upstreamGeneration ?? new UpstreamGenerationCounter();
         _baseline = _clone(sessionStart.Value);
         Value = _clone(value);
         if (upstreamState is not null)
@@ -159,6 +190,8 @@ public sealed class EditSession<T> : IDisposable
 
     /// <summary>Whether the session has been saved successfully.</summary>
     public bool IsCommitted => Volatile.Read(ref _isCommitted) != 0;
+
+    internal Func<CancellationToken, ValueTask>? AfterSaveResolved { get; set; }
 
     /// <summary>Whether the draft differs from the current baseline.</summary>
     public bool HasLocalChanges
@@ -292,18 +325,32 @@ public sealed class EditSession<T> : IDisposable
             long observedGeneration;
             lock (_upstreamGate)
             {
-                observedGeneration = _upstreamGeneration;
+                observedGeneration = _upstreamGeneration.Capture();
             }
 
             var result = await _save(_clone(Value), cancellationToken).ConfigureAwait(false);
+            if (AfterSaveResolved is { } afterSaveResolved)
+            {
+                await afterSaveResolved(cancellationToken).ConfigureAwait(false);
+            }
+
             Volatile.Write(ref _isCommitted, 1);
             lock (_upstreamGate)
             {
                 var committedValue = result.CommittedSnapshot.Value;
                 Value = _clone(committedValue);
                 _baseline = _clone(committedValue);
-                _latestUpstream = result.CommittedSnapshot;
-                _hasUpstreamChanges = _upstreamGeneration != observedGeneration;
+
+                var resultGeneration = result.UpstreamGeneration ?? observedGeneration;
+                if (_upstreamGeneration.Capture() == resultGeneration)
+                {
+                    _latestUpstream = result.CommittedSnapshot;
+                    _hasUpstreamChanges = false;
+                }
+                else
+                {
+                    _hasUpstreamChanges = true;
+                }
             }
 
             CompleteSave();
@@ -340,7 +387,7 @@ public sealed class EditSession<T> : IDisposable
     {
         lock (_upstreamGate)
         {
-            _upstreamGeneration++;
+            _upstreamGeneration.Advance();
             _latestUpstream = new StateSnapshot<T>(value, null);
             _hasUpstreamChanges = true;
         }

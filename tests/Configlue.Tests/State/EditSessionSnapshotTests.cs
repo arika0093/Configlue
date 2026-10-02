@@ -557,7 +557,7 @@ public sealed class EditSessionSnapshotTests
         );
         await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
-                new("user", user, priority: 100, writer: user, watcher: user),
+                new("user", user, priority: 100, writer: user),
                 new("other", other, priority: 0, watcher: other),
             ]),
             onChangeDebounce: TimeSpan.Zero
@@ -577,9 +577,87 @@ public sealed class EditSessionSnapshotTests
         (session.Value.Label).ShouldBe("mine");
         (session.Value.Enabled).ShouldBeTrue();
         (session.HasLocalChanges).ShouldBeFalse();
-        (session.HasUpstreamChanges).ShouldBeTrue();
+        (session.HasUpstreamChanges).ShouldBeFalse();
         (session.LatestUpstream!.Value!.Enabled).ShouldBeTrue();
         (session.LatestUpstream.Value.Label).ShouldBe("mine");
+    }
+
+    [Test]
+    [Arguments(false)]
+    [Arguments(true)]
+    public async Task CommitAsync_PreservesNewerUpstreamSnapshotResolvedAtCommitCompletion(
+        bool duringSaveResultConstruction
+    )
+    {
+        var user = new SignalingStore<AppSettings.Fragment>(
+            new AppSettings.Fragment { Label = Optional<string?>.Present("start") }
+        );
+        var other = new SignalingStore<AppSettings.Fragment>(
+            new AppSettings.Fragment { Enabled = Optional<bool>.Present(false) }
+        );
+        await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
+            new StateSourceSet<AppSettings.Fragment>([
+                new("user", user, priority: 100, writer: user),
+                new("other", other, priority: 0, watcher: other),
+            ]),
+            onChangeDebounce: TimeSpan.Zero
+        );
+        using var session = await options.OpenEditSessionAsync();
+        session.Value.Label = "mine";
+
+        async ValueTask NotifyAfterSnapshotResolved(CancellationToken cancellationToken)
+        {
+            var notification = new TaskCompletionSource(
+                TaskCreationOptions.RunContinuationsAsynchronously
+            );
+            void OnChanged() => notification.TrySetResult();
+            session.UpstreamChanged += OnChanged;
+            try
+            {
+                other.Set(new AppSettings.Fragment { Enabled = Optional<bool>.Present(true) });
+                await notification.Task.WaitAsync(TimeSpan.FromSeconds(5), cancellationToken);
+            }
+            finally
+            {
+                session.UpstreamChanged -= OnChanged;
+            }
+        }
+        if (duringSaveResultConstruction)
+            options.AfterEditSessionSnapshotResolved = NotifyAfterSnapshotResolved;
+        else
+            session.AfterSaveResolved = NotifyAfterSnapshotResolved;
+
+        await session.CommitAsync();
+
+        (session.Value.Label).ShouldBe("mine");
+        (session.Value.Enabled).ShouldBeFalse();
+        (session.HasLocalChanges).ShouldBeFalse();
+        (session.HasUpstreamChanges).ShouldBeTrue();
+        (session.LatestUpstream!.Value!.Label).ShouldBe("mine");
+        (session.LatestUpstream.Value.Enabled).ShouldBeTrue();
+
+        session.AfterSaveResolved = null;
+        options.AfterEditSessionSnapshotResolved = null;
+        var userReads = user.ReadCount;
+        var otherReads = other.ReadCount;
+        session.ResetToUpstream();
+        user.ReadCount.ShouldBe(userReads);
+        other.ReadCount.ShouldBe(otherReads);
+        (session.Value.Label).ShouldBe("mine");
+        (session.Value.Enabled).ShouldBeTrue();
+        (session.HasLocalChanges).ShouldBeFalse();
+        (session.HasUpstreamChanges).ShouldBeFalse();
+
+        session.Value.RetryCount = 7;
+        await session.RebaseAsync();
+        (session.Value.RetryCount).ShouldBe(7);
+        (session.Value.Enabled).ShouldBeTrue();
+        (session.HasLocalChanges).ShouldBeTrue();
+
+        await session.CommitAsync();
+        (session.Value.RetryCount).ShouldBe(7);
+        (session.Value.Enabled).ShouldBeTrue();
+        (session.HasLocalChanges).ShouldBeFalse();
     }
 
     [Test]
@@ -593,7 +671,20 @@ public sealed class EditSessionSnapshotTests
         using var session = await sessions.OpenEditSessionAsync();
 
         session.Value.RetryCount = 1;
-        users.Set(subject.Key, RebasedFragment(0, true));
+        var precedingNotification = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        void OnChanged() => precedingNotification.TrySetResult();
+        session.UpstreamChanged += OnChanged;
+        try
+        {
+            users.Set(subject.Key, RebasedFragment(0, true));
+            await precedingNotification.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        }
+        finally
+        {
+            session.UpstreamChanged -= OnChanged;
+        }
         await session.CommitAsync();
 
         (session.Value.RetryCount).ShouldBe(1);

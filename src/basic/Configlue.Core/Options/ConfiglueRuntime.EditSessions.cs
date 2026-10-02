@@ -7,6 +7,9 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
     where TModel : IConfiglueModel<TModel, TFragment>
     where TFragment : class, IConfiglueFragment<TFragment>
 {
+    // Contract-test barrier between the post-write snapshot read and its result publication.
+    internal Func<CancellationToken, ValueTask>? AfterEditSessionSnapshotResolved { get; set; }
+
     /// <inheritdoc />
     public ValueTask<EditSession<TModel>> OpenEditSessionAsync(
         CancellationToken cancellationToken = default
@@ -90,6 +93,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         var baseline = CloneModel(resolved.Value!);
         var defaultValue = CloneModel(FromFragment(EmptyFragment));
         var expectedRevisions = resolved.Revisions;
+        var upstreamGeneration = new UpstreamGenerationCounter();
 
         async ValueTask<StateCommitResult<TModel>> SaveSessionValueAsync(
             TModel value,
@@ -134,6 +138,9 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             // when higher-priority or merged contributions participate, and the receipt only
             // carries source revisions. Resolve once more so the session baseline, the closure
             // baseline, and the expected revisions all describe the exact committed state.
+            // A notification observed during or after this read may describe a newer state.
+            // Only generations known before the read can safely be represented by its result.
+            var committedGeneration = upstreamGeneration.Capture();
             var committedState = await ResolveCoreAsync(null, token, captureContributions: true)
                 .ConfigureAwait(false);
             var committed = committedState.Result;
@@ -144,11 +151,17 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                 );
             }
 
+            if (AfterEditSessionSnapshotResolved is { } afterSnapshotResolved)
+            {
+                await afterSnapshotResolved(token).ConfigureAwait(false);
+            }
+
             baseline = committed.Value;
             expectedRevisions = committed.Revisions;
             return new StateCommitResult<TModel>(
                 writeResult,
-                new StateSnapshot<TModel>(committed.Value, BuildDetailsSnapshot(committedState))
+                new StateSnapshot<TModel>(committed.Value, BuildDetailsSnapshot(committedState)),
+                committedGeneration
             );
         }
 
@@ -181,7 +194,8 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             ResolveSessionUpstreamAsync,
             CloneModel,
             defaultValue,
-            upstreamState
+            upstreamState,
+            upstreamGeneration
         );
     }
 
