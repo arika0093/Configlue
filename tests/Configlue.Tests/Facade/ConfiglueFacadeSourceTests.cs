@@ -286,7 +286,7 @@ public sealed partial class ConfiglueFacadeSourceTests
                             Codec = new JsonStateCodec<AppSettings.Fragment>(),
                             Writable = true,
                             WatchChanges = false,
-                            ResourceId = resourceId,
+                            FixedResourceId = resourceId,
                         }
                     )
                 )

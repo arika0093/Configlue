@@ -19,8 +19,8 @@ public sealed class YamlSectionResource
         IPipelineResourceReader,
         IResourceWriter,
         ISourceWatcher,
-        ITryContextualResourceIdentity,
-        IContextualResourceBatchParticipant,
+        ITryResourceIdentity,
+        IResourceBatchParticipant,
         IContextualResourceBackupRecovery
 {
     private static readonly UTF8Encoding StrictUtf8 = new(
@@ -52,18 +52,25 @@ public sealed class YamlSectionResource
         IResourceWriter? writer,
         string sectionPath,
         ISourceWatcher? watcher = null,
-        ResourceId? resourceId = null,
+        ResourceId? fixedResourceId = null,
         Encoding? textEncoding = null
     )
-        : this(reader, writer, ParseSectionPath(sectionPath), watcher, resourceId, textEncoding, [])
-    { }
+        : this(
+            reader,
+            writer,
+            ParseSectionPath(sectionPath),
+            watcher,
+            fixedResourceId,
+            textEncoding,
+            []
+        ) { }
 
     internal YamlSectionResource(
         IResourceReader reader,
         IResourceWriter? writer,
         string sectionPath,
         ISourceWatcher? watcher,
-        ResourceId? resourceId,
+        ResourceId? fixedResourceId,
         Encoding? textEncoding,
         byte[] schemaShape
     )
@@ -72,7 +79,7 @@ public sealed class YamlSectionResource
             writer,
             ParseSectionPath(sectionPath),
             watcher,
-            resourceId,
+            fixedResourceId,
             textEncoding,
             schemaShape
         ) { }
@@ -82,7 +89,7 @@ public sealed class YamlSectionResource
         IResourceWriter? writer,
         string[] path,
         ISourceWatcher? watcher,
-        ResourceId? resourceId,
+        ResourceId? fixedResourceId,
         Encoding? textEncoding,
         byte[] schemaShape
     )
@@ -92,42 +99,20 @@ public sealed class YamlSectionResource
         _writer = writer;
         _watcher = watcher;
         _textEncoding = textEncoding;
-        _configuredResourceId = resourceId;
+        _configuredResourceId = fixedResourceId;
         _path = path;
         _schemaShape = schemaShape;
-        ResourceId =
-            resourceId
-            ?? ResolveResourceId(writer, reader)
-            ?? new ResourceId($"section:{Guid.NewGuid():N}");
         _batchScope = "yaml/" + string.Join("/", _path.Select(Uri.EscapeDataString));
-    }
-
-    private static ResourceId? ResolveResourceId(IResourceWriter? writer, IResourceReader reader)
-    {
-        var context = ConfiglueResourceContext.Default;
-        if (
-            writer is IResourceIdentity writerIdentity
-            && writerIdentity.TryGetResourceId(context, out var writerResourceId)
-        )
-        {
-            return writerResourceId;
-        }
-
-        return
-            reader is IResourceIdentity readerIdentity
-            && readerIdentity.TryGetResourceId(context, out var readerResourceId)
-            ? readerResourceId
-            : null;
     }
 
     internal static YamlSectionResource CreateRoot(
         IResourceReader reader,
         IResourceWriter? writer,
         ISourceWatcher? watcher,
-        ResourceId? resourceId,
+        ResourceId? fixedResourceId,
         Encoding? textEncoding,
         byte[] schemaShape
-    ) => new(reader, writer, [], watcher, resourceId, textEncoding, schemaShape);
+    ) => new(reader, writer, [], watcher, fixedResourceId, textEncoding, schemaShape);
 
     private static string[] ParseSectionPath(string sectionPath)
     {
@@ -161,39 +146,29 @@ public sealed class YamlSectionResource
     public StateSchemaMetadata? ContainerSchema { get; init; }
 
     /// <inheritdoc />
-    public ResourceId ResourceId { get; }
-
     /// <inheritdoc />
     public ResourceId GetResourceId(ConfiglueResourceContext context) =>
-        TryGetResourceId(context, out var resourceId) ? resourceId : ResourceId;
+        TryGetResourceId(context, out var fixedResourceId)
+            ? fixedResourceId
+            : throw new InvalidOperationException(
+                "The underlying resource has no physical identity."
+            );
 
     /// <inheritdoc />
-    public bool TryGetResourceId(ConfiglueResourceContext context, out ResourceId resourceId)
+    public bool TryGetResourceId(ConfiglueResourceContext context, out ResourceId fixedResourceId)
     {
         if (_configuredResourceId is { } configuredResourceId)
         {
-            resourceId = configuredResourceId;
+            fixedResourceId = configuredResourceId;
             return true;
         }
 
-        if (
-            _writer is IResourceIdentity writerIdentity
-            && writerIdentity.TryGetResourceId(context, out resourceId)
-        )
+        if (_writer.TryGetResourceId(context, out fixedResourceId))
         {
             return true;
         }
 
-        if (
-            _reader is IResourceIdentity readerIdentity
-            && readerIdentity.TryGetResourceId(context, out resourceId)
-        )
-        {
-            return true;
-        }
-
-        resourceId = ResourceId;
-        return true;
+        return _reader.TryGetResourceId(context, out fixedResourceId);
     }
 
     /// <inheritdoc />
@@ -396,10 +371,6 @@ public sealed class YamlSectionResource
             )
             .ConfigureAwait(false);
     }
-
-    /// <inheritdoc />
-    public ResourceWriteMutation CreateMutation(ResourceWriteRequest request) =>
-        CreateMutation(ConfiglueResourceContext.Default, request);
 
     /// <inheritdoc />
     public ResourceWriteMutation CreateMutation(

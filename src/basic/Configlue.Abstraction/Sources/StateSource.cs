@@ -8,7 +8,7 @@ public sealed class StateSource<T>
     private string[] _ownedPropertyPaths = [];
     private readonly Func<IConfiglueSubject, SubjectKey> _subjectKeySelector;
     private Func<IConfiglueSubject, RouteKey> RouteSelector { get; set; }
-    private readonly ResourceId? _configuredResourceId;
+    private readonly ResourceId? _fixedResourceId;
 
     /// <summary>Creates a source with an automatically generated opaque logical identity.</summary>
     /// <remarks>
@@ -23,7 +23,7 @@ public sealed class StateSource<T>
         ISourceWriter<T>? writer = null,
         ISourceWatcher? watcher = null,
         string? physicalOrigin = null,
-        ResourceId? resourceId = null,
+        ResourceId? fixedResourceId = null,
         string? logicalDescriptor = null,
         bool explicitOnly = false,
         Func<IConfiglueSubject, SubjectKey>? subjectKeySelector = null,
@@ -32,19 +32,14 @@ public sealed class StateSource<T>
         Func<IConfiglueSubject, RouteKey>? routeSelector = null
     )
         : this(
-            StateSourceIdentity.Create(
-                reader,
-                physicalOrigin,
-                resourceId ?? TryGetResourceId(reader, ConfiglueResourceContext.Default),
-                logicalDescriptor
-            ),
+            StateSourceIdentity.Create(reader, physicalOrigin, fixedResourceId, logicalDescriptor),
             reader,
             priority,
             fallbackCondition,
             writer,
             watcher,
             physicalOrigin,
-            resourceId,
+            fixedResourceId,
             explicitOnly,
             subjectKeySelector,
             runtimeLifetime,
@@ -58,7 +53,7 @@ public sealed class StateSource<T>
         int priority = 0,
         StateFallbackCondition fallbackCondition = StateFallbackCondition.NotFound,
         string? physicalOrigin = null,
-        ResourceId? resourceId = null,
+        ResourceId? fixedResourceId = null,
         string? logicalDescriptor = null,
         bool explicitOnly = false,
         Func<IConfiglueSubject, SubjectKey>? subjectKeySelector = null,
@@ -73,7 +68,7 @@ public sealed class StateSource<T>
             source.Writer,
             source.Watcher,
             physicalOrigin,
-            resourceId,
+            fixedResourceId,
             logicalDescriptor,
             explicitOnly,
             subjectKeySelector,
@@ -89,7 +84,7 @@ public sealed class StateSource<T>
         int priority = 0,
         StateFallbackCondition fallbackCondition = StateFallbackCondition.NotFound,
         string? physicalOrigin = null,
-        ResourceId? resourceId = null,
+        ResourceId? fixedResourceId = null,
         bool explicitOnly = false,
         Func<IConfiglueSubject, SubjectKey>? subjectKeySelector = null,
         RuntimeLifetimeRequirement runtimeLifetime = RuntimeLifetimeRequirement.Shared,
@@ -104,7 +99,7 @@ public sealed class StateSource<T>
             source.Writer,
             source.Watcher,
             physicalOrigin,
-            resourceId,
+            fixedResourceId,
             explicitOnly,
             subjectKeySelector,
             runtimeLifetime,
@@ -121,7 +116,7 @@ public sealed class StateSource<T>
         ISourceWriter<T>? writer = null,
         ISourceWatcher? watcher = null,
         string? physicalOrigin = null,
-        ResourceId? resourceId = null,
+        ResourceId? fixedResourceId = null,
         bool explicitOnly = false,
         Func<IConfiglueSubject, SubjectKey>? subjectKeySelector = null,
         RuntimeLifetimeRequirement runtimeLifetime = RuntimeLifetimeRequirement.Shared,
@@ -151,11 +146,7 @@ public sealed class StateSource<T>
         Writer = writer;
         Watcher = watcher;
         PhysicalOrigin = physicalOrigin;
-        ResourceId =
-            resourceId
-            ?? TryGetResourceId(reader, ConfiglueResourceContext.Default)
-            ?? TryGetResourceId(Writer, ConfiglueResourceContext.Default);
-        _configuredResourceId = resourceId;
+        _fixedResourceId = fixedResourceId;
         ExplicitOnly = explicitOnly;
         RuntimeLifetime = runtimeLifetime;
         ModelId = modelId;
@@ -184,13 +175,13 @@ public sealed class StateSource<T>
     /// <summary>The physical endpoint currently backing the logical source.</summary>
     public string? PhysicalOrigin { get; }
 
-    /// <summary>The optional identity of the physical resource backing this logical source.</summary>
-    public ResourceId? ResourceId { get; }
+    /// <summary>The explicit physical identity override shared by all operation contexts, when configured.</summary>
+    public ResourceId? FixedResourceId => _fixedResourceId;
 
     /// <summary>The stable Configlue model ID backing this logical source, when known.</summary>
     public string? ModelId { get; private set; }
 
-    internal ResourceId? ConfiguredResourceId => _configuredResourceId;
+    internal ResourceId? ConfiguredResourceId => _fixedResourceId;
 
     /// <summary>Whether this source is excluded from ordinary inferred write routing.</summary>
     public bool ExplicitOnly { get; private set; }
@@ -222,13 +213,13 @@ public sealed class StateSource<T>
     /// <summary>Resolves the physical resource identity for one resource operation context.</summary>
     public ResourceId? GetResourceId(ConfiglueResourceContext context)
     {
-        context = ConfiglueResourceContext.Normalize(context);
-        if (_configuredResourceId is { } configured)
+context = ConfiglueResourceContext.Normalize(context);
+        if (_fixedResourceId is { } configured)
         {
             return configured;
         }
 
-        return TryGetResourceId(Writer, context) ?? TryGetResourceId(Reader, context) ?? ResourceId;
+        return TryGetResourceId(Writer, context) ?? TryGetResourceId(Reader, context);
     }
 
     /// <summary>Creates the complete resource context for a subject using this source's key and route mapping.</summary>
@@ -338,9 +329,13 @@ public sealed class StateSource<T>
         object? resource,
         ConfiglueResourceContext context
     ) =>
-        resource is IResourceIdentity identity && identity.TryGetResourceId(context, out var id)
-            ? id
-            : null;
+        resource switch
+        {
+            IResourceIdentity identity => identity.GetResourceId(context),
+            ITryResourceIdentity tryIdentity
+                when tryIdentity.TryGetResourceId(context, out var id) => id,
+            _ => null,
+        };
 
     internal StateSource<T> WithWriteOwnership(string propertyPath)
     {
@@ -357,7 +352,7 @@ public sealed class StateSource<T>
             Writer,
             Watcher,
             PhysicalOrigin,
-            _configuredResourceId,
+            _fixedResourceId,
             ExplicitOnly,
             _subjectKeySelector,
             RuntimeLifetime,
@@ -385,7 +380,7 @@ public sealed class StateSource<T>
             Writer,
             Watcher,
             PhysicalOrigin,
-            _configuredResourceId,
+            _fixedResourceId,
             ExplicitOnly,
             _subjectKeySelector,
             RuntimeLifetime,
@@ -410,7 +405,7 @@ public sealed class StateSource<T>
             Writer,
             Watcher,
             PhysicalOrigin,
-            _configuredResourceId,
+            _fixedResourceId,
             ExplicitOnly,
             subjectKeySelector,
             RuntimeLifetime,

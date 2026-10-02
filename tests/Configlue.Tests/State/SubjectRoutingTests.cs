@@ -369,7 +369,7 @@ public sealed class SubjectRoutingTests
         : ISourceReader<AppSettings.Fragment>,
             ISourceWriter<AppSettings.Fragment>,
             ISourceWatcher,
-            IContextualResourceIdentity
+            IResourceIdentity
     {
         private readonly ConcurrentDictionary<
             (SubjectKey Key, RouteKey Route),

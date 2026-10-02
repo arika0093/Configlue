@@ -13,7 +13,7 @@ public sealed class SerializedSource<T>
     : ISourceWatcher,
         ISourceWriteBatchParticipant<T>,
         ISourceCapabilities<T>,
-        ITryContextualResourceIdentity
+        ITryResourceIdentity
 {
     private readonly IResourceReader _resource;
     private readonly ISourceWriter<T>? _writer;
@@ -95,31 +95,14 @@ public sealed class SerializedSource<T>
     public ISourceWatcher? Watcher => _watcher;
 
     /// <inheritdoc />
-    public ResourceId ResourceId => GetResourceId(ConfiglueResourceContext.Default);
-
-    /// <inheritdoc />
-    public ResourceId GetResourceId(ConfiglueResourceContext context) =>
-        TryGetResourceId(context, out var resourceId)
-            ? resourceId
-            : throw new InvalidOperationException(
-                "The underlying resource has no physical identity."
-            );
-
-    /// <inheritdoc />
     public bool TryGetResourceId(ConfiglueResourceContext context, out ResourceId resourceId)
     {
-        if (_writer is IResourceIdentity writerIdentity)
+        if (_writer.TryGetResourceId(context, out resourceId))
         {
-            return writerIdentity.TryGetResourceId(context, out resourceId);
+            return true;
         }
 
-        if (_resource is IResourceIdentity resourceIdentity)
-        {
-            return resourceIdentity.TryGetResourceId(context, out resourceId);
-        }
-
-        resourceId = default;
-        return false;
+        return _resource.TryGetResourceId(context, out resourceId);
     }
 
     /// <inheritdoc />

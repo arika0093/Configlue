@@ -44,10 +44,8 @@ public static class ResourceContextExtensions
         {
             throw new ArgumentNullException(nameof(identity));
         }
-        context = ConfiglueResourceContext.Normalize(context);
-        return identity is IContextualResourceIdentity contextualIdentity
-            ? contextualIdentity.GetResourceId(context)
-            : identity.ResourceId;
+context = ConfiglueResourceContext.Normalize(context);
+        return identity.GetResourceId(context);
     }
 
     /// <summary>Gets the physical identity used for a batch mutation on one subject.</summary>
@@ -61,10 +59,8 @@ public static class ResourceContextExtensions
             throw new ArgumentNullException(nameof(participant));
         }
 
-        context = ConfiglueResourceContext.Normalize(context);
-        return participant is IContextualResourceBatchParticipant contextualParticipant
-            ? contextualParticipant.GetResourceId(context)
-            : participant.ResourceId;
+context = ConfiglueResourceContext.Normalize(context);
+        return participant.GetResourceId(context);
     }
 
     /// <summary>Tries to get the physical identity used for an operation on one subject.</summary>
@@ -78,20 +74,40 @@ public static class ResourceContextExtensions
         {
             throw new ArgumentNullException(nameof(identity));
         }
-        context = ConfiglueResourceContext.Normalize(context);
-        if (identity is ITryContextualResourceIdentity tryContextualIdentity)
-        {
-            return tryContextualIdentity.TryGetResourceId(context, out resourceId);
-        }
-
-        if (identity is IContextualResourceIdentity contextualIdentity)
-        {
-            resourceId = contextualIdentity.GetResourceId(context);
-            return true;
-        }
-
-        resourceId = identity.ResourceId;
+context = ConfiglueResourceContext.Normalize(context);
+        resourceId = identity.GetResourceId(context);
         return true;
+    }
+
+    /// <summary>Tries to get an optional physical identity for one operation context.</summary>
+    public static bool TryGetResourceId(
+        this ITryResourceIdentity identity,
+        ConfiglueResourceContext context,
+        out ResourceId resourceId
+    )
+    {
+        ArgumentNullException.ThrowIfNull(identity);
+        return identity.TryGetResourceId(context, out resourceId);
+    }
+
+    /// <summary>Tries to resolve an identity exposed by either the required or optional identity contract.</summary>
+    public static bool TryGetResourceId(
+        this object? resource,
+        ConfiglueResourceContext context,
+        out ResourceId resourceId
+    )
+    {
+        switch (resource)
+        {
+            case IResourceIdentity identity:
+                resourceId = identity.GetResourceId(context);
+                return true;
+            case ITryResourceIdentity optionalIdentity:
+                return optionalIdentity.TryGetResourceId(context, out resourceId);
+            default:
+                resourceId = default;
+                return false;
+        }
     }
 
     /// <summary>Creates a deferred mutation for one logical subject.</summary>
@@ -105,9 +121,7 @@ public static class ResourceContextExtensions
         {
             throw new ArgumentNullException(nameof(participant));
         }
-        context = ConfiglueResourceContext.Normalize(context);
-        return participant is IContextualResourceBatchParticipant contextualParticipant
-            ? contextualParticipant.CreateMutation(context, request)
-            : participant.CreateMutation(request).WithContext(context);
+context = ConfiglueResourceContext.Normalize(context);
+        return participant.CreateMutation(context, request);
     }
 }

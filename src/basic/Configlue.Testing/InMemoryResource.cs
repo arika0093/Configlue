@@ -25,6 +25,13 @@ public sealed class InMemoryResource
     public ResourceId ResourceId { get; }
 
     /// <inheritdoc />
+    public ResourceId GetResourceId(ConfiglueResourceContext context)
+    {
+        _ = context;
+        return ResourceId;
+    }
+
+    /// <inheritdoc />
     /// <remarks>The unique in-memory identity is the entire physical batch domain.</remarks>
     public object? GetBatchCompatibilityToken(ConfiglueResourceContext context)
     {

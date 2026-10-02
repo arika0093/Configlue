@@ -405,7 +405,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                 canWatch: source.Watcher is not null,
                 isActive: activeIds.Contains(source.Id),
                 physicalOrigin: source.PhysicalOrigin,
-                resourceId: source.ResourceId
+                fixedResourceId: source.FixedResourceId
             ))
             .ToArray();
         return new ConfiglueStateDiagnostics(
@@ -783,7 +783,9 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             var resourceId =
                 (captureContributions || observeSource is not null) && resourceContext is not null
                     ? source.GetResourceId(resourceContext.Value)
-                    : source.ResourceId;
+                : (captureContributions || observeSource is not null)
+                    ? source.GetResourceId(DefaultResourceContext)
+                : null;
             StateReadResult<TFragment> sourceResult;
             if (
                 replacements is not null

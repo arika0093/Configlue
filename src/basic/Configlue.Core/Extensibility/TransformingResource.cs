@@ -5,7 +5,7 @@ namespace Configlue.Extensibility;
 /// <summary>Applies byte transformers around a resource before provider-specific document processing.</summary>
 public sealed class TransformingResource
     : IResourceReader,
-        ITryContextualResourceIdentity,
+        ITryResourceIdentity,
         IContextualResourceBackupRecovery
 {
     private readonly IResourceReader _reader;
@@ -17,14 +17,14 @@ public sealed class TransformingResource
     public TransformingResource(
         IResourceReader resource,
         IEnumerable<IStateByteTransformer> transformers,
-        ResourceId? resourceId = null
+        ResourceId? fixedResourceId = null
     )
     {
         ArgumentNullException.ThrowIfNull(resource);
         ArgumentNullException.ThrowIfNull(transformers);
         _reader = resource;
         _backupRecovery = resource as IResourceBackupRecovery;
-        _configuredResourceId = resourceId;
+        _configuredResourceId = fixedResourceId;
         _transformers = transformers.ToArray();
         if (_transformers.Any(static transformer => transformer is null))
         {
@@ -34,18 +34,6 @@ public sealed class TransformingResource
             );
         }
 
-        ResourceId =
-            resourceId
-            ?? (
-                resource is IResourceIdentity identity
-                && identity.TryGetResourceId(ConfiglueResourceContext.Default, out var resolvedId)
-                    ? (ResourceId?)resolvedId
-                    : null
-            )
-            ?? throw new ArgumentException(
-                "A transforming resource requires a physical resource identity.",
-                nameof(resource)
-            );
         if (resource is IResourceWriter writer)
         {
             Writer = resource is IResourceBatchWriter batchWriter
@@ -55,12 +43,11 @@ public sealed class TransformingResource
         Watcher = resource as ISourceWatcher;
     }
 
-    /// <summary>The physical identity of the wrapped resource.</summary>
-    public ResourceId ResourceId { get; }
-
     /// <inheritdoc />
     public ResourceId GetResourceId(ConfiglueResourceContext context) =>
-        TryGetResourceId(context, out var resourceId) ? resourceId : ResourceId;
+        TryGetResourceId(context, out var resourceId)
+            ? resourceId
+            : throw new InvalidOperationException("The wrapped resource has no physical identity.");
 
     /// <inheritdoc />
     public bool TryGetResourceId(ConfiglueResourceContext context, out ResourceId resourceId)
@@ -71,13 +58,7 @@ public sealed class TransformingResource
             return true;
         }
 
-        if (_reader is IResourceIdentity identity)
-        {
-            return identity.TryGetResourceId(context, out resourceId);
-        }
-
-        resourceId = ResourceId;
-        return true;
+        return _reader.TryGetResourceId(context, out resourceId);
     }
 
     /// <summary>A writer that transforms bytes before persisting them, if the resource is writable.</summary>
@@ -191,7 +172,7 @@ public sealed class TransformingResource
         : TransformingWriter,
             IResourceBatchWriter,
             IResourceBatchCompatibility,
-            ITryContextualResourceIdentity
+            ITryResourceIdentity
     {
         private readonly TransformingResource _owner;
         private readonly IResourceBatchWriter _batchWriter;
@@ -206,8 +187,6 @@ public sealed class TransformingResource
             _owner = owner;
             _batchWriter = batchWriter;
         }
-
-        public ResourceId ResourceId => _owner.ResourceId;
 
         public ResourceId GetResourceId(ConfiglueResourceContext context) =>
             _owner.GetResourceId(context);

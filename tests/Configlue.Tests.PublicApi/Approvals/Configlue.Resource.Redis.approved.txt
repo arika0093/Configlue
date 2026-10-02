@@ -1,11 +1,10 @@
 [assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/arika0093/Configlue")]
 namespace Configlue.Resource.Redis
 {
-    public sealed class RedisResource : Configlue.Resources.IContextualResourceIdentity, Configlue.Resources.IResourceIdentity, Configlue.Resources.IResourceReader, Configlue.Resources.IResourceWriter, Configlue.Sources.ISourceWatcher, System.IDisposable
+    public sealed class RedisResource : Configlue.Resources.IResourceIdentity, Configlue.Resources.IResourceReader, Configlue.Resources.IResourceWriter, Configlue.Sources.ISourceWatcher, System.IDisposable
     {
         public RedisResource(StackExchange.Redis.IConnectionMultiplexer connectionMultiplexer, string resourceNamespace, Configlue.Resource.Redis.RedisResourceOptions? options = null) { }
         public RedisResource(System.Func<Configlue.RouteKey, StackExchange.Redis.IConnectionMultiplexer> connectionMultiplexerResolver, string resourceNamespace, Configlue.Resource.Redis.RedisResourceOptions? options = null) { }
-        public Configlue.Resources.ResourceId ResourceId { get; }
         public string ResourceNamespace { get; }
         public void Dispose() { }
         public Configlue.Resources.ResourceId GetResourceId(Configlue.Resources.ConfiglueResourceContext context) { }
@@ -18,10 +17,10 @@ namespace Configlue.Resource.Redis
         public RedisResourceOptions() { }
         public int Database { get; init; }
         public System.Func<Configlue.Resources.ConfiglueResourceContext, int>? DatabaseSelector { get; init; }
+        public Configlue.Resources.ResourceId? FixedResourceId { get; init; }
         public string KeyPrefix { get; init; }
         public System.Func<Configlue.Resources.ConfiglueResourceContext, string>? KeyPrefixSelector { get; init; }
         public string NotificationChannel { get; init; }
-        public Configlue.Resources.ResourceId? ResourceId { get; init; }
     }
     public sealed class RedisStateSourceOptions
     {

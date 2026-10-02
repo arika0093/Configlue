@@ -101,7 +101,12 @@ public sealed class CompositeStateSource<TFragment>
     )
     {
         context = ConfiglueResourceContext.Normalize(context);
-        return await ReadCoreAsync(overrides, ConfigurationSubject(context), context, cancellationToken)
+        return await ReadCoreAsync(
+                overrides,
+                ConfigurationSubject(context),
+                context,
+                cancellationToken
+            )
             .ConfigureAwait(false);
     }
 
@@ -379,9 +384,7 @@ public sealed class CompositeStateSource<TFragment>
     private static string? GetPhysicalOrigin(List<ComponentResult> successful)
     {
         var origins = successful
-            .Select(static component =>
-                component.Result.PhysicalOrigin ?? component.Source.ResourceId?.Value
-            )
+            .Select(static component => component.Result.PhysicalOrigin)
             .Where(static origin => !string.IsNullOrWhiteSpace(origin))
             .Distinct(StringComparer.Ordinal)
             .ToArray();

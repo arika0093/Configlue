@@ -56,13 +56,13 @@ public sealed partial class NestedSourceBindingTests
             writer: remoteStore,
             watcher: remoteStore,
             physicalOrigin: "database-row",
-            resourceId: new ResourceId("database-resource")
+            fixedResourceId: new ResourceId("database-resource")
         );
         var mounted = StateSourceProjection.Mount<DatabaseSettings.Fragment, AppSettings.Fragment>(
             remote,
             "Database"
         );
-        (mounted.ResourceId).ShouldBe(new ResourceId("database-resource"));
+        (mounted.FixedResourceId).ShouldBe(new ResourceId("database-resource"));
 
         await using var context = ConfiglueApp.CreateContext(builder =>
         {

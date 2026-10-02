@@ -12,8 +12,12 @@ public sealed class PostgreSqlTableOptions
     /// <summary>The table tracking applied schema component versions. Defaults to <c>configlue_schema_components</c>.</summary>
     public string ComponentsTableName { get; init; } = "configlue_schema_components";
 
-    /// <summary>An optional fixed identity overriding the identity derived from the row and route.</summary>
-    public ResourceId? ResourceId { get; init; }
+    /// <summary>
+    /// An advanced fixed identity override shared by every operation context. Configuring this
+    /// asserts that all contexts routed through the source share one physical coordination
+    /// domain; an incorrect value can make batch grouping unsafe.
+    /// </summary>
+    public ResourceId? FixedResourceId { get; init; }
 
     internal TimeSpan BackendCacheIdleTimeout { get; init; } = TimeSpan.FromMinutes(5);
 

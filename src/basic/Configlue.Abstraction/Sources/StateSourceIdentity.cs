@@ -8,7 +8,7 @@ internal static class StateSourceIdentity
     public static string Create<T>(
         ISourceReader<T> reader,
         string? physicalOrigin,
-        ResourceId? resourceId,
+        ResourceId? fixedResourceId,
         string? logicalDescriptor
     )
     {
@@ -18,7 +18,7 @@ internal static class StateSourceIdentity
             ? readerType.GetGenericTypeDefinition()
             : readerType;
         var kind = kindType.FullName ?? kindType.Name;
-        var locator = resourceId?.Value ?? physicalOrigin;
+        var locator = fixedResourceId?.Value ?? physicalOrigin;
         var descriptor = logicalDescriptor?.Trim().Normalize(NormalizationForm.FormKC);
         if (string.IsNullOrWhiteSpace(descriptor) && string.IsNullOrWhiteSpace(locator))
         {

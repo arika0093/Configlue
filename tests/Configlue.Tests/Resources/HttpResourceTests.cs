@@ -121,6 +121,41 @@ public sealed class HttpResourceTests
     }
 
     [Test]
+    public void ConstructionDoesNotEvaluateEndpointSelectorWithDefaultSubject()
+    {
+        using var httpClient = new HttpClient(
+            new DelegateHttpMessageHandler((_, _) =>
+                Task.FromResult(new HttpResponseMessage(HttpStatusCode.NoContent)))
+        );
+        var reader = new HttpResourceReader(
+            httpClient,
+            EndpointRoot,
+            new HttpResourceOptions
+            {
+                EndpointRootSelector = context =>
+                {
+                    if (ReferenceEquals(context.Subject, ConfiglueResourceContext.DefaultSubject))
+                    {
+                        throw new InvalidOperationException("A real operation subject is required.");
+                    }
+
+                    var subject = (ResourceSubject)context.Subject;
+                    return new Uri($"https://{subject.Name}.example.test/config/");
+                },
+            }
+        );
+        var subject = new ResourceSubject("tenant");
+        var context = new ConfiglueResourceContext(subject, subject.Key, RouteKey.Default);
+
+        var expected = new HttpResourceReader(
+            httpClient,
+            new Uri("https://tenant.example.test/config/")
+        );
+        reader.GetResourceId(context)
+            .ShouldBe(expected.GetResourceId(ConfiglueResourceContext.Default));
+    }
+
+    [Test]
     public async Task SubjectAwareWatcherPollsTheSelectedEndpoint()
     {
         var currentETag = "\"revision-1\"";
@@ -302,7 +337,8 @@ public sealed class HttpResourceTests
         );
 
         result.Revision.ShouldBe("\"revision-2\"");
-        writer.ResourceId.ShouldBe(reader.ResourceId);
+        writer.GetResourceId(ConfiglueResourceContext.Default)
+            .ShouldBe(reader.GetResourceId(ConfiglueResourceContext.Default));
         capturedRequest.ShouldNotBeNull();
         capturedRequest!.Method.ShouldBe(HttpMethod.Put);
         capturedRequest.RequestUri.ShouldBe(new Uri(EndpointRoot, "update"));

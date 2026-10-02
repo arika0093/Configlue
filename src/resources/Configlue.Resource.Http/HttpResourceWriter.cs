@@ -1,7 +1,7 @@
 namespace Configlue.Resource.Http;
 
 /// <summary>Writes bytes to an HTTP resource. Create this capability only for writable endpoints.</summary>
-public sealed class HttpResourceWriter : IResourceWriter, ITryContextualResourceIdentity
+public sealed class HttpResourceWriter : IResourceWriter, IResourceIdentity
 {
     private readonly HttpResourceReader _reader;
 
@@ -13,8 +13,6 @@ public sealed class HttpResourceWriter : IResourceWriter, ITryContextualResource
     }
 
     /// <inheritdoc />
-    public ResourceId ResourceId => _reader.ResourceId;
-
     /// <inheritdoc />
     public ValueTask<StateWriteResult> WriteAsync(
         ConfiglueResourceContext context,
@@ -25,8 +23,4 @@ public sealed class HttpResourceWriter : IResourceWriter, ITryContextualResource
     /// <inheritdoc />
     public ResourceId GetResourceId(ConfiglueResourceContext context) =>
         _reader.GetResourceId(context);
-
-    /// <inheritdoc />
-    public bool TryGetResourceId(ConfiglueResourceContext context, out ResourceId resourceId) =>
-        _reader.TryGetResourceId(context, out resourceId);
 }

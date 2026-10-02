@@ -320,10 +320,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             }
         }
 
-        if (
-            source.ResourceId?.Value.StartsWith("file:", StringComparison.Ordinal) == true
-            && origin is not null
-        )
+        if (origin is not null && Path.IsPathRooted(origin))
         {
             var fileName = Path.GetFileName(origin);
             return new ConfigSourceDetails(

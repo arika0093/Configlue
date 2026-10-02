@@ -65,7 +65,7 @@ public sealed partial class RuntimeDiagnosticTests
                     "loaded",
                     loaded,
                     physicalOrigin: "secret-path",
-                    resourceId: new ResourceId("secret-resource")
+                    fixedResourceId: new ResourceId("secret-resource")
                 ),
             ],
             capacity: 32

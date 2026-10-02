@@ -25,7 +25,7 @@ public sealed class StateSourceSetBuilderTests
                 fallbackCondition: StateFallbackCondition.NotFoundOrUnavailable
                     | StateFallbackCondition.InvalidPayload,
                 physicalOrigin: "settings.json",
-                resourceId: new ResourceId("file:settings.json")
+                fixedResourceId: new ResourceId("file:settings.json")
             )
             .WithWriter(writerOverride)
             .WithWatcher(watcherOverride);
@@ -49,7 +49,7 @@ public sealed class StateSourceSetBuilderTests
             StateFallbackCondition.NotFoundOrUnavailable | StateFallbackCondition.InvalidPayload
         );
         (custom.PhysicalOrigin).ShouldBe("settings.json");
-        (custom.ResourceId).ShouldBe(new ResourceId("file:settings.json"));
+        (custom.FixedResourceId).ShouldBe(new ResourceId("file:settings.json"));
         (readOnly.Writer).ShouldBeNull();
         (readOnly.Watcher).ShouldBeNull();
         (suppressed.Writer).ShouldBeNull();

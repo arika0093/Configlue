@@ -129,8 +129,8 @@ namespace Configlue
     {
         public StateSourceSetBuilder() { }
         public Configlue.StateSourceSetBuilder<T> Add(Configlue.Sources.StateSource<T> source) { }
-        public Configlue.StateSourceBuilder<T> Add(Configlue.Sources.ISourceReader<T> reader, int priority = 0, Configlue.Sources.StateFallbackCondition fallbackCondition = 1, string? physicalOrigin = null, Configlue.Resources.ResourceId? resourceId = default, string? logicalDescriptor = null) { }
-        public Configlue.StateSourceBuilder<T> Add(string id, Configlue.Sources.ISourceReader<T> reader, int priority = 0, Configlue.Sources.StateFallbackCondition fallbackCondition = 1, string? physicalOrigin = null, Configlue.Resources.ResourceId? resourceId = default) { }
+        public Configlue.StateSourceBuilder<T> Add(Configlue.Sources.ISourceReader<T> reader, int priority = 0, Configlue.Sources.StateFallbackCondition fallbackCondition = 1, string? physicalOrigin = null, Configlue.Resources.ResourceId? fixedResourceId = default, string? logicalDescriptor = null) { }
+        public Configlue.StateSourceBuilder<T> Add(string id, Configlue.Sources.ISourceReader<T> reader, int priority = 0, Configlue.Sources.StateFallbackCondition fallbackCondition = 1, string? physicalOrigin = null, Configlue.Resources.ResourceId? fixedResourceId = default) { }
         public Configlue.Sources.StateSourceSet<T> Build() { }
     }
     public static class StateStorageMigrationExtensions
@@ -168,10 +168,10 @@ namespace Configlue.Resources
     }
     public sealed class FileResource : Configlue.Resources.IResourceBackupRecovery, Configlue.Resources.IResourceBatchCompatibility, Configlue.Resources.IResourceBatchWriter, Configlue.Resources.IResourceIdentity, Configlue.Resources.IResourceReader, Configlue.Resources.IResourceWriter, Configlue.Sources.ISourceWatcher, Configlue.State.IPipelineResourceReader, System.IDisposable
     {
-        public FileResource(string path, Configlue.Resources.FileResourceOptions? options = null, Configlue.Resources.ResourceId? resourceId = default) { }
-        public FileResource(string path, Configlue.Resources.FileResourceOptions? options, Configlue.Resources.ResourceId? resourceId, Configlue.Resources.IConfiglueHostPaths hostPaths) { }
-        public FileResource(string path, Configlue.State.StateSchemaMetadata backupSchema, Configlue.Resources.FileResourceOptions? options = null, Configlue.Resources.ResourceId? resourceId = default) { }
-        public FileResource(string path, Configlue.State.StateSchemaMetadata backupSchema, Configlue.Resources.FileResourceOptions? options, Configlue.Resources.ResourceId? resourceId, Configlue.Resources.IConfiglueHostPaths hostPaths) { }
+        public FileResource(string path, Configlue.Resources.FileResourceOptions? options = null, Configlue.Resources.ResourceId? fixedResourceId = default) { }
+        public FileResource(string path, Configlue.Resources.FileResourceOptions? options, Configlue.Resources.ResourceId? fixedResourceId, Configlue.Resources.IConfiglueHostPaths hostPaths) { }
+        public FileResource(string path, Configlue.State.StateSchemaMetadata backupSchema, Configlue.Resources.FileResourceOptions? options = null, Configlue.Resources.ResourceId? fixedResourceId = default) { }
+        public FileResource(string path, Configlue.State.StateSchemaMetadata backupSchema, Configlue.Resources.FileResourceOptions? options, Configlue.Resources.ResourceId? fixedResourceId, Configlue.Resources.IConfiglueHostPaths hostPaths) { }
         public bool AutomaticBackupRecoveryEnabled { get; }
         public bool IsPipelineReadPreferred { get; }
         public string Path { get; }
@@ -179,6 +179,7 @@ namespace Configlue.Resources
         public System.Threading.Tasks.ValueTask<System.IDisposable> AcquireExclusiveLockAsync(System.Threading.CancellationToken cancellationToken) { }
         public void Dispose() { }
         public object? GetBatchCompatibilityToken(Configlue.Resources.ConfiglueResourceContext context) { }
+        public Configlue.Resources.ResourceId GetResourceId(Configlue.Resources.ConfiglueResourceContext context) { }
         public System.Threading.Tasks.ValueTask<Configlue.Resources.ResourceReadResult> ReadAsync(Configlue.Resources.ConfiglueResourceContext context, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask<Configlue.Resources.PipelineResourceReadResult> ReadPipelineAsync(Configlue.Resources.ConfiglueResourceContext context, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask<Configlue.State.StateWriteResult> RestoreLatestBackupAsync(System.Threading.CancellationToken cancellationToken = default) { }

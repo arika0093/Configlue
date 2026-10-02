@@ -37,8 +37,12 @@ public sealed class HttpSourceOptions
     /// <summary>HTTP endpoint paths, content type, and polling interval.</summary>
     public HttpResourceOptions? ResourceOptions { get; init; }
 
-    /// <summary>An optional stable physical resource identity.</summary>
-    public ResourceId? ResourceId { get; init; }
+    /// <summary>
+    /// An advanced fixed identity override shared by every operation context. Configuring this
+    /// asserts that all endpoint roots selected by this source share one physical coordination
+    /// domain; an incorrect value can make batch grouping unsafe.
+    /// </summary>
+    public ResourceId? FixedResourceId { get; init; }
 
     /// <summary>Additional context passed to the codec.</summary>
     public StateCodecContext CodecContext { get; init; }
@@ -121,7 +125,7 @@ public static class HttpSourceRegistration
                 client,
                 endpoint,
                 options.ResourceOptions,
-                options.ResourceId
+                options.FixedResourceId
             );
             var serialized = new SerializedSource<TFragment>(
                 resource,
@@ -138,14 +142,19 @@ public static class HttpSourceRegistration
                     options.Priority,
                     options.FallbackCondition,
                     physicalOrigin: endpoint.AbsoluteUri,
-                    resourceId: options.ResourceId
+                    fixedResourceId: options.FixedResourceId
                 )
                 : new StateSource<TFragment>(
                     serialized,
                     options.Priority,
                     options.FallbackCondition,
                     physicalOrigin: endpoint.AbsoluteUri,
-                    resourceId: options.ResourceId
+                    logicalDescriptor: (options.ResourceOptions?.GetPath ?? "get")
+                        + "\n"
+                        + (options.ResourceOptions?.UpdatePath ?? "update")
+                        + "\n"
+                        + options.ResourceOptions?.EndpointRootSelector?.Method.ToString(),
+                    fixedResourceId: options.FixedResourceId
                 );
         }
     }

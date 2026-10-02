@@ -385,7 +385,7 @@ public sealed partial class NestedSourceBindingTests
             ),
             priority: 100,
             physicalOrigin: "settings.json#Settings",
-            resourceId: resourceId
+            fixedResourceId: resourceId
         );
         var innerSource = new StateSource<InnerSettingsV2.Fragment>(
             "inner-section",
@@ -394,7 +394,7 @@ public sealed partial class NestedSourceBindingTests
             ),
             priority: 200,
             physicalOrigin: "settings.json#Settings:Inner",
-            resourceId: resourceId
+            fixedResourceId: resourceId
         );
 
         await using var context = ConfiglueApp.CreateContext(builder =>

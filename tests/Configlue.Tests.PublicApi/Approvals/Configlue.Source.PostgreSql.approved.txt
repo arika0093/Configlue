@@ -29,19 +29,17 @@ namespace Configlue.Source.PostgreSql
     {
         public static Configlue.Extensibility.ConfiglueSourceRegistration FromPostgreSql(this Configlue.ConfiglueSourceSetBuilder sources, Configlue.Source.PostgreSql.PostgreSqlSourceOptions options) { }
     }
-    public sealed class PostgreSqlSource<T> : Configlue.Resources.IContextualResourceIdentity, Configlue.Resources.IResourceIdentity, Configlue.Resources.ITryContextualResourceIdentity, Configlue.Sources.ISourceCapabilities<T>, Configlue.Sources.ISourceReader<T>, Configlue.Sources.ISourceWatcher, Configlue.Sources.ISourceWriter<T>, System.IDisposable
+    public sealed class PostgreSqlSource<T> : Configlue.Resources.IResourceIdentity, Configlue.Sources.ISourceCapabilities<T>, Configlue.Sources.ISourceReader<T>, Configlue.Sources.ISourceWatcher, Configlue.Sources.ISourceWriter<T>, System.IDisposable
     {
         public PostgreSqlSource(Npgsql.NpgsqlDataSource dataSource, string resourceNamespace, Configlue.Provider.Json.JsonStateValueSerializer<T> serializer, Configlue.Source.PostgreSql.PostgreSqlTableOptions? tableOptions = null, bool writable = true) { }
         public PostgreSqlSource(System.Func<Configlue.RouteKey, Npgsql.NpgsqlDataSource> dataSourceResolver, string resourceNamespace, Configlue.Provider.Json.JsonStateValueSerializer<T> serializer, Configlue.Source.PostgreSql.PostgreSqlTableOptions? tableOptions = null, bool writable = true) { }
         public bool CanWrite { get; }
-        public Configlue.Resources.ResourceId ResourceId { get; }
         public string ResourceNamespace { get; }
         public Configlue.Sources.ISourceWatcher? Watcher { get; }
         public Configlue.Sources.ISourceWriter<T>? Writer { get; }
         public void Dispose() { }
         public Configlue.Resources.ResourceId GetResourceId(Configlue.Resources.ConfiglueResourceContext context) { }
         public System.Threading.Tasks.ValueTask<Configlue.State.StateReadResult<T>> ReadAsync(Configlue.Resources.ConfiglueResourceContext context, System.Threading.CancellationToken cancellationToken = default) { }
-        public bool TryGetResourceId(Configlue.Resources.ConfiglueResourceContext context, out Configlue.Resources.ResourceId resourceId) { }
         public System.Threading.Tasks.ValueTask WaitForChangeAsync(Configlue.Resources.ConfiglueResourceContext context, string? observedRevision, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask<Configlue.State.StateWriteResult> WriteAsync(Configlue.Resources.ConfiglueResourceContext context, Configlue.State.StateWriteRequest<T> request, System.Threading.CancellationToken cancellationToken = default) { }
     }
@@ -49,7 +47,7 @@ namespace Configlue.Source.PostgreSql
     {
         public PostgreSqlTableOptions() { }
         public string ComponentsTableName { get; init; }
-        public Configlue.Resources.ResourceId? ResourceId { get; init; }
+        public Configlue.Resources.ResourceId? FixedResourceId { get; init; }
         public string SchemaName { get; init; }
         public string TableName { get; init; }
     }

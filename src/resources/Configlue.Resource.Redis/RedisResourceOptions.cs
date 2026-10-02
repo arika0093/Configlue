@@ -18,8 +18,12 @@ public sealed class RedisResourceOptions
     /// <summary>The Pub/Sub channel used for Configlue row invalidations.</summary>
     public string NotificationChannel { get; init; } = "configlue:resource:changed";
 
-    /// <summary>An optional fixed identity overriding the identity derived from the address.</summary>
-    public ResourceId? ResourceId { get; init; }
+    /// <summary>
+    /// An advanced fixed identity override shared by every operation context. Configuring this
+    /// asserts that all contexts routed through the resource share one physical coordination
+    /// domain; an incorrect value can make batch grouping unsafe.
+    /// </summary>
+    public ResourceId? FixedResourceId { get; init; }
 
     internal TimeSpan BackendCacheIdleTimeout { get; init; } = TimeSpan.FromMinutes(5);
 

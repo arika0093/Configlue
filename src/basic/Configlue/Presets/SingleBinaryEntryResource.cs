@@ -9,7 +9,7 @@ internal sealed class SingleBinaryEntryResource
         IPipelineResourceReader,
         IResourceWriter,
         ISourceWatcher,
-        ITryContextualResourceIdentity
+        ITryResourceIdentity
 {
     private const int RevisionMapLimit = 8;
     private const string MissingEntryRevision = "missing";
@@ -36,8 +36,6 @@ internal sealed class SingleBinaryEntryResource
         ArgumentNullException.ThrowIfNull(entry);
         _entry = entry;
     }
-
-    public ResourceId ResourceId => _entry.ResourceId;
 
     public ResourceId GetResourceId(ConfiglueResourceContext context) =>
         _entry.GetResourceId(context);

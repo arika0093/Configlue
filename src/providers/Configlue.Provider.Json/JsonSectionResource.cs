@@ -17,8 +17,8 @@ public sealed class JsonSectionResource
         IPipelineResourceReader,
         IResourceWriter,
         ISourceWatcher,
-        ITryContextualResourceIdentity,
-        IContextualResourceBatchParticipant,
+        ITryResourceIdentity,
+        IResourceBatchParticipant,
         IContextualResourceBackupRecovery
 {
     private readonly IResourceReader _reader;
@@ -34,12 +34,12 @@ public sealed class JsonSectionResource
     /// <param name="resource">The physical resource containing the JSON document.</param>
     /// <param name="sectionPath">A colon- or double-underscore-separated path to the section.</param>
     /// <param name="serializerOptions">Options used to format newly created JSON structure.</param>
-    /// <param name="resourceId">An optional stable identity for the physical resource.</param>
+    /// <param name="fixedResourceId">An optional stable identity for the physical resource.</param>
     public JsonSectionResource(
         IResourceReader resource,
         string sectionPath,
         JsonSerializerOptions? serializerOptions = null,
-        ResourceId? resourceId = null
+        ResourceId? fixedResourceId = null
     )
         : this(
             resource,
@@ -47,7 +47,7 @@ public sealed class JsonSectionResource
             sectionPath,
             resource as ISourceWatcher,
             serializerOptions,
-            resourceId
+            fixedResourceId
         ) { }
 
     /// <summary>Creates a section resource with separate read, write, and watch capabilities.</summary>
@@ -57,7 +57,7 @@ public sealed class JsonSectionResource
         string sectionPath,
         ISourceWatcher? watcher = null,
         JsonSerializerOptions? serializerOptions = null,
-        ResourceId? resourceId = null
+        ResourceId? fixedResourceId = null
     )
         : this(
             reader,
@@ -65,7 +65,7 @@ public sealed class JsonSectionResource
             ParseSectionPath(sectionPath),
             watcher,
             serializerOptions,
-            resourceId,
+            fixedResourceId,
             []
         ) { }
 
@@ -75,7 +75,7 @@ public sealed class JsonSectionResource
         string sectionPath,
         ISourceWatcher? watcher,
         JsonSerializerOptions? serializerOptions,
-        ResourceId? resourceId,
+        ResourceId? fixedResourceId,
         byte[] schemaShape
     )
         : this(
@@ -84,7 +84,7 @@ public sealed class JsonSectionResource
             ParseSectionPath(sectionPath),
             watcher,
             serializerOptions,
-            resourceId,
+            fixedResourceId,
             schemaShape
         ) { }
 
@@ -94,7 +94,7 @@ public sealed class JsonSectionResource
         string[] path,
         ISourceWatcher? watcher,
         JsonSerializerOptions? serializerOptions,
-        ResourceId? resourceId,
+        ResourceId? fixedResourceId,
         byte[] schemaShape
     )
     {
@@ -105,33 +105,11 @@ public sealed class JsonSectionResource
         _watcher = watcher;
         _path = path;
         _schemaShape = schemaShape;
-        _configuredResourceId = resourceId;
+        _configuredResourceId = fixedResourceId;
         _serializerOptions = serializerOptions is null
             ? new JsonSerializerOptions { WriteIndented = true }
             : new JsonSerializerOptions(serializerOptions);
-        ResourceId =
-            resourceId
-            ?? ResolveResourceId(writer, reader)
-            ?? new ResourceId($"section:{Guid.NewGuid():N}");
         _batchScope = "json/" + string.Join("/", _path.Select(Uri.EscapeDataString));
-    }
-
-    private static ResourceId? ResolveResourceId(IResourceWriter? writer, IResourceReader reader)
-    {
-        var context = ConfiglueResourceContext.Default;
-        if (
-            writer is IResourceIdentity writerIdentity
-            && writerIdentity.TryGetResourceId(context, out var writerResourceId)
-        )
-        {
-            return writerResourceId;
-        }
-
-        return
-            reader is IResourceIdentity readerIdentity
-            && readerIdentity.TryGetResourceId(context, out var readerResourceId)
-            ? readerResourceId
-            : null;
     }
 
     internal static JsonSectionResource CreateRoot(
@@ -139,9 +117,9 @@ public sealed class JsonSectionResource
         IResourceWriter? writer,
         ISourceWatcher? watcher,
         JsonSerializerOptions? serializerOptions,
-        ResourceId? resourceId,
+        ResourceId? fixedResourceId,
         byte[] schemaShape
-    ) => new(reader, writer, [], watcher, serializerOptions, resourceId, schemaShape);
+    ) => new(reader, writer, [], watcher, serializerOptions, fixedResourceId, schemaShape);
 
     private static string[] ParseSectionPath(string sectionPath)
     {
@@ -175,39 +153,29 @@ public sealed class JsonSectionResource
     public StateSchemaMetadata? ContainerSchema { get; init; }
 
     /// <inheritdoc />
-    public ResourceId ResourceId { get; }
-
     /// <inheritdoc />
     public ResourceId GetResourceId(ConfiglueResourceContext context) =>
-        TryGetResourceId(context, out var resourceId) ? resourceId : ResourceId;
+        TryGetResourceId(context, out var fixedResourceId)
+            ? fixedResourceId
+            : throw new InvalidOperationException(
+                "The underlying resource has no physical identity."
+            );
 
     /// <inheritdoc />
-    public bool TryGetResourceId(ConfiglueResourceContext context, out ResourceId resourceId)
+    public bool TryGetResourceId(ConfiglueResourceContext context, out ResourceId fixedResourceId)
     {
         if (_configuredResourceId is { } configuredResourceId)
         {
-            resourceId = configuredResourceId;
+            fixedResourceId = configuredResourceId;
             return true;
         }
 
-        if (
-            _writer is IResourceIdentity writerIdentity
-            && writerIdentity.TryGetResourceId(context, out resourceId)
-        )
+        if (_writer.TryGetResourceId(context, out fixedResourceId))
         {
             return true;
         }
 
-        if (
-            _reader is IResourceIdentity readerIdentity
-            && readerIdentity.TryGetResourceId(context, out resourceId)
-        )
-        {
-            return true;
-        }
-
-        resourceId = ResourceId;
-        return true;
+        return _reader.TryGetResourceId(context, out fixedResourceId);
     }
 
     /// <inheritdoc />
@@ -380,7 +348,10 @@ public sealed class JsonSectionResource
     }
 
     /// <inheritdoc />
-    public ResourceWriteMutation CreateMutation(ResourceWriteRequest request)
+    public ResourceWriteMutation CreateMutation(
+        ConfiglueResourceContext context,
+        ResourceWriteRequest request
+    )
     {
         var content = request.Content.ToArray();
         return new ResourceWriteMutation(
@@ -404,15 +375,10 @@ public sealed class JsonSectionResource
                 return ApplyToResource(current, content);
             },
             scope: _batchScope,
-            canCompose: true
+            canCompose: true,
+            context: context
         );
     }
-
-    /// <inheritdoc />
-    public ResourceWriteMutation CreateMutation(
-        ConfiglueResourceContext context,
-        ResourceWriteRequest request
-    ) => CreateMutation(request).WithContext(context);
 
     private StateSchemaMetadata? ResolvePhysicalSchema(ResourceWriteRequest request) =>
         _path.Length == 0 ? request.Schema : ContainerSchema;

@@ -16,7 +16,7 @@ public sealed class S3ObjectResource
     : IResourceReader,
         IPipelineResourceReader,
         IResourceWriter,
-        IContextualResourceIdentity
+        IResourceIdentity
 {
     private readonly IS3ObjectClient _client;
     private readonly S3ObjectResourceOptions _options;
@@ -56,7 +56,6 @@ public sealed class S3ObjectResource
         _clientSelector = clientSelector;
         BucketName = bucketName;
         Key = key;
-        ResourceId = _options.ResourceId ?? GetResourceId(ConfiglueResourceContext.Default);
     }
 
     /// <summary>The S3 bucket name.</summary>
@@ -66,11 +65,8 @@ public sealed class S3ObjectResource
     public string Key { get; }
 
     /// <inheritdoc />
-    public ResourceId ResourceId { get; }
-
-    /// <inheritdoc />
     public ResourceId GetResourceId(ConfiglueResourceContext context) =>
-        _options.ResourceId
+        _options.FixedResourceId
         ?? CreateResourceId(
             ResolveBucket(context),
             ResolveKey(context),

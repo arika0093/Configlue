@@ -18,7 +18,7 @@ namespace Configlue.Resource.Redis;
 public sealed class RedisResource
     : IResourceReader,
         IResourceWriter,
-        IContextualResourceIdentity,
+        IResourceIdentity,
         ISourceWatcher,
         IDisposable
 {
@@ -130,12 +130,9 @@ public sealed class RedisResource
     internal int CachedBackendCount => _testBackendCache?.Count ?? _backendCache?.Count ?? 0;
 
     /// <inheritdoc />
-    public ResourceId ResourceId => GetResourceId(ConfiglueResourceContext.Default);
-
-    /// <inheritdoc />
     public ResourceId GetResourceId(ConfiglueResourceContext context)
     {
-        if (_options.ResourceId is { } explicitId)
+        if (_options.FixedResourceId is { } explicitId)
         {
             return explicitId;
         }

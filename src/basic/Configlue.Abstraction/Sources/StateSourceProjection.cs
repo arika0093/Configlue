@@ -265,10 +265,10 @@ public static class StateSourceProjection
             : null;
         var reader = new ProjectedReader<TSource, TTarget>(
             source.Reader,
+            source.GetResourceId,
             toTarget,
             projectedSchema,
-            migrationChain,
-            source.GetResourceId
+            migrationChain
         );
         ISourceWriter<TTarget>? writer =
             source.Writer is not null && (toSource is not null || updateSource is not null)
@@ -299,26 +299,23 @@ public static class StateSourceProjection
 
     private sealed class ProjectedReader<TSource, TTarget>(
         ISourceReader<TSource> source,
+        Func<ConfiglueResourceContext, ResourceId?> getResourceId,
         Func<TSource, TTarget> toTarget,
         StateSchemaMetadata? projectedSchema,
-        StateSchemaMigrationChain<TSource>? migrationChain,
-        Func<ConfiglueResourceContext, ResourceId?> resolveResourceId
-    ) : ISourceReader<TTarget>, ITryContextualResourceIdentity
+        StateSchemaMigrationChain<TSource>? migrationChain
+    ) : ISourceReader<TTarget>, ITryResourceIdentity
     {
-        public ResourceId ResourceId => GetResourceId(ConfiglueResourceContext.Default);
-
-        public ResourceId GetResourceId(ConfiglueResourceContext context) =>
-            TryGetResourceId(context, out var identity)
-                ? identity
-                : throw new InvalidOperationException(
-                    "The projected source has no physical identity."
-                );
-
         public bool TryGetResourceId(ConfiglueResourceContext context, out ResourceId resourceId)
         {
-            var identity = resolveResourceId(context);
-            resourceId = identity.GetValueOrDefault();
-            return identity.HasValue;
+            if (getResourceId(ConfiglueResourceContext.Normalize(context)) is { } resolved)
+            {
+                resourceId = resolved;
+                return true;
+            }
+
+            resourceId = default;
+            return false;
+        }
         }
 
         public async ValueTask<StateReadResult<TTarget>> ReadAsync(

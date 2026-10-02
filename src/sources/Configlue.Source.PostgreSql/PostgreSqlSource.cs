@@ -17,7 +17,7 @@ public sealed class PostgreSqlSource<T>
     : ISourceWriter<T>,
         ISourceWatcher,
         ISourceCapabilities<T>,
-        ITryContextualResourceIdentity,
+        IResourceIdentity,
         IDisposable
 {
     private readonly Func<RouteKey, object>? _connectionResolver;
@@ -174,11 +174,8 @@ public sealed class PostgreSqlSource<T>
     public ISourceWatcher? Watcher => this;
 
     /// <inheritdoc />
-    public ResourceId ResourceId => GetResourceId(ConfiglueResourceContext.Default);
-
-    /// <inheritdoc />
     public ResourceId GetResourceId(ConfiglueResourceContext context) =>
-        _tableOptions.ResourceId
+        _tableOptions.FixedResourceId
         ?? new ResourceId(
             "postgresql:"
                 + PostgreSqlIdentityHash.Create(
@@ -190,13 +187,6 @@ public sealed class PostgreSqlSource<T>
                     _routeAwareIdentity ? context.Route.Value : string.Empty
                 )
         );
-
-    /// <inheritdoc />
-    public bool TryGetResourceId(ConfiglueResourceContext context, out ResourceId resourceId)
-    {
-        resourceId = GetResourceId(context);
-        return true;
-    }
 
     /// <inheritdoc />
     public async ValueTask<StateReadResult<T>> ReadAsync(

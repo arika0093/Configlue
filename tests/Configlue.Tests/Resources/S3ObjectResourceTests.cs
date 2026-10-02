@@ -83,7 +83,13 @@ public sealed class S3ObjectResourceTests
         client.LastKey.ShouldBe($"{subject.Key.Value}/settings.json");
         client.LastExpectedETag.ShouldBe("\"revision-1\"");
         write.Revision.ShouldBe("\"revision-2\"");
-        resource.GetResourceId(context).ShouldNotBe(resource.ResourceId);
+        var defaultResource = new S3ObjectResource(
+            new FakeS3ObjectClient(),
+            "settings-default",
+            "settings.json"
+        );
+        resource.GetResourceId(context)
+            .ShouldNotBe(defaultResource.GetResourceId(ConfiglueResourceContext.Default));
     }
 
     [Test]
@@ -175,12 +181,13 @@ public sealed class S3ObjectResourceTests
             new FakeS3ObjectClient(),
             "bucket",
             "settings.json",
-            new S3ObjectResourceOptions { ResourceId = overridden }
+            new S3ObjectResourceOptions { FixedResourceId = overridden }
         );
 
-        same.ResourceId.ShouldBe(first.ResourceId);
-        different.ResourceId.ShouldNotBe(first.ResourceId);
-        withOverride.ResourceId.ShouldBe(overridden);
+        var context = ConfiglueResourceContext.Default;
+        same.GetResourceId(context).ShouldBe(first.GetResourceId(context));
+        different.GetResourceId(context).ShouldNotBe(first.GetResourceId(context));
+        withOverride.GetResourceId(context).ShouldBe(overridden);
     }
 
     private static AmazonS3Exception S3Exception(string errorCode, int statusCode) =>

@@ -14,7 +14,7 @@ public sealed class HttpResourceReader
     : IResourceReader,
         IPipelineResourceReader,
         ISourceWatcher,
-        ITryContextualResourceIdentity
+        IResourceIdentity
 {
     /// <summary>Response and request header carrying the source schema identifier.</summary>
     public const string SchemaIdHeaderName = "Configlue-Schema-Id";
@@ -23,6 +23,7 @@ public sealed class HttpResourceReader
     public const string SchemaVersionHeaderName = "Configlue-Schema-Version";
 
     private readonly HttpClient _httpClient;
+    private readonly Uri _endpointRoot;
     private readonly Uri _getUri;
     private readonly Uri _updateUri;
     private readonly Func<ConfiglueResourceContext, Uri>? _endpointRootSelector;
@@ -47,7 +48,7 @@ public sealed class HttpResourceReader
         HttpClient httpClient,
         Uri endpointRoot,
         HttpResourceOptions? options = null,
-        ResourceId? resourceId = null
+        ResourceId? fixedResourceId = null
     )
     {
         ArgumentNullException.ThrowIfNull(httpClient);
@@ -89,9 +90,10 @@ public sealed class HttpResourceReader
             MaximumPollingInterval = configuredOptions.MaximumPollingInterval,
             RequestTimeout = configuredOptions.RequestTimeout,
         };
-        _configuredResourceId = resourceId;
+        _configuredResourceId = fixedResourceId;
         _httpClient = httpClient;
         var root = EnsureTrailingSlash(endpointRoot);
+        _endpointRoot = root;
         _getUri = CombineEndpoint(root, configuredOptions.GetPath, nameof(options));
         _updateUri = CombineEndpoint(root, configuredOptions.UpdatePath, nameof(options));
         if (configuredOptions.PollingInterval <= TimeSpan.Zero)
@@ -127,28 +129,16 @@ public sealed class HttpResourceReader
         _pollingInterval = configuredOptions.PollingInterval;
         _maximumPollingInterval = configuredOptions.MaximumPollingInterval;
         _requestTimeout = configuredOptions.RequestTimeout;
-        ResourceId =
-            resourceId
-            ?? (
-                _endpointRootSelector is null
-                    ? CreateResourceId(root, _getUri, _updateUri)
-                    : CreateContextReader(ConfiglueResourceContext.Default).ResourceId
-            );
     }
-
-    /// <inheritdoc />
-    public ResourceId ResourceId { get; }
 
     /// <inheritdoc />
     public ResourceId GetResourceId(ConfiglueResourceContext context) =>
-        _endpointRootSelector is null ? ResourceId : CreateContextReader(context).ResourceId;
-
-    /// <inheritdoc />
-    public bool TryGetResourceId(ConfiglueResourceContext context, out ResourceId resourceId)
-    {
-        resourceId = GetResourceId(context);
-        return true;
-    }
+        _configuredResourceId
+        ?? (
+            _endpointRootSelector is null
+                ? CreateResourceId(_endpointRoot, _getUri, _updateUri)
+                : CreateContextReader(context).GetResourceId(context)
+        );
 
     /// <summary>The GET endpoint used to read the resource.</summary>
     public Uri GetUri => _getUri;

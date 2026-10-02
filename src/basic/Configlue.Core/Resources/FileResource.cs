@@ -56,50 +56,50 @@ public sealed partial class FileResource
     /// <summary>Creates a file resource at the supplied path.</summary>
     /// <param name="path">The path of the file resource.</param>
     /// <param name="options">The retry and backup settings.</param>
-    /// <param name="resourceId">An optional stable physical identity for the resource.</param>
+    /// <param name="fixedResourceId">An optional stable physical identity for the resource.</param>
     public FileResource(
         string path,
         FileResourceOptions? options = null,
-        ResourceId? resourceId = null
+        ResourceId? fixedResourceId = null
     )
-        : this(path, options, resourceId, null, null) { }
+        : this(path, options, fixedResourceId, null, null) { }
 
     /// <summary>Creates a file resource using the supplied host profile for default backups.</summary>
     public FileResource(
         string path,
         FileResourceOptions? options,
-        ResourceId? resourceId,
+        ResourceId? fixedResourceId,
         IConfiglueHostPaths hostPaths
     )
-        : this(path, options, resourceId, null, hostPaths) { }
+        : this(path, options, fixedResourceId, null, hostPaths) { }
 
     /// <summary>Creates a model-backed file resource at the supplied path.</summary>
     /// <param name="path">The path of the file resource.</param>
     /// <param name="backupSchema">The model identity used to organize persistent backups by model and version.</param>
     /// <param name="options">The retry and backup settings.</param>
-    /// <param name="resourceId">An optional stable physical identity for the resource.</param>
+    /// <param name="fixedResourceId">An optional stable physical identity for the resource.</param>
     public FileResource(
         string path,
         StateSchemaMetadata backupSchema,
         FileResourceOptions? options = null,
-        ResourceId? resourceId = null
+        ResourceId? fixedResourceId = null
     )
-        : this(path, options, resourceId, backupSchema, null) { }
+        : this(path, options, fixedResourceId, backupSchema, null) { }
 
     /// <summary>Creates a model-backed file resource using host-specific default backups.</summary>
     public FileResource(
         string path,
         StateSchemaMetadata backupSchema,
         FileResourceOptions? options,
-        ResourceId? resourceId,
+        ResourceId? fixedResourceId,
         IConfiglueHostPaths hostPaths
     )
-        : this(path, options, resourceId, backupSchema, hostPaths) { }
+        : this(path, options, fixedResourceId, backupSchema, hostPaths) { }
 
     private FileResource(
         string path,
         FileResourceOptions? options,
-        ResourceId? resourceId,
+        ResourceId? fixedResourceId,
         StateSchemaMetadata? backupSchema,
         IConfiglueHostPaths? hostPaths
     )
@@ -107,7 +107,7 @@ public sealed partial class FileResource
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
         _path = System.IO.Path.GetFullPath(path);
         var identityPath = OperatingSystem.IsWindows() ? _path.ToUpperInvariant() : _path;
-        ResourceId = resourceId ?? new ResourceId($"file:{identityPath}");
+        ResourceId = fixedResourceId ?? new ResourceId($"file:{identityPath}");
         _directory = System.IO.Path.GetDirectoryName(_path)!;
         _fileName = System.IO.Path.GetFileName(_path);
         _options = options ?? new FileResourceOptions();
@@ -378,6 +378,13 @@ public sealed partial class FileResource
 
     /// <inheritdoc />
     public ResourceId ResourceId { get; }
+
+    /// <inheritdoc />
+    public ResourceId GetResourceId(ConfiglueResourceContext context)
+    {
+        _ = context;
+        return ResourceId;
+    }
 
     /// <inheritdoc />
     /// <remarks>

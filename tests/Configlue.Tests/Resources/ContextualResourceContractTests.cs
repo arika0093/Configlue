@@ -148,7 +148,7 @@ public sealed class ContextualResourceContractTests
             IPipelineResourceReader,
             IResourceBatchWriter,
             IResourceWriter,
-            IContextualResourceIdentity
+            IResourceIdentity
     {
         private readonly ConcurrentDictionary<SubjectKey, ResourceReadResult> _states = new();
 

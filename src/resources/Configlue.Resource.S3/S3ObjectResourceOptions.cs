@@ -5,8 +5,12 @@ namespace Configlue.Resource.S3;
 /// <summary>Options for a resource backed by one Amazon S3 object.</summary>
 public sealed class S3ObjectResourceOptions
 {
-    /// <summary>An optional stable identity overriding the identity derived from bucket and key.</summary>
-    public ResourceId? ResourceId { get; init; }
+    /// <summary>
+    /// An advanced fixed identity override shared by every operation context. Configuring this
+    /// asserts that all selected buckets and keys share one physical coordination domain; an
+    /// incorrect value can make batch grouping unsafe.
+    /// </summary>
+    public ResourceId? FixedResourceId { get; init; }
 
     /// <summary>Resolves the bucket for each subject-aware operation.</summary>
     /// <remarks>Selectors should return stable values for a given context.</remarks>

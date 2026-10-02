@@ -146,14 +146,17 @@ public static class PostgreSqlSourceRegistration
                     options.Priority,
                     options.FallbackCondition,
                     physicalOrigin: physicalOrigin,
-                    resourceId: options.TableOptions?.ResourceId
+                    fixedResourceId: options.TableOptions?.FixedResourceId
                 )
                 : new StateSource<TFragment>(
                     source,
                     options.Priority,
                     options.FallbackCondition,
                     physicalOrigin: physicalOrigin,
-                    resourceId: options.TableOptions?.ResourceId
+                    logicalDescriptor: options.TableOptions?.SchemaName
+                        + "."
+                        + options.TableOptions?.TableName,
+                    fixedResourceId: options.TableOptions?.FixedResourceId
                 );
             return context.Complete(stateSource);
         }

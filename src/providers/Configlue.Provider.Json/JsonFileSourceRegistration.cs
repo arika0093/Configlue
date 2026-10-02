@@ -50,8 +50,11 @@ public sealed class JsonFileSourceOptions
     /// <summary>Byte transformers applied when reading and writing this source.</summary>
     public IReadOnlyList<IStateByteTransformer>? Transformers { get; init; }
 
-    /// <summary>An optional stable physical identity; by default the normalized file path is used.</summary>
-    public ResourceId? ResourceId { get; init; }
+    /// <summary>
+    /// An advanced fixed identity override shared by every operation context; by default the
+    /// normalized file path is used. A configured value asserts one physical coordination domain.
+    /// </summary>
+    public ResourceId? FixedResourceId { get; init; }
 
     internal string? MountPath { get; set; }
 
@@ -239,7 +242,7 @@ public static class JsonFileSourceRegistration
                 options.Path,
                 modelSchema.ToMetadata(),
                 options.ResourceOptions,
-                options.ResourceId,
+                options.FixedResourceId,
                 hostPaths
             );
             ownResource(file);
@@ -272,7 +275,7 @@ public static class JsonFileSourceRegistration
                     writer,
                     resourceWatcher,
                     serializerOptions,
-                    options.ResourceId,
+                    options.FixedResourceId,
                     schemaShape
                 )
                 : new JsonSectionResource(
@@ -281,7 +284,7 @@ public static class JsonFileSourceRegistration
                     sectionPath,
                     resourceWatcher,
                     serializerOptions,
-                    options.ResourceId,
+                    options.FixedResourceId,
                     schemaShape
                 );
             resource = section;
@@ -298,7 +301,7 @@ public static class JsonFileSourceRegistration
                 writer: sourceWriter,
                 watcher: resourceWatcher
             );
-            var physicalResourceId = options.ResourceId ?? (file as IResourceIdentity)?.ResourceId;
+            var fixedResourceId = options.FixedResourceId;
             var sourceId =
                 options.IdOverride
                 ?? options.Id
@@ -313,7 +316,7 @@ public static class JsonFileSourceRegistration
                 priority,
                 fallbackCondition,
                 physicalOrigin: file.Path,
-                resourceId: physicalResourceId,
+                fixedResourceId: fixedResourceId,
                 explicitOnly: explicitOnly
             );
         }

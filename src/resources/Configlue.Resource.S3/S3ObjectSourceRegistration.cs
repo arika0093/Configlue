@@ -119,14 +119,21 @@ public static class S3ObjectSourceRegistration
                     options.Priority,
                     options.FallbackCondition,
                     physicalOrigin: physicalOrigin,
-                    resourceId: options.ResourceOptions?.ResourceId
+                    fixedResourceId: options.ResourceOptions?.FixedResourceId
                 )
                 : new StateSource<TFragment>(
                     serialized,
                     options.Priority,
                     options.FallbackCondition,
                     physicalOrigin: physicalOrigin,
-                    resourceId: options.ResourceOptions?.ResourceId
+                    logicalDescriptor: options.Key
+                        + "\n"
+                        + options.ResourceOptions?.BucketNameSelector?.Method.ToString()
+                        + "\n"
+                        + options.ResourceOptions?.KeySelector?.Method.ToString()
+                        + "\n"
+                        + options.ResourceOptions?.ClientSelector?.Method.ToString(),
+                    fixedResourceId: options.ResourceOptions?.FixedResourceId
                 );
         }
     }

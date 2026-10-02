@@ -86,7 +86,7 @@ public sealed class ConfiglueSourceDiagnostics
         bool canWatch,
         bool isActive,
         string? physicalOrigin,
-        ResourceId? resourceId
+        ResourceId? fixedResourceId
     )
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
@@ -98,7 +98,7 @@ public sealed class ConfiglueSourceDiagnostics
         CanWatch = canWatch;
         IsActive = isActive;
         PhysicalOrigin = physicalOrigin;
-        ResourceId = resourceId;
+        FixedResourceId = fixedResourceId;
     }
 
     /// <summary>The stable logical source identifier.</summary>
@@ -125,6 +125,6 @@ public sealed class ConfiglueSourceDiagnostics
     /// <summary>The physical endpoint or path, when the source provides one.</summary>
     public string? PhysicalOrigin { get; }
 
-    /// <summary>The physical resource identity, when the source provides one.</summary>
-    public ResourceId? ResourceId { get; }
+    /// <summary>The source's explicit identity override, when configured for every context.</summary>
+    public ResourceId? FixedResourceId { get; }
 }

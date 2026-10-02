@@ -35,8 +35,12 @@ public sealed class JsonHttpSourceOptions
     /// <summary>HTTP endpoint paths, content type, and polling interval.</summary>
     public HttpResourceOptions? ResourceOptions { get; init; }
 
-    /// <summary>An optional stable physical resource identity.</summary>
-    public ResourceId? ResourceId { get; init; }
+    /// <summary>
+    /// An advanced fixed identity override shared by every operation context. Configuring this
+    /// asserts that all endpoint roots selected by this source share one physical coordination
+    /// domain; an incorrect value can make batch grouping unsafe.
+    /// </summary>
+    public ResourceId? FixedResourceId { get; init; }
 
     /// <summary>JSON serialization and property naming options.</summary>
     public JsonSerializerOptions? SerializerOptions { get; init; }
@@ -63,7 +67,7 @@ public sealed class JsonHttpSourceOptions
             Writable = Writable,
             WatchChanges = WatchChanges,
             ResourceOptions = ResourceOptions,
-            ResourceId = ResourceId,
+            FixedResourceId = FixedResourceId,
             CodecContext = CodecContext,
             Transformers = Transformers,
         };

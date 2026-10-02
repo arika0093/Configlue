@@ -1,13 +1,12 @@
 [assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/arika0093/Configlue")]
 namespace Configlue.Resource.S3
 {
-    public sealed class S3ObjectResource : Configlue.Resources.IContextualResourceIdentity, Configlue.Resources.IResourceIdentity, Configlue.Resources.IResourceReader, Configlue.Resources.IResourceWriter, Configlue.State.IPipelineResourceReader
+    public sealed class S3ObjectResource : Configlue.Resources.IResourceIdentity, Configlue.Resources.IResourceReader, Configlue.Resources.IResourceWriter, Configlue.State.IPipelineResourceReader
     {
         public S3ObjectResource(Amazon.S3.IAmazonS3 client, string bucketName, string key, Configlue.Resource.S3.S3ObjectResourceOptions? options = null) { }
         public string BucketName { get; }
         public bool IsPipelineReadPreferred { get; }
         public string Key { get; }
-        public Configlue.Resources.ResourceId ResourceId { get; }
         public Configlue.Resources.ResourceId GetResourceId(Configlue.Resources.ConfiglueResourceContext context) { }
         public System.Threading.Tasks.ValueTask<Configlue.Resources.ResourceReadResult> ReadAsync(Configlue.Resources.ConfiglueResourceContext context, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask<Configlue.Resources.PipelineResourceReadResult> ReadPipelineAsync(Configlue.Resources.ConfiglueResourceContext context, System.Threading.CancellationToken cancellationToken = default) { }
@@ -18,8 +17,8 @@ namespace Configlue.Resource.S3
         public S3ObjectResourceOptions() { }
         public System.Func<Configlue.Resources.ConfiglueResourceContext, string>? BucketNameSelector { get; init; }
         public System.Func<Configlue.Resources.ConfiglueResourceContext, Amazon.S3.IAmazonS3>? ClientSelector { get; init; }
+        public Configlue.Resources.ResourceId? FixedResourceId { get; init; }
         public System.Func<Configlue.Resources.ConfiglueResourceContext, string>? KeySelector { get; init; }
-        public Configlue.Resources.ResourceId? ResourceId { get; init; }
     }
     public sealed class S3ObjectSourceOptions
     {

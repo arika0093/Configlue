@@ -143,14 +143,21 @@ public static class RedisStateSourceRegistration
                     options.Priority,
                     options.FallbackCondition,
                     physicalOrigin: physicalOrigin,
-                    resourceId: options.ResourceOptions?.ResourceId
+                    fixedResourceId: options.ResourceOptions?.FixedResourceId
                 )
                 : new StateSource<TFragment>(
                     serialized,
                     options.Priority,
                     options.FallbackCondition,
                     physicalOrigin: physicalOrigin,
-                    resourceId: options.ResourceOptions?.ResourceId
+                    logicalDescriptor: options.ResourceOptions?.KeyPrefix
+                        + "\n"
+                        + options.ResourceOptions?.KeyPrefixSelector?.Method.ToString()
+                        + "\n"
+                        + options.ResourceOptions?.Database
+                        + "\n"
+                        + options.ResourceOptions?.DatabaseSelector?.Method.ToString(),
+                    fixedResourceId: options.ResourceOptions?.FixedResourceId
                 );
             return context.Complete(source);
         }

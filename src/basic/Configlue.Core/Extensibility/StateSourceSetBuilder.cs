@@ -15,7 +15,7 @@ public sealed class StateSourceSetBuilder<T>
         int priority = 0,
         StateFallbackCondition fallbackCondition = StateFallbackCondition.NotFound,
         string? physicalOrigin = null,
-        ResourceId? resourceId = null,
+        ResourceId? fixedResourceId = null,
         string? logicalDescriptor = null
     )
     {
@@ -27,10 +27,10 @@ public sealed class StateSourceSetBuilder<T>
             reader as ISourceWriter<T>,
             reader as ISourceWatcher,
             physicalOrigin,
-            resourceId,
+            fixedResourceId,
             logicalDescriptor
         );
-        return Add(source.Id, reader, priority, fallbackCondition, physicalOrigin, resourceId);
+        return Add(source.Id, reader, priority, fallbackCondition, physicalOrigin, fixedResourceId);
     }
 
     /// <summary>Adds a source and detects writer and watcher support on its reader.</summary>
@@ -40,7 +40,7 @@ public sealed class StateSourceSetBuilder<T>
         int priority = 0,
         StateFallbackCondition fallbackCondition = StateFallbackCondition.NotFound,
         string? physicalOrigin = null,
-        ResourceId? resourceId = null
+        ResourceId? fixedResourceId = null
     )
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
@@ -56,7 +56,7 @@ public sealed class StateSourceSetBuilder<T>
             reader as ISourceWriter<T>,
             reader as ISourceWatcher,
             physicalOrigin,
-            resourceId
+            fixedResourceId
         );
         _sourceFactories.Add(sourceBuilder.Build);
         return sourceBuilder;
@@ -114,7 +114,7 @@ public sealed class StateSourceBuilder<T>
     private readonly int _priority;
     private readonly StateFallbackCondition _fallbackCondition;
     private readonly string? _physicalOrigin;
-    private readonly ResourceId? _resourceId;
+    private readonly ResourceId? _fixedResourceId;
     private Func<IConfiglueSubject, SubjectKey> _subjectKeySelector = static subject => subject.Key;
     private Func<IConfiglueSubject, RouteKey> _routeSelector = static _ => RouteKey.Default;
     private RuntimeLifetimeRequirement _runtimeLifetime = RuntimeLifetimeRequirement.Shared;
@@ -127,7 +127,7 @@ public sealed class StateSourceBuilder<T>
         ISourceWriter<T>? writer,
         ISourceWatcher? watcher,
         string? physicalOrigin,
-        ResourceId? resourceId
+        ResourceId? fixedResourceId
     )
     {
         _id = id;
@@ -137,7 +137,7 @@ public sealed class StateSourceBuilder<T>
         _writer = writer;
         _watcher = watcher;
         _physicalOrigin = physicalOrigin;
-        _resourceId = resourceId;
+        _fixedResourceId = fixedResourceId;
     }
 
     /// <summary>Sets or replaces the writer. The reader's writer is detected by default.</summary>
@@ -214,7 +214,7 @@ public sealed class StateSourceBuilder<T>
             _writer,
             _watcher,
             _physicalOrigin,
-            _resourceId,
+            _fixedResourceId,
             subjectKeySelector: _subjectKeySelector,
             runtimeLifetime: _runtimeLifetime,
             routeSelector: _routeSelector

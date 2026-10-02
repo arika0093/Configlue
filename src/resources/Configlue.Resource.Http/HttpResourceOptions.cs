@@ -3,7 +3,7 @@ namespace Configlue.Resource.Http;
 /// <summary>Configures the endpoints and polling interval for an HTTP resource.</summary>
 public sealed class HttpResourceOptions
 {
-    /// <summary>Resolves an endpoint root for subject-aware reads, writes, and watches.</summary>
+    /// <summary>Resolves an endpoint root for one concrete read, write, watch, or identity operation.</summary>
     /// <remarks>
     /// Return a stable root for a given context. When unset, every subject uses the endpoint root
     /// supplied to the resource.

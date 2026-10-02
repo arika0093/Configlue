@@ -19,8 +19,8 @@ public sealed class XmlSectionResource
         IPipelineResourceReader,
         IResourceWriter,
         ISourceWatcher,
-        ITryContextualResourceIdentity,
-        IContextualResourceBatchParticipant,
+        ITryResourceIdentity,
+        IResourceBatchParticipant,
         IContextualResourceBackupRecovery
 {
     private readonly IResourceReader _reader;
@@ -46,7 +46,7 @@ public sealed class XmlSectionResource
         IResourceWriter? writer,
         string sectionPath,
         ISourceWatcher? watcher = null,
-        ResourceId? resourceId = null
+        ResourceId? fixedResourceId = null
     )
     {
         ArgumentNullException.ThrowIfNull(reader);
@@ -54,31 +54,9 @@ public sealed class XmlSectionResource
         _reader = reader;
         _writer = writer;
         _watcher = watcher;
-        _configuredResourceId = resourceId;
-        ResourceId =
-            resourceId
-            ?? ResolveResourceId(writer, reader)
-            ?? new ResourceId($"section:{Guid.NewGuid():N}");
+        _configuredResourceId = fixedResourceId;
         _path = ParsePath(sectionPath);
         _batchScope = "xml/" + string.Join("/", _path.Select(Uri.EscapeDataString));
-    }
-
-    private static ResourceId? ResolveResourceId(IResourceWriter? writer, IResourceReader reader)
-    {
-        var context = ConfiglueResourceContext.Default;
-        if (
-            writer is IResourceIdentity writerIdentity
-            && writerIdentity.TryGetResourceId(context, out var writerResourceId)
-        )
-        {
-            return writerResourceId;
-        }
-
-        return
-            reader is IResourceIdentity readerIdentity
-            && readerIdentity.TryGetResourceId(context, out var readerResourceId)
-            ? readerResourceId
-            : null;
     }
 
     /// <summary>Whether a physical writer was supplied.</summary>
@@ -92,39 +70,29 @@ public sealed class XmlSectionResource
     public StateSchemaMetadata? ContainerSchema { get; init; }
 
     /// <inheritdoc />
-    public ResourceId ResourceId { get; }
-
     /// <inheritdoc />
     public ResourceId GetResourceId(ConfiglueResourceContext context) =>
-        TryGetResourceId(context, out var resourceId) ? resourceId : ResourceId;
+        TryGetResourceId(context, out var fixedResourceId)
+            ? fixedResourceId
+            : throw new InvalidOperationException(
+                "The underlying resource has no physical identity."
+            );
 
     /// <inheritdoc />
-    public bool TryGetResourceId(ConfiglueResourceContext context, out ResourceId resourceId)
+    public bool TryGetResourceId(ConfiglueResourceContext context, out ResourceId fixedResourceId)
     {
         if (_configuredResourceId is { } configuredResourceId)
         {
-            resourceId = configuredResourceId;
+            fixedResourceId = configuredResourceId;
             return true;
         }
 
-        if (
-            _writer is IResourceIdentity writerIdentity
-            && writerIdentity.TryGetResourceId(context, out resourceId)
-        )
+        if (_writer.TryGetResourceId(context, out fixedResourceId))
         {
             return true;
         }
 
-        if (
-            _reader is IResourceIdentity readerIdentity
-            && readerIdentity.TryGetResourceId(context, out resourceId)
-        )
-        {
-            return true;
-        }
-
-        resourceId = ResourceId;
-        return true;
+        return _reader.TryGetResourceId(context, out fixedResourceId);
     }
 
     /// <inheritdoc />
@@ -328,10 +296,6 @@ public sealed class XmlSectionResource
             )
             .ConfigureAwait(false);
     }
-
-    /// <inheritdoc />
-    public ResourceWriteMutation CreateMutation(ResourceWriteRequest request) =>
-        CreateMutation(ConfiglueResourceContext.Default, request);
 
     /// <inheritdoc />
     public ResourceWriteMutation CreateMutation(

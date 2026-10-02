@@ -76,7 +76,7 @@ public sealed class InMemoryResourceContractTests
         IPipelineResourceReader pipelineReader = resource;
         await resource.WriteAsync(new ResourceWriteRequest("payload"u8.ToArray()));
 
-        identity.ResourceId.ShouldBe(resource.ResourceId);
+        identity.GetResourceId(ConfiglueResourceContext.Default).ShouldBe(resource.ResourceId);
         pipelineReader.IsPipelineReadPreferred.ShouldBeFalse();
         await using var result = await pipelineReader.ReadPipelineAsync();
         result.Status.ShouldBe(StateReadStatus.Success);

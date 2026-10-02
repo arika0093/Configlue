@@ -34,7 +34,7 @@ public sealed partial class RuntimeDiagnosticTests
                     "store",
                     store,
                     physicalOrigin: "private-path",
-                    resourceId: new ResourceId("private-resource")
+                    fixedResourceId: new ResourceId("private-resource")
                 ),
             ],
             capacity: 8
@@ -127,7 +127,7 @@ public sealed partial class RuntimeDiagnosticTests
                     "remote",
                     reader,
                     physicalOrigin: "private-path",
-                    resourceId: new ResourceId("private-resource")
+                    fixedResourceId: new ResourceId("private-resource")
                 ),
             ]),
             logger: logger,

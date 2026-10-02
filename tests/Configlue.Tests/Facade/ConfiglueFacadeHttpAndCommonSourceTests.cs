@@ -54,7 +54,8 @@ public sealed partial class ConfiglueFacadeSourceTests
         var endpoint = "https://settings.example.test/app-settings/";
         var defaultId = await WriteHttpPatchAndGetResourceIdAsync(endpoint, resourceId: null);
         using var client = new HttpClient(new NoContentHttpHandler());
-        var expected = new HttpResourceReader(client, new Uri(endpoint)).ResourceId;
+        var expected = new HttpResourceReader(client, new Uri(endpoint))
+            .GetResourceId(ConfiglueResourceContext.Default);
         (defaultId).ShouldBe(expected);
 
         var overrideId = new ResourceId("test-resource:settings");

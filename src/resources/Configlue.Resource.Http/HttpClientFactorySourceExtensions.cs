@@ -40,7 +40,7 @@ public static class HttpClientFactorySourceExtensions
                 Writable = options.Writable,
                 WatchChanges = options.WatchChanges,
                 ResourceOptions = options.ResourceOptions,
-                ResourceId = options.ResourceId,
+                FixedResourceId = options.FixedResourceId,
                 CodecContext = options.CodecContext,
                 ClientFactory = provider =>
                     (
@@ -83,7 +83,7 @@ public static class HttpClientFactorySourceExtensions
                 Writable = options.Writable,
                 WatchChanges = options.WatchChanges,
                 ResourceOptions = options.ResourceOptions,
-                ResourceId = options.ResourceId,
+                FixedResourceId = options.FixedResourceId,
                 SerializerOptions = options.SerializerOptions,
                 CodecContext = options.CodecContext,
                 ClientFactory = provider =>

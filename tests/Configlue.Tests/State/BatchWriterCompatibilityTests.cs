@@ -471,6 +471,12 @@ public sealed class BatchWriterCompatibilityTests
 
         public ResourceId ResourceId => Store.ResourceId;
 
+        public ResourceId GetResourceId(ConfiglueResourceContext context)
+        {
+            _ = context;
+            return Store.ResourceId;
+        }
+
         public ValueTask<ResourceReadResult> ReadAsync(
             ConfiglueResourceContext context,
             CancellationToken cancellationToken = default

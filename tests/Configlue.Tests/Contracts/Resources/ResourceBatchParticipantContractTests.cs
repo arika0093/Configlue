@@ -21,10 +21,12 @@ public sealed class ResourceBatchParticipantContractTests
         };
         IResourceBatchParticipant participant = section;
         var sectionBeforeWrite = await section.ReadAsync();
+        var context = ConfiglueResourceContext.Default;
 
         var suppressedMutation = (
             (IResourceBatchParticipant)new JsonSectionResource(resource, "App:Settings")
         ).CreateMutation(
+            context,
             new ResourceWriteRequest(
                 """{"Value":2}"""u8.ToArray(),
                 Condition: RevisionCondition.FromRevision(sectionBeforeWrite.Revision),
@@ -34,6 +36,7 @@ public sealed class ResourceBatchParticipantContractTests
         suppressedMutation.Schema.ShouldBeNull();
 
         var mutation = participant.CreateMutation(
+            context,
             new ResourceWriteRequest(
                 """{"Value":2}"""u8.ToArray(),
                 Condition: RevisionCondition.FromRevision(sectionBeforeWrite.Revision),
@@ -41,7 +44,7 @@ public sealed class ResourceBatchParticipantContractTests
             )
         );
 
-        participant.ResourceId.ShouldBe(resource.ResourceId);
+        participant.GetResourceId(context).ShouldBe(resource.ResourceId);
         participant.BatchWriter.ShouldBeSameAs(resource);
         mutation.Condition.Revision.ShouldBe(sectionBeforeWrite.Revision);
         mutation.Condition.ShouldBe(RevisionCondition.Match(sectionBeforeWrite.Revision!));

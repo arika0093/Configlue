@@ -11,8 +11,8 @@ public sealed class ZipEntryResource
         IPipelineResourceReader,
         IResourceWriter,
         ISourceWatcher,
-        ITryContextualResourceIdentity,
-        IContextualResourceBatchParticipant
+        ITryResourceIdentity,
+        IResourceBatchParticipant
 {
     private readonly struct PollingOptions
     {
@@ -40,7 +40,6 @@ public sealed class ZipEntryResource
     private readonly ISourceWatcher? _archiveWatcher;
     private readonly string _entryName;
     private readonly Func<ConfiglueResourceContext, string>? _entryNameSelector;
-    private readonly ResourceId _resourceId;
     private readonly ResourceId? _configuredResourceId;
     private readonly object _snapshotGate = new();
     private readonly Dictionary<
@@ -56,14 +55,14 @@ public sealed class ZipEntryResource
         IResourceReader archiveReader,
         string entryName,
         ISourceWatcher? archiveWatcher = null,
-        ResourceId? resourceId = null
+        ResourceId? fixedResourceId = null
     )
         : this(
             archiveReader,
             archiveReader as IResourceBatchWriter,
             entryName,
             archiveWatcher,
-            resourceId,
+            fixedResourceId,
             new PollingOptions(TimeSpan.FromMilliseconds(250))
         ) { }
 
@@ -73,14 +72,14 @@ public sealed class ZipEntryResource
         ZipEntryResourceOptions options,
         string entryName,
         ISourceWatcher? archiveWatcher = null,
-        ResourceId? resourceId = null
+        ResourceId? fixedResourceId = null
     )
         : this(
             archiveReader,
             archiveReader as IResourceBatchWriter,
             entryName,
             archiveWatcher,
-            resourceId,
+            fixedResourceId,
             new PollingOptions(TimeSpan.FromMilliseconds(250)),
             options
         ) { }
@@ -91,14 +90,14 @@ public sealed class ZipEntryResource
         string entryName,
         TimeSpan pollingInterval,
         ISourceWatcher? archiveWatcher = null,
-        ResourceId? resourceId = null
+        ResourceId? fixedResourceId = null
     )
         : this(
             archiveReader,
             archiveReader as IResourceBatchWriter,
             entryName,
             archiveWatcher,
-            resourceId,
+            fixedResourceId,
             new PollingOptions(pollingInterval)
         ) { }
 
@@ -108,14 +107,14 @@ public sealed class ZipEntryResource
         IResourceBatchWriter? archiveWriter,
         string entryName,
         ISourceWatcher? archiveWatcher = null,
-        ResourceId? resourceId = null
+        ResourceId? fixedResourceId = null
     )
         : this(
             archiveReader,
             archiveWriter,
             entryName,
             archiveWatcher,
-            resourceId,
+            fixedResourceId,
             new PollingOptions(TimeSpan.FromMilliseconds(250))
         ) { }
 
@@ -126,14 +125,14 @@ public sealed class ZipEntryResource
         ZipEntryResourceOptions options,
         string entryName,
         ISourceWatcher? archiveWatcher = null,
-        ResourceId? resourceId = null
+        ResourceId? fixedResourceId = null
     )
         : this(
             archiveReader,
             archiveWriter,
             entryName,
             archiveWatcher,
-            resourceId,
+            fixedResourceId,
             new PollingOptions(TimeSpan.FromMilliseconds(250)),
             options
         ) { }
@@ -145,14 +144,14 @@ public sealed class ZipEntryResource
         string entryName,
         TimeSpan pollingInterval,
         ISourceWatcher? archiveWatcher = null,
-        ResourceId? resourceId = null
+        ResourceId? fixedResourceId = null
     )
         : this(
             archiveReader,
             archiveWriter,
             entryName,
             archiveWatcher,
-            resourceId,
+            fixedResourceId,
             new PollingOptions(pollingInterval)
         ) { }
 
@@ -161,7 +160,7 @@ public sealed class ZipEntryResource
         IResourceBatchWriter? archiveWriter,
         string entryName,
         ISourceWatcher? archiveWatcher,
-        ResourceId? resourceId,
+        ResourceId? fixedResourceId,
         PollingOptions pollingOptions,
         ZipEntryResourceOptions? options = null
     )
@@ -173,49 +172,31 @@ public sealed class ZipEntryResource
             archiveWatcher ?? archiveReader as ISourceWatcher ?? archiveWriter as ISourceWatcher;
         _entryName = NormalizeEntryName(entryName);
         _entryNameSelector = options?.EntryNameSelector;
-        _configuredResourceId = resourceId;
-        _resourceId =
-            resourceId
-            ?? TryGetResourceId(archiveWriter, ConfiglueResourceContext.Default)
-            ?? TryGetResourceId(archiveReader, ConfiglueResourceContext.Default)
-            ?? new ResourceId($"zip:{Guid.NewGuid():N}");
+        _configuredResourceId = fixedResourceId;
         _pollingInterval = pollingOptions.Interval;
     }
 
     /// <inheritdoc />
-    public ResourceId ResourceId => _resourceId;
-
-    /// <inheritdoc />
     public ResourceId GetResourceId(ConfiglueResourceContext context) =>
-        TryGetResourceId(context, out var resourceId) ? resourceId : _resourceId;
+        TryGetResourceId(context, out var fixedResourceId)
+            ? fixedResourceId
+            : throw new InvalidOperationException("The archive resource has no physical identity.");
 
     /// <inheritdoc />
-    public bool TryGetResourceId(ConfiglueResourceContext context, out ResourceId resourceId)
+    public bool TryGetResourceId(ConfiglueResourceContext context, out ResourceId fixedResourceId)
     {
         if (_configuredResourceId is { } configuredResourceId)
         {
-            resourceId = configuredResourceId;
+            fixedResourceId = configuredResourceId;
             return true;
         }
 
-        if (
-            _archiveWriter is IResourceIdentity writerIdentity
-            && writerIdentity.TryGetResourceId(context, out resourceId)
-        )
+        if (((object?)_archiveWriter).TryGetResourceId(context, out fixedResourceId))
         {
             return true;
         }
 
-        if (
-            _archiveReader is IResourceIdentity readerIdentity
-            && readerIdentity.TryGetResourceId(context, out resourceId)
-        )
-        {
-            return true;
-        }
-
-        resourceId = _resourceId;
-        return true;
+        return _archiveReader.TryGetResourceId(context, out fixedResourceId);
     }
 
     /// <inheritdoc />
@@ -296,10 +277,6 @@ public sealed class ZipEntryResource
             _archiveWriter
             ?? throw new NotSupportedException("The ZIP archive resource is read-only.")
         ).WriteBatchAsync([CreateMutation(context, request)], cancellationToken);
-
-    /// <inheritdoc />
-    public ResourceWriteMutation CreateMutation(ResourceWriteRequest request) =>
-        CreateMutation(ConfiglueResourceContext.Default, request);
 
     /// <inheritdoc />
     public ResourceWriteMutation CreateMutation(
@@ -458,10 +435,7 @@ public sealed class ZipEntryResource
     private static ResourceId? TryGetResourceId(
         object? resource,
         ConfiglueResourceContext context
-    ) =>
-        resource is IResourceIdentity identity && identity.TryGetResourceId(context, out var id)
-            ? id
-            : null;
+    ) => resource.TryGetResourceId(context, out var id) ? id : null;
 
     private bool TryGetSnapshot(
         ConfiglueResourceContext context,

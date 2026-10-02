@@ -145,8 +145,8 @@ public sealed class SectionSchemaMetadataContractTests
         };
         var mutations = new[]
         {
-            first.CreateMutation(new ResourceWriteRequest("{}"u8.ToArray())),
-            second.CreateMutation(new ResourceWriteRequest("{}"u8.ToArray())),
+            first.CreateMutation(ConfiglueResourceContext.Default, new ResourceWriteRequest("{}"u8.ToArray())),
+            second.CreateMutation(ConfiglueResourceContext.Default, new ResourceWriteRequest("{}"u8.ToArray())),
         };
         await Should.ThrowAsync<NotSupportedException>(async () =>
             await resource.WriteBatchAsync(mutations)
@@ -203,7 +203,7 @@ public sealed class SectionSchemaMetadataContractTests
             jsonResource,
             watcher: null,
             serializerOptions: null,
-            resourceId: null,
+            fixedResourceId: null,
             schemaShape: []
         );
         await jsonRoot.WriteAsync(
@@ -216,7 +216,7 @@ public sealed class SectionSchemaMetadataContractTests
             yamlResource,
             yamlResource,
             watcher: null,
-            resourceId: null,
+            fixedResourceId: null,
             textEncoding: null,
             schemaShape: []
         );

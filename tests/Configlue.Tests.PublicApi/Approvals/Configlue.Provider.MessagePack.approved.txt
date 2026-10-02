@@ -26,11 +26,11 @@ namespace Configlue.Provider.MessagePack
         public MessagePackFileSourceOptions() { }
         public bool ExplicitOnly { get; init; }
         public Configlue.Sources.StateFallbackCondition FallbackCondition { get; init; }
+        public Configlue.Resources.ResourceId? FixedResourceId { get; init; }
         public string? Id { get; init; }
         public required string Path { get; init; }
         public int Priority { get; init; }
         public bool ReadOnly { get; init; }
-        public Configlue.Resources.ResourceId? ResourceId { get; init; }
         public Configlue.Resources.FileResourceOptions? ResourceOptions { get; init; }
         public string? SectionPath { get; init; }
         public MessagePack.MessagePackSerializerOptions? SerializerOptions { get; init; }

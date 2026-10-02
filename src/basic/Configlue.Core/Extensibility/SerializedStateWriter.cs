@@ -7,7 +7,7 @@ namespace Configlue.Extensibility;
 public sealed class SerializedStateWriter<T>
     : ISourceWriter<T>,
         ISourceWriteBatchParticipant<T>,
-        ITryContextualResourceIdentity
+        ITryResourceIdentity
 {
     private readonly IResourceWriter _resource;
     private readonly object _codec;
@@ -39,26 +39,9 @@ public sealed class SerializedStateWriter<T>
     }
 
     /// <inheritdoc />
-    public ResourceId ResourceId => GetResourceId(ConfiglueResourceContext.Default);
-
-    /// <inheritdoc />
-    public ResourceId GetResourceId(ConfiglueResourceContext context) =>
-        TryGetResourceId(context, out var resourceId)
-            ? resourceId
-            : throw new InvalidOperationException(
-                "The underlying resource has no physical identity."
-            );
-
-    /// <inheritdoc />
     public bool TryGetResourceId(ConfiglueResourceContext context, out ResourceId resourceId)
     {
-        if (_resource is IResourceIdentity identity)
-        {
-            return identity.TryGetResourceId(context, out resourceId);
-        }
-
-        resourceId = default;
-        return false;
+        return _resource.TryGetResourceId(context, out resourceId);
     }
 
     /// <summary>Writes serialized state for one logical subject and source-specific key.</summary>

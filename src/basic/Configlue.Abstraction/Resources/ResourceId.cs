@@ -25,20 +25,13 @@ public readonly record struct ResourceId
 /// <summary>Exposes the physical identity shared by resources and their logical views.</summary>
 public interface IResourceIdentity
 {
-    /// <summary>The identity of the underlying physical resource.</summary>
-    ResourceId ResourceId { get; }
-}
-
-/// <summary>Resolves the physical identity of a resource for a logical subject.</summary>
-public interface IContextualResourceIdentity : IResourceIdentity
-{
-    /// <summary>Gets the physical identity used for an operation on one subject.</summary>
+    /// <summary>Gets the identity used for one resource operation.</summary>
     ResourceId GetResourceId(ConfiglueResourceContext context);
 }
 
-/// <summary>Reports when a subject-specific physical identity cannot be resolved.</summary>
-public interface ITryContextualResourceIdentity : IContextualResourceIdentity
+/// <summary>Optionally forwards a physical identity when one is available for an operation context.</summary>
+public interface ITryResourceIdentity
 {
-    /// <summary>Tries to get the physical identity used for an operation on one subject.</summary>
+    /// <summary>Tries to get the physical identity used for an operation context.</summary>
     bool TryGetResourceId(ConfiglueResourceContext context, out ResourceId resourceId);
 }

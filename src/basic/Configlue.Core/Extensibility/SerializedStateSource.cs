@@ -18,7 +18,7 @@ public static class SerializedStateSource
     /// <param name="watcher">An optional change watcher; detected from <paramref name="resource"/> when omitted.</param>
     /// <param name="physicalOrigin">The physical endpoint backing the source.</param>
     /// <param name="context">Additional codec context.</param>
-    /// <param name="resourceId">An optional stable physical resource identity.</param>
+    /// <param name="fixedResourceId">An optional physical identity override used for every operation context.</param>
     /// <param name="schemaDispatcher">An optional schema migration dispatcher.</param>
     /// <param name="transformers">Byte transformations in resource-to-codec read order.</param>
     /// <param name="middlewares">Typed state decorators; the first middleware is outermost.</param>
@@ -32,7 +32,7 @@ public static class SerializedStateSource
         ISourceWatcher? watcher = null,
         string? physicalOrigin = null,
         StateCodecContext context = default,
-        ResourceId? resourceId = null,
+        ResourceId? fixedResourceId = null,
         StateSchemaDispatcher<T>? schemaDispatcher = null,
         IEnumerable<IStateByteTransformer>? transformers = null,
         IEnumerable<IStateMiddleware<T>>? middlewares = null
@@ -59,7 +59,7 @@ public static class SerializedStateSource
             serialized.Writer,
             serialized.Watcher,
             physicalOrigin,
-            resourceId
+            fixedResourceId
         );
     }
 }
