@@ -18,13 +18,19 @@ namespace Configlue.Extensions.ComponentModel;
 /// <para>
 /// Incoming effective-state changes and reload-failure notifications may arrive on
 /// background threads; they are marshaled through the supplied
-/// <see cref="IConfiglueDispatcher"/>.
+/// <see cref="IConfiglueDispatcher"/>. Asynchronous operations complete only after their
+/// bindable state transition has been applied on the dispatcher, and reload generations
+/// ensure an older snapshot can never overwrite a newer one.
 /// </para>
 /// </remarks>
 /// <typeparam name="T">The configuration model type.</typeparam>
 public sealed class ConfiglueStateReader<T> : INotifyPropertyChanged, IDisposable
 {
     private readonly IReadOnlyState<T> _state;
+    private readonly object _gate = new();
+    private readonly CancellationTokenSource _lifetimeCancellation = new();
+    private readonly CancellationToken _lifetimeToken;
+    private Task? _initializationTask;
     private readonly IConfiglueDispatcher _dispatcher;
     private readonly IConfiglueDiagnostics<T>? _diagnostics;
     private IDisposable? _changeSubscription;
@@ -34,6 +40,7 @@ public sealed class ConfiglueStateReader<T> : INotifyPropertyChanged, IDisposabl
     private bool _isLoading = true;
     private Exception? _loadFailure;
     private Exception? _reloadFailure;
+    private int _generation;
     private bool _disposed;
 
     /// <summary>Creates a read-only bindable reader.</summary>
@@ -52,6 +59,7 @@ public sealed class ConfiglueStateReader<T> : INotifyPropertyChanged, IDisposabl
         ArgumentNullException.ThrowIfNull(state);
         _state = state;
         _dispatcher = dispatcher ?? ConfiglueDispatcher.FromCurrentSynchronizationContext();
+        _lifetimeToken = _lifetimeCancellation.Token;
         _diagnostics = diagnostics;
     }
 
@@ -81,37 +89,68 @@ public sealed class ConfiglueStateReader<T> : INotifyPropertyChanged, IDisposabl
 
     /// <summary>Subscribes to state changes and performs the initial load.</summary>
     /// <param name="cancellationToken">A token that can cancel the initial load.</param>
-    /// <returns>A task that completes when the initial load finishes.</returns>
-    public async ValueTask InitializeAsync(CancellationToken cancellationToken = default)
+    /// <returns>A task that completes when the initial state transition has been applied.</returns>
+    public ValueTask InitializeAsync(CancellationToken cancellationToken = default)
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
-        if (_changeSubscription is not null)
+        cancellationToken.ThrowIfCancellationRequested();
+        lock (_gate)
         {
-            return;
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            if (_initializationTask is null)
+            {
+                var completion = new TaskCompletionSource<bool>(
+                    TaskCreationOptions.RunContinuationsAsynchronously
+                );
+                _initializationTask = completion.Task;
+                _ = InitializeCoreAsync(completion, cancellationToken);
+            }
+            return new ValueTask(_initializationTask);
         }
+    }
 
-        _changeSubscription = _state.OnChange(OnStateChanged);
-        if (_diagnostics is IConfiglueReloadFailureDiagnostics<T> diagnostics)
+    private async Task InitializeCoreAsync(
+        TaskCompletionSource<bool> completion,
+        CancellationToken cancellationToken
+    )
+    {
+        try
         {
-            _reloadFailureSubscription = diagnostics.OnReloadFailed(OnReloadFailureReported);
+            _changeSubscription = _state.OnChange(OnStateChanged);
+            if (_diagnostics is IConfiglueReloadFailureDiagnostics<T> diagnostics)
+                _reloadFailureSubscription = diagnostics.OnReloadFailed(OnReloadFailureReported);
+            await ReloadAsync(cancellationToken).ConfigureAwait(false);
+            completion.TrySetResult(true);
         }
-
-        await ReloadAsync(cancellationToken).ConfigureAwait(false);
+        catch (OperationCanceledException exception)
+        {
+            completion.TrySetCanceled(exception.CancellationToken);
+        }
+        catch (Exception exception)
+        {
+            completion.TrySetException(exception);
+        }
     }
 
     /// <inheritdoc />
     public void Dispose()
     {
-        if (_disposed)
+        IDisposable? changes;
+        IDisposable? failures;
+        lock (_gate)
         {
-            return;
+            if (_disposed)
+                return;
+            _disposed = true;
+            Interlocked.Increment(ref _generation);
+            changes = _changeSubscription;
+            failures = _reloadFailureSubscription;
+            _changeSubscription = null;
+            _reloadFailureSubscription = null;
         }
-
-        _disposed = true;
-        _changeSubscription?.Dispose();
-        _reloadFailureSubscription?.Dispose();
-        _changeSubscription = null;
-        _reloadFailureSubscription = null;
+        _lifetimeCancellation.Cancel();
+        changes?.Dispose();
+        failures?.Dispose();
+        _lifetimeCancellation.Dispose();
     }
 
     private void OnStateChanged(T value)
@@ -123,7 +162,19 @@ public sealed class ConfiglueStateReader<T> : INotifyPropertyChanged, IDisposabl
             return;
         }
 
-        RunOnDispatcher(() => _ = ReloadAsync(CancellationToken.None));
+        _ = ReloadFromNotificationAsync();
+    }
+
+    private async Task ReloadFromNotificationAsync()
+    {
+        try
+        {
+            await ReloadAsync(CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (Exception) when (_lifetimeToken.IsCancellationRequested)
+        {
+            // Disposal cancels pending notification work.
+        }
     }
 
     private void OnReloadFailureReported(Exception exception)
@@ -135,66 +186,103 @@ public sealed class ConfiglueStateReader<T> : INotifyPropertyChanged, IDisposabl
 
         RunOnDispatcher(() =>
         {
+            if (_disposed)
+            {
+                return;
+            }
+
             _reloadFailure = exception;
             Raise(nameof(ReloadFailure));
         });
     }
 
-    private async Task ReloadAsync(CancellationToken cancellationToken)
+    private async ValueTask ReloadAsync(CancellationToken cancellationToken)
     {
+        var generation = Interlocked.Increment(ref _generation);
+        StateSnapshot<T>? snapshot = null;
+        Exception? failure = null;
         try
         {
-            var snapshot = await _state.GetSnapshotAsync(cancellationToken).ConfigureAwait(false);
-            RunOnDispatcher(() =>
-            {
-                _snapshot = snapshot;
-                _value = ConfiglueBindableProxy.Create(typeof(T), snapshot.Value!, null);
-                _loadFailure = null;
-                _reloadFailure = null;
-                Raise(nameof(Snapshot));
-                Raise(nameof(Value));
-                Raise(nameof(HasValue));
-                Raise(nameof(LoadFailure));
-                Raise(nameof(ReloadFailure));
-            });
+            snapshot = await _state.GetSnapshotAsync(cancellationToken).ConfigureAwait(false);
         }
         catch (Exception exception)
         {
-            RunOnDispatcher(() =>
-            {
-                if (_snapshot is null)
-                {
-                    _loadFailure = exception;
-                }
-                else
-                {
-                    _reloadFailure = exception;
-                }
+            failure = exception;
+        }
 
-                Raise(nameof(LoadFailure));
-                Raise(nameof(ReloadFailure));
-            });
-        }
-        finally
-        {
-            RunOnDispatcher(() =>
-            {
-                _isLoading = false;
-                Raise(nameof(IsLoading));
-            });
-        }
+        await InvokeAsync(
+                () =>
+                {
+                    if (_disposed || generation != Volatile.Read(ref _generation))
+                    {
+                        return;
+                    }
+
+                    if (failure is null)
+                    {
+                        _snapshot = snapshot;
+                        _value = ConfiglueBindableProxy.Create(typeof(T), snapshot!.Value!, null);
+                        _loadFailure = null;
+                        _reloadFailure = null;
+                        Raise(nameof(Snapshot));
+                        Raise(nameof(Value));
+                        Raise(nameof(HasValue));
+                        Raise(nameof(LoadFailure));
+                        Raise(nameof(ReloadFailure));
+                    }
+                    else if (_snapshot is null)
+                    {
+                        _loadFailure = failure;
+                        Raise(nameof(LoadFailure));
+                    }
+                    else
+                    {
+                        _reloadFailure = failure;
+                        Raise(nameof(ReloadFailure));
+                    }
+
+                    if (_isLoading)
+                    {
+                        _isLoading = false;
+                        Raise(nameof(IsLoading));
+                    }
+                },
+                cancellationToken
+            )
+            .ConfigureAwait(false);
+    }
+
+    private async ValueTask InvokeAsync(Action action, CancellationToken cancellationToken)
+    {
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(
+            cancellationToken,
+            _lifetimeToken
+        );
+        await _dispatcher
+            .InvokeAsync(
+                () =>
+                {
+                    lock (_gate)
+                        if (!_disposed)
+                            action();
+                },
+                linked.Token
+            )
+            .ConfigureAwait(false);
     }
 
     private void RunOnDispatcher(Action action)
     {
+        void GuardedAction()
+        {
+            lock (_gate)
+                if (!_disposed)
+                    action();
+        }
         if (_dispatcher.CheckAccess())
-        {
-            action();
-        }
+            GuardedAction();
         else
-        {
-            _dispatcher.Post(action);
-        }
+            _dispatcher.Post(GuardedAction);
     }
 
     private void Raise(string propertyName) =>

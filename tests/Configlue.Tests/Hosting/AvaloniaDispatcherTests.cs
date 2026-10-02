@@ -63,6 +63,11 @@ public sealed class AvaloniaDispatcherTests
             host.Dispatcher.CheckAccess().ShouldBeFalse();
             await Task.Run(() => state.Push(2));
             (await changed.Task.WaitAsync(TimeSpan.FromSeconds(10))).ShouldBe(host.ThreadId);
+            var invokedThread = 0;
+            await host.Dispatcher.InvokeAsync(() =>
+                invokedThread = Environment.CurrentManagedThreadId
+            );
+            invokedThread.ShouldBe(host.ThreadId);
         }
         finally
         {

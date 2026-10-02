@@ -33,4 +33,9 @@ public sealed class WinUIConfiglueDispatcher : IConfiglueDispatcher
                 "The WinUI dispatcher queue rejected the callback."
             );
     }
+
+    /// <inheritdoc />
+    /// <exception cref="InvalidOperationException">The queue rejected the callback, for example during shutdown.</exception>
+    public ValueTask InvokeAsync(Action action, CancellationToken cancellationToken = default) =>
+        ConfiglueDispatcher.InvokeAsync(this, action, cancellationToken);
 }

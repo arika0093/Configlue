@@ -53,5 +53,17 @@ public sealed class UnityConfiglueDispatcher : IConfiglueDispatcher
         );
     }
 
+    /// <inheritdoc />
+    /// <exception cref="OperationCanceledException">The captured play/player lifetime has exited.</exception>
+    public async ValueTask InvokeAsync(Action action, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(
+            cancellationToken,
+            _exitCancellation
+        );
+        await ConfiglueDispatcher.InvokeAsync(this, action, linked.Token).ConfigureAwait(false);
+    }
+
     private sealed record PostedWork(Action Action, CancellationToken ExitCancellation);
 }

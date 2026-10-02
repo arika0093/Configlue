@@ -57,6 +57,9 @@ public sealed class MauiWindowsSmokeTests
             );
             dispatcher.Post(() => dispatched.TrySetResult(Environment.CurrentManagedThreadId));
             (await dispatched.Task.WaitAsync(TimeSpan.FromSeconds(10))).ShouldBe(ownerThread);
+            var invokedThread = 0;
+            await dispatcher.InvokeAsync(() => invokedThread = Environment.CurrentManagedThreadId);
+            invokedThread.ShouldBe(ownerThread);
         }
         finally
         {

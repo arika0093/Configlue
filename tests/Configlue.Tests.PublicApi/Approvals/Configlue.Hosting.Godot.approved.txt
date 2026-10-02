@@ -9,6 +9,7 @@ namespace Configlue.Hosting.Godot
     {
         public GodotConfiglueDispatcher() { }
         public bool CheckAccess() { }
+        public System.Threading.Tasks.ValueTask InvokeAsync(System.Action action, System.Threading.CancellationToken cancellationToken = default) { }
         public void Post(System.Action action) { }
     }
     public sealed class GodotHostPaths : Configlue.Resources.IConfiglueHostPaths

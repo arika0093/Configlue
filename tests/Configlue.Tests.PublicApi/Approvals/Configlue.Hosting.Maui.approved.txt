@@ -9,6 +9,7 @@ namespace Configlue.Hosting.Maui
     {
         public MauiConfiglueDispatcher() { }
         public bool CheckAccess() { }
+        public System.Threading.Tasks.ValueTask InvokeAsync(System.Action action, System.Threading.CancellationToken cancellationToken = default) { }
         public void Post(System.Action action) { }
     }
     public sealed class MauiHostPaths : Configlue.Resources.IConfiglueHostPaths

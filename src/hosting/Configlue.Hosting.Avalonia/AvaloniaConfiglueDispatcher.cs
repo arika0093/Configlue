@@ -30,4 +30,8 @@ public sealed class AvaloniaConfiglueDispatcher : IConfiglueDispatcher
         ArgumentNullException.ThrowIfNull(action);
         _dispatcher.Post(action, DispatcherPriority.Normal);
     }
+
+    /// <inheritdoc />
+    public ValueTask InvokeAsync(Action action, CancellationToken cancellationToken = default) =>
+        ConfiglueDispatcher.InvokeAsync(this, action, cancellationToken);
 }

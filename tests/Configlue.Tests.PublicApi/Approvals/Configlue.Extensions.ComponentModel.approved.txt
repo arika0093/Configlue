@@ -5,6 +5,7 @@ namespace Configlue.Extensions.ComponentModel
     {
         public static Configlue.Extensions.ComponentModel.IConfiglueDispatcher Immediate { get; }
         public static Configlue.Extensions.ComponentModel.IConfiglueDispatcher FromCurrentSynchronizationContext() { }
+        public static System.Threading.Tasks.ValueTask InvokeAsync(Configlue.Extensions.ComponentModel.IConfiglueDispatcher dispatcher, System.Action action, System.Threading.CancellationToken cancellationToken = default) { }
     }
     public sealed class ConfiglueStateEditor<T> : System.ComponentModel.IDataErrorInfo, System.ComponentModel.INotifyDataErrorInfo, System.ComponentModel.INotifyPropertyChanged, System.IDisposable
         where T :  class
@@ -55,18 +56,21 @@ namespace Configlue.Extensions.ComponentModel
     public interface IConfiglueDispatcher
     {
         bool CheckAccess();
+        System.Threading.Tasks.ValueTask InvokeAsync(System.Action action, System.Threading.CancellationToken cancellationToken = default);
         void Post(System.Action action);
     }
     public sealed class ImmediateConfiglueDispatcher : Configlue.Extensions.ComponentModel.IConfiglueDispatcher
     {
         public static Configlue.Extensions.ComponentModel.ImmediateConfiglueDispatcher Instance { get; }
         public bool CheckAccess() { }
+        public System.Threading.Tasks.ValueTask InvokeAsync(System.Action action, System.Threading.CancellationToken cancellationToken = default) { }
         public void Post(System.Action action) { }
     }
     public sealed class SynchronizationContextConfiglueDispatcher : Configlue.Extensions.ComponentModel.IConfiglueDispatcher
     {
         public SynchronizationContextConfiglueDispatcher(System.Threading.SynchronizationContext context) { }
         public bool CheckAccess() { }
+        public System.Threading.Tasks.ValueTask InvokeAsync(System.Action action, System.Threading.CancellationToken cancellationToken = default) { }
         public void Post(System.Action action) { }
     }
 }

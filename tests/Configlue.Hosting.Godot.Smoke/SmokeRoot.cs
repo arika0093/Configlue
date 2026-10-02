@@ -90,6 +90,14 @@ public partial class SmokeRoot : G.Node
                 "native deferred dispatch"
             );
 
+            var invokedThread = 0;
+            await Task.Run(async () =>
+                await dispatcher.InvokeAsync(() =>
+                    invokedThread = Environment.CurrentManagedThreadId
+                )
+            );
+            Require(invokedThread == threadId, "awaitable native deferred dispatch");
+
             using var reader = new ConfiglueStateReader<SmokeSettings>(state, dispatcher);
             await reader.InitializeAsync();
             Require(((SmokeSettings.Observable)reader.Value!).Counter == 7, "generated observable");

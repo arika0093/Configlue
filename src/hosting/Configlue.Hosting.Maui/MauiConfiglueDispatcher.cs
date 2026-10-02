@@ -15,4 +15,8 @@ public sealed class MauiConfiglueDispatcher : IConfiglueDispatcher
         ArgumentNullException.ThrowIfNull(action);
         MainThread.BeginInvokeOnMainThread(action);
     }
+
+    /// <inheritdoc />
+    public ValueTask InvokeAsync(Action action, CancellationToken cancellationToken = default) =>
+        ConfiglueDispatcher.InvokeAsync(this, action, cancellationToken);
 }

@@ -16,4 +16,8 @@ public sealed class GodotConfiglueDispatcher : IConfiglueDispatcher
         ArgumentNullException.ThrowIfNull(action);
         global::Godot.Callable.From(action).CallDeferred();
     }
+
+    /// <inheritdoc />
+    public ValueTask InvokeAsync(Action action, CancellationToken cancellationToken = default) =>
+        ConfiglueDispatcher.InvokeAsync(this, action, cancellationToken);
 }

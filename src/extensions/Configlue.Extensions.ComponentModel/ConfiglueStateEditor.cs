@@ -22,8 +22,9 @@ namespace Configlue.Extensions.ComponentModel;
 /// and <see cref="HasUpstreamChanges"/> is surfaced instead of silently rebasing.
 /// </para>
 /// <para>
-/// Persistence stays asynchronous. <see cref="IDataErrorInfo"/> is provided only as a
-/// compatibility bridge; <see cref="INotifyDataErrorInfo"/> is the primary validation API.
+/// Persistence stays asynchronous. Asynchronous operations complete only after their
+/// bindable state transition has been applied on the dispatcher, and session-open
+/// generations ensure a superseded open cannot attach after a newer one (or disposal) won.
 /// </para>
 /// </remarks>
 /// <typeparam name="T">The configuration model type.</typeparam>
@@ -35,6 +36,10 @@ public sealed class ConfiglueStateEditor<T>
     where T : class
 {
     private readonly IConfiglueEditSessions<T> _editSessions;
+    private readonly object _gate = new();
+    private readonly CancellationTokenSource _lifetimeCancellation = new();
+    private readonly CancellationToken _lifetimeToken;
+    private Task? _initializationTask;
     private readonly IConfiglueDispatcher _dispatcher;
     private readonly IConfiglueDiagnostics<T>? _diagnostics;
     private readonly IConfiglueSubjectChangeSource? _subjectChangeSource;
@@ -49,6 +54,8 @@ public sealed class ConfiglueStateEditor<T>
     private Exception? _loadFailure;
     private Exception? _lastException;
     private StateWriteReceipt? _lastReceipt;
+    private int _generation;
+    private int _saveGate;
     private bool _disposed;
 
     /// <summary>Creates a bindable editor.</summary>
@@ -69,6 +76,7 @@ public sealed class ConfiglueStateEditor<T>
         ArgumentNullException.ThrowIfNull(editSessions);
         _editSessions = editSessions;
         _dispatcher = dispatcher ?? ConfiglueDispatcher.FromCurrentSynchronizationContext();
+        _lifetimeToken = _lifetimeCancellation.Token;
         _diagnostics = diagnostics;
         _subjectChangeSource = subjectChangeSource;
     }
@@ -161,76 +169,145 @@ public sealed class ConfiglueStateEditor<T>
 
     /// <summary>Opens the edit session and subscribes to upstream/subject notifications.</summary>
     /// <param name="cancellationToken">A token that can cancel the initial open.</param>
-    /// <returns>A task that completes when the session is open.</returns>
-    public async ValueTask InitializeAsync(CancellationToken cancellationToken = default)
+    /// <returns>A task that completes when the session has been attached on the dispatcher.</returns>
+    public ValueTask InitializeAsync(CancellationToken cancellationToken = default)
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
-        if (_session is not null)
+        cancellationToken.ThrowIfCancellationRequested();
+        lock (_gate)
         {
-            return;
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            if (_initializationTask is null)
+            {
+                var completion = new TaskCompletionSource<bool>(
+                    TaskCreationOptions.RunContinuationsAsynchronously
+                );
+                _initializationTask = completion.Task;
+                _ = InitializeCoreAsync(completion, cancellationToken);
+            }
+            return new ValueTask(_initializationTask);
         }
+    }
 
-        _subjectSubscription = _subjectChangeSource?.OnChange(OnSubjectChangeSignaled);
-        if (_diagnostics is IConfiglueReloadFailureDiagnostics<T> diagnostics)
+    private async Task InitializeCoreAsync(
+        TaskCompletionSource<bool> completion,
+        CancellationToken cancellationToken
+    )
+    {
+        try
         {
-            _reloadFailureSubscription = diagnostics.OnReloadFailed(OnReloadFailureReported);
+            _subjectSubscription = _subjectChangeSource?.OnChange(OnSubjectChangeSignaled);
+            if (_diagnostics is IConfiglueReloadFailureDiagnostics<T> diagnostics)
+                _reloadFailureSubscription = diagnostics.OnReloadFailed(OnReloadFailureReported);
+            await OpenSessionAsync(cancellationToken).ConfigureAwait(false);
+            completion.TrySetResult(true);
         }
-
-        await OpenSessionAsync(cancellationToken).ConfigureAwait(false);
+        catch (OperationCanceledException exception)
+        {
+            completion.TrySetCanceled(exception.CancellationToken);
+        }
+        catch (Exception exception)
+        {
+            completion.TrySetException(exception);
+        }
     }
 
     /// <summary>Commits the current draft through the Core edit session.</summary>
     /// <param name="cancellationToken">A token that can cancel the save.</param>
-    /// <returns>A task that completes when the save finishes.</returns>
+    /// <returns>A task that completes when the save and its bindable transition are complete.</returns>
     public async ValueTask SaveAsync(CancellationToken cancellationToken = default)
     {
         var session = _session;
-        if (session is null || _isSaving)
+        if (session is null || Interlocked.CompareExchange(ref _saveGate, 1, 0) != 0)
         {
             return;
         }
 
-        if (_isSubjectChanged && !AllowSavingInvalidatedDraft)
-        {
-            SetError(
-                new InvalidOperationException(
-                    "The current subject changed while this editor held unsaved changes."
-                )
-            );
-            return;
-        }
-
-        _isSaving = true;
-        Raise(nameof(IsSaving));
         try
         {
-            var receipt = await session.CommitAsync(cancellationToken).ConfigureAwait(false);
-            RunOnDispatcher(() =>
+            if (_isSubjectChanged && !AllowSavingInvalidatedDraft)
             {
-                _lastReceipt = receipt;
-                ClearErrors();
-                ResetProxy();
-                Raise(nameof(LastReceipt));
-            });
-        }
-        catch (Exception exception)
-        {
-            RunOnDispatcher(() => SetError(exception));
+                await InvokeAsync(
+                        () =>
+                            SetError(
+                                new InvalidOperationException(
+                                    "The current subject changed while this editor held unsaved changes."
+                                )
+                            ),
+                        cancellationToken
+                    )
+                    .ConfigureAwait(false);
+                return;
+            }
+
+            await InvokeAsync(
+                    () =>
+                    {
+                        _isSaving = true;
+                        Raise(nameof(IsSaving));
+                    },
+                    cancellationToken
+                )
+                .ConfigureAwait(false);
+            try
+            {
+                var receipt = await session.CommitAsync(cancellationToken).ConfigureAwait(false);
+                await InvokeAsync(
+                        () =>
+                        {
+                            if (_disposed || !ReferenceEquals(_session, session))
+                            {
+                                return;
+                            }
+
+                            _lastReceipt = receipt;
+                            ClearErrors();
+                            ResetProxy();
+                            Raise(nameof(LastReceipt));
+                        },
+                        cancellationToken
+                    )
+                    .ConfigureAwait(false);
+            }
+            catch (Exception exception)
+            {
+                await InvokeAsync(
+                        () =>
+                        {
+                            if (!_disposed && ReferenceEquals(_session, session))
+                            {
+                                SetError(exception);
+                            }
+                        },
+                        CancellationToken.None
+                    )
+                    .ConfigureAwait(false);
+            }
+            finally
+            {
+                await InvokeAsync(
+                        () =>
+                        {
+                            _isSaving = false;
+                            if (!_disposed)
+                            {
+                                Raise(nameof(IsSaving));
+                                Raise(nameof(IsDirty));
+                            }
+                        },
+                        CancellationToken.None
+                    )
+                    .ConfigureAwait(false);
+            }
         }
         finally
         {
-            _isSaving = false;
-            RunOnDispatcher(() =>
-            {
-                Raise(nameof(IsSaving));
-                Raise(nameof(IsDirty));
-            });
+            Interlocked.Exchange(ref _saveGate, 0);
         }
     }
 
     /// <summary>Resolves upstream and reapplies local draft changes through the Core session.</summary>
     /// <param name="cancellationToken">A token that can cancel the rebase.</param>
-    /// <returns>A task that completes when the rebase finishes.</returns>
+    /// <returns>A task that completes when the rebase and its bindable transition are complete.</returns>
     public async ValueTask RebaseAsync(CancellationToken cancellationToken = default)
     {
         var session = _session;
@@ -242,11 +319,31 @@ public sealed class ConfiglueStateEditor<T>
         try
         {
             await session.RebaseAsync(cancellationToken).ConfigureAwait(false);
-            RunOnDispatcher(ResetProxy);
+            await InvokeAsync(
+                    () =>
+                    {
+                        if (!_disposed && ReferenceEquals(_session, session))
+                        {
+                            ResetProxy();
+                        }
+                    },
+                    cancellationToken
+                )
+                .ConfigureAwait(false);
         }
         catch (Exception exception)
         {
-            RunOnDispatcher(() => SetError(exception));
+            await InvokeAsync(
+                    () =>
+                    {
+                        if (!_disposed && ReferenceEquals(_session, session))
+                        {
+                            SetError(exception);
+                        }
+                    },
+                    CancellationToken.None
+                )
+                .ConfigureAwait(false);
         }
     }
 
@@ -262,63 +359,94 @@ public sealed class ConfiglueStateEditor<T>
     /// <inheritdoc />
     public void Dispose()
     {
-        if (_disposed)
+        IDisposable? subjects;
+        IDisposable? failures;
+        EditSession<T>? session;
+        lock (_gate)
         {
-            return;
-        }
-
-        _disposed = true;
-        _subjectSubscription?.Dispose();
-        _reloadFailureSubscription?.Dispose();
-        _subjectSubscription = null;
-        _reloadFailureSubscription = null;
-        if (_session is not null)
-        {
-            _session.UpstreamChanged -= OnUpstreamChanged;
-            _session.Dispose();
+            if (_disposed)
+                return;
+            _disposed = true;
+            Interlocked.Increment(ref _generation);
+            subjects = _subjectSubscription;
+            failures = _reloadFailureSubscription;
+            session = _session;
+            _subjectSubscription = null;
+            _reloadFailureSubscription = null;
             _session = null;
+            _value = null;
+            _isSaving = false;
         }
-
-        _value = null;
+        _lifetimeCancellation.Cancel();
+        subjects?.Dispose();
+        failures?.Dispose();
+        if (session is not null)
+        {
+            session.UpstreamChanged -= OnUpstreamChanged;
+            session.Dispose();
+        }
+        _lifetimeCancellation.Dispose();
     }
 
-    private async ValueTask OpenSessionAsync(CancellationToken cancellationToken)
+    private async ValueTask OpenSessionAsync(
+        CancellationToken cancellationToken,
+        int? requestedGeneration = null
+    )
     {
+        var generation = requestedGeneration ?? Interlocked.Increment(ref _generation);
+        EditSession<T>? session = null;
+        Exception? failure = null;
         try
         {
-            var session = await _editSessions
+            session = await _editSessions
                 .OpenEditSessionAsync(cancellationToken)
                 .ConfigureAwait(false);
-            if (_disposed)
-            {
-                session.Dispose();
-                return;
-            }
-
-            RunOnDispatcher(() =>
-            {
-                AttachSession(session);
-                _loadFailure = null;
-                Raise(nameof(LoadFailure));
-            });
         }
         catch (Exception exception)
         {
-            _loadFailure = exception;
-            _lastException = exception;
-            RunOnDispatcher(() =>
-            {
-                Raise(nameof(LoadFailure));
-                Raise(nameof(LastException));
-            });
+            failure = exception;
         }
-        finally
+
+        try
         {
-            RunOnDispatcher(() =>
-            {
-                _isLoading = false;
-                Raise(nameof(IsLoading));
-            });
+            await InvokeAsync(
+                    () =>
+                    {
+                        if (_disposed || generation != Volatile.Read(ref _generation))
+                        {
+                            session?.Dispose();
+                            return;
+                        }
+
+                        if (failure is not null)
+                        {
+                            _loadFailure = failure;
+                            _lastException = failure;
+                            Raise(nameof(LoadFailure));
+                            Raise(nameof(LastException));
+                        }
+                        else
+                        {
+                            AttachSession(session!);
+                            _loadFailure = null;
+                            Raise(nameof(LoadFailure));
+                        }
+
+                        if (_isLoading)
+                        {
+                            _isLoading = false;
+                            Raise(nameof(IsLoading));
+                        }
+                    },
+                    cancellationToken,
+                    includeDisposed: true
+                )
+                .ConfigureAwait(false);
+        }
+        catch
+        {
+            session?.Dispose();
+            throw;
         }
     }
 
@@ -372,6 +500,11 @@ public sealed class ConfiglueStateEditor<T>
 
         RunOnDispatcher(() =>
         {
+            if (_disposed)
+            {
+                return;
+            }
+
             Raise(nameof(IsDirty));
             Raise(nameof(HasUpstreamChanges));
         });
@@ -384,7 +517,15 @@ public sealed class ConfiglueStateEditor<T>
             return;
         }
 
-        RunOnDispatcher(() => _ = HandleUpstreamChangedAsync());
+        RunOnDispatcher(() =>
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            _ = HandleUpstreamChangedAsync();
+        });
     }
 
     private async Task HandleUpstreamChangedAsync()
@@ -412,7 +553,13 @@ public sealed class ConfiglueStateEditor<T>
             return;
         }
 
-        RunOnDispatcher(() => SetError(exception));
+        RunOnDispatcher(() =>
+        {
+            if (!_disposed)
+            {
+                SetError(exception);
+            }
+        });
     }
 
     private void OnSubjectChangeSignaled()
@@ -422,18 +569,27 @@ public sealed class ConfiglueStateEditor<T>
             return;
         }
 
-        RunOnDispatcher(() => _ = HandleSubjectChangeAsync());
+        var generation = Interlocked.Increment(ref _generation);
+        RunOnDispatcher(() =>
+        {
+            if (_disposed || generation != Volatile.Read(ref _generation))
+            {
+                return;
+            }
+
+            _ = HandleSubjectChangeAsync(generation);
+        });
     }
 
-    private async Task HandleSubjectChangeAsync()
+    private async Task HandleSubjectChangeAsync(int generation)
     {
         var session = _session;
-        if (_disposed || session is null)
+        if (_disposed)
         {
             return;
         }
 
-        if (session.HasLocalChanges)
+        if (session?.HasLocalChanges == true)
         {
             _isSubjectChanged = true;
             Raise(nameof(IsSubjectChanged));
@@ -445,7 +601,14 @@ public sealed class ConfiglueStateEditor<T>
         DetachSession();
         _isSubjectChanged = false;
         Raise(nameof(IsSubjectChanged));
-        await OpenSessionAsync(CancellationToken.None).ConfigureAwait(false);
+        try
+        {
+            await OpenSessionAsync(CancellationToken.None, generation).ConfigureAwait(false);
+        }
+        catch (Exception) when (_lifetimeToken.IsCancellationRequested)
+        {
+            // Disposal cancels pending notification work.
+        }
     }
 
     private void Reset(Action<EditSession<T>> operation)
@@ -509,16 +672,41 @@ public sealed class ConfiglueStateEditor<T>
         ErrorsChanged?.Invoke(this, new DataErrorsChangedEventArgs(string.Empty));
     }
 
+    private async ValueTask InvokeAsync(
+        Action action,
+        CancellationToken cancellationToken,
+        bool includeDisposed = false
+    )
+    {
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(
+            cancellationToken,
+            _lifetimeToken
+        );
+        await _dispatcher
+            .InvokeAsync(
+                () =>
+                {
+                    lock (_gate)
+                        if (includeDisposed || !_disposed)
+                            action();
+                },
+                linked.Token
+            )
+            .ConfigureAwait(false);
+    }
+
     private void RunOnDispatcher(Action action)
     {
+        void GuardedAction()
+        {
+            lock (_gate)
+                if (!_disposed)
+                    action();
+        }
         if (_dispatcher.CheckAccess())
-        {
-            action();
-        }
+            GuardedAction();
         else
-        {
-            _dispatcher.Post(action);
-        }
+            _dispatcher.Post(GuardedAction);
     }
 
     private void Raise(string propertyName) =>

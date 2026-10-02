@@ -48,6 +48,12 @@ public sealed class WinFormsConfiglueDispatcher : IConfiglueDispatcher
         _anchor.BeginInvoke(action);
     }
 
+    /// <inheritdoc />
+    /// <exception cref="InvalidOperationException">The control has no handle or cannot accept the callback.</exception>
+    /// <exception cref="ObjectDisposedException">The control is disposing or disposed.</exception>
+    public ValueTask InvokeAsync(Action action, CancellationToken cancellationToken = default) =>
+        ConfiglueDispatcher.InvokeAsync(this, action, cancellationToken);
+
     private static void EnsureAvailable(Control anchor)
     {
         if (anchor.IsDisposed || anchor.Disposing)

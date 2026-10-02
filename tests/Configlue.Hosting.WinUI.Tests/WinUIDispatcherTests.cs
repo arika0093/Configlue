@@ -30,6 +30,9 @@ public sealed class WinUIDispatcherTests
                     owner.TrySetResult(Environment.CurrentManagedThreadId);
             });
             var ownerThread = await owner.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            var invoked = 0;
+            await adapter.InvokeAsync(() => invoked = Environment.CurrentManagedThreadId);
+            invoked.ShouldBe(ownerThread);
             await reader.InitializeAsync();
             reader.PropertyChanged += (_, args) =>
             {
@@ -49,5 +52,8 @@ public sealed class WinUIDispatcherTests
             await controller.ShutdownQueueAsync();
         }
         Should.Throw<InvalidOperationException>(() => adapter.Post(static () => { }));
+        await Should.ThrowAsync<InvalidOperationException>(async () =>
+            await adapter.InvokeAsync(static () => { })
+        );
     }
 }

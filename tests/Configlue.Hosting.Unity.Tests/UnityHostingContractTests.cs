@@ -91,6 +91,47 @@ public sealed class UnityHostingContractTests
     }
 
     [Test]
+    public async Task DispatcherInvokeAsyncCompletesAfterContextRuns()
+    {
+        using var unity = UnityTestScope.Enter();
+        var context = new UnitySynchronizationContext();
+        SynchronizationContext.SetSynchronizationContext(context);
+        var dispatcher = new UnityConfiglueDispatcher();
+        Awaitable.IsMainThread = false;
+        var executed = false;
+
+        var completion = dispatcher.InvokeAsync(() => executed = true);
+
+        completion.IsCompleted.ShouldBeFalse();
+        executed.ShouldBeFalse();
+        context.RunPending();
+        await completion.ConfigureAwait(false);
+        executed.ShouldBeTrue();
+    }
+
+    [Test]
+    public async Task DispatcherExitCancelsPendingInvocationWithoutPumping()
+    {
+        using var unity = UnityTestScope.Enter();
+        var context = new UnitySynchronizationContext();
+        SynchronizationContext.SetSynchronizationContext(context);
+        using var exit = new CancellationTokenSource();
+        Application.exitCancellationToken = exit.Token;
+        var dispatcher = new UnityConfiglueDispatcher();
+        Awaitable.IsMainThread = false;
+        var executed = false;
+        var completion = dispatcher.InvokeAsync(() => executed = true);
+        exit.Cancel();
+        await Should
+            .ThrowAsync<OperationCanceledException>(async () =>
+                await completion.ConfigureAwait(false)
+            )
+            .ConfigureAwait(false);
+        context.RunPending();
+        executed.ShouldBeFalse();
+    }
+
+    [Test]
     public void DispatcherRejectsPostsAfterExit()
     {
         using var unity = UnityTestScope.Enter();

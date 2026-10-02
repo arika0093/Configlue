@@ -38,4 +38,26 @@ public sealed class WpfConfiglueDispatcher : IConfiglueDispatcher
         if (operation.Status == DispatcherOperationStatus.Aborted)
             throw new InvalidOperationException("The WPF dispatcher rejected the callback.");
     }
+
+    /// <inheritdoc />
+    /// <exception cref="InvalidOperationException">The dispatcher has begun shutdown.</exception>
+    public ValueTask InvokeAsync(Action action, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (_dispatcher.HasShutdownStarted || _dispatcher.HasShutdownFinished)
+            throw new InvalidOperationException("The WPF dispatcher is shutting down.");
+        if (_dispatcher.CheckAccess())
+        {
+            action();
+            return ValueTask.CompletedTask;
+        }
+
+        var operation = _dispatcher.InvokeAsync(
+            action,
+            DispatcherPriority.DataBind,
+            cancellationToken
+        );
+        return new ValueTask(operation.Task);
+    }
 }

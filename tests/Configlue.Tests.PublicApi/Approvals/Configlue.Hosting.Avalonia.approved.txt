@@ -6,6 +6,7 @@ namespace Configlue.Hosting.Avalonia
         public AvaloniaConfiglueDispatcher() { }
         public AvaloniaConfiglueDispatcher(Avalonia.Threading.Dispatcher dispatcher) { }
         public bool CheckAccess() { }
+        public System.Threading.Tasks.ValueTask InvokeAsync(System.Action action, System.Threading.CancellationToken cancellationToken = default) { }
         public void Post(System.Action action) { }
     }
 }

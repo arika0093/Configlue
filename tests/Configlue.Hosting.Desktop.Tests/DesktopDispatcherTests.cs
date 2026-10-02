@@ -54,6 +54,38 @@ public sealed class DesktopDispatcherTests
     }
 
     [Test]
+    [Arguments(true)]
+    [Arguments(false)]
+    public async Task InvokeAsync_FromBackgroundThread_RunsOnExplicitUiThread(bool wpf)
+    {
+        using var host = await UiThread.CreateAsync(wpf);
+        host.Dispatcher.CheckAccess().ShouldBeFalse();
+        var observed = 0;
+
+        await host.Dispatcher.InvokeAsync(() => observed = Environment.CurrentManagedThreadId);
+
+        observed.ShouldBe(host.ThreadId);
+    }
+
+    [Test]
+    [Arguments(true)]
+    [Arguments(false)]
+    public async Task InvokeAsync_AfterShutdown_FailsExplicitly(bool wpf)
+    {
+        var host = await UiThread.CreateAsync(wpf);
+        host.Dispose();
+        host.Dispatcher.CheckAccess().ShouldBeFalse();
+        if (wpf)
+            await Should.ThrowAsync<InvalidOperationException>(async () =>
+                await host.Dispatcher.InvokeAsync(static () => { })
+            );
+        else
+            await Should.ThrowAsync<ObjectDisposedException>(async () =>
+                await host.Dispatcher.InvokeAsync(static () => { })
+            );
+    }
+
+    [Test]
     public async Task Wpf_IndependentDispatchers_TargetTheirOwnThreads()
     {
         using var first = await UiThread.CreateAsync(true);
