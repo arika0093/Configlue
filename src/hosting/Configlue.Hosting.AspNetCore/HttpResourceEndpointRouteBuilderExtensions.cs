@@ -23,7 +23,7 @@ public static class HttpResourceEndpointRouteBuilderExtensions
     /// <param name="routeRoot">An absolute route prefix such as <c>/config/app</c>.</param>
     /// <param name="reader">The resource implementation used to read bytes and metadata.</param>
     /// <param name="writer">The optional resource implementation used to write bytes.</param>
-    /// <param name="options">The relative paths and payload media type.</param>
+    /// <param name="options">The relative paths, payload media type, and optional server-side operation-context resolver.</param>
     /// <returns>The route group containing the mapped endpoints.</returns>
     public static RouteGroupBuilder MapConfiglueHttpResource(
         this IEndpointRouteBuilder endpoints,
@@ -73,8 +73,10 @@ public static class HttpResourceEndpointRouteBuilderExtensions
             return;
         }
 
+        var resourceContext = await ResolveResourceContextAsync(context, options)
+            .ConfigureAwait(false);
         var result = await reader
-            .ReadAsync(ConfiglueResourceContext.Default, context.RequestAborted)
+            .ReadAsync(resourceContext, context.RequestAborted)
             .ConfigureAwait(false);
         var entityTag = FormatEntityTag(result.Revision);
         if (entityTag is not null)
@@ -92,20 +94,7 @@ public static class HttpResourceEndpointRouteBuilderExtensions
                 return;
             case StateReadStatus.Success:
                 AddSchemaHeaders(context.Response, result.Schema);
-                if (
-                    condition is { } ifNoneMatch
-                    && (
-                        ifNoneMatch.Wildcard
-                        || (
-                            entityTag is not null
-                            && string.Equals(
-                                ifNoneMatch.Tag,
-                                EntityTagHeaderValue.Parse(entityTag).Tag,
-                                StringComparison.Ordinal
-                            )
-                        )
-                    )
-                )
+                if (condition is { } ifNoneMatch && ifNoneMatch.Matches(entityTag))
                 {
                     context.Response.StatusCode = StatusCodes.Status304NotModified;
                     return;
@@ -197,11 +186,13 @@ public static class HttpResourceEndpointRouteBuilderExtensions
         }
 
         StateWriteResult result;
+        var resourceContext = await ResolveResourceContextAsync(context, options)
+            .ConfigureAwait(false);
         try
         {
             result = await writer
                 .WriteAsync(
-                    ConfiglueResourceContext.Default,
+                    resourceContext,
                     new ResourceWriteRequest(
                         content.GetBuffer().AsMemory(0, checked((int)content.Length)),
                         Condition: condition,
@@ -244,27 +235,65 @@ public static class HttpResourceEndpointRouteBuilderExtensions
             return true;
         }
 
-        if (values.Count != 1)
+        var tags = new List<EntityTagHeaderValue>();
+        var wildcard = false;
+        foreach (var rawValue in values)
+        {
+            if (string.IsNullOrWhiteSpace(rawValue))
+            {
+                return false;
+            }
+
+            var value = rawValue.Trim();
+            if (value == "*")
+            {
+                wildcard = true;
+                continue;
+            }
+
+            var start = 0;
+            var insideTag = false;
+            for (var index = 0; index < value.Length; index++)
+            {
+                if (value[index] == '"')
+                {
+                    insideTag = !insideTag;
+                }
+                else if (value[index] == ',' && !insideTag)
+                {
+                    if (!TryAddEntityTag(value.Substring(start, index - start), tags))
+                    {
+                        return false;
+                    }
+                    start = index + 1;
+                }
+            }
+
+            if (insideTag || !TryAddEntityTag(value.Substring(start), tags))
+            {
+                return false;
+            }
+        }
+
+        if (wildcard && (tags.Count != 0 || values.Count != 1))
+        {
+            return false;
+        }
+        if (!wildcard && tags.Count == 0)
         {
             return false;
         }
 
-        var rawValue = values[0];
-        if (string.IsNullOrWhiteSpace(rawValue))
-        {
-            return false;
-        }
+        condition = new ParsedIfNoneMatch(wildcard, tags.Select(static tag => tag.Tag).ToArray());
+        return true;
+    }
 
-        var value = rawValue.Trim();
-        if (value == "*")
-        {
-            condition = new ParsedIfNoneMatch(Wildcard: true, Tag: null);
-            return true;
-        }
-
+    private static bool TryAddEntityTag(string value, List<EntityTagHeaderValue> tags)
+    {
+        var trimmed = value.Trim();
         if (
-            value.Contains(',')
-            || !EntityTagHeaderValue.TryParse(value, out var entityTag)
+            string.IsNullOrEmpty(trimmed)
+            || !EntityTagHeaderValue.TryParse(trimmed, out var entityTag)
             || entityTag is null
             || entityTag.Tag == "*"
         )
@@ -272,9 +301,17 @@ public static class HttpResourceEndpointRouteBuilderExtensions
             return false;
         }
 
-        condition = new ParsedIfNoneMatch(Wildcard: false, entityTag.Tag);
+        tags.Add(entityTag);
         return true;
     }
+
+    private static ValueTask<ConfiglueResourceContext> ResolveResourceContextAsync(
+        HttpContext context,
+        ValidatedOptions options
+    ) =>
+        options.ResourceContextResolver is { } resolver
+            ? resolver(context, context.RequestAborted)
+            : ValueTask.FromResult(ConfiglueResourceContext.Default);
 
     private static bool TryReadWriteCondition(HttpRequest request, out RevisionCondition condition)
     {
@@ -511,7 +548,8 @@ public static class HttpResourceEndpointRouteBuilderExtensions
             contentType.ToString(),
             mediaType,
             options.RequireAuthorization,
-            options.MaximumRequestBodySize
+            options.MaximumRequestBodySize,
+            options.ResourceContextResolver
         );
     }
 
@@ -588,6 +626,11 @@ public static class HttpResourceEndpointRouteBuilderExtensions
         public string MediaType { get; init; }
         public bool RequireAuthorization { get; init; }
         public long? MaximumRequestBodySize { get; init; }
+        public Func<
+            HttpContext,
+            CancellationToken,
+            ValueTask<ConfiglueResourceContext>
+        >? ResourceContextResolver { get; init; }
 
         public ValidatedOptions(
             string GetPath,
@@ -595,7 +638,12 @@ public static class HttpResourceEndpointRouteBuilderExtensions
             string ContentType,
             string MediaType,
             bool RequireAuthorization,
-            long? MaximumRequestBodySize
+            long? MaximumRequestBodySize,
+            Func<
+                HttpContext,
+                CancellationToken,
+                ValueTask<ConfiglueResourceContext>
+            >? ResourceContextResolver
         )
         {
             this.GetPath = GetPath;
@@ -604,6 +652,7 @@ public static class HttpResourceEndpointRouteBuilderExtensions
             this.MediaType = MediaType;
             this.RequireAuthorization = RequireAuthorization;
             this.MaximumRequestBodySize = MaximumRequestBodySize;
+            this.ResourceContextResolver = ResourceContextResolver;
         }
 
         public void Deconstruct(
@@ -627,18 +676,28 @@ public static class HttpResourceEndpointRouteBuilderExtensions
     private sealed record ParsedIfNoneMatch
     {
         public bool Wildcard { get; init; }
-        public string? Tag { get; init; }
+        public string[] Tags { get; init; }
 
-        public ParsedIfNoneMatch(bool Wildcard, string? Tag)
+        public ParsedIfNoneMatch(bool Wildcard, string[] Tags)
         {
             this.Wildcard = Wildcard;
-            this.Tag = Tag;
+            this.Tags = Tags;
         }
 
-        public void Deconstruct(out bool Wildcard, out string? Tag)
+        public bool Matches(string? currentEntityTag)
         {
-            Wildcard = this.Wildcard;
-            Tag = this.Tag;
+            if (Wildcard)
+            {
+                return true;
+            }
+
+            if (currentEntityTag is null)
+            {
+                return false;
+            }
+
+            var currentTag = EntityTagHeaderValue.Parse(currentEntityTag).Tag;
+            return Tags.Contains(currentTag, StringComparer.Ordinal);
         }
     }
 }

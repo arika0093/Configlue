@@ -1,10 +1,14 @@
 using System.Net;
 using System.Net.Http.Headers;
+using System.Collections.Concurrent;
+using System.Security.Claims;
 using System.Text;
 using System.Text.Encodings.Web;
 using Configlue;
 using Configlue.Hosting.AspNetCore;
 using Configlue.Resource.Http;
+using Configlue.Resources;
+using Configlue.State;
 using Configlue.Testing;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
@@ -59,6 +63,14 @@ public sealed class HttpResourceEndpointTests
         anyExisting.Headers.TryAddWithoutValidation("If-None-Match", "*");
         using var unchangedForWildcard = await httpClient.SendAsync(anyExisting);
         unchangedForWildcard.StatusCode.ShouldBe(HttpStatusCode.NotModified);
+
+        using var anyMatchingTag = new HttpRequestMessage(HttpMethod.Get, reader.GetUri);
+        anyMatchingTag.Headers.TryAddWithoutValidation(
+            "If-None-Match",
+            $"\"stale\", {firstRead.Revision}"
+        );
+        using var unchangedForList = await httpClient.SendAsync(anyMatchingTag);
+        unchangedForList.StatusCode.ShouldBe(HttpStatusCode.NotModified);
 
         var secondContent = Encoding.UTF8.GetBytes("{\"RetryCount\":6}");
         var secondWrite = await writer.WriteAsync(
@@ -123,6 +135,105 @@ public sealed class HttpResourceEndpointTests
         );
         update.StatusCode.ShouldBe(HttpStatusCode.NotFound);
         resource.WriteCount.ShouldBe(0);
+    }
+
+    [Test]
+    public async Task Endpoint_UsesTrustedResolvedContextForReadsAndWritesAcrossRoutes()
+    {
+        var japan = new ConfiglueResourceContext(
+            "http-settings",
+            new EndpointSubject(SubjectKey.From("japan")),
+            ResourceKey.From("japan-resource"),
+            RouteKey.From("asia")
+        );
+        var europe = new ConfiglueResourceContext(
+            "http-settings",
+            new EndpointSubject(SubjectKey.From("europe")),
+            ResourceKey.From("europe-resource"),
+            RouteKey.From("eu")
+        );
+        var resource = new ContextAwareResource();
+        resource.Set(japan, Encoding.UTF8.GetBytes("japan-before"));
+        resource.Set(europe, Encoding.UTF8.GetBytes("europe-before"));
+        var trustedContexts = new Dictionary<string, ConfiglueResourceContext>(StringComparer.Ordinal)
+        {
+            ["japan"] = japan,
+            ["europe"] = europe,
+        };
+        await using var app = await StartAppAsync(endpoints =>
+            endpoints.MapConfiglueHttpResource(
+                "/config/{region}",
+                resource,
+                resource,
+                new HttpResourceEndpointOptions
+                {
+                    ResourceContextResolver = (httpContext, cancellationToken) =>
+                    {
+                        cancellationToken.ThrowIfCancellationRequested();
+                        var authenticatedSubject = httpContext.User.FindFirst("sub")?.Value;
+                        return ValueTask.FromResult(trustedContexts[authenticatedSubject!]);
+                    },
+                }
+            ),
+            configureApplication: application =>
+                application.Use(async (httpContext, next) =>
+                {
+                    var region = httpContext.Request.RouteValues["region"]?.ToString();
+                    var subject = region switch
+                    {
+                        "jp" => "japan",
+                        "eu" => "europe",
+                        _ => throw new InvalidOperationException("The route is not authorized."),
+                    };
+                    httpContext.User = new ClaimsPrincipal(
+                        new ClaimsIdentity([new Claim("sub", subject)], "trusted-test")
+                    );
+                    await next();
+                })
+        );
+        using var httpClient = app.GetTestClient();
+
+        using var japanRead = await httpClient.GetAsync("http://localhost/config/jp/get");
+        (await japanRead.Content.ReadAsStringAsync()).ShouldBe("japan-before");
+        resource.ReadContexts.Last().ShouldBe(japan);
+        using var europeRead = await httpClient.GetAsync("http://localhost/config/eu/get");
+        (await europeRead.Content.ReadAsStringAsync()).ShouldBe("europe-before");
+        resource.ReadContexts.Last().ShouldBe(europe);
+
+        using var update = new HttpRequestMessage(HttpMethod.Put, "http://localhost/config/jp/update")
+        {
+            Content = new ByteArrayContent(Encoding.UTF8.GetBytes("japan-after")),
+        };
+        update.Content.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
+        update.Headers.TryAddWithoutValidation("X-Configlue-Model", "attacker-model");
+        update.Headers.TryAddWithoutValidation("X-Configlue-Key", "attacker-key");
+        update.Headers.TryAddWithoutValidation("X-Configlue-Route", "attacker-route");
+        using var updated = await httpClient.SendAsync(update);
+
+        updated.StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        resource.WriteContexts.Last().ShouldBe(japan);
+        Encoding.UTF8.GetString(resource.Get(japan)).ShouldBe("japan-after");
+        Encoding.UTF8.GetString(resource.Get(europe)).ShouldBe("europe-before");
+    }
+
+    [Test]
+    public async Task Endpoint_UsesDefaultContextWhenResolverIsNotConfigured()
+    {
+        var resource = new ContextAwareResource();
+        await using var app = await StartAppAsync(endpoints =>
+            endpoints.MapConfiglueHttpResource("/config", resource, resource)
+        );
+        using var httpClient = app.GetTestClient();
+
+        using var response = await httpClient.GetAsync("http://localhost/config/get");
+
+        response.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        resource.ReadContexts.Last().ShouldBe(ConfiglueResourceContext.Default);
+
+        using var update = CreateWriteRequest(new Uri("http://localhost/config/update"));
+        using var updated = await httpClient.SendAsync(update);
+        updated.StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        resource.WriteContexts.Last().ShouldBe(ConfiglueResourceContext.Default);
     }
 
     [Test]
@@ -263,7 +374,8 @@ public sealed class HttpResourceEndpointTests
 
     private static async Task<WebApplication> StartAppAsync(
         Action<Microsoft.AspNetCore.Routing.IEndpointRouteBuilder> mapEndpoints,
-        bool allowAuthorization = true
+        bool allowAuthorization = true,
+        Action<WebApplication>? configureApplication = null
     )
     {
         var builder = WebApplication.CreateBuilder();
@@ -277,6 +389,7 @@ public sealed class HttpResourceEndpointTests
                 .Build()
         );
         var app = builder.Build();
+        configureApplication?.Invoke(app);
         mapEndpoints(app);
         await app.StartAsync();
         return app;
@@ -301,6 +414,49 @@ public sealed class HttpResourceEndpointTests
         {
             cancellationToken.ThrowIfCancellationRequested();
             return ValueTask.FromResult(result);
+        }
+    }
+
+    private sealed record EndpointSubject(SubjectKey Key) : IConfiglueSubject;
+
+    private sealed class ContextAwareResource : IResourceReader, IResourceWriter
+    {
+        private readonly ConcurrentDictionary<(string? ModelId, ResourceKey Key, RouteKey Route), byte[]> _states = new();
+        private long _revision;
+
+        public ConcurrentQueue<ConfiglueResourceContext> ReadContexts { get; } = new();
+        public ConcurrentQueue<ConfiglueResourceContext> WriteContexts { get; } = new();
+
+        public void Set(ConfiglueResourceContext context, byte[] content) =>
+            _states[(context.ModelId, context.ResourceKey, context.Route)] = content;
+
+        public byte[] Get(ConfiglueResourceContext context) =>
+            _states[(context.ModelId, context.ResourceKey, context.Route)];
+
+        public ValueTask<ResourceReadResult> ReadAsync(
+            ConfiglueResourceContext context,
+            CancellationToken cancellationToken = default
+        )
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            ReadContexts.Enqueue(context);
+            return ValueTask.FromResult(
+                _states.TryGetValue((context.ModelId, context.ResourceKey, context.Route), out var content)
+                    ? ResourceReadResult.Success(content, $"revision:{Interlocked.Read(ref _revision)}")
+                    : ResourceReadResult.NotFound()
+            );
+        }
+
+        public ValueTask<StateWriteResult> WriteAsync(
+            ConfiglueResourceContext context,
+            ResourceWriteRequest request,
+            CancellationToken cancellationToken = default
+        )
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            WriteContexts.Enqueue(context);
+            _states[(context.ModelId, context.ResourceKey, context.Route)] = request.Content.ToArray();
+            return ValueTask.FromResult(new StateWriteResult($"revision:{Interlocked.Increment(ref _revision)}"));
         }
     }
 

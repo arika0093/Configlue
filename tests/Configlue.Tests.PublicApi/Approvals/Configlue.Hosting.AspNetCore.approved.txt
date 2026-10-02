@@ -29,6 +29,7 @@ namespace Configlue.Hosting.AspNetCore
         public string GetPath { get; init; }
         public long? MaximumRequestBodySize { get; init; }
         public bool RequireAuthorization { get; init; }
+        public System.Func<Microsoft.AspNetCore.Http.HttpContext, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<Configlue.Resources.ConfiglueResourceContext>>? ResourceContextResolver { get; init; }
         public string UpdatePath { get; init; }
     }
     public static class HttpResourceEndpointRouteBuilderExtensions
