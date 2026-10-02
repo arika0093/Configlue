@@ -266,7 +266,11 @@ public sealed class ConfiglueModelBuilder<TModel>
         }
     }
 
-    /// <summary>Sets the delay between a source change and a watcher notification.</summary>
+    /// <summary>
+    /// Sets the delay between a source change and a watcher notification. The window starts on the
+    /// first observed invalidation, and invalidations that arrive before it expires are coalesced
+    /// into a single trailing read that observes the latest state.
+    /// </summary>
     public TimeSpan? OnChangeDebounce
     {
         get => _onChangeDebounce;

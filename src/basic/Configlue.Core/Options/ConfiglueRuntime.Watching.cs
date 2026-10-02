@@ -40,7 +40,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                     .ConfigureAwait(false);
                 if (_onChangeDebounce > TimeSpan.Zero)
                 {
-                    await Task.Delay(_onChangeDebounce, cancellationToken).ConfigureAwait(false);
+                    await DelayForChangeDebounceAsync(cancellationToken).ConfigureAwait(false);
                 }
 
                 reloadStarted = true;
@@ -105,6 +105,15 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                 }
             }
         }
+    }
+
+    private Task DelayForChangeDebounceAsync(CancellationToken cancellationToken)
+    {
+#if NETSTANDARD
+        return _timeProvider.Delay(_onChangeDebounce, cancellationToken);
+#else
+        return Task.Delay(_onChangeDebounce, _timeProvider, cancellationToken);
+#endif
     }
 
     private async Task WaitForAnyChangeAsync(

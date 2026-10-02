@@ -38,7 +38,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                     .ConfigureAwait(false);
                 if (_onChangeDebounce > TimeSpan.Zero)
                 {
-                    await Task.Delay(_onChangeDebounce, cancellationToken).ConfigureAwait(false);
+                    await DelayForChangeDebounceAsync(cancellationToken).ConfigureAwait(false);
                 }
 
                 reloadStarted = true;

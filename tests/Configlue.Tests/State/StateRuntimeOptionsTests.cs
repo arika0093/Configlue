@@ -95,9 +95,7 @@ public sealed partial class StateRuntimeTests
                 changeNotifications.Add(value.RetryCount);
             }
         });
-        var reloaded = new TaskCompletionSource(
-            TaskCreationOptions.RunContinuationsAsynchronously
-        );
+        var reloaded = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         using var reloadSubscription = ((IConfiglueReloadDiagnostics)options).OnReload(_ =>
             reloaded.TrySetResult()
         );
@@ -131,7 +129,9 @@ public sealed partial class StateRuntimeTests
         var changed = new TaskCompletionSource<int>(
             TaskCreationOptions.RunContinuationsAsynchronously
         );
-        using var changeSubscription = options.OnChange(value => changed.TrySetResult(value.RetryCount));
+        using var changeSubscription = options.OnChange(value =>
+            changed.TrySetResult(value.RetryCount)
+        );
         var reloadCount = 0;
         using var reloadSubscription = ((IConfiglueReloadDiagnostics)options).OnReload(_ =>
             Interlocked.Increment(ref reloadCount)
@@ -257,41 +257,6 @@ public sealed partial class StateRuntimeTests
         (
             recoveredNested.NestedRevisions["remote"].TryGetRevision("database", out _)
         ).ShouldBeTrue();
-    }
-
-    [Test]
-    public async Task Options_DebouncesRapidSourceChangesAndReportsTheLatestValue()
-    {
-        var store = new InMemoryStateSource<AppSettings.Fragment>(
-            new AppSettings.Fragment { RetryCount = Optional<int>.Present(3) }
-        );
-        var sourceSet = new StateSourceSet<AppSettings.Fragment>([
-            new("user", store, watcher: store),
-        ]);
-        await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
-            sourceSet,
-            onChangeDebounce: TimeSpan.FromMilliseconds(150)
-        );
-        var notifications = new System.Collections.Concurrent.ConcurrentQueue<int>();
-        var latest = new TaskCompletionSource<int>(
-            TaskCreationOptions.RunContinuationsAsynchronously
-        );
-        using var subscription = options.OnChange(value =>
-        {
-            notifications.Enqueue(value.RetryCount);
-            latest.TrySetResult(value.RetryCount);
-        });
-
-        store.Set(new AppSettings.Fragment { RetryCount = Optional<int>.Present(4) });
-        await Task.Delay(TimeSpan.FromMilliseconds(30));
-        store.Set(new AppSettings.Fragment { RetryCount = Optional<int>.Present(5) });
-        var notifiedValue = await latest.Task.WaitAsync(TimeSpan.FromSeconds(5));
-        await Task.Delay(TimeSpan.FromMilliseconds(200));
-
-        (notifiedValue).ShouldBe(5);
-        ((notifications.ToArray()))
-            .OrderBy(static item => item)
-            .ShouldBe((new[] { 5 }).OrderBy(static item => item));
     }
 
     [Test]

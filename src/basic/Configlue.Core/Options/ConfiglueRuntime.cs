@@ -62,6 +62,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
     private readonly ReadValidationMode _readValidationMode;
     private readonly WriteConflictResolution _writeConflictResolution;
     private readonly TimeSpan _onChangeDebounce;
+    private readonly TimeProvider _timeProvider;
     private readonly RuntimeDiagnosticRecorder _diagnostics;
     private readonly object _changeGate = new();
     private readonly AsyncLocal<IConfiglueSubject?> _subjectContext = new();
@@ -106,7 +107,8 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         ILogger? logger = null,
         ReadValidationMode readValidationMode = ReadValidationMode.EffectiveThrow,
         WriteConflictResolution writeConflictResolution = WriteConflictResolution.FailOnConflict,
-        ConfiglueRuntimeDiagnosticOptions? diagnostics = null
+        ConfiglueRuntimeDiagnosticOptions? diagnostics = null,
+        TimeProvider? timeProvider = null
     )
         : this(
             sourceSet,
@@ -120,7 +122,8 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             cloneStrategy: null,
             readValidationMode: readValidationMode,
             writeConflictResolution: writeConflictResolution,
-            diagnostics: diagnostics
+            diagnostics: diagnostics,
+            timeProvider: timeProvider
         ) { }
 
     /// <summary>Creates state with a custom model clone strategy.</summary>
@@ -136,7 +139,8 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         Func<TModel, TModel>? cloneStrategy,
         ReadValidationMode readValidationMode = ReadValidationMode.EffectiveThrow,
         WriteConflictResolution writeConflictResolution = WriteConflictResolution.FailOnConflict,
-        ConfiglueRuntimeDiagnosticOptions? diagnostics = null
+        ConfiglueRuntimeDiagnosticOptions? diagnostics = null,
+        TimeProvider? timeProvider = null
     )
     {
         ArgumentNullException.ThrowIfNull(sourceSet);
@@ -175,6 +179,8 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                 "Change debounce cannot be negative."
             );
         }
+
+        _timeProvider = timeProvider ?? TimeProvider.System;
 
         if (_validators.Any(static validator => validator is null))
         {
