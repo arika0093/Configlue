@@ -9,6 +9,46 @@ namespace Configlue.Generator.Compatibility.Tests;
 public sealed class GeneratorHostCompatibilityTests
 {
     [Test]
+    public void StandaloneTypedMutationCompilesWithCSharp9Host()
+    {
+        const string source = """
+            using SparseFragments;
+            [SparseFragmentModel]
+            public partial class Settings
+            {
+                public Child Child { get; set; } = new Child();
+                public int Count { get; set; }
+            }
+            public class Child { public int Value { get; set; } }
+            public static class Consumer
+            {
+                public static Settings.Fragment Edit(Settings.Fragment input)
+                {
+                    var patch = new Settings.Patch { Count = FragmentOperation<int>.Unset };
+                    patch.Child.Value = 7;
+                    var builder = input.Apply(patch).ToBuilder();
+                    builder.Count = 9;
+                    return builder.Build();
+                }
+            }
+            """;
+        var options = new CSharpParseOptions(LanguageVersion.CSharp9);
+        var tree = CSharpSyntaxTree.ParseText(source, options);
+        var driver = CSharpGeneratorDriver.Create(
+            new[] { new SparseFragments.Generator.SparseFragmentsGenerator().AsSourceGenerator() },
+            parseOptions: options
+        );
+        driver.RunGeneratorsAndUpdateCompilation(
+            CreateCompilation(tree),
+            out var output,
+            out var diagnostics
+        );
+        diagnostics.ShouldBeEmpty();
+        var emit = output.Emit(Stream.Null);
+        emit.Success.ShouldBeTrue(BuildDiagnosticMessage(emit.Diagnostics));
+    }
+
+    [Test]
     [Arguments(false, false)]
     [Arguments(true, false)]
     [Arguments(false, true)]

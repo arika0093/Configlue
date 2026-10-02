@@ -41,43 +41,12 @@ public sealed partial class ConfiglueGenerator
             2,
             "public global::Configlue.ConfiglueModelSchema Schema => ConfiglueSchema;"
         );
-        foreach (var member in members)
-        {
-            var name = EscapeIdentifier(member.Property.Name);
-            var field = MemberBackingField(member);
-            if (member.ChildModel is null)
-            {
-                code.AppendIndent(2)
-                    .Append("private global::Configlue.FragmentOperation<")
-                    .Append(FragmentValueType(member))
-                    .Append("> ")
-                    .Append(field)
-                    .AppendLine(";");
-                code.AppendIndent(2)
-                    .Append("public ref global::Configlue.FragmentOperation<")
-                    .Append(FragmentValueType(member))
-                    .Append("> ")
-                    .Append(name)
-                    .Append(" => ref ")
-                    .Append(field)
-                    .AppendLine(";");
-            }
-            else
-            {
-                var nestedPatchType = NestedPatchType(member);
-                code.AppendIndent(2)
-                    .Append("private ")
-                    .Append(nestedPatchType)
-                    .Append("? ")
-                    .Append(field)
-                    .AppendLine(";");
-                code.AppendLineAt(2, "public " + nestedPatchType + " " + name);
-                code.AppendLineAt(2, "{");
-                code.AppendLineAt(3, "get => " + field + " ??= new " + nestedPatchType + "();");
-                code.AppendLineAt(3, "set => " + field + " = value;");
-                code.AppendLineAt(2, "}");
-            }
-        }
+        SparseFragments.Generator.Shared.SparseFragmentPatchEmitter.AppendPatchMembers(
+            code,
+            members.Select(ToSparseMember).ToImmutableArray(),
+            "global::Configlue.",
+            static member => "__configlue_member_" + member.Property.Name
+        );
 
         code.AppendLineAt(
             2,
