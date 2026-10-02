@@ -27,6 +27,7 @@ public sealed class RedisResource
     private readonly bool _routeAwareIdentity;
     private readonly ResidencyCache<object, IRedisStateBackend>? _backendCache;
     private readonly ResidencyCache<RouteKey, IRedisStateBackend>? _testBackendCache;
+    private readonly WatchShutdown _watchShutdown = new();
     private int _disposed;
 
     /// <summary>Creates a resource that uses one shared multiplexer.</summary>
@@ -186,8 +187,16 @@ public sealed class RedisResource
     )
     {
         using var backend = AcquireBackend(context.Route);
-        await backend
-            .Value.WaitForChangeAsync(ResolveAddress(context), observedRevision, cancellationToken)
+        await _watchShutdown
+            .WaitAsync(
+                watchCancellationToken =>
+                    backend.Value.WaitForChangeAsync(
+                        ResolveAddress(context),
+                        observedRevision,
+                        watchCancellationToken
+                    ),
+                cancellationToken
+            )
             .ConfigureAwait(false);
     }
 
@@ -199,6 +208,7 @@ public sealed class RedisResource
             return;
         }
 
+        _watchShutdown.Signal();
         _backendCache?.Dispose();
         _testBackendCache?.Dispose();
     }

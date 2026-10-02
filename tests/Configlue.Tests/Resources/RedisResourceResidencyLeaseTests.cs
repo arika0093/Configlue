@@ -66,6 +66,43 @@ public sealed class RedisResourceResidencyLeaseTests
         backend.DisposeCount.ShouldBe(1);
     }
 
+    [Test]
+    [Arguments(false)]
+    [Arguments(true)]
+    public async Task DisposeCancelsWatchAndRetainsBackendThroughCleanup(bool callerCancels)
+    {
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var backend = new BlockingRedisStateBackend(
+            entered,
+            release,
+            observeWatchCancellation: true
+        );
+        using var owner = new RedisResource(_ => new object(), _ => backend, "settings", null);
+        using var cancellation = new CancellationTokenSource();
+        var watch = owner
+            .WaitForChangeAsync(CreateContext("tenant"), null, cancellation.Token)
+            .AsTask();
+        await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        owner.Dispose();
+        await backend.WatchCancellationObserved.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        backend.DisposeCount.ShouldBe(0);
+        watch.IsCompleted.ShouldBeFalse();
+        if (callerCancels)
+            cancellation.Cancel();
+        release.TrySetResult();
+        if (callerCancels)
+        {
+            var exception = await Should.ThrowAsync<OperationCanceledException>(async () =>
+                await watch.WaitAsync(TimeSpan.FromSeconds(5))
+            );
+            exception.CancellationToken.ShouldBe(cancellation.Token);
+        }
+        else
+            await watch.WaitAsync(TimeSpan.FromSeconds(5));
+        backend.DisposeCount.ShouldBe(1);
+    }
+
     private static ConfiglueResourceContext CreateContext(
         string subject,
         RouteKey route = default,
@@ -83,11 +120,19 @@ public sealed class RedisResourceResidencyLeaseTests
         private readonly TaskCompletionSource _entered;
         private readonly TaskCompletionSource _release;
         private int _disposeCount;
+        private readonly bool _observeWatchCancellation;
+        public TaskCompletionSource WatchCancellationObserved { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        public BlockingRedisStateBackend(TaskCompletionSource entered, TaskCompletionSource release)
+        public BlockingRedisStateBackend(
+            TaskCompletionSource entered,
+            TaskCompletionSource release,
+            bool observeWatchCancellation = false
+        )
         {
             _entered = entered;
             _release = release;
+            _observeWatchCancellation = observeWatchCancellation;
         }
 
         public int DisposeCount => Volatile.Read(ref _disposeCount);
@@ -120,6 +165,19 @@ public sealed class RedisResourceResidencyLeaseTests
         )
         {
             _entered.TrySetResult();
+            if (_observeWatchCancellation)
+            {
+                try
+                {
+                    await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    WatchCancellationObserved.TrySetResult();
+                    await _release.Task;
+                    throw;
+                }
+            }
             await _release.Task;
         }
 

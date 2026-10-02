@@ -27,6 +27,7 @@ public sealed class PostgreSqlSource<T>
     private readonly bool _routeAwareIdentity;
     private readonly ResidencyCache<object, IPostgreSqlStateBackend>? _backendCache;
     private readonly ResidencyCache<RouteKey, IPostgreSqlStateBackend>? _testBackendCache;
+    private readonly WatchShutdown _watchShutdown = new();
     private int _disposed;
 
     /// <summary>Creates a source whose subject operations use one shared data source.</summary>
@@ -280,12 +281,16 @@ public sealed class PostgreSqlSource<T>
     )
     {
         using var backend = AcquireBackend(context.Route);
-        await backend
-            .Value.WaitForChangeAsync(
-                ResourceNamespace,
-                context.ModelId ?? string.Empty,
-                context.Key.Value,
-                observedRevision,
+        await _watchShutdown
+            .WaitAsync(
+                watchCancellationToken =>
+                    backend.Value.WaitForChangeAsync(
+                        ResourceNamespace,
+                        context.ModelId ?? string.Empty,
+                        context.Key.Value,
+                        observedRevision,
+                        watchCancellationToken
+                    ),
                 cancellationToken
             )
             .ConfigureAwait(false);
@@ -299,6 +304,7 @@ public sealed class PostgreSqlSource<T>
             return;
         }
 
+        _watchShutdown.Signal();
         _backendCache?.Dispose();
         _testBackendCache?.Dispose();
     }
