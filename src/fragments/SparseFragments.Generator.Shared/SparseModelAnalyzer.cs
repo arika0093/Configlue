@@ -192,6 +192,11 @@ internal static class SparseModelAnalyzer
                     )
             )
                 continue;
+            if (ContainsUnregisterableCloneCycle(property.Type, config, cancellationToken))
+            {
+                yield return property;
+                continue;
+            }
             var types = new Stack<(ITypeSymbol Type, bool ReferenceSafe)>();
             types.Push((property.Type, false));
             while (types.Count > 0)
@@ -212,6 +217,179 @@ internal static class SparseModelAnalyzer
             }
             visited.Clear();
         }
+    }
+
+    private static bool ContainsUnregisterableCloneCycle(
+        ITypeSymbol type,
+        SparseGeneratorConfig config,
+        CancellationToken cancellationToken
+    ) =>
+        ContainsUnregisterableCloneCycle(
+            type,
+            config,
+            cancellationToken,
+            new List<INamedTypeSymbol>()
+        );
+
+    private static bool ContainsUnregisterableCloneCycle(
+        ITypeSymbol type,
+        SparseGeneratorConfig config,
+        CancellationToken cancellationToken,
+        List<INamedTypeSymbol> path
+    )
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (type is IArrayTypeSymbol array)
+            return ContainsUnregisterableCloneCycle(
+                array.ElementType,
+                config,
+                cancellationToken,
+                path
+            );
+        if (type is not INamedTypeSymbol named)
+            return false;
+        if (named.OriginalDefinition.SpecialType == SpecialType.System_Nullable_T)
+            return ContainsUnregisterableCloneCycle(
+                named.TypeArguments[0],
+                config,
+                cancellationToken,
+                path
+            );
+        var collection = SparseCollectionAnalyzer.GetCollectionInfo(named);
+        if (collection.CloneKind != SparseCloneCollectionKind.Unsupported)
+        {
+            if (
+                collection.ElementType is not null
+                && ContainsUnregisterableCloneCycle(
+                    collection.ElementType,
+                    config,
+                    cancellationToken,
+                    path
+                )
+            )
+                return true;
+            return collection.ValueType is not null
+                && ContainsUnregisterableCloneCycle(
+                    collection.ValueType,
+                    config,
+                    cancellationToken,
+                    path
+                );
+        }
+        if (
+            !IsFragmentModel(named, config, cancellationToken)
+            && ClassifyStructuralType(named, config, cancellationToken)
+                != StructuralTypeKind.StructuralObject
+        )
+            return false;
+
+        var cycleStart = path.FindIndex(candidate =>
+            SymbolEqualityComparer.Default.Equals(candidate, named)
+        );
+        if (cycleStart >= 0)
+        {
+            for (var index = cycleStart; index < path.Count; index++)
+                if (HasPreRegistrationCloneCycle(path[index], config, cancellationToken))
+                    return true;
+            return false;
+        }
+
+        path.Add(named);
+        foreach (
+            var property in GetMembers(named, config, cancellationToken)
+                .Select(static member => member.Property)
+        )
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (
+                property
+                    .GetAttributes()
+                    .Any(attribute =>
+                        attribute.AttributeClass?.ToDisplayString()
+                        == config.CloneReferenceSafeAttributeMetadataName
+                    )
+            )
+                continue;
+            if (ContainsUnregisterableCloneCycle(property.Type, config, cancellationToken, path))
+                return true;
+        }
+        path.RemoveAt(path.Count - 1);
+        return false;
+    }
+
+    private static bool HasPreRegistrationCloneCycle(
+        INamedTypeSymbol model,
+        SparseGeneratorConfig config,
+        CancellationToken cancellationToken
+    )
+    {
+        var fragmentModel = IsFragmentModel(model, config, cancellationToken);
+        var members = GetMembers(model, config, cancellationToken).ToImmutableArray();
+        if (model.TypeKind == TypeKind.Struct)
+            return members.Any(member =>
+                CanReachCloneType(member.Property.Type, model, config, cancellationToken)
+            );
+
+        var constructor = fragmentModel
+            ? ModelConstructorBinding.AnalyzeRoot(model, cancellationToken)
+            : ModelConstructorBinding.AnalyzeStructural(model, cancellationToken);
+        if (constructor is null)
+            return false;
+
+        IEnumerable<SparseSymbolMemberModel> preRegistrationMembers;
+        if (fragmentModel)
+        {
+            var generatedMembers = CreateMemberModels(members, config, cancellationToken);
+            if (
+                constructor.Parameters.IsEmpty
+                && ModelConstructionPlan.ForMembers(generatedMembers).CanOverlayAfterConstruction
+            )
+                return false;
+            preRegistrationMembers = members;
+        }
+        else
+        {
+            if (constructor.Parameters.IsEmpty)
+                return false;
+            var boundNames = new HashSet<string>(
+                constructor.Parameters.Select(static parameter => parameter.PropertyName),
+                StringComparer.Ordinal
+            );
+            preRegistrationMembers = members.Where(member =>
+                boundNames.Contains(member.Property.Name)
+            );
+        }
+
+        return preRegistrationMembers.Any(member =>
+            CanReachCloneType(member.Property.Type, model, config, cancellationToken)
+        );
+    }
+
+    private static bool CanReachCloneType(
+        ITypeSymbol type,
+        INamedTypeSymbol target,
+        SparseGeneratorConfig config,
+        CancellationToken cancellationToken
+    )
+    {
+        var pending = new Stack<ITypeSymbol>();
+        var visited = new HashSet<ITypeSymbol>(SymbolEqualityComparer.Default);
+        pending.Push(type);
+        while (pending.Count > 0)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var current = pending.Pop();
+            if (SymbolEqualityComparer.Default.Equals(current, target))
+                return true;
+            if (!visited.Add(current))
+                continue;
+            foreach (
+                var (nested, referenceSafe) in GetCloneChildren(current, config, cancellationToken)
+            )
+                if (!referenceSafe)
+                    pending.Push(nested);
+        }
+        return false;
     }
 
     private static bool IsCloneSupported(

@@ -91,7 +91,7 @@ public sealed class SparseFragmentsGenerator : IIncrementalGenerator
     private static readonly DiagnosticDescriptor UnsupportedClone = new(
         SparseDiagnosticIds.UnsupportedClone,
         "Unsupported deep clone member",
-        "Member '{0}' has a type that cannot be deeply cloned; use a supported structural type or collection, or explicitly mark a reference-safe property with SparseCloneReferenceSafe",
+        "Member '{0}' has a reference shape that cannot be deeply cloned safely (unsupported type or constructor-bound cycle); use a supported structural type or collection, or explicitly mark a reference-safe property with SparseCloneReferenceSafe",
         "SparseFragments",
         DiagnosticSeverity.Error,
         true

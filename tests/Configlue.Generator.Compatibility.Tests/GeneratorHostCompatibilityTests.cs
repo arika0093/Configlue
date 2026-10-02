@@ -59,6 +59,41 @@ public sealed class GeneratorHostCompatibilityTests
     }
 
     [Test]
+    [Arguments(false)]
+    [Arguments(true)]
+    public void ConstructorBoundReferenceCyclesRequireAnExplicitClonePolicy(bool standalone)
+    {
+        var runtime = standalone ? "SparseFragments" : "Configlue";
+        var attribute = standalone
+            ? "SparseFragmentModel"
+            : "ConfiglueModel(\"constructor-cycle\")";
+        var source = $$"""
+            using {{runtime}};
+            [{{attribute}}]
+            public partial class Settings
+            {
+                public Settings(int value) => Value = value;
+                public int Value { get; }
+                public Settings? Next { get; set; }
+            }
+            """;
+        var options = new CSharpParseOptions(LanguageVersion.Latest);
+        var compilation = CreateCompilation(CSharpSyntaxTree.ParseText(source, options));
+        IIncrementalGenerator generator = standalone
+            ? new SparseFragments.Generator.SparseFragmentsGenerator()
+            : new ConfiglueGenerator();
+        var result = CSharpGeneratorDriver
+            .Create(new[] { generator.AsSourceGenerator() }, parseOptions: options)
+            .RunGenerators(compilation)
+            .GetRunResult();
+
+        result.Results.Single().Exception.ShouldBeNull();
+        var diagnostic = result.Diagnostics.Single(d => d.Id == (standalone ? "SPF008" : "CFG011"));
+        diagnostic.GetMessage().ShouldContain("Next");
+        diagnostic.Severity.ShouldBe(DiagnosticSeverity.Error);
+    }
+
+    [Test]
     public void StandaloneTypedMutationCompilesWithCSharp9Host()
     {
         const string source = """
