@@ -115,6 +115,14 @@ for package_file in "${package_files[@]}"; do
             ;;
         SparseFragments)
             require_entry 'analyzers/dotnet/cs/SparseFragments.Generator.dll'
+            if grep -Eq '<dependency[^>]*id="Configlue(\.|")' <<<"${nuspec}"; then
+                echo "SparseFragments must not depend on Configlue packages." >&2
+                exit 1
+            fi
+            if grep -q 'analyzers/dotnet/cs/Configlue.Generator.dll' <<<"${entries}"; then
+                echo "SparseFragments must carry only its own model generator." >&2
+                exit 1
+            fi
             ;;
         Configlue.JsonSchema.MSBuild)
             require_entry 'build/Configlue.JsonSchema.MSBuild.props'

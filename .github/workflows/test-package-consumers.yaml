@@ -60,6 +60,17 @@ jobs:
             -p:RestoreAdditionalProjectSources="$CONFIGLUE_PACKAGE_FEED"
           dotnet tests/fixtures/consumers/package-basic/bin/Release/net8.0/PackageBasic.Consumer.dll
 
+      - name: Build and run standalone SparseFragments consumers
+        run: |
+          set -euo pipefail
+          for framework in net8.0 net10.0; do
+            dotnet build tests/fixtures/consumers/package-sparse/PackageSparse.Consumer.csproj \
+              --configuration Release --framework "$framework" \
+              -p:ConfigluePackageVersion="$CONFIGLUE_PACKAGE_VERSION" \
+              -p:RestoreAdditionalProjectSources="$CONFIGLUE_PACKAGE_FEED"
+            dotnet "tests/fixtures/consumers/package-sparse/bin/Release/$framework/PackageSparse.Consumer.dll"
+          done
+
       - name: Upload failure artifacts
         if: failure() || cancelled()
         uses: actions/upload-artifact@v7
@@ -68,6 +79,7 @@ jobs:
           path: |
             artifacts/packages/*.nupkg
             tests/fixtures/consumers/package-basic/**/*.binlog
+            tests/fixtures/consumers/package-sparse/**/*.binlog
           if-no-files-found: ignore
           retention-days: 7
 
