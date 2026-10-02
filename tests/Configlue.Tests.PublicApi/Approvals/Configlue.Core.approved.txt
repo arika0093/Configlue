@@ -161,6 +161,11 @@ namespace Configlue.Resources
         PersistentUserDirectory = 0,
         ResourceDirectory = 1,
     }
+    public enum FileChangeDetectionMode
+    {
+        Hybrid = 0,
+        Polling = 1,
+    }
     public sealed class FileResource : Configlue.Resources.IResourceBackupRecovery, Configlue.Resources.IResourceBatchCompatibility, Configlue.Resources.IResourceBatchWriter, Configlue.Resources.IResourceIdentity, Configlue.Resources.IResourceReader, Configlue.Resources.IResourceWriter, Configlue.Sources.ISourceWatcher, Configlue.State.IPipelineResourceReader, System.IDisposable
     {
         public FileResource(string path, Configlue.Resources.FileResourceOptions? options = null, Configlue.Resources.ResourceId? resourceId = default) { }
@@ -192,13 +197,16 @@ namespace Configlue.Resources
         public string BackupExtension { get; init; }
         public int BackupMaxCount { get; init; }
         public string? BackupRootDirectory { get; init; }
+        public Configlue.Resources.FileChangeDetectionMode ChangeDetectionMode { get; init; }
         public bool CreateBackup { get; init; }
         public bool IncludeModelVersionInBackupDirectory { get; init; }
         public System.TimeSpan LockAcquireRetryDelay { get; init; }
         public System.TimeSpan? LockAcquireTimeout { get; init; }
         public string? LockDirectory { get; init; }
+        public System.TimeSpan PollingInterval { get; init; }
         public int RetryCount { get; init; }
         public System.TimeSpan RetryDelay { get; init; }
+        public System.TimeSpan RevisionVerificationInterval { get; init; }
         public System.Func<int, System.TimeSpan>? RetryDelayFactory { get; init; }
     }
     public sealed class PipelineResourceReadResult : System.IAsyncDisposable

@@ -1,11 +1,11 @@
+using System.Diagnostics;
+
 namespace Configlue.Resources;
 
 public sealed partial class FileResource
 {
-    private const int PollHashBackstopInterval = 8;
-    private static readonly TimeSpan PollInterval = TimeSpan.FromMilliseconds(250);
-
     private readonly object _watchGate = new();
+    private readonly CancellationTokenSource _disposeCancellation = new();
     private FileSystemWatcher? _fileWatcher;
     private TaskCompletionSource _changed = NewChangeSignal();
     private bool _disposed;
@@ -55,7 +55,10 @@ public sealed partial class FileResource
             return;
         }
 
-        EnsureFileWatcher();
+        if (_options.ChangeDetectionMode == FileChangeDetectionMode.Hybrid)
+        {
+            EnsureFileWatcher();
+        }
         Task waitTask;
         lock (_watchGate)
         {
@@ -74,14 +77,38 @@ public sealed partial class FileResource
             return;
         }
 
-        if (_fileWatcher is null)
+        if (_options.ChangeDetectionMode == FileChangeDetectionMode.Polling || _fileWatcher is null)
         {
-            await PollUntilChangedAsync(observedRevision, waitTask, cancellationToken)
+            using var pollCancellation = CancellationTokenSource.CreateLinkedTokenSource(
+                cancellationToken,
+                _disposeCancellation.Token
+            );
+            await PollUntilChangedAsync(observedRevision, pollCancellation.Token)
                 .ConfigureAwait(false);
             return;
         }
 
-        await waitTask.WaitAsync(cancellationToken).ConfigureAwait(false);
+        using var linkedCancellation = CancellationTokenSource.CreateLinkedTokenSource(
+            cancellationToken,
+            _disposeCancellation.Token
+        );
+        var watcherTask = waitTask.WaitAsync(linkedCancellation.Token);
+        var pollingTask = PollUntilChangedAsync(observedRevision, linkedCancellation.Token);
+        var completed = await Task.WhenAny(watcherTask, pollingTask).ConfigureAwait(false);
+#if NETSTANDARD
+        linkedCancellation.Cancel();
+#else
+        await linkedCancellation.CancelAsync().ConfigureAwait(false);
+#endif
+        try
+        {
+            await completed.ConfigureAwait(false);
+        }
+        finally
+        {
+            await ObserveCancellationAsync(completed == watcherTask ? pollingTask : watcherTask)
+                .ConfigureAwait(false);
+        }
     }
 
     /// <inheritdoc />
@@ -98,7 +125,9 @@ public sealed partial class FileResource
             _disposed = true;
             _fileWatcher?.Dispose();
             _fileWatcher = null;
-            _changed.TrySetCanceled();
+            _disposeCancellation.Cancel();
+            _changed.TrySetCanceled(_disposeCancellation.Token);
+            _disposeCancellation.Dispose();
         }
     }
 
@@ -133,30 +162,22 @@ public sealed partial class FileResource
 
     private async Task PollUntilChangedAsync(
         string? observedRevision,
-        Task signal,
         CancellationToken cancellationToken
     )
     {
         var hasSignature = false;
         var lastSignature = default(FileSignature);
-        var unchangedPolls = 0;
+        var lastVerifiedAt = Stopwatch.GetTimestamp();
         while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (signal.IsCompleted)
-            {
-                return;
-            }
-
             var signature = CaptureFileSignature(_path);
             var signatureChanged = !hasSignature || !signature.Equals(lastSignature);
-            if (!signatureChanged && unchangedPolls < PollHashBackstopInterval)
+            var verificationDue =
+                Stopwatch.GetTimestamp() - lastVerifiedAt
+                >= _options.RevisionVerificationInterval.TotalSeconds * Stopwatch.Frequency;
+            if (signatureChanged || verificationDue)
             {
-                unchangedPolls++;
-            }
-            else
-            {
-                unchangedPolls = 0;
                 if (
                     !string.Equals(
                         await GetCurrentRevisionAsync(cancellationToken).ConfigureAwait(false),
@@ -167,11 +188,27 @@ public sealed partial class FileResource
                 {
                     return;
                 }
+                lastVerifiedAt = Stopwatch.GetTimestamp();
             }
 
             hasSignature = true;
             lastSignature = signature;
-            await Task.Delay(PollInterval, cancellationToken).ConfigureAwait(false);
+            await Task.Delay(_options.PollingInterval, cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    private static async Task ObserveCancellationAsync(Task task)
+    {
+        try
+        {
+            await task.ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (task.IsCanceled)
+        {
+            if (!task.IsCanceled)
+            {
+                throw;
+            }
         }
     }
 
