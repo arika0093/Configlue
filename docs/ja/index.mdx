@@ -1,9 +1,9 @@
 ---
 title: Configlue
-description: 複数の設定ソースをひとつに束ねる、型付き設定ライブラリです。
+description: 設定の保存場所や構成方法をアプリケーションコードから切り離し、型付きで読み書きするための .NET ライブラリです。
 template: splash
 hero:
-  tagline: "設定ファイルを、糊づけするように束ねる。"
+  tagline: "設定がどこにあっても、型付きで読み書きする。"
   actions:
     - text: はじめる
       link: https://github.com/arika0093/Configlue#quick-start
@@ -16,46 +16,106 @@ hero:
 
 import { Card, CardGrid } from '@astrojs/starlight/components';
 
-## Configlue とは
+## 設定は簡単なところから始まる
 
-Configlue は **Config + glue** を組み合わせた名前です。そのまま読めば「設定を糊（のり）のように繋げる」ライブラリです。
+JSON ファイルがひとつだけなら、設定管理ライブラリは必要ありません。読み込み、デシリアライズし、値を変えて、書き戻せば十分です。
 
-アプリの設定は、ひとつのファイルに収まりません。出荷時の既定値、ユーザーごとの保存、会社で配るポリシー、コンテナの環境変数、デバッグ時のコマンドライン指定。置き場所も、持ち主も、寿命もバラバラです。Configlue はそれらを糊づけする役目を引き受けます。各ソースは自分が知っている項目だけを差し出し、実行時にひとつの型付きモデルとして束ねます。アプリケーションコードから見えるのは、普段どおりの C# のクラスだけです。
-
-## 設定は難しい
-
-設定のつらさは、読み書きのコード量ではありません。時間が経つほど、だいたい次のどれかに当たります。
-
-- 最初はひとつの JSON で足りていたのに、ユーザー別・環境別・配布ポリシーと増えていき、どの値がどこから来たのか分からなくなる。
-- ファイル全体を読み替える作りにしたせいで、一項目の保存がよその項目を壊す。コメントや書式も消える。
-- 環境変数やコマンドラインの上書きを足すたびに、優先順位のルールがコードの中に散らばる。
-- 項目を増やした・名前を変えた途端、古いファイルの扱いが決まらず、移行が「いつかやる」仕事になる。
-
-Configlue はこの「増えた後の設定」を前提にしています。出どころごとにソースを分け、存在する項目だけを重ね、書き込みは選んだ相手だけに戻す。そうしておけば、後からソースを足しても、古いファイルを捨てなくて済みます。
-
-## Configlue の特徴
+難しくなるのは、アプリケーションが成長して設定管理そのものが infrastructure になったときです。
 
 <CardGrid stagger>
-  <Card title="全部は読み込まない" icon="layers">
-    設定を一度に丸ごと読むのではなく、各ソースが持つ項目だけを出し合って組み立てます。ない項目は「ないまま」扱うので、未設定と既定値を取り違えません。
+  <Card title="Git" icon="layers">
+    CLI であっても system、global、local、worktree、command と複数の scope を持ちます。読み取りには優先順位があり、書き込みでは対象 scope を決める必要があります。
   </Card>
-  <Card title="出どころごとに向き合う" icon="magnifier">
-    値は出どころとセットで扱います。`Database.Host` がどのソースから来たのかを辿れ、保存するときも相手を指定できます。触っていないソースには触りません。
+  <Card title="Visual Studio Code" icon="puzzle">
+    User、Remote、Workspace、Folder、language、profile、policy、同期設定が共存し、その一方で人間が JSON を直接編集する使い方も残っています。
   </Card>
-  <Card title="統合と移行を見据える" icon="arrow-right">
-    ファイル分割、セクション共有、リモート参照、スキーマの版管理、保存場所の引っ越しまでを同じ考え方で扱います。設定の置き場所や形が変わっても、アプリ側の読み書きは変えずに済みます。
-  </Card>
-  <Card title="DI の有無を選ばない" icon="puzzle">
-    同じモデル定義・ソース定義が、DI なしのコンソールやデスクトップアプリでも、DI ありの ASP.NET Core や Worker Service でも動きます。`IOptions<T>` として受け取ることもできます。
-  </Card>
-  <Card title="書き心地は普通の C#" icon="pencil">
-    読み取るのは普通のクラスのインスタンスで、書き込みは生成 Patch の `SaveAsync(patch => patch.Name = "Ada")` で行います。Patch で Set/Unset する疎なメンバーを指定できます。
-  </Card>
-  <Card title="運用の道具も揃える" icon="approve-check">
-    変更通知、バリデーション、バックアップ付きの安全な保存、JSON Schema の出力、NativeAOT 対応まで備えています。小さく始めて、そのまま本番の運用に持ち込めます。
+  <Card title="Chrome" icon="magnifier">
+    ユーザー設定と中央管理された policy が共存し、所有者や優先順位が異なり、ユーザー自身には変更できない値もあります。
   </Card>
 </CardGrid>
 
-## 次のステップ
+あなたのアプリが Git、VS Code、Chrome ほど大きくならなくても、設定は同じ方向に成長します。scope が増え、設定の所有者が増え、永続化ルールが増え、schema が変わり、書き込み時の edge case が増えていきます。
 
-- インストール、クイックスタート、詳しいガイドは GitHub の [README](https://github.com/arika0093/Configlue) にまとめています。
+どの source を優先するのか。変更をどこへ書くのか。値が存在しないことと明示的な `null` をどう区別するのか。古い schema をどう移行するのか。保存時にコメントをどう維持するのか。同じ状態を別プロセスが変更したらどうするのか。
+
+Configlue は、こうした configuration plumbing をアプリケーションから引き受けます。
+
+## 読み取りには抽象化がある。書き込みにも必要になる
+
+.NET には優れた read-side abstraction があります。`IConfiguration` で複数 provider を統合でき、`IOptions<T>` ならアプリケーションから型付きの値として利用できます。
+
+一方、設定を *変更する* アプリケーションには、もうひとつ境界が必要です。
+
+設定画面で `Theme = "Dark"` に変更するとき、その値を JSON、browser storage、PostgreSQL、ユーザー単位のファイル、あるいは別の writable source のどこへ保存するかまでアプリケーション層が知る必要はありません。
+
+Configlue は、その境界を型付き state として提供します。
+
+```csharp
+IReadOnlyState<AppSettings>
+IWritableState<AppSettings>
+```
+
+アプリケーションは「何を読むか・何を書くか」だけを指定し、「どう実現するか」は infrastructure 側で構成します。
+
+## アプリケーションから見える API
+
+普段のアプリケーションコードは、この程度に保てます。
+
+```csharp
+var settings = ConfiglueApp.GetState<AppSettings>();
+
+var current = await settings.GetValueAsync();
+
+await settings.SaveAsync(patch =>
+{
+    patch.Theme = "Dark";
+});
+```
+
+source の構成、serialization、write routing、migration、validation、encryption、hosting integration はアプリケーションロジックの外側に置けます。
+
+## Configlue が扱うこと
+
+<CardGrid stagger>
+  <Card title="型付きの読み書き" icon="pencil">
+    storage や serialization の詳細ではなく、`IReadOnlyState<T>` / `IWritableState<T>` に依存してアプリケーションを書けます。
+  </Card>
+  <Card title="複数設定の統合" icon="layers">
+    user、local、environment、command-line、remote、database、custom source を重ねながら、値の出どころと編集可能性を保持します。
+  </Card>
+  <Card title="疎な書き込み" icon="pencil">
+    generated patch により、missing、default、`null`、set、unset を区別し、モデル全体を雑に上書きしません。
+  </Card>
+  <Card title="schema の成長" icon="arrow-right">
+    model version、migration、保存形状の変更、validation、JSON Schema の出力を扱えます。
+  </Card>
+  <Card title="運用を含めた永続化" icon="approve-check">
+    変更通知、安全な保存、backup、conflict handling、対応形式での comment 保持、encryption、compression を必要に応じて組み込めます。
+  </Card>
+  <Card title="広い .NET integration" icon="puzzle">
+    Plain .NET、DI、Microsoft Options、ASP.NET Core、Blazor、desktop UI、MAUI、Unity、Godot、R3、NativeAOT でも同じ state model を使えます。
+  </Card>
+</CardGrid>
+
+## ひとつの state model を、さまざまな .NET アプリで
+
+<CardGrid>
+  <Card title="Plain .NET" icon="layers">
+    `ConfiglueApp.Initialize(...)` で一度初期化し、`ConfiglueApp.GetState<T>()` から process-wide な型付き state を利用します。
+  </Card>
+  <Card title="Generic Host / ASP.NET Core" icon="puzzle">
+    DI に Configlue を登録し、アプリケーションには `IReadOnlyState<T>` / `IWritableState<T>` だけを inject します。host integration から user / tenant 単位の state も構成できます。
+  </Card>
+  <Card title="Blazor / Desktop UI" icon="pencil">
+    Blazor の `StateReader<T>` / `StateEditor<T>`、または共通 ComponentModel adapter を使い、各 host の native dispatcher と接続できます。
+  </Card>
+  <Card title="MAUI / Unity / Godot" icon="arrow-right">
+    state abstraction はそのままに、各 host が適切な application path、lifecycle、storage、threading、runtime semantics を提供します。
+  </Card>
+</CardGrid>
+
+## はじめる
+
+最小の実行可能サンプルとインストール方法は、GitHub README の [Quick Start](https://github.com/arika0093/Configlue#quick-start) にあります。
+
+まずは high-level な state API だけを使ってください。provider、resource、transformer、hosting package、低レベルの構成は、アプリケーションで必要になったときに追加できます。
