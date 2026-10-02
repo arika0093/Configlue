@@ -49,6 +49,7 @@
     <Compile Remove="Blazor/**/*.cs" />
     <Compile Remove="ComponentModel/**/*.cs" />
     <Compile Remove="MessagePack/**/*.cs" />
+    <Compile Remove="Integration/**/*.cs" />
   </ItemGroup>
   <ItemGroup Condition="'$(ConfiglueNetStandard)' == 'true'">
     <PackageReference Remove="TUnit;Shouldly" />
