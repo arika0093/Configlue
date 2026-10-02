@@ -100,7 +100,7 @@ public sealed partial class RuntimeDiagnosticTests
         var snapshot = diagnostics.GetRuntimeSnapshot();
         snapshot.LastResolution!.Value.ReadStatus.ShouldBe(StateReadStatus.Success);
         snapshot
-            .Sources.Single(static source => source.Id == "loaded")
+            .Sources.Single(static source => source.Id == SourceId.From("loaded"))
             .LastSuccessfulRead.ShouldNotBeNull();
         string.Join("\n", events).ShouldNotContain("secret-");
         System.Text.Json.JsonSerializer.Serialize(snapshot).ShouldNotContain("secret-");

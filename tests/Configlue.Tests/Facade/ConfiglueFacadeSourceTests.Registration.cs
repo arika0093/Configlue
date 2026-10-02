@@ -48,7 +48,7 @@ public sealed partial class ConfiglueFacadeSourceTests
 
         var options = (IConfiglueRuntimeState<AppSettings>)context.GetState<AppSettings>();
         (
-            options.GetDiagnostics().Sources.Any(static source => source.Id == "root-settings")
+            options.GetDiagnostics().Sources.Any(static source => source.Id == SourceId.From("root-settings"))
         ).ShouldBeTrue();
         var current = await options.GetValueAsync();
         (current.RetryCount).ShouldBe(3);
@@ -207,9 +207,9 @@ public sealed partial class ConfiglueFacadeSourceTests
         });
 
         var diagnostics = context.GetRuntimeState<AppSettings>().GetDiagnostics();
-        var source = diagnostics.Sources.Single(static source => source.Id == "settings");
-        var readOnly = diagnostics.Sources.Single(static source => source.Id == "defaults");
-        (source.Id).ShouldBe("settings");
+        var source = diagnostics.Sources.Single(static source => source.Id == SourceId.From("settings"));
+        var readOnly = diagnostics.Sources.Single(static source => source.Id == SourceId.From("defaults"));
+        (source.Id).ShouldBe(SourceId.From("settings"));
         (source.Priority).ShouldBe(25);
         (source.FallbackCondition).ShouldBe(StateFallbackCondition.NotFoundOrUnavailable);
         (source.CanWrite).ShouldBeTrue();

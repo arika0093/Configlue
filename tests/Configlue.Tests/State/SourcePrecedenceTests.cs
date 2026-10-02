@@ -26,7 +26,7 @@ public sealed class SourcePrecedenceTests
         var sourceSet = new StateSourceSet<string>([firstTie, lowest, secondTie]);
 
         sourceSet
-            .Sources.Select(static source => source.Id)
+            .Sources.Select(static source => source.Id.Value)
             .ShouldBe(new[] { "first-tie", "second-tie", "lowest" });
     }
 

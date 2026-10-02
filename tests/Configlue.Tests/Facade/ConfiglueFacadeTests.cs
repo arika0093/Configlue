@@ -63,10 +63,10 @@ public sealed class ConfiglueFacadeTests
             builder.Add<AppSettings>(model =>
             {
                 model.WritePlan = new StateWritePlan(
-                    "user-overlay",
-                    new Dictionary<string, string>(StringComparer.Ordinal)
+                    SourceId.From("user-overlay"),
+                    new Dictionary<string, SourceId>(StringComparer.Ordinal)
                     {
-                        ["RetryCount"] = "user-overlay",
+                        ["RetryCount"] = SourceId.From("user-overlay"),
                     }
                 );
                 model.Sources(sources =>

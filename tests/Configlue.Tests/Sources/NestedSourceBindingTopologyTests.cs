@@ -311,7 +311,7 @@ public sealed partial class NestedSourceBindingTests
         (result.Value.Database.Port).ShouldBe(7443);
         (result.Schema).ShouldBe(AppSettings.ConfiglueSchema.ToMetadata());
         (result.PhysicalOrigin).ShouldBe("legacy://database");
-        (result.SourceId).ShouldBe("legacy-database");
+        (result.SourceId).ShouldBe(SourceId.From("legacy-database"));
     }
 
     [Test]

@@ -58,7 +58,7 @@ public sealed class CrossResourceMigrationIntegrationTests
             var sourceBefore = (await sourceFile.ReadAsync()).Content.ToArray();
             await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
                 new StateSourceSet<AppSettings.Fragment>([source, target]),
-                StateWritePlan.DefaultTo("json-file")
+                StateWritePlan.DefaultTo(SourceId.From("json-file"))
             );
 
             var migration = await options.MigrateSourceAsync("json-file", "yaml-section");
@@ -71,8 +71,8 @@ public sealed class CrossResourceMigrationIntegrationTests
             );
             var sourceAfter = (await sourceFile.ReadAsync()).Content.ToArray();
 
-            (migration.SourceId).ShouldBe("json-file");
-            (migration.TargetId).ShouldBe("yaml-section");
+            (migration.SourceId).ShouldBe(SourceId.From("json-file"));
+            (migration.TargetId).ShouldBe(SourceId.From("yaml-section"));
             (targetResult.Status).ShouldBe(StateReadStatus.Success);
             (targetResult.Schema).ShouldBe(AppSettings.ConfiglueSchema.ToMetadata());
             (targetResult.Value!.RetryCount.Value).ShouldBe(7);
@@ -167,7 +167,7 @@ public sealed class CrossResourceMigrationIntegrationTests
                     jsonTarget,
                     yamlTarget,
                 ]),
-                StateWritePlan.DefaultTo("json-file")
+                StateWritePlan.DefaultTo(SourceId.From("json-file"))
             );
             var projections = new Dictionary<
                 string,
@@ -279,7 +279,7 @@ public sealed class CrossResourceMigrationIntegrationTests
             HistoricalSettings.Fragment
         >(
             new StateSourceSet<HistoricalSettings.Fragment>([source, target]),
-            StateWritePlan.DefaultTo("legacy-json")
+            StateWritePlan.DefaultTo(SourceId.From("legacy-json"))
         );
 
         await options.MigrateSourceAsync("legacy-json", "current-yaml");
@@ -314,7 +314,7 @@ public sealed class CrossResourceMigrationIntegrationTests
                 new("source", source, priority: 100),
                 new("target", target, priority: 0, writer: target),
             ]),
-            StateWritePlan.DefaultTo("source")
+            StateWritePlan.DefaultTo(SourceId.From("source"))
         );
 
         var rejected = false;

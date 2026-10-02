@@ -19,8 +19,8 @@ public sealed class MigrationJournalTests
         );
         var migration = new StateStorageMigrationDefinition<AppSettings.Fragment>(
             "migration",
-            ["source"],
-            [new StateStorageMigrationTarget<AppSettings.Fragment>("target", fragment => fragment)]
+            [SourceId.From("source")],
+            [new StateStorageMigrationTarget<AppSettings.Fragment>(SourceId.From("target"), fragment => fragment)]
         );
         var journal = new TrackingMigrationJournal();
 

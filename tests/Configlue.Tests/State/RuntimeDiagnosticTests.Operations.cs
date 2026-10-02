@@ -25,7 +25,7 @@ public sealed partial class RuntimeDiagnosticTests
             .ToArray();
         writes.Length.ShouldBe(2);
         writes[1].OperationId.ShouldBe(writes[0].OperationId);
-        writes[1].SourceId.ShouldBe("store");
+        writes[1].SourceId.ShouldBe(SourceId.From("store"));
         writes[1].HasRevision.ShouldBeTrue();
         runtime.GetRuntimeSnapshot().LastWrite!.Value.ShouldBe(writes[1]);
     }
@@ -63,7 +63,7 @@ public sealed partial class RuntimeDiagnosticTests
                 ? ConfiglueDiagnosticEventKind.WriteConflict
                 : ConfiglueDiagnosticEventKind.WriteFailed
         );
-        last.SourceId.ShouldBe("store");
+        last.SourceId.ShouldBe(SourceId.From("store"));
         last.ErrorCategory.ShouldBe(exception.GetType().FullName);
         last.OperationId.ShouldBeGreaterThan(0);
         string.Join("\n", runtime.GetRecentEvents()).ShouldNotContain("secret-");
@@ -86,13 +86,13 @@ public sealed partial class RuntimeDiagnosticTests
         );
         await using var runtime = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([first, second]),
-            StateWritePlan.DefaultTo("first"),
+            StateWritePlan.DefaultTo(SourceId.From("first")),
             diagnostics: new ConfiglueRuntimeDiagnosticOptions { EventHistoryCapacity = 64 }
         );
         await runtime.ApplyPatchesAsync([
-            new("first", new AppSettings.Patch { RetryCount = FragmentOperation<int>.Set(7) }),
+            new(SourceId.From("first"), new AppSettings.Patch { RetryCount = FragmentOperation<int>.Set(7) }),
             new(
-                "second",
+                SourceId.From("second"),
                 new AppSettings.Patch { Label = FragmentOperation<string?>.Set("section-secret") }
             ),
         ]);
@@ -250,7 +250,7 @@ public sealed partial class RuntimeDiagnosticTests
                 ? ConfiglueDiagnosticEventKind.MigrationCompleted
                 : ConfiglueDiagnosticEventKind.MigrationFailed
         );
-        last.SourceId.ShouldBe("source");
+        last.SourceId.ShouldBe(SourceId.From("source"));
         var started = runtime
             .GetRecentEvents()
             .First(static item => item.Kind == ConfiglueDiagnosticEventKind.MigrationStarted);

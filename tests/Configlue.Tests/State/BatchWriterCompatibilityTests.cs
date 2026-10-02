@@ -16,11 +16,11 @@ public sealed class BatchWriterCompatibilityTests
 
         var result = await runtime.ApplyPatchesAsync([
             new StateSourcePatch(
-                "first",
+                SourceId.From("first"),
                 new AppSettings.Patch { RetryCount = FragmentOperation<int>.Set(7) }
             ),
             new StateSourcePatch(
-                "second",
+                SourceId.From("second"),
                 new AppSettings.Patch { Label = FragmentOperation<string?>.Set("second") }
             ),
         ]);
@@ -44,11 +44,11 @@ public sealed class BatchWriterCompatibilityTests
 
             var result = await runtime.ApplyPatchesAsync([
                 new StateSourcePatch(
-                    "first",
+                    SourceId.From("first"),
                     new AppSettings.Patch { RetryCount = FragmentOperation<int>.Set(3) }
                 ),
                 new StateSourcePatch(
-                    "second",
+                    SourceId.From("second"),
                     new AppSettings.Patch { Label = FragmentOperation<string?>.Set("file") }
                 ),
             ]);
@@ -74,11 +74,11 @@ public sealed class BatchWriterCompatibilityTests
         await Should.ThrowAsync<NotSupportedException>(async () =>
             await runtime.ApplyPatchesAsync([
                 new StateSourcePatch(
-                    "first",
+                    SourceId.From("first"),
                     new AppSettings.Patch { RetryCount = FragmentOperation<int>.Set(7) }
                 ),
                 new StateSourcePatch(
-                    "second",
+                    SourceId.From("second"),
                     new AppSettings.Patch { Label = FragmentOperation<string?>.Set("second") }
                 ),
             ])
@@ -102,11 +102,11 @@ public sealed class BatchWriterCompatibilityTests
         await Should.ThrowAsync<NotSupportedException>(async () =>
             await runtime.ApplyPatchesAsync([
                 new StateSourcePatch(
-                    "first",
+                    SourceId.From("first"),
                     new AppSettings.Patch { RetryCount = FragmentOperation<int>.Set(7) }
                 ),
                 new StateSourcePatch(
-                    "second",
+                    SourceId.From("second"),
                     new AppSettings.Patch { Label = FragmentOperation<string?>.Set("second") }
                 ),
             ])
@@ -130,11 +130,11 @@ public sealed class BatchWriterCompatibilityTests
 
         var result = await runtime.ApplyPatchesAsync([
             new StateSourcePatch(
-                "first",
+                SourceId.From("first"),
                 new AppSettings.Patch { RetryCount = FragmentOperation<int>.Set(9) }
             ),
             new StateSourcePatch(
-                "second",
+                SourceId.From("second"),
                 new AppSettings.Patch { Label = FragmentOperation<string?>.Set("wrapped") }
             ),
         ]);
@@ -172,7 +172,7 @@ public sealed class BatchWriterCompatibilityTests
         );
         var runtime = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([syncSource, asyncSource]),
-            StateWritePlan.DefaultTo("sync")
+            StateWritePlan.DefaultTo(SourceId.From("sync"))
         );
 
         asyncSource.Writer.ShouldBeAssignableTo<
@@ -180,11 +180,11 @@ public sealed class BatchWriterCompatibilityTests
         >();
         var result = await runtime.ApplyPatchesAsync([
             new StateSourcePatch(
-                "sync",
+                SourceId.From("sync"),
                 new AppSettings.Patch { RetryCount = FragmentOperation<int>.Set(4) }
             ),
             new StateSourcePatch(
-                "async-base",
+                SourceId.From("async-base"),
                 new AppSettings.Patch { Label = FragmentOperation<string?>.Set("async") }
             ),
         ]);
@@ -340,8 +340,8 @@ public sealed class BatchWriterCompatibilityTests
         var secondSection = new JsonSectionResource(secondResource, "App:Second");
         var writePlan = StateWritePlan
             .For<AppSettings>()
-            .DefaultTo("second")
-            .Route(static settings => settings.Label, "first")
+            .DefaultTo(SourceKey<AppSettings>.Named("second"))
+            .Route(static settings => settings.Label, SourceKey<AppSettings>.Named("first"))
             .Build();
         var firstSource = new StateSource<AppSettings.Fragment>(
             "first",
@@ -387,7 +387,7 @@ public sealed class BatchWriterCompatibilityTests
                     codec
                 ),
             ]),
-            StateWritePlan.DefaultTo(defaultSource)
+            StateWritePlan.DefaultTo(SourceId.From(defaultSource))
         );
     }
 
@@ -412,7 +412,7 @@ public sealed class BatchWriterCompatibilityTests
                     codec
                 ),
             ]),
-            StateWritePlan.DefaultTo(defaultSource)
+            StateWritePlan.DefaultTo(SourceId.From(defaultSource))
         );
     }
 

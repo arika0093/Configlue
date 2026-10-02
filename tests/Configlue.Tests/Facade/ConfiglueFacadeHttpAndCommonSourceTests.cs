@@ -134,7 +134,7 @@ public sealed partial class ConfiglueFacadeSourceTests
                 (IConfiglueRuntimeState<AppSettings>)context.GetState<AppSettings>()
             ).ApplyPatchesAsync([
                 new StateSourcePatch(
-                    "writable-json-http",
+                    SourceId.From("writable-json-http"),
                     new AppSettings.Patch { RetryCount = FragmentOperation<int>.Set(3) }
                 ),
             ]);

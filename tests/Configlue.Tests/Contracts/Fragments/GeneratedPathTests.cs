@@ -14,14 +14,39 @@ public sealed class GeneratedPathTests
             .Route(x => x.Right!.Label, SourceKey<RootWithTwoSettings>.Named("right"))
             .Build();
 
-        ConfiglueWriteRouting.Resolve(plan, Path("Left.Label"), "fallback").ShouldBe("left");
-        ConfiglueWriteRouting.Resolve(plan, Path("Left.Inner.Count"), "fallback").ShouldBe("inner");
-        ConfiglueWriteRouting.Resolve(plan, Path("Right.Label"), "fallback").ShouldBe("right");
+        ConfiglueWriteRouting.Resolve(plan, Path("Left.Label"), SourceId.From("fallback")).ShouldBe(SourceId.From("left"));
+        ConfiglueWriteRouting.Resolve(plan, Path("Left.Inner.Count"), SourceId.From("fallback")).ShouldBe(SourceId.From("inner"));
+        ConfiglueWriteRouting.Resolve(plan, Path("Right.Label"), SourceId.From("fallback")).ShouldBe(SourceId.From("right"));
         ConfiglueWriteRouting
-            .Resolve(plan, Path("Right.Inner.Count"), "fallback")
-            .ShouldBe("fallback");
+            .Resolve(plan, Path("Right.Inner.Count"), SourceId.From("fallback"))
+            .ShouldBe(SourceId.From("fallback"));
         ConfiglueWriteRouting.HasRouteBelow(plan, Path("Left")).ShouldBeTrue();
         ConfiglueWriteRouting.HasRouteBelow(plan, Path("Right.Inner")).ShouldBeFalse();
+    }
+
+    [Test]
+    public void TypedWritePlansResolveCompiledPathsAndRejectPathsFromAnotherModel()
+    {
+        var plan = StateWritePlan
+            .For<RootWithTwoSettings>()
+            .Route(x => x.Left!.Label, SourceKey<RootWithTwoSettings>.Named("left"))
+            .Build();
+        var leftLabel = Path("Left.Label");
+        var left = Path("Left");
+        var otherModelPath = ConfiglueMemberPath.FromNames(
+            RootWithNestedSettings.ConfiglueSchema,
+            "Settings.Label"
+        );
+
+        plan.ResolveSourceId(leftLabel).ShouldBe(SourceId.From("left"));
+        plan.ResolveSourceId(leftLabel, SourceId.From("fallback")).ShouldBe(SourceId.From("left"));
+        plan.ResolveSourceId(Path("Right.Label"), SourceId.From("fallback")).ShouldBe(SourceId.From("fallback"));
+        plan.HasRouteBelow(left).ShouldBeTrue();
+        Should.Throw<ArgumentException>(() => plan.ResolveSourceId(otherModelPath));
+        Should.Throw<ArgumentException>(() => plan.HasRouteBelow(otherModelPath));
+        Should
+            .Throw<ArgumentException>(() => Path("Left.Missing"))
+            .Message.ShouldContain("Missing");
     }
 
     [Test]
@@ -58,11 +83,12 @@ public sealed class GeneratedPathTests
             .Route(x => x.Left!.Label, SourceKey<RootWithTwoSettings>.Named("leaf"))
             .Build();
         var merged = first.OverrideWith(second);
-        ConfiglueWriteRouting.Resolve(merged, Path("Left.Label")).ShouldBe("leaf");
-        ConfiglueWriteRouting.Resolve(merged, Path("Left.Inner.Count")).ShouldBe("parent");
+        ConfiglueWriteRouting.Resolve(merged, Path("Left.Label")).ShouldBe(SourceId.From("leaf"));
+        ConfiglueWriteRouting.Resolve(merged, Path("Left.Inner.Count")).ShouldBe(SourceId.From("parent"));
         Path("Left.Inner.Count").ToString().ShouldBe("Left.Inner.Count");
         var invalid = new StateWritePlan(
-            new Dictionary<string, string> { ["Left.Missing"] = "source" }
+            null,
+            new Dictionary<string, SourceId> { ["Left.Missing"] = SourceId.From("source") }
         );
         Should
             .Throw<ArgumentException>(() =>
@@ -84,11 +110,11 @@ public sealed class GeneratedPathTests
             Left = new NestedSettings.Patch { Label = FragmentOperation<string?>.Set("L") },
             Right = new NestedSettings.Patch { Label = FragmentOperation<string?>.Set("R") },
         };
-        var routed = patch.Route(plan, "fallback");
+        var routed = patch.Route(plan, SourceId.From("fallback"));
         var left = (RootWithTwoSettings.Fragment)
-            routed["left"].Apply(new RootWithTwoSettings.Fragment());
+            routed[SourceId.From("left")].Apply(new RootWithTwoSettings.Fragment());
         var right = (RootWithTwoSettings.Fragment)
-            routed["right"].Apply(new RootWithTwoSettings.Fragment());
+            routed[SourceId.From("right")].Apply(new RootWithTwoSettings.Fragment());
         left.Left.Value!.Label.Value.ShouldBe("L");
         left.Right.IsPresent.ShouldBeFalse();
         right.Right.Value!.Label.Value.ShouldBe("R");
@@ -98,7 +124,7 @@ public sealed class GeneratedPathTests
         nullChild.SetNull();
         IConfiglueRoutablePatch nullPatch = new RootWithTwoSettings.Patch { Left = nullChild };
         Should
-            .Throw<NotSupportedException>(() => nullPatch.Route(plan, "fallback"))
+            .Throw<NotSupportedException>(() => nullPatch.Route(plan, SourceId.From("fallback")))
             .Message.ShouldContain("Left");
     }
 

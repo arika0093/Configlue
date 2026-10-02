@@ -458,8 +458,8 @@ public sealed class SubjectRoutingTests
 
         var japanRead = await fallback.ReadAsync(japanContext);
         var europeRead = await fallback.ReadAsync(europeContext);
-        japanRead.SourceId.ShouldBe("legacy");
-        europeRead.SourceId.ShouldBe("canonical");
+        japanRead.SourceId.ShouldBe(SourceId.From("legacy"));
+        europeRead.SourceId.ShouldBe(SourceId.From("canonical"));
 
         await fallback.WriteAsync(
             japanContext,

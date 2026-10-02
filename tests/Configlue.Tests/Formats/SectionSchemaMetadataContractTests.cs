@@ -242,11 +242,11 @@ public sealed class SectionSchemaMetadataContractTests
 
         var result = await options.ApplyPatchesAsync([
             new StateSourcePatch(
-                "first",
+                SourceId.From("first"),
                 new AppSettings.Patch { RetryCount = FragmentOperation<int>.Set(7) }
             ),
             new StateSourcePatch(
-                "second",
+                SourceId.From("second"),
                 new AppSettings.Patch { Label = FragmentOperation<string?>.Set("second") }
             ),
         ]);
@@ -274,11 +274,11 @@ public sealed class SectionSchemaMetadataContractTests
 
         var result = await options.ApplyPatchesAsync([
             new StateSourcePatch(
-                "first",
+                SourceId.From("first"),
                 new AppSettings.Patch { RetryCount = FragmentOperation<int>.Set(7) }
             ),
             new StateSourcePatch(
-                "second",
+                SourceId.From("second"),
                 new AppSettings.Patch { Label = FragmentOperation<string?>.Set("second") }
             ),
         ]);
@@ -306,11 +306,11 @@ public sealed class SectionSchemaMetadataContractTests
         await Should.ThrowAsync<NotSupportedException>(async () =>
             await options.ApplyPatchesAsync([
                 new StateSourcePatch(
-                    "first",
+                    SourceId.From("first"),
                     new AppSettings.Patch { RetryCount = FragmentOperation<int>.Set(7) }
                 ),
                 new StateSourcePatch(
-                    "second",
+                    SourceId.From("second"),
                     new AppSettings.Patch { Label = FragmentOperation<string?>.Set("second") }
                 ),
             ])
@@ -401,7 +401,7 @@ public sealed class SectionSchemaMetadataContractTests
         );
         return new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([first, second]),
-            StateWritePlan.DefaultTo("first")
+            StateWritePlan.DefaultTo(SourceId.From("first"))
         );
     }
 

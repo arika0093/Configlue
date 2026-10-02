@@ -42,7 +42,7 @@ public sealed class CompositeStateSource<TFragment>
 
     internal CompositeStateSource(
         StateSourceSet<TFragment> components,
-        string? defaultWriteSourceId,
+        SourceId? defaultWriteSourceId,
         StateWritePlan? writePlan,
         TimeSpan watchTargetIdleTimeout,
         int watchTargetCapacity

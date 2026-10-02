@@ -213,11 +213,13 @@ public sealed partial class StateRuntimeTests
                 .Source.Locator
         ).ShouldBe("fallback://settings");
         initial.Revisions!.NestedRevisions.Count.ShouldBe(1);
-        var initialNested = initial.Revisions.NestedRevisions["composite"];
-        (initialNested.TryGetRevision("remote", out _)).ShouldBeTrue();
-        (initialNested.TryGetRevision("local", out _)).ShouldBeTrue();
+        var initialNested = initial.Revisions.NestedRevisions[SourceId.From("composite")];
+        initialNested.TryGetRevision(SourceId.From("remote"), out _).ShouldBeTrue();
+        initialNested.TryGetRevision(SourceId.From("local"), out _).ShouldBeTrue();
         initialNested.NestedRevisions.Count.ShouldBe(1);
-        (initialNested.NestedRevisions["remote"].TryGetRevision("database", out _)).ShouldBeTrue();
+        initialNested.NestedRevisions[SourceId.From("remote")]
+            .TryGetRevision(SourceId.From("database"), out _)
+            .ShouldBeTrue();
         await primary.WatchStarted.WaitAsync(TimeSpan.FromSeconds(5));
 
         primary.SetSuccess(
@@ -250,12 +252,13 @@ public sealed partial class StateRuntimeTests
                 .Source.Locator
         ).ShouldBe("primary://settings");
         recovered.Revisions!.NestedRevisions.Count.ShouldBe(1);
-        var recoveredNested = recovered.Revisions.NestedRevisions["composite"];
-        (recoveredNested.TryGetRevision("remote", out _)).ShouldBeTrue();
-        (recoveredNested.TryGetRevision("local", out _)).ShouldBeFalse();
+        var recoveredNested = recovered.Revisions.NestedRevisions[SourceId.From("composite")];
+        recoveredNested.TryGetRevision(SourceId.From("remote"), out _).ShouldBeTrue();
+        recoveredNested.TryGetRevision(SourceId.From("local"), out _).ShouldBeFalse();
         recoveredNested.NestedRevisions.Count.ShouldBe(1);
         (
-            recoveredNested.NestedRevisions["remote"].TryGetRevision("database", out _)
+            recoveredNested.NestedRevisions[SourceId.From("remote")]
+                .TryGetRevision(SourceId.From("database"), out _)
         ).ShouldBeTrue();
     }
 
@@ -519,13 +522,14 @@ public sealed partial class StateRuntimeTests
                 new("database", database, priority: 50, writer: database),
                 new("defaults", defaults),
             ]),
-            StateWritePlan.DefaultTo("user")
+            StateWritePlan.DefaultTo(SourceId.From("user"))
         );
         var writePlan = new StateWritePlan(
-            new Dictionary<string, string>(StringComparer.Ordinal)
+            null,
+            new Dictionary<string, SourceId>(StringComparer.Ordinal)
             {
-                ["Database"] = "database",
-                ["Database.Port"] = "user",
+                ["Database"] = SourceId.From("database"),
+                ["Database.Port"] = SourceId.From("user"),
             }
         );
 
@@ -549,7 +553,7 @@ public sealed partial class StateRuntimeTests
         (result).ShouldNotBeNull();
         (result.PhysicalWriteCount).ShouldBe(2);
         result.Revision.ShouldBeNull();
-        ((result.Sources.Select(static source => source.SourceId)))
+        ((result.Sources.Select(static source => source.SourceId.Value)))
             .OrderBy(static item => item)
             .ShouldBe((new[] { "user", "database" }).OrderBy(static item => item));
     }
@@ -569,7 +573,11 @@ public sealed partial class StateRuntimeTests
         );
         var userBefore = await user.ReadAsync();
         var writePlan = new StateWritePlan(
-            new Dictionary<string, string>(StringComparer.Ordinal) { ["Enabled"] = "user" }
+            null,
+            new Dictionary<string, SourceId>(StringComparer.Ordinal)
+            {
+                ["Enabled"] = SourceId.From("user"),
+            }
         );
 
         using var session = await options.OpenEditSessionAsync(writePlan);

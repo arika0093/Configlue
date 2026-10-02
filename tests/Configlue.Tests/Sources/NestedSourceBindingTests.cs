@@ -293,7 +293,7 @@ public sealed partial class NestedSourceBindingTests
                         settings => settings.Database
                     );
                 });
-                model.Writes(write => write.DefaultTo("first-root"));
+                model.Writes(write => write.DefaultTo(SourceKey<AppSettings>.Named("first-root")));
             });
         });
 

@@ -46,7 +46,7 @@ public sealed class EditSessionSnapshotTests
                 new("policy", policy, priority: 100),
                 new("user", user, priority: 0, writer: user),
             ]),
-            StateWritePlan.DefaultTo("user")
+            StateWritePlan.DefaultTo(SourceId.From("user"))
         );
 
         var expected = await options.GetDetailsAsync();

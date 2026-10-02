@@ -23,7 +23,7 @@ public sealed class StateOutcomeContractTests
         var invalid = StateReadResult<string>.InvalidPayload("invalid value", "revision");
         invalid.Status.ShouldBe(StateReadStatus.InvalidPayload);
         invalid.Value.ShouldBe("invalid value");
-        invalid.FromSource("source", "origin").Status.ShouldBe(StateReadStatus.InvalidPayload);
+        invalid.FromSource(SourceId.From("source"), "origin").Status.ShouldBe(StateReadStatus.InvalidPayload);
         ((int)StateReadStatus.Success).ShouldBe(0);
         ((int)StateReadStatus.NotFound).ShouldBe(1);
         typeof(StateReadResult<string>).GetProperty("Status")!.SetMethod.ShouldBeNull();
@@ -223,7 +223,7 @@ public sealed class StateOutcomeContractTests
         IWritableState<AppSettings> writable = options;
         var written = await writable.SaveAsync(new AppSettings.Patch { RetryCount = 8 });
         written.Sources.Count.ShouldBe(1);
-        written.Sources[0].SourceId.ShouldBe("user");
+        written.Sources[0].SourceId.ShouldBe(SourceId.From("user"));
         written.Sources[0].ResourceId.ShouldBeNull();
         written.Revision.ShouldBe((await store.ReadAsync()).Revision);
         written.PhysicalWriteCount.ShouldBe(1);
@@ -232,7 +232,7 @@ public sealed class StateOutcomeContractTests
         empty.PhysicalWriteCount.ShouldBe(0);
         empty.Revision.ShouldBeNull();
         var sourceEmpty = await options.ApplyPatchesAsync([
-            new StateSourcePatch("user", new AppSettings.Patch()),
+            new StateSourcePatch(SourceId.From("user"), new AppSettings.Patch()),
         ]);
         sourceEmpty.Sources.ShouldBeEmpty();
         sourceEmpty.PhysicalWriteCount.ShouldBe(0);

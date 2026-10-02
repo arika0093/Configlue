@@ -90,7 +90,7 @@ public sealed class CommandLineSourceTests
         {
             builder.Add<AppSettings>(model =>
             {
-                model.WritePlan = StateWritePlan.DefaultTo("command-line");
+                model.WritePlan = StateWritePlan.DefaultTo(SourceId.From("command-line"));
                 model.Sources(sources =>
                     sources.FromCommandLine(
                         new CommandLineSourceOptions

@@ -34,7 +34,7 @@ public sealed class PerSubjectDependencyInjectionTests
             builder.Add<AppSettings>(model =>
             {
                 model.PerSubject<MutableSubjectAccessor>();
-                model.WritePlan = StateWritePlan.DefaultTo("users");
+                model.WritePlan = StateWritePlan.DefaultTo(SourceId.From("users"));
                 model.Sources(sources =>
                     sources.Add(
                         new StateSource<AppSettings.Fragment>(

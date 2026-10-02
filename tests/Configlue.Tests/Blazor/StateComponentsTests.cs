@@ -281,8 +281,8 @@ public sealed class StateComponentsTests
                 throw new StateMultiWriteException(
                     StateWriteReceipt.Empty,
                     null,
-                    ["a"],
-                    ["b"],
+                    [SourceId.From("a")],
+                    [SourceId.From("b")],
                     new InvalidOperationException("partial")
                 )
         );
@@ -295,8 +295,8 @@ public sealed class StateComponentsTests
         cut.WaitForAssertion(() => error.ShouldNotBeNull());
         error!.Kind.ShouldBe(StateEditorErrorKind.MultiWrite);
         error.MultiWriteException.ShouldNotBeNull();
-        error.MultiWriteException!.FailedSourceIds.ShouldContain("a");
-        error.MultiWriteException.UnattemptedSourceIds.ShouldContain("b");
+        error.MultiWriteException!.FailedSourceIds.ShouldContain(SourceId.From("a"));
+        error.MultiWriteException.UnattemptedSourceIds.ShouldContain(SourceId.From("b"));
     }
 
     [Test]

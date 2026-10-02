@@ -536,7 +536,7 @@ public sealed partial class FileResourceTests
 
         recovered.Status.ShouldBe(StateReadStatus.Success);
         recovered.Value!.RetryCount.ShouldBe(4);
-        recovered.SourceId.ShouldBe("primary-file");
+        recovered.SourceId.ShouldBe(SourceId.From("primary-file"));
         (await File.ReadAllTextAsync(path)).ShouldBe(Encoding.UTF8.GetString(backupContent));
         recovered.Revision.ShouldBe((await resource.ReadAsync()).Revision);
     }

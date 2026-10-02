@@ -55,7 +55,7 @@ public sealed partial class StateRuntimeTests
         ]);
         var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             sourceSet,
-            StateWritePlan.DefaultTo("remote-database")
+            StateWritePlan.DefaultTo(SourceId.From("remote-database"))
         );
 
         var resolved = await options.ReadAsync();
@@ -298,8 +298,8 @@ public sealed partial class StateRuntimeTests
         );
         var copied = await target.ReadAsync();
 
-        (migration.SourceId).ShouldBe("legacy");
-        (migration.TargetId).ShouldBe("current");
+        migration.SourceId.ShouldBe(SourceId.From("legacy"));
+        migration.TargetId.ShouldBe(SourceId.From("current"));
         (migration.SourceRevision).ShouldBe("legacy-revision");
         (migration.TargetRevision).ShouldBe("1");
         (copied.Value!.RetryCount.Value).ShouldBe(9);
@@ -341,7 +341,7 @@ public sealed partial class StateRuntimeTests
                 new("primary", primaryTarget, priority: 0, writer: primaryTarget),
                 new("retry-only", retryTarget, priority: -1, writer: retryTarget),
             ]),
-            StateWritePlan.DefaultTo("primary")
+            StateWritePlan.DefaultTo(SourceId.From("primary"))
         );
         var targets = new Dictionary<
             SourceKey<AppSettings>,
@@ -383,7 +383,7 @@ public sealed partial class StateRuntimeTests
         (secondRun.Targets.All(static result => result.WasAlreadyCurrent)).ShouldBeTrue();
         (secondRun.Targets.Count).ShouldBe(2);
         (secondRun.Targets.All(static result => result.TargetRevision == "1")).ShouldBeTrue();
-        ((secondRun.SourceIds))
+        secondRun.SourceIds.Select(static sourceId => sourceId.Value)
             .OrderBy(static item => item)
             .ShouldBe((new[] { "user", "legacy" }).OrderBy(static item => item));
     }
@@ -407,7 +407,7 @@ public sealed partial class StateRuntimeTests
                     writer: new FailOnceStateWriter<AppSettings.Fragment>(secondTarget)
                 ),
             ]),
-            defaultWritePlan: StateWritePlan.DefaultTo("first-target")
+            defaultWritePlan: StateWritePlan.DefaultTo(SourceId.From("first-target"))
         );
         var targets = new Dictionary<string, Func<IConfiglueFragment, IConfiglueFragment>>(
             StringComparer.Ordinal
@@ -433,7 +433,7 @@ public sealed partial class StateRuntimeTests
 
         (failed).ShouldBeTrue();
         var afterFailure = await options.ReadAsync();
-        (afterFailure.Revisions!.TryGetRevision("source", out _)).ShouldBeTrue();
+        afterFailure.Revisions!.TryGetRevision(SourceId.From("source"), out _).ShouldBeTrue();
         (afterFailure.Value!.RetryCount).ShouldBe(22);
 
         var resumed = await writableOptions.MigrateSourcesToTargetsAsync(
@@ -445,7 +445,7 @@ public sealed partial class StateRuntimeTests
         (resumed.Targets[0].WasAlreadyCurrent).ShouldBeTrue();
         (resumed.Targets[1].WasAlreadyCurrent).ShouldBeFalse();
         (resumed.SourcesRetired).ShouldBeTrue();
-        ((resumed.RetiredSourceIds))
+        resumed.RetiredSourceIds.Select(static sourceId => sourceId.Value)
             .OrderBy(static item => item)
             .ShouldBe((new[] { "source" }).OrderBy(static item => item));
         ((await secondTarget.ReadAsync()).Value!.RetryCount.Value).ShouldBe(22);
@@ -458,7 +458,10 @@ public sealed partial class StateRuntimeTests
         (repeated.Targets.All(static target => target.WasAlreadyCurrent)).ShouldBeTrue();
         (repeated.SourcesRetired).ShouldBeTrue();
         ((await options.ReadAsync()).Value!.RetryCount).ShouldBe(22);
-        ((await options.ReadAsync()).Revisions!.TryGetRevision("source", out _)).ShouldBeFalse();
+        (await options.ReadAsync())
+            .Revisions!
+            .TryGetRevision(SourceId.From("source"), out _)
+            .ShouldBeFalse();
 
         await options.SaveAsync(settings => settings.RetryCount = 23);
         ((await source.ReadAsync()).Value!.RetryCount.Value).ShouldBe(22);
@@ -505,7 +508,7 @@ public sealed partial class StateRuntimeTests
 
         var resolved = await options.ReadAsync();
         (rejected).ShouldBeTrue();
-        (resolved.Revisions!.TryGetRevision("source", out _)).ShouldBeTrue();
+        resolved.Revisions!.TryGetRevision(SourceId.From("source"), out _).ShouldBeTrue();
         (resolved.Value!.RetryCount).ShouldBe(22);
         ((await target.ReadAsync()).Value!.RetryCount.Value).ShouldBe(25);
     }

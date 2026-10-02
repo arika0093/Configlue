@@ -280,7 +280,10 @@ internal sealed class SubjectChangeSubscription<TModel> : IDisposable
                 {
                     await Task.Delay(retryDelay, _cancellation.Token).ConfigureAwait(false);
                     retryDelay = TimeSpan.FromMilliseconds(
-                        Math.Min(retryDelay.TotalMilliseconds * 2, MaximumRetryDelay.TotalMilliseconds)
+                        Math.Min(
+                            retryDelay.TotalMilliseconds * 2,
+                            MaximumRetryDelay.TotalMilliseconds
+                        )
                     );
                     continue;
                 }

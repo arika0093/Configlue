@@ -54,13 +54,14 @@ public sealed class ZipEntryResourceTests
         ]);
         var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             sources,
-            StateWritePlan.DefaultTo("user")
+            StateWritePlan.DefaultTo(SourceId.From("user"))
         );
         var plan = new StateWritePlan(
-            new Dictionary<string, string>(StringComparer.Ordinal)
+            null,
+            new Dictionary<string, SourceId>(StringComparer.Ordinal)
             {
-                ["Label"] = "user",
-                ["RetryCount"] = "settings",
+                ["Label"] = SourceId.From("user"),
+                ["RetryCount"] = SourceId.From("settings"),
             }
         );
 

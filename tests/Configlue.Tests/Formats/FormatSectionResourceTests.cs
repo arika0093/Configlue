@@ -102,7 +102,7 @@ public sealed class FormatSectionResourceTests
 
             recovered.Status.ShouldBe(StateReadStatus.Success);
             recovered.Value!.RetryCount.ShouldBe(4);
-            recovered.SourceId.ShouldBe("primary-file");
+            recovered.SourceId.ShouldBe(SourceId.From("primary-file"));
             (await File.ReadAllTextAsync(path)).ShouldBe(backup);
         }
         finally

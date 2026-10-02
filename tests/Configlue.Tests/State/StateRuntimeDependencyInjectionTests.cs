@@ -44,7 +44,7 @@ public sealed partial class StateRuntimeTests
         services.AddConfiglueMicrosoftOptions<AppSettings>();
         services.AddConfiglueState<AppSettings, AppSettings.Fragment>(
             _ => sources,
-            StateWritePlan.DefaultTo("user")
+            StateWritePlan.DefaultTo(SourceId.From("user"))
         );
         using var serviceProvider = services.BuildServiceProvider();
         var readOnly = serviceProvider.GetRequiredService<IReadOnlyState<AppSettings>>();
@@ -67,7 +67,7 @@ public sealed partial class StateRuntimeTests
         var written = await user.ReadAsync();
 
         (resolved.Status).ShouldBe(StateReadStatus.Success);
-        (resolved.SourceId).ShouldBe("user");
+        (resolved.SourceId).ShouldBe(SourceId.From("user"));
         (resolved.Revisions!.Revisions.Count).ShouldBe(2);
         (resolved.Value!.Enabled).ShouldBeFalse();
         (currentValue.RetryCount).ShouldBe(4);

@@ -86,19 +86,20 @@ public sealed class PatchContractTests
             Label = FragmentOperation<string?>.Set("local"),
         };
         var plan = new StateWritePlan(
-            new Dictionary<string, string>(StringComparer.Ordinal) { ["RetryCount"] = "settings" }
+            null,
+            new Dictionary<string, SourceId>(StringComparer.Ordinal) { ["RetryCount"] = SourceId.From("settings") }
         );
 
-        var routed = patch.Route(plan, "default");
+        var routed = patch.Route(plan, SourceId.From("default"));
 
-        routed.Keys.OrderBy(static key => key).ShouldBe(["default", "settings"]);
+        routed.Keys.OrderBy(static key => key).ShouldBe([SourceId.From("default"), SourceId.From("settings")]);
         (
-            (AppSettings.Fragment)routed["settings"].Apply(new AppSettings.Fragment())
+            (AppSettings.Fragment)routed[SourceId.From("settings")].Apply(new AppSettings.Fragment())
         ).RetryCount.Value.ShouldBe(5);
         (
-            (AppSettings.Fragment)routed["settings"].Apply(new AppSettings.Fragment())
+            (AppSettings.Fragment)routed[SourceId.From("settings")].Apply(new AppSettings.Fragment())
         ).Label.IsPresent.ShouldBeFalse();
-        var fallback = (AppSettings.Fragment)routed["default"].Apply(new AppSettings.Fragment());
+        var fallback = (AppSettings.Fragment)routed[SourceId.From("default")].Apply(new AppSettings.Fragment());
         fallback.Label.Value.ShouldBe("local");
         fallback.RetryCount.IsPresent.ShouldBeFalse();
     }

@@ -23,7 +23,7 @@ public sealed class WriteOwnershipTests
         );
 
         var diagnostics = options.GetDiagnostics();
-        diagnostics.DefaultWriteSourceId.ShouldBe("user");
+        diagnostics.DefaultWriteSourceId.ShouldBe(SourceId.From("user"));
         diagnostics.DefaultWriteSourceIsInferred.ShouldBeTrue();
 
         await options.SaveAsync(settings => settings.RetryCount = 9);
@@ -77,7 +77,7 @@ public sealed class WriteOwnershipTests
 
         var options = context.GetRuntimeState<AppSettings>();
         var diagnostics = options.GetDiagnostics();
-        diagnostics.DefaultWriteSourceId.ShouldBe("second");
+        diagnostics.DefaultWriteSourceId.ShouldBe(SourceId.From("second"));
         diagnostics.DefaultWriteSourceIsInferred.ShouldBeFalse();
 
         await options.SaveAsync(settings => settings.RetryCount = 7);
@@ -198,7 +198,7 @@ public sealed class WriteOwnershipTests
 
         var options = context.GetRuntimeState<AppSettings>();
         var diagnostics = options.GetDiagnostics();
-        diagnostics.DefaultWriteSourceId.ShouldBe("ordinary");
+        diagnostics.DefaultWriteSourceId.ShouldBe(SourceId.From("ordinary"));
         diagnostics.DefaultWriteSourceIsInferred.ShouldBeTrue();
 
         await options.SaveAsync(settings => settings.RetryCount = 4);
@@ -222,7 +222,7 @@ public sealed class WriteOwnershipTests
                 new("policy", policy, priority: 100),
                 new("user", user, priority: 0, writer: user),
             ]),
-            StateWritePlan.DefaultTo("user")
+            StateWritePlan.DefaultTo(SourceId.From("user"))
         );
 
         var rejection = await Should.ThrowAsync<StateConflictException>(async () =>

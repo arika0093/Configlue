@@ -297,7 +297,7 @@ public sealed partial class ConfiglueFacadeSourceTests
             (IConfiglueRuntimeState<AppSettings>)context.GetState<AppSettings>()
         ).ApplyPatchesAsync([
             new StateSourcePatch(
-                "http-settings",
+                SourceId.From("http-settings"),
                 new AppSettings.Patch { RetryCount = FragmentOperation<int>.Set(2) }
             ),
         ]);

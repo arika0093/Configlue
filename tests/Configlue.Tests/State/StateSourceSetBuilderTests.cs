@@ -87,7 +87,7 @@ public sealed class StateSourceSetBuilderTests
                     priority: 0
                 );
             },
-            StateWritePlan.DefaultTo("user"),
+            StateWritePlan.DefaultTo(SourceId.From("user")),
             onChangeDebounce: TimeSpan.Zero
         );
         using var serviceProvider = services.BuildServiceProvider();
@@ -104,7 +104,7 @@ public sealed class StateSourceSetBuilderTests
         var savedUserState = await user.ReadAsync();
         var changedRetryCount = await changed.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
-        (initial.SourceId).ShouldBe("defaults");
+        (initial.SourceId).ShouldBe(SourceId.From("defaults"));
         (initial.Value!.RetryCount).ShouldBe(4);
         (savedUserState.Value!.RetryCount.Value).ShouldBe(9);
         (changedRetryCount).ShouldBe(9);

@@ -33,9 +33,9 @@ public sealed partial class StateRuntimeTests
         var sourceSet = new StateSourceSet<string>([lowerPriority, higherPriority]);
 
         sourceSet.Count.ShouldBe(2);
-        sourceSet[0].Id.ShouldBe("higher");
-        sourceSet[1].Id.ShouldBe("lower");
-        sourceSet.Sources[0].Id.ShouldBe("higher");
+        sourceSet[0].Id.ShouldBe(SourceId.From("higher"));
+        sourceSet[1].Id.ShouldBe(SourceId.From("lower"));
+        sourceSet.Sources[0].Id.ShouldBe(SourceId.From("higher"));
     }
 
     [Test]
@@ -149,7 +149,7 @@ public sealed partial class StateRuntimeTests
 
         (resolved.Status).ShouldBe(StateReadStatus.Success);
         (resolved.Value).ShouldBe("legacy");
-        (resolved.SourceId).ShouldBe("legacy");
+        resolved.SourceId.ShouldBe(SourceId.From("legacy"));
         (resolved.PhysicalOrigin).ShouldBe("settings.yaml");
         (resolved.Revisions!.Revisions.Count).ShouldBe(2);
         (resolved.Revisions.NestedRevisions.Count).ShouldBe(0);
@@ -188,7 +188,7 @@ public sealed partial class StateRuntimeTests
                     physicalOrigin: "settings.yaml"
                 ),
             ]),
-            writeSourceId: "canonical"
+            writeSourceId: SourceId.From("canonical")
         );
         await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([fallback.CreateSource("settings")]),
@@ -208,10 +208,10 @@ public sealed partial class StateRuntimeTests
         (canonicalAfterWrite.Value.Label.Value).ShouldBe("canonical");
         (legacyAfterWrite.Value!.RetryCount.Value).ShouldBe(11);
         (legacyAfterWrite.Value.Label.Value).ShouldBe("legacy");
-        (resolvedAfterWrite.SourceId).ShouldBe("settings");
+        resolvedAfterWrite.SourceId.ShouldBe(SourceId.From("settings"));
         (resolvedAfterWrite.Value!.RetryCount).ShouldBe(11);
         (resolvedAfterWrite.Value.Label).ShouldBe("canonical");
-        (selectedAfterWrite.SourceId).ShouldBe("canonical");
+        selectedAfterWrite.SourceId.ShouldBe(SourceId.From("canonical"));
     }
 
     [Test]
@@ -231,7 +231,7 @@ public sealed partial class StateRuntimeTests
                 ),
                 new("legacy", legacy, priority: 0, writer: legacy, watcher: legacy),
             ]),
-            writeSourceId: "canonical"
+            writeSourceId: SourceId.From("canonical")
         );
 
         var snapshot = await fallback.ReadAsync();
@@ -254,7 +254,7 @@ public sealed partial class StateRuntimeTests
 
         (canonicalAfterWrite.Value).ShouldBe("legacy");
         (legacyAfterWrite.Value).ShouldBe("legacy");
-        (resolvedAfterWrite.SourceId).ShouldBe("canonical");
+        resolvedAfterWrite.SourceId.ShouldBe(SourceId.From("canonical"));
         (resolvedAfterWrite.Value).ShouldBe("legacy");
     }
 
@@ -292,8 +292,8 @@ public sealed partial class StateRuntimeTests
         await cancellation.CancelAsync();
         await Should.ThrowAsync<OperationCanceledException>(async () => await lowerPriorityWait);
 
-        (initial.SourceId).ShouldBe("legacy");
-        (recovered.SourceId).ShouldBe("canonical");
+        initial.SourceId.ShouldBe(SourceId.From("legacy"));
+        recovered.SourceId.ShouldBe(SourceId.From("canonical"));
         (lowerPriorityChangeWasIgnored).ShouldBeTrue();
     }
 
@@ -352,7 +352,7 @@ public sealed partial class StateRuntimeTests
                 watcher: fallback
             ),
         ]);
-        var runtime = new CompositeStateRuntime<string>(sources, "local");
+        var runtime = new CompositeStateRuntime<string>(sources, SourceId.From("local"));
 
         var resolved = await runtime.Reader.ReadAsync();
         await runtime.Writer.WriteAsync(
@@ -368,12 +368,12 @@ public sealed partial class StateRuntimeTests
         var recovered = await runtime.Reader.ReadAsync();
 
         (resolved.Value).ShouldBe("local");
-        (resolved.SourceId).ShouldBe("local");
+        resolved.SourceId.ShouldBe(SourceId.From("local"));
         (resolved.Revisions!.Revisions.Count).ShouldBe(2);
         (localAfterWrite.Value).ShouldBe("edited locally");
         (recovered.Value).ShouldBe("remote");
-        (recovered.SourceId).ShouldBe("remote");
-        (runtime.Reader.ActiveSource!.Id).ShouldBe("remote");
+        recovered.SourceId.ShouldBe(SourceId.From("remote"));
+        runtime.Reader.ActiveSource!.Id.ShouldBe(SourceId.From("remote"));
     }
 
     [Test]

@@ -220,7 +220,7 @@ public sealed class DetailsSnapshotTests
         {
             builder.Add<AppSettings>(model =>
             {
-                model.WritePlan = StateWritePlan.DefaultTo("file");
+                model.WritePlan = StateWritePlan.DefaultTo(SourceId.From("file"));
                 model.Sources(sources =>
                 {
                     sources.Add(
@@ -262,7 +262,7 @@ public sealed class DetailsSnapshotTests
                 new("policy", policy, priority: 100),
                 new("user", user, priority: 100, writer: user),
             ]),
-            StateWritePlan.DefaultTo("user")
+            StateWritePlan.DefaultTo(SourceId.From("user"))
         );
 
         var details = await options.GetDetailsAsync();
@@ -281,7 +281,7 @@ public sealed class DetailsSnapshotTests
         await using (
             var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
                 new StateSourceSet<AppSettings.Fragment>([new("policy", readOnly)]),
-                StateWritePlan.DefaultTo("policy")
+                StateWritePlan.DefaultTo(SourceId.From("policy"))
             )
         )
         {

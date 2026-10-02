@@ -306,7 +306,7 @@ public sealed class ReadValidationTests
         var result = await options.ReadAsync();
 
         (result.Status).ShouldBe(StateReadStatus.InvalidPayload);
-        (result.SourceId).ShouldBe("invalid-layer");
+        (result.SourceId).ShouldBe(SourceId.From("invalid-layer"));
         var readable = (IConfiglueRuntimeState<AppSettings>)options;
         await Should.ThrowAsync<InvalidOperationException>(async () =>
             await readable.GetValueAsync()

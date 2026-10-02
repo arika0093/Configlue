@@ -31,16 +31,16 @@ public sealed partial class StateRuntimeTests
         );
         var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([firstSource, secondSource]),
-            StateWritePlan.DefaultTo("first")
+            StateWritePlan.DefaultTo(SourceId.From("first"))
         );
 
         var result = await options.ApplyPatchesAsync([
             new StateSourcePatch(
-                "first",
+                SourceId.From("first"),
                 new AppSettings.Patch { RetryCount = FragmentOperation<int>.Set(7) }
             ),
             new StateSourcePatch(
-                "second",
+                SourceId.From("second"),
                 new AppSettings.Patch { Label = FragmentOperation<string?>.Set("second section") }
             ),
         ]);
@@ -76,18 +76,18 @@ public sealed partial class StateRuntimeTests
         );
         var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([first, second]),
-            StateWritePlan.DefaultTo("first")
+            StateWritePlan.DefaultTo(SourceId.From("first"))
         );
 
         try
         {
             var result = await options.ApplyPatchesAsync([
                 new StateSourcePatch(
-                    "first",
+                    SourceId.From("first"),
                     new AppSettings.Patch { RetryCount = FragmentOperation<int>.Set(5) }
                 ),
                 new StateSourcePatch(
-                    "second",
+                    SourceId.From("second"),
                     new AppSettings.Patch { Label = FragmentOperation<string?>.Set("file batch") }
                 ),
             ]);
@@ -128,18 +128,18 @@ public sealed partial class StateRuntimeTests
                     priority: 0
                 ),
             ]),
-            StateWritePlan.DefaultTo("parent")
+            StateWritePlan.DefaultTo(SourceId.From("parent"))
         );
         var failed = false;
         try
         {
             await options.ApplyPatchesAsync([
                 new StateSourcePatch(
-                    "parent",
+                    SourceId.From("parent"),
                     new AppSettings.Patch { RetryCount = FragmentOperation<int>.Set(7) }
                 ),
                 new StateSourcePatch(
-                    "child",
+                    SourceId.From("child"),
                     new AppSettings.Patch { Label = FragmentOperation<string?>.Set("child") }
                 ),
             ]);
@@ -163,18 +163,18 @@ public sealed partial class StateRuntimeTests
                     new XmlStateCodec<AppSettings.Fragment>()
                 ),
             ]),
-            StateWritePlan.DefaultTo("json")
+            StateWritePlan.DefaultTo(SourceId.From("json"))
         );
         var domainConflict = false;
         try
         {
             await differentDomains.ApplyPatchesAsync([
                 new StateSourcePatch(
-                    "json",
+                    SourceId.From("json"),
                     new AppSettings.Patch { RetryCount = FragmentOperation<int>.Set(3) }
                 ),
                 new StateSourcePatch(
-                    "xml",
+                    SourceId.From("xml"),
                     new AppSettings.Patch { RetryCount = FragmentOperation<int>.Set(4) }
                 ),
             ]);
@@ -205,15 +205,15 @@ public sealed partial class StateRuntimeTests
         );
         var xmlOptions = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([xmlFirst, xmlSecond]),
-            StateWritePlan.DefaultTo("xml-first")
+            StateWritePlan.DefaultTo(SourceId.From("xml-first"))
         );
         var xmlResult = await xmlOptions.ApplyPatchesAsync([
             new StateSourcePatch(
-                "xml-first",
+                SourceId.From("xml-first"),
                 new AppSettings.Patch { RetryCount = FragmentOperation<int>.Set(6) }
             ),
             new StateSourcePatch(
-                "xml-second",
+                SourceId.From("xml-second"),
                 new AppSettings.Patch { Label = FragmentOperation<string?>.Set("xml") }
             ),
         ]);
@@ -234,15 +234,15 @@ public sealed partial class StateRuntimeTests
         );
         var yamlOptions = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([yamlFirst, yamlSecond]),
-            StateWritePlan.DefaultTo("yaml-first")
+            StateWritePlan.DefaultTo(SourceId.From("yaml-first"))
         );
         var yamlResult = await yamlOptions.ApplyPatchesAsync([
             new StateSourcePatch(
-                "yaml-first",
+                SourceId.From("yaml-first"),
                 new AppSettings.Patch { RetryCount = FragmentOperation<int>.Set(8) }
             ),
             new StateSourcePatch(
-                "yaml-second",
+                SourceId.From("yaml-second"),
                 new AppSettings.Patch { Label = FragmentOperation<string?>.Set("yaml") }
             ),
         ]);
