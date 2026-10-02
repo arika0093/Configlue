@@ -149,6 +149,14 @@ public sealed class PublicApiCheckTest
     public void Abstraction() => PublicApiCheck.Check<ConfiglueModelAttribute>();
 
     [Test]
+    public void StandaloneFragments() =>
+        PublicApiCheck.Check<SparseFragments.SparseFragmentModelAttribute>();
+
+    [Test]
+    public void StandaloneGenerator() =>
+        PublicApiCheck.Check<SparseFragments.Generator.SparseFragmentsGenerator>();
+
+    [Test]
     public void Extensibility() =>
         PublicApiCheck.Check<SerializedStateReader<object>>(
             "Configlue.Extensibility",

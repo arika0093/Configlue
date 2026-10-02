@@ -39,6 +39,8 @@
     <ProjectReference Include="../../src/transformers/Configlue.Transformer.AES/Configlue.Transformer.AES.csproj" />
     <ProjectReference Include="../../src/transformers/Configlue.Transformer.Compression/Configlue.Transformer.Compression.csproj" />
     <ProjectReference Include="../../src/tools/Configlue.Generator/Configlue.Generator.csproj" />
+    <ProjectReference Include="../../src/fragments/SparseFragments/SparseFragments.csproj" />
+    <ProjectReference Include="../../src/fragments/SparseFragments.Generator/SparseFragments.Generator.csproj" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Approvals/**/*.approved.txt" CopyToOutputDirectory="PreserveNewest" />
