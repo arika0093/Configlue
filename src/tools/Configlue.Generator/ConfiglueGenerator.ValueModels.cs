@@ -648,7 +648,14 @@ public sealed partial class ConfiglueGenerator
             .WithNullableAnnotation(NullableAnnotation.NotAnnotated)
             .ToDisplayString();
         return new PocoCloneModel(
-            CreateModelInfo(pocoType, string.Empty, InitialSchemaVersion, cancellationToken),
+            CreateModelInfo(pocoType, string.Empty, InitialSchemaVersion, cancellationToken) with
+            {
+                Constructor =
+                    SparseFragments.Generator.Shared.ModelConstructorBinding.AnalyzeStructural(
+                        pocoType,
+                        cancellationToken
+                    ),
+            },
             "__Clone_" + GetStableTypeHash(typeName, cancellationToken),
             CreateMemberModels(
                 GetMembers(pocoType, cancellationToken).ToImmutableArray(),

@@ -215,7 +215,9 @@ internal static class SparseModelAnalyzer
         CancellationToken cancellationToken
     )
     {
-        var constructor = ModelConstructorBinding.AnalyzeRoot(model, cancellationToken);
+        var constructor = IsFragmentModel(model, config, cancellationToken)
+            ? ModelConstructorBinding.AnalyzeRoot(model, cancellationToken)
+            : ModelConstructorBinding.AnalyzeStructural(model, cancellationToken);
         var index = 0;
         foreach (
             var property in GetReadableProperties(model, cancellationToken)
@@ -737,7 +739,13 @@ internal static class SparseModelAnalyzer
             .WithNullableAnnotation(NullableAnnotation.NotAnnotated)
             .ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
         return new SparsePocoCloneModel(
-            CreateModelInfo(pocoType, string.Empty, cancellationToken),
+            CreateModelInfo(pocoType, string.Empty, cancellationToken) with
+            {
+                Constructor = ModelConstructorBinding.AnalyzeStructural(
+                    pocoType,
+                    cancellationToken
+                ),
+            },
             SparseWellKnownNames.CloneHelperPrefix
                 + SparseNaming.GetStableTypeHash(typeName, cancellationToken),
             CreateMemberModels(

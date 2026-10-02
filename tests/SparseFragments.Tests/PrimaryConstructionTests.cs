@@ -51,12 +51,15 @@ public sealed class PrimaryConstructionTests
 [SparseFragmentModel]
 public partial class ImmutableChildSettings
 {
-    public ImmutableConstructionChild Child { get; set; } = new();
+    public ImmutableConstructionChild Child { get; set; } = new(7);
     public List<ImmutableConstructionChild> Children { get; set; } = new();
 }
 
 public sealed class ImmutableConstructionChild(int count = 7, int[]? items = null)
 {
+    private ImmutableConstructionChild()
+        : this(99, null) { }
+
     public int Count { get; } = count;
     public int[]? Items { get; } = items;
 }
