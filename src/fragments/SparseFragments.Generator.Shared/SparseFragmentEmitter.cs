@@ -86,6 +86,17 @@ internal static class SparseFragmentEmitter
                     structural.Members.Any(static member =>
                         member.Collection.CloneKind == SparseCloneCollectionKind.PriorityQueue
                     )
+                ),
+            members.Any(static member => IsImmutableCloneCollection(member.Collection.CloneKind))
+                || pocoCloneModels.Any(static poco =>
+                    poco.Members.Any(static member =>
+                        IsImmutableCloneCollection(member.Collection.CloneKind)
+                    )
+                )
+                || structuralModels.Any(static structural =>
+                    structural.Members.Any(static member =>
+                        IsImmutableCloneCollection(member.Collection.CloneKind)
+                    )
                 )
         );
         AppendFragment(
@@ -100,6 +111,12 @@ internal static class SparseFragmentEmitter
         code.AppendLine("}");
         return code.ToString();
     }
+
+    private static bool IsImmutableCloneCollection(SparseCloneCollectionKind kind) =>
+        kind
+            is SparseCloneCollectionKind.ImmutableList
+                or SparseCloneCollectionKind.ImmutableSet
+                or SparseCloneCollectionKind.ImmutableDictionary;
 
     private static string ModelDeclarationKeyword(SparseModelInfo model)
     {

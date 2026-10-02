@@ -9,6 +9,15 @@ namespace SparseFragments.Tests;
 public partial class SharedMutableCollectionRoot
 {
     public int Value { get; set; }
+    public IReadOnlyCollection<SharedMutableCollectionRoot> AImmutableListView { get; set; } =
+        Array.Empty<SharedMutableCollectionRoot>();
+    public IReadOnlyCollection<SharedMutableCollectionRoot> AImmutableSetView { get; set; } =
+        Array.Empty<SharedMutableCollectionRoot>();
+    public IReadOnlyDictionary<
+        string,
+        SharedMutableCollectionRoot
+    > AImmutableDictionaryView { get; set; } =
+        new Dictionary<string, SharedMutableCollectionRoot>();
     public IReadOnlyCollection<SharedMutableCollectionRoot> AQueueView { get; set; } =
         Array.Empty<SharedMutableCollectionRoot>();
     public IReadOnlyCollection<SharedMutableCollectionRoot> ASetView { get; set; } =
@@ -95,6 +104,9 @@ public sealed class SharedMutableCollectionCloneTests
         var readOnlyCollection = new ReadOnlyCollection<SharedMutableCollectionRoot>([root, other]);
         root.AQueueView = queue;
         root.ASetView = set;
+        root.AImmutableListView = immutableList;
+        root.AImmutableSetView = immutableSet;
+        root.AImmutableDictionaryView = immutableDictionary;
         root.Queue = root.QueueAlias = queue;
         root.Stack = root.StackAlias = stack;
         root.Set = root.SetAlias = set;
@@ -126,17 +138,20 @@ public sealed class SharedMutableCollectionCloneTests
         ReferenceEquals(clone.Set, set).ShouldBeFalse();
         clone.Set.Count.ShouldBe(2);
         ReferenceEquals(clone.ImmutableList, clone.ImmutableListAlias).ShouldBeTrue();
+        ReferenceEquals(clone.AImmutableListView, clone.ImmutableList).ShouldBeTrue();
         ReferenceEquals(clone.ImmutableList, immutableList).ShouldBeFalse();
         ReferenceEquals(clone.ImmutableList[0], clone).ShouldBeTrue();
         ReferenceEquals(clone.ImmutableList[1], cloneOther).ShouldBeTrue();
         clone.ImmutableList.Count.ShouldBe(2);
         ReferenceEquals(clone.ImmutableSet, clone.ImmutableSetAlias).ShouldBeTrue();
+        ReferenceEquals(clone.AImmutableSetView, clone.ImmutableSet).ShouldBeTrue();
         ReferenceEquals(clone.ImmutableSet, immutableSet).ShouldBeFalse();
         clone.ImmutableSet.Contains(clone).ShouldBeTrue();
         clone.ImmutableSet.Contains(cloneOther).ShouldBeTrue();
         clone.ImmutableSet.Count.ShouldBe(2);
         ReferenceEquals(clone.ImmutableSet.KeyComparer, immutableSetComparer).ShouldBeTrue();
         ReferenceEquals(clone.ImmutableDictionary, clone.ImmutableDictionaryAlias).ShouldBeTrue();
+        ReferenceEquals(clone.AImmutableDictionaryView, clone.ImmutableDictionary).ShouldBeTrue();
         ReferenceEquals(clone.ImmutableDictionary, immutableDictionary).ShouldBeFalse();
         ReferenceEquals(clone.ImmutableDictionary["KEY"], clone).ShouldBeTrue();
         ReferenceEquals(clone.ImmutableDictionary["other"], cloneOther).ShouldBeTrue();

@@ -124,13 +124,10 @@ internal sealed class SparseFragmentExpressions(
 
             if (collection.CloneKind == SparseCloneCollectionKind.ImmutableDictionary)
             {
-                var keySelector =
-                    $"pair => {CloneValueExpression(collection.ElementType, "pair.Key")}";
+                var keySelector = $"key => {CloneValueExpression(collection.ElementType, "key")}";
                 var valueSelector =
-                    $"pair => {CloneValueExpression(collection.ValueType.Value, "pair.Value")}";
-                var clone =
-                    $"global::System.Collections.Immutable.ImmutableDictionary.ToImmutableDictionary({access}, {keySelector}, {valueSelector}, {access}.KeyComparer, {access}.ValueComparer)";
-                return $"__CloneImmutableReference({access}, {CloneContext}, () => {clone})";
+                    $"value => {CloneValueExpression(collection.ValueType.Value, "value")}";
+                return $"__CloneImmutableDictionary<{collection.ElementType.Name}, {collection.ValueType.Value.Name}, {member.Property.Type.Name}>({access}, {CloneContext}, {keySelector}, {valueSelector})";
             }
 
             return access;
@@ -145,7 +142,7 @@ internal sealed class SparseFragmentExpressions(
             SparseCloneCollectionKind.Set or SparseCloneCollectionKind.SortedSet =>
                 $"__CloneSet<{elementType}, {member.Property.Type.Name}>({access}, {CloneContext}, item => {CloneValueExpression(collection.ElementType, "item")})",
             SparseCloneCollectionKind.ImmutableSet =>
-                $"__CloneImmutableReference({access}, {CloneContext}, () => {CloneSetExpression(collection, access, elements, elementType)})",
+                $"__CloneImmutableSet<{elementType}, {member.Property.Type.Name}>({access}, {CloneContext}, item => {CloneValueExpression(collection.ElementType, "item")})",
             SparseCloneCollectionKind.Queue =>
                 $"__CloneQueue<{elementType}, {member.Property.Type.Name}>({access}, {CloneContext}, item => {CloneValueExpression(collection.ElementType, "item")})",
             SparseCloneCollectionKind.Stack =>
@@ -165,29 +162,8 @@ internal sealed class SparseFragmentExpressions(
             SparseCloneCollectionKind.ImmutableArray =>
                 $"{access}.IsDefault ? {access} : global::System.Collections.Immutable.ImmutableArray.CreateRange({elements})",
             SparseCloneCollectionKind.ImmutableList =>
-                $"__CloneImmutableReference({access}, {CloneContext}, () => global::System.Collections.Immutable.ImmutableList.CreateRange({elements}))",
+                $"__CloneImmutableList<{elementType}, {member.Property.Type.Name}>({access}, {CloneContext}, item => {CloneValueExpression(collection.ElementType, "item")})",
             _ => access,
-        };
-    }
-
-    private static string CloneSetExpression(
-        SparseCollectionInfo collection,
-        string access,
-        string elements,
-        string elementType
-    )
-    {
-        var definition = collection.NamedTypeDefinition;
-        return definition switch
-        {
-            "System.Collections.Generic.HashSet<T>" =>
-                $"new global::System.Collections.Generic.HashSet<{elementType}>({elements}, {access}.Comparer)",
-            "System.Collections.Generic.SortedSet<T>" =>
-                $"new global::System.Collections.Generic.SortedSet<{elementType}>({elements}, {access}.Comparer)",
-            "System.Collections.Immutable.ImmutableHashSet<T>" =>
-                $"global::System.Collections.Immutable.ImmutableHashSet.CreateRange({access}.KeyComparer, {elements})",
-            _ =>
-                $"new global::System.Collections.Generic.HashSet<{elementType}>({elements}, ({access} as global::System.Collections.Generic.HashSet<{elementType}>)?.Comparer)",
         };
     }
 

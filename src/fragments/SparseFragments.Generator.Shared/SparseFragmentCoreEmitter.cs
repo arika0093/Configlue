@@ -183,7 +183,8 @@ internal sealed class SparseFragmentCoreEmitter(
 
     public static void AppendCollectionCloneHelpers(
         SharedIndentedBuilder code,
-        bool includePriorityQueue
+        bool includePriorityQueue,
+        bool includeImmutableCollections
     )
     {
         code.AppendLineAt(
@@ -195,6 +196,11 @@ internal sealed class SparseFragmentCoreEmitter(
             2,
             "if (context.TryGetValue(source, out var existing)) return (TSet)existing;"
         );
+        if (includeImmutableCollections)
+            code.AppendLineAt(
+                2,
+                "if (source is global::System.Collections.Immutable.ImmutableHashSet<T> immutableSet) return __CloneImmutableSet<T, TSet>(immutableSet, context, cloneElement);"
+            );
         code.AppendLineAt(2, "global::System.Collections.Generic.ISet<T> clone;");
         code.AppendLineAt(
             2,
@@ -217,6 +223,11 @@ internal sealed class SparseFragmentCoreEmitter(
             2,
             "if (context.TryGetValue(source, out var existing)) return (TDictionary)existing;"
         );
+        if (includeImmutableCollections)
+            code.AppendLineAt(
+                2,
+                "if (source is global::System.Collections.Immutable.ImmutableDictionary<TKey, TValue> immutableDictionary) return __CloneImmutableDictionary<TKey, TValue, TDictionary>(immutableDictionary, context, cloneKey, cloneValue);"
+            );
         code.AppendLineAt(2, "global::System.Collections.Generic.IDictionary<TKey, TValue> clone;");
         code.AppendLineAt(
             2,
@@ -254,6 +265,17 @@ internal sealed class SparseFragmentCoreEmitter(
             2,
             "if (source is global::System.Collections.Generic.HashSet<T> || source is global::System.Collections.Generic.SortedSet<T>) return __CloneSet<T, TCollection>(source, context, cloneElement);"
         );
+        if (includeImmutableCollections)
+        {
+            code.AppendLineAt(
+                2,
+                "if (source is global::System.Collections.Immutable.ImmutableList<T> immutableList) return __CloneImmutableList<T, TCollection>(immutableList, context, cloneElement);"
+            );
+            code.AppendLineAt(
+                2,
+                "if (source is global::System.Collections.Immutable.ImmutableHashSet<T> immutableSet) return __CloneImmutableSet<T, TCollection>(immutableSet, context, cloneElement);"
+            );
+        }
         code.AppendLineAt(
             2,
             "if (source is global::System.Collections.Generic.Queue<T>) return __CloneQueue<T, TCollection>(source, context, cloneElement);"
@@ -501,6 +523,54 @@ internal sealed class SparseFragmentCoreEmitter(
                 "foreach (var item in source.UnorderedItems) clone.Enqueue(cloneElement(item.Element), clonePriority(item.Priority));"
             );
             code.AppendLineAt(2, "return clone;");
+            code.AppendLineAt(1, "}");
+        }
+        if (includeImmutableCollections)
+        {
+            code.AppendLineAt(
+                1,
+                "private static TCollection __CloneImmutableList<T, TCollection>(global::System.Collections.Immutable.ImmutableList<T> source, global::System.Collections.Generic.Dictionary<object, object> context, global::System.Func<T, T> cloneElement)"
+            );
+            code.AppendLineAt(1, "{");
+            code.AppendLineAt(
+                2,
+                "if (context.TryGetValue(source, out var existing)) return (TCollection)existing;"
+            );
+            code.AppendLineAt(
+                2,
+                "var clone = __CloneImmutableReference(source, context, () => global::System.Collections.Immutable.ImmutableList.CreateRange(global::System.Linq.Enumerable.Select(source, cloneElement)));"
+            );
+            code.AppendLineAt(2, "return (TCollection)(object)clone;");
+            code.AppendLineAt(1, "}");
+            code.AppendLineAt(
+                1,
+                "private static TCollection __CloneImmutableSet<T, TCollection>(global::System.Collections.Immutable.ImmutableHashSet<T> source, global::System.Collections.Generic.Dictionary<object, object> context, global::System.Func<T, T> cloneElement)"
+            );
+            code.AppendLineAt(1, "{");
+            code.AppendLineAt(
+                2,
+                "if (context.TryGetValue(source, out var existing)) return (TCollection)existing;"
+            );
+            code.AppendLineAt(
+                2,
+                "var clone = __CloneImmutableReference(source, context, () => global::System.Collections.Immutable.ImmutableHashSet.CreateRange(source.KeyComparer, global::System.Linq.Enumerable.Select(source, cloneElement)));"
+            );
+            code.AppendLineAt(2, "return (TCollection)(object)clone;");
+            code.AppendLineAt(1, "}");
+            code.AppendLineAt(
+                1,
+                "private static TCollection __CloneImmutableDictionary<TKey, TValue, TCollection>(global::System.Collections.Immutable.ImmutableDictionary<TKey, TValue> source, global::System.Collections.Generic.Dictionary<object, object> context, global::System.Func<TKey, TKey> cloneKey, global::System.Func<TValue, TValue> cloneValue) where TKey : notnull"
+            );
+            code.AppendLineAt(1, "{");
+            code.AppendLineAt(
+                2,
+                "if (context.TryGetValue(source, out var existing)) return (TCollection)existing;"
+            );
+            code.AppendLineAt(
+                2,
+                "var clone = __CloneImmutableReference(source, context, () => global::System.Collections.Immutable.ImmutableDictionary.Create<TKey, TValue>(source.KeyComparer).WithComparers(source.KeyComparer, source.ValueComparer).AddRange(global::System.Linq.Enumerable.Select(source, pair => new global::System.Collections.Generic.KeyValuePair<TKey, TValue>(cloneKey(pair.Key), cloneValue(pair.Value)))));"
+            );
+            code.AppendLineAt(2, "return (TCollection)(object)clone;");
             code.AppendLineAt(1, "}");
         }
     }
