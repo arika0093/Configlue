@@ -42,6 +42,7 @@
     <Compile Remove="Resources/HttpResourceRequestTimeoutTests.cs" />
     <Compile Remove="Resources/PostgreSqlSourceTests.cs" />
     <Compile Remove="Resources/PostgreSqlSourceCacheLifecycleTests.cs" />
+    <Compile Remove="Resources/PostgreSqlSourceResidencyLeaseTests.cs" />
     <Compile Remove="Resources/PostgreSqlSchemaGuardTests.cs" />
     <Compile Remove="State/StatePipelineTests.cs" />
     <Compile Remove="State/RuntimeLifetimeTests.cs" />

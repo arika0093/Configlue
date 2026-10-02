@@ -7,9 +7,11 @@ namespace Configlue.Internal;
 /// </summary>
 /// <remarks>
 /// An entry is leased for the duration of one caller operation so idle eviction and disposal never tear
-/// down a resource that is still in use. Materialization and disposal share one lifecycle protocol: a
-/// value materialized while the cache is disposed is disposed by its materializer and never escapes, and
-/// a value published to the cache is disposed exactly once. Route keys are only retained while an entry
+/// down a resource that is still in use. The entry lifecycle separates retirement (detached from the
+/// resident dictionary, rejecting further pins) from physical disposal: a retired entry disposes
+/// immediately only when idle, otherwise disposal is deferred until its final lease releases. A value
+/// materialized while the cache is disposed is disposed by its materializer and never escapes, and a
+/// value published to the cache is disposed exactly once. Route keys are only retained while an entry
 /// is resident; residency is bounded by an idle timeout and a capacity high-water mark.
 /// </remarks>
 internal sealed class ResidencyCache<TKey, TValue> : IDisposable
@@ -23,6 +25,9 @@ internal sealed class ResidencyCache<TKey, TValue> : IDisposable
     private readonly int _capacity;
     private long _lastSweepTimestamp;
     private bool _disposed;
+
+    // Allows contract tests to stop after publication while the acquisition still owns its pin.
+    internal Action? BeforeLeaseReturn { get; set; }
 
     public ResidencyCache(
         Func<TKey, TValue> factory,
@@ -74,41 +79,33 @@ internal sealed class ResidencyCache<TKey, TValue> : IDisposable
         lock (_gate)
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
-            if (!_entries.TryGetValue(key, out entry!))
+            if (!_entries.TryGetValue(key, out entry!) || !entry.TryPin())
             {
                 entry = new Entry(this, key);
-                _entries.Add(key, entry);
+                _entries[key] = entry;
+                entry.TryPin();
             }
 
-            entry.Pin();
             MaybeSweepLocked(ref evicted);
         }
 
-        DisposeEntries(evicted);
-
-        TValue? value;
         try
         {
-            value = entry.Publish();
+            DisposeEntries(evicted);
+            var value = entry.Publish();
+            if (value is null || IsDisposed())
+            {
+                throw new ObjectDisposedException(GetType().FullName);
+            }
+
+            BeforeLeaseReturn?.Invoke();
+            return new Lease(entry, value);
         }
         catch
         {
             DiscardFailedEntry(key, entry);
             throw;
         }
-
-        if (value is null || IsDisposed())
-        {
-            lock (_gate)
-            {
-                entry.Unpin();
-            }
-
-            entry.AbortAndDispose();
-            throw new ObjectDisposedException(GetType().FullName);
-        }
-
-        return new Lease(this, entry, value);
     }
 
     /// <summary>Forces an idle sweep and enforces the capacity bound, for diagnostics and tests.</summary>
@@ -129,7 +126,7 @@ internal sealed class ResidencyCache<TKey, TValue> : IDisposable
         DisposeEntries(evicted);
     }
 
-    /// <summary>Disposes every resident value and prevents further materialization.</summary>
+    /// <summary>Retires all entries, disposing idle values and deferring active values until their last release.</summary>
     public void Dispose()
     {
         List<Entry>? entries = null;
@@ -145,10 +142,7 @@ internal sealed class ResidencyCache<TKey, TValue> : IDisposable
             _entries.Clear();
         }
 
-        foreach (var entry in entries)
-        {
-            entry.AbortAndDispose();
-        }
+        DisposeEntries(entries);
     }
 
     private bool IsDisposed()
@@ -172,14 +166,6 @@ internal sealed class ResidencyCache<TKey, TValue> : IDisposable
             {
                 _entries.Remove(key);
             }
-        }
-    }
-
-    private void Release(Entry entry)
-    {
-        lock (_gate)
-        {
-            entry.Unpin();
         }
     }
 
@@ -247,9 +233,21 @@ internal sealed class ResidencyCache<TKey, TValue> : IDisposable
             return;
         }
 
+        List<Exception>? errors = null;
         foreach (var entry in entries)
         {
-            entry.AbortAndDispose();
+            try
+            {
+                entry.Retire();
+            }
+            catch (Exception exception)
+            {
+                (errors ??= []).Add(exception);
+            }
+        }
+        if (errors is not null)
+        {
+            throw new AggregateException("One or more cached values failed to dispose.", errors);
         }
     }
 
@@ -259,7 +257,7 @@ internal sealed class ResidencyCache<TKey, TValue> : IDisposable
         private readonly Lazy<TValue> _value;
         private long _lastAccess;
         private int _pins;
-        private bool _aborted;
+        private bool _retired;
         private bool _valueDisposed;
 
         public Entry(ResidencyCache<TKey, TValue> owner, TKey key)
@@ -270,76 +268,107 @@ internal sealed class ResidencyCache<TKey, TValue> : IDisposable
             );
         }
 
-        public int Pins => _pins;
+        public int Pins
+        {
+            get
+            {
+                lock (_lifecycleGate)
+                {
+                    return _pins;
+                }
+            }
+        }
 
-        public long LastAccess => _lastAccess;
+        public long LastAccess
+        {
+            get
+            {
+                lock (_lifecycleGate)
+                {
+                    return _lastAccess;
+                }
+            }
+        }
 
         public bool IsValueCreated => _value.IsValueCreated;
 
-        public void Pin()
+        /// <summary>Pins the entry for a lease, or returns <see langword="false"/> when it is retired.</summary>
+        public bool TryPin()
         {
-            _pins++;
-            _lastAccess = Stopwatch.GetTimestamp();
+            lock (_lifecycleGate)
+            {
+                if (_retired)
+                {
+                    return false;
+                }
+
+                _pins++;
+                _lastAccess = Stopwatch.GetTimestamp();
+                return true;
+            }
         }
 
-        public void Unpin() => _pins--;
+        /// <summary>
+        /// Releases one pin and physically disposes the value when this is the final lease of a retired
+        /// entry.
+        /// </summary>
+        public void Unpin()
+        {
+            TValue? dispose = null;
+            lock (_lifecycleGate)
+            {
+                _pins--;
+                if (_pins == 0 && _retired && _value.IsValueCreated && !_valueDisposed)
+                {
+                    _valueDisposed = true;
+                    dispose = _value.Value;
+                }
+            }
+
+            dispose?.Dispose();
+        }
 
         /// <summary>
-        /// Returns the materialized value, or <see langword="null"/> when disposal won the lifecycle
-        /// transition; in that case the freshly materialized value is disposed before returning.
+        /// Returns the materialized value while the caller's pin keeps it alive, or <see langword="null"/>
+        /// when retirement won the lifecycle transition. A losing materialization is disposed by the
+        /// release of its pin, preserving the value for any other active lease.
         /// </summary>
         public TValue? Publish()
         {
             var value = _value.Value;
-            bool dispose;
             lock (_lifecycleGate)
             {
-                if (!_aborted)
-                {
-                    return value;
-                }
-
-                dispose = !_valueDisposed;
-                if (dispose)
-                {
-                    _valueDisposed = true;
-                }
+                return _retired ? null : value;
             }
-
-            if (dispose)
-            {
-                value.Dispose();
-            }
-
-            return null;
         }
 
-        /// <summary>Marks the entry dead and disposes its value exactly once.</summary>
-        public void AbortAndDispose()
+        /// <summary>
+        /// Detaches the entry and disposes its value immediately when idle, otherwise defers disposal until
+        /// the final lease releases.
+        /// </summary>
+        public void Retire()
         {
-            TValue? value = null;
+            TValue? dispose = null;
             lock (_lifecycleGate)
             {
-                _aborted = true;
-                if (_value.IsValueCreated && !_valueDisposed)
+                _retired = true;
+                if (_pins == 0 && _value.IsValueCreated && !_valueDisposed)
                 {
                     _valueDisposed = true;
-                    value = _value.Value;
+                    dispose = _value.Value;
                 }
             }
 
-            value?.Dispose();
+            dispose?.Dispose();
         }
     }
 
     internal sealed class Lease : IDisposable
     {
-        private readonly ResidencyCache<TKey, TValue> _owner;
         private Entry? _entry;
 
-        internal Lease(ResidencyCache<TKey, TValue> owner, Entry entry, TValue value)
+        internal Lease(Entry entry, TValue value)
         {
-            _owner = owner;
             _entry = entry;
             Value = value;
         }
@@ -349,10 +378,7 @@ internal sealed class ResidencyCache<TKey, TValue> : IDisposable
         public void Dispose()
         {
             var entry = Interlocked.Exchange(ref _entry, null);
-            if (entry is not null)
-            {
-                _owner.Release(entry);
-            }
+            entry?.Unpin();
         }
     }
 }
