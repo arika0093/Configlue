@@ -316,7 +316,6 @@ public static class StateSourceProjection
             resourceId = default;
             return false;
         }
-        }
 
         public async ValueTask<StateReadResult<TTarget>> ReadAsync(
             ConfiglueResourceContext context,

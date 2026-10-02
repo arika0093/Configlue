@@ -149,11 +149,13 @@ public static class HttpSourceRegistration
                     options.Priority,
                     options.FallbackCondition,
                     physicalOrigin: endpoint.AbsoluteUri,
-                    logicalDescriptor: (options.ResourceOptions?.GetPath ?? "get")
-                        + "\n"
-                        + (options.ResourceOptions?.UpdatePath ?? "update")
-                        + "\n"
-                        + options.ResourceOptions?.EndpointRootSelector?.Method.ToString(),
+                    logicalDescriptor: string.Join(
+                        "\n",
+                        options.EndPoint,
+                        options.ResourceOptions?.GetPath ?? "get",
+                        options.ResourceOptions?.UpdatePath ?? "update",
+                        options.ResourceOptions?.EndpointRootSelector?.Method.ToString()
+                    ),
                     fixedResourceId: options.FixedResourceId
                 );
         }

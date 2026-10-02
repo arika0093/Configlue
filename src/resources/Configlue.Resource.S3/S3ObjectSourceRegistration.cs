@@ -126,13 +126,14 @@ public static class S3ObjectSourceRegistration
                     options.Priority,
                     options.FallbackCondition,
                     physicalOrigin: physicalOrigin,
-                    logicalDescriptor: options.Key
-                        + "\n"
-                        + options.ResourceOptions?.BucketNameSelector?.Method.ToString()
-                        + "\n"
-                        + options.ResourceOptions?.KeySelector?.Method.ToString()
-                        + "\n"
-                        + options.ResourceOptions?.ClientSelector?.Method.ToString(),
+                    logicalDescriptor: string.Join(
+                        "\n",
+                        options.BucketName,
+                        options.Key,
+                        options.ResourceOptions?.BucketNameSelector?.Method.ToString(),
+                        options.ResourceOptions?.KeySelector?.Method.ToString(),
+                        options.ResourceOptions?.ClientSelector?.Method.ToString()
+                    ),
                     fixedResourceId: options.ResourceOptions?.FixedResourceId
                 );
         }

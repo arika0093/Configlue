@@ -150,13 +150,14 @@ public static class RedisStateSourceRegistration
                     options.Priority,
                     options.FallbackCondition,
                     physicalOrigin: physicalOrigin,
-                    logicalDescriptor: options.ResourceOptions?.KeyPrefix
-                        + "\n"
-                        + options.ResourceOptions?.KeyPrefixSelector?.Method.ToString()
-                        + "\n"
-                        + options.ResourceOptions?.Database
-                        + "\n"
-                        + options.ResourceOptions?.DatabaseSelector?.Method.ToString(),
+                    logicalDescriptor: string.Join(
+                        "\n",
+                        options.ResourceNamespace,
+                        options.ResourceOptions?.KeyPrefix,
+                        options.ResourceOptions?.KeyPrefixSelector?.Method.ToString(),
+                        options.ResourceOptions?.Database.ToString(),
+                        options.ResourceOptions?.DatabaseSelector?.Method.ToString()
+                    ),
                     fixedResourceId: options.ResourceOptions?.FixedResourceId
                 );
             return context.Complete(source);

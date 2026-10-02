@@ -333,4 +333,63 @@ public sealed partial class ConfiglueFacadeSourceTests
             }
         }
     }
+
+    [Test]
+    public async Task HttpSourcesWithDifferentEndpointsReceiveDistinctLogicalIds()
+    {
+        var requestedUris = new System.Collections.Concurrent.ConcurrentBag<Uri>();
+        var content = SerializeFragment(
+            new AppSettings.Fragment { RetryCount = Optional<int>.Present(1) }
+        );
+        var services = new ServiceCollection();
+        services.AddConfiglueMicrosoftOptions<AppSettings>();
+        services
+            .AddHttpClient("settings-a")
+            .ConfigurePrimaryHttpMessageHandler(() =>
+                new HttpResponseHandler(requestedUris, content)
+            );
+        services
+            .AddHttpClient("settings-b")
+            .ConfigurePrimaryHttpMessageHandler(() =>
+                new HttpResponseHandler(requestedUris, content)
+            );
+        services.AddConfiglue(builder =>
+        {
+            builder.Add<AppSettings>(model =>
+                model.Sources(sources =>
+                {
+                    sources.FromHttpClientFactory(
+                        "settings-a",
+                        new HttpSourceOptions
+                        {
+                            EndPoint = "https://settings.example.test/a/",
+                            Codec = StateCodecBinding.Typed(
+                                new JsonStateCodec<AppSettings.Fragment>()
+                            ),
+                        }
+                    );
+                    sources.FromHttpClientFactory(
+                        "settings-b",
+                        new HttpSourceOptions
+                        {
+                            EndPoint = "https://settings.example.test/b/",
+                            Codec = StateCodecBinding.Typed(
+                                new JsonStateCodec<AppSettings.Fragment>()
+                            ),
+                        }
+                    );
+                })
+            );
+        });
+
+        await using var provider = services.BuildServiceProvider();
+        var options = (IConfiglueRuntimeState<AppSettings>)
+            provider.GetRequiredService<IWritableState<AppSettings>>();
+        var ids = options
+            .GetRuntimeSnapshot()
+            .Sources.Select(static source => source.Id)
+            .ToArray();
+        ids.Length.ShouldBe(2);
+        ids.Distinct().Count().ShouldBe(2);
+    }
 }
