@@ -187,7 +187,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             owner.GetValueForSubjectAsync(subject, cancellationToken);
 
         public ValueTask<StateWriteReceipt> SaveAsync(
-            IConfigluePatch patch,
+            IConfiglueModelPatch<TModel> patch,
             CancellationToken cancellationToken = default
         ) => owner.SaveForSubjectAsync(subject, patch, cancellationToken);
 

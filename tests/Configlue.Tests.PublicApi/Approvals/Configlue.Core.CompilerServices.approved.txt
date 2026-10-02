@@ -16,5 +16,5 @@ namespace Configlue.CompilerServices
             where TModel : Configlue.CompilerServices.IConfiglueFacadeModel<TModel>, Configlue.CompilerServices.IConfiglueModel<TModel, TFragment>
             where TFragment :  class, Configlue.IConfiglueFragment<TFragment> { }
     }
-    public interface IConfiglueFacadeModel<TSelf> { }
+    public interface IConfiglueFacadeModel<TSelf> : Configlue.CompilerServices.IConfiglueModel { }
 }

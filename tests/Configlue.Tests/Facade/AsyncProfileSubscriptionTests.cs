@@ -256,7 +256,7 @@ public sealed class AsyncProfileSubscriptionTests
         ) => Read(cancellationToken);
 
         public ValueTask<StateWriteReceipt> SaveAsync(
-            IConfigluePatch patch,
+            IConfiglueModelPatch<AppSettings> patch,
             CancellationToken cancellationToken = default
         ) => throw new NotSupportedException();
     }

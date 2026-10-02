@@ -464,7 +464,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
 
     private async ValueTask<StateWriteReceipt> SaveForSubjectAsync(
         IConfiglueSubject subject,
-        IConfigluePatch patch,
+        IConfiglueModelPatch<TModel> patch,
         CancellationToken cancellationToken
     )
     {

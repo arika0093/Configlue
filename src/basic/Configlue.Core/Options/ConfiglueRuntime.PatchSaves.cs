@@ -12,7 +12,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
 {
     /// <inheritdoc />
     public async ValueTask<StateWriteReceipt> SaveAsync(
-        IConfigluePatch patch,
+        IConfiglueModelPatch<TModel> patch,
         CancellationToken cancellationToken = default
     )
     {

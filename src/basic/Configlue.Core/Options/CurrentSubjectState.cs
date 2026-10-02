@@ -58,7 +58,7 @@ internal sealed class CurrentSubjectState<TModel>(
     }
 
     public async ValueTask<StateWriteReceipt> SaveAsync(
-        IConfigluePatch patch,
+        IConfiglueModelPatch<TModel> patch,
         CancellationToken cancellationToken = default
     )
     {

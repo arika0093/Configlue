@@ -15,7 +15,7 @@ public sealed class ConfiglueSourceHandle<TModel>
 
     /// <summary>Applies only the Set and Unset operations in the patch to this source.</summary>
     public ValueTask<StateWriteReceipt> SaveAsync(
-        IConfigluePatch patch,
+        IConfiglueModelPatch<TModel> patch,
         CancellationToken cancellationToken = default
     )
     {
@@ -28,7 +28,7 @@ public sealed class ConfiglueSourceHandle<TModel>
 
     /// <summary>Replaces this source contribution; unspecified generated patch members become Unset.</summary>
     public ValueTask<StateWriteReceipt> ReplaceAsync(
-        IConfigluePatch patch,
+        IConfiglueModelPatch<TModel> patch,
         CancellationToken cancellationToken = default
     )
     {

@@ -50,7 +50,7 @@ internal sealed class FakeOptions<T>(T value)
     }
 
     public ValueTask<StateWriteReceipt> SaveAsync(
-        IConfigluePatch patch,
+        IConfiglueModelPatch<T> patch,
         CancellationToken cancellationToken = default
     ) => throw new NotSupportedException();
 
