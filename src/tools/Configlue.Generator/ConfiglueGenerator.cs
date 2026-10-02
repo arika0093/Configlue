@@ -128,6 +128,14 @@ public sealed partial class ConfiglueGenerator : IIncrementalGenerator
         DiagnosticSeverity.Error,
         true
     );
+    private static readonly DiagnosticDescriptor GeneratedNameCollision = new(
+        "CFG012",
+        "Configlue member conflicts with generated API",
+        "Member '{0}' conflicts with a name reserved by the generated Configlue API",
+        "Configlue",
+        DiagnosticSeverity.Error,
+        true
+    );
 
     private static bool IsExternalInitEmissionEnabled(AnalyzerConfigOptionsProvider options)
     {
