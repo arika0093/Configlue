@@ -124,17 +124,10 @@ internal sealed class SparseFragmentExpressions(
 
             if (collection.CloneKind == SparseCloneCollectionKind.Dictionary)
             {
-                var isConcreteDictionary =
-                    collection.NamedTypeDefinition
-                    == "System.Collections.Generic.Dictionary<TKey, TValue>";
-                var comparer = isConcreteDictionary
-                    ? access + ".Comparer"
-                    : $"({access} as global::System.Collections.Generic.Dictionary<{collection.ElementType.Name}, {collection.ValueType.Value.Name}>)?.Comparer";
-                var keySelector =
-                    $"pair => {CloneValueExpression(collection.ElementType, "pair.Key")}";
+                var keySelector = $"key => {CloneValueExpression(collection.ElementType, "key")}";
                 var valueSelector =
-                    $"pair => {CloneValueExpression(collection.ValueType.Value, "pair.Value")}";
-                return $"global::System.Linq.Enumerable.ToDictionary({access}, {keySelector}, {valueSelector}, {comparer})";
+                    $"value => {CloneValueExpression(collection.ValueType.Value, "value")}";
+                return $"__CloneDictionary<{collection.ElementType.Name}, {collection.ValueType.Value.Name}, {member.Property.Type.Name}>({access}, {CloneContext}, {keySelector}, {valueSelector})";
             }
 
             if (collection.CloneKind == SparseCloneCollectionKind.ImmutableDictionary)

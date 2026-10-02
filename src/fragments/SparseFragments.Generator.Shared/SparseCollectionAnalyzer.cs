@@ -106,6 +106,8 @@ internal static class SparseCollectionAnalyzer
             or "System.Collections.Generic.ISet<T>"
             or "System.Collections.Generic.IReadOnlySet<T>" => SparseCloneCollectionKind.Set,
             "System.Collections.Generic.Dictionary<TKey, TValue>"
+            or "System.Collections.Generic.SortedDictionary<TKey, TValue>"
+            or "System.Collections.Generic.SortedList<TKey, TValue>"
             or "System.Collections.Generic.IDictionary<TKey, TValue>"
             or "System.Collections.Generic.IReadOnlyDictionary<TKey, TValue>" =>
                 SparseCloneCollectionKind.Dictionary,

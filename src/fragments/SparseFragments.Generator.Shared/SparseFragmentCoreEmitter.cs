@@ -131,6 +131,35 @@ internal sealed class SparseFragmentCoreEmitter(
     {
         code.AppendLineAt(
             1,
+            "private static TDictionary __CloneDictionary<TKey, TValue, TDictionary>(global::System.Collections.Generic.IEnumerable<global::System.Collections.Generic.KeyValuePair<TKey, TValue>> source, global::System.Collections.Generic.Dictionary<object, object> context, global::System.Func<TKey, TKey> cloneKey, global::System.Func<TValue, TValue> cloneValue) where TKey : notnull"
+        );
+        code.AppendLineAt(1, "{");
+        code.AppendLineAt(
+            2,
+            "if (context.TryGetValue(source, out var existing)) return (TDictionary)existing;"
+        );
+        code.AppendLineAt(2, "global::System.Collections.Generic.IDictionary<TKey, TValue> clone;");
+        code.AppendLineAt(
+            2,
+            "if (source is global::System.Collections.Generic.SortedDictionary<TKey, TValue> sorted) clone = new global::System.Collections.Generic.SortedDictionary<TKey, TValue>(sorted.Comparer);"
+        );
+        code.AppendLineAt(
+            2,
+            "else if (source is global::System.Collections.Generic.SortedList<TKey, TValue> sortedList) clone = new global::System.Collections.Generic.SortedList<TKey, TValue>(sortedList.Comparer);"
+        );
+        code.AppendLineAt(
+            2,
+            "else clone = new global::System.Collections.Generic.Dictionary<TKey, TValue>((source as global::System.Collections.Generic.Dictionary<TKey, TValue>)?.Comparer);"
+        );
+        code.AppendLineAt(2, "context.Add(source, clone);");
+        code.AppendLineAt(
+            2,
+            "foreach (var pair in source) clone.Add(cloneKey(pair.Key), cloneValue(pair.Value));"
+        );
+        code.AppendLineAt(2, "return (TDictionary)(object)clone;");
+        code.AppendLineAt(1, "}");
+        code.AppendLineAt(
+            1,
             "private static TCollection __CloneArray<T, TCollection>(global::System.Collections.Generic.IEnumerable<T> source, global::System.Collections.Generic.Dictionary<object, object> context, global::System.Func<T, T> cloneElement)"
         );
         code.AppendLineAt(1, "{");

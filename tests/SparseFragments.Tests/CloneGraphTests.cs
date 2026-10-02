@@ -28,6 +28,7 @@ public sealed class CloneGraphTests
         root.Nodes.Add(root);
         child.Nodes = root.Nodes;
         root.Map.Add(child, child);
+        child.Map = root.Map;
         var clone = root.DeepClone();
         ReferenceEquals(clone, root).ShouldBeFalse();
         ReferenceEquals(clone.Next, child).ShouldBeFalse();
@@ -44,6 +45,7 @@ public sealed class CloneGraphTests
         ReferenceEquals(clone.Map.Values.Single(), clone.Next).ShouldBeTrue();
         ReferenceEquals(clone.Nodes, root.Nodes).ShouldBeFalse();
         ReferenceEquals(clone.Map, root.Map).ShouldBeFalse();
+        ReferenceEquals(clone.Next.Map, clone.Map).ShouldBeTrue();
         clone.Next.Value = 9;
         child.Value.ShouldBe(7);
     }
