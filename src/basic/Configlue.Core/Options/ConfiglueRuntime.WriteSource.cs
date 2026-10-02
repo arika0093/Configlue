@@ -50,7 +50,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         IConfiglueFragment changes,
         object? afterModel,
         List<string> path,
-        string targetSourceId,
+        SourceId targetSourceId,
         IReadOnlyList<ResolvedContribution> contributions,
         StateSource<TFragment>[]? sourceOrder
     )
@@ -100,11 +100,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                         foreach (var contribution in contributions)
                         {
                             if (
-                                string.Equals(
-                                    contribution.Source.Id,
-                                    source.Id,
-                                    StringComparison.Ordinal
-                                )
+                                contribution.Source.Id == source.Id
                                 && contribution.Result.Value is { } sourceValue
                                 && TryGetFragmentValue(sourceValue, path, out var contributionValue)
                             )
@@ -114,13 +110,16 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                             }
                         }
 
-                        strategyValues[index] = new ConfiglueMergeSourceValue(source.Id, value);
+                        strategyValues[index] = new ConfiglueMergeSourceValue(
+                            source.Id.Value,
+                            value
+                        );
                     }
 
                     if (
                         !mergeStrategy.TryPlanSourceContribution(
                             strategyValues,
-                            targetSourceId,
+                            targetSourceId.Value,
                             afterValue,
                             out var targetContribution,
                             out var reason
@@ -153,8 +152,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                 var orderedSources = sourceOrder!;
                 var targetIndex = Array.FindIndex(
                     orderedSources,
-                    candidate =>
-                        string.Equals(candidate.Id, targetSourceId, StringComparison.Ordinal)
+                    candidate => candidate.Id == targetSourceId
                 );
                 if (targetIndex < 0)
                 {
@@ -195,12 +193,12 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         return changes;
     }
 
-    private static Dictionary<string, List<object?>> GetCollectionContributions(
+    private static Dictionary<SourceId, List<object?>> GetCollectionContributions(
         IReadOnlyList<string> path,
         IReadOnlyList<ResolvedContribution> contributions
     )
     {
-        var valuesBySource = new Dictionary<string, List<object?>>(StringComparer.Ordinal);
+        var valuesBySource = new Dictionary<SourceId, List<object?>>();
         foreach (var contribution in contributions)
         {
             if (
@@ -221,7 +219,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
     private List<object?> PlanAppendContribution(
         IReadOnlyList<StateSource<TFragment>> sourceOrder,
         int targetIndex,
-        IReadOnlyDictionary<string, List<object?>> valuesBySource,
+        IReadOnlyDictionary<SourceId, List<object?>> valuesBySource,
         IReadOnlyList<object?> desired,
         string memberName
     )
@@ -293,7 +291,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
     private List<object?> PlanSetUnionContribution(
         IReadOnlyList<StateSource<TFragment>> sourceOrder,
         int targetIndex,
-        IReadOnlyDictionary<string, List<object?>> valuesBySource,
+        IReadOnlyDictionary<SourceId, List<object?>> valuesBySource,
         IReadOnlyList<object?> desired,
         ConfiglueMemberSchema member
     )

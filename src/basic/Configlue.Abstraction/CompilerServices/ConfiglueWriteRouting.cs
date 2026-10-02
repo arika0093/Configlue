@@ -9,10 +9,10 @@ public static class ConfiglueWriteRouting
         plan.Bind(schema);
 
     /// <summary>Resolves the most specific generated path owner.</summary>
-    public static string? Resolve(
+    public static SourceId? Resolve(
         StateWritePlan plan,
         ConfiglueMemberPath path,
-        string? fallbackSourceId = null
+        SourceId? fallbackSourceId = null
     ) => plan.ResolveSourceIdOrNull(path, fallbackSourceId);
 
     /// <summary>Checks for a more specific generated path owner.</summary>

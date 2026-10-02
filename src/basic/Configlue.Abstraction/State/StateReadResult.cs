@@ -15,7 +15,7 @@ public readonly record struct StateReadResult<T>
     public string? Revision { get; init; }
 
     /// <summary>Gets or initializes the logical source registration identifier that produced this result.</summary>
-    public string? SourceId { get; init; }
+    public SourceId? SourceId { get; init; }
 
     /// <summary>Gets or initializes human-readable physical location metadata for diagnostics; this is not a resource identity contract.</summary>
     public string? PhysicalOrigin { get; init; }
@@ -38,7 +38,7 @@ public readonly record struct StateReadResult<T>
         StateReadStatus Status,
         T? Value,
         string? Revision = null,
-        string? SourceId = null,
+        SourceId? SourceId = null,
         string? PhysicalOrigin = null,
         StateSchemaMetadata? Schema = null,
         StateRevisionVector? Revisions = null
@@ -74,7 +74,7 @@ public readonly record struct StateReadResult<T>
         StateReadStatus Status,
         T? Value,
         string? Revision = null,
-        string? SourceId = null,
+        SourceId? SourceId = null,
         string? PhysicalOrigin = null,
         StateSchemaMetadata? Schema = null,
         StateRevisionVector? Revisions = null
@@ -104,7 +104,7 @@ public readonly record struct StateReadResult<T>
         out StateReadStatus Status,
         out T? Value,
         out string? Revision,
-        out string? SourceId,
+        out SourceId? SourceId,
         out string? PhysicalOrigin,
         out StateSchemaMetadata? Schema,
         out StateRevisionVector? Revisions
@@ -145,7 +145,7 @@ public readonly record struct StateReadResult<T>
     /// Returns this result associated with its logical source. An existing physical origin is preserved;
     /// <paramref name="physicalOrigin"/> is used when the result does not already identify one.
     /// </summary>
-    public StateReadResult<T> FromSource(string sourceId, string? physicalOrigin = null) =>
+    public StateReadResult<T> FromSource(SourceId sourceId, string? physicalOrigin = null) =>
         this with
         {
             SourceId = sourceId,

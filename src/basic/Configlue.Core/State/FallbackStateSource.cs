@@ -21,7 +21,7 @@ public sealed class FallbackStateSource<T> : ISourceReader<T>, ISourceWriter<T>,
     private readonly StateSourceSet<T> _candidates;
     private readonly StateSourceResolver<T> _reader;
     private readonly StateSourceWatcher<T> _watcher;
-    private readonly string? _writeSourceId;
+    private readonly SourceId? _writeSourceId;
 
     /// <summary>Creates a first-available source from ordered candidate representations.</summary>
     /// <param name="candidates">Representations ordered by their priority and registration order.</param>
@@ -29,15 +29,21 @@ public sealed class FallbackStateSource<T> : ISourceReader<T>, ISourceWriter<T>,
     /// An optional candidate ID that receives writes. When omitted, writes target the active writable candidate,
     /// falling back to the highest-priority writable candidate when the state is not currently readable.
     /// </param>
-    public FallbackStateSource(StateSourceSet<T> candidates, string? writeSourceId = null)
+    public FallbackStateSource(StateSourceSet<T> candidates, SourceId? writeSourceId = null)
     {
         ArgumentNullException.ThrowIfNull(candidates);
         StateSource<T>? writeSource = null;
-        if (writeSourceId is not null)
+        if (writeSourceId is { } configuredSourceId)
         {
-            ArgumentException.ThrowIfNullOrWhiteSpace(writeSourceId);
+            if (configuredSourceId.IsDefault)
+            {
+                throw new ArgumentException(
+                    "A write source ID must be non-empty.",
+                    nameof(writeSourceId)
+                );
+            }
             writeSource = candidates.Sources.FirstOrDefault(source =>
-                string.Equals(source.Id, writeSourceId, StringComparison.Ordinal)
+                source.Id == configuredSourceId
             );
             if (writeSource is null)
             {
@@ -145,7 +151,7 @@ public sealed class FallbackStateSource<T> : ISourceReader<T>, ISourceWriter<T>,
             ? context
             : target.GetResourceContext(context.Subject);
         StateReadResult<T> targetState;
-        if (string.Equals(current.SourceId, target.Id, StringComparison.Ordinal))
+        if (current.SourceId == target.Id)
         {
             targetState = current;
         }
@@ -182,15 +188,13 @@ public sealed class FallbackStateSource<T> : ISourceReader<T>, ISourceWriter<T>,
     {
         if (_writeSourceId is not null)
         {
-            return _candidates.Sources.First(source =>
-                string.Equals(source.Id, _writeSourceId, StringComparison.Ordinal)
-            );
+            return _candidates.Sources.First(source => source.Id == _writeSourceId);
         }
 
         if (current.Status == StateReadStatus.Success && current.SourceId is { } selectedSourceId)
         {
             var selected = _candidates.Sources.FirstOrDefault(source =>
-                string.Equals(source.Id, selectedSourceId, StringComparison.Ordinal)
+                source.Id == selectedSourceId
             );
             if (selected?.Writer is not null)
             {
@@ -213,7 +217,7 @@ public sealed class FallbackStateSource<T> : ISourceReader<T>, ISourceWriter<T>,
             builder,
             ((int)result.Status).ToString(System.Globalization.CultureInfo.InvariantCulture)
         );
-        AppendPart(builder, result.SourceId);
+        AppendPart(builder, result.SourceId?.Value);
         AppendPart(builder, result.Revision);
         AppendRevisionVector(builder, result.Revisions);
         return builder.ToString();
@@ -235,11 +239,13 @@ public sealed class FallbackStateSource<T> : ISourceReader<T>, ISourceWriter<T>,
         foreach (
             var (sourceId, revision) in revisions.Revisions.OrderBy(
                 static item => item.Key,
-                StringComparer.Ordinal
+                Comparer<SourceId>.Create(
+                    static (left, right) => StringComparer.Ordinal.Compare(left.Value, right.Value)
+                )
             )
         )
         {
-            AppendPart(builder, sourceId);
+            AppendPart(builder, sourceId.Value);
             AppendPart(builder, revision);
         }
 
@@ -252,11 +258,13 @@ public sealed class FallbackStateSource<T> : ISourceReader<T>, ISourceWriter<T>,
         foreach (
             var (sourceId, nested) in revisions.NestedRevisions.OrderBy(
                 static item => item.Key,
-                StringComparer.Ordinal
+                Comparer<SourceId>.Create(
+                    static (left, right) => StringComparer.Ordinal.Compare(left.Value, right.Value)
+                )
             )
         )
         {
-            AppendPart(builder, sourceId);
+            AppendPart(builder, sourceId.Value);
             AppendRevisionVector(builder, nested);
         }
     }

@@ -143,16 +143,10 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         }
 
         var source = GetActiveSources()
-            .FirstOrDefault(candidate =>
-                string.Equals(candidate.Id, defaultSourceId, StringComparison.Ordinal)
-            );
+            .FirstOrDefault(candidate => candidate.Id == defaultSourceId);
         if (source is null)
         {
-            if (
-                _sourceSet.Sources.Any(candidate =>
-                    string.Equals(candidate.Id, defaultSourceId, StringComparison.Ordinal)
-                )
-            )
+            if (_sourceSet.Sources.Any(candidate => candidate.Id == defaultSourceId))
             {
                 throw new InvalidOperationException(
                     $"State source '{defaultSourceId}' has been retired from this state instance."
@@ -193,10 +187,9 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         return exception;
     }
 
-    private StateSource<TFragment> FindSource(string sourceId) =>
-        _sourceSet.Sources.FirstOrDefault(candidate =>
-            string.Equals(candidate.Id, sourceId, StringComparison.Ordinal)
-        ) ?? throw new InvalidOperationException($"State source '{sourceId}' is not registered.");
+    private StateSource<TFragment> FindSource(SourceId sourceId) =>
+        _sourceSet.Sources.FirstOrDefault(candidate => candidate.Id == sourceId)
+        ?? throw new InvalidOperationException($"State source '{sourceId}' is not registered.");
 
     private StateSource<TFragment>[] GetActiveSources()
     {
@@ -215,7 +208,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         return reversed;
     }
 
-    private bool IsSourceActive(string sourceId)
+    private bool IsSourceActive(SourceId sourceId)
     {
         lock (_sourceGate)
         {
@@ -223,7 +216,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         }
     }
 
-    private void RetireSourcesFromOptions(IEnumerable<string> sourceIds)
+    private void RetireSourcesFromOptions(IEnumerable<SourceId> sourceIds)
     {
         TaskCompletionSource? topologyChanged = null;
         lock (_sourceGate)

@@ -15,32 +15,49 @@ namespace Configlue;
 /// </remarks>
 public sealed class StateWritePlan
 {
-    private readonly KeyValuePair<ConfiglueMemberPath, string>[] _routes = [];
+    private readonly KeyValuePair<ConfiglueMemberPath, SourceId>[] _routes = [];
     private readonly ConfiglueModelSchema? _schema;
 
     /// <summary>Creates a write plan from model property paths to logical source IDs.</summary>
+    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
     public StateWritePlan(IReadOnlyDictionary<string, string> propertyRoutes)
-        : this(null, propertyRoutes) { }
+        : this(
+            null,
+            propertyRoutes.ToDictionary(
+                static route => route.Key,
+                static route => SourceId.From(route.Value)
+            )
+        ) { }
 
     /// <summary>Creates a write plan with a default owner and model property path routes.</summary>
     /// <param name="defaultSourceId">The logical source that owns paths without a more specific route.</param>
     /// <param name="propertyRoutes">Routes from model property paths to logical source IDs.</param>
+    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
     public StateWritePlan(
-        string? defaultSourceId,
-        IReadOnlyDictionary<string, string> propertyRoutes
+        SourceId? defaultSourceId,
+        IReadOnlyDictionary<string, SourceId> propertyRoutes
     )
     {
         ArgumentNullException.ThrowIfNull(propertyRoutes);
-        if (defaultSourceId is not null)
+        if (defaultSourceId is { IsDefault: true })
         {
-            ArgumentException.ThrowIfNullOrWhiteSpace(defaultSourceId);
+            throw new ArgumentException(
+                "The default source identifier is uninitialized.",
+                nameof(defaultSourceId)
+            );
         }
 
-        var routes = new Dictionary<string, string>(StringComparer.Ordinal);
+        var routes = new Dictionary<string, SourceId>(StringComparer.Ordinal);
         foreach (var route in propertyRoutes)
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(route.Key);
-            ArgumentException.ThrowIfNullOrWhiteSpace(route.Value);
+            if (route.Value.IsDefault)
+            {
+                throw new ArgumentException(
+                    "A routed source identifier is uninitialized.",
+                    nameof(propertyRoutes)
+                );
+            }
             if (
                 route
                     .Key.Split(new[] { '.' }, StringSplitOptions.None)
@@ -63,29 +80,40 @@ public sealed class StateWritePlan
         }
 
         DefaultSourceId = defaultSourceId;
-        PropertyRoutes = new ReadOnlyDictionary<string, string>(routes);
+        PropertyRoutes = new ReadOnlyDictionary<string, SourceId>(routes);
     }
 
     /// <summary>Creates a plan with no owners; every changed path has no write target.</summary>
     public static StateWritePlan Empty { get; } =
-        new((string?)null, new Dictionary<string, string>(StringComparer.Ordinal));
+        new(null, new Dictionary<string, SourceId>(StringComparer.Ordinal));
 
     /// <summary>Starts a strongly typed write-ownership plan for one generated model.</summary>
     public static StateWritePlanBuilder<TModel> For<TModel>()
         where TModel : IConfiglueModel => new();
 
     /// <summary>Creates a plan whose default owner is the supplied logical source.</summary>
-    public static StateWritePlan DefaultTo(string sourceId)
+    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
+    public static StateWritePlan DefaultTo(SourceId sourceId)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(sourceId);
-        return new StateWritePlan(sourceId, new Dictionary<string, string>(StringComparer.Ordinal));
+        if (sourceId.IsDefault)
+        {
+            throw new ArgumentException(
+                "The source identifier is uninitialized.",
+                nameof(sourceId)
+            );
+        }
+        return new StateWritePlan(
+            sourceId,
+            new Dictionary<string, SourceId>(StringComparer.Ordinal)
+        );
     }
 
     /// <summary>The logical source that owns model paths without a more specific route.</summary>
-    public string? DefaultSourceId { get; }
+    public SourceId? DefaultSourceId { get; }
 
     /// <summary>Configured model property paths and their target logical source IDs.</summary>
-    public IReadOnlyDictionary<string, string> PropertyRoutes { get; }
+    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
+    public IReadOnlyDictionary<string, SourceId> PropertyRoutes { get; }
 
     /// <summary>Combines this registration plan with owners supplied for one operation.</summary>
     /// <remarks>Operation owners replace registration owners with the same path. Longest-prefix matching still applies.</remarks>
@@ -123,7 +151,8 @@ public sealed class StateWritePlan
     }
 
     /// <summary>Resolves a path using the longest configured path prefix, or returns the default owner.</summary>
-    public string ResolveSourceId(string propertyPath)
+    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
+    public SourceId ResolveSourceId(string propertyPath)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(propertyPath);
         return ResolveSourceIdOrNull(propertyPath, DefaultSourceId)
@@ -133,15 +162,43 @@ public sealed class StateWritePlan
     }
 
     /// <summary>Resolves a path using the longest configured path prefix, or returns the fallback source ID.</summary>
-    public string ResolveSourceId(string propertyPath, string fallbackSourceId)
+    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
+    public SourceId ResolveSourceId(string propertyPath, SourceId fallbackSourceId)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(propertyPath);
-        ArgumentException.ThrowIfNullOrWhiteSpace(fallbackSourceId);
-        return ResolveSourceIdOrNull(propertyPath, fallbackSourceId)!;
+        if (fallbackSourceId.IsDefault)
+        {
+            throw new ArgumentException(
+                "The fallback source identifier is uninitialized.",
+                nameof(fallbackSourceId)
+            );
+        }
+        return ResolveSourceIdOrNull(propertyPath, fallbackSourceId)!.Value;
+    }
+
+    /// <summary>Resolves a compiled generated member path to its configured owner.</summary>
+    public SourceId ResolveSourceId(ConfiglueMemberPath path) =>
+        ResolveSourceIdOrNull(path)
+        ?? throw new InvalidOperationException(
+            $"No write owner is configured for model path '{path}'."
+        );
+
+    /// <summary>Resolves a compiled generated member path to its owner or the supplied fallback.</summary>
+    public SourceId ResolveSourceId(ConfiglueMemberPath path, SourceId fallbackSourceId)
+    {
+        if (fallbackSourceId.IsDefault)
+        {
+            throw new ArgumentException(
+                "The fallback source identifier is uninitialized.",
+                nameof(fallbackSourceId)
+            );
+        }
+        return ResolveSourceIdOrNull(path, fallbackSourceId)!.Value;
     }
 
     /// <summary>Resolves a path to its most specific owner, or returns the fallback when no owner is configured.</summary>
-    public string? ResolveSourceIdOrNull(string propertyPath, string? fallbackSourceId = null)
+    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
+    public SourceId? ResolveSourceIdOrNull(string propertyPath, SourceId? fallbackSourceId = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(propertyPath);
         if (_schema is not null)
@@ -152,7 +209,7 @@ public sealed class StateWritePlan
             );
         }
 
-        string? result = fallbackSourceId ?? DefaultSourceId;
+        SourceId? result = fallbackSourceId ?? DefaultSourceId;
         var length = -1;
         foreach (var route in PropertyRoutes)
         {
@@ -165,7 +222,29 @@ public sealed class StateWritePlan
         return result;
     }
 
+    /// <summary>Resolves a compiled generated member path to its most specific owner.</summary>
+    public SourceId? ResolveSourceIdOrNull(
+        ConfiglueMemberPath path,
+        SourceId? fallbackSourceId = null
+    )
+    {
+        EnsureCompiledPath(path);
+        var bestLength = -1;
+        var result = fallbackSourceId ?? DefaultSourceId;
+        for (var index = 0; index < _routes.Length; index++)
+        {
+            var route = _routes[index];
+            if (route.Key.Length > bestLength && route.Key.IsPrefixOf(path))
+            {
+                bestLength = route.Key.Length;
+                result = route.Value;
+            }
+        }
+        return result;
+    }
+
     /// <summary>Whether a more specific configured path exists beneath the supplied path.</summary>
+    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
     public bool HasRouteBelow(string propertyPath)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(propertyPath);
@@ -183,12 +262,27 @@ public sealed class StateWritePlan
         return false;
     }
 
+    /// <summary>Whether a configured generated member path exists beneath the supplied path.</summary>
+    public bool HasRouteBelow(ConfiglueMemberPath path)
+    {
+        EnsureCompiledPath(path);
+        for (var index = 0; index < _routes.Length; index++)
+        {
+            var route = _routes[index].Key;
+            if (route.Length > path.Length && path.IsPrefixOf(route))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private StateWritePlan(StateWritePlan plan, ConfiglueModelSchema schema)
     {
         DefaultSourceId = plan.DefaultSourceId;
         PropertyRoutes = plan.PropertyRoutes;
         _schema = schema;
-        _routes = new KeyValuePair<ConfiglueMemberPath, string>[PropertyRoutes.Count];
+        _routes = new KeyValuePair<ConfiglueMemberPath, SourceId>[PropertyRoutes.Count];
         var index = 0;
         foreach (var route in PropertyRoutes)
         {
@@ -196,9 +290,9 @@ public sealed class StateWritePlan
         }
     }
 
-    internal StateWritePlan WithDefaultSourceId(string? defaultSourceId)
+    internal StateWritePlan WithDefaultSourceId(SourceId? defaultSourceId)
     {
-        if (string.Equals(DefaultSourceId, defaultSourceId, StringComparison.Ordinal))
+        if (DefaultSourceId == defaultSourceId)
         {
             return this;
         }
@@ -223,10 +317,7 @@ public sealed class StateWritePlan
         return new StateWritePlan(this, schema);
     }
 
-    internal string? ResolveSourceIdOrNull(
-        ConfiglueMemberPath path,
-        string? fallbackSourceId = null
-    )
+    private void EnsureCompiledPath(ConfiglueMemberPath path)
     {
         if (_schema is null)
         {
@@ -241,31 +332,6 @@ public sealed class StateWritePlan
                 nameof(path)
             );
         }
-        var bestLength = -1;
-        var result = fallbackSourceId ?? DefaultSourceId;
-        for (var index = 0; index < _routes.Length; index++)
-        {
-            var route = _routes[index];
-            if (route.Key.Length > bestLength && route.Key.IsPrefixOf(path))
-            {
-                bestLength = route.Key.Length;
-                result = route.Value;
-            }
-        }
-        return result;
-    }
-
-    internal bool HasRouteBelow(ConfiglueMemberPath path)
-    {
-        for (var index = 0; index < _routes.Length; index++)
-        {
-            var route = _routes[index].Key;
-            if (route.Length > path.Length && path.IsPrefixOf(route))
-            {
-                return true;
-            }
-        }
-        return false;
     }
 
     private static bool IsPathOrDescendant(string propertyPath, string routeKey)

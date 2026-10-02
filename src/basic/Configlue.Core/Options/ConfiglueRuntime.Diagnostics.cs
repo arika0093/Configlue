@@ -42,7 +42,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
     }
 
     private async ValueTask<StateWriteResult> WriteObservedBatchAsync(
-        string sourceId,
+        SourceId sourceId,
         IResourceBatchWriter writer,
         IReadOnlyList<ResourceWriteMutation> mutations,
         CancellationToken cancellationToken

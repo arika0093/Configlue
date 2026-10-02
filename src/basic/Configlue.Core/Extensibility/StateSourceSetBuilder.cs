@@ -30,7 +30,14 @@ public sealed class StateSourceSetBuilder<T>
             fixedResourceId,
             logicalDescriptor
         );
-        return Add(source.Id, reader, priority, fallbackCondition, physicalOrigin, fixedResourceId);
+        return Add(
+            source.Id.Value,
+            reader,
+            priority,
+            fallbackCondition,
+            physicalOrigin,
+            fixedResourceId
+        );
     }
 
     /// <summary>Adds a source and detects writer and watcher support on its reader.</summary>
@@ -66,7 +73,7 @@ public sealed class StateSourceSetBuilder<T>
     public StateSourceSetBuilder<T> Add(StateSource<T> source)
     {
         ArgumentNullException.ThrowIfNull(source);
-        AddId(source.Id);
+        AddId(source.Id.Value);
         _sourceFactories.Add(() => source);
         return this;
     }
@@ -208,7 +215,7 @@ public sealed class StateSourceBuilder<T>
 
     internal StateSource<T> Build() =>
         new(
-            _id,
+            SourceId.From(_id),
             _reader,
             _priority,
             _fallbackCondition,

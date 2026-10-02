@@ -6,9 +6,9 @@ public sealed class StateStorageMigrationProgress
     /// <summary>Creates a progress snapshot for a migration definition.</summary>
     public StateStorageMigrationProgress(
         string migrationId,
-        IEnumerable<string> sourceIds,
-        IEnumerable<string> targetSourceIds,
-        IEnumerable<string>? completedTargetSourceIds = null,
+        IEnumerable<SourceId> sourceIds,
+        IEnumerable<SourceId> targetSourceIds,
+        IEnumerable<SourceId>? completedTargetSourceIds = null,
         bool retireSources = false,
         bool sourcesRetired = false
     )
@@ -21,8 +21,8 @@ public sealed class StateStorageMigrationProgress
         var completedArray = completedTargetSourceIds?.ToArray() ?? [];
         if (
             sourceArray.Length == 0
-            || sourceArray.Any(string.IsNullOrWhiteSpace)
-            || sourceArray.Distinct(StringComparer.Ordinal).Count() != sourceArray.Length
+            || sourceArray.Any(static sourceId => sourceId.IsDefault)
+            || sourceArray.Distinct().Count() != sourceArray.Length
         )
         {
             throw new ArgumentException(
@@ -33,8 +33,8 @@ public sealed class StateStorageMigrationProgress
 
         if (
             targetArray.Length == 0
-            || targetArray.Any(string.IsNullOrWhiteSpace)
-            || targetArray.Distinct(StringComparer.Ordinal).Count() != targetArray.Length
+            || targetArray.Any(static sourceId => sourceId.IsDefault)
+            || targetArray.Distinct().Count() != targetArray.Length
         )
         {
             throw new ArgumentException(
@@ -44,11 +44,9 @@ public sealed class StateStorageMigrationProgress
         }
 
         if (
-            completedArray.Any(string.IsNullOrWhiteSpace)
-            || completedArray.Distinct(StringComparer.Ordinal).Count() != completedArray.Length
-            || completedArray.Any(targetId =>
-                !targetArray.Contains(targetId, StringComparer.Ordinal)
-            )
+            completedArray.Any(static sourceId => sourceId.IsDefault)
+            || completedArray.Distinct().Count() != completedArray.Length
+            || completedArray.Any(targetId => !targetArray.Contains(targetId))
             || (sourcesRetired && (!retireSources || completedArray.Length != targetArray.Length))
         )
         {
@@ -70,13 +68,13 @@ public sealed class StateStorageMigrationProgress
     public string MigrationId { get; }
 
     /// <summary>The selected source IDs recorded when progress was saved.</summary>
-    public IReadOnlyList<string> SourceIds { get; }
+    public IReadOnlyList<SourceId> SourceIds { get; }
 
     /// <summary>The target IDs recorded when progress was saved.</summary>
-    public IReadOnlyList<string> TargetSourceIds { get; }
+    public IReadOnlyList<SourceId> TargetSourceIds { get; }
 
     /// <summary>Targets whose writes and verification completed.</summary>
-    public IReadOnlyList<string> CompletedTargetSourceIds { get; }
+    public IReadOnlyList<SourceId> CompletedTargetSourceIds { get; }
 
     /// <summary>Whether the migration definition requests source retirement.</summary>
     public bool RetireSources { get; }

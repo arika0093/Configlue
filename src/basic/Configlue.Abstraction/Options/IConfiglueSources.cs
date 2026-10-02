@@ -10,6 +10,13 @@ public interface IConfiglueSources<T>
     /// the migrated fragment (or reports a stale schema) is reported as a conflict.
     /// </summary>
     ValueTask<StateSourceMigrationResult> MigrateSourceAsync(
+        SourceId sourceId,
+        SourceId targetId,
+        CancellationToken cancellationToken = default
+    );
+
+    /// <summary>Migrates one source's contribution using string IDs at a compatibility boundary.</summary>
+    ValueTask<StateSourceMigrationResult> MigrateSourceAsync(
         string sourceId,
         string targetId,
         CancellationToken cancellationToken = default
@@ -28,6 +35,17 @@ public interface IConfiglueSources<T>
     /// When <paramref name="retireSources"/> is true, selected sources are removed from this state instance
     /// after all targets verify and only if the effective model remains unchanged.
     /// </summary>
+    ValueTask<StateStorageMigrationResult> MigrateSourcesToTargetsAsync(
+        IEnumerable<SourceId> sourceIds,
+        IReadOnlyDictionary<
+            SourceId,
+            Func<IConfiglueFragment, IConfiglueFragment>
+        > targetProjections,
+        CancellationToken cancellationToken = default,
+        bool retireSources = false
+    );
+
+    /// <summary>Migrates source contributions through the legacy string ID boundary.</summary>
     ValueTask<StateStorageMigrationResult> MigrateSourcesToTargetsAsync(
         IEnumerable<string> sourceIds,
         IReadOnlyDictionary<string, Func<IConfiglueFragment, IConfiglueFragment>> targetProjections,

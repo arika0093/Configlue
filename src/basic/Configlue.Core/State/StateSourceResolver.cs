@@ -122,7 +122,7 @@ public sealed class StateSourceResolver<T> : ISourceReader<T>
         var revisions = new StateRevision[_sourceSet.Count];
         var revisionCount = 0;
         var watchTargets = new List<StateSourceWatchTarget<T>>(_sourceSet.Count);
-        List<KeyValuePair<string, StateRevisionVector>>? nestedRevisions = null;
+        List<KeyValuePair<SourceId, StateRevisionVector>>? nestedRevisions = null;
         for (var index = 0; index < _sourceSet.Count; index++)
         {
             var source = _sourceSet[index];
@@ -146,7 +146,7 @@ public sealed class StateSourceResolver<T> : ISourceReader<T>
             {
                 nestedRevisions ??= [];
                 nestedRevisions.Add(
-                    new KeyValuePair<string, StateRevisionVector>(source.Id, nestedVector)
+                    new KeyValuePair<SourceId, StateRevisionVector>(source.Id, nestedVector)
                 );
             }
 
@@ -219,7 +219,7 @@ public sealed class StateSourceResolver<T> : ISourceReader<T>
         StateRevisionVector revisionVector;
         if (result.Revisions is { } nestedVector)
         {
-            var nestedEntry = new KeyValuePair<string, StateRevisionVector>(
+            var nestedEntry = new KeyValuePair<SourceId, StateRevisionVector>(
                 source.Id,
                 nestedVector
             );
@@ -490,7 +490,7 @@ public sealed class StateSourceResolver<T> : ISourceReader<T>
     private static StateRevisionVector CreateRevisionVector(
         StateRevision[] revisions,
         int revisionCount,
-        List<KeyValuePair<string, StateRevisionVector>>? nestedRevisions
+        List<KeyValuePair<SourceId, StateRevisionVector>>? nestedRevisions
     ) =>
         nestedRevisions is null
             ? StateRevisionVector.FromSpan(revisions.AsSpan(0, revisionCount))

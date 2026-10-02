@@ -8,8 +8,8 @@ public sealed class StateMultiWriteException : Exception
     public StateMultiWriteException(
         StateWriteReceipt completed,
         ResourceId? failedResourceId,
-        IEnumerable<string> failedSourceIds,
-        IEnumerable<string> unattemptedSourceIds,
+        IEnumerable<SourceId> failedSourceIds,
+        IEnumerable<SourceId> unattemptedSourceIds,
         Exception innerException
     )
         : base("A multi-source write failed after partial completion.", innerException)
@@ -31,8 +31,8 @@ public sealed class StateMultiWriteException : Exception
     public ResourceId? FailedResourceId { get; }
 
     /// <summary>The logical source registration IDs included in the failed physical write.</summary>
-    public IReadOnlyList<string> FailedSourceIds { get; }
+    public IReadOnlyList<SourceId> FailedSourceIds { get; }
 
     /// <summary>The logical source registration IDs whose writes were not attempted.</summary>
-    public IReadOnlyList<string> UnattemptedSourceIds { get; }
+    public IReadOnlyList<SourceId> UnattemptedSourceIds { get; }
 }

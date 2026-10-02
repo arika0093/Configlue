@@ -49,7 +49,11 @@ public sealed class MigrationJournalTests
         {
             using var firstLease = await firstJournal.AcquireMigrationLeaseAsync("migration");
             await firstJournal.WriteAsync(
-                new StateStorageMigrationProgress("migration", ["source"], ["target"])
+                new StateStorageMigrationProgress(
+                    "migration",
+                    [SourceId.From("source")],
+                    [SourceId.From("target")]
+                )
             );
 
             using var cancellation = new CancellationTokenSource(TimeSpan.FromMilliseconds(100));
@@ -59,7 +63,10 @@ public sealed class MigrationJournalTests
 
             firstLease.Dispose();
             using var secondLease = await secondJournal.AcquireMigrationLeaseAsync("migration");
-            (await secondJournal.ReadAsync("migration")).ShouldNotBeNull();
+            var progress = await secondJournal.ReadAsync("migration");
+            (progress).ShouldNotBeNull();
+            progress!.SourceIds.ShouldBe([SourceId.From("source")]);
+            progress.TargetSourceIds.ShouldBe([SourceId.From("target")]);
         }
         finally
         {

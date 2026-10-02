@@ -47,12 +47,12 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         var contributionsById = resolved.Contributions.ToDictionary(
             static contribution => contribution.Source.Id,
             static contribution => contribution,
-            StringComparer.Ordinal
+            EqualityComparer<SourceId>.Default
         );
         var failuresById = resolved.Failures.ToDictionary(
             static failure => failure.Source.Id,
             static failure => failure,
-            StringComparer.Ordinal
+            EqualityComparer<SourceId>.Default
         );
         for (var index = 0; index < activeSources.Length; index++)
         {
@@ -119,10 +119,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         StateSource<TFragment>? target;
         if (targetId is not null)
         {
-            target = GetActiveSources()
-                .FirstOrDefault(source =>
-                    string.Equals(source.Id, targetId, StringComparison.Ordinal)
-                );
+            target = GetActiveSources().FirstOrDefault(source => source.Id == targetId);
             if (target is null)
             {
                 return ConfiglueEditability.NoWriteTarget;
@@ -148,10 +145,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         }
 
         var activeSources = GetActiveSources();
-        var targetIndex = Array.FindIndex(
-            activeSources,
-            source => string.Equals(source.Id, target.Id, StringComparison.Ordinal)
-        );
+        var targetIndex = Array.FindIndex(activeSources, source => source.Id == target.Id);
         foreach (var contribution in contributions)
         {
             if (
@@ -161,15 +155,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             {
                 var contributionIndex = contribution.IsModelDefaults
                     ? activeSources.Length
-                    : Array.FindIndex(
-                        activeSources,
-                        source =>
-                            string.Equals(
-                                source.Id,
-                                contribution.Source.Id,
-                                StringComparison.Ordinal
-                            )
-                    );
+                    : Array.FindIndex(activeSources, source => source.Id == contribution.Source.Id);
                 return contributionIndex < targetIndex
                     ? ConfiglueEditability.Shadowed
                     : ConfiglueEditability.Editable;
@@ -186,7 +172,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
     )
     {
         var effectiveValue = propertyPath.GetModelValue(value, out var member);
-        var sourceContributions = new List<(string SourceId, object? Value)>();
+        var sourceContributions = new List<(SourceId SourceId, object? Value)>();
         foreach (var contribution in contributions)
         {
             if (
@@ -199,7 +185,15 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         }
 
         return ConfiglueMergeProvenance
-            .ExplainElements(member, effectiveValue, sourceContributions)
+            .ExplainElements(
+                member,
+                effectiveValue,
+                sourceContributions
+                    .Select(static contribution =>
+                        (contribution.SourceId.Value, contribution.Value)
+                    )
+                    .ToArray()
+            )
             .Select(provenance => new ConfigCollectionElementData(
                 provenance.Index,
                 provenance.Value,
@@ -208,7 +202,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             .ToArray();
     }
 
-    private string GetDetailsSourceKey(string sourceId)
+    private string GetDetailsSourceKey(SourceId sourceId)
     {
         lock (_sourceGate)
         {

@@ -104,7 +104,7 @@ public sealed class ConfiglueSourceRegistration
         if (_readOnly == false && source.Writer is null)
         {
             throw new InvalidOperationException(
-                $"Source '{_name ?? source.Id}' was configured as writable but its provider has no writer."
+                $"Source '{_name ?? source.Id.Value}' was configured as writable but its provider has no writer."
             );
         }
 
@@ -121,7 +121,7 @@ public sealed class ConfiglueSourceRegistration
         }
 
         var configured = new StateSource<TFragment>(
-            _name ?? source.Id,
+            _name is { } name ? SourceId.From(name) : source.Id,
             source.Reader,
             _priority ?? source.Priority,
             _fallbackCondition ?? source.FallbackCondition,

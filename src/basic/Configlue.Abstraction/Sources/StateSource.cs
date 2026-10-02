@@ -16,6 +16,7 @@ public sealed class StateSource<T>
     /// the same reader. Without a descriptor this source receives a registration-scoped identifier.
     /// Physical origins and resolved resource identities are not logical source identifiers.
     /// </remarks>
+    /// <summary>Creates a source from one capability-supplying object and nominal source identity.</summary>
     public StateSource(
         ISourceReader<T> reader,
         int priority = 0,
@@ -32,7 +33,7 @@ public sealed class StateSource<T>
         Func<IConfiglueSubject, RouteKey>? routeSelector = null
     )
         : this(
-            StateSourceIdentity.Create(reader, logicalDescriptor),
+            SourceId.From(StateSourceIdentity.Create(reader, logicalDescriptor)),
             reader,
             priority,
             fallbackCondition,
@@ -78,8 +79,37 @@ public sealed class StateSource<T>
         ) { }
 
     /// <summary>Creates a source from one capability-supplying object with an explicit logical identity.</summary>
+    /// <remarks>The string overload is a registration/configuration boundary; Core stores a <see cref="SourceId"/>.</remarks>
     public StateSource(
         string id,
+        ISourceCapabilities<T> source,
+        int priority = 0,
+        StateFallbackCondition fallbackCondition = StateFallbackCondition.NotFound,
+        string? physicalOrigin = null,
+        ResourceId? fixedResourceId = null,
+        bool explicitOnly = false,
+        Func<IConfiglueSubject, ResourceKey>? resourceKeySelector = null,
+        RuntimeLifetimeRequirement runtimeLifetime = RuntimeLifetimeRequirement.Shared,
+        string? modelId = null,
+        Func<IConfiglueSubject, RouteKey>? routeSelector = null
+    )
+        : this(
+            SourceId.From(id),
+            source,
+            priority,
+            fallbackCondition,
+            physicalOrigin,
+            fixedResourceId,
+            explicitOnly,
+            resourceKeySelector,
+            runtimeLifetime,
+            modelId,
+            routeSelector
+        ) { }
+
+    /// <summary>Creates a source from one capability-supplying object and nominal source identity.</summary>
+    public StateSource(
+        SourceId id,
         ISourceCapabilities<T> source,
         int priority = 0,
         StateFallbackCondition fallbackCondition = StateFallbackCondition.NotFound,
@@ -108,6 +138,7 @@ public sealed class StateSource<T>
         ) { }
 
     /// <summary>Creates a source with at least a reader.</summary>
+    /// <remarks>The string overload is a registration/configuration boundary; Core stores a <see cref="SourceId"/>.</remarks>
     public StateSource(
         string id,
         ISourceReader<T> reader,
@@ -123,8 +154,46 @@ public sealed class StateSource<T>
         string? modelId = null,
         Func<IConfiglueSubject, RouteKey>? routeSelector = null
     )
+        : this(
+            SourceId.From(id),
+            reader,
+            priority,
+            fallbackCondition,
+            writer,
+            watcher,
+            physicalOrigin,
+            fixedResourceId,
+            explicitOnly,
+            resourceKeySelector,
+            runtimeLifetime,
+            modelId,
+            routeSelector
+        ) { }
+
+    /// <summary>Creates a source with a reader and nominal source identity.</summary>
+    public StateSource(
+        SourceId id,
+        ISourceReader<T> reader,
+        int priority = 0,
+        StateFallbackCondition fallbackCondition = StateFallbackCondition.NotFound,
+        ISourceWriter<T>? writer = null,
+        ISourceWatcher? watcher = null,
+        string? physicalOrigin = null,
+        ResourceId? fixedResourceId = null,
+        bool explicitOnly = false,
+        Func<IConfiglueSubject, ResourceKey>? resourceKeySelector = null,
+        RuntimeLifetimeRequirement runtimeLifetime = RuntimeLifetimeRequirement.Shared,
+        string? modelId = null,
+        Func<IConfiglueSubject, RouteKey>? routeSelector = null
+    )
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(id);
+        if (id.IsDefault)
+        {
+            throw new ArgumentException(
+                "A source identifier must not be the default SourceId.",
+                nameof(id)
+            );
+        }
         ArgumentNullException.ThrowIfNull(reader);
         if (
             (
@@ -163,7 +232,7 @@ public sealed class StateSource<T>
     }
 
     /// <summary>The identifier of this logical source registration, independent of physical resource identity.</summary>
-    public string Id { get; }
+    public SourceId Id { get; }
 
     /// <summary>The source reader.</summary>
     public ISourceReader<T> Reader { get; }

@@ -210,7 +210,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         return waitTasks;
     }
 
-    private HashSet<string> GetActiveSourceIds(StateSource<TFragment>[] activeSources)
+    private HashSet<SourceId> GetActiveSourceIds(StateSource<TFragment>[] activeSources)
     {
         var cached = Volatile.Read(ref _activeSourceIdSet);
         if (cached is not null && ReferenceEquals(cached.Sources, activeSources))
@@ -219,9 +219,9 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         }
 
 #if NETSTANDARD
-        var ids = new HashSet<string>(StringComparer.Ordinal);
+        var ids = new HashSet<SourceId>();
 #else
-        var ids = new HashSet<string>(activeSources.Length, StringComparer.Ordinal);
+        var ids = new HashSet<SourceId>(activeSources.Length);
 #endif
         foreach (var source in activeSources)
         {
@@ -234,7 +234,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
 
     private sealed class ActiveSourceIdSet
     {
-        public ActiveSourceIdSet(StateSource<TFragment>[] sources, HashSet<string> ids)
+        public ActiveSourceIdSet(StateSource<TFragment>[] sources, HashSet<SourceId> ids)
         {
             Sources = sources;
             Ids = ids;
@@ -242,7 +242,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
 
         public StateSource<TFragment>[] Sources { get; }
 
-        public HashSet<string> Ids { get; }
+        public HashSet<SourceId> Ids { get; }
     }
 
     private void NotifyListeners(TModel value)

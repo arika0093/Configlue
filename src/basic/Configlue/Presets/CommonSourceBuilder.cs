@@ -295,22 +295,26 @@ public sealed class CommonSourceBuilder
             });
             if (defaultWriteLayer is { } writeLayer)
             {
-                model.Writes(write => write.DefaultTo(GetDefaultWriteSourceId(writeLayer)));
+                model.Writes(write =>
+                    write.DefaultTo(GetDefaultWriteSourceKey<TModel>(writeLayer))
+                );
             }
 
             configure?.Invoke(model);
         });
     }
 
-    private static string GetDefaultWriteSourceId(CommonSourceLayer layer) =>
-        layer switch
-        {
-            CommonSourceLayer.HostGlobal => CommonSource.HostGlobal.SourceId,
-            CommonSourceLayer.UserGlobal => CommonSource.UserGlobal.SourceId,
-            CommonSourceLayer.Local => CommonSource.Local.SourceId,
-            CommonSourceLayer.Explicit => CommonSource.Specific.SourceId,
-            _ => throw new ArgumentOutOfRangeException(nameof(layer)),
-        };
+    private static SourceKey<TModel> GetDefaultWriteSourceKey<TModel>(CommonSourceLayer layer) =>
+        SourceKey<TModel>.Named(
+            layer switch
+            {
+                CommonSourceLayer.HostGlobal => CommonSource.HostGlobal.SourceId,
+                CommonSourceLayer.UserGlobal => CommonSource.UserGlobal.SourceId,
+                CommonSourceLayer.Local => CommonSource.Local.SourceId,
+                CommonSourceLayer.Explicit => CommonSource.Specific.SourceId,
+                _ => throw new ArgumentOutOfRangeException(nameof(layer)),
+            }
+        );
 
     internal void EnsureHasModel()
     {

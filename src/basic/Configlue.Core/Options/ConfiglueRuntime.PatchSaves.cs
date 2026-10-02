@@ -76,12 +76,12 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             ValidateWritePlan(_writePlan);
         }
 
-        IReadOnlyDictionary<string, IConfigluePatch> patchesBySource;
+        IReadOnlyDictionary<SourceId, IConfigluePatch> patchesBySource;
         if (_writePlan.PropertyRoutes.Count == 0 && fallbackSource is not null)
         {
             // With a single default writable source every member routes to it, so the
             // per-member routing work can be skipped entirely.
-            patchesBySource = new Dictionary<string, IConfigluePatch>(StringComparer.Ordinal)
+            patchesBySource = new Dictionary<SourceId, IConfigluePatch>()
             {
                 [fallbackSource.Id] = patch,
             };
@@ -92,7 +92,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         }
         else if (patch is IConfiglueMemberPatch memberPatch)
         {
-            var routed = new Dictionary<string, List<int>>(StringComparer.Ordinal);
+            var routed = new Dictionary<SourceId, List<int>>();
             foreach (var member in modelSchema.Members)
             {
                 var selected = memberPatch.SelectMembers([member.Id]);
@@ -110,10 +110,11 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                         $"No writable source owns '{member.Name}'. Configure a root write target or an explicit write plan."
                     );
                 }
-                if (!routed.TryGetValue(targetSourceId, out var memberIds))
+                var resolvedTargetSourceId = targetSourceId.Value;
+                if (!routed.TryGetValue(resolvedTargetSourceId, out var memberIds))
                 {
                     memberIds = [];
-                    routed.Add(targetSourceId, memberIds);
+                    routed.Add(resolvedTargetSourceId, memberIds);
                 }
 
                 memberIds.Add(member.Id);
@@ -121,11 +122,12 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
 
             patchesBySource =
                 routed.Count == 0
-                    ? new Dictionary<string, IConfigluePatch>(StringComparer.Ordinal)
+                    ? new Dictionary<SourceId, IConfigluePatch>()
                     {
                         [
-                            fallbackSource?.Id
-                                ?? throw new InvalidOperationException(
+                            fallbackSource is { } fallback
+                                ? fallback.Id
+                                : throw new InvalidOperationException(
                                     "No writable source owns this patch. Configure a root write target or an explicit write plan."
                                 )
                         ] = patch,
@@ -133,16 +135,17 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                     : routed.ToDictionary(
                         static route => route.Key,
                         route => memberPatch.SelectMembers(route.Value.ToArray()),
-                        StringComparer.Ordinal
+                        EqualityComparer<SourceId>.Default
                     );
         }
         else
         {
-            patchesBySource = new Dictionary<string, IConfigluePatch>(StringComparer.Ordinal)
+            patchesBySource = new Dictionary<SourceId, IConfigluePatch>()
             {
                 [
-                    fallbackSource?.Id
-                        ?? throw new InvalidOperationException(
+                    fallbackSource is { } fallback
+                        ? fallback.Id
+                        : throw new InvalidOperationException(
                             "No writable source owns this patch. Configure a root write target or an explicit write plan."
                         )
                 ] = patch,

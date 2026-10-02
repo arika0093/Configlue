@@ -5,16 +5,22 @@ public sealed class StateStorageMigrationTarget<TFragment>
     where TFragment : class, IConfiglueFragment<TFragment>
 {
     /// <summary>Creates a migration target binding.</summary>
-    public StateStorageMigrationTarget(string targetSourceId, Func<TFragment, TFragment> project)
+    public StateStorageMigrationTarget(SourceId targetSourceId, Func<TFragment, TFragment> project)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(targetSourceId);
+        if (targetSourceId.IsDefault)
+        {
+            throw new ArgumentException(
+                "The target source identifier is uninitialized.",
+                nameof(targetSourceId)
+            );
+        }
         ArgumentNullException.ThrowIfNull(project);
         TargetSourceId = targetSourceId;
         Project = project;
     }
 
     /// <summary>The registered writable source that receives this projection.</summary>
-    public string TargetSourceId { get; }
+    public SourceId TargetSourceId { get; }
 
     /// <summary>Projects the selected logical contribution into the target fragment.</summary>
     public Func<TFragment, TFragment> Project { get; }

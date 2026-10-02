@@ -7,7 +7,7 @@ public sealed class StateStorageMigrationDefinition<TFragment>
     /// <summary>Creates a storage migration definition.</summary>
     public StateStorageMigrationDefinition(
         string id,
-        IEnumerable<string> sourceIds,
+        IEnumerable<SourceId> sourceIds,
         IEnumerable<StateStorageMigrationTarget<TFragment>> targets,
         bool retireSources = false
     )
@@ -19,8 +19,8 @@ public sealed class StateStorageMigrationDefinition<TFragment>
         var targetArray = targets.ToArray();
         if (
             sourceIdArray.Length == 0
-            || sourceIdArray.Any(string.IsNullOrWhiteSpace)
-            || sourceIdArray.Distinct(StringComparer.Ordinal).Count() != sourceIdArray.Length
+            || sourceIdArray.Any(static sourceId => sourceId.IsDefault)
+            || sourceIdArray.Distinct().Count() != sourceIdArray.Length
         )
         {
             throw new ArgumentException(
@@ -32,10 +32,8 @@ public sealed class StateStorageMigrationDefinition<TFragment>
         if (
             targetArray.Length == 0
             || targetArray.Any(static target => target is null)
-            || targetArray
-                .Select(static target => target.TargetSourceId)
-                .Distinct(StringComparer.Ordinal)
-                .Count() != targetArray.Length
+            || targetArray.Select(static target => target.TargetSourceId).Distinct().Count()
+                != targetArray.Length
         )
         {
             throw new ArgumentException(
@@ -44,11 +42,7 @@ public sealed class StateStorageMigrationDefinition<TFragment>
             );
         }
 
-        if (
-            targetArray.Any(target =>
-                sourceIdArray.Contains(target.TargetSourceId, StringComparer.Ordinal)
-            )
-        )
+        if (targetArray.Any(target => sourceIdArray.Contains(target.TargetSourceId)))
         {
             throw new ArgumentException(
                 "A target source cannot also be a selected migration source.",
@@ -66,7 +60,7 @@ public sealed class StateStorageMigrationDefinition<TFragment>
     public string Id { get; }
 
     /// <summary>Selected source IDs whose contributions are migrated.</summary>
-    public IReadOnlyList<string> SourceIds { get; }
+    public IReadOnlyList<SourceId> SourceIds { get; }
 
     /// <summary>Projected writable targets in migration order.</summary>
     public IReadOnlyList<StateStorageMigrationTarget<TFragment>> Targets { get; }

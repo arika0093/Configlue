@@ -117,7 +117,7 @@ public static class JsonFileSourceRegistration
         model.Sources(sources => sources.FromJsonFile(options));
         if (!options.ReadOnly && options.Id is { } id)
         {
-            model.Writes(write => write.DefaultTo(id));
+            model.Writes(write => write.DefaultTo(SourceKey<TModel>.Named(id)));
         }
     }
 

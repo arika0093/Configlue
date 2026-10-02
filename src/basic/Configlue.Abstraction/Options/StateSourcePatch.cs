@@ -4,16 +4,22 @@ namespace Configlue;
 public sealed record StateSourcePatch
 {
     /// <summary>Creates a source-local patch request.</summary>
-    public StateSourcePatch(string sourceId, IConfigluePatch patch)
+    public StateSourcePatch(SourceId sourceId, IConfigluePatch patch)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(sourceId);
+        if (sourceId.IsDefault)
+        {
+            throw new ArgumentException(
+                "The source identifier is uninitialized.",
+                nameof(sourceId)
+            );
+        }
         ArgumentNullException.ThrowIfNull(patch);
         SourceId = sourceId;
         Patch = patch;
     }
 
     /// <summary>The logical source receiving the patch.</summary>
-    public string SourceId { get; }
+    public SourceId SourceId { get; }
 
     /// <summary>The generated set/unset patch to apply to that source's fragment.</summary>
     public IConfigluePatch Patch { get; }

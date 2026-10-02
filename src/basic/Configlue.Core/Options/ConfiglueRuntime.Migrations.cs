@@ -12,9 +12,59 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
     where TFragment : class, IConfiglueFragment<TFragment>
 {
     /// <inheritdoc />
+    public ValueTask<StateStorageMigrationResult> MigrateSourcesToTargetsAsync(
+        IEnumerable<SourceId> sourceIds,
+        IReadOnlyDictionary<
+            SourceId,
+            Func<IConfiglueFragment, IConfiglueFragment>
+        > targetProjections,
+        CancellationToken cancellationToken = default,
+        bool retireSources = false
+    )
+    {
+        ArgumentNullException.ThrowIfNull(sourceIds);
+        ArgumentNullException.ThrowIfNull(targetProjections);
+        var typedProjections = targetProjections.ToDictionary(
+            static projection => projection.Key,
+            projection =>
+                (Func<TFragment, TFragment>)(
+                    fragment =>
+                        projection.Value(fragment) is TFragment projected
+                            ? projected
+                            : throw new InvalidOperationException(
+                                $"The migration projection for target '{projection.Key}' returned an incompatible fragment."
+                            )
+                )
+        );
+        return MigrateSourcesToTargetsAsync(
+            sourceIds,
+            typedProjections,
+            cancellationToken,
+            retireSources
+        );
+    }
+
+    /// <inheritdoc />
     public async ValueTask<StateSourceMigrationResult> MigrateSourceAsync(
         string sourceId,
         string targetId,
+        CancellationToken cancellationToken = default
+    )
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sourceId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(targetId);
+        return await MigrateSourceAsync(
+                SourceId.From(sourceId),
+                SourceId.From(targetId),
+                cancellationToken
+            )
+            .ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async ValueTask<StateSourceMigrationResult> MigrateSourceAsync(
+        SourceId sourceId,
+        SourceId targetId,
         CancellationToken cancellationToken = default
     )
     {
@@ -60,14 +110,16 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
     }
 
     private async ValueTask<StateSourceMigrationResult> MigrateSourceImplementationAsync(
-        string sourceId,
-        string targetId,
+        SourceId sourceId,
+        SourceId targetId,
         CancellationToken cancellationToken
     )
     {
         using var operation = EnterOperation();
-        ArgumentException.ThrowIfNullOrWhiteSpace(sourceId);
-        ArgumentException.ThrowIfNullOrWhiteSpace(targetId);
+        if (sourceId.IsDefault || targetId.IsDefault)
+        {
+            throw new ArgumentException("Source IDs must be non-empty.");
+        }
         cancellationToken.ThrowIfCancellationRequested();
 
         var source = FindSource(sourceId);
@@ -193,9 +245,30 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
     /// Migrates selected source contributions to one or more projected targets. Successful targets are
     /// re-read and verified; repeating the operation skips targets already holding the requested fragment.
     /// </summary>
-    public async ValueTask<StateStorageMigrationResult> MigrateSourcesToTargetsAsync(
+    public ValueTask<StateStorageMigrationResult> MigrateSourcesToTargetsAsync(
         IEnumerable<string> sourceIds,
         IReadOnlyDictionary<string, Func<TFragment, TFragment>> targetProjections,
+        CancellationToken cancellationToken = default,
+        bool retireSources = false
+    )
+    {
+        ArgumentNullException.ThrowIfNull(sourceIds);
+        ArgumentNullException.ThrowIfNull(targetProjections);
+        return MigrateSourcesToTargetsAsync(
+            sourceIds.Select(SourceId.From),
+            targetProjections.ToDictionary(
+                static projection => SourceId.From(projection.Key),
+                static projection => projection.Value
+            ),
+            cancellationToken,
+            retireSources
+        );
+    }
+
+    /// <inheritdoc />
+    public async ValueTask<StateStorageMigrationResult> MigrateSourcesToTargetsAsync(
+        IEnumerable<SourceId> sourceIds,
+        IReadOnlyDictionary<SourceId, Func<TFragment, TFragment>> targetProjections,
         CancellationToken cancellationToken = default,
         bool retireSources = false
     )
@@ -225,8 +298,8 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
     }
 
     private async ValueTask<StateStorageMigrationResult> MigrateSourcesImplementationAsync(
-        IEnumerable<string> sourceIds,
-        IReadOnlyDictionary<string, Func<TFragment, TFragment>> targetProjections,
+        IEnumerable<SourceId> sourceIds,
+        IReadOnlyDictionary<SourceId, Func<TFragment, TFragment>> targetProjections,
         CancellationToken cancellationToken,
         bool retireSources
     )
@@ -245,14 +318,12 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             );
         }
 
-        if (requestedSourceIds.Any(string.IsNullOrWhiteSpace))
+        if (requestedSourceIds.Any(static sourceId => sourceId.IsDefault))
         {
             throw new ArgumentException("Source IDs cannot be empty.", nameof(sourceIds));
         }
 
-        if (
-            requestedSourceIds.Distinct(StringComparer.Ordinal).Count() != requestedSourceIds.Length
-        )
+        if (requestedSourceIds.Distinct().Count() != requestedSourceIds.Length)
         {
             throw new ArgumentException("A source can only be selected once.", nameof(sourceIds));
         }
@@ -267,7 +338,13 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
 
         foreach (var target in targetProjections)
         {
-            ArgumentException.ThrowIfNullOrWhiteSpace(target.Key);
+            if (target.Key.IsDefault)
+            {
+                throw new ArgumentException(
+                    "Target source IDs cannot be empty.",
+                    nameof(targetProjections)
+                );
+            }
             ArgumentNullException.ThrowIfNull(target.Value);
         }
 
@@ -285,9 +362,9 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             resolvedBeforeMigration = before.Result.Value;
         }
 
-        var selectedIds = requestedSourceIds.ToHashSet(StringComparer.Ordinal);
+        var selectedIds = requestedSourceIds.ToHashSet();
         var overlappingTarget = targetProjections.Keys.FirstOrDefault(selectedIds.Contains);
-        if (overlappingTarget is not null)
+        if (!overlappingTarget.IsDefault)
         {
             throw new ArgumentException(
                 $"Target '{overlappingTarget}' is also a selected source. Use MigrateSourceAsync for an in-place source migration.",
@@ -339,7 +416,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         {
             var resolvedIds = sourceContributions
                 .Select(static contribution => contribution.Source.Id)
-                .ToHashSet(StringComparer.Ordinal);
+                .ToHashSet();
             var missingId = requestedSourceIds.First(id => !resolvedIds.Contains(id));
             throw new InvalidOperationException($"State source '{missingId}' is not registered.");
         }
@@ -603,7 +680,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             );
         }
 
-        string[] retiredSourceIds = [];
+        SourceId[] retiredSourceIds = [];
         if (retireSources)
         {
             await VerifySourceSnapshotsAsync().ConfigureAwait(false);
@@ -646,7 +723,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         }
 
         var typedProjections = targetProjections.ToDictionary(
-            static pair => pair.Key,
+            static pair => SourceId.From(pair.Key),
             static pair =>
                 (Func<TFragment, TFragment>)(
                     fragment =>
@@ -655,11 +732,10 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                             : throw new InvalidOperationException(
                                 $"The migration projection for target '{pair.Key}' returned an incompatible fragment."
                             )
-                ),
-            StringComparer.Ordinal
+                )
         );
         return MigrateSourcesToTargetsAsync(
-            sourceIds,
+            sourceIds.Select(SourceId.From),
             typedProjections,
             cancellationToken,
             retireSources
@@ -691,8 +767,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                 ArgumentNullException.ThrowIfNull(pair.Value);
                 return pair.Key.Id;
             },
-            static pair => pair.Value,
-            StringComparer.Ordinal
+            static pair => pair.Value
         );
 
         return MigrateSourcesToTargetsAsync(

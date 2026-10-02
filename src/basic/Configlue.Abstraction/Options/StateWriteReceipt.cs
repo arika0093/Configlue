@@ -4,7 +4,7 @@ namespace Configlue;
 public readonly record struct StateSourceWriteResult
 {
     /// <summary>Gets or initializes the logical source registration identifier, not a physical resource identity.</summary>
-    public string SourceId { get; init; }
+    public SourceId SourceId { get; init; }
 
     /// <summary>Gets or initializes the <see cref="ResourceId"/> value.</summary>
     public ResourceId? ResourceId { get; init; }
@@ -16,7 +16,7 @@ public readonly record struct StateSourceWriteResult
     /// <param name="SourceId">The initial value for the <see cref="SourceId"/> property.</param>
     /// <param name="ResourceId">The initial value for the <see cref="ResourceId"/> property.</param>
     /// <param name="Revision">The initial value for the <see cref="Revision"/> property.</param>
-    public StateSourceWriteResult(string SourceId, ResourceId? ResourceId, string? Revision)
+    public StateSourceWriteResult(SourceId SourceId, ResourceId? ResourceId, string? Revision)
     {
         this.SourceId = SourceId;
         this.ResourceId = ResourceId;
@@ -27,7 +27,7 @@ public readonly record struct StateSourceWriteResult
     /// <param name="SourceId">Receives the current <see cref="SourceId"/> value.</param>
     /// <param name="ResourceId">Receives the current <see cref="ResourceId"/> value.</param>
     /// <param name="Revision">Receives the current <see cref="Revision"/> value.</param>
-    public void Deconstruct(out string SourceId, out ResourceId? ResourceId, out string? Revision)
+    public void Deconstruct(out SourceId SourceId, out ResourceId? ResourceId, out string? Revision)
     {
         SourceId = this.SourceId;
         ResourceId = this.ResourceId;
@@ -55,11 +55,9 @@ public sealed class StateWriteReceipt
 
         var sourceResults = sources.ToArray();
         if (
-            sourceResults.Any(static result => string.IsNullOrWhiteSpace(result.SourceId))
-            || sourceResults
-                .Select(static result => result.SourceId)
-                .Distinct(StringComparer.Ordinal)
-                .Count() != sourceResults.Length
+            sourceResults.Any(static result => result.SourceId.IsDefault)
+            || sourceResults.Select(static result => result.SourceId).Distinct().Count()
+                != sourceResults.Length
         )
         {
             throw new ArgumentException(

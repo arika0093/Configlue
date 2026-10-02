@@ -7,15 +7,18 @@ namespace Configlue.State;
 public sealed class StateSourceWriter<T> : ISourceWriter<T>
 {
     private readonly StateSourceSet<T> _sourceSet;
-    private readonly string? _defaultSourceId;
+    private readonly SourceId? _defaultSourceId;
 
     /// <summary>Creates a source writer with an optional default write owner.</summary>
-    public StateSourceWriter(StateSourceSet<T> sourceSet, string? defaultSourceId = null)
+    public StateSourceWriter(StateSourceSet<T> sourceSet, SourceId? defaultSourceId = null)
     {
         ArgumentNullException.ThrowIfNull(sourceSet);
-        if (defaultSourceId is not null)
+        if (defaultSourceId is { } sourceId && sourceId.IsDefault)
         {
-            ArgumentException.ThrowIfNullOrWhiteSpace(defaultSourceId);
+            throw new ArgumentException(
+                "A default source ID must be non-empty.",
+                nameof(defaultSourceId)
+            );
         }
 
         _sourceSet = sourceSet;
@@ -42,7 +45,7 @@ public sealed class StateSourceWriter<T> : ISourceWriter<T>
         if (_defaultSourceId is { } defaultSourceId)
         {
             var explicitSource = _sourceSet.Sources.FirstOrDefault(candidate =>
-                string.Equals(candidate.Id, defaultSourceId, StringComparison.Ordinal)
+                candidate.Id == defaultSourceId
             );
             if (explicitSource is null)
             {

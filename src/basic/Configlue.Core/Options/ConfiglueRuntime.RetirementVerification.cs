@@ -28,9 +28,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
     )
     {
         var currentSchema = ModelSchema.ToMetadata();
-        var replacements = new Dictionary<string, StateReadResult<TFragment>>(
-            StringComparer.Ordinal
-        );
+        var replacements = new Dictionary<SourceId, StateReadResult<TFragment>>();
         foreach (var (source, result, _) in sourceContributions)
         {
             replacements.Add(
@@ -44,9 +42,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         foreach (var (target, _, desired) in targetPlans)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var outcome = targetResults.First(result =>
-                string.Equals(result.TargetId, target.Id, StringComparison.Ordinal)
-            );
+            var outcome = targetResults.First(result => result.TargetId == target.Id);
             var current = (
                 await ReadSourceAsync(target, cancellationToken).ConfigureAwait(false)
             ).FromSource(target.Id, target.PhysicalOrigin);
@@ -113,9 +109,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         Validate(proposed.Result.Value!);
         foreach (var (target, _, desired) in targetPlans)
         {
-            var outcome = targetResults.First(result =>
-                string.Equals(result.TargetId, target.Id, StringComparison.Ordinal)
-            );
+            var outcome = targetResults.First(result => result.TargetId == target.Id);
             var latest = (
                 await ReadSourceAsync(target, cancellationToken).ConfigureAwait(false)
             ).FromSource(target.Id, target.PhysicalOrigin);

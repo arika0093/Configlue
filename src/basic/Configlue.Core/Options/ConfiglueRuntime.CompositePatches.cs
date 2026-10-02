@@ -15,7 +15,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         StateReadResult<TFragment> current,
         ResolvedState baseline,
         ConfiglueModelSchema modelSchema,
-        Dictionary<string, StateReadResult<TFragment>> replacements,
+        Dictionary<SourceId, StateReadResult<TFragment>> replacements,
         List<(
             StateSource<TFragment> Source,
             ISourceWriter<TFragment> Writer,
@@ -44,7 +44,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             );
         }
 
-        var routedPatches = new Dictionary<string, IConfigluePatch>(StringComparer.Ordinal);
+        var routedPatches = new Dictionary<SourceId, IConfigluePatch>();
         if (patchRequest.Patch is FragmentChangesPatch fragmentPatch)
         {
             var routedChanges = PartitionCompositeChanges(
@@ -75,7 +75,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         }
         else
         {
-            var routedMemberIds = new Dictionary<string, List<int>>(StringComparer.Ordinal);
+            var routedMemberIds = new Dictionary<SourceId, List<int>>();
             foreach (var member in modelSchema.Members)
             {
                 var selected = memberPatch.SelectMembers([member.Id]);
@@ -123,12 +123,10 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             );
         }
 
-        var componentOverrides = new Dictionary<string, TFragment>(StringComparer.Ordinal);
+        var componentOverrides = new Dictionary<SourceId, TFragment>();
         foreach (var (componentId, componentPatch) in routedPatches)
         {
-            var component = composite.Components.First(item =>
-                string.Equals(item.Id, componentId, StringComparison.Ordinal)
-            );
+            var component = composite.Components.First(item => item.Id == componentId);
             var componentCurrent = (
                 await ReadSourceAsync(component, cancellationToken).ConfigureAwait(false)
             ).FromSource(component.Id, component.PhysicalOrigin);

@@ -33,7 +33,7 @@ public sealed partial class ConfiglueGenerator
         );
         code.AppendLineAt(
             1,
-            "public sealed class Patch : global::Configlue.IConfiglueRoutablePatch, global::Configlue.IConfiglueReplacementPatch, "
+            "public sealed class Patch : global::Configlue.CompilerServices.IConfiglueRoutablePatch, global::Configlue.IConfiglueReplacementPatch, "
                 + wholePatch
         );
         code.AppendLineAt(1, "{");
@@ -186,23 +186,18 @@ public sealed partial class ConfiglueGenerator
             3,
             "else if (__configlue_whole_operation.Kind == global::Configlue.FragmentOperationKind.Set) { current = global::Configlue.Optional<Fragment?>.Present(__configlue_whole_operation.Value); }"
         );
-        if (members.IsEmpty)
-            code.AppendLineAt(3, "return current;");
-        else
-        {
-            code.AppendLineAt(
-                3,
-                "if (" + NestedOperationsEmptyExpression(members) + ") { return current; }"
-            );
-            code.AppendLineAt(
-                3,
-                "var basis = current.IsPresent && current.Value is not null ? current.Value : new Fragment();"
-            );
-            code.AppendLineAt(
-                3,
-                "return global::Configlue.Optional<Fragment?>.Present(basis.Apply(this));"
-            );
-        }
+        code.AppendLineAt(
+            3,
+            "if (" + NestedOperationsEmptyExpression(members) + ") { return current; }"
+        );
+        code.AppendLineAt(
+            3,
+            "var basis = current.IsPresent && current.Value is not null ? current.Value : new Fragment();"
+        );
+        code.AppendLineAt(
+            3,
+            "return global::Configlue.Optional<Fragment?>.Present(basis.Apply(this));"
+        );
         code.AppendLineAt(2, "}");
         code.AppendLineAt(2, "internal Patch ClonePatch()");
         code.AppendLineAt(2, "{");
@@ -308,7 +303,11 @@ public sealed partial class ConfiglueGenerator
         code.AppendLineAt(2, "}");
         code.AppendLineAt(
             2,
-            "public global::Configlue.IConfigluePatch SelectMembers(global::System.ReadOnlySpan<int> memberIds)"
+            "global::Configlue.IConfigluePatch global::Configlue.CompilerServices.IConfiglueDynamicMemberPatch.SelectMembers(global::System.ReadOnlySpan<int> memberIds) => SelectMembersCore(memberIds);"
+        );
+        code.AppendLineAt(
+            2,
+            "private global::Configlue.IConfigluePatch SelectMembersCore(global::System.ReadOnlySpan<int> memberIds)"
         );
         code.AppendLineAt(2, "{");
         code.AppendLineAt(3, "var selected = new Patch();");
@@ -362,7 +361,7 @@ public sealed partial class ConfiglueGenerator
         code.CancellationToken.ThrowIfCancellationRequested();
         code.AppendLineAt(
             2,
-            "public global::System.Collections.Generic.IReadOnlyDictionary<string, global::Configlue.IConfigluePatch> Route(global::Configlue.StateWritePlan writePlan, string? fallbackSourceId)"
+            "global::System.Collections.Generic.IReadOnlyDictionary<global::Configlue.SourceId, global::Configlue.IConfigluePatch> global::Configlue.CompilerServices.IConfiglueRoutablePatch.Route(global::Configlue.StateWritePlan writePlan, global::Configlue.SourceId? fallbackSourceId)"
         );
         code.AppendLineAt(2, "{");
         AppendNullGuard(code, 3, "writePlan");
@@ -373,12 +372,12 @@ public sealed partial class ConfiglueGenerator
         code.AppendLineAt(2, "}");
         code.AppendLineAt(
             2,
-            "internal global::System.Collections.Generic.Dictionary<string, global::Configlue.IConfigluePatch> RouteCore(global::Configlue.StateWritePlan writePlan, string? fallbackSourceId, global::Configlue.CompilerServices.ConfiglueMemberPath propertyPrefix)"
+            "internal global::System.Collections.Generic.Dictionary<global::Configlue.SourceId, global::Configlue.IConfigluePatch> RouteCore(global::Configlue.StateWritePlan writePlan, global::Configlue.SourceId? fallbackSourceId, global::Configlue.CompilerServices.ConfiglueMemberPath propertyPrefix)"
         );
         code.AppendLineAt(2, "{");
         code.AppendLineAt(
             3,
-            "var routed = new global::System.Collections.Generic.Dictionary<string, global::Configlue.IConfigluePatch>(global::System.StringComparer.Ordinal);"
+            "var routed = new global::System.Collections.Generic.Dictionary<global::Configlue.SourceId, global::Configlue.IConfigluePatch>();"
         );
         code.AppendLineAt(
             3,
@@ -457,7 +456,7 @@ public sealed partial class ConfiglueGenerator
                 );
                 code.AppendLineAt(
                     5,
-                    "MergeRoutedPatch(routed, sourceId, (Patch)SelectMembers(new[] { "
+                    "MergeRoutedPatch(routed, sourceId, (Patch)SelectMembersCore(new[] { "
                         + member.Id
                         + " }));"
                 );
@@ -480,7 +479,7 @@ public sealed partial class ConfiglueGenerator
                 );
                 code.AppendLineAt(
                     5,
-                    "MergeRoutedPatch(routed, sourceId, (Patch)SelectMembers(new[] { "
+                    "MergeRoutedPatch(routed, sourceId, (Patch)SelectMembersCore(new[] { "
                         + member.Id
                         + " }));"
                 );
@@ -494,7 +493,7 @@ public sealed partial class ConfiglueGenerator
         code.AppendLineAt(2, "}");
         code.AppendLineAt(
             2,
-            "private static void MergeRoutedPatch(global::System.Collections.Generic.Dictionary<string, global::Configlue.IConfigluePatch> routed, string sourceId, Patch patch)"
+            "private static void MergeRoutedPatch(global::System.Collections.Generic.Dictionary<global::Configlue.SourceId, global::Configlue.IConfigluePatch> routed, global::Configlue.SourceId sourceId, Patch patch)"
         );
         code.AppendLineAt(2, "{");
         code.AppendLineAt(

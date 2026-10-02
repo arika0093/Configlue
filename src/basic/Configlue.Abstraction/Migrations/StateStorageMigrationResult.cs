@@ -4,7 +4,7 @@ namespace Configlue.Migrations;
 public readonly record struct StateStorageMigrationTargetResult
 {
     /// <summary>Gets or initializes the <see cref="TargetId"/> value.</summary>
-    public string TargetId { get; init; }
+    public SourceId TargetId { get; init; }
 
     /// <summary>Gets or initializes the <see cref="PreviousRevision"/> value.</summary>
     public string? PreviousRevision { get; init; }
@@ -21,7 +21,7 @@ public readonly record struct StateStorageMigrationTargetResult
     /// <param name="TargetRevision">The initial value for the <see cref="TargetRevision"/> property.</param>
     /// <param name="WasAlreadyCurrent">The initial value for the <see cref="WasAlreadyCurrent"/> property.</param>
     public StateStorageMigrationTargetResult(
-        string TargetId,
+        SourceId TargetId,
         string? PreviousRevision,
         string? TargetRevision,
         bool WasAlreadyCurrent
@@ -39,7 +39,7 @@ public readonly record struct StateStorageMigrationTargetResult
     /// <param name="TargetRevision">Receives the current <see cref="TargetRevision"/> value.</param>
     /// <param name="WasAlreadyCurrent">Receives the current <see cref="WasAlreadyCurrent"/> value.</param>
     public void Deconstruct(
-        out string TargetId,
+        out SourceId TargetId,
         out string? PreviousRevision,
         out string? TargetRevision,
         out bool WasAlreadyCurrent
@@ -57,10 +57,10 @@ public sealed class StateStorageMigrationResult
 {
     /// <summary>Creates a storage migration result with immutable result collections.</summary>
     public StateStorageMigrationResult(
-        IEnumerable<string> sourceIds,
+        IEnumerable<SourceId> sourceIds,
         StateRevisionVector sourceRevisions,
         IEnumerable<StateStorageMigrationTargetResult> targets,
-        IEnumerable<string>? retiredSourceIds = null
+        IEnumerable<SourceId>? retiredSourceIds = null
     )
     {
         ArgumentNullException.ThrowIfNull(sourceIds);
@@ -68,8 +68,8 @@ public sealed class StateStorageMigrationResult
         ArgumentNullException.ThrowIfNull(targets);
         var sourceIdArray = sourceIds.ToArray();
         if (
-            sourceIdArray.Any(string.IsNullOrWhiteSpace)
-            || sourceIdArray.Distinct(StringComparer.Ordinal).Count() != sourceIdArray.Length
+            sourceIdArray.Any(static sourceId => sourceId.IsDefault)
+            || sourceIdArray.Distinct().Count() != sourceIdArray.Length
         )
         {
             throw new ArgumentException(
@@ -92,11 +92,9 @@ public sealed class StateStorageMigrationResult
         var targetArray = targets.ToArray();
         if (
             targetArray.Length == 0
-            || targetArray.Any(static target => string.IsNullOrWhiteSpace(target.TargetId))
-            || targetArray
-                .Select(static target => target.TargetId)
-                .Distinct(StringComparer.Ordinal)
-                .Count() != targetArray.Length
+            || targetArray.Any(static target => target.TargetId.IsDefault)
+            || targetArray.Select(static target => target.TargetId).Distinct().Count()
+                != targetArray.Length
         )
         {
             throw new ArgumentException(
@@ -107,9 +105,9 @@ public sealed class StateStorageMigrationResult
 
         var retiredIds = retiredSourceIds?.ToArray() ?? [];
         if (
-            retiredIds.Any(string.IsNullOrWhiteSpace)
-            || retiredIds.Distinct(StringComparer.Ordinal).Count() != retiredIds.Length
-            || retiredIds.Any(sourceId => !sourceIdArray.Contains(sourceId, StringComparer.Ordinal))
+            retiredIds.Any(static sourceId => sourceId.IsDefault)
+            || retiredIds.Distinct().Count() != retiredIds.Length
+            || retiredIds.Any(sourceId => !sourceIdArray.Contains(sourceId))
         )
         {
             throw new ArgumentException(
@@ -125,7 +123,7 @@ public sealed class StateStorageMigrationResult
     }
 
     /// <summary>The selected sources in read-priority order.</summary>
-    public IReadOnlyList<string> SourceIds { get; }
+    public IReadOnlyList<SourceId> SourceIds { get; }
 
     /// <summary>The revisions observed for selected sources.</summary>
     public StateRevisionVector SourceRevisions { get; }
@@ -134,7 +132,7 @@ public sealed class StateStorageMigrationResult
     public IReadOnlyList<StateStorageMigrationTargetResult> Targets { get; }
 
     /// <summary>Selected sources excluded from this state instance after all targets were verified.</summary>
-    public IReadOnlyList<string> RetiredSourceIds { get; }
+    public IReadOnlyList<SourceId> RetiredSourceIds { get; }
 
     /// <summary>Whether this migration retired its selected sources from this state instance.</summary>
     public bool SourcesRetired => RetiredSourceIds.Count > 0;

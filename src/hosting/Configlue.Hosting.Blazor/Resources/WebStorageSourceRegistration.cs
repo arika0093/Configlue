@@ -99,7 +99,7 @@ public static class WebStorageSourceRegistration
         );
         if (options.Writable && options.Id is { } id)
         {
-            model.Writes(write => write.DefaultTo(id));
+            model.Writes(write => write.DefaultTo(SourceKey<TModel>.Named(id)));
         }
     }
 

@@ -4,10 +4,10 @@ namespace Configlue.Migrations;
 public readonly record struct StateSourceMigrationResult
 {
     /// <summary>Gets or initializes the <see cref="SourceId"/> value.</summary>
-    public string SourceId { get; init; }
+    public SourceId SourceId { get; init; }
 
     /// <summary>Gets or initializes the <see cref="TargetId"/> value.</summary>
-    public string TargetId { get; init; }
+    public SourceId TargetId { get; init; }
 
     /// <summary>Gets or initializes the <see cref="SourceRevision"/> value.</summary>
     public string? SourceRevision { get; init; }
@@ -21,8 +21,8 @@ public readonly record struct StateSourceMigrationResult
     /// <param name="SourceRevision">The initial value for the <see cref="SourceRevision"/> property.</param>
     /// <param name="TargetRevision">The initial value for the <see cref="TargetRevision"/> property.</param>
     public StateSourceMigrationResult(
-        string SourceId,
-        string TargetId,
+        SourceId SourceId,
+        SourceId TargetId,
         string? SourceRevision,
         string? TargetRevision
     )
@@ -39,8 +39,8 @@ public readonly record struct StateSourceMigrationResult
     /// <param name="SourceRevision">Receives the current <see cref="SourceRevision"/> value.</param>
     /// <param name="TargetRevision">Receives the current <see cref="TargetRevision"/> value.</param>
     public void Deconstruct(
-        out string SourceId,
-        out string TargetId,
+        out SourceId SourceId,
+        out SourceId TargetId,
         out string? SourceRevision,
         out string? TargetRevision
     )

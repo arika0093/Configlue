@@ -5,15 +5,15 @@ namespace Configlue;
 /// <summary>An immutable snapshot of the sources and write routing for one state runtime.</summary>
 public sealed class ConfiglueStateDiagnostics
 {
-    private readonly KeyValuePair<string, string>[] _propertyRoutes;
+    private readonly KeyValuePair<string, SourceId>[] _propertyRoutes;
 
     /// <summary>Creates an immutable source topology snapshot.</summary>
     public ConfiglueStateDiagnostics(
         string stateName,
         IEnumerable<ConfiglueSourceDiagnostics> sources,
-        string? defaultWriteSourceId,
+        SourceId? defaultWriteSourceId,
         bool defaultWriteSourceIsInferred,
-        IReadOnlyDictionary<string, string> propertyWriteRoutes
+        IReadOnlyDictionary<string, SourceId> propertyWriteRoutes
     )
     {
         ArgumentNullException.ThrowIfNull(stateName);
@@ -23,17 +23,23 @@ public sealed class ConfiglueStateDiagnostics
         Sources = Array.AsReadOnly(sources.ToArray());
         DefaultWriteSourceId = defaultWriteSourceId;
         DefaultWriteSourceIsInferred = defaultWriteSourceIsInferred;
-        var routes = new Dictionary<string, string>(StringComparer.Ordinal);
+        var routes = new Dictionary<string, SourceId>(StringComparer.Ordinal);
         foreach (var route in propertyWriteRoutes)
         {
             var path = route.Key;
             var sourceId = route.Value;
             ArgumentException.ThrowIfNullOrWhiteSpace(path);
-            ArgumentException.ThrowIfNullOrWhiteSpace(sourceId);
+            if (sourceId.IsDefault)
+            {
+                throw new ArgumentException(
+                    "A write route source identifier is uninitialized.",
+                    nameof(propertyWriteRoutes)
+                );
+            }
             routes.Add(path, sourceId);
         }
 
-        PropertyWriteRoutes = new ReadOnlyDictionary<string, string>(routes);
+        PropertyWriteRoutes = new ReadOnlyDictionary<string, SourceId>(routes);
         _propertyRoutes = routes.ToArray();
     }
 
@@ -44,17 +50,19 @@ public sealed class ConfiglueStateDiagnostics
     public IReadOnlyList<ConfiglueSourceDiagnostics> Sources { get; }
 
     /// <summary>The default write owner, or null when the runtime has no configured writable source.</summary>
-    public string? DefaultWriteSourceId { get; }
+    public SourceId? DefaultWriteSourceId { get; }
 
     /// <summary>Whether the default write owner was inferred from a single writable root source.</summary>
     public bool DefaultWriteSourceIsInferred { get; }
 
     /// <summary>Registration-level model paths and their configured write owners.</summary>
-    public IReadOnlyDictionary<string, string> PropertyWriteRoutes { get; }
+    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
+    public IReadOnlyDictionary<string, SourceId> PropertyWriteRoutes { get; }
 
     /// <summary>Resolves the configured write owner for a model property path.</summary>
     /// <remarks>Per-operation write plans are not included in this registration snapshot.</remarks>
-    public string? GetWriteSourceId(string? propertyPath = null)
+    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
+    public SourceId? GetWriteSourceId(string? propertyPath = null)
     {
         if (propertyPath is null)
         {
@@ -78,7 +86,7 @@ public sealed class ConfiglueSourceDiagnostics
 {
     /// <summary>Creates source diagnostics.</summary>
     public ConfiglueSourceDiagnostics(
-        string id,
+        SourceId id,
         int priority,
         StateFallbackCondition fallbackCondition,
         bool canRead,
@@ -89,7 +97,10 @@ public sealed class ConfiglueSourceDiagnostics
         ResourceId? fixedResourceId
     )
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(id);
+        if (id.IsDefault)
+        {
+            throw new ArgumentException("The source identifier is uninitialized.", nameof(id));
+        }
         Id = id;
         Priority = priority;
         FallbackCondition = fallbackCondition;
@@ -102,7 +113,7 @@ public sealed class ConfiglueSourceDiagnostics
     }
 
     /// <summary>The identifier of this logical source registration, independent of physical resource identity.</summary>
-    public string Id { get; }
+    public SourceId Id { get; }
 
     /// <summary>Read priority, where higher values are tried first.</summary>
     public int Priority { get; }

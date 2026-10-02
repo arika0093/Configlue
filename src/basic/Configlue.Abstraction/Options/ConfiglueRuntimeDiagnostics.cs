@@ -100,7 +100,7 @@ public readonly record struct ConfiglueDiagnosticEvent(
     string StateName,
     string ModelId,
     int ModelVersion,
-    string? SourceId,
+    SourceId? SourceId,
     string? SourceKind,
     StateReadStatus? ReadStatus,
     bool HasRevision,
@@ -123,7 +123,7 @@ public readonly record struct ConfiglueDiagnosticEvent(
 /// <param name="LastSuccessfulRead">The last successful read timestamp.</param>
 /// <param name="LastWatchSignal">The last observed watch signal timestamp.</param>
 public readonly record struct ConfiglueRuntimeSourceSnapshot(
-    string Id,
+    SourceId Id,
     string Kind,
     bool IsActive,
     bool CanRead,

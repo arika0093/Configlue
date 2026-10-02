@@ -25,7 +25,7 @@ public sealed class StateSourceSet<T>
         }
 
         var duplicate = sourceItems
-            .GroupBy(static source => source.Id, StringComparer.Ordinal)
+            .GroupBy(static source => source.Id)
             .FirstOrDefault(static group => group.Count() > 1);
         if (duplicate is not null)
         {

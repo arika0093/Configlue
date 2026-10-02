@@ -14,7 +14,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         TFragment value,
         StateSchemaMetadata sourceSchema,
         CancellationToken cancellationToken,
-        string? sourceId = null,
+        SourceId? sourceId = null,
         long parentOperationId = 0
     )
     {

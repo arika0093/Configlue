@@ -13,8 +13,8 @@ internal sealed class RuntimeDiagnosticRecorder : IConfiglueRuntimeDiagnostics
     private readonly ConfiglueRuntimeDiagnosticOptions _options;
     private readonly ILogger? _logger;
     private readonly ConfiglueDiagnosticEvent[] _history;
-    private readonly Dictionary<string, ConfiglueRuntimeSourceSnapshot> _sources;
-    private readonly Dictionary<string, int> _watchCounts = new(StringComparer.Ordinal);
+    private readonly Dictionary<SourceId, ConfiglueRuntimeSourceSnapshot> _sources;
+    private readonly Dictionary<SourceId, int> _watchCounts = new();
     private Action<ConfiglueDiagnosticEvent>[] _listeners = [];
     private long _sequence;
     private long _nextOperationId;
@@ -41,7 +41,7 @@ internal sealed class RuntimeDiagnosticRecorder : IConfiglueRuntimeDiagnostics
         _options = options;
         _logger = logger;
         _history = new ConfiglueDiagnosticEvent[options.EventHistoryCapacity];
-        _sources = sources.ToDictionary(static source => source.Id, StringComparer.Ordinal);
+        _sources = sources.ToDictionary(static source => source.Id);
     }
 
     private bool IsEnabled(ConfiglueDiagnosticEventKind kind) =>
@@ -62,7 +62,7 @@ internal sealed class RuntimeDiagnosticRecorder : IConfiglueRuntimeDiagnostics
 
     internal DiagnosticOperation Start(
         ConfiglueDiagnosticEventKind kind,
-        string? sourceId = null,
+        SourceId? sourceId = null,
         long parentOperationId = 0
     )
     {
@@ -83,12 +83,12 @@ internal sealed class RuntimeDiagnosticRecorder : IConfiglueRuntimeDiagnostics
                 activity.SetTag("configlue.model.id", _modelId);
                 activity.SetTag("configlue.model.version", _modelVersion);
                 activity.SetTag("configlue.operation.id", operationId);
-                if (sourceId is not null)
+                if (sourceId is { } sourceKey)
                 {
-                    activity.SetTag("configlue.source.id", sourceId);
+                    activity.SetTag("configlue.source.id", sourceKey.Value);
                     lock (_gate)
                     {
-                        if (_sources.TryGetValue(sourceId, out var source))
+                        if (_sources.TryGetValue(sourceKey, out var source))
                             activity.SetTag("configlue.source.kind", source.Kind);
                     }
                 }
@@ -109,7 +109,7 @@ internal sealed class RuntimeDiagnosticRecorder : IConfiglueRuntimeDiagnostics
         ConfiglueDiagnosticEventKind kind,
         long operationId = 0,
         long parentOperationId = 0,
-        string? sourceId = null,
+        SourceId? sourceId = null,
         StateReadStatus? readStatus = null,
         bool hasRevision = false,
         TimeSpan duration = default,
@@ -124,7 +124,7 @@ internal sealed class RuntimeDiagnosticRecorder : IConfiglueRuntimeDiagnostics
         lock (_gate)
         {
             var sourceKind =
-                sourceId is not null && _sources.TryGetValue(sourceId, out var source)
+                sourceId is { } sourceKey && _sources.TryGetValue(sourceKey, out var source)
                     ? source.Kind
                     : null;
             diagnosticEvent = new ConfiglueDiagnosticEvent(
@@ -229,11 +229,11 @@ internal sealed class RuntimeDiagnosticRecorder : IConfiglueRuntimeDiagnostics
         _sources[sourceId] = source;
     }
 
-    internal void SetActiveSources(IEnumerable<string> activeSourceIds)
+    internal void SetActiveSources(IEnumerable<SourceId> activeSourceIds)
     {
         lock (_gate)
         {
-            var ids = new HashSet<string>(activeSourceIds, StringComparer.Ordinal);
+            var ids = new HashSet<SourceId>(activeSourceIds);
             foreach (var id in _sources.Keys.ToArray())
                 _sources[id] = _sources[id] with { IsActive = ids.Contains(id) };
         }
@@ -320,7 +320,7 @@ internal sealed class RuntimeDiagnosticRecorder : IConfiglueRuntimeDiagnostics
         RuntimeDiagnosticRecorder owner,
         long operationId,
         long parentOperationId,
-        string? sourceId,
+        SourceId? sourceId,
         long started,
         Activity? activity
     )

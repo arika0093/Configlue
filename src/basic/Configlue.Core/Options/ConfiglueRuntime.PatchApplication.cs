@@ -49,10 +49,8 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         }
 
         if (
-            patchRequests
-                .Select(static patch => patch.SourceId)
-                .Distinct(StringComparer.Ordinal)
-                .Count() != patchRequests.Length
+            patchRequests.Select(static patch => patch.SourceId).Distinct().Count()
+            != patchRequests.Length
         )
         {
             throw new ArgumentException(
@@ -95,9 +93,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             throw LogConflict("A state source changed after the configuration edit began.");
         }
 
-        var replacements = new Dictionary<string, StateReadResult<TFragment>>(
-            StringComparer.Ordinal
-        );
+        var replacements = new Dictionary<SourceId, StateReadResult<TFragment>>();
         var writePlans =
             new List<(
                 StateSource<TFragment> Source,
@@ -307,7 +303,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                             contribution.Source.Writer is null
                         )
                         .Select(static contribution => contribution.Source.Id)
-                        .Distinct(StringComparer.Ordinal)
+                        .Distinct()
                         .ToArray();
                     var details = string.Join(", ", paths);
                     var shadowing =
@@ -419,7 +415,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             }
         }
 
-        var results = new Dictionary<string, StateSourceWriteResult>(StringComparer.Ordinal);
+        var results = new Dictionary<SourceId, StateSourceWriteResult>();
         var physicalWriteCount = 0;
         for (var groupIndex = 0; groupIndex < writeGroups.Length; groupIndex++)
         {
@@ -601,7 +597,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         for (var index = 0; index < baseline.Contributions.Count; index++)
         {
             var contribution = baseline.Contributions[index];
-            if (!string.Equals(contribution.Source.Id, source.Id, StringComparison.Ordinal))
+            if (contribution.Source.Id != source.Id)
             {
                 continue;
             }
@@ -621,7 +617,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         for (var index = 0; index < baseline.Failures.Count; index++)
         {
             var failure = baseline.Failures[index];
-            if (string.Equals(failure.Source.Id, source.Id, StringComparison.Ordinal))
+            if (failure.Source.Id == source.Id)
             {
                 return failure.Result;
             }

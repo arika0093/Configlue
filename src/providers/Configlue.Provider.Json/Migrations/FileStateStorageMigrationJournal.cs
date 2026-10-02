@@ -92,9 +92,9 @@ public sealed class FileStateStorageMigrationJournal
 
         return new StateStorageMigrationProgress(
             document.MigrationId,
-            document.SourceIds,
-            document.TargetSourceIds,
-            document.CompletedTargetSourceIds,
+            document.SourceIds.Select(SourceId.From),
+            document.TargetSourceIds.Select(SourceId.From),
+            document.CompletedTargetSourceIds.Select(SourceId.From),
             document.RetireSources,
             document.SourcesRetired
         );
@@ -122,9 +122,13 @@ public sealed class FileStateStorageMigrationJournal
         var document = new StateStorageMigrationProgressDocument
         {
             MigrationId = progress.MigrationId,
-            SourceIds = progress.SourceIds.ToArray(),
-            TargetSourceIds = progress.TargetSourceIds.ToArray(),
-            CompletedTargetSourceIds = progress.CompletedTargetSourceIds.ToArray(),
+            SourceIds = progress.SourceIds.Select(static sourceId => sourceId.Value).ToArray(),
+            TargetSourceIds = progress
+                .TargetSourceIds.Select(static sourceId => sourceId.Value)
+                .ToArray(),
+            CompletedTargetSourceIds = progress
+                .CompletedTargetSourceIds.Select(static sourceId => sourceId.Value)
+                .ToArray(),
             RetireSources = progress.RetireSources,
             SourcesRetired = progress.SourcesRetired,
         };

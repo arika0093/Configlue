@@ -43,15 +43,12 @@ public static class StateStorageMigrationExtensions
         }
 
         var completedTargets =
-            savedProgress?.CompletedTargetSourceIds.ToHashSet(StringComparer.Ordinal)
-            ?? new HashSet<string>(StringComparer.Ordinal);
-        Dictionary<string, string?>? sourceRevisionSnapshot = null;
+            savedProgress?.CompletedTargetSourceIds.ToHashSet() ?? new HashSet<SourceId>();
+        Dictionary<SourceId, string?>? sourceRevisionSnapshot = null;
         foreach (var target in definition.Targets)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var projections = new Dictionary<string, Func<IConfiglueFragment, IConfiglueFragment>>(
-                StringComparer.Ordinal
-            )
+            var projections = new Dictionary<SourceId, Func<IConfiglueFragment, IConfiglueFragment>>
             {
                 [target.TargetSourceId] = fragment =>
                     fragment is TFragment typed
@@ -65,9 +62,8 @@ public static class StateStorageMigrationExtensions
                 .ConfigureAwait(false);
             if (sourceRevisionSnapshot is null)
             {
-                sourceRevisionSnapshot = new Dictionary<string, string?>(
-                    result.SourceRevisions.Revisions.Count,
-                    StringComparer.Ordinal
+                sourceRevisionSnapshot = new Dictionary<SourceId, string?>(
+                    result.SourceRevisions.Revisions.Count
                 );
                 foreach (var revision in result.SourceRevisions.Revisions)
                 {
@@ -104,8 +100,7 @@ public static class StateStorageMigrationExtensions
                                 : throw new InvalidOperationException(
                                     $"Migration source fragment '{fragment.GetType()}' is incompatible with '{typeof(TFragment)}'."
                                 )
-                    ),
-                StringComparer.Ordinal
+                    )
             );
             await sources
                 .MigrateSourcesToTargetsAsync(
@@ -124,7 +119,7 @@ public static class StateStorageMigrationExtensions
 
     private static StateStorageMigrationProgress CreateProgress<TFragment>(
         StateStorageMigrationDefinition<TFragment> definition,
-        IEnumerable<string> completedTargets,
+        IEnumerable<SourceId> completedTargets,
         bool sourcesRetired = false
     )
         where TFragment : class, IConfiglueFragment<TFragment> =>
@@ -145,10 +140,9 @@ public static class StateStorageMigrationExtensions
     {
         if (
             !string.Equals(progress.MigrationId, definition.Id, StringComparison.Ordinal)
-            || !progress.SourceIds.SequenceEqual(definition.SourceIds, StringComparer.Ordinal)
+            || !progress.SourceIds.SequenceEqual(definition.SourceIds)
             || !progress.TargetSourceIds.SequenceEqual(
-                definition.Targets.Select(static target => target.TargetSourceId),
-                StringComparer.Ordinal
+                definition.Targets.Select(static target => target.TargetSourceId)
             )
             || progress.RetireSources != definition.RetireSources
         )

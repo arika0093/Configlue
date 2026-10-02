@@ -22,7 +22,7 @@ public sealed class CompositeStateSource<TFragment>
     where TFragment : class, IConfiglueFragment<TFragment>
 {
     private readonly StateSourceSet<TFragment> _components;
-    private readonly string? _defaultWriteSourceId;
+    private readonly SourceId? _defaultWriteSourceId;
     private readonly StateWritePlan _writePlan;
     private readonly ResidencyCache<
         (SubjectKey SubjectKey, RouteKey Route),
@@ -35,7 +35,7 @@ public sealed class CompositeStateSource<TFragment>
     /// <param name="writePlan">Optional routes from model member paths to component source IDs.</param>
     public CompositeStateSource(
         StateSourceSet<TFragment> components,
-        string? defaultWriteSourceId = null,
+        SourceId? defaultWriteSourceId = null,
         StateWritePlan? writePlan = null
     )
         : this(components, defaultWriteSourceId, writePlan, TimeSpan.FromMinutes(5), 256) { }
@@ -50,10 +50,16 @@ public sealed class CompositeStateSource<TFragment>
     {
         ArgumentNullException.ThrowIfNull(components);
         _writePlan = writePlan ?? StateWritePlan.Empty;
-        if (defaultWriteSourceId is not null)
+        if (defaultWriteSourceId is { } configuredSourceId)
         {
-            ArgumentException.ThrowIfNullOrWhiteSpace(defaultWriteSourceId);
-            GetWritableComponent(components, defaultWriteSourceId);
+            if (configuredSourceId.IsDefault)
+            {
+                throw new ArgumentException(
+                    "A default source ID must be non-empty.",
+                    nameof(defaultWriteSourceId)
+                );
+            }
+            GetWritableComponent(components, configuredSourceId);
         }
 
         foreach (var sourceId in _writePlan.PropertyRoutes.Values)
@@ -97,7 +103,7 @@ public sealed class CompositeStateSource<TFragment>
 
     internal StateWritePlan WritePlan => _writePlan;
 
-    internal string? DefaultWriteSourceId => _defaultWriteSourceId;
+    internal SourceId? DefaultWriteSourceId => _defaultWriteSourceId;
 
     internal int WatchTargetCount => _watchTargets.Count;
 
@@ -124,7 +130,7 @@ public sealed class CompositeStateSource<TFragment>
     internal bool HasWriteRouteBelow(string propertyPath) => _writePlan.HasRouteBelow(propertyPath);
 
     internal async ValueTask<StateReadResult<TFragment>> ReadWithOverridesAsync(
-        IReadOnlyDictionary<string, TFragment> overrides,
+        IReadOnlyDictionary<SourceId, TFragment> overrides,
         ConfiglueResourceContext context,
         CancellationToken cancellationToken
     )
@@ -154,7 +160,7 @@ public sealed class CompositeStateSource<TFragment>
         context.IsDefault ? null : context.Subject;
 
     private async ValueTask<StateReadResult<TFragment>> ReadCoreAsync(
-        IReadOnlyDictionary<string, TFragment>? overrides,
+        IReadOnlyDictionary<SourceId, TFragment>? overrides,
         IConfiglueSubject? subject,
         ConfiglueResourceContext context,
         CancellationToken cancellationToken
@@ -162,7 +168,7 @@ public sealed class CompositeStateSource<TFragment>
     {
         var successful = new List<ComponentResult>();
         var revisions = new List<StateRevision>(_components.Count);
-        List<KeyValuePair<string, StateRevisionVector>>? nestedRevisions = null;
+        List<KeyValuePair<SourceId, StateRevisionVector>>? nestedRevisions = null;
         var watchTargets = new List<WatchTarget>(_components.Count);
         StateReadResult<TFragment> lastFailure = default;
         StateSchemaMetadata? schema = null;
@@ -200,7 +206,7 @@ public sealed class CompositeStateSource<TFragment>
             {
                 nestedRevisions ??= [];
                 nestedRevisions.Add(
-                    new KeyValuePair<string, StateRevisionVector>(source.Id, nested)
+                    new KeyValuePair<SourceId, StateRevisionVector>(source.Id, nested)
                 );
             }
 
@@ -275,7 +281,7 @@ public sealed class CompositeStateSource<TFragment>
 
     private static StateRevisionVector CreateRevisionVector(
         List<StateRevision> revisions,
-        List<KeyValuePair<string, StateRevisionVector>>? nestedRevisions
+        List<KeyValuePair<SourceId, StateRevisionVector>>? nestedRevisions
     ) =>
         nestedRevisions is null
             ? new StateRevisionVector(revisions)
@@ -298,12 +304,10 @@ public sealed class CompositeStateSource<TFragment>
 
     private static StateSource<TFragment> GetWritableComponent(
         StateSourceSet<TFragment> components,
-        string componentId
+        SourceId componentId
     )
     {
-        var component = components.Sources.FirstOrDefault(source =>
-            string.Equals(source.Id, componentId, StringComparison.Ordinal)
-        );
+        var component = components.Sources.FirstOrDefault(source => source.Id == componentId);
         if (component is null)
         {
             throw new ArgumentException(

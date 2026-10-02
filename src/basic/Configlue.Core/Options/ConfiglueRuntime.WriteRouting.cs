@@ -51,7 +51,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
     }
 
     private StateSourcePatch[] CreateRoutedPatches(
-        Dictionary<string, IConfiglueFragment> routedChanges,
+        Dictionary<SourceId, IConfiglueFragment> routedChanges,
         TModel after,
         IReadOnlyList<ResolvedContribution> baselineContributions
     )
@@ -148,7 +148,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         return paths;
     }
 
-    private Dictionary<string, IConfiglueFragment> PartitionRoutedChanges(
+    private Dictionary<SourceId, IConfiglueFragment> PartitionRoutedChanges(
         ConfiglueModelSchema schema,
         IConfiglueFragment changes,
         object afterModel,
@@ -156,7 +156,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         StateWritePlan writePlan
     )
     {
-        var routed = new Dictionary<string, IConfiglueFragment>(StringComparer.Ordinal);
+        var routed = new Dictionary<SourceId, IConfiglueFragment>();
         foreach (var change in changes.EnumeratePresentMembers())
         {
             if (!TryGetMember(schema, change.Id, out var member))
@@ -217,14 +217,14 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         return routed;
     }
 
-    private Dictionary<string, IConfiglueFragment> PartitionCompositeChanges(
+    private Dictionary<SourceId, IConfiglueFragment> PartitionCompositeChanges(
         ConfiglueModelSchema schema,
         IConfiglueFragment changes,
         CompositeStateSource<TFragment> composite,
         List<string> path
     )
     {
-        var routed = new Dictionary<string, IConfiglueFragment>(StringComparer.Ordinal);
+        var routed = new Dictionary<SourceId, IConfiglueFragment>();
         foreach (var change in changes.EnumeratePresentMembers().ToArray())
         {
             if (!TryGetMember(schema, change.Id, out var member))

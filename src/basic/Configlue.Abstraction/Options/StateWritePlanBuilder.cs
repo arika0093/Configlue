@@ -22,8 +22,8 @@ namespace Configlue;
 /// </remarks>
 public sealed class StateWritePlanBuilder<TModel>
 {
-    private readonly Dictionary<string, string> _routes = new(StringComparer.Ordinal);
-    private string? _defaultSourceId;
+    private readonly Dictionary<string, SourceId> _routes = new(StringComparer.Ordinal);
+    private SourceId? _defaultSourceId;
 
     /// <summary>Sets the default write owner for model paths without a more specific route.</summary>
     public StateWritePlanBuilder<TModel> DefaultTo(SourceKey<TModel> source)
@@ -34,15 +34,6 @@ public sealed class StateWritePlanBuilder<TModel>
         }
 
         _defaultSourceId = source.Id;
-        return this;
-    }
-
-    /// <summary>Sets the default write owner by logical source identifier.</summary>
-    /// <remarks>Prefer the typed <see cref="DefaultTo(SourceKey{TModel})"/> overload when a source key is available.</remarks>
-    public StateWritePlanBuilder<TModel> DefaultTo(string sourceId)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(sourceId);
-        _defaultSourceId = sourceId;
         return this;
     }
 
@@ -58,17 +49,6 @@ public sealed class StateWritePlanBuilder<TModel>
             throw new ArgumentException("The source key is uninitialized.", nameof(source));
         }
 
-        return Route(property, source.Id);
-    }
-
-    /// <summary>Routes a model property and its descendants to a logical source identifier.</summary>
-    public StateWritePlanBuilder<TModel> Route<TValue>(
-        Expression<Func<TModel, TValue>> property,
-        string sourceId
-    )
-    {
-        ArgumentNullException.ThrowIfNull(property);
-        ArgumentException.ThrowIfNullOrWhiteSpace(sourceId);
         var path = GetPropertyPath(property);
         EnsureModelRegistered();
         if (ConfiglueModelSchemaCatalog.TryGet(typeof(TModel), out var schema))
@@ -76,7 +56,7 @@ public sealed class StateWritePlanBuilder<TModel>
             _ = ConfiglueMemberPath.FromNames(schema, path);
         }
 
-        if (!_routes.TryAdd(path, sourceId))
+        if (!_routes.TryAdd(path, source.Id))
         {
             throw new ArgumentException(
                 $"Property '{path}' is routed more than once.",

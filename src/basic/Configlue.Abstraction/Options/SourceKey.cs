@@ -5,25 +5,25 @@ namespace Configlue;
 /// <typeparam name="TModel">The configuration model type.</typeparam>
 public readonly record struct SourceKey<TModel>
 {
-    private readonly string? _name;
+    private readonly SourceId _id;
 
-    private SourceKey(string name) => _name = name;
+    private SourceKey(SourceId id) => _id = id;
 
-    internal string Id => _name ?? string.Empty;
+    internal SourceId Id => _id;
 
     /// <summary>The stable application-defined logical source name, or an empty string for default.</summary>
-    public string Name => _name ?? string.Empty;
+    public string Name => _id.Value;
 
     /// <summary>Whether this key is the uninitialized default value.</summary>
-    public bool IsDefault => _name is null;
+    public bool IsDefault => _id.IsDefault;
 
     /// <summary>Creates a new opaque key for explicitly registered sources.</summary>
-    public static SourceKey<TModel> Create() => new($"source:{Guid.NewGuid():N}");
+    public static SourceKey<TModel> Create() => new(SourceId.From($"source:{Guid.NewGuid():N}"));
 
     /// <summary>Creates a typed key for a stable, application-defined logical source name.</summary>
     public static SourceKey<TModel> Named(string name)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
-        return new SourceKey<TModel>(name);
+        return new SourceKey<TModel>(SourceId.From(name));
     }
 }

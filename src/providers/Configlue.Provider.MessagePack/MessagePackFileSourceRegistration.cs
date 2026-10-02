@@ -86,7 +86,7 @@ public static class MessagePackFileSourceRegistration
         model.Sources(sources => sources.FromMessagePackFile(options));
         if (!options.ReadOnly && options.Id is { } id)
         {
-            model.Writes(write => write.DefaultTo(id));
+            model.Writes(write => write.DefaultTo(SourceKey<TModel>.Named(id)));
         }
     }
 

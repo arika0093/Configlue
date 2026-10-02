@@ -48,8 +48,8 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
     private readonly TFragment _modelDefaultsFragment;
     private readonly StateSource<TFragment> _modelDefaultsSource;
     private readonly object _sourceGate = new();
-    private readonly HashSet<string> _retiredSourceIds = new(StringComparer.Ordinal);
-    private readonly Dictionary<string, string> _detailsSourceKeys = new(StringComparer.Ordinal);
+    private readonly HashSet<SourceId> _retiredSourceIds = [];
+    private readonly Dictionary<SourceId, string> _detailsSourceKeys = [];
     private StateSource<TFragment>[] _activeSources;
     private TaskCompletionSource _sourceTopologyChanged = NewTopologySignal();
     private readonly StateWritePlan _writePlan;
@@ -238,7 +238,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         StateWritePlan configuredWritePlan
     )
     {
-        var ownedPaths = new List<(string Path, string SourceId)>();
+        var ownedPaths = new List<(string Path, SourceId SourceId)>();
         foreach (var source in sources)
         {
             if (source.Writer is null || source.ExplicitOnly)
@@ -257,14 +257,14 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             ThrowOverlappingOwnership(ownedPaths);
         }
 
-        var owners = new Dictionary<string, string>(StringComparer.Ordinal);
+        var owners = new Dictionary<string, SourceId>(StringComparer.Ordinal);
         foreach (var (path, sourceId) in ownedPaths)
         {
             owners.Add(path, sourceId);
         }
 
         var mountedWritePlan =
-            owners.Count == 0 ? StateWritePlan.Empty : new StateWritePlan(owners);
+            owners.Count == 0 ? StateWritePlan.Empty : new StateWritePlan(null, owners);
         var merged = mountedWritePlan.OverrideWith(configuredWritePlan);
 
         var defaultSourceId = configuredWritePlan.DefaultSourceId;
@@ -300,11 +300,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                 defaultInferred = true;
             }
         }
-        else if (
-            !sources.Any(source =>
-                string.Equals(source.Id, defaultSourceId, StringComparison.Ordinal)
-            )
-        )
+        else if (!sources.Any(source => source.Id == defaultSourceId))
         {
             throw new InvalidOperationException(
                 $"The configured default write source '{defaultSourceId}' is not registered for model '{typeof(TModel)}'."
@@ -313,7 +309,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
 
         return (merged.WithDefaultSourceId(defaultSourceId).Bind(ModelSchema), defaultInferred);
 
-        static bool HasOverlappingOwnershipPaths(List<(string Path, string SourceId)> paths)
+        static bool HasOverlappingOwnershipPaths(List<(string Path, SourceId SourceId)> paths)
         {
             var sorted = new string[paths.Count];
             for (var index = 0; index < paths.Count; index++)
@@ -361,9 +357,9 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             && descendant[ancestor.Length] == '.'
             && descendant.AsSpan(0, ancestor.Length).SequenceEqual(ancestor.AsSpan());
 
-        static void ThrowOverlappingOwnership(List<(string Path, string SourceId)> paths)
+        static void ThrowOverlappingOwnership(List<(string Path, SourceId SourceId)> paths)
         {
-            var seenOwners = new Dictionary<string, string>(StringComparer.Ordinal);
+            var seenOwners = new Dictionary<string, SourceId>(StringComparer.Ordinal);
             foreach (var (path, sourceId) in paths)
             {
                 var existingOwner = seenOwners.FirstOrDefault(owner =>
@@ -392,9 +388,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             activeSources = _activeSources;
         }
 
-        var activeIds = activeSources
-            .Select(static source => source.Id)
-            .ToHashSet(StringComparer.Ordinal);
+        var activeIds = activeSources.Select(static source => source.Id).ToHashSet();
         var sources = _sourceSet
             .Sources.Select(source => new ConfiglueSourceDiagnostics(
                 source.Id,
@@ -656,7 +650,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
     }
 
     private async ValueTask<StateReadResult<TModel>> ReadCoreAsync(
-        IReadOnlyDictionary<string, StateReadResult<TFragment>>? replacements,
+        IReadOnlyDictionary<SourceId, StateReadResult<TFragment>>? replacements,
         CancellationToken cancellationToken,
         long parentOperationId = 0
     ) =>
@@ -670,7 +664,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         ).Result;
 
     private ValueTask<ResolvedState> ResolveCoreAsync(
-        IReadOnlyDictionary<string, StateReadResult<TFragment>>? replacements,
+        IReadOnlyDictionary<SourceId, StateReadResult<TFragment>>? replacements,
         CancellationToken cancellationToken,
         bool captureContributions = false,
         Action<ResolvedSourceProbe>? observeSource = null,
@@ -749,7 +743,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
     }
 
     private async ValueTask<ResolvedState> ResolveImplementationAsync(
-        IReadOnlyDictionary<string, StateReadResult<TFragment>>? replacements,
+        IReadOnlyDictionary<SourceId, StateReadResult<TFragment>>? replacements,
         CancellationToken cancellationToken,
         bool captureContributions = false,
         Action<ResolvedSourceProbe>? observeSource = null,
@@ -768,7 +762,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         List<ResolvedFailure>? failures = null;
         var revisions = new StateRevision[activeSources.Length];
         var revisionCount = 0;
-        List<KeyValuePair<string, StateRevisionVector>>? nestedRevisions = null;
+        List<KeyValuePair<SourceId, StateRevisionVector>>? nestedRevisions = null;
         StateReadResult<TFragment> lastFailure = default;
         StateSource<TFragment>? activeSource = null;
         StateReadResult<TFragment> activeResult = default;
@@ -836,7 +830,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             if (sourceResult.Revisions is { } nestedVector)
             {
                 (nestedRevisions ??= []).Add(
-                    new KeyValuePair<string, StateRevisionVector>(source.Id, nestedVector)
+                    new KeyValuePair<SourceId, StateRevisionVector>(source.Id, nestedVector)
                 );
             }
 
@@ -994,8 +988,8 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                     lastFailure.Schema,
                     new StateRevisionVector(
                         revisions,
-                        (IEnumerable<KeyValuePair<string, StateRevisionVector>>?)nestedRevisions
-                            ?? Array.Empty<KeyValuePair<string, StateRevisionVector>>()
+                        (IEnumerable<KeyValuePair<SourceId, StateRevisionVector>>?)nestedRevisions
+                            ?? Array.Empty<KeyValuePair<SourceId, StateRevisionVector>>()
                     )
                 ),
                 (IReadOnlyList<ResolvedContribution>?)contributions
@@ -1060,7 +1054,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
     private static StateRevisionVector CreateRevisionVector(
         StateRevision[] revisions,
         int revisionCount,
-        List<KeyValuePair<string, StateRevisionVector>>? nestedRevisions
+        List<KeyValuePair<SourceId, StateRevisionVector>>? nestedRevisions
     ) =>
         nestedRevisions is null
             ? StateRevisionVector.FromSpan(revisions.AsSpan(0, revisionCount))

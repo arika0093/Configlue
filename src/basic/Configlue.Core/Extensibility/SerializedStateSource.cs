@@ -52,7 +52,7 @@ public static class SerializedStateSource
             middlewares
         );
         return new StateSource<T>(
-            id,
+            SourceId.From(id),
             serialized,
             priority,
             fallbackCondition,
