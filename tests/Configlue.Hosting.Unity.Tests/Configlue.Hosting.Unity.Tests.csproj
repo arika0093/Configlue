@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../fixtures/unity/UnityEngine.CoreModule/UnityEngine.CoreModule.csproj" />
+    <ProjectReference Include="../../src/basic/Configlue.Core/Configlue.Core.csproj" />
+    <ProjectReference Include="../../src/extensions/Configlue.Extensions.ComponentModel/Configlue.Extensions.ComponentModel.csproj" />
+    <Compile Include="../../src/hosting/Configlue.Hosting.Unity/UnityConfiglueDispatcher.cs" />
+    <Compile Include="../../src/hosting/Configlue.Hosting.Unity/UnityHostPaths.cs" />
+  </ItemGroup>
+</Project>
