@@ -1,6 +1,9 @@
 using System.Buffers;
 using System.Collections;
+using System.Collections.Concurrent;
+using System.Collections.ObjectModel;
 using System.Diagnostics.CodeAnalysis;
+using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text;
@@ -10,7 +13,13 @@ using System.Xml.Serialization;
 
 namespace Configlue.Provider.Xml;
 
-/// <summary>An XML codec for ordinary models and generated sparse fragments.</summary>
+/// <summary>
+/// An XML codec for ordinary models and generated sparse fragments. Sequence members use an
+/// explicit materialization contract: arrays, list and read-only-list interfaces, set interfaces,
+/// dictionaries, queues, stacks, linked and sorted collections, observable and read-only
+/// collections, and immutable arrays, lists, sets, and dictionaries are materialized with
+/// assignable values. Other enumerable shapes fail with <see cref="XmlException"/>.
+/// </summary>
 public sealed class XmlStateCodec
     : IStateCodec,
         IStateSchemaMetadataReader,
@@ -247,6 +256,12 @@ internal static class XmlStateCodecOperations
             return;
         }
 
+        if (TryGetDictionaryTypes(valueType, out var keyType, out var dictionaryValueType))
+        {
+            WriteDictionary(writer, value, keyType, dictionaryValueType);
+            return;
+        }
+
         if (TryGetEnumerableElementType(valueType, out var elementType))
         {
             writer.WriteStartElement(SequenceName);
@@ -357,6 +372,30 @@ internal static class XmlStateCodecOperations
         }
 
         if (
+            TryGetDictionaryTypes(valueType, out var keyType, out var dictionaryValueType)
+            && element.Name.LocalName == SequenceName
+        )
+        {
+            var pairType = typeof(KeyValuePair<,>).MakeGenericType(keyType, dictionaryValueType);
+            var entries = element
+                .Elements(ItemName)
+                .Select(item =>
+                {
+                    var keyElement =
+                        item.Element("key")?.Elements().FirstOrDefault()
+                        ?? throw new XmlException("A dictionary entry has no key value.");
+                    var valueElement =
+                        item.Element("value")?.Elements().FirstOrDefault()
+                        ?? throw new XmlException("A dictionary entry has no value.");
+                    var key = ReadValue(keyElement, keyType);
+                    var dictionaryValue = ReadValue(valueElement, dictionaryValueType);
+                    return Activator.CreateInstance(pairType, [key, dictionaryValue]);
+                })
+                .ToArray();
+            return MaterializeCollection(valueType, pairType, entries);
+        }
+
+        if (
             TryGetEnumerableElementType(valueType, out var elementType)
             && element.Name.LocalName == SequenceName
         )
@@ -385,37 +424,7 @@ internal static class XmlStateCodecOperations
                 return array;
             }
 
-            Type collectionType;
-            if (valueType.IsInterface)
-            {
-                var isSet = valueType
-                    .GetInterfaces()
-                    .Append(valueType)
-                    .Any(candidate =>
-                        candidate.IsGenericType
-                        && (
-                            candidate.GetGenericTypeDefinition() == typeof(ISet<>)
-                            || candidate.GetGenericTypeDefinition() == typeof(IReadOnlySet<>)
-                        )
-                    );
-                collectionType = isSet
-                    ? typeof(HashSet<>).MakeGenericType(elementType)
-                    : typeof(List<>).MakeGenericType(elementType);
-            }
-            else
-            {
-                collectionType = valueType;
-            }
-            var collection = Activator.CreateInstance(collectionType);
-            var add =
-                collectionType.GetMethod("Add", [elementType])
-                ?? throw new XmlException($"Collection type '{collectionType}' has no Add method.");
-            foreach (var item in items)
-            {
-                add.Invoke(collection, [item]);
-            }
-
-            return collection;
+            return MaterializeCollection(valueType, elementType, items);
         }
 
         return GetSerializer(valueType).Deserialize(element.CreateReader());
@@ -471,6 +480,346 @@ internal static class XmlStateCodecOperations
 
         elementType = null!;
         return false;
+    }
+
+    private static bool TryGetDictionaryTypes(Type type, out Type keyType, out Type valueType)
+    {
+        var dictionary = type.GetInterfaces()
+            .Append(type)
+            .FirstOrDefault(candidate =>
+                candidate.IsGenericType
+                && (
+                    candidate.GetGenericTypeDefinition() == typeof(IDictionary<,>)
+                    || candidate.GetGenericTypeDefinition() == typeof(IReadOnlyDictionary<,>)
+                )
+            );
+        if (dictionary is null)
+        {
+            keyType = null!;
+            valueType = null!;
+            return false;
+        }
+        var arguments = dictionary.GetGenericArguments();
+        keyType = arguments[0];
+        valueType = arguments[1];
+        return true;
+    }
+
+    private static void WriteDictionary(
+        XmlWriter writer,
+        object value,
+        Type keyType,
+        Type valueType
+    )
+    {
+        writer.WriteStartElement(SequenceName);
+        foreach (var entry in (IEnumerable)value)
+        {
+            var entryType = entry!.GetType();
+            writer.WriteStartElement(ItemName);
+            writer.WriteStartElement("key");
+            WriteValue(writer, keyType, entryType.GetProperty("Key")!.GetValue(entry)!);
+            writer.WriteEndElement();
+            writer.WriteStartElement("value");
+            WriteValue(writer, valueType, entryType.GetProperty("Value")!.GetValue(entry)!);
+            writer.WriteEndElement();
+            writer.WriteEndElement();
+        }
+        writer.WriteEndElement();
+    }
+
+    /// <summary>
+    /// XML fragment collections use the same public shapes recognized by the generated
+    /// fragment clone contract. Interface declarations are materialized as lists, sets,
+    /// or dictionaries; concrete supported collections use their
+    /// collection-specific constructor/factory. Other enumerable types are rejected here,
+    /// before a generated fragment can fail with a cast error.
+    /// </summary>
+    private static object MaterializeCollection(
+        Type declaredType,
+        Type elementType,
+        object?[] items
+    )
+    {
+        var definition = declaredType.IsGenericType
+            ? declaredType.GetGenericTypeDefinition()
+            : declaredType;
+        var arguments = declaredType.IsGenericType
+            ? declaredType.GetGenericArguments()
+            : Type.EmptyTypes;
+        var isDictionary = arguments.Length == 2 && IsDictionaryType(definition);
+        var isSet = IsSetType(definition);
+        var pairType = isDictionary ? typeof(KeyValuePair<,>).MakeGenericType(arguments) : null;
+
+        Type concreteType;
+        if (declaredType.IsInterface || declaredType.IsAbstract)
+        {
+            if (isDictionary)
+            {
+                concreteType = typeof(Dictionary<,>).MakeGenericType(arguments);
+            }
+            else if (isSet)
+            {
+                concreteType = typeof(HashSet<>).MakeGenericType(elementType);
+            }
+            else if (
+                definition == typeof(IEnumerable<>)
+                || definition == typeof(ICollection<>)
+                || definition == typeof(IReadOnlyCollection<>)
+                || definition == typeof(IList<>)
+                || definition == typeof(IReadOnlyList<>)
+            )
+            {
+                concreteType = typeof(List<>).MakeGenericType(elementType);
+            }
+            else
+            {
+                throw UnsupportedCollection(declaredType);
+            }
+        }
+        else
+        {
+            concreteType = declaredType;
+            if (!IsSupportedConcreteCollection(definition, isDictionary))
+            {
+                throw UnsupportedCollection(declaredType);
+            }
+        }
+
+        if (!declaredType.IsAssignableFrom(concreteType) && definition != typeof(IReadOnlySet<>))
+        {
+            throw UnsupportedCollection(declaredType);
+        }
+
+        var sequenceType = typeof(IEnumerable<>).MakeGenericType(elementType);
+        var typedItems = Array.CreateInstance(elementType, items.Length);
+        for (var index = 0; index < items.Length; index++)
+        {
+            try
+            {
+                typedItems.SetValue(items[index], index);
+            }
+            catch (Exception exception)
+                when (exception is InvalidCastException or ArgumentException)
+            {
+                throw new XmlException(
+                    $"XML item at index {index} cannot be assigned to collection '{declaredType}'.",
+                    exception
+                );
+            }
+        }
+
+        var enumerable = typedItems;
+        if (definition == typeof(Stack<>))
+        {
+            Array.Reverse(typedItems);
+        }
+
+        object? collection = null;
+        if (IsNamedGenericType(definition, "System.Collections.Immutable.ImmutableArray`1"))
+        {
+            collection = InvokeImmutableFactory(
+                definition,
+                "System.Collections.Immutable.ImmutableArray",
+                "CreateRange",
+                [elementType],
+                enumerable
+            );
+        }
+        else if (IsNamedGenericType(definition, "System.Collections.Immutable.ImmutableList`1"))
+        {
+            collection = InvokeImmutableFactory(
+                definition,
+                "System.Collections.Immutable.ImmutableList",
+                "CreateRange",
+                [elementType],
+                enumerable
+            );
+        }
+        else if (IsNamedGenericType(definition, "System.Collections.Immutable.ImmutableHashSet`1"))
+        {
+            collection = InvokeImmutableFactory(
+                definition,
+                "System.Collections.Immutable.ImmutableHashSet",
+                "CreateRange",
+                [elementType],
+                enumerable
+            );
+        }
+        else if (
+            IsNamedGenericType(definition, "System.Collections.Immutable.ImmutableDictionary`2")
+        )
+        {
+            collection = InvokeImmutableFactory(
+                definition,
+                "System.Collections.Immutable.ImmutableDictionary",
+                "CreateRange",
+                arguments,
+                enumerable
+            );
+        }
+        else
+        {
+            var enumerableConstructor = concreteType
+                .GetConstructors()
+                .FirstOrDefault(constructor =>
+                    constructor.GetParameters() is [{ ParameterType: var parameterType }]
+                    && parameterType.IsAssignableFrom(typedItems.GetType())
+                );
+            if (enumerableConstructor is not null)
+            {
+                collection = enumerableConstructor.Invoke([enumerable]);
+            }
+            else
+            {
+                collection = Activator.CreateInstance(concreteType);
+                var methodName =
+                    definition == typeof(Queue<>) || definition == typeof(ConcurrentQueue<>)
+                        ? "Enqueue"
+                    : definition == typeof(Stack<>) || definition == typeof(ConcurrentStack<>)
+                        ? "Push"
+                    : definition == typeof(LinkedList<>) ? "AddLast"
+                    : "Add";
+                var add = isDictionary
+                    ? concreteType.GetMethod("Add", arguments)
+                    : concreteType.GetMethod(methodName, [elementType]);
+                if (collection is null || add is null)
+                {
+                    throw UnsupportedCollection(declaredType);
+                }
+                foreach (var item in typedItems)
+                {
+                    if (isDictionary)
+                    {
+                        add.Invoke(
+                            collection,
+                            [
+                                pairType!.GetProperty("Key")!.GetValue(item),
+                                pairType.GetProperty("Value")!.GetValue(item),
+                            ]
+                        );
+                    }
+                    else
+                    {
+                        add.Invoke(collection, [item]);
+                    }
+                }
+            }
+        }
+
+        if (collection is null || !declaredType.IsInstanceOfType(collection))
+        {
+            if (definition == typeof(IReadOnlySet<>) && collection is IEnumerable sequence)
+            {
+                var viewType = typeof(ReadOnlySetView<>).MakeGenericType(elementType);
+                var view = Activator.CreateInstance(viewType, [sequence]);
+                if (view is not null && declaredType.IsInstanceOfType(view))
+                {
+                    return view;
+                }
+            }
+            throw UnsupportedCollection(declaredType);
+        }
+
+        return collection;
+    }
+
+    private static bool IsDictionaryType(Type type) =>
+        type == typeof(Dictionary<,>)
+        || type == typeof(IDictionary<,>)
+        || type == typeof(IReadOnlyDictionary<,>)
+        || type == typeof(SortedDictionary<,>)
+        || type == typeof(SortedList<,>)
+        || IsNamedGenericType(type, "System.Collections.Immutable.ImmutableDictionary`2");
+
+    private static bool IsSetType(Type type) =>
+        type == typeof(HashSet<>) || type == typeof(ISet<>) || type == typeof(IReadOnlySet<>);
+
+    private static bool IsSupportedConcreteCollection(Type type, bool isDictionary) =>
+        (
+            isDictionary
+            && (
+                type == typeof(Dictionary<,>)
+                || type == typeof(SortedDictionary<,>)
+                || type == typeof(SortedList<,>)
+                || IsNamedGenericType(type, "System.Collections.Immutable.ImmutableDictionary`2")
+            )
+        )
+        || type == typeof(List<>)
+        || type == typeof(HashSet<>)
+        || type == typeof(Queue<>)
+        || type == typeof(Stack<>)
+        || type == typeof(ConcurrentQueue<>)
+        || type == typeof(ConcurrentStack<>)
+        || type == typeof(BlockingCollection<>)
+        || type == typeof(LinkedList<>)
+        || type == typeof(SortedSet<>)
+        || type == typeof(ObservableCollection<>)
+        || type == typeof(ReadOnlyCollection<>)
+        || IsNamedGenericType(type, "System.Collections.Immutable.ImmutableArray`1")
+        || IsNamedGenericType(type, "System.Collections.Immutable.ImmutableList`1")
+        || IsNamedGenericType(type, "System.Collections.Immutable.ImmutableHashSet`1");
+
+    private static XmlException UnsupportedCollection(Type type) =>
+        new($"XML collection materialization does not support declared collection type '{type}'.");
+
+    private static object? InvokeImmutableFactory(
+        Type collectionType,
+        string factoryTypeName,
+        string methodName,
+        Type[] arguments,
+        object values
+    )
+    {
+        var factoryType =
+            collectionType.Assembly.GetType(factoryTypeName)
+            ?? throw new InvalidOperationException(
+                $"Immutable collection factory '{factoryTypeName}' is unavailable."
+            );
+        var factory = factoryType
+            .GetMethods(BindingFlags.Public | BindingFlags.Static)
+            .FirstOrDefault(method =>
+                method.Name == methodName
+                && method.IsGenericMethodDefinition
+                && method.GetGenericArguments().Length == arguments.Length
+                && method.GetParameters() is [{ ParameterType: var parameterType }]
+                && parameterType.IsGenericType
+                && parameterType.GetGenericTypeDefinition() == typeof(IEnumerable<>)
+            );
+        if (factory is null)
+        {
+            throw new InvalidOperationException(
+                $"Immutable collection factory '{factoryType}.{methodName}' is unavailable."
+            );
+        }
+        return factory.MakeGenericMethod(arguments).Invoke(null, [values]);
+    }
+
+    private static bool IsNamedGenericType(Type type, string name) =>
+        type.IsGenericTypeDefinition && type.FullName == name;
+
+    private sealed class ReadOnlySetView<T>(IEnumerable<T> values) : IReadOnlySet<T>
+    {
+        private readonly HashSet<T> _values = new(values);
+        public int Count => _values.Count;
+
+        public bool Contains(T item) => _values.Contains(item);
+
+        public bool IsProperSubsetOf(IEnumerable<T> other) => _values.IsProperSubsetOf(other);
+
+        public bool IsProperSupersetOf(IEnumerable<T> other) => _values.IsProperSupersetOf(other);
+
+        public bool IsSubsetOf(IEnumerable<T> other) => _values.IsSubsetOf(other);
+
+        public bool IsSupersetOf(IEnumerable<T> other) => _values.IsSupersetOf(other);
+
+        public bool Overlaps(IEnumerable<T> other) => _values.Overlaps(other);
+
+        public bool SetEquals(IEnumerable<T> other) => _values.SetEquals(other);
+
+        public IEnumerator<T> GetEnumerator() => _values.GetEnumerator();
+
+        IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
     }
 
     private static XDocument LoadDocument(byte[] content)

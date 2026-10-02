@@ -1,4 +1,6 @@
 using System.Buffers;
+using System.Collections.ObjectModel;
+using System.Collections.Immutable;
 using System.ComponentModel.DataAnnotations;
 using System.Text;
 using Configlue;
@@ -134,6 +136,40 @@ public partial class OwnershipSettings
     public ISet<string> SetValues { get; set; } = new HashSet<string>();
 
     public List<OwnershipChild> Children { get; set; } = [];
+}
+
+[ConfiglueModel("xml-collection-shapes", Version = 1)]
+public partial class XmlCollectionShapesSettings
+{
+    public int[] ArrayValues { get; set; } = [];
+    public List<int> ListValues { get; set; } = [];
+    public IReadOnlyList<int> ReadOnlyListValues { get; set; } = [];
+    public HashSet<int> HashSetValues { get; set; } = [];
+    public ISet<int> SetValues { get; set; } = new HashSet<int>();
+    public IReadOnlySet<int> ReadOnlySetValues { get; set; } = new TestReadOnlySet<int>([]);
+    public Dictionary<string, int> DictionaryValues { get; set; } = [];
+    public IReadOnlyDictionary<string, int> ReadOnlyDictionaryValues { get; set; } = new Dictionary<string, int>();
+    public Queue<int> QueueValues { get; set; } = new();
+    public ReadOnlyCollection<int> ReadOnlyCollectionValues { get; set; } = Array.AsReadOnly(Array.Empty<int>());
+    public ImmutableArray<int> ImmutableArrayValues { get; set; } = [];
+    public ImmutableList<int> ImmutableListValues { get; set; } = [];
+    public ImmutableHashSet<int> ImmutableSetValues { get; set; } = [];
+    public ImmutableDictionary<string, int> ImmutableDictionaryValues { get; set; } = ImmutableDictionary<string, int>.Empty;
+}
+
+public sealed class TestReadOnlySet<T>(IEnumerable<T> values) : IReadOnlySet<T>
+{
+    private readonly HashSet<T> _values = new(values);
+    public int Count => _values.Count;
+    public bool Contains(T item) => _values.Contains(item);
+    public bool IsProperSubsetOf(IEnumerable<T> other) => _values.IsProperSubsetOf(other);
+    public bool IsProperSupersetOf(IEnumerable<T> other) => _values.IsProperSupersetOf(other);
+    public bool IsSubsetOf(IEnumerable<T> other) => _values.IsSubsetOf(other);
+    public bool IsSupersetOf(IEnumerable<T> other) => _values.IsSupersetOf(other);
+    public bool Overlaps(IEnumerable<T> other) => _values.Overlaps(other);
+    public bool SetEquals(IEnumerable<T> other) => _values.SetEquals(other);
+    public IEnumerator<T> GetEnumerator() => _values.GetEnumerator();
+    System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
 }
 
 public sealed class GeneratedFragmentTests
@@ -717,6 +753,49 @@ public sealed class GeneratedFragmentTests
         (codec.ReadSchemaMetadata(in sequence)).ShouldBe(
             new StateSchemaMetadata("app-settings", 2)
         );
+    }
+
+    [Test]
+    public void XmlCodec_RoundTripsSupportedCollectionShapesAsAssignableValues()
+    {
+        var model = new XmlCollectionShapesSettings
+        {
+            ArrayValues = [1, 2],
+            ListValues = [3, 4],
+            ReadOnlyListValues = [5, 6],
+            HashSetValues = [7, 8],
+            SetValues = new HashSet<int> { 9, 10 },
+            ReadOnlySetValues = new TestReadOnlySet<int>([11, 12]),
+            DictionaryValues = new Dictionary<string, int> { ["one"] = 1 },
+            ReadOnlyDictionaryValues = new Dictionary<string, int> { ["two"] = 2 },
+            QueueValues = new Queue<int>([13, 14]),
+            ReadOnlyCollectionValues = Array.AsReadOnly(new[] { 15, 16 }),
+            ImmutableArrayValues = [17, 18],
+            ImmutableListValues = [19, 20],
+            ImmutableSetValues = ImmutableHashSet.Create(21, 22),
+            ImmutableDictionaryValues = ImmutableDictionary<string, int>.Empty.Add("three", 3),
+        };
+        var codec = new XmlStateCodec<XmlCollectionShapesSettings>();
+        var buffer = new ArrayBufferWriter<byte>();
+
+        codec.Serialize(model, buffer, default);
+        var sequence = new ReadOnlySequence<byte>(buffer.WrittenMemory);
+        var decoded = codec.Deserialize(in sequence, default)!;
+
+        decoded.ArrayValues.ShouldBe([1, 2]);
+        decoded.ListValues.ShouldBe([3, 4]);
+        decoded.ReadOnlyListValues.ShouldBe([5, 6]);
+        decoded.HashSetValues.ShouldBe(new HashSet<int> { 7, 8 });
+        decoded.SetValues.ShouldBe(new HashSet<int> { 9, 10 });
+        decoded.ReadOnlySetValues.OrderBy(static item => item).ShouldBe([11, 12]);
+        decoded.DictionaryValues.ShouldBe(new Dictionary<string, int> { ["one"] = 1 });
+        decoded.ReadOnlyDictionaryValues.ShouldBe(new Dictionary<string, int> { ["two"] = 2 });
+        decoded.QueueValues.ShouldBe(new Queue<int>([13, 14]));
+        decoded.ReadOnlyCollectionValues.ShouldBe([15, 16]);
+        decoded.ImmutableArrayValues.ShouldBe([17, 18]);
+        decoded.ImmutableListValues.ShouldBe([19, 20]);
+        decoded.ImmutableSetValues.ShouldBe(ImmutableHashSet.Create(21, 22));
+        decoded.ImmutableDictionaryValues.ShouldBe(ImmutableDictionary<string, int>.Empty.Add("three", 3));
     }
 
     [Test]
