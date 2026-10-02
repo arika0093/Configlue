@@ -35,6 +35,17 @@ internal sealed record ModelConstructorBinding(
     public static ModelConstructorBinding? AnalyzeRoot(
         INamedTypeSymbol model,
         CancellationToken cancellationToken
+    ) => Analyze(model, allowNonPublicConstructors: true, cancellationToken);
+
+    public static ModelConstructorBinding? AnalyzeStructural(
+        INamedTypeSymbol model,
+        CancellationToken cancellationToken
+    ) => Analyze(model, allowNonPublicConstructors: false, cancellationToken);
+
+    private static ModelConstructorBinding? Analyze(
+        INamedTypeSymbol model,
+        bool allowNonPublicConstructors,
+        CancellationToken cancellationToken
     )
     {
         var properties = SparseModelAnalyzer
@@ -46,7 +57,11 @@ internal sealed record ModelConstructorBinding(
             .ToArray();
         foreach (
             var constructorParameters in model
-                .InstanceConstructors.OrderBy(static constructor => constructor.Parameters.Length)
+                .InstanceConstructors.Where(constructor =>
+                    allowNonPublicConstructors
+                    || constructor.DeclaredAccessibility == Accessibility.Public
+                )
+                .OrderBy(static constructor => constructor.Parameters.Length)
                 .ThenBy(static constructor => constructor.ToDisplayString(), StringComparer.Ordinal)
                 .Select(static constructor => constructor.Parameters)
         )
