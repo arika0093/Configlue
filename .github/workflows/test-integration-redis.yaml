@@ -58,6 +58,15 @@ jobs:
           -- --treenode-filter "/*/*/*RedisResourceIntegrationTests/*"
           --timeout 5m --report-trx --results-directory TestResults --no-progress
 
+      - name: Capture service logs
+        if: failure() || cancelled()
+        continue-on-error: true
+        run: |
+          mkdir -p diagnostics
+          for container in $(docker ps -aq); do
+            docker logs "$container" > "diagnostics/$container.log" 2>&1 || true
+          done
+
       - name: Upload failure artifacts
         if: failure() || cancelled()
         uses: actions/upload-artifact@v7
@@ -66,5 +75,6 @@ jobs:
           path: |
             TestResults/**/*.trx
             tests/Configlue.Tests/bin/Release/net10.0/TestResults/**
+            diagnostics/**
           if-no-files-found: ignore
           retention-days: 7
