@@ -2,7 +2,7 @@
 
 *Presence-aware merge, diff/patch, and deep clone for plain C# models — generated at compile time.*
 
-SparseFragments is a standalone source-generation library. Annotate a partial class with `[SparseFragmentModel]`, and the bundled generator emits a typed **Fragment** (a sparse view in which every member tracks whether it was specified), a **Patch** (sparse mutations), semantic **Diff**, a merge engine, and a deep cloner. It targets netstandard2.0 and has no dependency on Configlue — this package is the model algebra that Configlue's layered configuration is built on.
+Annotate a partial class with `[SparseFragmentModel]`, and the generator emits a typed **Fragment** (each member tracks whether it was specified), a **Patch**, semantic **Diff**, layered **Merge**, and **DeepClone**. Targets netstandard2.0.
 
 ## The Problem
 
@@ -18,14 +18,15 @@ Hand-writing this per model is boilerplate-heavy and error-prone, and reflection
 
 ## What You Get
 
-* **Nearly zero adoption effort.** All you do is put one attribute on a partial class. No interfaces to implement, no base classes to inherit, no handwritten boilerplate. The fragment, patch, builder, cloner, and schema metadata are almost entirely generated for you.
-* **Hand-written-grade performance.** The generated code is ordinary C# that touches your members directly. No reflection, no runtime IL emission, no expression-tree compilation — nothing to warm up, and nothing that can break under trimming or AOT. Allocations stay limited to the copies your operations actually produce.
-* **Exact presence semantics.** `Optional<T>` keeps *missing*, *present null*, and *present default* as three distinct states, so merges and serialization never lose that information.
-* **Typed, source-generated API.** Each model gets `Fragment`, `Patch`, and a builder, all checked by the compiler — no string-based member access, no runtime type errors.
-* **Per-member merge algebra.** `Replace`, `Deep`, `Append`, `SetUnion`, or your own `FragmentMergeStrategy<T>` via `[SparseMerge]`. Nested POCOs participate automatically — no attribute needed on them.
-* **Semantic diff and patch.** Compute the minimal delta between two states; apply patches member-by-member with `Set` / `Unset` / `Unchanged`, including nested operations (`Set`, `SetNull`, `Unset`).
-* **Immutable edits with structural isolation.** Operations never mutate the source fragment; mutable collections are copied by construction, and `DeepClone` produces fully independent models while preserving shared references.
-* **Legacy-friendly.** The package ships the generator as an analyzer and targets netstandard2.0, emitting `IsExternalInit` automatically for init-only members on legacy reference assemblies.
+* **Nearly zero adoption effort.** One attribute on a partial class; everything else is generated.
+* **Hand-written-grade performance.** Plain generated C# — no reflection, no runtime codegen, no warmup.
+* **Exact presence semantics.** `Optional<T>` distinguishes *missing*, *present null*, and *present default*.
+* **Typed, source-generated API.** `Fragment`, `Patch`, and a builder per model, all compiler-checked.
+* **Per-member merge algebra.** `Replace` / `Deep` / `Append` / `SetUnion`, or custom strategies via `[SparseMerge]`.
+* **Semantic diff and patch.** Minimal deltas between states, applied with `Set` / `Unset` / `Unchanged`, including nested `SetNull`.
+* **Immutable edits with structural isolation.** Originals never mutate; `DeepClone` is fully independent.
+* **Reflection-free metadata.** Generated schema descriptors enumerate present members for serializers and tooling.
+* **Legacy-friendly.** Generator ships as an analyzer in the package; automatic `IsExternalInit` emission for init-only members.
 
 ## Usage
 
@@ -105,16 +106,18 @@ Option (b) is the core of SparseFragments: a minimal *contribution* whose unspec
 `Merge` overlays a higher-priority fragment onto a lower-priority one. Only members that are *present* in the higher layer override; *missing* members keep the lower layer's values.
 
 ```csharp
-var lower = new Settings.Fragment
+// A full model as the base layer.
+var lower = Settings.Fragment.From(new Settings
 {
-    Label = "base",                                    // plain values convert implicitly
-    Child = new Child.Fragment { Host = "db.local" },  // only Host is set here
-    Plugins = Optional<IReadOnlyList<string>>.Present(["base-plugin"]),
-};
+    Label = "base",
+    Child = new Child { Host = "db.local" },
+    Plugins = ["base-plugin"],
+});
+// A sparse fragment carrying only what this layer overrides.
 var higher = new Settings.Fragment
 {
     Child = new Child.Fragment { Count = 9 },          // Host falls through to the lower layer
-    Plugins = Optional<IReadOnlyList<string>>.Present(["extra-plugin"]),
+    Plugins = new[] { "extra-plugin" },                // plain values convert implicitly
 };
 
 var merged = lower.Merge(higher).ToModel();
@@ -176,31 +179,7 @@ clone.Child!.Count = 42;                                       // original.Child
 | `Deep` | Recursively merge nested fragments member by member (default for nested models) |
 | `Append` | Concatenate collections from lowest to highest priority |
 | `SetUnion` | Combine as an insertion-ordered set union |
-| `Custom` | Delegate to your own `FragmentMergeStrategy<T>` |
-
-```csharp
-public sealed class SumMergeStrategy : FragmentMergeStrategy<List<int>>
-{
-    public override Optional<List<int>> Merge(
-        Optional<List<int>> lowerPriority,
-        Optional<List<int>> higherPriority
-    ) => lowerPriority.IsPresent && higherPriority.IsPresent
-        ? Optional<List<int>>.Present(
-            lowerPriority.Value!.Zip(higherPriority.Value!, (a, b) => a + b).ToList()
-        )
-        : higherPriority.IsPresent ? higherPriority : lowerPriority;
-
-    public override bool AreEqual(List<int>? left, List<int>? right) =>
-        left is null || right is null ? left is null && right is null : left.SequenceEqual(right);
-}
-
-[SparseFragmentModel]
-public partial class StrategySettings
-{
-    [SparseMerge(typeof(SumMergeStrategy))]
-    public List<int> Values { get; set; } = [];
-}
-```
+| `Custom` | Delegate to your own `FragmentMergeStrategy<T>` implementation |
 
 ## Main Use Cases
 
@@ -210,6 +189,17 @@ public partial class StrategySettings
 * **Edit sessions and dirty tracking.** Accumulate user edits in a `Patch`, check `IsEmpty` to know whether anything changed, apply it for a preview, or drop it to cancel. The original model is never mutated, so there is no manual restore logic to write.
 * **State diffs across boundaries.** Send `Diff(before, after)` between processes or snapshots and `ApplyChanges` on the receiving side, instead of transferring whole models.
 * **Safe duplication of rich models.** `DeepClone` copies models with nested and mutable members (including collections and shared references) without handwritten copy constructors.
+
+### Roadmap (designed in [issue #86](https://github.com/arika0093/Configlue/issues/86))
+
+The current `Fragment` / `Patch` / `Diff` / `Merge` algebra is planned to grow with:
+
+* **Patch composition (`Compose`)** — squash a sequence of patches into one
+* **Patch inversion (`Invert`)** — the foundation of undo/redo
+* **Three-way rebase with structured conflicts** — optimistic concurrency and re-applying patches onto a moved-forward base
+* **Merge provenance tracing** — explaining which contribution produced each effective member
+
+Together these aim to become the building blocks for Git-style change sets (replaying an ordered patch series) and server-authoritative real-time collaboration, where clients submit patches against a known revision and stale patches are continuously rebased onto newer state.
 
 ## License
 
