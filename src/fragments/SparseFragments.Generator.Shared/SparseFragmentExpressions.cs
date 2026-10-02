@@ -154,7 +154,7 @@ internal sealed class SparseFragmentExpressions(
             SparseCloneCollectionKind.Array =>
                 $"global::System.Linq.Enumerable.ToArray({elements})",
             SparseCloneCollectionKind.List =>
-                $"new global::System.Collections.Generic.List<{elementType}>({elements})",
+                $"__CloneList<{elementType}>({access}, {CloneContext}, item => {CloneValueExpression(collection.ElementType, "item")})",
             SparseCloneCollectionKind.Set => CloneSetExpression(
                 collection,
                 access,

@@ -131,6 +131,20 @@ internal sealed class SparseFragmentCoreEmitter(
     {
         code.AppendLineAt(
             1,
+            "private static global::System.Collections.Generic.List<T> __CloneList<T>(global::System.Collections.Generic.IEnumerable<T> source, global::System.Collections.Generic.Dictionary<object, object> context, global::System.Func<T, T> cloneElement)"
+        );
+        code.AppendLineAt(1, "{");
+        code.AppendLineAt(
+            2,
+            "if (context.TryGetValue(source, out var existing)) return (global::System.Collections.Generic.List<T>)existing;"
+        );
+        code.AppendLineAt(2, "var clone = new global::System.Collections.Generic.List<T>();");
+        code.AppendLineAt(2, "context.Add(source, clone);");
+        code.AppendLineAt(2, "foreach (var item in source) clone.Add(cloneElement(item));");
+        code.AppendLineAt(2, "return clone;");
+        code.AppendLineAt(1, "}");
+        code.AppendLineAt(
+            1,
             "private static global::System.Collections.Concurrent.BlockingCollection<T> __CloneBlockingCollection<T>(global::System.Collections.Concurrent.BlockingCollection<T> original, global::System.Collections.Generic.IEnumerable<T> items)"
         );
         code.AppendLineAt(1, "{");
