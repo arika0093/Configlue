@@ -153,7 +153,6 @@ public sealed partial class StateRuntimeTests
         (resolved.PhysicalOrigin).ShouldBe("settings.yaml");
         (resolved.Revisions!.Revisions.Count).ShouldBe(2);
         (resolved.Revisions.NestedRevisions.Count).ShouldBe(0);
-        (fallback.SelectedSource!.Id).ShouldBe("legacy");
         (legacyAfterWrite.Value).ShouldBe("legacy");
         (canonicalAfterWrite.Status).ShouldBe(StateReadStatus.NotFound);
     }
@@ -201,6 +200,7 @@ public sealed partial class StateRuntimeTests
         var canonicalAfterWrite = await canonical.ReadAsync();
         var legacyAfterWrite = await legacy.ReadAsync();
         var resolvedAfterWrite = await options.ReadAsync();
+        var selectedAfterWrite = await fallback.ReadAsync();
 
         (initial.Value!.RetryCount).ShouldBe(11);
         (initial.Value.Label).ShouldBe("legacy");
@@ -211,7 +211,7 @@ public sealed partial class StateRuntimeTests
         (resolvedAfterWrite.SourceId).ShouldBe("settings");
         (resolvedAfterWrite.Value!.RetryCount).ShouldBe(11);
         (resolvedAfterWrite.Value.Label).ShouldBe("canonical");
-        (fallback.SelectedSource!.Id).ShouldBe("canonical");
+        (selectedAfterWrite.SourceId).ShouldBe("canonical");
     }
 
     [Test]
@@ -294,7 +294,6 @@ public sealed partial class StateRuntimeTests
 
         (initial.SourceId).ShouldBe("legacy");
         (recovered.SourceId).ShouldBe("canonical");
-        (fallback.SelectedSource!.Id).ShouldBe("canonical");
         (lowerPriorityChangeWasIgnored).ShouldBeTrue();
     }
 

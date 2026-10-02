@@ -300,6 +300,60 @@ public sealed class SubjectRoutingTests
         compositeStore.LastWatchContext!.Value.Route.ShouldBe(route);
     }
 
+    [Test]
+    public async Task FallbackStateSource_RoutesConcurrentSubjectsToTheirResolvedCandidates()
+    {
+        var japan = new RoutingSubject("strict-jp", true);
+        var europe = new RoutingSubject("strict-eu", true);
+        var canonicalStore = new RoutedStateStore();
+        var legacyStore = new RoutedStateStore();
+        var canonicalBuilder = new StateSourceSetBuilder<AppSettings.Fragment>();
+        canonicalBuilder
+            .Add("canonical", canonicalStore)
+            .RouteBy<RoutingSubject>(subject => RouteKey.From(subject.Region));
+        var legacyBuilder = new StateSourceSetBuilder<AppSettings.Fragment>();
+        legacyBuilder
+            .Add("legacy", legacyStore)
+            .RouteBy<RoutingSubject>(subject => RouteKey.From(subject.Region));
+        var canonical = canonicalBuilder.Build().Sources[0];
+        var legacy = legacyBuilder.Build().Sources[0];
+        var japanContext = canonical.GetResourceContext(japan);
+        var europeContext = canonical.GetResourceContext(europe);
+        canonicalStore.SetNotFound(japanContext.Route, japanContext.Key);
+        canonicalStore.Set(europeContext.Route, europeContext.Key, Fragment("europe-before"));
+        legacyStore.Set(japanContext.Route, japanContext.Key, Fragment("japan-before"));
+        legacyStore.SetNotFound(europeContext.Route, europeContext.Key);
+
+        var fallback = new FallbackStateSource<AppSettings.Fragment>(
+            new StateSourceSet<AppSettings.Fragment>([canonical, legacy])
+        );
+
+        var japanRead = await fallback.ReadAsync(japanContext);
+        var europeRead = await fallback.ReadAsync(europeContext);
+        japanRead.SourceId.ShouldBe("legacy");
+        europeRead.SourceId.ShouldBe("canonical");
+
+        await fallback.WriteAsync(
+            japanContext,
+            new StateWriteRequest<AppSettings.Fragment>(
+                Fragment("japan-after"),
+                RevisionCondition.FromRevision(japanRead.Revision)
+            )
+        );
+        await fallback.WriteAsync(
+            europeContext,
+            new StateWriteRequest<AppSettings.Fragment>(
+                Fragment("europe-after"),
+                RevisionCondition.FromRevision(europeRead.Revision)
+            )
+        );
+
+        (await legacyStore.ReadAsync(japanContext)).Value!.Label.Value.ShouldBe("japan-after");
+        (await canonicalStore.ReadAsync(europeContext)).Value!.Label.Value.ShouldBe("europe-after");
+        (await canonicalStore.ReadAsync(japanContext)).Status.ShouldBe(StateReadStatus.NotFound);
+        (await legacyStore.ReadAsync(europeContext)).Status.ShouldBe(StateReadStatus.NotFound);
+    }
+
     private static AppSettings.Fragment Fragment(string? label) =>
         new() { Label = Optional<string?>.Present(label) };
 
@@ -343,6 +397,9 @@ public sealed class SubjectRoutingTests
                 value,
                 $"revision:{route.Value}"
             );
+
+        public void SetNotFound(RouteKey route, SubjectKey key) =>
+            _states[(key, route)] = StateReadResult<AppSettings.Fragment>.NotFound();
 
         public ValueTask<StateReadResult<AppSettings.Fragment>> ReadAsync(
             CancellationToken cancellationToken = default

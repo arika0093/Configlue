@@ -12,7 +12,9 @@ namespace Configlue.State;
 /// representations with the selected value. Its watcher observes the selected representation and higher
 /// priority candidates so a recovered higher-priority representation can become active again. Writes update
 /// the active writable representation unless a fixed candidate is configured. Candidate resources remain
-/// owned by the caller.
+/// owned by the caller. Each successful read identifies its selected candidate through
+/// <see cref="StateReadResult{T}.SourceId"/>; selection is context-specific and is not exposed through a
+/// context-free property.
 /// </remarks>
 public sealed class FallbackStateSource<T> : ISourceReader<T>, ISourceWriter<T>, ISourceWatcher
 {
@@ -59,9 +61,6 @@ public sealed class FallbackStateSource<T> : ISourceReader<T>, ISourceWriter<T>,
         _watcher = new StateSourceWatcher<T>(_reader);
         _writeSourceId = writeSourceId;
     }
-
-    /// <summary>The candidate that supplied the value in the most recent successful read, if any.</summary>
-    public StateSource<T>? SelectedSource => _reader.ActiveSource;
 
     /// <summary>
     /// Creates one logical source for a state source set. The logical source keeps the candidate set as an
@@ -188,12 +187,15 @@ public sealed class FallbackStateSource<T> : ISourceReader<T>, ISourceWriter<T>,
             );
         }
 
-        if (
-            current.Status == StateReadStatus.Success
-            && _reader.ActiveSource is { Writer: not null } active
-        )
+        if (current.Status == StateReadStatus.Success && current.SourceId is { } selectedSourceId)
         {
-            return active;
+            var selected = _candidates.Sources.FirstOrDefault(source =>
+                string.Equals(source.Id, selectedSourceId, StringComparison.Ordinal)
+            );
+            if (selected?.Writer is not null)
+            {
+                return selected;
+            }
         }
 
         return _candidates.Sources.FirstOrDefault(static source => source.Writer is not null)
