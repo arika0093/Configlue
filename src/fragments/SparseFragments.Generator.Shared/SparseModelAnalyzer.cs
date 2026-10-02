@@ -184,10 +184,10 @@ internal static class SparseModelAnalyzer
         return false;
     }
 
-    internal static IEnumerable<SparseSymbolMemberModel> GetMembers(
+    internal static IEnumerable<IPropertySymbol> GetReadableProperties(
         INamedTypeSymbol model,
-        SparseGeneratorConfig config,
-        CancellationToken cancellationToken
+        CancellationToken cancellationToken,
+        bool requirePublicSetter = false
     )
     {
         var hierarchy = new Stack<INamedTypeSymbol>();
@@ -213,7 +213,10 @@ internal static class SparseModelAnalyzer
                     || property.IsIndexer
                     || property.DeclaredAccessibility != Accessibility.Public
                     || property.GetMethod?.DeclaredAccessibility != Accessibility.Public
-                    || property.SetMethod?.DeclaredAccessibility != Accessibility.Public
+                    || (
+                        requirePublicSetter
+                        && property.SetMethod?.DeclaredAccessibility != Accessibility.Public
+                    )
                 )
                 {
                     continue;
@@ -223,11 +226,21 @@ internal static class SparseModelAnalyzer
             }
         }
 
+        return properties.Values.OrderBy(static property => property.Name, StringComparer.Ordinal);
+    }
+
+    internal static IEnumerable<SparseSymbolMemberModel> GetMembers(
+        INamedTypeSymbol model,
+        SparseGeneratorConfig config,
+        CancellationToken cancellationToken
+    )
+    {
         var index = 0;
         foreach (
-            var property in properties.Values.OrderBy(
-                static property => property.Name,
-                StringComparer.Ordinal
+            var property in GetReadableProperties(
+                model,
+                cancellationToken,
+                requirePublicSetter: true
             )
         )
         {
