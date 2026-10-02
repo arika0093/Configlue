@@ -14,10 +14,10 @@ public readonly record struct StateReadResult<T>
     /// <summary>Gets or initializes the <see cref="Revision"/> value.</summary>
     public string? Revision { get; init; }
 
-    /// <summary>Gets or initializes the <see cref="SourceId"/> value.</summary>
+    /// <summary>Gets or initializes the logical source registration identifier that produced this result.</summary>
     public string? SourceId { get; init; }
 
-    /// <summary>Gets or initializes the <see cref="PhysicalOrigin"/> value.</summary>
+    /// <summary>Gets or initializes human-readable physical location metadata for diagnostics; this is not a resource identity contract.</summary>
     public string? PhysicalOrigin { get; init; }
 
     /// <summary>Gets or initializes the <see cref="Schema"/> value.</summary>

@@ -130,7 +130,7 @@ public sealed class ConfiglueSourceRegistration
             source.PhysicalOrigin,
             source.ConfiguredResourceId,
             _explicitOnly ?? source.ExplicitOnly,
-            source.GetSubjectKey,
+            source.GetResourceKey,
             _runtimeLifetime ?? source.RuntimeLifetime
         );
         source.CopyRoutingMetadataTo(configured, _explicitOnly);

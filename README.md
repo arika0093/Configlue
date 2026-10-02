@@ -338,6 +338,18 @@ A whole-document (root) resource does forward its logical schema because there t
 
 `SourceKey<TModel>` must be created with `Create()` or `Named(...)`; its zero-initialized value is uninitialized, reports `IsDefault`, and is rejected by APIs that require a source key. `StateSchemaMetadata` also has an invalid zero-initialized value (`Version == 0`). Use `null` when schema metadata is absent; present metadata must have a positive version, which `IsValid` reports.
 
+# Identity and routing terms
+
+Configlue keeps application identity, provider addressing, placement, and physical coordination separate:
+
+- `ModelId` identifies the model or schema.
+- `StateSource.Id` and `SourceId` identify a logical Configlue source registration.
+- `SubjectKey` identifies an application subject.
+- `ResourceKey` identifies the key a particular source/provider uses for that subject; a source may map it independently of `SubjectKey`.
+- `RouteKey` selects an intermediate backend placement such as a region or shard.
+- `ResourceId` identifies the physical coordination domain resolved for one operation.
+- `PhysicalOrigin` is human-readable location metadata for diagnostics. It may be incomplete or non-unique and is not used as a substitute for `ResourceId`.
+
 ## License
 
 Configlue is licensed under the Apache-2.0 License.

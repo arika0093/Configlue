@@ -170,12 +170,12 @@ public sealed class ZipEntryResourceTests
         var secondSubject = new ResourceSubject("two");
         var firstContext = new ConfiglueResourceContext(
             firstSubject,
-            firstSubject.Key,
+            ResourceKey.From(firstSubject.Key),
             RouteKey.Default
         );
         var secondContext = new ConfiglueResourceContext(
             secondSubject,
-            secondSubject.Key,
+            ResourceKey.From(secondSubject.Key),
             RouteKey.Default
         );
         var firstEntryName = $"settings/{firstSubject.Key.Value}.json";
@@ -186,7 +186,7 @@ public sealed class ZipEntryResourceTests
 
         var options = new ZipEntryResourceOptions
         {
-            EntryNameSelector = context => $"settings/{context.Key.Value}.json",
+            EntryNameSelector = context => $"settings/{context.ResourceKey.Value}.json",
         };
         var entry = new ZipEntryResource(archive, archive, options, "settings/default.json");
         var firstRead = await entry.ReadAsync(firstContext);

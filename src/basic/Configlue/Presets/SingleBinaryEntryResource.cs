@@ -16,17 +16,17 @@ internal sealed class SingleBinaryEntryResource
     private readonly ZipEntryResource _entry;
     private readonly object _revisionGate = new();
     private readonly Dictionary<
-        (SubjectKey Key, RouteKey Route, string Revision),
+        (ResourceKey Key, RouteKey Route, string Revision),
         string?
     > _archiveRevisions = [];
-    private readonly Queue<(SubjectKey Key, RouteKey Route, string Revision)> _revisionOrder =
+    private readonly Queue<(ResourceKey Key, RouteKey Route, string Revision)> _revisionOrder =
         new();
     private readonly Dictionary<
-        (SubjectKey Key, RouteKey Route, string Revision),
+        (ResourceKey Key, RouteKey Route, string Revision),
         string
     > _entryRevisionsByArchiveRevision = [];
     private readonly Queue<(
-        SubjectKey Key,
+        ResourceKey Key,
         RouteKey Route,
         string Revision
     )> _archiveRevisionOrder = new();
@@ -115,7 +115,7 @@ internal sealed class SingleBinaryEntryResource
         string? archiveRevision
     )
     {
-        var key = (context.Key, context.Route, entryRevision);
+        var key = (context.ResourceKey, context.Route, entryRevision);
         lock (_revisionGate)
         {
             if (_archiveRevisions.ContainsKey(key))
@@ -139,7 +139,7 @@ internal sealed class SingleBinaryEntryResource
         string entryRevision
     )
     {
-        var key = (context.Key, context.Route, archiveRevision ?? string.Empty);
+        var key = (context.ResourceKey, context.Route, archiveRevision ?? string.Empty);
         lock (_revisionGate)
         {
             if (_entryRevisionsByArchiveRevision.ContainsKey(key))
@@ -171,7 +171,7 @@ internal sealed class SingleBinaryEntryResource
         lock (_revisionGate)
         {
             return _entryRevisionsByArchiveRevision.TryGetValue(
-                    (context.Key, context.Route, archiveRevision),
+                    (context.ResourceKey, context.Route, archiveRevision),
                     out var baseline
                 ) && string.Equals(baseline, currentEntryRevision, StringComparison.Ordinal);
         }
@@ -187,7 +187,7 @@ internal sealed class SingleBinaryEntryResource
         lock (_revisionGate)
         {
             return _archiveRevisions.TryGetValue(
-                (context.Key, context.Route, entryRevision),
+                (context.ResourceKey, context.Route, entryRevision),
                 out var archiveRevision
             )
                 ? archiveRevision

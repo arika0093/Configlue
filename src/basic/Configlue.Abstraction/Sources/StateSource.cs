@@ -6,15 +6,15 @@ namespace Configlue.Sources;
 public sealed class StateSource<T>
 {
     private string[] _ownedPropertyPaths = [];
-    private readonly Func<IConfiglueSubject, SubjectKey> _subjectKeySelector;
+    private readonly Func<IConfiglueSubject, ResourceKey> _resourceKeySelector;
     private Func<IConfiglueSubject, RouteKey> RouteSelector { get; set; }
     private readonly ResourceId? _fixedResourceId;
 
     /// <summary>Creates a source with an automatically generated opaque logical identity.</summary>
     /// <remarks>
-    /// When a resource identity or physical origin is available, the identity is stable for the same
-    /// source descriptor. Supply <paramref name="logicalDescriptor"/> to distinguish multiple logical
-    /// views over the same resource. Sources without a locator receive a registration-scoped identity.
+    /// Supply <paramref name="logicalDescriptor"/> to distinguish multiple logical registrations of
+    /// the same reader. Without a descriptor this source receives a registration-scoped identifier.
+    /// Physical origins and resolved resource identities are not logical source identifiers.
     /// </remarks>
     public StateSource(
         ISourceReader<T> reader,
@@ -26,13 +26,13 @@ public sealed class StateSource<T>
         ResourceId? fixedResourceId = null,
         string? logicalDescriptor = null,
         bool explicitOnly = false,
-        Func<IConfiglueSubject, SubjectKey>? subjectKeySelector = null,
+        Func<IConfiglueSubject, ResourceKey>? resourceKeySelector = null,
         RuntimeLifetimeRequirement runtimeLifetime = RuntimeLifetimeRequirement.Shared,
         string? modelId = null,
         Func<IConfiglueSubject, RouteKey>? routeSelector = null
     )
         : this(
-            StateSourceIdentity.Create(reader, physicalOrigin, fixedResourceId, logicalDescriptor),
+            StateSourceIdentity.Create(reader, logicalDescriptor),
             reader,
             priority,
             fallbackCondition,
@@ -41,7 +41,7 @@ public sealed class StateSource<T>
             physicalOrigin,
             fixedResourceId,
             explicitOnly,
-            subjectKeySelector,
+            resourceKeySelector,
             runtimeLifetime,
             modelId,
             routeSelector
@@ -56,7 +56,7 @@ public sealed class StateSource<T>
         ResourceId? fixedResourceId = null,
         string? logicalDescriptor = null,
         bool explicitOnly = false,
-        Func<IConfiglueSubject, SubjectKey>? subjectKeySelector = null,
+        Func<IConfiglueSubject, ResourceKey>? resourceKeySelector = null,
         RuntimeLifetimeRequirement runtimeLifetime = RuntimeLifetimeRequirement.Shared,
         string? modelId = null,
         Func<IConfiglueSubject, RouteKey>? routeSelector = null
@@ -71,7 +71,7 @@ public sealed class StateSource<T>
             fixedResourceId,
             logicalDescriptor,
             explicitOnly,
-            subjectKeySelector,
+            resourceKeySelector,
             runtimeLifetime,
             modelId,
             routeSelector
@@ -86,7 +86,7 @@ public sealed class StateSource<T>
         string? physicalOrigin = null,
         ResourceId? fixedResourceId = null,
         bool explicitOnly = false,
-        Func<IConfiglueSubject, SubjectKey>? subjectKeySelector = null,
+        Func<IConfiglueSubject, ResourceKey>? resourceKeySelector = null,
         RuntimeLifetimeRequirement runtimeLifetime = RuntimeLifetimeRequirement.Shared,
         string? modelId = null,
         Func<IConfiglueSubject, RouteKey>? routeSelector = null
@@ -101,7 +101,7 @@ public sealed class StateSource<T>
             physicalOrigin,
             fixedResourceId,
             explicitOnly,
-            subjectKeySelector,
+            resourceKeySelector,
             runtimeLifetime,
             modelId,
             routeSelector
@@ -118,7 +118,7 @@ public sealed class StateSource<T>
         string? physicalOrigin = null,
         ResourceId? fixedResourceId = null,
         bool explicitOnly = false,
-        Func<IConfiglueSubject, SubjectKey>? subjectKeySelector = null,
+        Func<IConfiglueSubject, ResourceKey>? resourceKeySelector = null,
         RuntimeLifetimeRequirement runtimeLifetime = RuntimeLifetimeRequirement.Shared,
         string? modelId = null,
         Func<IConfiglueSubject, RouteKey>? routeSelector = null
@@ -157,11 +157,12 @@ public sealed class StateSource<T>
         ExplicitOnly = explicitOnly;
         RuntimeLifetime = runtimeLifetime;
         ModelId = modelId;
-        _subjectKeySelector = subjectKeySelector ?? (static subject => subject.Key);
+        _resourceKeySelector =
+            resourceKeySelector ?? (static subject => ResourceKey.From(subject.Key));
         RouteSelector = routeSelector ?? (static _ => RouteKey.Default);
     }
 
-    /// <summary>The stable logical identifier of the source.</summary>
+    /// <summary>The identifier of this logical source registration, independent of physical resource identity.</summary>
     public string Id { get; }
 
     /// <summary>The source reader.</summary>
@@ -179,7 +180,7 @@ public sealed class StateSource<T>
     /// <summary>Read statuses that allow the next source to be tried.</summary>
     public StateFallbackCondition FallbackCondition { get; }
 
-    /// <summary>The physical endpoint currently backing the logical source.</summary>
+    /// <summary>Human-readable physical location metadata for diagnostics; it is not a resource identity contract.</summary>
     public string? PhysicalOrigin { get; }
 
     /// <summary>The explicit physical identity override shared by all operation contexts, when configured.</summary>
@@ -197,10 +198,10 @@ public sealed class StateSource<T>
     public RuntimeLifetimeRequirement RuntimeLifetime { get; private set; }
 
     /// <summary>Resolves this logical source's key for an application-defined subject.</summary>
-    public SubjectKey GetSubjectKey(IConfiglueSubject subject)
+    public ResourceKey GetResourceKey(IConfiglueSubject subject)
     {
         ArgumentNullException.ThrowIfNull(subject);
-        return _subjectKeySelector(subject);
+        return _resourceKeySelector(subject);
     }
 
     /// <summary>Resolves this logical source's physical route for an application-defined subject.</summary>
@@ -236,7 +237,7 @@ context = ConfiglueResourceContext.Normalize(context);
         return new ConfiglueResourceContext(
             ModelId,
             subject,
-            GetSubjectKey(subject),
+            GetResourceKey(subject),
             GetRouteKey(subject)
         );
     }
@@ -354,7 +355,7 @@ context = ConfiglueResourceContext.Normalize(context);
             PhysicalOrigin,
             _fixedResourceId,
             ExplicitOnly,
-            _subjectKeySelector,
+            _resourceKeySelector,
             RuntimeLifetime,
             ModelId,
             RouteSelector
@@ -382,7 +383,7 @@ context = ConfiglueResourceContext.Normalize(context);
             PhysicalOrigin,
             _fixedResourceId,
             ExplicitOnly,
-            _subjectKeySelector,
+            _resourceKeySelector,
             RuntimeLifetime,
             modelId,
             RouteSelector
@@ -392,11 +393,11 @@ context = ConfiglueResourceContext.Normalize(context);
         };
     }
 
-    internal StateSource<T> WithSubjectKeySelector(
-        Func<IConfiglueSubject, SubjectKey> subjectKeySelector
+    internal StateSource<T> WithResourceKeySelector(
+        Func<IConfiglueSubject, ResourceKey> resourceKeySelector
     )
     {
-        ArgumentNullException.ThrowIfNull(subjectKeySelector);
+        ArgumentNullException.ThrowIfNull(resourceKeySelector);
         return new StateSource<T>(
             Id,
             Reader,
@@ -407,7 +408,7 @@ context = ConfiglueResourceContext.Normalize(context);
             PhysicalOrigin,
             _fixedResourceId,
             ExplicitOnly,
-            subjectKeySelector,
+            resourceKeySelector,
             RuntimeLifetime,
             ModelId,
             RouteSelector

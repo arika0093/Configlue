@@ -7,6 +7,27 @@ namespace Configlue.Tests;
 public sealed class SubjectRoutingTests
 {
     [Test]
+    public void SourceResourceKeyAndRouteAreIndependentFromApplicationSubjectIdentity()
+    {
+        var subject = new RoutingSubject("tenant-a", true);
+        var resourceKey = ResourceKey.From("provider-record-7");
+        var route = RouteKey.From("jp");
+        var source = new StateSource<AppSettings.Fragment>(
+            "tenant-settings",
+            new InMemoryStateSource<AppSettings.Fragment>(),
+            resourceKeySelector: _ => resourceKey,
+            routeSelector: _ => route
+        );
+
+        var context = source.GetResourceContext(subject);
+
+        context.Subject.Key.ShouldBe(subject.Key);
+        context.ResourceKey.ShouldBe(resourceKey);
+        context.Route.ShouldBe(route);
+        source.GetResourceKey(subject).ShouldBe(resourceKey);
+    }
+
+    [Test]
     public async Task ModelRoutingKeepsLogicalKeysSeparateFromDefaultAndPhysicalRoutes()
     {
         var subjectKey = SubjectKey.From("same-logical-subject");
@@ -56,8 +77,8 @@ public sealed class SubjectRoutingTests
         store.LastWriteContext!.Value.Route.ShouldBe(RouteKey.From("strict-jp"));
         tokyoReceipt.Sources.Single().ResourceId.ShouldBe(new ResourceId("memory:strict-jp"));
         store
-            .ReadContexts.Select(static resourceContext => resourceContext.Key)
-            .ShouldAllBe(key => key == subjectKey);
+            .ReadContexts.Select(static resourceContext => resourceContext.ResourceKey)
+            .ShouldAllBe(key => key == ResourceKey.From(subjectKey));
         store
             .ReadContexts.Select(static resourceContext => resourceContext.Route)
             .ShouldContain(RouteKey.Default);
@@ -126,7 +147,7 @@ public sealed class SubjectRoutingTests
         var resolution = details.Label.Source?.Resolution;
         resolution.ShouldNotBeNull();
         (resolution!.LogicalSubjectKey).ShouldBe(subject.Key);
-        (resolution.ResourceKey).ShouldBe(subject.Key);
+        (resolution.ResourceKey).ShouldBe(ResourceKey.From(subject.Key));
         (resolution.Route).ShouldBe(RouteKey.From("strict-jp"));
         (resolution.ResourceId).ShouldBe(new ResourceId("memory:strict-jp"));
         (resolution.PhysicalOrigin).ShouldBe("memory:strict-jp");
@@ -230,8 +251,8 @@ public sealed class SubjectRoutingTests
                 candidate.DataStrict ? RouteKey.From(candidate.Region) : RouteKey.Default
             );
         var source = builder.Build().Sources[0];
-        store.Set(RouteKey.From("strict-jp"), source.GetSubjectKey(japan), Fragment("tokyo"));
-        store.Set(RouteKey.From("strict-eu"), source.GetSubjectKey(europe), Fragment("europe"));
+        store.Set(RouteKey.From("strict-jp"), source.GetResourceKey(japan), Fragment("tokyo"));
+        store.Set(RouteKey.From("strict-eu"), source.GetResourceKey(europe), Fragment("europe"));
         var resolver = new StateSourceResolver<AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([source])
         );
@@ -246,7 +267,7 @@ public sealed class SubjectRoutingTests
         var watcher = new StateSourceWatcher<AppSettings.Fragment>(resolver);
         await watcher.WaitForChangeAsync(europeContext, "revision", CancellationToken.None);
         store.LastWatchContext!.Value.Route.ShouldBe(europeContext.Route);
-        store.LastWatchContext.Value.Key.ShouldBe(europeContext.Key);
+        store.LastWatchContext.Value.ResourceKey.ShouldBe(europeContext.ResourceKey);
     }
 
     [Test]
@@ -319,10 +340,10 @@ public sealed class SubjectRoutingTests
         var legacy = legacyBuilder.Build().Sources[0];
         var japanContext = canonical.GetResourceContext(japan);
         var europeContext = canonical.GetResourceContext(europe);
-        canonicalStore.SetNotFound(japanContext.Route, japanContext.Key);
-        canonicalStore.Set(europeContext.Route, europeContext.Key, Fragment("europe-before"));
-        legacyStore.Set(japanContext.Route, japanContext.Key, Fragment("japan-before"));
-        legacyStore.SetNotFound(europeContext.Route, europeContext.Key);
+        canonicalStore.SetNotFound(japanContext.Route, japanContext.ResourceKey);
+        canonicalStore.Set(europeContext.Route, europeContext.ResourceKey, Fragment("europe-before"));
+        legacyStore.Set(japanContext.Route, japanContext.ResourceKey, Fragment("japan-before"));
+        legacyStore.SetNotFound(europeContext.Route, europeContext.ResourceKey);
 
         var fallback = new FallbackStateSource<AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([canonical, legacy])
@@ -372,7 +393,7 @@ public sealed class SubjectRoutingTests
             IResourceIdentity
     {
         private readonly ConcurrentDictionary<
-            (SubjectKey Key, RouteKey Route),
+            (ResourceKey Key, RouteKey Route),
             StateReadResult<AppSettings.Fragment>
         > _states = new();
         private int _readCount;
@@ -393,12 +414,15 @@ public sealed class SubjectRoutingTests
             new($"memory:{context.Route.Value}");
 
         public void Set(RouteKey route, SubjectKey key, AppSettings.Fragment value) =>
+            Set(route, ResourceKey.From(key), value);
+
+        public void Set(RouteKey route, ResourceKey key, AppSettings.Fragment value) =>
             _states[(key, route)] = StateReadResult<AppSettings.Fragment>.Success(
                 value,
                 $"revision:{route.Value}"
             );
 
-        public void SetNotFound(RouteKey route, SubjectKey key) =>
+        public void SetNotFound(RouteKey route, ResourceKey key) =>
             _states[(key, route)] = StateReadResult<AppSettings.Fragment>.NotFound();
 
         public ValueTask<StateReadResult<AppSettings.Fragment>> ReadAsync(
@@ -415,7 +439,7 @@ public sealed class SubjectRoutingTests
             ReadContexts.Enqueue(context);
             LastReadContext = context;
             return ValueTaskCompat.FromResult(
-                _states.GetValueOrDefault((context.Key, context.Route)) with
+                _states.GetValueOrDefault((context.ResourceKey, context.Route)) with
                 {
                     PhysicalOrigin = $"memory:{context.Route.Value}",
                 }
@@ -436,7 +460,7 @@ public sealed class SubjectRoutingTests
             cancellationToken.ThrowIfCancellationRequested();
             LastWriteContext = context;
             var revision = $"revision:{context.Route.Value}:{Guid.NewGuid():N}";
-            _states[(context.Key, context.Route)] = StateReadResult<AppSettings.Fragment>.Success(
+            _states[(context.ResourceKey, context.Route)] = StateReadResult<AppSettings.Fragment>.Success(
                 request.Value,
                 revision
             );

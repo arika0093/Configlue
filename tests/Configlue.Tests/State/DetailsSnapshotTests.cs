@@ -117,7 +117,7 @@ public sealed class DetailsSnapshotTests
         var resolution = details.Label.Source?.Resolution;
         resolution.ShouldNotBeNull();
         (resolution!.LogicalSubjectKey).ShouldBe(SubjectKey.Default);
-        (resolution.ResourceKey).ShouldBe(SubjectKey.Default);
+        (resolution.ResourceKey).ShouldBe(ResourceKey.Default);
         (resolution.Route).ShouldBe(RouteKey.Default);
         (resolution.PhysicalOrigin).ShouldBe("custom:placement");
     }

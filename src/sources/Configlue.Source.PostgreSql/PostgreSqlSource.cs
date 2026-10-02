@@ -183,7 +183,7 @@ public sealed class PostgreSqlSource<T>
                     _tableOptions.TableName,
                     ResourceNamespace,
                     context.ModelId ?? string.Empty,
-                    context.Key.Value,
+                    context.ResourceKey.Value,
                     _routeAwareIdentity ? context.Route.Value : string.Empty
                 )
         );
@@ -199,7 +199,7 @@ public sealed class PostgreSqlSource<T>
             .Value.ReadAsync(
                 ResourceNamespace,
                 context.ModelId ?? string.Empty,
-                context.Key.Value,
+                context.ResourceKey.Value,
                 cancellationToken
             )
             .ConfigureAwait(false);
@@ -256,7 +256,7 @@ public sealed class PostgreSqlSource<T>
             .Value.WriteAsync(
                 ResourceNamespace,
                 context.ModelId ?? string.Empty,
-                context.Key.Value,
+                context.ResourceKey.Value,
                 resourceRequest,
                 cancellationToken
             )
@@ -277,7 +277,7 @@ public sealed class PostgreSqlSource<T>
                     backend.Value.WaitForChangeAsync(
                         ResourceNamespace,
                         context.ModelId ?? string.Empty,
-                        context.Key.Value,
+                        context.ResourceKey.Value,
                         observedRevision,
                         watchCancellationToken
                     ),

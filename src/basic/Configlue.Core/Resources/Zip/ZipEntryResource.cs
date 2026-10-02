@@ -43,10 +43,10 @@ public sealed class ZipEntryResource
     private readonly ResourceId? _configuredResourceId;
     private readonly object _snapshotGate = new();
     private readonly Dictionary<
-        (SubjectKey Key, RouteKey Route, string Revision),
+        (ResourceKey Key, RouteKey Route, string Revision),
         string
     > _readSnapshots = [];
-    private readonly Queue<(SubjectKey Key, RouteKey Route, string Revision)> _snapshotOrder =
+    private readonly Queue<(ResourceKey Key, RouteKey Route, string Revision)> _snapshotOrder =
         new();
     private readonly TimeSpan _pollingInterval;
 
@@ -414,7 +414,7 @@ public sealed class ZipEntryResource
         string entryFingerprint
     )
     {
-        var key = (context.Key, context.Route, archiveRevision ?? string.Empty);
+        var key = (context.ResourceKey, context.Route, archiveRevision ?? string.Empty);
         lock (_snapshotGate)
         {
             if (_readSnapshots.ContainsKey(key))
@@ -438,7 +438,7 @@ public sealed class ZipEntryResource
         out string fingerprint
     )
     {
-        var key = (context.Key, context.Route, revision ?? string.Empty);
+        var key = (context.ResourceKey, context.Route, revision ?? string.Empty);
         lock (_snapshotGate)
         {
             return _readSnapshots.TryGetValue(key, out fingerprint!);

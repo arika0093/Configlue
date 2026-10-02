@@ -1,6 +1,7 @@
 namespace Configlue;
 
-/// <summary>Identifies an opaque physical placement route for subject-specific resource operations.</summary>
+/// <summary>Identifies an intermediate backend or placement route for resource operations.</summary>
+/// <remarks>A route selects placement such as a region or shard; it does not identify a physical resource or its coordination domain.</remarks>
 public readonly record struct RouteKey
 {
     private readonly string? _value;

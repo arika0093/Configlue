@@ -115,7 +115,8 @@ public sealed class StateSourceBuilder<T>
     private readonly StateFallbackCondition _fallbackCondition;
     private readonly string? _physicalOrigin;
     private readonly ResourceId? _fixedResourceId;
-    private Func<IConfiglueSubject, SubjectKey> _subjectKeySelector = static subject => subject.Key;
+    private Func<IConfiglueSubject, ResourceKey> _resourceKeySelector = static subject =>
+        ResourceKey.From(subject.Key);
     private Func<IConfiglueSubject, RouteKey> _routeSelector = static _ => RouteKey.Default;
     private RuntimeLifetimeRequirement _runtimeLifetime = RuntimeLifetimeRequirement.Shared;
 
@@ -170,12 +171,12 @@ public sealed class StateSourceBuilder<T>
         return this;
     }
 
-    /// <summary>Maps this source's key from a strongly typed application subject.</summary>
-    public StateSourceBuilder<T> KeyBy<TSubject>(Func<TSubject, SubjectKey> selector)
+    /// <summary>Maps this source's provider-facing resource key from a strongly typed application subject.</summary>
+    public StateSourceBuilder<T> ResourceKeyBy<TSubject>(Func<TSubject, ResourceKey> selector)
         where TSubject : IConfiglueSubject
     {
         ArgumentNullException.ThrowIfNull(selector);
-        _subjectKeySelector = subject =>
+        _resourceKeySelector = subject =>
             subject is TSubject typed
                 ? selector(typed)
                 : throw new InvalidOperationException(
@@ -215,7 +216,7 @@ public sealed class StateSourceBuilder<T>
             _watcher,
             _physicalOrigin,
             _fixedResourceId,
-            subjectKeySelector: _subjectKeySelector,
+            resourceKeySelector: _resourceKeySelector,
             runtimeLifetime: _runtimeLifetime,
             routeSelector: _routeSelector
         );

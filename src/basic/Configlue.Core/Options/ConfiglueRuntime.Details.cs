@@ -244,7 +244,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                 ? null
                 : new ConfigSourceResolutionDetails(
                     SubjectKey.Default,
-                    SubjectKey.Default,
+                    ResourceKey.Default,
                     RouteKey.Default,
                     resourceId,
                     origin
@@ -254,7 +254,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         var resolved = context.Value;
         return new ConfigSourceResolutionDetails(
             resolved.Subject.Key,
-            resolved.Key,
+            resolved.ResourceKey,
             resolved.Route,
             resourceId,
             origin

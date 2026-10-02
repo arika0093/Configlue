@@ -13,7 +13,7 @@ public sealed class ResourceIdentityTests
     {
         var resource = new ContextSensitiveReader();
         var subject = new ResourceIdentitySubject("tenant-a");
-        var context = new ConfiglueResourceContext(subject, subject.Key, RouteKey.Default);
+        var context = new ConfiglueResourceContext(subject, ResourceKey.From(subject.Key), RouteKey.Default);
         var json = new JsonSectionResource(resource, "App:Json");
         var xml = new XmlSectionResource(resource, "App:Xml");
         var yaml = new YamlSectionResource(resource, "App:Yaml");
@@ -96,7 +96,7 @@ public sealed class ResourceIdentityTests
                 throw new InvalidOperationException("Identity requires an operation subject.");
             }
 
-            return new ResourceId($"tenant:{context.Key.Value}");
+            return new ResourceId($"tenant:{context.ResourceKey.Value}");
         }
     }
 

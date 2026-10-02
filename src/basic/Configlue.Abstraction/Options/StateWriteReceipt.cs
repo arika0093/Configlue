@@ -3,7 +3,7 @@ namespace Configlue;
 /// <summary>The result of writing one source-local patch; composite writes identify physical component sources.</summary>
 public readonly record struct StateSourceWriteResult
 {
-    /// <summary>Gets or initializes the <see cref="SourceId"/> value.</summary>
+    /// <summary>Gets or initializes the logical source registration identifier, not a physical resource identity.</summary>
     public string SourceId { get; init; }
 
     /// <summary>Gets or initializes the <see cref="ResourceId"/> value.</summary>

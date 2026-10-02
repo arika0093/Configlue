@@ -8,6 +8,21 @@ namespace Configlue.Tests;
 public sealed class IdentityValueDefaultTests
 {
     [Test]
+    public void ResourceKeyIsDistinctFromSubjectKeyAndHasAnExplicitDefault()
+    {
+        ResourceKey uninitialized = default;
+        ResourceKey subjectResourceKey = ResourceKey.From(SubjectKey.From("tenant-a"));
+        ResourceKey providerResourceKey = ResourceKey.From("record:7");
+
+        uninitialized.ShouldBe(ResourceKey.Default);
+        uninitialized.IsDefault.ShouldBeTrue();
+        uninitialized.Value.ShouldBe(string.Empty);
+        subjectResourceKey.Value.ShouldBe(SubjectKey.From("tenant-a").Value);
+        subjectResourceKey.ShouldNotBe(providerResourceKey);
+        providerResourceKey.IsDefault.ShouldBeFalse();
+    }
+
+    [Test]
     public void DefaultResourceIdIsSafeButInvalidAndDistinctFromNullableAbsence()
     {
         ResourceId uninitialized = default;

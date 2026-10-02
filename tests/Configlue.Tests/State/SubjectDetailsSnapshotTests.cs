@@ -16,7 +16,7 @@ public sealed class SubjectDetailsSnapshotTests
         users.Set(subjectA.Key, Fragment("user-a"));
         users.Set(subjectB.Key, Fragment("user-b"));
         var builder = new StateSourceSetBuilder<AppSettings.Fragment>();
-        builder.Add("user", users).KeyBy<SettingsSubject>(static subject => subject.Key);
+        builder.Add("user", users).ResourceKeyBy<SettingsSubject>(static subject => ResourceKey.From(subject.Key));
         await using var runtime = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             builder.Build(),
             onChangeDebounce: TimeSpan.Zero
@@ -126,7 +126,7 @@ public sealed class SubjectDetailsSnapshotTests
         var subject = new SettingsSubject("tenant", "user");
         users.Set(subject.Key, Fragment("user"));
         var builder = new StateSourceSetBuilder<AppSettings.Fragment>();
-        builder.Add("user", users).KeyBy<SettingsSubject>(static current => current.Key);
+        builder.Add("user", users).ResourceKeyBy<SettingsSubject>(static current => ResourceKey.From(current.Key));
         await using var runtime = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             builder.Build(),
             onChangeDebounce: TimeSpan.Zero
@@ -166,8 +166,10 @@ public sealed class SubjectDetailsSnapshotTests
                         new StateSource<AppSettings.Fragment>(
                             "users",
                             users,
-                            subjectKeySelector: current =>
-                                current is SettingsSubject typed ? typed.Key : SubjectKey.Default
+                            resourceKeySelector: current =>
+                                current is SettingsSubject typed
+                                    ? ResourceKey.From(typed.Key)
+                                    : ResourceKey.Default
                         )
                     )
                 );
@@ -270,42 +272,45 @@ public sealed class SubjectDetailsSnapshotTests
             ISourceWatcher
     {
         private readonly ConcurrentDictionary<
-            (SubjectKey Key, RouteKey Route),
+            (ResourceKey Key, RouteKey Route),
             InMemoryStateSource<T>
         > _states = new();
 
-        public void Set(SubjectKey key, T value) => Set(key, RouteKey.Default, value);
+        public void Set(SubjectKey key, T value) => Set(ResourceKey.From(key), RouteKey.Default, value);
 
-        public void Set(SubjectKey key, RouteKey route, T value) => Get(key, route).Set(value);
+        public void Set(SubjectKey key, RouteKey route, T value) =>
+            Get(ResourceKey.From(key), route).Set(value);
+
+        public void Set(ResourceKey key, RouteKey route, T value) => Get(key, route).Set(value);
 
         public StateReadResult<T> Read(SubjectKey key) =>
-            Get(key, RouteKey.Default).ReadAsync().GetAwaiter().GetResult();
+            Get(ResourceKey.From(key), RouteKey.Default).ReadAsync().GetAwaiter().GetResult();
 
         public ValueTask<StateReadResult<T>> ReadAsync(
             CancellationToken cancellationToken = default
-        ) => Get(SubjectKey.Default, RouteKey.Default).ReadAsync(cancellationToken);
+        ) => Get(ResourceKey.Default, RouteKey.Default).ReadAsync(cancellationToken);
 
         public ValueTask<StateReadResult<T>> ReadAsync(
             ConfiglueResourceContext context,
             CancellationToken cancellationToken = default
-        ) => Get(context.Key, context.Route).ReadAsync(cancellationToken);
+        ) => Get(context.ResourceKey, context.Route).ReadAsync(cancellationToken);
 
         public ValueTask<StateWriteResult> WriteAsync(
             StateWriteRequest<T> request,
             CancellationToken cancellationToken = default
-        ) => Get(SubjectKey.Default, RouteKey.Default).WriteAsync(request, cancellationToken);
+        ) => Get(ResourceKey.Default, RouteKey.Default).WriteAsync(request, cancellationToken);
 
         public ValueTask<StateWriteResult> WriteAsync(
             ConfiglueResourceContext context,
             StateWriteRequest<T> request,
             CancellationToken cancellationToken = default
-        ) => Get(context.Key, context.Route).WriteAsync(request, cancellationToken);
+        ) => Get(context.ResourceKey, context.Route).WriteAsync(request, cancellationToken);
 
         public ValueTask WaitForChangeAsync(
             string? observedRevision,
             CancellationToken cancellationToken = default
         ) =>
-            Get(SubjectKey.Default, RouteKey.Default)
+            Get(ResourceKey.Default, RouteKey.Default)
                 .WaitForChangeAsync(observedRevision, cancellationToken);
 
         public ValueTask WaitForChangeAsync(
@@ -313,9 +318,9 @@ public sealed class SubjectDetailsSnapshotTests
             string? observedRevision,
             CancellationToken cancellationToken = default
         ) =>
-            Get(context.Key, context.Route).WaitForChangeAsync(observedRevision, cancellationToken);
+            Get(context.ResourceKey, context.Route).WaitForChangeAsync(observedRevision, cancellationToken);
 
-        private InMemoryStateSource<T> Get(SubjectKey key, RouteKey route) =>
+        private InMemoryStateSource<T> Get(ResourceKey key, RouteKey route) =>
             _states.GetOrAdd((key, route), static _ => new InMemoryStateSource<T>());
     }
 
@@ -325,14 +330,14 @@ public sealed class SubjectDetailsSnapshotTests
             ISourceWatcher
     {
         private readonly ConcurrentDictionary<
-            (SubjectKey Key, RouteKey Route),
+            (ResourceKey Key, RouteKey Route),
             StateReadResult<AppSettings.Fragment>
         > _states = new();
 
         public ConcurrentQueue<ConfiglueResourceContext> ReadContexts { get; } = new();
 
         public void Set(RouteKey route, SubjectKey key, AppSettings.Fragment value) =>
-            _states[(key, route)] = StateReadResult<AppSettings.Fragment>.Success(
+            _states[(ResourceKey.From(key), route)] = StateReadResult<AppSettings.Fragment>.Success(
                 value,
                 $"revision:{route.Value}"
             );
@@ -349,7 +354,7 @@ public sealed class SubjectDetailsSnapshotTests
             cancellationToken.ThrowIfCancellationRequested();
             ReadContexts.Enqueue(context);
             return ValueTaskCompat.FromResult(
-                _states.GetValueOrDefault((context.Key, context.Route))
+                _states.GetValueOrDefault((context.ResourceKey, context.Route))
             );
         }
 
@@ -366,7 +371,7 @@ public sealed class SubjectDetailsSnapshotTests
         {
             cancellationToken.ThrowIfCancellationRequested();
             var revision = $"revision:{context.Route.Value}:{Guid.NewGuid():N}";
-            _states[(context.Key, context.Route)] = StateReadResult<AppSettings.Fragment>.Success(
+            _states[(context.ResourceKey, context.Route)] = StateReadResult<AppSettings.Fragment>.Success(
                 request.Value,
                 revision
             );

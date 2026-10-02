@@ -87,7 +87,7 @@ public sealed class HttpResourceTests
             new HttpResourceOptions
             {
                 EndpointRootSelector = context => new Uri(
-                    $"https://settings.example.test/{context.Route.Value}/{context.Key.Value}/"
+                    $"https://settings.example.test/{context.Route.Value}/{context.ResourceKey.Value}/"
                 ),
             }
         );
@@ -95,12 +95,12 @@ public sealed class HttpResourceTests
         var secondSubject = new ResourceSubject("two");
         var firstContext = new ConfiglueResourceContext(
             firstSubject,
-            firstSubject.Key,
+            ResourceKey.From(firstSubject.Key),
             RouteKey.From("jp")
         );
         var secondContext = new ConfiglueResourceContext(
             secondSubject,
-            secondSubject.Key,
+            ResourceKey.From(secondSubject.Key),
             RouteKey.From("eu")
         );
 
@@ -145,7 +145,7 @@ public sealed class HttpResourceTests
             }
         );
         var subject = new ResourceSubject("tenant");
-        var context = new ConfiglueResourceContext(subject, subject.Key, RouteKey.Default);
+        var context = new ConfiglueResourceContext(subject, ResourceKey.From(subject.Key), RouteKey.Default);
 
         var expected = new HttpResourceReader(
             httpClient,
@@ -193,12 +193,12 @@ public sealed class HttpResourceTests
             {
                 PollingInterval = TimeSpan.FromMilliseconds(5),
                 EndpointRootSelector = context => new Uri(
-                    $"https://settings.example.test/{context.Route.Value}/{context.Key.Value}/"
+                    $"https://settings.example.test/{context.Route.Value}/{context.ResourceKey.Value}/"
                 ),
             }
         );
         var subject = new ResourceSubject("watcher");
-        var context = new ConfiglueResourceContext(subject, subject.Key, RouteKey.From("jp"));
+        var context = new ConfiglueResourceContext(subject, ResourceKey.From(subject.Key), RouteKey.From("jp"));
 
         var waiting = reader.WaitForChangeAsync(context, "\"revision-1\"").AsTask();
         await firstConditionalPoll.Task.WaitAsync(TimeSpan.FromSeconds(2));

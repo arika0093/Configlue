@@ -42,8 +42,10 @@ public sealed class PerSubjectDependencyInjectionTests
                             users,
                             writer: users,
                             watcher: users,
-                            subjectKeySelector: subject =>
-                                subject is SettingsSubject typed ? typed.Key : SubjectKey.Default
+                            resourceKeySelector: subject =>
+                                subject is SettingsSubject typed
+                                    ? ResourceKey.From(typed.Key)
+                                    : ResourceKey.Default
                         )
                     )
                 );
@@ -107,7 +109,7 @@ public sealed class PerSubjectDependencyInjectionTests
         var resolutionA = detailsA.Label.Source?.Resolution;
         resolutionA.ShouldNotBeNull();
         (resolutionA!.LogicalSubjectKey).ShouldBe(subjectA.Key);
-        (resolutionA.ResourceKey).ShouldBe(subjectA.Key);
+        (resolutionA.ResourceKey).ShouldBe(ResourceKey.From(subjectA.Key));
         (resolutionA.Route).ShouldBe(RouteKey.Default);
     }
 
@@ -132,8 +134,10 @@ public sealed class PerSubjectDependencyInjectionTests
                             "users",
                             users,
                             watcher: users,
-                            subjectKeySelector: subject =>
-                                subject is SettingsSubject typed ? typed.Key : SubjectKey.Default
+                            resourceKeySelector: subject =>
+                                subject is SettingsSubject typed
+                                    ? ResourceKey.From(typed.Key)
+                                    : ResourceKey.Default
                         )
                     )
                 );
@@ -188,7 +192,7 @@ public sealed class PerSubjectDependencyInjectionTests
                     var routed = new StateSourceSetBuilder<AppSettings.Fragment>();
                     routed
                         .Add("users", users)
-                        .KeyBy<RoutedSettingsSubject>(_ => key)
+                        .ResourceKeyBy<RoutedSettingsSubject>(_ => ResourceKey.From(key))
                         .RouteBy<RoutedSettingsSubject>(static subject => subject.Route);
                     sources.Add(routed.Build().Sources[0]);
                 });
@@ -239,8 +243,10 @@ public sealed class PerSubjectDependencyInjectionTests
                         new StateSource<AppSettings.Fragment>(
                             "users",
                             users,
-                            subjectKeySelector: current =>
-                                current is SettingsSubject typed ? typed.Key : SubjectKey.Default
+                            resourceKeySelector: current =>
+                                current is SettingsSubject typed
+                                    ? ResourceKey.From(typed.Key)
+                                    : ResourceKey.Default
                         )
                     )
                 );
@@ -500,42 +506,45 @@ public sealed class PerSubjectDependencyInjectionTests
             ISourceWatcher
     {
         private readonly ConcurrentDictionary<
-            (SubjectKey Key, RouteKey Route),
+            (ResourceKey Key, RouteKey Route),
             InMemoryStateSource<T>
         > _states = new();
 
-        public void Set(SubjectKey key, T value) => Set(key, RouteKey.Default, value);
+        public void Set(SubjectKey key, T value) => Set(ResourceKey.From(key), RouteKey.Default, value);
 
-        public void Set(SubjectKey key, RouteKey route, T value) => Get(key, route).Set(value);
+        public void Set(SubjectKey key, RouteKey route, T value) =>
+            Get(ResourceKey.From(key), route).Set(value);
+
+        public void Set(ResourceKey key, RouteKey route, T value) => Get(key, route).Set(value);
 
         public StateReadResult<T> Read(SubjectKey key) =>
-            Get(key, RouteKey.Default).ReadAsync().GetAwaiter().GetResult();
+            Get(ResourceKey.From(key), RouteKey.Default).ReadAsync().GetAwaiter().GetResult();
 
         public ValueTask<StateReadResult<T>> ReadAsync(
             CancellationToken cancellationToken = default
-        ) => Get(SubjectKey.Default, RouteKey.Default).ReadAsync(cancellationToken);
+        ) => Get(ResourceKey.Default, RouteKey.Default).ReadAsync(cancellationToken);
 
         public ValueTask<StateReadResult<T>> ReadAsync(
             ConfiglueResourceContext context,
             CancellationToken cancellationToken = default
-        ) => Get(context.Key, context.Route).ReadAsync(cancellationToken);
+        ) => Get(context.ResourceKey, context.Route).ReadAsync(cancellationToken);
 
         public ValueTask<StateWriteResult> WriteAsync(
             StateWriteRequest<T> request,
             CancellationToken cancellationToken = default
-        ) => Get(SubjectKey.Default, RouteKey.Default).WriteAsync(request, cancellationToken);
+        ) => Get(ResourceKey.Default, RouteKey.Default).WriteAsync(request, cancellationToken);
 
         public ValueTask<StateWriteResult> WriteAsync(
             ConfiglueResourceContext context,
             StateWriteRequest<T> request,
             CancellationToken cancellationToken = default
-        ) => Get(context.Key, context.Route).WriteAsync(request, cancellationToken);
+        ) => Get(context.ResourceKey, context.Route).WriteAsync(request, cancellationToken);
 
         public ValueTask WaitForChangeAsync(
             string? observedRevision,
             CancellationToken cancellationToken = default
         ) =>
-            Get(SubjectKey.Default, RouteKey.Default)
+            Get(ResourceKey.Default, RouteKey.Default)
                 .WaitForChangeAsync(observedRevision, cancellationToken);
 
         public ValueTask WaitForChangeAsync(
@@ -543,9 +552,9 @@ public sealed class PerSubjectDependencyInjectionTests
             string? observedRevision,
             CancellationToken cancellationToken = default
         ) =>
-            Get(context.Key, context.Route).WaitForChangeAsync(observedRevision, cancellationToken);
+            Get(context.ResourceKey, context.Route).WaitForChangeAsync(observedRevision, cancellationToken);
 
-        private InMemoryStateSource<T> Get(SubjectKey key, RouteKey route) =>
+        private InMemoryStateSource<T> Get(ResourceKey key, RouteKey route) =>
             _states.GetOrAdd((key, route), static _ => new InMemoryStateSource<T>());
     }
 

@@ -293,7 +293,12 @@ public sealed class RedisResourceIntegrationTests
     )
     {
         var key = SubjectKey.From(subject);
-        return new ConfiglueResourceContext(modelId, new IntegrationSubject(key), key, route);
+        return new ConfiglueResourceContext(
+            modelId,
+            new IntegrationSubject(key),
+            ResourceKey.From(key),
+            route
+        );
     }
 
     private static IConnectionMultiplexer Multiplexer => SharedMultiplexer.Value;

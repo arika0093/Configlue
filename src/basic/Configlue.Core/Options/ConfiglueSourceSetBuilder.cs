@@ -86,7 +86,7 @@ public class ConfiglueSourceSetBuilder : IConfiglueSourceRegistrationSink
                     source.Watcher,
                     source.PhysicalOrigin,
                     source.ConfiguredResourceId,
-                    subjectKeySelector: source.GetSubjectKey,
+                    resourceKeySelector: source.GetResourceKey,
                     routeSelector: source.GetRouteKey
                 );
                 source.CopyRoutingMetadataTo(keyedSource);

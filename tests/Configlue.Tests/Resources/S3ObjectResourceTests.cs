@@ -59,13 +59,13 @@ public sealed class S3ObjectResourceTests
             new S3ObjectResourceOptions
             {
                 BucketNameSelector = context => $"settings-{context.Route.Value}",
-                KeySelector = context => $"{context.Key.Value}/settings.json",
+                KeySelector = context => $"{context.ResourceKey.Value}/settings.json",
             }
         );
         var subject = new ResourceSubject("tenant-a");
         var context = new ConfiglueResourceContext(
             subject,
-            subject.Key,
+            ResourceKey.From(subject.Key),
             RouteKey.From("region-jp")
         );
 

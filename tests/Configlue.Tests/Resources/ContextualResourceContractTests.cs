@@ -59,7 +59,7 @@ public sealed class ContextualResourceContractTests
         var initial = await source.ReadAsync(subjectA);
         initial.Status.ShouldBe(StateReadStatus.Success);
         initial.Value!.Label.Value.ShouldBe("before-a");
-        resource.LastPipelineContext!.Value.Key.ShouldBe(subjectA.Key);
+        resource.LastPipelineContext!.Value.ResourceKey.ShouldBe(ResourceKey.From(subjectA.Key));
         resource.LastPipelineContext.Value.Subject.ShouldBe(subjectA);
         resource.LastPipelineContext.Value.ModelId.ShouldBe("subject-settings-model");
         source.GetResourceId(subjectA).ShouldBe(new ResourceId($"object:{subjectA.Key.Value}"));
@@ -73,7 +73,7 @@ public sealed class ContextualResourceContractTests
                 RevisionCondition.FromRevision(initial.Revision)
             )
         );
-        resource.LastWriteContext!.Value.Key.ShouldBe(subjectA.Key);
+        resource.LastWriteContext!.Value.ResourceKey.ShouldBe(ResourceKey.From(subjectA.Key));
 
         var afterWrite = await source.ReadAsync(subjectA);
         afterWrite.Value!.Label.Value.ShouldBe("after-a");
@@ -85,7 +85,7 @@ public sealed class ContextualResourceContractTests
         var context = new ConfiglueResourceContext(
             "subject-settings-model",
             subjectB,
-            subjectB.Key,
+            ResourceKey.From(subjectB.Key),
             RouteKey.Default
         );
         writer
@@ -98,11 +98,11 @@ public sealed class ContextualResourceContractTests
             )
             .ShouldBeTrue();
         resourceId.ShouldBe(new ResourceId($"object:{subjectB.Key.Value}"));
-        mutation!.Context.Key.ShouldBe(subjectB.Key);
+        mutation!.Context.ResourceKey.ShouldBe(ResourceKey.From(subjectB.Key));
         mutation.Context.Subject.ShouldBe(subjectB);
         mutation.Context.ModelId.ShouldBe("subject-settings-model");
         (await batchWriter!.WriteBatchAsync([mutation])).Revision.ShouldNotBeNull();
-        resource.LastWriteContext!.Value.Key.ShouldBe(subjectB.Key);
+        resource.LastWriteContext!.Value.ResourceKey.ShouldBe(ResourceKey.From(subjectB.Key));
         (await source.ReadAsync(subjectB)).Value!.Label.Value.ShouldBe("batch-b");
     }
 
@@ -122,7 +122,7 @@ public sealed class ContextualResourceContractTests
     }
 
     private static ConfiglueResourceContext Context(SettingsSubject subject) =>
-        new(subject, subject.Key, RouteKey.Default);
+        new(subject, ResourceKey.From(subject.Key), RouteKey.Default);
 
     private static AppSettings.Fragment Fragment(string? label) =>
         new() { Label = Optional<string?>.Present(label) };
@@ -150,7 +150,7 @@ public sealed class ContextualResourceContractTests
             IResourceWriter,
             IResourceIdentity
     {
-        private readonly ConcurrentDictionary<SubjectKey, ResourceReadResult> _states = new();
+        private readonly ConcurrentDictionary<ResourceKey, ResourceReadResult> _states = new();
 
         public ResourceId ResourceId { get; } = new("memory:shared");
 
@@ -161,10 +161,10 @@ public sealed class ContextualResourceContractTests
         public ConfiglueResourceContext? LastWriteContext { get; private set; }
 
         public ResourceId GetResourceId(ConfiglueResourceContext context) =>
-            perSubjectIdentity ? new ResourceId($"object:{context.Key.Value}") : ResourceId;
+            perSubjectIdentity ? new ResourceId($"object:{context.ResourceKey.Value}") : ResourceId;
 
         public void Set(SubjectKey key, ReadOnlyMemory<byte> content) =>
-            _states[key] = ResourceReadResult.Success(content, Revision(content.Span));
+            _states[ResourceKey.From(key)] = ResourceReadResult.Success(content, Revision(content.Span));
 
         public ValueTask<ResourceReadResult> ReadAsync(
             CancellationToken cancellationToken = default
@@ -177,7 +177,7 @@ public sealed class ContextualResourceContractTests
         {
             cancellationToken.ThrowIfCancellationRequested();
             return ValueTaskCompat.FromResult(
-                _states.TryGetValue(context.Key, out var state)
+                _states.TryGetValue(context.ResourceKey, out var state)
                     ? state
                     : ResourceReadResult.NotFound()
             );
@@ -224,7 +224,7 @@ public sealed class ContextualResourceContractTests
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 LastWriteContext = mutation.Context;
-                var current = _states.TryGetValue(mutation.Context.Key, out var value)
+                var current = _states.TryGetValue(mutation.Context.ResourceKey, out var value)
                     ? value
                     : ResourceReadResult.NotFound();
                 if (
@@ -239,7 +239,7 @@ public sealed class ContextualResourceContractTests
 
                 var content = mutation.Apply(current).ToArray();
                 var revision = Revision(content);
-                _states[mutation.Context.Key] = ResourceReadResult.Success(
+                _states[mutation.Context.ResourceKey] = ResourceReadResult.Success(
                     content,
                     revision,
                     mutation.Schema

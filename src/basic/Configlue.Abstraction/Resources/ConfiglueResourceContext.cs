@@ -1,28 +1,31 @@
 namespace Configlue.Resources;
 
-/// <summary>Identifies the stable model, logical subject, and source-specific key for a resource operation.</summary>
-/// <remarks>The zero-initialized value is the canonical server-wide default context. A context with
-/// model, key, or route values requires an explicit subject; incomplete contexts are rejected.</remarks>
+/// <summary>Provides model, application subject, source-specific resource key, and placement route for one operation.</summary>
+/// <remarks>The zero-initialized value is the canonical default context; populated context fields require an explicit subject.</remarks>
 public readonly record struct ConfiglueResourceContext
 {
     private readonly IConfiglueSubject? _subject;
 
-    /// <summary>Creates context for one logical subject, source-specific key, and physical route.</summary>
-    public ConfiglueResourceContext(IConfiglueSubject Subject, SubjectKey Key, RouteKey Route)
-        : this(null, Subject, Key, Route) { }
+    /// <summary>Creates context for one logical subject, source-specific resource key, and physical route.</summary>
+    public ConfiglueResourceContext(
+        IConfiglueSubject Subject,
+        ResourceKey ResourceKey,
+        RouteKey Route
+    )
+        : this(null, Subject, ResourceKey, Route) { }
 
-    /// <summary>Creates context for one stable model, logical subject, source-specific key, and physical route.</summary>
+    /// <summary>Creates context for one stable model, logical subject, source-specific resource key, and physical route.</summary>
     public ConfiglueResourceContext(
         string? ModelId,
         IConfiglueSubject Subject,
-        SubjectKey Key,
+        ResourceKey ResourceKey,
         RouteKey Route
     )
     {
         ArgumentNullException.ThrowIfNull(Subject);
         this.ModelId = ModelId;
         this.Subject = Subject;
-        this.Key = Key;
+        this.ResourceKey = ResourceKey;
         this.Route = Route;
     }
 
@@ -36,10 +39,10 @@ public readonly record struct ConfiglueResourceContext
         init => _subject = value;
     }
 
-    /// <summary>The source-specific canonical key for this operation.</summary>
-    public SubjectKey Key { get; init; }
+    /// <summary>The source-specific key that the provider uses to address this operation.</summary>
+    public ResourceKey ResourceKey { get; init; }
 
-    /// <summary>The opaque physical placement route for this operation.</summary>
+    /// <summary>The intermediate backend or placement route for this operation, not its physical resource identity.</summary>
     public RouteKey Route { get; init; }
 
     /// <summary>Whether this value represents the server-wide default context.</summary>
@@ -53,10 +56,14 @@ public readonly record struct ConfiglueResourceContext
             return context;
         }
 
-        if (context.ModelId is not null || context.Key != default || context.Route != default)
+        if (
+            context.ModelId is not null
+            || context.ResourceKey != default
+            || context.Route != default
+        )
         {
             throw new ArgumentException(
-                "A resource context without a subject cannot contain model, key, or route values.",
+                "A resource context without a subject cannot contain model, resource key, or route values.",
                 nameof(context)
             );
         }
@@ -69,7 +76,7 @@ public readonly record struct ConfiglueResourceContext
 
     /// <summary>Context used by legacy, server-wide resource operations.</summary>
     public static ConfiglueResourceContext Default { get; } =
-        new(DefaultSubject, SubjectKey.Default, RouteKey.Default);
+        new(DefaultSubject, ResourceKey.Default, RouteKey.Default);
 
     /// <inheritdoc />
     public bool Equals(ConfiglueResourceContext other) =>
@@ -78,7 +85,7 @@ public readonly record struct ConfiglueResourceContext
             _subject ?? DefaultSubject,
             other._subject ?? DefaultSubject
         )
-        && Key == other.Key
+        && ResourceKey == other.ResourceKey
         && Route == other.Route;
 
     /// <inheritdoc />
@@ -89,7 +96,7 @@ public readonly record struct ConfiglueResourceContext
             hash * 31
             + EqualityComparer<IConfiglueSubject>.Default.GetHashCode(_subject ?? DefaultSubject)
         );
-        hash = unchecked(hash * 31 + Key.GetHashCode());
+        hash = unchecked(hash * 31 + ResourceKey.GetHashCode());
         return unchecked(hash * 31 + Route.GetHashCode());
     }
 

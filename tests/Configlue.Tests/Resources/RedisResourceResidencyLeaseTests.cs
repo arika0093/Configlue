@@ -110,7 +110,7 @@ public sealed class RedisResourceResidencyLeaseTests
     )
     {
         var key = SubjectKey.From(subject);
-        return new ConfiglueResourceContext(modelId, new FakeSubject(key), key, route);
+        return new ConfiglueResourceContext(modelId, new FakeSubject(key), ResourceKey.From(key), route);
     }
 
     private sealed record FakeSubject(SubjectKey Key) : IConfiglueSubject;

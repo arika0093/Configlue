@@ -5,12 +5,7 @@ namespace Configlue.Sources;
 
 internal static class StateSourceIdentity
 {
-    public static string Create<T>(
-        ISourceReader<T> reader,
-        string? physicalOrigin,
-        ResourceId? fixedResourceId,
-        string? logicalDescriptor
-    )
+    public static string Create<T>(ISourceReader<T> reader, string? logicalDescriptor)
     {
         ArgumentNullException.ThrowIfNull(reader);
         var readerType = reader.GetType();
@@ -18,9 +13,8 @@ internal static class StateSourceIdentity
             ? readerType.GetGenericTypeDefinition()
             : readerType;
         var kind = kindType.FullName ?? kindType.Name;
-        var locator = fixedResourceId?.Value ?? physicalOrigin;
         var descriptor = logicalDescriptor?.Trim().Normalize(NormalizationForm.FormKC);
-        if (string.IsNullOrWhiteSpace(descriptor) && string.IsNullOrWhiteSpace(locator))
+        if (string.IsNullOrWhiteSpace(descriptor))
         {
             return $"auto:{Guid.NewGuid():N}";
         }
@@ -29,7 +23,6 @@ internal static class StateSourceIdentity
             "\n",
             "configlue-source-v1",
             kind.Normalize(NormalizationForm.FormKC),
-            locator?.Trim().Normalize(NormalizationForm.FormKC) ?? string.Empty,
             descriptor ?? string.Empty
         );
 #if NETSTANDARD

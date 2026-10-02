@@ -101,7 +101,7 @@ public sealed class ConfiglueSourceDiagnostics
         FixedResourceId = fixedResourceId;
     }
 
-    /// <summary>The stable logical source identifier.</summary>
+    /// <summary>The identifier of this logical source registration, independent of physical resource identity.</summary>
     public string Id { get; }
 
     /// <summary>Read priority, where higher values are tried first.</summary>
@@ -122,7 +122,7 @@ public sealed class ConfiglueSourceDiagnostics
     /// <summary>Whether this source is currently active in the runtime.</summary>
     public bool IsActive { get; }
 
-    /// <summary>The physical endpoint or path, when the source provides one.</summary>
+    /// <summary>Human-readable physical location metadata for diagnostics; it is not a resource identity contract.</summary>
     public string? PhysicalOrigin { get; }
 
     /// <summary>The source's explicit identity override, when configured for every context.</summary>

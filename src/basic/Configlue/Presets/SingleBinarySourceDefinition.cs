@@ -95,7 +95,8 @@ internal static class SingleBinarySourceFactory
                 batchWriter,
                 new ZipEntryResourceOptions
                 {
-                    EntryNameSelector = context => GetSubjectEntryName(entryName, context.Key),
+                    EntryNameSelector = context =>
+                        GetSubjectEntryName(entryName, context.ResourceKey),
                 },
                 entryName,
                 watcher
@@ -141,7 +142,7 @@ internal static class SingleBinarySourceFactory
         return $"models/{Escape(modelKey)}/{category}/{Escape(name)}.json";
     }
 
-    private static string GetSubjectEntryName(string entryName, SubjectKey subjectKey) =>
+    private static string GetSubjectEntryName(string entryName, ResourceKey subjectKey) =>
         subjectKey.IsDefault ? entryName : $"subjects/{Escape(subjectKey.Value)}/{entryName}";
 
     public static string GetSourceId(string entryName) => "single-binary:" + entryName;

@@ -298,7 +298,7 @@ public sealed class StateCheckTests
         var reader = new SubjectReader();
         var subject = new CheckSubject("tenant-a");
         var builder = new StateSourceSetBuilder<AppSettings.Fragment>();
-        builder.Add("users", reader).KeyBy<CheckSubject>(static current => current.Key);
+        builder.Add("users", reader).ResourceKeyBy<CheckSubject>(static current => ResourceKey.From(current.Key));
         await using var runtime = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             builder.Build(),
             onChangeDebounce: TimeSpan.Zero
@@ -317,7 +317,7 @@ public sealed class StateCheckTests
         result.Status.ShouldBe(ConfiglueCheckStatus.Success);
         var sourceResult = streamed.ShouldHaveSingleItem();
         sourceResult.Source.Resolution.ShouldNotBeNull();
-        sourceResult.Source.Resolution!.ResourceKey.ShouldBe(subject.Key);
+        sourceResult.Source.Resolution!.ResourceKey.ShouldBe(ResourceKey.From(subject.Key));
     }
 
     [Test]
@@ -336,8 +336,10 @@ public sealed class StateCheckTests
                         new StateSource<AppSettings.Fragment>(
                             "users",
                             reader,
-                            subjectKeySelector: current =>
-                                current is CheckSubject typed ? typed.Key : SubjectKey.Default
+                            resourceKeySelector: current =>
+                                current is CheckSubject typed
+                                    ? ResourceKey.From(typed.Key)
+                                    : ResourceKey.Default
                         )
                     )
                 );
@@ -359,7 +361,7 @@ public sealed class StateCheckTests
         var result = await check.Result;
 
         result.Status.ShouldBe(ConfiglueCheckStatus.Success);
-        streamed.ShouldHaveSingleItem().Source.Resolution!.ResourceKey.ShouldBe(subject.Key);
+        streamed.ShouldHaveSingleItem().Source.Resolution!.ResourceKey.ShouldBe(ResourceKey.From(subject.Key));
     }
 
     private static ConfiglueRuntime<AppSettings, AppSettings.Fragment> CreateRuntime(
@@ -443,7 +445,7 @@ public sealed class StateCheckTests
         {
             cancellationToken.ThrowIfCancellationRequested();
             return ValueTaskCompat.FromResult(
-                StateReadResult<AppSettings.Fragment>.Success(Fragment(context.Key.Value))
+                StateReadResult<AppSettings.Fragment>.Success(Fragment(context.ResourceKey.Value))
             );
         }
     }

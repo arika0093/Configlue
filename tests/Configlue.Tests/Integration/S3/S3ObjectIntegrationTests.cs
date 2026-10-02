@@ -94,7 +94,7 @@ public sealed class S3ObjectIntegrationTests
                 "unused",
                 new S3ObjectResourceOptions
                 {
-                    KeySelector = context => $"subjects/{context.Key.Value}/config.json",
+                    KeySelector = context => $"subjects/{context.ResourceKey.Value}/config.json",
                 }
             );
             var first = CreateContext("tenant-a");
@@ -195,7 +195,11 @@ public sealed class S3ObjectIntegrationTests
     private static ConfiglueResourceContext CreateContext(string subject)
     {
         var key = SubjectKey.From(subject);
-        return new ConfiglueResourceContext(new IntegrationSubject(key), key, RouteKey.Default);
+        return new ConfiglueResourceContext(
+            new IntegrationSubject(key),
+            ResourceKey.From(key),
+            RouteKey.Default
+        );
     }
 
     private sealed record IntegrationSubject(SubjectKey Key) : IConfiglueSubject;

@@ -404,7 +404,12 @@ public sealed class PostgreSqlSourceIntegrationTests
     )
     {
         var key = SubjectKey.From(subject);
-        return new ConfiglueResourceContext(modelId, new IntegrationSubject(key), key, route);
+        return new ConfiglueResourceContext(
+            modelId,
+            new IntegrationSubject(key),
+            ResourceKey.From(key),
+            route
+        );
     }
 
     private static async Task CreateDatabaseAsync(NpgsqlDataSource admin, string database)

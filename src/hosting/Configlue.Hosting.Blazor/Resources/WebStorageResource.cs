@@ -222,7 +222,7 @@ public sealed class WebStorageResource : IResourceReader, IResourceWriter
             return selected;
         }
 
-        return context.Key.IsDefault ? Key : Key + ":" + context.Key.Value;
+        return context.ResourceKey.IsDefault ? Key : Key + ":" + context.ResourceKey.Value;
     }
 
     private static bool IsUnavailable(Exception exception, CancellationToken cancellationToken)

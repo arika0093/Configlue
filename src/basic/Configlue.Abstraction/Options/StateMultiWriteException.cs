@@ -1,6 +1,7 @@
 namespace Configlue;
 
 /// <summary>A multi-source write failed after one or more physical writes had completed.</summary>
+/// <remarks>Source IDs in this exception identify logical Configlue source registrations, not physical resources.</remarks>
 public sealed class StateMultiWriteException : Exception
 {
     /// <summary>Creates a partial write failure with completed and pending source identities.</summary>
@@ -29,9 +30,9 @@ public sealed class StateMultiWriteException : Exception
     /// <summary>The physical resource whose write failed, if it had an identity.</summary>
     public ResourceId? FailedResourceId { get; }
 
-    /// <summary>The logical component source IDs included in the failed physical write.</summary>
+    /// <summary>The logical source registration IDs included in the failed physical write.</summary>
     public IReadOnlyList<string> FailedSourceIds { get; }
 
-    /// <summary>The logical component source IDs whose writes were not attempted.</summary>
+    /// <summary>The logical source registration IDs whose writes were not attempted.</summary>
     public IReadOnlyList<string> UnattemptedSourceIds { get; }
 }

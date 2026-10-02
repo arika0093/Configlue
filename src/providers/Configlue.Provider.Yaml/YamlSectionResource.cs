@@ -37,7 +37,7 @@ public sealed class YamlSectionResource
     private readonly byte[] _schemaShape;
     private readonly object _sectionCacheGate = new();
     private string? _cachedSectionRevision;
-    private SubjectKey _cachedSectionKey;
+    private ResourceKey _cachedSectionKey;
     private RouteKey _cachedSectionRoute;
     private ResourceReadResult _cachedSection;
     private bool _hasCachedSection;
@@ -295,7 +295,7 @@ public sealed class YamlSectionResource
             {
                 if (
                     _hasCachedSection
-                    && _cachedSectionKey == context.Key
+                    && _cachedSectionKey == context.ResourceKey
                     && _cachedSectionRoute == context.Route
                     && string.Equals(_cachedSectionRevision, revision, StringComparison.Ordinal)
                 )
@@ -311,7 +311,7 @@ public sealed class YamlSectionResource
             lock (_sectionCacheGate)
             {
                 _cachedSectionRevision = revision;
-                _cachedSectionKey = context.Key;
+                _cachedSectionKey = context.ResourceKey;
                 _cachedSectionRoute = context.Route;
                 _cachedSection = result;
                 _hasCachedSection = true;

@@ -196,22 +196,22 @@ public sealed class BatchWriterCompatibilityTests
     [Test]
     public async Task ContextSensitiveWritersAreRejectedForTheLaterMutationContextBeforeWriting()
     {
-        var keyA = SubjectKey.From("context-a");
-        var keyB = SubjectKey.From("context-b");
+        var keyA = ResourceKey.From("context-a");
+        var keyB = ResourceKey.From("context-b");
         var store = new SharedBatchStore("memory:context-sensitive-subject");
         var first = new ContextSensitiveBatchResource(
             store,
-            context => context.Key == keyA ? "shared" : "first-only"
+            context => context.ResourceKey == keyA ? "shared" : "first-only"
         );
         var second = new ContextSensitiveBatchResource(
             store,
-            context => context.Key == keyA ? "shared" : "second-only"
+            context => context.ResourceKey == keyA ? "shared" : "second-only"
         );
         var runtime = BuildContextRuntime(
             first,
             second,
-            firstSubjectKey: _ => keyA,
-            secondSubjectKey: _ => keyB
+            firstResourceKey: _ => keyA,
+            secondResourceKey: _ => keyB
         );
 
         ResourceBatchCompatibility.AreCompatible(first, second, Context(keyA)).ShouldBeTrue();
@@ -235,16 +235,16 @@ public sealed class BatchWriterCompatibilityTests
     [Test]
     public async Task ContextSensitiveWritersBatchWhenTokensMatchInEveryMutationContext()
     {
-        var keyA = SubjectKey.From("context-a");
-        var keyB = SubjectKey.From("context-b");
+        var keyA = ResourceKey.From("context-a");
+        var keyB = ResourceKey.From("context-b");
         var store = new SharedBatchStore("memory:context-compatible-subject");
-        var first = new ContextSensitiveBatchResource(store, static context => context.Key);
-        var second = new ContextSensitiveBatchResource(store, static context => context.Key);
+        var first = new ContextSensitiveBatchResource(store, static context => context.ResourceKey);
+        var second = new ContextSensitiveBatchResource(store, static context => context.ResourceKey);
         var runtime = BuildContextRuntime(
             first,
             second,
-            firstSubjectKey: _ => keyA,
-            secondSubjectKey: _ => keyB
+            firstResourceKey: _ => keyA,
+            secondResourceKey: _ => keyB
         );
 
         var result = await runtime
@@ -305,8 +305,8 @@ public sealed class BatchWriterCompatibilityTests
         var runtime = BuildContextRuntime(
             shared,
             shared,
-            firstSubjectKey: _ => SubjectKey.From("context-a"),
-            secondSubjectKey: _ => SubjectKey.From("context-b")
+            firstResourceKey: _ => ResourceKey.From("context-a"),
+            secondResourceKey: _ => ResourceKey.From("context-b")
         );
 
         var result = await runtime
@@ -323,14 +323,14 @@ public sealed class BatchWriterCompatibilityTests
         store.WriteCount.ShouldBe(1);
     }
 
-    private static ConfiglueResourceContext Context(SubjectKey key) =>
+    private static ConfiglueResourceContext Context(ResourceKey key) =>
         new(AppSettings.ConfiglueSchema.Id, new TestSubject("tenant"), key, RouteKey.Default);
 
     private static ConfiglueRuntime<AppSettings, AppSettings.Fragment> BuildContextRuntime(
         IResourceReader firstResource,
         IResourceReader secondResource,
-        Func<IConfiglueSubject, SubjectKey>? firstSubjectKey = null,
-        Func<IConfiglueSubject, SubjectKey>? secondSubjectKey = null,
+        Func<IConfiglueSubject, ResourceKey>? firstResourceKey = null,
+        Func<IConfiglueSubject, ResourceKey>? secondResourceKey = null,
         Func<IConfiglueSubject, RouteKey>? firstRoute = null,
         Func<IConfiglueSubject, RouteKey>? secondRoute = null
     )
@@ -348,14 +348,14 @@ public sealed class BatchWriterCompatibilityTests
             new SerializedStateReader<AppSettings.Fragment>(firstSection, codec),
             priority: 10,
             writer: new SerializedStateWriter<AppSettings.Fragment>(firstSection, codec),
-            subjectKeySelector: firstSubjectKey,
+            resourceKeySelector: firstResourceKey,
             routeSelector: firstRoute
         );
         var secondSource = new StateSource<AppSettings.Fragment>(
             "second",
             new SerializedStateReader<AppSettings.Fragment>(secondSection, codec),
             writer: new SerializedStateWriter<AppSettings.Fragment>(secondSection, codec),
-            subjectKeySelector: secondSubjectKey,
+            resourceKeySelector: secondResourceKey,
             routeSelector: secondRoute
         );
         return new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(

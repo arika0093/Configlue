@@ -82,7 +82,7 @@ public enum ConfiglueDiagnosticEventKind
 /// <param name="StateName">The configured state name.</param>
 /// <param name="ModelId">The model schema identifier.</param>
 /// <param name="ModelVersion">The model schema version.</param>
-/// <param name="SourceId">The logical source identifier, when applicable.</param>
+/// <param name="SourceId">The logical Configlue source registration identifier, when applicable.</param>
 /// <param name="SourceKind">The source reader or writer type, when applicable.</param>
 /// <param name="ReadStatus">The observed read status, when available.</param>
 /// <param name="HasRevision">Whether the operation observed a revision; the revision is not included.</param>

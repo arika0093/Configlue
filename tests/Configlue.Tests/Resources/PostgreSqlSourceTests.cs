@@ -315,7 +315,7 @@ public sealed class PostgreSqlSourceTests
     )
     {
         var key = SubjectKey.From(subject);
-        return new ConfiglueResourceContext(modelId, new FakeSubject(key), key, route);
+        return new ConfiglueResourceContext(modelId, new FakeSubject(key), ResourceKey.From(key), route);
     }
 
     private static async Task<bool> TryWriteAsync(

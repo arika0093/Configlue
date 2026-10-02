@@ -83,11 +83,11 @@ namespace Configlue
     }
     public sealed class ConfigSourceResolutionDetails
     {
-        public ConfigSourceResolutionDetails(Configlue.SubjectKey logicalSubjectKey, Configlue.SubjectKey resourceKey, Configlue.RouteKey route, Configlue.Resources.ResourceId? resourceId, string? physicalOrigin) { }
+        public ConfigSourceResolutionDetails(Configlue.SubjectKey logicalSubjectKey, Configlue.ResourceKey resourceKey, Configlue.RouteKey route, Configlue.Resources.ResourceId? resourceId, string? physicalOrigin) { }
         public Configlue.SubjectKey LogicalSubjectKey { get; }
         public string? PhysicalOrigin { get; }
         public Configlue.Resources.ResourceId? ResourceId { get; }
-        public Configlue.SubjectKey ResourceKey { get; }
+        public Configlue.ResourceKey ResourceKey { get; }
         public Configlue.RouteKey Route { get; }
         public override string ToString() { }
     }
@@ -710,6 +710,15 @@ namespace Configlue
         StrictThrow = 1,
         IgnoreValue = 2,
     }
+    public readonly struct ResourceKey : System.IEquatable<Configlue.ResourceKey>
+    {
+        public bool IsDefault { get; }
+        public string Value { get; }
+        public static Configlue.ResourceKey Default { get; }
+        public override string ToString() { }
+        public static Configlue.ResourceKey From(Configlue.SubjectKey subjectKey) { }
+        public static Configlue.ResourceKey From(string value) { }
+    }
     public readonly struct RouteKey : System.IEquatable<Configlue.RouteKey>
     {
         public bool IsDefault { get; }
@@ -922,10 +931,10 @@ namespace Configlue.Resources
 {
     public readonly struct ConfiglueResourceContext : System.IEquatable<Configlue.Resources.ConfiglueResourceContext>
     {
-        public ConfiglueResourceContext(Configlue.IConfiglueSubject Subject, Configlue.SubjectKey Key, Configlue.RouteKey Route) { }
-        public ConfiglueResourceContext(string? ModelId, Configlue.IConfiglueSubject Subject, Configlue.SubjectKey Key, Configlue.RouteKey Route) { }
-        public Configlue.SubjectKey Key { get; init; }
+        public ConfiglueResourceContext(Configlue.IConfiglueSubject Subject, Configlue.ResourceKey ResourceKey, Configlue.RouteKey Route) { }
+        public ConfiglueResourceContext(string? ModelId, Configlue.IConfiglueSubject Subject, Configlue.ResourceKey ResourceKey, Configlue.RouteKey Route) { }
         public string? ModelId { get; init; }
+        public Configlue.ResourceKey ResourceKey { get; init; }
         public Configlue.RouteKey Route { get; init; }
         public Configlue.IConfiglueSubject Subject { get; init; }
         public static Configlue.Resources.ConfiglueResourceContext Default { get; }
@@ -1107,10 +1116,10 @@ namespace Configlue.Sources
     }
     public sealed class StateSource<T>
     {
-        public StateSource(Configlue.Sources.ISourceCapabilities<T> source, int priority = 0, Configlue.Sources.StateFallbackCondition fallbackCondition = 1, string? physicalOrigin = null, Configlue.Resources.ResourceId? fixedResourceId = default, string? logicalDescriptor = null, bool explicitOnly = false, System.Func<Configlue.IConfiglueSubject, Configlue.SubjectKey>? subjectKeySelector = null, Configlue.Sources.RuntimeLifetimeRequirement runtimeLifetime = 0, string? modelId = null, System.Func<Configlue.IConfiglueSubject, Configlue.RouteKey>? routeSelector = null) { }
-        public StateSource(string id, Configlue.Sources.ISourceCapabilities<T> source, int priority = 0, Configlue.Sources.StateFallbackCondition fallbackCondition = 1, string? physicalOrigin = null, Configlue.Resources.ResourceId? fixedResourceId = default, bool explicitOnly = false, System.Func<Configlue.IConfiglueSubject, Configlue.SubjectKey>? subjectKeySelector = null, Configlue.Sources.RuntimeLifetimeRequirement runtimeLifetime = 0, string? modelId = null, System.Func<Configlue.IConfiglueSubject, Configlue.RouteKey>? routeSelector = null) { }
-        public StateSource(Configlue.Sources.ISourceReader<T> reader, int priority = 0, Configlue.Sources.StateFallbackCondition fallbackCondition = 1, Configlue.Sources.ISourceWriter<T>? writer = null, Configlue.Sources.ISourceWatcher? watcher = null, string? physicalOrigin = null, Configlue.Resources.ResourceId? fixedResourceId = default, string? logicalDescriptor = null, bool explicitOnly = false, System.Func<Configlue.IConfiglueSubject, Configlue.SubjectKey>? subjectKeySelector = null, Configlue.Sources.RuntimeLifetimeRequirement runtimeLifetime = 0, string? modelId = null, System.Func<Configlue.IConfiglueSubject, Configlue.RouteKey>? routeSelector = null) { }
-        public StateSource(string id, Configlue.Sources.ISourceReader<T> reader, int priority = 0, Configlue.Sources.StateFallbackCondition fallbackCondition = 1, Configlue.Sources.ISourceWriter<T>? writer = null, Configlue.Sources.ISourceWatcher? watcher = null, string? physicalOrigin = null, Configlue.Resources.ResourceId? fixedResourceId = default, bool explicitOnly = false, System.Func<Configlue.IConfiglueSubject, Configlue.SubjectKey>? subjectKeySelector = null, Configlue.Sources.RuntimeLifetimeRequirement runtimeLifetime = 0, string? modelId = null, System.Func<Configlue.IConfiglueSubject, Configlue.RouteKey>? routeSelector = null) { }
+        public StateSource(Configlue.Sources.ISourceCapabilities<T> source, int priority = 0, Configlue.Sources.StateFallbackCondition fallbackCondition = 1, string? physicalOrigin = null, Configlue.Resources.ResourceId? fixedResourceId = default, string? logicalDescriptor = null, bool explicitOnly = false, System.Func<Configlue.IConfiglueSubject, Configlue.ResourceKey>? resourceKeySelector = null, Configlue.Sources.RuntimeLifetimeRequirement runtimeLifetime = 0, string? modelId = null, System.Func<Configlue.IConfiglueSubject, Configlue.RouteKey>? routeSelector = null) { }
+        public StateSource(string id, Configlue.Sources.ISourceCapabilities<T> source, int priority = 0, Configlue.Sources.StateFallbackCondition fallbackCondition = 1, string? physicalOrigin = null, Configlue.Resources.ResourceId? fixedResourceId = default, bool explicitOnly = false, System.Func<Configlue.IConfiglueSubject, Configlue.ResourceKey>? resourceKeySelector = null, Configlue.Sources.RuntimeLifetimeRequirement runtimeLifetime = 0, string? modelId = null, System.Func<Configlue.IConfiglueSubject, Configlue.RouteKey>? routeSelector = null) { }
+        public StateSource(Configlue.Sources.ISourceReader<T> reader, int priority = 0, Configlue.Sources.StateFallbackCondition fallbackCondition = 1, Configlue.Sources.ISourceWriter<T>? writer = null, Configlue.Sources.ISourceWatcher? watcher = null, string? physicalOrigin = null, Configlue.Resources.ResourceId? fixedResourceId = default, string? logicalDescriptor = null, bool explicitOnly = false, System.Func<Configlue.IConfiglueSubject, Configlue.ResourceKey>? resourceKeySelector = null, Configlue.Sources.RuntimeLifetimeRequirement runtimeLifetime = 0, string? modelId = null, System.Func<Configlue.IConfiglueSubject, Configlue.RouteKey>? routeSelector = null) { }
+        public StateSource(string id, Configlue.Sources.ISourceReader<T> reader, int priority = 0, Configlue.Sources.StateFallbackCondition fallbackCondition = 1, Configlue.Sources.ISourceWriter<T>? writer = null, Configlue.Sources.ISourceWatcher? watcher = null, string? physicalOrigin = null, Configlue.Resources.ResourceId? fixedResourceId = default, bool explicitOnly = false, System.Func<Configlue.IConfiglueSubject, Configlue.ResourceKey>? resourceKeySelector = null, Configlue.Sources.RuntimeLifetimeRequirement runtimeLifetime = 0, string? modelId = null, System.Func<Configlue.IConfiglueSubject, Configlue.RouteKey>? routeSelector = null) { }
         public bool ExplicitOnly { get; }
         public Configlue.Sources.StateFallbackCondition FallbackCondition { get; }
         public Configlue.Resources.ResourceId? FixedResourceId { get; }
@@ -1125,8 +1134,8 @@ namespace Configlue.Sources
         public Configlue.Resources.ConfiglueResourceContext GetResourceContext(Configlue.IConfiglueSubject subject) { }
         public Configlue.Resources.ResourceId? GetResourceId(Configlue.IConfiglueSubject subject) { }
         public Configlue.Resources.ResourceId? GetResourceId(Configlue.Resources.ConfiglueResourceContext context) { }
+        public Configlue.ResourceKey GetResourceKey(Configlue.IConfiglueSubject subject) { }
         public Configlue.RouteKey GetRouteKey(Configlue.IConfiglueSubject subject) { }
-        public Configlue.SubjectKey GetSubjectKey(Configlue.IConfiglueSubject subject) { }
         public System.Threading.Tasks.ValueTask<Configlue.State.StateReadResult<T>> ReadAsync(Configlue.IConfiglueSubject subject, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask<Configlue.State.StateReadResult<T>> ReadAsync(Configlue.Resources.ConfiglueResourceContext context, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask WaitForChangeAsync(Configlue.IConfiglueSubject subject, string? observedRevision, System.Threading.CancellationToken cancellationToken = default) { }

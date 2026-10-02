@@ -726,7 +726,7 @@ public sealed class EditSessionSnapshotTests
     )
     {
         var builder = new StateSourceSetBuilder<AppSettings.Fragment>();
-        builder.Add("user", users).KeyBy<SettingsSubject>(static subject => subject.Key);
+        builder.Add("user", users).ResourceKeyBy<SettingsSubject>(static subject => ResourceKey.From(subject.Key));
         return new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             builder.Build(),
             onChangeDebounce: TimeSpan.Zero
@@ -893,45 +893,45 @@ public sealed class EditSessionSnapshotTests
 
     private sealed class SubjectStateStore<T> : ISourceReader<T>, ISourceWriter<T>, ISourceWatcher
     {
-        private readonly ConcurrentDictionary<SubjectKey, InMemoryStateSource<T>> _states = new();
+        private readonly ConcurrentDictionary<ResourceKey, InMemoryStateSource<T>> _states = new();
 
-        public void Set(SubjectKey key, T value) => Get(key).Set(value);
+        public void Set(SubjectKey key, T value) => Get(ResourceKey.From(key)).Set(value);
 
         public StateReadResult<T> Read(SubjectKey key) =>
-            Get(key).ReadAsync().GetAwaiter().GetResult();
+            Get(ResourceKey.From(key)).ReadAsync().GetAwaiter().GetResult();
 
         public ValueTask<StateReadResult<T>> ReadAsync(
             CancellationToken cancellationToken = default
-        ) => Get(SubjectKey.Default).ReadAsync(cancellationToken);
+        ) => Get(ResourceKey.Default).ReadAsync(cancellationToken);
 
         public ValueTask<StateReadResult<T>> ReadAsync(
             ConfiglueResourceContext context,
             CancellationToken cancellationToken = default
-        ) => Get(context.Key).ReadAsync(cancellationToken);
+        ) => Get(context.ResourceKey).ReadAsync(cancellationToken);
 
         public ValueTask<StateWriteResult> WriteAsync(
             StateWriteRequest<T> request,
             CancellationToken cancellationToken = default
-        ) => Get(SubjectKey.Default).WriteAsync(request, cancellationToken);
+        ) => Get(ResourceKey.Default).WriteAsync(request, cancellationToken);
 
         public ValueTask<StateWriteResult> WriteAsync(
             ConfiglueResourceContext context,
             StateWriteRequest<T> request,
             CancellationToken cancellationToken = default
-        ) => Get(context.Key).WriteAsync(request, cancellationToken);
+        ) => Get(context.ResourceKey).WriteAsync(request, cancellationToken);
 
         public ValueTask WaitForChangeAsync(
             string? observedRevision,
             CancellationToken cancellationToken = default
-        ) => Get(SubjectKey.Default).WaitForChangeAsync(observedRevision, cancellationToken);
+        ) => Get(ResourceKey.Default).WaitForChangeAsync(observedRevision, cancellationToken);
 
         public ValueTask WaitForChangeAsync(
             ConfiglueResourceContext context,
             string? observedRevision,
             CancellationToken cancellationToken = default
-        ) => Get(context.Key).WaitForChangeAsync(observedRevision, cancellationToken);
+        ) => Get(context.ResourceKey).WaitForChangeAsync(observedRevision, cancellationToken);
 
-        private InMemoryStateSource<T> Get(SubjectKey key) =>
+        private InMemoryStateSource<T> Get(ResourceKey key) =>
             _states.GetOrAdd(key, static _ => new InMemoryStateSource<T>());
     }
 }
