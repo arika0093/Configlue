@@ -289,14 +289,17 @@ public sealed partial class ConfiglueGenerator
         public StructuralModel(
             string hostName,
             string valueTypeName,
-            ImmutableArray<MemberModel> members
+            ImmutableArray<MemberModel> members,
+            SparseFragments.Generator.Shared.ModelConstructorBinding? constructor
         )
         {
             HostName = hostName;
             ValueTypeName = valueTypeName;
             Members = members;
+            Constructor = constructor;
         }
 
+        public SparseFragments.Generator.Shared.ModelConstructorBinding? Constructor { get; }
         public string HostName { get; }
         public string ValueTypeName { get; }
         public ImmutableArray<MemberModel> Members { get; }
@@ -308,6 +311,7 @@ public sealed partial class ConfiglueGenerator
                     other is not null
                     && string.Equals(HostName, other.HostName, StringComparison.Ordinal)
                     && string.Equals(ValueTypeName, other.ValueTypeName, StringComparison.Ordinal)
+                    && Equals(Constructor, other.Constructor)
                     && SequenceEqual(Members, other.Members)
                 );
         }
@@ -325,7 +329,7 @@ public sealed partial class ConfiglueGenerator
                 hash = unchecked(hash * 31 + member.GetHashCode());
             }
 
-            return hash;
+            return unchecked(hash * 31 + (Constructor?.GetHashCode() ?? 0));
         }
     }
 

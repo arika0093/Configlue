@@ -719,7 +719,8 @@ internal static class SparseModelAnalyzer
                 GetMembers(type, config, cancellationToken).ToImmutableArray(),
                 config,
                 cancellationToken
-            )
+            ),
+            ModelConstructorBinding.AnalyzeStructural(type, cancellationToken)
         );
 
     private static ImmutableArray<SparseMemberModel> CreateMemberModels(

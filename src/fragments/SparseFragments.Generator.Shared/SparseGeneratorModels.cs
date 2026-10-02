@@ -84,19 +84,22 @@ internal readonly record struct SparseModelInfo(
 internal sealed record SparseStructuralModel(
     string HostName,
     string ValueTypeName,
-    ImmutableArray<SparseMemberModel> Members
+    ImmutableArray<SparseMemberModel> Members,
+    ModelConstructorBinding? Constructor
 )
 {
     public bool Equals(SparseStructuralModel? other) =>
         other is not null
         && HostName == other.HostName
         && ValueTypeName == other.ValueTypeName
+        && Equals(Constructor, other.Constructor)
         && SparseSequence.Equal(Members, other.Members);
 
     public override int GetHashCode() =>
         unchecked(
             (HostName.GetHashCode() * 31 + ValueTypeName.GetHashCode()) * 31
             + SparseSequence.Hash(Members)
+            + (Constructor?.GetHashCode() ?? 0)
         );
 }
 

@@ -370,6 +370,10 @@ public sealed partial class ConfiglueGenerator
             CreateMemberModels(
                 GetMembers(type, cancellationToken).ToImmutableArray(),
                 cancellationToken
+            ),
+            SparseFragments.Generator.Shared.ModelConstructorBinding.AnalyzeStructural(
+                type,
+                cancellationToken
             )
         );
     }
