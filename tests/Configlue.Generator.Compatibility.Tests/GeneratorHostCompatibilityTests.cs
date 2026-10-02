@@ -60,7 +60,7 @@ public sealed class GeneratorHostCompatibilityTests
     )
     {
         var constructor = parameterized
-            ? "private Settings(int count = 5) { Identity = ++Calls; Count = count; }"
+            ? "private Settings(int count = 5, int[]? items = null) { Identity = ++Calls; Count = count; Items = items; LastItems = items; }"
             : "private Settings() { Identity = ++Calls; }";
         var requiredKeyword = required ? "required " : string.Empty;
         var setter = initOnly ? "init" : "set";
@@ -79,9 +79,11 @@ public sealed class GeneratorHostCompatibilityTests
             public partial class Settings
             {
                 public static int Calls;
+                public static int[]? LastItems;
                 {{constructor}}
                 public {{requiredKeyword}}int Identity { get; {{setter}}; }
                 public {{requiredKeyword}}int Count { get; {{setter}}; } = 5;
+                public int[]? Items { get; {{setter}}; }
             }
             public static class Probe
             {
@@ -91,7 +93,7 @@ public sealed class GeneratorHostCompatibilityTests
                     var empty = Settings.Fragment.Empty.ToModel();
                     if (Settings.Calls != 1 || empty.Identity != 1 || empty.Count != 5)
                         throw new System.Exception("empty projection");
-                    var sparse = new Settings.Fragment { Count = Optional<int>.Present(0) }.ToModel();
+                    var sparse = new Settings.Fragment { Count = Optional<int>.Present(0), Items = Optional<int[]?>.Present(new[] { 1, 2 }) }.ToModel();
                     if (Settings.Calls != 2 || sparse.Identity != 2 || sparse.Count != 0)
                         throw new System.Exception("sparse projection");
                     var complete = Settings.Fragment.From(sparse).ToModel();
@@ -100,6 +102,12 @@ public sealed class GeneratorHostCompatibilityTests
                     var clone = complete.DeepClone();
                     if (Settings.Calls != 4 || clone.Identity != 2 || clone.Count != 0 || ReferenceEquals(clone, complete))
                         throw new System.Exception("clone construction");
+                    if (ReferenceEquals(clone.Items, complete.Items) || clone.Items![0] != 1)
+                        throw new System.Exception("clone isolation");
+                    if ({{(
+                parameterized ? "true" : "false"
+            )}} && !ReferenceEquals(Settings.LastItems, clone.Items))
+                        throw new System.Exception("constructor clone identity");
                     return "passed";
                 }
             }

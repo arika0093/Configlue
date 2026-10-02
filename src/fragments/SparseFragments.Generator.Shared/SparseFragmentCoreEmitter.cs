@@ -171,16 +171,38 @@ internal sealed class SparseFragmentCoreEmitter(
             AppendCloneContext(code, 2);
         }
 
+        var boundClones = new Dictionary<string, string>(StringComparer.Ordinal);
+        if (constructor is not null)
+        {
+            foreach (
+                var propertyName in constructor.Parameters.Select(static parameter =>
+                    parameter.PropertyName
+                )
+            )
+            {
+                if (boundClones.ContainsKey(propertyName))
+                    continue;
+                var member = members.Single(candidate => candidate.Property.Name == propertyName);
+                var local = "__constructor_clone_" + boundClones.Count;
+                boundClones.Add(propertyName, local);
+                code.AppendLineAt(
+                    2,
+                    "var "
+                        + local
+                        + " = "
+                        + Expressions.CloneModelExpression(
+                            member,
+                            "this." + SparseNaming.EscapeIdentifier(propertyName)
+                        )
+                        + ";"
+                );
+            }
+        }
         var arguments = constructor is null
             ? string.Empty
             : string.Join(
                 ", ",
-                constructor.Parameters.Select(parameter =>
-                    Expressions.CloneModelExpression(
-                        members.Single(member => member.Property.Name == parameter.PropertyName),
-                        "this." + SparseNaming.EscapeIdentifier(parameter.PropertyName)
-                    )
-                )
+                constructor.Parameters.Select(parameter => boundClones[parameter.PropertyName])
             );
         code.AppendIndent(2)
             .Append("return new ")
@@ -195,10 +217,12 @@ internal sealed class SparseFragmentCoreEmitter(
                 .Append(SparseNaming.EscapeIdentifier(member.Property.Name))
                 .Append(" = ")
                 .Append(
-                    Expressions.CloneModelExpression(
-                        member,
-                        "this." + SparseNaming.EscapeIdentifier(member.Property.Name)
-                    )
+                    boundClones.TryGetValue(member.Property.Name, out var cloned)
+                        ? cloned
+                        : Expressions.CloneModelExpression(
+                            member,
+                            "this." + SparseNaming.EscapeIdentifier(member.Property.Name)
+                        )
                 )
                 .AppendLine(",");
         }
