@@ -121,15 +121,20 @@ public sealed class StateSourceResolver<T> : ISourceReader<T>
         StateReadResult<T> lastResult = default;
         var revisions = new StateRevision[_sourceSet.Count];
         var revisionCount = 0;
+        var watchTargets = new List<StateSourceWatchTarget<T>>(_sourceSet.Count);
         List<KeyValuePair<string, StateRevisionVector>>? nestedRevisions = null;
         for (var index = 0; index < _sourceSet.Count; index++)
         {
             var source = _sourceSet[index];
             cancellationToken.ThrowIfCancellationRequested();
+            var effectiveContext = GetEffectiveContext(source, subject, context);
             var result = (
-                await ReadSourceAsync(source, subject, context, cancellationToken)
+                await ReadSourceAsync(source, effectiveContext, cancellationToken)
                     .ConfigureAwait(false)
             ).FromSource(source.Id, source.PhysicalOrigin);
+            watchTargets.Add(
+                new StateSourceWatchTarget<T>(source, effectiveContext, result.Revision)
+            );
             _logger?.LogDebug(
                 ReadEvent,
                 "State source {SourceId} returned {ReadStatus}.",
@@ -152,7 +157,11 @@ public sealed class StateSourceResolver<T> : ISourceReader<T>
                     revisionCount,
                     nestedRevisions
                 );
-                SetResolution(subject, context, new Resolution(source, revisionVector));
+                SetResolution(
+                    subject,
+                    context,
+                    new Resolution(source, revisionVector, watchTargets.ToArray())
+                );
                 return result with { Revisions = revisionVector };
             }
 
@@ -172,7 +181,11 @@ public sealed class StateSourceResolver<T> : ISourceReader<T>
                     revisionCount,
                     nestedRevisions
                 );
-                SetResolution(subject, context, new Resolution(null, revisionVector));
+                SetResolution(
+                    subject,
+                    context,
+                    new Resolution(null, revisionVector, watchTargets.ToArray())
+                );
                 return result with { Revisions = revisionVector };
             }
 
@@ -180,7 +193,7 @@ public sealed class StateSourceResolver<T> : ISourceReader<T>
         }
 
         var finalVector = CreateRevisionVector(revisions, revisionCount, nestedRevisions);
-        SetResolution(subject, context, new Resolution(null, finalVector));
+        SetResolution(subject, context, new Resolution(null, finalVector, watchTargets.ToArray()));
         return lastResult with { Revisions = finalVector };
     }
 
@@ -192,8 +205,9 @@ public sealed class StateSourceResolver<T> : ISourceReader<T>
     )
     {
         cancellationToken.ThrowIfCancellationRequested();
+        var effectiveContext = GetEffectiveContext(source, subject, context);
         var result = (
-            await ReadSourceAsync(source, subject, context, cancellationToken).ConfigureAwait(false)
+            await ReadSourceAsync(source, effectiveContext, cancellationToken).ConfigureAwait(false)
         ).FromSource(source.Id, source.PhysicalOrigin);
         _logger?.LogDebug(
             ReadEvent,
@@ -235,14 +249,23 @@ public sealed class StateSourceResolver<T> : ISourceReader<T>
         SetResolution(
             subject,
             context,
-            new Resolution(result.Status == StateReadStatus.Success ? source : null, revisionVector)
+            new Resolution(
+                result.Status == StateReadStatus.Success ? source : null,
+                revisionVector,
+                [new StateSourceWatchTarget<T>(source, effectiveContext, result.Revision)]
+            )
         );
         return result with { Revisions = revisionVector };
     }
 
-    private async ValueTask<StateReadResult<T>> ReadSourceAsync(
+    private static ConfiglueResourceContext GetEffectiveContext(
         StateSource<T> source,
         IConfiglueSubject? subject,
+        ConfiglueResourceContext context
+    ) => subject is null ? context : source.GetResourceContext(subject);
+
+    private async ValueTask<StateReadResult<T>> ReadSourceAsync(
+        StateSource<T> source,
         ConfiglueResourceContext context,
         CancellationToken cancellationToken
     )
@@ -250,12 +273,7 @@ public sealed class StateSourceResolver<T> : ISourceReader<T>
         _logger?.LogTrace(ReadEvent, "Reading state source {SourceId}.", source.Id);
         try
         {
-            return await source
-                .ReadAsync(
-                    subject is null ? context : source.GetResourceContext(subject),
-                    cancellationToken
-                )
-                .ConfigureAwait(false);
+            return await source.ReadAsync(context, cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -322,31 +340,31 @@ public sealed class StateSourceResolver<T> : ISourceReader<T>
 
         var active = resolution?.ActiveSource;
         var sources = new List<StateSourceWatchTarget<T>>(_sourceSet.Count);
-        for (var index = 0; index < _sourceSet.Count; index++)
+        if (resolution is not null)
         {
-            var source = _sourceSet[index];
-            if (
-                resolution is not null
-                && (
-                    !resolution.Revisions.TryGetRevision(source.Id, out _)
-                    || (active is not null && source.Priority < active.Priority)
-                )
-            )
+            foreach (var target in resolution.WatchTargets)
             {
-                continue;
-            }
+                if (active is not null && target.Source.Priority < active.Priority)
+                {
+                    continue;
+                }
 
-            string? revision = null;
-            if (resolution is not null)
-            {
-                resolution.Revisions.TryGetRevision(source.Id, out revision);
+                sources.Add(target);
             }
-            else if (index == 0)
+        }
+        else
+        {
+            for (var index = 0; index < _sourceSet.Count; index++)
             {
-                revision = fallbackRevision;
+                var source = _sourceSet[index];
+                sources.Add(
+                    new StateSourceWatchTarget<T>(
+                        source,
+                        GetEffectiveContext(source, subject, ConfiglueResourceContext.Default),
+                        index == 0 ? fallbackRevision : null
+                    )
+                );
             }
-
-            sources.Add(new StateSourceWatchTarget<T>(source, revision));
         }
 
         return new StateSourceWatchTargets<T>(sources, watchLease);
@@ -489,11 +507,17 @@ public sealed class StateSourceResolver<T> : ISourceReader<T>
     {
         public StateSource<T>? ActiveSource { get; init; }
         public StateRevisionVector Revisions { get; init; }
+        public StateSourceWatchTarget<T>[] WatchTargets { get; init; }
 
-        public Resolution(StateSource<T>? ActiveSource, StateRevisionVector Revisions)
+        public Resolution(
+            StateSource<T>? ActiveSource,
+            StateRevisionVector Revisions,
+            StateSourceWatchTarget<T>[] WatchTargets
+        )
         {
             this.ActiveSource = ActiveSource;
             this.Revisions = Revisions;
+            this.WatchTargets = WatchTargets;
         }
 
         public void Deconstruct(out StateSource<T>? ActiveSource, out StateRevisionVector Revisions)
@@ -731,11 +755,17 @@ internal sealed class StateSourceWatchTargets<T> : IDisposable
 internal readonly record struct StateSourceWatchTarget<T>
 {
     public StateSource<T> Source { get; init; }
+    public ConfiglueResourceContext EffectiveContext { get; init; }
     public string? ObservedRevision { get; init; }
 
-    public StateSourceWatchTarget(StateSource<T> Source, string? ObservedRevision)
+    public StateSourceWatchTarget(
+        StateSource<T> Source,
+        ConfiglueResourceContext EffectiveContext,
+        string? ObservedRevision
+    )
     {
         this.Source = Source;
+        this.EffectiveContext = EffectiveContext;
         this.ObservedRevision = ObservedRevision;
     }
 

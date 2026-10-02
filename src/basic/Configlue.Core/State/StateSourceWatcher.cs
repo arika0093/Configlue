@@ -49,13 +49,10 @@ public sealed class StateSourceWatcher<T> : ISourceWatcher
                 )
             )
             {
-                var sourceContext = subject is null
-                    ? context
-                    : target.Source.GetResourceContext(subject);
                 watchers.Add(
                     target
                         .Source.WaitForChangeAsync(
-                            sourceContext,
+                            target.EffectiveContext,
                             target.ObservedRevision,
                             watchCancellation.Token
                         )

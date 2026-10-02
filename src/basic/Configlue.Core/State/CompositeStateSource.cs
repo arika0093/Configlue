@@ -143,11 +143,9 @@ public sealed class CompositeStateSource<TFragment>
         {
             var source = _components[index];
             cancellationToken.ThrowIfCancellationRequested();
+            var effectiveContext = subject is null ? context : source.GetResourceContext(subject);
             var result = await source
-                .ReadAsync(
-                    subject is null ? context : source.GetResourceContext(subject),
-                    cancellationToken
-                )
+                .ReadAsync(effectiveContext, cancellationToken)
                 .ConfigureAwait(false);
             result = result.FromSource(source.Id, source.PhysicalOrigin);
             if (
@@ -168,7 +166,7 @@ public sealed class CompositeStateSource<TFragment>
             }
 
             revisions.Add(new StateRevision(source.Id, result.Revision));
-            watchTargets.Add(new WatchTarget(source, result.Revision));
+            watchTargets.Add(new WatchTarget(source, effectiveContext, result.Revision));
             if (result.Revisions is { } nested)
             {
                 nestedRevisions ??= [];
@@ -332,7 +330,7 @@ public sealed class CompositeStateSource<TFragment>
                 watchers.Add(
                     target
                         .Source.WaitForChangeAsync(
-                            subject is null ? context : target.Source.GetResourceContext(subject),
+                            target.EffectiveContext,
                             target.Revision,
                             watchCancellation.Token
                         )
@@ -415,13 +413,19 @@ public sealed class CompositeStateSource<TFragment>
 
     private sealed class WatchTarget
     {
-        public WatchTarget(StateSource<TFragment> source, string? revision)
+        public WatchTarget(
+            StateSource<TFragment> source,
+            ConfiglueResourceContext effectiveContext,
+            string? revision
+        )
         {
             Source = source;
+            EffectiveContext = effectiveContext;
             Revision = revision;
         }
 
         public StateSource<TFragment> Source { get; }
+        public ConfiglueResourceContext EffectiveContext { get; }
         public string? Revision { get; }
     }
 }

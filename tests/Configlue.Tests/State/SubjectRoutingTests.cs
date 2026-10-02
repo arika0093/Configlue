@@ -271,6 +271,113 @@ public sealed class SubjectRoutingTests
     }
 
     [Test]
+    public async Task ResolverWatcherUsesEffectiveContextCapturedWithObservedRevision()
+    {
+        var subject = new MutableRoutingSubject("old-key", "jp");
+        var fallbackStore = new RoutedStateStore();
+        var activeStore = new RoutedStateStore();
+        var oldResourceKey = ResourceKey.From("old-key");
+        var oldRoute = RouteKey.From("jp");
+        fallbackStore.SetNotFound(oldRoute, oldResourceKey, "missing:jp");
+        activeStore.Set(oldRoute, oldResourceKey, Fragment("japan"));
+        var fallbackSource = new StateSource<AppSettings.Fragment>(
+            "fallback",
+            fallbackStore,
+            priority: 10,
+            fallbackCondition: StateFallbackCondition.NotFound,
+            watcher: fallbackStore,
+            resourceKeySelector: candidate => ResourceKey.From(((MutableRoutingSubject)candidate).Resource),
+            routeSelector: candidate => RouteKey.From(((MutableRoutingSubject)candidate).Region)
+        );
+        var source = new StateSource<AppSettings.Fragment>(
+            "mutable-route",
+            activeStore,
+            watcher: activeStore,
+            resourceKeySelector: candidate => ResourceKey.From(((MutableRoutingSubject)candidate).Resource),
+            routeSelector: candidate => RouteKey.From(((MutableRoutingSubject)candidate).Region)
+        );
+        var resolver = new StateSourceResolver<AppSettings.Fragment>(
+            new StateSourceSet<AppSettings.Fragment>([fallbackSource, source])
+        );
+        var outerContext = new ConfiglueResourceContext(
+            subject,
+            ResourceKey.From("outer-key"),
+            RouteKey.From("outer-route")
+        );
+
+        (await resolver.ReadAsync(outerContext)).Revision.ShouldBe("revision:jp");
+        subject.Resource = "new-key";
+        subject.Region = "eu";
+
+        await new StateSourceWatcher<AppSettings.Fragment>(resolver).WaitForChangeAsync(
+            outerContext,
+            "fallback-revision"
+        );
+
+        fallbackStore.LastWatchContext!.Value.ResourceKey.ShouldBe(oldResourceKey);
+        fallbackStore.LastWatchContext.Value.Route.ShouldBe(oldRoute);
+        fallbackStore.LastObservedRevision.ShouldBe("missing:jp");
+        activeStore.LastWatchContext!.Value.ResourceKey.ShouldBe(oldResourceKey);
+        activeStore.LastWatchContext.Value.Route.ShouldBe(oldRoute);
+        activeStore.LastObservedRevision.ShouldBe("revision:jp");
+    }
+
+    [Test]
+    public async Task CompositeWatcherUsesEachComponentContextCapturedDuringRead()
+    {
+        var subject = new MutableRoutingSubject("label-key", "jp")
+        {
+            SecondaryResource = "retry-key",
+            SecondaryRegion = "us",
+        };
+        var labelStore = new RoutedStateStore();
+        var retryStore = new RoutedStateStore();
+        var label = new StateSource<AppSettings.Fragment>(
+            "label",
+            labelStore,
+            watcher: labelStore,
+            resourceKeySelector: candidate => ResourceKey.From(((MutableRoutingSubject)candidate).Resource),
+            routeSelector: candidate => RouteKey.From(((MutableRoutingSubject)candidate).Region)
+        );
+        var retry = new StateSource<AppSettings.Fragment>(
+            "retry",
+            retryStore,
+            watcher: retryStore,
+            resourceKeySelector: candidate => ResourceKey.From(((MutableRoutingSubject)candidate).SecondaryResource),
+            routeSelector: candidate => RouteKey.From(((MutableRoutingSubject)candidate).SecondaryRegion)
+        );
+        labelStore.Set(RouteKey.From("jp"), ResourceKey.From("label-key"), Fragment("japan"));
+        retryStore.Set(
+            RouteKey.From("us"),
+            ResourceKey.From("retry-key"),
+            FragmentWithRetry(4)
+        );
+        var composite = new CompositeStateSource<AppSettings.Fragment>(
+            new StateSourceSet<AppSettings.Fragment>([label, retry])
+        );
+        var outerContext = new ConfiglueResourceContext(
+            subject,
+            ResourceKey.From("outer-key"),
+            RouteKey.From("outer-route")
+        );
+
+        (await composite.ReadAsync(outerContext)).Status.ShouldBe(StateReadStatus.Success);
+        subject.Resource = "changed-label";
+        subject.Region = "eu";
+        subject.SecondaryResource = "changed-retry";
+        subject.SecondaryRegion = "ca";
+
+        await composite.WaitForChangeAsync(outerContext, "composite-revision");
+
+        labelStore.LastWatchContext!.Value.ResourceKey.ShouldBe(ResourceKey.From("label-key"));
+        labelStore.LastWatchContext.Value.Route.ShouldBe(RouteKey.From("jp"));
+        labelStore.LastObservedRevision.ShouldBe("revision:jp");
+        retryStore.LastWatchContext!.Value.ResourceKey.ShouldBe(ResourceKey.From("retry-key"));
+        retryStore.LastWatchContext.Value.Route.ShouldBe(RouteKey.From("us"));
+        retryStore.LastObservedRevision.ShouldBe("revision:us");
+    }
+
+    [Test]
     public async Task CompositeAndFallbackSourcesForwardRouteToComponentOperations()
     {
         var subject = new RoutingSubject("strict-jp", true);
@@ -386,6 +493,16 @@ public sealed class SubjectRoutingTests
         public SubjectKey Key => SubjectKey.From("same-logical-subject");
     }
 
+    private sealed class MutableRoutingSubject(string resource, string region) : IConfiglueSubject
+    {
+        public string Resource { get; set; } = resource;
+        public string Region { get; set; } = region;
+        public string SecondaryResource { get; set; } = resource;
+        public string SecondaryRegion { get; set; } = region;
+
+        public SubjectKey Key => SubjectKey.From("same-logical-subject");
+    }
+
     private sealed class RoutedStateStore
         : ISourceReader<AppSettings.Fragment>,
             ISourceWriter<AppSettings.Fragment>,
@@ -410,6 +527,8 @@ public sealed class SubjectRoutingTests
 
         public ConfiglueResourceContext? LastReadContext { get; private set; }
 
+        public string? LastObservedRevision { get; private set; }
+
         public ResourceId GetResourceId(ConfiglueResourceContext context) =>
             new($"memory:{context.Route.Value}");
 
@@ -422,8 +541,8 @@ public sealed class SubjectRoutingTests
                 $"revision:{route.Value}"
             );
 
-        public void SetNotFound(RouteKey route, ResourceKey key) =>
-            _states[(key, route)] = StateReadResult<AppSettings.Fragment>.NotFound();
+        public void SetNotFound(RouteKey route, ResourceKey key, string? revision = null) =>
+            _states[(key, route)] = StateReadResult<AppSettings.Fragment>.NotFound(revision);
 
         public ValueTask<StateReadResult<AppSettings.Fragment>> ReadAsync(
             CancellationToken cancellationToken = default
@@ -479,6 +598,7 @@ public sealed class SubjectRoutingTests
         )
         {
             LastWatchContext = context;
+            LastObservedRevision = observedRevision;
             return ValueTask.CompletedTask;
         }
     }
