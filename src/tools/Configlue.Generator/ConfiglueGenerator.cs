@@ -136,6 +136,14 @@ public sealed partial class ConfiglueGenerator : IIncrementalGenerator
         DiagnosticSeverity.Error,
         true
     );
+    private static readonly DiagnosticDescriptor InvalidDependentModel = new(
+        "CFG013",
+        "Invalid dependent Configlue model",
+        "Dependent model '{0}' does not satisfy the Configlue generation contract",
+        "Configlue",
+        DiagnosticSeverity.Error,
+        true
+    );
 
     private static bool IsExternalInitEmissionEnabled(AnalyzerConfigOptionsProvider options)
     {
