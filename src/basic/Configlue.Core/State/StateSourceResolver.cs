@@ -89,6 +89,9 @@ public sealed class StateSourceResolver<T> : ISourceReader<T>
     /// <summary>The approximate number of cached per-subject resolutions.</summary>
     internal int SubjectResolutionCount => Volatile.Read(ref _subjectResolutionCount);
 
+    /// <summary>Test-only synchronization hooks used to force cache residency interleavings.</summary>
+    internal SubjectResolutionCacheTestHooks? SubjectResolutionTestHooks { get; set; }
+
     /// <inheritdoc />
     public ValueTask<StateReadResult<T>> ReadAsync(
         ConfiglueResourceContext context,
@@ -295,14 +298,25 @@ public sealed class StateSourceResolver<T> : ISourceReader<T>
         {
             resolution = Volatile.Read(ref _resolution);
         }
-        else if (_subjectResolutions.TryGetValue((subject.Key, route), out var entry))
-        {
-            watchLease = entry.AcquireWatchLease();
-            resolution = entry.Resolution;
-        }
         else
         {
-            resolution = null;
+            var key = (subject.Key, route);
+            while (true)
+            {
+                if (!_subjectResolutions.TryGetValue(key, out var entry))
+                {
+                    resolution = null;
+                    break;
+                }
+
+                SubjectResolutionTestHooks?.AfterWatchLookup?.Invoke();
+                if (entry.TryAcquireWatchLease(out var leasedResolution, out var lease))
+                {
+                    resolution = leasedResolution;
+                    watchLease = lease;
+                    break;
+                }
+            }
         }
 
         var active = resolution?.ActiveSource;
@@ -349,18 +363,35 @@ public sealed class StateSourceResolver<T> : ISourceReader<T>
             return;
         }
 
+        var key = (subject.Key, context.Route);
         var now = Stopwatch.GetTimestamp();
-        if (!_subjectResolutions.TryGetValue((subject.Key, context.Route), out var entry))
+        while (true)
         {
-            var candidate = new SubjectResolution(resolution);
-            entry = _subjectResolutions.GetOrAdd((subject.Key, context.Route), candidate);
-            if (ReferenceEquals(entry, candidate))
+            // The dictionary never hands out an entry we may mutate without re-proving residency.
+            // The entry's lock makes "still resident" and "still updatable" the same decision.
+            if (_subjectResolutions.TryGetValue(key, out var entry))
             {
-                Interlocked.Increment(ref _subjectResolutionCount);
+                SubjectResolutionTestHooks?.AfterUpdateLookup?.Invoke();
+                if (entry.TryUpdate(resolution, now))
+                {
+                    break;
+                }
+
+                continue;
+            }
+
+            var candidate = new SubjectResolution(this, key, resolution);
+            if (!_subjectResolutions.TryAdd(key, candidate))
+            {
+                continue;
+            }
+
+            if (candidate.TryPublish(now))
+            {
+                break;
             }
         }
 
-        entry.Update(resolution, now);
         MaybeSweepSubjectResolutions(now);
     }
 
@@ -394,20 +425,37 @@ public sealed class StateSourceResolver<T> : ISourceReader<T>
         SweepSubjectResolutions(now);
     }
 
-    private void SweepSubjectResolutions(long now)
+    private int SweepSubjectResolutions(long now)
     {
         var idleTicks = _subjectResolutionIdleTicks;
+        var evicted = 0;
         foreach (var pair in _subjectResolutions)
         {
-            if (
-                pair.Value.IsEvictable(now, idleTicks)
-                && _subjectResolutions.TryRemove(pair.Key, out _)
-            )
+            if (!pair.Value.TryEvict(now, idleTicks))
             {
-                Interlocked.Decrement(ref _subjectResolutionCount);
-                _logger?.LogTrace(SubjectCacheEvictionEvent, "Evicted an idle subject resolution.");
+                continue;
             }
+
+            evicted++;
+            _logger?.LogTrace(SubjectCacheEvictionEvent, "Evicted an idle subject resolution.");
         }
+
+        return evicted;
+    }
+
+    /// <summary>Test-only hook that forces an idle sweep at the current timestamp.</summary>
+    internal int EvictIdleSubjectResolutionsForTest() =>
+        SweepSubjectResolutions(Stopwatch.GetTimestamp());
+
+    /// <summary>
+    /// Test-only hook that evicts a resident entry even while a watch lease is held so the behavior of stale
+    /// leases can be observed.
+    /// </summary>
+    internal bool ForceEvictSubjectResolutionForTest(IConfiglueSubject subject, RouteKey route)
+    {
+        ArgumentNullException.ThrowIfNull(subject);
+        return _subjectResolutions.TryGetValue((subject.Key, route), out var entry)
+            && entry.ForceEvictForTest();
     }
 
     private static bool CanFallBack(StateFallbackCondition condition, StateReadStatus status) =>
@@ -454,38 +502,177 @@ public sealed class StateSourceResolver<T> : ISourceReader<T>
         }
     }
 
+    private enum SubjectResolutionState
+    {
+        Active,
+        Evicting,
+        Evicted,
+    }
+
+    /// <summary>
+    /// A resident-or-detached per-subject resolution. Residency, updating and watch leases are all decided under
+    /// <c>_gate</c> so a caller holding a reference to an evicted entry can never mutate or lease it.
+    /// </summary>
     private sealed class SubjectResolution
     {
+        private readonly StateSourceResolver<T> _owner;
+        private readonly (SubjectKey SubjectKey, RouteKey Route) _key;
+        private readonly object _gate = new();
         private Resolution _resolution;
         private long _lastAccessTimestamp;
         private int _watchReferenceCount;
+        private bool _counted;
+        private SubjectResolutionState _state = SubjectResolutionState.Active;
 
-        public SubjectResolution(Resolution resolution)
+        public SubjectResolution(
+            StateSourceResolver<T> owner,
+            (SubjectKey SubjectKey, RouteKey Route) key,
+            Resolution resolution
+        )
         {
+            _owner = owner;
+            _key = key;
             _resolution = resolution;
             _lastAccessTimestamp = Stopwatch.GetTimestamp();
         }
 
-        public Resolution Resolution => Volatile.Read(ref _resolution);
-
-        public void Update(Resolution resolution, long timestamp)
+        /// <summary>Counts a freshly added entry once it is proven to still be resident.</summary>
+        public bool TryPublish(long timestamp)
         {
-            Volatile.Write(ref _resolution, resolution);
-            Volatile.Write(ref _lastAccessTimestamp, timestamp);
+            lock (_gate)
+            {
+                if (_state != SubjectResolutionState.Active)
+                {
+                    return false;
+                }
+
+                if (!_counted)
+                {
+                    _counted = true;
+                    Interlocked.Increment(ref _owner._subjectResolutionCount);
+                }
+
+                _lastAccessTimestamp = timestamp;
+                return true;
+            }
         }
 
-        public IDisposable AcquireWatchLease()
+        /// <summary>Updates the entry only while it is still the resident entry for its key.</summary>
+        public bool TryUpdate(Resolution resolution, long timestamp)
         {
-            Interlocked.Increment(ref _watchReferenceCount);
-            Volatile.Write(ref _lastAccessTimestamp, Stopwatch.GetTimestamp());
-            return new WatchLease(this);
+            lock (_gate)
+            {
+                if (_state != SubjectResolutionState.Active)
+                {
+                    return false;
+                }
+
+                _resolution = resolution;
+                _lastAccessTimestamp = timestamp;
+                return true;
+            }
         }
 
-        public bool IsEvictable(long now, long idleTicks) =>
-            Volatile.Read(ref _watchReferenceCount) == 0
-            && now - Volatile.Read(ref _lastAccessTimestamp) > idleTicks;
+        /// <summary>Acquires a watch lease on the resident entry, failing once eviction has begun.</summary>
+        public bool TryAcquireWatchLease(out Resolution resolution, out IDisposable lease)
+        {
+            lock (_gate)
+            {
+                if (_state != SubjectResolutionState.Active)
+                {
+                    resolution = null!;
+                    lease = null!;
+                    return false;
+                }
 
-        private void ReleaseWatchReference() => Interlocked.Decrement(ref _watchReferenceCount);
+                _watchReferenceCount++;
+                _lastAccessTimestamp = Stopwatch.GetTimestamp();
+                resolution = _resolution;
+                lease = new WatchLease(this);
+                return true;
+            }
+        }
+
+        public bool TryEvict(long now, long idleTicks)
+        {
+            lock (_gate)
+            {
+                if (_state != SubjectResolutionState.Active)
+                {
+                    return false;
+                }
+
+                if (_watchReferenceCount != 0)
+                {
+                    return false;
+                }
+
+                if (now - _lastAccessTimestamp <= idleTicks)
+                {
+                    return false;
+                }
+
+                return Detach();
+            }
+        }
+
+        /// <summary>Test-only eviction that ignores live watch leases to exercise stale lease release.</summary>
+        public bool ForceEvictForTest()
+        {
+            lock (_gate)
+            {
+                if (_state != SubjectResolutionState.Active)
+                {
+                    return false;
+                }
+
+                return Detach();
+            }
+        }
+
+        /// <summary>
+        /// Marks the entry evicting and removes it from the cache under the entry lock, so residency and state
+        /// transition together and no caller can observe an evicting entry as still updatable or leasable.
+        /// </summary>
+        private bool Detach()
+        {
+            _state = SubjectResolutionState.Evicting;
+
+            // Decrement before handing the key off so the replacement entry cannot be counted while this one is
+            // still counted; that keeps the approximate count from over-reporting during a key handoff.
+            var wasCounted = _counted;
+            if (wasCounted)
+            {
+                _counted = false;
+                Interlocked.Decrement(ref _owner._subjectResolutionCount);
+            }
+
+            // The state machine and this lock prove this entry is the resident value for the key (only Detach
+            // removes entries), so the key-only removal cannot detach a replacement entry.
+            if (!_owner._subjectResolutions.TryRemove(_key, out _))
+            {
+                _state = SubjectResolutionState.Active;
+                if (wasCounted)
+                {
+                    _counted = true;
+                    Interlocked.Increment(ref _owner._subjectResolutionCount);
+                }
+
+                return false;
+            }
+
+            _state = SubjectResolutionState.Evicted;
+            return true;
+        }
+
+        private void ReleaseWatchReference()
+        {
+            _owner.SubjectResolutionTestHooks?.BeforeWatchLeaseRelease?.Invoke();
+            lock (_gate)
+            {
+                _watchReferenceCount--;
+            }
+        }
 
         private sealed class WatchLease(SubjectResolution owner) : IDisposable
         {
@@ -495,6 +682,19 @@ public sealed class StateSourceResolver<T> : ISourceReader<T>
                 Interlocked.Exchange(ref _owner, null)?.ReleaseWatchReference();
         }
     }
+}
+
+/// <summary>Internal synchronization hooks used by tests to force cache residency interleavings.</summary>
+internal sealed class SubjectResolutionCacheTestHooks
+{
+    /// <summary>Invoked after a resolver update has looked up a resident entry and before it updates it.</summary>
+    public Action? AfterUpdateLookup { get; set; }
+
+    /// <summary>Invoked after a watcher has looked up a resident entry and before it leases it.</summary>
+    public Action? AfterWatchLookup { get; set; }
+
+    /// <summary>Invoked before a watch lease releases its reference to the entry.</summary>
+    public Action? BeforeWatchLeaseRelease { get; set; }
 }
 
 /// <summary>

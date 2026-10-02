@@ -126,6 +126,7 @@ public class OptionsRuntimeBenchmarks
 public class StateSourceResolverBenchmarks
 {
     private StateSourceResolver<BenchmarkSettings.Fragment> _resolver = null!;
+    private Configlue.Resources.ConfiglueResourceContext _subjectContext;
 
     [Params(1, 4, 16)]
     public int SourceCount { get; set; }
@@ -159,9 +160,19 @@ public class StateSourceResolverBenchmarks
         _resolver = new StateSourceResolver<BenchmarkSettings.Fragment>(
             new StateSourceSet<BenchmarkSettings.Fragment>(sources)
         );
+        _subjectContext = sources[0].GetResourceContext(new BenchmarkSubject());
     }
 
     [Benchmark]
     public ValueTask<StateReadResult<BenchmarkSettings.Fragment>> ResolveSourcesAsync() =>
         _resolver.ReadAsync(Configlue.Resources.ConfiglueResourceContext.Default);
+
+    [Benchmark]
+    public ValueTask<StateReadResult<BenchmarkSettings.Fragment>> ResolveSubjectSourcesAsync() =>
+        _resolver.ReadAsync(_subjectContext);
+
+    private sealed record BenchmarkSubject : IConfiglueSubject
+    {
+        public SubjectKey Key => SubjectKey.From("benchmark-subject");
+    }
 }
