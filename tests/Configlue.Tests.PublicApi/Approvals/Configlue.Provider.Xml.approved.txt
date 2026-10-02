@@ -36,6 +36,7 @@ namespace Configlue.Provider.Xml
         public bool AutomaticBackupRecoveryEnabled { get; }
         public Configlue.Resources.IResourceBatchWriter? BatchWriter { get; }
         public bool CanWrite { get; }
+        public Configlue.State.StateSchemaMetadata? ContainerSchema { get; init; }
         public bool IsPipelineReadPreferred { get; }
         public Configlue.Resources.ResourceId ResourceId { get; }
         public Configlue.Resources.ResourceWriteMutation CreateMutation(Configlue.Resources.ResourceWriteRequest request) { }

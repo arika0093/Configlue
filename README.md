@@ -208,6 +208,12 @@ For more details, see the [tutorials](https://arika0093.github.io/Configlue/en/g
 
 Existing files can be registered as sources. For schema changes, declare a migration from the previous version; see the [schema migration guide](https://arika0093.github.io/Configlue/en/migration/schema-migration/). The [adoption guide](https://arika0093.github.io/Configlue/en/migration/adopting-configuration-writable/) covers files from Configuration.Writable.
 
+### How do JSON/YAML/XML sections relate to the document schema?
+
+A section (`JsonSectionResource`, `YamlSectionResource`, `XmlSectionResource`) is a *logical* view over one shared physical document. Its logical schema belongs to the section payload; writing a section never stamps that schema onto the whole document. This keeps a document that hosts sections for several models from being relabeled by whichever section was written last.
+
+A whole-document (root) resource does forward its logical schema because there the logical and physical schema coincide. To declare the physical container schema from a section, set its `ContainerSchema` property explicitly. Otherwise section writes make no schema claim and existing container metadata is preserved. When several sections are batched into one physical write, at most one distinct non-null container schema may be declared; conflicting schemas are rejected before anything is written.
+
 ## License
 
 This project is licensed under the Apache-2.0 License.

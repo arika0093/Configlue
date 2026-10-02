@@ -7,6 +7,9 @@
     <PackageDescription>JSON codec and resource integration for Configlue.</PackageDescription>
   </PropertyGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="Configlue.Tests" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="../../basic/Configlue.Abstraction/Configlue.Abstraction.csproj" />
     <ProjectReference Include="../../basic/Configlue.Core/Configlue.Core.csproj" />
     <PackageReference Include="System.IO.Pipelines" Version="10.0.0" />

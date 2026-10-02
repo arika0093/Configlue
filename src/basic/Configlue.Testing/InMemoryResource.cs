@@ -83,6 +83,7 @@ public sealed class InMemoryResource
     {
         cancellationToken.ThrowIfCancellationRequested();
         ResourceWriteMutation.ValidateBatch(mutations);
+        var declaredSchema = ResourceWriteMutation.ResolveBatchSchema(mutations);
         TaskCompletionSource changed;
         string revision;
         lock (_gate)
@@ -106,10 +107,10 @@ public sealed class InMemoryResource
 
             _content = current.Content.ToArray();
             _revision = revision = GetRevision(_content);
-            _schema =
-                mutations.Select(static mutation => mutation.Schema).Distinct().Count() == 1
-                    ? mutations[0].Schema
-                    : null;
+            if (declaredSchema is not null)
+            {
+                _schema = declaredSchema;
+            }
             Interlocked.Increment(ref _writeCount);
             changed = _changed;
             _changed = NewSignal();

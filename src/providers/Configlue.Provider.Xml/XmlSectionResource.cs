@@ -7,6 +7,13 @@ using Configlue.Sources;
 namespace Configlue.Provider.Xml;
 
 /// <summary>Exposes a nested XML element as a resource while preserving sibling elements.</summary>
+/// <remarks>
+/// A section is a logical view over one physical XML document shared with sibling sections. The
+/// logical schema supplied when writing a section belongs to the section payload and is never
+/// written to the physical document's schema metadata. To declare the physical container schema,
+/// set <see cref="ContainerSchema"/> explicitly; otherwise section writes leave the container's
+/// existing schema metadata unchanged.
+/// </remarks>
 public sealed class XmlSectionResource
     : IResourceReader,
         IPipelineResourceReader,
@@ -76,6 +83,13 @@ public sealed class XmlSectionResource
 
     /// <summary>Whether a physical writer was supplied.</summary>
     public bool CanWrite => _writer is not null;
+
+    /// <summary>
+    /// The schema metadata of the physical XML document that hosts this section. Set this only
+    /// when the shared container itself is known to use that schema. When <see langword="null"/>
+    /// (the default) section writes make no schema claim and preserve existing container metadata.
+    /// </summary>
+    public StateSchemaMetadata? ContainerSchema { get; init; }
 
     /// <inheritdoc />
     public ResourceId ResourceId { get; }
@@ -308,7 +322,7 @@ public sealed class XmlSectionResource
                 new ResourceWriteRequest(
                     updated,
                     Condition: RevisionCondition.FromRevision(current.Revision),
-                    Schema: request.Schema
+                    Schema: _path.Length == 0 ? request.Schema : ContainerSchema ?? current.Schema
                 ),
                 cancellationToken
             )
@@ -328,7 +342,7 @@ public sealed class XmlSectionResource
         var content = request.Content.ToArray();
         return new ResourceWriteMutation(
             request.Condition.IsMustNotExist ? RevisionCondition.None : request.Condition,
-            request.Schema,
+            ResolvePhysicalSchema(request),
             current =>
             {
                 if (!request.Condition.IsNone)
@@ -351,6 +365,9 @@ public sealed class XmlSectionResource
             context: context
         );
     }
+
+    private StateSchemaMetadata? ResolvePhysicalSchema(ResourceWriteRequest request) =>
+        _path.Length == 0 ? request.Schema : ContainerSchema;
 
     private ReadOnlyMemory<byte> ApplyToResource(
         ResourceReadResult current,

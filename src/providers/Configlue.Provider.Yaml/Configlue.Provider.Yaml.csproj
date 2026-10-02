@@ -7,6 +7,9 @@
     <PackageDescription>YAML codec for Configlue resources.</PackageDescription>
   </PropertyGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="Configlue.Tests" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="../../basic/Configlue.Abstraction/Configlue.Abstraction.csproj" />
     <ProjectReference Include="../../basic/Configlue.Core/Configlue.Core.csproj" />
     <PackageReference Include="SharpYaml" Version="3.13.1" />

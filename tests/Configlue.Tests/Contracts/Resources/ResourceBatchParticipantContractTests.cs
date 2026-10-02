@@ -14,10 +14,24 @@ public sealed class ResourceBatchParticipantContractTests
             {"App":{"Settings":{"Value":1},"Sibling":"preserve"}}
             """;
         await resource.WriteAsync(new ResourceWriteRequest(Encoding.UTF8.GetBytes(initialContent)));
-        var section = new JsonSectionResource(resource, "App:Settings");
+        var schema = new StateSchemaMetadata("settings", 2);
+        var section = new JsonSectionResource(resource, "App:Settings")
+        {
+            ContainerSchema = schema,
+        };
         IResourceBatchParticipant participant = section;
         var sectionBeforeWrite = await section.ReadAsync();
-        var schema = new StateSchemaMetadata("settings", 2);
+
+        var suppressedMutation = (
+            (IResourceBatchParticipant)new JsonSectionResource(resource, "App:Settings")
+        ).CreateMutation(
+            new ResourceWriteRequest(
+                """{"Value":2}"""u8.ToArray(),
+                Condition: RevisionCondition.FromRevision(sectionBeforeWrite.Revision),
+                Schema: schema
+            )
+        );
+        suppressedMutation.Schema.ShouldBeNull();
 
         var mutation = participant.CreateMutation(
             new ResourceWriteRequest(

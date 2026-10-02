@@ -48,7 +48,11 @@ public sealed class ResourceWriteMutation
     /// <summary>The explicit concurrency precondition for this mutation.</summary>
     public RevisionCondition Condition { get; }
 
-    /// <summary>The schema metadata, if this mutation replaces a typed resource.</summary>
+    /// <summary>
+    /// The physical schema metadata declared by this mutation, or <see langword="null"/> when the
+    /// mutation makes no claim about the persisted container schema. A null value leaves existing
+    /// container metadata unchanged; it never means "clear".
+    /// </summary>
     public StateSchemaMetadata? Schema { get; }
 
     /// <summary>The provider-defined slash-delimited scope modified by this operation.</summary>
@@ -115,6 +119,53 @@ public sealed class ResourceWriteMutation
     private static ConfiglueResourceContext NormalizeContext(ConfiglueResourceContext context) =>
         context.Subject is null ? ConfiglueResourceContext.Default : context;
 
+    /// <summary>
+    /// Resolves the single physical container schema declared by a batch of mutations.
+    /// Mutations without schema metadata are treated as making no claim, so existing container
+    /// metadata is preserved. Declaring two different non-null schemas for one physical write is
+    /// rejected before any content is written.
+    /// </summary>
+    /// <exception cref="NotSupportedException">
+    /// Two mutations declare different physical container schemas.
+    /// </exception>
+    public static StateSchemaMetadata? ResolveBatchSchema(
+        IReadOnlyList<ResourceWriteMutation> mutations
+    )
+    {
+        ArgumentNullException.ThrowIfNull(mutations);
+        StateSchemaMetadata? resolved = null;
+        for (var index = 0; index < mutations.Count; index++)
+        {
+            var mutation =
+                mutations[index]
+                ?? throw new ArgumentException(
+                    "A mutation batch cannot contain null values.",
+                    nameof(mutations)
+                );
+            if (mutation.Schema is not { } schema)
+            {
+                continue;
+            }
+
+            if (resolved is not { } existing)
+            {
+                resolved = schema;
+                continue;
+            }
+
+            if (existing != schema)
+            {
+                throw new NotSupportedException(
+                    $"Resource mutations declare conflicting container schema metadata "
+                        + $"'{existing.ModelId ?? "<none>"}' v{existing.Version} and "
+                        + $"'{schema.ModelId ?? "<none>"}' v{schema.Version}."
+                );
+            }
+        }
+
+        return resolved;
+    }
+
     /// <summary>Validates that a set of mutations can be applied in one physical write.</summary>
     public static void ValidateBatch(IReadOnlyList<ResourceWriteMutation> mutations)
     {
@@ -139,6 +190,8 @@ public sealed class ResourceWriteMutation
                 "Mutations for one resource were prepared from different revisions."
             );
         }
+
+        _ = ResolveBatchSchema(mutations);
 
         if (mutations.Count == 1)
         {

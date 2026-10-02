@@ -4,6 +4,14 @@ using Configlue.Sources;
 namespace Configlue.Provider.Json;
 
 /// <summary>Exposes a nested JSON object as an independently revisioned resource view.</summary>
+/// <remarks>
+/// A section is a logical view over one physical JSON document shared with sibling sections. The
+/// logical schema supplied when writing a section belongs to the section payload and is never
+/// written to the physical document's schema metadata. To declare the physical container schema,
+/// set <see cref="ContainerSchema"/> explicitly; otherwise section writes leave the container's
+/// existing schema metadata unchanged. Whole-document (root) views forward the logical schema
+/// because for them the logical and physical schema coincide.
+/// </remarks>
 public sealed class JsonSectionResource
     : IResourceReader,
         IPipelineResourceReader,
@@ -157,6 +165,14 @@ public sealed class JsonSectionResource
 
     /// <summary>Whether a physical writer was supplied.</summary>
     public bool CanWrite => _writer is not null;
+
+    /// <summary>
+    /// The schema metadata of the physical JSON document that hosts this section. Set this only
+    /// when the shared container itself is known to use that schema. When <see langword="null"/>
+    /// (the default) section writes make no schema claim and preserve existing container metadata.
+    /// This property has no effect on whole-document (root) views.
+    /// </summary>
+    public StateSchemaMetadata? ContainerSchema { get; init; }
 
     /// <inheritdoc />
     public ResourceId ResourceId { get; }
@@ -356,7 +372,7 @@ public sealed class JsonSectionResource
                 new ResourceWriteRequest(
                     updatedDocument,
                     Condition: RevisionCondition.FromRevision(current.Revision),
-                    Schema: request.Schema
+                    Schema: _path.Length == 0 ? request.Schema : ContainerSchema ?? current.Schema
                 ),
                 cancellationToken
             )
@@ -369,7 +385,7 @@ public sealed class JsonSectionResource
         var content = request.Content.ToArray();
         return new ResourceWriteMutation(
             request.Condition.IsMustNotExist ? RevisionCondition.None : request.Condition,
-            request.Schema,
+            ResolvePhysicalSchema(request),
             current =>
             {
                 if (!request.Condition.IsNone)
@@ -397,6 +413,9 @@ public sealed class JsonSectionResource
         ConfiglueResourceContext context,
         ResourceWriteRequest request
     ) => CreateMutation(request).WithContext(context);
+
+    private StateSchemaMetadata? ResolvePhysicalSchema(ResourceWriteRequest request) =>
+        _path.Length == 0 ? request.Schema : ContainerSchema;
 
     private ReadOnlyMemory<byte> ApplyToResource(
         ResourceReadResult current,

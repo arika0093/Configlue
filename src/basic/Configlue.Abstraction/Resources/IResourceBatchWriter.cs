@@ -5,6 +5,10 @@ namespace Configlue.Resources;
 /// A batch writer's <see cref="IResourceIdentity.ResourceId"/> only declares its physical coordination
 /// domain. Combining several writers into one physical write additionally requires that they are the
 /// same object or opt in to an equal <see cref="IResourceBatchCompatibility"/> token.
+/// Before writing, validate mutations with <see cref="ResourceWriteMutation.ValidateBatch"/> and
+/// resolve physical schema metadata with <see cref="ResourceWriteMutation.ResolveBatchSchema"/>.
+/// A null resolved schema makes no metadata claim; preserve existing container metadata when
+/// the resource stores it. Conflicting schema declarations must be rejected before writing.
 /// </remarks>
 public interface IResourceBatchWriter : IResourceWriter, IResourceIdentity
 {
