@@ -1,0 +1,87 @@
+name: S3 integration tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  s3-integration:
+    timeout-minutes: 20
+    runs-on: ubuntu-latest
+    services:
+      localstack:
+        image: localstack/localstack:4.0
+        env:
+          SERVICES: s3
+          DEBUG: "0"
+        ports:
+          - 4566:4566
+        options: >-
+          --health-cmd "curl -f http://localhost:4566/_localstack/health || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      CONFIGLUE_S3_INTEGRATION: "1"
+      CONFIGLUE_S3_SERVICE_URL: "http://localhost:4566"
+      CONFIGLUE_S3_ACCESS_KEY: "test"
+      CONFIGLUE_S3_SECRET_KEY: "test"
+      CONFIGLUE_S3_REGION: "us-east-1"
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+
+      - name: Restore dependencies
+        run: dotnet restore tests/Configlue.Tests/Configlue.Tests.csproj
+
+      - name: Build
+        run: >
+          dotnet build tests/Configlue.Tests/Configlue.Tests.csproj
+          --no-restore --configuration Release --framework net10.0
+
+      - name: Wait for S3-compatible service
+        run: |
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://localhost:4566/_localstack/health >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "S3-compatible service did not become ready." >&2
+          exit 1
+
+      - name: Run S3 integration tests
+        run: >
+          dotnet test tests/Configlue.Tests/Configlue.Tests.csproj
+          --no-build --no-restore --configuration Release --framework net10.0
+          -- --treenode-filter "/*/*/*S3ObjectIntegrationTests/*"
+          --timeout 5m --report-trx --results-directory TestResults --no-progress
+
+      - name: Upload failure artifacts
+        if: failure() || cancelled()
+        uses: actions/upload-artifact@v7
+        with:
+          name: s3-integration-results
+          path: |
+            TestResults/**/*.trx
+            tests/Configlue.Tests/bin/Release/net10.0/TestResults/**
+          if-no-files-found: ignore
+          retention-days: 7
