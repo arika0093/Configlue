@@ -199,9 +199,14 @@ public sealed class HttpResourceReader
 
             response.EnsureSuccessStatusCode();
             var schema = ReadSchemaMetadata(response.Headers);
-            var stream = await response
-                .Content.ReadAsStreamAsync(cancellationToken)
+            var responseStream = await response
+                .Content.ReadAsStreamAsync(requestCancellation.Token)
                 .ConfigureAwait(false);
+            var stream = new RequestTimeoutStream(
+                responseStream,
+                requestCancellation.Token,
+                cancellationToken
+            );
             var owner = new HttpResponseOwner(response, requestCancellation);
             var pipelineResult = PipelineResourceReader.FromStream(
                 stream,
@@ -680,9 +685,19 @@ public sealed class HttpResourceReader
             }
 
             response.EnsureSuccessStatusCode();
-            var content = await response
-                .Content.ReadAsByteArrayAsync(requestCancellation.Token)
-                .ConfigureAwait(false);
+            byte[] content;
+            try
+            {
+                content = await response
+                    .Content.ReadAsByteArrayAsync(requestCancellation.Token)
+                    .ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                var unavailable = ResourceReadResult.Unavailable(revision);
+                return new HttpReadResponse(unavailable, Snapshot(unavailable), NotModified: false);
+            }
+
             var schema = ReadSchemaMetadata(response.Headers);
             var result = ResourceReadResult.Success(content, revision, schema);
             return new HttpReadResponse(result, Snapshot(result), NotModified: false);
@@ -1035,6 +1050,107 @@ public sealed class HttpResourceReader
             response.Dispose();
             requestCancellation.Dispose();
         }
+    }
+
+    private sealed class RequestTimeoutStream(
+        Stream source,
+        CancellationToken requestCancellation,
+        CancellationToken callerCancellation
+    ) : Stream
+    {
+        public override bool CanRead => source.CanRead;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+        public override long Position
+        {
+            get => throw new NotSupportedException();
+            set => throw new NotSupportedException();
+        }
+
+        public override int Read(byte[] buffer, int offset, int count) =>
+            source.Read(buffer, offset, count);
+
+#if !NETSTANDARD2_0
+        public override int Read(Span<byte> buffer) => source.Read(buffer);
+
+        public override async ValueTask<int> ReadAsync(
+            Memory<byte> buffer,
+            CancellationToken cancellationToken = default
+        )
+        {
+            using var linked = CreateLinkedCancellation(cancellationToken);
+            try
+            {
+                return await source.ReadAsync(buffer, linked.Token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (IsRequestTimeout(cancellationToken))
+            {
+                throw RequestTimeoutException();
+            }
+        }
+#endif
+
+        public override async Task<int> ReadAsync(
+            byte[] buffer,
+            int offset,
+            int count,
+            CancellationToken cancellationToken
+        )
+        {
+            using var linked = CreateLinkedCancellation(cancellationToken);
+            try
+            {
+                return await source
+                    .ReadAsync(buffer, offset, count, linked.Token)
+                    .ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (IsRequestTimeout(cancellationToken))
+            {
+                throw RequestTimeoutException();
+            }
+        }
+
+        private CancellationTokenSource CreateLinkedCancellation(
+            CancellationToken cancellationToken
+        ) =>
+            CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, requestCancellation);
+
+        private bool IsRequestTimeout(CancellationToken cancellationToken) =>
+            requestCancellation.IsCancellationRequested
+            && !callerCancellation.IsCancellationRequested
+            && !cancellationToken.IsCancellationRequested;
+
+        private static IOException RequestTimeoutException() =>
+            new("The HTTP resource body read exceeded the configured request timeout.");
+
+        public override void Flush() { }
+
+        public override long Seek(long offset, SeekOrigin origin) =>
+            throw new NotSupportedException();
+
+        public override void SetLength(long value) => throw new NotSupportedException();
+
+        public override void Write(byte[] buffer, int offset, int count) =>
+            throw new NotSupportedException();
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                source.Dispose();
+            }
+
+            base.Dispose(disposing);
+        }
+
+#if !NETSTANDARD2_0
+        public override async ValueTask DisposeAsync()
+        {
+            await source.DisposeAsync().ConfigureAwait(false);
+            GC.SuppressFinalize(this);
+        }
+#endif
     }
 
     private sealed class MemoryContent : HttpContent
