@@ -164,26 +164,6 @@ internal static class SparseModelAnalyzer
             ImmutableArray.Create(new SparseGeneratorDiagnostic(descriptorId, location, argument))
         );
 
-    private static bool HasPublicParameterlessConstructor(
-        INamedTypeSymbol model,
-        CancellationToken cancellationToken
-    )
-    {
-        foreach (var constructor in model.InstanceConstructors)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            if (
-                constructor.DeclaredAccessibility == Accessibility.Public
-                && constructor.Parameters.Length == 0
-            )
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
     internal static IEnumerable<IPropertySymbol> GetReadableProperties(
         INamedTypeSymbol model,
         CancellationToken cancellationToken,
@@ -367,7 +347,7 @@ internal static class SparseModelAnalyzer
                 } named
             || named.SpecialType != SpecialType.None
             || IsFrameworkType(named)
-            || !HasPublicParameterlessConstructor(named, cancellationToken)
+            || ModelConstructorBinding.AnalyzeStructural(named, cancellationToken) is null
         )
         {
             return StructuralTypeKind.Scalar;
@@ -380,7 +360,7 @@ internal static class SparseModelAnalyzer
 
         if (
             HasUnsupportedPocoMembers(named, cancellationToken)
-            || !HasPublicSettableMember(named, cancellationToken)
+            || !SparseModelAnalyzer.GetReadableProperties(named, cancellationToken).Any()
         )
         {
             return StructuralTypeKind.Scalar;
@@ -456,49 +436,6 @@ internal static class SparseModelAnalyzer
         }
 
         return true;
-    }
-
-    private static bool HasPublicSettableMember(
-        INamedTypeSymbol type,
-        CancellationToken cancellationToken
-    )
-    {
-        for (
-            var current = type;
-            current is not null && current.SpecialType != SpecialType.System_Object;
-            current = current.BaseType
-        )
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            foreach (var property in current.GetMembers().OfType<IPropertySymbol>())
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                if (
-                    !property.IsStatic
-                    && !property.IsIndexer
-                    && property.GetMethod?.DeclaredAccessibility == Accessibility.Public
-                    && property.SetMethod?.DeclaredAccessibility == Accessibility.Public
-                )
-                {
-                    return true;
-                }
-            }
-
-            foreach (var field in current.GetMembers().OfType<IFieldSymbol>())
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                if (
-                    !field.IsStatic
-                    && !field.IsConst
-                    && field.DeclaredAccessibility == Accessibility.Public
-                )
-                {
-                    return true;
-                }
-            }
-        }
-
-        return false;
     }
 
     private static bool TryGetPocoCloneType(

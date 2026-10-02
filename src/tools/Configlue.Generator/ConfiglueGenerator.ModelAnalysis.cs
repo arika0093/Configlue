@@ -62,7 +62,11 @@ public sealed partial class ConfiglueGenerator
                 } named
             || named.SpecialType != SpecialType.None
             || IsFrameworkType(named)
-            || !HasPublicParameterlessConstructor(named, cancellationToken)
+            || SparseFragments.Generator.Shared.ModelConstructorBinding.AnalyzeStructural(
+                named,
+                cancellationToken
+            )
+                is null
         )
         {
             return StructuralTypeKind.Scalar;
@@ -75,7 +79,12 @@ public sealed partial class ConfiglueGenerator
 
         if (
             HasUnsupportedPocoMembers(named, cancellationToken)
-            || !HasPublicSettableMember(named, cancellationToken)
+            || !SparseFragments
+                .Generator.Shared.SparseModelAnalyzer.GetReadableProperties(
+                    named,
+                    cancellationToken
+                )
+                .Any()
         )
         {
             return StructuralTypeKind.Scalar;
@@ -149,49 +158,6 @@ public sealed partial class ConfiglueGenerator
         }
 
         return true;
-    }
-
-    private static bool HasPublicSettableMember(
-        INamedTypeSymbol type,
-        CancellationToken cancellationToken
-    )
-    {
-        for (
-            var current = type;
-            current is not null && current.SpecialType != SpecialType.System_Object;
-            current = current.BaseType
-        )
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            foreach (var property in current.GetMembers().OfType<IPropertySymbol>())
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                if (
-                    !property.IsStatic
-                    && !property.IsIndexer
-                    && property.GetMethod?.DeclaredAccessibility == Accessibility.Public
-                    && property.SetMethod?.DeclaredAccessibility == Accessibility.Public
-                )
-                {
-                    return true;
-                }
-            }
-
-            foreach (var field in current.GetMembers().OfType<IFieldSymbol>())
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                if (
-                    !field.IsStatic
-                    && !field.IsConst
-                    && field.DeclaredAccessibility == Accessibility.Public
-                )
-                {
-                    return true;
-                }
-            }
-        }
-
-        return false;
     }
 
     private static bool TryGetPocoCloneType(

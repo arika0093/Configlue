@@ -51,6 +51,11 @@ Getter-only properties are reconstructed by the selected constructor; no setter
 or object initializer assignment is generated for them. Getter-only properties
 that are not bound to that constructor are excluded from the fragment.
 
-This root construction support does not yet establish support for immutable,
-undecorated structural child types. Their construction and graph cloning support
-are tracked separately.
+Undecorated structural child classes can use public constructors with matching
+parameters and getter-only properties. Their generated fragments use the same
+argument defaults as root fragments. Cloning also handles these child values
+inside supported collections.
+
+Structural child properties with `init` or `required` are not yet supported by
+this construction path. Preservation of aliases and cycles throughout the entire
+model graph is tracked separately from constructor binding.

@@ -11,26 +11,6 @@ namespace Configlue.Generator;
 
 public sealed partial class ConfiglueGenerator
 {
-    private static bool HasPublicParameterlessConstructor(
-        INamedTypeSymbol model,
-        CancellationToken cancellationToken
-    )
-    {
-        foreach (var constructor in model.InstanceConstructors)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            if (
-                constructor.DeclaredAccessibility == Accessibility.Public
-                && constructor.Parameters.Length == 0
-            )
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
     private static IEnumerable<SymbolMemberModel> GetMembers(
         INamedTypeSymbol model,
         CancellationToken cancellationToken

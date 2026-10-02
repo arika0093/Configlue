@@ -14,6 +14,9 @@ internal readonly record struct ModelConstructionPlan(bool CanOverlayAfterConstr
         CancellationToken cancellationToken
     )
     {
+        var constructor = ModelConstructorBinding.AnalyzeStructural(pocoType, cancellationToken);
+        if (constructor is null)
+            return true;
         var hierarchy = new Stack<INamedTypeSymbol>();
         for (
             var current = pocoType;
@@ -48,7 +51,15 @@ internal readonly record struct ModelConstructionPlan(bool CanOverlayAfterConstr
 
                 if (
                     !hasPublicGetter
-                    || !hasPublicSetter
+                    || (
+                        !hasPublicSetter
+                        && !(
+                            property.SetMethod is null
+                            && constructor.Parameters.Any(parameter =>
+                                parameter.PropertyName == property.Name
+                            )
+                        )
+                    )
                     || RoslynSymbolCompat.IsRequired(property)
                     || property.SetMethod?.IsInitOnly == true
                 )
