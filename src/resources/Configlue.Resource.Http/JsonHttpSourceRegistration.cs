@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Configlue.Codecs;
 using Configlue.Provider.Json;
 
 namespace Configlue.Resource.Http;
@@ -61,7 +62,7 @@ public sealed class JsonHttpSourceOptions
             EndPoint = EndPoint,
             Client = Client,
             ClientFactory = ClientFactory,
-            Codec = new JsonStateCodec(SerializerOptions, DocumentLayout),
+            Codec = StateCodecBinding.Dynamic(new JsonStateCodec(SerializerOptions, DocumentLayout)),
             Priority = Priority,
             FallbackCondition = FallbackCondition,
             Writable = Writable,

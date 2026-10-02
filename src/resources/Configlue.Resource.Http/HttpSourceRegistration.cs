@@ -1,3 +1,4 @@
+using Configlue.Codecs;
 using Configlue.Sources;
 
 namespace Configlue.Resource.Http;
@@ -19,7 +20,7 @@ public sealed class HttpSourceOptions
     public Func<IServiceProvider?, HttpClient>? ClientFactory { get; init; }
 
     /// <summary>The codec for the serialized state.</summary>
-    public required object Codec { get; init; }
+    public required StateCodecBinding Codec { get; init; }
 
     /// <summary>Higher values are read first.</summary>
     public int Priority { get; init; }

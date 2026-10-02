@@ -4,6 +4,7 @@ using System.Net;
 using System.Text;
 using System.Text.Json.Nodes;
 using System.Xml.Linq;
+using Configlue.Codecs;
 using Configlue.Extensions.MSOptions;
 using Configlue.Provider.Json;
 using Configlue.Provider.Xml;
@@ -283,7 +284,7 @@ public sealed partial class ConfiglueFacadeSourceTests
                             Id = "http-settings",
                             EndPoint = endpoint,
                             Client = client,
-                            Codec = new JsonStateCodec<AppSettings.Fragment>(),
+                            Codec = StateCodecBinding.Typed(new JsonStateCodec<AppSettings.Fragment>()),
                             Writable = true,
                             WatchChanges = false,
                             FixedResourceId = resourceId,

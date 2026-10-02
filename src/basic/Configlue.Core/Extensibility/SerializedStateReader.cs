@@ -1,5 +1,6 @@
 using System.Buffers;
 using System.IO.Pipelines;
+using Configlue.Codecs;
 using Configlue.Sources;
 
 namespace Configlue.Extensibility;
@@ -8,7 +9,9 @@ namespace Configlue.Extensibility;
 public sealed class SerializedStateReader<T> : ISourceReader<T>, ITryResourceIdentity
 {
     private readonly IResourceReader _resource;
-    private readonly object _codec;
+    private readonly StateCodecBinding _codecBinding;
+    private readonly IStateCodec<T>? _typedCodec;
+    private readonly IStateCodec? _dynamicCodec;
     private readonly StateCodecContext _context;
     private readonly StateSchemaDispatcher<T>? _schemaDispatcher;
     private readonly IStateByteTransformer[] _transformers;
@@ -16,7 +19,17 @@ public sealed class SerializedStateReader<T> : ISourceReader<T>, ITryResourceIde
     /// <summary>Creates a serialized state reader.</summary>
     public SerializedStateReader(
         IResourceReader resource,
-        object codec,
+        IStateCodec<T> codec,
+        StateCodecContext context = default,
+        StateSchemaDispatcher<T>? schemaDispatcher = null,
+        IEnumerable<IStateByteTransformer>? transformers = null
+    )
+        : this(resource, StateCodecBinding.Typed(codec), context, schemaDispatcher, transformers) { }
+
+    /// <summary>Creates a serialized state reader from an explicit typed or dynamic codec binding.</summary>
+    public SerializedStateReader(
+        IResourceReader resource,
+        StateCodecBinding codec,
         StateCodecContext context = default,
         StateSchemaDispatcher<T>? schemaDispatcher = null,
         IEnumerable<IStateByteTransformer>? transformers = null
@@ -24,16 +37,17 @@ public sealed class SerializedStateReader<T> : ISourceReader<T>, ITryResourceIde
     {
         ArgumentNullException.ThrowIfNull(resource);
         ArgumentNullException.ThrowIfNull(codec);
-        if (codec is not IStateCodec<T> && codec is not IStateCodec)
+        if (!codec.TryGetTyped<T>(out _typedCodec) && codec.DynamicCodec is null)
         {
             throw new ArgumentException(
-                "The codec must implement IStateCodec or IStateCodec<T>.",
+                $"The codec binding is for '{codec.StateType}', not '{typeof(T)}'.",
                 nameof(codec)
             );
         }
 
         _resource = resource;
-        _codec = codec;
+        _codecBinding = codec;
+        _dynamicCodec = codec.DynamicCodec;
         _context = context;
         _schemaDispatcher = schemaDispatcher;
         _transformers = StateByteTransformerPipeline.Create(transformers);
@@ -195,7 +209,7 @@ public sealed class SerializedStateReader<T> : ISourceReader<T>, ITryResourceIde
 
     private bool IsRecoverableReadException(Exception exception) =>
         (
-            _codec is IStateCodecRecoveryPolicy recoveryPolicy
+            _codecBinding.GetCapability<IStateCodecRecoveryPolicy>() is { } recoveryPolicy
             && recoveryPolicy.IsRecoverableReadException(exception)
         )
         || _transformers.Any(transformer =>
@@ -243,8 +257,8 @@ public sealed class SerializedStateReader<T> : ISourceReader<T>, ITryResourceIde
         {
             if (
                 _transformers.Length == 0
-                && _codec
-                    is IPipelineStateCodec<T> { IsPipelineDecodePreferred: true } pipelineCodec
+                && _codecBinding.GetCapability<IPipelineStateCodec<T>>()
+                    is { IsPipelineDecodePreferred: true } pipelineCodec
             )
             {
                 var decoded = await pipelineCodec
@@ -279,7 +293,7 @@ public sealed class SerializedStateReader<T> : ISourceReader<T>, ITryResourceIde
         var schema =
             resourceSchema
             ?? (
-                _codec is IStateSchemaMetadataReader metadataReader
+                _codecBinding.GetCapability<IStateSchemaMetadataReader>() is { } metadataReader
                     ? metadataReader.ReadSchemaMetadata(in bytes)
                     : null
             )
@@ -299,14 +313,9 @@ public sealed class SerializedStateReader<T> : ISourceReader<T>, ITryResourceIde
         }
         else
         {
-            value = _codec switch
-            {
-                IStateCodec<T> typed => typed.Deserialize(in bytes, in context),
-                IStateCodec untyped => (T?)untyped.Deserialize(typeof(T), in bytes, in context),
-                _ => throw new InvalidOperationException(
-                    "The codec does not implement a supported state codec interface."
-                ),
-            };
+            value = _typedCodec is { } typedCodec
+                ? typedCodec.Deserialize(in bytes, in context)
+                : (T?)_dynamicCodec!.Deserialize(typeof(T), in bytes, in context);
         }
 
         return value is null

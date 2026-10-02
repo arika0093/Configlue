@@ -1,4 +1,5 @@
 using Amazon.S3;
+using Configlue.Codecs;
 using Configlue.Sources;
 
 namespace Configlue.Resource.S3;
@@ -22,7 +23,7 @@ public sealed class S3ObjectSourceOptions
     public Func<IServiceProvider?, IAmazonS3>? ClientFactory { get; init; }
 
     /// <summary>The codec for the serialized object.</summary>
-    public required object Codec { get; init; }
+    public required StateCodecBinding Codec { get; init; }
 
     /// <summary>Resource identity settings.</summary>
     public S3ObjectResourceOptions? ResourceOptions { get; init; }

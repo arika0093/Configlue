@@ -1,3 +1,4 @@
+using Configlue.Codecs;
 using Configlue.Resources;
 using Configlue.Sources;
 using Configlue.State;
@@ -67,6 +68,31 @@ public sealed class SerializedSource<T>
         ISourceWatcher? watcher = null,
         IEnumerable<IStateMiddleware<T>>? middlewares = null
     )
+        : this(
+            resource,
+            BindSupportedCodec(codec),
+            context,
+            schemaDispatcher,
+            transformers,
+            writer,
+            watcher,
+            middlewares
+        ) { }
+
+    /// <summary>
+    /// Creates a serialized source from an explicit typed or dynamic codec binding. Write and watch
+    /// capabilities are supplied explicitly as facets of the same source object.
+    /// </summary>
+    public SerializedSource(
+        IResourceReader resource,
+        StateCodecBinding codec,
+        StateCodecContext context = default,
+        StateSchemaDispatcher<T>? schemaDispatcher = null,
+        IEnumerable<IStateByteTransformer>? transformers = null,
+        IResourceWriter? writer = null,
+        ISourceWatcher? watcher = null,
+        IEnumerable<IStateMiddleware<T>>? middlewares = null
+    )
     {
         ArgumentNullException.ThrowIfNull(resource);
         ArgumentNullException.ThrowIfNull(codec);
@@ -108,6 +134,20 @@ public sealed class SerializedSource<T>
 
         _reader = reader;
         _writer = stateWriter;
+    }
+
+    private static StateCodecBinding BindSupportedCodec(object codec)
+    {
+        ArgumentNullException.ThrowIfNull(codec);
+        return codec switch
+        {
+            IStateCodec<T> typed => StateCodecBinding.Typed(typed),
+            IStateCodec dynamic => StateCodecBinding.Dynamic(dynamic),
+            _ => throw new ArgumentException(
+                "The codec must implement IStateCodec or IStateCodec<T>.",
+                nameof(codec)
+            ),
+        };
     }
 
     /// <inheritdoc />

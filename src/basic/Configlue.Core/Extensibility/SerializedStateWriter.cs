@@ -1,4 +1,5 @@
 using System.Buffers;
+using Configlue.Codecs;
 using Configlue.Sources;
 
 namespace Configlue.Extensibility;
@@ -10,30 +11,40 @@ public sealed class SerializedStateWriter<T>
         ITryResourceIdentity
 {
     private readonly IResourceWriter _resource;
-    private readonly object _codec;
+    private readonly IStateCodec<T>? _typedCodec;
+    private readonly IStateCodec? _dynamicCodec;
     private readonly StateCodecContext _context;
     private readonly IStateByteTransformer[] _transformers;
 
     /// <summary>Creates a serialized state writer.</summary>
     public SerializedStateWriter(
         IResourceWriter resource,
-        object codec,
+        IStateCodec<T> codec,
+        StateCodecContext context = default,
+        IEnumerable<IStateByteTransformer>? transformers = null
+    )
+        : this(resource, StateCodecBinding.Typed(codec), context, transformers) { }
+
+    /// <summary>Creates a serialized state writer from an explicit typed or dynamic codec binding.</summary>
+    public SerializedStateWriter(
+        IResourceWriter resource,
+        StateCodecBinding codec,
         StateCodecContext context = default,
         IEnumerable<IStateByteTransformer>? transformers = null
     )
     {
         ArgumentNullException.ThrowIfNull(resource);
         ArgumentNullException.ThrowIfNull(codec);
-        if (codec is not IStateCodec<T> && codec is not IStateCodec)
+        if (!codec.TryGetTyped<T>(out _typedCodec) && codec.DynamicCodec is null)
         {
             throw new ArgumentException(
-                "The codec must implement IStateCodec or IStateCodec<T>.",
+                $"The codec binding is for '{codec.StateType}', not '{typeof(T)}'.",
                 nameof(codec)
             );
         }
 
         _resource = resource;
-        _codec = codec;
+        _dynamicCodec = codec.DynamicCodec;
         _context = context;
         _transformers = StateByteTransformerPipeline.Create(transformers);
     }
@@ -101,18 +112,13 @@ public sealed class SerializedStateWriter<T>
         var destination = new ArrayBufferWriter<byte>();
 #endif
         var context = _context;
-        switch (_codec)
+        if (_typedCodec is { } typedCodec)
         {
-            case IStateCodec<T> typed:
-                typed.Serialize(request.Value, destination, in context);
-                break;
-            case IStateCodec untyped:
-                untyped.Serialize(typeof(T), request.Value, destination, in context);
-                break;
-            default:
-                throw new InvalidOperationException(
-                    "The codec does not implement a supported state codec interface."
-                );
+            typedCodec.Serialize(request.Value, destination, in context);
+        }
+        else
+        {
+            _dynamicCodec!.Serialize(typeof(T), request.Value, destination, in context);
         }
 
         var schema =

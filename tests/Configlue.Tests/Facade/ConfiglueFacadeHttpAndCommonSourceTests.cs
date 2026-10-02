@@ -4,6 +4,7 @@ using System.Net;
 using System.Text;
 using System.Text.Json.Nodes;
 using System.Xml.Linq;
+using Configlue.Codecs;
 using Configlue.Extensions.MSOptions;
 using Configlue.Provider.Json;
 using Configlue.Provider.Xml;
@@ -180,7 +181,7 @@ public sealed partial class ConfiglueFacadeSourceTests
                         {
                             Id = "primary",
                             EndPoint = "https://settings.example.test/primary/",
-                            Codec = new JsonStateCodec<AppSettings.Fragment>(),
+                            Codec = StateCodecBinding.Typed(new JsonStateCodec<AppSettings.Fragment>()),
                         }
                     );
                     sources.FromHttpClientFactory(
@@ -189,7 +190,7 @@ public sealed partial class ConfiglueFacadeSourceTests
                         {
                             Id = "secondary",
                             EndPoint = "https://settings.example.test/secondary/",
-                            Codec = new JsonStateCodec<AppSettings.Fragment>(),
+                            Codec = StateCodecBinding.Typed(new JsonStateCodec<AppSettings.Fragment>()),
                             Priority = 10,
                         }
                     );

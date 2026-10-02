@@ -1,3 +1,4 @@
+using Configlue.Codecs;
 using Configlue.Sources;
 using StackExchange.Redis;
 
@@ -29,7 +30,7 @@ public sealed class RedisStateSourceOptions
     >? ConnectionMultiplexerResolver { get; init; }
 
     /// <summary>The codec for the serialized state.</summary>
-    public required object Codec { get; init; }
+    public required StateCodecBinding Codec { get; init; }
 
     /// <summary>Key, database, and resource identity settings.</summary>
     public RedisResourceOptions? ResourceOptions { get; init; }
