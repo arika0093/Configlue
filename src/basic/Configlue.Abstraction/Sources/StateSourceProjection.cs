@@ -14,6 +14,7 @@ public static class StateSourceProjection
     /// <param name="source">The nested source to mount.</param>
     /// <param name="propertyPath">The dotted logical path to the nested model.</param>
     /// <param name="projectedSchema">Optional schema metadata for the root fragment.</param>
+    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
     public static StateSource<TTarget> Mount<TSource, TTarget>(
         StateSource<TSource> source,
         string propertyPath,
@@ -30,6 +31,7 @@ public static class StateSourceProjection
     /// <param name="propertyPath">The dotted logical path to the nested model.</param>
     /// <param name="toSource">Maps the sparse root contribution back to the source fragment.</param>
     /// <param name="projectedSchema">Optional schema metadata for the root fragment.</param>
+    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
     public static StateSource<TTarget> Mount<TSource, TTarget>(
         StateSource<TSource> source,
         string propertyPath,

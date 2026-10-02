@@ -38,7 +38,8 @@ public sealed partial class ConfiglueGenerator
                         1,
                         "[global::System.Text.Json.Serialization.JsonConverter(typeof(FragmentJsonConverter))]"
                     )
-                : null
+                : null,
+            "global::Configlue.CompilerServices.IConfiglueDynamicFragment"
         );
         if (hasJsonFragmentRegistry)
         {
@@ -180,7 +181,7 @@ public sealed partial class ConfiglueGenerator
         );
         code.AppendLineAt(
             2,
-            "public global::System.Collections.Generic.IEnumerable<global::Configlue.ConfiglueFragmentMember> EnumeratePresentMembers()"
+            "global::System.Collections.Generic.IEnumerable<global::Configlue.ConfiglueFragmentMember> global::Configlue.CompilerServices.IConfiglueDynamicFragment.EnumeratePresentMembers()"
         );
         code.AppendLineAt(2, "{");
         if (members.IsEmpty)
@@ -203,7 +204,7 @@ public sealed partial class ConfiglueGenerator
         code.AppendLineAt(2, "}");
         code.AppendLineAt(
             2,
-            "public global::Configlue.IConfiglueFragment WithMember(int memberId, object? value)"
+            "global::Configlue.IConfiglueFragment global::Configlue.CompilerServices.IConfiglueDynamicFragment.WithMember(int memberId, object? value)"
         );
         code.AppendLineAt(2, "{");
         code.AppendLineAt(3, "var builder = ToBuilder();");
@@ -234,7 +235,7 @@ public sealed partial class ConfiglueGenerator
         code.AppendLineAt(2, "}");
         code.AppendLineAt(
             2,
-            "public global::Configlue.IConfiglueFragment WithoutMember(int memberId)"
+            "global::Configlue.IConfiglueFragment global::Configlue.CompilerServices.IConfiglueDynamicFragment.WithoutMember(int memberId)"
         );
         code.AppendLineAt(2, "{");
         code.AppendLineAt(3, "var builder = ToBuilder();");

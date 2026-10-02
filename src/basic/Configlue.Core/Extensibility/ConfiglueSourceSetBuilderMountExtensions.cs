@@ -84,6 +84,7 @@ public static class ConfiglueSourceSetBuilderMountExtensions
     /// Adds a nested source using its generated fragment type and a validated logical property path.
     /// The source remains caller-owned. When it has a writer, writes are automatically projected to the mounted subtree.
     /// </summary>
+    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
     public static void AddMounted<TRootFragment, TSubtreeFragment>(
         this ConfiglueSourceSetBuilder sources,
         StateSource<TSubtreeFragment> source,
@@ -97,6 +98,7 @@ public static class ConfiglueSourceSetBuilderMountExtensions
     }
 
     /// <summary>Adds a writable nested source using a generated fragment type and a validated logical property path.</summary>
+    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
     public static void AddMounted<TRootFragment, TSubtreeFragment>(
         this ConfiglueSourceSetBuilder sources,
         StateSource<TSubtreeFragment> source,
@@ -115,6 +117,7 @@ public static class ConfiglueSourceSetBuilderMountExtensions
     /// Adds a nested source factory using its generated fragment type and a validated logical path.
     /// The factory-created source remains caller-owned. When it has a writer, writes are automatically projected to the mounted subtree.
     /// </summary>
+    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
     public static void AddMounted<TRootFragment, TSubtreeFragment>(
         this ConfiglueSourceSetBuilder sources,
         Func<IServiceProvider?, StateSource<TSubtreeFragment>> sourceFactory,
@@ -136,6 +139,7 @@ public static class ConfiglueSourceSetBuilderMountExtensions
     }
 
     /// <summary>Adds a writable nested source factory using its generated fragment type and a validated logical path.</summary>
+    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
     public static void AddMounted<TRootFragment, TSubtreeFragment>(
         this ConfiglueSourceSetBuilder sources,
         Func<IServiceProvider?, StateSource<TSubtreeFragment>> sourceFactory,

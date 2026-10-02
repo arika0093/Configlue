@@ -1,6 +1,7 @@
 namespace Configlue;
 
 /// <summary>Describes one present value in a generated sparse fragment.</summary>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public readonly record struct ConfiglueFragmentMember
 {
     /// <summary>Gets or initializes the <see cref="Id"/> value.</summary>
@@ -35,18 +36,11 @@ public readonly record struct ConfiglueFragmentMember
     }
 }
 
-/// <summary>Non-generic access used by codecs and diagnostics on cold paths.</summary>
+/// <summary>Non-generic fragment schema metadata used by codecs and runtime services.</summary>
+/// <remarks>Application code should use the generated typed Fragment surface.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public interface IConfiglueFragment
 {
     /// <summary>Generated schema metadata for this fragment.</summary>
     ConfiglueModelSchema Schema { get; }
-
-    /// <summary>Enumerates only members present in this source contribution.</summary>
-    IEnumerable<ConfiglueFragmentMember> EnumeratePresentMembers();
-
-    /// <summary>Returns a copy with the specified member set to a present value.</summary>
-    IConfiglueFragment WithMember(int memberId, object? value);
-
-    /// <summary>Returns a copy with the specified member absent from this sparse contribution.</summary>
-    IConfiglueFragment WithoutMember(int memberId);
 }

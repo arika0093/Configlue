@@ -1,3 +1,4 @@
+using Configlue.CompilerServices;
 using Configlue.Provider.Json;
 using Configlue.Sources;
 using Configlue.Testing;

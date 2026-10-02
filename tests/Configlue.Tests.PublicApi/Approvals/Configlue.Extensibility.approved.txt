@@ -14,15 +14,19 @@ namespace Configlue.Extensibility
     }
     public static class ConfiglueSourceSetBuilderMountExtensions
     {
+        [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
         public static void AddMounted<TRootFragment, TSubtreeFragment>(this Configlue.ConfiglueSourceSetBuilder sources, Configlue.Sources.StateSource<TSubtreeFragment> source, string propertyPath)
             where TRootFragment :  class, Configlue.IConfiglueFragment<TRootFragment>
             where TSubtreeFragment :  class, Configlue.IConfiglueFragment<TSubtreeFragment> { }
+        [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
         public static void AddMounted<TRootFragment, TSubtreeFragment>(this Configlue.ConfiglueSourceSetBuilder sources, System.Func<System.IServiceProvider?, Configlue.Sources.StateSource<TSubtreeFragment>> sourceFactory, string propertyPath)
             where TRootFragment :  class, Configlue.IConfiglueFragment<TRootFragment>
             where TSubtreeFragment :  class, Configlue.IConfiglueFragment<TSubtreeFragment> { }
+        [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
         public static void AddMounted<TRootFragment, TSubtreeFragment>(this Configlue.ConfiglueSourceSetBuilder sources, Configlue.Sources.StateSource<TSubtreeFragment> source, string propertyPath, System.Func<TRootFragment, TSubtreeFragment> toSource)
             where TRootFragment :  class, Configlue.IConfiglueFragment<TRootFragment>
             where TSubtreeFragment :  class, Configlue.IConfiglueFragment<TSubtreeFragment> { }
+        [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
         public static void AddMounted<TRootFragment, TSubtreeFragment>(this Configlue.ConfiglueSourceSetBuilder sources, System.Func<System.IServiceProvider?, Configlue.Sources.StateSource<TSubtreeFragment>> sourceFactory, string propertyPath, System.Func<TRootFragment, TSubtreeFragment> toSource)
             where TRootFragment :  class, Configlue.IConfiglueFragment<TRootFragment>
             where TSubtreeFragment :  class, Configlue.IConfiglueFragment<TSubtreeFragment> { }

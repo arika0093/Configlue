@@ -1,5 +1,6 @@
 using System.Collections;
 #if CONFIGLUE_FRAGMENT_RUNTIME
+using Configlue.CompilerServices;
 using ModelSchema = Configlue.ConfiglueModelSchema;
 using MemberSchema = Configlue.ConfiglueMemberSchema;
 using Fragment = Configlue.IConfiglueFragment;

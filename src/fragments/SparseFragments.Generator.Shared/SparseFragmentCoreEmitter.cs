@@ -111,7 +111,8 @@ internal sealed class SparseFragmentCoreEmitter(
         SharedIndentedBuilder code,
         string fragmentInterface,
         string deepCloneable,
-        System.Action<SharedIndentedBuilder>? appendAttributes = null
+        System.Action<SharedIndentedBuilder>? appendAttributes = null,
+        string? advancedInterface = null
     )
     {
         code.CancellationToken.ThrowIfCancellationRequested();
@@ -131,6 +132,7 @@ internal sealed class SparseFragmentCoreEmitter(
                 + "<Fragment>, "
                 + deepCloneable
                 + "<Fragment>"
+                + (advancedInterface is null ? string.Empty : ", " + advancedInterface)
         );
         code.AppendLineAt(1, "{");
         code.AppendLineAt(2, "public Fragment() { }");

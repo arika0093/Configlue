@@ -10,6 +10,7 @@ using System.Text;
 using System.Xml;
 using System.Xml.Linq;
 using System.Xml.Serialization;
+using Configlue.CompilerServices;
 
 namespace Configlue.Provider.Xml;
 

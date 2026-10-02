@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Configlue;
+using Configlue.CompilerServices;
 using SharpYaml;
 using SharpYaml.Serialization;
 

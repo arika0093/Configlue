@@ -2,6 +2,7 @@ using System.Buffers;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Configlue.CompilerServices;
 
 namespace Configlue.Provider.Json;
 

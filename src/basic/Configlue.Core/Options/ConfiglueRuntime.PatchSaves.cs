@@ -90,7 +90,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         {
             patchesBySource = routablePatch.Route(_writePlan, _writePlan.DefaultSourceId);
         }
-        else if (patch is IConfiglueMemberPatch memberPatch)
+        else if (patch is IConfiglueDynamicMemberPatch memberPatch)
         {
             var routed = new Dictionary<SourceId, List<int>>();
             foreach (var member in modelSchema.Members)

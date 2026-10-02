@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Configlue.CompilerServices;
 using Configlue.Provider.Json;
 using Configlue.Source.PostgreSql;
 using Npgsql;
@@ -341,7 +342,7 @@ public sealed class PostgreSqlSourceTests
 
     private sealed record FakeSubject(SubjectKey Key) : IConfiglueSubject;
 
-    private sealed record TestFragment(string ModelId, int Version) : IConfiglueFragment
+    private sealed record TestFragment(string ModelId, int Version) : IConfiglueDynamicFragment
     {
         public ConfiglueModelSchema Schema =>
             new(typeof(TestFragment), ModelId, Version, []);

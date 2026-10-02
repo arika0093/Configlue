@@ -5,6 +5,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Configlue;
+using Configlue.CompilerServices;
 using Configlue.Resources;
 using Configlue.Sources;
 

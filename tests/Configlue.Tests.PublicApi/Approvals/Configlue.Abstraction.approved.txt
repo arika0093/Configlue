@@ -248,6 +248,7 @@ namespace Configlue
         public static bool AreEqual<TFragment>(TFragment? left, TFragment? right)
             where TFragment :  class, Configlue.IConfiglueFragment<TFragment> { }
     }
+    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
     public readonly struct ConfiglueFragmentMember : System.IEquatable<Configlue.ConfiglueFragmentMember>
     {
         public ConfiglueFragmentMember(int Id, string Name, object? Value) { }
@@ -459,9 +460,11 @@ namespace Configlue
         public ConfiglueStateDiagnostics(string stateName, System.Collections.Generic.IEnumerable<Configlue.ConfiglueSourceDiagnostics> sources, string? defaultWriteSourceId, bool defaultWriteSourceIsInferred, System.Collections.Generic.IReadOnlyDictionary<string, string> propertyWriteRoutes) { }
         public string? DefaultWriteSourceId { get; }
         public bool DefaultWriteSourceIsInferred { get; }
+        [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
         public System.Collections.Generic.IReadOnlyDictionary<string, string> PropertyWriteRoutes { get; }
         public System.Collections.Generic.IReadOnlyList<Configlue.ConfiglueSourceDiagnostics> Sources { get; }
         public string StateName { get; }
+        [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
         public string? GetWriteSourceId(string? propertyPath = null) { }
     }
     public static class ConfiglueStateExtensions
@@ -536,12 +539,10 @@ namespace Configlue
         System.Threading.Tasks.ValueTask<Configlue.EditSession<T>> OpenEditSessionAsync(System.Threading.CancellationToken cancellationToken = default);
         System.Threading.Tasks.ValueTask<Configlue.EditSession<T>> OpenEditSessionAsync(Configlue.StateWritePlan writePlan, System.Threading.CancellationToken cancellationToken = default);
     }
+    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
     public interface IConfiglueFragment
     {
         Configlue.ConfiglueModelSchema Schema { get; }
-        System.Collections.Generic.IEnumerable<Configlue.ConfiglueFragmentMember> EnumeratePresentMembers();
-        Configlue.IConfiglueFragment WithMember(int memberId, object? value);
-        Configlue.IConfiglueFragment WithoutMember(int memberId);
     }
     public interface IConfiglueFragment<TSelf> : Configlue.IConfiglueFragment
         where TSelf :  class, Configlue.IConfiglueFragment<TSelf>
@@ -553,10 +554,6 @@ namespace Configlue
     public interface IConfiglueInspection<T>
     {
         Configlue.ConfiglueCheckOperation Check(System.Threading.CancellationToken cancellationToken = default);
-    }
-    public interface IConfiglueMemberPatch : Configlue.IConfigluePatch
-    {
-        Configlue.IConfigluePatch SelectMembers(System.ReadOnlySpan<int> memberIds);
     }
     public interface IConfiglueMergeStrategy
     {
@@ -600,10 +597,6 @@ namespace Configlue
     public interface IConfiglueReplacementPatch : Configlue.IConfigluePatch
     {
         Configlue.IConfigluePatch WithUnspecifiedMembersUnset();
-    }
-    public interface IConfiglueRoutablePatch : Configlue.IConfiglueMemberPatch, Configlue.IConfigluePatch
-    {
-        System.Collections.Generic.IReadOnlyDictionary<string, Configlue.IConfigluePatch> Route(Configlue.StateWritePlan writePlan, string? fallbackSourceId);
     }
     public interface IConfiglueRuntimeDiagnostics
     {
@@ -770,16 +763,28 @@ namespace Configlue
     }
     public sealed class StateWritePlan
     {
+        [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
         public StateWritePlan(System.Collections.Generic.IReadOnlyDictionary<string, string> propertyRoutes) { }
+        [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
         public StateWritePlan(string? defaultSourceId, System.Collections.Generic.IReadOnlyDictionary<string, string> propertyRoutes) { }
         public string? DefaultSourceId { get; }
+        [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
         public System.Collections.Generic.IReadOnlyDictionary<string, string> PropertyRoutes { get; }
         public static Configlue.StateWritePlan Empty { get; }
+        [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
         public bool HasRouteBelow(string propertyPath) { }
+        public bool HasRouteBelow(Configlue.CompilerServices.ConfiglueMemberPath path) { }
         public Configlue.StateWritePlan OverrideWith(Configlue.StateWritePlan overrides) { }
+        [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
         public string ResolveSourceId(string propertyPath) { }
+        [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
         public string ResolveSourceId(string propertyPath, string fallbackSourceId) { }
+        public string ResolveSourceId(Configlue.CompilerServices.ConfiglueMemberPath path) { }
+        public string ResolveSourceId(Configlue.CompilerServices.ConfiglueMemberPath path, string fallbackSourceId) { }
+        [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
         public string? ResolveSourceIdOrNull(string propertyPath, string? fallbackSourceId = null) { }
+        public string? ResolveSourceIdOrNull(Configlue.CompilerServices.ConfiglueMemberPath path, string? fallbackSourceId = null) { }
+        [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
         public static Configlue.StateWritePlan DefaultTo(string sourceId) { }
         public static Configlue.StateWritePlanBuilder<TModel> For<TModel>()
             where TModel : Configlue.CompilerServices.IConfiglueModel { }
@@ -1097,9 +1102,11 @@ namespace Configlue.Sources
     }
     public static class StateSourceProjection
     {
+        [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
         public static Configlue.Sources.StateSource<TTarget> Mount<TSource, TTarget>(Configlue.Sources.StateSource<TSource> source, string propertyPath, Configlue.State.StateSchemaMetadata? projectedSchema = default)
             where TSource :  class, Configlue.IConfiglueFragment<TSource>
             where TTarget :  class, Configlue.IConfiglueFragment<TTarget> { }
+        [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
         public static Configlue.Sources.StateSource<TTarget> Mount<TSource, TTarget>(Configlue.Sources.StateSource<TSource> source, string propertyPath, System.Func<TTarget, TSource> toSource, Configlue.State.StateSchemaMetadata? projectedSchema = default)
             where TSource :  class, Configlue.IConfiglueFragment<TSource>
             where TTarget :  class, Configlue.IConfiglueFragment<TTarget> { }

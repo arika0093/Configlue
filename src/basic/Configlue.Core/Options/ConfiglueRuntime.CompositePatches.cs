@@ -27,7 +27,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         CancellationToken cancellationToken
     )
     {
-        if (patchRequest.Patch is not IConfiglueMemberPatch memberPatch)
+        if (patchRequest.Patch is not IConfiglueDynamicMemberPatch memberPatch)
         {
             throw new NotSupportedException(
                 $"Patch for composite source '{source.Id}' must support member selection."

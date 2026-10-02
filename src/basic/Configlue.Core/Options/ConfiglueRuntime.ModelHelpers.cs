@@ -125,7 +125,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         }
     }
 
-    private sealed class FragmentChangesPatch(TFragment changes) : IConfiglueMemberPatch
+    private sealed class FragmentChangesPatch(TFragment changes) : IConfiglueDynamicMemberPatch
     {
         public TFragment Changes => changes;
 

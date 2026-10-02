@@ -2,6 +2,7 @@ using System.Buffers;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
+using Configlue.CompilerServices;
 using SharpYaml;
 using SharpYaml.Events;
 using SharpYaml.Model;

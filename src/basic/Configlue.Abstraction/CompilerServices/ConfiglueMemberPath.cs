@@ -1,7 +1,7 @@
 namespace Configlue.CompilerServices;
 
 /// <summary>An immutable generated member-ID sequence qualified by its root schema.</summary>
-[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public readonly struct ConfiglueMemberPath : IEquatable<ConfiglueMemberPath>
 {
     private readonly ConfiglueModelSchema? _root;

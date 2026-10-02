@@ -6,6 +6,7 @@ using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
 using Configlue;
+using Configlue.CompilerServices;
 using Configlue.Resources;
 using Configlue.Sources;
 

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Configlue.CompilerServices;
 using Configlue.Provider.Json;
 using Configlue.Source.PostgreSql;
 using Configlue.Source.PostgreSql.Migrations;
@@ -444,7 +445,7 @@ public sealed class PostgreSqlSourceIntegrationTests
     private static string Quote(string identifier) =>
         '"' + identifier.Replace("\"", "\"\"") + '"';
 
-    private sealed record TestFragment(string ModelId, int Version) : IConfiglueFragment
+    private sealed record TestFragment(string ModelId, int Version) : IConfiglueDynamicFragment
     {
         public ConfiglueModelSchema Schema =>
             new(typeof(TestFragment), ModelId, Version, []);

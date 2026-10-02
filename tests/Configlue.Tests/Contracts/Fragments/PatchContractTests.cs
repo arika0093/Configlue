@@ -1,3 +1,5 @@
+using Configlue.CompilerServices;
+
 namespace Configlue.Tests;
 
 public sealed class PatchContractTests
@@ -25,9 +27,9 @@ public sealed class PatchContractTests
     }
 
     [Test]
-    public void IConfiglueMemberPatch_SelectsOnlyRequestedStableMemberIds()
+    public void IConfiglueDynamicMemberPatch_SelectsOnlyRequestedStableMemberIds()
     {
-        IConfiglueMemberPatch patch = new AppSettings.Patch
+        IConfiglueDynamicMemberPatch patch = new AppSettings.Patch
         {
             RetryCount = FragmentOperation<int>.Set(5),
             Label = FragmentOperation<string?>.Set("not selected"),
