@@ -76,7 +76,8 @@ internal readonly record struct SparseModelInfo(
     bool IsGlobalNamespace,
     bool IsStruct,
     bool IsRecord,
-    string HintName
+    string HintName,
+    ModelConstructorBinding? Constructor
 );
 
 internal sealed record SparseStructuralModel(

@@ -147,7 +147,8 @@ public sealed partial class ConfiglueGenerator
             bool isRecord,
             bool isPublic,
             string modelId,
-            int version
+            int version,
+            SparseFragments.Generator.Shared.ModelConstructorBinding? constructor
         )
         {
             Name = name;
@@ -160,6 +161,7 @@ public sealed partial class ConfiglueGenerator
             IsPublic = isPublic;
             ModelId = modelId;
             Version = version;
+            Constructor = constructor;
         }
 
         public string Name { get; init; }
@@ -172,6 +174,7 @@ public sealed partial class ConfiglueGenerator
         public bool IsPublic { get; init; }
         public string ModelId { get; init; }
         public int Version { get; init; }
+        public SparseFragments.Generator.Shared.ModelConstructorBinding? Constructor { get; init; }
     }
 
     private readonly record struct PreviousMemberMapping
@@ -664,7 +667,11 @@ public sealed partial class ConfiglueGenerator
             model.IsRecord,
             model.DeclaredAccessibility == Accessibility.Public,
             modelId,
-            version
+            version,
+            SparseFragments.Generator.Shared.ModelConstructorBinding.AnalyzeRoot(
+                model,
+                cancellationToken
+            )
         );
     }
 

@@ -143,7 +143,7 @@ internal static class SparseModelAnalyzer
             .ToImmutableArray();
 
         return new SparseGenerationAnalysis(
-            CreateModelInfo(model, hintName),
+            CreateModelInfo(model, hintName, cancellationToken),
             memberModels,
             pocoCloneModels,
             structuralModels,
@@ -852,7 +852,7 @@ internal static class SparseModelAnalyzer
             .WithNullableAnnotation(NullableAnnotation.NotAnnotated)
             .ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
         return new SparsePocoCloneModel(
-            CreateModelInfo(pocoType, string.Empty),
+            CreateModelInfo(pocoType, string.Empty, cancellationToken),
             SparseWellKnownNames.CloneHelperPrefix
                 + SparseNaming.GetStableTypeHash(typeName, cancellationToken),
             CreateMemberModels(
@@ -863,7 +863,11 @@ internal static class SparseModelAnalyzer
         );
     }
 
-    private static SparseModelInfo CreateModelInfo(INamedTypeSymbol model, string hintName) =>
+    private static SparseModelInfo CreateModelInfo(
+        INamedTypeSymbol model,
+        string hintName,
+        CancellationToken cancellationToken
+    ) =>
         new(
             model.Name,
             SparseNaming.NonNullableTypeName(model),
@@ -871,7 +875,8 @@ internal static class SparseModelAnalyzer
             model.ContainingNamespace.IsGlobalNamespace,
             model.TypeKind == TypeKind.Struct,
             model.IsRecord,
-            hintName
+            hintName,
+            ModelConstructorBinding.AnalyzeRoot(model, cancellationToken)
         );
 
     private static bool IsValidMergeStrategy(
