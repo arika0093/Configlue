@@ -250,6 +250,42 @@ internal sealed class SparseFragmentCoreEmitter(
         );
         code.AppendLineAt(
             2,
+            "if (source is global::System.Collections.Generic.HashSet<T> || source is global::System.Collections.Generic.SortedSet<T>) return __CloneSet<T, TCollection>(source, context, cloneElement);"
+        );
+        code.AppendLineAt(
+            2,
+            "if (source is global::System.Collections.Generic.Queue<T>) return __CloneQueue<T, TCollection>(source, context, cloneElement);"
+        );
+        code.AppendLineAt(
+            2,
+            "if (source is global::System.Collections.Generic.Stack<T>) return __CloneStack<T, TCollection>(source, context, cloneElement);"
+        );
+        code.AppendLineAt(
+            2,
+            "if (source is global::System.Collections.Concurrent.ConcurrentQueue<T>) return __CloneConcurrentQueue<T, TCollection>(source, context, cloneElement);"
+        );
+        code.AppendLineAt(
+            2,
+            "if (source is global::System.Collections.Concurrent.ConcurrentStack<T>) return __CloneConcurrentStack<T, TCollection>(source, context, cloneElement);"
+        );
+        code.AppendLineAt(
+            2,
+            "if (source is global::System.Collections.Concurrent.BlockingCollection<T> blocking) return __CloneBlockingCollection<T, TCollection>(blocking, context, cloneElement);"
+        );
+        code.AppendLineAt(
+            2,
+            "if (source is global::System.Collections.Generic.LinkedList<T>) return __CloneLinkedList<T, TCollection>(source, context, cloneElement);"
+        );
+        code.AppendLineAt(
+            2,
+            "if (source is global::System.Collections.ObjectModel.ObservableCollection<T>) return __CloneObservableCollection<T, TCollection>(source, context, cloneElement);"
+        );
+        code.AppendLineAt(
+            2,
+            "if (source is global::System.Collections.ObjectModel.ReadOnlyCollection<T>) return __CloneReadOnlyCollection<T, TCollection>(source, context, cloneElement);"
+        );
+        code.AppendLineAt(
+            2,
             "var values = source as T[] ?? global::System.Linq.Enumerable.ToArray(source);"
         );
         code.AppendLineAt(2, "var clone = new T[values.Length];");
@@ -379,12 +415,12 @@ internal sealed class SparseFragmentCoreEmitter(
         code.AppendLineAt(1, "}");
         code.AppendLineAt(
             1,
-            "private static global::System.Collections.ObjectModel.ReadOnlyCollection<T> __CloneReadOnlyCollection<T>(global::System.Collections.Generic.IEnumerable<T> source, global::System.Collections.Generic.Dictionary<object, object> context, global::System.Func<T, T> cloneElement)"
+            "private static TCollection __CloneReadOnlyCollection<T, TCollection>(global::System.Collections.Generic.IEnumerable<T> source, global::System.Collections.Generic.Dictionary<object, object> context, global::System.Func<T, T> cloneElement)"
         );
         code.AppendLineAt(1, "{");
         code.AppendLineAt(
             2,
-            "if (context.TryGetValue(source, out var existing)) return (global::System.Collections.ObjectModel.ReadOnlyCollection<T>)existing;"
+            "if (context.TryGetValue(source, out var existing)) return (TCollection)existing;"
         );
         code.AppendLineAt(2, "var items = new global::System.Collections.Generic.List<T>();");
         code.AppendLineAt(
@@ -393,16 +429,16 @@ internal sealed class SparseFragmentCoreEmitter(
         );
         code.AppendLineAt(2, "context.Add(source, clone);");
         code.AppendLineAt(2, "foreach (var item in source) items.Add(cloneElement(item));");
-        code.AppendLineAt(2, "return clone;");
+        code.AppendLineAt(2, "return (TCollection)(object)clone;");
         code.AppendLineAt(1, "}");
         code.AppendLineAt(
             1,
-            "private static global::System.Collections.Concurrent.BlockingCollection<T> __CloneBlockingCollection<T>(global::System.Collections.Concurrent.BlockingCollection<T> original, global::System.Collections.Generic.Dictionary<object, object> context, global::System.Func<T, T> cloneElement)"
+            "private static TCollection __CloneBlockingCollection<T, TCollection>(global::System.Collections.Concurrent.BlockingCollection<T> original, global::System.Collections.Generic.Dictionary<object, object> context, global::System.Func<T, T> cloneElement)"
         );
         code.AppendLineAt(1, "{");
         code.AppendLineAt(
             2,
-            "if (context.TryGetValue(original, out var existing)) return (global::System.Collections.Concurrent.BlockingCollection<T>)existing;"
+            "if (context.TryGetValue(original, out var existing)) return (TCollection)existing;"
         );
         code.AppendLineAt(
             2,
@@ -423,6 +459,23 @@ internal sealed class SparseFragmentCoreEmitter(
         code.AppendLineAt(2, "{");
         code.AppendLineAt(3, "clone.CompleteAdding();");
         code.AppendLineAt(2, "}");
+        code.AppendLineAt(2, "return (TCollection)(object)clone;");
+        code.AppendLineAt(1, "}");
+        code.AppendLineAt(
+            1,
+            "private static TClone __CloneImmutableReference<TSource, TClone>(TSource source, global::System.Collections.Generic.Dictionary<object, object> context, global::System.Func<TClone> createClone) where TSource : class"
+        );
+        code.AppendLineAt(1, "{");
+        code.AppendLineAt(
+            2,
+            "if (context.TryGetValue(source, out var existing)) return (TClone)existing;"
+        );
+        code.AppendLineAt(2, "var clone = createClone();");
+        code.AppendLineAt(
+            2,
+            "if (context.TryGetValue(source, out var completedClone)) return (TClone)completedClone;"
+        );
+        code.AppendLineAt(2, "context.Add(source, clone!);");
         code.AppendLineAt(2, "return clone;");
         code.AppendLineAt(1, "}");
         if (includePriorityQueue)
