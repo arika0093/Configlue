@@ -53,6 +53,21 @@ public sealed partial class ConfiglueGenerator
         );
         if (members.Length > 0)
         {
+            code.AppendLineAt(5, "var matchCount = 0;");
+            foreach (var property in members.Select(static member => member.Property))
+            {
+                var wireName = property.JsonPropertyName!;
+                var explicitName = property.HasExplicitJsonPropertyName;
+                code.AppendIndent(5)
+                    .Append("if (Matches(propertyName, ")
+                    .Append(SymbolDisplay.FormatLiteral(wireName, true))
+                    .Append(explicitName ? ", false, options))" : ", true, options))")
+                    .AppendLine(" { matchCount++; }");
+            }
+            code.AppendLineAt(
+                5,
+                "if (matchCount > 1) { throw new global::System.Text.Json.JsonException(\"The JSON property name is ambiguous for this fragment.\"); }"
+            );
             var first = true;
             foreach (var member in members)
             {
@@ -122,6 +137,10 @@ public sealed partial class ConfiglueGenerator
         );
         code.AppendLineAt(3, "{");
         code.AppendLineAt(4, "writer.WriteStartObject();");
+        code.AppendLineAt(
+            4,
+            "var writtenJsonNames = new global::System.Collections.Generic.HashSet<string>(options.PropertyNameCaseInsensitive ? global::System.StringComparer.OrdinalIgnoreCase : global::System.StringComparer.Ordinal);"
+        );
         foreach (var member in members)
         {
             var property = EscapeIdentifier(member.Property.Name);
@@ -129,22 +148,22 @@ public sealed partial class ConfiglueGenerator
             var explicitName = member.Property.HasExplicitJsonPropertyName;
             code.AppendIndent(4).Append("if (value.").Append(property).AppendLine(".IsPresent)");
             code.AppendLineAt(4, "{");
-            if (explicitName)
-            {
-                code.AppendIndent(5)
-                    .Append("writer.WritePropertyName(")
-                    .Append(SymbolDisplay.FormatLiteral(wireName, true))
-                    .AppendLine(");");
-            }
-            else
-            {
-                code.AppendIndent(5)
-                    .Append("writer.WritePropertyName(options.PropertyNamingPolicy?.ConvertName(")
-                    .Append(SymbolDisplay.FormatLiteral(wireName, true))
-                    .Append(") ?? ")
-                    .Append(SymbolDisplay.FormatLiteral(wireName, true))
-                    .AppendLine(");");
-            }
+            code.AppendIndent(5)
+                .Append("var jsonPropertyName = ")
+                .Append(
+                    explicitName
+                        ? SymbolDisplay.FormatLiteral(wireName, true)
+                        : "options.PropertyNamingPolicy?.ConvertName("
+                            + SymbolDisplay.FormatLiteral(wireName, true)
+                            + ") ?? "
+                            + SymbolDisplay.FormatLiteral(wireName, true)
+                )
+                .AppendLine(";");
+            code.AppendLineAt(
+                5,
+                "if (!writtenJsonNames.Add(jsonPropertyName)) { throw new global::System.Text.Json.JsonException(\"Multiple fragment members map to the same JSON property name.\"); }"
+            );
+            code.AppendLineAt(5, "writer.WritePropertyName(jsonPropertyName);");
 
             if (member.ChildModel is null)
             {

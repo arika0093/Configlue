@@ -1,9 +1,9 @@
 ---
 title: Configlue
-description: A typed configuration library that glues multiple setting sources together.
+description: Read and write typed configuration without coupling application code to where configuration lives.
 template: splash
 hero:
-  tagline: "Glue your settings together, source by source."
+  tagline: "Read and write typed configuration, wherever it lives."
   actions:
     - text: Get started
       link: https://github.com/arika0093/Configlue#quick-start
@@ -16,46 +16,106 @@ hero:
 
 import { Card, CardGrid } from '@astrojs/starlight/components';
 
-## What is Configlue
+## Configuration starts simple
 
-The name is **Config + glue**: a library that sticks settings together like glue.
+One JSON file does not need a configuration framework. Read it, deserialize it, change it, and write it back.
 
-Application settings never live in one file for long. Shipped defaults, per-user files, company-wide policy, container environment variables, command-line overrides for debugging — each has a different location, owner, and lifetime. Configlue plays the glue role: every source contributes only the fields it knows, and they are assembled at runtime into one typed model. From application code, everything still looks like an ordinary C# class.
-
-## Settings are hard
-
-The pain of settings is rarely the amount of read/write code. Over time, it is usually one of these:
-
-- What started as a single JSON grows per-user, per-environment, and policy layers, until nobody knows where a value came from.
-- Because the code replaces the whole file, saving one field breaks another. Comments and formatting disappear too.
-- Every environment-variable or command-line override scatters another priority rule through the code.
-- As soon as a field is added or renamed, old files have no clear handling, and migration becomes "someday" work.
-
-Configlue assumes settings *will* grow. Keep one source per origin, layer only the fields that exist, and write back to a chosen source. Then new sources can be added later without throwing old files away.
-
-## Features
+The difficulty appears when the application grows and configuration becomes infrastructure.
 
 <CardGrid stagger>
-  <Card title="Never loads everything at once" icon="layers">
-    Instead of reading the whole configuration in one go, each source offers only the fields it owns. A missing field stays missing, so "unset" is never confused with "set to default".
+  <Card title="Git" icon="layers">
+    Even a CLI needs system, global, local, worktree, and command scopes. Reading follows precedence rules; writing needs a target scope.
   </Card>
-  <Card title="Keeps every value traceable" icon="magnifier">
-    Values travel with their origin. You can trace which source provided `Database.Host`, and pick the destination when saving. Sources you did not touch stay untouched.
+  <Card title="Visual Studio Code" icon="puzzle">
+    User, remote, workspace, folder, language, profile, policy, and synchronized settings all coexist, while humans still edit JSON directly.
   </Card>
-  <Card title="Built for integration and migration" icon="arrow-right">
-    File splitting, shared sections, remote references, versioned schemas, and storage moves all follow the same idea. Locations and shapes can change without rewriting how the app reads and writes.
-  </Card>
-  <Card title="Works with or without DI" icon="puzzle">
-    The same model and source definitions run in plain console or desktop apps and in DI-based ASP.NET Core or Worker Services. Values can also be consumed as `IOptions<T>`.
-  </Card>
-  <Card title="Feels like plain C#" icon="pencil">
-    You read an ordinary class instance and write a generated Patch with `SaveAsync(patch => patch.Name = "Ada")`. The patch names the sparse members to set or unset.
-  </Card>
-  <Card title="Ready for production" icon="approve-check">
-    Change notifications, validation, safe saving with backups, JSON Schema export, and NativeAOT support are included. Start small and carry the same setup into production.
+  <Card title="Chrome" icon="magnifier">
+    User preferences can coexist with centrally managed policy, different ownership levels, precedence, and values the user may not be allowed to change.
   </Card>
 </CardGrid>
 
-## Next steps
+Your application may never become Git, VS Code, or Chrome. But configuration systems grow in the same directions: more scopes, more owners, more persistence rules, more schema changes, and more edge cases around writes.
 
-- Installation, quick start, and the full guide live in the [README on GitHub](https://github.com/arika0093/Configlue).
+Eventually you need to answer questions such as which source wins, where an update should be written, whether a value is missing or explicitly `null`, how old schemas migrate, how comments survive a save, and what happens when another process changes the same state.
+
+Configlue handles that configuration plumbing.
+
+## Reading is solved. Writing is the missing half.
+
+.NET already has strong read-side abstractions. `IConfiguration` composes providers, and `IOptions<T>` gives application code typed values.
+
+Applications that *edit* configuration need another boundary.
+
+A settings screen should not need to know whether `Theme = "Dark"` belongs in a JSON file, browser storage, PostgreSQL, a user-scoped file, or another writable source.
+
+Configlue exposes that boundary as typed state:
+
+```csharp
+IReadOnlyState<AppSettings>
+IWritableState<AppSettings>
+```
+
+Your application says what to read or write. Infrastructure decides how.
+
+## The API your application sees
+
+Most application code can stay this small:
+
+```csharp
+var settings = ConfiglueApp.GetState<AppSettings>();
+
+var current = await settings.GetValueAsync();
+
+await settings.SaveAsync(patch =>
+{
+    patch.Theme = "Dark";
+});
+```
+
+Source layout, serialization, write routing, migration, validation, encryption, and hosting integration remain outside application logic.
+
+## What Configlue handles
+
+<CardGrid stagger>
+  <Card title="Typed read/write state" icon="pencil">
+    Depend on `IReadOnlyState<T>` or `IWritableState<T>` instead of storage and serialization details.
+  </Card>
+  <Card title="Layered configuration" icon="layers">
+    Combine user, local, environment, command-line, remote, database, and custom sources while retaining provenance and editability.
+  </Card>
+  <Card title="Sparse writes" icon="pencil">
+    Generated patches preserve missing, default, `null`, set, and unset semantics instead of blindly rewriting the whole model.
+  </Card>
+  <Card title="Schema evolution" icon="arrow-right">
+    Version models, migrate old schemas, reshape stored data, validate values, and export JSON Schema.
+  </Card>
+  <Card title="Production persistence" icon="approve-check">
+    Change notifications, safe saves, backups, conflict handling, comments where supported, encryption, and compression are available when needed.
+  </Card>
+  <Card title="Broad .NET integration" icon="puzzle">
+    Use the same state model across plain .NET, DI, Microsoft Options, ASP.NET Core, Blazor, desktop UI, MAUI, Unity, Godot, R3, and NativeAOT scenarios.
+  </Card>
+</CardGrid>
+
+## One state model, every kind of .NET app
+
+<CardGrid>
+  <Card title="Plain .NET" icon="layers">
+    Initialize once with `ConfiglueApp.Initialize(...)`, then access process-wide typed state through `ConfiglueApp.GetState<T>()`.
+  </Card>
+  <Card title="Generic Host & ASP.NET Core" icon="puzzle">
+    Register Configlue through DI and inject only `IReadOnlyState<T>` or `IWritableState<T>`. Host integration can add subject-aware state for users or tenants.
+  </Card>
+  <Card title="Blazor & desktop UI" icon="pencil">
+    Use Blazor `StateReader<T>` / `StateEditor<T>` or the shared ComponentModel adapters, with host-native dispatcher integration.
+  </Card>
+  <Card title="MAUI, Unity & Godot" icon="arrow-right">
+    Keep the same state abstraction while each host supplies the correct application paths, lifecycle, storage, threading, and runtime semantics.
+  </Card>
+</CardGrid>
+
+## Start here
+
+The [README quick start](https://github.com/arika0093/Configlue#quick-start) contains the smallest runnable example and installation instructions.
+
+Start with the high-level state API. Add providers, resources, transformers, hosting packages, or lower-level configuration only when your application actually needs them.

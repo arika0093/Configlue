@@ -128,8 +128,16 @@ public sealed partial class ConfiglueGenerator : IIncrementalGenerator
         DiagnosticSeverity.Error,
         true
     );
-    private static readonly DiagnosticDescriptor GeneratedNameCollision = new(
+    private static readonly DiagnosticDescriptor DuplicateJsonPropertyName = new(
         "CFG012",
+        "Duplicate Configlue JSON property name",
+        "Member '{0}' duplicates the explicit JSON name declared by member '{1}'",
+        "Configlue",
+        DiagnosticSeverity.Error,
+        true
+    );
+    private static readonly DiagnosticDescriptor GeneratedNameCollision = new(
+        "CFG013",
         "Configlue member conflicts with generated API",
         "Member '{0}' conflicts with a name reserved by the generated Configlue API",
         "Configlue",
