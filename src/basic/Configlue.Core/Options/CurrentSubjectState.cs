@@ -161,9 +161,15 @@ internal sealed class CurrentSubjectState<TModel>(
     }
 }
 
-/// <summary>Rebinds one state watcher after an accessor reports context invalidation.</summary>
+/// <summary>
+/// Binds one state watcher and rebinds it when an accessor reports context invalidation.
+/// When an accessor cannot report invalidation, failed initial binds are retried with
+/// bounded exponential backoff because the synchronous subscription API has no error channel.
+/// </summary>
 internal sealed class SubjectChangeSubscription<TModel> : IDisposable
 {
+    private static readonly TimeSpan InitialRetryDelay = TimeSpan.FromMilliseconds(100);
+    private static readonly TimeSpan MaximumRetryDelay = TimeSpan.FromSeconds(5);
     private readonly ISubjectState<TModel> _subjectOptions;
     private readonly IConfiglueSubjectAccessor _subjectAccessor;
     private readonly Action<TModel> _listener;
@@ -240,10 +246,12 @@ internal sealed class SubjectChangeSubscription<TModel> : IDisposable
 
     private async Task RunAsync()
     {
+        var retryDelay = InitialRetryDelay;
         try
         {
             while (true)
             {
+                var bindFailed = false;
                 try
                 {
                     await RebindOnceAsync().ConfigureAwait(false);
@@ -258,12 +266,28 @@ internal sealed class SubjectChangeSubscription<TModel> : IDisposable
                 }
                 catch (Exception exception)
                 {
-                    // The sync subscription contract has no error channel. A later invalidation retries;
-                    // reads and writes surface accessor failures directly to their caller.
+                    bindFailed = true;
                     System.Diagnostics.Trace.TraceError(
                         "Configlue could not bind a subject-specific change watcher: {0}",
                         exception
                     );
+                }
+
+                // Accessors without invalidation support have no event that could wake the
+                // worker after a failed bind. Retry those failures with bounded backoff; an
+                // invalidation-aware accessor continues to retry only when it signals a change.
+                if (bindFailed && _changeSource is null)
+                {
+                    await Task.Delay(retryDelay, _cancellation.Token).ConfigureAwait(false);
+                    retryDelay = TimeSpan.FromMilliseconds(
+                        Math.Min(retryDelay.TotalMilliseconds * 2, MaximumRetryDelay.TotalMilliseconds)
+                    );
+                    continue;
+                }
+
+                if (!bindFailed)
+                {
+                    retryDelay = InitialRetryDelay;
                 }
 
                 await _invalidationSignal.WaitAsync(_cancellation.Token).ConfigureAwait(false);
