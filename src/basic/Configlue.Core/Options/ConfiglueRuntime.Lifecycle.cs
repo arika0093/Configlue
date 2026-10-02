@@ -16,47 +16,26 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
     {
         lock (_changeGate)
         {
-            if (_disposed)
-            {
-                return;
-            }
-
-            _disposed = true;
-            _changeListeners.Clear();
-            _reloadFailureListeners.Clear();
-            _reloadListeners.Clear();
-            _diagnostics.ClearListeners();
-            _watchCancellation?.Cancel();
-            foreach (var subscription in _subjectSubscriptions.Keys.ToArray())
-            {
-                subscription.Dispose();
-            }
+            DisposeCoreLocked();
         }
     }
 
     /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {
-        var subjectWatchTasks = _subjectSubscriptions
-            .Keys.Select(static subscription => subscription.Completion)
-            .ToArray();
-        Dispose();
         Task? watchTask;
+        Task[] watcherTasks;
         Task operationsDrained;
         lock (_changeGate)
         {
+            // Registration and shutdown share this gate: a watcher is either rejected because
+            // shutdown already began or observed here before shutdown releases the gate.
+            DisposeCoreLocked();
             watchTask = _watchTask;
-            if (_activeOperations == 0)
-            {
-                operationsDrained = Task.CompletedTask;
-            }
-            else
-            {
-                _operationsDrained ??= new TaskCompletionSource(
-                    TaskCreationOptions.RunContinuationsAsynchronously
-                );
-                operationsDrained = _operationsDrained.Task;
-            }
+            watcherTasks = _watcherOperations
+                .Keys.Select(static operation => operation.Completion)
+                .ToArray();
+            operationsDrained = CaptureOperationsDrainedLocked();
         }
 
         List<Exception>? errors = null;
@@ -71,11 +50,11 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                 (errors ??= []).Add(exception);
             }
         }
-        foreach (var subjectWatchTask in subjectWatchTasks)
+        foreach (var watcherTask in watcherTasks)
         {
             try
             {
-                await subjectWatchTask.ConfigureAwait(false);
+                await watcherTask.ConfigureAwait(false);
             }
             catch (Exception exception)
             {
@@ -95,6 +74,38 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         {
             throw new AggregateException("State shutdown failed.", errors);
         }
+    }
+
+    private void DisposeCoreLocked()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _disposed = true;
+        _changeListeners.Clear();
+        _reloadFailureListeners.Clear();
+        _reloadListeners.Clear();
+        _diagnostics.ClearListeners();
+        _watchCancellation?.Cancel();
+        foreach (var operation in _watcherOperations.Keys)
+        {
+            operation.RequestCancellation();
+        }
+    }
+
+    private Task CaptureOperationsDrainedLocked()
+    {
+        if (_activeOperations == 0)
+        {
+            return Task.CompletedTask;
+        }
+
+        _operationsDrained ??= new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        return _operationsDrained.Task;
     }
 
     private OperationLease EnterOperation()

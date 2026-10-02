@@ -110,7 +110,25 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         CancellationToken cancellationToken
     )
     {
+        StateSource<TFragment>[] activeSources;
+        Task topologyChanged;
+        lock (_sourceGate)
+        {
+            activeSources = _activeSources;
+            topologyChanged = _sourceTopologyChanged.Task;
+        }
+
         if (revisions is null)
+        {
+            return;
+        }
+
+        var activeSourceIds = GetActiveSourceIds(activeSources);
+        if (
+            revisions.Revisions.Keys.Any(revisionSourceId =>
+                !activeSourceIds.Contains(revisionSourceId)
+            )
+        )
         {
             return;
         }
@@ -121,7 +139,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         );
         try
         {
-            foreach (var source in GetActiveSources())
+            foreach (var source in activeSources)
             {
                 if (
                     source.Watcher is not null
@@ -134,13 +152,9 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                 }
             }
 
-            if (waitTasks.Count == 0)
-            {
-                await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken).ConfigureAwait(false);
-                return;
-            }
-
-            await Task.WhenAny(waitTasks).ConfigureAwait(false);
+            waitTasks.Add(topologyChanged.WaitAsync(waitCancellation.Token));
+            var completed = await Task.WhenAny(waitTasks).ConfigureAwait(false);
+            await completed.ConfigureAwait(false);
         }
         finally
         {
@@ -230,7 +244,11 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         public Action<TModel> Listener { get; } = listener;
         public Task Completion => Volatile.Read(ref _task) ?? Task.CompletedTask;
 
-        public void Start() => _task = owner.WatchSubjectChangesAsync(this, _cancellation.Token);
+        public void Start()
+        {
+            _task = owner.WatchSubjectChangesAsync(this, _cancellation.Token);
+            _ = ReleaseAfterCompletionAsync(_task);
+        }
 
         public void Dispose()
         {
@@ -239,19 +257,35 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                 return;
             }
 
-            _cancellation.Cancel();
-            owner._subjectSubscriptions.TryRemove(this, out _);
-            _ = DisposeCancellationAfterCompletionAsync(Completion);
+            RequestCancellation();
         }
 
-        private async Task DisposeCancellationAfterCompletionAsync(Task completion)
+        public void RequestCancellation()
+        {
+            try
+            {
+                _cancellation.Cancel();
+            }
+            catch (ObjectDisposedException)
+            {
+                // The watcher already completed and released its cancellation source.
+            }
+        }
+
+        private async Task ReleaseAfterCompletionAsync(Task completion)
         {
             try
             {
                 await completion.ConfigureAwait(false);
             }
+            catch (Exception)
+            {
+                // Shutdown observes watcher failures through Completion; this continuation
+                // only releases the operation's lifetime resources.
+            }
             finally
             {
+                owner._watcherOperations.TryRemove(this, out _);
                 _cancellation.Dispose();
             }
         }

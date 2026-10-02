@@ -65,7 +65,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
     private readonly RuntimeDiagnosticRecorder _diagnostics;
     private readonly object _changeGate = new();
     private readonly AsyncLocal<IConfiglueSubject?> _subjectContext = new();
-    private readonly ConcurrentDictionary<SubjectWatchSubscription, byte> _subjectSubscriptions =
+    private readonly ConcurrentDictionary<SubjectWatchSubscription, byte> _watcherOperations =
         new();
     private readonly List<Action<TModel>> _changeListeners = [];
     private readonly List<Action<Exception>> _reloadFailureListeners = [];
@@ -464,7 +464,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
             var subscription = new SubjectWatchSubscription(this, subject, listener);
-            _subjectSubscriptions.TryAdd(subscription, 0);
+            _watcherOperations.TryAdd(subscription, 0);
             subscription.Start();
             return subscription;
         }

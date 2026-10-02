@@ -1,0 +1,330 @@
+using Configlue.Sources;
+using Configlue.Testing;
+
+namespace Configlue.Tests;
+
+public sealed partial class WatcherLifecycleTests
+{
+    [Test]
+    public async Task RetiringActiveSourceWakesFixedSubjectWatcherAndRebindsToRemainingSource()
+    {
+        var legacyStore = new InMemoryStateSource<AppSettings.Fragment>(Fragment("legacy"));
+        var currentStore = new InMemoryStateSource<AppSettings.Fragment>();
+        var legacyWatcher = new ManualWatcher();
+        var currentWatcher = new ManualWatcher();
+        var runtime = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
+            new StateSourceSet<AppSettings.Fragment>([
+                new("legacy", legacyStore, priority: 100, watcher: legacyWatcher),
+                new("current", currentStore, priority: 0, writer: currentStore, watcher: currentWatcher),
+            ]),
+            onChangeDebounce: TimeSpan.Zero
+        );
+        ISubjectState<AppSettings> subjectState = runtime;
+        var received = new TaskCompletionSource<string?>(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        using var subscription = subjectState
+            .ForSubject(new TestSubject())
+            .OnChange(value => received.TrySetResult(value.Label));
+
+        await legacyWatcher.WaitUntilWaitingAsync().WaitAsync(TimeSpan.FromSeconds(5));
+        await currentWatcher.WaitUntilWaitingAsync().WaitAsync(TimeSpan.FromSeconds(5));
+
+        IConfiglueRuntimeState<AppSettings> migratable = runtime;
+        var targets = new Dictionary<string, Func<IConfiglueFragment, IConfiglueFragment>>(
+            StringComparer.Ordinal
+        )
+        {
+            ["current"] = static fragment => fragment,
+        };
+        var migration = migratable
+            .MigrateSourcesToTargetsAsync(["legacy"], targets, retireSources: true)
+            .AsTask();
+        await migration.WaitAsync(TimeSpan.FromSeconds(5));
+
+        await legacyWatcher.Canceled.WaitAsync(TimeSpan.FromSeconds(5));
+        await currentWatcher.WaitUntilWaitingAsync().WaitAsync(TimeSpan.FromSeconds(5));
+        legacyWatcher.WaitCount.ShouldBe(1);
+
+        currentStore.Set(Fragment("changed"));
+        currentWatcher.Signal();
+        (await received.Task.WaitAsync(TimeSpan.FromSeconds(5))).ShouldBe("changed");
+        await runtime.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(5));
+    }
+
+    [Test]
+    public async Task RegisteringSubjectWatcherWhileShutdownIsRunningIsRejected()
+    {
+        var store = new InMemoryStateSource<AppSettings.Fragment>(Fragment("initial"));
+        var watcher = new ManualWatcher();
+        var runtime = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
+            new StateSourceSet<AppSettings.Fragment>([new("store", store, watcher: watcher)]),
+            onChangeDebounce: TimeSpan.Zero
+        );
+        ISubjectState<AppSettings> subjectState = runtime;
+        var subscription = subjectState.ForSubject(new TestSubject()).OnChange(_ => { });
+        await watcher.WaitUntilWaitingAsync().WaitAsync(TimeSpan.FromSeconds(5));
+
+        var shutdown = runtime.DisposeAsync().AsTask();
+        await watcher.Canceled.WaitAsync(TimeSpan.FromSeconds(5));
+
+        Should.Throw<ObjectDisposedException>(() =>
+            subjectState.ForSubject(new TestSubject()).OnChange(_ => { })
+        );
+        subscription.Dispose();
+        subscription.Dispose();
+        await shutdown.WaitAsync(TimeSpan.FromSeconds(5));
+    }
+
+    [Test]
+    public async Task CurrentSubjectInvalidationBurstUsesOneCoalescingWorker()
+    {
+        var subjectState = new CountingSubjectState();
+        var accessor = new BlockingAccessor();
+        using var subscription = new CurrentSubjectState<AppSettings>(
+            subjectState,
+            accessor
+        ).OnChange(_ => { });
+
+        await accessor.Entered.WaitAsync(TimeSpan.FromSeconds(5));
+        for (var index = 0; index < 10; index++)
+        {
+            accessor.Invalidate();
+        }
+
+        accessor.Release();
+        await subjectState.SecondSubscription.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await Task.Delay(TimeSpan.FromMilliseconds(100));
+
+        accessor.CallCount.ShouldBe(2);
+        subscription.Dispose();
+        subscription.Dispose();
+    }
+
+    [Test]
+    public async Task SubjectWatcherSurvivesListenerFailuresAndDisposalIsIdempotent()
+    {
+        var store = new InMemoryStateSource<AppSettings.Fragment>(Fragment("zero"));
+        var watcher = new ManualWatcher();
+        var runtime = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
+            new StateSourceSet<AppSettings.Fragment>([new("store", store, watcher: watcher)]),
+            onChangeDebounce: TimeSpan.Zero
+        );
+        ISubjectState<AppSettings> subjectState = runtime;
+        var received = new TaskCompletionSource<string?>(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        var subscription = subjectState.ForSubject(new TestSubject()).OnChange(value =>
+        {
+            if (value.Label == "one")
+            {
+                throw new InvalidOperationException("The listener failed.");
+            }
+
+            received.TrySetResult(value.Label);
+        });
+
+        await watcher.WaitUntilWaitingAsync().WaitAsync(TimeSpan.FromSeconds(5));
+        store.Set(Fragment("one"));
+        watcher.Signal();
+        await watcher.WaitUntilWaitingAsync().WaitAsync(TimeSpan.FromSeconds(5));
+        store.Set(Fragment("two"));
+        watcher.Signal();
+        (await received.Task.WaitAsync(TimeSpan.FromSeconds(5))).ShouldBe("two");
+
+        subscription.Dispose();
+        subscription.Dispose();
+        await runtime.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(5));
+    }
+
+    private static AppSettings.Fragment Fragment(string? label) =>
+        new() { Label = Optional<string?>.Present(label) };
+
+    private sealed record TestSubject : IConfiglueSubject
+    {
+        public SubjectKey Key => SubjectKey.From("watcher-lifecycle");
+    }
+
+    private sealed class ManualWatcher : ISourceWatcher
+    {
+        private readonly object _gate = new();
+        private readonly SemaphoreSlim _waiting = new(0);
+        private readonly TaskCompletionSource _canceled = new(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        private TaskCompletionSource? _pending;
+        private int _waitCount;
+
+        public Task Canceled => _canceled.Task;
+
+        public int WaitCount => Volatile.Read(ref _waitCount);
+
+        public Task WaitUntilWaitingAsync() => _waiting.WaitAsync();
+
+        public async ValueTask WaitForChangeAsync(
+            ConfiglueResourceContext context,
+            string? observedRevision,
+            CancellationToken cancellationToken = default
+        )
+        {
+            _ = context;
+            _ = observedRevision;
+            TaskCompletionSource pending;
+            lock (_gate)
+            {
+                _pending = new TaskCompletionSource(
+                    TaskCreationOptions.RunContinuationsAsynchronously
+                );
+                pending = _pending;
+            }
+
+            Interlocked.Increment(ref _waitCount);
+            _waiting.Release();
+            try
+            {
+                using var registration = cancellationToken.Register(
+                    static state => ((TaskCompletionSource)state!).TrySetCanceled(),
+                    pending
+                );
+                await pending.Task.ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                _canceled.TrySetResult();
+                throw;
+            }
+        }
+
+        public void Signal()
+        {
+            TaskCompletionSource? pending;
+            lock (_gate)
+            {
+                pending = _pending;
+            }
+
+            pending?.TrySetResult();
+        }
+    }
+
+    private sealed class CountingSubjectState : ISubjectState<AppSettings>
+    {
+        private int _subscriptions;
+
+        public TaskCompletionSource SecondSubscription { get; } = new(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+
+        public IWritableState<AppSettings> ForSubject(IConfiglueSubject subject) =>
+            new FakeWritableState(this);
+
+        public IConfiglueEditSessions<AppSettings> EditSessionsForSubject(
+            IConfiglueSubject subject
+        ) => throw new NotSupportedException();
+
+        public void RecordSubscription()
+        {
+            if (Interlocked.Increment(ref _subscriptions) == 2)
+            {
+                SecondSubscription.TrySetResult();
+            }
+        }
+
+        private sealed class FakeWritableState(CountingSubjectState owner)
+            : IWritableState<AppSettings>
+        {
+            public IDisposable OnChange(Action<AppSettings> listener)
+            {
+                owner.RecordSubscription();
+                return new NoopDisposable();
+            }
+
+            public ValueTask<AppSettings> GetValueAsync(CancellationToken cancellationToken = default)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                return ValueTaskCompat.FromResult(new AppSettings());
+            }
+
+            public ValueTask<StateWriteReceipt> SaveAsync(
+                IConfigluePatch patch,
+                CancellationToken cancellationToken = default
+            ) => throw new NotSupportedException();
+        }
+    }
+
+    private sealed class BlockingAccessor : IConfiglueSubjectAccessor, IConfiglueSubjectChangeSource
+    {
+        private readonly object _gate = new();
+        private readonly List<Action> _listeners = [];
+        private readonly TaskCompletionSource _entered = new(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        private readonly TaskCompletionSource _release = new(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        private int _callCount;
+
+        public Task Entered => _entered.Task;
+
+        public int CallCount => Volatile.Read(ref _callCount);
+
+        public async ValueTask<IConfiglueSubject> GetCurrentSubjectAsync(
+            CancellationToken cancellationToken = default
+        )
+        {
+            var call = Interlocked.Increment(ref _callCount);
+            if (call == 1)
+            {
+                _entered.TrySetResult();
+                await _release.Task.ConfigureAwait(false);
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
+            return new TestSubject();
+        }
+
+        public IDisposable OnChange(Action listener)
+        {
+            lock (_gate)
+            {
+                _listeners.Add(listener);
+            }
+
+            return new CallbackDisposable(() =>
+            {
+                lock (_gate)
+                {
+                    _listeners.Remove(listener);
+                }
+            });
+        }
+
+        public void Release() => _release.TrySetResult();
+
+        public void Invalidate()
+        {
+            Action[] listeners;
+            lock (_gate)
+            {
+                listeners = [.. _listeners];
+            }
+
+            foreach (var listener in listeners)
+            {
+                listener();
+            }
+        }
+    }
+
+    private sealed class NoopDisposable : IDisposable
+    {
+        public void Dispose() { }
+    }
+
+    private sealed class CallbackDisposable(Action dispose) : IDisposable
+    {
+        private Action? _dispose = dispose;
+
+        public void Dispose() => Interlocked.Exchange(ref _dispose, null)?.Invoke();
+    }
+}

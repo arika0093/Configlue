@@ -168,10 +168,11 @@ internal sealed class SubjectChangeSubscription<TModel> : IDisposable
     private readonly IConfiglueSubjectAccessor _subjectAccessor;
     private readonly Action<TModel> _listener;
     private readonly IConfiglueSubjectChangeSource? _changeSource;
-    private readonly SemaphoreSlim _rebindLock = new(1, 1);
     private readonly CancellationTokenSource _cancellation = new();
+    private readonly SemaphoreSlim _invalidationSignal = new(0, 1);
     private IDisposable? _subjectSubscription;
     private IDisposable? _invalidationSubscription;
+    private Task? _worker;
     private long _generation;
     private long _boundGeneration = long.MinValue;
     private int _disposed;
@@ -191,7 +192,8 @@ internal sealed class SubjectChangeSubscription<TModel> : IDisposable
     public void Start()
     {
         _invalidationSubscription = _changeSource?.OnChange(OnInvalidated);
-        _ = RebindAsync();
+        _worker = RunAsync();
+        _ = ReleaseAfterWorkerAsync();
     }
 
     public void Dispose()
@@ -201,127 +203,156 @@ internal sealed class SubjectChangeSubscription<TModel> : IDisposable
             return;
         }
 
-        _cancellation.Cancel();
-        _cancellation.Dispose();
         Interlocked.Exchange(ref _invalidationSubscription, null)?.Dispose();
+        try
+        {
+            _cancellation.Cancel();
+        }
+        catch (ObjectDisposedException)
+        {
+            // The worker already completed and released its cancellation source.
+        }
+
         Interlocked.Exchange(ref _subjectSubscription, null)?.Dispose();
     }
 
     private void OnInvalidated()
     {
+        if (Volatile.Read(ref _disposed) != 0)
+        {
+            return;
+        }
+
         Interlocked.Increment(ref _generation);
-        Interlocked.Exchange(ref _subjectSubscription, null)?.Dispose();
-        _ = RebindAsync();
+        try
+        {
+            _invalidationSignal.Release();
+        }
+        catch (ObjectDisposedException)
+        {
+            // Disposal completed between the disposed check and signaling the worker.
+        }
+        catch (SemaphoreFullException)
+        {
+            // A rebind is already pending; the worker coalesces the invalidation burst.
+        }
     }
 
-    private async Task RebindAsync()
+    private async Task RunAsync()
     {
         try
         {
-            await _rebindLock.WaitAsync(_cancellation.Token).ConfigureAwait(false);
+            while (true)
+            {
+                try
+                {
+                    await RebindOnceAsync().ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (_cancellation.IsCancellationRequested)
+                {
+                    return;
+                }
+                catch (ObjectDisposedException) when (Volatile.Read(ref _disposed) != 0)
+                {
+                    return;
+                }
+                catch (Exception exception)
+                {
+                    // The sync subscription contract has no error channel. A later invalidation retries;
+                    // reads and writes surface accessor failures directly to their caller.
+                    System.Diagnostics.Trace.TraceError(
+                        "Configlue could not bind a subject-specific change watcher: {0}",
+                        exception
+                    );
+                }
+
+                await _invalidationSignal.WaitAsync(_cancellation.Token).ConfigureAwait(false);
+            }
+        }
+        catch (OperationCanceledException) when (_cancellation.IsCancellationRequested)
+        {
+            // Disposal canceled the coalescing worker.
+        }
+        catch (ObjectDisposedException) when (Volatile.Read(ref _disposed) != 0)
+        {
+            // Disposal released the coalescing signal while the worker was unwinding.
+        }
+    }
+
+    private async Task RebindOnceAsync()
+    {
+        var generation = Volatile.Read(ref _generation);
+        if (
+            generation == Volatile.Read(ref _boundGeneration)
+            && Volatile.Read(ref _subjectSubscription) is not null
+        )
+        {
+            return;
+        }
+
+        var subject = await _subjectAccessor
+            .GetCurrentSubjectAsync(_cancellation.Token)
+            .ConfigureAwait(false);
+        if (Volatile.Read(ref _disposed) != 0)
+        {
+            return;
+        }
+
+        var subjectOptions = _subjectOptions.ForSubject(subject);
+        var next = subjectOptions.OnChange(value =>
+        {
+            if (Volatile.Read(ref _disposed) == 0 && generation == Volatile.Read(ref _generation))
+            {
+                _listener(value);
+            }
+        });
+        if (Volatile.Read(ref _disposed) != 0 || generation != Volatile.Read(ref _generation))
+        {
+            next.Dispose();
+            return;
+        }
+
+        Interlocked.Exchange(ref _subjectSubscription, next)?.Dispose();
+        if (Volatile.Read(ref _disposed) != 0 || generation != Volatile.Read(ref _generation))
+        {
+            Interlocked.Exchange(ref _subjectSubscription, null)?.Dispose();
+            return;
+        }
+
+        if (generation > 0)
+        {
+            var value = await subjectOptions
+                .GetValueAsync(_cancellation.Token)
+                .ConfigureAwait(false);
+            if (Volatile.Read(ref _disposed) == 0 && generation == Volatile.Read(ref _generation))
+            {
+                Volatile.Write(ref _boundGeneration, generation);
+                _listener(value);
+            }
+        }
+        else
+        {
+            Volatile.Write(ref _boundGeneration, generation);
+        }
+    }
+
+    private async Task ReleaseAfterWorkerAsync()
+    {
+        var worker = Volatile.Read(ref _worker);
+        if (worker is not null)
+        {
             try
             {
-                while (Volatile.Read(ref _disposed) == 0)
-                {
-                    var generation = Volatile.Read(ref _generation);
-                    if (
-                        generation == Volatile.Read(ref _boundGeneration)
-                        && Volatile.Read(ref _subjectSubscription) is not null
-                    )
-                    {
-                        break;
-                    }
-
-                    var subject = await _subjectAccessor
-                        .GetCurrentSubjectAsync(_cancellation.Token)
-                        .ConfigureAwait(false);
-                    if (Volatile.Read(ref _disposed) != 0)
-                    {
-                        break;
-                    }
-
-                    var subjectOptions = _subjectOptions.ForSubject(subject);
-                    var next = subjectOptions.OnChange(value =>
-                    {
-                        if (
-                            Volatile.Read(ref _disposed) == 0
-                            && generation == Volatile.Read(ref _generation)
-                        )
-                        {
-                            _listener(value);
-                        }
-                    });
-                    if (
-                        Volatile.Read(ref _disposed) != 0
-                        || generation != Volatile.Read(ref _generation)
-                    )
-                    {
-                        next.Dispose();
-                        if (Volatile.Read(ref _disposed) != 0)
-                        {
-                            break;
-                        }
-
-                        continue;
-                    }
-
-                    Interlocked.Exchange(ref _subjectSubscription, next)?.Dispose();
-                    if (
-                        Volatile.Read(ref _disposed) != 0
-                        || generation != Volatile.Read(ref _generation)
-                    )
-                    {
-                        Interlocked.Exchange(ref _subjectSubscription, null)?.Dispose();
-                        if (Volatile.Read(ref _disposed) != 0)
-                        {
-                            break;
-                        }
-
-                        continue;
-                    }
-
-                    if (generation > 0)
-                    {
-                        var value = await subjectOptions
-                            .GetValueAsync(_cancellation.Token)
-                            .ConfigureAwait(false);
-                        if (
-                            Volatile.Read(ref _disposed) == 0
-                            && generation == Volatile.Read(ref _generation)
-                        )
-                        {
-                            Volatile.Write(ref _boundGeneration, generation);
-                            _listener(value);
-                        }
-                    }
-                    else
-                    {
-                        Volatile.Write(ref _boundGeneration, generation);
-                    }
-
-                    break;
-                }
+                await worker.ConfigureAwait(false);
             }
-            finally
+            catch (Exception)
             {
-                _rebindLock.Release();
+                // Rebind failures are traced by the worker; this continuation only releases
+                // the subscription's lifetime resources.
             }
         }
-        catch (Exception exception)
-        {
-            if (
-                Volatile.Read(ref _disposed) == 0
-                && exception is not OperationCanceledException
-                && exception is not ObjectDisposedException
-            )
-            {
-                // The sync subscription contract has no error channel. A later invalidation retries;
-                // reads and writes surface accessor failures directly to their caller.
-                System.Diagnostics.Trace.TraceError(
-                    "Configlue could not bind a subject-specific change watcher: {0}",
-                    exception
-                );
-            }
-        }
+
+        _cancellation.Dispose();
+        _invalidationSignal.Dispose();
     }
 }

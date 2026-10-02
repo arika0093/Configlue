@@ -51,6 +51,51 @@ public sealed partial class RuntimeLifetimeTests
         }
     }
 
+    [Test]
+    public async Task ShutdownWaitsForManuallyDisposedSubjectWatcherCleanup()
+    {
+        var store = new InMemoryStateSource<RuntimeLifetimeSettings.Fragment>(
+            new RuntimeLifetimeSettings.Fragment { Label = "initial" }
+        );
+        var delayed = new ShutdownWatcher(delayCleanup: true);
+        var runtime = new ConfiglueRuntime<
+            RuntimeLifetimeSettings,
+            RuntimeLifetimeSettings.Fragment
+        >(
+            new StateSourceSet<RuntimeLifetimeSettings.Fragment>([
+                new("delayed", store, watcher: delayed),
+            ]),
+            onChangeDebounce: TimeSpan.Zero
+        );
+        ISubjectState<RuntimeLifetimeSettings> subjectState = runtime;
+        var subscription = subjectState
+            .ForSubject(new LifetimeSubject())
+            .OnChange(_ => { });
+        await delayed.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        subscription.Dispose();
+        await delayed.Canceled.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var shutdown = runtime.DisposeAsync().AsTask();
+        try
+        {
+            var completed = await Task.WhenAny(shutdown, Task.Delay(100));
+            ReferenceEquals(completed, shutdown)
+                .ShouldBeFalse(
+                    "Shutdown must drain a subject watcher whose subscription was already disposed."
+                );
+        }
+        finally
+        {
+            delayed.Release.TrySetResult();
+            await shutdown.WaitAsync(TimeSpan.FromSeconds(5));
+        }
+    }
+
+    private sealed record LifetimeSubject : IConfiglueSubject
+    {
+        public SubjectKey Key => SubjectKey.From("runtime-lifetime");
+    }
+
     private sealed class ShutdownWatcher(bool delayCleanup) : ISourceWatcher
     {
         public TaskCompletionSource Started { get; } =
