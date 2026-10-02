@@ -123,6 +123,8 @@ internal sealed class SparseFragmentCoreEmitter(
                 + "<Fragment>"
         );
         code.AppendLineAt(1, "{");
+        code.AppendLineAt(2, "public Fragment() { }");
+        code.AppendLine();
     }
 
     public void AppendMembers(
@@ -1256,17 +1258,45 @@ internal sealed class SparseFragmentCoreEmitter(
         code.AppendLineAt(2, "public Fragment DeepClone()");
         code.AppendLineAt(2, "{");
         AppendCloneContext(code, 3);
-
-        code.AppendLineAt(3, "return new Fragment");
-        code.AppendLineAt(3, "{");
+        code.AppendLineAt(3, "return DeepClone(" + CloneContext + ");");
+        code.AppendLineAt(2, "}");
+        code.AppendLine();
+        code.AppendIndent(2)
+            .Append(
+                "internal Fragment DeepClone(global::System.Collections.Generic.Dictionary<object, object> "
+            )
+            .Append(CloneContext)
+            .AppendLine(")");
+        code.AppendLineAt(2, "{");
+        code.AppendLineAt(
+            3,
+            "if ("
+                + CloneContext
+                + ".TryGetValue(this, out var existing)) return (Fragment)existing;"
+        );
+        code.AppendLineAt(3, "return new Fragment(this, " + CloneContext + ");");
+        code.AppendLineAt(2, "}");
+        code.AppendLine();
+        code.AppendIndent(2)
+            .Append(
+                "private Fragment(Fragment source, global::System.Collections.Generic.Dictionary<object, object> "
+            )
+            .Append(CloneContext)
+            .AppendLine(")");
+        code.AppendLineAt(2, "{");
+        code.AppendLineAt(3, CloneContext + ".Add(source, this);");
         foreach (var member in members)
         {
             var name = SparseNaming.EscapeIdentifier(member.Property.Name);
             var type = FragmentValueType(member);
-            var expression = Expressions.CloneFragmentExpression(member, "this." + name + ".Value");
+            var expression = Expressions.CloneFragmentExpression(
+                member,
+                "source." + name + ".Value"
+            );
             code.AppendIndent(4)
+                .Append("this.")
                 .Append(name)
-                .Append(" = this.")
+                .Append(" = source.")
                 .Append(name)
                 .Append(".IsPresent ? ")
                 .Append(Optional)
@@ -1274,10 +1304,9 @@ internal sealed class SparseFragmentCoreEmitter(
                 .Append(type)
                 .Append(">.Present(")
                 .Append(expression)
-                .AppendLine(" ) : default,");
+                .AppendLine(") : default;");
         }
 
-        code.AppendLineAt(3, "};");
         code.AppendLineAt(2, "}");
         code.AppendLine();
     }

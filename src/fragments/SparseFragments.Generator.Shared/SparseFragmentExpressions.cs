@@ -75,7 +75,7 @@ internal sealed class SparseFragmentExpressions(
     {
         if (member.ChildModel is not null)
         {
-            return $"{access}?.DeepClone()";
+            return $"{access}?.DeepClone({CloneContext})";
         }
 
         var cloneHelperName = member.Property.Type.PocoCloneHelperName;
