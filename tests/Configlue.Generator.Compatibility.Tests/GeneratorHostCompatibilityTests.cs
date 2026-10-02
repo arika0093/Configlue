@@ -60,6 +60,10 @@ public sealed class GeneratorHostCompatibilityTests
     [Arguments(true, true, true, 0)]
     [Arguments(true, true, true, 1)]
     [Arguments(true, true, true, 2)]
+    [Arguments(false, false, false, 3)]
+    [Arguments(false, true, false, 3)]
+    [Arguments(true, false, false, 3)]
+    [Arguments(true, true, false, 3)]
     public void PrivateRootConstructorAndSparseDefaultsConstructOnce(
         bool standalone,
         bool initOnly,
@@ -77,6 +81,7 @@ public sealed class GeneratorHostCompatibilityTests
             : "private Settings() { Identity = ++Calls; }";
         var requiredKeyword = required ? "required " : string.Empty;
         var setter = initOnly ? "init" : "set";
+        var boundSetter = constructorKind == 3 ? string.Empty : setter + ";";
         var runtime = standalone ? "SparseFragments" : "Configlue";
         var attribute = standalone
             ? "SparseFragmentModel"
@@ -84,7 +89,7 @@ public sealed class GeneratorHostCompatibilityTests
         var observableCheck = standalone
             ? string.Empty
             : "if (typeof(Settings.Observable).GetProperty(nameof(Settings.Count))!.CanWrite != "
-                + (initOnly ? "false" : "true")
+                + (initOnly || constructorKind == 3 ? "false" : "true")
                 + ") throw new System.Exception(\"observable mutability\");";
         var source = $$"""
             using {{runtime}};
@@ -95,8 +100,8 @@ public sealed class GeneratorHostCompatibilityTests
                 public static int[]? LastItems;
                 {{constructor}}
                 public {{requiredKeyword}}int Identity { get; {{setter}}; }
-                public {{requiredKeyword}}int Count { get; {{setter}}; } = 5;
-                public int[]? Items { get; {{setter}}; }
+                public {{requiredKeyword}}int Count { get; {{boundSetter}} } = 5;
+                public int[]? Items { get; {{boundSetter}} }
             }
             public static class Probe
             {

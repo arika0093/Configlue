@@ -235,13 +235,20 @@ internal static class SparseModelAnalyzer
         CancellationToken cancellationToken
     )
     {
+        var constructor = ModelConstructorBinding.AnalyzeRoot(model, cancellationToken);
         var index = 0;
         foreach (
-            var property in GetReadableProperties(
-                model,
-                cancellationToken,
-                requirePublicSetter: true
-            )
+            var property in GetReadableProperties(model, cancellationToken)
+                .Where(property =>
+                    property.SetMethod?.DeclaredAccessibility == Accessibility.Public
+                    || (
+                        property.SetMethod is null
+                        && constructor is not null
+                        && constructor.Parameters.Any(parameter =>
+                            parameter.PropertyName == property.Name
+                        )
+                    )
+                )
         )
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -741,7 +748,8 @@ internal static class SparseModelAnalyzer
             member.Property.Name,
             CreateTypeModel(member.Property.Type, config, cancellationToken),
             member.Property.SetMethod?.IsInitOnly == true,
-            RoslynSymbolCompat.IsRequired(member.Property)
+            RoslynSymbolCompat.IsRequired(member.Property),
+            member.Property.SetMethod is null
         );
         SparseTypeModel? childModel = null;
         string? childFragmentType = null;

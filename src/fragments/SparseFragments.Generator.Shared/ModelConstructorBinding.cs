@@ -40,7 +40,8 @@ internal sealed record ModelConstructorBinding(
         var properties = SparseModelAnalyzer
             .GetReadableProperties(model, cancellationToken)
             .Where(static property =>
-                property.SetMethod?.DeclaredAccessibility == Accessibility.Public
+                property.SetMethod is null
+                || property.SetMethod.DeclaredAccessibility == Accessibility.Public
             )
             .ToArray();
         foreach (

@@ -43,7 +43,8 @@ public sealed partial class ConfiglueGenerator
             string? jsonPropertyName,
             bool hasExplicitJsonPropertyName,
             string? environmentVariableName,
-            bool isInitOnly = false
+            bool isInitOnly = false,
+            bool isReadOnly = false
         )
         {
             Name = name;
@@ -53,12 +54,14 @@ public sealed partial class ConfiglueGenerator
             HasExplicitJsonPropertyName = hasExplicitJsonPropertyName;
             EnvironmentVariableName = environmentVariableName;
             IsInitOnly = isInitOnly;
+            IsReadOnly = isReadOnly;
         }
 
         public string Name { get; init; }
         public TypeModel Type { get; init; }
         public bool IsRequired { get; init; }
         public bool IsInitOnly { get; init; }
+        public bool IsReadOnly { get; init; }
         public string? JsonPropertyName { get; init; }
         public bool HasExplicitJsonPropertyName { get; init; }
         public string? EnvironmentVariableName { get; init; }
@@ -444,7 +447,8 @@ public sealed partial class ConfiglueGenerator
             jsonPropertyName,
             hasExplicitJsonPropertyName,
             GetEnvironmentVariableName(member.Property, cancellationToken),
-            member.Property.SetMethod?.IsInitOnly == true
+            member.Property.SetMethod?.IsInitOnly == true,
+            member.Property.SetMethod is null
         );
         TypeModel? childModel = null;
         string? childFragmentType = null;

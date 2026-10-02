@@ -80,7 +80,7 @@ public sealed partial class ConfiglueGenerator
         // annotations, which keeps the generated getters warning-free.
         var valueType = member.Property.Type.Name;
 
-        if (member.Property.IsInitOnly)
+        if (member.Property.IsInitOnly || member.Property.IsReadOnly)
         {
             if (member.ChildModel is not null && member.ChildIsReferenceType)
                 AppendObservableChildMember(code, member, name, propertyName, valueType);
@@ -196,7 +196,7 @@ public sealed partial class ConfiglueGenerator
         code.AppendLineAt(4, "return __proxy_" + name + ";");
         code.AppendLineAt(3, "}");
         code.AppendLineAt(2, "}");
-        if (!member.Property.IsInitOnly)
+        if (!member.Property.IsInitOnly && !member.Property.IsReadOnly)
             AppendObservableChildReplaceMethod(code, name, propertyName, valueType);
     }
 

@@ -9,9 +9,10 @@ models. A root model can use a private constructor because the generated code is
 part of the model's partial declaration.
 
 The generator prefers a parameterless constructor. Otherwise it selects a
-constructor whose parameters match public readable and writable properties by
-name (ignoring case) and exact type. `init` accessors count as writable for this
-purpose. Constructors are ordered by parameter count, then their symbol display
+constructor whose parameters match public readable properties by name (ignoring
+case) and exact type. A setter, when present, must be public. `init` accessors are
+supported. Getter-only properties bound to the selected constructor are included
+in the fragment and restored through constructor arguments. Constructors are ordered by parameter count, then their symbol display
 string using ordinal comparison. Parameters with `ref`, `in`, or `out` are not
 supported by this binding.
 
@@ -24,7 +25,7 @@ exists. Consequently, a required `int` constructor parameter receives `0` when
 its member is absent, and a required reference parameter receives `null`.
 Constructor validation and exceptions retain their normal behavior.
 
-After construction, present members are projected onto the model. Absent members
+After construction, present writable members are projected onto the model. Absent members
 retain the values established by the constructor and property initializers.
 Generated projection constructors assign `init` properties within a constructor
 and satisfy represented `required` properties. Required fields and required
@@ -42,6 +43,10 @@ by the object initializer. Thus the constructor and final property receive the
 same cloned value. The source value is isolated according to the member's clone
 strategy.
 
-This root construction support does not yet establish support for getter-only
-properties or immutable, undecorated structural child types. Their construction
-and graph cloning support are tracked separately.
+Getter-only properties are reconstructed by the selected constructor; no setter
+or object initializer assignment is generated for them. Getter-only properties
+that are not bound to that constructor are excluded from the fragment.
+
+This root construction support does not yet establish support for immutable,
+undecorated structural child types. Their construction and graph cloning support
+are tracked separately.

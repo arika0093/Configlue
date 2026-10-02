@@ -19,7 +19,8 @@ internal readonly record struct SparsePropertyModel(
     string Name,
     SparseTypeModel Type,
     bool IsInitOnly = false,
-    bool IsRequired = false
+    bool IsRequired = false,
+    bool IsReadOnly = false
 );
 
 internal readonly record struct SparseCollectionInfo(

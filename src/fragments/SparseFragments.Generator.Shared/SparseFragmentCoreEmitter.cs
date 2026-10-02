@@ -211,7 +211,7 @@ internal sealed class SparseFragmentCoreEmitter(
             .Append(arguments)
             .AppendLine(")");
         code.AppendLineAt(1, "{");
-        foreach (var member in members)
+        foreach (var member in members.Where(static member => !member.Property.IsReadOnly))
         {
             code.AppendIndent(2)
                 .Append(SparseNaming.EscapeIdentifier(member.Property.Name))
@@ -379,7 +379,7 @@ internal sealed class SparseFragmentCoreEmitter(
                 + ")"
         );
         code.AppendLineAt(1, "{");
-        foreach (var member in members)
+        foreach (var member in members.Where(static member => !member.Property.IsReadOnly))
         {
             var name = SparseNaming.EscapeIdentifier(member.Property.Name);
             var access = "__sparse_projection." + name;

@@ -39,7 +39,8 @@ public sealed partial class ConfiglueGenerator
                 member.Property.Name,
                 ToSparseType(member.Property.Type),
                 member.Property.IsInitOnly,
-                member.Property.IsRequired
+                member.Property.IsRequired,
+                member.Property.IsReadOnly
             ),
             member.ChildModel is { } child ? ToSparseType(child) : null,
             member.MergeMode,
