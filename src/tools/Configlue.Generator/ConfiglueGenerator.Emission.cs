@@ -466,7 +466,14 @@ public sealed partial class ConfiglueGenerator
                 )
                 .Append(", static () => default(")
                 .Append(member.Property.Type.Name)
-                .AppendLine(")),");
+                .Append("))");
+            if (member.Collection.Kind == CollectionKind.Set)
+                code.Append(" { ContainsElement = static (values, element) => ((")
+                    .Append(member.Property.Type.Name)
+                    .Append(")values).Contains((")
+                    .Append(TypeName(member.Collection.ElementType))
+                    .Append(")element!) }");
+            code.AppendLine(",");
         }
 
         code.AppendLineAt(1, "}, static () => Fragment.Empty);");
@@ -545,9 +552,14 @@ public sealed partial class ConfiglueGenerator
                         ? "null"
                         : "Fragment.__configlue_merge_strategy_" + member.Id
                 );
-            code.Append(", static () => default(")
-                .Append(member.Property.Type.Name)
-                .AppendLine(")),");
+            code.Append(", static () => default(").Append(member.Property.Type.Name).Append("))");
+            if (member.Collection.Kind == CollectionKind.Set)
+                code.Append(" { ContainsElement = static (values, element) => ((")
+                    .Append(member.Property.Type.Name)
+                    .Append(")values).Contains((")
+                    .Append(TypeName(member.Collection.ElementType))
+                    .Append(")element!) }");
+            code.AppendLine(",");
         }
 
         code.AppendLineAt(1, "}, static () => Fragment.Empty);");

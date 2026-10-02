@@ -188,4 +188,36 @@ internal sealed class SparseFragmentExpressions(
             _ => $"global::System.Linq.Enumerable.ToArray({combined})",
         };
     }
+
+    /// <summary>Builds an expression that materializes a sequence of elements into the member's collection type.</summary>
+    public static string MaterializeCollection(SparseMemberModel member, string elements)
+    {
+        var elementType = member.Collection.ElementType.Name;
+        var definition = member.Collection.NamedTypeDefinition;
+        if (definition == "System.Collections.Immutable.ImmutableHashSet<T>")
+        {
+            return $"global::System.Collections.Immutable.ImmutableHashSet.CreateRange<{elementType}>({elements})";
+        }
+
+        if (definition == "System.Collections.Immutable.ImmutableArray<T>")
+        {
+            return $"global::System.Collections.Immutable.ImmutableArray.CreateRange<{elementType}>({elements})";
+        }
+
+        if (definition == "System.Collections.Immutable.ImmutableList<T>")
+        {
+            return $"global::System.Collections.Immutable.ImmutableList.CreateRange<{elementType}>({elements})";
+        }
+
+        return member.Collection.CloneKind switch
+        {
+            SparseCloneCollectionKind.SortedSet =>
+                $"new global::System.Collections.Generic.SortedSet<{elementType}>({elements})",
+            SparseCloneCollectionKind.Set =>
+                $"new global::System.Collections.Generic.HashSet<{elementType}>({elements})",
+            SparseCloneCollectionKind.Array =>
+                $"global::System.Linq.Enumerable.ToArray({elements})",
+            _ => $"new global::System.Collections.Generic.List<{elementType}>({elements})",
+        };
+    }
 }

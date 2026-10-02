@@ -1190,7 +1190,13 @@ internal static class SparseModelAnalyzer
             type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
             type.IsReferenceType,
             isFragmentModel,
-            pocoCloneHelperName
+            pocoCloneHelperName,
+            type is INamedTypeSymbol named && (isFragmentModel || pocoCloneHelperName is not null)
+                ? SparseNaming.PatchApiPrefix(
+                    GetMembers(named, config, cancellationToken)
+                        .Select(static member => member.Property.Name)
+                )
+                : string.Empty
         );
     }
 

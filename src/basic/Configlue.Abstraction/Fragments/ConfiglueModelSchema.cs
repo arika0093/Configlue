@@ -33,6 +33,9 @@ public readonly record struct ConfiglueMemberSchema
     /// <summary>Creates a boxed default using generated code, without reflection.</summary>
     public Func<object?>? DefaultValueFactory { get; init; }
 
+    /// <summary>Tests element membership using the declared collection's comparer semantics.</summary>
+    public Func<object, object?, bool>? ContainsElement { get; init; }
+
     /// <summary>Initializes a new instance of this record.</summary>
     /// <param name="Id">The initial value for the <see cref="Id"/> property.</param>
     /// <param name="Name">The initial value for the <see cref="Name"/> property.</param>

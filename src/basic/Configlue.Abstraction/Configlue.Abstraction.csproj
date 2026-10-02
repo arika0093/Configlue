@@ -19,5 +19,17 @@
       Include="../../fragments/SparseFragments/SparseCollectionMerger.cs"
       Link="Fragments/ConfiglueCollectionMerger.cs"
     />
+    <Compile
+      Include="../../fragments/SparseFragments/SparseCollectionRebase.cs"
+      Link="Fragments/ConfiglueCollectionRebase.cs"
+    />
+    <Compile
+      Include="../../fragments/SparseFragments/SparseModelRebase.cs"
+      Link="Fragments/ConfiglueModelRebase.cs"
+    />
+    <Compile
+      Include="../../fragments/SparseFragments/CollectionProvenance.cs"
+      Link="Fragments/CollectionProvenance.cs"
+    />
   </ItemGroup>
 </Project>

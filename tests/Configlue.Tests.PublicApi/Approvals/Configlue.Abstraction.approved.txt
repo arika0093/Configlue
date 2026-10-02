@@ -150,9 +150,21 @@ namespace Configlue
     {
         public ConfiglueCloneReferenceSafeAttribute() { }
     }
+    public sealed class ConfiglueCollectionElementProvenance
+    {
+        public ConfiglueCollectionElementProvenance(int index, object? value, System.Collections.Generic.IEnumerable<int> sourceIndices) { }
+        public int Index { get; }
+        public System.Collections.Generic.IReadOnlyList<int> SourceIndices { get; }
+        public object? Value { get; }
+    }
     public static class ConfiglueCollectionMerger
     {
         public static System.Collections.Generic.HashSet<T> MergeSet<T>(System.Collections.Generic.IEnumerable<T> lower, System.Collections.Generic.IEnumerable<T> higher) { }
+    }
+    public static class ConfiglueCollectionRebase
+    {
+        public static bool TryRebaseAppend(System.Collections.Generic.IReadOnlyList<object?> before, System.Collections.Generic.IReadOnlyList<object?> desired, System.Collections.Generic.IReadOnlyList<object?> current, System.Func<object?, object?, bool> equal, out System.Collections.Generic.IReadOnlyList<object?> rebased, out string? reason) { }
+        public static bool TryRebaseSetUnion(System.Collections.Generic.IReadOnlyList<object?> before, System.Collections.Generic.IReadOnlyList<object?> desired, System.Collections.Generic.IReadOnlyList<object?> current, System.Func<object?, object?, bool> equal, out System.Collections.Generic.IReadOnlyList<object?> rebased, out string? reason) { }
     }
     public readonly struct ConfiglueDiagnosticEvent : System.IEquatable<Configlue.ConfiglueDiagnosticEvent>
     {
@@ -244,6 +256,11 @@ namespace Configlue
         public object? Value { get; init; }
         public void Deconstruct(out int Id, out string Name, out object? Value) { }
     }
+    public static class ConfiglueFragmentRebase
+    {
+        public static bool AreEditValuesEqual(Configlue.ConfiglueMemberSchema member, object? left, object? right) { }
+        public static Configlue.ConfiglueRebaseResult Rebase(Configlue.ConfiglueModelSchema schema, Configlue.IConfiglueFragment changes, object before, object desired, object current, bool localWinsCollections = false) { }
+    }
     public static class ConfiglueInterfaceExtensions
     {
         public static System.Threading.Tasks.ValueTask ClearAsync<T>(this Configlue.IConfiglueStateRegistry<T> registry) { }
@@ -266,6 +283,7 @@ namespace Configlue
     {
         public ConfiglueMemberSchema(int Id, string Name, System.Type ValueType, Configlue.MergeMode MergeMode, System.Func<object, object?>? GetValue = null, System.Func<Configlue.ConfiglueModelSchema>? NestedSchemaFactory = null, System.Func<System.Collections.Generic.IEnumerable<object?>, object?>? CollectionValueFactory = null, string? EnvironmentVariableName = null, Configlue.IConfiglueMergeStrategy? MergeStrategy = null, System.Func<object?>? DefaultValueFactory = null) { }
         public System.Func<System.Collections.Generic.IEnumerable<object?>, object?>? CollectionValueFactory { get; init; }
+        public System.Func<object, object?, bool>? ContainsElement { get; init; }
         public System.Func<object?>? DefaultValueFactory { get; init; }
         public string? EnvironmentVariableName { get; init; }
         public System.Func<object, object?>? GetValue { get; init; }
@@ -290,6 +308,12 @@ namespace Configlue
         public ConfiglueMergeElementProvenance(int index, System.Collections.Generic.IEnumerable<string> sourceIds) { }
         public int Index { get; }
         public System.Collections.Generic.IReadOnlyList<string> SourceIds { get; }
+    }
+    public static class ConfiglueMergeProvenance
+    {
+        public static System.Collections.Generic.IReadOnlyList<Configlue.ConfiglueCollectionElementProvenance> ExplainElements(Configlue.ConfiglueMemberSchema member, object? effectiveValue, [System.Runtime.CompilerServices.TupleElementNames(new string[] {
+                "SourceId",
+                "Value"})] System.Collections.Generic.IReadOnlyList<System.ValueTuple<string, object?>> sourceContributions) { }
     }
     public readonly struct ConfiglueMergeSourceValue : System.IEquatable<Configlue.ConfiglueMergeSourceValue>
     {
@@ -342,6 +366,32 @@ namespace Configlue
         public ConfiglueProfileCatalog() { }
         public string? ActiveProfileName { get; set; }
         public System.Collections.Generic.List<string> ProfileNames { get; set; }
+    }
+    public sealed class ConfiglueRebaseConflict
+    {
+        public ConfiglueRebaseConflict(System.Collections.Generic.IEnumerable<string> path, Configlue.ConfiglueRebaseConflictKind kind, object? baseValue, object? localValue, object? currentValue, string? reason) { }
+        public object? BaseValue { get; }
+        public object? CurrentValue { get; }
+        public Configlue.ConfiglueRebaseConflictKind Kind { get; }
+        public object? LocalValue { get; }
+        public System.Collections.Generic.IReadOnlyList<string> Path { get; }
+        public string PathText { get; }
+        public string? Reason { get; }
+    }
+    public enum ConfiglueRebaseConflictKind
+    {
+        Scalar = 0,
+        Nested = 1,
+        CollectionAppend = 2,
+        CollectionSetUnion = 3,
+        CustomStrategy = 4,
+    }
+    public sealed class ConfiglueRebaseResult
+    {
+        public ConfiglueRebaseResult(Configlue.IConfiglueFragment rebased, System.Collections.Generic.IEnumerable<Configlue.ConfiglueRebaseConflict> conflicts) { }
+        public System.Collections.Generic.IReadOnlyList<Configlue.ConfiglueRebaseConflict> Conflicts { get; }
+        public bool HasConflicts { get; }
+        public Configlue.IConfiglueFragment Rebased { get; }
     }
     public static class ConfiglueRuntimeDiagnosticExtensions
     {

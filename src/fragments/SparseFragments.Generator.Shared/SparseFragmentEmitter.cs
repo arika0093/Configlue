@@ -236,7 +236,26 @@ internal static class SparseFragmentEmitter
                 .Append(member.MergeStrategyType is null ? "null" : Core.MergeStrategyField(member))
                 .Append(", static () => default(")
                 .Append(member.Property.Type.Name)
-                .AppendLine(")),");
+                .Append("), ");
+            code.Append(
+                member.Collection.Kind == SparseCollectionKind.Unsupported
+                    ? "null"
+                    : "static values => "
+                        + SparseFragmentExpressions.MaterializeCollection(
+                            member,
+                            "global::System.Linq.Enumerable.Cast<"
+                                + member.Collection.ElementType.Name
+                                + ">(values)"
+                        )
+            );
+            code.Append(")");
+            if (member.Collection.Kind == SparseCollectionKind.Set)
+                code.Append(" { ContainsElement = static (values, element) => ((")
+                    .Append(member.Property.Type.Name)
+                    .Append(")values).Contains((")
+                    .Append(member.Collection.ElementType.Name)
+                    .Append(")element!) }");
+            code.AppendLine(",");
         }
 
         code.AppendLineAt(2, "}, static () => Fragment.Empty);");

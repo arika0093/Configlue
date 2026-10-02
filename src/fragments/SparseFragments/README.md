@@ -187,19 +187,32 @@ clone.Child!.Count = 42;                                       // original.Child
 * **Partial-update APIs and DTO patching.** HTTP PATCH / JSON Merge Patch-style endpoints where "absent", "null", and "value" must be handled as three distinct intents. Keep the incoming partial update as a typed fragment and `ApplyChanges` it onto the current state — no reflection involved.
 * **Storing only user-modified settings.** `Diff` the current settings against the defaults and persist only the resulting fragment. Saved data stays minimal, and future default changes still reach users who never overrode them.
 * **Edit sessions and dirty tracking.** Accumulate user edits in a `Patch`, check `IsEmpty` to know whether anything changed, apply it for a preview, or drop it to cancel. The original model is never mutated, so there is no manual restore logic to write.
-* **State diffs across boundaries.** Send `Diff(before, after)` between processes or snapshots and `ApplyChanges` on the receiving side, instead of transferring whole models.
+* **State diffs between snapshots.** Derive `Diff(before, after)` and apply it to another in-process snapshot with `ApplyChanges`. Serialization and cross-version wire formats are separate application concerns.
 * **Safe duplication of rich models.** `DeepClone` copies models with nested and mutable members (including collections and shared references) without handwritten copy constructors.
 
-### Roadmap
+### Patch algebra and optimistic edits
 
-The current `Fragment` / `Patch` / `Diff` / `Merge` algebra is planned to grow with:
+`Patch.Between` derives a transition between sparse states, including a missing root, a present-null root, and missing/null/default member values. `Compose` squashes sequential transitions, and `Invert` restores the exact sparse baseline for undo:
 
-* **Patch composition (`Compose`)** — squash a sequence of patches into one
-* **Patch inversion (`Invert`)** — the foundation of undo/redo
-* **Three-way rebase with structured conflicts** — optimistic concurrency and re-applying patches onto a moved-forward base
-* **Merge provenance tracing** — explaining which contribution produced each effective member
+```csharp
+Optional<Settings.Fragment?> before = Optional<Settings.Fragment?>.Present(original);
+Optional<Settings.Fragment?> after = Optional<Settings.Fragment?>.Present(edited);
+var transition = Settings.Patch.Between(before, after);
+var squashed = transition.Compose(nextPatch);
+var undo = squashed.Invert(before);
+var changed = ((ISparseModelPatch<Settings, Settings.Fragment>)squashed).Apply(before);
+var restored = ((ISparseModelPatch<Settings, Settings.Fragment>)undo).Apply(changed);
+```
 
-Together these aim to become the building blocks for Git-style change sets (replaying an ordered patch series) and server-authoritative real-time collaboration, where clients submit patches against a known revision and stale patches are continuously rebased onto newer state.
+Whole-contribution `Set`, `SetNull`, and `Unset` operations compose with member and nested operations. Applying composed patches has the same result as sequential application; inversion preserves presence rather than replacing missing values with defaults.
+
+When a model member uses an algebra API name such as `Compose`, the generated algebra methods receive a `Sparse` prefix (`SparseCompose`, `SparseBetween`, `SparseInvert`, and `SparseRebase`) so the typed member remains available. The prefix repeats if necessary to avoid another member name.
+
+`Settings.Patch.Rebase(before, localPatch, current)` returns `RebaseResult<Settings.Patch>`. Non-conflicting edits are replayed on the current sparse state; conflicts expose member paths, conflict kinds, and the base/local/current presence-aware values. Append and set-union members replay compatible additions, and custom `FragmentMergeStrategy<T>` implementations can implement `TryRebase`. `SparseModelRebase` provides the shared schema-driven model-edit primitive also used by Configlue.
+
+`SparseMergeTracer.Explain(schema, effective, contributionsLowToHigh)` explains effective members and collection elements using contribution indices. Replace, deep, append, set-union, and custom strategy traces share the same merge semantics, including explicit nulls that erase lower contributions. Strategies can also implement contribution planning and element explanation.
+
+These APIs are in-process algebra. Patches contain no revision IDs, timestamps, source IDs, or acknowledgement state. An application can wrap them with its own revisions for ordered replay, stop-on-conflict workflows, or optimistic collaboration. Persistence, transport, and stable cross-version serialization remain separate concerns.
 
 ## License
 

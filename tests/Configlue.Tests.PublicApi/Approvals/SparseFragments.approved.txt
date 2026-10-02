@@ -5,7 +5,10 @@ namespace SparseFragments
     {
         protected FragmentMergeStrategy() { }
         public abstract bool AreEqual(T? left, T? right);
+        public virtual System.Collections.Generic.IReadOnlyList<SparseFragments.SparseMergeElementProvenance> ExplainElements(T? effective, System.Collections.Generic.IReadOnlyList<SparseFragments.SparseContribution<T>> contributionsLowToHigh) { }
         public abstract SparseFragments.Optional<T> Merge(SparseFragments.Optional<T> lowerPriority, SparseFragments.Optional<T> higherPriority);
+        public virtual bool TryPlanContribution(System.Collections.Generic.IReadOnlyList<SparseFragments.SparseContribution<T>> contributionsLowToHigh, int targetContributionIndex, T? desiredEffective, out SparseFragments.Optional<T> targetContribution, out string? reason) { }
+        public virtual bool TryRebase(T? editBase, T? desired, T? current, out T? rebased, out string? reason) { }
     }
     public enum FragmentOperationKind
     {
@@ -44,7 +47,10 @@ namespace SparseFragments
     {
         System.Type ValueType { get; }
         bool AreEqual(object? left, object? right);
+        System.Collections.Generic.IReadOnlyList<SparseFragments.SparseMergeElementProvenance> ExplainElements(object? effective, System.Collections.Generic.IReadOnlyList<SparseFragments.SparseContribution> contributionsLowToHigh);
         SparseFragments.Optional<object?> Merge(SparseFragments.Optional<object?> lowerPriority, SparseFragments.Optional<object?> higherPriority);
+        bool TryPlanContribution(System.Collections.Generic.IReadOnlyList<SparseFragments.SparseContribution> contributionsLowToHigh, int targetContributionIndex, object? desiredEffective, out SparseFragments.Optional<object?> targetContribution, out string? reason);
+        bool TryRebase(object? editBase, object? desired, object? current, out object? rebased, out string? reason);
     }
     public interface ISparseModelPatch<in TModel, TFragment>
         where TFragment :  class
@@ -74,6 +80,14 @@ namespace SparseFragments
         public static SparseFragments.Optional<T> Present(T? value) { }
         public static SparseFragments.Optional<T> op_Implicit(T? value) { }
     }
+    public sealed class RebaseResult<TPatch>
+    {
+        public RebaseResult(TPatch patch, System.Collections.Generic.IEnumerable<SparseFragments.SparsePatchConflict> conflicts) { }
+        public System.Collections.Generic.IReadOnlyList<SparseFragments.SparsePatchConflict> Conflicts { get; }
+        public bool HasConflicts { get; }
+        public TPatch Patch { get; }
+        public static SparseFragments.RebaseResult<TPatch> Success(TPatch patch) { }
+    }
     [System.AttributeUsage(System.AttributeTargets.Property, Inherited=true)]
     public sealed class SparseCloneReferenceSafeAttribute : System.Attribute
     {
@@ -82,6 +96,29 @@ namespace SparseFragments
     public static class SparseCollectionMerger
     {
         public static System.Collections.Generic.HashSet<T> MergeSet<T>(System.Collections.Generic.IEnumerable<T> lower, System.Collections.Generic.IEnumerable<T> higher) { }
+    }
+    public static class SparseCollectionRebase
+    {
+        public static bool TryRebaseAppend(System.Collections.Generic.IReadOnlyList<object?> before, System.Collections.Generic.IReadOnlyList<object?> desired, System.Collections.Generic.IReadOnlyList<object?> current, System.Func<object?, object?, bool> equal, out System.Collections.Generic.IReadOnlyList<object?> rebased, out string? reason) { }
+        public static bool TryRebaseSetUnion(System.Collections.Generic.IReadOnlyList<object?> before, System.Collections.Generic.IReadOnlyList<object?> desired, System.Collections.Generic.IReadOnlyList<object?> current, System.Func<object?, object?, bool> equal, out System.Collections.Generic.IReadOnlyList<object?> rebased, out string? reason) { }
+    }
+    public readonly struct SparseContribution : System.IEquatable<SparseFragments.SparseContribution>
+    {
+        public SparseContribution(int Index, SparseFragments.Optional<object?> Value) { }
+        public int Index { get; init; }
+        public SparseFragments.Optional<object?> Value { get; init; }
+    }
+    public readonly struct SparseContribution<T> : System.IEquatable<SparseFragments.SparseContribution<T>>
+    {
+        public SparseContribution(int Index, SparseFragments.Optional<T> Value) { }
+        public int Index { get; init; }
+        public SparseFragments.Optional<T> Value { get; init; }
+    }
+    public static class SparseFragmentComparer
+    {
+        public static bool AreEqual(SparseFragments.ISparseFragment? left, SparseFragments.ISparseFragment? right) { }
+        public static bool AreEqual<TFragment>(SparseFragments.Optional<TFragment?> left, SparseFragments.Optional<TFragment?> right)
+            where TFragment :  class, SparseFragments.ISparseFragment { }
     }
     public readonly struct SparseFragmentMember : System.IEquatable<SparseFragments.SparseFragmentMember>
     {
@@ -93,8 +130,10 @@ namespace SparseFragments
     }
     public readonly struct SparseFragmentMemberSchema : System.IEquatable<SparseFragments.SparseFragmentMemberSchema>
     {
-        public SparseFragmentMemberSchema(int Id, string Name, System.Type ValueType, SparseFragments.MergeMode MergeMode, System.Func<object, object?>? GetValue = null, System.Func<SparseFragments.SparseFragmentSchema>? NestedSchemaFactory = null, SparseFragments.ISparseMergeStrategy? CollectionMergeStrategy = null, System.Func<object?>? DefaultValueFactory = null) { }
+        public SparseFragmentMemberSchema(int Id, string Name, System.Type ValueType, SparseFragments.MergeMode MergeMode, System.Func<object, object?>? GetValue = null, System.Func<SparseFragments.SparseFragmentSchema>? NestedSchemaFactory = null, SparseFragments.ISparseMergeStrategy? CollectionMergeStrategy = null, System.Func<object?>? DefaultValueFactory = null, System.Func<System.Collections.Generic.IEnumerable<object?>, object?>? CollectionValueFactory = null) { }
         public SparseFragments.ISparseMergeStrategy? CollectionMergeStrategy { get; init; }
+        public System.Func<System.Collections.Generic.IEnumerable<object?>, object?>? CollectionValueFactory { get; init; }
+        public System.Func<object, object?, bool>? ContainsElement { get; init; }
         public System.Func<object?>? DefaultValueFactory { get; init; }
         public System.Func<object, object?>? GetValue { get; init; }
         public int Id { get; init; }
@@ -122,6 +161,52 @@ namespace SparseFragments
         public SparseMergeAttribute(System.Type strategyType) { }
         public SparseFragments.MergeMode Mode { get; }
         public System.Type? StrategyType { get; }
+    }
+    public sealed class SparseMergeElementProvenance
+    {
+        public SparseMergeElementProvenance(int index, System.Collections.Generic.IEnumerable<int> contributionIndices) { }
+        public System.Collections.Generic.IReadOnlyList<int> ContributionIndices { get; }
+        public int Index { get; }
+    }
+    public sealed class SparseMergeMemberProvenance
+    {
+        public SparseMergeMemberProvenance(int memberId, string name, SparseFragments.Optional<object?> value, System.Collections.Generic.IEnumerable<int> contributionIndices, System.Collections.Generic.IEnumerable<SparseFragments.SparseMergeElementProvenance>? elements = null, System.Collections.Generic.IEnumerable<SparseFragments.SparseMergeMemberProvenance>? nested = null) { }
+        public System.Collections.Generic.IReadOnlyList<int> ContributionIndices { get; }
+        public System.Collections.Generic.IReadOnlyList<SparseFragments.SparseMergeElementProvenance> Elements { get; }
+        public int MemberId { get; }
+        public string Name { get; }
+        public System.Collections.Generic.IReadOnlyList<SparseFragments.SparseMergeMemberProvenance> Nested { get; }
+        public SparseFragments.Optional<object?> Value { get; }
+    }
+    public static class SparseMergeTracer
+    {
+        public static System.Collections.Generic.IReadOnlyList<SparseFragments.SparseMergeMemberProvenance> Explain(SparseFragments.SparseFragmentSchema schema, SparseFragments.ISparseFragment? effective, System.Collections.Generic.IReadOnlyList<SparseFragments.SparseContribution> contributionsLowToHigh) { }
+    }
+    public static class SparseModelRebase
+    {
+        public static bool AreEditValuesEqual(SparseFragments.SparseFragmentMemberSchema member, object? left, object? right) { }
+        public static SparseFragments.RebaseResult<SparseFragments.ISparseFragment> Rebase(SparseFragments.SparseFragmentSchema schema, SparseFragments.ISparseFragment changes, object before, object desired, object current, bool localWinsCollections = false) { }
+    }
+    public sealed class SparsePatchConflict
+    {
+        public SparsePatchConflict(System.Collections.Generic.IEnumerable<string> path, SparseFragments.SparsePatchConflictKind kind, SparseFragments.Optional<object?> baseValue, SparseFragments.Optional<object?> localValue, SparseFragments.Optional<object?> currentValue, string? reason) { }
+        public SparseFragments.Optional<object?> BaseValue { get; }
+        public SparseFragments.Optional<object?> CurrentValue { get; }
+        public SparseFragments.SparsePatchConflictKind Kind { get; }
+        public SparseFragments.Optional<object?> LocalValue { get; }
+        public System.Collections.Generic.IReadOnlyList<string> Path { get; }
+        public string PathText { get; }
+        public string? Reason { get; }
+        public SparseFragments.SparsePatchConflict WithPathPrefix(string segment) { }
+    }
+    public enum SparsePatchConflictKind
+    {
+        WholeContribution = 0,
+        Nested = 1,
+        Scalar = 2,
+        CollectionAppend = 3,
+        CollectionSetUnion = 4,
+        CustomStrategy = 5,
     }
     public sealed class SparseReferenceEqualityComparer : System.Collections.Generic.IEqualityComparer<object>
     {

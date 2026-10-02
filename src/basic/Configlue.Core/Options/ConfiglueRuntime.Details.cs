@@ -198,7 +198,8 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             }
         }
 
-        return CollectCollectionElementProvenance(member, effectiveValue, sourceContributions)
+        return ConfiglueMergeProvenance
+            .ExplainElements(member, effectiveValue, sourceContributions)
             .Select(provenance => new ConfigCollectionElementData(
                 provenance.Index,
                 provenance.Value,

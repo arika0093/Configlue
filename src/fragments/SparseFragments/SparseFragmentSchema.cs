@@ -12,6 +12,7 @@ public readonly record struct SparseFragmentMemberSchema
     /// <param name="NestedSchemaFactory">Creates the nested fragment schema when the member is structural.</param>
     /// <param name="CollectionMergeStrategy">The custom merge strategy, when configured.</param>
     /// <param name="DefaultValueFactory">Creates the CLR default value for the member.</param>
+    /// <param name="CollectionValueFactory">Materializes collection elements into the declared member type.</param>
     public SparseFragmentMemberSchema(
         int Id,
         string Name,
@@ -20,7 +21,8 @@ public readonly record struct SparseFragmentMemberSchema
         Func<object, object?>? GetValue = null,
         Func<SparseFragmentSchema>? NestedSchemaFactory = null,
         ISparseMergeStrategy? CollectionMergeStrategy = null,
-        Func<object?>? DefaultValueFactory = null
+        Func<object?>? DefaultValueFactory = null,
+        Func<IEnumerable<object?>, object?>? CollectionValueFactory = null
     )
     {
         this.Id = Id;
@@ -31,6 +33,7 @@ public readonly record struct SparseFragmentMemberSchema
         this.NestedSchemaFactory = NestedSchemaFactory;
         this.CollectionMergeStrategy = CollectionMergeStrategy;
         this.DefaultValueFactory = DefaultValueFactory;
+        this.CollectionValueFactory = CollectionValueFactory;
     }
 
     /// <summary>The schema-local member ordinal. It may change when the model shape changes.</summary>
@@ -56,6 +59,12 @@ public readonly record struct SparseFragmentMemberSchema
 
     /// <summary>Creates the CLR default value for the member.</summary>
     public Func<object?>? DefaultValueFactory { get; init; }
+
+    /// <summary>Materializes collection elements into the declared member type.</summary>
+    public Func<IEnumerable<object?>, object?>? CollectionValueFactory { get; init; }
+
+    /// <summary>Tests element membership using the declared collection's comparer semantics.</summary>
+    public Func<object, object?, bool>? ContainsElement { get; init; }
 }
 
 /// <summary>Describes the generated sparse fragment for one model.</summary>

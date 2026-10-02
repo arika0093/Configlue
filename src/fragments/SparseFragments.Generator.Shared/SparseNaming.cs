@@ -1,4 +1,6 @@
+using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using System.Text;
 using System.Threading;
 using Microsoft.CodeAnalysis;
@@ -28,6 +30,19 @@ internal static class SparseNaming
         || SyntaxFacts.GetContextualKeywordKind(identifier) != SyntaxKind.None
             ? "@" + identifier
             : identifier;
+
+    public static string PatchApiPrefix(IEnumerable<string> memberNames)
+    {
+        var names = new HashSet<string>(memberNames);
+        var prefix = new StringBuilder();
+        while (
+            new[] { "Between", "Compose", "Invert", "Rebase" }.Any(name =>
+                names.Contains(prefix.ToString() + name)
+            )
+        )
+            prefix.Append("Sparse");
+        return prefix.ToString();
+    }
 
     public static string Sanitize(string identifier, CancellationToken cancellationToken)
     {

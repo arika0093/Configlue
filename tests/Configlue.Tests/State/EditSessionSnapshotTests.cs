@@ -9,9 +9,7 @@ public sealed class EditSessionSnapshotTests
     [Test]
     public async Task GetSnapshotAsync_ResolvesValueAndDetailsFromOneRead()
     {
-        var store = new SignalingStore<AppSettings.Fragment>(
-            Fragment("snapshot", retryCount: 4)
-        );
+        var store = new SignalingStore<AppSettings.Fragment>(Fragment("snapshot", retryCount: 4));
         await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([new("counted", store)])
         );
@@ -31,9 +29,7 @@ public sealed class EditSessionSnapshotTests
     {
         IReadOnlyState<AppSettings> state = new UnsupportedState();
 
-        await Should.ThrowAsync<NotSupportedException>(async () =>
-            await state.GetSnapshotAsync()
-        );
+        await Should.ThrowAsync<NotSupportedException>(async () => await state.GetSnapshotAsync());
     }
 
     [Test]
@@ -284,6 +280,56 @@ public sealed class EditSessionSnapshotTests
         (session.Value.Plugins).ShouldBe(["base", "mine"]);
         (session.HasUpstreamChanges).ShouldBeFalse();
         (session.HasLocalChanges).ShouldBeTrue();
+    }
+
+    [Test]
+    public async Task RebaseAsync_ReappliesAppendAdditionsOntoUpstream()
+    {
+        static AppSettings.Fragment WithPlugins(IReadOnlyList<string> plugins) =>
+            new()
+            {
+                Label = Optional<string?>.Present("start"),
+                RetryCount = Optional<int>.Present(3),
+                Plugins = Optional<IReadOnlyList<string>>.Present(plugins),
+            };
+
+        var store = new SignalingStore<AppSettings.Fragment>(WithPlugins(["base"]));
+        await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
+            new StateSourceSet<AppSettings.Fragment>([
+                new("user", store, writer: store, watcher: store),
+            ]),
+            onChangeDebounce: TimeSpan.Zero
+        );
+        using var session = await options.OpenEditSessionAsync();
+
+        session.Value.Plugins = ["base", "mine"];
+        store.Set(WithPlugins(["base", "theirs"]));
+        await session.RebaseAsync();
+
+        (session.Value.Plugins).ShouldBe(["base", "theirs", "mine"]);
+        (session.Value.RetryCount).ShouldBe(3);
+    }
+
+    [Test]
+    public async Task RebaseAsync_ReappliesSetUnionAdditionsOntoUpstream()
+    {
+        static SetUnionSettings.Fragment WithTags(IReadOnlyList<string> tags) =>
+            new() { Tags = Optional<IReadOnlyList<string>>.Present(tags) };
+
+        var store = new SignalingStore<SetUnionSettings.Fragment>(WithTags(["base"]));
+        await using var options = new ConfiglueRuntime<SetUnionSettings, SetUnionSettings.Fragment>(
+            new StateSourceSet<SetUnionSettings.Fragment>([
+                new("user", store, writer: store, watcher: store),
+            ]),
+            onChangeDebounce: TimeSpan.Zero
+        );
+        using var session = await options.OpenEditSessionAsync();
+
+        session.Value.Tags = ["base", "mine"];
+        store.Set(WithTags(["base", "theirs"]));
+        await session.RebaseAsync();
+
+        (session.Value.Tags).ShouldBe(["base", "theirs", "mine"]);
     }
 
     [Test]
@@ -631,8 +677,9 @@ public sealed class EditSessionSnapshotTests
         public IDisposable OnChange(Action<AppSettings> listener) =>
             throw new NotSupportedException();
 
-        public ValueTask<AppSettings> GetValueAsync(CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
+        public ValueTask<AppSettings> GetValueAsync(
+            CancellationToken cancellationToken = default
+        ) => throw new NotSupportedException();
     }
 
     private sealed class SignalingStore<T> : ISourceReader<T>, ISourceWriter<T>, ISourceWatcher
@@ -725,10 +772,7 @@ public sealed class EditSessionSnapshotTests
         ) => _inner.WaitForChangeAsync(context, observedRevision, cancellationToken);
     }
 
-    private sealed class SubjectStateStore<T>
-        : ISourceReader<T>,
-            ISourceWriter<T>,
-            ISourceWatcher
+    private sealed class SubjectStateStore<T> : ISourceReader<T>, ISourceWriter<T>, ISourceWatcher
     {
         private readonly ConcurrentDictionary<SubjectKey, InMemoryStateSource<T>> _states = new();
 
