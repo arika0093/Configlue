@@ -167,7 +167,8 @@ public sealed partial class ConfiglueGenerator
 
     private static GenerationAnalysis Analyze(
         INamedTypeSymbol model,
-        CancellationToken cancellationToken
+        CancellationToken cancellationToken,
+        bool validateDependencies = true
     )
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -395,6 +396,11 @@ public sealed partial class ConfiglueGenerator
             }
         }
 
+        if (diagnostics.Count == 0 && validateDependencies)
+        {
+            AddDependentModelDiagnostics(model, members, cancellationToken, diagnostics);
+        }
+
         if (diagnostics.Count > 0)
         {
             return new GenerationAnalysis(
@@ -482,6 +488,116 @@ public sealed partial class ConfiglueGenerator
                 or "RouteCore"
                 or "MergePatch"
                 or "MergeRoutedPatch";
+
+    private static void AddDependentModelDiagnostics(
+        INamedTypeSymbol root,
+        ImmutableArray<SymbolMemberModel> members,
+        CancellationToken cancellationToken,
+        ImmutableArray<GeneratorDiagnosticInfo>.Builder diagnostics
+    )
+    {
+        var visited = new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default) { root };
+        foreach (var member in members)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (member.ChildModel is { } child)
+            {
+                ValidateDependentModel(
+                    child,
+                    member.Property.Locations.FirstOrDefault(),
+                    visited,
+                    cancellationToken,
+                    diagnostics
+                );
+            }
+        }
+
+        foreach (var attribute in root.GetAttributes())
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (attribute.AttributeClass?.ToDisplayString() != PreviousVersionAttributeName)
+            {
+                continue;
+            }
+
+            if (attribute.ConstructorArguments.FirstOrDefault().Value is INamedTypeSymbol previous)
+            {
+                ValidateDependentModel(
+                    previous,
+                    attribute
+                        .ApplicationSyntaxReference?.GetSyntax(cancellationToken)
+                        .GetLocation(),
+                    visited,
+                    cancellationToken,
+                    diagnostics
+                );
+            }
+        }
+    }
+
+    private static void ValidateDependentModel(
+        INamedTypeSymbol dependency,
+        Location? referenceLocation,
+        HashSet<INamedTypeSymbol> visited,
+        CancellationToken cancellationToken,
+        ImmutableArray<GeneratorDiagnosticInfo>.Builder diagnostics
+    )
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!visited.Add(dependency))
+        {
+            return;
+        }
+
+        var analysis = Analyze(dependency, cancellationToken, validateDependencies: false);
+        if (!analysis.Model.HasValue || analysis.Diagnostics.Length > 0)
+        {
+            diagnostics.Add(
+                GeneratorDiagnosticInfo.Create(
+                    InvalidDependentModel,
+                    referenceLocation,
+                    dependency.Name
+                )
+            );
+            return;
+        }
+
+        foreach (var member in GetMembers(dependency, cancellationToken))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (member.ChildModel is { } child)
+            {
+                ValidateDependentModel(
+                    child,
+                    member.Property.Locations.FirstOrDefault(),
+                    visited,
+                    cancellationToken,
+                    diagnostics
+                );
+            }
+        }
+
+        foreach (var attribute in dependency.GetAttributes())
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (
+                attribute.AttributeClass?.ToDisplayString() == PreviousVersionAttributeName
+                && attribute.ConstructorArguments.FirstOrDefault().Value
+                    is INamedTypeSymbol previous
+            )
+            {
+                ValidateDependentModel(
+                    previous,
+                    attribute
+                        .ApplicationSyntaxReference?.GetSyntax(cancellationToken)
+                        .GetLocation(),
+                    visited,
+                    cancellationToken,
+                    diagnostics
+                );
+            }
+        }
+    }
 
     private static ImmutableArray<INamedTypeSymbol> CollectStructuralTypes(
         ImmutableArray<SymbolMemberModel> members,
