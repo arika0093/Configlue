@@ -124,7 +124,7 @@ internal static partial class JsonStateCodecOperations
             return;
         }
 
-        if (schema.Version < StateSchemaMetadata.InitialVersion)
+        if (!schema.IsValid)
         {
             throw new ArgumentOutOfRangeException(
                 nameof(context),

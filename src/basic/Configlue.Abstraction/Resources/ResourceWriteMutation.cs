@@ -36,6 +36,14 @@ public sealed class ResourceWriteMutation
             );
         }
 
+        if (schema is { IsValid: false })
+        {
+            throw new ArgumentException(
+                "A resource mutation schema must have a positive schema version.",
+                nameof(schema)
+            );
+        }
+
         Condition = condition;
         Schema = schema;
         _apply = apply;

@@ -315,7 +315,7 @@ internal static class YamlStateCodecOperations
 
     internal static Dictionary<string, object?> WriteMetadata(StateSchemaMetadata schema)
     {
-        if (schema.Version < StateSchemaMetadata.InitialVersion)
+        if (!schema.IsValid)
         {
             throw new ArgumentOutOfRangeException(
                 nameof(schema),

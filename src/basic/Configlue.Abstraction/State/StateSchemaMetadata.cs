@@ -1,6 +1,10 @@
 namespace Configlue.State;
 
 /// <summary>Identifies the logical schema used to encode a state payload.</summary>
+/// <remarks>
+/// The zero-initialized value is invalid. Absence is represented by <see langword="null"/>;
+/// consumers should reject present values whose <see cref="IsValid"/> property is false.
+/// </remarks>
 public readonly record struct StateSchemaMetadata
 {
     /// <summary>Gets or initializes the <see cref="ModelId"/> value.</summary>
@@ -14,6 +18,14 @@ public readonly record struct StateSchemaMetadata
     /// <param name="Version">The initial value for the <see cref="Version"/> property.</param>
     public StateSchemaMetadata(string? ModelId, int Version)
     {
+        if (Version < InitialVersion)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(Version),
+                "Schema versions must be positive."
+            );
+        }
+
         this.ModelId = ModelId;
         this.Version = Version;
     }
@@ -29,4 +41,10 @@ public readonly record struct StateSchemaMetadata
 
     /// <summary>The initial schema version.</summary>
     public const int InitialVersion = 1;
+
+    /// <summary>Whether this value has a valid positive schema version.</summary>
+    public bool IsValid => Version >= InitialVersion;
+
+    /// <summary>Whether this value is the uninitialized default struct.</summary>
+    public bool IsDefault => !IsValid && ModelId is null;
 }

@@ -138,6 +138,13 @@ public sealed class StateSource<T>
         {
             throw new ArgumentOutOfRangeException(nameof(fallbackCondition));
         }
+        if (fixedResourceId is { IsDefault: true })
+        {
+            throw new ArgumentException(
+                "A configured resource identity must not be the default ResourceId.",
+                nameof(fixedResourceId)
+            );
+        }
 
         Id = id;
         Reader = reader;
@@ -328,14 +335,7 @@ context = ConfiglueResourceContext.Normalize(context);
     private static ResourceId? TryGetResourceId(
         object? resource,
         ConfiglueResourceContext context
-    ) =>
-        resource switch
-        {
-            IResourceIdentity identity => identity.GetResourceId(context),
-            ITryResourceIdentity tryIdentity
-                when tryIdentity.TryGetResourceId(context, out var id) => id,
-            _ => null,
-        };
+    ) => resource.TryGetResourceId(context, out var resourceId) ? resourceId : null;
 
     internal StateSource<T> WithWriteOwnership(string propertyPath)
     {

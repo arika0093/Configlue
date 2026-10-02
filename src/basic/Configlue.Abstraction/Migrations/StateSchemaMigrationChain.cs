@@ -12,7 +12,7 @@ public sealed class StateSchemaMigrationChain<T>
         IEnumerable<IStateSchemaMigration<T>>? migrations = null
     )
     {
-        if (targetSchema.Version < StateSchemaMetadata.InitialVersion)
+        if (!targetSchema.IsValid)
         {
             throw new ArgumentOutOfRangeException(nameof(targetSchema));
         }
@@ -30,7 +30,8 @@ public sealed class StateSchemaMigrationChain<T>
             }
 
             if (
-                migration.SourceSchema.Version < StateSchemaMetadata.InitialVersion
+                !migration.SourceSchema.IsValid
+                || !migration.TargetSchema.IsValid
                 || migration.TargetSchema.Version < migration.SourceSchema.Version
                 || migration.TargetSchema == migration.SourceSchema
             )
@@ -62,7 +63,7 @@ public sealed class StateSchemaMigrationChain<T>
         CancellationToken cancellationToken = default
     )
     {
-        if (sourceSchema.Version < StateSchemaMetadata.InitialVersion)
+        if (!sourceSchema.IsValid)
         {
             throw new ArgumentOutOfRangeException(nameof(sourceSchema));
         }

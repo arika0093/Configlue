@@ -28,7 +28,7 @@ public sealed class StateWritePlanBuilder<TModel>
     /// <summary>Sets the default write owner for model paths without a more specific route.</summary>
     public StateWritePlanBuilder<TModel> DefaultTo(SourceKey<TModel> source)
     {
-        if (string.IsNullOrWhiteSpace(source.Id))
+        if (source.IsDefault)
         {
             throw new ArgumentException("The source key is uninitialized.", nameof(source));
         }
@@ -53,7 +53,7 @@ public sealed class StateWritePlanBuilder<TModel>
     )
     {
         ArgumentNullException.ThrowIfNull(property);
-        if (string.IsNullOrWhiteSpace(source.Id))
+        if (source.IsDefault)
         {
             throw new ArgumentException("The source key is uninitialized.", nameof(source));
         }

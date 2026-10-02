@@ -27,6 +27,13 @@ public readonly record struct ResourceReadResult
         StateSchemaMetadata? Schema = null
     )
     {
+        if (Schema is { IsValid: false })
+        {
+            throw new ArgumentException(
+                "Resource schema metadata must have a positive schema version.",
+                nameof(Schema)
+            );
+        }
         this.Status = Status;
         this.Content = Content;
         this.Revision = Revision;

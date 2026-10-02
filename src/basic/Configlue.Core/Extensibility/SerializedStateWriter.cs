@@ -70,7 +70,7 @@ public sealed class SerializedStateWriter<T>
             && participant.BatchWriter is { } participantWriter
         )
         {
-            resourceId = participant.GetResourceId(context);
+            resourceId = ResourceContextExtensions.GetResourceId(participant, context);
             batchWriter = participantWriter;
             mutation = participant.CreateMutation(context, resourceRequest);
             return true;
@@ -78,7 +78,10 @@ public sealed class SerializedStateWriter<T>
 
         if (_resource is IResourceBatchWriter writer)
         {
-            resourceId = writer.GetResourceId(context);
+            resourceId = ResourceContextExtensions.GetResourceId(
+                (IResourceIdentity)writer,
+                context
+            );
             batchWriter = writer;
             mutation = ResourceWriteMutation.Replace(resourceRequest, context);
             return true;

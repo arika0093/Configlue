@@ -336,6 +336,8 @@ A section (`JsonSectionResource`, `YamlSectionResource`, `XmlSectionResource`) i
 
 A whole-document (root) resource does forward its logical schema because there the logical and physical schema coincide. To declare the physical container schema from a section, set its `ContainerSchema` property explicitly. Otherwise section writes make no schema claim and existing container metadata is preserved. When several sections are batched into one physical write, at most one distinct non-null container schema may be declared; conflicting schemas are rejected before anything is written.
 
+`SourceKey<TModel>` must be created with `Create()` or `Named(...)`; its zero-initialized value is uninitialized, reports `IsDefault`, and is rejected by APIs that require a source key. `StateSchemaMetadata` also has an invalid zero-initialized value (`Version == 0`). Use `null` when schema metadata is absent; present metadata must have a positive version, which `IsValid` reports.
+
 ## License
 
 Configlue is licensed under the Apache-2.0 License.

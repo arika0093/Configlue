@@ -48,6 +48,13 @@ public readonly record struct StateReadResult<T>
         {
             throw new ArgumentOutOfRangeException(nameof(Status));
         }
+        if (Schema is { IsValid: false })
+        {
+            throw new ArgumentException(
+                "Read-result schema metadata must have a positive schema version.",
+                nameof(Schema)
+            );
+        }
         if (Status == StateReadStatus.Success)
         {
             ArgumentNullException.ThrowIfNull(Value);

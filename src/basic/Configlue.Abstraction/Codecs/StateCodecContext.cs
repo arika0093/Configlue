@@ -6,7 +6,7 @@ public readonly struct StateCodecContext
     /// <summary>Creates a codec context.</summary>
     public StateCodecContext(StateSchemaMetadata? schema = null, IServiceProvider? services = null)
     {
-        Schema = schema;
+        Schema = ValidateSchema(schema);
         Services = services;
         SchemaReferenceBaseUri = null;
     }
@@ -18,7 +18,7 @@ public readonly struct StateCodecContext
         string? schemaReferenceBaseUri
     )
     {
-        Schema = schema;
+        Schema = ValidateSchema(schema);
         Services = services;
         SchemaReferenceBaseUri = schemaReferenceBaseUri;
     }
@@ -31,4 +31,16 @@ public readonly struct StateCodecContext
 
     /// <summary>The optional base URI used by JSON or YAML codecs to emit an instance schema reference.</summary>
     public string? SchemaReferenceBaseUri { get; }
+
+    private static StateSchemaMetadata? ValidateSchema(StateSchemaMetadata? schema)
+    {
+        if (schema is { IsValid: false })
+        {
+            throw new ArgumentException(
+                "Codec schema metadata must have a positive schema version.",
+                nameof(schema)
+            );
+        }
+        return schema;
+    }
 }

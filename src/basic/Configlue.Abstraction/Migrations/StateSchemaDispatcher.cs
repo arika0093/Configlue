@@ -11,7 +11,7 @@ public sealed class StateSchemaDispatcher<T>
     /// <summary>Creates a dispatcher for the current schema.</summary>
     public StateSchemaDispatcher(StateSchemaMetadata targetSchema)
     {
-        if (targetSchema.Version < StateSchemaMetadata.InitialVersion)
+        if (!targetSchema.IsValid)
         {
             throw new ArgumentOutOfRangeException(nameof(targetSchema));
         }
@@ -38,7 +38,7 @@ public sealed class StateSchemaDispatcher<T>
         ArgumentNullException.ThrowIfNull(codec);
         ArgumentNullException.ThrowIfNull(migrate);
         if (
-            sourceSchema.Version < StateSchemaMetadata.InitialVersion
+            !sourceSchema.IsValid
             || sourceSchema.Version >= TargetSchema.Version
             || !string.Equals(sourceSchema.ModelId, TargetSchema.ModelId, StringComparison.Ordinal)
         )
@@ -83,6 +83,10 @@ public sealed class StateSchemaDispatcher<T>
     )
     {
         value = default;
+        if (!sourceSchema.IsValid)
+        {
+            throw new ArgumentOutOfRangeException(nameof(sourceSchema));
+        }
         if (sourceSchema.ModelId is null)
         {
             sourceSchema = sourceSchema with { ModelId = TargetSchema.ModelId };

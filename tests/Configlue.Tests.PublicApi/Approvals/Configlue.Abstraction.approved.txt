@@ -720,6 +720,7 @@ namespace Configlue
     }
     public readonly struct SourceKey<TModel> : System.IEquatable<Configlue.SourceKey<TModel>>
     {
+        public bool IsDefault { get; }
         public string Name { get; }
         public static Configlue.SourceKey<TModel> Create() { }
         public static Configlue.SourceKey<TModel> Named(string name) { }
@@ -998,6 +999,7 @@ namespace Configlue.Resources
     public readonly struct ResourceId : System.IEquatable<Configlue.Resources.ResourceId>
     {
         public ResourceId(string value) { }
+        public bool IsDefault { get; }
         public string Value { get; }
         public override string ToString() { }
     }
@@ -1200,6 +1202,8 @@ namespace Configlue.State
     {
         public const int InitialVersion = 1;
         public StateSchemaMetadata(string? ModelId, int Version) { }
+        public bool IsDefault { get; }
+        public bool IsValid { get; }
         public string? ModelId { get; init; }
         public int Version { get; init; }
         public void Deconstruct(out string? ModelId, out int Version) { }

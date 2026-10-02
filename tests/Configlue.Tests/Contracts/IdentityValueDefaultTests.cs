@@ -1,0 +1,156 @@
+using System.Text.Json;
+using Configlue.Codecs;
+using Configlue.Migrations;
+using Configlue.Resources;
+
+namespace Configlue.Tests;
+
+public sealed class IdentityValueDefaultTests
+{
+    [Test]
+    public void DefaultResourceIdIsSafeButInvalidAndDistinctFromNullableAbsence()
+    {
+        ResourceId uninitialized = default;
+        ResourceId? absent = null;
+        var present = (ResourceId?)default(ResourceId);
+        var resolved = new ResourceId("disk:settings");
+
+        uninitialized.IsDefault.ShouldBeTrue();
+        uninitialized.Value.ShouldBe(string.Empty);
+        uninitialized.ToString().ShouldBe(string.Empty);
+        uninitialized.ShouldBe(default(ResourceId));
+        uninitialized.ShouldNotBe(resolved);
+        resolved.IsDefault.ShouldBeFalse();
+        resolved.Value.ShouldBe("disk:settings");
+        absent.ShouldBeNull();
+        present.HasValue.ShouldBeTrue();
+        present.Value.IsDefault.ShouldBeTrue();
+
+        ResourceId roundTrip = JsonSerializer.Deserialize<ResourceId>(JsonSerializer.Serialize(resolved));
+        roundTrip.ShouldBe(resolved);
+        roundTrip.IsDefault.ShouldBeFalse();
+        ResourceId serializedDefault = JsonSerializer.Deserialize<ResourceId>(
+            JsonSerializer.Serialize(uninitialized)
+        );
+        serializedDefault.IsDefault.ShouldBeTrue();
+        serializedDefault.Value.ShouldBe(string.Empty);
+    }
+
+    [Test]
+    public void ContextIdentityResolutionRejectsDefaultRequiredIdsAndAllowsTryAbsence()
+    {
+        var context = ConfiglueResourceContext.Default;
+
+        Should.Throw<InvalidOperationException>(() =>
+            ResourceContextExtensions.GetResourceId(new RequiredIdentity(default), context)
+        );
+        Should.Throw<InvalidOperationException>(() =>
+            ResourceContextExtensions.TryGetResourceId(new RequiredIdentity(default), context, out _)
+        );
+        Should.Throw<InvalidOperationException>(() =>
+            ResourceContextExtensions.TryGetResourceId(new OptionalIdentity(true, default), context, out _)
+        );
+        ResourceContextExtensions.TryGetResourceId(
+                new OptionalIdentity(false, default),
+                context,
+                out var absentId
+            )
+            .ShouldBeFalse();
+        absentId.ShouldBe(default(ResourceId));
+
+        var expected = new ResourceId("memory:test");
+        ResourceContextExtensions.GetResourceId(new RequiredIdentity(expected), context).ShouldBe(expected);
+        ResourceContextExtensions.TryGetResourceId(
+                new OptionalIdentity(true, expected),
+                context,
+                out var actual
+            )
+            .ShouldBeTrue();
+        actual.ShouldBe(expected);
+    }
+
+    [Test]
+    public void DefaultSourceKeyHasSafeNameAndIsRejectedWhenRequired()
+    {
+        SourceKey<AppSettings> uninitialized = default;
+        var named = SourceKey<AppSettings>.Named("primary");
+
+        uninitialized.IsDefault.ShouldBeTrue();
+        uninitialized.Name.ShouldBe(string.Empty);
+        uninitialized.ShouldBe(default(SourceKey<AppSettings>));
+        uninitialized.ShouldNotBe(named);
+        named.IsDefault.ShouldBeFalse();
+        named.Name.ShouldBe("primary");
+
+        using var serialized = JsonDocument.Parse(JsonSerializer.Serialize(uninitialized));
+        serialized.RootElement.GetProperty("Name").GetString().ShouldBe(string.Empty);
+        serialized.RootElement.GetProperty("IsDefault").GetBoolean().ShouldBeTrue();
+
+        Should.Throw<ArgumentException>(() => StateWritePlan.For<AppSettings>().DefaultTo(uninitialized));
+    }
+
+    [Test]
+    public void DefaultSchemaIsInvalidDistinctFromNullableAbsenceAndCannotEnterTypedConsumers()
+    {
+        StateSchemaMetadata uninitialized = default;
+        StateSchemaMetadata? absent = null;
+        var valid = new StateSchemaMetadata("app-settings", 2);
+
+        uninitialized.IsDefault.ShouldBeTrue();
+        uninitialized.IsValid.ShouldBeFalse();
+        uninitialized.Version.ShouldBe(0);
+        uninitialized.ShouldBe(default(StateSchemaMetadata));
+        uninitialized.ShouldNotBe(valid);
+        absent.ShouldBeNull();
+        new StateCodecContext(absent).Schema.ShouldBeNull();
+        new StateCodecContext(valid).Schema.ShouldBe(valid);
+        StateSchemaMetadata roundTrip = JsonSerializer.Deserialize<StateSchemaMetadata>(
+            JsonSerializer.Serialize(valid)
+        );
+        roundTrip.ShouldBe(valid);
+        roundTrip.IsValid.ShouldBeTrue();
+
+        Should.Throw<ArgumentException>(() => new StateCodecContext(uninitialized));
+        Should.Throw<ArgumentException>(() =>
+            StateReadResult<AppSettings>.Success(new AppSettings(), schema: uninitialized)
+        );
+        Should.Throw<ArgumentException>(() =>
+            ResourceReadResult.Success(ReadOnlyMemory<byte>.Empty, schema: uninitialized)
+        );
+        Should.Throw<ArgumentException>(() =>
+            new ResourceWriteMutation(
+                RevisionCondition.None,
+                uninitialized,
+                static _ => ReadOnlyMemory<byte>.Empty
+            )
+        );
+        Should.Throw<ArgumentOutOfRangeException>(() =>
+            new StateSchemaDispatcher<AppSettings.Fragment>(uninitialized)
+        );
+        Should.Throw<ArgumentOutOfRangeException>(() =>
+            new StateSchemaMigrationChain<AppSettings.Fragment>(uninitialized)
+        );
+        Should.Throw<ArgumentOutOfRangeException>(() =>
+            StateSchemaReference.CreateUri("schemas", uninitialized)
+        );
+        StateSchemaMetadata serializedDefault = JsonSerializer.Deserialize<StateSchemaMetadata>(
+            JsonSerializer.Serialize(uninitialized)
+        );
+        serializedDefault.IsDefault.ShouldBeTrue();
+        serializedDefault.IsValid.ShouldBeFalse();
+    }
+
+    private sealed class RequiredIdentity(ResourceId resourceId) : IResourceIdentity
+    {
+        public ResourceId GetResourceId(ConfiglueResourceContext context) => resourceId;
+    }
+
+    private sealed class OptionalIdentity(bool hasIdentity, ResourceId resourceId) : ITryResourceIdentity
+    {
+        public bool TryGetResourceId(ConfiglueResourceContext context, out ResourceId result)
+        {
+            result = resourceId;
+            return hasIdentity;
+        }
+    }
+}

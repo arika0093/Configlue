@@ -36,6 +36,14 @@ public sealed class PipelineResourceReadResult : IAsyncDisposable
             );
         }
 
+        if (schema is { IsValid: false })
+        {
+            throw new ArgumentException(
+                "Resource schema metadata must have a positive schema version.",
+                nameof(schema)
+            );
+        }
+
         Status = status;
         _content = content;
         _owner = owner;

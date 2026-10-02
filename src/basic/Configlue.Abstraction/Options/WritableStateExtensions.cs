@@ -10,7 +10,7 @@ public static class ConfiglueStateExtensions
     )
     {
         ArgumentNullException.ThrowIfNull(sources);
-        if (string.IsNullOrWhiteSpace(sourceKey.Id))
+        if (sourceKey.IsDefault)
         {
             throw new ArgumentException("The source key is uninitialized.", nameof(sourceKey));
         }

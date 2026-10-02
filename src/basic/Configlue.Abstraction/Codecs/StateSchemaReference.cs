@@ -31,6 +31,10 @@ public static class StateSchemaReference
     public static string CreateUri(string baseUri, StateSchemaMetadata schema)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(baseUri);
+        if (!schema.IsValid)
+        {
+            throw new ArgumentOutOfRangeException(nameof(schema));
+        }
         if (schema.ModelId is null)
         {
             throw new ArgumentException(

@@ -705,7 +705,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
 
     private static void ValidateSourceKey(SourceKey<TModel> sourceKey, string parameterName)
     {
-        if (string.IsNullOrWhiteSpace(sourceKey.Id))
+        if (sourceKey.IsDefault)
         {
             throw new ArgumentException("The source key is uninitialized.", parameterName);
         }

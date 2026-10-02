@@ -66,7 +66,7 @@ public class ConfiglueSourceSetBuilder : IConfiglueSourceRegistrationSink
     {
         EnsureMutable();
         ArgumentNullException.ThrowIfNull(sourceFactory);
-        if (string.IsNullOrWhiteSpace(sourceKey.Id))
+        if (sourceKey.IsDefault)
         {
             throw new ArgumentException("The source key is uninitialized.", nameof(sourceKey));
         }
