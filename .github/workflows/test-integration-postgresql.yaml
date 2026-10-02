@@ -1,6 +1,13 @@
 name: PostgreSQL integration tests
 
 on:
+  workflow_call:
+    inputs:
+      release-check-scope:
+        description: Unique concurrency scope for a reusable release check.
+        type: string
+        required: false
+        default: ''
   push:
     branches: [main]
   pull_request:
@@ -10,7 +17,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ inputs.release-check-scope || github.ref }}
   cancel-in-progress: true
 
 jobs:

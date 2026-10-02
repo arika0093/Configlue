@@ -17,10 +17,41 @@ jobs:
   strict-test:
     uses: ./.github/workflows/test-strict.yaml
 
+  redis-integration:
+    uses: ./.github/workflows/test-integration-redis.yaml
+    with:
+      release-check-scope: release-redis
+
+  postgresql-integration:
+    uses: ./.github/workflows/test-integration-postgresql.yaml
+    with:
+      release-check-scope: release-postgresql
+
+  s3-integration:
+    uses: ./.github/workflows/test-integration-s3.yaml
+    with:
+      release-check-scope: release-s3
+
+  package-consumers:
+    uses: ./.github/workflows/test-package-consumers.yaml
+    with:
+      release-check-scope: release-package-consumers
+
   package-build:
-    if: github.ref == 'refs/heads/main'
+    if: >-
+      github.ref == 'refs/heads/main'
+      && needs.strict-test.result == 'success'
+      && needs.redis-integration.result == 'success'
+      && needs.postgresql-integration.result == 'success'
+      && needs.s3-integration.result == 'success'
+      && needs.package-consumers.result == 'success'
     runs-on: ubuntu-latest
-    needs: strict-test
+    needs:
+      - strict-test
+      - redis-integration
+      - postgresql-integration
+      - s3-integration
+      - package-consumers
     outputs:
       version: ${{ steps.version.outputs.semver }}
     steps:
