@@ -1,0 +1,62 @@
+---
+title: Physical resource identity and batch-writer compatibility
+description: How provider authors distinguish a resource's physical coordination domain from the writers that may share one batch write.
+---
+
+## Two different questions
+
+When a patch batch targets several logical sources, the runtime must decide whether those
+writes can be combined into a single physical resource write. It asks two separate questions:
+
+1. **Physical identity** — do the sources target the same physical coordination and
+   atomicity domain? This is expressed by `ResourceId`.
+2. **Writer compatibility** — are the batch writer objects that would perform the write
+   semantically interchangeable? This is expressed by `IResourceBatchCompatibility`.
+
+`ResourceId` alone never proves the second question. Section views, serializing adapters,
+and wrappers such as `TransformingResource` carry behavior (document editing,
+serialization, byte transformation, transaction handling) in addition to physical
+identity, so two writers reporting the same `ResourceId` are not automatically safe to
+merge.
+
+## Default: reference equality
+
+A batch writer that does not implement `IResourceBatchCompatibility` can only batch with
+itself. If two distinct writer instances report the same `ResourceId` but do not opt in,
+the runtime rejects the group before any physical write occurs. This prevents a group from
+silently choosing an arbitrary first writer.
+
+Built-in writers whose entire semantics *are* their physical identity opt in directly:
+`FileResource` and `InMemoryResource` return their `ResourceId` as their compatibility
+token, so equivalent instances of the same physical resource can still batch.
+
+## Opting in
+
+Implement `IResourceBatchCompatibility` when a writer's behavior is fully determined by
+values it can expose as a token:
+
+```csharp
+public sealed class SharedBatchWriter : IResourceBatchWriter, IResourceBatchCompatibility
+{
+    public ResourceId ResourceId { get; }
+
+    public object? GetBatchCompatibilityToken(ConfiglueResourceContext context) =>
+        ResourceId; // every writer for this identity is interchangeable
+
+    // WriteAsync / WriteBatchAsync omitted.
+}
+```
+
+Two writers are compatible when they are the same object, or when both return equal,
+non-null tokens for the operation context. Returning `null` keeps reference equality only.
+The token should cover everything that changes batch semantics — identity, serialization
+settings, and the transformer pipeline — not just the physical resource.
+
+`TransformingResource` uses this contract to wrap the underlying writer's token together
+with its transformer instances. Two wrappers around the same physical writer are compatible
+only when they share the same transformer pipeline; wrappers with different pipelines are
+rejected before writing.
+
+The runtime validates the whole group with
+`ResourceBatchCompatibility.AreCompatible` before applying `ResourceWriteMutation.ValidateBatch`
+and before the first physical write.

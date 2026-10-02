@@ -34,6 +34,7 @@ public sealed partial class FileResource
         IPipelineResourceReader,
         ISourceWatcher,
         IResourceBatchWriter,
+        IResourceBatchCompatibility,
         IResourceBackupRecovery,
         IDisposable
 {
@@ -350,6 +351,17 @@ public sealed partial class FileResource
 
     /// <inheritdoc />
     public ResourceId ResourceId { get; }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// File identity (the normalized path behind <see cref="ResourceId"/>) fully describes the physical
+    /// batch domain, so every writer reporting the same identity is interchangeable.
+    /// </remarks>
+    public object? GetBatchCompatibilityToken(ConfiglueResourceContext context)
+    {
+        _ = context;
+        return ResourceId;
+    }
 
     /// <inheritdoc />
     public bool IsPipelineReadPreferred => true;

@@ -1,6 +1,11 @@
 namespace Configlue.Resources;
 
 /// <summary>Identifies a physical resource independently of the logical sources that expose it.</summary>
+/// <remarks>
+/// A <see cref="ResourceId"/> describes the physical coordination and atomicity domain used to group
+/// writes. It does not imply that every batch writer reporting the same identity is interchangeable;
+/// callers that combine writers must additionally satisfy <see cref="IResourceBatchCompatibility"/>.
+/// </remarks>
 public readonly record struct ResourceId
 {
     /// <summary>Creates a resource identity.</summary>

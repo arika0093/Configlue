@@ -1,6 +1,11 @@
 namespace Configlue.Resources;
 
 /// <summary>Persists several disjoint logical resource mutations with one physical resource write.</summary>
+/// <remarks>
+/// A batch writer's <see cref="IResourceIdentity.ResourceId"/> only declares its physical coordination
+/// domain. Combining several writers into one physical write additionally requires that they are the
+/// same object or opt in to an equal <see cref="IResourceBatchCompatibility"/> token.
+/// </remarks>
 public interface IResourceBatchWriter : IResourceWriter, IResourceIdentity
 {
     /// <summary>Applies the mutations in order and persists the resulting resource once.</summary>

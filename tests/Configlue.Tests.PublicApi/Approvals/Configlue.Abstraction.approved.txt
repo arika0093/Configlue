@@ -897,6 +897,10 @@ namespace Configlue.Resources
         bool AutomaticBackupRecoveryEnabled { get; }
         System.Threading.Tasks.ValueTask<Configlue.Resources.ResourceReadResult?> TryRecoverLatestBackupAsync(string? expectedRevision, bool expectedMissing, System.Func<Configlue.Resources.ResourceReadResult, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<bool>> validate, System.Threading.CancellationToken cancellationToken = default);
     }
+    public interface IResourceBatchCompatibility
+    {
+        object? GetBatchCompatibilityToken(Configlue.Resources.ConfiglueResourceContext context);
+    }
     public interface IResourceBatchParticipant
     {
         Configlue.Resources.IResourceBatchWriter? BatchWriter { get; }
@@ -922,6 +926,10 @@ namespace Configlue.Resources
     public interface ITryContextualResourceIdentity : Configlue.Resources.IContextualResourceIdentity, Configlue.Resources.IResourceIdentity
     {
         bool TryGetResourceId(Configlue.Resources.ConfiglueResourceContext context, out Configlue.Resources.ResourceId resourceId);
+    }
+    public static class ResourceBatchCompatibility
+    {
+        public static bool AreCompatible(Configlue.Resources.IResourceBatchWriter left, Configlue.Resources.IResourceBatchWriter right, Configlue.Resources.ConfiglueResourceContext context = default) { }
     }
     public static class ResourceContextExtensions
     {

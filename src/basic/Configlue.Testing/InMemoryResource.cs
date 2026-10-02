@@ -8,7 +8,8 @@ public sealed class InMemoryResource
     : IResourceReader,
         IPipelineResourceReader,
         ISourceWatcher,
-        IResourceBatchWriter
+        IResourceBatchWriter,
+        IResourceBatchCompatibility
 {
     private readonly object _gate = new();
     private byte[]? _content;
@@ -22,6 +23,14 @@ public sealed class InMemoryResource
 
     /// <inheritdoc />
     public ResourceId ResourceId { get; }
+
+    /// <inheritdoc />
+    /// <remarks>The unique in-memory identity is the entire physical batch domain.</remarks>
+    public object? GetBatchCompatibilityToken(ConfiglueResourceContext context)
+    {
+        _ = context;
+        return ResourceId;
+    }
 
     /// <summary>The number of successful physical write operations.</summary>
     public long WriteCount => Interlocked.Read(ref _writeCount);

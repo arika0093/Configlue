@@ -381,6 +381,28 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                 );
             }
 
+            var canonicalWriter = group[0].BatchWriter!;
+            var compatibilityContext = group[0].Mutation!.Context;
+            for (var planIndex = 1; planIndex < group.Count; planIndex++)
+            {
+                if (
+                    !ResourceBatchCompatibility.AreCompatible(
+                        canonicalWriter,
+                        group[planIndex].BatchWriter!,
+                        compatibilityContext
+                    )
+                )
+                {
+                    var sourceIds = string.Join(
+                        "', '",
+                        group.Select(static plan => plan.Source.Id)
+                    );
+                    throw new NotSupportedException(
+                        $"Sources '{sourceIds}' share ResourceId '{group[planIndex].ResourceId}' but expose batch writers that are not interchangeable. A writer must be the same object or opt in to an equal {nameof(IResourceBatchCompatibility)} token."
+                    );
+                }
+            }
+
             ResourceWriteMutation.ValidateBatch(
                 group.Select(static plan => plan.Mutation!).ToArray()
             );
