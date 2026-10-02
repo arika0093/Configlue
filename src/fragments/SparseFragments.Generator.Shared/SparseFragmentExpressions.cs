@@ -148,12 +148,8 @@ internal sealed class SparseFragmentExpressions(
                 $"__CloneArray<{elementType}, {member.Property.Type.Name}>({access}, {CloneContext}, item => {CloneValueExpression(collection.ElementType, "item")})",
             SparseCloneCollectionKind.List =>
                 $"__CloneList<{elementType}, {member.Property.Type.Name}>({access}, {CloneContext}, item => {CloneValueExpression(collection.ElementType, "item")})",
-            SparseCloneCollectionKind.Set => CloneSetExpression(
-                collection,
-                access,
-                elements,
-                elementType
-            ),
+            SparseCloneCollectionKind.Set or SparseCloneCollectionKind.SortedSet =>
+                $"__CloneSet<{elementType}, {member.Property.Type.Name}>({access}, {CloneContext}, item => {CloneValueExpression(collection.ElementType, "item")})",
             SparseCloneCollectionKind.ImmutableSet => CloneSetExpression(
                 collection,
                 access,
@@ -172,8 +168,6 @@ internal sealed class SparseFragmentExpressions(
                 $"__CloneBlockingCollection({access}, {elements})",
             SparseCloneCollectionKind.LinkedList =>
                 $"new global::System.Collections.Generic.LinkedList<{elementType}>({elements})",
-            SparseCloneCollectionKind.SortedSet =>
-                $"new global::System.Collections.Generic.SortedSet<{elementType}>({elements}, {access}.Comparer)",
             SparseCloneCollectionKind.ObservableCollection =>
                 $"new global::System.Collections.ObjectModel.ObservableCollection<{elementType}>({elements})",
             SparseCloneCollectionKind.ReadOnlyCollection =>

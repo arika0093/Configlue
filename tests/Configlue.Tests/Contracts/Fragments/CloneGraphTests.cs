@@ -6,6 +6,7 @@ namespace Configlue.Tests;
 public partial class CloneGraphNode
 {
     public int Value { get; set; }
+    public ISet<CloneGraphNode> Members { get; set; } = new HashSet<CloneGraphNode>();
     public CloneGraphNode[] Buffer { get; set; } = Array.Empty<CloneGraphNode>();
     public CloneGraphNode? Next { get; set; }
     public CloneGraphNode? Peer { get; set; }
@@ -22,6 +23,9 @@ public sealed class CloneGraphTests
         var child = new CloneGraphNode { Value = 7, Next = root };
         root.Next = child;
         root.Peer = child;
+        root.Members.Add(child);
+        root.Members.Add(root);
+        child.Members = root.Members;
         root.Buffer = new[] { child, root };
         child.Buffer = root.Buffer;
         root.Nodes.Add(child);
@@ -33,6 +37,9 @@ public sealed class CloneGraphTests
         ReferenceEquals(clone, root).ShouldBeFalse();
         ReferenceEquals(clone.Next, child).ShouldBeFalse();
         ReferenceEquals(clone.Next, clone.Peer).ShouldBeTrue();
+        ReferenceEquals(clone.Next!.Members, clone.Members).ShouldBeTrue();
+        clone.Members.Contains(clone.Next).ShouldBeTrue();
+        clone.Members.Contains(clone).ShouldBeTrue();
         ReferenceEquals(clone.Buffer, root.Buffer).ShouldBeFalse();
         ReferenceEquals(clone.Buffer[0], clone.Next).ShouldBeTrue();
         ReferenceEquals(clone.Buffer[1], clone).ShouldBeTrue();
