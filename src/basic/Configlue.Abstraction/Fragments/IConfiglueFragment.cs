@@ -4,7 +4,7 @@ namespace Configlue;
 [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public readonly record struct ConfiglueFragmentMember
 {
-    /// <summary>Gets or initializes the <see cref="Id"/> value.</summary>
+    /// <summary>Gets or initializes this member's ordinal within its fragment's schema version.</summary>
     public int Id { get; init; }
 
     /// <summary>Gets or initializes the <see cref="Name"/> value.</summary>

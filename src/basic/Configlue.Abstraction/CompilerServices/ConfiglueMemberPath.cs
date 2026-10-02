@@ -20,7 +20,8 @@ public readonly struct ConfiglueMemberPath : IEquatable<ConfiglueMemberPath>
     /// <summary>The number of member segments.</summary>
     public int Length => _ids?.Length ?? 0;
 
-    /// <summary>The immutable sequence of generated IDs.</summary>
+    /// <summary>The immutable sequence of generated IDs, interpreted within <see cref="RootSchema"/>.</summary>
+    /// <remarks>Member IDs are version-local ordinals; the root schema qualifies the sequence.</remarks>
     public ReadOnlySpan<int> MemberIds => _ids;
 
     /// <summary>Starts a generated path for the supplied root schema.</summary>

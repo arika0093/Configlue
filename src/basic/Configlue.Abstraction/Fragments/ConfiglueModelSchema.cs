@@ -3,7 +3,7 @@ namespace Configlue;
 /// <summary>Describes one generated model member.</summary>
 public readonly record struct ConfiglueMemberSchema
 {
-    /// <summary>Gets or initializes the <see cref="Id"/> value.</summary>
+    /// <summary>Gets or initializes this member's ordinal within its generated schema version.</summary>
     public int Id { get; init; }
 
     /// <summary>Gets or initializes the <see cref="Name"/> value.</summary>
@@ -144,7 +144,12 @@ public sealed class ConfiglueModelSchema
     /// <summary>The persisted schema version.</summary>
     public int Version { get; }
 
-    /// <summary>The members in generated stable order.</summary>
+    /// <summary>The members in generated ordinal order for this schema version.</summary>
+    /// <remarks>
+    /// Member IDs are local to this model type, schema ID, and version. They may change when members
+    /// are added, removed, or renamed in another schema version; do not persist them or compare them
+    /// across versions.
+    /// </remarks>
     public IReadOnlyList<ConfiglueMemberSchema> Members { get; }
 
     /// <summary>Creates an empty generated fragment for this model schema.</summary>
