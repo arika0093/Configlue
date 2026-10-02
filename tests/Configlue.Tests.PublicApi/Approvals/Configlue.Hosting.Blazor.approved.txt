@@ -130,6 +130,11 @@ namespace Configlue.Hosting.Blazor
         public void Dispose() { }
         protected override System.Threading.Tasks.Task OnInitializedAsync() { }
     }
+    public sealed class WebStorageAtomicityNotSupportedException : System.NotSupportedException
+    {
+        public WebStorageAtomicityNotSupportedException(string message) { }
+        public WebStorageAtomicityNotSupportedException(string message, System.Exception innerException) { }
+    }
     public enum WebStorageKind
     {
         Local = 0,

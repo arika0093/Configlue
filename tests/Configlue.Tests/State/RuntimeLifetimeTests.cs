@@ -312,6 +312,16 @@ public sealed partial class RuntimeLifetimeTests
         )
         {
             EnsureAvailable();
+            if (string.Equals(identifier, "configlueWebStorage.acquire", StringComparison.Ordinal))
+            {
+                return ValueTask.FromResult((TValue)(object)"web-locks");
+            }
+
+            if (string.Equals(identifier, "configlueWebStorage.release", StringComparison.Ordinal))
+            {
+                return ValueTask.FromResult(default(TValue)!);
+            }
+
             var key = (string)args![0]!;
             if (identifier.EndsWith(".getItem", StringComparison.Ordinal))
             {
