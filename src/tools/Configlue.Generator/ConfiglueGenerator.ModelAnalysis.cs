@@ -22,6 +22,49 @@ public sealed partial class ConfiglueGenerator
         && !model.IsRefLikeType
         && !declaration.Modifiers.Any(static modifier => modifier.Text == "file");
 
+    private static bool IsSupportedGeneratedMemberType(
+        ITypeSymbol type,
+        CancellationToken cancellationToken
+    )
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (
+            type.TypeKind
+            is TypeKind.Dynamic
+                or TypeKind.Pointer
+                or TypeKind.FunctionPointer
+                or TypeKind.TypeParameter
+                or TypeKind.Error
+        )
+        {
+            return false;
+        }
+
+        if (type is IArrayTypeSymbol array)
+        {
+            return IsSupportedGeneratedMemberType(array.ElementType, cancellationToken);
+        }
+
+        if (type is INamedTypeSymbol named)
+        {
+            if (named.IsRefLikeType)
+            {
+                return false;
+            }
+
+            foreach (var argument in named.TypeArguments)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (!IsSupportedGeneratedMemberType(argument, cancellationToken))
+                {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+
     private static bool IsConfiglueModel(ITypeSymbol type, CancellationToken cancellationToken)
     {
         if (

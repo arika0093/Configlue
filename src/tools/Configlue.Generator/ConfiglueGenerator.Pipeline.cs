@@ -323,6 +323,26 @@ public sealed partial class ConfiglueGenerator
         }
 
         var diagnostics = ImmutableArray.CreateBuilder<GeneratorDiagnosticInfo>();
+        foreach (var property in members.Select(static member => member.Property))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (
+                property.ReturnsByRef
+                || property.ReturnsByRefReadonly
+                || !IsSupportedGeneratedMemberType(property.Type, cancellationToken)
+            )
+            {
+                diagnostics.Add(
+                    GeneratorDiagnosticInfo.Create(
+                        UnsupportedMemberType,
+                        property.Locations.FirstOrDefault(),
+                        property.Name,
+                        property.Type.ToDisplayString()
+                    )
+                );
+            }
+        }
+
         foreach (
             var structuralType in CollectStructuralTypes(members, cancellationToken).Prepend(model)
         )

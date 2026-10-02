@@ -160,6 +160,14 @@ public sealed partial class ConfiglueGenerator : IIncrementalGenerator
         DiagnosticSeverity.Error,
         true
     );
+    private static readonly DiagnosticDescriptor UnsupportedMemberType = new(
+        "CFG016",
+        "Unsupported Configlue member type",
+        "Member '{0}' has unsupported type '{1}'; dynamic, pointer, function-pointer, ref-like, and open type-parameter shapes are not supported",
+        "Configlue",
+        DiagnosticSeverity.Error,
+        true
+    );
 
     private static bool IsExternalInitEmissionEnabled(AnalyzerConfigOptionsProvider options)
     {
