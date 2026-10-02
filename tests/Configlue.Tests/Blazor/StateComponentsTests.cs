@@ -16,7 +16,9 @@ public sealed class StateComponentsTests
     public void Reader_InitialLoad_ResolvesSnapshotAndDetails()
     {
         using var ctx = new Bunit.TestContext();
-        var store = new InMemoryStateSource<AppSettings.Fragment>(Fragment("initial", retryCount: 5));
+        var store = new InMemoryStateSource<AppSettings.Fragment>(
+            Fragment("initial", retryCount: 5)
+        );
         RegisterState(ctx, store);
 
         var (cut, state) = RenderReader(ctx);
@@ -36,7 +38,9 @@ public sealed class StateComponentsTests
     public void Reader_ReRendersOnStateChange()
     {
         using var ctx = new Bunit.TestContext();
-        var store = new InMemoryStateSource<AppSettings.Fragment>(Fragment("initial", retryCount: 3));
+        var store = new InMemoryStateSource<AppSettings.Fragment>(
+            Fragment("initial", retryCount: 3)
+        );
         RegisterState(ctx, store);
         var (cut, state) = RenderReader(ctx);
 
@@ -152,7 +156,9 @@ public sealed class StateComponentsTests
     public void Editor_InitialLoad_ExposesSessionAndDetails()
     {
         using var ctx = new Bunit.TestContext();
-        var store = new InMemoryStateSource<AppSettings.Fragment>(Fragment("initial", retryCount: 5));
+        var store = new InMemoryStateSource<AppSettings.Fragment>(
+            Fragment("initial", retryCount: 5)
+        );
         RegisterState(ctx, store);
 
         var (cut, state) = RenderEditor(ctx);
@@ -171,7 +177,9 @@ public sealed class StateComponentsTests
     public void Editor_FieldEditing_TracksModifiedState()
     {
         using var ctx = new Bunit.TestContext();
-        var store = new InMemoryStateSource<AppSettings.Fragment>(Fragment("initial", retryCount: 3));
+        var store = new InMemoryStateSource<AppSettings.Fragment>(
+            Fragment("initial", retryCount: 3)
+        );
         RegisterState(ctx, store);
         var (cut, state) = RenderEditorWithForm(ctx);
 
@@ -186,7 +194,9 @@ public sealed class StateComponentsTests
     public async Task Editor_SaveSuccess_CommitsAndMarksUnmodified()
     {
         using var ctx = new Bunit.TestContext();
-        var store = new InMemoryStateSource<AppSettings.Fragment>(Fragment("initial", retryCount: 3));
+        var store = new InMemoryStateSource<AppSettings.Fragment>(
+            Fragment("initial", retryCount: 3)
+        );
         RegisterState(ctx, store);
         var (cut, state) = RenderEditor(ctx);
         state.Value.Label = "saved";
@@ -204,13 +214,12 @@ public sealed class StateComponentsTests
     public async Task Editor_ConfiglueValidationFailure_IsCategorized()
     {
         using var ctx = new Bunit.TestContext();
-        var store = new InMemoryStateSource<AppSettings.Fragment>(Fragment("initial", retryCount: 3));
+        var store = new InMemoryStateSource<AppSettings.Fragment>(
+            Fragment("initial", retryCount: 3)
+        );
         RegisterState(ctx, store);
         StateEditorErrorEventArgs<AppSettings>? error = null;
-        var (cut, state) = RenderEditor(
-            ctx,
-            configure: p => p.Add(x => x.OnError, e => error = e)
-        );
+        var (cut, state) = RenderEditor(ctx, configure: p => p.Add(x => x.OnError, e => error = e));
         state.Value.RetryCount = 200;
 
         await cut.InvokeAsync(() => state.SaveAsync().AsTask());
@@ -226,7 +235,9 @@ public sealed class StateComponentsTests
     public async Task Editor_BlazorValidationFailure_ReportsEditContextMessages()
     {
         using var ctx = new Bunit.TestContext();
-        var store = new InMemoryStateSource<AppSettings.Fragment>(Fragment("initial", retryCount: 3));
+        var store = new InMemoryStateSource<AppSettings.Fragment>(
+            Fragment("initial", retryCount: 3)
+        );
         RegisterState(ctx, store);
         var (cut, state) = RenderEditorWithForm(ctx);
 
@@ -250,10 +261,7 @@ public sealed class StateComponentsTests
         );
         RegisterSessions(ctx, new StaticEditSessions<AppSettings>(session));
         StateEditorErrorEventArgs<AppSettings>? error = null;
-        var (cut, state) = RenderEditor(
-            ctx,
-            configure: p => p.Add(x => x.OnError, e => error = e)
-        );
+        var (cut, state) = RenderEditor(ctx, configure: p => p.Add(x => x.OnError, e => error = e));
 
         await cut.InvokeAsync(() => state.SaveAsync().AsTask());
 
@@ -280,10 +288,7 @@ public sealed class StateComponentsTests
         );
         RegisterSessions(ctx, new StaticEditSessions<AppSettings>(session));
         StateEditorErrorEventArgs<AppSettings>? error = null;
-        var (cut, state) = RenderEditor(
-            ctx,
-            configure: p => p.Add(x => x.OnError, e => error = e)
-        );
+        var (cut, state) = RenderEditor(ctx, configure: p => p.Add(x => x.OnError, e => error = e));
 
         await cut.InvokeAsync(() => state.SaveAsync().AsTask());
 
@@ -422,10 +427,7 @@ public sealed class StateComponentsTests
         ctx.Services.AddSingleton<IConfiglueEditSessions<AppSettings>>(sessions);
         ctx.Services.AddSingleton<IConfiglueSubjectChangeSource>(changeSource);
         StateEditorErrorEventArgs<AppSettings>? error = null;
-        var (cut, state) = RenderEditor(
-            ctx,
-            configure: p => p.Add(x => x.OnError, e => error = e)
-        );
+        var (cut, state) = RenderEditor(ctx, configure: p => p.Add(x => x.OnError, e => error = e));
         state.Value.Label = "dirty-a";
 
         changeSource.Signal();
@@ -444,8 +446,9 @@ public sealed class StateComponentsTests
     {
         using var ctx = new Bunit.TestContext();
         var changeSource = new FakeSubjectChangeSource();
-        var session = new EditSession<AppSettings>(new AppSettings { Label = "a" }, (_, _) =>
-            ValueTask.FromResult(StateWriteReceipt.Empty)
+        var session = new EditSession<AppSettings>(
+            new AppSettings { Label = "a" },
+            (_, _) => ValueTask.FromResult(StateWriteReceipt.Empty)
         );
         RegisterSessions(ctx, new StaticEditSessions<AppSettings>(session));
         ctx.Services.AddSingleton<IConfiglueSubjectChangeSource>(changeSource);
@@ -455,9 +458,8 @@ public sealed class StateComponentsTests
         ((IDisposable)cut.Instance).Dispose();
 
         changeSource.ListenerCount.ShouldBe(0);
-        var exception = Should.Throw<InvalidOperationException>(() =>
-            state.Session.ResetToDefault()
-        );
+        state.Session.ShouldBeNull();
+        var exception = Should.Throw<InvalidOperationException>(() => session.ResetToDefault());
         exception.Message.ShouldContain("disposed");
     }
 
@@ -493,14 +495,275 @@ public sealed class StateComponentsTests
         await saveStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
         ((IDisposable)cut.Instance).Dispose();
+        var renderCount = cut.RenderCount;
+        state.IsSaving.ShouldBeFalse();
         releaseSave.TrySetResult();
         await cut.InvokeAsync(() => saveTask!);
 
         session.IsCommitted.ShouldBeTrue();
+        state.LastReceipt.ShouldBeNull();
+        state.IsSaving.ShouldBeFalse();
+        cut.RenderCount.ShouldBe(renderCount);
     }
 
-    private static (IRenderedComponent<StateReader<AppSettings>> Cut, StateReaderContext<AppSettings> Context)
-        RenderReader(Bunit.TestContext ctx)
+    [Test]
+    public async Task Editor_SaveFailureAfterSubjectInvalidation_DoesNotPublishStaleError()
+    {
+        using var ctx = new Bunit.TestContext();
+        var subjects = new FakeSubjectChangeSource();
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var session = new EditSession<AppSettings>(
+            new AppSettings { Label = "original" },
+            async (_, _) =>
+            {
+                started.TrySetResult();
+                await release.Task.ConfigureAwait(false);
+                throw new InvalidOperationException("obsolete save failure");
+            }
+        );
+        RegisterSessions(ctx, new StaticEditSessions<AppSettings>(session));
+        ctx.Services.AddSingleton<IConfiglueSubjectChangeSource>(subjects);
+        var (cut, state) = RenderEditor(ctx);
+        state.Value.Label = "edited";
+        Task? save = null;
+        await cut.InvokeAsync(() =>
+        {
+            save = state.SaveAsync().AsTask();
+        });
+        await started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await cut.InvokeAsync(subjects.Signal);
+        state.IsSubjectChanged.ShouldBeTrue();
+        release.SetResult();
+        await cut.InvokeAsync(() => save!);
+        state.LastError.ShouldBeNull();
+        state.LastReceipt.ShouldBeNull();
+        state.IsSaving.ShouldBeFalse();
+        state.Value.Label.ShouldBe("edited");
+    }
+
+    [Test]
+    public async Task Reader_ReloadRace_NewerCompletionWins()
+    {
+        using var ctx = new Bunit.TestContext();
+        var state = new GatedSnapshotState<AppSettings>(
+            new StateSnapshot<AppSettings>(new AppSettings { Label = "initial" }, null)
+        );
+        ctx.Services.AddSingleton<IReadOnlyState<AppSettings>>(state);
+        var (cut, reader) = RenderReader(ctx);
+        reader.Value.Label.ShouldBe("initial");
+
+        var aStarted = new TaskCompletionSource();
+        var bStarted = new TaskCompletionSource();
+        var a = new TaskCompletionSource<StateSnapshot<AppSettings>>();
+        var b = new TaskCompletionSource<StateSnapshot<AppSettings>>();
+        state.Enqueue(() =>
+        {
+            aStarted.TrySetResult();
+            return new ValueTask<StateSnapshot<AppSettings>>(a.Task);
+        });
+        state.Enqueue(() =>
+        {
+            bStarted.TrySetResult();
+            return new ValueTask<StateSnapshot<AppSettings>>(b.Task);
+        });
+
+        await cut.InvokeAsync(() => state.Raise(new AppSettings { Label = "a" }));
+        await aStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await cut.InvokeAsync(() => state.Raise(new AppSettings { Label = "b" }));
+        await bStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        await cut.InvokeAsync(() =>
+            b.SetResult(new StateSnapshot<AppSettings>(new AppSettings { Label = "b" }, null))
+        );
+        await cut.InvokeAsync(() => Task.CompletedTask);
+        reader.Value.Label.ShouldBe("b");
+
+        await cut.InvokeAsync(() =>
+            a.SetResult(new StateSnapshot<AppSettings>(new AppSettings { Label = "a" }, null))
+        );
+        await cut.InvokeAsync(() => Task.CompletedTask);
+
+        reader.Value.Label.ShouldBe("b");
+    }
+
+    [Test]
+    public async Task Reader_StaleReloadFailure_DoesNotOverwriteNewerSuccess()
+    {
+        using var ctx = new Bunit.TestContext();
+        var state = new GatedSnapshotState<AppSettings>(
+            new StateSnapshot<AppSettings>(new AppSettings { Label = "initial" }, null)
+        );
+        ctx.Services.AddSingleton<IReadOnlyState<AppSettings>>(state);
+        var (cut, reader) = RenderReader(ctx);
+        reader.Value.Label.ShouldBe("initial");
+
+        var a = new TaskCompletionSource<StateSnapshot<AppSettings>>();
+        var b = new TaskCompletionSource<StateSnapshot<AppSettings>>();
+        state.Enqueue(() => new ValueTask<StateSnapshot<AppSettings>>(a.Task));
+        state.Enqueue(() => new ValueTask<StateSnapshot<AppSettings>>(b.Task));
+
+        await cut.InvokeAsync(() => state.Raise(new AppSettings { Label = "a" }));
+        await cut.InvokeAsync(() => state.Raise(new AppSettings { Label = "b" }));
+
+        await cut.InvokeAsync(() =>
+            b.SetResult(new StateSnapshot<AppSettings>(new AppSettings { Label = "b" }, null))
+        );
+        await cut.InvokeAsync(() => Task.CompletedTask);
+        reader.Value.Label.ShouldBe("b");
+        reader.ReloadFailure.ShouldBeNull();
+
+        await cut.InvokeAsync(() => a.SetException(new InvalidOperationException("stale reload")));
+        await cut.InvokeAsync(() => Task.CompletedTask);
+
+        reader.Value.Label.ShouldBe("b");
+        reader.ReloadFailure.ShouldBeNull();
+    }
+
+    [Test]
+    public async Task Reader_DisposeWhileReloadInFlight_SuppressesPublication()
+    {
+        using var ctx = new Bunit.TestContext();
+        var state = new GatedSnapshotState<AppSettings>(
+            new StateSnapshot<AppSettings>(new AppSettings { Label = "initial" }, null)
+        );
+        ctx.Services.AddSingleton<IReadOnlyState<AppSettings>>(state);
+        var (cut, reader) = RenderReader(ctx);
+        reader.Value.Label.ShouldBe("initial");
+
+        var reload = new TaskCompletionSource<StateSnapshot<AppSettings>>();
+        state.Enqueue(() => new ValueTask<StateSnapshot<AppSettings>>(reload.Task));
+
+        await cut.InvokeAsync(() => state.Raise(new AppSettings { Label = "late" }));
+
+        var renderCount = cut.RenderCount;
+        ((IDisposable)cut.Instance).Dispose();
+        await cut.InvokeAsync(() =>
+            reload.SetResult(
+                new StateSnapshot<AppSettings>(new AppSettings { Label = "late" }, null)
+            )
+        );
+        await cut.InvokeAsync(() => Task.CompletedTask);
+
+        reader.Value.Label.ShouldBe("initial");
+        cut.RenderCount.ShouldBe(renderCount);
+    }
+
+    [Test]
+    public async Task Editor_RapidSubjectChanges_SettleOnLatestSubject()
+    {
+        using var ctx = new Bunit.TestContext();
+        var changeSource = new FakeSubjectChangeSource();
+        var bSession = CreateUpstreamSession(
+            new AppSettings { Label = "subject-b" },
+            new FakeUpstreamState<AppSettings>(new AppSettings { Label = "subject-b" })
+        );
+        var cSession = CreateUpstreamSession(
+            new AppSettings { Label = "subject-c" },
+            new FakeUpstreamState<AppSettings>(new AppSettings { Label = "subject-c" })
+        );
+        var bStarted = new TaskCompletionSource();
+        var b = new TaskCompletionSource<EditSession<AppSettings>>();
+        var sessions = new GatedEditSessions<AppSettings>(call =>
+            call switch
+            {
+                0 => ValueTask.FromResult(
+                    CreateUpstreamSession(
+                        new AppSettings { Label = "subject-a" },
+                        new FakeUpstreamState<AppSettings>(new AppSettings { Label = "subject-a" })
+                    )
+                ),
+                1 => OpenBlocked(bStarted, b),
+                2 => ValueTask.FromResult(cSession),
+                _ => throw new InvalidOperationException("unexpected open"),
+            }
+        );
+        ctx.Services.AddSingleton<IConfiglueEditSessions<AppSettings>>(sessions);
+        ctx.Services.AddSingleton<IConfiglueSubjectChangeSource>(changeSource);
+        var (cut, state) = RenderEditor(ctx);
+        state.Value.Label.ShouldBe("subject-a");
+
+        await cut.InvokeAsync(() =>
+        {
+            changeSource.Signal();
+            return Task.CompletedTask;
+        });
+        await bStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        state.IsLoading.ShouldBeTrue();
+
+        await cut.InvokeAsync(() =>
+        {
+            changeSource.Signal();
+            return Task.CompletedTask;
+        });
+        await cut.InvokeAsync(() => b.SetResult(bSession));
+        await cut.InvokeAsync(() => Task.CompletedTask);
+
+        state.Value.Label.ShouldBe("subject-c");
+        state.IsSubjectChanged.ShouldBeFalse();
+        state.IsLoading.ShouldBeFalse();
+
+        ((IDisposable)cut.Instance).Dispose();
+        Should.Throw<InvalidOperationException>(() => bSession.ResetToDefault());
+    }
+
+    [Test]
+    public async Task Editor_DisposeWhileOpenInFlight_DisposesStaleSession()
+    {
+        using var ctx = new Bunit.TestContext();
+        var changeSource = new FakeSubjectChangeSource();
+        var bSession = CreateUpstreamSession(
+            new AppSettings { Label = "subject-b" },
+            new FakeUpstreamState<AppSettings>(new AppSettings { Label = "subject-b" })
+        );
+        var bStarted = new TaskCompletionSource();
+        var b = new TaskCompletionSource<EditSession<AppSettings>>();
+        var sessions = new GatedEditSessions<AppSettings>(call =>
+            call switch
+            {
+                0 => ValueTask.FromResult(
+                    CreateUpstreamSession(
+                        new AppSettings { Label = "subject-a" },
+                        new FakeUpstreamState<AppSettings>(new AppSettings { Label = "subject-a" })
+                    )
+                ),
+                1 => OpenBlocked(bStarted, b),
+                _ => throw new InvalidOperationException("unexpected open"),
+            }
+        );
+        ctx.Services.AddSingleton<IConfiglueEditSessions<AppSettings>>(sessions);
+        ctx.Services.AddSingleton<IConfiglueSubjectChangeSource>(changeSource);
+        var (cut, state) = RenderEditor(ctx);
+        state.Value.Label.ShouldBe("subject-a");
+
+        await cut.InvokeAsync(() =>
+        {
+            changeSource.Signal();
+            return Task.CompletedTask;
+        });
+        await bStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        ((IDisposable)cut.Instance).Dispose();
+        await cut.InvokeAsync(() => b.SetResult(bSession));
+        await cut.InvokeAsync(() => Task.CompletedTask);
+
+        state.Session.ShouldBeNull();
+        Should.Throw<InvalidOperationException>(() => bSession.ResetToDefault());
+    }
+
+    private static ValueTask<EditSession<AppSettings>> OpenBlocked(
+        TaskCompletionSource started,
+        TaskCompletionSource<EditSession<AppSettings>> completion
+    )
+    {
+        started.TrySetResult();
+        return new ValueTask<EditSession<AppSettings>>(completion.Task);
+    }
+
+    private static (
+        IRenderedComponent<StateReader<AppSettings>> Cut,
+        StateReaderContext<AppSettings> Context
+    ) RenderReader(Bunit.TestContext ctx)
     {
         StateReaderContext<AppSettings>? captured = null;
         var cut = ctx.RenderComponent<StateReader<AppSettings>>(p =>
@@ -535,16 +798,19 @@ public sealed class StateComponentsTests
     {
         StateEditorContext<AppSettings>? captured = null;
         var cut = ctx.RenderComponent<StateEditor<AppSettings>>(p =>
-            p.Add(x => x.ChildContent, state =>
-            {
-                captured = state;
-                return builder =>
+            p.Add(
+                x => x.ChildContent,
+                state =>
                 {
-                    builder.OpenComponent<SettingsForm>(0);
-                    builder.AddAttribute(1, nameof(SettingsForm.Context), state);
-                    builder.CloseComponent();
-                };
-            })
+                    captured = state;
+                    return builder =>
+                    {
+                        builder.OpenComponent<SettingsForm>(0);
+                        builder.AddAttribute(1, nameof(SettingsForm.Context), state);
+                        builder.CloseComponent();
+                    };
+                }
+            )
         );
         cut.WaitForAssertion(() => captured.ShouldNotBeNull());
         return (cut, captured!);
@@ -584,7 +850,8 @@ public sealed class StateComponentsTests
                     : desired,
             static (current, baseline) =>
                 !string.Equals(current.Label, baseline.Label, StringComparison.Ordinal),
-            _ => ValueTask.FromResult(new StateSnapshot<AppSettings>(Clone(upstream.Current), null)),
+            _ =>
+                ValueTask.FromResult(new StateSnapshot<AppSettings>(Clone(upstream.Current), null)),
             Clone,
             defaultValue ?? new AppSettings { Label = "default" },
             upstream
@@ -638,43 +905,47 @@ public sealed class StateComponentsTests
                 "ChildContent",
                 (RenderFragment<EditContext>)(
                     _ =>
-                    form =>
-                    {
-                        form.OpenComponent<DataAnnotationsValidator>(0);
-                        form.CloseComponent();
-                        form.OpenComponent<InputText>(1);
-                        form.AddAttribute(2, nameof(InputText.Value), Context.Value.Label);
-                        form.AddAttribute(
-                            3,
-                            nameof(InputText.ValueChanged),
-                            EventCallback.Factory.Create<string?>(
-                                this,
-                                value => Context.Value.Label = value
-                            )
-                        );
-                        form.AddAttribute(
-                            4,
-                            nameof(InputText.ValueExpression),
-                            (Expression<Func<string?>>)(() => Context.Value.Label)
-                        );
-                        form.CloseComponent();
-                        form.OpenComponent<InputNumber<int>>(5);
-                        form.AddAttribute(6, nameof(InputNumber<int>.Value), Context.Value.RetryCount);
-                        form.AddAttribute(
-                            7,
-                            nameof(InputNumber<int>.ValueChanged),
-                            EventCallback.Factory.Create<int>(
-                                this,
-                                value => Context.Value.RetryCount = value
-                            )
-                        );
-                        form.AddAttribute(
-                            8,
-                            nameof(InputNumber<int>.ValueExpression),
-                            (Expression<Func<int>>)(() => Context.Value.RetryCount)
-                        );
-                        form.CloseComponent();
-                    }
+                        form =>
+                        {
+                            form.OpenComponent<DataAnnotationsValidator>(0);
+                            form.CloseComponent();
+                            form.OpenComponent<InputText>(1);
+                            form.AddAttribute(2, nameof(InputText.Value), Context.Value.Label);
+                            form.AddAttribute(
+                                3,
+                                nameof(InputText.ValueChanged),
+                                EventCallback.Factory.Create<string?>(
+                                    this,
+                                    value => Context.Value.Label = value
+                                )
+                            );
+                            form.AddAttribute(
+                                4,
+                                nameof(InputText.ValueExpression),
+                                (Expression<Func<string?>>)(() => Context.Value.Label)
+                            );
+                            form.CloseComponent();
+                            form.OpenComponent<InputNumber<int>>(5);
+                            form.AddAttribute(
+                                6,
+                                nameof(InputNumber<int>.Value),
+                                Context.Value.RetryCount
+                            );
+                            form.AddAttribute(
+                                7,
+                                nameof(InputNumber<int>.ValueChanged),
+                                EventCallback.Factory.Create<int>(
+                                    this,
+                                    value => Context.Value.RetryCount = value
+                                )
+                            );
+                            form.AddAttribute(
+                                8,
+                                nameof(InputNumber<int>.ValueExpression),
+                                (Expression<Func<int>>)(() => Context.Value.RetryCount)
+                            );
+                            form.CloseComponent();
+                        }
                 )
             );
             builder.CloseComponent();
@@ -729,7 +1000,9 @@ public sealed class StateComponentsTests
         }
     }
 
-    private sealed class SwitchableSnapshotState : IReadOnlyState<AppSettings>, IConfiglueStateSnapshotRuntime<AppSettings>
+    private sealed class SwitchableSnapshotState
+        : IReadOnlyState<AppSettings>,
+            IConfiglueStateSnapshotRuntime<AppSettings>
     {
         private AppSettings _current;
         private Action<AppSettings>? _listener;
@@ -742,8 +1015,9 @@ public sealed class StateComponentsTests
             return new ActionDisposable(() => _listener = null);
         }
 
-        public ValueTask<AppSettings> GetValueAsync(CancellationToken cancellationToken = default) =>
-            ValueTask.FromResult(_current);
+        public ValueTask<AppSettings> GetValueAsync(
+            CancellationToken cancellationToken = default
+        ) => ValueTask.FromResult(_current);
 
         public ValueTask<StateSnapshot<AppSettings>> GetSnapshotAsync(
             CancellationToken cancellationToken = default
@@ -753,6 +1027,52 @@ public sealed class StateComponentsTests
         {
             _current = value;
             _listener?.Invoke(value);
+        }
+    }
+
+    private sealed class GatedSnapshotState<T>
+        : IReadOnlyState<T>,
+            IConfiglueStateSnapshotRuntime<T>
+    {
+        private readonly List<Action<T>> _listeners = [];
+        private readonly Queue<Func<ValueTask<StateSnapshot<T>>>> _pending = new();
+        private readonly StateSnapshot<T> _immediate;
+
+        public GatedSnapshotState(StateSnapshot<T> immediate) => _immediate = immediate;
+
+        public IDisposable OnChange(Action<T> listener)
+        {
+            ArgumentNullException.ThrowIfNull(listener);
+            _listeners.Add(listener);
+            return new ActionDisposable(() => _listeners.Remove(listener));
+        }
+
+        public ValueTask<T> GetValueAsync(CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return ValueTask.FromResult(_immediate.Value);
+        }
+
+        public ValueTask<StateSnapshot<T>> GetSnapshotAsync(
+            CancellationToken cancellationToken = default
+        )
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return _pending.Count > 0 ? _pending.Dequeue()() : ValueTask.FromResult(_immediate);
+        }
+
+        public void Enqueue(Func<ValueTask<StateSnapshot<T>>> next)
+        {
+            ArgumentNullException.ThrowIfNull(next);
+            _pending.Enqueue(next);
+        }
+
+        public void Raise(T value)
+        {
+            foreach (var listener in _listeners.ToArray())
+            {
+                listener(value);
+            }
         }
     }
 
@@ -855,6 +1175,34 @@ public sealed class StateComponentsTests
         {
             ArgumentNullException.ThrowIfNull(writePlan);
             return ValueTask.FromResult(Current());
+        }
+    }
+
+    private sealed class GatedEditSessions<T> : IConfiglueEditSessions<T>
+        where T : class
+    {
+        private readonly Func<int, ValueTask<EditSession<T>>> _open;
+        private int _calls;
+
+        public GatedEditSessions(Func<int, ValueTask<EditSession<T>>> open) => _open = open;
+
+        public int OpenCount => Volatile.Read(ref _calls);
+
+        public ValueTask<EditSession<T>> OpenEditSessionAsync(
+            CancellationToken cancellationToken = default
+        )
+        {
+            var call = Interlocked.Increment(ref _calls) - 1;
+            return _open(call);
+        }
+
+        public ValueTask<EditSession<T>> OpenEditSessionAsync(
+            StateWritePlan writePlan,
+            CancellationToken cancellationToken = default
+        )
+        {
+            ArgumentNullException.ThrowIfNull(writePlan);
+            return OpenEditSessionAsync(cancellationToken);
         }
     }
 

@@ -23,6 +23,10 @@ public sealed partial class StateEditor<T> : ComponentBase, IDisposable
     private IDisposable? _reloadFailureSubscription;
     private int _disposed;
     private bool _isSaving;
+    private long _subjectGeneration;
+    private long _observedGeneration;
+    private int _sessionWorkerRunning;
+    private int _subjectNotificationPending;
 
     /// <summary>Creates an editor component.</summary>
     public StateEditor() => _context = new StateEditorContext<T>(this);
@@ -101,7 +105,8 @@ public sealed partial class StateEditor<T> : ComponentBase, IDisposable
             _reloadFailureSubscription = diagnostics.OnReloadFailed(OnReloadFailureReported);
         }
 
-        await OpenSessionAsync().ConfigureAwait(true);
+        Interlocked.Increment(ref _subjectGeneration);
+        await EnsureSessionWorkerAsync().ConfigureAwait(true);
     }
 
     /// <inheritdoc />
@@ -112,6 +117,7 @@ public sealed partial class StateEditor<T> : ComponentBase, IDisposable
             return;
         }
 
+        Interlocked.Increment(ref _subjectGeneration);
         _subjectSubscription?.Dispose();
         _reloadFailureSubscription?.Dispose();
         if (_session is not null)
@@ -120,12 +126,18 @@ public sealed partial class StateEditor<T> : ComponentBase, IDisposable
             _session.Dispose();
         }
 
+        _session = null;
+        _editContext = null;
+        _isSaving = false;
         GC.SuppressFinalize(this);
     }
 
     internal async ValueTask SaveAsync(CancellationToken cancellationToken)
     {
-        if (_session is null || _isSaving)
+        var session = _session;
+        var editContext = _editContext;
+        var generation = Interlocked.Read(ref _subjectGeneration);
+        if (Volatile.Read(ref _disposed) != 0 || session is null || _isSaving)
         {
             return;
         }
@@ -146,43 +158,61 @@ public sealed partial class StateEditor<T> : ComponentBase, IDisposable
         RaiseStateChanged();
         try
         {
-            LastReceipt = await _session.CommitAsync(cancellationToken).ConfigureAwait(true);
-            if (Volatile.Read(ref _disposed) == 0)
+            var receipt = await session.CommitAsync(cancellationToken).ConfigureAwait(true);
+            if (IsCurrentSession(session, generation))
             {
-                _editContext?.MarkAsUnmodified();
-                _editContext?.NotifyValidationStateChanged();
+                LastReceipt = receipt;
+                editContext?.MarkAsUnmodified();
+                editContext?.NotifyValidationStateChanged();
             }
         }
         catch (Exception exception)
         {
-            RaiseError(StateEditorOperation.Save, exception);
+            if (IsCurrentSession(session, generation))
+            {
+                RaiseError(StateEditorOperation.Save, exception);
+            }
         }
         finally
         {
-            _isSaving = false;
-            RaiseStateChanged();
+            if (Volatile.Read(ref _disposed) == 0)
+            {
+                _isSaving = false;
+                RaiseStateChanged();
+            }
         }
     }
 
     internal async ValueTask RebaseAsync(CancellationToken cancellationToken)
     {
-        if (_session is null)
+        var session = _session;
+        var generation = Interlocked.Read(ref _subjectGeneration);
+        if (Volatile.Read(ref _disposed) != 0 || session is null)
         {
             return;
         }
 
         try
         {
-            await _session.RebaseAsync(cancellationToken).ConfigureAwait(true);
-            RebuildEditContext();
+            await session.RebaseAsync(cancellationToken).ConfigureAwait(true);
+            if (IsCurrentSession(session, generation))
+            {
+                RebuildEditContext();
+            }
         }
         catch (Exception exception)
         {
-            RaiseError(StateEditorOperation.Rebase, exception);
+            if (IsCurrentSession(session, generation))
+            {
+                RaiseError(StateEditorOperation.Rebase, exception);
+            }
         }
         finally
         {
-            RaiseStateChanged();
+            if (IsCurrentSession(session, generation))
+            {
+                RaiseStateChanged();
+            }
         }
     }
 
@@ -252,44 +282,152 @@ public sealed partial class StateEditor<T> : ComponentBase, IDisposable
         }
     }
 
-    private async Task OpenSessionAsync()
+    private async Task EnsureSessionWorkerAsync()
     {
-        try
-        {
-            var session = await EditSessions.OpenEditSessionAsync().ConfigureAwait(true);
-            if (Volatile.Read(ref _disposed) != 0)
-            {
-                session.Dispose();
-                return;
-            }
-
-            _session = session;
-            _editContext = new EditContext(session.Value);
-            session.UpstreamChanged += OnUpstreamChanged;
-            LoadFailure = null;
-        }
-        catch (Exception exception)
-        {
-            LoadFailure = exception;
-            RaiseError(StateEditorOperation.Load, exception);
-        }
-        finally
-        {
-            IsLoading = false;
-            RaiseStateChanged();
-        }
-    }
-
-    private void OnUpstreamChanged() => _ = InvokeAsync(HandleUpstreamChangedAsync);
-
-    private async Task HandleUpstreamChangedAsync()
-    {
-        if (_disposed != 0 || _session is null || _isSaving)
+        if (Volatile.Read(ref _disposed) != 0)
         {
             return;
         }
 
-        if (!_session.HasLocalChanges && AutoRebaseOnCleanUpstreamChange)
+        if (Interlocked.CompareExchange(ref _sessionWorkerRunning, 1, 0) != 0)
+        {
+            return;
+        }
+
+        try
+        {
+            while (true)
+            {
+                if (Volatile.Read(ref _disposed) != 0)
+                {
+                    return;
+                }
+
+                var generation = Interlocked.Read(ref _subjectGeneration);
+                var session = _session;
+                if (session is not null)
+                {
+                    if (session.HasLocalChanges)
+                    {
+                        IsSubjectChanged = true;
+                        Interlocked.Exchange(
+                            ref _observedGeneration,
+                            Interlocked.Read(ref _subjectGeneration)
+                        );
+                        RaiseStateChanged();
+                        await NotifySubjectChangedAsync(hasUnsavedChanges: true)
+                            .ConfigureAwait(true);
+                        return;
+                    }
+
+                    session.UpstreamChanged -= OnUpstreamChanged;
+                    _session = null;
+                    _editContext = null;
+                    session.Dispose();
+                }
+
+                IsLoading = true;
+                IsSubjectChanged = false;
+                LoadFailure = null;
+                RaiseStateChanged();
+
+                EditSession<T> opened;
+                try
+                {
+                    opened = await EditSessions.OpenEditSessionAsync().ConfigureAwait(true);
+                }
+                catch (Exception exception)
+                {
+                    if (Volatile.Read(ref _disposed) != 0)
+                    {
+                        return;
+                    }
+
+                    if (generation != Interlocked.Read(ref _subjectGeneration))
+                    {
+                        continue;
+                    }
+
+                    LoadFailure = exception;
+                    IsLoading = false;
+                    Interlocked.Exchange(ref _observedGeneration, generation);
+                    RaiseError(StateEditorOperation.Load, exception);
+                    RaiseStateChanged();
+                    await NotifySubjectChangedAsync(hasUnsavedChanges: false).ConfigureAwait(true);
+                    return;
+                }
+
+                if (Volatile.Read(ref _disposed) != 0)
+                {
+                    opened.Dispose();
+                    return;
+                }
+
+                if (generation != Interlocked.Read(ref _subjectGeneration))
+                {
+                    opened.Dispose();
+                    continue;
+                }
+
+                _session = opened;
+                _editContext = new EditContext(opened.Value);
+                opened.UpstreamChanged += OnUpstreamChanged;
+                LoadFailure = null;
+                IsLoading = false;
+                IsSubjectChanged = false;
+                Interlocked.Exchange(ref _observedGeneration, generation);
+                RaiseStateChanged();
+                await NotifySubjectChangedAsync(hasUnsavedChanges: false).ConfigureAwait(true);
+                return;
+            }
+        }
+        finally
+        {
+            Interlocked.Exchange(ref _sessionWorkerRunning, 0);
+            if (
+                Volatile.Read(ref _disposed) == 0
+                && Interlocked.Read(ref _subjectGeneration)
+                    != Interlocked.Read(ref _observedGeneration)
+            )
+            {
+                _ = InvokeAsync(EnsureSessionWorkerAsync);
+            }
+        }
+    }
+
+    private async ValueTask NotifySubjectChangedAsync(bool hasUnsavedChanges)
+    {
+        if (
+            Volatile.Read(ref _disposed) != 0
+            || Interlocked.Exchange(ref _subjectNotificationPending, 0) == 0
+        )
+        {
+            return;
+        }
+
+        await OnSubjectChanged
+            .InvokeAsync(new StateEditorSubjectChangedEventArgs(hasUnsavedChanges))
+            .ConfigureAwait(true);
+    }
+
+    private void OnUpstreamChanged()
+    {
+        var session = _session;
+        var generation = Interlocked.Read(ref _subjectGeneration);
+        if (session is not null)
+        {
+            _ = InvokeAsync(() => HandleUpstreamChangedAsync(session, generation));
+        }
+    }
+
+    private async Task HandleUpstreamChangedAsync(EditSession<T> session, long generation)
+    {
+        if (!IsCurrentSession(session, generation) || _isSaving)
+        {
+            return;
+        }
+
+        if (!session.HasLocalChanges && AutoRebaseOnCleanUpstreamChange)
         {
             await RebaseAsync(CancellationToken.None).ConfigureAwait(true);
             return;
@@ -298,43 +436,40 @@ public sealed partial class StateEditor<T> : ComponentBase, IDisposable
         RaiseStateChanged();
     }
 
-    private void OnReloadFailureReported(Exception exception) =>
-        _ = InvokeAsync(() =>
-            RaiseError(StateEditorOperation.Reload, exception, StateEditorErrorKind.Reload)
-        );
-
-    private void OnSubjectChangeSignaled() => _ = InvokeAsync(HandleSubjectChangedAsync);
-
-    private async Task HandleSubjectChangedAsync()
+    private void OnReloadFailureReported(Exception exception)
     {
-        if (_disposed != 0 || _session is null)
+        if (Volatile.Read(ref _disposed) != 0)
         {
             return;
         }
 
-        var hadUnsavedChanges = _session.HasLocalChanges;
-        if (hadUnsavedChanges)
+        _ = InvokeAsync(() =>
         {
-            IsSubjectChanged = true;
-            RaiseStateChanged();
-            await OnSubjectChanged
-                .InvokeAsync(new StateEditorSubjectChangedEventArgs(true))
-                .ConfigureAwait(true);
-            return;
-        }
+            if (Volatile.Read(ref _disposed) != 0)
+            {
+                return;
+            }
 
-        IsLoading = true;
-        RaiseStateChanged();
-        _session.UpstreamChanged -= OnUpstreamChanged;
-        _session.Dispose();
-        _session = null;
-        _editContext = null;
-        IsSubjectChanged = false;
-        await OpenSessionAsync().ConfigureAwait(true);
-        await OnSubjectChanged
-            .InvokeAsync(new StateEditorSubjectChangedEventArgs(false))
-            .ConfigureAwait(true);
+            RaiseError(StateEditorOperation.Reload, exception, StateEditorErrorKind.Reload);
+        });
     }
+
+    private void OnSubjectChangeSignaled()
+    {
+        if (Volatile.Read(ref _disposed) != 0)
+        {
+            return;
+        }
+
+        Interlocked.Increment(ref _subjectGeneration);
+        Interlocked.Exchange(ref _subjectNotificationPending, 1);
+        _ = InvokeAsync(EnsureSessionWorkerAsync);
+    }
+
+    private bool IsCurrentSession(EditSession<T> session, long generation) =>
+        Volatile.Read(ref _disposed) == 0
+        && ReferenceEquals(session, _session)
+        && generation == Interlocked.Read(ref _subjectGeneration);
 
     private void RebuildEditContext()
     {
@@ -350,6 +485,11 @@ public sealed partial class StateEditor<T> : ComponentBase, IDisposable
         StateEditorErrorKind? kind = null
     )
     {
+        if (Volatile.Read(ref _disposed) != 0)
+        {
+            return;
+        }
+
         var args = new StateEditorErrorEventArgs<T>(
             operation,
             kind ?? Classify(exception),

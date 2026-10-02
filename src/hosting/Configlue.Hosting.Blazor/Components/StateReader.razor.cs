@@ -17,6 +17,7 @@ public sealed partial class StateReader<T> : ComponentBase, IDisposable
     private IDisposable? _changeSubscription;
     private IDisposable? _reloadFailureSubscription;
     private int _disposed;
+    private long _generation;
 
     /// <summary>Creates a reader component.</summary>
     public StateReader() => _context = new StateReaderContext<T>(this);
@@ -65,7 +66,7 @@ public sealed partial class StateReader<T> : ComponentBase, IDisposable
             _reloadFailureSubscription = diagnostics.OnReloadFailed(OnReloadFailureReported);
         }
 
-        await ReloadAsync().ConfigureAwait(true);
+        await ReloadAsync(Interlocked.Increment(ref _generation)).ConfigureAwait(true);
     }
 
     /// <inheritdoc />
@@ -78,41 +79,71 @@ public sealed partial class StateReader<T> : ComponentBase, IDisposable
 
         _changeSubscription?.Dispose();
         _reloadFailureSubscription?.Dispose();
+        Interlocked.Increment(ref _generation);
         GC.SuppressFinalize(this);
     }
 
     private void OnStateChanged(T value)
     {
         _ = value;
-        _ = InvokeAsync(ReloadAsync);
-    }
-
-    private void OnReloadFailureReported(Exception exception)
-    {
-        ReloadFailure = exception;
         if (Volatile.Read(ref _disposed) != 0)
         {
             return;
         }
 
+        var generation = Interlocked.Increment(ref _generation);
+        _ = InvokeAsync(() => ReloadAsync(generation));
+    }
+
+    private void OnReloadFailureReported(Exception exception)
+    {
+        if (Volatile.Read(ref _disposed) != 0)
+        {
+            return;
+        }
+
+        var generation = Interlocked.Read(ref _generation);
         _ = InvokeAsync(async () =>
         {
+            if (!IsCurrent(generation))
+            {
+                return;
+            }
+
+            ReloadFailure = exception;
             await OnReloadFailed.InvokeAsync(exception).ConfigureAwait(true);
-            StateHasChanged();
+            if (IsCurrent(generation))
+            {
+                StateHasChanged();
+            }
         });
     }
 
-    private async Task ReloadAsync()
+    private async Task ReloadAsync(long generation)
     {
+        if (!IsCurrent(generation))
+        {
+            return;
+        }
         try
         {
             var snapshot = await State.GetSnapshotAsync().ConfigureAwait(true);
+            if (!IsCurrent(generation))
+            {
+                return;
+            }
+
             Snapshot = snapshot;
             ReloadFailure = null;
             LoadFailure = null;
         }
         catch (Exception exception)
         {
+            if (!IsCurrent(generation))
+            {
+                return;
+            }
+
             if (Snapshot is null)
             {
                 LoadFailure = exception;
@@ -124,11 +155,14 @@ public sealed partial class StateReader<T> : ComponentBase, IDisposable
         }
         finally
         {
-            IsLoading = false;
-            if (Volatile.Read(ref _disposed) == 0)
+            if (IsCurrent(generation))
             {
+                IsLoading = false;
                 StateHasChanged();
             }
         }
     }
+
+    private bool IsCurrent(long generation) =>
+        Volatile.Read(ref _disposed) == 0 && generation == Interlocked.Read(ref _generation);
 }
