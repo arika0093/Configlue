@@ -439,8 +439,30 @@ internal sealed class SparseFragmentCoreEmitter(
         }
         if (construction.CanOverlayAfterConstruction)
         {
-            code.AppendLineAt(3, "var value = new " + modelType + "();");
-            foreach (var member in members)
+            var arguments = constructor is null
+                ? string.Empty
+                : string.Join(
+                    ", ",
+                    constructor.Parameters.Select(parameter =>
+                    {
+                        var member = members.Single(candidate =>
+                            candidate.Property.Name == parameter.PropertyName
+                        );
+                        var name = SparseNaming.EscapeIdentifier(parameter.PropertyName);
+                        var projected = name + ".Value!";
+                        if (member.ChildModel is not null)
+                            projected = member.ChildIsReferenceType
+                                ? name + ".Value?.ToModel()!"
+                                : name + ".Value!.ToModel()";
+                        return name
+                            + ".IsPresent ? "
+                            + projected
+                            + " : "
+                            + parameter.DefaultExpression;
+                    })
+                );
+            code.AppendLineAt(3, "var value = new " + modelType + "(" + arguments + ");");
+            foreach (var member in members.Where(static member => !member.Property.IsReadOnly))
             {
                 var name = SparseNaming.EscapeIdentifier(member.Property.Name);
                 var projected = name + ".Value!";

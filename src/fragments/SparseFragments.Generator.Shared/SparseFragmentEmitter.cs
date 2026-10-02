@@ -110,7 +110,8 @@ internal static class SparseFragmentEmitter
                 structuralModel.Members,
                 true,
                 usesPocoCloning,
-                isRootModel: false
+                isRootModel: false,
+                constructor: structuralModel.Constructor
             );
             code.IndentOffset--;
             code.AppendLineAt(1, "}");
