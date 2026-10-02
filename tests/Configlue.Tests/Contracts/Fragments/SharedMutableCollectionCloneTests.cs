@@ -84,8 +84,13 @@ public sealed class SharedMutableCollectionCloneTests
             ReferenceEqualityComparer.Instance;
         var immutableSet = ImmutableHashSet.Create(immutableSetComparer, root, other);
         var immutableDictionaryComparer = StringComparer.OrdinalIgnoreCase;
+        IEqualityComparer<SharedMutableCollectionRoot> immutableDictionaryValueComparer =
+            ReferenceEqualityComparer.Instance;
         var immutableDictionary = ImmutableDictionary
-            .Create<string, SharedMutableCollectionRoot>(immutableDictionaryComparer)
+            .Create<string, SharedMutableCollectionRoot>(
+                immutableDictionaryComparer,
+                immutableDictionaryValueComparer
+            )
             .Add("Key", root)
             .Add("Other", other);
         var concurrentQueue = new ConcurrentQueue<SharedMutableCollectionRoot>([root, other]);
@@ -150,7 +155,6 @@ public sealed class SharedMutableCollectionCloneTests
         clone.ImmutableSet.Contains(cloneOther).ShouldBeTrue();
         clone.ImmutableSet.Count.ShouldBe(2);
         ReferenceEquals(clone.ImmutableSet.KeyComparer, immutableSetComparer).ShouldBeTrue();
-        ReferenceEquals(clone.ImmutableSet.KeyComparer, immutableSetComparer).ShouldBeTrue();
         ReferenceEquals(clone.ImmutableDictionary, clone.ImmutableDictionaryAlias).ShouldBeTrue();
         ReferenceEquals(clone.AImmutableDictionaryView, clone.ImmutableDictionary).ShouldBeTrue();
         ReferenceEquals(clone.ImmutableDictionary, immutableDictionary).ShouldBeFalse();
@@ -158,7 +162,7 @@ public sealed class SharedMutableCollectionCloneTests
         ReferenceEquals(clone.ImmutableDictionary["other"], cloneOther).ShouldBeTrue();
         ReferenceEquals(clone.ImmutableDictionary.KeyComparer, immutableDictionaryComparer)
             .ShouldBeTrue();
-        ReferenceEquals(clone.ImmutableDictionary.KeyComparer, immutableDictionaryComparer)
+        ReferenceEquals(clone.ImmutableDictionary.ValueComparer, immutableDictionaryValueComparer)
             .ShouldBeTrue();
         ReferenceEquals(clone.ConcurrentQueue, clone.ConcurrentQueueAlias).ShouldBeTrue();
         ReferenceEquals(clone.ConcurrentQueue, concurrentQueue).ShouldBeFalse();
