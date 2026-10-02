@@ -1,0 +1,47 @@
+---
+title: Model construction
+---
+
+# Model construction
+
+Configlue and SparseFragments use the same constructor binding for generated root
+models. A root model can use a private constructor because the generated code is
+part of the model's partial declaration.
+
+The generator prefers a parameterless constructor. Otherwise it selects a
+constructor whose parameters match public readable and writable properties by
+name (ignoring case) and exact type. `init` accessors count as writable for this
+purpose. Constructors are ordered by parameter count, then their symbol display
+string using ordinal comparison. Parameters with `ref`, `in`, or `out` are not
+supported by this binding.
+
+## Projecting a fragment
+
+`Fragment.ToModel()` calls the selected constructor once. A present fragment
+member supplies the corresponding constructor argument. An absent member uses
+the parameter's declared optional default, or `default(T)` if no optional default
+exists. Consequently, a required `int` constructor parameter receives `0` when
+its member is absent, and a required reference parameter receives `null`.
+Constructor validation and exceptions retain their normal behavior.
+
+After construction, present members are projected onto the model. Absent members
+retain the values established by the constructor and property initializers.
+Generated projection constructors assign `init` properties within a constructor
+and satisfy represented `required` properties. Required fields and required
+properties that cannot be represented receive a generator diagnostic.
+
+For a constructor that rejects its parameter defaults, supply the corresponding
+members before calling `ToModel()`. This also applies to Configlue's default model
+construction, which uses an empty fragment.
+
+## Cloning
+
+`DeepClone()` supplies cloned property values to the selected constructor. A
+property bound to a constructor parameter is cloned once, and its clone is reused
+by the object initializer. Thus the constructor and final property receive the
+same cloned value. The source value is isolated according to the member's clone
+strategy.
+
+This root construction support does not yet establish support for getter-only
+properties or immutable, undecorated structural child types. Their construction
+and graph cloning support are tracked separately.
