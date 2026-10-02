@@ -182,16 +182,7 @@ public sealed partial class ConfiglueGenerator
             return AnalysisFailure(MustBePartial, location, model.Name);
         }
 
-        if (
-            model.ContainingType is not null
-            || model.Arity != 0
-            || (model.TypeKind != TypeKind.Class && model.TypeKind != TypeKind.Struct)
-        )
-        {
-            return AnalysisFailure(UnsupportedModel, location, model.Name);
-        }
-
-        if (model.IsAbstract)
+        if (!IsSupportedRootModelShape(model, declaration))
         {
             return AnalysisFailure(UnsupportedModel, location, model.Name);
         }

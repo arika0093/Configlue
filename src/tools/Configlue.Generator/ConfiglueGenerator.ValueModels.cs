@@ -147,6 +147,7 @@ public sealed partial class ConfiglueGenerator
             string @namespace,
             bool isGlobalNamespace,
             bool isStruct,
+            bool isReadOnly,
             bool isRecord,
             bool isPublic,
             string modelId,
@@ -160,6 +161,7 @@ public sealed partial class ConfiglueGenerator
             Namespace = @namespace;
             IsGlobalNamespace = isGlobalNamespace;
             IsStruct = isStruct;
+            IsReadOnly = isReadOnly;
             IsRecord = isRecord;
             IsPublic = isPublic;
             ModelId = modelId;
@@ -173,6 +175,7 @@ public sealed partial class ConfiglueGenerator
         public string Namespace { get; init; }
         public bool IsGlobalNamespace { get; init; }
         public bool IsStruct { get; init; }
+        public bool IsReadOnly { get; init; }
         public bool IsRecord { get; init; }
         public bool IsPublic { get; init; }
         public string ModelId { get; init; }
@@ -679,6 +682,7 @@ public sealed partial class ConfiglueGenerator
             model.ContainingNamespace.ToDisplayString(),
             model.ContainingNamespace.IsGlobalNamespace,
             model.TypeKind == TypeKind.Struct,
+            model.IsReadOnly,
             model.IsRecord,
             model.DeclaredAccessibility == Accessibility.Public,
             modelId,
