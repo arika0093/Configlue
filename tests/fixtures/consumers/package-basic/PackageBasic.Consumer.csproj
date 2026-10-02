@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFrameworks>net10.0;net8.0</TargetFrameworks>
+    <IsTestProject>false</IsTestProject>
+    <IsPackable>false</IsPackable>
+    <AssemblyName>PackageBasic.Consumer</AssemblyName>
+    <RootNamespace>PackageBasic</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Remove="TUnit;Shouldly" />
+    <Using Remove="Shouldly;Configlue.Codecs;Configlue.Migrations;Configlue.Resources;Configlue.Sources;Configlue.Extensibility;Configlue.State;Configlue.Transformers" />
+  </ItemGroup>
+
+  <!-- Restores Configlue from a local NuGet feed when ConfigluePackageVersion is provided. -->
+  <ItemGroup Condition="'$(ConfigluePackageVersion)' == ''">
+    <ProjectReference Include="../../../../src/basic/Configlue/Configlue.csproj" />
+    <ProjectReference
+      Include="../../../../src/tools/Configlue.Generator/Configlue.Generator.csproj"
+      OutputItemType="Analyzer"
+      ReferenceOutputAssembly="false"
+    />
+  </ItemGroup>
+  <ItemGroup Condition="'$(ConfigluePackageVersion)' != ''">
+    <PackageReference Include="Configlue" Version="$(ConfigluePackageVersion)" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,41 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <IsTestProject>false</IsTestProject>
+    <IsPackable>false</IsPackable>
+    <AssemblyName>NativeAot.Consumer</AssemblyName>
+    <RootNamespace>NativeAotConsumer</RootNamespace>
+    <PublishAot>true</PublishAot>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <!--
+      Report every trim warning individually instead of the per-assembly IL2104
+      summary so that consumers can fail on new trimming regressions.
+      The generated model still emits an unconditional descriptor registration
+      whose RuntimeHelpers.RunClassConstructor call is diagnosed as IL2059 in
+      Configlue.Core/Configlue.Abstraction. That known library warning is
+      accepted here; the consumer itself uses the trim-safe projection path and
+      does not depend on the reflected registration.
+    -->
+    <TrimmerSingleWarn>false</TrimmerSingleWarn>
+    <NoWarn>$(NoWarn);IL2059</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Remove="TUnit;Shouldly" />
+    <Using Remove="Shouldly;Configlue.Codecs;Configlue.Migrations;Configlue.Resources;Configlue.Sources;Configlue.Extensibility;Configlue.State;Configlue.Transformers" />
+  </ItemGroup>
+
+  <!-- Restores Configlue from a local NuGet feed when ConfigluePackageVersion is provided. -->
+  <ItemGroup Condition="'$(ConfigluePackageVersion)' == ''">
+    <ProjectReference Include="../../../../src/basic/Configlue/Configlue.csproj" />
+    <ProjectReference
+      Include="../../../../src/tools/Configlue.Generator/Configlue.Generator.csproj"
+      OutputItemType="Analyzer"
+      ReferenceOutputAssembly="false"
+    />
+  </ItemGroup>
+  <ItemGroup Condition="'$(ConfigluePackageVersion)' != ''">
+    <PackageReference Include="Configlue" Version="$(ConfigluePackageVersion)" />
+  </ItemGroup>
+</Project>

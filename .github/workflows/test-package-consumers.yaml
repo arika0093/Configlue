@@ -1,0 +1,126 @@
+name: Packed package consumers
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  package-basic:
+    timeout-minutes: 30
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+
+      - name: Pack Configlue packages
+        run: dotnet pack Configlue.slnx --configuration Release --output artifacts/packages
+
+      - name: Resolve local feed and package version
+        shell: bash
+        run: |
+          set -euo pipefail
+          package="$(ls artifacts/packages/SparseFragments.*.nupkg | head -n 1)"
+          version="$(basename "$package" | sed -E 's/^SparseFragments\.(.+)\.nupkg$/\1/')"
+          echo "CONFIGLUE_PACKAGE_VERSION=$version" >> "$GITHUB_ENV"
+          echo "CONFIGLUE_PACKAGE_FEED=$(realpath artifacts/packages)" >> "$GITHUB_ENV"
+
+      - name: Build and run basic consumer (net10.0)
+        run: |
+          set -euo pipefail
+          dotnet build tests/fixtures/consumers/package-basic/PackageBasic.Consumer.csproj \
+            --configuration Release --framework net10.0 \
+            -p:ConfigluePackageVersion="$CONFIGLUE_PACKAGE_VERSION" \
+            -p:RestoreAdditionalProjectSources="$CONFIGLUE_PACKAGE_FEED"
+          dotnet tests/fixtures/consumers/package-basic/bin/Release/net10.0/PackageBasic.Consumer.dll
+
+      - name: Build and run basic consumer (net8.0)
+        run: |
+          set -euo pipefail
+          dotnet build tests/fixtures/consumers/package-basic/PackageBasic.Consumer.csproj \
+            --configuration Release --framework net8.0 \
+            -p:ConfigluePackageVersion="$CONFIGLUE_PACKAGE_VERSION" \
+            -p:RestoreAdditionalProjectSources="$CONFIGLUE_PACKAGE_FEED"
+          dotnet tests/fixtures/consumers/package-basic/bin/Release/net8.0/PackageBasic.Consumer.dll
+
+      - name: Upload failure artifacts
+        if: failure() || cancelled()
+        uses: actions/upload-artifact@v7
+        with:
+          name: package-basic-results
+          path: |
+            artifacts/packages/*.nupkg
+            tests/fixtures/consumers/package-basic/**/*.binlog
+          if-no-files-found: ignore
+          retention-days: 7
+
+  native-aot:
+    timeout-minutes: 30
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Pack Configlue packages
+        run: dotnet pack Configlue.slnx --configuration Release --output artifacts/packages
+
+      - name: Resolve local feed and package version
+        shell: bash
+        run: |
+          set -euo pipefail
+          package="$(ls artifacts/packages/SparseFragments.*.nupkg | head -n 1)"
+          version="$(basename "$package" | sed -E 's/^SparseFragments\.(.+)\.nupkg$/\1/')"
+          echo "CONFIGLUE_PACKAGE_VERSION=$version" >> "$GITHUB_ENV"
+          echo "CONFIGLUE_PACKAGE_FEED=$(realpath artifacts/packages)" >> "$GITHUB_ENV"
+
+      - name: Publish NativeAOT consumer
+        run: >
+          dotnet publish tests/fixtures/consumers/native-aot/NativeAot.Consumer.csproj
+          --configuration Release --runtime linux-x64 --self-contained
+          -p:ConfigluePackageVersion="$CONFIGLUE_PACKAGE_VERSION"
+          -p:RestoreAdditionalProjectSources="$CONFIGLUE_PACKAGE_FEED"
+
+      - name: Run NativeAOT consumer
+        run: |
+          set -euo pipefail
+          output="$(tests/fixtures/consumers/native-aot/bin/Release/net10.0/linux-x64/publish/NativeAot.Consumer)"
+          echo "$output"
+          if [[ "$output" != *"CONFIGLUE_NATIVE_AOT_PASS"* ]]; then
+            echo "The NativeAOT consumer did not reach its success marker." >&2
+            exit 1
+          fi
+
+      - name: Upload failure artifacts
+        if: failure() || cancelled()
+        uses: actions/upload-artifact@v7
+        with:
+          name: native-aot-results
+          path: |
+            artifacts/packages/*.nupkg
+            tests/fixtures/consumers/native-aot/**/*.binlog
+          if-no-files-found: ignore
+          retention-days: 7
