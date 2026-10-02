@@ -179,7 +179,10 @@ internal sealed class SparseFragmentCoreEmitter(
         code.AppendLine();
     }
 
-    public static void AppendCollectionCloneHelpers(SharedIndentedBuilder code)
+    public static void AppendCollectionCloneHelpers(
+        SharedIndentedBuilder code,
+        bool includePriorityQueue
+    )
     {
         code.AppendLineAt(
             1,
@@ -277,14 +280,135 @@ internal sealed class SparseFragmentCoreEmitter(
         code.AppendLineAt(1, "}");
         code.AppendLineAt(
             1,
-            "private static global::System.Collections.Concurrent.BlockingCollection<T> __CloneBlockingCollection<T>(global::System.Collections.Concurrent.BlockingCollection<T> original, global::System.Collections.Generic.IEnumerable<T> items)"
+            "private static TCollection __CloneQueue<T, TCollection>(global::System.Collections.Generic.IEnumerable<T> source, global::System.Collections.Generic.Dictionary<object, object> context, global::System.Func<T, T> cloneElement)"
         );
         code.AppendLineAt(1, "{");
         code.AppendLineAt(
             2,
-            "var queue = new global::System.Collections.Concurrent.ConcurrentQueue<T>(items);"
+            "if (context.TryGetValue(source, out var existing)) return (TCollection)existing;"
         );
-        code.AppendLineAt(2, "var clone = original.BoundedCapacity > 0");
+        code.AppendLineAt(2, "var clone = new global::System.Collections.Generic.Queue<T>();");
+        code.AppendLineAt(2, "context.Add(source, clone);");
+        code.AppendLineAt(2, "foreach (var item in source) clone.Enqueue(cloneElement(item));");
+        code.AppendLineAt(2, "return (TCollection)(object)clone;");
+        code.AppendLineAt(1, "}");
+        code.AppendLineAt(
+            1,
+            "private static TCollection __CloneStack<T, TCollection>(global::System.Collections.Generic.IEnumerable<T> source, global::System.Collections.Generic.Dictionary<object, object> context, global::System.Func<T, T> cloneElement)"
+        );
+        code.AppendLineAt(1, "{");
+        code.AppendLineAt(
+            2,
+            "if (context.TryGetValue(source, out var existing)) return (TCollection)existing;"
+        );
+        code.AppendLineAt(2, "var clone = new global::System.Collections.Generic.Stack<T>();");
+        code.AppendLineAt(2, "context.Add(source, clone);");
+        code.AppendLineAt(
+            2,
+            "foreach (var item in global::System.Linq.Enumerable.Reverse(source)) clone.Push(cloneElement(item));"
+        );
+        code.AppendLineAt(2, "return (TCollection)(object)clone;");
+        code.AppendLineAt(1, "}");
+        code.AppendLineAt(
+            1,
+            "private static TCollection __CloneConcurrentQueue<T, TCollection>(global::System.Collections.Generic.IEnumerable<T> source, global::System.Collections.Generic.Dictionary<object, object> context, global::System.Func<T, T> cloneElement)"
+        );
+        code.AppendLineAt(1, "{");
+        code.AppendLineAt(
+            2,
+            "if (context.TryGetValue(source, out var existing)) return (TCollection)existing;"
+        );
+        code.AppendLineAt(
+            2,
+            "var clone = new global::System.Collections.Concurrent.ConcurrentQueue<T>();"
+        );
+        code.AppendLineAt(2, "context.Add(source, clone);");
+        code.AppendLineAt(2, "foreach (var item in source) clone.Enqueue(cloneElement(item));");
+        code.AppendLineAt(2, "return (TCollection)(object)clone;");
+        code.AppendLineAt(1, "}");
+        code.AppendLineAt(
+            1,
+            "private static TCollection __CloneConcurrentStack<T, TCollection>(global::System.Collections.Generic.IEnumerable<T> source, global::System.Collections.Generic.Dictionary<object, object> context, global::System.Func<T, T> cloneElement)"
+        );
+        code.AppendLineAt(1, "{");
+        code.AppendLineAt(
+            2,
+            "if (context.TryGetValue(source, out var existing)) return (TCollection)existing;"
+        );
+        code.AppendLineAt(
+            2,
+            "var clone = new global::System.Collections.Concurrent.ConcurrentStack<T>();"
+        );
+        code.AppendLineAt(2, "context.Add(source, clone);");
+        code.AppendLineAt(
+            2,
+            "foreach (var item in global::System.Linq.Enumerable.Reverse(source)) clone.Push(cloneElement(item));"
+        );
+        code.AppendLineAt(2, "return (TCollection)(object)clone;");
+        code.AppendLineAt(1, "}");
+        code.AppendLineAt(
+            1,
+            "private static TCollection __CloneLinkedList<T, TCollection>(global::System.Collections.Generic.IEnumerable<T> source, global::System.Collections.Generic.Dictionary<object, object> context, global::System.Func<T, T> cloneElement)"
+        );
+        code.AppendLineAt(1, "{");
+        code.AppendLineAt(
+            2,
+            "if (context.TryGetValue(source, out var existing)) return (TCollection)existing;"
+        );
+        code.AppendLineAt(2, "var clone = new global::System.Collections.Generic.LinkedList<T>();");
+        code.AppendLineAt(2, "context.Add(source, clone);");
+        code.AppendLineAt(2, "foreach (var item in source) clone.AddLast(cloneElement(item));");
+        code.AppendLineAt(2, "return (TCollection)(object)clone;");
+        code.AppendLineAt(1, "}");
+        code.AppendLineAt(
+            1,
+            "private static TCollection __CloneObservableCollection<T, TCollection>(global::System.Collections.Generic.IEnumerable<T> source, global::System.Collections.Generic.Dictionary<object, object> context, global::System.Func<T, T> cloneElement)"
+        );
+        code.AppendLineAt(1, "{");
+        code.AppendLineAt(
+            2,
+            "if (context.TryGetValue(source, out var existing)) return (TCollection)existing;"
+        );
+        code.AppendLineAt(
+            2,
+            "var clone = new global::System.Collections.ObjectModel.ObservableCollection<T>();"
+        );
+        code.AppendLineAt(2, "context.Add(source, clone);");
+        code.AppendLineAt(2, "foreach (var item in source) clone.Add(cloneElement(item));");
+        code.AppendLineAt(2, "return (TCollection)(object)clone;");
+        code.AppendLineAt(1, "}");
+        code.AppendLineAt(
+            1,
+            "private static global::System.Collections.ObjectModel.ReadOnlyCollection<T> __CloneReadOnlyCollection<T>(global::System.Collections.Generic.IEnumerable<T> source, global::System.Collections.Generic.Dictionary<object, object> context, global::System.Func<T, T> cloneElement)"
+        );
+        code.AppendLineAt(1, "{");
+        code.AppendLineAt(
+            2,
+            "if (context.TryGetValue(source, out var existing)) return (global::System.Collections.ObjectModel.ReadOnlyCollection<T>)existing;"
+        );
+        code.AppendLineAt(2, "var items = new global::System.Collections.Generic.List<T>();");
+        code.AppendLineAt(
+            2,
+            "var clone = new global::System.Collections.ObjectModel.ReadOnlyCollection<T>(items);"
+        );
+        code.AppendLineAt(2, "context.Add(source, clone);");
+        code.AppendLineAt(2, "foreach (var item in source) items.Add(cloneElement(item));");
+        code.AppendLineAt(2, "return clone;");
+        code.AppendLineAt(1, "}");
+        code.AppendLineAt(
+            1,
+            "private static global::System.Collections.Concurrent.BlockingCollection<T> __CloneBlockingCollection<T>(global::System.Collections.Concurrent.BlockingCollection<T> original, global::System.Collections.Generic.Dictionary<object, object> context, global::System.Func<T, T> cloneElement)"
+        );
+        code.AppendLineAt(1, "{");
+        code.AppendLineAt(
+            2,
+            "if (context.TryGetValue(original, out var existing)) return (global::System.Collections.Concurrent.BlockingCollection<T>)existing;"
+        );
+        code.AppendLineAt(
+            2,
+            "var queue = new global::System.Collections.Concurrent.ConcurrentQueue<T>();"
+        );
+        code.AppendLineAt(2, "var clone = original.BoundedCapacity >= 0");
         code.AppendLineAt(
             3,
             "? new global::System.Collections.Concurrent.BlockingCollection<T>(queue, original.BoundedCapacity)"
@@ -293,12 +417,37 @@ internal sealed class SparseFragmentCoreEmitter(
             3,
             ": new global::System.Collections.Concurrent.BlockingCollection<T>(queue);"
         );
+        code.AppendLineAt(2, "context.Add(original, clone);");
+        code.AppendLineAt(2, "foreach (var item in original) clone.Add(cloneElement(item));");
         code.AppendLineAt(2, "if (original.IsAddingCompleted)");
         code.AppendLineAt(2, "{");
         code.AppendLineAt(3, "clone.CompleteAdding();");
         code.AppendLineAt(2, "}");
         code.AppendLineAt(2, "return clone;");
         code.AppendLineAt(1, "}");
+        if (includePriorityQueue)
+        {
+            code.AppendLineAt(
+                1,
+                "private static global::System.Collections.Generic.PriorityQueue<TElement, TPriority> __ClonePriorityQueue<TElement, TPriority>(global::System.Collections.Generic.PriorityQueue<TElement, TPriority> source, global::System.Collections.Generic.Dictionary<object, object> context, global::System.Func<TElement, TElement> cloneElement, global::System.Func<TPriority, TPriority> clonePriority)"
+            );
+            code.AppendLineAt(1, "{");
+            code.AppendLineAt(
+                2,
+                "if (context.TryGetValue(source, out var existing)) return (global::System.Collections.Generic.PriorityQueue<TElement, TPriority>)existing;"
+            );
+            code.AppendLineAt(
+                2,
+                "var clone = new global::System.Collections.Generic.PriorityQueue<TElement, TPriority>(source.Comparer);"
+            );
+            code.AppendLineAt(2, "context.Add(source, clone);");
+            code.AppendLineAt(
+                2,
+                "foreach (var item in source.UnorderedItems) clone.Enqueue(cloneElement(item.Element), clonePriority(item.Priority));"
+            );
+            code.AppendLineAt(2, "return clone;");
+            code.AppendLineAt(1, "}");
+        }
     }
 
     public void AppendDeepClone(

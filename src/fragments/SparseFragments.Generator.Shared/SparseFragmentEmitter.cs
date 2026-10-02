@@ -72,7 +72,22 @@ internal static class SparseFragmentEmitter
                 poco.Members,
                 poco.Model.Constructor
             );
-        SparseFragmentCoreEmitter.AppendCollectionCloneHelpers(code);
+        SparseFragmentCoreEmitter.AppendCollectionCloneHelpers(
+            code,
+            members.Any(static member =>
+                member.Collection.CloneKind == SparseCloneCollectionKind.PriorityQueue
+            )
+                || pocoCloneModels.Any(static poco =>
+                    poco.Members.Any(static member =>
+                        member.Collection.CloneKind == SparseCloneCollectionKind.PriorityQueue
+                    )
+                )
+                || structuralModels.Any(static structural =>
+                    structural.Members.Any(static member =>
+                        member.Collection.CloneKind == SparseCloneCollectionKind.PriorityQueue
+                    )
+                )
+        );
         AppendFragment(
             code,
             modelType,

@@ -111,15 +111,7 @@ internal sealed class SparseFragmentExpressions(
         {
             if (collection.CloneKind == SparseCloneCollectionKind.PriorityQueue)
             {
-                var priorityType = collection.ValueType.Value.Name;
-                var elementSelector = CloneValueExpression(collection.ElementType, "item.Element");
-                var prioritySelector = CloneValueExpression(
-                    collection.ValueType.Value,
-                    "item.Priority"
-                );
-                var entries =
-                    $"global::System.Linq.Enumerable.Select({access}.UnorderedItems, item => ({elementSelector}, {prioritySelector}))";
-                return $"new global::System.Collections.Generic.PriorityQueue<{elementType}, {priorityType}>({entries}, {access}.Comparer)";
+                return $"__ClonePriorityQueue({access}, {CloneContext}, item => {CloneValueExpression(collection.ElementType, "item")}, item => {CloneValueExpression(collection.ValueType.Value, "item")})";
             }
 
             if (collection.CloneKind == SparseCloneCollectionKind.Dictionary)
@@ -157,21 +149,21 @@ internal sealed class SparseFragmentExpressions(
                 elementType
             ),
             SparseCloneCollectionKind.Queue =>
-                $"new global::System.Collections.Generic.Queue<{elementType}>({elements})",
+                $"__CloneQueue<{elementType}, {member.Property.Type.Name}>({access}, {CloneContext}, item => {CloneValueExpression(collection.ElementType, "item")})",
             SparseCloneCollectionKind.Stack =>
-                $"new global::System.Collections.Generic.Stack<{elementType}>(global::System.Linq.Enumerable.Reverse({elements}))",
+                $"__CloneStack<{elementType}, {member.Property.Type.Name}>({access}, {CloneContext}, item => {CloneValueExpression(collection.ElementType, "item")})",
             SparseCloneCollectionKind.ConcurrentQueue =>
-                $"new global::System.Collections.Concurrent.ConcurrentQueue<{elementType}>({elements})",
+                $"__CloneConcurrentQueue<{elementType}, {member.Property.Type.Name}>({access}, {CloneContext}, item => {CloneValueExpression(collection.ElementType, "item")})",
             SparseCloneCollectionKind.ConcurrentStack =>
-                $"new global::System.Collections.Concurrent.ConcurrentStack<{elementType}>(global::System.Linq.Enumerable.Reverse({elements}))",
+                $"__CloneConcurrentStack<{elementType}, {member.Property.Type.Name}>({access}, {CloneContext}, item => {CloneValueExpression(collection.ElementType, "item")})",
             SparseCloneCollectionKind.BlockingCollection =>
-                $"__CloneBlockingCollection({access}, {elements})",
+                $"__CloneBlockingCollection({access}, {CloneContext}, item => {CloneValueExpression(collection.ElementType, "item")})",
             SparseCloneCollectionKind.LinkedList =>
-                $"new global::System.Collections.Generic.LinkedList<{elementType}>({elements})",
+                $"__CloneLinkedList<{elementType}, {member.Property.Type.Name}>({access}, {CloneContext}, item => {CloneValueExpression(collection.ElementType, "item")})",
             SparseCloneCollectionKind.ObservableCollection =>
-                $"new global::System.Collections.ObjectModel.ObservableCollection<{elementType}>({elements})",
+                $"__CloneObservableCollection<{elementType}, {member.Property.Type.Name}>({access}, {CloneContext}, item => {CloneValueExpression(collection.ElementType, "item")})",
             SparseCloneCollectionKind.ReadOnlyCollection =>
-                $"new global::System.Collections.ObjectModel.ReadOnlyCollection<{elementType}>(new global::System.Collections.Generic.List<{elementType}>({elements}))",
+                $"__CloneReadOnlyCollection<{elementType}>({access}, {CloneContext}, item => {CloneValueExpression(collection.ElementType, "item")})",
             SparseCloneCollectionKind.ImmutableArray =>
                 $"{access}.IsDefault ? {access} : global::System.Collections.Immutable.ImmutableArray.CreateRange({elements})",
             SparseCloneCollectionKind.ImmutableList =>
