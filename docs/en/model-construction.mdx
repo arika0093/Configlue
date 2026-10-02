@@ -56,6 +56,9 @@ parameters and getter-only properties. Their generated fragments use the same
 argument defaults as root fragments. Cloning also handles these child values
 inside supported collections.
 
-Structural child properties with `init` or `required` are not yet supported by
-this construction path. Preservation of aliases and cycles throughout the entire
-model graph is tracked separately from constructor binding.
+Structural child properties with `init` are supported when bound to the selected
+public constructor. Constructor arguments restore these properties; no later
+setter assignment is generated. Unbound `init` properties and `required` child
+properties are not yet supported by this construction path. Preservation of
+aliases and cycles throughout the entire model graph is tracked separately from
+constructor binding.

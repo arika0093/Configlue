@@ -87,3 +87,39 @@ public sealed class ImmutableChildConstructionTests
         ImmutableChildSettings.Fragment.Empty.ToModel().Child.Count.ShouldBe(7);
     }
 }
+
+[ConfiglueModel("init-child-construction")]
+public partial class InitChildSettings
+{
+    public InitConstructionChild Child { get; set; } = new();
+    public List<InitConstructionChild> Children { get; set; } = new();
+}
+
+public sealed class InitConstructionChild(int count = 7, int[]? items = null)
+{
+    public int Count { get; init; } = count;
+    public int[]? Items { get; init; } = items;
+}
+
+public sealed class InitChildConstructionTests
+{
+    [Test]
+    public void ConstructorBoundInitChildRoundTripsAndClonesCollections()
+    {
+        var child = new InitConstructionChild(3, new[] { 1, 2 });
+        var model = new InitChildSettings
+        {
+            Child = child,
+            Children = new() { child },
+        };
+        var restored = InitChildSettings.Fragment.From(model).ToModel();
+        restored.Child.Count.ShouldBe(3);
+        restored.Child.Items![1].ShouldBe(2);
+        ReferenceEquals(restored.Child, child).ShouldBeFalse();
+        var clone = model.DeepClone();
+        ReferenceEquals(clone.Children[0].Items, child.Items).ShouldBeFalse();
+        clone.Children[0].Items![0] = 9;
+        child.Items![0].ShouldBe(1);
+        InitChildSettings.Fragment.Empty.ToModel().Child.Count.ShouldBe(7);
+    }
+}

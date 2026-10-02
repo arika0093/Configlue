@@ -61,7 +61,12 @@ internal readonly record struct ModelConstructionPlan(bool CanOverlayAfterConstr
                         )
                     )
                     || RoslynSymbolCompat.IsRequired(property)
-                    || property.SetMethod?.IsInitOnly == true
+                    || (
+                        property.SetMethod?.IsInitOnly == true
+                        && !constructor.Parameters.Any(parameter =>
+                            parameter.PropertyName == property.Name
+                        )
+                    )
                 )
                 {
                     return true;
@@ -107,6 +112,25 @@ internal readonly record struct ModelConstructionPlan(bool CanOverlayAfterConstr
             }
         }
     }
+
+    public static ModelConstructionPlan ForStructuralMembers(
+        ImmutableArray<SparseMemberModel> members,
+        ModelConstructorBinding? constructor
+    ) =>
+        new(
+            members.All(member =>
+                !member.Property.IsRequired
+                && (
+                    !member.Property.IsInitOnly
+                    || (
+                        constructor is not null
+                        && constructor.Parameters.Any(parameter =>
+                            parameter.PropertyName == member.Property.Name
+                        )
+                    )
+                )
+            )
+        );
 
     public static ModelConstructionPlan ForMembers(ImmutableArray<SparseMemberModel> members) =>
         new(

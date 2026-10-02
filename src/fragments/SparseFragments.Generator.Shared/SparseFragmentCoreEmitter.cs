@@ -301,7 +301,11 @@ internal sealed class SparseFragmentCoreEmitter(
             .Append(arguments)
             .AppendLine(");");
         code.AppendLineAt(2, CloneContext + ".Add(value, clone);");
-        foreach (var member in members.Where(static member => !member.Property.IsReadOnly))
+        foreach (
+            var member in members.Where(static member =>
+                !member.Property.IsReadOnly && !member.Property.IsInitOnly
+            )
+        )
         {
             var memberName = SparseNaming.EscapeIdentifier(member.Property.Name);
             code.AppendIndent(2)
@@ -463,7 +467,9 @@ internal sealed class SparseFragmentCoreEmitter(
     {
         code.AppendIndent(2).Append("public ").Append(modelType).AppendLine(" ToModel()");
         code.AppendLineAt(2, "{");
-        var construction = ModelConstructionPlan.ForMembers(members);
+        var construction = hasRootProjectionConstructor
+            ? ModelConstructionPlan.ForMembers(members)
+            : ModelConstructionPlan.ForStructuralMembers(members, constructor);
         if (
             hasRootProjectionConstructor
             && (
@@ -505,7 +511,11 @@ internal sealed class SparseFragmentCoreEmitter(
                     })
                 );
             code.AppendLineAt(3, "var value = new " + modelType + "(" + arguments + ");");
-            foreach (var member in members.Where(static member => !member.Property.IsReadOnly))
+            foreach (
+                var member in members.Where(static member =>
+                    !member.Property.IsReadOnly && !member.Property.IsInitOnly
+                )
+            )
             {
                 var name = SparseNaming.EscapeIdentifier(member.Property.Name);
                 var projected = name + ".Value!";
