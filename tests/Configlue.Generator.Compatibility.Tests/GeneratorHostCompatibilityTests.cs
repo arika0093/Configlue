@@ -9,6 +9,45 @@ namespace Configlue.Generator.Compatibility.Tests;
 public sealed class GeneratorHostCompatibilityTests
 {
     [Test]
+    [Arguments(false, 0)]
+    [Arguments(true, 0)]
+    [Arguments(false, 1)]
+    [Arguments(true, 1)]
+    [Arguments(false, 2)]
+    [Arguments(true, 2)]
+    [Arguments(false, 3)]
+    [Arguments(true, 3)]
+    public void UnsupportedConstructorBindingHasActionableDiagnostic(bool standalone, int scenario)
+    {
+        var body = scenario switch
+        {
+            0 =>
+                "public Settings(int value) { } public int Value { get; set; } public int value { get; set; }",
+            1 => "public Settings(string count) { } public int Count { get; set; }",
+            2 => "public Settings(ref int count) { } public int Count { get; set; }",
+            _ => "public Settings(int count) { } public int Count { get; private set; }",
+        };
+        var runtime = standalone ? "SparseFragments" : "Configlue";
+        var attribute = standalone
+            ? "SparseFragmentModel"
+            : "ConfiglueModel(\"unsupported-constructor\")";
+        var source = $"using {runtime}; [{attribute}] public partial class Settings {{ {body} }}";
+        var options = new CSharpParseOptions(LanguageVersion.Latest);
+        var compilation = CreateCompilation(CSharpSyntaxTree.ParseText(source, options));
+        IIncrementalGenerator generator = standalone
+            ? new SparseFragments.Generator.SparseFragmentsGenerator()
+            : new ConfiglueGenerator();
+        var result = CSharpGeneratorDriver
+            .Create(new[] { generator.AsSourceGenerator() }, parseOptions: options)
+            .RunGenerators(compilation)
+            .GetRunResult();
+        result.Results.Single().Exception.ShouldBeNull();
+        result.Results.Single().GeneratedSources.ShouldBeEmpty();
+        var diagnostic = result.Diagnostics.Single(d => d.Id == (standalone ? "SPF003" : "CFG003"));
+        diagnostic.GetMessage().ShouldContain("parameters match public readable properties");
+    }
+
+    [Test]
     [Arguments(false)]
     [Arguments(true)]
     public void RequiredFieldHasActionableConstructionDiagnostic(bool standalone)
