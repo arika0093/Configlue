@@ -89,6 +89,7 @@ public sealed class FallbackStateSource<T> : ISourceReader<T>, ISourceWriter<T>,
         CancellationToken cancellationToken = default
     )
     {
+        context = ConfiglueResourceContext.Normalize(context);
         var result = await _reader.ReadAsync(context, cancellationToken).ConfigureAwait(false);
         if (result.Status != StateReadStatus.Success)
         {
@@ -108,6 +109,7 @@ public sealed class FallbackStateSource<T> : ISourceReader<T>, ISourceWriter<T>,
         CancellationToken cancellationToken = default
     )
     {
+        context = ConfiglueResourceContext.Normalize(context);
         var current = await _reader.ReadAsync(context, cancellationToken).ConfigureAwait(false);
         return await WriteCoreAsync(context, current, request, cancellationToken)
             .ConfigureAwait(false);
@@ -140,10 +142,7 @@ public sealed class FallbackStateSource<T> : ISourceReader<T>, ISourceWriter<T>,
         }
 
         var target = ResolveWriteSource(current);
-        var targetContext = ReferenceEquals(
-            context.Subject,
-            ConfiglueResourceContext.DefaultSubject
-        )
+        var targetContext = context.IsDefault
             ? context
             : target.GetResourceContext(context.Subject);
         StateReadResult<T> targetState;

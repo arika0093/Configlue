@@ -98,22 +98,26 @@ public sealed class CompositeStateSource<TFragment>
         IReadOnlyDictionary<string, TFragment> overrides,
         ConfiglueResourceContext context,
         CancellationToken cancellationToken
-    ) =>
-        await ReadCoreAsync(overrides, ConfigurationSubject(context), context, cancellationToken)
+    )
+    {
+        context = ConfiglueResourceContext.Normalize(context);
+        return await ReadCoreAsync(overrides, ConfigurationSubject(context), context, cancellationToken)
             .ConfigureAwait(false);
+    }
 
     /// <inheritdoc />
     public async ValueTask<StateReadResult<TFragment>> ReadAsync(
         ConfiglueResourceContext context,
         CancellationToken cancellationToken = default
-    ) =>
-        await ReadCoreAsync(null, ConfigurationSubject(context), context, cancellationToken)
+    )
+    {
+        context = ConfiglueResourceContext.Normalize(context);
+        return await ReadCoreAsync(null, ConfigurationSubject(context), context, cancellationToken)
             .ConfigureAwait(false);
+    }
 
     private static IConfiglueSubject? ConfigurationSubject(ConfiglueResourceContext context) =>
-        ReferenceEquals(context.Subject, ConfiglueResourceContext.DefaultSubject)
-            ? null
-            : context.Subject;
+        context.IsDefault ? null : context.Subject;
 
     private async ValueTask<StateReadResult<TFragment>> ReadCoreAsync(
         IReadOnlyDictionary<string, TFragment>? overrides,
@@ -293,9 +297,8 @@ public sealed class CompositeStateSource<TFragment>
     )
     {
         _ = observedRevision;
-        var subject = ReferenceEquals(context.Subject, ConfiglueResourceContext.DefaultSubject)
-            ? null
-            : context.Subject;
+        context = ConfiglueResourceContext.Normalize(context);
+        var subject = context.IsDefault ? null : context.Subject;
         return WaitForChangeCoreAsync(subject, context, cancellationToken);
     }
 
