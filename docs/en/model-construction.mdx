@@ -16,6 +16,10 @@ in the fragment and restored through constructor arguments. Constructors are ord
 string using ordinal comparison. Parameters with `ref`, `in`, or `out` are not
 supported by this binding.
 
+Primary constructors on classes and positional record constructors use the same
+binding. Their parameters must correspond to represented properties; a primary
+constructor parameter used only in a private field is not a fragment member.
+
 ## Projecting a fragment
 
 `Fragment.ToModel()` calls the selected constructor once. A present fragment
