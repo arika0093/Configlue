@@ -123,3 +123,46 @@ public sealed class InitChildConstructionTests
         InitChildSettings.Fragment.Empty.ToModel().Child.Count.ShouldBe(7);
     }
 }
+
+[SparseFragmentModel]
+public partial class RequiredChildSettings
+{
+    public RequiredConstructionChild Child { get; set; } = new();
+    public List<RequiredConstructionChild> Children { get; set; } = new();
+}
+
+public sealed class RequiredConstructionChild
+{
+    [System.Diagnostics.CodeAnalysis.SetsRequiredMembers]
+    public RequiredConstructionChild(int count = 7, int[]? items = null)
+    {
+        Count = count;
+        Items = items;
+    }
+
+    public required int Count { get; init; }
+    public required int[]? Items { get; init; }
+}
+
+public sealed class RequiredChildConstructionTests
+{
+    [Test]
+    public void RequiredChildUsesAnnotatedConstructorForProjectionAndClone()
+    {
+        var child = new RequiredConstructionChild(3, new[] { 1, 2 });
+        var model = new RequiredChildSettings
+        {
+            Child = child,
+            Children = new() { child },
+        };
+        var restored = RequiredChildSettings.Fragment.From(model).ToModel();
+        restored.Child.Count.ShouldBe(3);
+        restored.Child.Items![1].ShouldBe(2);
+        var clone = model.DeepClone();
+        clone.Children[0].Count.ShouldBe(3);
+        ReferenceEquals(clone.Children[0].Items, child.Items).ShouldBeFalse();
+        clone.Children[0].Items![0] = 9;
+        child.Items![0].ShouldBe(1);
+        RequiredChildSettings.Fragment.Empty.ToModel().Child.Count.ShouldBe(7);
+    }
+}

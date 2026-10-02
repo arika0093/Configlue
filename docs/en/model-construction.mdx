@@ -58,7 +58,8 @@ inside supported collections.
 
 Structural child properties with `init` are supported when bound to the selected
 public constructor. Constructor arguments restore these properties; no later
-setter assignment is generated. Unbound `init` properties and `required` child
-properties are not yet supported by this construction path. Preservation of
-aliases and cycles throughout the entire model graph is tracked separately from
-constructor binding.
+setter assignment is generated. A child with `required` properties must use a
+selected constructor annotated with `SetsRequiredMembers`; any `init` properties
+must also be bound to its parameters. Unbound `init` properties are not yet
+supported by this construction path. Preservation of aliases and cycles
+throughout the entire model graph is tracked separately from constructor binding.

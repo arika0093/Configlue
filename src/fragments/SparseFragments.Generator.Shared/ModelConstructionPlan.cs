@@ -60,7 +60,7 @@ internal readonly record struct ModelConstructionPlan(bool CanOverlayAfterConstr
                             )
                         )
                     )
-                    || RoslynSymbolCompat.IsRequired(property)
+                    || (RoslynSymbolCompat.IsRequired(property) && !constructor.SetsRequiredMembers)
                     || (
                         property.SetMethod?.IsInitOnly == true
                         && !constructor.Parameters.Any(parameter =>
@@ -119,7 +119,7 @@ internal readonly record struct ModelConstructionPlan(bool CanOverlayAfterConstr
     ) =>
         new(
             members.All(member =>
-                !member.Property.IsRequired
+                (!member.Property.IsRequired || constructor?.SetsRequiredMembers == true)
                 && (
                     !member.Property.IsInitOnly
                     || (

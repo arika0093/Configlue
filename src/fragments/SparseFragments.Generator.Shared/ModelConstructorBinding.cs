@@ -15,18 +15,21 @@ internal readonly record struct ConstructorParameterBinding(
 
 /// <summary>Constructor parameters bound by property name and exact type.</summary>
 internal sealed record ModelConstructorBinding(
-    ImmutableArray<ConstructorParameterBinding> Parameters
+    ImmutableArray<ConstructorParameterBinding> Parameters,
+    bool SetsRequiredMembers = false
 )
 {
     public static ModelConstructorBinding Parameterless { get; } =
         new(ImmutableArray<ConstructorParameterBinding>.Empty);
 
     public bool Equals(ModelConstructorBinding? other) =>
-        other is not null && Parameters.SequenceEqual(other.Parameters);
+        other is not null
+        && SetsRequiredMembers == other.SetsRequiredMembers
+        && Parameters.SequenceEqual(other.Parameters);
 
     public override int GetHashCode()
     {
-        var hash = 0;
+        var hash = SetsRequiredMembers ? 1 : 0;
         foreach (var parameter in Parameters)
             hash = unchecked(hash * 31 + parameter.GetHashCode());
         return hash;
@@ -56,19 +59,27 @@ internal sealed record ModelConstructorBinding(
             )
             .ToArray();
         foreach (
-            var constructorParameters in model
+            var constructor in model
                 .InstanceConstructors.Where(constructor =>
                     allowNonPublicConstructors
                     || constructor.DeclaredAccessibility == Accessibility.Public
                 )
                 .OrderBy(static constructor => constructor.Parameters.Length)
                 .ThenBy(static constructor => constructor.ToDisplayString(), StringComparer.Ordinal)
-                .Select(static constructor => constructor.Parameters)
         )
         {
             cancellationToken.ThrowIfCancellationRequested();
+            var constructorParameters = constructor.Parameters;
+            var setsRequiredMembers = constructor
+                .GetAttributes()
+                .Any(static attribute =>
+                    attribute.AttributeClass?.ToDisplayString()
+                    == "System.Diagnostics.CodeAnalysis.SetsRequiredMembersAttribute"
+                );
             if (constructorParameters.IsEmpty)
-                return Parameterless;
+                return setsRequiredMembers
+                    ? new(ImmutableArray<ConstructorParameterBinding>.Empty, true)
+                    : Parameterless;
             var parameters = ImmutableArray.CreateBuilder<ConstructorParameterBinding>();
             foreach (var parameter in constructorParameters)
             {
@@ -88,7 +99,7 @@ internal sealed record ModelConstructorBinding(
                 );
             }
             if (parameters.Count == constructorParameters.Length)
-                return new(parameters.ToImmutable());
+                return new(parameters.ToImmutable(), setsRequiredMembers);
         }
         return model.IsValueType ? Parameterless : null;
     }
