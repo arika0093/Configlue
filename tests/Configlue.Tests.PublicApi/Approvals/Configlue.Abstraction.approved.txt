@@ -145,6 +145,11 @@ namespace Configlue
         Invalid = 3,
         Faulted = 4,
     }
+    [System.AttributeUsage(System.AttributeTargets.Property, Inherited=true)]
+    public sealed class ConfiglueCloneReferenceSafeAttribute : System.Attribute
+    {
+        public ConfiglueCloneReferenceSafeAttribute() { }
+    }
     public static class ConfiglueCollectionMerger
     {
         public static System.Collections.Generic.HashSet<T> MergeSet<T>(System.Collections.Generic.IEnumerable<T> lower, System.Collections.Generic.IEnumerable<T> higher) { }

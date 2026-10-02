@@ -44,3 +44,18 @@ Reflection serialization of generated fragments or `Optional<T>` is not a
 supported persistence contract. An application serializer must explicitly omit
 missing members and preserve present null and present default values if it needs
 to persist sparse contributions. No Configlue codec dependency is required.
+
+## Deep cloning
+
+Generated `DeepClone()` recursively clones generated models, supported structural
+objects, and recognized collections, including collection elements, dictionary
+keys, and values. It preserves shared references and cycles for the supported
+mutable reference graph and preserves the comparers of supported dictionaries and
+sets.
+
+Unknown mutable reference types, including unknown types nested in a recognized
+collection, produce `SPF008`. Use a structural type with a supported public
+construction shape, or mark a property `[SparseCloneReferenceSafe]` only when its
+referenced object is safe for callers to share. This explicit policy is also
+required when a member uses `SparseMerge(MergeMode.Replace)`; replacement merge
+behavior does not make a shallow clone independent.

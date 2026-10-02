@@ -19,7 +19,8 @@ public sealed class SparseFragmentsGenerator : IIncrementalGenerator
     private static readonly SparseGeneratorConfig Configuration = new(
         ModelAttributeName,
         MergeAttributeName,
-        MergeStrategyBaseName
+        MergeStrategyBaseName,
+        "SparseFragments.SparseCloneReferenceSafeAttribute"
     );
 
     private static readonly DiagnosticDescriptor MustBePartial = new(
@@ -66,6 +67,14 @@ public sealed class SparseFragmentsGenerator : IIncrementalGenerator
         SparseDiagnosticIds.UnsupportedStructural,
         "Unsupported structural member construction",
         "Member '{0}' has an unsupported structural type; provide a supported public constructor and properties, decorate it as a fragment model, or explicitly select MergeMode.Replace",
+        "SparseFragments",
+        DiagnosticSeverity.Error,
+        true
+    );
+    private static readonly DiagnosticDescriptor UnsupportedClone = new(
+        SparseDiagnosticIds.UnsupportedClone,
+        "Unsupported deep clone member",
+        "Member '{0}' has a type that cannot be deeply cloned; use a supported structural type or collection, or explicitly mark a reference-safe property with SparseCloneReferenceSafe",
         "SparseFragments",
         DiagnosticSeverity.Error,
         true
@@ -158,6 +167,7 @@ public sealed class SparseFragmentsGenerator : IIncrementalGenerator
             SparseDiagnosticIds.UnsupportedMerge => UnsupportedMerge,
             SparseDiagnosticIds.UnsupportedRequired => UnsupportedRequired,
             SparseDiagnosticIds.UnsupportedStructural => UnsupportedStructural,
+            SparseDiagnosticIds.UnsupportedClone => UnsupportedClone,
             _ => throw new global::System.ArgumentOutOfRangeException(nameof(id), id, null),
         };
 }

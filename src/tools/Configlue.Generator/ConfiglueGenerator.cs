@@ -71,6 +71,14 @@ public sealed partial class ConfiglueGenerator : IIncrementalGenerator
         DiagnosticSeverity.Error,
         true
     );
+    private static readonly DiagnosticDescriptor UnsupportedClone = new(
+        "CFG011",
+        "Unsupported deep clone member",
+        "Member '{0}' has a type that cannot be deeply cloned; use a supported structural type or collection, or explicitly mark a reference-safe property with ConfiglueCloneReferenceSafe",
+        "Configlue",
+        DiagnosticSeverity.Error,
+        true
+    );
 
     private static readonly DiagnosticDescriptor UnsupportedRequired = new(
         "CFG004",

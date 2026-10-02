@@ -9,6 +9,56 @@ namespace Configlue.Generator.Compatibility.Tests;
 public sealed class GeneratorHostCompatibilityTests
 {
     [Test]
+    [Arguments(false)]
+    [Arguments(true)]
+    public void UnsupportedMutableCloneShapesRequireExplicitReferenceSafePolicy(bool standalone)
+    {
+        var runtime = standalone ? "SparseFragments" : "Configlue";
+        var model = standalone ? "SparseFragmentModel" : "ConfiglueModel(\"clone-policy\")";
+        var merge = standalone ? "SparseMerge" : "ConfiglueMerge";
+        var safe = standalone ? "SparseCloneReferenceSafe" : "ConfiglueCloneReferenceSafe";
+        var source = $$"""
+            using {{runtime}};
+            using System.Collections.Generic;
+            using System.Text;
+            [{{model}}]
+            public partial class Settings
+            {
+                [{{merge}}(MergeMode.Replace)]
+                public StringBuilder? Direct { get; set; }
+                public List<StringBuilder> Items { get; set; } = new();
+                public List<KeyValuePair<int, StringBuilder>> Pairs { get; set; } = new();
+                [{{safe}}]
+                public StringBuilder? Shared { get; set; }
+            }
+            """;
+        var options = new CSharpParseOptions(LanguageVersion.CSharp9);
+        var compilation = CreateCompilation(CSharpSyntaxTree.ParseText(source, options));
+        IIncrementalGenerator generator = standalone
+            ? new SparseFragments.Generator.SparseFragmentsGenerator()
+            : new ConfiglueGenerator();
+        var result = CSharpGeneratorDriver
+            .Create(new[] { generator.AsSourceGenerator() }, parseOptions: options)
+            .RunGenerators(compilation)
+            .GetRunResult();
+        result.Results.Single().Exception.ShouldBeNull();
+        var cloneDiagnostics = result
+            .Diagnostics.Where(d => d.Id == (standalone ? "SPF008" : "CFG011"))
+            .ToArray();
+        cloneDiagnostics.Length.ShouldBe(3);
+        cloneDiagnostics
+            .Select(d => d.GetMessage())
+            .ShouldContain(message => message.Contains("Direct"));
+        cloneDiagnostics
+            .Select(d => d.GetMessage())
+            .ShouldContain(message => message.Contains("Items"));
+        cloneDiagnostics
+            .Select(d => d.GetMessage())
+            .ShouldContain(message => message.Contains("Pairs"));
+        cloneDiagnostics.ShouldNotContain(d => d.GetMessage().Contains("Shared"));
+    }
+
+    [Test]
     public void StandaloneTypedMutationCompilesWithCSharp9Host()
     {
         const string source = """
@@ -76,14 +126,8 @@ public sealed class GeneratorHostCompatibilityTests
         var errors = result
             .Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error)
             .ToArray();
-        if (replace)
-            errors.ShouldBeEmpty();
-        else
-        {
-            errors.Length.ShouldBe(1);
-            errors[0].Id.ShouldBe(standalone ? "SPF007" : "CFG010");
-            errors[0].GetMessage().ShouldContain("MergeMode.Replace");
-        }
+        errors.Any(d => d.Id == (standalone ? "SPF008" : "CFG011")).ShouldBeTrue();
+        errors.Any(d => d.Id == (standalone ? "SPF007" : "CFG010")).ShouldBe(!replace);
     }
 
     [Test]

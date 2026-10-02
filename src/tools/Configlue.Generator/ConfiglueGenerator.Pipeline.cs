@@ -243,6 +243,21 @@ public sealed partial class ConfiglueGenerator
                 )
             );
 
+        foreach (
+            var property in SparseFragments.Generator.Shared.SparseModelAnalyzer.UnsupportedCloneMembers(
+                model,
+                SparseConfiguration,
+                cancellationToken
+            )
+        )
+            diagnostics.Add(
+                GeneratorDiagnosticInfo.Create(
+                    UnsupportedClone,
+                    property.Locations.FirstOrDefault(),
+                    property.Name
+                )
+            );
+
         foreach (var member in members)
         {
             cancellationToken.ThrowIfCancellationRequested();

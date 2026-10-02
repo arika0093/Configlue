@@ -79,6 +79,13 @@ fragment model, or explicitly specify `[SparseMerge(MergeMode.Replace)]` /
 `Replace` determines merge behavior; it does not establish a deep-clone policy for
 an otherwise unsupported reference type.
 
+Deep cloning is checked separately from merge construction. A mutable reference
+that the generator cannot clone produces `CFG011`, even when the member uses
+`ConfiglueMerge(MergeMode.Replace)`. Mark a property with
+`[ConfiglueCloneReferenceSafe]` only when sharing its referenced value between
+model clones is safe. Supported structural objects and collection elements,
+dictionary keys, and values are checked recursively.
+
 ## Patch operation names
 
 Configlue models may use `Set`, `SetNull`, or `Unset` as property names. Their

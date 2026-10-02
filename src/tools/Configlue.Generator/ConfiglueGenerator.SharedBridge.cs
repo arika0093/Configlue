@@ -60,7 +60,8 @@ public sealed partial class ConfiglueGenerator
     private static readonly SparseGeneratorConfig SparseConfiguration = new(
         ModelAttributeName,
         MergeAttributeName,
-        "Configlue.ConfiglueMergeStrategy<T>"
+        "Configlue.ConfiglueMergeStrategy<T>",
+        "Configlue.ConfiglueCloneReferenceSafeAttribute"
     );
 
     private static SymbolCollectionInfo GetCollectionInfo(ITypeSymbol type) =>

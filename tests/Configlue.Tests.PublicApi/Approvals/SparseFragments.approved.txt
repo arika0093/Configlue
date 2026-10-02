@@ -74,6 +74,11 @@ namespace SparseFragments
         public static SparseFragments.Optional<T> Present(T? value) { }
         public static SparseFragments.Optional<T> op_Implicit(T? value) { }
     }
+    [System.AttributeUsage(System.AttributeTargets.Property, Inherited=true)]
+    public sealed class SparseCloneReferenceSafeAttribute : System.Attribute
+    {
+        public SparseCloneReferenceSafeAttribute() { }
+    }
     public static class SparseCollectionMerger
     {
         public static System.Collections.Generic.HashSet<T> MergeSet<T>(System.Collections.Generic.IEnumerable<T> lower, System.Collections.Generic.IEnumerable<T> higher) { }
