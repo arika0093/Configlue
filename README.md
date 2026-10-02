@@ -221,6 +221,42 @@ dotnet add package Configlue
 
 Add platform, provider, resource, transformer, or integration packages only when you need them. Configlue is intentionally split so applications do not have to depend on every supported backend or host.
 
+## NativeAOT with MessagePack
+
+Configlue's generated MessagePack formatter handles the sparse fragment envelope and nested generated fragments. It delegates ordinary scalar and collection members to the configured MessagePack resolver. The convenience `ConfiglueMessagePackResolver.Instance` uses MessagePack-CSharp's `StandardResolver`, which can fall back to runtime formatter generation; it is not an AOT guarantee.
+
+With MessagePack-CSharp 3.x, generate formatters for custom leaf POCOs and explicitly provide formatters for collection shapes used by the model. Then wrap that AOT-safe fallback with `ConfiglueMessagePackResolver`:
+
+```csharp
+[MessagePackObject]
+public partial class Endpoint
+{
+    [Key(0)] public string Host { get; set; } = "localhost";
+    [Key(1)] public int Port { get; set; }
+}
+
+[GeneratedMessagePackResolver]
+internal partial class AppMessagePackResolver;
+
+internal sealed class AppAotResolver : IFormatterResolver
+{
+    private static readonly IMessagePackFormatter<List<Endpoint>> Endpoints =
+        new ListFormatter<Endpoint>()!;
+
+    public IMessagePackFormatter<T>? GetFormatter<T>() =>
+        typeof(T) == typeof(List<Endpoint>)
+            ? (IMessagePackFormatter<T>)(object)Endpoints
+            : AppMessagePackResolver.Instance.GetFormatter<T>()
+                ?? BuiltinResolver.Instance.GetFormatter<T>();
+}
+
+var serializerOptions = new MessagePackSerializerOptions(
+    new ConfiglueMessagePackResolver(new AppAotResolver())
+);
+```
+
+Pass `serializerOptions` through `MessagePackFileSourceOptions.SerializerOptions` or to `MessagePackStateCodec<T>`. Add an AOT-safe formatter to the fallback for each custom or collection member type your models use; do not rely on `StandardResolver` to provide missing formatters.
+
 ## Quick Start
 
 The following single-file program uses a normal per-user configuration file without exposing file handling to the application code.

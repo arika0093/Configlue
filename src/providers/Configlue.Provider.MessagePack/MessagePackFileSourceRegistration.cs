@@ -32,6 +32,13 @@ public sealed class MessagePackFileSourceOptions
     public bool WatchChanges { get; init; } = true;
 
     /// <summary>MessagePack resolver, security, and compression options.</summary>
+    /// <remarks>
+    /// The generated Configlue formatter covers the fragment envelope and delegates scalar and collection
+    /// member types to this resolver. The default resolver can use runtime reflection. For NativeAOT with
+    /// MessagePack-CSharp 3.x, configure a <c>[GeneratedMessagePackResolver]</c> for custom POCO members and
+    /// compose it with explicit formatters for collection shapes and built-in types; wrap that fallback in
+    /// <see cref="ConfiglueMessagePackResolver"/> so generated Configlue fragments are also resolved.
+    /// </remarks>
     public MessagePackSerializerOptions? SerializerOptions { get; init; }
 
     /// <summary>Backup and retry settings for the helper-created file resource.</summary>

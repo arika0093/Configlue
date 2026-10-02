@@ -9,7 +9,9 @@ namespace Configlue.Provider.MessagePack;
 /// <remarks>
 /// Generated model code registers its fragment formatter here from the model's own type initializer.
 /// The non-generic registry is consulted by <see cref="ConfiglueMessagePackResolver"/>, so fragments
-/// remain serializable on trimming and NativeAOT hosts.
+/// remain serializable on trimming and NativeAOT hosts. This formatter covers the Configlue fragment
+/// shape only; scalar and collection member types still require formatters from the configured fallback
+/// resolver. Register AOT-safe formatters for those leaf types separately.
 /// </remarks>
 [EditorBrowsable(EditorBrowsableState.Never)]
 public static class ConfiglueMessagePackFragmentRegistry

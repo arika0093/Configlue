@@ -29,6 +29,7 @@
   <!-- Restores Configlue from a local NuGet feed when ConfigluePackageVersion is provided. -->
   <ItemGroup Condition="'$(ConfigluePackageVersion)' == ''">
     <ProjectReference Include="../../../../src/basic/Configlue/Configlue.csproj" />
+    <ProjectReference Include="../../../../src/providers/Configlue.Provider.MessagePack/Configlue.Provider.MessagePack.csproj" />
     <ProjectReference
       Include="../../../../src/tools/Configlue.Generator/Configlue.Generator.csproj"
       OutputItemType="Analyzer"
@@ -37,5 +38,6 @@
   </ItemGroup>
   <ItemGroup Condition="'$(ConfigluePackageVersion)' != ''">
     <PackageReference Include="Configlue" Version="$(ConfigluePackageVersion)" />
+    <PackageReference Include="Configlue.Provider.MessagePack" Version="$(ConfigluePackageVersion)" />
   </ItemGroup>
 </Project>

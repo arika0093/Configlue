@@ -4,17 +4,20 @@ using MessagePack.Resolvers;
 
 namespace Configlue.Provider.MessagePack;
 
-/// <summary>Resolves generated Configlue fragment formatters before falling back to another resolver.</summary>
+/// <summary>Resolves generated Configlue fragment formatters before delegating leaf types to another resolver.</summary>
 /// <remarks>
-/// Use this resolver to compose generated fragment support with a source-generated or custom
-/// resolver for ordinary scalar and collection types. Generated fragments never require runtime
-/// reflection; the fallback resolver handles the opaque value types a model declares.
+/// This resolver handles only generated fragment envelopes. Scalar and collection members are
+/// delegated to the fallback resolver. The parameterless constructor and <see cref="Instance"/>
+/// use <see cref="StandardResolver.Instance"/>, which can generate formatters through runtime
+/// reflection and is not an AOT guarantee. For NativeAOT, pass an AOT-safe fallback that covers
+/// every leaf member type, such as a MessagePack 3.x generated resolver composed with explicit
+/// collection and built-in formatters.
 /// </remarks>
 public sealed class ConfiglueMessagePackResolver : IFormatterResolver
 {
     private readonly IFormatterResolver _fallback;
 
-    /// <summary>Creates a resolver using the standard resolver for types without a generated formatter.</summary>
+    /// <summary>Creates a resolver using the standard resolver for types without a generated fragment formatter.</summary>
     public ConfiglueMessagePackResolver()
         : this(StandardResolver.Instance) { }
 
@@ -24,7 +27,7 @@ public sealed class ConfiglueMessagePackResolver : IFormatterResolver
         _fallback = fallback ?? throw new ArgumentNullException(nameof(fallback));
     }
 
-    /// <summary>A shared resolver over the standard reflection-based resolver.</summary>
+    /// <summary>A shared resolver over the standard resolver, which may use runtime reflection for leaf types.</summary>
     public static ConfiglueMessagePackResolver Instance { get; } = new();
 
     /// <inheritdoc />
