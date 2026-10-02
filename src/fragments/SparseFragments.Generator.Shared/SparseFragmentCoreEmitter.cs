@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 
@@ -17,6 +18,15 @@ internal sealed class SparseFragmentCoreEmitter(
     private string CloneContext { get; } = cloneContext;
     private string ReferenceComparer { get; } = referenceComparer;
     private SparseFragmentExpressions Expressions { get; } = expressions;
+
+    public static bool RequiresPortableSetView(
+        bool bclHashSetImplementsReadOnlySet,
+        IEnumerable<string?> namedTypeDefinitions
+    ) =>
+        !bclHashSetImplementsReadOnlySet
+        && namedTypeDefinitions.Any(definition =>
+            definition == SparseWellKnownNames.ReadOnlySetTypeDefinition
+        );
 
     public string MergeStrategyField(SparseMemberModel member) =>
         MergeStrategyFieldPrefix + member.Id;
@@ -184,7 +194,8 @@ internal sealed class SparseFragmentCoreEmitter(
     public static void AppendCollectionCloneHelpers(
         SharedIndentedBuilder code,
         bool includePriorityQueue,
-        bool includeImmutableCollections
+        bool includeImmutableCollections,
+        bool includePortableSetView
     )
     {
         code.AppendLineAt(
@@ -192,10 +203,16 @@ internal sealed class SparseFragmentCoreEmitter(
             "private static TSet __CloneSet<T, TSet>(global::System.Collections.Generic.IEnumerable<T> source, global::System.Collections.Generic.Dictionary<object, object> context, global::System.Func<T, T> cloneElement)"
         );
         code.AppendLineAt(1, "{");
-        code.AppendLineAt(
-            2,
-            "if (context.TryGetValue(source, out var existing)) return (TSet)existing;"
-        );
+        code.AppendLineAt(2, "if (context.TryGetValue(source, out var existing))");
+        code.AppendLineAt(2, "{");
+        code.AppendLineAt(3, "if (existing is TSet typed) return typed;");
+        if (includePortableSetView)
+            code.AppendLineAt(
+                3,
+                "if (existing is __SparseReadOnlySet<T> view && view.Inner is TSet inner) return inner;"
+            );
+        code.AppendLineAt(3, "return (TSet)existing;");
+        code.AppendLineAt(2, "}");
         if (includeImmutableCollections)
             code.AppendLineAt(
                 2,
@@ -214,6 +231,46 @@ internal sealed class SparseFragmentCoreEmitter(
         code.AppendLineAt(2, "foreach (var item in source) clone.Add(cloneElement(item));");
         code.AppendLineAt(2, "return (TSet)(object)clone;");
         code.AppendLineAt(1, "}");
+        if (includePortableSetView)
+        {
+            code.AppendLineAt(
+                1,
+                "private static TSet __CloneSetView<T, TSet>(global::System.Collections.Generic.IEnumerable<T> source, global::System.Collections.Generic.Dictionary<object, object> context, global::System.Func<T, T> cloneElement)"
+            );
+            code.AppendLineAt(1, "{");
+            code.AppendLineAt(2, "if (context.TryGetValue(source, out var existing))");
+            code.AppendLineAt(2, "{");
+            code.AppendLineAt(3, "if (existing is TSet typed) return typed;");
+            code.AppendLineAt(
+                3,
+                "if (existing is global::System.Collections.Generic.ISet<T> existingSet)"
+            );
+            code.AppendLineAt(3, "{");
+            code.AppendLineAt(4, "var bridged = new __SparseReadOnlySet<T>(existingSet);");
+            code.AppendLineAt(4, "context[source] = bridged;");
+            code.AppendLineAt(4, "return (TSet)(object)bridged;");
+            code.AppendLineAt(3, "}");
+            code.AppendLineAt(3, "return (TSet)existing;");
+            code.AppendLineAt(2, "}");
+            code.AppendLineAt(2, "global::System.Collections.Generic.ISet<T> clone;");
+            code.AppendLineAt(
+                2,
+                "if (source is __SparseReadOnlySet<T> sourceView) clone = sourceView.CloneEmpty();"
+            );
+            code.AppendLineAt(
+                2,
+                "else if (source is global::System.Collections.Generic.SortedSet<T> sorted) clone = new global::System.Collections.Generic.SortedSet<T>(sorted.Comparer);"
+            );
+            code.AppendLineAt(
+                2,
+                "else clone = new global::System.Collections.Generic.HashSet<T>((source as global::System.Collections.Generic.HashSet<T>)?.Comparer);"
+            );
+            code.AppendLineAt(2, "var view = new __SparseReadOnlySet<T>(clone);");
+            code.AppendLineAt(2, "context.Add(source, view);");
+            code.AppendLineAt(2, "foreach (var item in source) view.Add(cloneElement(item));");
+            code.AppendLineAt(2, "return (TSet)(object)view;");
+            code.AppendLineAt(1, "}");
+        }
         code.AppendLineAt(
             1,
             "private static TDictionary __CloneDictionary<TKey, TValue, TDictionary>(global::System.Collections.Generic.IEnumerable<global::System.Collections.Generic.KeyValuePair<TKey, TValue>> source, global::System.Collections.Generic.Dictionary<object, object> context, global::System.Func<TKey, TKey> cloneKey, global::System.Func<TValue, TValue> cloneValue) where TKey : notnull"
@@ -571,6 +628,101 @@ internal sealed class SparseFragmentCoreEmitter(
                 "var clone = __CloneImmutableReference(source, context, () => global::System.Collections.Immutable.ImmutableDictionary.Create<TKey, TValue>(source.KeyComparer).WithComparers(source.KeyComparer, source.ValueComparer).AddRange(global::System.Linq.Enumerable.Select(source, pair => new global::System.Collections.Generic.KeyValuePair<TKey, TValue>(cloneKey(pair.Key), cloneValue(pair.Value)))));"
             );
             code.AppendLineAt(2, "return (TCollection)(object)clone;");
+            code.AppendLineAt(1, "}");
+        }
+        if (includePortableSetView)
+        {
+            code.AppendLineAt(
+                1,
+                "private sealed class __SparseReadOnlySet<T> : global::System.Collections.Generic.ISet<T>, global::System.Collections.Generic.IReadOnlySet<T>"
+            );
+            code.AppendLineAt(1, "{");
+            code.AppendLineAt(
+                2,
+                "private readonly global::System.Collections.Generic.ISet<T> __inner;"
+            );
+            code.AppendLineAt(
+                2,
+                "public __SparseReadOnlySet(global::System.Collections.Generic.ISet<T> inner) => __inner = inner;"
+            );
+            code.AppendLineAt(
+                2,
+                "public global::System.Collections.Generic.ISet<T> Inner => __inner;"
+            );
+            code.AppendLineAt(2, "public int Count => __inner.Count;");
+            code.AppendLineAt(2, "public bool IsReadOnly => __inner.IsReadOnly;");
+            code.AppendLineAt(2, "public bool Add(T item) => __inner.Add(item);");
+            code.AppendLineAt(
+                2,
+                "void global::System.Collections.Generic.ICollection<T>.Add(T item) => __inner.Add(item);"
+            );
+            code.AppendLineAt(2, "public void Clear() => __inner.Clear();");
+            code.AppendLineAt(2, "public bool Contains(T item) => __inner.Contains(item);");
+            code.AppendLineAt(
+                2,
+                "public void CopyTo(T[] array, int arrayIndex) => __inner.CopyTo(array, arrayIndex);"
+            );
+            code.AppendLineAt(2, "public bool Remove(T item) => __inner.Remove(item);");
+            code.AppendLineAt(
+                2,
+                "public void ExceptWith(global::System.Collections.Generic.IEnumerable<T> other) => __inner.ExceptWith(other);"
+            );
+            code.AppendLineAt(
+                2,
+                "public void IntersectWith(global::System.Collections.Generic.IEnumerable<T> other) => __inner.IntersectWith(other);"
+            );
+            code.AppendLineAt(
+                2,
+                "public bool IsProperSubsetOf(global::System.Collections.Generic.IEnumerable<T> other) => __inner.IsProperSubsetOf(other);"
+            );
+            code.AppendLineAt(
+                2,
+                "public bool IsProperSupersetOf(global::System.Collections.Generic.IEnumerable<T> other) => __inner.IsProperSupersetOf(other);"
+            );
+            code.AppendLineAt(
+                2,
+                "public bool IsSubsetOf(global::System.Collections.Generic.IEnumerable<T> other) => __inner.IsSubsetOf(other);"
+            );
+            code.AppendLineAt(
+                2,
+                "public bool IsSupersetOf(global::System.Collections.Generic.IEnumerable<T> other) => __inner.IsSupersetOf(other);"
+            );
+            code.AppendLineAt(
+                2,
+                "public bool Overlaps(global::System.Collections.Generic.IEnumerable<T> other) => __inner.Overlaps(other);"
+            );
+            code.AppendLineAt(
+                2,
+                "public bool SetEquals(global::System.Collections.Generic.IEnumerable<T> other) => __inner.SetEquals(other);"
+            );
+            code.AppendLineAt(
+                2,
+                "public void SymmetricExceptWith(global::System.Collections.Generic.IEnumerable<T> other) => __inner.SymmetricExceptWith(other);"
+            );
+            code.AppendLineAt(
+                2,
+                "public void UnionWith(global::System.Collections.Generic.IEnumerable<T> other) => __inner.UnionWith(other);"
+            );
+            code.AppendLineAt(
+                2,
+                "public global::System.Collections.Generic.IEnumerator<T> GetEnumerator() => __inner.GetEnumerator();"
+            );
+            code.AppendLineAt(
+                2,
+                "global::System.Collections.IEnumerator global::System.Collections.IEnumerable.GetEnumerator() => __inner.GetEnumerator();"
+            );
+            code.AppendLineAt(2, "public global::System.Collections.Generic.ISet<T> CloneEmpty()");
+            code.AppendLineAt(2, "{");
+            code.AppendLineAt(
+                3,
+                "if (__inner is global::System.Collections.Generic.SortedSet<T> sorted) return new global::System.Collections.Generic.SortedSet<T>(sorted.Comparer);"
+            );
+            code.AppendLineAt(
+                3,
+                "if (__inner is global::System.Collections.Generic.HashSet<T> hash) return new global::System.Collections.Generic.HashSet<T>(hash.Comparer);"
+            );
+            code.AppendLineAt(3, "return new global::System.Collections.Generic.HashSet<T>();");
+            code.AppendLineAt(2, "}");
             code.AppendLineAt(1, "}");
         }
     }

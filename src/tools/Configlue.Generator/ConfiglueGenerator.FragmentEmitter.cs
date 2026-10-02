@@ -20,11 +20,14 @@ public sealed partial class ConfiglueGenerator
         bool usesPocoCloning,
         bool hasJsonFragmentRegistry,
         bool hasMessagePackFragmentRegistry,
+        bool portableSetView = false,
         bool isRootModel = true,
         SparseFragments.Generator.Shared.ModelConstructorBinding? constructor = null
     )
     {
-        var coreMembers = members.Select(ToSparseMember).ToImmutableArray();
+        var coreMembers = members
+            .Select(member => ToSparseMember(member, portableSetView))
+            .ToImmutableArray();
         SparseFragments.Generator.Shared.SparseFragmentCoreEmitter.AppendDeclaration(
             code,
             "global::Configlue.IConfiglueFragment",

@@ -47,6 +47,7 @@
     <Compile Remove="State/StatePipelineTests.cs" />
     <Compile Remove="State/RuntimeLifetimeTests.cs" />
     <Compile Remove="Contracts/Transformers/TransformerRecoveryPolicyContractTests.cs" />
+    <Compile Remove="Contracts/Fragments/SharedMutableCollectionCloneTests.cs" />
     <Compile Remove="Extensions/ObservableAdapterTests.cs" />
     <Compile Remove="ReactiveSupport/ReactiveFixtures.cs" />
     <Compile Remove="Blazor/**/*.cs" />

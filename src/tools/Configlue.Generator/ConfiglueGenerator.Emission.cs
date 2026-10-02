@@ -19,11 +19,32 @@ public sealed partial class ConfiglueGenerator
         ImmutableArray<StructuralModel> structuralModels,
         bool hasJsonFragmentRegistry,
         bool hasMessagePackFragmentRegistry,
+        bool bclSetSupportsReadOnlySet,
         CancellationToken cancellationToken
     )
     {
         cancellationToken.ThrowIfCancellationRequested();
         var modelType = model.ModelTypeName;
+        var portableSetView =
+            SparseFragments.Generator.Shared.SparseFragmentCoreEmitter.RequiresPortableSetView(
+                bclSetSupportsReadOnlySet,
+                members
+                    .Select(static member => member.Collection.NamedTypeDefinition)
+                    .Concat(
+                        pocoCloneModels.SelectMany(static poco =>
+                            poco.Members.Select(static member =>
+                                member.Collection.NamedTypeDefinition
+                            )
+                        )
+                    )
+                    .Concat(
+                        structuralModels.SelectMany(static structural =>
+                            structural.Members.Select(static member =>
+                                member.Collection.NamedTypeDefinition
+                            )
+                        )
+                    )
+            );
         string generatedType;
         if (model.IsStruct)
         {
@@ -107,7 +128,7 @@ public sealed partial class ConfiglueGenerator
         FragmentCore.AppendDeepClone(
             code,
             modelType,
-            members.Select(ToSparseMember).ToImmutableArray(),
+            members.Select(member => ToSparseMember(member, portableSetView)).ToImmutableArray(),
             !pocoCloneModels.IsEmpty,
             model.Constructor,
             !model.IsStruct
@@ -117,13 +138,15 @@ public sealed partial class ConfiglueGenerator
                 code,
                 poco.Model.ModelTypeName,
                 poco.CloneHelperName,
-                poco.Members.Select(ToSparseMember).ToImmutableArray(),
+                poco.Members.Select(member => ToSparseMember(member, portableSetView))
+                    .ToImmutableArray(),
                 poco.Model.Constructor
             );
         SparseFragments.Generator.Shared.SparseFragmentCoreEmitter.AppendCollectionCloneHelpers(
             code,
             requiresPriorityQueueCloneHelper,
-            requiresImmutableCloneHelpers
+            requiresImmutableCloneHelpers,
+            portableSetView
         );
         AppendFragment(
             code,
@@ -134,6 +157,7 @@ public sealed partial class ConfiglueGenerator
             !pocoCloneModels.IsEmpty,
             hasJsonFragmentRegistry,
             hasMessagePackFragmentRegistry,
+            portableSetView: portableSetView,
             constructor: model.Constructor
         );
         AppendDetailsTree(code, modelType, members);
@@ -147,7 +171,8 @@ public sealed partial class ConfiglueGenerator
             structuralModels,
             !pocoCloneModels.IsEmpty,
             hasJsonFragmentRegistry,
-            hasMessagePackFragmentRegistry
+            hasMessagePackFragmentRegistry,
+            portableSetView
         );
         AppendFacadeRuntimeBridge(
             code,
@@ -174,7 +199,8 @@ public sealed partial class ConfiglueGenerator
         ImmutableArray<StructuralModel> structuralModels,
         bool usesPocoCloning,
         bool hasJsonFragmentRegistry,
-        bool hasMessagePackFragmentRegistry
+        bool hasMessagePackFragmentRegistry,
+        bool portableSetView
     )
     {
         code.CancellationToken.ThrowIfCancellationRequested();
@@ -217,6 +243,7 @@ public sealed partial class ConfiglueGenerator
                 usesPocoCloning,
                 hasJsonFragmentRegistry,
                 hasMessagePackFragmentRegistry,
+                portableSetView: portableSetView,
                 isRootModel: false,
                 constructor: structuralModel.Constructor
             );

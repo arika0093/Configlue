@@ -27,10 +27,44 @@ internal static class SparseFragmentEmitter
         ImmutableArray<SparseMemberModel> members,
         ImmutableArray<SparsePocoCloneModel> pocoCloneModels,
         ImmutableArray<SparseStructuralModel> structuralModels,
+        bool bclHashSetImplementsReadOnlySet,
         CancellationToken cancellationToken
     )
     {
         cancellationToken.ThrowIfCancellationRequested();
+        var portableSetView = SparseFragmentCoreEmitter.RequiresPortableSetView(
+            bclHashSetImplementsReadOnlySet,
+            members
+                .Select(static member => member.Collection.NamedTypeDefinition)
+                .Concat(
+                    pocoCloneModels.SelectMany(static poco =>
+                        poco.Members.Select(static member => member.Collection.NamedTypeDefinition)
+                    )
+                )
+                .Concat(
+                    structuralModels.SelectMany(static structural =>
+                        structural.Members.Select(static member =>
+                            member.Collection.NamedTypeDefinition
+                        )
+                    )
+                )
+        );
+        if (portableSetView)
+        {
+            members = ApplyPortableSetView(members);
+            pocoCloneModels = pocoCloneModels
+                .Select(static poco => poco with { Members = ApplyPortableSetView(poco.Members) })
+                .ToImmutableArray();
+            structuralModels = structuralModels
+                .Select(static structural =>
+                    structural with
+                    {
+                        Members = ApplyPortableSetView(structural.Members),
+                    }
+                )
+                .ToImmutableArray();
+        }
+
         var modelType = model.ModelTypeName;
         var generatedType = ModelDeclarationKeyword(model);
         var name = SparseNaming.EscapeIdentifier(model.Name);
@@ -97,7 +131,8 @@ internal static class SparseFragmentEmitter
                     structural.Members.Any(static member =>
                         IsImmutableCloneCollection(member.Collection.CloneKind)
                     )
-                )
+                ),
+            portableSetView
         );
         AppendFragment(
             code,
@@ -117,6 +152,10 @@ internal static class SparseFragmentEmitter
             is SparseCloneCollectionKind.ImmutableList
                 or SparseCloneCollectionKind.ImmutableSet
                 or SparseCloneCollectionKind.ImmutableDictionary;
+
+    private static ImmutableArray<SparseMemberModel> ApplyPortableSetView(
+        ImmutableArray<SparseMemberModel> members
+    ) => members.Select(static member => member with { PortableSetView = true }).ToImmutableArray();
 
     private static string ModelDeclarationKeyword(SparseModelInfo model)
     {

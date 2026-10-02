@@ -15,6 +15,9 @@ internal static class SparseWellKnownNames
         RuntimeNamespace + ".SparseReferenceEqualityComparer";
     public const string CollectionMergerType = RuntimeNamespace + ".SparseCollectionMerger";
 
+    public const string InterfaceSetTypeDefinition = "System.Collections.Generic.ISet<T>";
+    public const string ReadOnlySetTypeDefinition = "System.Collections.Generic.IReadOnlySet<T>";
+
     public const string FragmentTypeName = "Fragment";
     public const string HintNameSuffix = ".SparseFragments.g.cs";
     public const string StructuralHostPrefix = "__SparseStructural_";

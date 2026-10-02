@@ -1,0 +1,23 @@
+# Set clone compatibility consumer
+
+This consumer runs Configlue and SparseFragments generated models against
+netstandard2.0 reference assemblies, .NET Framework 4.8, and .NET 10. It checks
+HashSet and SortedSet comparer semantics, repeated cloning, and both property
+orders for mutable/read-only aliases.
+
+On legacy frameworks, the generated read-only set view also implements `ISet<T>`.
+When the source is shared through `ISet<T>` and `IReadOnlySet<T>`, the two cloned
+interface properties refer to the same object and mutations share the same data.
+If a concrete HashSet/SortedSet property also references that source, its clone
+and the read-only wrapper share a backing set; they need not be the same object.
+The original set remains independent. Recognized BCL sets retain their comparers;
+arbitrary custom set implementations use the default comparer.
+
+From the repository root on Windows:
+
+```powershell
+dotnet build tests/fixtures/consumers/set-clones/SetClones.Consumer.csproj -c Release -p:TargetFramework= -p:CSharpier_Bypass=true
+dotnet tests/fixtures/consumers/set-clones/bin/Release/net10.0/SetClones.Consumer.dll
+& tests/fixtures/consumers/set-clones/bin/Release/net48/SetClones.Consumer.exe
+& tests/fixtures/consumers/set-clones/bin/Release/net48/SetClones.Consumer.exe "$PWD/tests/fixtures/consumers/set-clones/bin/Release/netstandard2.0/SetClones.Consumer.dll"
+```

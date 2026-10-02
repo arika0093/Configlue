@@ -25,10 +25,19 @@ public sealed partial class ConfiglueGenerator
                         MessagePack: compilation.GetTypeByMetadataName(
                             "Configlue.Provider.MessagePack.ConfiglueMessagePackFragmentRegistry`1"
                         )
-                            is not null
+                            is not null,
+                        BclSetSupportsReadOnlySet: SparseFragments.Generator.Shared.SparseCollectionAnalyzer.HashSetImplementsReadOnlySet(
+                            compilation
+                        )
                     )
             )
-            .WithComparer(EqualityComparer<(bool Json, bool MessagePack)>.Default);
+            .WithComparer(
+                EqualityComparer<(
+                    bool Json,
+                    bool MessagePack,
+                    bool BclSetSupportsReadOnlySet
+                )>.Default
+            );
 
         var analyzed = context
             .SyntaxProvider.ForAttributeWithMetadataName(
@@ -43,7 +52,13 @@ public sealed partial class ConfiglueGenerator
             .Combine(providerRegistries)
             .Select(
                 static (input, cancellationToken) =>
-                    Render(input.Left, input.Right.Json, input.Right.MessagePack, cancellationToken)
+                    Render(
+                        input.Left,
+                        input.Right.Json,
+                        input.Right.MessagePack,
+                        input.Right.BclSetSupportsReadOnlySet,
+                        cancellationToken
+                    )
             )
             .WithComparer(EqualityComparer<GenerationResult>.Default)
             .WithTrackingName("ConfiglueGenerator.Output");
@@ -125,6 +140,7 @@ public sealed partial class ConfiglueGenerator
         GenerationAnalysis analysis,
         bool hasJsonFragmentRegistry,
         bool hasMessagePackFragmentRegistry,
+        bool bclSetSupportsReadOnlySet,
         CancellationToken cancellationToken
     )
     {
@@ -143,6 +159,7 @@ public sealed partial class ConfiglueGenerator
             analysis.StructuralModels,
             hasJsonFragmentRegistry,
             hasMessagePackFragmentRegistry,
+            bclSetSupportsReadOnlySet,
             cancellationToken
         );
         return new GenerationResult(analysis.HintName, source, analysis.Diagnostics);

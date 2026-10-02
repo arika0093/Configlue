@@ -68,7 +68,8 @@ internal readonly record struct SparseMemberModel(
     SparseTypeModel? MergeStrategyType,
     string? ChildFragmentType,
     bool ChildIsStructural,
-    bool ChildIsReferenceType
+    bool ChildIsReferenceType,
+    bool PortableSetView = false
 );
 
 internal readonly record struct SparseModelInfo(

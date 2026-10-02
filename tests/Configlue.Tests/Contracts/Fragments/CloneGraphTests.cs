@@ -70,7 +70,7 @@ public sealed class CloneGraphTests
 
         using var session = new EditSession<CloneGraphNode>(
             root,
-            static (_, _) => ValueTask.FromResult(StateWriteReceipt.Empty)
+            static (_, _) => new ValueTask<StateWriteReceipt>(StateWriteReceipt.Empty)
         );
 
         ReferenceEquals(session.Value, root).ShouldBeFalse();

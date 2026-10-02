@@ -33,6 +33,9 @@ public sealed partial class ConfiglueGenerator
         );
 
     private static SparseMemberModel ToSparseMember(MemberModel member) =>
+        ToSparseMember(member, false);
+
+    private static SparseMemberModel ToSparseMember(MemberModel member, bool portableSetView) =>
         new(
             member.Id,
             new SparsePropertyModel(
@@ -54,7 +57,8 @@ public sealed partial class ConfiglueGenerator
             member.MergeStrategyType is { } strategy ? ToSparseType(strategy) : null,
             member.ChildFragmentType,
             member.ChildIsStructural,
-            member.ChildIsReferenceType
+            member.ChildIsReferenceType,
+            portableSetView
         );
 
     private static readonly SparseGeneratorConfig SparseConfiguration = new(

@@ -121,8 +121,19 @@ public sealed class SparseFragmentsGenerator : IIncrementalGenerator
                     )
             )
             .WithTrackingName("SparseFragmentsGenerator.Analysis");
+        var bclSetSupport = context
+            .CompilationProvider.Select(
+                static (compilation, _) =>
+                    SparseCollectionAnalyzer.HashSetImplementsReadOnlySet(compilation)
+            )
+            .WithComparer(EqualityComparer<bool>.Default)
+            .WithTrackingName("SparseFragmentsGenerator.BclSetSupport");
         var generated = analyzed
-            .Select(static (analysis, cancellationToken) => Render(analysis, cancellationToken))
+            .Combine(bclSetSupport)
+            .Select(
+                static (input, cancellationToken) =>
+                    Render(input.Left, input.Right, cancellationToken)
+            )
             .WithTrackingName("SparseFragmentsGenerator.Output");
 
         context.RegisterSourceOutput(
@@ -203,6 +214,7 @@ public sealed class SparseFragmentsGenerator : IIncrementalGenerator
 
     private static SparseGenerationResult Render(
         SparseGenerationAnalysis analysis,
+        bool bclHashSetImplementsReadOnlySet,
         CancellationToken cancellationToken
     )
     {
@@ -218,6 +230,7 @@ public sealed class SparseFragmentsGenerator : IIncrementalGenerator
             analysis.Members,
             analysis.PocoCloneModels,
             analysis.StructuralModels,
+            bclHashSetImplementsReadOnlySet,
             cancellationToken
         );
         return new SparseGenerationResult(model.HintName, source, analysis.Diagnostics);

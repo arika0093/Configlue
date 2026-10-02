@@ -140,7 +140,9 @@ internal sealed class SparseFragmentExpressions(
             SparseCloneCollectionKind.List =>
                 $"__CloneList<{elementType}, {member.Property.Type.Name}>({access}, {CloneContext}, item => {CloneValueExpression(collection.ElementType, "item")})",
             SparseCloneCollectionKind.Set or SparseCloneCollectionKind.SortedSet =>
-                $"__CloneSet<{elementType}, {member.Property.Type.Name}>({access}, {CloneContext}, item => {CloneValueExpression(collection.ElementType, "item")})",
+                member.PortableSetView && IsInterfaceSet(collection.NamedTypeDefinition)
+                    ? $"__CloneSetView<{elementType}, {member.Property.Type.Name}>({access}, {CloneContext}, item => {CloneValueExpression(collection.ElementType, "item")})"
+                    : $"__CloneSet<{elementType}, {member.Property.Type.Name}>({access}, {CloneContext}, item => {CloneValueExpression(collection.ElementType, "item")})",
             SparseCloneCollectionKind.ImmutableSet =>
                 $"__CloneImmutableSet<{elementType}, {member.Property.Type.Name}>({access}, {CloneContext}, item => {CloneValueExpression(collection.ElementType, "item")})",
             SparseCloneCollectionKind.Queue =>
@@ -166,6 +168,11 @@ internal sealed class SparseFragmentExpressions(
             _ => access,
         };
     }
+
+    private static bool IsInterfaceSet(string? namedTypeDefinition) =>
+        namedTypeDefinition
+            is SparseWellKnownNames.InterfaceSetTypeDefinition
+                or SparseWellKnownNames.ReadOnlySetTypeDefinition;
 
     public string BuildCollectionMerge(SparseMemberModel member, string lower, string higher)
     {

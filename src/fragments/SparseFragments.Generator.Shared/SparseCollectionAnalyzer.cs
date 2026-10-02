@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using Microsoft.CodeAnalysis;
 
 namespace SparseFragments.Generator.Shared;
@@ -63,6 +64,22 @@ internal sealed class SparseSymbolCollectionInfo(
 /// <summary>Discovers merge and clone semantics for candidate member types.</summary>
 internal static class SparseCollectionAnalyzer
 {
+    public static bool HashSetImplementsReadOnlySet(Compilation compilation)
+    {
+        var readOnlySet = compilation.GetTypeByMetadataName(
+            "System.Collections.Generic.IReadOnlySet`1"
+        );
+        if (readOnlySet is null)
+            return false;
+        var hashSet = compilation.GetTypeByMetadataName("System.Collections.Generic.HashSet`1");
+        if (hashSet is null)
+            return false;
+        var constructed = hashSet.Construct(compilation.GetSpecialType(SpecialType.System_Int32));
+        return constructed.AllInterfaces.Any(implemented =>
+            SymbolEqualityComparer.Default.Equals(implemented.OriginalDefinition, readOnlySet)
+        );
+    }
+
     public static SparseSymbolCollectionInfo GetCollectionInfo(ITypeSymbol type)
     {
         if (type is IArrayTypeSymbol array)
