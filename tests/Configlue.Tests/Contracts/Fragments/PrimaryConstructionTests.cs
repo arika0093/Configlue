@@ -75,6 +75,18 @@ public sealed class ImmutableChildConstructionTests
             Child = child,
             Children = new() { child },
         };
+        var updated = new ImmutableChildSettings
+        {
+            Child = new ImmutableConstructionChild(4, child.Items),
+            Children = model.Children,
+        };
+        var patch = ImmutableChildSettings.Fragment.Diff(model, updated);
+        patch.Child.Value!.Items.IsPresent.ShouldBeFalse();
+        var merged = patch.ToModel(model);
+        merged.Child.Count.ShouldBe(4);
+        merged.Child.Items![1].ShouldBe(2);
+        merged.Child.Items[0] = 8;
+        child.Items![0].ShouldBe(1);
         var restored = ImmutableChildSettings.Fragment.From(model).ToModel();
         restored.Child.Count.ShouldBe(3);
         restored.Child.Items![1].ShouldBe(2);
@@ -112,6 +124,18 @@ public sealed class InitChildConstructionTests
             Child = child,
             Children = new() { child },
         };
+        var updated = new InitChildSettings
+        {
+            Child = new InitConstructionChild(4, child.Items),
+            Children = model.Children,
+        };
+        var patch = InitChildSettings.Fragment.Diff(model, updated);
+        patch.Child.Value!.Items.IsPresent.ShouldBeFalse();
+        var merged = patch.ToModel(model);
+        merged.Child.Count.ShouldBe(4);
+        merged.Child.Items![1].ShouldBe(2);
+        merged.Child.Items[0] = 8;
+        child.Items![0].ShouldBe(1);
         var restored = InitChildSettings.Fragment.From(model).ToModel();
         restored.Child.Count.ShouldBe(3);
         restored.Child.Items![1].ShouldBe(2);
@@ -155,6 +179,18 @@ public sealed class RequiredChildConstructionTests
             Child = child,
             Children = new() { child },
         };
+        var updated = new RequiredChildSettings
+        {
+            Child = new RequiredConstructionChild(4, child.Items),
+            Children = model.Children,
+        };
+        var patch = RequiredChildSettings.Fragment.Diff(model, updated);
+        patch.Child.Value!.Items.IsPresent.ShouldBeFalse();
+        var merged = patch.ToModel(model);
+        merged.Child.Count.ShouldBe(4);
+        merged.Child.Items![1].ShouldBe(2);
+        merged.Child.Items[0] = 8;
+        child.Items![0].ShouldBe(1);
         var restored = RequiredChildSettings.Fragment.From(model).ToModel();
         restored.Child.Count.ShouldBe(3);
         restored.Child.Items![1].ShouldBe(2);
