@@ -1,5 +1,5 @@
-using System.Collections.Concurrent;
 using System.Linq;
+using Configlue.Internal;
 using Configlue.Sources;
 
 namespace Configlue.State;
@@ -11,7 +11,9 @@ namespace Configlue.State;
 /// component's fallback condition determines whether a missing or unavailable component can be omitted. Writes
 /// require an explicit default component or member routes and are expanded to component-local patches. All
 /// successful components in one read must use the same schema metadata so schema migration can run once on the
-/// combined fragment.
+/// combined fragment. Per-subject watch targets are retained in a bounded residency cache. A watch lease pins
+/// its captured targets until all component watchers have drained; idle entries are evicted during later cache
+/// access without allocating a cleanup task per subject.
 /// </remarks>
 public sealed class CompositeStateSource<TFragment>
     : ISourceReader<TFragment>,
@@ -22,10 +24,10 @@ public sealed class CompositeStateSource<TFragment>
     private readonly StateSourceSet<TFragment> _components;
     private readonly string? _defaultWriteSourceId;
     private readonly StateWritePlan _writePlan;
-    private readonly ConcurrentDictionary<
+    private readonly ResidencyCache<
         (SubjectKey SubjectKey, RouteKey Route),
-        WatchTarget[]
-    > _watchTargets = new();
+        CompositeWatchState
+    > _watchTargets;
 
     /// <summary>Creates a logical read source from priority-ordered component sources.</summary>
     /// <param name="components">Component sources that return the same generated fragment type.</param>
@@ -35,6 +37,15 @@ public sealed class CompositeStateSource<TFragment>
         StateSourceSet<TFragment> components,
         string? defaultWriteSourceId = null,
         StateWritePlan? writePlan = null
+    )
+        : this(components, defaultWriteSourceId, writePlan, TimeSpan.FromMinutes(5), 256) { }
+
+    internal CompositeStateSource(
+        StateSourceSet<TFragment> components,
+        string? defaultWriteSourceId,
+        StateWritePlan? writePlan,
+        TimeSpan watchTargetIdleTimeout,
+        int watchTargetCapacity
     )
     {
         ArgumentNullException.ThrowIfNull(components);
@@ -53,6 +64,14 @@ public sealed class CompositeStateSource<TFragment>
         _defaultWriteSourceId = defaultWriteSourceId;
 
         _components = components;
+        _watchTargets = new ResidencyCache<
+            (SubjectKey SubjectKey, RouteKey Route),
+            CompositeWatchState
+        >(
+            static _ => new CompositeWatchState(),
+            idleTimeout: watchTargetIdleTimeout,
+            capacity: watchTargetCapacity
+        );
     }
 
     /// <summary>The physical component sources in read-priority order.</summary>
@@ -79,6 +98,16 @@ public sealed class CompositeStateSource<TFragment>
     internal StateWritePlan WritePlan => _writePlan;
 
     internal string? DefaultWriteSourceId => _defaultWriteSourceId;
+
+    internal int WatchTargetCount => _watchTargets.Count;
+
+    internal Action? BeforeWatchLeaseReturn
+    {
+        get => _watchTargets.BeforeLeaseReturn;
+        set => _watchTargets.BeforeLeaseReturn = value;
+    }
+
+    internal void EvictIdleWatchTargetsForTest() => _watchTargets.Trim();
 
     internal StateSource<TFragment> ResolveWriteComponent(string propertyPath)
     {
@@ -312,7 +341,8 @@ public sealed class CompositeStateSource<TFragment>
     )
     {
         var cacheKey = (subject?.Key ?? SubjectKey.Default, context.Route);
-        var targets = _watchTargets.GetValueOrDefault(cacheKey) ?? [];
+        using var watchTargetLease = _watchTargets.Acquire(cacheKey);
+        var targets = watchTargetLease.Value.Targets;
         using var watchCancellation = CancellationTokenSource.CreateLinkedTokenSource(
             cancellationToken
         );
@@ -377,7 +407,13 @@ public sealed class CompositeStateSource<TFragment>
         List<WatchTarget> targets,
         IConfiglueSubject? subject,
         ConfiglueResourceContext context
-    ) => _watchTargets[(subject?.Key ?? SubjectKey.Default, context.Route)] = targets.ToArray();
+    )
+    {
+        using var lease = _watchTargets.Acquire(
+            (subject?.Key ?? SubjectKey.Default, context.Route)
+        );
+        lease.Value.SetTargets(targets.ToArray());
+    }
 
     private static string? GetPhysicalOrigin(List<ComponentResult> successful)
     {
@@ -427,5 +463,16 @@ public sealed class CompositeStateSource<TFragment>
         public StateSource<TFragment> Source { get; }
         public ConfiglueResourceContext EffectiveContext { get; }
         public string? Revision { get; }
+    }
+
+    private sealed class CompositeWatchState : IDisposable
+    {
+        private WatchTarget[] _targets = [];
+
+        public WatchTarget[] Targets => Volatile.Read(ref _targets);
+
+        public void SetTargets(WatchTarget[] targets) => Volatile.Write(ref _targets, targets);
+
+        public void Dispose() { }
     }
 }
