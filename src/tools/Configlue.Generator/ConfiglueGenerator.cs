@@ -152,6 +152,14 @@ public sealed partial class ConfiglueGenerator : IIncrementalGenerator
         DiagnosticSeverity.Error,
         true
     );
+    private static readonly DiagnosticDescriptor DuplicateModelIdentity = new(
+        "CFG014",
+        "Duplicate Configlue schema identity",
+        "Model '{0}' duplicates the schema ID and version of model '{1}'",
+        "Configlue",
+        DiagnosticSeverity.Error,
+        true
+    );
 
     private static bool IsExternalInitEmissionEnabled(AnalyzerConfigOptionsProvider options)
     {

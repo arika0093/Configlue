@@ -188,6 +188,13 @@ public sealed partial class ConfiglueGenerator
             );
         }
 
+        public static GeneratorDiagnosticInfo Create(
+            DiagnosticDescriptor descriptor,
+            GeneratorLocationInfo location,
+            string? argument1,
+            string? argument2 = null
+        ) => new(descriptor, location, argument1, argument2);
+
         public bool Equals(GeneratorDiagnosticInfo other)
         {
             return string.Equals(Descriptor.Id, other.Descriptor.Id, StringComparison.Ordinal)

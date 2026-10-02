@@ -48,6 +48,25 @@ public sealed partial class ConfiglueGenerator
             )
             .WithComparer(EqualityComparer<GenerationAnalysis>.Default)
             .WithTrackingName("ConfiglueGenerator.Analysis");
+        var duplicateModelIdentities = context
+            .SyntaxProvider.ForAttributeWithMetadataName(
+                ModelAttributeName,
+                static (node, _) => node is TypeDeclarationSyntax,
+                static (attributeContext, cancellationToken) =>
+                    GetModelIdentity(
+                        (INamedTypeSymbol)attributeContext.TargetSymbol,
+                        cancellationToken
+                    )
+            )
+            .WithComparer(EqualityComparer<ModelIdentity>.Default)
+            .Collect()
+            .Select(static (identities, _) => FindDuplicateModelIdentities(identities))
+            .WithTrackingName("ConfiglueGenerator.ModelIdentity");
+        context.RegisterSourceOutput(
+            duplicateModelIdentities,
+            static (productionContext, diagnostics) =>
+                ReportDiagnostics(productionContext, diagnostics)
+        );
         var generated = analyzed
             .Combine(providerRegistries)
             .Select(
@@ -109,7 +128,20 @@ public sealed partial class ConfiglueGenerator
     private static void Emit(SourceProductionContext context, GenerationResult result)
     {
         context.CancellationToken.ThrowIfCancellationRequested();
-        foreach (var diagnostic in result.Diagnostics)
+        ReportDiagnostics(context, result.Diagnostics);
+
+        if (result.HintName is not null && result.Source is not null)
+        {
+            context.AddSource(result.HintName, SourceText.From(result.Source, Encoding.UTF8));
+        }
+    }
+
+    private static void ReportDiagnostics(
+        SourceProductionContext context,
+        ImmutableArray<GeneratorDiagnosticInfo> diagnostics
+    )
+    {
+        foreach (var diagnostic in diagnostics)
         {
             context.CancellationToken.ThrowIfCancellationRequested();
             var location = diagnostic.Location.IsSource
@@ -129,11 +161,63 @@ public sealed partial class ConfiglueGenerator
                 );
             context.ReportDiagnostic(roslynDiagnostic);
         }
+    }
 
-        if (result.HintName is not null && result.Source is not null)
+    private static ModelIdentity GetModelIdentity(
+        INamedTypeSymbol model,
+        CancellationToken cancellationToken
+    ) =>
+        new(
+            model.Name,
+            GetModelId(model, cancellationToken),
+            GetModelVersion(model, cancellationToken),
+            GeneratorLocationInfo.Create(model.Locations.FirstOrDefault())
+        );
+
+    private static ImmutableArray<GeneratorDiagnosticInfo> FindDuplicateModelIdentities(
+        ImmutableArray<ModelIdentity> identities
+    )
+    {
+        var groups = new Dictionary<(string Id, int Version), List<ModelIdentity>>();
+        foreach (var identity in identities)
         {
-            context.AddSource(result.HintName, SourceText.From(result.Source, Encoding.UTF8));
+            if (string.IsNullOrWhiteSpace(identity.Id) || identity.Version < InitialSchemaVersion)
+            {
+                continue;
+            }
+
+            var key = (identity.Id, identity.Version);
+            if (!groups.TryGetValue(key, out var models))
+            {
+                models = new List<ModelIdentity>();
+                groups.Add(key, models);
+            }
+            models.Add(identity);
         }
+
+        var diagnostics = ImmutableArray.CreateBuilder<GeneratorDiagnosticInfo>();
+        foreach (var models in groups.Values)
+        {
+            if (models.Count < 2)
+            {
+                continue;
+            }
+
+            for (var index = 0; index < models.Count; index++)
+            {
+                var counterpart = index == 0 ? models[1] : models[0];
+                diagnostics.Add(
+                    GeneratorDiagnosticInfo.Create(
+                        DuplicateModelIdentity,
+                        models[index].Location,
+                        models[index].Name,
+                        counterpart.Name
+                    )
+                );
+            }
+        }
+
+        return diagnostics.ToImmutable();
     }
 
     private static GenerationResult Render(
