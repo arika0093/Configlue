@@ -57,8 +57,8 @@ public sealed partial class ConfiglueGenerator : IIncrementalGenerator
     );
     private static readonly DiagnosticDescriptor MissingConstructor = new(
         "CFG003",
-        "Model needs a parameterless constructor",
-        "Class model '{0}' must have a parameterless constructor",
+        "Model needs a supported constructor",
+        "Class model '{0}' must have a parameterless constructor or a constructor whose parameters match public readable and writable properties by name and type",
         "Configlue",
         DiagnosticSeverity.Error,
         true

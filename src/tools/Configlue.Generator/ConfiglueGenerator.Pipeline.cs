@@ -181,10 +181,11 @@ public sealed partial class ConfiglueGenerator
 
         if (
             model.TypeKind == TypeKind.Class
-            && !SparseFragments.Generator.Shared.ModelConstructionPlan.HasRootParameterlessConstructor(
+            && SparseFragments.Generator.Shared.ModelConstructorBinding.AnalyzeRoot(
                 model,
                 cancellationToken
             )
+                is null
         )
         {
             return AnalysisFailure(MissingConstructor, location, model.Name);

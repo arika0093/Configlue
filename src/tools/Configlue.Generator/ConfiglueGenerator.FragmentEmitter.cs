@@ -20,7 +20,8 @@ public sealed partial class ConfiglueGenerator
         bool usesPocoCloning,
         bool hasJsonFragmentRegistry,
         bool hasMessagePackFragmentRegistry,
-        bool isRootModel = true
+        bool isRootModel = true,
+        SparseFragments.Generator.Shared.ModelConstructorBinding? constructor = null
     )
     {
         var coreMembers = members.Select(ToSparseMember).ToImmutableArray();
@@ -75,7 +76,8 @@ public sealed partial class ConfiglueGenerator
             code,
             modelType,
             coreMembers,
-            isRootModel
+            isRootModel,
+            constructor
         );
         FragmentCore.AppendMerge(code, coreMembers);
         FragmentCore.AppendApplyChanges(code, coreMembers);

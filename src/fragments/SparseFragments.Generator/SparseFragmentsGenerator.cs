@@ -40,8 +40,8 @@ public sealed class SparseFragmentsGenerator : IIncrementalGenerator
     );
     private static readonly DiagnosticDescriptor MissingConstructor = new(
         SparseDiagnosticIds.MissingConstructor,
-        "Model needs a parameterless constructor",
-        "Class model '{0}' must have a parameterless constructor",
+        "Model needs a supported constructor",
+        "Class model '{0}' must have a parameterless constructor or a constructor whose parameters match public readable and writable properties by name and type",
         "SparseFragments",
         DiagnosticSeverity.Error,
         true

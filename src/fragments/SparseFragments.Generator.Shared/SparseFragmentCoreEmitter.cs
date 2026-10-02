@@ -159,7 +159,8 @@ internal sealed class SparseFragmentCoreEmitter(
         SharedIndentedBuilder code,
         string modelType,
         ImmutableArray<SparseMemberModel> members,
-        bool usesPocoCloning
+        bool usesPocoCloning,
+        ModelConstructorBinding? constructor = null
     )
     {
         code.CancellationToken.ThrowIfCancellationRequested();
@@ -170,7 +171,23 @@ internal sealed class SparseFragmentCoreEmitter(
             AppendCloneContext(code, 2);
         }
 
-        code.AppendIndent(2).Append("return new ").Append(modelType).AppendLine();
+        var arguments = constructor is null
+            ? string.Empty
+            : string.Join(
+                ", ",
+                constructor.Parameters.Select(parameter =>
+                    Expressions.CloneModelExpression(
+                        members.Single(member => member.Property.Name == parameter.PropertyName),
+                        "this." + SparseNaming.EscapeIdentifier(parameter.PropertyName)
+                    )
+                )
+            );
+        code.AppendIndent(2)
+            .Append("return new ")
+            .Append(modelType)
+            .Append("(")
+            .Append(arguments)
+            .AppendLine(")");
         code.AppendLineAt(1, "{");
         foreach (var member in members)
         {
@@ -297,19 +314,45 @@ internal sealed class SparseFragmentCoreEmitter(
     public static void AppendRootProjectionConstructor(
         SharedIndentedBuilder code,
         string modelName,
-        ImmutableArray<SparseMemberModel> members
+        ImmutableArray<SparseMemberModel> members,
+        ModelConstructorBinding? constructor = null
     )
     {
-        if (ModelConstructionPlan.ForMembers(members).CanOverlayAfterConstruction)
+        if (
+            ModelConstructionPlan.ForMembers(members).CanOverlayAfterConstruction
+            && (constructor is null || constructor.Parameters.IsEmpty)
+        )
             return;
         code.AppendLineAt(1, "private readonly struct __SparseProjectionToken { }");
         if (members.Any(static member => member.Property.IsRequired))
             code.AppendLineAt(1, "[global::System.Diagnostics.CodeAnalysis.SetsRequiredMembers]");
+        var arguments = constructor is null
+            ? string.Empty
+            : string.Join(
+                ", ",
+                constructor.Parameters.Select(parameter =>
+                {
+                    var member = members.Single(candidate =>
+                        candidate.Property.Name == parameter.PropertyName
+                    );
+                    var access =
+                        "__sparse_projection."
+                        + SparseNaming.EscapeIdentifier(parameter.PropertyName);
+                    var value = access + ".Value!";
+                    if (member.ChildModel is not null)
+                        value = member.ChildIsReferenceType
+                            ? access + ".Value?.ToModel()!"
+                            : access + ".Value!.ToModel()";
+                    return access + ".IsPresent ? " + value + " : " + parameter.DefaultExpression;
+                })
+            );
         code.AppendLineAt(
             1,
             "private "
                 + modelName
-                + "(Fragment __sparse_projection, __SparseProjectionToken _) : this()"
+                + "(Fragment __sparse_projection, __SparseProjectionToken _) : this("
+                + arguments
+                + ")"
         );
         code.AppendLineAt(1, "{");
         foreach (var member in members)
@@ -347,13 +390,20 @@ internal sealed class SparseFragmentCoreEmitter(
         SharedIndentedBuilder code,
         string modelType,
         ImmutableArray<SparseMemberModel> members,
-        bool hasRootProjectionConstructor = false
+        bool hasRootProjectionConstructor = false,
+        ModelConstructorBinding? constructor = null
     )
     {
         code.AppendIndent(2).Append("public ").Append(modelType).AppendLine(" ToModel()");
         code.AppendLineAt(2, "{");
         var construction = ModelConstructionPlan.ForMembers(members);
-        if (!construction.CanOverlayAfterConstruction && hasRootProjectionConstructor)
+        if (
+            hasRootProjectionConstructor
+            && (
+                !construction.CanOverlayAfterConstruction
+                || (constructor is not null && !constructor.Parameters.IsEmpty)
+            )
+        )
         {
             code.AppendLineAt(
                 3,

@@ -48,7 +48,7 @@ internal static class SparseModelAnalyzer
 
         if (
             model.TypeKind == TypeKind.Class
-            && !ModelConstructionPlan.HasRootParameterlessConstructor(model, cancellationToken)
+            && ModelConstructorBinding.AnalyzeRoot(model, cancellationToken) is null
         )
         {
             return Failure(SparseDiagnosticIds.MissingConstructor, location, model.Name);

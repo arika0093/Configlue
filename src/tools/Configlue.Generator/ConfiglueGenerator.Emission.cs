@@ -64,13 +64,15 @@ public sealed partial class ConfiglueGenerator
         SparseFragments.Generator.Shared.SparseFragmentCoreEmitter.AppendRootProjectionConstructor(
             code,
             name,
-            members.Select(ToSparseMember).ToImmutableArray()
+            members.Select(ToSparseMember).ToImmutableArray(),
+            model.Constructor
         );
         FragmentCore.AppendDeepClone(
             code,
             modelType,
             members.Select(ToSparseMember).ToImmutableArray(),
-            !pocoCloneModels.IsEmpty
+            !pocoCloneModels.IsEmpty,
+            model.Constructor
         );
         foreach (var poco in pocoCloneModels)
             FragmentCore.AppendPocoCloneHelper(
@@ -90,7 +92,8 @@ public sealed partial class ConfiglueGenerator
             !model.IsStruct,
             !pocoCloneModels.IsEmpty,
             hasJsonFragmentRegistry,
-            hasMessagePackFragmentRegistry
+            hasMessagePackFragmentRegistry,
+            constructor: model.Constructor
         );
         AppendDetailsTree(code, modelType, members);
         if (!model.IsStruct)

@@ -36,20 +36,32 @@ public sealed class GeneratorHostCompatibilityTests
     }
 
     [Test]
-    [Arguments(false, false, false)]
-    [Arguments(true, false, false)]
-    [Arguments(false, true, false)]
-    [Arguments(true, true, false)]
-    [Arguments(false, false, true)]
-    [Arguments(true, false, true)]
-    [Arguments(false, true, true)]
-    [Arguments(true, true, true)]
+    [Arguments(false, false, false, false)]
+    [Arguments(false, false, false, true)]
+    [Arguments(false, false, true, false)]
+    [Arguments(false, false, true, true)]
+    [Arguments(false, true, false, false)]
+    [Arguments(false, true, false, true)]
+    [Arguments(false, true, true, false)]
+    [Arguments(false, true, true, true)]
+    [Arguments(true, false, false, false)]
+    [Arguments(true, false, false, true)]
+    [Arguments(true, false, true, false)]
+    [Arguments(true, false, true, true)]
+    [Arguments(true, true, false, false)]
+    [Arguments(true, true, false, true)]
+    [Arguments(true, true, true, false)]
+    [Arguments(true, true, true, true)]
     public void PrivateRootConstructorAndSparseDefaultsConstructOnce(
         bool standalone,
         bool initOnly,
-        bool required
+        bool required,
+        bool parameterized
     )
     {
+        var constructor = parameterized
+            ? "private Settings(int count = 5) { Identity = ++Calls; Count = count; }"
+            : "private Settings() { Identity = ++Calls; }";
         var requiredKeyword = required ? "required " : string.Empty;
         var setter = initOnly ? "init" : "set";
         var runtime = standalone ? "SparseFragments" : "Configlue";
@@ -67,7 +79,7 @@ public sealed class GeneratorHostCompatibilityTests
             public partial class Settings
             {
                 public static int Calls;
-                private Settings() { Identity = ++Calls; }
+                {{constructor}}
                 public {{requiredKeyword}}int Identity { get; {{setter}}; }
                 public {{requiredKeyword}}int Count { get; {{setter}}; } = 5;
             }
@@ -85,6 +97,9 @@ public sealed class GeneratorHostCompatibilityTests
                     var complete = Settings.Fragment.From(sparse).ToModel();
                     if (Settings.Calls != 3 || complete.Identity != 2 || complete.Count != 0)
                         throw new System.Exception("complete projection");
+                    var clone = complete.DeepClone();
+                    if (Settings.Calls != 4 || clone.Identity != 2 || clone.Count != 0 || ReferenceEquals(clone, complete))
+                        throw new System.Exception("clone construction");
                     return "passed";
                 }
             }

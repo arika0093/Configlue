@@ -50,8 +50,13 @@ internal static class SparseFragmentEmitter
             .Append(modelType)
             .AppendLine(">");
         code.AppendLine("{");
-        SparseFragmentCoreEmitter.AppendRootProjectionConstructor(code, name, members);
-        Core.AppendDeepClone(code, modelType, members, !pocoCloneModels.IsEmpty);
+        SparseFragmentCoreEmitter.AppendRootProjectionConstructor(
+            code,
+            name,
+            members,
+            model.Constructor
+        );
+        Core.AppendDeepClone(code, modelType, members, !pocoCloneModels.IsEmpty, model.Constructor);
         foreach (var poco in pocoCloneModels)
             Core.AppendPocoCloneHelper(
                 code,
@@ -60,7 +65,14 @@ internal static class SparseFragmentEmitter
                 poco.Members
             );
         SparseFragmentCoreEmitter.AppendCollectionCloneHelpers(code);
-        AppendFragment(code, modelType, members, !model.IsStruct, !pocoCloneModels.IsEmpty);
+        AppendFragment(
+            code,
+            modelType,
+            members,
+            !model.IsStruct,
+            !pocoCloneModels.IsEmpty,
+            constructor: model.Constructor
+        );
         AppendStructuralModels(code, structuralModels, !pocoCloneModels.IsEmpty);
         code.AppendLine("}");
         return code.ToString();
@@ -111,14 +123,15 @@ internal static class SparseFragmentEmitter
         ImmutableArray<SparseMemberModel> members,
         bool modelIsReferenceType,
         bool usesPocoCloning,
-        bool isRootModel = true
+        bool isRootModel = true,
+        ModelConstructorBinding? constructor = null
     )
     {
         SparseFragmentCoreEmitter.AppendDeclaration(code, FragmentOfT, DeepCloneable);
         Core.AppendMembers(code, members, MergeStrategy);
         AppendFragmentDescriptor(code, modelType, members);
         Core.AppendFromModel(code, modelType, members, modelIsReferenceType, usesPocoCloning);
-        SparseFragmentCoreEmitter.AppendToModel(code, modelType, members, isRootModel);
+        SparseFragmentCoreEmitter.AppendToModel(code, modelType, members, isRootModel, constructor);
         Core.AppendMerge(code, members);
         Core.AppendApplyChanges(code, members);
         Core.AppendDiff(code, modelType, members, modelIsReferenceType);
