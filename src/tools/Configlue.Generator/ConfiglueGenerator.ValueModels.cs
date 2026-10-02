@@ -183,6 +183,13 @@ public sealed partial class ConfiglueGenerator
         public SparseFragments.Generator.Shared.ModelConstructorBinding? Constructor { get; init; }
     }
 
+    private readonly record struct ModelIdentity(
+        string Name,
+        string Id,
+        int Version,
+        GeneratorLocationInfo Location
+    );
+
     private readonly record struct PreviousMemberMapping
     {
         public PreviousMemberMapping(
