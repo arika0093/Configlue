@@ -235,7 +235,8 @@ internal sealed class SparseFragmentCoreEmitter(
         SharedIndentedBuilder code,
         string typeName,
         string cloneHelperName,
-        ImmutableArray<SparseMemberModel> members
+        ImmutableArray<SparseMemberModel> members,
+        ModelConstructorBinding? constructor = null
     )
     {
         code.CancellationToken.ThrowIfCancellationRequested();
@@ -260,16 +261,58 @@ internal sealed class SparseFragmentCoreEmitter(
                 + typeName
                 + ")existing; }"
         );
-        code.AppendIndent(2).Append("var clone = new ").Append(typeName).AppendLine("();");
+        var boundClones = new Dictionary<string, string>(StringComparer.Ordinal);
+        if (constructor is not null)
+        {
+            foreach (
+                var propertyName in constructor.Parameters.Select(static parameter =>
+                    parameter.PropertyName
+                )
+            )
+            {
+                if (boundClones.ContainsKey(propertyName))
+                    continue;
+                var member = members.Single(candidate => candidate.Property.Name == propertyName);
+                var local = "__constructor_clone_" + boundClones.Count;
+                boundClones.Add(propertyName, local);
+                code.AppendLineAt(
+                    2,
+                    "var "
+                        + local
+                        + " = "
+                        + Expressions.CloneModelExpression(
+                            member,
+                            "value." + SparseNaming.EscapeIdentifier(propertyName)
+                        )
+                        + ";"
+                );
+            }
+        }
+        var arguments = constructor is null
+            ? string.Empty
+            : string.Join(
+                ", ",
+                constructor.Parameters.Select(parameter => boundClones[parameter.PropertyName])
+            );
+        code.AppendIndent(2)
+            .Append("var clone = new ")
+            .Append(typeName)
+            .Append("(")
+            .Append(arguments)
+            .AppendLine(");");
         code.AppendLineAt(2, CloneContext + ".Add(value, clone);");
-        foreach (var member in members)
+        foreach (var member in members.Where(static member => !member.Property.IsReadOnly))
         {
             var memberName = SparseNaming.EscapeIdentifier(member.Property.Name);
             code.AppendIndent(2)
                 .Append("clone.")
                 .Append(memberName)
                 .Append(" = ")
-                .Append(Expressions.CloneModelExpression(member, "value." + memberName))
+                .Append(
+                    boundClones.TryGetValue(member.Property.Name, out var cloned)
+                        ? cloned
+                        : Expressions.CloneModelExpression(member, "value." + memberName)
+                )
                 .AppendLine(";");
         }
 

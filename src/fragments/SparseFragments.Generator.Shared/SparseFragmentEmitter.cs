@@ -62,7 +62,8 @@ internal static class SparseFragmentEmitter
                 code,
                 poco.Model.ModelTypeName,
                 poco.CloneHelperName,
-                poco.Members
+                poco.Members,
+                poco.Model.Constructor
             );
         SparseFragmentCoreEmitter.AppendCollectionCloneHelpers(code);
         AppendFragment(

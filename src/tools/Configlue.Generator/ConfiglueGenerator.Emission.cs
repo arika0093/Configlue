@@ -79,7 +79,8 @@ public sealed partial class ConfiglueGenerator
                 code,
                 poco.Model.ModelTypeName,
                 poco.CloneHelperName,
-                poco.Members.Select(ToSparseMember).ToImmutableArray()
+                poco.Members.Select(ToSparseMember).ToImmutableArray(),
+                poco.Model.Constructor
             );
         SparseFragments.Generator.Shared.SparseFragmentCoreEmitter.AppendCollectionCloneHelpers(
             code
