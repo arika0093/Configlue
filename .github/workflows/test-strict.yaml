@@ -75,10 +75,13 @@ jobs:
 
       - name: Run .NET Framework portable tests
         if: matrix.os == 'windows-latest'
+        # Several race tests deliberately block worker threads at barriers. Bound
+        # concurrent test bodies on the legacy pool so their releasing continuations
+        # can run on the small CI worker; concurrency inside each test is unchanged.
         run: >
           dotnet test tests/Configlue.Tests/Configlue.Tests.csproj
           --framework net48 --runtime win-x86 --configuration Release
-          -- --timeout 5m
+          -- --timeout 5m --maximum-parallel-tests 2
           --report-trx --no-progress
 
       - name: Build Windows host integrations
