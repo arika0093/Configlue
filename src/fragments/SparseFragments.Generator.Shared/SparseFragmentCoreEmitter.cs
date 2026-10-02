@@ -24,6 +24,58 @@ internal sealed class SparseFragmentCoreEmitter(
     private static string FragmentValueType(SparseMemberModel member) =>
         member.ChildModel is null ? member.Property.Type.Name : member.ChildFragmentType + "?";
 
+    public void AppendBuilder(SharedIndentedBuilder code, ImmutableArray<SparseMemberModel> members)
+    {
+        code.CancellationToken.ThrowIfCancellationRequested();
+        code.AppendLineAt(1, "/// <summary>A mutable builder for a generated fragment.</summary>");
+        code.AppendLineAt(1, "public sealed class FragmentBuilder");
+        code.AppendLineAt(1, "{");
+        foreach (var member in members)
+        {
+            var name = SparseNaming.EscapeIdentifier(member.Property.Name);
+            var field = "__sparse_builder_member_" + member.Id;
+            code.AppendIndent(2)
+                .Append("private ")
+                .Append(Optional)
+                .Append("<")
+                .Append(FragmentValueType(member))
+                .Append("> ")
+                .Append(field)
+                .AppendLine(";");
+            code.AppendIndent(2)
+                .Append("public ref ")
+                .Append(Optional)
+                .Append("<")
+                .Append(FragmentValueType(member))
+                .Append("> ")
+                .Append(name)
+                .Append(" => ref ")
+                .Append(field)
+                .AppendLine(";");
+        }
+
+        code.AppendLineAt(2, "public FragmentBuilder() { }");
+        code.AppendLineAt(2, "internal FragmentBuilder(Fragment fragment)");
+        code.AppendLineAt(2, "{");
+        foreach (var member in members)
+        {
+            var name = SparseNaming.EscapeIdentifier(member.Property.Name);
+            code.AppendIndent(3).Append(name).Append(" = fragment.").Append(name).AppendLine(";");
+        }
+
+        code.AppendLineAt(2, "}");
+        code.AppendLineAt(2, "public Fragment Build() => new()");
+        code.AppendLineAt(2, "{");
+        foreach (var member in members)
+        {
+            var name = SparseNaming.EscapeIdentifier(member.Property.Name);
+            code.AppendIndent(3).Append(name).Append(" = ").Append(name).AppendLine(",");
+        }
+
+        code.AppendLineAt(2, "};");
+        code.AppendLineAt(1, "}");
+    }
+
     private void AppendCloneContext(SharedIndentedBuilder code, int indent) =>
         code.AppendLineAt(
             indent,

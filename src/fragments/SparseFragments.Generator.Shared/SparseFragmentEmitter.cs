@@ -145,7 +145,9 @@ internal static class SparseFragmentEmitter
         Core.AppendApplyChanges(code, members);
         Core.AppendDiff(code, modelType, members, modelIsReferenceType);
         Core.AppendFragmentClone(code, members, usesPocoCloning);
+        code.AppendLineAt(2, "public FragmentBuilder ToBuilder() => new(this);");
         code.AppendLineAt(1, "}");
+        Core.AppendBuilder(code, members);
     }
 
     private static void AppendFragmentDescriptor(

@@ -16,50 +16,7 @@ public sealed partial class ConfiglueGenerator
         ImmutableArray<MemberModel> members
     )
     {
-        code.CancellationToken.ThrowIfCancellationRequested();
-        code.AppendLineAt(1, "/// <summary>A mutable builder for a generated fragment.</summary>");
-        code.AppendLineAt(1, "public sealed class FragmentBuilder");
-        code.AppendLineAt(1, "{");
-        foreach (var member in members)
-        {
-            var name = EscapeIdentifier(member.Property.Name);
-            var field = MemberBackingField(member);
-            code.AppendIndent(2)
-                .Append("private global::Configlue.Optional<")
-                .Append(FragmentValueType(member))
-                .Append("> ")
-                .Append(field)
-                .AppendLine(";");
-            code.AppendIndent(2)
-                .Append("public ref global::Configlue.Optional<")
-                .Append(FragmentValueType(member))
-                .Append("> ")
-                .Append(name)
-                .Append(" => ref ")
-                .Append(field)
-                .AppendLine(";");
-        }
-
-        code.AppendLineAt(2, "public FragmentBuilder() { }");
-        code.AppendLineAt(2, "internal FragmentBuilder(Fragment fragment)");
-        code.AppendLineAt(2, "{");
-        foreach (var member in members)
-        {
-            var name = EscapeIdentifier(member.Property.Name);
-            code.AppendIndent(3).Append(name).Append(" = fragment.").Append(name).AppendLine(";");
-        }
-
-        code.AppendLineAt(2, "}");
-        code.AppendLineAt(2, "public Fragment Build() => new()");
-        code.AppendLineAt(2, "{");
-        foreach (var member in members)
-        {
-            var name = EscapeIdentifier(member.Property.Name);
-            code.AppendIndent(3).Append(name).Append(" = ").Append(name).AppendLine(",");
-        }
-
-        code.AppendLineAt(2, "};");
-        code.AppendLineAt(1, "}");
+        FragmentCore.AppendBuilder(code, members.Select(ToSparseMember).ToImmutableArray());
     }
 
     private static void AppendPatch(
