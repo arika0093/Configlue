@@ -1,7 +1,7 @@
 namespace Configlue.Resources;
 
 /// <summary>Identifies the stable model, logical subject, and source-specific key for a resource operation.</summary>
-public readonly record struct ConfiglueResourceContext
+public record struct ConfiglueResourceContext
 {
     private IConfiglueSubject? _subject;
 

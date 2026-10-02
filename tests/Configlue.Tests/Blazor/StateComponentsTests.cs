@@ -15,7 +15,7 @@ public sealed class StateComponentsTests
     [Test]
     public void Reader_InitialLoad_ResolvesSnapshotAndDetails()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new BunitContext();
         var store = new InMemoryStateSource<AppSettings.Fragment>(
             Fragment("initial", retryCount: 5)
         );
@@ -37,7 +37,7 @@ public sealed class StateComponentsTests
     [Test]
     public void Reader_ReRendersOnStateChange()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new BunitContext();
         var store = new InMemoryStateSource<AppSettings.Fragment>(
             Fragment("initial", retryCount: 3)
         );
@@ -53,7 +53,7 @@ public sealed class StateComponentsTests
     [Test]
     public void Reader_ReloadFailure_PreservesLastSuccessfulValue()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new BunitContext();
         var state = new ControllableSnapshotState<AppSettings>(
             new StateSnapshot<AppSettings>(new AppSettings { Label = "good" }, null)
         );
@@ -73,14 +73,14 @@ public sealed class StateComponentsTests
     [Test]
     public void Reader_InitialLoadFailure_IsSurfaced()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new BunitContext();
         var state = new ControllableSnapshotState<AppSettings>(null!)
         {
             FailWith = new InvalidOperationException("cannot read"),
         };
         ctx.Services.AddSingleton<IReadOnlyState<AppSettings>>(state);
         Exception? failed = null;
-        var cut = ctx.RenderComponent<StateReader<AppSettings>>(p =>
+        var cut = ctx.Render<StateReader<AppSettings>>(p =>
             p.Add(
                 x => x.LoadFailedContent,
                 (Exception e) =>
@@ -99,7 +99,7 @@ public sealed class StateComponentsTests
     [Test]
     public void Reader_ReloadFailureDiagnosticsRaisesCallback()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new BunitContext();
         var state = new ControllableSnapshotState<AppSettings>(
             new StateSnapshot<AppSettings>(new AppSettings { Label = "good" }, null)
         );
@@ -108,7 +108,7 @@ public sealed class StateComponentsTests
         ctx.Services.AddSingleton<IConfiglueDiagnostics<AppSettings>>(diagnostics);
         Exception? callbackException = null;
         StateReaderContext<AppSettings>? captured = null;
-        var cut = ctx.RenderComponent<StateReader<AppSettings>>(p =>
+        var cut = ctx.Render<StateReader<AppSettings>>(p =>
             p.Add(x => x.ChildContent, s => _ => captured = s)
                 .Add(x => x.OnReloadFailed, (Exception e) => callbackException = e)
         );
@@ -125,7 +125,7 @@ public sealed class StateComponentsTests
     [Test]
     public void Reader_SubjectChange_RebindsToNewValue()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new BunitContext();
         var state = new SwitchableSnapshotState(new AppSettings { Label = "subject-a" });
         ctx.Services.AddSingleton<IReadOnlyState<AppSettings>>(state);
         var (cut, reader) = RenderReader(ctx);
@@ -139,7 +139,7 @@ public sealed class StateComponentsTests
     [Test]
     public void Reader_Dispose_UnsubscribesFromState()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new BunitContext();
         var state = new ControllableSnapshotState<AppSettings>(
             new StateSnapshot<AppSettings>(new AppSettings { Label = "good" }, null)
         );
@@ -155,7 +155,7 @@ public sealed class StateComponentsTests
     [Test]
     public void Editor_InitialLoad_ExposesSessionAndDetails()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new BunitContext();
         var store = new InMemoryStateSource<AppSettings.Fragment>(
             Fragment("initial", retryCount: 5)
         );
@@ -176,7 +176,7 @@ public sealed class StateComponentsTests
     [Test]
     public void Editor_FieldEditing_TracksModifiedState()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new BunitContext();
         var store = new InMemoryStateSource<AppSettings.Fragment>(
             Fragment("initial", retryCount: 3)
         );
@@ -193,7 +193,7 @@ public sealed class StateComponentsTests
     [Test]
     public async Task Editor_SaveSuccess_CommitsAndMarksUnmodified()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new BunitContext();
         var store = new InMemoryStateSource<AppSettings.Fragment>(
             Fragment("initial", retryCount: 3)
         );
@@ -213,7 +213,7 @@ public sealed class StateComponentsTests
     [Test]
     public async Task Editor_ConfiglueValidationFailure_IsCategorized()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new BunitContext();
         var store = new InMemoryStateSource<AppSettings.Fragment>(
             Fragment("initial", retryCount: 3)
         );
@@ -234,7 +234,7 @@ public sealed class StateComponentsTests
     [Test]
     public async Task Editor_BlazorValidationFailure_ReportsEditContextMessages()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new BunitContext();
         var store = new InMemoryStateSource<AppSettings.Fragment>(
             Fragment("initial", retryCount: 3)
         );
@@ -254,7 +254,7 @@ public sealed class StateComponentsTests
     [Test]
     public async Task Editor_Conflict_IsCategorized()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new BunitContext();
         var session = new EditSession<AppSettings>(
             new AppSettings { Label = "draft" },
             (_, _) => throw new StateConflictException("stale revision")
@@ -274,7 +274,7 @@ public sealed class StateComponentsTests
     [Test]
     public async Task Editor_PartialWriteFailure_IsCategorized()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new BunitContext();
         var session = new EditSession<AppSettings>(
             new AppSettings { Label = "draft" },
             (_, _) =>
@@ -302,7 +302,7 @@ public sealed class StateComponentsTests
     [Test]
     public void Editor_CleanUpstreamChange_AutoRebases()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new BunitContext();
         var upstream = new FakeUpstreamState<AppSettings>(new AppSettings { Label = "start" });
         var session = CreateUpstreamSession(new AppSettings { Label = "start" }, upstream);
         RegisterSessions(ctx, new StaticEditSessions<AppSettings>(session));
@@ -319,7 +319,7 @@ public sealed class StateComponentsTests
     [Test]
     public void Editor_DirtyUpstreamChange_PreservesDraftAndNotifies()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new BunitContext();
         var upstream = new FakeUpstreamState<AppSettings>(new AppSettings { Label = "start" });
         var session = CreateUpstreamSession(new AppSettings { Label = "start" }, upstream);
         RegisterSessions(ctx, new StaticEditSessions<AppSettings>(session));
@@ -336,7 +336,7 @@ public sealed class StateComponentsTests
     [Test]
     public async Task Editor_ExplicitRebaseAsync_ReappliesDraft()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new BunitContext();
         var upstream = new FakeUpstreamState<AppSettings>(new AppSettings { Label = "start" });
         var session = CreateUpstreamSession(new AppSettings { Label = "start" }, upstream);
         RegisterSessions(ctx, new StaticEditSessions<AppSettings>(session));
@@ -355,7 +355,7 @@ public sealed class StateComponentsTests
     [Test]
     public async Task Editor_Resets_UseCoreSemantics()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new BunitContext();
         var upstream = new FakeUpstreamState<AppSettings>(new AppSettings { Label = "start" });
         var session = CreateUpstreamSession(
             new AppSettings { Label = "start" },
@@ -383,7 +383,7 @@ public sealed class StateComponentsTests
     [Test]
     public void Editor_SubjectChange_CleanEditorReopens()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new BunitContext();
         var changeSource = new FakeSubjectChangeSource();
         var sessions = new SwitchingEditSessions<AppSettings>(() =>
             CreateUpstreamSession(
@@ -410,7 +410,7 @@ public sealed class StateComponentsTests
     [Test]
     public async Task Editor_SubjectChange_DirtyEditorPreservesDraftAndBlocksSave()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new BunitContext();
         var changeSource = new FakeSubjectChangeSource();
         var saveCalls = 0;
         var sessions = new SwitchingEditSessions<AppSettings>(() =>
@@ -444,7 +444,7 @@ public sealed class StateComponentsTests
     [Test]
     public void Editor_Dispose_UnsubscribesAndDisposesSession()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new BunitContext();
         var changeSource = new FakeSubjectChangeSource();
         var session = new EditSession<AppSettings>(
             new AppSettings { Label = "a" },
@@ -466,7 +466,7 @@ public sealed class StateComponentsTests
     [Test]
     public async Task Editor_DisposeWhileSaving_AllowsCoreSaveToFinish()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new BunitContext();
         var saveStarted = new TaskCompletionSource(
             TaskCreationOptions.RunContinuationsAsynchronously
         );
@@ -509,7 +509,7 @@ public sealed class StateComponentsTests
     [Test]
     public async Task Editor_SaveFailureAfterSubjectInvalidation_DoesNotPublishStaleError()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new BunitContext();
         var subjects = new FakeSubjectChangeSource();
         var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -545,7 +545,7 @@ public sealed class StateComponentsTests
     [Test]
     public async Task Reader_ReloadRace_NewerCompletionWins()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new BunitContext();
         var state = new GatedSnapshotState<AppSettings>(
             new StateSnapshot<AppSettings>(new AppSettings { Label = "initial" }, null)
         );
@@ -590,7 +590,7 @@ public sealed class StateComponentsTests
     [Test]
     public async Task Reader_StaleReloadFailure_DoesNotOverwriteNewerSuccess()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new BunitContext();
         var state = new GatedSnapshotState<AppSettings>(
             new StateSnapshot<AppSettings>(new AppSettings { Label = "initial" }, null)
         );
@@ -623,7 +623,7 @@ public sealed class StateComponentsTests
     [Test]
     public async Task Reader_DisposeWhileReloadInFlight_SuppressesPublication()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new BunitContext();
         var state = new GatedSnapshotState<AppSettings>(
             new StateSnapshot<AppSettings>(new AppSettings { Label = "initial" }, null)
         );
@@ -652,7 +652,7 @@ public sealed class StateComponentsTests
     [Test]
     public async Task Editor_RapidSubjectChanges_SettleOnLatestSubject()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new BunitContext();
         var changeSource = new FakeSubjectChangeSource();
         var bSession = CreateUpstreamSession(
             new AppSettings { Label = "subject-b" },
@@ -710,7 +710,7 @@ public sealed class StateComponentsTests
     [Test]
     public async Task Editor_DisposeWhileOpenInFlight_DisposesStaleSession()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new BunitContext();
         var changeSource = new FakeSubjectChangeSource();
         var bSession = CreateUpstreamSession(
             new AppSettings { Label = "subject-b" },
@@ -763,10 +763,10 @@ public sealed class StateComponentsTests
     private static (
         IRenderedComponent<StateReader<AppSettings>> Cut,
         StateReaderContext<AppSettings> Context
-    ) RenderReader(Bunit.TestContext ctx)
+    ) RenderReader(BunitContext ctx)
     {
         StateReaderContext<AppSettings>? captured = null;
-        var cut = ctx.RenderComponent<StateReader<AppSettings>>(p =>
+        var cut = ctx.Render<StateReader<AppSettings>>(p =>
             p.Add(x => x.ChildContent, state => _ => captured = state)
         );
         cut.WaitForAssertion(() => captured.ShouldNotBeNull());
@@ -777,12 +777,12 @@ public sealed class StateComponentsTests
         IRenderedComponent<StateEditor<AppSettings>> Cut,
         StateEditorContext<AppSettings> Context
     ) RenderEditor(
-        Bunit.TestContext ctx,
+        BunitContext ctx,
         Action<ComponentParameterCollectionBuilder<StateEditor<AppSettings>>>? configure = null
     )
     {
         StateEditorContext<AppSettings>? captured = null;
-        var cut = ctx.RenderComponent<StateEditor<AppSettings>>(parameters =>
+        var cut = ctx.Render<StateEditor<AppSettings>>(parameters =>
         {
             configure?.Invoke(parameters);
             parameters.Add(x => x.ChildContent, state => _ => captured = state);
@@ -794,10 +794,10 @@ public sealed class StateComponentsTests
     private static (
         IRenderedComponent<StateEditor<AppSettings>> Cut,
         StateEditorContext<AppSettings> Context
-    ) RenderEditorWithForm(Bunit.TestContext ctx)
+    ) RenderEditorWithForm(BunitContext ctx)
     {
         StateEditorContext<AppSettings>? captured = null;
-        var cut = ctx.RenderComponent<StateEditor<AppSettings>>(p =>
+        var cut = ctx.Render<StateEditor<AppSettings>>(p =>
             p.Add(
                 x => x.ChildContent,
                 state =>
@@ -817,7 +817,7 @@ public sealed class StateComponentsTests
     }
 
     private static void RegisterState(
-        Bunit.TestContext ctx,
+        BunitContext ctx,
         InMemoryStateSource<AppSettings.Fragment> store,
         StateWritePlan? writePlan = null
     ) =>
@@ -830,7 +830,7 @@ public sealed class StateComponentsTests
         );
 
     private static void RegisterSessions(
-        Bunit.TestContext ctx,
+        BunitContext ctx,
         IConfiglueEditSessions<AppSettings> sessions
     ) => ctx.Services.AddSingleton(sessions);
 

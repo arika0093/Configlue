@@ -6,11 +6,6 @@
          net48/win-x86. Declaring the RID here keeps restore and build in agreement. -->
     <RuntimeIdentifiers Condition="'$(OS)' == 'Windows_NT'">win-x86</RuntimeIdentifiers>
   </PropertyGroup>
-  <PropertyGroup Condition="'$(TargetFramework)' == 'net10.0'">
-    <!-- bunit 1.40.0 pins AngleSharp 1.2.0, which has advisory GHSA-pgww-w46g-26qg.
-         Upgrading AngleSharp breaks bunit's compiled element-collection ABI. -->
-    <NoWarn>$(NoWarn);NU1902</NoWarn>
-  </PropertyGroup>
   <PropertyGroup Condition="'$(ConfiglueNetStandard)' == 'true'">
     <IsTestProject>false</IsTestProject>
   </PropertyGroup>
@@ -26,7 +21,7 @@
   <ItemGroup Condition="'$(TargetFramework)' == 'net10.0'">
     <PackageReference Include="Npgsql" Version="10.0.3" />
     <PackageReference Include="Microsoft.AspNetCore.TestHost" Version="10.0.0" />
-    <PackageReference Include="bunit" Version="1.40.0" />
+    <PackageReference Include="bunit" Version="2.11.3" />
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
   <ItemGroup Condition="'$(TargetFramework)' == 'net48'">
