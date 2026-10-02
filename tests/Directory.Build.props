@@ -37,11 +37,6 @@
       Version="4.3.0"
       Condition="'$(ConfiglueNetStandard)' != 'true'"
     />
-    <PackageReference
-      Include="Microsoft.Testing.Extensions.Retry"
-      Version="2.4.1"
-      Condition="'$(ConfiglueNetStandard)' != 'true'"
-    />
   </ItemGroup>
   <ItemGroup>
     <Using Include="Shouldly" Condition="'$(ConfiglueNetStandard)' != 'true'" />

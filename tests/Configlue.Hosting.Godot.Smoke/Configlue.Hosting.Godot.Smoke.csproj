@@ -6,7 +6,7 @@
     <OutputType>Library</OutputType>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Remove="TUnit;Shouldly;Microsoft.Testing.Extensions.Retry" />
+    <PackageReference Remove="TUnit;Shouldly" />
     <Using Remove="Shouldly" />
   </ItemGroup>
   <ItemGroup Condition="'$(ConfigluePackageVersion)' == ''">

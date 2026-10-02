@@ -51,7 +51,7 @@
     <Compile Remove="MessagePack/**/*.cs" />
   </ItemGroup>
   <ItemGroup Condition="'$(ConfiglueNetStandard)' == 'true'">
-    <PackageReference Remove="TUnit;Shouldly;Microsoft.Testing.Extensions.Retry" />
+    <PackageReference Remove="TUnit;Shouldly" />
     <Using Remove="Shouldly;Configlue.Codecs;Configlue.Migrations;Configlue.Resources;Configlue.Sources;Configlue.Extensibility;Configlue.State;Configlue.Transformers" />
     <PackageReference Include="Polyfill" Version="11.4.1" PrivateAssets="all" />
     <Compile Remove="**/*.cs" />
