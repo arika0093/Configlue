@@ -74,7 +74,27 @@ public sealed class StateSourceWatcher<T> : ISourceWatcher
         }
         finally
         {
-            await watchCancellation.CancelAsync().ConfigureAwait(false);
+            if (!watchCancellation.IsCancellationRequested)
+            {
+                await watchCancellation.CancelAsync().ConfigureAwait(false);
+            }
+
+            await AwaitWatchersAsync(watchers, cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    private static async Task AwaitWatchersAsync(
+        IReadOnlyList<Task> watchers,
+        CancellationToken cancellationToken
+    )
+    {
+        try
+        {
+            await Task.WhenAll(watchers).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
         }
     }
 }
