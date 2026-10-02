@@ -544,6 +544,15 @@ public sealed partial class ConfiglueGenerator
     )
     {
         cancellationToken.ThrowIfCancellationRequested();
+        if (
+            !dependency
+                .GetAttributes()
+                .Any(attribute => attribute.AttributeClass?.ToDisplayString() == ModelAttributeName)
+        )
+        {
+            return;
+        }
+
         if (!visited.Add(dependency))
         {
             return;
