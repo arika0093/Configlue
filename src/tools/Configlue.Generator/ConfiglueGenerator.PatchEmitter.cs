@@ -68,6 +68,7 @@ public sealed partial class ConfiglueGenerator
         ImmutableArray<MemberModel> members
     )
     {
+        var wholePatch = "global::Configlue.IConfiglueModelPatch<" + modelType + ">";
         code.CancellationToken.ThrowIfCancellationRequested();
         code.AppendLineAt(
             1,
@@ -75,7 +76,8 @@ public sealed partial class ConfiglueGenerator
         );
         code.AppendLineAt(
             1,
-            "public sealed class Patch : global::Configlue.IConfiglueRoutablePatch, global::Configlue.IConfiglueReplacementPatch"
+            "public sealed class Patch : global::Configlue.IConfiglueRoutablePatch, global::Configlue.IConfiglueReplacementPatch, "
+                + wholePatch
         );
         code.AppendLineAt(1, "{");
         code.AppendLineAt(
@@ -126,18 +128,33 @@ public sealed partial class ConfiglueGenerator
         );
         code.AppendLineAt(
             2,
-            "public void Set("
+            "void "
+                + wholePatch
+                + ".Set("
                 + modelType
                 + " value) => __configlue_whole_operation = global::Configlue.FragmentOperation<Fragment?>.Set(Fragment.From(value));"
         );
         code.AppendLineAt(
             2,
-            "public void SetNull() => __configlue_whole_operation = global::Configlue.FragmentOperation<Fragment?>.Set(null);"
+            "void "
+                + wholePatch
+                + ".SetNull() => __configlue_whole_operation = global::Configlue.FragmentOperation<Fragment?>.Set(null);"
         );
         code.AppendLineAt(
             2,
-            "public void Unset() => __configlue_whole_operation = global::Configlue.FragmentOperation<Fragment?>.Unset;"
+            "void "
+                + wholePatch
+                + ".Unset() => __configlue_whole_operation = global::Configlue.FragmentOperation<Fragment?>.Unset;"
         );
+        if (!members.Any(static member => member.Property.Name == "Set"))
+            code.AppendLineAt(
+                2,
+                "public void Set(" + modelType + " value) => ((" + wholePatch + ")this).Set(value);"
+            );
+        if (!members.Any(static member => member.Property.Name == "SetNull"))
+            code.AppendLineAt(2, "public void SetNull() => ((" + wholePatch + ")this).SetNull();");
+        if (!members.Any(static member => member.Property.Name == "Unset"))
+            code.AppendLineAt(2, "public void Unset() => ((" + wholePatch + ")this).Unset();");
         code.AppendLineAt(
             2,
             "public static implicit operator Patch(global::Configlue.FragmentOperation<Fragment?> operation)"
@@ -146,7 +163,7 @@ public sealed partial class ConfiglueGenerator
         code.AppendLineAt(3, "var patch = new Patch();");
         code.AppendLineAt(
             3,
-            "if (operation.Kind == global::Configlue.FragmentOperationKind.Unset) { patch.Unset(); }"
+            "if (operation.Kind == global::Configlue.FragmentOperationKind.Unset) { patch.__configlue_whole_operation = global::Configlue.FragmentOperation<Fragment?>.Unset; }"
         );
         code.AppendLineAt(
             3,
@@ -190,7 +207,11 @@ public sealed partial class ConfiglueGenerator
                 code.AppendIndent(4)
                     .Append("if (fragment.")
                     .Append(name)
-                    .AppendLine(".Value is null) nested.SetNull();");
+                    .AppendLine(
+                        ".Value is null) ((global::Configlue.IConfiglueModelPatch<"
+                            + member.ChildModel.Value.NonNullableName
+                            + ">)nested).SetNull();"
+                    );
                 code.AppendIndent(4)
                     .Append("else nested = new ")
                     .Append(nestedPatchType)
@@ -317,7 +338,12 @@ public sealed partial class ConfiglueGenerator
                 code.AppendLineAt(4, "if (replacement." + field + " is null)");
                 code.AppendLineAt(4, "{");
                 code.AppendLineAt(5, "var nested = new " + nestedPatchType + "();");
-                code.AppendLineAt(5, "nested.Unset();");
+                code.AppendLineAt(
+                    5,
+                    "((global::Configlue.IConfiglueModelPatch<"
+                        + member.ChildModel.Value.NonNullableName
+                        + ">)nested).Unset();"
+                );
                 code.AppendLineAt(5, "replacement." + field + " = nested;");
                 code.AppendLineAt(4, "}");
                 code.AppendLineAt(4, "else");

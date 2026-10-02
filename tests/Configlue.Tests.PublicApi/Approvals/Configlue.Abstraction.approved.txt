@@ -512,6 +512,12 @@ namespace Configlue
         bool TryPlanSourceContribution(System.Collections.Generic.IReadOnlyList<Configlue.ConfiglueMergeSourceValue> sourceValuesLowToHigh, string targetSourceId, object? desiredEffective, out Configlue.Optional<object?> targetContribution, out string? reason);
         bool TryRebase(object? editBase, object? desired, object? current, out object? rebased, out string? reason);
     }
+    public interface IConfiglueModelPatch<in TModel> : Configlue.IConfigluePatch
+    {
+        void Set(TModel value);
+        void SetNull();
+        void Unset();
+    }
     public interface IConfigluePatch
     {
         bool IsEmpty { get; }

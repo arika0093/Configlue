@@ -78,3 +78,19 @@ fragment model, or explicitly specify `[SparseMerge(MergeMode.Replace)]` /
 `[ConfiglueMerge(MergeMode.Replace)]` to choose replacement semantics. Choosing
 `Replace` determines merge behavior; it does not establish a deep-clone policy for
 an otherwise unsupported reference type.
+
+## Patch operation names
+
+Configlue models may use `Set`, `SetNull`, or `Unset` as property names. Their
+generated typed patch keeps those member names. When a name conflicts with a
+whole-model operation, call that operation through
+`IConfiglueModelPatch<TModel>`, for example:
+
+```csharp
+IConfiglueModelPatch<MySettings> wholeModel = patch;
+wholeModel.Set(value);
+wholeModel.SetNull();
+wholeModel.Unset();
+```
+
+Patches without these conflicts also expose the existing direct operation methods.
