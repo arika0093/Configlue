@@ -1000,7 +1000,7 @@ namespace Configlue.Resources
     {
         public ResourceId(string value) { }
         public bool IsDefault { get; }
-        public string Value { get; }
+        public string Value { get; init; }
         public override string ToString() { }
     }
     public readonly struct ResourceReadResult : System.IEquatable<Configlue.Resources.ResourceReadResult>

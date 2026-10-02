@@ -20,7 +20,15 @@ public readonly record struct ResourceId
     }
 
     /// <summary>The stable, provider-defined identity value, or an empty string for the default value.</summary>
-    public string Value => _value ?? string.Empty;
+    /// <remarks>
+    /// The init accessor allows serializers to materialize this value type from its public value property.
+    /// Empty values remain the uninitialized default rather than becoming a valid identity.
+    /// </remarks>
+    public string Value
+    {
+        get => _value ?? string.Empty;
+        init => _value = string.IsNullOrWhiteSpace(value) ? null : value;
+    }
 
     /// <summary>Gets whether this value is the uninitialized default and carries no resource identity.</summary>
     public bool IsDefault => _value is null;
