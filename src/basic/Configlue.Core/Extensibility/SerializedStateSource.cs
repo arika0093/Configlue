@@ -51,15 +51,6 @@ public static class SerializedStateSource
             watcher ?? resource as ISourceWatcher,
             middlewares
         );
-        var effectiveResourceId = resourceId;
-        if (
-            effectiveResourceId is null
-            && serialized.TryGetResourceId(ConfiglueResourceContext.Default, out var resolved)
-        )
-        {
-            effectiveResourceId = resolved;
-        }
-
         return new StateSource<T>(
             id,
             serialized,
@@ -68,7 +59,7 @@ public static class SerializedStateSource
             serialized.Writer,
             serialized.Watcher,
             physicalOrigin,
-            effectiveResourceId
+            resourceId
         );
     }
 }
