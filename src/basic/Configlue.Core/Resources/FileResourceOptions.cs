@@ -3,6 +3,17 @@ namespace Configlue.Resources;
 /// <summary>Controls retry and backup behavior for a file-backed resource.</summary>
 public sealed class FileResourceOptions
 {
+    /// <summary>Controls how file changes are detected while a caller is waiting.</summary>
+    /// <remarks>Hybrid uses notifications for low latency and polling as a safety net for filesystems that miss events.</remarks>
+    public FileChangeDetectionMode ChangeDetectionMode { get; init; } =
+        FileChangeDetectionMode.Hybrid;
+
+    /// <summary>The interval between lightweight file signature checks while polling.</summary>
+    public TimeSpan PollingInterval { get; init; } = TimeSpan.FromSeconds(1);
+
+    /// <summary>The maximum interval between full content revision checks while polling.</summary>
+    public TimeSpan RevisionVerificationInterval { get; init; } = TimeSpan.FromSeconds(30);
+
     /// <summary>Whether the previous contents are copied to a backup before a successful replacement.</summary>
     public bool CreateBackup { get; init; } = true;
 

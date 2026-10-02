@@ -111,6 +111,30 @@ public sealed partial class FileResource
         _directory = System.IO.Path.GetDirectoryName(_path)!;
         _fileName = System.IO.Path.GetFileName(_path);
         _options = options ?? new FileResourceOptions();
+        if (!Enum.IsDefined(_options.ChangeDetectionMode))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(options),
+                "ChangeDetectionMode is invalid."
+            );
+        }
+
+        if (_options.PollingInterval <= TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(options),
+                "PollingInterval must be greater than zero."
+            );
+        }
+
+        if (_options.RevisionVerificationInterval <= TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(options),
+                "RevisionVerificationInterval must be greater than zero."
+            );
+        }
+
         _hostPaths = hostPaths ?? ConfiglueHostPathProfile.Default;
         var backupDirectory = _options.BackupDirectory;
         var previousBackupDirectories = new List<string>();
