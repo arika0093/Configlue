@@ -13,7 +13,7 @@ public partial class MessagePackWireSettings
     public MessagePackNestedPoco? Child { get; set; }
 }
 
-[ConfiglueModel("messagepack.wire")]
+[ConfiglueModel("messagepack.wire.reordered")]
 public partial class MessagePackReorderedWireSettings
 {
     public MessagePackNestedPoco? Child { get; set; }
