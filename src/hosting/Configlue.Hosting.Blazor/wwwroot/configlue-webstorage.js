@@ -3,72 +3,119 @@
 // Reference this file from the interactive host page:
 //   <script src="_content/Configlue.Hosting.Blazor/configlue-webstorage.js"></script>
 //
-// Conditional writes acquire the browser-wide Web Locks exclusive lock for the
-// storage key, then Configlue performs the read/compare/write while the lock is
-// held, and releases it. The lock spans separate .NET interop calls, which is what
-// makes the compare and the commit atomic across tabs, windows, and Blazor circuits.
+// A conditional write is a single browser-side operation. The read, compare, and
+// commit all execute inside one navigator.locks.request callback, so the Web Lock
+// is held for exactly as long as the mutation can still commit and is released
+// when the callback returns. There is deliberately no timeout that can release the
+// lock while the caller is still able to write.
 (function () {
     if (globalThis.configlueWebStorage) {
         return;
     }
 
-    const releases = new Map();
-
     function lockName(storageName, key) {
         return "Configlue:webstorage:" + storageName + ":" + key;
     }
 
-    async function acquire(storageName, key, timeoutMilliseconds) {
-        if (!globalThis.navigator || !navigator.locks || !navigator.locks.request) {
+    function storageArea(storageName) {
+        if (storageName === "sessionStorage") {
+            return globalThis.sessionStorage;
+        }
+        return globalThis.localStorage;
+    }
+
+    function supportsWebLocks() {
+        return !!(
+            globalThis.navigator &&
+            navigator.locks &&
+            typeof navigator.locks.request === "function"
+        );
+    }
+
+    function toHex(buffer) {
+        const bytes = new Uint8Array(buffer);
+        let value = "";
+        for (let index = 0; index < bytes.length; index++) {
+            value += bytes[index].toString(16).padStart(2, "0");
+        }
+        return value;
+    }
+
+    async function rawRevision(raw) {
+        const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(raw));
+        return toHex(digest);
+    }
+
+    // Mirrors WebStorageResource.Decode: a value written outside Configlue has no
+    // envelope, so its revision is the lower-case SHA-256 of the raw string.
+    async function currentRevision(raw) {
+        try {
+            const envelope = JSON.parse(raw);
+            if (envelope && typeof envelope === "object" && !Array.isArray(envelope)) {
+                let content;
+                let revision;
+                // JsonSerializerDefaults.Web reads property names without regard to case.
+                for (const [name, value] of Object.entries(envelope)) {
+                    if (name.toLowerCase() === "content") content = value;
+                    if (name.toLowerCase() === "revision") revision = value;
+                }
+                if (typeof content === "string" &&
+                    (revision === undefined || revision === null || typeof revision === "string")) {
+                    const base64 = content.replace(/[ \t\r\n]/g, "");
+                    if (/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(base64)) {
+                        return revision ?? null;
+                    }
+                }
+            }
+        } catch {
+            // Not a Configlue envelope.
+        }
+        return await rawRevision(raw);
+    }
+
+    async function mutate(storageName, key, value, expectedRevision, mustNotExist) {
+        if (!supportsWebLocks()) {
             return "unsupported";
         }
 
-        const name = lockName(storageName, key);
-        const timeout =
-            Number.isFinite(timeoutMilliseconds) && timeoutMilliseconds > 0
-                ? timeoutMilliseconds
-                : 30000;
+        let status = "unsupported";
+        try {
+            const storage = storageArea(storageName);
+            if (!storage) return "unavailable";
+            await navigator.locks.request(
+                lockName(storageName, key),
+                { mode: "exclusive" },
+                async function () {
+                    const existing = storage.getItem(key);
+                    const exists = existing !== null && existing.length > 0;
+                    if (mustNotExist) {
+                        if (exists) {
+                            status = "conflict";
+                            return;
+                        }
+                    } else {
+                        const revision =
+                            exists && existing.length > 0
+                                ? await currentRevision(existing)
+                                : null;
+                        if (revision !== expectedRevision) {
+                            status = "conflict";
+                            return;
+                        }
+                    }
 
-        return await new Promise(function (resolve) {
-            let resolveRelease = null;
-            const held = new Promise(function (resolveHeld) {
-                resolveRelease = resolveHeld;
-            });
-
-            try {
-                navigator.locks
-                    .request(name, { mode: "exclusive" }, async function () {
-                        // Never hold the browser lock forever if the .NET circuit disappears
-                        // before it releases.
-                        const timer = setTimeout(function () {
-                            releases.delete(name);
-                            resolveRelease();
-                        }, timeout);
-                        releases.set(name, function () {
-                            clearTimeout(timer);
-                            resolveRelease();
-                        });
-                        resolve("web-locks");
-                        await held;
-                    })
-                    .catch(function () {
-                        resolve("unsupported");
-                    });
-            } catch {
-                resolve("unsupported");
-            }
-        });
-    }
-
-    function release(storageName, key) {
-        const releaseLock = releases.get(lockName(storageName, key));
-        if (releaseLock) {
-            releaseLock();
+                    storage.setItem(key, value);
+                    status = "committed";
+                }
+            );
+        } catch {
+            return "unavailable";
         }
+
+        return status;
     }
 
     globalThis.configlueWebStorage = {
-        acquire: acquire,
-        release: release,
+        mutate: mutate,
     };
 })();

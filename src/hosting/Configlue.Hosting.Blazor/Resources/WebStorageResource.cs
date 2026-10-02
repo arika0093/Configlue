@@ -61,12 +61,15 @@ public sealed class WebStorageAtomicityNotSupportedException : NotSupportedExcep
 /// </para>
 /// <para>
 /// Conditional writes (<see cref="RevisionCondition.Match"/> and
-/// <see cref="RevisionCondition.MustNotExist"/>) are enforced inside a browser-wide Web Locks
-/// exclusive lock named for the storage area and resolved key. The lock is held across the
-/// read, compare, and write, so it coordinates every cooperating writer for that key regardless
-/// of tab, window, iframe, Blazor Server circuit, WebAssembly realm, or component scope. Two
-/// writers that observed the same revision therefore cannot both commit; the losing writer
-/// receives <see cref="StateConflictException"/>.
+/// <see cref="RevisionCondition.MustNotExist"/>) are performed as a single browser-side mutation.
+/// The browser helper takes the browser-wide Web Locks exclusive lock named for the storage area
+/// and resolved key, then reads the current envelope, validates the precondition, and writes the
+/// new envelope inside one <c>navigator.locks.request</c> callback. Returning from the callback
+/// releases the lock, so the lock lifetime is bound to the mutation itself rather than to a
+/// timeout that could expire while a commit is still possible. This coordinates every cooperating
+/// writer for that key regardless of tab, window, iframe, Blazor Server circuit, WebAssembly
+/// realm, or component scope. Two writers that observed the same revision therefore cannot both
+/// commit; the losing writer receives <see cref="StateConflictException"/>.
 /// </para>
 /// <para>
 /// The Web Locks API requires the host page to reference
@@ -78,9 +81,7 @@ public sealed class WebStorageAtomicityNotSupportedException : NotSupportedExcep
 /// </remarks>
 public sealed class WebStorageResource : IResourceReader, IResourceWriter
 {
-    private const int LockTimeoutMilliseconds = 30000;
-    private const string AcquireIdentifier = "configlueWebStorage.acquire";
-    private const string ReleaseIdentifier = "configlueWebStorage.release";
+    private const string MutateIdentifier = "configlueWebStorage.mutate";
     private static readonly JsonSerializerOptions EnvelopeOptions = new(JsonSerializerDefaults.Web);
     private readonly IJSRuntime _jsRuntime;
     private readonly Func<ConfiglueResourceContext, string>? _keySelector;
@@ -152,39 +153,29 @@ public sealed class WebStorageResource : IResourceReader, IResourceWriter
                 return new StateWriteResult(revision);
             }
 
-            var mode = await AcquireAsync(key, cancellationToken).ConfigureAwait(false);
-            if (!string.Equals(mode, "web-locks", StringComparison.Ordinal))
+            var status = await MutateAsync(key, encoded, request.Condition, cancellationToken)
+                .ConfigureAwait(false);
+            if (string.Equals(status, "committed", StringComparison.Ordinal))
             {
-                throw new WebStorageAtomicityNotSupportedException(
-                    $"The browser does not expose the Web Locks API, so the browser storage key '{key}' cannot be written atomically under a revision precondition. "
-                        + "Reference _content/Configlue.Hosting.Blazor/configlue-webstorage.js from the host page, or use unconditional writes."
+                return new StateWriteResult(revision);
+            }
+
+            if (string.Equals(status, "conflict", StringComparison.Ordinal))
+            {
+                throw new StateConflictException(
+                    $"The browser storage key '{key}' does not satisfy the requested revision condition."
                 );
             }
 
-            try
+            if (string.Equals(status, "unavailable", StringComparison.Ordinal))
             {
-                var existing = await _jsRuntime
-                    .InvokeAsync<string?>(StorageName + ".getItem", cancellationToken, [key])
-                    .ConfigureAwait(false);
-                var currentRevision = string.IsNullOrEmpty(existing)
-                    ? null
-                    : Decode(existing).Revision;
-                if (!request.Condition.IsSatisfiedBy(currentRevision, existing is not null))
-                {
-                    throw new StateConflictException(
-                        $"The browser storage key '{key}' does not satisfy the requested revision condition."
-                    );
-                }
+                throw new JSException("The browser storage mutation failed.");
+            }
 
-                await _jsRuntime
-                    .InvokeVoidAsync(StorageName + ".setItem", cancellationToken, [key, encoded])
-                    .ConfigureAwait(false);
-                return new StateWriteResult(revision);
-            }
-            finally
-            {
-                await ReleaseAsync(key).ConfigureAwait(false);
-            }
+            throw new WebStorageAtomicityNotSupportedException(
+                $"The browser does not expose the Web Locks API, so the browser storage key '{key}' cannot be written atomically under a revision precondition. "
+                    + "Reference _content/Configlue.Hosting.Blazor/configlue-webstorage.js from the host page, or use unconditional writes."
+            );
         }
         catch (Exception exception) when (IsUnavailable(exception, cancellationToken))
         {
@@ -195,15 +186,20 @@ public sealed class WebStorageResource : IResourceReader, IResourceWriter
         }
     }
 
-    private async ValueTask<string> AcquireAsync(string key, CancellationToken cancellationToken)
+    private async ValueTask<string?> MutateAsync(
+        string key,
+        string encoded,
+        RevisionCondition condition,
+        CancellationToken cancellationToken
+    )
     {
         try
         {
             return await _jsRuntime
-                .InvokeAsync<string>(
-                    AcquireIdentifier,
+                .InvokeAsync<string?>(
+                    MutateIdentifier,
                     cancellationToken,
-                    [StorageName, key, LockTimeoutMilliseconds]
+                    [StorageName, key, encoded, condition.Revision, condition.IsMustNotExist]
                 )
                 .ConfigureAwait(false);
         }
@@ -214,21 +210,6 @@ public sealed class WebStorageResource : IResourceReader, IResourceWriter
                     + "Reference _content/Configlue.Hosting.Blazor/configlue-webstorage.js from the host page.",
                 exception
             );
-        }
-    }
-
-    private async ValueTask ReleaseAsync(string key)
-    {
-        try
-        {
-            await _jsRuntime
-                .InvokeVoidAsync(ReleaseIdentifier, CancellationToken.None, [StorageName, key])
-                .ConfigureAwait(false);
-        }
-        catch (Exception)
-        {
-            // Releasing is best-effort: the mutation already committed and the browser also
-            // releases a leaked lock on its own safety timeout.
         }
     }
 
@@ -246,7 +227,7 @@ public sealed class WebStorageResource : IResourceReader, IResourceWriter
 
     private static bool IsUnavailable(Exception exception, CancellationToken cancellationToken)
     {
-        if (exception is JSDisconnectedException or InvalidOperationException)
+        if (exception is JSException or InvalidOperationException)
         {
             return true;
         }

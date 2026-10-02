@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Configlue.Hosting.Blazor;
 using Configlue.Sources;
 using Configlue.Testing;
@@ -429,14 +430,9 @@ public sealed partial class RuntimeLifetimeTests
         )
         {
             EnsureAvailable();
-            if (string.Equals(identifier, "configlueWebStorage.acquire", StringComparison.Ordinal))
+            if (string.Equals(identifier, "configlueWebStorage.mutate", StringComparison.Ordinal))
             {
-                return ValueTask.FromResult((TValue)(object)"web-locks");
-            }
-
-            if (string.Equals(identifier, "configlueWebStorage.release", StringComparison.Ordinal))
-            {
-                return ValueTask.FromResult(default(TValue)!);
+                return ValueTask.FromResult((TValue)(object)Mutate(args!));
             }
 
             var key = (string)args![0]!;
@@ -473,6 +469,61 @@ public sealed partial class RuntimeLifetimeTests
             var key = (string)args![0]!;
             Values[key] = (string)args[1]!;
             return ValueTask.CompletedTask;
+        }
+
+        private string Mutate(object?[] args)
+        {
+            var key = (string)args[1]!;
+            var value = (string)args[2]!;
+            var expectedRevision = args[3] as string;
+            var mustNotExist = (bool)args[4]!;
+
+            Values.TryGetValue(key, out var existing);
+            var exists = existing is not null;
+            if (mustNotExist)
+            {
+                if (exists)
+                {
+                    return "conflict";
+                }
+            }
+            else
+            {
+                var revision = exists ? RevisionOf(existing!) : null;
+                if (!string.Equals(revision, expectedRevision, StringComparison.Ordinal))
+                {
+                    return "conflict";
+                }
+            }
+
+            Values[key] = value;
+            return "committed";
+        }
+
+        private static string? RevisionOf(string raw)
+        {
+            try
+            {
+                using var document = JsonDocument.Parse(raw);
+                if (
+                    document.RootElement.ValueKind == JsonValueKind.Object
+                    && document.RootElement.TryGetProperty("content", out var content)
+                    && content.ValueKind == JsonValueKind.String
+                )
+                {
+                    return
+                        document.RootElement.TryGetProperty("revision", out var revision)
+                        && revision.ValueKind == JsonValueKind.String
+                        ? revision.GetString()
+                        : null;
+                }
+            }
+            catch (JsonException)
+            {
+                // Not a Configlue envelope.
+            }
+
+            return null;
         }
 
         private void EnsureAvailable()

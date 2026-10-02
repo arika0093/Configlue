@@ -1,0 +1,7 @@
+{
+  "name": "configlue-webstorage-browser-tests",
+  "private": true,
+  "type": "module",
+  "scripts": { "test": "node --test webstorage.test.mjs" },
+  "devDependencies": { "playwright": "1.58.2" }
+}

@@ -1,4 +1,6 @@
+using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using Configlue.Hosting.Blazor;
 using Configlue.Resources;
 using Configlue.State;
@@ -19,23 +21,23 @@ public sealed class WebStorageConcurrencyTests
         ).Revision;
         observed.ShouldNotBeNullOrEmpty();
 
-        var paused = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var stalled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var resume = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        store.PauseBeforeCommit = _ =>
+        store.StallInsideLock = _ =>
         {
-            paused.TrySetResult();
+            stalled.TrySetResult();
             return resume.Task;
         };
 
         var first = writerA
             .WriteAsync(new ResourceWriteRequest(Bytes("a"), RevisionCondition.Match(observed!)))
             .AsTask();
-        await paused.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await stalled.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
         var secondWaiting = new TaskCompletionSource(
             TaskCreationOptions.RunContinuationsAsynchronously
         );
-        store.AcquireWaitStarted = () => secondWaiting.TrySetResult();
+        store.WaitingForLock = () => secondWaiting.TrySetResult();
         var second = writerB
             .WriteAsync(new ResourceWriteRequest(Bytes("b"), RevisionCondition.Match(observed!)))
             .AsTask();
@@ -48,6 +50,7 @@ public sealed class WebStorageConcurrencyTests
         (await first).Revision.ShouldNotBeNullOrEmpty();
         await Should.ThrowAsync<StateConflictException>(async () => await second);
         (await writerA.ReadAsync()).Content.ToArray().ShouldBe(Bytes("a"));
+        store.CommittedCount.ShouldBe(1);
     }
 
     [Test]
@@ -57,23 +60,23 @@ public sealed class WebStorageConcurrencyTests
         var writerA = CreateWriter(store);
         var writerB = CreateWriter(store);
 
-        var paused = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var stalled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var resume = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        store.PauseBeforeCommit = _ =>
+        store.StallInsideLock = _ =>
         {
-            paused.TrySetResult();
+            stalled.TrySetResult();
             return resume.Task;
         };
 
         var first = writerA
             .WriteAsync(new ResourceWriteRequest(Bytes("a"), RevisionCondition.MustNotExist))
             .AsTask();
-        await paused.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await stalled.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
         var secondWaiting = new TaskCompletionSource(
             TaskCreationOptions.RunContinuationsAsynchronously
         );
-        store.AcquireWaitStarted = () => secondWaiting.TrySetResult();
+        store.WaitingForLock = () => secondWaiting.TrySetResult();
         var second = writerB
             .WriteAsync(new ResourceWriteRequest(Bytes("b"), RevisionCondition.MustNotExist))
             .AsTask();
@@ -84,6 +87,173 @@ public sealed class WebStorageConcurrencyTests
         (await first).Revision.ShouldNotBeNullOrEmpty();
         await Should.ThrowAsync<StateConflictException>(async () => await second);
         (await writerA.ReadAsync()).Content.ToArray().ShouldBe(Bytes("a"));
+        store.CommittedCount.ShouldBe(1);
+    }
+
+    [Test]
+    public async Task WriterPausedBeyondWatchdogDuration_CannotBeOvertaken()
+    {
+        var store = new BrowserStore();
+        var writerA = CreateWriter(store);
+        var writerB = CreateWriter(store);
+        var observed = (
+            await writerA.WriteAsync(new ResourceWriteRequest(Bytes("initial")))
+        ).Revision;
+
+        // The mutation runs as one browser-side operation, so the holder may pause for an
+        // arbitrarily long time (well beyond the former 30 second watchdog) and the lock is
+        // still held by the callback until the mutation finishes. No timer can revoke it.
+        var stalled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var resume = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        store.StallInsideLock = _ =>
+        {
+            stalled.TrySetResult();
+            return resume.Task;
+        };
+
+        var first = writerA
+            .WriteAsync(new ResourceWriteRequest(Bytes("a"), RevisionCondition.Match(observed!)))
+            .AsTask();
+        await stalled.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        var secondWaiting = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        store.WaitingForLock = () => secondWaiting.TrySetResult();
+        var second = writerB
+            .WriteAsync(new ResourceWriteRequest(Bytes("b"), RevisionCondition.Match(observed!)))
+            .AsTask();
+        await secondWaiting.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        store.ElapsedLogicalTime += TimeSpan.FromSeconds(31);
+        second.IsCompleted.ShouldBeFalse(
+            "Time passing beyond the former watchdog must not release the lock while its holder can still commit."
+        );
+
+        resume.TrySetResult();
+        (await first).Revision.ShouldNotBeNullOrEmpty();
+        await Should.ThrowAsync<StateConflictException>(async () => await second);
+        (await writerA.ReadAsync()).Content.ToArray().ShouldBe(Bytes("a"));
+        store.CommittedCount.ShouldBe(1);
+    }
+
+    [Test]
+    public async Task ConditionalWrite_IsOneAtomicMutationWithoutATimeout()
+    {
+        var store = new BrowserStore();
+        var writer = CreateWriter(store);
+        var observed = (
+            await writer.WriteAsync(new ResourceWriteRequest(Bytes("initial")))
+        ).Revision;
+        store.ResetCounters();
+
+        await writer.WriteAsync(
+            new ResourceWriteRequest(Bytes("next"), RevisionCondition.Match(observed!))
+        );
+
+        store.MutateCount.ShouldBe(1);
+        store.LastMutateArgumentCount.ShouldBe(
+            5,
+            "The atomic helper takes no watchdog timeout argument."
+        );
+        store.SetItemCount.ShouldBe(
+            0,
+            "The commit must happen inside the atomic helper, not through a separate interop call."
+        );
+    }
+
+    [Test]
+    public async Task ConditionalWriteAgainstRawValue_MatchesTheObservedContentHash()
+    {
+        var store = new BrowserStore();
+        var writer = CreateWriter(store);
+        store.SetRaw("shared-key", "written-outside-configlue");
+        var observed = (await writer.ReadAsync()).Revision;
+        observed.ShouldNotBeNullOrEmpty();
+
+        await Should.ThrowAsync<StateConflictException>(async () =>
+            await writer.WriteAsync(
+                new ResourceWriteRequest(Bytes("x"), RevisionCondition.Match("stale"))
+            )
+        );
+
+        var committed = await writer.WriteAsync(
+            new ResourceWriteRequest(Bytes("x"), RevisionCondition.Match(observed!))
+        );
+        committed.Revision.ShouldNotBeNullOrEmpty();
+        (await writer.ReadAsync()).Content.ToArray().ShouldBe(Bytes("x"));
+    }
+
+    [Test]
+    [Arguments("{\"content\":\"not-base64\",\"revision\":\"legacy\"}")]
+    [Arguments("{\"content\":\"YQ==\",\"revision\":123}")]
+    [Arguments("{\"Content\":\"YQ==\",\"Revision\":\"legacy\"}")]
+    public async Task ConditionalWriteAgainstExternalEnvelope_MatchesReaderRevision(string raw)
+    {
+        var store = new BrowserStore();
+        store.SetRaw("shared-key", raw);
+        var writer = CreateWriter(store);
+        var read = await writer.ReadAsync();
+        await writer.WriteAsync(
+            new ResourceWriteRequest(Bytes("updated"), RevisionCondition.Match(read.Revision!))
+        );
+        (await writer.ReadAsync()).Content.ToArray().ShouldBe(Bytes("updated"));
+    }
+
+    [Test]
+    public async Task EmptyStoredValue_IsMissingForConditionalWrite()
+    {
+        var store = new BrowserStore();
+        store.SetRaw("shared-key", "");
+        var writer = CreateWriter(store);
+        (await writer.ReadAsync()).Status.ShouldBe(StateReadStatus.NotFound);
+        await writer.WriteAsync(
+            new ResourceWriteRequest(Bytes("new"), RevisionCondition.MustNotExist)
+        );
+        (await writer.ReadAsync()).Status.ShouldBe(StateReadStatus.Success);
+    }
+
+    [Test]
+    public async Task AbandonedWriter_DoesNotLeakTheLockOrEnableASecondCommit()
+    {
+        var store = new BrowserStore();
+        var writerA = CreateWriter(store);
+        var writerB = CreateWriter(store);
+        var observed = (
+            await writerA.WriteAsync(new ResourceWriteRequest(Bytes("initial")))
+        ).Revision;
+
+        var stalled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var resume = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        store.StallInsideLock = _ =>
+        {
+            stalled.TrySetResult();
+            return resume.Task;
+        };
+
+        // Writer A's circuit disappears while the browser-side operation is in flight. The
+        // operation is self-contained, so it still finishes and releases the lock instead of
+        // leaving a lock behind or allowing a racy second commit.
+        var abandoned = writerA
+            .WriteAsync(new ResourceWriteRequest(Bytes("a"), RevisionCondition.Match(observed!)))
+            .AsTask();
+        await stalled.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        var secondWaiting = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        store.WaitingForLock = () => secondWaiting.TrySetResult();
+        var second = writerB
+            .WriteAsync(new ResourceWriteRequest(Bytes("b"), RevisionCondition.Match(observed!)))
+            .AsTask();
+        await secondWaiting.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        second.IsCompleted.ShouldBeFalse();
+
+        resume.TrySetResult();
+        (await abandoned).Revision.ShouldNotBeNullOrEmpty();
+        await Should.ThrowAsync<StateConflictException>(async () => await second);
+        (await writerA.ReadAsync()).Content.ToArray().ShouldBe(Bytes("a"));
+        store.CommittedCount.ShouldBe(1);
     }
 
     [Test]
@@ -99,22 +269,22 @@ public sealed class WebStorageConcurrencyTests
         var observed = (
             await writerA.WriteAsync(new ResourceWriteRequest(Bytes("start")))
         ).Revision;
-        var paused = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var stalled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var resume = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        store.PauseBeforeCommit = _ =>
+        store.StallInsideLock = _ =>
         {
-            paused.TrySetResult();
+            stalled.TrySetResult();
             return resume.Task;
         };
 
         var first = writerA
             .WriteAsync(new ResourceWriteRequest(Bytes("a"), RevisionCondition.Match(observed!)))
             .AsTask();
-        await paused.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await stalled.Task.WaitAsync(TimeSpan.FromSeconds(5));
         var secondWaiting = new TaskCompletionSource(
             TaskCreationOptions.RunContinuationsAsynchronously
         );
-        store.AcquireWaitStarted = () => secondWaiting.TrySetResult();
+        store.WaitingForLock = () => secondWaiting.TrySetResult();
         var second = writerB
             .WriteAsync(new ResourceWriteRequest(Bytes("b"), RevisionCondition.Match(observed!)))
             .AsTask();
@@ -123,6 +293,7 @@ public sealed class WebStorageConcurrencyTests
         resume.TrySetResult();
         (await first).Revision.ShouldNotBeNullOrEmpty();
         await Should.ThrowAsync<StateConflictException>(async () => await second);
+        store.CommittedCount.ShouldBe(1);
     }
 
     [Test]
@@ -136,7 +307,7 @@ public sealed class WebStorageConcurrencyTests
 
         first.Revision.ShouldNotBe(second.Revision);
         (await writer.ReadAsync()).Content.ToArray().ShouldBe(Bytes("two"));
-        store.AcquireCount.ShouldBe(
+        store.MutateCount.ShouldBe(
             0,
             "Unconditional writes must not participate in the conditional lock protocol."
         );
@@ -157,6 +328,18 @@ public sealed class WebStorageConcurrencyTests
         );
         await Should.ThrowAsync<WebStorageUnavailableException>(async () =>
             await writer.WriteAsync(new ResourceWriteRequest(Bytes("x")))
+        );
+    }
+
+    [Test]
+    public async Task BrowserStorageFailure_IsUnavailableRatherThanMissingAtomicity()
+    {
+        var store = new BrowserStore { StorageUnavailable = true };
+        var writer = CreateWriter(store);
+        await Should.ThrowAsync<WebStorageUnavailableException>(async () =>
+            await writer.WriteAsync(
+                new ResourceWriteRequest(Bytes("value"), RevisionCondition.MustNotExist)
+            )
         );
     }
 
@@ -195,20 +378,6 @@ public sealed class WebStorageConcurrencyTests
         (await writer.ReadAsync()).Content.ToArray().ShouldBe(Bytes("y"));
     }
 
-    [Test]
-    public async Task ReleaseFailure_DoesNotFailACommittedConditionalWrite()
-    {
-        var store = new BrowserStore { FailRelease = true };
-        var writer = CreateWriter(store);
-
-        var result = await writer.WriteAsync(
-            new ResourceWriteRequest(Bytes("v"), RevisionCondition.MustNotExist)
-        );
-
-        result.Revision.ShouldNotBeNullOrEmpty();
-        (await writer.ReadAsync()).Content.ToArray().ShouldBe(Bytes("v"));
-    }
-
     private static WebStorageResource CreateWriter(BrowserStore store) =>
         new(new BrowserStoreJsRuntime(store), WebStorageKind.Local, "shared-key");
 
@@ -225,14 +394,39 @@ public sealed class WebStorageConcurrencyTests
         public bool HelperAvailable { get; set; } = true;
 
         public bool WebLocksAvailable { get; set; } = true;
+        public bool StorageUnavailable { get; set; }
 
-        public bool FailRelease { get; set; }
+        public int MutateCount { get; private set; }
 
-        public int AcquireCount { get; private set; }
+        public int LastMutateArgumentCount { get; private set; }
 
-        public Func<string, Task>? PauseBeforeCommit { get; set; }
+        public int SetItemCount { get; private set; }
 
-        public Action? AcquireWaitStarted { get; set; }
+        public int CommittedCount { get; private set; }
+
+        public TimeSpan ElapsedLogicalTime { get; set; }
+
+        public Func<string, Task>? StallInsideLock { get; set; }
+
+        public Action? WaitingForLock { get; set; }
+
+        public void ResetCounters()
+        {
+            MutateCount = 0;
+            LastMutateArgumentCount = 0;
+            SetItemCount = 0;
+            CommittedCount = 0;
+        }
+
+        public void RecordMutateArguments(int count) => LastMutateArgumentCount = count;
+
+        public void SetRaw(string key, string value)
+        {
+            lock (_sync)
+            {
+                _values[key] = value;
+            }
+        }
 
         public string? GetItem(string key)
         {
@@ -243,21 +437,25 @@ public sealed class WebStorageConcurrencyTests
             }
         }
 
-        public async Task SetItemAsync(string key, string value)
+        public Task SetItemAsync(string key, string value)
         {
             EnsureAvailable();
-            if (PauseBeforeCommit is { } pause)
-            {
-                await pause(key).ConfigureAwait(false);
-            }
-
+            SetItemCount++;
             lock (_sync)
             {
                 _values[key] = value;
             }
+
+            return Task.CompletedTask;
         }
 
-        public async Task<string> AcquireAsync(string storageName, string key)
+        public async Task<string> MutateAsync(
+            string storageName,
+            string key,
+            string value,
+            string? expectedRevision,
+            bool mustNotExist
+        )
         {
             EnsureAvailable();
             if (!HelperAvailable)
@@ -270,25 +468,83 @@ public sealed class WebStorageConcurrencyTests
                 return "unsupported";
             }
 
-            AcquireCount++;
-            AcquireWaitStarted?.Invoke();
+            if (StorageUnavailable)
+                return "unavailable";
+            MutateCount++;
+            WaitingForLock?.Invoke();
             await Gate(storageName + "\u0000" + key).WaitAsync().ConfigureAwait(false);
-            return "web-locks";
+            try
+            {
+                if (StallInsideLock is { } stall)
+                {
+                    await stall(key).ConfigureAwait(false);
+                }
+
+                string? existing;
+                lock (_sync)
+                {
+                    _values.TryGetValue(key, out existing);
+                }
+
+                var exists = !string.IsNullOrEmpty(existing);
+                if (mustNotExist)
+                {
+                    if (exists)
+                    {
+                        return "conflict";
+                    }
+                }
+                else
+                {
+                    var revision =
+                        exists && existing!.Length > 0 ? CurrentRevision(existing) : null;
+                    if (!string.Equals(revision, expectedRevision, StringComparison.Ordinal))
+                    {
+                        return "conflict";
+                    }
+                }
+
+                lock (_sync)
+                {
+                    _values[key] = value;
+                }
+
+                CommittedCount++;
+                return "committed";
+            }
+            finally
+            {
+                Gate(storageName + "\u0000" + key).Release();
+            }
         }
 
-        public void Release(string storageName, string key)
+        private static string? CurrentRevision(string raw)
         {
-            if (!WebLocksAvailable)
+            try
             {
-                return;
+                var envelope = JsonSerializer.Deserialize<Envelope>(
+                    raw,
+                    new JsonSerializerOptions(JsonSerializerDefaults.Web)
+                );
+                if (envelope?.Content is not null)
+                {
+                    _ = Convert.FromBase64String(envelope.Content);
+                    return envelope.Revision;
+                }
             }
-
-            if (FailRelease)
+            catch (Exception exception) when (exception is JsonException or FormatException)
             {
-                throw new JSException("release failed");
+                // Values that cannot be decoded as envelopes use their raw content hash.
             }
+            return Convert
+                .ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(raw)))
+                .ToLowerInvariant();
+        }
 
-            Gate(storageName + "\u0000" + key).Release();
+        private sealed class Envelope
+        {
+            public string? Content { get; set; }
+            public string? Revision { get; set; }
         }
 
         private SemaphoreSlim Gate(string name)
@@ -329,18 +585,19 @@ public sealed class WebStorageConcurrencyTests
             object?[]? args
         )
         {
-            if (string.Equals(identifier, "configlueWebStorage.acquire", StringComparison.Ordinal))
+            if (string.Equals(identifier, "configlueWebStorage.mutate", StringComparison.Ordinal))
             {
-                var mode = await _store
-                    .AcquireAsync((string)args![0]!, (string)args[1]!)
+                _store.RecordMutateArguments(args!.Length);
+                var status = await _store
+                    .MutateAsync(
+                        (string)args[0]!,
+                        (string)args[1]!,
+                        (string)args[2]!,
+                        args[3] as string,
+                        (bool)args[4]!
+                    )
                     .ConfigureAwait(false);
-                return (TValue)(object)mode;
-            }
-
-            if (string.Equals(identifier, "configlueWebStorage.release", StringComparison.Ordinal))
-            {
-                _store.Release((string)args![0]!, (string)args[1]!);
-                return default!;
+                return (TValue)(object)status;
             }
 
             if (identifier.EndsWith(".getItem", StringComparison.Ordinal))
