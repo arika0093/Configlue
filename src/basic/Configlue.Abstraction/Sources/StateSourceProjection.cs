@@ -267,7 +267,8 @@ public static class StateSourceProjection
             source.Reader,
             toTarget,
             projectedSchema,
-            migrationChain
+            migrationChain,
+            source.GetResourceId
         );
         ISourceWriter<TTarget>? writer =
             source.Writer is not null && (toSource is not null || updateSource is not null)
@@ -300,9 +301,26 @@ public static class StateSourceProjection
         ISourceReader<TSource> source,
         Func<TSource, TTarget> toTarget,
         StateSchemaMetadata? projectedSchema,
-        StateSchemaMigrationChain<TSource>? migrationChain
-    ) : ISourceReader<TTarget>
+        StateSchemaMigrationChain<TSource>? migrationChain,
+        Func<ConfiglueResourceContext, ResourceId?> resolveResourceId
+    ) : ISourceReader<TTarget>, ITryContextualResourceIdentity
     {
+        public ResourceId ResourceId => GetResourceId(ConfiglueResourceContext.Default);
+
+        public ResourceId GetResourceId(ConfiglueResourceContext context) =>
+            TryGetResourceId(context, out var identity)
+                ? identity
+                : throw new InvalidOperationException(
+                    "The projected source has no physical identity."
+                );
+
+        public bool TryGetResourceId(ConfiglueResourceContext context, out ResourceId resourceId)
+        {
+            var identity = resolveResourceId(context);
+            resourceId = identity.GetValueOrDefault();
+            return identity.HasValue;
+        }
+
         public async ValueTask<StateReadResult<TTarget>> ReadAsync(
             ConfiglueResourceContext context,
             CancellationToken cancellationToken = default

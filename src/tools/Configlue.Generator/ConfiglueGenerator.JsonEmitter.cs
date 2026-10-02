@@ -31,6 +31,7 @@ public sealed partial class ConfiglueGenerator
             "public override Fragment Read(ref global::System.Text.Json.Utf8JsonReader reader, global::System.Type typeToConvert, global::System.Text.Json.JsonSerializerOptions options)"
         );
         code.AppendLineAt(3, "{");
+        code.AppendLineAt(4, "ValidateJsonNames(options);");
         code.AppendLineAt(
             4,
             "if (reader.TokenType != global::System.Text.Json.JsonTokenType.StartObject) { throw new global::System.Text.Json.JsonException(\"A fragment must be a JSON object.\"); }"
@@ -53,21 +54,6 @@ public sealed partial class ConfiglueGenerator
         );
         if (members.Length > 0)
         {
-            code.AppendLineAt(5, "var matchCount = 0;");
-            foreach (var property in members.Select(static member => member.Property))
-            {
-                var wireName = property.JsonPropertyName!;
-                var explicitName = property.HasExplicitJsonPropertyName;
-                code.AppendIndent(5)
-                    .Append("if (Matches(propertyName, ")
-                    .Append(SymbolDisplay.FormatLiteral(wireName, true))
-                    .Append(explicitName ? ", false, options))" : ", true, options))")
-                    .AppendLine(" { matchCount++; }");
-            }
-            code.AppendLineAt(
-                5,
-                "if (matchCount > 1) { throw new global::System.Text.Json.JsonException(\"The JSON property name is ambiguous for this fragment.\"); }"
-            );
             var first = true;
             foreach (var member in members)
             {
@@ -121,7 +107,7 @@ public sealed partial class ConfiglueGenerator
         }
         else
         {
-            code.AppendLineAt(5, "else reader.Skip();");
+            code.AppendLineAt(5, "reader.Skip();");
         }
 
         code.AppendLineAt(4, "}");
@@ -136,11 +122,8 @@ public sealed partial class ConfiglueGenerator
             "public override void Write(global::System.Text.Json.Utf8JsonWriter writer, Fragment value, global::System.Text.Json.JsonSerializerOptions options)"
         );
         code.AppendLineAt(3, "{");
+        code.AppendLineAt(4, "ValidateJsonNames(options);");
         code.AppendLineAt(4, "writer.WriteStartObject();");
-        code.AppendLineAt(
-            4,
-            "var writtenJsonNames = new global::System.Collections.Generic.HashSet<string>(options.PropertyNameCaseInsensitive ? global::System.StringComparer.OrdinalIgnoreCase : global::System.StringComparer.Ordinal);"
-        );
         foreach (var member in members)
         {
             var property = EscapeIdentifier(member.Property.Name);
@@ -159,10 +142,6 @@ public sealed partial class ConfiglueGenerator
                             + SymbolDisplay.FormatLiteral(wireName, true)
                 )
                 .AppendLine(";");
-            code.AppendLineAt(
-                5,
-                "if (!writtenJsonNames.Add(jsonPropertyName)) { throw new global::System.Text.Json.JsonException(\"Multiple fragment members map to the same JSON property name.\"); }"
-            );
             code.AppendLineAt(5, "writer.WritePropertyName(jsonPropertyName);");
 
             if (member.ChildModel is null)
@@ -217,6 +196,29 @@ public sealed partial class ConfiglueGenerator
             4,
             "return global::System.String.Equals(actual, expected, options.PropertyNameCaseInsensitive ? global::System.StringComparison.OrdinalIgnoreCase : global::System.StringComparison.Ordinal);"
         );
+        code.AppendLineAt(3, "}");
+        code.AppendLineAt(
+            3,
+            "private static void ValidateJsonNames(global::System.Text.Json.JsonSerializerOptions options)"
+        );
+        code.AppendLineAt(3, "{");
+        code.AppendLineAt(
+            4,
+            "var names = new global::System.Collections.Generic.HashSet<string>(options.PropertyNameCaseInsensitive ? global::System.StringComparer.OrdinalIgnoreCase : global::System.StringComparer.Ordinal);"
+        );
+        foreach (var property in members.Select(static member => member.Property))
+        {
+            var literal = SymbolDisplay.FormatLiteral(property.JsonPropertyName!, true);
+            var expression = property.HasExplicitJsonPropertyName
+                ? literal
+                : "options.PropertyNamingPolicy?.ConvertName(" + literal + ") ?? " + literal;
+            code.AppendLineAt(
+                4,
+                "if (!names.Add("
+                    + expression
+                    + ")) { throw new global::System.Text.Json.JsonException(\"Multiple fragment members map to the same JSON property name.\"); }"
+            );
+        }
         code.AppendLineAt(3, "}");
         code.AppendLineAt(2, "}");
     }

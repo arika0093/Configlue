@@ -9,6 +9,34 @@ namespace Configlue.Tests;
 public sealed class ContextualResourceContractTests
 {
     [Test]
+    public async Task FromResourcePreservesContextualIdentityAndBatchWrites()
+    {
+        var resource = new ContextualMemoryResource(perSubjectIdentity: true);
+        var codec = new JsonStateCodec<AppSettings.Fragment>();
+        var source = SerializedStateSource.FromResource<AppSettings.Fragment>("contextual", resource, codec);
+        var first = new SettingsSubject("a", "one");
+        var second = new SettingsSubject("b", "two");
+        source.GetResourceId(first).ShouldBe(resource.GetResourceId(Context(first)));
+        source.GetResourceId(second).ShouldBe(resource.GetResourceId(Context(second)));
+        source.GetResourceId(first).ShouldNotBe(source.GetResourceId(second));
+        var projected = StateSourceProjection.Project(source, static fragment => fragment, static fragment => fragment);
+        projected.GetResourceId(first).ShouldBe(source.GetResourceId(first));
+        projected.GetResourceId(second).ShouldBe(source.GetResourceId(second));
+        var readOnlyProjection = StateSourceProjection.Project(source, static fragment => fragment);
+        readOnlyProjection.GetResourceId(first).ShouldBe(source.GetResourceId(first));
+        var participant = (ISourceWriteBatchParticipant<AppSettings.Fragment>)source.Writer!;
+        participant.TryCreateBatchWrite(Context(first), new StateWriteRequest<AppSettings.Fragment>(Fragment("batch")), out var id, out var writer, out var mutation).ShouldBeTrue();
+        ((ResourceId?)id).ShouldBe(source.GetResourceId(first));
+        await writer!.WriteBatchAsync([mutation!]);
+        (await source.ReadAsync(first)).Value!.Label.Value.ShouldBe("batch");
+        var fixedId = new ResourceId("fixed:override");
+        var fixedSource = SerializedStateSource.FromResource<AppSettings.Fragment>("fixed", resource, codec, resourceId: fixedId);
+        fixedSource.GetResourceId(first).ShouldBe(fixedId);
+        fixedSource.GetResourceId(second).ShouldBe(fixedId);
+        StateSourceProjection.Project(fixedSource, static fragment => fragment).GetResourceId(first).ShouldBe(fixedId);
+    }
+
+    [Test]
     public async Task SerializedAdaptersPassContextThroughPipelineWritesAndBatchMutations()
     {
         var codec = new JsonStateCodec<AppSettings.Fragment>();

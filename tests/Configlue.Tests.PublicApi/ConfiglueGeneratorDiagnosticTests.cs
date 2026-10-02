@@ -8,7 +8,7 @@ using Microsoft.CodeAnalysis.CSharp;
 
 namespace Configlue.Tests.PublicApi;
 
-public sealed class ConfiglueGeneratorDiagnosticTests
+public sealed partial class ConfiglueGeneratorDiagnosticTests
 {
     private static readonly ImmutableArray<MetadataReference> References = BuildReferences();
 

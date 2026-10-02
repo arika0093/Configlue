@@ -323,16 +323,45 @@ public sealed class PerSubjectDependencyInjectionTests
         var accessor = scope.ServiceProvider.GetRequiredService<
             BlazorAuthenticationConfiglueSubjectAccessor<SettingsSubject>
         >();
+        scope.ServiceProvider.GetRequiredService<IConfiglueSubjectAccessor<SettingsSubject>>().ShouldBeSameAs(accessor);
+        var changeSource = scope.ServiceProvider.GetRequiredService<IConfiglueSubjectChangeSource>();
+        changeSource.ShouldBeSameAs(accessor);
         var invalidated = new TaskCompletionSource(
             TaskCreationOptions.RunContinuationsAsynchronously
         );
-        using var subscription = accessor.OnChange(() => invalidated.TrySetResult());
+        using var subscription = changeSource.OnChange(() => invalidated.TrySetResult());
 
         (await accessor.GetCurrentAsync()).UserId.ShouldBe("user-a");
         authenticationStateProvider.SetUser("user-b");
         await invalidated.Task.WaitAsync(TimeSpan.FromSeconds(2));
         (await accessor.GetCurrentAsync()).UserId.ShouldBe("user-b");
     }
+    [Test]
+    public void MultipleBlazorSubjectRegistrationsUseLastChangeSourceAndDisposeSubscriptions()
+    {
+        var authentication = new TestAuthenticationStateProvider("user-a");
+        var services = new ServiceCollection();
+        services.AddSingleton<AuthenticationStateProvider>(authentication);
+        services.AddBlazorAuthenticationConfiglueSubjectAccessor<SettingsSubject>((_, _) => ValueTask.FromResult(new SettingsSubject("tenant", "user")));
+        services.AddBlazorAuthenticationConfiglueSubjectAccessor<RoutedSettingsSubject>((_, _) => ValueTask.FromResult(new RoutedSettingsSubject("other", RouteKey.Default)));
+        using var provider = services.BuildServiceProvider();
+        var scope = provider.CreateScope();
+        var first = scope.ServiceProvider.GetRequiredService<IConfiglueSubjectAccessor<SettingsSubject>>();
+        var second = scope.ServiceProvider.GetRequiredService<IConfiglueSubjectAccessor<RoutedSettingsSubject>>();
+        var sources = scope.ServiceProvider.GetServices<IConfiglueSubjectChangeSource>().ToArray();
+        sources.Length.ShouldBe(2);
+        sources[0].ShouldBeSameAs(first);
+        sources[1].ShouldBeSameAs(second);
+        scope.ServiceProvider.GetRequiredService<IConfiglueSubjectChangeSource>().ShouldBeSameAs(second);
+        var notifications = 0;
+        using var subscription = sources[1].OnChange(() => notifications++);
+        authentication.SetUser("user-b");
+        notifications.ShouldBe(1);
+        scope.Dispose();
+        authentication.SetUser("user-c");
+        notifications.ShouldBe(1);
+    }
+
 #endif
 
     private static AppSettings.Fragment Fragment(string? label) =>

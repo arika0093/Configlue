@@ -206,8 +206,8 @@ namespace Configlue.Resources
         public System.TimeSpan PollingInterval { get; init; }
         public int RetryCount { get; init; }
         public System.TimeSpan RetryDelay { get; init; }
-        public System.TimeSpan RevisionVerificationInterval { get; init; }
         public System.Func<int, System.TimeSpan>? RetryDelayFactory { get; init; }
+        public System.TimeSpan RevisionVerificationInterval { get; init; }
     }
     public sealed class PipelineResourceReadResult : System.IAsyncDisposable
     {

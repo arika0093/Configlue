@@ -114,7 +114,8 @@ public sealed partial class ConfiglueGenerator
                 "/// <summary>Transfers compatible members from a declared previous schema version.</summary>"
             );
             code.AppendIndent(2)
-                .Append("public static Fragment FromPrevious(")
+                .Append(previousModel.Model.IsPublic ? "public" : "internal")
+                .Append(" static Fragment FromPrevious(")
                 .Append(previousModel.Model.ModelTypeName)
                 .AppendLine(".Fragment value)");
             code.AppendLineAt(2, "{");
@@ -182,6 +183,8 @@ public sealed partial class ConfiglueGenerator
             "public global::System.Collections.Generic.IEnumerable<global::Configlue.ConfiglueFragmentMember> EnumeratePresentMembers()"
         );
         code.AppendLineAt(2, "{");
+        if (members.IsEmpty)
+            code.AppendLineAt(3, "yield break;");
         foreach (var member in members)
         {
             var name = EscapeIdentifier(member.Property.Name);
@@ -226,7 +229,8 @@ public sealed partial class ConfiglueGenerator
             "default: throw new global::System.ArgumentOutOfRangeException(nameof(memberId));"
         );
         code.AppendLineAt(3, "}");
-        code.AppendLineAt(3, "return builder.Build();");
+        if (!members.IsEmpty)
+            code.AppendLineAt(3, "return builder.Build();");
         code.AppendLineAt(2, "}");
         code.AppendLineAt(
             2,
@@ -253,7 +257,8 @@ public sealed partial class ConfiglueGenerator
             "default: throw new global::System.ArgumentOutOfRangeException(nameof(memberId));"
         );
         code.AppendLineAt(3, "}");
-        code.AppendLineAt(3, "return builder.Build();");
+        if (!members.IsEmpty)
+            code.AppendLineAt(3, "return builder.Build();");
         code.AppendLineAt(2, "}");
         code.AppendLine();
     }

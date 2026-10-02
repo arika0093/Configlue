@@ -1007,6 +1007,8 @@ internal sealed class SparseFragmentCoreEmitter(
         )
             return;
         code.AppendLineAt(1, "private readonly struct __SparseProjectionToken { }");
+        if (constructor?.IsImplicitParameterlessClassConstructor == true)
+            code.AppendLineAt(1, "public " + modelName + "() { }");
         if (members.Any(static member => member.Property.IsRequired))
             code.AppendLineAt(1, "[global::System.Diagnostics.CodeAnalysis.SetsRequiredMembers]");
         var arguments = constructor is null
@@ -1362,14 +1364,13 @@ internal sealed class SparseFragmentCoreEmitter(
         {
             var type = member.ChildModel!.Value.NonNullableName;
             var fragment = member.ChildFragmentType!;
-            var name = SparseNaming.EscapeIdentifier(member.Property.Name);
             code.AppendIndent(2)
                 .Append("private static ")
                 .Append(Optional)
                 .Append("<")
                 .Append(FragmentValueType(member))
                 .Append("> __Diff_")
-                .Append(name)
+                .Append(member.Id.ToString(System.Globalization.CultureInfo.InvariantCulture))
                 .Append('(');
             if (!member.ChildIsReferenceType)
             {
@@ -1456,7 +1457,7 @@ internal sealed class SparseFragmentCoreEmitter(
             }
             else
             {
-                condition = $"__Diff_{name}({before}, {after})";
+                condition = $"__Diff_{member.Id}({before}, {after})";
             }
 
             code.AppendIndent(4).Append(name).Append(" = ").Append(condition).AppendLine(",");

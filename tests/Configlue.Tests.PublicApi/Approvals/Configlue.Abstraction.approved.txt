@@ -928,6 +928,8 @@ namespace Configlue.Resources
         public Configlue.RouteKey Route { get; init; }
         public Configlue.IConfiglueSubject Subject { get; init; }
         public static Configlue.Resources.ConfiglueResourceContext Default { get; }
+        public bool Equals(Configlue.Resources.ConfiglueResourceContext other) { }
+        public override int GetHashCode() { }
     }
     public enum ConfiglueStandardLocation
     {

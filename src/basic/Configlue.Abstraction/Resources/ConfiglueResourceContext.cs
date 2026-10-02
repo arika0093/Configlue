@@ -1,9 +1,11 @@
 namespace Configlue.Resources;
 
 /// <summary>Identifies the stable model, logical subject, and source-specific key for a resource operation.</summary>
-public record struct ConfiglueResourceContext
+/// <remarks>The zero-initialized value is the canonical server-wide default context. A context with
+/// model, key, or route values requires an explicit subject; incomplete contexts are rejected.</remarks>
+public readonly record struct ConfiglueResourceContext
 {
-    private IConfiglueSubject? _subject;
+    private readonly IConfiglueSubject? _subject;
 
     /// <summary>Creates context for one logical subject, source-specific key, and physical route.</summary>
     public ConfiglueResourceContext(IConfiglueSubject Subject, SubjectKey Key, RouteKey Route)
@@ -30,7 +32,7 @@ public record struct ConfiglueResourceContext
     /// <summary>The application-defined subject.</summary>
     public IConfiglueSubject Subject
     {
-        get => _subject ?? DefaultSubject;
+        get => Normalize(this)._subject ?? DefaultSubject;
         init => _subject = value;
     }
 
@@ -68,6 +70,28 @@ public record struct ConfiglueResourceContext
     /// <summary>Context used by legacy, server-wide resource operations.</summary>
     public static ConfiglueResourceContext Default { get; } =
         new(DefaultSubject, SubjectKey.Default, RouteKey.Default);
+
+    /// <inheritdoc />
+    public bool Equals(ConfiglueResourceContext other) =>
+        ModelId == other.ModelId
+        && EqualityComparer<IConfiglueSubject>.Default.Equals(
+            _subject ?? DefaultSubject,
+            other._subject ?? DefaultSubject
+        )
+        && Key == other.Key
+        && Route == other.Route;
+
+    /// <inheritdoc />
+    public override int GetHashCode()
+    {
+        var hash = ModelId is null ? 0 : StringComparer.Ordinal.GetHashCode(ModelId);
+        hash = unchecked(
+            hash * 31
+            + EqualityComparer<IConfiglueSubject>.Default.GetHashCode(_subject ?? DefaultSubject)
+        );
+        hash = unchecked(hash * 31 + Key.GetHashCode());
+        return unchecked(hash * 31 + Route.GetHashCode());
+    }
 
     private sealed class DefaultSubjectInstance : IConfiglueSubject
     {

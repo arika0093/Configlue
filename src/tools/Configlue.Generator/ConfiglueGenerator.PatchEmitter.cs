@@ -186,18 +186,23 @@ public sealed partial class ConfiglueGenerator
             3,
             "else if (__configlue_whole_operation.Kind == global::Configlue.FragmentOperationKind.Set) { current = global::Configlue.Optional<Fragment?>.Present(__configlue_whole_operation.Value); }"
         );
-        code.AppendLineAt(
-            3,
-            "if (" + NestedOperationsEmptyExpression(members) + ") { return current; }"
-        );
-        code.AppendLineAt(
-            3,
-            "var basis = current.IsPresent && current.Value is not null ? current.Value : new Fragment();"
-        );
-        code.AppendLineAt(
-            3,
-            "return global::Configlue.Optional<Fragment?>.Present(basis.Apply(this));"
-        );
+        if (members.IsEmpty)
+            code.AppendLineAt(3, "return current;");
+        else
+        {
+            code.AppendLineAt(
+                3,
+                "if (" + NestedOperationsEmptyExpression(members) + ") { return current; }"
+            );
+            code.AppendLineAt(
+                3,
+                "var basis = current.IsPresent && current.Value is not null ? current.Value : new Fragment();"
+            );
+            code.AppendLineAt(
+                3,
+                "return global::Configlue.Optional<Fragment?>.Present(basis.Apply(this));"
+            );
+        }
         code.AppendLineAt(2, "}");
         code.AppendLineAt(2, "internal Patch ClonePatch()");
         code.AppendLineAt(2, "{");

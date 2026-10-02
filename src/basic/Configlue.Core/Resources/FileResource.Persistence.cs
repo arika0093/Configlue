@@ -13,7 +13,7 @@ public sealed partial class FileResource
         CancellationToken cancellationToken = default
     )
     {
-        _ = context;
+        _ = ConfiglueResourceContext.Normalize(context);
         try
         {
             var content = await ReadFileSnapshotAsync(_path, cancellationToken)
@@ -41,7 +41,7 @@ public sealed partial class FileResource
         CancellationToken cancellationToken = default
     )
     {
-        _ = context;
+        _ = ConfiglueResourceContext.Normalize(context);
         return WriteBatchAsync(
             [ResourceWriteMutation.Replace(request, context)],
             cancellationToken

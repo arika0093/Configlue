@@ -111,7 +111,7 @@ public sealed partial class FileResource
         _directory = System.IO.Path.GetDirectoryName(_path)!;
         _fileName = System.IO.Path.GetFileName(_path);
         _options = options ?? new FileResourceOptions();
-        if (!Enum.IsDefined(_options.ChangeDetectionMode))
+        if (!Enum.IsDefined(typeof(FileChangeDetectionMode), _options.ChangeDetectionMode))
         {
             throw new ArgumentOutOfRangeException(
                 nameof(options),
@@ -119,11 +119,14 @@ public sealed partial class FileResource
             );
         }
 
-        if (_options.PollingInterval <= TimeSpan.Zero)
+        if (
+            _options.PollingInterval <= TimeSpan.Zero
+            || _options.PollingInterval.TotalMilliseconds > int.MaxValue
+        )
         {
             throw new ArgumentOutOfRangeException(
                 nameof(options),
-                "PollingInterval must be greater than zero."
+                "PollingInterval must be greater than zero and at most Int32.MaxValue milliseconds."
             );
         }
 
@@ -383,7 +386,7 @@ public sealed partial class FileResource
     /// </remarks>
     public object? GetBatchCompatibilityToken(ConfiglueResourceContext context)
     {
-        _ = context;
+        _ = ConfiglueResourceContext.Normalize(context);
         return ResourceId;
     }
 
@@ -396,7 +399,7 @@ public sealed partial class FileResource
         CancellationToken cancellationToken = default
     )
     {
-        _ = context;
+        _ = ConfiglueResourceContext.Normalize(context);
         cancellationToken.ThrowIfCancellationRequested();
         try
         {
