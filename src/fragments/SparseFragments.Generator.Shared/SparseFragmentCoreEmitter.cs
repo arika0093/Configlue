@@ -465,6 +465,16 @@ internal sealed class SparseFragmentCoreEmitter(
         ModelConstructorBinding? constructor = null
     )
     {
+        code.AppendIndent(2)
+            .Append("public ")
+            .Append(modelType)
+            .Append(" ToModel(")
+            .Append(modelType)
+            .AppendLine(" baseline)");
+        code.AppendLineAt(2, "{");
+        code.AppendLineAt(3, "return From(baseline).Merge(this).ToModel();");
+        code.AppendLineAt(2, "}");
+        code.AppendLine();
         code.AppendIndent(2).Append("public ").Append(modelType).AppendLine(" ToModel()");
         code.AppendLineAt(2, "{");
         var construction = hasRootProjectionConstructor

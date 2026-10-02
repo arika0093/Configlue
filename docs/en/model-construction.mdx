@@ -39,6 +39,13 @@ For a constructor that rejects its parameter defaults, supply the corresponding
 members before calling `ToModel()`. This also applies to Configlue's default model
 construction, which uses an empty fragment.
 
+`Fragment.ToModel(baseline)` first converts the supplied model to a fragment,
+merges the current fragment onto it, and restores the result. Missing constructor
+arguments and members retain baseline values. This overload uses the member's
+declared merge strategy: nested fragments merge recursively, and `Append`
+collections append to the baseline collection. The baseline is isolated from
+changes to the restored result according to each member's clone strategy.
+
 ## Cloning
 
 `DeepClone()` supplies cloned property values to the selected constructor. A

@@ -166,3 +166,44 @@ public sealed class RequiredChildConstructionTests
         RequiredChildSettings.Fragment.Empty.ToModel().Child.Count.ShouldBe(7);
     }
 }
+
+[SparseFragmentModel]
+public partial class BaselineConstructionSettings
+{
+    public BaselineConstructionSettings(int count, string name = "base", List<int>? items = null)
+    {
+        if (count <= 0)
+            throw new ArgumentOutOfRangeException(nameof(count));
+        Count = count;
+        Name = name;
+        Items = items ?? new();
+    }
+
+    public int Count { get; }
+    public string Name { get; set; }
+
+    [SparseMerge(MergeMode.Append)]
+    public List<int> Items { get; set; }
+}
+
+public sealed class BaselineConstructionTests
+{
+    [Test]
+    public void BaselineProjectionRetainsRequiredArgumentsAndUsesMergeStrategies()
+    {
+        var baseline = new BaselineConstructionSettings(3, "old", new() { 1 });
+        var patch = new BaselineConstructionSettings.Fragment
+        {
+            Name = Optional<string>.Present("new"),
+            Items = Optional<List<int>>.Present(new() { 2 }),
+        };
+        var projected = patch.ToModel(baseline);
+        projected.Count.ShouldBe(3);
+        projected.Name.ShouldBe("new");
+        projected.Items.ShouldBe(new[] { 1, 2 });
+        projected.Items[0] = 9;
+        baseline.Items.ShouldBe(new[] { 1 });
+        baseline.Name.ShouldBe("old");
+        BaselineConstructionSettings.Fragment.Empty.ToModel(baseline).Count.ShouldBe(3);
+    }
+}
