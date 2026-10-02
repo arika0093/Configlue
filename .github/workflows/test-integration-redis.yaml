@@ -1,0 +1,80 @@
+name: Redis integration tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  redis-integration:
+    timeout-minutes: 20
+    runs-on: ubuntu-latest
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      CONFIGLUE_REDIS_INTEGRATION: "1"
+      CONFIGLUE_REDIS_CONNECTION: "localhost:6379"
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+
+      - name: Restore dependencies
+        run: dotnet restore tests/Configlue.Tests/Configlue.Tests.csproj
+
+      - name: Build
+        run: >
+          dotnet build tests/Configlue.Tests/Configlue.Tests.csproj
+          --no-restore --configuration Release --framework net10.0
+
+      - name: Run Redis integration tests
+        run: >
+          dotnet test tests/Configlue.Tests/Configlue.Tests.csproj
+          --no-build --no-restore --configuration Release --framework net10.0
+          -- --treenode-filter "/*/*/*RedisResourceIntegrationTests/*"
+          --timeout 5m --report-trx --results-directory TestResults --no-progress
+
+      - name: Capture service logs
+        if: failure() || cancelled()
+        continue-on-error: true
+        run: |
+          mkdir -p diagnostics
+          for container in $(docker ps -aq); do
+            docker logs "$container" > "diagnostics/$container.log" 2>&1 || true
+          done
+
+      - name: Upload failure artifacts
+        if: failure() || cancelled()
+        uses: actions/upload-artifact@v7
+        with:
+          name: redis-integration-results
+          path: |
+            TestResults/**/*.trx
+            tests/Configlue.Tests/bin/Release/net10.0/TestResults/**
+            diagnostics/**
+          if-no-files-found: ignore
+          retention-days: 7

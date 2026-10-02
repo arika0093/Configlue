@@ -49,9 +49,11 @@
     <Compile Remove="Blazor/**/*.cs" />
     <Compile Remove="ComponentModel/**/*.cs" />
     <Compile Remove="MessagePack/**/*.cs" />
+    <Compile Remove="Integration/**/*.cs" />
+    <Compile Remove="Hosting/**/*.cs" />
   </ItemGroup>
   <ItemGroup Condition="'$(ConfiglueNetStandard)' == 'true'">
-    <PackageReference Remove="TUnit;Shouldly;Microsoft.Testing.Extensions.Retry" />
+    <PackageReference Remove="TUnit;Shouldly" />
     <Using Remove="Shouldly;Configlue.Codecs;Configlue.Migrations;Configlue.Resources;Configlue.Sources;Configlue.Extensibility;Configlue.State;Configlue.Transformers" />
     <PackageReference Include="Polyfill" Version="11.4.1" PrivateAssets="all" />
     <Compile Remove="**/*.cs" />
@@ -86,11 +88,15 @@
     <ProjectReference Include="../../src/basic/Configlue.Testing/Configlue.Testing.csproj" />
   </ItemGroup>
   <ItemGroup Condition="'$(TargetFramework)' == 'net10.0'">
+    <PackageReference Include="Microsoft.Testing.Extensions.CodeCoverage" Version="18.10.0" />
     <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" Version="10.0.0" />
+    <PackageReference Include="Avalonia.Headless" Version="12.1.3" />
     <ProjectReference Include="../../src/extensions/Configlue.Extensions.R3/Configlue.Extensions.R3.csproj" />
     <ProjectReference Include="../../src/extensions/Configlue.Extensions.ComponentModel/Configlue.Extensions.ComponentModel.csproj" />
     <ProjectReference Include="../../src/hosting/Configlue.Hosting.AspNetCore/Configlue.Hosting.AspNetCore.csproj" />
     <ProjectReference Include="../../src/hosting/Configlue.Hosting.Blazor/Configlue.Hosting.Blazor.csproj" />
+    <ProjectReference Include="../../src/hosting/Configlue.Hosting.Avalonia/Configlue.Hosting.Avalonia.csproj" />
+    <ProjectReference Include="../../src/hosting/Configlue.Hosting.Maui/Configlue.Hosting.Maui.csproj" />
     <ProjectReference Include="../../src/tools/Configlue.JsonSchema.MSBuild/Configlue.JsonSchema.MSBuild.csproj" />
     <ProjectReference Include="../Configlue.JsonSchema.MSBuild.Fixtures/Configlue.JsonSchema.MSBuild.Fixtures.csproj" />
     <ProjectReference Include="../../src/sources/Configlue.Source.PostgreSql/Configlue.Source.PostgreSql.csproj" />
@@ -98,5 +104,6 @@
     <ProjectReference Include="../../src/transformers/Configlue.Transformer.AES/Configlue.Transformer.AES.csproj" />
     <ProjectReference Include="../../src/providers/Configlue.Provider.MessagePack/Configlue.Provider.MessagePack.csproj" />
     <ProjectReference Include="../../src/transformers/Configlue.Transformer.Compression/Configlue.Transformer.Compression.csproj" />
+    <Compile Include="../Hosting.Shared/DispatcherTestState.cs" Link="Hosting/DispatcherTestState.cs" />
   </ItemGroup>
 </Project>

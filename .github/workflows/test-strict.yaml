@@ -41,15 +41,44 @@ jobs:
         run: >
           dotnet test --solution Configlue.slnx --no-build --no-restore
           --configuration Release --framework net10.0
-          -- --retry-failed-tests 3 --timeout 5m
-          --report-trx --no-progress
+          -- --timeout 5m --report-trx --results-directory TestResults --no-progress
+
+      - name: Collect code coverage (observation)
+        if: matrix.os == 'ubuntu-latest'
+        run: >
+          dotnet test tests/Configlue.Tests/Configlue.Tests.csproj
+          --no-build --no-restore --configuration Release --framework net10.0
+          -- --timeout 5m --coverage --coverage-settings tests/coverage.config
+          --coverage-output coverage.cobertura.xml --coverage-output-format cobertura
+          --results-directory TestResults/coverage --no-progress
+
+      - name: Upload coverage report
+        if: matrix.os == 'ubuntu-latest' && !cancelled()
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-report
+          path: TestResults/coverage/**
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Upload failure test artifacts
+        if: failure() || cancelled()
+        uses: actions/upload-artifact@v7
+        with:
+          name: strict-test-results-${{ matrix.os }}
+          path: |
+            TestResults/**/*.trx
+            TestResults/**/*.xml
+            tests/**/TestResults/**/*.trx
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Run .NET Framework portable tests
         if: matrix.os == 'windows-latest'
         run: >
           dotnet test tests/Configlue.Tests/Configlue.Tests.csproj
           --framework net48 --runtime win-x86 --configuration Release
-          -- --retry-failed-tests 3 --timeout 5m
+          -- --timeout 5m
           --report-trx --no-progress
 
       - name: Build Windows host integrations
@@ -134,8 +163,17 @@ jobs:
           & $engine --headless --path tests/Configlue.Hosting.Godot.Smoke --editor --import --quit
           if ($LASTEXITCODE -ne 0) { throw 'Godot import failed.' }
           $output = & $engine --headless --path tests/Configlue.Hosting.Godot.Smoke --quit-after 1200 --max-fps 60 2>&1
-          $output | Write-Output
+          $output | Tee-Object -FilePath artifacts/godot-smoke.log | Write-Output
           if ($LASTEXITCODE -ne 0 -or ($output -join "`n") -notmatch 'CONFIGLUE_GODOT_SMOKE_PASS') { throw 'Native Godot smoke failed or timed out.' }
+
+      - name: Upload failure diagnostics
+        if: failure() || cancelled()
+        uses: actions/upload-artifact@v7
+        with:
+          name: native-godot-results
+          path: artifacts/godot-smoke.log
+          if-no-files-found: ignore
+          retention-days: 7
 
   native-aot:
     timeout-minutes: 30
@@ -164,7 +202,6 @@ jobs:
         run: >
           tests/Configlue.Tests/bin/Release/net10.0/linux-x64/publish/Configlue.Tests
           --treenode-filter '/*/*/*/*JsonAot*'
-          --retry-failed-tests 3
           --timeout 5m
           --progress off
 

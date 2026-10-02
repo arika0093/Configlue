@@ -49,8 +49,7 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Configlue.Tests/Configlue.Tests.csproj" />
-    <Project Path="tests/Configlue.Hosting.Avalonia.Tests/Configlue.Hosting.Avalonia.Tests.csproj" />
-    <Project Path="tests/Configlue.Hosting.Maui.Tests/Configlue.Hosting.Maui.Tests.csproj" />
+    <Project Path="tests/Configlue.Hosting.Unity.Tests/Configlue.Hosting.Unity.Tests.csproj" />
     <Project Path="tests/Configlue.Hosting.Godot.Smoke/Configlue.Hosting.Godot.Smoke.csproj" />
     <Project Path="tests/Configlue.Tests.PublicApi/Configlue.Tests.PublicApi.csproj" />
     <Project Path="tests/Configlue.Generator.Compatibility.Tests/Configlue.Generator.Compatibility.Tests.csproj" />
