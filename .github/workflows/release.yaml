@@ -37,6 +37,11 @@ jobs:
     with:
       release-check-scope: release-package-consumers
 
+  unity-contract:
+    uses: ./.github/workflows/test-unity-contract.yaml
+    with:
+      release-check-scope: release-unity-contract
+
   package-build:
     if: >-
       github.ref == 'refs/heads/main'
@@ -45,6 +50,7 @@ jobs:
       && needs.postgresql-integration.result == 'success'
       && needs.s3-integration.result == 'success'
       && needs.package-consumers.result == 'success'
+      && needs.unity-contract.result == 'success'
     runs-on: ubuntu-latest
     needs:
       - strict-test
@@ -52,6 +58,7 @@ jobs:
       - postgresql-integration
       - s3-integration
       - package-consumers
+      - unity-contract
     outputs:
       version: ${{ steps.version.outputs.semver }}
     steps:
