@@ -201,6 +201,41 @@ public sealed partial class ConfiglueGenerator
 
         var members = GetMembers(model, cancellationToken).ToImmutableArray();
         var diagnostics = ImmutableArray.CreateBuilder<GeneratorDiagnosticInfo>();
+        for (var leftIndex = 0; leftIndex < members.Length; leftIndex++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var left = members[leftIndex];
+            var leftName = GetJsonPropertyName(
+                left.Property,
+                cancellationToken,
+                out var leftExplicit
+            );
+            if (!leftExplicit)
+            {
+                continue;
+            }
+
+            for (var rightIndex = leftIndex + 1; rightIndex < members.Length; rightIndex++)
+            {
+                var right = members[rightIndex];
+                var rightName = GetJsonPropertyName(
+                    right.Property,
+                    cancellationToken,
+                    out var rightExplicit
+                );
+                if (rightExplicit && string.Equals(leftName, rightName, StringComparison.Ordinal))
+                {
+                    diagnostics.Add(
+                        GeneratorDiagnosticInfo.Create(
+                            DuplicateJsonPropertyName,
+                            right.Property.Locations.FirstOrDefault(),
+                            right.Property.Name,
+                            left.Property.Name
+                        )
+                    );
+                }
+            }
+        }
         var modelId = GetModelId(model, cancellationToken);
         var modelVersion = GetModelVersion(model, cancellationToken);
         var modelIdValid = !string.IsNullOrWhiteSpace(modelId);
