@@ -167,8 +167,14 @@ public sealed partial class ConfiglueGenerator
     )
     {
         var childObservableType = member.ChildSchemaType! + ".Observable";
-        code.AppendLineAt(2, "private " + valueType + " __source_" + name + " = null!;");
-        code.AppendLineAt(2, "private " + childObservableType + "? __proxy_" + name + ";");
+        code.AppendLineAt(
+            2,
+            "private " + valueType + " __source_" + member.Property.Name + " = null!;"
+        );
+        code.AppendLineAt(
+            2,
+            "private " + childObservableType + "? __proxy_" + member.Property.Name + ";"
+        );
         code.AppendLineAt(
             2,
             "/// <summary>Gets a bindable proxy over the nested model, or null when it is not set.</summary>"
@@ -184,24 +190,31 @@ public sealed partial class ConfiglueGenerator
         code.AppendLineAt(4, "}");
         code.AppendLineAt(
             4,
-            "if (!global::System.Object.ReferenceEquals(__source_" + name + ", current))"
+            "if (!global::System.Object.ReferenceEquals(__source_"
+                + member.Property.Name
+                + ", current))"
         );
         code.AppendLineAt(4, "{");
-        code.AppendLineAt(5, "__source_" + name + " = current;");
+        code.AppendLineAt(5, "__source_" + member.Property.Name + " = current;");
         code.AppendLineAt(
             5,
-            "__proxy_" + name + " = new " + childObservableType + "(current, __onChanged);"
+            "__proxy_"
+                + member.Property.Name
+                + " = new "
+                + childObservableType
+                + "(current, __onChanged);"
         );
         code.AppendLineAt(4, "}");
-        code.AppendLineAt(4, "return __proxy_" + name + ";");
+        code.AppendLineAt(4, "return __proxy_" + member.Property.Name + ";");
         code.AppendLineAt(3, "}");
         code.AppendLineAt(2, "}");
         if (!member.Property.IsInitOnly && !member.Property.IsReadOnly)
-            AppendObservableChildReplaceMethod(code, name, propertyName, valueType);
+            AppendObservableChildReplaceMethod(code, member, name, propertyName, valueType);
     }
 
     private static void AppendObservableChildReplaceMethod(
         IndentedStringBuilder code,
+        MemberModel member,
         string name,
         string propertyName,
         string valueType
@@ -211,7 +224,14 @@ public sealed partial class ConfiglueGenerator
             2,
             "/// <summary>Replaces the nested model value and notifies bindings.</summary>"
         );
-        code.AppendLineAt(2, "public void Set" + name + "(" + valueType + " value)");
+        code.AppendLineAt(
+            2,
+            "public void "
+                + EscapeIdentifier("Set" + member.Property.Name)
+                + "("
+                + valueType
+                + " value)"
+        );
         code.AppendLineAt(2, "{");
         code.AppendLineAt(
             3,
@@ -225,8 +245,8 @@ public sealed partial class ConfiglueGenerator
         code.AppendLineAt(4, "return;");
         code.AppendLineAt(3, "}");
         code.AppendLineAt(3, "__value." + name + " = value;");
-        code.AppendLineAt(3, "__source_" + name + " = null!;");
-        code.AppendLineAt(3, "__proxy_" + name + " = null;");
+        code.AppendLineAt(3, "__source_" + member.Property.Name + " = null!;");
+        code.AppendLineAt(3, "__proxy_" + member.Property.Name + " = null;");
         code.AppendLineAt(3, "__RaisePropertyChanged(" + propertyName + ");");
         code.AppendLineAt(3, "__NotifyChanged();");
         code.AppendLineAt(2, "}");

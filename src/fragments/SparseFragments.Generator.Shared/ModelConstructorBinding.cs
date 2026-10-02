@@ -16,7 +16,8 @@ internal readonly record struct ConstructorParameterBinding(
 /// <summary>Constructor parameters bound by property name and exact type.</summary>
 internal sealed record ModelConstructorBinding(
     ImmutableArray<ConstructorParameterBinding> Parameters,
-    bool SetsRequiredMembers = false
+    bool SetsRequiredMembers = false,
+    bool IsImplicitParameterlessClassConstructor = false
 )
 {
     public static ModelConstructorBinding Parameterless { get; } =
@@ -25,11 +26,12 @@ internal sealed record ModelConstructorBinding(
     public bool Equals(ModelConstructorBinding? other) =>
         other is not null
         && SetsRequiredMembers == other.SetsRequiredMembers
+        && IsImplicitParameterlessClassConstructor == other.IsImplicitParameterlessClassConstructor
         && Parameters.SequenceEqual(other.Parameters);
 
     public override int GetHashCode()
     {
-        var hash = SetsRequiredMembers ? 1 : 0;
+        var hash = (SetsRequiredMembers ? 1 : 0) + (IsImplicitParameterlessClassConstructor ? 2 : 0);
         foreach (var parameter in Parameters)
             hash = unchecked(hash * 31 + parameter.GetHashCode());
         return hash;
@@ -77,9 +79,13 @@ internal sealed record ModelConstructorBinding(
                     == "System.Diagnostics.CodeAnalysis.SetsRequiredMembersAttribute"
                 );
             if (constructorParameters.IsEmpty)
+            {
+                if (model.TypeKind == TypeKind.Class && constructor.IsImplicitlyDeclared)
+                    return new(ImmutableArray<ConstructorParameterBinding>.Empty, setsRequiredMembers, true);
                 return setsRequiredMembers
                     ? new(ImmutableArray<ConstructorParameterBinding>.Empty, true)
                     : Parameterless;
+            }
             var parameters = ImmutableArray.CreateBuilder<ConstructorParameterBinding>();
             foreach (var parameter in constructorParameters)
             {

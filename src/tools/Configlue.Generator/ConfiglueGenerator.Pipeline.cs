@@ -200,6 +200,31 @@ public sealed partial class ConfiglueGenerator
         }
 
         var members = GetMembers(model, cancellationToken).ToImmutableArray();
+        var rootCollision = model
+            .GetMembers()
+            .FirstOrDefault(static symbol => IsGeneratedRootName(symbol.Name));
+        if (rootCollision is not null)
+        {
+            return AnalysisFailure(
+                GeneratedNameCollision,
+                rootCollision.Locations.FirstOrDefault(),
+                rootCollision.Name
+            );
+        }
+        if (IsGeneratedRootName(model.Name))
+        {
+            return AnalysisFailure(GeneratedNameCollision, location, model.Name);
+        }
+        var extensionCollision = model
+            .ContainingNamespace.GetTypeMembers(model.Name + "PatchOptionsExtensions")
+            .Concat(model.ContainingNamespace.GetTypeMembers(model.Name + "DetailsExtensions"))
+            .FirstOrDefault(static type => type.Arity == 0);
+        if (extensionCollision is not null)
+            return AnalysisFailure(
+                GeneratedNameCollision,
+                extensionCollision.Locations.FirstOrDefault(),
+                extensionCollision.Name
+            );
         var generatedNameCollision = members.FirstOrDefault(static member =>
             IsGeneratedNameCollision(member.Property.Name)
         );
@@ -213,38 +238,50 @@ public sealed partial class ConfiglueGenerator
         }
 
         var diagnostics = ImmutableArray.CreateBuilder<GeneratorDiagnosticInfo>();
-        for (var leftIndex = 0; leftIndex < members.Length; leftIndex++)
+        foreach (
+            var structuralType in CollectStructuralTypes(members, cancellationToken).Prepend(model)
+        )
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            var left = members[leftIndex];
-            var leftName = GetJsonPropertyName(
-                left.Property,
-                cancellationToken,
-                out var leftExplicit
-            );
-            if (!leftExplicit)
+            var scopeMembers = GetMembers(structuralType, cancellationToken).ToImmutableArray();
+            foreach (
+                var property in scopeMembers
+                    .Where(member =>
+                        IsGeneratedNameCollision(member.Property.Name)
+                        || scopeMembers.Any(child =>
+                            child.ChildModel is not null
+                            && child.Property.SetMethod is { IsInitOnly: false }
+                            && member.Property.Name == "Set" + child.Property.Name
+                        )
+                    )
+                    .Select(static member => member.Property)
+            )
             {
-                continue;
-            }
-
-            for (var rightIndex = leftIndex + 1; rightIndex < members.Length; rightIndex++)
-            {
-                var right = members[rightIndex];
-                var rightName = GetJsonPropertyName(
-                    right.Property,
-                    cancellationToken,
-                    out var rightExplicit
+                diagnostics.Add(
+                    GeneratorDiagnosticInfo.Create(
+                        GeneratedNameCollision,
+                        property.Locations.FirstOrDefault(),
+                        property.Name
+                    )
                 );
-                if (rightExplicit && string.Equals(leftName, rightName, StringComparison.Ordinal))
+            }
+            var jsonNames = new Dictionary<string, string>(StringComparer.Ordinal);
+            foreach (var property in scopeMembers.Select(static member => member.Property))
+            {
+                var wireName = GetJsonPropertyName(property, cancellationToken, out _);
+                if (jsonNames.TryGetValue(wireName, out var other))
                 {
                     diagnostics.Add(
                         GeneratorDiagnosticInfo.Create(
                             DuplicateJsonPropertyName,
-                            right.Property.Locations.FirstOrDefault(),
-                            right.Property.Name,
-                            left.Property.Name
+                            property.Locations.FirstOrDefault(),
+                            property.Name,
+                            other
                         )
                     );
+                }
+                else
+                {
+                    jsonNames.Add(wireName, property.Name);
                 }
             }
         }
@@ -401,24 +438,50 @@ public sealed partial class ConfiglueGenerator
         );
     }
 
-    private static bool IsGeneratedNameCollision(string memberName) =>
-        memberName
+    private static bool IsGeneratedRootName(string name) =>
+        name
             is "Fragment"
                 or "Patch"
                 or "Details"
                 or "Observable"
-                or "ConfiglueSchema"
                 or "FragmentBuilder"
-                or "Empty"
-                or "Schema"
-                or "IsEmpty"
-                or "Merge"
-                or "ApplyChanges"
-                or "Diff"
+                or "ConfiglueSchema"
+                or "FragmentSchema"
                 or "DeepClone"
-                or "ToBuilder"
+        || name.StartsWith("__", StringComparison.Ordinal);
+
+    private static bool IsGeneratedNameCollision(string memberName) =>
+        SparseFragments.Generator.Shared.SparseNaming.IsCoreGeneratedName(memberName)
+        || memberName
+            is "Patch"
+                or "Details"
+                or "Observable"
+                or "ConfiglueSchema"
+                or "Schema"
                 or "ToPatch"
-                or "Build";
+                or "FragmentSchema"
+                or "FromPrevious"
+                or "Apply"
+                or "EnumeratePresentMembers"
+                or "WithMember"
+                or "WithoutMember"
+                or "JsonConverter"
+                or "MessagePackFormatter"
+                or "FragmentJsonConverter"
+                or "FragmentMessagePackFormatter"
+                or "PropertyChanged"
+                or "Leaf"
+                or "Collection"
+                or "ToReadOnly"
+                or "MapStatus"
+                or "ApplyNested"
+                or "ClonePatch"
+                or "WithUnspecifiedMembersUnset"
+                or "SelectMembers"
+                or "Route"
+                or "RouteCore"
+                or "MergePatch"
+                or "MergeRoutedPatch";
 
     private static ImmutableArray<INamedTypeSymbol> CollectStructuralTypes(
         ImmutableArray<SymbolMemberModel> members,

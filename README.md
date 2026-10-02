@@ -234,13 +234,6 @@ Save it as `example.cs` and run it with `dotnet run example.cs` (.NET 10 or late
 using Configlue;
 using Configlue.Source.Presets;
 
-[ConfiglueModel("sample.settings", Version = 1)]
-public partial class AppSettings
-{
-    public string Name { get; set; } = "World";
-    public string Theme { get; set; } = "System";
-}
-
 ConfiglueApp.Initialize(config =>
 {
     config.UseCommonSources(sources =>
@@ -262,6 +255,13 @@ await settings.SaveAsync(patch =>
 });
 
 await ConfiglueApp.ShutdownAsync();
+
+[ConfiglueModel("sample.settings", Version = 1)]
+public partial class AppSettings
+{
+    public string Name { get; set; } = "World";
+    public string Theme { get; set; } = "System";
+}
 ```
 
 The application only reads and writes `AppSettings`. The standard path, document format, sparse update, serialization, and safe persistence behavior stay in the configured infrastructure.

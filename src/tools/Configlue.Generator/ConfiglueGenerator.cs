@@ -131,7 +131,7 @@ public sealed partial class ConfiglueGenerator : IIncrementalGenerator
     private static readonly DiagnosticDescriptor DuplicateJsonPropertyName = new(
         "CFG012",
         "Duplicate Configlue JSON property name",
-        "Member '{0}' duplicates the explicit JSON name declared by member '{1}'",
+        "Member '{0}' duplicates the JSON name of member '{1}'",
         "Configlue",
         DiagnosticSeverity.Error,
         true

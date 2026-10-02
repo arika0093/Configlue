@@ -222,6 +222,7 @@ public sealed class StateSource<T>
     /// <summary>Resolves the physical resource identity for one resource operation context.</summary>
     public ResourceId? GetResourceId(ConfiglueResourceContext context)
     {
+        context = ConfiglueResourceContext.Normalize(context);
         if (_configuredResourceId is { } configured)
         {
             return configured;
@@ -256,7 +257,7 @@ public sealed class StateSource<T>
     public ValueTask<StateReadResult<T>> ReadAsync(
         ConfiglueResourceContext context,
         CancellationToken cancellationToken = default
-    ) => Reader.ReadAsync(context, cancellationToken);
+    ) => Reader.ReadAsync(ConfiglueResourceContext.Normalize(context), cancellationToken);
 
     /// <summary>Writes this source for a subject using its source-specific key mapping.</summary>
     public ValueTask<StateWriteResult> WriteAsync(
@@ -286,7 +287,11 @@ public sealed class StateSource<T>
             throw new InvalidOperationException($"State source '{Id}' does not support writes.");
         }
 
-        return Writer.WriteAsync(context, request, cancellationToken);
+        return Writer.WriteAsync(
+            ConfiglueResourceContext.Normalize(context),
+            request,
+            cancellationToken
+        );
     }
 
     /// <summary>Watches this source for one subject using its source-specific key mapping.</summary>
@@ -321,7 +326,11 @@ public sealed class StateSource<T>
                     new InvalidOperationException($"State source '{Id}' does not support watching.")
                 )
             )
-            : Watcher.WaitForChangeAsync(context, observedRevision, cancellationToken);
+            : Watcher.WaitForChangeAsync(
+                ConfiglueResourceContext.Normalize(context),
+                observedRevision,
+                cancellationToken
+            );
 
     internal IReadOnlyList<string> OwnedPropertyPaths => _ownedPropertyPaths;
 

@@ -17,6 +17,7 @@ public static class ResourceContextExtensions
         {
             throw new ArgumentNullException(nameof(recovery));
         }
+        context = ConfiglueResourceContext.Normalize(context);
         return recovery is IContextualResourceBackupRecovery contextualRecovery
             ? contextualRecovery.TryRecoverLatestBackupAsync(
                 context,
@@ -43,6 +44,7 @@ public static class ResourceContextExtensions
         {
             throw new ArgumentNullException(nameof(identity));
         }
+        context = ConfiglueResourceContext.Normalize(context);
         return identity is IContextualResourceIdentity contextualIdentity
             ? contextualIdentity.GetResourceId(context)
             : identity.ResourceId;
@@ -59,6 +61,7 @@ public static class ResourceContextExtensions
             throw new ArgumentNullException(nameof(participant));
         }
 
+        context = ConfiglueResourceContext.Normalize(context);
         return participant is IContextualResourceBatchParticipant contextualParticipant
             ? contextualParticipant.GetResourceId(context)
             : participant.ResourceId;
@@ -75,6 +78,7 @@ public static class ResourceContextExtensions
         {
             throw new ArgumentNullException(nameof(identity));
         }
+        context = ConfiglueResourceContext.Normalize(context);
         if (identity is ITryContextualResourceIdentity tryContextualIdentity)
         {
             return tryContextualIdentity.TryGetResourceId(context, out resourceId);
@@ -101,6 +105,7 @@ public static class ResourceContextExtensions
         {
             throw new ArgumentNullException(nameof(participant));
         }
+        context = ConfiglueResourceContext.Normalize(context);
         return participant is IContextualResourceBatchParticipant contextualParticipant
             ? contextualParticipant.CreateMutation(context, request)
             : participant.CreateMutation(request).WithContext(context);
