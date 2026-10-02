@@ -22,9 +22,8 @@ public sealed class StateSourceWatcher<T> : ISourceWatcher
         CancellationToken cancellationToken = default
     )
     {
-        var subject = ReferenceEquals(context.Subject, ConfiglueResourceContext.DefaultSubject)
-            ? null
-            : context.Subject;
+        context = ConfiglueResourceContext.Normalize(context);
+        var subject = context.IsDefault ? null : context.Subject;
         return WaitCoreAsync(subject, context, observedRevision, cancellationToken);
     }
 

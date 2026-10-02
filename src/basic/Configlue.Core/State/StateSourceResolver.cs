@@ -96,14 +96,15 @@ public sealed class StateSourceResolver<T> : ISourceReader<T>
     public ValueTask<StateReadResult<T>> ReadAsync(
         ConfiglueResourceContext context,
         CancellationToken cancellationToken = default
-    ) =>
-        ReadCoreAsync(
-            ReferenceEquals(context.Subject, ConfiglueResourceContext.DefaultSubject)
-                ? null
-                : context.Subject,
+    )
+    {
+        context = ConfiglueResourceContext.Normalize(context);
+        return ReadCoreAsync(
+            context.IsDefault ? null : context.Subject,
             context,
             cancellationToken
         );
+    }
 
     private async ValueTask<StateReadResult<T>> ReadCoreAsync(
         IConfiglueSubject? subject,

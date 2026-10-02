@@ -3,6 +3,8 @@ namespace Configlue.Resources;
 /// <summary>Identifies the stable model, logical subject, and source-specific key for a resource operation.</summary>
 public readonly record struct ConfiglueResourceContext
 {
+    private IConfiglueSubject? _subject;
+
     /// <summary>Creates context for one logical subject, source-specific key, and physical route.</summary>
     public ConfiglueResourceContext(IConfiglueSubject Subject, SubjectKey Key, RouteKey Route)
         : this(null, Subject, Key, Route) { }
@@ -26,13 +28,39 @@ public readonly record struct ConfiglueResourceContext
     public string? ModelId { get; init; }
 
     /// <summary>The application-defined subject.</summary>
-    public IConfiglueSubject Subject { get; init; }
+    public IConfiglueSubject Subject
+    {
+        get => _subject ?? DefaultSubject;
+        init => _subject = value;
+    }
 
     /// <summary>The source-specific canonical key for this operation.</summary>
     public SubjectKey Key { get; init; }
 
     /// <summary>The opaque physical placement route for this operation.</summary>
     public RouteKey Route { get; init; }
+
+    /// <summary>Whether this value represents the server-wide default context.</summary>
+    internal bool IsDefault => _subject is null || ReferenceEquals(_subject, DefaultSubject);
+
+    /// <summary>Normalizes the zero-initialized struct to the canonical default context.</summary>
+    internal static ConfiglueResourceContext Normalize(ConfiglueResourceContext context)
+    {
+        if (context._subject is not null)
+        {
+            return context;
+        }
+
+        if (context.ModelId is not null || context.Key != default || context.Route != default)
+        {
+            throw new ArgumentException(
+                "A resource context without a subject cannot contain model, key, or route values.",
+                nameof(context)
+            );
+        }
+
+        return Default;
+    }
 
     /// <summary>The subject used by server-wide resource operations.</summary>
     internal static IConfiglueSubject DefaultSubject { get; } = DefaultSubjectInstance.Instance;

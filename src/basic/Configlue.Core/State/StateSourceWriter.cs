@@ -29,11 +29,9 @@ public sealed class StateSourceWriter<T> : ISourceWriter<T>
         CancellationToken cancellationToken = default
     )
     {
+        context = ConfiglueResourceContext.Normalize(context);
         var source = ResolveSource();
-        var sourceContext = ReferenceEquals(
-            context.Subject,
-            ConfiglueResourceContext.DefaultSubject
-        )
+        var sourceContext = context.IsDefault
             ? context
             : source.GetResourceContext(context.Subject);
         return source.WriteAsync(sourceContext, request, cancellationToken);

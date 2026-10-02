@@ -95,7 +95,7 @@ public sealed class ResourceWriteMutation
             scope: null,
             canCompose: false,
             ownedReplacementContent: content,
-            context
+            ConfiglueResourceContext.Normalize(context)
         );
         mutation.HasStableContent = true;
         return mutation;
@@ -117,7 +117,7 @@ public sealed class ResourceWriteMutation
         };
 
     private static ConfiglueResourceContext NormalizeContext(ConfiglueResourceContext context) =>
-        context.Subject is null ? ConfiglueResourceContext.Default : context;
+        ConfiglueResourceContext.Normalize(context);
 
     /// <summary>
     /// Resolves the single physical container schema declared by a batch of mutations.
