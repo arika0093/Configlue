@@ -94,7 +94,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         var defaultValue = CloneModel(FromFragment(EmptyFragment));
         var expectedRevisions = resolved.Revisions;
 
-        async ValueTask<StateWriteReceipt> SaveSessionValueAsync(
+        async ValueTask<StateCommitResult<TModel>> SaveSessionValueAsync(
             TModel value,
             CancellationToken token
         )
@@ -133,9 +133,26 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                 )
                 .ConfigureAwait(false);
 
-            baseline = value;
-            expectedRevisions = latest.Revisions;
-            return writeResult;
+            // The effective state after the write can differ from the pre-write rebase target
+            // when higher-priority or merged contributions participate, and the receipt only
+            // carries source revisions. Resolve once more so the session baseline, the closure
+            // baseline, and the expected revisions all describe the exact committed state.
+            var committedState = await ResolveCoreAsync(null, token, captureContributions: true)
+                .ConfigureAwait(false);
+            var committed = committedState.Result;
+            if (committed.Status != StateReadStatus.Success || committed.Value is null)
+            {
+                throw new InvalidOperationException(
+                    $"Configuration state could not be read after saving: {committed.Status}."
+                );
+            }
+
+            baseline = committed.Value;
+            expectedRevisions = committed.Revisions;
+            return new StateCommitResult<TModel>(
+                writeResult,
+                new StateSnapshot<TModel>(committed.Value, BuildDetailsSnapshot(committedState))
+            );
         }
 
         async ValueTask<StateSnapshot<TModel>> ResolveSessionUpstreamAsync(CancellationToken token)

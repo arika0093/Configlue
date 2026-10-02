@@ -7,7 +7,7 @@ public sealed class EditSession<T> : IDisposable
     private const int SavingState = 1;
     private const int DisposedState = 2;
 
-    private readonly Func<T, CancellationToken, ValueTask<StateWriteReceipt>> _save;
+    private readonly Func<T, CancellationToken, ValueTask<StateCommitResult<T>>> _save;
     private readonly Func<T, T> _clone;
     private readonly Func<T, T, T, T> _rebase;
     private readonly Func<T, T, bool> _hasChanges;
@@ -22,6 +22,7 @@ public sealed class EditSession<T> : IDisposable
     private StateSnapshot<T>? _latestUpstream;
     private T _baseline;
     private bool _hasUpstreamChanges;
+    private long _upstreamGeneration;
     private int _state;
     private int _isCommitted;
 
@@ -31,7 +32,7 @@ public sealed class EditSession<T> : IDisposable
         : this(
             value,
             new StateSnapshot<T>(value, null),
-            save,
+            AsCommitSave(save),
             static (_, desired, _) => desired,
             static (left, right) => !Equals(left, right),
             resolveUpstream: null,
@@ -52,7 +53,7 @@ public sealed class EditSession<T> : IDisposable
         : this(
             value,
             new StateSnapshot<T>(loadedValue, null),
-            save,
+            AsCommitSave(save),
             static (_, desired, _) => desired,
             static (left, right) => !Equals(left, right),
             resolveUpstream: null,
@@ -65,7 +66,7 @@ public sealed class EditSession<T> : IDisposable
     /// <summary>Creates a snapshot-backed configure session with upstream rebasing support.</summary>
     /// <param name="value">The initial editable draft.</param>
     /// <param name="sessionStart">The snapshot captured when the session was opened.</param>
-    /// <param name="save">Saves one selected value to the backing state.</param>
+    /// <param name="save">Saves one selected value to the backing state and returns the effective committed state.</param>
     /// <param name="rebase">Rebases draft changes as (baseline, desired, current) onto the current upstream value.</param>
     /// <param name="hasChanges">Reports whether a draft differs from a baseline.</param>
     /// <param name="resolveUpstream">Resolves the latest upstream snapshot; also reports upstream changes.</param>
@@ -75,7 +76,7 @@ public sealed class EditSession<T> : IDisposable
     public EditSession(
         T value,
         StateSnapshot<T> sessionStart,
-        Func<T, CancellationToken, ValueTask<StateWriteReceipt>> save,
+        Func<T, CancellationToken, ValueTask<StateCommitResult<T>>> save,
         Func<T, T, T, T> rebase,
         Func<T, T, bool> hasChanges,
         Func<CancellationToken, ValueTask<StateSnapshot<T>>> resolveUpstream,
@@ -99,7 +100,7 @@ public sealed class EditSession<T> : IDisposable
     private EditSession(
         T value,
         StateSnapshot<T> sessionStart,
-        Func<T, CancellationToken, ValueTask<StateWriteReceipt>> save,
+        Func<T, CancellationToken, ValueTask<StateCommitResult<T>>> save,
         Func<T, T, T, T> rebase,
         Func<T, T, bool> hasChanges,
         Func<CancellationToken, ValueTask<StateSnapshot<T>>>? resolveUpstream,
@@ -288,18 +289,25 @@ public sealed class EditSession<T> : IDisposable
 
         try
         {
+            long observedGeneration;
+            lock (_upstreamGate)
+            {
+                observedGeneration = _upstreamGeneration;
+            }
+
             var result = await _save(_clone(Value), cancellationToken).ConfigureAwait(false);
             Volatile.Write(ref _isCommitted, 1);
             lock (_upstreamGate)
             {
-                var committed = _clone(Value);
-                _baseline = committed;
-                _latestUpstream = new StateSnapshot<T>(committed, null);
-                _hasUpstreamChanges = false;
+                var committedValue = result.CommittedSnapshot.Value;
+                Value = _clone(committedValue);
+                _baseline = _clone(committedValue);
+                _latestUpstream = result.CommittedSnapshot;
+                _hasUpstreamChanges = _upstreamGeneration != observedGeneration;
             }
 
             CompleteSave();
-            return result;
+            return result.Receipt;
         }
         catch
         {
@@ -332,6 +340,7 @@ public sealed class EditSession<T> : IDisposable
     {
         lock (_upstreamGate)
         {
+            _upstreamGeneration++;
             _latestUpstream = new StateSnapshot<T>(value, null);
             _hasUpstreamChanges = true;
         }
@@ -384,4 +393,16 @@ public sealed class EditSession<T> : IDisposable
 
     private static T Clone(T value) =>
         value is IConfiglueDeepCloneable<T> deepCloneable ? deepCloneable.DeepClone() : value;
+
+    private static Func<T, CancellationToken, ValueTask<StateCommitResult<T>>> AsCommitSave(
+        Func<T, CancellationToken, ValueTask<StateWriteReceipt>> save
+    )
+    {
+        ArgumentNullException.ThrowIfNull(save);
+        return async (value, cancellationToken) =>
+        {
+            var receipt = await save(value, cancellationToken).ConfigureAwait(false);
+            return new StateCommitResult<T>(receipt, new StateSnapshot<T>(value, null));
+        };
+    }
 }

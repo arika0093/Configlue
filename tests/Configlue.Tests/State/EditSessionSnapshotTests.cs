@@ -402,6 +402,173 @@ public sealed class EditSessionSnapshotTests
         (session.Value).ShouldBe(5);
     }
 
+    [Test]
+    public async Task CommitAsync_RebasedCommitInstallsTheEffectiveCommittedState()
+    {
+        var store = new InMemoryStateSource<AppSettings.Fragment>(RebasedFragment(0, false));
+        await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
+            new StateSourceSet<AppSettings.Fragment>([new("user", store, writer: store)])
+        );
+        using var session = await options.OpenEditSessionAsync();
+
+        session.Value.RetryCount = 1;
+        store.Set(RebasedFragment(0, true));
+
+        await session.CommitAsync();
+
+        (session.Value.RetryCount).ShouldBe(1);
+        (session.Value.Enabled).ShouldBeTrue();
+        (session.HasLocalChanges).ShouldBeFalse();
+        (session.LatestUpstream).ShouldNotBeNull();
+        (session.LatestUpstream!.Value!.RetryCount).ShouldBe(1);
+        (session.LatestUpstream.Value.Enabled).ShouldBeTrue();
+
+        var resolved = (await options.ReadAsync()).Value!;
+        (resolved.RetryCount).ShouldBe(1);
+        (resolved.Enabled).ShouldBeTrue();
+    }
+
+    [Test]
+    public async Task ResetToUpstream_AfterRebasedCommitUsesTheCommittedState()
+    {
+        var store = new InMemoryStateSource<AppSettings.Fragment>(RebasedFragment(0, false));
+        await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
+            new StateSourceSet<AppSettings.Fragment>([new("user", store, writer: store)])
+        );
+        using var session = await options.OpenEditSessionAsync();
+
+        session.Value.RetryCount = 1;
+        store.Set(RebasedFragment(0, true));
+        await session.CommitAsync();
+
+        session.Value.RetryCount = 5;
+        session.ResetToUpstream();
+
+        (session.Value.RetryCount).ShouldBe(1);
+        (session.Value.Enabled).ShouldBeTrue();
+        (session.HasLocalChanges).ShouldBeFalse();
+        (session.HasUpstreamChanges).ShouldBeFalse();
+    }
+
+    [Test]
+    public async Task CommitAsync_SecondCommitUsesThePostCommitRevisionBaseline()
+    {
+        var store = new InMemoryStateSource<AppSettings.Fragment>(RebasedFragment(0, false));
+        await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
+            new StateSourceSet<AppSettings.Fragment>([new("user", store, writer: store)])
+        );
+        using var session = await options.OpenEditSessionAsync();
+
+        session.Value.RetryCount = 1;
+        store.Set(RebasedFragment(0, true));
+        await session.CommitAsync();
+
+        session.Value.RetryCount = 2;
+        var second = await session.CommitAsync();
+
+        (second.Revision).ShouldBe("4");
+        (session.Value.RetryCount).ShouldBe(2);
+        (session.Value.Enabled).ShouldBeTrue();
+        (session.LatestUpstream!.Value!.RetryCount).ShouldBe(2);
+        (session.LatestUpstream.Value.Enabled).ShouldBeTrue();
+        (session.HasLocalChanges).ShouldBeFalse();
+
+        var resolved = (await options.ReadAsync()).Value!;
+        (resolved.RetryCount).ShouldBe(2);
+        (resolved.Enabled).ShouldBeTrue();
+    }
+
+    [Test]
+    public async Task CommitAsync_SameMemberConflictStillFailsWithoutInstallingABaseline()
+    {
+        var store = new InMemoryStateSource<AppSettings.Fragment>(
+            new AppSettings.Fragment { RetryCount = Optional<int>.Present(0) }
+        );
+        await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
+            new StateSourceSet<AppSettings.Fragment>([new("user", store, writer: store)])
+        );
+        using var session = await options.OpenEditSessionAsync();
+
+        session.Value.RetryCount = 1;
+        store.Set(new AppSettings.Fragment { RetryCount = Optional<int>.Present(2) });
+
+        await Should.ThrowAsync<StateConflictException>(async () => await session.CommitAsync());
+
+        (session.IsCommitted).ShouldBeFalse();
+        (session.Value.RetryCount).ShouldBe(1);
+        (session.HasLocalChanges).ShouldBeTrue();
+        (session.LatestUpstream!.Value!.RetryCount).ShouldBe(0);
+    }
+
+    [Test]
+    public async Task CommitAsync_UpstreamNotificationDuringSaveIsNotLost()
+    {
+        var user = new BlockingWriteStore(
+            new AppSettings.Fragment { Label = Optional<string?>.Present("start") }
+        );
+        var other = new InMemoryStateSource<AppSettings.Fragment>(
+            new AppSettings.Fragment { Enabled = Optional<bool>.Present(false) }
+        );
+        await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
+            new StateSourceSet<AppSettings.Fragment>([
+                new("user", user, priority: 100, writer: user, watcher: user),
+                new("other", other, priority: 0, watcher: other),
+            ]),
+            onChangeDebounce: TimeSpan.Zero
+        );
+        using var session = await options.OpenEditSessionAsync();
+        session.Value.Label = "mine";
+
+        var commit = session.CommitAsync().AsTask();
+        await user.WriteStarted.WaitAsync(TimeSpan.FromSeconds(5));
+
+        other.Set(new AppSettings.Fragment { Enabled = Optional<bool>.Present(true) });
+        await WaitForUpstreamChangesAsync(session);
+
+        user.ReleaseWrite();
+        await commit.WaitAsync(TimeSpan.FromSeconds(5));
+
+        (session.Value.Label).ShouldBe("mine");
+        (session.Value.Enabled).ShouldBeTrue();
+        (session.HasLocalChanges).ShouldBeFalse();
+        (session.HasUpstreamChanges).ShouldBeTrue();
+        (session.LatestUpstream!.Value!.Enabled).ShouldBeTrue();
+        (session.LatestUpstream.Value.Label).ShouldBe("mine");
+    }
+
+    [Test]
+    public async Task CommitAsync_SubjectBoundSessionPreservesTheCommittedBaseline()
+    {
+        var users = new SubjectStateStore<AppSettings.Fragment>();
+        var subject = new SettingsSubject("tenant-a", "user-a");
+        users.Set(subject.Key, RebasedFragment(0, false));
+        await using var runtime = CreateSubjectRuntime(users);
+        var sessions = ((ISubjectState<AppSettings>)runtime).EditSessionsForSubject(subject);
+        using var session = await sessions.OpenEditSessionAsync();
+
+        session.Value.RetryCount = 1;
+        users.Set(subject.Key, RebasedFragment(0, true));
+        await session.CommitAsync();
+
+        (session.Value.RetryCount).ShouldBe(1);
+        (session.Value.Enabled).ShouldBeTrue();
+        (session.HasLocalChanges).ShouldBeFalse();
+        (session.LatestUpstream!.Value!.RetryCount).ShouldBe(1);
+        (session.LatestUpstream.Value.Enabled).ShouldBeTrue();
+
+        session.Value.RetryCount = 5;
+        session.ResetToUpstream();
+        (session.Value.RetryCount).ShouldBe(1);
+        (session.Value.Enabled).ShouldBeTrue();
+    }
+
+    private static AppSettings.Fragment RebasedFragment(int retryCount, bool enabled) =>
+        new()
+        {
+            RetryCount = Optional<int>.Present(retryCount),
+            Enabled = Optional<bool>.Present(enabled),
+        };
+
     private static async Task WaitForUpstreamChangesAsync<T>(EditSession<T> session)
     {
         var deadline = DateTime.UtcNow.AddSeconds(5);
@@ -510,6 +677,52 @@ public sealed class EditSessionSnapshotTests
                 .WaitForChangeAsync(context, observedRevision, cancellationToken)
                 .ConfigureAwait(false);
         }
+    }
+
+    private sealed class BlockingWriteStore
+        : ISourceReader<AppSettings.Fragment>,
+            ISourceWriter<AppSettings.Fragment>,
+            ISourceWatcher
+    {
+        private readonly InMemoryStateSource<AppSettings.Fragment> _inner;
+        private readonly TaskCompletionSource _writeStarted = new(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        private readonly TaskCompletionSource _releaseWrite = new(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+
+        public BlockingWriteStore(AppSettings.Fragment initialValue) => _inner = new(initialValue);
+
+        public Task WriteStarted => _writeStarted.Task;
+
+        public void ReleaseWrite() => _releaseWrite.TrySetResult();
+
+        public void Set(AppSettings.Fragment value) => _inner.Set(value);
+
+        public ValueTask<StateReadResult<AppSettings.Fragment>> ReadAsync(
+            ConfiglueResourceContext context,
+            CancellationToken cancellationToken = default
+        ) => _inner.ReadAsync(context, cancellationToken);
+
+        public async ValueTask<StateWriteResult> WriteAsync(
+            ConfiglueResourceContext context,
+            StateWriteRequest<AppSettings.Fragment> request,
+            CancellationToken cancellationToken = default
+        )
+        {
+            _writeStarted.TrySetResult();
+            await _releaseWrite.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
+            return await _inner
+                .WriteAsync(context, request, cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        public ValueTask WaitForChangeAsync(
+            ConfiglueResourceContext context,
+            string? observedRevision,
+            CancellationToken cancellationToken = default
+        ) => _inner.WaitForChangeAsync(context, observedRevision, cancellationToken);
     }
 
     private sealed class SubjectStateStore<T>

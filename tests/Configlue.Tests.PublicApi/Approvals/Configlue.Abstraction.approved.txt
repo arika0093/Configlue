@@ -429,7 +429,7 @@ namespace Configlue
     {
         public EditSession(T value, System.Func<T, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<Configlue.StateWriteReceipt>> save) { }
         public EditSession(T value, System.Func<T, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<Configlue.StateWriteReceipt>> save, System.Func<T, T> clone, T loadedValue, T defaultValue) { }
-        public EditSession(T value, Configlue.StateSnapshot<T> sessionStart, System.Func<T, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<Configlue.StateWriteReceipt>> save, System.Func<T, T, T, T> rebase, System.Func<T, T, bool> hasChanges, System.Func<System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<Configlue.StateSnapshot<T>>> resolveUpstream, System.Func<T, T> clone, T defaultValue, Configlue.IReadOnlyState<T>? upstreamState) { }
+        public EditSession(T value, Configlue.StateSnapshot<T> sessionStart, System.Func<T, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<Configlue.StateCommitResult<T>>> save, System.Func<T, T, T, T> rebase, System.Func<T, T, bool> hasChanges, System.Func<System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<Configlue.StateSnapshot<T>>> resolveUpstream, System.Func<T, T> clone, T defaultValue, Configlue.IReadOnlyState<T>? upstreamState) { }
         public T CurrentValue { get; }
         public bool HasLocalChanges { get; }
         public bool HasUpstreamChanges { get; }
@@ -668,6 +668,12 @@ namespace Configlue
         public string Name { get; }
         public static Configlue.SourceKey<TModel> Create() { }
         public static Configlue.SourceKey<TModel> Named(string name) { }
+    }
+    public sealed class StateCommitResult<T>
+    {
+        public StateCommitResult(Configlue.StateWriteReceipt receipt, Configlue.StateSnapshot<T> committedSnapshot) { }
+        public Configlue.StateSnapshot<T> CommittedSnapshot { get; }
+        public Configlue.StateWriteReceipt Receipt { get; }
     }
     public sealed class StateMultiWriteException : System.Exception
     {

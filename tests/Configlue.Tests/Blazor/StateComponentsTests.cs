@@ -577,7 +577,7 @@ public sealed class StateComponentsTests
         new(
             Clone(value),
             new StateSnapshot<AppSettings>(Clone(value), null),
-            save ?? (static (_, _) => ValueTask.FromResult(StateWriteReceipt.Empty)),
+            WrapSave(save),
             static (baseline, desired, current) =>
                 string.Equals(desired.Label, baseline.Label, StringComparison.Ordinal)
                     ? current
@@ -589,6 +589,25 @@ public sealed class StateComponentsTests
             defaultValue ?? new AppSettings { Label = "default" },
             upstream
         );
+
+    private static Func<
+        AppSettings,
+        CancellationToken,
+        ValueTask<StateCommitResult<AppSettings>>
+    > WrapSave(Func<AppSettings, CancellationToken, ValueTask<StateWriteReceipt>>? save) =>
+        save is null
+            ? static (value, _) =>
+                ValueTask.FromResult(
+                    new StateCommitResult<AppSettings>(
+                        StateWriteReceipt.Empty,
+                        new StateSnapshot<AppSettings>(value, null)
+                    )
+                )
+            : async (value, token) =>
+                new StateCommitResult<AppSettings>(
+                    await save(value, token).ConfigureAwait(false),
+                    new StateSnapshot<AppSettings>(value, null)
+                );
 
     private static AppSettings Clone(AppSettings value) => value.DeepClone();
 
