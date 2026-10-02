@@ -36,31 +36,44 @@ public sealed class GeneratorHostCompatibilityTests
     }
 
     [Test]
-    [Arguments(false, false, false, false)]
-    [Arguments(false, false, false, true)]
-    [Arguments(false, false, true, false)]
-    [Arguments(false, false, true, true)]
-    [Arguments(false, true, false, false)]
-    [Arguments(false, true, false, true)]
-    [Arguments(false, true, true, false)]
-    [Arguments(false, true, true, true)]
-    [Arguments(true, false, false, false)]
-    [Arguments(true, false, false, true)]
-    [Arguments(true, false, true, false)]
-    [Arguments(true, false, true, true)]
-    [Arguments(true, true, false, false)]
-    [Arguments(true, true, false, true)]
-    [Arguments(true, true, true, false)]
-    [Arguments(true, true, true, true)]
+    [Arguments(false, false, false, 0)]
+    [Arguments(false, false, false, 1)]
+    [Arguments(false, false, false, 2)]
+    [Arguments(false, false, true, 0)]
+    [Arguments(false, false, true, 1)]
+    [Arguments(false, false, true, 2)]
+    [Arguments(false, true, false, 0)]
+    [Arguments(false, true, false, 1)]
+    [Arguments(false, true, false, 2)]
+    [Arguments(false, true, true, 0)]
+    [Arguments(false, true, true, 1)]
+    [Arguments(false, true, true, 2)]
+    [Arguments(true, false, false, 0)]
+    [Arguments(true, false, false, 1)]
+    [Arguments(true, false, false, 2)]
+    [Arguments(true, false, true, 0)]
+    [Arguments(true, false, true, 1)]
+    [Arguments(true, false, true, 2)]
+    [Arguments(true, true, false, 0)]
+    [Arguments(true, true, false, 1)]
+    [Arguments(true, true, false, 2)]
+    [Arguments(true, true, true, 0)]
+    [Arguments(true, true, true, 1)]
+    [Arguments(true, true, true, 2)]
     public void PrivateRootConstructorAndSparseDefaultsConstructOnce(
         bool standalone,
         bool initOnly,
         bool required,
-        bool parameterized
+        int constructorKind
     )
     {
+        var parameterized = constructorKind != 0;
+        var countParameter = constructorKind == 2 ? "int count" : "int count = 5";
+        var defaultCount = constructorKind == 2 ? 0 : 5;
         var constructor = parameterized
-            ? "private Settings(int count = 5, int[]? items = null) { Identity = ++Calls; Count = count; Items = items; LastItems = items; }"
+            ? "private Settings("
+                + countParameter
+                + ", int[]? items = null) { Identity = ++Calls; Count = count; Items = items; LastItems = items; }"
             : "private Settings() { Identity = ++Calls; }";
         var requiredKeyword = required ? "required " : string.Empty;
         var setter = initOnly ? "init" : "set";
@@ -91,7 +104,7 @@ public sealed class GeneratorHostCompatibilityTests
                 {
                     {{observableCheck}}
                     var empty = Settings.Fragment.Empty.ToModel();
-                    if (Settings.Calls != 1 || empty.Identity != 1 || empty.Count != 5)
+                    if (Settings.Calls != 1 || empty.Identity != 1 || empty.Count != {{defaultCount}})
                         throw new System.Exception("empty projection");
                     var sparse = new Settings.Fragment { Count = Optional<int>.Present(0), Items = Optional<int[]?>.Present(new[] { 1, 2 }) }.ToModel();
                     if (Settings.Calls != 2 || sparse.Identity != 2 || sparse.Count != 0)

@@ -60,13 +60,4 @@
   <Folder Name="/benchmarks/">
     <Project Path="benchmarks/Configlue.Benchmarks/Configlue.Benchmarks.csproj" />
   </Folder>
-  <Folder Name="/example/">
-    <File Path="example/Directory.Build.props" />
-    <Project Path="example/Example.ConsoleApp/Example.ConsoleApp.csproj" />
-    <Project Path="example/Example.ConsoleApp.NativeAot/Example.ConsoleApp.NativeAot.csproj" />
-    <Project Path="example/Example.MultiSource/Example.MultiSource.csproj" />
-    <Project Path="example/Example.SimpleApp/Example.SimpleApp.csproj" />
-    <Project Path="example/Example.WorkerService/Example.WorkerService.csproj" />
-    <Project Path="example/Example.ConsoleApp.Yaml/Example.ConsoleApp.Yaml.csproj" />
-  </Folder>
 </Solution>
