@@ -155,20 +155,20 @@ public sealed class YamlSectionResource
             );
 
     /// <inheritdoc />
-    public bool TryGetResourceId(ConfiglueResourceContext context, out ResourceId fixedResourceId)
+    public bool TryGetResourceId(ConfiglueResourceContext context, out ResourceId resourceId)
     {
         if (_configuredResourceId is { } configuredResourceId)
         {
-            fixedResourceId = configuredResourceId;
+            resourceId = configuredResourceId;
             return true;
         }
 
-        if (_writer.TryGetResourceId(context, out fixedResourceId))
+        if (_writer.TryGetResourceId(context, out resourceId))
         {
             return true;
         }
 
-        return _reader.TryGetResourceId(context, out fixedResourceId);
+        return _reader.TryGetResourceId(context, out resourceId);
     }
 
     /// <inheritdoc />

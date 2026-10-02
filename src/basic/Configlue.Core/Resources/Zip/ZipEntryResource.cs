@@ -183,20 +183,20 @@ public sealed class ZipEntryResource
             : throw new InvalidOperationException("The archive resource has no physical identity.");
 
     /// <inheritdoc />
-    public bool TryGetResourceId(ConfiglueResourceContext context, out ResourceId fixedResourceId)
+    public bool TryGetResourceId(ConfiglueResourceContext context, out ResourceId resourceId)
     {
         if (_configuredResourceId is { } configuredResourceId)
         {
-            fixedResourceId = configuredResourceId;
+            resourceId = configuredResourceId;
             return true;
         }
 
-        if (((object?)_archiveWriter).TryGetResourceId(context, out fixedResourceId))
+        if (((object?)_archiveWriter).TryGetResourceId(context, out resourceId))
         {
             return true;
         }
 
-        return _archiveReader.TryGetResourceId(context, out fixedResourceId);
+        return _archiveReader.TryGetResourceId(context, out resourceId);
     }
 
     /// <inheritdoc />
@@ -431,11 +431,6 @@ public sealed class ZipEntryResource
             }
         }
     }
-
-    private static ResourceId? TryGetResourceId(
-        object? resource,
-        ConfiglueResourceContext context
-    ) => resource.TryGetResourceId(context, out var id) ? id : null;
 
     private bool TryGetSnapshot(
         ConfiglueResourceContext context,

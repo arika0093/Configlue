@@ -515,7 +515,7 @@ internal static class XmlStateCodecOperations
         writer.WriteStartElement(SequenceName);
         foreach (var entry in (IEnumerable)value)
         {
-            var entryType = entry!.GetType();
+            var entryType = entry.GetType();
             writer.WriteStartElement(ItemName);
             writer.WriteStartElement("key");
             WriteValue(writer, keyType, entryType.GetProperty("Key")!.GetValue(entry)!);
@@ -591,7 +591,6 @@ internal static class XmlStateCodecOperations
             throw UnsupportedCollection(declaredType);
         }
 
-        var sequenceType = typeof(IEnumerable<>).MakeGenericType(elementType);
         var typedItems = Array.CreateInstance(elementType, items.Length);
         for (var index = 0; index < items.Length; index++)
         {
@@ -664,7 +663,7 @@ internal static class XmlStateCodecOperations
                 .GetConstructors()
                 .FirstOrDefault(constructor =>
                     constructor.GetParameters() is [{ ParameterType: var parameterType }]
-                    && parameterType.IsAssignableFrom(typedItems.GetType())
+                    && parameterType.IsInstanceOfType(typedItems)
                 );
             if (enumerableConstructor is not null)
             {
@@ -673,13 +672,26 @@ internal static class XmlStateCodecOperations
             else
             {
                 collection = Activator.CreateInstance(concreteType);
-                var methodName =
-                    definition == typeof(Queue<>) || definition == typeof(ConcurrentQueue<>)
-                        ? "Enqueue"
-                    : definition == typeof(Stack<>) || definition == typeof(ConcurrentStack<>)
-                        ? "Push"
-                    : definition == typeof(LinkedList<>) ? "AddLast"
-                    : "Add";
+                string methodName;
+                if (definition == typeof(Queue<>) || definition == typeof(ConcurrentQueue<>))
+                {
+                    methodName = "Enqueue";
+                }
+                else if (
+                    definition == typeof(Stack<>)
+                    || definition == typeof(ConcurrentStack<>)
+                )
+                {
+                    methodName = "Push";
+                }
+                else if (definition == typeof(LinkedList<>))
+                {
+                    methodName = "AddLast";
+                }
+                else
+                {
+                    methodName = "Add";
+                }
                 var add = isDictionary
                     ? concreteType.GetMethod("Add", arguments)
                     : concreteType.GetMethod(methodName, [elementType]);

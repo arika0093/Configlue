@@ -780,12 +780,13 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             ConfiglueResourceContext? resourceContext = subject is null
                 ? null
                 : source.GetResourceContext(subject);
-            var resourceId =
-                (captureContributions || observeSource is not null) && resourceContext is not null
+            ResourceId? resourceId = null;
+            if (captureContributions || observeSource is not null)
+            {
+                resourceId = resourceContext is not null
                     ? source.GetResourceId(resourceContext.Value)
-                : (captureContributions || observeSource is not null)
-                    ? source.GetResourceId(DefaultResourceContext)
-                : null;
+                    : source.GetResourceId(DefaultResourceContext);
+            }
             StateReadResult<TFragment> sourceResult;
             if (
                 replacements is not null
