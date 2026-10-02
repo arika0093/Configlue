@@ -190,7 +190,7 @@ clone.Child!.Count = 42;                                       // original.Child
 * **State diffs across boundaries.** Send `Diff(before, after)` between processes or snapshots and `ApplyChanges` on the receiving side, instead of transferring whole models.
 * **Safe duplication of rich models.** `DeepClone` copies models with nested and mutable members (including collections and shared references) without handwritten copy constructors.
 
-### Roadmap (designed in [issue #86](https://github.com/arika0093/Configlue/issues/86))
+### Roadmap
 
 The current `Fragment` / `Patch` / `Diff` / `Merge` algebra is planned to grow with:
 
