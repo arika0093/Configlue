@@ -101,7 +101,7 @@ internal sealed class ConfiglueStateRegistry<TModel, TFragment>
     }
 
     /// <inheritdoc />
-    public bool TryAdd(string stateName)
+    public async ValueTask<bool> TryAddAsync(string stateName)
     {
         ValidateName(stateName);
         ConfiglueRuntime<TModel, TFragment> state;
@@ -125,8 +125,7 @@ internal sealed class ConfiglueStateRegistry<TModel, TFragment>
         }
 
         DrainNotifications();
-        // Synchronous registry API boundary preserves completed notifications and cleanup; async removal/clear/disposal are preferred.
-        WaitForNotifications([notification], waitForNotifications).GetAwaiter().GetResult();
+        await WaitForNotifications([notification], waitForNotifications).ConfigureAwait(false);
         return true;
     }
 

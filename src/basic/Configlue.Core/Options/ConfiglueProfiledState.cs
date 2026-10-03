@@ -180,7 +180,7 @@ internal sealed partial class ConfiglueProfiledState<TModel, TFragment>
             notificationScope = DeferRegistryNotifications();
             await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
             EnsureProfileExists(profileName);
-            return Materialize(profileName);
+            return await MaterializeAsync(profileName).ConfigureAwait(false);
         }
         finally
         {
@@ -207,7 +207,7 @@ internal sealed partial class ConfiglueProfiledState<TModel, TFragment>
         {
             notificationScope = DeferRegistryNotifications();
             await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
-            return Materialize(_catalog!.ActiveProfileName!);
+            return await MaterializeAsync(_catalog!.ActiveProfileName!).ConfigureAwait(false);
         }
         finally
         {
@@ -286,7 +286,7 @@ internal sealed partial class ConfiglueProfiledState<TModel, TFragment>
             }
             else
             {
-                if (!_registry.TryAdd(profileName))
+                if (!await _registry.TryAddAsync(profileName).ConfigureAwait(false))
                 {
                     throw new InvalidOperationException(
                         $"The profile name '{profileName}' conflicts with a fixed StateName."
@@ -472,7 +472,7 @@ internal sealed partial class ConfiglueProfiledState<TModel, TFragment>
             if (
                 !_catalogRuntimeNames.Contains(profileName)
                 && !_registry.TryGet(profileName, out _)
-                && !_registry.TryAdd(profileName)
+                && !await _registry.TryAddAsync(profileName).ConfigureAwait(false)
                 && !_registry.TryGet(profileName, out _)
             )
             {
@@ -550,14 +550,14 @@ internal sealed partial class ConfiglueProfiledState<TModel, TFragment>
 
     // The registry is a materialization cache; the catalog is the source of truth. Rematerialize
     // a catalog-managed named state whose runtime was unloaded from the registry.
-    private IWritableState<TModel> Materialize(string profileName)
+    private async ValueTask<IWritableState<TModel>> MaterializeAsync(string profileName)
     {
         if (_registry.TryGet(profileName, out var existing) && existing is not null)
         {
             return existing;
         }
 
-        if (_registry.TryAdd(profileName))
+        if (await _registry.TryAddAsync(profileName).ConfigureAwait(false))
         {
             return _registry.Get(profileName);
         }

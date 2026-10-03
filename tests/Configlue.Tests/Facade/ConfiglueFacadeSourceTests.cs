@@ -140,7 +140,7 @@ public sealed partial class ConfiglueFacadeSourceTests
             });
         });
         var registry = context.GetStateRegistry<AppSettings>();
-        registry.TryAdd("late").ShouldBeTrue();
+        (await registry.TryAddAsync("late")).ShouldBeTrue();
         var resource = ((ConfiglueFacadeStateRegistry<AppSettings>)registry)
             .GetOwnedResourcesForTests("late")
             .OfType<FileResource>()
@@ -262,7 +262,9 @@ public sealed partial class ConfiglueFacadeSourceTests
         });
         var registry = context.GetStateRegistry<AppSettings>();
 
-        Should.Throw<InvalidOperationException>(() => registry.TryAdd("failure"));
+        await Should.ThrowAsync<InvalidOperationException>(async () =>
+            await registry.TryAddAsync("failure")
+        );
 
         (resource.DisposeCallCount).ShouldBe(1);
         registry.TryGet("failure", out _).ShouldBeFalse();

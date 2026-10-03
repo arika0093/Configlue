@@ -284,7 +284,7 @@ public sealed class ConfiglueFacadeTests
         });
 
         var registry = context.GetStateRegistry<AppSettings>();
-        registry.TryAdd("temporary").ShouldBeTrue();
+        (await registry.TryAddAsync("temporary")).ShouldBeTrue();
         var profiles = context.GetProfiledState<AppSettings>();
 
         (await profiles.GetProfileNamesAsync()).ShouldContain("default");
@@ -452,7 +452,7 @@ public sealed class ConfiglueFacadeTests
 
         await using var provider = services.BuildServiceProvider();
         var registry = provider.GetRequiredService<IConfiglueStateRegistry<AppSettings>>();
-        registry.TryAdd("late").ShouldBeTrue();
+        (await registry.TryAddAsync("late")).ShouldBeTrue();
         var monitor = provider.GetRequiredService<IOptionsMonitor<AppSettings>>();
         (monitor.Get("late").Label).ShouldBe("late-value");
         var handle = registry.Get("late");
@@ -544,18 +544,18 @@ public sealed class ConfiglueFacadeTests
         };
 
         var firstAdd = Task.Factory.StartNew(
-            () => registry.TryAdd("first"),
+            async () => await registry.TryAddAsync("first"),
             CancellationToken.None,
             TaskCreationOptions.LongRunning,
             TaskScheduler.Default
-        );
+        ).Unwrap();
         await firstAdded.Task.WaitAsync(TimeSpan.FromSeconds(5));
         var secondAdd = Task.Factory.StartNew(
-            () => registry.TryAdd("second"),
+            async () => await registry.TryAddAsync("second"),
             CancellationToken.None,
             TaskCreationOptions.LongRunning,
             TaskScheduler.Default
-        );
+        ).Unwrap();
         try
         {
             var visibilityDeadline = DateTime.UtcNow + TimeSpan.FromSeconds(5);
@@ -613,7 +613,7 @@ public sealed class ConfiglueFacadeTests
 
         await Task.WhenAll(firstRemove, clear);
 
-        registry.TryAdd("reentrant").ShouldBeTrue();
+        (await registry.TryAddAsync("reentrant")).ShouldBeTrue();
         registry.StateRemoved += name =>
         {
             if (name == "reentrant")
@@ -626,7 +626,7 @@ public sealed class ConfiglueFacadeTests
                 .WaitAsync(TimeSpan.FromSeconds(5))
         ).ShouldBeTrue();
 
-        registry.TryAdd("dispose").ShouldBeTrue();
+        (await registry.TryAddAsync("dispose")).ShouldBeTrue();
         var disposeNotification = new TaskCompletionSource(
             TaskCreationOptions.RunContinuationsAsynchronously
         );
@@ -667,7 +667,7 @@ public sealed class ConfiglueFacadeTests
         var gate = new DisposalGate { FailOnRelease = cleanupFails };
         const string stateName = "dispose-owned";
         var registry = CreateGatedRegistry(gate);
-        registry.TryAdd(stateName).ShouldBeTrue();
+        (await registry.TryAddAsync(stateName)).ShouldBeTrue();
 
         var notificationStarted = new TaskCompletionSource(
             TaskCreationOptions.RunContinuationsAsynchronously
@@ -758,7 +758,7 @@ public sealed class ConfiglueFacadeTests
             release.Task.GetAwaiter().GetResult();
         };
         registry.StateRemoved += _ => removed = true;
-        var adding = Task.Run(() => registry.TryAdd("reentrant-origin"));
+        var adding = Task.Run(async () => await registry.TryAddAsync("reentrant-origin"));
         try
         {
             await reentrantCompleted.Task.WaitAsync(TimeSpan.FromSeconds(5));
@@ -780,7 +780,7 @@ public sealed class ConfiglueFacadeTests
     public async Task FacadeDisposeAsyncIsDeadlockFreeWhenNotificationReentersDisposal()
     {
         var registry = CreateFacadeRegistry();
-        registry.TryAdd("reentrant").ShouldBeTrue();
+        (await registry.TryAddAsync("reentrant")).ShouldBeTrue();
         var reentered = new TaskCompletionSource(
             TaskCreationOptions.RunContinuationsAsynchronously
         );
@@ -807,7 +807,7 @@ public sealed class ConfiglueFacadeTests
     public async Task FacadeDisposeAsyncContinuesAfterRemovalNotificationFailure()
     {
         var registry = CreateFacadeRegistry();
-        registry.TryAdd("failure").ShouldBeTrue();
+        (await registry.TryAddAsync("failure")).ShouldBeTrue();
         var laterListenerCalled = false;
         registry.StateRemoved += _ => throw new InvalidOperationException("listener failure");
         registry.StateRemoved += name =>

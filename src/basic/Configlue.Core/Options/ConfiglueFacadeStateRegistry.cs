@@ -127,7 +127,7 @@ internal sealed class ConfiglueFacadeStateRegistry<TModel>
         }
     }
 
-    public bool TryAdd(string stateName)
+    public async ValueTask<bool> TryAddAsync(string stateName)
     {
         ValidateName(stateName);
         Entry entry;
@@ -154,8 +154,7 @@ internal sealed class ConfiglueFacadeStateRegistry<TModel>
             waitForNotifications = !_insideNotification.Value && _notificationDeferralCount == 0;
         }
         DrainNotifications();
-        // Synchronous registry API boundary preserves completed notifications and cleanup; async removal/clear/disposal are preferred.
-        WaitForNotifications([notification], waitForNotifications).GetAwaiter().GetResult();
+        await WaitForNotifications([notification], waitForNotifications).ConfigureAwait(false);
         return true;
     }
 

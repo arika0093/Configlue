@@ -246,7 +246,7 @@ public sealed partial class StateRuntimeTests
             }
         );
 
-        (registry.TryAdd("runtime")).ShouldBeTrue();
+        (await registry.TryAddAsync("runtime")).ShouldBeTrue();
         (monitor.Get("runtime").RetryCount).ShouldBe(4);
         stores["runtime"].Set(new AppSettings.Fragment { RetryCount = Optional<int>.Present(14) });
         (await changed.Task.WaitAsync(TimeSpan.FromSeconds(5))).ShouldBe(14);
@@ -275,7 +275,7 @@ public sealed partial class StateRuntimeTests
         );
         await using var serviceProvider = services.BuildServiceProvider();
         var registry = serviceProvider.GetRequiredService<IConfiglueStateRegistry<AppSettings>>();
-        (registry.TryAdd("runtime")).ShouldBeTrue();
+        (await registry.TryAddAsync("runtime")).ShouldBeTrue();
 
         var removalEntered = new TaskCompletionSource(
             TaskCreationOptions.RunContinuationsAsynchronously
@@ -312,7 +312,7 @@ public sealed partial class StateRuntimeTests
         try
         {
             await removalEntered.Task.WaitAsync(TimeSpan.FromSeconds(5));
-            replacementAdd = Task.Run(() => registry.TryAdd("runtime"));
+            replacementAdd = Task.Run(async () => await registry.TryAddAsync("runtime"));
             (
                 await Task.Run(() =>
                     SpinWait.SpinUntil(

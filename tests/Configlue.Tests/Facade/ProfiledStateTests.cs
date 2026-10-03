@@ -575,7 +575,7 @@ public sealed class ProfiledStateTests
         await using var context = CreateProfiledContext(catalog, backing);
 
         var registry = context.GetStateRegistry<AppSettings>();
-        (registry.TryAdd("Adopted")).ShouldBeTrue();
+        (await registry.TryAddAsync("Adopted")).ShouldBeTrue();
         var materialized = registry.Get("Adopted");
 
         var profiles = context.GetProfiledState<AppSettings>();
@@ -974,7 +974,7 @@ public sealed class ProfiledStateTests
         public bool TryGet(string profileName, out IWritableState<AppSettings>? options) =>
             inner.TryGet(profileName, out options);
 
-        public bool TryAdd(string profileName) => inner.TryAdd(profileName);
+        public ValueTask<bool> TryAddAsync(string profileName) => inner.TryAddAsync(profileName);
 
         public ValueTask<bool> TryRemoveAsync(string profileName) =>
             inner.TryRemoveAsync(profileName);

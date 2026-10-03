@@ -300,7 +300,7 @@ public sealed class AsyncProfileSubscriptionTests
             return options is not null;
         }
 
-        public bool TryAdd(string profileName) => false;
+        public ValueTask<bool> TryAddAsync(string profileName) => ValueTask.FromResult(false);
 
         public ValueTask<bool> TryRemoveAsync(string profileName) => ValueTask.FromResult(false);
 

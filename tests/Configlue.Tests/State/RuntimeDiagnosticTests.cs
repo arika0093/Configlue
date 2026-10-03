@@ -75,7 +75,7 @@ public sealed partial class RuntimeDiagnosticTests
         );
         await context.GetState<AppSettings>().GetValueAsync();
         context.GetDiagnostics<AppSettings>().GetRecentEvents().Count.ShouldBe(4);
-        context.GetStateRegistry<AppSettings>().TryAdd("alternate").ShouldBeTrue();
+        (await context.GetStateRegistry<AppSettings>().TryAddAsync("alternate")).ShouldBeTrue();
         await context.GetState<AppSettings>("alternate").GetValueAsync();
         var alternate = context.GetDiagnostics<AppSettings>("alternate");
         alternate.GetRuntimeSnapshot().StateName.ShouldBe("alternate");

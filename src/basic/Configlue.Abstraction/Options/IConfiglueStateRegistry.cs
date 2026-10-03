@@ -25,8 +25,8 @@ public interface IConfiglueStateRegistry<T> : IAsyncDisposable
     bool TryGet(string stateName, out IWritableState<T>? state);
 
     /// <summary>Creates and registers a state if its name is not already in use.</summary>
-    /// <remarks>Waits for its add notification unless called reentrantly or while notifications are deferred.</remarks>
-    bool TryAdd(string stateName);
+    /// <remarks>Waits asynchronously for its add notification unless called reentrantly or while notifications are deferred.</remarks>
+    ValueTask<bool> TryAddAsync(string stateName);
 
     /// <summary>Removes a state and waits for its runtime, watchers, and notification to complete.</summary>
     ValueTask<bool> TryRemoveAsync(string stateName);
