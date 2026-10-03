@@ -100,6 +100,58 @@ public sealed partial class WatcherLifecycleTests
     }
 
     [Test]
+    public async Task CurrentSubjectWatcherRetriesInitialBindFailureWithoutChangeSource()
+    {
+        var subjectState = new RetryOnceSubjectState();
+        using var subscription = new CurrentSubjectState<AppSettings>(
+            subjectState,
+            new StaticSubjectAccessor()
+        ).OnChange(_ => { });
+
+        await subjectState.Subscribed.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        subjectState.AttemptCount.ShouldBe(2);
+    }
+
+    [Test]
+    public async Task CurrentSubjectWatcherRetriesTransientSubjectResolutionFailureWithBackoff()
+    {
+        var subjectState = new RetryOnceSubjectState(failFirstBind: false);
+        var accessor = new RetryOnceSubjectAccessor();
+        var received = new TaskCompletionSource<AppSettings>(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        using var subscription = new CurrentSubjectState<AppSettings>(subjectState, accessor).OnChange(
+            value => received.TrySetResult(value)
+        );
+
+        await accessor.FirstFailure.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await Task.Delay(TimeSpan.FromMilliseconds(50));
+        accessor.CallCount.ShouldBe(1);
+
+        await subjectState.Subscribed.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        accessor.CallCount.ShouldBe(2);
+        subjectState.Raise(new AppSettings());
+        (await received.Task.WaitAsync(TimeSpan.FromSeconds(5))).ShouldNotBeNull();
+    }
+
+    [Test]
+    public async Task DisposingCurrentSubjectWatcherCancelsPendingBindRetry()
+    {
+        var subjectState = new RetryOnceSubjectState();
+        var subscription = new CurrentSubjectState<AppSettings>(
+            subjectState,
+            new StaticSubjectAccessor()
+        ).OnChange(_ => { });
+        await subjectState.FirstFailure.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        subscription.Dispose();
+        await Task.Delay(TimeSpan.FromMilliseconds(200));
+
+        subjectState.AttemptCount.ShouldBe(1);
+    }
+
+    [Test]
     public async Task SubjectWatcherSurvivesListenerFailuresAndDisposalIsIdempotent()
     {
         var store = new InMemoryStateSource<AppSettings.Fragment>(Fragment("zero"));
@@ -311,6 +363,100 @@ public sealed partial class WatcherLifecycleTests
             {
                 listener();
             }
+        }
+    }
+
+    private sealed class StaticSubjectAccessor : IConfiglueSubjectAccessor
+    {
+        public ValueTask<IConfiglueSubject> GetCurrentSubjectAsync(
+            CancellationToken cancellationToken = default
+        )
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return ValueTaskCompat.FromResult<IConfiglueSubject>(new TestSubject());
+        }
+    }
+
+    private sealed class RetryOnceSubjectAccessor : IConfiglueSubjectAccessor
+    {
+        private int _callCount;
+
+        public TaskCompletionSource FirstFailure { get; } = new(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+
+        public int CallCount => Volatile.Read(ref _callCount);
+
+        public ValueTask<IConfiglueSubject> GetCurrentSubjectAsync(
+            CancellationToken cancellationToken = default
+        )
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (Interlocked.Increment(ref _callCount) == 1)
+            {
+                FirstFailure.TrySetResult();
+                throw new InvalidOperationException("Current subject resolution failed once.");
+            }
+
+            return ValueTaskCompat.FromResult<IConfiglueSubject>(new TestSubject());
+        }
+    }
+
+    private sealed class RetryOnceSubjectState : ISubjectState<AppSettings>
+    {
+        private readonly bool _failFirstBind;
+        private int _attemptCount;
+        private Action<AppSettings>? _listener;
+
+        public RetryOnceSubjectState(bool failFirstBind = true) => _failFirstBind = failFirstBind;
+
+        public TaskCompletionSource FirstFailure { get; } = new(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+
+        public TaskCompletionSource Subscribed { get; } = new(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+
+        public int AttemptCount => Volatile.Read(ref _attemptCount);
+
+        public void Raise(AppSettings value) => Volatile.Read(ref _listener)?.Invoke(value);
+
+        public IWritableState<AppSettings> ForSubject(IConfiglueSubject subject) =>
+            new RetryOnceWritableState(this);
+
+        public IConfiglueEditSessions<AppSettings> EditSessionsForSubject(
+            IConfiglueSubject subject
+        ) => throw new NotSupportedException();
+
+        private sealed class RetryOnceWritableState(RetryOnceSubjectState owner)
+            : IWritableState<AppSettings>
+        {
+            public IDisposable OnChange(Action<AppSettings> listener)
+            {
+                if (Interlocked.Increment(ref owner._attemptCount) == 1 && owner._failFirstBind)
+                {
+                    owner.FirstFailure.TrySetResult();
+                    throw new InvalidOperationException("The initial watcher bind failed.");
+                }
+
+                Volatile.Write(ref owner._listener, listener);
+                owner.Subscribed.TrySetResult();
+                return new NoopDisposable();
+            }
+
+            public ValueTask<AppSettings> GetValueAsync(
+                CancellationToken cancellationToken = default
+            )
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                return ValueTaskCompat.FromResult(new AppSettings());
+            }
+
+            public ValueTask<StateWriteReceipt> SaveAsync(
+                IConfiglueModelPatch<AppSettings> patch,
+                CancellationToken cancellationToken = default
+            ) => throw new NotSupportedException();
         }
     }
 
