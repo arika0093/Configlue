@@ -7,23 +7,28 @@
     <AssemblyName>NativeAot.Consumer</AssemblyName>
     <RootNamespace>NativeAotConsumer</RootNamespace>
     <PublishAot>true</PublishAot>
+    <EnableAotAnalyzer>true</EnableAotAnalyzer>
+    <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+    <EnableSingleFileAnalyzer>true</EnableSingleFileAnalyzer>
+    <IlcTreatWarningsAsErrors>true</IlcTreatWarningsAsErrors>
     <InvariantGlobalization>true</InvariantGlobalization>
     <!--
       Report every trim warning individually instead of the per-assembly IL2104
-      summary so that consumers can fail on new trimming regressions.
-      The generated model still emits an unconditional descriptor registration
-      whose RuntimeHelpers.RunClassConstructor call is diagnosed as IL2059 in
-      Configlue.Core/Configlue.Abstraction. That known library warning is
-      accepted here; the consumer itself uses the trim-safe projection path and
-      does not depend on the reflected registration.
+      summary so new trimming regressions fail this supported-consumer gate.
     -->
     <TrimmerSingleWarn>false</TrimmerSingleWarn>
-    <NoWarn>$(NoWarn);IL2059</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Remove="TUnit;Shouldly" />
     <Using Remove="Shouldly;Configlue.Codecs;Configlue.Migrations;Configlue.Resources;Configlue.Sources;Configlue.Extensibility;Configlue.State;Configlue.Transformers" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <IlcArg
+      Include="--substitution:$(MSBuildProjectDirectory)/ILLink.Substitutions.xml"
+      Condition="'$(PublishAot)' == 'true'"
+    />
   </ItemGroup>
 
   <!-- Restores Configlue from a local NuGet feed when ConfigluePackageVersion is provided. -->
@@ -38,6 +43,9 @@
   </ItemGroup>
   <ItemGroup Condition="'$(ConfigluePackageVersion)' != ''">
     <PackageReference Include="Configlue" Version="$(ConfigluePackageVersion)" />
-    <PackageReference Include="Configlue.Provider.MessagePack" Version="$(ConfigluePackageVersion)" />
+    <PackageReference
+      Include="Configlue.Provider.MessagePack"
+      Version="$(ConfigluePackageVersion)"
+    />
   </ItemGroup>
 </Project>

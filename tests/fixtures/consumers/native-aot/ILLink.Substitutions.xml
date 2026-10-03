@@ -1,0 +1,12 @@
+<!--
+  MessagePack's object-key comparer uses MakeGenericMethod. Object-keyed
+  collections are outside this AOT consumer's contract, so replace only this
+  fallback with a throwing body rather than suppressing its AOT warnings.
+-->
+<linker>
+  <assembly fullname="MessagePack">
+    <type fullname="MessagePack.MessagePackSecurity/ObjectFallbackEqualityComparer">
+      <method signature="System.Int32 GetHashCode(System.Object)" body="remove" />
+    </type>
+  </assembly>
+</linker>

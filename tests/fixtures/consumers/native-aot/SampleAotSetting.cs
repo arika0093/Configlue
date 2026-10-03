@@ -1,6 +1,5 @@
 using System.Text.Json.Serialization;
 using Configlue;
-using MessagePack;
 
 namespace NativeAotConsumer;
 
@@ -11,25 +10,17 @@ public partial class SampleAotSetting
 
     public int RunCount { get; set; }
 
-    public List<int> Numbers { get; set; } = [];
-
     public SampleAotPoco Endpoint { get; set; } = new();
 
     public List<SampleAotPoco> Endpoints { get; set; } = [];
 }
 
-[MessagePackObject]
-public partial class SampleAotPoco
+public sealed class SampleAotPoco
 {
-    [Key(0)]
     public string Name { get; set; } = "sample";
 
-    [Key(1)]
     public int Value { get; set; }
 }
-
-[GeneratedMessagePackResolver]
-internal partial class SampleMessagePackResolver;
 
 [JsonSourceGenerationOptions(WriteIndented = true)]
 [JsonSerializable(typeof(SampleAotSetting))]

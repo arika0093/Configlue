@@ -54,9 +54,13 @@ public sealed partial class ConfiglueGenerator
             if (member.ChildModel is null)
             {
                 code.AppendIndent(5)
-                    .Append("global::MessagePack.MessagePackSerializer.Serialize<")
+                    .Append("(options.Resolver.GetFormatter<")
                     .Append(FragmentValueType(member))
-                    .Append(">(ref writer, value.")
+                    .Append(
+                        ">() ?? throw new global::MessagePack.MessagePackSerializationException(\"No MessagePack formatter is registered for '"
+                    )
+                    .Append(FragmentValueType(member))
+                    .AppendLine("'.\")).Serialize(ref writer, value.")
                     .Append(property)
                     .AppendLine(".Value!, options);");
             }
@@ -114,9 +118,13 @@ public sealed partial class ConfiglueGenerator
                     .Append(property)
                     .Append(" = global::Configlue.Optional<")
                     .Append(FragmentValueType(member))
-                    .Append(">.Present(global::MessagePack.MessagePackSerializer.Deserialize<")
+                    .Append(">.Present((options.Resolver.GetFormatter<")
                     .Append(FragmentValueType(member))
-                    .AppendLine(">(ref reader, options));");
+                    .Append(
+                        ">() ?? throw new global::MessagePack.MessagePackSerializationException(\"No MessagePack formatter is registered for '"
+                    )
+                    .Append(FragmentValueType(member))
+                    .AppendLine("'.\")).Deserialize(ref reader, options));");
             }
             else
             {

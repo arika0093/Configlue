@@ -44,7 +44,17 @@ public sealed partial class ConfiglueGenerator
                 ModelAttributeName,
                 static (node, _) => node is TypeDeclarationSyntax,
                 static (attributeContext, cancellationToken) =>
-                    Analyze((INamedTypeSymbol)attributeContext.TargetSymbol, cancellationToken)
+                {
+                    var supportsModuleInitializer =
+                        attributeContext.SemanticModel.SyntaxTree.Options
+                            is CSharpParseOptions parseOptions
+                        && SupportsModuleInitializer(parseOptions.LanguageVersion);
+                    return Analyze(
+                        (INamedTypeSymbol)attributeContext.TargetSymbol,
+                        cancellationToken,
+                        supportsModuleInitializer: supportsModuleInitializer
+                    );
+                }
             )
             .WithComparer(EqualityComparer<GenerationAnalysis>.Default)
             .WithTrackingName("ConfiglueGenerator.Analysis");
@@ -244,6 +254,7 @@ public sealed partial class ConfiglueGenerator
             hasJsonFragmentRegistry,
             hasMessagePackFragmentRegistry,
             bclSetSupportsReadOnlySet,
+            analysis.EmitModuleInitializer,
             cancellationToken
         );
         return new GenerationResult(analysis.HintName, source, analysis.Diagnostics);
@@ -252,7 +263,8 @@ public sealed partial class ConfiglueGenerator
     private static GenerationAnalysis Analyze(
         INamedTypeSymbol model,
         CancellationToken cancellationToken,
-        bool validateDependencies = true
+        bool validateDependencies = true,
+        bool supportsModuleInitializer = false
     )
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -544,8 +556,16 @@ public sealed partial class ConfiglueGenerator
             previousModelInfos,
             pocoCloneModels,
             structuralModels,
-            ImmutableArray<GeneratorDiagnosticInfo>.Empty
+            ImmutableArray<GeneratorDiagnosticInfo>.Empty,
+            supportsModuleInitializer
         );
+    }
+
+    private static bool SupportsModuleInitializer(LanguageVersion languageVersion)
+    {
+        return languageVersion == LanguageVersion.Preview
+            || LanguageVersionFacts.MapSpecifiedToEffectiveVersion(languageVersion)
+                >= LanguageVersion.CSharp9;
     }
 
     private static bool IsGeneratedRootName(string name) =>

@@ -10,12 +10,13 @@ public sealed class ConfiglueModelOperations<TModel, TFragment>
 
     static ConfiglueModelOperations()
     {
-        // Generated operations are registered from the model's own type initializer.
-        // Running the model's class constructor here makes first use of the operations
-        // reflection-free and AOT-friendly without a module initializer (unsupported by Unity).
+#if NET5_0_OR_GREATER
+        // Generated module initializers register models before runtime access without reflection.
+#else
         System.Runtime.CompilerServices.RuntimeHelpers.RunClassConstructor(
             typeof(TModel).TypeHandle
         );
+#endif
     }
 
     /// <summary>Creates a generated operation table.</summary>
