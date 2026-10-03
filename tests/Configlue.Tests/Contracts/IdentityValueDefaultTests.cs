@@ -41,7 +41,9 @@ public sealed class IdentityValueDefaultTests
         present.HasValue.ShouldBeTrue();
         present.Value.IsDefault.ShouldBeTrue();
 
-        ResourceId roundTrip = JsonSerializer.Deserialize<ResourceId>(JsonSerializer.Serialize(resolved));
+        ResourceId roundTrip = JsonSerializer.Deserialize<ResourceId>(
+            JsonSerializer.Serialize(resolved)
+        );
         roundTrip.ShouldBe(resolved);
         roundTrip.IsDefault.ShouldBeFalse();
         ResourceId serializedDefault = JsonSerializer.Deserialize<ResourceId>(
@@ -60,26 +62,30 @@ public sealed class IdentityValueDefaultTests
             ResourceContextExtensions.GetResourceId(new RequiredIdentity(default), context)
         );
         Should.Throw<InvalidOperationException>(() =>
-            ResourceContextExtensions.TryGetResourceId(new RequiredIdentity(default), context, out _)
+            ResourceContextExtensions.TryGetResourceId(
+                new RequiredIdentity(default),
+                context,
+                out _
+            )
         );
         Should.Throw<InvalidOperationException>(() =>
-            ResourceContextExtensions.TryGetResourceId(new OptionalIdentity(true, default), context, out _)
-        );
-        ResourceContextExtensions.TryGetResourceId(
-                new OptionalIdentity(false, default),
+            ResourceContextExtensions.TryGetResourceId(
+                new OptionalIdentity(true, default),
                 context,
-                out var absentId
+                out _
             )
+        );
+        ResourceContextExtensions
+            .TryGetResourceId(new OptionalIdentity(false, default), context, out var absentId)
             .ShouldBeFalse();
         absentId.ShouldBe(default(ResourceId));
 
         var expected = new ResourceId("memory:test");
-        ResourceContextExtensions.GetResourceId(new RequiredIdentity(expected), context).ShouldBe(expected);
-        ResourceContextExtensions.TryGetResourceId(
-                new OptionalIdentity(true, expected),
-                context,
-                out var actual
-            )
+        ResourceContextExtensions
+            .GetResourceId(new RequiredIdentity(expected), context)
+            .ShouldBe(expected);
+        ResourceContextExtensions
+            .TryGetResourceId(new OptionalIdentity(true, expected), context, out var actual)
             .ShouldBeTrue();
         actual.ShouldBe(expected);
     }
@@ -101,7 +107,57 @@ public sealed class IdentityValueDefaultTests
         serialized.RootElement.GetProperty("Name").GetString().ShouldBe(string.Empty);
         serialized.RootElement.GetProperty("IsDefault").GetBoolean().ShouldBeTrue();
 
-        Should.Throw<ArgumentException>(() => StateWritePlan.For<AppSettings>().DefaultTo(uninitialized));
+        Should.Throw<ArgumentException>(() =>
+            StateWritePlan.For<AppSettings>().DefaultTo(uninitialized)
+        );
+    }
+
+    [Test]
+    public void DefaultSourceIdIsSafeInvalidAndDistinctFromNullableAbsence()
+    {
+        SourceId uninitialized = default;
+        SourceId? absent = null;
+        var presentDefault = (SourceId?)default(SourceId);
+        var named = SourceId.From("primary");
+
+        uninitialized.IsDefault.ShouldBeTrue();
+        uninitialized.Value.ShouldBe(string.Empty);
+        uninitialized.ToString().ShouldBe(string.Empty);
+        uninitialized.ShouldBe(default(SourceId));
+        uninitialized.ShouldNotBe(named);
+        absent.ShouldBeNull();
+        presentDefault.HasValue.ShouldBeTrue();
+        presentDefault.Value.IsDefault.ShouldBeTrue();
+        JsonSerializer.Deserialize<SourceId>(JsonSerializer.Serialize(named)).ShouldBe(named);
+        JsonSerializer
+            .Deserialize<SourceId>(JsonSerializer.Serialize(uninitialized))
+            .ShouldBe(uninitialized);
+
+        Should.Throw<ArgumentException>(() => StateWritePlan.DefaultTo(uninitialized));
+    }
+
+    [Test]
+    public void DefaultGeneratedMemberTokensExposeSafeNamesAndCannotEnterModelSchemas()
+    {
+        ConfiglueMemberSchema schemaMember = default;
+        ConfiglueFragmentMember fragmentMember = default;
+
+        schemaMember.IsDefault.ShouldBeTrue();
+        schemaMember.Name.ShouldBe(string.Empty);
+        schemaMember.ValueType.ShouldBe(typeof(void));
+        schemaMember.ShouldBe(default(ConfiglueMemberSchema));
+        fragmentMember.IsDefault.ShouldBeTrue();
+        fragmentMember.Name.ShouldBe(string.Empty);
+        fragmentMember.ShouldBe(default(ConfiglueFragmentMember));
+        var serializedFragmentMember = JsonSerializer.Deserialize<ConfiglueFragmentMember>(
+            JsonSerializer.Serialize(fragmentMember)
+        );
+        serializedFragmentMember.IsDefault.ShouldBeTrue();
+        serializedFragmentMember.Name.ShouldBe(string.Empty);
+
+        Should.Throw<ArgumentException>(() =>
+            new ConfiglueModelSchema(typeof(AppSettings), "app-settings", 1, [schemaMember])
+        );
     }
 
     [Test]
@@ -160,7 +216,8 @@ public sealed class IdentityValueDefaultTests
         public ResourceId GetResourceId(ConfiglueResourceContext context) => resourceId;
     }
 
-    private sealed class OptionalIdentity(bool hasIdentity, ResourceId resourceId) : ITryResourceIdentity
+    private sealed class OptionalIdentity(bool hasIdentity, ResourceId resourceId)
+        : ITryResourceIdentity
     {
         public bool TryGetResourceId(ConfiglueResourceContext context, out ResourceId result)
         {

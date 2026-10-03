@@ -262,6 +262,7 @@ namespace Configlue
     {
         public ConfiglueFragmentMember(int Id, string Name, object? Value) { }
         public int Id { get; init; }
+        public bool IsDefault { get; }
         public string Name { get; init; }
         public object? Value { get; init; }
         public void Deconstruct(out int Id, out string Name, out object? Value) { }
@@ -298,6 +299,7 @@ namespace Configlue
         public string? EnvironmentVariableName { get; init; }
         public System.Func<object, object?>? GetValue { get; init; }
         public int Id { get; init; }
+        public bool IsDefault { get; }
         public Configlue.MergeMode MergeMode { get; init; }
         public Configlue.IConfiglueMergeStrategy? MergeStrategy { get; init; }
         public string Name { get; init; }

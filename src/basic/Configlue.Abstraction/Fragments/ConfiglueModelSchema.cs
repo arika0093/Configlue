@@ -1,16 +1,40 @@
 namespace Configlue;
 
 /// <summary>Describes one generated model member.</summary>
+/// <remarks>The default value is uninitialized; its name and value type expose safe sentinel values.</remarks>
 public readonly record struct ConfiglueMemberSchema
 {
-    /// <summary>Gets or initializes this member's ordinal within its generated schema version.</summary>
+    private readonly string? _name;
+    private readonly Type? _valueType;
+
+    /// <summary>
+    /// Gets or initializes this member's generated ordinal within one model schema version.
+    /// </summary>
+    /// <remarks>
+    /// The ordinal is scoped to the exact model type, schema identifier, and version described by
+    /// its <see cref="ConfiglueModelSchema"/>. Generated ordinals can shift when readable members
+    /// are added, removed, or renamed. Do not persist an ordinal or compare it across schema
+    /// versions; use member names and schema-version-aware migration instead.
+    /// </remarks>
     public int Id { get; init; }
 
     /// <summary>Gets or initializes the <see cref="Name"/> value.</summary>
-    public string Name { get; init; }
+    public string Name
+    {
+        get => _name ?? string.Empty;
+        init => _name = value;
+    }
 
     /// <summary>Gets or initializes the <see cref="ValueType"/> value.</summary>
-    public Type ValueType { get; init; }
+    public Type ValueType
+    {
+        get => _valueType ?? typeof(void);
+        init => _valueType = value;
+    }
+
+    /// <summary>Whether this value is the uninitialized default member metadata.</summary>
+    public bool IsDefault =>
+        string.IsNullOrWhiteSpace(_name) || _valueType is null || _valueType == typeof(void);
 
     /// <summary>Gets or initializes the <see cref="MergeMode"/> value.</summary>
     public MergeMode MergeMode { get; init; }
@@ -60,6 +84,12 @@ public readonly record struct ConfiglueMemberSchema
         Func<object?>? DefaultValueFactory = null
     )
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(Name);
+        ArgumentNullException.ThrowIfNull(ValueType);
+        if (ValueType == typeof(void))
+        {
+            throw new ArgumentException("A model member cannot have type void.", nameof(ValueType));
+        }
         this.Id = Id;
         this.Name = Name;
         this.ValueType = ValueType;
@@ -131,7 +161,16 @@ public sealed class ConfiglueModelSchema
         ModelType = modelType;
         Id = id;
         Version = version;
-        Members = Array.AsReadOnly(members.ToArray());
+        var memberArray = members.ToArray();
+        if (memberArray.Any(static member => member.IsDefault))
+        {
+            throw new ArgumentException(
+                "Model schema members cannot contain uninitialized metadata.",
+                nameof(members)
+            );
+        }
+
+        Members = Array.AsReadOnly(memberArray);
         _emptyFragmentFactory = emptyFragmentFactory;
     }
 

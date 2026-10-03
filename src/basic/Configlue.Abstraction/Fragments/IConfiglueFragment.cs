@@ -1,14 +1,24 @@
 namespace Configlue;
 
 /// <summary>Describes one present value in a generated sparse fragment.</summary>
+/// <remarks>The default value is uninitialized; its name property safely returns an empty string.</remarks>
 [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public readonly record struct ConfiglueFragmentMember
 {
+    private readonly string? _name;
+
     /// <summary>Gets or initializes this member's ordinal within its fragment's schema version.</summary>
     public int Id { get; init; }
 
     /// <summary>Gets or initializes the <see cref="Name"/> value.</summary>
-    public string Name { get; init; }
+    public string Name
+    {
+        get => _name ?? string.Empty;
+        init => _name = value;
+    }
+
+    /// <summary>Whether this value is the uninitialized default fragment member.</summary>
+    public bool IsDefault => string.IsNullOrWhiteSpace(_name);
 
     /// <summary>Gets or initializes the <see cref="Value"/> value.</summary>
     public object? Value { get; init; }
@@ -19,6 +29,7 @@ public readonly record struct ConfiglueFragmentMember
     /// <param name="Value">The initial value for the <see cref="Value"/> property.</param>
     public ConfiglueFragmentMember(int Id, string Name, object? Value)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(Name);
         this.Id = Id;
         this.Name = Name;
         this.Value = Value;
