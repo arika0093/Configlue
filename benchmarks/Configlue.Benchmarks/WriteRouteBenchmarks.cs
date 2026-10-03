@@ -32,15 +32,20 @@ public class WriteRouteBenchmarks
             .Route(x => x.Left.Host, SourceKey<RouteBenchmarkRoot>.Named("host"))
             .Route(x => x.Right, SourceKey<RouteBenchmarkRoot>.Named("right"))
             .Build();
-        _diagnostic = new StateWritePlan(_compiled.PropertyRoutes);
+        _diagnostic = new StateWritePlan(
+            _compiled.PropertyRoutes.ToDictionary(
+                static route => route.Key,
+                static route => route.Value.Value
+            )
+        );
         _path = ConfiglueMemberPath.FromNames(RouteBenchmarkRoot.ConfiglueSchema, "Left.Host");
     }
 
     [Benchmark(Baseline = true)]
-    public string? DiagnosticStringLookup() => _diagnostic.ResolveSourceIdOrNull("Left.Host");
+    public SourceId? DiagnosticStringLookup() => _diagnostic.ResolveSourceIdOrNull("Left.Host");
 
     [Benchmark]
-    public string? GeneratedIdentityLookup() => ConfiglueWriteRouting.Resolve(_compiled, _path);
+    public SourceId? GeneratedIdentityLookup() => ConfiglueWriteRouting.Resolve(_compiled, _path);
 
     [Benchmark]
     public bool GeneratedRouteBelow() =>

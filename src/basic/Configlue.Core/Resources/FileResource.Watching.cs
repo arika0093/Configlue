@@ -9,6 +9,7 @@ public sealed partial class FileResource
     private FileSystemWatcher? _fileWatcher;
     private TaskCompletionSource _changed = NewChangeSignal();
     private bool _disposed;
+    private int _activeChangeWaits;
     private int _disposeCallCount;
 
     internal bool IsDisposedForTests
@@ -71,44 +72,62 @@ public sealed partial class FileResource
                 cancellationToken,
                 _disposeCancellation.Token
             );
+            _activeChangeWaits++;
         }
 
-        using (linkedCancellation)
+        try
         {
-            if (
-                !string.Equals(
-                    await GetCurrentRevisionAsync(linkedCancellation.Token).ConfigureAwait(false),
-                    observedRevision,
-                    StringComparison.Ordinal
+            using (linkedCancellation)
+            {
+                if (
+                    !string.Equals(
+                        await GetCurrentRevisionAsync(linkedCancellation.Token)
+                            .ConfigureAwait(false),
+                        observedRevision,
+                        StringComparison.Ordinal
+                    )
                 )
-            )
-            {
-                return;
-            }
+                {
+                    return;
+                }
 
-            if (!hasWatcher)
-            {
-                await PollUntilChangedAsync(observedRevision, linkedCancellation.Token)
-                    .ConfigureAwait(false);
-                return;
-            }
+                if (!hasWatcher)
+                {
+                    await PollUntilChangedAsync(observedRevision, linkedCancellation.Token)
+                        .ConfigureAwait(false);
+                    return;
+                }
 
-            var watcherTask = waitTask.WaitAsync(linkedCancellation.Token);
-            var pollingTask = PollUntilChangedAsync(observedRevision, linkedCancellation.Token);
-            var completed = await Task.WhenAny(watcherTask, pollingTask).ConfigureAwait(false);
+                var watcherTask = waitTask.WaitAsync(linkedCancellation.Token);
+                var pollingTask = PollUntilChangedAsync(observedRevision, linkedCancellation.Token);
+                var completed = await Task.WhenAny(watcherTask, pollingTask).ConfigureAwait(false);
 #if NETSTANDARD
-            linkedCancellation.Cancel();
+                linkedCancellation.Cancel();
 #else
-            await linkedCancellation.CancelAsync().ConfigureAwait(false);
+                await linkedCancellation.CancelAsync().ConfigureAwait(false);
 #endif
-            try
-            {
-                await completed.ConfigureAwait(false);
+                try
+                {
+                    await completed.ConfigureAwait(false);
+                }
+                finally
+                {
+                    await ObserveCancellationAsync(
+                            completed == watcherTask ? pollingTask : watcherTask
+                        )
+                        .ConfigureAwait(false);
+                }
             }
-            finally
+        }
+        finally
+        {
+            lock (_watchGate)
             {
-                await ObserveCancellationAsync(completed == watcherTask ? pollingTask : watcherTask)
-                    .ConfigureAwait(false);
+                _activeChangeWaits--;
+                if (_disposed && _activeChangeWaits == 0)
+                {
+                    _disposeCancellation.Dispose();
+                }
             }
         }
     }
@@ -129,7 +148,10 @@ public sealed partial class FileResource
             _fileWatcher = null;
             _disposeCancellation.Cancel();
             _changed.TrySetCanceled(_disposeCancellation.Token);
-            _disposeCancellation.Dispose();
+            if (_activeChangeWaits == 0)
+            {
+                _disposeCancellation.Dispose();
+            }
         }
     }
 

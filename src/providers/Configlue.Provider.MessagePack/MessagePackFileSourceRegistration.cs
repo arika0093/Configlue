@@ -186,7 +186,7 @@ public static class MessagePackFileSourceRegistration
                     context.ModelSchema,
                     context.HostPaths,
                     context.Own,
-                    MessagePackStateCodec<TFragment>.CreateGeneratedFragment(serializerOptions)
+                    new MessagePackStateCodec<TFragment>(serializerOptions)
                 )
             );
         }

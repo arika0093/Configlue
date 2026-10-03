@@ -587,7 +587,7 @@ internal static class XmlStateCodecOperations
             }
         }
 
-        if (!declaredType.IsAssignableFrom(concreteType) && definition != typeof(IReadOnlySet<>))
+        if (!declaredType.IsAssignableFrom(concreteType))
         {
             throw UnsupportedCollection(declaredType);
         }
@@ -719,15 +719,6 @@ internal static class XmlStateCodecOperations
 
         if (collection is null || !declaredType.IsInstanceOfType(collection))
         {
-            if (definition == typeof(IReadOnlySet<>) && collection is IEnumerable sequence)
-            {
-                var viewType = typeof(ReadOnlySetView<>).MakeGenericType(elementType);
-                var view = Activator.CreateInstance(viewType, [sequence]);
-                if (view is not null && declaredType.IsInstanceOfType(view))
-                {
-                    return view;
-                }
-            }
             throw UnsupportedCollection(declaredType);
         }
 
@@ -743,7 +734,9 @@ internal static class XmlStateCodecOperations
         || IsNamedGenericType(type, "System.Collections.Immutable.ImmutableDictionary`2");
 
     private static bool IsSetType(Type type) =>
-        type == typeof(HashSet<>) || type == typeof(ISet<>) || type == typeof(IReadOnlySet<>);
+        type == typeof(HashSet<>)
+        || type == typeof(ISet<>)
+        || IsNamedGenericType(type, "System.Collections.Generic.IReadOnlySet`1");
 
     private static bool IsSupportedConcreteCollection(Type type, bool isDictionary) =>
         (
@@ -807,30 +800,6 @@ internal static class XmlStateCodecOperations
 
     private static bool IsNamedGenericType(Type type, string name) =>
         type.IsGenericTypeDefinition && type.FullName == name;
-
-    private sealed class ReadOnlySetView<T>(IEnumerable<T> values) : IReadOnlySet<T>
-    {
-        private readonly HashSet<T> _values = new(values);
-        public int Count => _values.Count;
-
-        public bool Contains(T item) => _values.Contains(item);
-
-        public bool IsProperSubsetOf(IEnumerable<T> other) => _values.IsProperSubsetOf(other);
-
-        public bool IsProperSupersetOf(IEnumerable<T> other) => _values.IsProperSupersetOf(other);
-
-        public bool IsSubsetOf(IEnumerable<T> other) => _values.IsSubsetOf(other);
-
-        public bool IsSupersetOf(IEnumerable<T> other) => _values.IsSupersetOf(other);
-
-        public bool Overlaps(IEnumerable<T> other) => _values.Overlaps(other);
-
-        public bool SetEquals(IEnumerable<T> other) => _values.SetEquals(other);
-
-        public IEnumerator<T> GetEnumerator() => _values.GetEnumerator();
-
-        IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
-    }
 
     private static XDocument LoadDocument(byte[] content)
     {
