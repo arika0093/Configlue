@@ -26,6 +26,7 @@ public sealed class JsonStateCodec
         _options = options is null
             ? new JsonSerializerOptions()
             : new JsonSerializerOptions(options);
+        JsonStateCodecOperations.EnsureTypeInfoResolver(_options);
         _layout = documentLayout;
     }
 
@@ -88,6 +89,31 @@ public sealed class JsonStateCodec
             directWriter.WriteEndObject();
             directWriter.Flush();
             return;
+        }
+
+        var converter = _options.GetConverter(type);
+        var typeInfo = converter is IJsonObjectPayloadWriter ? null : _options.GetTypeInfo(type);
+        using (var directWriter = new Utf8JsonWriter(destination))
+        {
+            if (
+                JsonStateCodecOperations.TryWriteSimpleObjectPayload(
+                    directWriter,
+                    value,
+                    type,
+                    converter,
+                    typeInfo,
+                    _options,
+                    schema.Value,
+                    in envelopeContext,
+                    _layout
+                )
+            )
+            {
+                directWriter.Flush();
+                return;
+            }
+
+            directWriter.Flush();
         }
 
         var raw = new ArrayBufferWriter<byte>();
@@ -671,6 +697,35 @@ public sealed class JsonStateCodec<T>
             directWriter.WriteEndObject();
             directWriter.Flush();
             return;
+        }
+
+        var converter =
+            (JsonConverter?)_converter ?? _typeInfo?.Converter ?? _options.GetConverter(typeof(T));
+        var typeInfo =
+            converter is IJsonObjectPayloadWriter
+                ? null
+                : _typeInfo ?? _options.GetTypeInfo(typeof(T));
+        using (var directWriter = new Utf8JsonWriter(destination))
+        {
+            if (
+                JsonStateCodecOperations.TryWriteSimpleObjectPayload(
+                    directWriter,
+                    value,
+                    typeof(T),
+                    converter,
+                    typeInfo,
+                    _options,
+                    schema.Value,
+                    in envelopeContext,
+                    _layout
+                )
+            )
+            {
+                directWriter.Flush();
+                return;
+            }
+
+            directWriter.Flush();
         }
 
         var raw = new ArrayBufferWriter<byte>();

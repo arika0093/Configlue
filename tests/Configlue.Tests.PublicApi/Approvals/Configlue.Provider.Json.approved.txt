@@ -19,6 +19,10 @@ namespace Configlue.Provider.Json
         public static void Register(System.Text.Json.Serialization.JsonConverter<TFragment> converter) { }
         public static bool TryGetConverter([System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out System.Text.Json.Serialization.JsonConverter<TFragment>? converter) { }
     }
+    public interface IJsonObjectPayloadWriter
+    {
+        void WriteObjectPayloadProperties(System.Text.Json.Utf8JsonWriter writer, object value, System.Text.Json.JsonSerializerOptions options);
+    }
     public sealed class JsonFileRegistration<TModel>
         where TModel : Configlue.CompilerServices.IConfiglueFacadeModel<TModel>
     {

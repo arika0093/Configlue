@@ -1,4 +1,6 @@
 using System.Text.Json.Serialization;
+using System.Buffers;
+using System.Text;
 using Configlue.Provider.Json;
 using Configlue.Testing;
 
@@ -17,6 +19,24 @@ internal partial class JsonAotSettingsJsonContext : JsonSerializerContext { }
 
 public sealed class JsonAotTests
 {
+    [Test]
+    public async Task JsonAot_SimpleSchemaSerializationWritesSourceGeneratedObjectDirectly()
+    {
+        var codec = new JsonStateCodec<JsonAotSettings>(
+            JsonAotSettingsJsonContext.Default.JsonAotSettings
+        );
+        var context = new StateCodecContext(new StateSchemaMetadata("json-aot-settings", 1));
+        var buffer = new ArrayBufferWriter<byte>();
+
+        codec.Serialize(new JsonAotSettings { Host = "direct.example", Port = 8443 }, buffer, in context);
+
+        var encoded = Encoding.UTF8.GetString(buffer.WrittenSpan);
+        encoded.ShouldContain("\"$version\":1");
+        encoded.ShouldContain("\"Host\":\"direct.example\"");
+        encoded.ShouldContain("\"Port\":8443");
+        encoded.ShouldNotContain("\"$value\"");
+    }
+
     [Test]
     public async Task JsonAot_PipelineReadUsesGeneratedMetadata()
     {
