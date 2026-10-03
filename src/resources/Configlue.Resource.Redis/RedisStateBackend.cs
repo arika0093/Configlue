@@ -219,6 +219,7 @@ internal sealed class RedisChangeHub : IDisposable
         TaskCreationOptions.RunContinuationsAsynchronously
     );
     private readonly object _subscriptionGate = new();
+    private readonly object _waiterGate = new();
     private Task? _subscriptionTask;
     private long _nextWaiterId;
     private int _disposed;
@@ -233,6 +234,23 @@ internal sealed class RedisChangeHub : IDisposable
 
     internal bool IsDisposed => Volatile.Read(ref _disposed) != 0;
 
+    internal Action? TestHookOnRegisterAttempt { get; set; }
+
+    internal Action? TestHookOnRegistered { get; set; }
+
+    internal Action? TestHookOnCleanupRemoving { get; set; }
+
+    internal int TestWaiterEntryCount
+    {
+        get
+        {
+            lock (_waiterGate)
+            {
+                return _waiters.Count;
+            }
+        }
+    }
+
     public async ValueTask WaitForChangeAsync(
         string identity,
         string? observedRevision,
@@ -241,13 +259,25 @@ internal sealed class RedisChangeHub : IDisposable
     )
     {
         ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
-        var signal = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var identityWaiters = _waiters.GetOrAdd(
-            identity,
-            static _ => new ConcurrentDictionary<long, TaskCompletionSource>()
-        );
-        var waiterId = Interlocked.Increment(ref _nextWaiterId);
-        identityWaiters[waiterId] = signal;
+        TestHookOnRegisterAttempt?.Invoke();
+        TaskCompletionSource signal;
+        ConcurrentDictionary<long, TaskCompletionSource> identityWaiters;
+        long waiterId;
+        lock (_waiterGate)
+        {
+            ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
+            signal = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            if (!_waiters.TryGetValue(identity, out identityWaiters!))
+            {
+                identityWaiters = new ConcurrentDictionary<long, TaskCompletionSource>();
+                _waiters[identity] = identityWaiters;
+            }
+
+            waiterId = Interlocked.Increment(ref _nextWaiterId);
+            identityWaiters[waiterId] = signal;
+            TestHookOnRegistered?.Invoke();
+        }
+
         try
         {
             var subscription = EnsureSubscriptionStarted();
@@ -273,20 +303,24 @@ internal sealed class RedisChangeHub : IDisposable
         }
         finally
         {
-            identityWaiters.TryRemove(waiterId, out _);
-            if (identityWaiters.IsEmpty)
+            lock (_waiterGate)
             {
-                (
-                    (ICollection<
-                        KeyValuePair<string, ConcurrentDictionary<long, TaskCompletionSource>>
-                    >)
-                        _waiters
-                ).Remove(
-                    new KeyValuePair<string, ConcurrentDictionary<long, TaskCompletionSource>>(
-                        identity,
-                        identityWaiters
-                    )
-                );
+                identityWaiters.TryRemove(waiterId, out _);
+                TestHookOnCleanupRemoving?.Invoke();
+                if (identityWaiters.IsEmpty)
+                {
+                    (
+                        (ICollection<
+                            KeyValuePair<string, ConcurrentDictionary<long, TaskCompletionSource>>
+                        >)
+                            _waiters
+                    ).Remove(
+                        new KeyValuePair<string, ConcurrentDictionary<long, TaskCompletionSource>>(
+                            identity,
+                            identityWaiters
+                        )
+                    );
+                }
             }
         }
     }

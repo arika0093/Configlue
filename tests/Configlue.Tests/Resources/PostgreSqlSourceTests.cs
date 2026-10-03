@@ -233,6 +233,145 @@ public sealed class PostgreSqlSourceTests
     }
 
     [Test]
+    public async Task ChangeHubLastWaiterCleanupDoesNotDetachNewWaiter_Notification()
+    {
+        var listener = new FakePostgreSqlNotificationListener();
+        using var hub = new PostgreSqlChangeHub("channel", listener.RunAsync);
+        var identity = PostgreSqlIdentityHash.Create("settings", "tenant-race-notification");
+
+        var secondWait = await RaceLastWaiterCleanupAsync(hub, listener, identity);
+        secondWait.IsCompleted.ShouldBeFalse();
+
+        listener.Notify("channel", identity);
+        await secondWait.WaitAsync(TimeSpan.FromSeconds(5));
+        await WaitForPostgreSqlEntryCountAsync(hub, 0);
+    }
+
+    [Test]
+    public async Task ChangeHubLastWaiterCleanupDoesNotDetachNewWaiter_Reconnect()
+    {
+        var listener = new FakePostgreSqlNotificationListener();
+        using var hub = new PostgreSqlChangeHub("channel", listener.RunAsync);
+        var identity = PostgreSqlIdentityHash.Create("settings", "tenant-race-reconnect");
+
+        var secondWait = await RaceLastWaiterCleanupAsync(hub, listener, identity);
+        secondWait.IsCompleted.ShouldBeFalse();
+
+        listener.Reconnect();
+        await secondWait.WaitAsync(TimeSpan.FromSeconds(5));
+        await WaitForPostgreSqlEntryCountAsync(hub, 0);
+    }
+
+    [Test]
+    public async Task ChangeHubLastWaiterCleanupDoesNotDetachNewWaiter_Dispose()
+    {
+        var listener = new FakePostgreSqlNotificationListener();
+        var hub = new PostgreSqlChangeHub("channel", listener.RunAsync);
+        var identity = PostgreSqlIdentityHash.Create("settings", "tenant-race-dispose");
+
+        try
+        {
+            var secondWait = await RaceLastWaiterCleanupAsync(hub, listener, identity);
+            secondWait.IsCompleted.ShouldBeFalse();
+
+            hub.Dispose();
+            await secondWait.WaitAsync(TimeSpan.FromSeconds(5));
+            hub.TestWaiterEntryCount.ShouldBe(0);
+        }
+        finally
+        {
+            hub.Dispose();
+        }
+    }
+
+    private static async Task<Task> RaceLastWaiterCleanupAsync(
+        PostgreSqlChangeHub hub,
+        FakePostgreSqlNotificationListener listener,
+        string identity
+    )
+    {
+        static ValueTask<ResourceReadResult> ReadSameRevision(CancellationToken _) =>
+            ValueTask.FromResult(ResourceReadResult.Success(new byte[] { 1 }, "1"));
+
+        var cleanupReached = new ManualResetEventSlim(false);
+        var releaseCleanup = new ManualResetEventSlim(false);
+        var registerAttempted = new ManualResetEventSlim(false);
+        var secondRegistered = new ManualResetEventSlim(false);
+        var cleanupCalls = 0;
+        hub.TestHookOnCleanupRemoving = () =>
+        {
+            if (Interlocked.Increment(ref cleanupCalls) == 1)
+            {
+                cleanupReached.Set();
+                if (!releaseCleanup.Wait(TimeSpan.FromSeconds(5)))
+                {
+                    throw new TimeoutException("Timed out waiting to release PostgreSQL cleanup.");
+                }
+            }
+        };
+
+        var firstWait = hub.WaitForChangeAsync(
+                identity,
+                "1",
+                static token => ReadSameRevision(token),
+                CancellationToken.None
+            )
+            .AsTask();
+        await listener.Started.WaitAsync(TimeSpan.FromSeconds(5));
+        await WaitForPostgreSqlEntryCountAsync(hub, 1);
+
+        listener.Notify("channel", identity);
+        if (!cleanupReached.Wait(TimeSpan.FromSeconds(5)))
+        {
+            throw new TimeoutException("Timed out waiting for PostgreSQL cleanup to pause.");
+        }
+
+        hub.TestHookOnRegisterAttempt = () => registerAttempted.Set();
+        hub.TestHookOnRegistered = () => secondRegistered.Set();
+        var secondWait = Task.Run(
+            async () =>
+                await hub.WaitForChangeAsync(
+                    identity,
+                    "1",
+                    static token => ReadSameRevision(token),
+                    CancellationToken.None
+                )
+        );
+        if (!registerAttempted.Wait(TimeSpan.FromSeconds(5)))
+        {
+            throw new TimeoutException("Timed out waiting for PostgreSQL re-registration.");
+        }
+
+        await Task.Delay(100);
+        releaseCleanup.Set();
+        await firstWait.WaitAsync(TimeSpan.FromSeconds(5));
+        if (!secondRegistered.Wait(TimeSpan.FromSeconds(5)))
+        {
+            throw new TimeoutException("Timed out waiting for second PostgreSQL waiter.");
+        }
+
+        hub.TestHookOnCleanupRemoving = null;
+        hub.TestHookOnRegisterAttempt = null;
+        hub.TestHookOnRegistered = null;
+        await WaitForPostgreSqlEntryCountAsync(hub, 1);
+        return secondWait;
+    }
+
+    private static async Task WaitForPostgreSqlEntryCountAsync(PostgreSqlChangeHub hub, int expected)
+    {
+        var deadline = DateTimeOffset.UtcNow.AddSeconds(5);
+        while (hub.TestWaiterEntryCount != expected)
+        {
+            if (DateTimeOffset.UtcNow >= deadline)
+            {
+                hub.TestWaiterEntryCount.ShouldBe(expected);
+            }
+
+            await Task.Delay(10);
+        }
+    }
+
+    [Test]
     public void RejectsUnsafeTableIdentifiers()
     {
         Should.Throw<ArgumentException>(() =>

@@ -266,6 +266,145 @@ public sealed class RedisResourceTests
     }
 
     [Test]
+    public async Task ChangeHubLastWaiterCleanupDoesNotDetachNewWaiter_Notification()
+    {
+        var transport = new FakeRedisNotificationTransport();
+        using var hub = new RedisChangeHub(transport, "watch-channel");
+        const string identity = "identity-race-notification";
+
+        var secondWait = await RaceLastWaiterCleanupAsync(hub, transport, identity);
+        secondWait.IsCompleted.ShouldBeFalse();
+
+        transport.Notify(identity);
+        await secondWait.WaitAsync(TimeSpan.FromSeconds(5));
+        await WaitForRedisEntryCountAsync(hub, 0);
+    }
+
+    [Test]
+    public async Task ChangeHubLastWaiterCleanupDoesNotDetachNewWaiter_Reconnect()
+    {
+        var transport = new FakeRedisNotificationTransport();
+        using var hub = new RedisChangeHub(transport, "watch-channel");
+        const string identity = "identity-race-reconnect";
+
+        var secondWait = await RaceLastWaiterCleanupAsync(hub, transport, identity);
+        secondWait.IsCompleted.ShouldBeFalse();
+
+        transport.Reconnect();
+        await secondWait.WaitAsync(TimeSpan.FromSeconds(5));
+        await WaitForRedisEntryCountAsync(hub, 0);
+    }
+
+    [Test]
+    public async Task ChangeHubLastWaiterCleanupDoesNotDetachNewWaiter_Dispose()
+    {
+        var transport = new FakeRedisNotificationTransport();
+        var hub = new RedisChangeHub(transport, "watch-channel");
+        const string identity = "identity-race-dispose";
+
+        try
+        {
+            var secondWait = await RaceLastWaiterCleanupAsync(hub, transport, identity);
+            secondWait.IsCompleted.ShouldBeFalse();
+
+            hub.Dispose();
+            await secondWait.WaitAsync(TimeSpan.FromSeconds(5));
+            hub.TestWaiterEntryCount.ShouldBe(0);
+        }
+        finally
+        {
+            hub.Dispose();
+        }
+    }
+
+    private static async Task<Task> RaceLastWaiterCleanupAsync(
+        RedisChangeHub hub,
+        FakeRedisNotificationTransport transport,
+        string identity
+    )
+    {
+        static ValueTask<ResourceReadResult> ReadSameRevision(CancellationToken _) =>
+            ValueTaskCompat.FromResult(ResourceReadResult.Success(new byte[] { 1 }, "1"));
+
+        var cleanupReached = new ManualResetEventSlim(false);
+        var releaseCleanup = new ManualResetEventSlim(false);
+        var registerAttempted = new ManualResetEventSlim(false);
+        var secondRegistered = new ManualResetEventSlim(false);
+        var cleanupCalls = 0;
+        hub.TestHookOnCleanupRemoving = () =>
+        {
+            if (Interlocked.Increment(ref cleanupCalls) == 1)
+            {
+                cleanupReached.Set();
+                if (!releaseCleanup.Wait(TimeSpan.FromSeconds(5)))
+                {
+                    throw new TimeoutException("Timed out waiting to release Redis cleanup.");
+                }
+            }
+        };
+
+        var firstWait = hub.WaitForChangeAsync(
+                identity,
+                "1",
+                static token => ReadSameRevision(token),
+                CancellationToken.None
+            )
+            .AsTask();
+        await transport.Started.WaitAsync(TimeSpan.FromSeconds(5));
+        await WaitForRedisEntryCountAsync(hub, 1);
+
+        transport.Notify(identity);
+        if (!cleanupReached.Wait(TimeSpan.FromSeconds(5)))
+        {
+            throw new TimeoutException("Timed out waiting for Redis cleanup to pause.");
+        }
+
+        hub.TestHookOnRegisterAttempt = () => registerAttempted.Set();
+        hub.TestHookOnRegistered = () => secondRegistered.Set();
+        var secondWait = Task.Run(
+            async () =>
+                await hub.WaitForChangeAsync(
+                    identity,
+                    "1",
+                    static token => ReadSameRevision(token),
+                    CancellationToken.None
+                )
+        );
+        if (!registerAttempted.Wait(TimeSpan.FromSeconds(5)))
+        {
+            throw new TimeoutException("Timed out waiting for Redis re-registration.");
+        }
+
+        await Task.Delay(100);
+        releaseCleanup.Set();
+        await firstWait.WaitAsync(TimeSpan.FromSeconds(5));
+        if (!secondRegistered.Wait(TimeSpan.FromSeconds(5)))
+        {
+            throw new TimeoutException("Timed out waiting for second Redis waiter.");
+        }
+
+        hub.TestHookOnCleanupRemoving = null;
+        hub.TestHookOnRegisterAttempt = null;
+        hub.TestHookOnRegistered = null;
+        await WaitForRedisEntryCountAsync(hub, 1);
+        return secondWait;
+    }
+
+    private static async Task WaitForRedisEntryCountAsync(RedisChangeHub hub, int expected)
+    {
+        var deadline = DateTimeOffset.UtcNow.AddSeconds(5);
+        while (hub.TestWaiterEntryCount != expected)
+        {
+            if (DateTimeOffset.UtcNow >= deadline)
+            {
+                hub.TestWaiterEntryCount.ShouldBe(expected);
+            }
+
+            await Task.Delay(10);
+        }
+    }
+
+    [Test]
     public void FixedMultiplexerIdentityIgnoresRoutesAndRoutedIdentityIncludesThem()
     {
         using var multiplexer = ConnectionMultiplexer.Connect(

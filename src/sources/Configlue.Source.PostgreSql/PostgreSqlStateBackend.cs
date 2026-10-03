@@ -433,6 +433,7 @@ internal sealed class PostgreSqlChangeHub : IDisposable
         ConcurrentDictionary<long, TaskCompletionSource>
     > _waiters = new(StringComparer.Ordinal);
     private readonly object _startGate = new();
+    private readonly object _waiterGate = new();
     private Task? _listenerTask;
     private long _nextWaiterId;
     private int _disposed;
@@ -461,6 +462,23 @@ internal sealed class PostgreSqlChangeHub : IDisposable
 
     internal bool IsDisposed => Volatile.Read(ref _disposed) != 0;
 
+    internal Action? TestHookOnRegisterAttempt { get; set; }
+
+    internal Action? TestHookOnRegistered { get; set; }
+
+    internal Action? TestHookOnCleanupRemoving { get; set; }
+
+    internal int TestWaiterEntryCount
+    {
+        get
+        {
+            lock (_waiterGate)
+            {
+                return _waiters.Count;
+            }
+        }
+    }
+
     public async ValueTask WaitForChangeAsync(
         string identity,
         string? observedRevision,
@@ -469,17 +487,33 @@ internal sealed class PostgreSqlChangeHub : IDisposable
     )
     {
         ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
-        var signal = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var identityWaiters = _waiters.GetOrAdd(
-            identity,
-            static _ => new ConcurrentDictionary<long, TaskCompletionSource>()
-        );
-        var waiterId = Interlocked.Increment(ref _nextWaiterId);
-        identityWaiters[waiterId] = signal;
+        TestHookOnRegisterAttempt?.Invoke();
+        TaskCompletionSource signal;
+        ConcurrentDictionary<long, TaskCompletionSource> identityWaiters;
+        long waiterId;
+        lock (_waiterGate)
+        {
+            ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
+            signal = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            if (!_waiters.TryGetValue(identity, out identityWaiters!))
+            {
+                identityWaiters = new ConcurrentDictionary<long, TaskCompletionSource>();
+                _waiters[identity] = identityWaiters;
+            }
+
+            waiterId = Interlocked.Increment(ref _nextWaiterId);
+            identityWaiters[waiterId] = signal;
+            TestHookOnRegistered?.Invoke();
+        }
+
         try
         {
             EnsureListenerStarted();
             await _initialConnection.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
+            if (Volatile.Read(ref _disposed) != 0)
+            {
+                return;
+            }
 
             var current = await readCurrent(cancellationToken).ConfigureAwait(false);
             if (
@@ -494,15 +528,19 @@ internal sealed class PostgreSqlChangeHub : IDisposable
         }
         finally
         {
-            identityWaiters.TryRemove(waiterId, out _);
-            if (identityWaiters.IsEmpty)
+            lock (_waiterGate)
             {
-                _waiters.TryRemove(
-                    new KeyValuePair<string, ConcurrentDictionary<long, TaskCompletionSource>>(
-                        identity,
-                        identityWaiters
-                    )
-                );
+                identityWaiters.TryRemove(waiterId, out _);
+                TestHookOnCleanupRemoving?.Invoke();
+                if (identityWaiters.IsEmpty)
+                {
+                    _waiters.TryRemove(
+                        new KeyValuePair<string, ConcurrentDictionary<long, TaskCompletionSource>>(
+                            identity,
+                            identityWaiters
+                        )
+                    );
+                }
             }
         }
     }
