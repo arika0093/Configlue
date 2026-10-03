@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Security.Cryptography;
 using Configlue.Provider.Json;
 using Configlue.Sources;
@@ -34,8 +35,12 @@ public sealed class StatePipelineTests
     public void AesGcmTransformer_RejectsTamperedContent()
     {
         using var transformer = new AesGcmStateByteTransformer(new byte[32]);
-        var encrypted = transformer.TransformWrite("secret"u8.ToArray());
-        var tampered = encrypted.ToArray();
+        var encrypted = new ArrayBufferWriter<byte>();
+        transformer.TransformWrite("secret"u8, encrypted);
+        var decrypted = new ArrayBufferWriter<byte>();
+        transformer.TransformRead(encrypted.WrittenSpan, decrypted);
+        System.Text.Encoding.UTF8.GetString(decrypted.WrittenSpan).ShouldBe("secret");
+        var tampered = encrypted.WrittenSpan.ToArray();
         tampered[^1] ^= 0x01;
 
         Should.Throw<CryptographicException>(() => transformer.TransformRead(tampered));
@@ -58,6 +63,12 @@ public sealed class StatePipelineTests
         var encrypted = writer.TransformWrite(plaintext);
         System.Text.Encoding.UTF8.GetString(encrypted.Span).ShouldNotContain("save data");
         reader.TransformRead(encrypted).ToArray().SequenceEqual(plaintext).ShouldBeTrue();
+
+        var destinationEncrypted = new ArrayBufferWriter<byte>();
+        writer.TransformWrite(plaintext, destinationEncrypted);
+        var destinationPlaintext = new ArrayBufferWriter<byte>();
+        reader.TransformRead(destinationEncrypted.WrittenSpan, destinationPlaintext);
+        destinationPlaintext.WrittenSpan.SequenceEqual(plaintext).ShouldBeTrue();
         Should.Throw<CryptographicException>(() => wrongKey.TransformRead(encrypted));
 
         var tampered = encrypted.ToArray();

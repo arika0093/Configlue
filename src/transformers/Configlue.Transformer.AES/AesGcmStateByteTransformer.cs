@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Security.Cryptography;
 
 namespace Configlue.Transformer.AES;
@@ -8,7 +9,7 @@ namespace Configlue.Transformer.AES;
 /// The transformer does not own or derive its key; dispose it when the key is no longer needed.
 /// </remarks>
 public sealed class AesGcmStateByteTransformer
-    : ISynchronousStateByteTransformer,
+    : IDestinationStateByteTransformer,
         IStateByteTransformerRecoveryPolicy,
         IDisposable
 {
@@ -67,6 +68,39 @@ public sealed class AesGcmStateByteTransformer
     }
 
     /// <inheritdoc />
+    public void TransformRead(ReadOnlySpan<byte> source, IBufferWriter<byte> destination)
+    {
+        ThrowIfDisposed();
+        ArgumentNullException.ThrowIfNull(destination);
+        if (source.Length < HeaderSize)
+        {
+            throw new CryptographicException("The encrypted state content is truncated.");
+        }
+
+        if (source[0] != FormatVersion)
+        {
+            throw new CryptographicException(
+                "The encrypted state content has an unsupported version."
+            );
+        }
+
+        var plaintextLength = source.Length - HeaderSize;
+        var plaintext = destination.GetSpan(plaintextLength)[..plaintextLength];
+#if NETSTANDARD2_1
+        using var aes = new AesGcm(_key);
+#else
+        using var aes = new AesGcm(_key, TagSize);
+#endif
+        aes.Decrypt(
+            source.Slice(1, NonceSize),
+            source[HeaderSize..],
+            source.Slice(1 + NonceSize, TagSize),
+            plaintext
+        );
+        destination.Advance(plaintextLength);
+    }
+
+    /// <inheritdoc />
     public ReadOnlyMemory<byte> TransformWrite(ReadOnlyMemory<byte> source)
     {
         ThrowIfDisposed();
@@ -83,6 +117,26 @@ public sealed class AesGcmStateByteTransformer
 #endif
         aes.Encrypt(nonce, source.Span, ciphertext, tag);
         return encrypted;
+    }
+
+    /// <inheritdoc />
+    public void TransformWrite(ReadOnlySpan<byte> source, IBufferWriter<byte> destination)
+    {
+        ThrowIfDisposed();
+        ArgumentNullException.ThrowIfNull(destination);
+        var encryptedLength = HeaderSize + source.Length;
+        var encrypted = destination.GetSpan(encryptedLength)[..encryptedLength];
+        encrypted[0] = FormatVersion;
+        var nonce = encrypted.Slice(1, NonceSize);
+        var tag = encrypted.Slice(1 + NonceSize, TagSize);
+        RandomNumberGenerator.Fill(nonce);
+#if NETSTANDARD2_1
+        using var aes = new AesGcm(_key);
+#else
+        using var aes = new AesGcm(_key, TagSize);
+#endif
+        aes.Encrypt(nonce, source, encrypted[HeaderSize..], tag);
+        destination.Advance(encryptedLength);
     }
 
     /// <inheritdoc />

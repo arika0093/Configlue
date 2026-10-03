@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Security.Cryptography;
 
 namespace Configlue.Transformer.AES;
@@ -8,7 +9,7 @@ namespace Configlue.Transformer.AES;
 /// stored in the encoded content; dispose the transformer when it is no longer needed.
 /// </remarks>
 public sealed class AesGcmPassphraseStateByteTransformer
-    : ISynchronousStateByteTransformer,
+    : IDestinationStateByteTransformer,
         IStateByteTransformerRecoveryPolicy,
         IDisposable
 {
@@ -79,6 +80,48 @@ public sealed class AesGcmPassphraseStateByteTransformer
     }
 
     /// <inheritdoc />
+    public void TransformRead(ReadOnlySpan<byte> source, IBufferWriter<byte> destination)
+    {
+        var passphrase = GetPassphrase();
+        ArgumentNullException.ThrowIfNull(destination);
+        if (source.Length < HeaderSize)
+        {
+            throw new CryptographicException("The encrypted state content is truncated.");
+        }
+
+        if (!source[..FormatMarker.Length].SequenceEqual(FormatMarker))
+        {
+            throw new CryptographicException(
+                "The encrypted state content has an unsupported format."
+            );
+        }
+
+        Span<byte> key = stackalloc byte[KeySize];
+        DeriveKey(passphrase, source.Slice(FormatMarker.Length, SaltSize), key);
+        try
+        {
+            var plaintextLength = source.Length - HeaderSize;
+            var plaintext = destination.GetSpan(plaintextLength)[..plaintextLength];
+#if NETSTANDARD2_1
+            using var aes = new AesGcm(key.ToArray());
+#else
+            using var aes = new AesGcm(key, TagSize);
+#endif
+            aes.Decrypt(
+                source.Slice(FormatMarker.Length + SaltSize, NonceSize),
+                source[HeaderSize..],
+                source.Slice(FormatMarker.Length + SaltSize + NonceSize, TagSize),
+                plaintext
+            );
+            destination.Advance(plaintextLength);
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(key);
+        }
+    }
+
+    /// <inheritdoc />
     public ReadOnlyMemory<byte> TransformWrite(ReadOnlyMemory<byte> source)
     {
         var passphrase = GetPassphrase();
@@ -101,6 +144,38 @@ public sealed class AesGcmPassphraseStateByteTransformer
 #endif
             aes.Encrypt(nonce, source.Span, encrypted.AsSpan(HeaderSize), tag);
             return encrypted;
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(key);
+        }
+    }
+
+    /// <inheritdoc />
+    public void TransformWrite(ReadOnlySpan<byte> source, IBufferWriter<byte> destination)
+    {
+        var passphrase = GetPassphrase();
+        ArgumentNullException.ThrowIfNull(destination);
+        var encryptedLength = HeaderSize + source.Length;
+        var encrypted = destination.GetSpan(encryptedLength)[..encryptedLength];
+        var salt = encrypted.Slice(FormatMarker.Length, SaltSize);
+        var nonce = encrypted.Slice(FormatMarker.Length + SaltSize, NonceSize);
+        var tag = encrypted.Slice(FormatMarker.Length + SaltSize + NonceSize, TagSize);
+        FormatMarker.CopyTo(encrypted);
+        RandomNumberGenerator.Fill(salt);
+        RandomNumberGenerator.Fill(nonce);
+
+        Span<byte> key = stackalloc byte[KeySize];
+        DeriveKey(passphrase, salt, key);
+        try
+        {
+#if NETSTANDARD2_1
+            using var aes = new AesGcm(key.ToArray());
+#else
+            using var aes = new AesGcm(key, TagSize);
+#endif
+            aes.Encrypt(nonce, source, encrypted[HeaderSize..], tag);
+            destination.Advance(encryptedLength);
         }
         finally
         {

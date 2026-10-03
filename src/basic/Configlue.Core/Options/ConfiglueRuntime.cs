@@ -757,11 +757,15 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         List<ResolvedContribution>? contributions = captureContributions
             ? new List<ResolvedContribution>(activeSources.Length + 1)
             : null;
-        TFragment[]? fragments = captureContributions
-            ? null
-            : new TFragment[activeSources.Length + 1];
+        TFragment[]? fragments = null;
+        if (!captureContributions && activeSources.Length != 1)
+        {
+            fragments = new TFragment[activeSources.Length + 1];
+        }
+        TFragment singleFragment = default!;
         List<ResolvedFailure>? failures = null;
-        var revisions = new StateRevision[activeSources.Length];
+        var revisions = activeSources.Length > 1 ? new StateRevision[activeSources.Length] : null;
+        var singleRevision = default(StateRevision);
         var revisionCount = 0;
         List<KeyValuePair<SourceId, StateRevisionVector>>? nestedRevisions = null;
         StateReadResult<TFragment> lastFailure = default;
@@ -827,7 +831,16 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             }
 
             var result = sourceResult.FromSource(source.Id, source.PhysicalOrigin);
-            revisions[revisionCount++] = new StateRevision(source.Id, result.Revision);
+            var sourceRevision = new StateRevision(source.Id, result.Revision);
+            if (revisions is null)
+            {
+                singleRevision = sourceRevision;
+            }
+            else
+            {
+                revisions[revisionCount] = sourceRevision;
+            }
+            revisionCount++;
             if (sourceResult.Revisions is { } nestedVector)
             {
                 (nestedRevisions ??= []).Add(
@@ -888,7 +901,14 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                 }
                 else
                 {
-                    fragments![successfulCount] = fragment;
+                    if (fragments is null)
+                    {
+                        singleFragment = fragment;
+                    }
+                    else
+                    {
+                        fragments[successfulCount] = fragment;
+                    }
                 }
 
                 if (activeSource is null)
@@ -955,7 +975,12 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                         result.SourceId,
                         result.PhysicalOrigin,
                         result.Schema,
-                        CreateRevisionVector(revisions, revisionCount, nestedRevisions)
+                        CreateRevisionVector(
+                            revisions,
+                            singleRevision,
+                            revisionCount,
+                            nestedRevisions
+                        )
                     ),
                     (IReadOnlyList<ResolvedContribution>?)contributions
                         ?? Array.Empty<ResolvedContribution>(),
@@ -987,11 +1012,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                     lastFailure.SourceId,
                     lastFailure.PhysicalOrigin,
                     lastFailure.Schema,
-                    new StateRevisionVector(
-                        revisions,
-                        (IEnumerable<KeyValuePair<SourceId, StateRevisionVector>>?)nestedRevisions
-                            ?? Array.Empty<KeyValuePair<SourceId, StateRevisionVector>>()
-                    )
+                    CreateRevisionVector(revisions, singleRevision, revisionCount, nestedRevisions)
                 ),
                 (IReadOnlyList<ResolvedContribution>?)contributions
                     ?? Array.Empty<ResolvedContribution>(),
@@ -1012,14 +1033,33 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         }
         else
         {
-            fragments![successfulCount] = _modelDefaultsFragment;
+            if (fragments is not null)
+            {
+                fragments[successfulCount] = _modelDefaultsFragment;
+            }
         }
 
         var contributionCount = successfulCount + 1;
-        var merged = captureContributions
-            ? contributions![^1].Result.Value!
-            : fragments![successfulCount];
-        for (var index = contributionCount - 2; index >= 0; index--)
+        TFragment merged;
+        if (captureContributions)
+        {
+            merged = contributions![^1].Result.Value!;
+        }
+        else if (fragments is null)
+        {
+            merged =
+                successfulCount == 0
+                    ? _modelDefaultsFragment
+                    : _modelDefaultsFragment.Merge(singleFragment);
+        }
+        else
+        {
+            merged = fragments[successfulCount];
+        }
+
+        var mergeStartIndex =
+            fragments is null && !captureContributions ? -1 : contributionCount - 2;
+        for (var index = mergeStartIndex; index >= 0; index--)
         {
             var fragment = captureContributions
                 ? contributions![index].Result.Value!
@@ -1040,7 +1080,12 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         {
             SourceId = activeSource?.Id,
             PhysicalOrigin = activeSource is null ? null : activeResult.PhysicalOrigin,
-            Revisions = CreateRevisionVector(revisions, revisionCount, nestedRevisions),
+            Revisions = CreateRevisionVector(
+                revisions,
+                singleRevision,
+                revisionCount,
+                nestedRevisions
+            ),
         };
 
         return new ResolvedState(
@@ -1053,11 +1098,24 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
     }
 
     private static StateRevisionVector CreateRevisionVector(
-        StateRevision[] revisions,
+        StateRevision[]? revisions,
+        StateRevision singleRevision,
         int revisionCount,
         List<KeyValuePair<SourceId, StateRevisionVector>>? nestedRevisions
-    ) =>
-        nestedRevisions is null
+    )
+    {
+        if (revisions is null)
+        {
+            if (revisionCount == 0)
+            {
+                return StateRevisionVector.FromSpan(ReadOnlySpan<StateRevision>.Empty);
+            }
+
+            var nested = nestedRevisions is { Count: > 0 } ? nestedRevisions[0].Value : null;
+            return StateRevisionVector.FromSingle(singleRevision, nested);
+        }
+
+        return nestedRevisions is null
             ? StateRevisionVector.FromSpan(revisions.AsSpan(0, revisionCount))
             : StateRevisionVector.FromSpan(
                 revisions.AsSpan(0, revisionCount),
@@ -1067,4 +1125,5 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                 CollectionsMarshal.AsSpan(nestedRevisions)
 #endif
             );
+    }
 }

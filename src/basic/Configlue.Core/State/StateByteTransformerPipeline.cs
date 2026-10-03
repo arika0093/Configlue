@@ -1,3 +1,5 @@
+using System.Buffers;
+
 namespace Configlue.State;
 
 internal static class StateByteTransformerPipeline
@@ -10,9 +12,19 @@ internal static class StateByteTransformerPipeline
         }
 
         var items = transformers.ToArray();
-        if (items.Any(static transformer => transformer is null))
+        if (
+            items.Any(static transformer =>
+                transformer is null
+                || (
+                    transformer is not ISynchronousStateByteTransformer
+                    && transformer is not IAsyncStateByteTransformer
+                )
+            )
+        )
         {
-            throw new ArgumentException("A transformer collection cannot contain null values.");
+            throw new ArgumentException(
+                "A transformer collection cannot contain null values or values that implement neither synchronous nor asynchronous transformer capabilities."
+            );
         }
 
         return items;
@@ -25,7 +37,7 @@ internal static class StateByteTransformerPipeline
     {
         foreach (var transformer in transformers)
         {
-            content = ((ISynchronousStateByteTransformer)transformer).TransformRead(content);
+            content = TransformSynchronousRead(transformer, content);
         }
 
         return content;
@@ -38,9 +50,7 @@ internal static class StateByteTransformerPipeline
     {
         for (var index = transformers.Count - 1; index >= 0; index--)
         {
-            content = ((ISynchronousStateByteTransformer)transformers[index]).TransformWrite(
-                content
-            );
+            content = TransformSynchronousWrite(transformers[index], content);
         }
 
         return content;
@@ -68,7 +78,7 @@ internal static class StateByteTransformerPipeline
                 ? await asyncTransformer
                     .TransformReadAsync(content, cancellationToken)
                     .ConfigureAwait(false)
-                : ((ISynchronousStateByteTransformer)transformer).TransformRead(content);
+                : TransformSynchronousRead(transformer, content);
         }
         return content;
     }
@@ -96,8 +106,38 @@ internal static class StateByteTransformerPipeline
                 ? await asyncTransformer
                     .TransformWriteAsync(content, cancellationToken)
                     .ConfigureAwait(false)
-                : ((ISynchronousStateByteTransformer)transformer).TransformWrite(content);
+                : TransformSynchronousWrite(transformer, content);
         }
         return content;
+    }
+
+    private static ReadOnlyMemory<byte> TransformSynchronousRead(
+        IStateByteTransformer transformer,
+        ReadOnlyMemory<byte> content
+    )
+    {
+        if (transformer is not IDestinationStateByteTransformer destinationTransformer)
+        {
+            return ((ISynchronousStateByteTransformer)transformer).TransformRead(content);
+        }
+
+        var destination = new ArrayBufferWriter<byte>(Math.Max(1, content.Length));
+        destinationTransformer.TransformRead(content.Span, destination);
+        return destination.WrittenMemory;
+    }
+
+    private static ReadOnlyMemory<byte> TransformSynchronousWrite(
+        IStateByteTransformer transformer,
+        ReadOnlyMemory<byte> content
+    )
+    {
+        if (transformer is not IDestinationStateByteTransformer destinationTransformer)
+        {
+            return ((ISynchronousStateByteTransformer)transformer).TransformWrite(content);
+        }
+
+        var destination = new ArrayBufferWriter<byte>(Math.Max(1, content.Length));
+        destinationTransformer.TransformWrite(content.Span, destination);
+        return destination.WrittenMemory;
     }
 }

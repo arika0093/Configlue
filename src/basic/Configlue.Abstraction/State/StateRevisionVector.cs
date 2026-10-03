@@ -70,8 +70,16 @@ public sealed class StateRevisionVector
     {
         ArgumentNullException.ThrowIfNull(revisions);
         ArgumentNullException.ThrowIfNull(nestedRevisions);
-        _revisions = CreateRevisionMap(revisions);
-        _nestedRevisions = CreateNestedRevisionMap(nestedRevisions);
+        var revisionData = CreateRevisionMapData(revisions);
+        var nestedRevisionData = CreateNestedRevisionMapData(nestedRevisions);
+        _revisions = revisionData.Map;
+        _nestedRevisions = nestedRevisionData.Map;
+        _hasSingleRevision = revisionData.HasSingle;
+        _singleRevisionSource = revisionData.SourceId;
+        _singleRevision = revisionData.Revision;
+        _hasSingleNestedRevision = nestedRevisionData.HasSingle;
+        _singleNestedRevisionSource = nestedRevisionData.SourceId;
+        _singleNestedRevision = nestedRevisionData.Revision;
     }
 
     /// <summary>Creates a revision vector from spans without requiring collection enumerators.</summary>
@@ -147,6 +155,25 @@ public sealed class StateRevisionVector
         return new StateRevisionVector(
             CreateRevisionMapFromSpan(revisions),
             CreateNestedRevisionMapFromSpan(nestedRevisions)
+        );
+    }
+
+    /// <summary>Creates a revision vector for one source without allocating a temporary collection.</summary>
+    public static StateRevisionVector FromSingle(
+        StateRevision revision,
+        StateRevisionVector? nestedRevision = null
+    )
+    {
+        ValidateSourceId(revision.SourceId);
+        return new StateRevisionVector(
+            null,
+            nestedRevision is null ? EmptyNestedRevisions : null,
+            true,
+            revision.SourceId,
+            revision.Revision,
+            nestedRevision is not null,
+            revision.SourceId,
+            nestedRevision
         );
     }
 
@@ -381,21 +408,24 @@ public sealed class StateRevisionVector
         return new ReadOnlyDictionary<SourceId, StateRevisionVector>(values);
     }
 
-    private static IReadOnlyDictionary<SourceId, string?> CreateRevisionMap(
-        IEnumerable<StateRevision> revisions
-    )
+    private static (
+        IReadOnlyDictionary<SourceId, string?>? Map,
+        bool HasSingle,
+        SourceId SourceId,
+        string? Revision
+    ) CreateRevisionMapData(IEnumerable<StateRevision> revisions)
     {
         using var enumerator = revisions.GetEnumerator();
         if (!enumerator.MoveNext())
         {
-            return EmptyRevisions;
+            return (EmptyRevisions, false, default, null);
         }
 
         var first = enumerator.Current;
         ValidateSourceId(first.SourceId);
         if (!enumerator.MoveNext())
         {
-            return new SingleEntryReadOnlyDictionary<string?>(first.SourceId, first.Revision);
+            return (null, true, first.SourceId, first.Revision);
         }
 
         var values = new Dictionary<SourceId, string?>();
@@ -413,17 +443,22 @@ public sealed class StateRevisionVector
             }
         } while (enumerator.MoveNext());
 
-        return new ReadOnlyDictionary<SourceId, string?>(values);
+        return (new ReadOnlyDictionary<SourceId, string?>(values), false, default, null);
     }
 
-    private static IReadOnlyDictionary<SourceId, StateRevisionVector> CreateNestedRevisionMap(
+    private static (
+        IReadOnlyDictionary<SourceId, StateRevisionVector>? Map,
+        bool HasSingle,
+        SourceId SourceId,
+        StateRevisionVector? Revision
+    ) CreateNestedRevisionMapData(
         IEnumerable<KeyValuePair<SourceId, StateRevisionVector>> nestedRevisions
     )
     {
         using var enumerator = nestedRevisions.GetEnumerator();
         if (!enumerator.MoveNext())
         {
-            return EmptyNestedRevisions;
+            return (EmptyNestedRevisions, false, default, null);
         }
 
         var first = enumerator.Current;
@@ -431,7 +466,7 @@ public sealed class StateRevisionVector
         ArgumentNullException.ThrowIfNull(first.Value);
         if (!enumerator.MoveNext())
         {
-            return new SingleEntryReadOnlyDictionary<StateRevisionVector>(first.Key, first.Value);
+            return (null, true, first.Key, first.Value);
         }
 
         var values = new Dictionary<SourceId, StateRevisionVector>() { [first.Key] = first.Value };
@@ -449,7 +484,12 @@ public sealed class StateRevisionVector
             }
         } while (enumerator.MoveNext());
 
-        return new ReadOnlyDictionary<SourceId, StateRevisionVector>(values);
+        return (
+            new ReadOnlyDictionary<SourceId, StateRevisionVector>(values),
+            false,
+            default,
+            null
+        );
     }
 
     private static void ValidateSourceId(SourceId sourceId)
@@ -510,8 +550,14 @@ public sealed class StateRevisionVector
     {
         if (_hasSingleRevision)
         {
-            revision = _singleRevision;
-            return sourceId == _singleRevisionSource;
+            if (sourceId == _singleRevisionSource)
+            {
+                revision = _singleRevision;
+                return true;
+            }
+
+            revision = default;
+            return false;
         }
 
         if (_smallRevisions is { } entries)
@@ -537,8 +583,14 @@ public sealed class StateRevisionVector
     {
         if (_hasSingleNestedRevision)
         {
-            revisions = _singleNestedRevision;
-            return sourceId == _singleNestedRevisionSource;
+            if (sourceId == _singleNestedRevisionSource)
+            {
+                revisions = _singleNestedRevision;
+                return true;
+            }
+
+            revisions = null;
+            return false;
         }
 
         if (_smallNestedRevisions is { } entries)

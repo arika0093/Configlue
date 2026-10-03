@@ -82,6 +82,19 @@ public sealed class StateRevisionVectorTests
     }
 
     [Test]
+    public void FromSingleBuildsARevisionVectorWithoutScratchCollections()
+    {
+        var child = new StateRevisionVector([]);
+        var source = SourceId.From("single");
+        var vector = StateRevisionVector.FromSingle(new StateRevision(source, "r1"), child);
+
+        vector.TryGetRevision(source, out var revision).ShouldBeTrue();
+        revision.ShouldBe("r1");
+        vector.TryGetNestedRevisions(source, out var nested).ShouldBeTrue();
+        nested.ShouldBeSameAs(child);
+    }
+
+    [Test]
     public void FromSpanSupportsCompactMultiEntryLookupBeforeViewsAreRequested()
     {
         var revisions = new StateRevision[]
