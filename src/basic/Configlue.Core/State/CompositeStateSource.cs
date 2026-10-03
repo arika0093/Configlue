@@ -33,6 +33,7 @@ public sealed class CompositeStateSource<TFragment>
     /// <param name="components">Component sources that return the same generated fragment type.</param>
     /// <param name="defaultWriteSourceId">Optional component that owns members without an explicit route.</param>
     /// <param name="writePlan">Optional routes from model member paths to component source IDs.</param>
+    /// <remarks>When both specify a default owner, the explicit <paramref name="defaultWriteSourceId"/> wins over <see cref="StateWritePlan.DefaultSourceId"/>.</remarks>
     public CompositeStateSource(
         StateSourceSet<TFragment> components,
         SourceId? defaultWriteSourceId = null,
@@ -50,16 +51,18 @@ public sealed class CompositeStateSource<TFragment>
     {
         ArgumentNullException.ThrowIfNull(components);
         _writePlan = writePlan ?? StateWritePlan.Empty;
-        if (defaultWriteSourceId is { } configuredSourceId)
+        if (defaultWriteSourceId is { IsDefault: true })
         {
-            if (configuredSourceId.IsDefault)
-            {
-                throw new ArgumentException(
-                    "A default source ID must be non-empty.",
-                    nameof(defaultWriteSourceId)
-                );
-            }
-            GetWritableComponent(components, configuredSourceId);
+            throw new ArgumentException(
+                "A default source ID must be non-empty.",
+                nameof(defaultWriteSourceId)
+            );
+        }
+
+        var effectiveDefault = defaultWriteSourceId ?? _writePlan.DefaultSourceId;
+        if (effectiveDefault is { } defaultSourceId)
+        {
+            GetWritableComponent(components, defaultSourceId);
         }
 
         foreach (var sourceId in _writePlan.PropertyRoutes.Values)
@@ -67,7 +70,7 @@ public sealed class CompositeStateSource<TFragment>
             GetWritableComponent(components, sourceId);
         }
 
-        _defaultWriteSourceId = defaultWriteSourceId;
+        _defaultWriteSourceId = effectiveDefault;
 
         _components = components;
         _watchTargets = new ResidencyCache<
@@ -121,13 +124,11 @@ public sealed class CompositeStateSource<TFragment>
 
     internal StateSource<TFragment> ResolveWriteComponent(string propertyPath)
     {
-        var componentId = _writePlan.ResolveSourceId(
-            propertyPath,
-            _defaultWriteSourceId
-                ?? throw new InvalidOperationException(
-                    $"Composite property '{propertyPath}' has no configured write owner."
-                )
-        );
+        var componentId =
+            _writePlan.ResolveSourceIdOrNull(propertyPath, _defaultWriteSourceId)
+            ?? throw new InvalidOperationException(
+                $"Composite property '{propertyPath}' has no configured write owner."
+            );
         return GetWritableComponent(_components, componentId);
     }
 
