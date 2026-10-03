@@ -22,6 +22,8 @@ Before an allocation optimization, capture its relevant group at the parent revi
 
 Issue #165's same-machine before/after allocation results are recorded in [serialized-writer-allocation-results.md](serialized-writer-allocation-results.md). Issue #168's source-count scratch-pooling allocation comparison is recorded in [runtime-scratch-pooling-results.md](runtime-scratch-pooling-results.md).
 
+Issue #166's same-machine before/after schema-bearing JSON allocation results are recorded in [json-codec-schema-allocation-results.md](json-codec-schema-allocation-results.md).
+
 ```shell
 dotnet run -c Release --project benchmarks/Configlue.Benchmarks -- --filter '*Allocation*'
 dotnet run -c Release --project benchmarks/Configlue.Benchmarks -- --filter '*StateRevisionVector*'
