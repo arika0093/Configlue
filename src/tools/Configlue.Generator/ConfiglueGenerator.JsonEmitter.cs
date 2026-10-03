@@ -23,7 +23,7 @@ public sealed partial class ConfiglueGenerator
         );
         code.AppendLineAt(
             2,
-            "public sealed class FragmentJsonConverter : global::System.Text.Json.Serialization.JsonConverter<Fragment>"
+            "public sealed class FragmentJsonConverter : global::System.Text.Json.Serialization.JsonConverter<Fragment>, global::Configlue.Provider.Json.IJsonObjectPayloadWriter"
         );
         code.AppendLineAt(2, "{");
         code.AppendLineAt(
@@ -141,14 +141,30 @@ public sealed partial class ConfiglueGenerator
             "public override void Write(global::System.Text.Json.Utf8JsonWriter writer, Fragment value, global::System.Text.Json.JsonSerializerOptions options)"
         );
         code.AppendLineAt(3, "{");
-        code.AppendLineAt(4, "ValidateJsonNames(options);");
         code.AppendLineAt(4, "writer.WriteStartObject();");
+        code.AppendLineAt(4, "WriteObjectPayloadProperties(writer, value, options);");
+        code.AppendLineAt(4, "writer.WriteEndObject();");
+        code.AppendLineAt(3, "}");
+        code.AppendLine();
+        code.AppendLineAt(
+            3,
+            "public void WriteObjectPayloadProperties(global::System.Text.Json.Utf8JsonWriter writer, object value, global::System.Text.Json.JsonSerializerOptions options)"
+        );
+        code.AppendLineAt(3, "{");
+        code.AppendLineAt(4, "ValidateJsonNames(options);");
+        code.AppendLineAt(
+            4,
+            "if (value is not Fragment typedValue) { throw new global::System.ArgumentException(\"The JSON payload value must be a generated fragment.\", nameof(value)); }"
+        );
         foreach (var member in members)
         {
             var property = EscapeIdentifier(member.Property.Name);
             var wireName = member.Property.JsonPropertyName!;
             var explicitName = member.Property.HasExplicitJsonPropertyName;
-            code.AppendIndent(4).Append("if (value.").Append(property).AppendLine(".IsPresent)");
+            code.AppendIndent(4)
+                .Append("if (typedValue.")
+                .Append(property)
+                .AppendLine(".IsPresent)");
             code.AppendLineAt(4, "{");
             code.AppendIndent(5)
                 .Append("var jsonPropertyName = ")
@@ -168,7 +184,7 @@ public sealed partial class ConfiglueGenerator
                 code.AppendIndent(5)
                     .Append("global::System.Text.Json.JsonSerializer.Serialize<")
                     .Append(FragmentValueType(member))
-                    .Append(">(writer, value.")
+                    .Append(">(writer, typedValue.")
                     .Append(property)
                     .Append(".Value!, GetMemberTypeInfo<")
                     .Append(FragmentValueType(member))
@@ -178,7 +194,7 @@ public sealed partial class ConfiglueGenerator
             {
                 var childFragment = member.ChildFragmentType!;
                 code.AppendIndent(5)
-                    .Append("if (value.")
+                    .Append("if (typedValue.")
                     .Append(property)
                     .AppendLine(".Value is null)");
                 code.AppendLineAt(5, "{ writer.WriteNullValue(); }");
@@ -186,7 +202,7 @@ public sealed partial class ConfiglueGenerator
                 code.AppendLineAt(5, "{");
                 code.AppendIndent(6)
                     .Append(childFragment)
-                    .Append(".JsonConverter.Write(writer, value.")
+                    .Append(".JsonConverter.Write(writer, typedValue.")
                     .Append(property)
                     .AppendLine(".Value, options);");
                 code.AppendLineAt(5, "}");
@@ -194,7 +210,6 @@ public sealed partial class ConfiglueGenerator
             code.AppendLineAt(4, "}");
         }
 
-        code.AppendLineAt(4, "writer.WriteEndObject();");
         code.AppendLineAt(3, "}");
         code.AppendLine();
         code.AppendLineAt(

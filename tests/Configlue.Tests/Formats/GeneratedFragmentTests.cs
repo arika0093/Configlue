@@ -354,6 +354,28 @@ public sealed class GeneratedFragmentTests
     }
 
     [Test]
+    public async Task JsonCodec_DynamicGeneratedFragmentWritesSimpleSchemaDirectly()
+    {
+        var codec = new JsonStateCodec();
+        var context = new StateCodecContext(new StateSchemaMetadata("app-settings", 2));
+        var fragment = new AppSettings.Fragment
+        {
+            Enabled = Optional<bool>.Present(false),
+            Label = Optional<string?>.Present("direct"),
+        };
+        var buffer = new ArrayBufferWriter<byte>();
+
+        codec.Serialize(typeof(AppSettings.Fragment), fragment, buffer, in context);
+
+        var encoded = Encoding.UTF8.GetString(buffer.WrittenSpan);
+        encoded.ShouldContain("\"$version\":2");
+        encoded.ShouldContain("\"Enabled\":false");
+        encoded.ShouldContain("\"Label\":\"direct\"");
+        encoded.ShouldNotContain("\"$value\"");
+        encoded.ShouldNotContain("RetryCount");
+    }
+
+    [Test]
     public async Task JsonCodec_DeserializesProjectedPayloadAfterWriterBufferGrows()
     {
         var label = new string('x', 4096);
