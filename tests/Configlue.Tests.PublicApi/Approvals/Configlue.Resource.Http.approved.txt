@@ -41,7 +41,7 @@ namespace Configlue.Resource.Http
         public HttpSourceOptions() { }
         public System.Net.Http.HttpClient? Client { get; init; }
         public System.Func<System.IServiceProvider?, System.Net.Http.HttpClient>? ClientFactory { get; init; }
-        public required object Codec { get; init; }
+        public required Configlue.Codecs.StateCodecBinding Codec { get; init; }
         public Configlue.Codecs.StateCodecContext CodecContext { get; init; }
         public required string EndPoint { get; init; }
         public Configlue.Sources.StateFallbackCondition FallbackCondition { get; init; }

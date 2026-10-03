@@ -26,7 +26,7 @@ namespace Configlue.Resource.S3
         public required string BucketName { get; init; }
         public Amazon.S3.IAmazonS3? Client { get; init; }
         public System.Func<System.IServiceProvider?, Amazon.S3.IAmazonS3>? ClientFactory { get; init; }
-        public required object Codec { get; init; }
+        public required Configlue.Codecs.StateCodecBinding Codec { get; init; }
         public Configlue.Codecs.StateCodecContext CodecContext { get; init; }
         public Configlue.Sources.StateFallbackCondition FallbackCondition { get; init; }
         public string? Id { get; init; }

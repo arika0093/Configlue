@@ -32,6 +32,16 @@ namespace Configlue.Codecs
     {
         Configlue.State.StateSchemaMetadata? ReadSchemaMetadata(in System.Buffers.ReadOnlySequence<byte> source);
     }
+    public sealed class StateCodecBinding
+    {
+        public Configlue.Codecs.IStateCodec? DynamicCodec { get; }
+        public System.Type? StateType { get; }
+        public TCapability? GetCapability<TCapability>()
+            where TCapability :  class { }
+        public bool TryGetTyped<T>(out Configlue.Codecs.IStateCodec<T>? codec) { }
+        public static Configlue.Codecs.StateCodecBinding Dynamic(Configlue.Codecs.IStateCodec codec) { }
+        public static Configlue.Codecs.StateCodecBinding Typed<T>(Configlue.Codecs.IStateCodec<T> codec) { }
+    }
     public readonly struct StateCodecContext
     {
         public StateCodecContext(Configlue.State.StateSchemaMetadata? schema = default, System.IServiceProvider? services = null) { }

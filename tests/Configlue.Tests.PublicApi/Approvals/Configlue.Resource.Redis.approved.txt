@@ -25,7 +25,7 @@ namespace Configlue.Resource.Redis
     public sealed class RedisStateSourceOptions
     {
         public RedisStateSourceOptions() { }
-        public required object Codec { get; init; }
+        public required Configlue.Codecs.StateCodecBinding Codec { get; init; }
         public Configlue.Codecs.StateCodecContext CodecContext { get; init; }
         public StackExchange.Redis.IConnectionMultiplexer? ConnectionMultiplexer { get; init; }
         public System.Func<System.IServiceProvider?, StackExchange.Redis.IConnectionMultiplexer>? ConnectionMultiplexerFactory { get; init; }

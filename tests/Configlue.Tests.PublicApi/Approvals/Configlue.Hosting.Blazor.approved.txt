@@ -151,7 +151,7 @@ namespace Configlue.Hosting.Blazor
     public sealed class WebStorageSourceOptions
     {
         public WebStorageSourceOptions() { }
-        public object? Codec { get; set; }
+        public Configlue.Codecs.StateCodecBinding? Codec { get; set; }
         public Configlue.Codecs.StateCodecContext CodecContext { get; set; }
         public Configlue.Sources.StateFallbackCondition FallbackCondition { get; set; }
         public string? Id { get; set; }

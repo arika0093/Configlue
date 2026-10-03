@@ -55,8 +55,9 @@ public sealed partial class ConfiglueFacadeSourceTests
         var endpoint = "https://settings.example.test/app-settings/";
         var defaultId = await WriteHttpPatchAndGetResourceIdAsync(endpoint, resourceId: null);
         using var client = new HttpClient(new NoContentHttpHandler());
-        var expected = new HttpResourceReader(client, new Uri(endpoint))
-            .GetResourceId(ConfiglueResourceContext.Default);
+        var expected = new HttpResourceReader(client, new Uri(endpoint)).GetResourceId(
+            ConfiglueResourceContext.Default
+        );
         (defaultId).ShouldBe(expected);
 
         var overrideId = new ResourceId("test-resource:settings");
@@ -181,7 +182,9 @@ public sealed partial class ConfiglueFacadeSourceTests
                         {
                             Id = "primary",
                             EndPoint = "https://settings.example.test/primary/",
-                            Codec = StateCodecBinding.Typed(new JsonStateCodec<AppSettings.Fragment>()),
+                            Codec = StateCodecBinding.Typed(
+                                new JsonStateCodec<AppSettings.Fragment>()
+                            ),
                         }
                     );
                     sources.FromHttpClientFactory(
@@ -190,7 +193,9 @@ public sealed partial class ConfiglueFacadeSourceTests
                         {
                             Id = "secondary",
                             EndPoint = "https://settings.example.test/secondary/",
-                            Codec = StateCodecBinding.Typed(new JsonStateCodec<AppSettings.Fragment>()),
+                            Codec = StateCodecBinding.Typed(
+                                new JsonStateCodec<AppSettings.Fragment>()
+                            ),
                             Priority = 10,
                         }
                     );
@@ -364,7 +369,9 @@ public sealed partial class ConfiglueFacadeSourceTests
                         new HttpSourceOptions
                         {
                             EndPoint = "https://settings.example.test/a/",
-                            Codec = new JsonStateCodec<AppSettings.Fragment>(),
+                            Codec = StateCodecBinding.Typed(
+                                new JsonStateCodec<AppSettings.Fragment>()
+                            ),
                         }
                     );
                     sources.FromHttpClientFactory(
@@ -372,7 +379,9 @@ public sealed partial class ConfiglueFacadeSourceTests
                         new HttpSourceOptions
                         {
                             EndPoint = "https://settings.example.test/b/",
-                            Codec = new JsonStateCodec<AppSettings.Fragment>(),
+                            Codec = StateCodecBinding.Typed(
+                                new JsonStateCodec<AppSettings.Fragment>()
+                            ),
                         }
                     );
                 })
@@ -380,12 +389,10 @@ public sealed partial class ConfiglueFacadeSourceTests
         });
 
         await using var provider = services.BuildServiceProvider();
-        var options = (IConfiglueRuntimeState<AppSettings>)
-            provider.GetRequiredService<IWritableState<AppSettings>>();
-        var ids = options
-            .GetRuntimeSnapshot()
-            .Sources.Select(static source => source.Id)
-            .ToArray();
+        var options =
+            (IConfiglueRuntimeState<AppSettings>)
+                provider.GetRequiredService<IWritableState<AppSettings>>();
+        var ids = options.GetRuntimeSnapshot().Sources.Select(static source => source.Id).ToArray();
         ids.Length.ShouldBe(2);
         ids.Distinct().Count().ShouldBe(2);
     }
