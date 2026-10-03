@@ -20,6 +20,8 @@ dotnet run -c Release --project benchmarks/Configlue.Benchmarks -- --filter '*Fi
 
 Before an allocation optimization, capture its relevant group at the parent revision and again at the candidate revision on the same machine and runtime. Keep the BenchmarkDotNet reports with the review notes; do not treat numbers from different machines or runtime versions as a regression threshold. For a focused comparison:
 
+Issue #165's same-machine before/after allocation results are recorded in [serialized-writer-allocation-results.md](serialized-writer-allocation-results.md).
+
 ```shell
 dotnet run -c Release --project benchmarks/Configlue.Benchmarks -- --filter '*Allocation*'
 dotnet run -c Release --project benchmarks/Configlue.Benchmarks -- --filter '*StateRevisionVector*'
