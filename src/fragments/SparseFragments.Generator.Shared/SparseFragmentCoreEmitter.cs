@@ -960,9 +960,74 @@ internal sealed class SparseFragmentCoreEmitter(
         }
 
         AppendCloneContext(code, 3);
+        code.AppendLineAt(
+            3,
+            "var __sparse_from_context = new global::System.Collections.Generic.List<object>();"
+        );
+        code.AppendLineAt(
+            3,
+            "return From(value, " + CloneContext + ", __sparse_from_context, \"\");"
+        );
+        code.AppendLineAt(2, "}");
+        code.AppendLine();
+        code.AppendIndent(2)
+            .Append("internal static Fragment From(")
+            .Append(modelType)
+            .Append(" value, global::System.Collections.Generic.Dictionary<object, object> ")
+            .Append(CloneContext)
+            .Append(
+                ", global::System.Collections.Generic.List<object> __sparse_from_context, string __sparse_from_path)"
+            )
+            .AppendLine("");
+        code.AppendLineAt(2, "{");
+        if (modelIsReferenceType)
+        {
+            AppendNullGuard(code, 3, "value");
+            code.AppendLineAt(
+                3,
+                "for (var __sparse_from_index = 0; __sparse_from_index < __sparse_from_context.Count; __sparse_from_index++)"
+            );
+            code.AppendLineAt(3, "{");
+            code.AppendLineAt(
+                4,
+                "if (global::System.Object.ReferenceEquals(__sparse_from_context[__sparse_from_index], value))"
+            );
+            code.AppendLineAt(4, "{");
+            code.AppendLineAt(
+                5,
+                "throw new global::System.NotSupportedException(\"Cyclic reference detected during From at '\" + __sparse_from_path + \"'. Fragment.From does not support cyclic object graphs; DeepClone preserves cycles.\");"
+            );
+            code.AppendLineAt(4, "}");
+            code.AppendLineAt(3, "}");
+            code.AppendLineAt(3, "__sparse_from_context.Add(value);");
+            code.AppendLineAt(3, "try");
+            code.AppendLineAt(3, "{");
+            AppendFromModelBody(code, members, 4);
+            code.AppendLineAt(3, "}");
+            code.AppendLineAt(3, "finally");
+            code.AppendLineAt(3, "{");
+            code.AppendLineAt(
+                4,
+                "__sparse_from_context.RemoveAt(__sparse_from_context.Count - 1);"
+            );
+            code.AppendLineAt(3, "}");
+        }
+        else
+        {
+            AppendFromModelBody(code, members, 3);
+        }
+        code.AppendLineAt(2, "}");
+        code.AppendLine();
+    }
 
-        code.AppendLineAt(3, "return new Fragment");
-        code.AppendLineAt(3, "{");
+    private void AppendFromModelBody(
+        SharedIndentedBuilder code,
+        ImmutableArray<SparseMemberModel> members,
+        int indent
+    )
+    {
+        code.AppendLineAt(indent, "return new Fragment");
+        code.AppendLineAt(indent, "{");
         foreach (var member in members)
         {
             var access = "value." + SparseNaming.EscapeIdentifier(member.Property.Name);
@@ -973,14 +1038,16 @@ internal sealed class SparseFragmentCoreEmitter(
             }
             else if (!member.ChildIsReferenceType)
             {
-                value = $"{member.ChildFragmentType}.From({access})";
+                value =
+                    $"{member.ChildFragmentType}.From({access}, {CloneContext}, __sparse_from_context, {FromMemberPath(member)})";
             }
             else
             {
-                value = $"({access} is null ? null : {member.ChildFragmentType}.From({access}))";
+                value =
+                    $"({access} is null ? null : {member.ChildFragmentType}.From({access}, {CloneContext}, __sparse_from_context, {FromMemberPath(member)}))";
             }
 
-            code.AppendIndent(4)
+            code.AppendIndent(indent + 1)
                 .Append(SparseNaming.EscapeIdentifier(member.Property.Name))
                 .Append(" = ")
                 .Append(Optional)
@@ -991,9 +1058,23 @@ internal sealed class SparseFragmentCoreEmitter(
                 .AppendLine("),");
         }
 
-        code.AppendLineAt(3, "};");
-        code.AppendLineAt(2, "}");
-        code.AppendLine();
+        code.AppendLineAt(indent, "};");
+    }
+
+    private static string FromMemberPath(SparseMemberModel member)
+    {
+        var escaped = member.Property.Name.Replace("\\", "\\\\").Replace("\"", "\\\"");
+        return "(__sparse_from_path.Length == 0 ? \"" + escaped + "\" : __sparse_from_path + \"."
+            + escaped
+            + "\")";
+    }
+
+    private static string DiffMemberPath(SparseMemberModel member)
+    {
+        var escaped = member.Property.Name.Replace("\\", "\\\\").Replace("\"", "\\\"");
+        return "(__sparse_diff_path.Length == 0 ? \"" + escaped + "\" : __sparse_diff_path + \"."
+            + escaped
+            + "\")";
     }
 
     public static void AppendRootProjectionConstructor(
@@ -1362,6 +1443,8 @@ internal sealed class SparseFragmentCoreEmitter(
         bool modelIsReferenceType
     )
     {
+        const string diffContextType =
+            "global::System.Collections.Generic.List<global::System.Collections.Generic.KeyValuePair<object, object>>";
         foreach (var member in members.Where(static member => member.ChildModel is not null))
         {
             var type = member.ChildModel!.Value.NonNullableName;
@@ -1376,7 +1459,12 @@ internal sealed class SparseFragmentCoreEmitter(
                 .Append('(');
             if (!member.ChildIsReferenceType)
             {
-                code.Append(type).Append(" before, ").Append(type).AppendLine(" after)");
+                code.Append(type)
+                    .Append(" before, ")
+                    .Append(type)
+                    .Append(" after, ")
+                    .Append(diffContextType)
+                    .AppendLine(" __sparse_diff_context, string __sparse_diff_path)");
                 code.AppendLineAt(2, "{");
                 code.AppendIndent(3)
                     .Append("if (global::System.Collections.Generic.EqualityComparer<")
@@ -1389,12 +1477,19 @@ internal sealed class SparseFragmentCoreEmitter(
                     .Append(FragmentValueType(member))
                     .Append(">.Present(")
                     .Append(fragment)
-                    .AppendLine(".Diff(before, after));");
+                    .AppendLine(
+                        ".Diff(before, after, __sparse_diff_context, __sparse_diff_path));"
+                    );
                 code.AppendLineAt(2, "}");
                 continue;
             }
 
-            code.Append(type).Append("? before, ").Append(type).AppendLine("? after)");
+            code.Append(type)
+                .Append("? before, ")
+                .Append(type)
+                .Append("? after, ")
+                .Append(diffContextType)
+                .AppendLine(" __sparse_diff_context, string __sparse_diff_path)");
             code.AppendLineAt(2, "{");
             code.AppendLineAt(
                 3,
@@ -1411,7 +1506,9 @@ internal sealed class SparseFragmentCoreEmitter(
             code.AppendIndent(3)
                 .Append("var difference = ")
                 .Append(fragment)
-                .AppendLine(".Diff(before, after);");
+                .AppendLine(
+                    ".Diff(before, after, __sparse_diff_context, __sparse_diff_path);"
+                );
             code.AppendIndent(3)
                 .Append("return difference.IsEmpty ? default : ")
                 .Append(Optional)
@@ -1438,8 +1535,82 @@ internal sealed class SparseFragmentCoreEmitter(
             AppendNullGuard(code, 3, "after");
         }
 
-        code.AppendLineAt(3, "return new Fragment");
-        code.AppendLineAt(3, "{");
+        code.AppendLineAt(
+            3,
+            "var __sparse_diff_context = new " + diffContextType + "();"
+        );
+        code.AppendLineAt(
+            3,
+            "return Diff(before, after, __sparse_diff_context, \"\");"
+        );
+        code.AppendLineAt(2, "}");
+        code.AppendLine();
+        code.AppendIndent(2)
+            .Append("internal static Fragment Diff(")
+            .Append(modelType)
+            .Append(" before, ")
+            .Append(modelType)
+            .Append(" after, ")
+            .Append(diffContextType)
+            .AppendLine(" __sparse_diff_context, string __sparse_diff_path)");
+        code.AppendLineAt(2, "{");
+        if (modelIsReferenceType)
+        {
+            AppendNullGuard(code, 3, "before");
+            AppendNullGuard(code, 3, "after");
+            code.AppendLineAt(
+                3,
+                "if (global::System.Object.ReferenceEquals(before, after)) { return new Fragment(); }"
+            );
+            code.AppendLineAt(
+                3,
+                "for (var __sparse_diff_index = 0; __sparse_diff_index < __sparse_diff_context.Count; __sparse_diff_index++)"
+            );
+            code.AppendLineAt(3, "{");
+            code.AppendLineAt(4, "var __sparse_diff_pair = __sparse_diff_context[__sparse_diff_index];");
+            code.AppendLineAt(
+                4,
+                "if (global::System.Object.ReferenceEquals(__sparse_diff_pair.Key, (object)before) && global::System.Object.ReferenceEquals(__sparse_diff_pair.Value, (object)after))"
+            );
+            code.AppendLineAt(4, "{");
+            code.AppendLineAt(
+                5,
+                "throw new global::System.NotSupportedException(\"Cyclic reference detected during Diff at '\" + __sparse_diff_path + \"'. Fragment.Diff does not support cyclic object graphs; DeepClone preserves cycles.\");"
+            );
+            code.AppendLineAt(4, "}");
+            code.AppendLineAt(3, "}");
+            code.AppendLineAt(
+                3,
+                "__sparse_diff_context.Add(new global::System.Collections.Generic.KeyValuePair<object, object>(before, after));"
+            );
+            code.AppendLineAt(3, "try");
+            code.AppendLineAt(3, "{");
+            AppendDiffBody(code, members, 4);
+            code.AppendLineAt(3, "}");
+            code.AppendLineAt(3, "finally");
+            code.AppendLineAt(3, "{");
+            code.AppendLineAt(
+                4,
+                "__sparse_diff_context.RemoveAt(__sparse_diff_context.Count - 1);"
+            );
+            code.AppendLineAt(3, "}");
+        }
+        else
+        {
+            AppendDiffBody(code, members, 3);
+        }
+        code.AppendLineAt(2, "}");
+        code.AppendLine();
+    }
+
+    private void AppendDiffBody(
+        SharedIndentedBuilder code,
+        ImmutableArray<SparseMemberModel> members,
+        int indent
+    )
+    {
+        code.AppendLineAt(indent, "return new Fragment");
+        code.AppendLineAt(indent, "{");
         foreach (var member in members)
         {
             var name = SparseNaming.EscapeIdentifier(member.Property.Name);
@@ -1459,15 +1630,14 @@ internal sealed class SparseFragmentCoreEmitter(
             }
             else
             {
-                condition = $"__Diff_{member.Id}({before}, {after})";
+                condition =
+                    $"__Diff_{member.Id}({before}, {after}, __sparse_diff_context, {DiffMemberPath(member)})";
             }
 
-            code.AppendIndent(4).Append(name).Append(" = ").Append(condition).AppendLine(",");
+            code.AppendIndent(indent + 1).Append(name).Append(" = ").Append(condition).AppendLine(",");
         }
 
-        code.AppendLineAt(3, "};");
-        code.AppendLineAt(2, "}");
-        code.AppendLine();
+        code.AppendLineAt(indent, "};");
     }
 
     public void AppendFragmentClone(

@@ -168,6 +168,8 @@ var clone = original.ToModel().DeepClone();                    // fully independ
 clone.Child!.Count = 42;                                       // original.Child.Count is still 7
 ```
 
+`DeepClone` preserves shared references and object cycles. `Fragment.From` and `Fragment.Diff` do not support cyclic object graphs: shared (non-cyclic) references are allowed, but a cycle throws `NotSupportedException` naming the member path instead of overflowing the stack.
+
 ### 8. Customize merging
 
 `[SparseMerge]` changes the merge rule per member:
