@@ -286,6 +286,52 @@ public sealed class HttpResourceEndpointTests
     }
 
     [Test]
+    public async Task Endpoint_PreservesInvalidPayloadOverProtocol()
+    {
+        var source = new MutableResourceReader(ResourceReadResult.InvalidPayload("bad-revision"));
+        await using var app = await StartAppAsync(endpoints =>
+            endpoints.MapConfiglueHttpResource("/config", source)
+        );
+        using var httpClient = app.GetTestClient();
+        var root = new Uri("http://localhost/config/");
+        var reader = new HttpResourceReader(httpClient, root);
+
+        using var raw = await httpClient.GetAsync(new Uri(root, "get"));
+        raw.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity);
+        var etag = raw.Headers.ETag?.ToString();
+        etag.ShouldNotBeNull();
+        (await raw.Content.ReadAsByteArrayAsync()).Length.ShouldBe(0);
+
+        var read = await reader.ReadAsync();
+        read.Status.ShouldBe(StateReadStatus.InvalidPayload);
+        read.Revision.ShouldBe(etag);
+
+        await using (var pipeline = await reader.ReadPipelineAsync())
+        {
+            pipeline.Status.ShouldBe(StateReadStatus.InvalidPayload);
+            pipeline.Revision.ShouldBe(etag);
+        }
+
+        // Repairing the payload notifies watchers waiting on the invalid revision.
+        var repairedReader = new HttpResourceReader(
+            httpClient,
+            root,
+            new HttpResourceOptions { PollingInterval = TimeSpan.FromMilliseconds(2) }
+        );
+        var invalid = await repairedReader.ReadAsync();
+        invalid.Status.ShouldBe(StateReadStatus.InvalidPayload);
+        source.Result = ResourceReadResult.Success(
+            Encoding.UTF8.GetBytes("{\"RetryCount\":10}"),
+            "good-revision"
+        );
+        await repairedReader
+            .WaitForChangeAsync(invalid.Revision)
+            .AsTask()
+            .WaitAsync(TimeSpan.FromSeconds(2));
+        (await repairedReader.ReadAsync()).Status.ShouldBe(StateReadStatus.Success);
+    }
+
+    [Test]
     public async Task Endpoint_PassesRequestCancellationToReader()
     {
         var reader = new CancellableResourceReader();
@@ -424,6 +470,20 @@ public sealed class HttpResourceEndpointTests
         {
             cancellationToken.ThrowIfCancellationRequested();
             return ValueTask.FromResult(result);
+        }
+    }
+
+    private sealed class MutableResourceReader(ResourceReadResult result) : IResourceReader
+    {
+        public ResourceReadResult Result { get; set; } = result;
+
+        public ValueTask<ResourceReadResult> ReadAsync(
+            ConfiglueResourceContext context,
+            CancellationToken cancellationToken = default
+        )
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return ValueTask.FromResult(Result);
         }
     }
 

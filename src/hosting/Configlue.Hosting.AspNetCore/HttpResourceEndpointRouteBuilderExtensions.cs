@@ -13,6 +13,16 @@ using Microsoft.AspNetCore.Routing.Patterns;
 namespace Configlue.Hosting.AspNetCore;
 
 /// <summary>Maps the Configlue byte-resource HTTP protocol to ASP.NET Core endpoints.</summary>
+/// <remarks>
+/// <para>GET status mapping (ETag carries the revision when present, no body unless noted):</para>
+/// <list type="table">
+/// <listheader><term>Resource status</term><term>HTTP status</term></listheader>
+/// <item><term>Success</term><term>200 OK (304 Not Modified when If-None-Match matches; body holds the bytes)</term></item>
+/// <item><term>NotFound</term><term>404 Not Found</term></item>
+/// <item><term>InvalidPayload</term><term>422 Unprocessable Entity</term></item>
+/// <item><term>Unavailable</term><term>503 Service Unavailable</term></item>
+/// </list>
+/// </remarks>
 public static class HttpResourceEndpointRouteBuilderExtensions
 {
     /// <summary>
@@ -91,6 +101,9 @@ public static class HttpResourceEndpointRouteBuilderExtensions
                 return;
             case StateReadStatus.Unavailable:
                 context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
+                return;
+            case StateReadStatus.InvalidPayload:
+                context.Response.StatusCode = StatusCodes.Status422UnprocessableEntity;
                 return;
             case StateReadStatus.Success:
                 AddSchemaHeaders(context.Response, result.Schema);

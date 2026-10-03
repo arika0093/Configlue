@@ -10,6 +10,17 @@ using Configlue.Sources;
 namespace Configlue.Resource.Http;
 
 /// <summary>Reads and watches a byte resource exposed through the Configlue HTTP resource protocol.</summary>
+/// <remarks>
+/// <para>GET status mapping (ETag carries the revision when present):</para>
+/// <list type="table">
+/// <listheader><term>HTTP status</term><term>Resource status</term></listheader>
+/// <item><term>200 OK</term><term>Success (body holds the bytes)</term></item>
+/// <item><term>304 Not Modified</term><term>No change (conditional watch polls only)</term></item>
+/// <item><term>404 Not Found</term><term>NotFound</term></item>
+/// <item><term>422 Unprocessable Entity</term><term>InvalidPayload</term></item>
+/// <item><term>408 / 429 / 5xx, transport or timeout failure</term><term>Unavailable</term></item>
+/// </list>
+/// </remarks>
 public sealed class HttpResourceReader
     : IResourceReader,
         IPipelineResourceReader,
@@ -178,6 +189,13 @@ public sealed class HttpResourceReader
                 var missing = ResourceReadResult.NotFound(revision);
                 SetLastSnapshot(Snapshot(missing));
                 return PipelineResourceReadResult.NotFound(revision);
+            }
+
+            if (response.StatusCode == (HttpStatusCode)422)
+            {
+                var invalid = ResourceReadResult.InvalidPayload(revision);
+                SetLastSnapshot(Snapshot(invalid));
+                return PipelineResourceReadResult.InvalidPayload(revision);
             }
 
             if (IsTemporarilyUnavailable(response.StatusCode))
@@ -666,6 +684,12 @@ public sealed class HttpResourceReader
             {
                 var missing = ResourceReadResult.NotFound(revision);
                 return new HttpReadResponse(missing, Snapshot(missing), NotModified: false);
+            }
+
+            if (response.StatusCode == (HttpStatusCode)422)
+            {
+                var invalid = ResourceReadResult.InvalidPayload(revision);
+                return new HttpReadResponse(invalid, Snapshot(invalid), NotModified: false);
             }
 
             if (IsTemporarilyUnavailable(response.StatusCode))

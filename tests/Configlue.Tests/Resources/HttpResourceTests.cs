@@ -250,6 +250,67 @@ public sealed class HttpResourceTests
     }
 
     [Test]
+    public async Task Reader_PreservesInvalidPayloadStatusAndRevision()
+    {
+        var response = new HttpResponseMessage(HttpStatusCode.UnprocessableEntity);
+        response.Headers.ETag = new EntityTagHeaderValue("\"invalid-1\"");
+        using var httpClient = new HttpClient(
+            new DelegateHttpMessageHandler((_, _) => Task.FromResult(response))
+        );
+        var reader = new HttpResourceReader(httpClient, EndpointRoot);
+
+        var read = await reader.ReadAsync();
+        read.Status.ShouldBe(StateReadStatus.InvalidPayload);
+        read.Revision.ShouldBe("\"invalid-1\"");
+
+        await using var pipeline = await reader.ReadPipelineAsync();
+        pipeline.Status.ShouldBe(StateReadStatus.InvalidPayload);
+        pipeline.Revision.ShouldBe("\"invalid-1\"");
+    }
+
+    [Test]
+    public async Task Watcher_NotifiesWhenInvalidPayloadIsRepaired()
+    {
+        var repaired = 0;
+        using var httpClient = new HttpClient(
+            new DelegateHttpMessageHandler(
+                (_, _) =>
+                {
+                    if (Volatile.Read(ref repaired) == 0)
+                    {
+                        var invalid = new HttpResponseMessage(
+                            HttpStatusCode.UnprocessableEntity
+                        );
+                        invalid.Headers.ETag = new EntityTagHeaderValue("\"invalid-1\"");
+                        return Task.FromResult(invalid);
+                    }
+
+                    return Task.FromResult(
+                        ContentResponse(HttpStatusCode.OK, "repaired", "\"revision-2\"")
+                    );
+                }
+            )
+        );
+        var reader = new HttpResourceReader(
+            httpClient,
+            EndpointRoot,
+            new HttpResourceOptions { PollingInterval = TimeSpan.FromMilliseconds(2) }
+        );
+        var initial = await reader.ReadAsync();
+        initial.Status.ShouldBe(StateReadStatus.InvalidPayload);
+
+        var waiting = reader.WaitForChangeAsync(initial.Revision).AsTask();
+        await Task.Delay(TimeSpan.FromMilliseconds(20));
+        waiting.IsCompleted.ShouldBeFalse();
+        Volatile.Write(ref repaired, 1);
+        await waiting.WaitAsync(TimeSpan.FromSeconds(2));
+
+        var current = await reader.ReadAsync();
+        current.Status.ShouldBe(StateReadStatus.Success);
+        current.Revision.ShouldBe("\"revision-2\"");
+    }
+
+    [Test]
     public async Task Reader_MapsTransportAndTimeoutFailuresButPreservesCallerCancellation()
     {
         using var failedHttpClient = new HttpClient(

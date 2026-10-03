@@ -131,6 +131,10 @@ public sealed class PipelineResourceReadResult : IAsyncDisposable
     public static PipelineResourceReadResult Unavailable(string? revision = null) =>
         new(StateReadStatus.Unavailable, null, revision, null);
 
+    /// <summary>Creates a malformed-payload result.</summary>
+    public static PipelineResourceReadResult InvalidPayload(string? revision = null) =>
+        new(StateReadStatus.InvalidPayload, null, revision, null);
+
     /// <summary>
     /// Reads all content without consuming the final buffer, which remains valid until disposal. The caller
     /// must advance the reader to the returned sequence's end before disposing the result. This method also

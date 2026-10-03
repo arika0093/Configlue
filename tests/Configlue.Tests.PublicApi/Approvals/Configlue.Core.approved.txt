@@ -219,6 +219,7 @@ namespace Configlue.Resources
         public Configlue.State.StateReadStatus Status { get; }
         public System.Threading.Tasks.ValueTask DisposeAsync() { }
         public System.Threading.Tasks.ValueTask<System.Buffers.ReadOnlySequence<byte>> ReadAllAsync(System.Threading.CancellationToken cancellationToken = default) { }
+        public static Configlue.Resources.PipelineResourceReadResult InvalidPayload(string? revision = null) { }
         public static Configlue.Resources.PipelineResourceReadResult NotFound(string? revision = null) { }
         public static Configlue.Resources.PipelineResourceReadResult Success(System.IO.Pipelines.PipeReader content, string? revision = null, Configlue.State.StateSchemaMetadata? schema = default) { }
         public static Configlue.Resources.PipelineResourceReadResult Unavailable(string? revision = null) { }
