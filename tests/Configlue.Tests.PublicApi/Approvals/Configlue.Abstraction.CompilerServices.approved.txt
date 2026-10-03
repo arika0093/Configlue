@@ -19,20 +19,18 @@ namespace Configlue.CompilerServices
         public System.Collections.Generic.IReadOnlyList<Configlue.ConfigSourceDetails> Sources { get; }
         public object? Value { get; }
     }
+    public static class ConfiglueDynamicFragmentExtensions
+    {
+        public static System.Collections.Generic.IEnumerable<Configlue.ConfiglueFragmentMember> EnumeratePresentMembers(this Configlue.IConfiglueFragment fragment) { }
+        public static Configlue.IConfiglueFragment WithMember(this Configlue.IConfiglueFragment fragment, int memberId, object? value) { }
+        public static Configlue.IConfiglueFragment WithoutMember(this Configlue.IConfiglueFragment fragment, int memberId) { }
+    }
     public static class ConfiglueFragmentRegistry<TFragment>
         where TFragment :  class, Configlue.IConfiglueFragment<TFragment>
     {
         public static TFragment Empty { get; }
         public static void Register(TFragment empty) { }
     }
-    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
-    public static class ConfiglueDynamicFragmentExtensions
-    {
-        public static System.Collections.Generic.IEnumerable<Configlue.ConfiglueFragmentMember> EnumeratePresentMembers(Configlue.IConfiglueFragment fragment) { }
-        public static Configlue.IConfiglueFragment WithMember(Configlue.IConfiglueFragment fragment, int memberId, object? value) { }
-        public static Configlue.IConfiglueFragment WithoutMember(Configlue.IConfiglueFragment fragment, int memberId) { }
-    }
-    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
     public readonly struct ConfiglueMemberPath : System.IEquatable<Configlue.CompilerServices.ConfiglueMemberPath>
     {
         public int Length { get; }
@@ -84,31 +82,28 @@ namespace Configlue.CompilerServices
     {
         public static Configlue.StateWritePlan Bind(Configlue.StateWritePlan plan, Configlue.ConfiglueModelSchema schema) { }
         public static bool HasRouteBelow(Configlue.StateWritePlan plan, Configlue.CompilerServices.ConfiglueMemberPath path) { }
-        public static string? Resolve(Configlue.StateWritePlan plan, Configlue.CompilerServices.ConfiglueMemberPath path, string? fallbackSourceId = null) { }
+        public static Configlue.SourceId? Resolve(Configlue.StateWritePlan plan, Configlue.CompilerServices.ConfiglueMemberPath path, Configlue.SourceId? fallbackSourceId = default) { }
     }
     public interface IConfiglueDetailsRuntime
     {
         System.Threading.Tasks.ValueTask<Configlue.CompilerServices.ConfiglueDetailsSnapshot> GetDetailsSnapshotAsync(System.Threading.CancellationToken cancellationToken = default);
     }
-    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
     public interface IConfiglueDynamicFragment : Configlue.IConfiglueFragment
     {
         System.Collections.Generic.IEnumerable<Configlue.ConfiglueFragmentMember> EnumeratePresentMembers();
         Configlue.IConfiglueFragment WithMember(int memberId, object? value);
         Configlue.IConfiglueFragment WithoutMember(int memberId);
     }
-    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
     public interface IConfiglueDynamicMemberPatch : Configlue.IConfigluePatch
     {
         Configlue.IConfigluePatch SelectMembers(System.ReadOnlySpan<int> memberIds);
-    }
-    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
-    public interface IConfiglueRoutablePatch : Configlue.CompilerServices.IConfiglueDynamicMemberPatch
-    {
-        System.Collections.Generic.IReadOnlyDictionary<string, Configlue.IConfigluePatch> Route(Configlue.StateWritePlan writePlan, string? fallbackSourceId);
     }
     public interface IConfiglueModel { }
     public interface IConfiglueModel<out TSelf, TFragment> : Configlue.CompilerServices.IConfiglueModel, Configlue.IConfiglueDeepCloneable<TSelf>
         where out TSelf : Configlue.CompilerServices.IConfiglueModel<TSelf, TFragment>
         where TFragment :  class, Configlue.IConfiglueFragment<TFragment> { }
+    public interface IConfiglueRoutablePatch : Configlue.CompilerServices.IConfiglueDynamicMemberPatch, Configlue.IConfigluePatch
+    {
+        System.Collections.Generic.IReadOnlyDictionary<Configlue.SourceId, Configlue.IConfigluePatch> Route(Configlue.StateWritePlan writePlan, Configlue.SourceId? fallbackSourceId);
+    }
 }

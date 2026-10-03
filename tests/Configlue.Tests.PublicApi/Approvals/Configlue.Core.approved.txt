@@ -250,7 +250,7 @@ namespace Configlue.State
 {
     public sealed class CompositeStateRuntime<T>
     {
-        public CompositeStateRuntime(Configlue.Sources.StateSourceSet<T> sourceSet, string? defaultWriteSourceId = null) { }
+        public CompositeStateRuntime(Configlue.Sources.StateSourceSet<T> sourceSet, Configlue.SourceId? defaultWriteSourceId = default) { }
         public Configlue.State.StateSourceResolver<T> Reader { get; }
         public Configlue.Sources.ISourceWatcher Watcher { get; }
         public Configlue.Sources.ISourceWriter<T> Writer { get; }
@@ -258,7 +258,7 @@ namespace Configlue.State
     public sealed class CompositeStateSource<TFragment> : Configlue.Sources.ISourceReader<TFragment>, Configlue.Sources.ISourceWatcher, Configlue.Sources.ISourceWriter<TFragment>
         where TFragment :  class, Configlue.IConfiglueFragment<TFragment>
     {
-        public CompositeStateSource(Configlue.Sources.StateSourceSet<TFragment> components, string? defaultWriteSourceId = null, Configlue.StateWritePlan? writePlan = null) { }
+        public CompositeStateSource(Configlue.Sources.StateSourceSet<TFragment> components, Configlue.SourceId? defaultWriteSourceId = default, Configlue.StateWritePlan? writePlan = null) { }
         public System.Collections.Generic.IReadOnlyList<Configlue.Sources.StateSource<TFragment>> Components { get; }
         public Configlue.Sources.StateSource<TFragment> CreateSource(string id, int priority = 0, Configlue.Sources.StateFallbackCondition fallbackCondition = 1) { }
         public System.Threading.Tasks.ValueTask<Configlue.State.StateReadResult<TFragment>> ReadAsync(Configlue.Resources.ConfiglueResourceContext context, System.Threading.CancellationToken cancellationToken = default) { }
@@ -267,7 +267,7 @@ namespace Configlue.State
     }
     public sealed class FallbackStateSource<T> : Configlue.Sources.ISourceReader<T>, Configlue.Sources.ISourceWatcher, Configlue.Sources.ISourceWriter<T>
     {
-        public FallbackStateSource(Configlue.Sources.StateSourceSet<T> candidates, string? writeSourceId = null) { }
+        public FallbackStateSource(Configlue.Sources.StateSourceSet<T> candidates, Configlue.SourceId? writeSourceId = default) { }
         public Configlue.Sources.StateSource<T> CreateSource(string id, int priority = 0, Configlue.Sources.StateFallbackCondition fallbackCondition = 1, string? physicalOrigin = null) { }
         public System.Threading.Tasks.ValueTask<Configlue.State.StateReadResult<T>> ReadAsync(Configlue.Resources.ConfiglueResourceContext context, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask WaitForChangeAsync(Configlue.Resources.ConfiglueResourceContext context, string? observedRevision, System.Threading.CancellationToken cancellationToken = default) { }
@@ -298,7 +298,7 @@ namespace Configlue.State
     }
     public sealed class StateSourceWriter<T> : Configlue.Sources.ISourceWriter<T>
     {
-        public StateSourceWriter(Configlue.Sources.StateSourceSet<T> sourceSet, string? defaultSourceId = null) { }
+        public StateSourceWriter(Configlue.Sources.StateSourceSet<T> sourceSet, Configlue.SourceId? defaultSourceId = default) { }
         public System.Threading.Tasks.ValueTask<Configlue.State.StateWriteResult> WriteAsync(Configlue.Resources.ConfiglueResourceContext context, Configlue.State.StateWriteRequest<T> request, System.Threading.CancellationToken cancellationToken = default) { }
     }
 }
