@@ -884,7 +884,13 @@ internal static class XmlStateCodecOperations
         type.IsGenericTypeDefinition && type.FullName == name;
 
 #if NETSTANDARD
-    private sealed class ReadOnlySetView<T> : DispatchProxy
+    // DispatchProxy.Create requires a non-sealed proxy type.
+    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+        "Sonar",
+        "S3260:Classes should not be sealed when used as DispatchProxy targets",
+        Justification = "DispatchProxy.Create requires an unsealed accessible proxy type."
+    )]
+    private class ReadOnlySetView<T> : DispatchProxy
     {
         private HashSet<T>? _values;
 
