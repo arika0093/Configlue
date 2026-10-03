@@ -261,6 +261,218 @@ public sealed class EditSessionSnapshotTests
     }
 
     [Test]
+    public async Task RebaseAsync_CommitAndSecondRebaseWhileUpstreamReadIsPendingAreRejected()
+    {
+        var upstreamGate = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        var resolveStarted = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        var saveCalls = 0;
+        using var session = new EditSession<int>(
+            9,
+            new StateSnapshot<int>(1, null),
+            (value, _) =>
+            {
+                Interlocked.Increment(ref saveCalls);
+                return ValueTaskCompat.FromResult(
+                    new StateCommitResult<int>(
+                        StateWriteReceipt.Empty,
+                        new StateSnapshot<int>(value, null)
+                    )
+                );
+            },
+            static (baseline, desired, current) => Equals(baseline, desired) ? current : desired,
+            static (left, right) => !Equals(left, right),
+            async cancellationToken =>
+            {
+                resolveStarted.TrySetResult();
+                await upstreamGate.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
+                return new StateSnapshot<int>(1, null);
+            },
+            static value => value,
+            0,
+            upstreamState: null
+        );
+
+        var rebase = session.RebaseAsync().AsTask();
+        await resolveStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        await Should.ThrowAsync<InvalidOperationException>(async () => await session.CommitAsync());
+        await Should.ThrowAsync<InvalidOperationException>(async () => await session.RebaseAsync());
+        Should.Throw<InvalidOperationException>(() => session.Update(static _ => { }));
+
+        (Volatile.Read(ref saveCalls)).ShouldBe(0);
+
+        upstreamGate.TrySetResult();
+        await rebase.WaitAsync(TimeSpan.FromSeconds(5));
+
+        // The stale upstream read must not roll back the unsaved draft.
+        (session.Value).ShouldBe(9);
+        (session.IsCommitted).ShouldBeFalse();
+
+        await session.CommitAsync();
+        (session.Value).ShouldBe(9);
+        (Volatile.Read(ref saveCalls)).ShouldBe(1);
+    }
+
+    [Test]
+    public async Task RebaseAsync_RejectedWhileCommitIsPending()
+    {
+        var saveGate = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        var saveStarted = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        var resolveCalls = 0;
+        var upstreamValue = 1;
+        using var session = new EditSession<int>(
+            9,
+            new StateSnapshot<int>(1, null),
+            async (value, cancellationToken) =>
+            {
+                saveStarted.TrySetResult();
+                await saveGate.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
+                Volatile.Write(ref upstreamValue, value);
+                return new StateCommitResult<int>(
+                    StateWriteReceipt.Empty,
+                    new StateSnapshot<int>(value, null)
+                );
+            },
+            static (baseline, desired, current) => Equals(baseline, desired) ? current : desired,
+            static (left, right) => !Equals(left, right),
+            cancellationToken =>
+            {
+                Interlocked.Increment(ref resolveCalls);
+                cancellationToken.ThrowIfCancellationRequested();
+                return ValueTaskCompat.FromResult(
+                    new StateSnapshot<int>(Volatile.Read(ref upstreamValue), null)
+                );
+            },
+            static value => value,
+            0,
+            upstreamState: null
+        );
+
+        var commit = session.CommitAsync().AsTask();
+        await saveStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        await Should.ThrowAsync<InvalidOperationException>(async () => await session.RebaseAsync());
+        (Volatile.Read(ref resolveCalls)).ShouldBe(0);
+
+        saveGate.TrySetResult();
+        await commit.WaitAsync(TimeSpan.FromSeconds(5));
+
+        (session.Value).ShouldBe(9);
+        (session.IsCommitted).ShouldBeTrue();
+
+        await session.RebaseAsync();
+        (session.Value).ShouldBe(9);
+    }
+
+    [Test]
+    public async Task RebaseAsync_FailureAndCancellationReleaseTheOperationState()
+    {
+        var attempt = 0;
+        using var session = new EditSession<int>(
+            9,
+            new StateSnapshot<int>(1, null),
+            (value, _) =>
+                ValueTaskCompat.FromResult(
+                    new StateCommitResult<int>(
+                        StateWriteReceipt.Empty,
+                        new StateSnapshot<int>(value, null)
+                    )
+                ),
+            static (baseline, desired, current) => Equals(baseline, desired) ? current : desired,
+            static (left, right) => !Equals(left, right),
+            cancellationToken =>
+            {
+                if (Interlocked.Increment(ref attempt) == 1)
+                {
+                    throw new InvalidOperationException("boom");
+                }
+
+                cancellationToken.ThrowIfCancellationRequested();
+                return ValueTaskCompat.FromResult(new StateSnapshot<int>(1, null));
+            },
+            static value => value,
+            0,
+            upstreamState: null
+        );
+
+        await Should.ThrowAsync<InvalidOperationException>(async () => await session.RebaseAsync());
+
+        using var cancelled = new CancellationTokenSource();
+        await cancelled.CancelAsync();
+        await Should.ThrowAsync<OperationCanceledException>(
+            async () => await session.RebaseAsync(cancelled.Token)
+        );
+
+        await session.RebaseAsync();
+        (session.Value).ShouldBe(9);
+
+        session.Dispose();
+        await Should.ThrowAsync<InvalidOperationException>(async () => await session.RebaseAsync());
+        await Should.ThrowAsync<InvalidOperationException>(async () => await session.CommitAsync());
+        // A disposed session must not become usable again.
+        await Should.ThrowAsync<InvalidOperationException>(async () => await session.RebaseAsync());
+    }
+
+    [Test]
+    public async Task Dispose_DuringRebaseLetsTheStartedRebaseFinishButKeepsTheSessionDisposed()
+    {
+        var upstreamGate = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        var resolveStarted = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        var session = new EditSession<int>(
+            9,
+            new StateSnapshot<int>(1, null),
+            (value, _) =>
+                ValueTaskCompat.FromResult(
+                    new StateCommitResult<int>(
+                        StateWriteReceipt.Empty,
+                        new StateSnapshot<int>(value, null)
+                    )
+                ),
+            static (baseline, desired, current) => Equals(baseline, desired) ? current : desired,
+            static (left, right) => !Equals(left, right),
+            async cancellationToken =>
+            {
+                resolveStarted.TrySetResult();
+                await upstreamGate.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
+                return new StateSnapshot<int>(1, null);
+            },
+            static value => value,
+            0,
+            upstreamState: null
+        );
+        using (session)
+        {
+            var rebase = session.RebaseAsync().AsTask();
+            await resolveStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+            session.Dispose();
+            upstreamGate.TrySetResult();
+            await rebase.WaitAsync(TimeSpan.FromSeconds(5));
+
+            // The started rebase runs to completion, but the session stays disposed.
+            (session.Value).ShouldBe(9);
+            await Should.ThrowAsync<InvalidOperationException>(
+                async () => await session.CommitAsync()
+            );
+            await Should.ThrowAsync<InvalidOperationException>(
+                async () => await session.RebaseAsync()
+            );
+        }
+    }
+
+    [Test]
     public async Task RebaseAsync_LastWriteWinsKeepsTheDraftForTheSameMember()
     {
         var store = new SignalingStore<AppSettings.Fragment>(Fragment("start", retryCount: 3));

@@ -11,7 +11,7 @@ internal sealed record SessionUpstreamResolution<T>(
 /// <typeparam name="T">The configuration model type.</typeparam>
 public sealed class EditSession<T> : IDisposable
 {
-    private const int SavingState = 1;
+    private const int OperationState = 1;
     private const int DisposedState = 2;
 
     private readonly Func<T, CancellationToken, ValueTask<StateCommitResult<T>>> _save;
@@ -326,6 +326,9 @@ public sealed class EditSession<T> : IDisposable
     }
 
     /// <summary>Resolves the latest upstream snapshot and reapplies the local draft changes onto it.</summary>
+    /// <remarks>Holds the session operation state across the upstream read, rebase
+    /// computation, and result publication, so a concurrent <see cref="CommitAsync"/>
+    /// or <see cref="RebaseAsync"/> is rejected instead of overwriting its result.</remarks>
     public async ValueTask RebaseAsync(CancellationToken cancellationToken = default)
     {
         EnsureEditable();
@@ -336,33 +339,47 @@ public sealed class EditSession<T> : IDisposable
             );
         }
 
-        var resolved = await _resolveRebaseUpstream(cancellationToken).ConfigureAwait(false);
-        var upstream = resolved.Snapshot;
-        T baseline;
-        T draft;
-        lock (_upstreamGate)
+        if (Interlocked.CompareExchange(ref _state, OperationState, 0) != 0)
         {
-            baseline = _baseline;
-            draft = Value;
+            throw new InvalidOperationException(
+                "This configure session is already saving, rebasing, or disposed."
+            );
         }
 
-        // May throw (conflict/cancel): neither the public baseline nor the saved
-        // baseline may advance in that case.
-        var rebased = _rebase(baseline, draft, upstream.Value);
-        // Clone before mutating so a clone failure also leaves both baselines unchanged.
-        var rebasedClone = _clone(rebased);
-        var baselineClone = _clone(upstream.Value);
-        lock (_upstreamGate)
+        try
         {
-            Value = rebasedClone;
-            _baseline = baselineClone;
-            _latestUpstream = upstream;
-            _hasUpstreamChanges = false;
-        }
+            var resolved = await _resolveRebaseUpstream(cancellationToken).ConfigureAwait(false);
+            var upstream = resolved.Snapshot;
+            T baseline;
+            T draft;
+            lock (_upstreamGate)
+            {
+                baseline = _baseline;
+                draft = Value;
+            }
 
-        // Only after the rebase computation and clones succeeded do we advance the
-        // saved baseline/revisions to the same snapshot.
-        _applyRebaseUpstream?.Invoke(resolved);
+            // May throw (conflict/cancel): neither the public baseline nor the saved
+            // baseline may advance in that case.
+            var rebased = _rebase(baseline, draft, upstream.Value);
+            // Clone before mutating so a clone failure also leaves both baselines unchanged.
+            var rebasedClone = _clone(rebased);
+            var baselineClone = _clone(upstream.Value);
+            lock (_upstreamGate)
+            {
+                Value = rebasedClone;
+                _baseline = baselineClone;
+                _latestUpstream = upstream;
+                _hasUpstreamChanges = false;
+            }
+
+            // Only after the rebase computation and clones succeeded do we advance the
+            // saved baseline/revisions to the same snapshot.
+            _applyRebaseUpstream?.Invoke(resolved);
+        }
+        finally
+        {
+            CompleteOperation();
+        }
     }
 
     /// <summary>Commits the edited value against the latest resolved source state.</summary>
@@ -370,10 +387,10 @@ public sealed class EditSession<T> : IDisposable
         CancellationToken cancellationToken = default
     )
     {
-        if (Interlocked.CompareExchange(ref _state, SavingState, 0) != 0)
+        if (Interlocked.CompareExchange(ref _state, OperationState, 0) != 0)
         {
             throw new InvalidOperationException(
-                "This configure session is already saving or disposed."
+                "This configure session is already saving, rebasing, or disposed."
             );
         }
 
@@ -410,18 +427,18 @@ public sealed class EditSession<T> : IDisposable
                 }
             }
 
-            CompleteSave();
+            CompleteOperation();
             return result.Receipt;
         }
         catch
         {
-            CompleteSave();
+            CompleteOperation();
             throw;
         }
     }
 
     /// <summary>Discards this session without saving it.</summary>
-    /// <remarks>A save already in progress is allowed to finish, then the session becomes disposed.</remarks>
+    /// <remarks>An operation (save or rebase) already in progress is allowed to finish, then the session becomes disposed.</remarks>
     public void Dispose()
     {
         while (true)
@@ -457,7 +474,7 @@ public sealed class EditSession<T> : IDisposable
         if (Volatile.Read(ref _state) != 0)
         {
             throw new InvalidOperationException(
-                "This configure session is already saving or disposed."
+                "This configure session is already saving, rebasing, or disposed."
             );
         }
     }
@@ -482,12 +499,12 @@ public sealed class EditSession<T> : IDisposable
         }
     }
 
-    private void CompleteSave()
+    private void CompleteOperation()
     {
         while (true)
         {
             var state = Volatile.Read(ref _state);
-            var completedState = state & ~SavingState;
+            var completedState = state & ~OperationState;
             if (Interlocked.CompareExchange(ref _state, completedState, state) == state)
             {
                 return;
