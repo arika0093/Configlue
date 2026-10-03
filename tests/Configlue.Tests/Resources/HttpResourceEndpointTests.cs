@@ -417,7 +417,7 @@ public sealed class HttpResourceEndpointTests
         }
     }
 
-    private sealed record EndpointSubject(ResourceKey Key) : IConfiglueSubject;
+    private sealed record EndpointSubject(SubjectKey Key) : IConfiglueSubject;
 
     private sealed class ContextAwareResource : IResourceReader, IResourceWriter
     {
@@ -500,3 +500,4 @@ public sealed class HttpResourceEndpointTests
         }
     }
 }
+
