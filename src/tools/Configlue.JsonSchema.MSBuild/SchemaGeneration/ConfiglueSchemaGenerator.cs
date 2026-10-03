@@ -85,11 +85,10 @@ public static class ConfiglueSchemaGenerator
             return new ConfiglueSchemaGenerationResult { Diagnostics = diagnostics };
         }
 
+        var loadContext = new ModelLoadContext(options.AssemblyPath);
         Assembly assembly;
-        ModelLoadContext loadContext;
         try
         {
-            loadContext = new ModelLoadContext(options.AssemblyPath);
             assembly = loadContext.LoadAssembly(Path.GetFullPath(options.AssemblyPath));
         }
         catch (Exception exception)
@@ -100,6 +99,7 @@ public static class ConfiglueSchemaGenerator
                         or IOException
             )
         {
+            loadContext.Unload();
             diagnostics.Add(
                 new ConfiglueSchemaGenerationDiagnostic(
                     "CWSC104",
@@ -225,10 +225,20 @@ public static class ConfiglueSchemaGenerator
         }
         catch (ReflectionTypeLoadException exception)
         {
+            var loaderMessages = exception
+                .LoaderExceptions.Where(static e => e is not null)
+                .Select(static e => e!.Message)
+                .Where(static message => !string.IsNullOrWhiteSpace(message))
+                .Distinct(StringComparer.Ordinal)
+                .ToArray();
+            var detail =
+                loaderMessages.Length > 0
+                    ? $"{exception.Message} ({string.Join("; ", loaderMessages)})"
+                    : exception.Message;
             diagnostics.Add(
                 new ConfiglueSchemaGenerationDiagnostic(
                     "CWSC108",
-                    $"The built assembly type list could not be read: {exception.Message}"
+                    $"The built assembly type list could not be read: {detail}"
                 )
             );
             return new ConfiglueSchemaGenerationResult { Diagnostics = diagnostics };
@@ -548,14 +558,10 @@ public static class ConfiglueSchemaGenerator
 
     private static IEnumerable<Type> GetLoadableTypes(Assembly assembly)
     {
-        try
-        {
-            return assembly.GetTypes();
-        }
-        catch (ReflectionTypeLoadException exception)
-        {
-            return exception.Types.Where(static type => type is not null)!;
-        }
+        // Do not swallow ReflectionTypeLoadException here. A partially loadable type list
+        // would silently omit models whose dependencies are missing and report success
+        // with partial output. Let Generate surface CWSC108 instead.
+        return assembly.GetTypes();
     }
 
     private static string? NormalizeSchemaBaseUri(

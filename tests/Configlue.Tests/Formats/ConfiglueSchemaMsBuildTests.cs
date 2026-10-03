@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Diagnostics;
 using System.Reflection;
 using System.Text.Json;
@@ -5,6 +6,7 @@ using System.Text.Json.Nodes;
 using System.Xml.Linq;
 using Configlue.JsonSchema.MSBuild;
 using Configlue.JsonSchema.MSBuild.Fixtures;
+using Microsoft.Build.Framework;
 
 namespace Configlue.Tests;
 
@@ -485,6 +487,234 @@ public sealed class ConfiglueSchemaMsBuildTests
         }
     }
 
+    [Test]
+    public async Task Generate_FailsWhenModelDependencyIsMissing()
+    {
+        var fixtureRoot = CreateTempDirectory();
+        var outputDirectory = CreateTempDirectory();
+        try
+        {
+            var modelsAssembly = await BuildTypeLoadFixtureAsync(fixtureRoot);
+            var missingDependency = Path.Combine(
+                Path.GetDirectoryName(modelsAssembly)!,
+                "TypeLoadFixture.Base.dll"
+            );
+            if (File.Exists(missingDependency))
+            {
+                File.Delete(missingDependency);
+            }
+
+            var result = ConfiglueSchemaGenerator.Generate(
+                new ConfiglueSchemaGenerationOptions
+                {
+                    AssemblyPath = modelsAssembly,
+                    ProjectDirectory = fixtureRoot,
+                    OutputPath = outputDirectory,
+                }
+            );
+
+            (result.Succeeded).ShouldBeFalse();
+            (result.Diagnostics.Any(static diagnostic => diagnostic.Code == "CWSC108")).ShouldBeTrue(
+                string.Join(
+                    " | ",
+                    result.Diagnostics.Select(static diagnostic =>
+                        $"{diagnostic.Code}:{diagnostic.Message}"
+                    )
+                )
+            );
+            result
+                .Diagnostics.Single(static diagnostic => diagnostic.Code == "CWSC108")
+                .Message.ShouldContain("TypeLoadFixture.Base");
+            (result.WrittenFiles).ShouldBeEmpty();
+            (result.Documents).ShouldBeEmpty();
+            (Directory.GetFiles(outputDirectory, "*.json")).ShouldBeEmpty();
+
+            var buildEngine = new RecordingBuildEngine();
+            var task = new GenerateConfiglueSchemas
+            {
+                BuildEngine = buildEngine,
+                AssemblyPath = modelsAssembly,
+                ProjectDirectory = fixtureRoot,
+                OutputPath = outputDirectory,
+            };
+            (task.Execute()).ShouldBeFalse();
+            (task.WrittenFiles).ShouldBeEmpty();
+            (buildEngine.Errors.Any(static message => message.Contains("CWSC108"))).ShouldBeTrue(
+                string.Join(" | ", buildEngine.Errors)
+            );
+        }
+        finally
+        {
+            DeleteDirectory(fixtureRoot);
+            DeleteDirectory(outputDirectory);
+        }
+    }
+
+    [Test]
+    public async Task Generate_SucceedsWhenAllModelDependenciesArePresent()
+    {
+        var fixtureRoot = CreateTempDirectory();
+        var outputDirectory = CreateTempDirectory();
+        try
+        {
+            var modelsAssembly = await BuildTypeLoadFixtureAsync(fixtureRoot);
+
+            var result = ConfiglueSchemaGenerator.Generate(
+                new ConfiglueSchemaGenerationOptions
+                {
+                    AssemblyPath = modelsAssembly,
+                    ProjectDirectory = fixtureRoot,
+                    OutputPath = outputDirectory,
+                }
+            );
+
+            (result.Succeeded).ShouldBeTrue(
+                string.Join(
+                    " | ",
+                    result.Diagnostics.Select(static diagnostic =>
+                        $"{diagnostic.Code}:{diagnostic.Message}"
+                    )
+                )
+            );
+            (
+                result
+                    .Documents.Select(static document => document.FileName)
+                    .OrderBy(static name => name)
+            ).ShouldBe(["typeload.bad.v1.json", "typeload.good.v1.json"]);
+            (result.WrittenFiles.Count).ShouldBe(2);
+        }
+        finally
+        {
+            DeleteDirectory(fixtureRoot);
+            DeleteDirectory(outputDirectory);
+        }
+    }
+
+    private static async Task<string> BuildTypeLoadFixtureAsync(string root)
+    {
+        var baseDirectory = Path.Combine(root, "base");
+        var modelsDirectory = Path.Combine(root, "models");
+        Directory.CreateDirectory(baseDirectory);
+        Directory.CreateDirectory(modelsDirectory);
+
+        await File.WriteAllTextAsync(
+            Path.Combine(baseDirectory, "Base.csproj"),
+            """
+            <Project Sdk="Microsoft.NET.Sdk">
+              <PropertyGroup>
+                <TargetFramework>net10.0</TargetFramework>
+                <AssemblyName>TypeLoadFixture.Base</AssemblyName>
+                <Nullable>enable</Nullable>
+                <ImplicitUsings>enable</ImplicitUsings>
+              </PropertyGroup>
+            </Project>
+            """
+        );
+        await File.WriteAllTextAsync(
+            Path.Combine(baseDirectory, "MissingBase.cs"),
+            """
+            namespace TypeLoadFixture.Base;
+            public class MissingBase
+            {
+                public string? Value { get; set; }
+            }
+            """
+        );
+
+        var abstractionPath = Path.Combine(
+            RepositoryRoot,
+            "src",
+            "basic",
+            "Configlue.Abstraction",
+            "Configlue.Abstraction.csproj"
+        );
+        await File.WriteAllTextAsync(
+            Path.Combine(modelsDirectory, "Models.csproj"),
+            $"""
+            <Project Sdk="Microsoft.NET.Sdk">
+              <PropertyGroup>
+                <TargetFramework>net10.0</TargetFramework>
+                <AssemblyName>TypeLoadFixture.Models</AssemblyName>
+                <Nullable>enable</Nullable>
+                <ImplicitUsings>enable</ImplicitUsings>
+              </PropertyGroup>
+              <ItemGroup>
+                <ProjectReference Include="{Path.Combine(baseDirectory, "Base.csproj")}" />
+                <ProjectReference Include="{abstractionPath}" />
+              </ItemGroup>
+            </Project>
+            """
+        );
+        await File.WriteAllTextAsync(
+            Path.Combine(modelsDirectory, "Models.cs"),
+            """
+            using Configlue;
+            using TypeLoadFixture.Base;
+            namespace TypeLoadFixture.Models;
+            [ConfiglueModel("typeload.good")]
+            public sealed class GoodModel
+            {
+                public string? Name { get; set; }
+            }
+            [ConfiglueModel("typeload.bad")]
+            public sealed class BadModel : MissingBase
+            {
+                public string? Extra { get; set; }
+            }
+            """
+        );
+
+        await RunDotNetBuildAsync(Path.Combine(modelsDirectory, "Models.csproj"));
+
+        var modelsAssembly = Path.Combine(
+            modelsDirectory,
+            "bin",
+            "Debug",
+            "net10.0",
+            "TypeLoadFixture.Models.dll"
+        );
+        if (!File.Exists(modelsAssembly))
+        {
+            throw new InvalidOperationException(
+                $"The type-load fixture assembly was not built: {modelsAssembly}"
+            );
+        }
+
+        return modelsAssembly;
+    }
+
+    private static async Task RunDotNetBuildAsync(string projectPath)
+    {
+        var startInfo = new ProcessStartInfo("dotnet")
+        {
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+        };
+        startInfo.ArgumentList.Add("build");
+        startInfo.ArgumentList.Add(projectPath);
+        startInfo.ArgumentList.Add("-c");
+        startInfo.ArgumentList.Add("Debug");
+        startInfo.ArgumentList.Add("--nologo");
+        startInfo.ArgumentList.Add("-v");
+        startInfo.ArgumentList.Add("q");
+
+        using var process =
+            Process.Start(startInfo)
+            ?? throw new InvalidOperationException("The dotnet CLI could not be started.");
+        var standardOutput = await process.StandardOutput.ReadToEndAsync();
+        var standardError = await process.StandardError.ReadToEndAsync();
+        await process.WaitForExitAsync();
+
+        if (process.ExitCode != 0)
+        {
+            throw new InvalidOperationException(
+                $"dotnet build exited with code {process.ExitCode}: {standardOutput} {standardError}"
+            );
+        }
+    }
+
     private static string RepositoryRoot { get; } = FindRepositoryRoot();
 
     private static string FindRepositoryRoot()
@@ -532,6 +762,38 @@ public sealed class ConfiglueSchemaMsBuildTests
         var path = Path.Combine(directory, $"harness-{Guid.NewGuid():N}.proj");
         File.WriteAllText(path, content);
         return path;
+    }
+
+    private sealed class RecordingBuildEngine : IBuildEngine
+    {
+        public List<string> Errors { get; } = [];
+        public List<string> Warnings { get; } = [];
+        public List<string> Messages { get; } = [];
+
+        public bool ContinueOnError => false;
+
+        public string ProjectFileOfTaskNode => string.Empty;
+
+        public int LineNumberOfTaskNode => 0;
+
+        public int ColumnNumberOfTaskNode => 0;
+
+        public bool BuildProjectFile(
+            string projectFileName,
+            string[] targetNames,
+            IDictionary globalProperties,
+            IDictionary targetOutputs
+        ) => false;
+
+        public void LogCustomEvent(CustomBuildEventArgs e) { }
+
+        public void LogErrorEvent(BuildErrorEventArgs e) => Errors.Add(e.Message ?? string.Empty);
+
+        public void LogMessageEvent(BuildMessageEventArgs e) =>
+            Messages.Add(e.Message ?? string.Empty);
+
+        public void LogWarningEvent(BuildWarningEventArgs e) =>
+            Warnings.Add(e.Message ?? string.Empty);
     }
 
     private static async Task<string> EvaluateMsBuildPropertyAsync(
