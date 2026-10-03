@@ -566,29 +566,71 @@ public static class ConfiglueServiceCollectionExtensions
             {
                 var resources = new List<object>();
                 var resourceSet = new HashSet<object>(ReferenceIdentityComparer.Instance);
-                var runtime =
-                    (IConfiglueRuntimeState<TModel>)
-                        registration.CreateRuntime(
-                            provider,
-                            resource =>
-                            {
-                                ArgumentNullException.ThrowIfNull(resource);
-                                if (resource is not IDisposable && resource is not IAsyncDisposable)
+                IConfiglueRuntimeState<TModel>? runtime = null;
+                try
+                {
+                    runtime =
+                        (IConfiglueRuntimeState<TModel>)
+                            registration.CreateRuntime(
+                                provider,
+                                resource =>
                                 {
-                                    throw new ArgumentException(
-                                        "An owned resource must implement IDisposable or IAsyncDisposable.",
-                                        nameof(resource)
-                                    );
-                                }
+                                    ArgumentNullException.ThrowIfNull(resource);
+                                    if (
+                                        resource is not IDisposable
+                                        && resource is not IAsyncDisposable
+                                    )
+                                    {
+                                        throw new ArgumentException(
+                                            "An owned resource must implement IDisposable or IAsyncDisposable.",
+                                            nameof(resource)
+                                        );
+                                    }
 
-                                if (resourceSet.Add(resource))
-                                {
-                                    resources.Add(resource);
-                                }
-                            },
-                            hostPaths
+                                    if (resourceSet.Add(resource))
+                                    {
+                                        resources.Add(resource);
+                                    }
+                                },
+                                hostPaths
+                            );
+                    return new ConfiglueScopedRuntime<TModel>(runtime, resources);
+                }
+                catch (Exception creationException)
+                {
+                    List<Exception>? cleanupErrors = null;
+                    try
+                    {
+                        ConfiglueOwnedResources.Dispose(runtime!);
+                    }
+                    catch (Exception cleanupException)
+                    {
+                        (cleanupErrors ??= []).Add(cleanupException);
+                    }
+
+                    for (var index = resources.Count - 1; index >= 0; index--)
+                    {
+                        try
+                        {
+                            ConfiglueOwnedResources.Dispose(resources[index]);
+                        }
+                        catch (Exception cleanupException)
+                        {
+                            (cleanupErrors ??= []).Add(cleanupException);
+                        }
+                    }
+
+                    if (cleanupErrors is not null)
+                    {
+                        cleanupErrors.Insert(0, creationException);
+                        throw new AggregateException(
+                            "Scoped runtime creation and cleanup both failed.",
+                            cleanupErrors
                         );
-                return new ConfiglueScopedRuntime<TModel>(runtime, resources);
+                    }
+
+                    throw;
+                }
             }
 
             Func<IServiceProvider, IWritableState<TModel>> getHolderRuntime =
