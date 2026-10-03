@@ -189,9 +189,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                 member,
                 effectiveValue,
                 sourceContributions
-                    .Select(static contribution =>
-                        (contribution.SourceId.Value, contribution.Value)
-                    )
+                    .Select(static contribution => (contribution.SourceId, contribution.Value))
                     .ToArray()
             )
             .Select(provenance => new ConfigCollectionElementData(

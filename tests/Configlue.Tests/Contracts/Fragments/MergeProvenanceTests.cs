@@ -25,7 +25,7 @@ public sealed class MergeProvenanceTests
         var elements = ConfiglueMergeProvenance.ExplainElements(
             member,
             lower,
-            [("higher", higher), ("lower", lower)]
+            [(SourceId.From("higher"), higher), (SourceId.From("lower"), lower)]
         );
         elements.Single().SourceIndices.ShouldBe([0, 1]);
     }
@@ -39,7 +39,11 @@ public sealed class MergeProvenanceTests
         var elements = ConfiglueMergeProvenance.ExplainElements(
             member,
             new[] { "same" },
-            [("higher", new[] { "same" }), ("reset", null), ("lower", new[] { "same" })]
+            [
+                (SourceId.From("higher"), new[] { "same" }),
+                (SourceId.From("reset"), null),
+                (SourceId.From("lower"), new[] { "same" }),
+            ]
         );
         elements.Single().SourceIndices.ShouldBe([0]);
     }
@@ -53,7 +57,7 @@ public sealed class MergeProvenanceTests
         var elements = ConfiglueMergeProvenance.ExplainElements(
             member,
             new[] { "same" },
-            [("higher", new[] { "same" }), ("lower", new[] { "same" })]
+            [(SourceId.From("higher"), new[] { "same" }), (SourceId.From("lower"), new[] { "same" })]
         );
         elements.Single().SourceIndices.ShouldBe([0]);
     }

@@ -45,7 +45,7 @@ public static class ConfiglueMergeProvenance
     public static IReadOnlyList<ConfiglueCollectionElementProvenance> ExplainElements(
         ConfiglueMemberSchema member,
         object? effectiveValue,
-        IReadOnlyList<(string SourceId, object? Value)> sourceContributions
+        IReadOnlyList<(SourceId SourceId, object? Value)> sourceContributions
     )
     {
         ArgumentNullException.ThrowIfNull(sourceContributions);
@@ -60,11 +60,7 @@ public static class ConfiglueMergeProvenance
         {
             var sourcePriority = sourceContributions
                 .Select((source, index) => (source.SourceId, index))
-                .ToDictionary(
-                    static source => source.SourceId,
-                    static source => source.index,
-                    StringComparer.Ordinal
-                );
+                .ToDictionary(static source => source.SourceId, static source => source.index);
             var sourceValues = sourceContributions
                 .Reverse()
                 .Select(static source => new ConfiglueMergeSourceValue(

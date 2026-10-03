@@ -31,14 +31,12 @@ public sealed partial class WatcherLifecycleTests
         await currentWatcher.WaitUntilWaitingAsync().WaitAsync(TimeSpan.FromSeconds(5));
 
         IConfiglueRuntimeState<AppSettings> migratable = runtime;
-        var targets = new Dictionary<string, Func<IConfiglueFragment, IConfiglueFragment>>(
-            StringComparer.Ordinal
-        )
+        var targets = new Dictionary<SourceId, Func<IConfiglueFragment, IConfiglueFragment>>()
         {
-            ["current"] = static fragment => fragment,
+            [SourceId.From("current")] = static fragment => fragment,
         };
         var migration = migratable
-            .MigrateSourcesToTargetsAsync(["legacy"], targets, retireSources: true)
+            .MigrateSourcesToTargetsAsync([SourceId.From("legacy")], targets, retireSources: true)
             .AsTask();
         await migration.WaitAsync(TimeSpan.FromSeconds(5));
 

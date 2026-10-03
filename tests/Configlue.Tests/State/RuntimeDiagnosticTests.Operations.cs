@@ -239,10 +239,10 @@ public sealed partial class RuntimeDiagnosticTests
             capacity: 64
         );
         if (succeeds)
-            await runtime.MigrateSourceAsync("source", "target");
+            await runtime.MigrateSourceAsync(SourceId.From("source"), SourceId.From("target"));
         else
             await Should.ThrowAsync<InvalidOperationException>(async () =>
-                await runtime.MigrateSourceAsync("source", "target")
+                await runtime.MigrateSourceAsync(SourceId.From("source"), SourceId.From("target"))
             );
         var last = runtime.GetRuntimeSnapshot().LastMigration!.Value;
         last.Kind.ShouldBe(

@@ -29,13 +29,13 @@ public sealed class MergeStrategyContractTests
 
         ConfiglueMergeSourceValue[] sources =
         [
-            new("defaults", Optional<object?>.Present((IReadOnlyList<string>)["base", "shared"])),
-            new("user", Optional<object?>.Present((IReadOnlyList<string>)["user"])),
+            new(SourceId.From("defaults"), Optional<object?>.Present((IReadOnlyList<string>)["base", "shared"])),
+            new(SourceId.From("user"), Optional<object?>.Present((IReadOnlyList<string>)["user"])),
         ];
         strategy
             .TryPlanSourceContribution(
                 sources,
-                "user",
+                SourceId.From("user"),
                 (IReadOnlyList<string>)["base", "shared", "user", "new"],
                 out var contribution,
                 out var planReason
@@ -51,8 +51,8 @@ public sealed class MergeStrategyContractTests
         IConfiglueMergeStrategy strategy = new StringSetMergeStrategy();
         ConfiglueMergeSourceValue[] sources =
         [
-            new("defaults", Optional<object?>.Present((IReadOnlyList<string>)["base", "shared"])),
-            new("user", Optional<object?>.Present((IReadOnlyList<string>)["shared", "custom"])),
+            new(SourceId.From("defaults"), Optional<object?>.Present((IReadOnlyList<string>)["base", "shared"])),
+            new(SourceId.From("user"), Optional<object?>.Present((IReadOnlyList<string>)["shared", "custom"])),
         ];
 
         var provenance = strategy.ExplainElements(
@@ -64,9 +64,9 @@ public sealed class MergeStrategyContractTests
         provenance
             .Select(static item => item.SourceIds.ToArray())
             .ShouldBe([
-                ["defaults"],
-                ["defaults", "user"],
-                ["user"],
+                [SourceId.From("defaults")],
+                [SourceId.From("defaults"), SourceId.From("user")],
+                [SourceId.From("user")],
             ]);
     }
 
@@ -117,7 +117,7 @@ public sealed class MergeStrategyContractTests
 
         public override bool TryPlanSourceContribution(
             IReadOnlyList<ConfiglueMergeSourceValue<IReadOnlyList<string>>> sourceValuesLowToHigh,
-            string targetSourceId,
+            SourceId targetSourceId,
             IReadOnlyList<string>? desiredEffective,
             out Optional<IReadOnlyList<string>> targetContribution,
             out string? reason

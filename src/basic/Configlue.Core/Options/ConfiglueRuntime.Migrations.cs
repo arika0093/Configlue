@@ -12,56 +12,6 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
     where TFragment : class, IConfiglueFragment<TFragment>
 {
     /// <inheritdoc />
-    public ValueTask<StateStorageMigrationResult> MigrateSourcesToTargetsAsync(
-        IEnumerable<SourceId> sourceIds,
-        IReadOnlyDictionary<
-            SourceId,
-            Func<IConfiglueFragment, IConfiglueFragment>
-        > targetProjections,
-        CancellationToken cancellationToken = default,
-        bool retireSources = false
-    )
-    {
-        ArgumentNullException.ThrowIfNull(sourceIds);
-        ArgumentNullException.ThrowIfNull(targetProjections);
-        var typedProjections = targetProjections.ToDictionary(
-            static projection => projection.Key,
-            projection =>
-                (Func<TFragment, TFragment>)(
-                    fragment =>
-                        projection.Value(fragment) is TFragment projected
-                            ? projected
-                            : throw new InvalidOperationException(
-                                $"The migration projection for target '{projection.Key}' returned an incompatible fragment."
-                            )
-                )
-        );
-        return MigrateSourcesToTargetsAsync(
-            sourceIds,
-            typedProjections,
-            cancellationToken,
-            retireSources
-        );
-    }
-
-    /// <inheritdoc />
-    public async ValueTask<StateSourceMigrationResult> MigrateSourceAsync(
-        string sourceId,
-        string targetId,
-        CancellationToken cancellationToken = default
-    )
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(sourceId);
-        ArgumentException.ThrowIfNullOrWhiteSpace(targetId);
-        return await MigrateSourceAsync(
-                SourceId.From(sourceId),
-                SourceId.From(targetId),
-                cancellationToken
-            )
-            .ConfigureAwait(false);
-    }
-
-    /// <inheritdoc />
     public async ValueTask<StateSourceMigrationResult> MigrateSourceAsync(
         SourceId sourceId,
         SourceId targetId,
@@ -241,25 +191,34 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         return migrationResult;
     }
 
-    /// <summary>
-    /// Migrates selected source contributions to one or more projected targets. Successful targets are
-    /// re-read and verified; repeating the operation skips targets already holding the requested fragment.
-    /// </summary>
+    /// <inheritdoc />
     public ValueTask<StateStorageMigrationResult> MigrateSourcesToTargetsAsync(
-        IEnumerable<string> sourceIds,
-        IReadOnlyDictionary<string, Func<TFragment, TFragment>> targetProjections,
+        IEnumerable<SourceId> sourceIds,
+        IReadOnlyDictionary<
+            SourceId,
+            Func<IConfiglueFragment, IConfiglueFragment>
+        > targetProjections,
         CancellationToken cancellationToken = default,
         bool retireSources = false
     )
     {
         ArgumentNullException.ThrowIfNull(sourceIds);
         ArgumentNullException.ThrowIfNull(targetProjections);
+        var typedProjections = targetProjections.ToDictionary(
+            static projection => projection.Key,
+            projection =>
+                (Func<TFragment, TFragment>)(
+                    fragment =>
+                        projection.Value(fragment) is TFragment projected
+                            ? projected
+                            : throw new InvalidOperationException(
+                                $"The migration projection for target '{projection.Key}' returned an incompatible fragment."
+                            )
+                )
+        );
         return MigrateSourcesToTargetsAsync(
-            sourceIds.Select(SourceId.From),
-            targetProjections.ToDictionary(
-                static projection => SourceId.From(projection.Key),
-                static projection => projection.Value
-            ),
+            sourceIds,
+            typedProjections,
             cancellationToken,
             retireSources
         );
@@ -295,6 +254,42 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             );
             throw;
         }
+    }
+
+    /// <inheritdoc />
+    public ValueTask<StateStorageMigrationResult> MigrateSourcesToTargetsAsync(
+        IEnumerable<SourceKey<TModel>> sourceKeys,
+        IReadOnlyDictionary<
+            SourceKey<TModel>,
+            Func<IConfiglueFragment, IConfiglueFragment>
+        > targetProjections,
+        CancellationToken cancellationToken = default,
+        bool retireSources = false
+    )
+    {
+        ArgumentNullException.ThrowIfNull(sourceKeys);
+        ArgumentNullException.ThrowIfNull(targetProjections);
+        var sourceIds = sourceKeys.Select(key =>
+        {
+            ValidateSourceKey(key, nameof(sourceKeys));
+            return key.Id;
+        });
+        var stringProjections = targetProjections.ToDictionary(
+            pair =>
+            {
+                ValidateSourceKey(pair.Key, nameof(targetProjections));
+                ArgumentNullException.ThrowIfNull(pair.Value);
+                return pair.Key.Id;
+            },
+            static pair => pair.Value
+        );
+
+        return MigrateSourcesToTargetsAsync(
+            sourceIds,
+            stringProjections,
+            cancellationToken,
+            retireSources
+        );
     }
 
     private async ValueTask<StateStorageMigrationResult> MigrateSourcesImplementationAsync(
@@ -704,77 +699,6 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             new StateRevisionVector(sourceRevisions),
             targetResults,
             retiredSourceIds
-        );
-    }
-
-    /// <inheritdoc />
-    public ValueTask<StateStorageMigrationResult> MigrateSourcesToTargetsAsync(
-        IEnumerable<string> sourceIds,
-        IReadOnlyDictionary<string, Func<IConfiglueFragment, IConfiglueFragment>> targetProjections,
-        CancellationToken cancellationToken = default,
-        bool retireSources = false
-    )
-    {
-        ArgumentNullException.ThrowIfNull(targetProjections);
-        foreach (var target in targetProjections)
-        {
-            ArgumentException.ThrowIfNullOrWhiteSpace(target.Key);
-            ArgumentNullException.ThrowIfNull(target.Value);
-        }
-
-        var typedProjections = targetProjections.ToDictionary(
-            static pair => SourceId.From(pair.Key),
-            static pair =>
-                (Func<TFragment, TFragment>)(
-                    fragment =>
-                        pair.Value(fragment) is TFragment projected
-                            ? projected
-                            : throw new InvalidOperationException(
-                                $"The migration projection for target '{pair.Key}' returned an incompatible fragment."
-                            )
-                )
-        );
-        return MigrateSourcesToTargetsAsync(
-            sourceIds.Select(SourceId.From),
-            typedProjections,
-            cancellationToken,
-            retireSources
-        );
-    }
-
-    /// <inheritdoc />
-    public ValueTask<StateStorageMigrationResult> MigrateSourcesToTargetsAsync(
-        IEnumerable<SourceKey<TModel>> sourceKeys,
-        IReadOnlyDictionary<
-            SourceKey<TModel>,
-            Func<IConfiglueFragment, IConfiglueFragment>
-        > targetProjections,
-        CancellationToken cancellationToken = default,
-        bool retireSources = false
-    )
-    {
-        ArgumentNullException.ThrowIfNull(sourceKeys);
-        ArgumentNullException.ThrowIfNull(targetProjections);
-        var sourceIds = sourceKeys.Select(key =>
-        {
-            ValidateSourceKey(key, nameof(sourceKeys));
-            return key.Id;
-        });
-        var stringProjections = targetProjections.ToDictionary(
-            pair =>
-            {
-                ValidateSourceKey(pair.Key, nameof(targetProjections));
-                ArgumentNullException.ThrowIfNull(pair.Value);
-                return pair.Key.Id;
-            },
-            static pair => pair.Value
-        );
-
-        return MigrateSourcesToTargetsAsync(
-            sourceIds,
-            stringProjections,
-            cancellationToken,
-            retireSources
         );
     }
 

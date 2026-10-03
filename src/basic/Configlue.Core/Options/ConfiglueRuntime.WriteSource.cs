@@ -110,16 +110,13 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                             }
                         }
 
-                        strategyValues[index] = new ConfiglueMergeSourceValue(
-                            source.Id.Value,
-                            value
-                        );
+                        strategyValues[index] = new ConfiglueMergeSourceValue(source.Id, value);
                     }
 
                     if (
                         !mergeStrategy.TryPlanSourceContribution(
                             strategyValues,
-                            targetSourceId.Value,
+                            targetSourceId,
                             afterValue,
                             out var targetContribution,
                             out var reason

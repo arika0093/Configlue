@@ -15,13 +15,6 @@ public interface IConfiglueSources<T>
         CancellationToken cancellationToken = default
     );
 
-    /// <summary>Migrates one source's contribution using string IDs at a compatibility boundary.</summary>
-    ValueTask<StateSourceMigrationResult> MigrateSourceAsync(
-        string sourceId,
-        string targetId,
-        CancellationToken cancellationToken = default
-    );
-
     /// <summary>Migrates one source contribution using typed logical source keys.</summary>
     ValueTask<StateSourceMigrationResult> MigrateSourceAsync(
         SourceKey<T> sourceKey,
@@ -41,14 +34,6 @@ public interface IConfiglueSources<T>
             SourceId,
             Func<IConfiglueFragment, IConfiglueFragment>
         > targetProjections,
-        CancellationToken cancellationToken = default,
-        bool retireSources = false
-    );
-
-    /// <summary>Migrates source contributions through the legacy string ID boundary.</summary>
-    ValueTask<StateStorageMigrationResult> MigrateSourcesToTargetsAsync(
-        IEnumerable<string> sourceIds,
-        IReadOnlyDictionary<string, Func<IConfiglueFragment, IConfiglueFragment>> targetProjections,
         CancellationToken cancellationToken = default,
         bool retireSources = false
     );

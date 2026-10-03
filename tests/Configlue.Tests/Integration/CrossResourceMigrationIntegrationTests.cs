@@ -61,7 +61,10 @@ public sealed class CrossResourceMigrationIntegrationTests
                 StateWritePlan.DefaultTo(SourceId.From("json-file"))
             );
 
-            var migration = await options.MigrateSourceAsync("json-file", "yaml-section");
+            var migration = await options.MigrateSourceAsync(
+                SourceId.From("json-file"),
+                SourceId.From("yaml-section")
+            );
 
             var targetResult = await target.Reader.ReadAsync();
             var targetText = Encoding.UTF8.GetString((await targetFile.ReadAsync()).Content.Span);
@@ -170,19 +173,19 @@ public sealed class CrossResourceMigrationIntegrationTests
                 StateWritePlan.DefaultTo(SourceId.From("json-file"))
             );
             var projections = new Dictionary<
-                string,
+                SourceId,
                 Func<AppSettings.Fragment, AppSettings.Fragment>
-            >(StringComparer.Ordinal)
+            >()
             {
-                ["json-target"] = static fragment => fragment,
-                ["yaml-target"] = static fragment => new AppSettings.Fragment
+                [SourceId.From("json-target")] = static fragment => fragment,
+                [SourceId.From("yaml-target")] = static fragment => new AppSettings.Fragment
                 {
                     RetryCount = fragment.RetryCount,
                 },
             };
 
             var firstRun = await options.MigrateSourcesToTargetsAsync(
-                ["json-file", "yaml-memory"],
+                [SourceId.From("json-file"), SourceId.From("yaml-memory")],
                 projections
             );
             var jsonTargetResult = await jsonTarget.Reader.ReadAsync();
@@ -213,7 +216,7 @@ public sealed class CrossResourceMigrationIntegrationTests
             yamlTargetText.ShouldNotContain("{");
 
             var secondRun = await options.MigrateSourcesToTargetsAsync(
-                ["json-file", "yaml-memory"],
+                [SourceId.From("json-file"), SourceId.From("yaml-memory")],
                 projections
             );
 
@@ -282,7 +285,10 @@ public sealed class CrossResourceMigrationIntegrationTests
             StateWritePlan.DefaultTo(SourceId.From("legacy-json"))
         );
 
-        await options.MigrateSourceAsync("legacy-json", "current-yaml");
+        await options.MigrateSourceAsync(
+            SourceId.From("legacy-json"),
+            SourceId.From("current-yaml")
+        );
 
         var targetResult = await target.Reader.ReadAsync();
         var targetText = Encoding.UTF8.GetString((await targetResource.ReadAsync()).Content.Span);
@@ -320,7 +326,7 @@ public sealed class CrossResourceMigrationIntegrationTests
         var rejected = false;
         try
         {
-            await options.MigrateSourceAsync("source", "target");
+            await options.MigrateSourceAsync(SourceId.From("source"), SourceId.From("target"));
         }
         catch (StateConflictException)
         {

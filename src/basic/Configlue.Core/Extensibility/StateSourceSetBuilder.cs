@@ -7,7 +7,7 @@ namespace Configlue;
 public sealed class StateSourceSetBuilder<T>
 {
     private readonly List<Func<StateSource<T>>> _sourceFactories = [];
-    private readonly HashSet<string> _sourceIds = new(StringComparer.Ordinal);
+    private readonly HashSet<SourceId> _sourceIds = [];
 
     /// <summary>Adds a source with an automatically generated opaque identity.</summary>
     public StateSourceBuilder<T> Add(
@@ -30,14 +30,7 @@ public sealed class StateSourceSetBuilder<T>
             fixedResourceId,
             logicalDescriptor
         );
-        return Add(
-            source.Id.Value,
-            reader,
-            priority,
-            fallbackCondition,
-            physicalOrigin,
-            fixedResourceId
-        );
+        return Add(source.Id, reader, priority, fallbackCondition, physicalOrigin, fixedResourceId);
     }
 
     /// <summary>Adds a source and detects writer and watcher support on its reader.</summary>
@@ -51,6 +44,30 @@ public sealed class StateSourceSetBuilder<T>
     )
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
+        return Add(
+            SourceId.From(id),
+            reader,
+            priority,
+            fallbackCondition,
+            physicalOrigin,
+            fixedResourceId
+        );
+    }
+
+    /// <summary>Adds a source with a nominal logical identity.</summary>
+    public StateSourceBuilder<T> Add(
+        SourceId id,
+        ISourceReader<T> reader,
+        int priority = 0,
+        StateFallbackCondition fallbackCondition = StateFallbackCondition.NotFound,
+        string? physicalOrigin = null,
+        ResourceId? fixedResourceId = null
+    )
+    {
+        if (id.IsDefault)
+        {
+            throw new ArgumentException("A source ID must not be default.", nameof(id));
+        }
         ArgumentNullException.ThrowIfNull(reader);
         ValidateFallbackCondition(fallbackCondition);
         AddId(id);
@@ -73,7 +90,7 @@ public sealed class StateSourceSetBuilder<T>
     public StateSourceSetBuilder<T> Add(StateSource<T> source)
     {
         ArgumentNullException.ThrowIfNull(source);
-        AddId(source.Id.Value);
+        AddId(source.Id);
         _sourceFactories.Add(() => source);
         return this;
     }
@@ -82,7 +99,7 @@ public sealed class StateSourceSetBuilder<T>
     public StateSourceSet<T> Build() =>
         new(_sourceFactories.Select(static createSource => createSource()));
 
-    private void AddId(string id)
+    private void AddId(SourceId id)
     {
         if (!_sourceIds.Add(id))
         {
@@ -116,7 +133,7 @@ public sealed class StateSourceBuilder<T>
 {
     private ISourceWriter<T>? _writer;
     private ISourceWatcher? _watcher;
-    private readonly string _id;
+    private readonly SourceId _id;
     private readonly ISourceReader<T> _reader;
     private readonly int _priority;
     private readonly StateFallbackCondition _fallbackCondition;
@@ -128,7 +145,7 @@ public sealed class StateSourceBuilder<T>
     private RuntimeLifetimeRequirement _runtimeLifetime = RuntimeLifetimeRequirement.Shared;
 
     internal StateSourceBuilder(
-        string id,
+        SourceId id,
         ISourceReader<T> reader,
         int priority,
         StateFallbackCondition fallbackCondition,
@@ -215,7 +232,7 @@ public sealed class StateSourceBuilder<T>
 
     internal StateSource<T> Build() =>
         new(
-            SourceId.From(_id),
+            _id,
             _reader,
             _priority,
             _fallbackCondition,

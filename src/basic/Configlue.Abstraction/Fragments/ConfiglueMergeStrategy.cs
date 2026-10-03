@@ -4,7 +4,7 @@ namespace Configlue;
 public readonly record struct ConfiglueMergeSourceValue
 {
     /// <summary>Gets or initializes the <see cref="SourceId"/> value.</summary>
-    public string SourceId { get; init; }
+    public SourceId SourceId { get; init; }
 
     /// <summary>Gets or initializes the <see cref="Value"/> value.</summary>
     public Optional<object?> Value { get; init; }
@@ -12,7 +12,7 @@ public readonly record struct ConfiglueMergeSourceValue
     /// <summary>Initializes a new instance of this record.</summary>
     /// <param name="SourceId">The initial value for the <see cref="SourceId"/> property.</param>
     /// <param name="Value">The initial value for the <see cref="Value"/> property.</param>
-    public ConfiglueMergeSourceValue(string SourceId, Optional<object?> Value)
+    public ConfiglueMergeSourceValue(SourceId SourceId, Optional<object?> Value)
     {
         this.SourceId = SourceId;
         this.Value = Value;
@@ -21,7 +21,7 @@ public readonly record struct ConfiglueMergeSourceValue
     /// <summary>Deconstructs this record into its property values.</summary>
     /// <param name="SourceId">Receives the current <see cref="SourceId"/> value.</param>
     /// <param name="Value">Receives the current <see cref="Value"/> value.</param>
-    public void Deconstruct(out string SourceId, out Optional<object?> Value)
+    public void Deconstruct(out SourceId SourceId, out Optional<object?> Value)
     {
         SourceId = this.SourceId;
         Value = this.Value;
@@ -32,7 +32,7 @@ public readonly record struct ConfiglueMergeSourceValue
 public readonly record struct ConfiglueMergeSourceValue<T>
 {
     /// <summary>Gets or initializes the <see cref="SourceId"/> value.</summary>
-    public string SourceId { get; init; }
+    public SourceId SourceId { get; init; }
 
     /// <summary>Gets or initializes the <see cref="Value"/> value.</summary>
     public Optional<T> Value { get; init; }
@@ -40,7 +40,7 @@ public readonly record struct ConfiglueMergeSourceValue<T>
     /// <summary>Initializes a new instance of this record.</summary>
     /// <param name="SourceId">The initial value for the <see cref="SourceId"/> property.</param>
     /// <param name="Value">The initial value for the <see cref="Value"/> property.</param>
-    public ConfiglueMergeSourceValue(string SourceId, Optional<T> Value)
+    public ConfiglueMergeSourceValue(SourceId SourceId, Optional<T> Value)
     {
         this.SourceId = SourceId;
         this.Value = Value;
@@ -49,7 +49,7 @@ public readonly record struct ConfiglueMergeSourceValue<T>
     /// <summary>Deconstructs this record into its property values.</summary>
     /// <param name="SourceId">Receives the current <see cref="SourceId"/> value.</param>
     /// <param name="Value">Receives the current <see cref="Value"/> value.</param>
-    public void Deconstruct(out string SourceId, out Optional<T> Value)
+    public void Deconstruct(out SourceId SourceId, out Optional<T> Value)
     {
         SourceId = this.SourceId;
         Value = this.Value;
@@ -60,7 +60,7 @@ public readonly record struct ConfiglueMergeSourceValue<T>
 public sealed class ConfiglueMergeElementProvenance
 {
     /// <summary>Creates element provenance.</summary>
-    public ConfiglueMergeElementProvenance(int index, IEnumerable<string> sourceIds)
+    public ConfiglueMergeElementProvenance(int index, IEnumerable<SourceId> sourceIds)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(index);
         ArgumentNullException.ThrowIfNull(sourceIds);
@@ -72,7 +72,7 @@ public sealed class ConfiglueMergeElementProvenance
     public int Index { get; }
 
     /// <summary>Logical source IDs that contributed this element.</summary>
-    public IReadOnlyList<string> SourceIds { get; }
+    public IReadOnlyList<SourceId> SourceIds { get; }
 }
 
 /// <summary>Untyped operations used by generated metadata and the runtime.</summary>
@@ -99,7 +99,7 @@ public interface IConfiglueMergeStrategy
     /// <summary>Plans one source's contribution to realize the requested effective value.</summary>
     bool TryPlanSourceContribution(
         IReadOnlyList<ConfiglueMergeSourceValue> sourceValuesLowToHigh,
-        string targetSourceId,
+        SourceId targetSourceId,
         object? desiredEffective,
         out Optional<object?> targetContribution,
         out string? reason
@@ -141,7 +141,7 @@ public abstract class ConfiglueMergeStrategy<T> : IConfiglueMergeStrategy
     /// <summary>Plans the target source contribution needed to produce a requested effective value.</summary>
     public abstract bool TryPlanSourceContribution(
         IReadOnlyList<ConfiglueMergeSourceValue<T>> sourceValuesLowToHigh,
-        string targetSourceId,
+        SourceId targetSourceId,
         T? desiredEffective,
         out Optional<T> targetContribution,
         out string? reason
@@ -185,7 +185,7 @@ public abstract class ConfiglueMergeStrategy<T> : IConfiglueMergeStrategy
 
     bool IConfiglueMergeStrategy.TryPlanSourceContribution(
         IReadOnlyList<ConfiglueMergeSourceValue> sourceValuesLowToHigh,
-        string targetSourceId,
+        SourceId targetSourceId,
         object? desiredEffective,
         out Optional<object?> targetContribution,
         out string? reason

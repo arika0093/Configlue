@@ -433,8 +433,14 @@ public sealed class LegacySettingsAdoptionTests
         (result.Value.NullableLabel.IsPresent).ShouldBeTrue();
         (result.Value.NullableLabel.Value).ShouldBeNull();
         (result.Value.NewName.Value).ShouldBe("legacy");
-        await options.MigrateSourceAsync("legacy-profile", "current-settings");
-        await options.MigrateSourceAsync("legacy-profile", "current-settings");
+        await options.MigrateSourceAsync(
+            SourceId.From("legacy-profile"),
+            SourceId.From("current-settings")
+        );
+        await options.MigrateSourceAsync(
+            SourceId.From("legacy-profile"),
+            SourceId.From("current-settings")
+        );
         var migrated = (await targetStore.ReadAsync()).Value!;
         (migrated.RetryCount.Value).ShouldBe(0);
         (migrated.NullableLabel.IsPresent).ShouldBeTrue();

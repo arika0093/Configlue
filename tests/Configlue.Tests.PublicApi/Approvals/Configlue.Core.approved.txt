@@ -129,6 +129,7 @@ namespace Configlue
     {
         public StateSourceSetBuilder() { }
         public Configlue.StateSourceSetBuilder<T> Add(Configlue.Sources.StateSource<T> source) { }
+        public Configlue.StateSourceBuilder<T> Add(Configlue.SourceId id, Configlue.Sources.ISourceReader<T> reader, int priority = 0, Configlue.Sources.StateFallbackCondition fallbackCondition = 1, string? physicalOrigin = null, Configlue.Resources.ResourceId? fixedResourceId = default) { }
         public Configlue.StateSourceBuilder<T> Add(Configlue.Sources.ISourceReader<T> reader, int priority = 0, Configlue.Sources.StateFallbackCondition fallbackCondition = 1, string? physicalOrigin = null, Configlue.Resources.ResourceId? fixedResourceId = default, string? logicalDescriptor = null) { }
         public Configlue.StateSourceBuilder<T> Add(string id, Configlue.Sources.ISourceReader<T> reader, int priority = 0, Configlue.Sources.StateFallbackCondition fallbackCondition = 1, string? physicalOrigin = null, Configlue.Resources.ResourceId? fixedResourceId = default) { }
         public Configlue.Sources.StateSourceSet<T> Build() { }

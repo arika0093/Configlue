@@ -211,12 +211,10 @@ public sealed partial class StateRuntimeTests
         timeProvider.ResetTimerRegistration();
         IConfiglueRuntimeState<AppSettings> writableOptions = options;
         await writableOptions.MigrateSourcesToTargetsAsync(
-            ["legacy"],
-            new Dictionary<string, Func<IConfiglueFragment, IConfiglueFragment>>(
-                StringComparer.Ordinal
-            )
+            [SourceId.From("legacy")],
+            new Dictionary<SourceId, Func<IConfiglueFragment, IConfiglueFragment>>()
             {
-                ["current"] = static fragment => fragment,
+                [SourceId.From("current")] = static fragment => fragment,
             },
             retireSources: true
         );

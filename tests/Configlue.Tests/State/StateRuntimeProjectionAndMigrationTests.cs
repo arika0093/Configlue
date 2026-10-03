@@ -409,19 +409,17 @@ public sealed partial class StateRuntimeTests
             ]),
             defaultWritePlan: StateWritePlan.DefaultTo(SourceId.From("first-target"))
         );
-        var targets = new Dictionary<string, Func<IConfiglueFragment, IConfiglueFragment>>(
-            StringComparer.Ordinal
-        )
+        var targets = new Dictionary<SourceId, Func<IConfiglueFragment, IConfiglueFragment>>()
         {
-            ["first-target"] = static fragment => fragment,
-            ["second-target"] = static fragment => fragment,
+            [SourceId.From("first-target")] = static fragment => fragment,
+            [SourceId.From("second-target")] = static fragment => fragment,
         };
         IConfiglueRuntimeState<AppSettings> writableOptions = options;
         var failed = false;
         try
         {
             await writableOptions.MigrateSourcesToTargetsAsync(
-                ["source"],
+                [SourceId.From("source")],
                 targets,
                 retireSources: true
             );
@@ -437,7 +435,7 @@ public sealed partial class StateRuntimeTests
         (afterFailure.Value!.RetryCount).ShouldBe(22);
 
         var resumed = await writableOptions.MigrateSourcesToTargetsAsync(
-            ["source"],
+            [SourceId.From("source")],
             targets,
             retireSources: true
         );
@@ -451,7 +449,7 @@ public sealed partial class StateRuntimeTests
         ((await secondTarget.ReadAsync()).Value!.RetryCount.Value).ShouldBe(22);
 
         var repeated = await writableOptions.MigrateSourcesToTargetsAsync(
-            ["source"],
+            [SourceId.From("source")],
             targets,
             retireSources: true
         );
@@ -483,11 +481,9 @@ public sealed partial class StateRuntimeTests
             ])
         );
         IConfiglueRuntimeState<AppSettings> writableOptions = options;
-        var projections = new Dictionary<string, Func<IConfiglueFragment, IConfiglueFragment>>(
-            StringComparer.Ordinal
-        )
+        var projections = new Dictionary<SourceId, Func<IConfiglueFragment, IConfiglueFragment>>()
         {
-            ["target"] = static _ => new AppSettings.Fragment
+            [SourceId.From("target")] = static _ => new AppSettings.Fragment
             {
                 RetryCount = Optional<int>.Present(25),
             },
@@ -496,7 +492,7 @@ public sealed partial class StateRuntimeTests
         try
         {
             await writableOptions.MigrateSourcesToTargetsAsync(
-                ["source"],
+                [SourceId.From("source")],
                 projections,
                 retireSources: true
             );
