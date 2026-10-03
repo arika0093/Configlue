@@ -68,6 +68,6 @@ public sealed class ResourceReadResultContractTests
         public ValueTask<ResourceReadResult> ReadAsync(
             ConfiglueResourceContext context,
             CancellationToken cancellationToken = default
-        ) => ValueTask.FromResult(default(ResourceReadResult));
+        ) => ValueTaskCompat.FromResult(default(ResourceReadResult));
     }
 }

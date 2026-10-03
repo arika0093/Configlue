@@ -60,7 +60,7 @@ public sealed class StateSourceOptionsTests
         public ValueTask<StateReadResult<string>> ReadAsync(
             ConfiglueResourceContext context,
             CancellationToken cancellationToken = default
-        ) => ValueTask.FromResult(StateReadResult<string>.NotFound());
+        ) => ValueTaskCompat.FromResult(StateReadResult<string>.NotFound());
     }
 
     private sealed class CapabilityReader : ISourceCapabilities<string>
@@ -71,7 +71,7 @@ public sealed class StateSourceOptionsTests
         public ValueTask<StateReadResult<string>> ReadAsync(
             ConfiglueResourceContext context,
             CancellationToken cancellationToken = default
-        ) => ValueTask.FromResult(StateReadResult<string>.NotFound());
+        ) => ValueTaskCompat.FromResult(StateReadResult<string>.NotFound());
     }
 
     private sealed class TestWriter : ISourceWriter<string>
@@ -80,7 +80,7 @@ public sealed class StateSourceOptionsTests
             ConfiglueResourceContext context,
             StateWriteRequest<string> request,
             CancellationToken cancellationToken = default
-        ) => ValueTask.FromResult(new StateWriteResult("revision"));
+        ) => ValueTaskCompat.FromResult(new StateWriteResult("revision"));
     }
 
     private sealed class TestWatcher : ISourceWatcher

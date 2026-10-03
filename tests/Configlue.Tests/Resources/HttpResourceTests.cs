@@ -252,7 +252,7 @@ public sealed class HttpResourceTests
     [Test]
     public async Task Reader_PreservesInvalidPayloadStatusAndRevision()
     {
-        var response = new HttpResponseMessage(HttpStatusCode.UnprocessableEntity);
+        var response = new HttpResponseMessage((HttpStatusCode)422);
         response.Headers.ETag = new EntityTagHeaderValue("\"invalid-1\"");
         using var httpClient = new HttpClient(
             new DelegateHttpMessageHandler((_, _) => Task.FromResult(response))
@@ -279,7 +279,7 @@ public sealed class HttpResourceTests
                     if (Volatile.Read(ref repaired) == 0)
                     {
                         var invalid = new HttpResponseMessage(
-                            HttpStatusCode.UnprocessableEntity
+                            (HttpStatusCode)422
                         );
                         invalid.Headers.ETag = new EntityTagHeaderValue("\"invalid-1\"");
                         return Task.FromResult(invalid);

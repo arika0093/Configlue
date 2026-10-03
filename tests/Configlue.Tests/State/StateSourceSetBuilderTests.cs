@@ -176,7 +176,7 @@ public sealed class StateSourceSetBuilderTests
         public ValueTask<StateReadResult<AppSettings.Fragment>> ReadAsync(
             ConfiglueResourceContext context,
             CancellationToken cancellationToken = default
-        ) => ValueTask.FromResult(StateReadResult<AppSettings.Fragment>.NotFound());
+        ) => ValueTaskCompat.FromResult(StateReadResult<AppSettings.Fragment>.NotFound());
     }
 }
 

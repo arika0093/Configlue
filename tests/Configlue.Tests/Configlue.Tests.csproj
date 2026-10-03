@@ -35,6 +35,7 @@
     <Compile Remove="Formats/ConfiglueSchemaMsBuildTests.cs" />
     <Compile Remove="Resources/HttpResourceEndpointTests.cs" />
     <Compile Remove="Resources/HttpResourceRequestTimeoutTests.cs" />
+    <Compile Remove="Resources/PipelineFingerprintTests.cs" />
     <Compile Remove="Resources/PostgreSqlSourceTests.cs" />
     <Compile Remove="Resources/PostgreSqlSourceCacheLifecycleTests.cs" />
     <Compile Remove="Resources/PostgreSqlSourceResidencyLeaseTests.cs" />

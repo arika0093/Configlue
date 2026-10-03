@@ -69,8 +69,8 @@ public sealed class StateRevisionVectorTests
         );
 
         var vector = StateRevisionVector.FromSpan(
-            System.Runtime.InteropServices.MemoryMarshal.CreateReadOnlySpan(ref revision, 1),
-            System.Runtime.InteropServices.MemoryMarshal.CreateReadOnlySpan(ref nested, 1)
+            new[] { revision },
+            new[] { nested }
         );
 
         vector.TryGetRevision(SourceId.From("source"), out var revisionValue).ShouldBeTrue();

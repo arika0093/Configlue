@@ -367,7 +367,7 @@ public sealed class MigrationJournalTests
             cancellationToken.ThrowIfCancellationRequested();
             return ReadFailure is null
                 ? ValueTaskCompat.FromResult<StateStorageMigrationProgress?>(null)
-                : ValueTask.FromException<StateStorageMigrationProgress?>(ReadFailure);
+                : ValueTaskCompat.FromException<StateStorageMigrationProgress?>(ReadFailure);
         }
 
         public ValueTask WriteAsync(
@@ -379,7 +379,7 @@ public sealed class MigrationJournalTests
             cancellationToken.ThrowIfCancellationRequested();
             return WriteFailure is null
                 ? ValueTask.CompletedTask
-                : ValueTask.FromException(WriteFailure);
+                : ValueTaskCompat.FromException(WriteFailure);
         }
 
         public ValueTask<IAsyncDisposable> AcquireMigrationLeaseAsync(

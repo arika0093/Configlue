@@ -140,7 +140,7 @@ public sealed class RuntimeResolutionScratchTests
         {
             _ = context;
             cancellationToken.ThrowIfCancellationRequested();
-            return ValueTask.FromResult(result);
+            return ValueTaskCompat.FromResult(result);
         }
     }
 
@@ -160,7 +160,7 @@ public sealed class RuntimeResolutionScratchTests
                 throw new InvalidOperationException("read failed");
             }
 
-            return ValueTask.FromResult(StateReadResult<AppSettings.Fragment>.NotFound("missing"));
+            return ValueTaskCompat.FromResult(StateReadResult<AppSettings.Fragment>.NotFound("missing"));
         }
     }
 }
