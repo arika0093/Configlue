@@ -29,4 +29,16 @@ dotnet run -c Release --project benchmarks/Configlue.Benchmarks -- --filter '*Al
 dotnet run -c Release --project benchmarks/Configlue.Benchmarks -- --filter '*StateRevisionVector*'
 ```
 
+Deterministic allocation budgets live in `tests/Configlue.Tests/Performance/AllocationBudgetTests.cs`
+(net10.0 only) and run in the normal test suite. They use
+`GC.GetAllocatedBytesForCurrentThread()` after warm-up with coarse budgets, covering
+BOM detection (#175), single-source revision vectors (#169), ordinal fragment
+enumeration (#170), transformer async-capability caching (#175), and
+chunk-count-independent pipeline fingerprinting (#173). Assert outcomes outside the
+measured region: assertion helpers allocate on the calling thread.
+
+```shell
+dotnet test tests/Configlue.Tests/Configlue.Tests.csproj -c Release -f net10.0 -- --treenode-filter "/*/*/*AllocationBudgetTests/*"
+```
+
 BenchmarkDotNet reports elapsed time and allocated bytes for the benchmark process and runtime. Compare results from the same machine, .NET runtime, power mode, and build configuration. File persistence numbers include local file system and OS cache behavior. Results are measurements, not CI thresholds; the two libraries use different document formats, so file size and serialization work are not identical.
