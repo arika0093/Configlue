@@ -355,7 +355,7 @@ public sealed class SerializedStateSourceCompositionTests
         ) =>
             next.WriteAsync(
                 context,
-                request with { Value = request.Value + suffix },
+                new StateWriteRequest<string>(request.Value + suffix, request.Condition),
                 cancellationToken
             );
     }

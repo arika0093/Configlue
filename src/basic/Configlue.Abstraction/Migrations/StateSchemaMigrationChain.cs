@@ -70,7 +70,7 @@ public sealed class StateSchemaMigrationChain<T>
 
         if (sourceSchema.ModelId is null)
         {
-            sourceSchema = sourceSchema with { ModelId = TargetSchema.ModelId };
+            sourceSchema = new StateSchemaMetadata(TargetSchema.ModelId, sourceSchema.Version);
         }
 
         if (sourceSchema == TargetSchema)

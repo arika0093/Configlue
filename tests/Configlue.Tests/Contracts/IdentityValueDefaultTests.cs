@@ -167,6 +167,11 @@ public sealed class IdentityValueDefaultTests
         StateSchemaMetadata? absent = null;
         var valid = new StateSchemaMetadata("app-settings", 2);
 
+        typeof(StateSchemaMetadata).GetProperty(nameof(StateSchemaMetadata.ModelId))!
+            .SetMethod.ShouldBeNull();
+        typeof(StateSchemaMetadata).GetProperty(nameof(StateSchemaMetadata.Version))!
+            .SetMethod.ShouldBeNull();
+
         uninitialized.IsDefault.ShouldBeTrue();
         uninitialized.IsValid.ShouldBeFalse();
         uninitialized.Version.ShouldBe(0);

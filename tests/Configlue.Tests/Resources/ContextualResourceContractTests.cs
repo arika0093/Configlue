@@ -30,8 +30,8 @@ public sealed class ContextualResourceContractTests
             new StateWriteRequest<AppSettings.Fragment>(Fragment("batch"))
         );
         plan.ShouldNotBeNull();
-        ((ResourceId?)plan.Value.ResourceId).ShouldBe(source.GetResourceId(first));
-        await plan.Value.BatchWriter.WriteBatchAsync([plan.Value.Mutation]);
+        ((ResourceId?)plan!.ResourceId).ShouldBe(source.GetResourceId(first));
+        await plan.BatchWriter.WriteBatchAsync([plan.Mutation]);
         (await source.ReadAsync(first)).Value!.Label.Value.ShouldBe("batch");
         var fixedId = new ResourceId("fixed:override");
         var fixedSource = SerializedStateSource.FromResource<AppSettings.Fragment>("fixed", resource, codec, fixedResourceId: fixedId);
@@ -94,11 +94,11 @@ public sealed class ContextualResourceContractTests
         );
         var batchPlan = await writer.TryCreateBatchWriteAsync(context, batchRequest);
         batchPlan.ShouldNotBeNull();
-        batchPlan.Value.ResourceId.ShouldBe(new ResourceId($"object:{subjectB.Key.Value}"));
-        batchPlan.Value.Mutation.Context.ResourceKey.ShouldBe(ResourceKey.From(subjectB.Key));
-        batchPlan.Value.Mutation.Context.Subject.ShouldBe(subjectB);
-        batchPlan.Value.Mutation.Context.ModelId.ShouldBe("subject-settings-model");
-        (await batchPlan.Value.BatchWriter.WriteBatchAsync([batchPlan.Value.Mutation])).Revision.ShouldNotBeNull();
+        batchPlan!.ResourceId.ShouldBe(new ResourceId($"object:{subjectB.Key.Value}"));
+        batchPlan.Mutation.Context.ResourceKey.ShouldBe(ResourceKey.From(subjectB.Key));
+        batchPlan.Mutation.Context.Subject.ShouldBe(subjectB);
+        batchPlan.Mutation.Context.ModelId.ShouldBe("subject-settings-model");
+        (await batchPlan.BatchWriter.WriteBatchAsync([batchPlan.Mutation])).Revision.ShouldNotBeNull();
         resource.LastWriteContext!.Value.ResourceKey.ShouldBe(ResourceKey.From(subjectB.Key));
         (await source.ReadAsync(subjectB)).Value!.Label.Value.ShouldBe("batch-b");
     }

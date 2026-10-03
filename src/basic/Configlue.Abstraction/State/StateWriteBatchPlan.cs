@@ -3,16 +3,16 @@ using Configlue.Resources;
 namespace Configlue.State;
 
 /// <summary>A prepared typed source mutation for a batch-capable physical resource.</summary>
-public readonly record struct StateWriteBatchPlan
+public sealed record StateWriteBatchPlan
 {
     /// <summary>Gets or initializes the <see cref="ResourceId"/> value.</summary>
-    public ResourceId ResourceId { get; init; }
+    public ResourceId ResourceId { get; }
 
     /// <summary>Gets or initializes the <see cref="BatchWriter"/> value.</summary>
-    public IResourceBatchWriter BatchWriter { get; init; }
+    public IResourceBatchWriter BatchWriter { get; }
 
     /// <summary>Gets or initializes the <see cref="Mutation"/> value.</summary>
-    public ResourceWriteMutation Mutation { get; init; }
+    public ResourceWriteMutation Mutation { get; }
 
     /// <summary>Initializes a new instance of this record.</summary>
     /// <param name="ResourceId">The initial value for the <see cref="ResourceId"/> property.</param>
@@ -24,6 +24,15 @@ public readonly record struct StateWriteBatchPlan
         ResourceWriteMutation Mutation
     )
     {
+        if (ResourceId.IsDefault)
+        {
+            throw new ArgumentException(
+                "A batch plan requires a non-default resource identity.",
+                nameof(ResourceId)
+            );
+        }
+        ArgumentNullException.ThrowIfNull(BatchWriter);
+        ArgumentNullException.ThrowIfNull(Mutation);
         this.ResourceId = ResourceId;
         this.BatchWriter = BatchWriter;
         this.Mutation = Mutation;

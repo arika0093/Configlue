@@ -15,6 +15,18 @@ internal static class StateByteTransformerPipeline
             throw new ArgumentException("A transformer collection cannot contain null values.");
         }
 
+        var invalid = items.FirstOrDefault(static transformer =>
+            transformer is not ISynchronousStateByteTransformer
+            && transformer is not IAsyncStateByteTransformer
+        );
+        if (invalid is not null)
+        {
+            throw new ArgumentException(
+                $"Transformer type '{invalid.GetType()}' must implement a synchronous or asynchronous transformer capability.",
+                nameof(transformers)
+            );
+        }
+
         return items;
     }
 

@@ -89,7 +89,7 @@ public sealed class StateSchemaDispatcher<T>
         }
         if (sourceSchema.ModelId is null)
         {
-            sourceSchema = sourceSchema with { ModelId = TargetSchema.ModelId };
+            sourceSchema = new StateSchemaMetadata(TargetSchema.ModelId, sourceSchema.Version);
         }
 
         if (!string.Equals(sourceSchema.ModelId, TargetSchema.ModelId, StringComparison.Ordinal))

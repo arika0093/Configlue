@@ -46,6 +46,24 @@ public sealed class StateOutcomeContractTests
     }
 
     [Test]
+    public async Task StateWriteRequest_RejectsNullValuesAndCannotBeReinitialized()
+    {
+        Should.Throw<ArgumentNullException>(() => new StateWriteRequest<string>(null!));
+        Should.Throw<ArgumentNullException>(() => new StateWriteRequest<int?>(null));
+        default(StateWriteRequest<string>).ShouldBeNull();
+        typeof(StateWriteRequest<string>).GetProperty(nameof(StateWriteRequest<string>.Value))!
+            .SetMethod.ShouldBeNull();
+        typeof(StateWriteRequest<string>).GetProperty(nameof(StateWriteRequest<string>.Condition))!
+            .SetMethod.ShouldBeNull();
+
+        var store = new InMemoryStateSource<string>();
+        var source = new StateSource<string>("writer", store, writer: store);
+        await Should.ThrowAsync<ArgumentNullException>(async () =>
+            await source.WriteAsync(ConfiglueResourceContext.Default, null!)
+        );
+    }
+
+    [Test]
     public async Task StateConditions_EnforceMatchAndAbsenceWithTombstoneRevisions()
     {
         var store = new InMemoryStateSource<string>();

@@ -32,6 +32,7 @@ public sealed class StateSourceWriter<T> : ISourceWriter<T>
         CancellationToken cancellationToken = default
     )
     {
+        ArgumentNullException.ThrowIfNull(request);
         context = ConfiglueResourceContext.Normalize(context);
         var source = ResolveSource();
         var sourceContext = context.IsDefault

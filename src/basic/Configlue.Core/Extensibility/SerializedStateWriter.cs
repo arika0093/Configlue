@@ -63,6 +63,7 @@ public sealed class SerializedStateWriter<T>
         CancellationToken cancellationToken = default
     )
     {
+        ArgumentNullException.ThrowIfNull(request);
         cancellationToken.ThrowIfCancellationRequested();
         var resourceRequest = await CreateResourceRequestAsync(request, cancellationToken)
             .ConfigureAwait(false);
@@ -78,6 +79,7 @@ public sealed class SerializedStateWriter<T>
         CancellationToken cancellationToken = default
     )
     {
+        ArgumentNullException.ThrowIfNull(request);
         cancellationToken.ThrowIfCancellationRequested();
         var resourceRequest = await CreateResourceRequestAsync(request, cancellationToken)
             .ConfigureAwait(false);

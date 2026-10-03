@@ -445,6 +445,7 @@ public static class StateSourceProjection
             CancellationToken cancellationToken = default
         )
         {
+            ArgumentNullException.ThrowIfNull(request);
             var mapped = updateSource is null
                 ? toSource!(request.Value)
                 : await UpdateSourceAsync(request, context, cancellationToken)
@@ -468,6 +469,7 @@ public static class StateSourceProjection
             CancellationToken cancellationToken = default
         )
         {
+            ArgumentNullException.ThrowIfNull(request);
             cancellationToken.ThrowIfCancellationRequested();
             if (source is not IAsyncSourceWriteBatchParticipant<TSource> asyncParticipant)
             {

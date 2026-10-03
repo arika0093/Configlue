@@ -325,10 +325,13 @@ namespace Configlue
     {
         protected ConfiglueMergeStrategy() { }
         public abstract bool AreEqual(T? left, T? right);
-        public abstract System.Collections.Generic.IReadOnlyList<Configlue.ConfiglueMergeElementProvenance> ExplainElements(T? effective, System.Collections.Generic.IReadOnlyList<Configlue.ConfiglueMergeSourceValue<T>> sourceValuesLowToHigh);
+        public virtual System.Collections.Generic.IReadOnlyList<Configlue.ConfiglueMergeElementProvenance> ExplainElements(T? effective, System.Collections.Generic.IReadOnlyList<Configlue.ConfiglueMergeSourceValue<T>> sourceValuesLowToHigh) { }
+        public System.Collections.Generic.IReadOnlyList<Configlue.ConfiglueMergeElementProvenance> ExplainElementsObject(object? effective, System.Collections.Generic.IReadOnlyList<Configlue.ConfiglueMergeSourceValue> sourceValuesLowToHigh) { }
         public abstract Configlue.Optional<T> Merge(Configlue.Optional<T> lowerPriority, Configlue.Optional<T> higherPriority);
-        public abstract bool TryPlanSourceContribution(System.Collections.Generic.IReadOnlyList<Configlue.ConfiglueMergeSourceValue<T>> sourceValuesLowToHigh, Configlue.SourceId targetSourceId, T? desiredEffective, out Configlue.Optional<T> targetContribution, out string? reason);
-        public abstract bool TryRebase(T? editBase, T? desired, T? current, out T? rebased, out string? reason);
+        public virtual bool TryPlanSourceContribution(System.Collections.Generic.IReadOnlyList<Configlue.ConfiglueMergeSourceValue<T>> sourceValuesLowToHigh, Configlue.SourceId targetSourceId, T? desiredEffective, out Configlue.Optional<T> targetContribution, out string? reason) { }
+        public bool TryPlanSourceContributionObject(System.Collections.Generic.IReadOnlyList<Configlue.ConfiglueMergeSourceValue> sourceValuesLowToHigh, Configlue.SourceId targetSourceId, object? desiredEffective, out Configlue.Optional<object?> targetContribution, out string? reason) { }
+        public virtual bool TryRebase(T? editBase, T? desired, T? current, out T? rebased, out string? reason) { }
+        public bool TryRebaseObject(object? editBase, object? desired, object? current, out object? rebased, out string? reason) { }
     }
     [System.AttributeUsage(System.AttributeTargets.Class | System.AttributeTargets.Struct, Inherited=false)]
     public sealed class ConfiglueModelAttribute : System.Attribute
@@ -393,7 +396,6 @@ namespace Configlue
     }
     public sealed class ConfiglueRuntimeDiagnosticSnapshot
     {
-        public ConfiglueRuntimeDiagnosticSnapshot(string stateName, string modelId, int modelVersion, System.Collections.Generic.IEnumerable<Configlue.ConfiglueRuntimeSourceSnapshot> sources, Configlue.ConfiglueDiagnosticEvent? lastResolution, Configlue.ConfiglueDiagnosticEvent? lastReload, Configlue.ConfiglueDiagnosticEvent? lastWrite, Configlue.ConfiglueDiagnosticEvent? lastMigration) { }
         public Configlue.ConfiglueDiagnosticEvent? LastMigration { get; }
         public Configlue.ConfiglueDiagnosticEvent? LastReload { get; }
         public Configlue.ConfiglueDiagnosticEvent? LastResolution { get; }
@@ -537,14 +539,23 @@ namespace Configlue
     {
         Configlue.ConfiglueCheckOperation Check(System.Threading.CancellationToken cancellationToken = default);
     }
+    public interface IConfiglueMergeContributionPlanner
+    {
+        bool TryPlanSourceContributionObject(System.Collections.Generic.IReadOnlyList<Configlue.ConfiglueMergeSourceValue> sourceValuesLowToHigh, Configlue.SourceId targetSourceId, object? desiredEffective, out Configlue.Optional<object?> targetContribution, out string? reason);
+    }
+    public interface IConfiglueMergeElementProvenanceProvider
+    {
+        System.Collections.Generic.IReadOnlyList<Configlue.ConfiglueMergeElementProvenance> ExplainElementsObject(object? effective, System.Collections.Generic.IReadOnlyList<Configlue.ConfiglueMergeSourceValue> sourceValuesLowToHigh);
+    }
+    public interface IConfiglueMergeRebaseStrategy
+    {
+        bool TryRebaseObject(object? editBase, object? desired, object? current, out object? rebased, out string? reason);
+    }
     public interface IConfiglueMergeStrategy
     {
         System.Type ValueType { get; }
         bool AreEqual(object? left, object? right);
-        System.Collections.Generic.IReadOnlyList<Configlue.ConfiglueMergeElementProvenance> ExplainElements(object? effective, System.Collections.Generic.IReadOnlyList<Configlue.ConfiglueMergeSourceValue> sourceValuesLowToHigh);
         Configlue.Optional<object?> Merge(Configlue.Optional<object?> lowerPriority, Configlue.Optional<object?> higherPriority);
-        bool TryPlanSourceContribution(System.Collections.Generic.IReadOnlyList<Configlue.ConfiglueMergeSourceValue> sourceValuesLowToHigh, Configlue.SourceId targetSourceId, object? desiredEffective, out Configlue.Optional<object?> targetContribution, out string? reason);
-        bool TryRebase(object? editBase, object? desired, object? current, out object? rebased, out string? reason);
     }
     public interface IConfiglueModelPatch<in TModel> : Configlue.IConfigluePatch
     {
@@ -1205,29 +1216,30 @@ namespace Configlue.State
         public bool TryGetRevision(Configlue.SourceId sourceId, out string? revision) { }
         public static Configlue.State.StateRevisionVector FromSpan(System.ReadOnlySpan<Configlue.State.StateRevision> revisions, System.ReadOnlySpan<System.Collections.Generic.KeyValuePair<Configlue.SourceId, Configlue.State.StateRevisionVector>> nestedRevisions = default) { }
     }
+    [System.Text.Json.Serialization.JsonConverter(typeof(Configlue.State.StateSchemaMetadataJsonConverter))]
     public readonly struct StateSchemaMetadata : System.IEquatable<Configlue.State.StateSchemaMetadata>
     {
         public const int InitialVersion = 1;
         public StateSchemaMetadata(string? ModelId, int Version) { }
         public bool IsDefault { get; }
         public bool IsValid { get; }
-        public string? ModelId { get; init; }
-        public int Version { get; init; }
+        public string? ModelId { get; }
+        public int Version { get; }
         public void Deconstruct(out string? ModelId, out int Version) { }
     }
-    public readonly struct StateWriteBatchPlan : System.IEquatable<Configlue.State.StateWriteBatchPlan>
+    public sealed class StateWriteBatchPlan : System.IEquatable<Configlue.State.StateWriteBatchPlan>
     {
         public StateWriteBatchPlan(Configlue.Resources.ResourceId ResourceId, Configlue.Resources.IResourceBatchWriter BatchWriter, Configlue.Resources.ResourceWriteMutation Mutation) { }
-        public Configlue.Resources.IResourceBatchWriter BatchWriter { get; init; }
-        public Configlue.Resources.ResourceWriteMutation Mutation { get; init; }
-        public Configlue.Resources.ResourceId ResourceId { get; init; }
+        public Configlue.Resources.IResourceBatchWriter BatchWriter { get; }
+        public Configlue.Resources.ResourceWriteMutation Mutation { get; }
+        public Configlue.Resources.ResourceId ResourceId { get; }
         public void Deconstruct(out Configlue.Resources.ResourceId ResourceId, out Configlue.Resources.IResourceBatchWriter BatchWriter, out Configlue.Resources.ResourceWriteMutation Mutation) { }
     }
-    public readonly struct StateWriteRequest<T> : System.IEquatable<Configlue.State.StateWriteRequest<T>>
+    public sealed class StateWriteRequest<T> : System.IEquatable<Configlue.State.StateWriteRequest<T>>
     {
         public StateWriteRequest(T Value, Configlue.State.RevisionCondition Condition = default) { }
-        public Configlue.State.RevisionCondition Condition { get; init; }
-        public T Value { get; init; }
+        public Configlue.State.RevisionCondition Condition { get; }
+        public T Value { get; }
         public void Deconstruct(out T Value, out Configlue.State.RevisionCondition Condition) { }
     }
     public readonly struct StateWriteResult : System.IEquatable<Configlue.State.StateWriteResult>
