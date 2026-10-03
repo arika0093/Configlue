@@ -1,6 +1,6 @@
 # Serialized writer allocation comparison
 
-Measured before issue #165 at `a6f4095` and after it at `633dadd` with the same BenchmarkDotNet ShortRun configuration (`3` measurement iterations, `3` warmups) on Windows 11, Intel Core i7-14700F, .NET 10.0.12. The benchmark runs `SerializedWriterAllocationBenchmarks` with 100 B, 4 KiB, and 64 KiB string payloads. Batch plans are disposed after each write.
+Measured before issue #165 at `a6f4095` and after it at `633dadd` with the same BenchmarkDotNet ShortRun configuration (`3` measurement iterations, `3` warmups) on Windows 11, Intel Core i7-14700F, .NET 10.0.12. The benchmark runs `SerializedWriterAllocationBenchmarks` with 100 B, 4 KiB, and 64 KiB string payloads. The same cleanup hook is used at both revisions and disposes a batch plan when that revision exposes `IDisposable`.
 
 | Path | Payload | Before | After | Change |
 | --- | ---: | ---: | ---: | ---: |
