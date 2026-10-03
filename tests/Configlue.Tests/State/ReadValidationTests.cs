@@ -22,6 +22,67 @@ public partial class ReadValidationNested
     public int Port { get; set; } = 5432;
 }
 
+[ConfiglueModel("review.compare", Version = 1)]
+public partial class CompareSettings
+{
+    public string Expected { get; set; } = "same";
+
+    [Compare(nameof(Expected))]
+    public string Actual { get; set; } = "same";
+}
+
+[ConfiglueModel("review.compare-nested", Version = 1)]
+public partial class CompareNestedSettings
+{
+    public string Expected { get; set; } = "same";
+
+    [Compare(nameof(Expected))]
+    public string Actual { get; set; } = "same";
+}
+
+[ConfiglueModel("review.compare-root", Version = 1)]
+public partial class CompareRootSettings
+{
+    public CompareNestedSettings? Nested { get; set; } = new();
+}
+
+[ConfiglueModel("review.context-capture", Version = 1)]
+public partial class ContextCaptureSettings
+{
+    public string Expected { get; set; } = "same";
+
+    [CapturesValidationContext]
+    public string Actual { get; set; } = "same";
+
+    [Range(0, 100)]
+    public int RetryCount { get; set; } = 3;
+}
+
+public sealed class CapturesValidationContextAttribute : ValidationAttribute
+{
+    public static object? LastContainer;
+    public static string? LastMemberName;
+    public static object? LastValue;
+
+    public static void Reset()
+    {
+        LastContainer = null;
+        LastMemberName = null;
+        LastValue = null;
+    }
+
+    protected override ValidationResult? IsValid(
+        object? value,
+        ValidationContext validationContext
+    )
+    {
+        LastContainer = validationContext.ObjectInstance;
+        LastMemberName = validationContext.MemberName;
+        LastValue = value;
+        return ValidationResult.Success;
+    }
+}
+
 public sealed class ReadValidationTests
 {
     [Test]
@@ -347,6 +408,325 @@ public sealed class ReadValidationTests
         (reported).ShouldBeOfType<ConfiglueValidationException>();
         (Volatile.Read(ref listenerCalls)).ShouldBe(0);
         Directory.Delete(directory, recursive: true);
+    }
+
+    [Test]
+    public async Task EffectiveThrow_CompareValid_ReadsSuccessfully()
+    {
+        var options = new ConfiglueRuntime<CompareSettings, CompareSettings.Fragment>(
+            new StateSourceSet<CompareSettings.Fragment>([
+                new StateSource<CompareSettings.Fragment>(
+                    "layer",
+                    new InMemoryStateSource<CompareSettings.Fragment>(
+                        new CompareSettings.Fragment
+                        {
+                            Expected = Optional<string>.Present("same"),
+                            Actual = Optional<string>.Present("same"),
+                        }
+                    )
+                ),
+            ])
+        );
+
+        var resolved = await options.ReadAsync();
+
+        (resolved.Status).ShouldBe(StateReadStatus.Success);
+        (resolved.Value!.Expected).ShouldBe("same");
+        (resolved.Value.Actual).ShouldBe("same");
+    }
+
+    [Test]
+    public async Task EffectiveThrow_CompareMismatch_ThrowsValidationWithoutArgumentNull()
+    {
+        var options = new ConfiglueRuntime<CompareSettings, CompareSettings.Fragment>(
+            new StateSourceSet<CompareSettings.Fragment>([
+                new StateSource<CompareSettings.Fragment>(
+                    "layer",
+                    new InMemoryStateSource<CompareSettings.Fragment>(
+                        new CompareSettings.Fragment
+                        {
+                            Expected = Optional<string>.Present("same"),
+                            Actual = Optional<string>.Present("different"),
+                        }
+                    )
+                ),
+            ])
+        );
+
+        Exception? thrown = null;
+        try
+        {
+            await options.ReadAsync();
+        }
+        catch (Exception exception)
+        {
+            thrown = exception;
+        }
+
+        (thrown).ShouldNotBeNull();
+        (thrown).ShouldBeOfType<ConfiglueValidationException>();
+    }
+
+    [Test]
+    public async Task StrictThrow_CompareMismatch_ThrowsAtOffendingSource()
+    {
+        var options = new ConfiglueRuntime<CompareSettings, CompareSettings.Fragment>(
+            new StateSourceSet<CompareSettings.Fragment>([
+                new StateSource<CompareSettings.Fragment>(
+                    "layer",
+                    new InMemoryStateSource<CompareSettings.Fragment>(
+                        new CompareSettings.Fragment
+                        {
+                            Expected = Optional<string>.Present("same"),
+                            Actual = Optional<string>.Present("different"),
+                        }
+                    )
+                ),
+            ]),
+            readValidationMode: ReadValidationMode.StrictThrow
+        );
+
+        var failure = await Should.ThrowAsync<ConfiglueValidationException>(async () =>
+            await options.ReadAsync()
+        );
+
+        (string.Join("; ", failure.Failures)).ShouldContain("layer");
+    }
+
+    [Test]
+    public async Task StrictThrow_CompareValid_ReadsSuccessfully()
+    {
+        var options = new ConfiglueRuntime<CompareSettings, CompareSettings.Fragment>(
+            new StateSourceSet<CompareSettings.Fragment>([
+                new StateSource<CompareSettings.Fragment>(
+                    "layer",
+                    new InMemoryStateSource<CompareSettings.Fragment>(
+                        new CompareSettings.Fragment
+                        {
+                            Expected = Optional<string>.Present("same"),
+                            Actual = Optional<string>.Present("same"),
+                        }
+                    )
+                ),
+            ]),
+            readValidationMode: ReadValidationMode.StrictThrow
+        );
+
+        var resolved = await options.ReadAsync();
+
+        (resolved.Status).ShouldBe(StateReadStatus.Success);
+        (resolved.Value!.Actual).ShouldBe("same");
+    }
+
+    [Test]
+    public async Task IgnoreValue_CompareMismatch_PrunesInvalidMember()
+    {
+        var options = new ConfiglueRuntime<CompareSettings, CompareSettings.Fragment>(
+            new StateSourceSet<CompareSettings.Fragment>([
+                new StateSource<CompareSettings.Fragment>(
+                    "layer",
+                    new InMemoryStateSource<CompareSettings.Fragment>(
+                        new CompareSettings.Fragment
+                        {
+                            Expected = Optional<string>.Present("same"),
+                            Actual = Optional<string>.Present("different"),
+                        }
+                    )
+                ),
+            ]),
+            readValidationMode: ReadValidationMode.IgnoreValue
+        );
+
+        var resolved = await options.ReadAsync();
+
+        (resolved.Status).ShouldBe(StateReadStatus.Success);
+        (resolved.Value!.Expected).ShouldBe("same");
+        (resolved.Value.Actual).ShouldBe("same");
+    }
+
+    [Test]
+    public async Task EffectiveThrow_NestedCompareValid_ReadsSuccessfully()
+    {
+        var options = new ConfiglueRuntime<CompareRootSettings, CompareRootSettings.Fragment>(
+            new StateSourceSet<CompareRootSettings.Fragment>([
+                new StateSource<CompareRootSettings.Fragment>(
+                    "layer",
+                    new InMemoryStateSource<CompareRootSettings.Fragment>(
+                        new CompareRootSettings.Fragment
+                        {
+                            Nested = Optional<CompareNestedSettings.Fragment?>.Present(
+                                new CompareNestedSettings.Fragment
+                                {
+                                    Expected = Optional<string>.Present("same"),
+                                    Actual = Optional<string>.Present("same"),
+                                }
+                            ),
+                        }
+                    )
+                ),
+            ])
+        );
+
+        var resolved = await options.ReadAsync();
+
+        (resolved.Status).ShouldBe(StateReadStatus.Success);
+        (resolved.Value!.Nested!.Actual).ShouldBe("same");
+    }
+
+    [Test]
+    public async Task EffectiveThrow_NestedCompareMismatch_ThrowsValidation()
+    {
+        var options = new ConfiglueRuntime<CompareRootSettings, CompareRootSettings.Fragment>(
+            new StateSourceSet<CompareRootSettings.Fragment>([
+                new StateSource<CompareRootSettings.Fragment>(
+                    "layer",
+                    new InMemoryStateSource<CompareRootSettings.Fragment>(
+                        new CompareRootSettings.Fragment
+                        {
+                            Nested = Optional<CompareNestedSettings.Fragment?>.Present(
+                                new CompareNestedSettings.Fragment
+                                {
+                                    Expected = Optional<string>.Present("same"),
+                                    Actual = Optional<string>.Present("different"),
+                                }
+                            ),
+                        }
+                    )
+                ),
+            ])
+        );
+
+        var failure = await Should.ThrowAsync<ConfiglueValidationException>(async () =>
+            await options.ReadAsync()
+        );
+
+        (failure.Failures.Count > 0).ShouldBeTrue();
+    }
+
+    [Test]
+    public async Task StrictThrow_NestedCompareMismatch_ThrowsAtOffendingSource()
+    {
+        var options = new ConfiglueRuntime<CompareRootSettings, CompareRootSettings.Fragment>(
+            new StateSourceSet<CompareRootSettings.Fragment>([
+                new StateSource<CompareRootSettings.Fragment>(
+                    "layer",
+                    new InMemoryStateSource<CompareRootSettings.Fragment>(
+                        new CompareRootSettings.Fragment
+                        {
+                            Nested = Optional<CompareNestedSettings.Fragment?>.Present(
+                                new CompareNestedSettings.Fragment
+                                {
+                                    Expected = Optional<string>.Present("same"),
+                                    Actual = Optional<string>.Present("different"),
+                                }
+                            ),
+                        }
+                    )
+                ),
+            ]),
+            readValidationMode: ReadValidationMode.StrictThrow
+        );
+
+        var failure = await Should.ThrowAsync<ConfiglueValidationException>(async () =>
+            await options.ReadAsync()
+        );
+
+        (string.Join("; ", failure.Failures)).ShouldContain("layer");
+    }
+
+    [Test]
+    public async Task IgnoreValue_NestedCompareMismatch_DropsOnlyInvalidNestedMember()
+    {
+        var options = new ConfiglueRuntime<CompareRootSettings, CompareRootSettings.Fragment>(
+            new StateSourceSet<CompareRootSettings.Fragment>([
+                new StateSource<CompareRootSettings.Fragment>(
+                    "layer",
+                    new InMemoryStateSource<CompareRootSettings.Fragment>(
+                        new CompareRootSettings.Fragment
+                        {
+                            Nested = Optional<CompareNestedSettings.Fragment?>.Present(
+                                new CompareNestedSettings.Fragment
+                                {
+                                    Expected = Optional<string>.Present("same"),
+                                    Actual = Optional<string>.Present("different"),
+                                }
+                            ),
+                        }
+                    )
+                ),
+            ]),
+            readValidationMode: ReadValidationMode.IgnoreValue
+        );
+
+        var resolved = await options.ReadAsync();
+
+        (resolved.Status).ShouldBe(StateReadStatus.Success);
+        (resolved.Value!.Nested!.Expected).ShouldBe("same");
+        (resolved.Value.Nested.Actual).ShouldBe("same");
+    }
+
+    [Test]
+    public async Task MemberValidation_PassesContainerInstanceAndMemberNameToContext()
+    {
+        CapturesValidationContextAttribute.Reset();
+        var options = new ConfiglueRuntime<
+            ContextCaptureSettings,
+            ContextCaptureSettings.Fragment
+        >(
+            new StateSourceSet<ContextCaptureSettings.Fragment>([
+                new StateSource<ContextCaptureSettings.Fragment>(
+                    "layer",
+                    new InMemoryStateSource<ContextCaptureSettings.Fragment>(
+                        new ContextCaptureSettings.Fragment
+                        {
+                            Expected = Optional<string>.Present("same"),
+                            Actual = Optional<string>.Present("same"),
+                        }
+                    )
+                ),
+            ])
+        );
+
+        var resolved = await options.ReadAsync();
+
+        (resolved.Status).ShouldBe(StateReadStatus.Success);
+        (CapturesValidationContextAttribute.LastContainer).ShouldNotBeNull();
+        (
+            CapturesValidationContextAttribute.LastContainer
+        ).ShouldBeOfType<ContextCaptureSettings>();
+        ((ContextCaptureSettings)CapturesValidationContextAttribute.LastContainer!).Expected
+            .ShouldBe("same");
+        (CapturesValidationContextAttribute.LastMemberName).ShouldBe("Actual");
+        (CapturesValidationContextAttribute.LastValue).ShouldBe("same");
+    }
+
+    [Test]
+    public async Task DisablingDataAnnotations_SkipsCompareValidation()
+    {
+        foreach (var mode in Enum.GetValues<ReadValidationMode>())
+        {
+            var options = new ConfiglueRuntime<CompareSettings, CompareSettings.Fragment>(
+                new StateSourceSet<CompareSettings.Fragment>([
+                    new StateSource<CompareSettings.Fragment>(
+                        "layer",
+                        new InMemoryStateSource<CompareSettings.Fragment>(
+                            new CompareSettings.Fragment
+                            {
+                                Expected = Optional<string>.Present("same"),
+                                Actual = Optional<string>.Present("different"),
+                            }
+                        )
+                    ),
+                ]),
+                validateDataAnnotations: false,
+                readValidationMode: mode
+            );
+
+            var resolved = await options.ReadAsync();
+
+            (resolved.Status).ShouldBe(StateReadStatus.Success);
+            (resolved.Value!.Actual).ShouldBe("different");
+        }
     }
 
     private static async Task WriteAllTextWithRetryAsync(string path, string content)

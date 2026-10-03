@@ -120,12 +120,19 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
     private void ValidateContribution(StateSource<TFragment> source, TFragment fragment)
     {
         var failures = new List<string>();
+        var contributionModel = FromFragment(_modelDefaultsFragment.Merge(fragment));
         if (_validateDataAnnotations)
         {
-            CollectMemberFailures(fragment.Schema, fragment, string.Empty, failures);
+            CollectMemberFailures(
+                fragment.Schema,
+                fragment,
+                contributionModel,
+                string.Empty,
+                failures
+            );
         }
 
-        CollectValidationFailures(FromFragment(_modelDefaultsFragment.Merge(fragment)), failures);
+        CollectValidationFailures(contributionModel, failures);
         if (failures.Count > 1)
         {
             failures = failures.Distinct(StringComparer.Ordinal).ToList();
@@ -149,7 +156,25 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
     )
     {
         var failures = new List<string>();
-        fragment = PruneInvalidMembers(fragment.Schema, fragment, string.Empty, failures);
+        object? container = null;
+        if (
+            _validateDataAnnotations
+            && ConfiglueRuntimeCapabilities.IsDynamicCodeSupported
+            && fragment is TFragment typedFragment
+        )
+        {
+            // Snapshot the container once so members pruned earlier in this pass do not
+            // change the meaning of context-dependent attributes evaluated later.
+            container = FromFragment(_modelDefaultsFragment.Merge(typedFragment));
+        }
+
+        fragment = PruneInvalidMembers(
+            fragment.Schema,
+            fragment,
+            container,
+            string.Empty,
+            failures
+        );
         if (failures.Count == 0)
         {
             return fragment;
@@ -166,6 +191,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
     private IConfiglueFragment PruneInvalidMembers(
         ConfiglueModelSchema schema,
         IConfiglueFragment fragment,
+        object? container,
         string prefix,
         List<string> failures
     )
@@ -186,9 +212,18 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             if (found.NestedSchemaFactory is not null && present.Value is IConfiglueFragment nested)
             {
                 var priorFailureCount = failures.Count;
+                var nestedContainer = container is not null
+                    ? TryGetNestedContainer(container, found)
+                    : null;
+                if (nestedContainer is null)
+                {
+                    continue;
+                }
+
                 var prunedNested = PruneInvalidMembers(
                     found.NestedSchemaFactory(),
                     nested,
+                    nestedContainer,
                     path + ".",
                     failures
                 );
@@ -200,9 +235,15 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                 continue;
             }
 
+            if (container is null)
+            {
+                continue;
+            }
+
             if (
                 CollectMemberAttributeFailures(
                     GetMemberValidationAttributes(schema, found.Id),
+                    container,
                     found.Name,
                     present.Value,
                     out var message
@@ -232,7 +273,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         var failures = new List<string>();
         if (hasMemberValidation)
         {
-            CollectMemberFailures(merged.Schema, merged, string.Empty, failures);
+            CollectMemberFailures(merged.Schema, merged, model, string.Empty, failures);
         }
 
         CollectValidationFailures(model, failures);
@@ -297,6 +338,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
     private static void CollectMemberFailures(
         ConfiglueModelSchema schema,
         IConfiglueFragment fragment,
+        object container,
         string prefix,
         List<string> failures,
         List<int>? invalidMemberIds = null
@@ -317,10 +359,17 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             var path = prefix + found.Name;
             if (found.NestedSchemaFactory is not null && present.Value is IConfiglueFragment nested)
             {
+                var nestedContainer = TryGetNestedContainer(container, found);
+                if (nestedContainer is null)
+                {
+                    continue;
+                }
+
                 var nestedCount = failures.Count;
                 CollectMemberFailures(
                     found.NestedSchemaFactory(),
                     nested,
+                    nestedContainer,
                     path + ".",
                     failures,
                     invalidMemberIds: null
@@ -336,6 +385,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             if (
                 CollectMemberAttributeFailures(
                     GetMemberValidationAttributes(schema, found.Id),
+                    container,
                     found.Name,
                     present.Value,
                     out var message
@@ -350,6 +400,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
 
     private static bool CollectMemberAttributeFailures(
         ValidationAttribute[] attributes,
+        object containerModel,
         string memberName,
         object? value,
         out string message
@@ -357,15 +408,62 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
     {
         for (var index = 0; index < attributes.Length; index++)
         {
-            if (!attributes[index].IsValid(value))
+            var attribute = attributes[index];
+            var context = new ValidationContext(containerModel) { MemberName = memberName };
+            var result = attribute.GetValidationResult(value, context);
+            if (result != ValidationResult.Success)
             {
-                message = attributes[index].FormatErrorMessage(memberName);
+                message = result?.ErrorMessage ?? attribute.FormatErrorMessage(memberName);
                 return true;
             }
         }
 
         message = string.Empty;
         return false;
+    }
+
+    [UnconditionalSuppressMessage(
+        "Trimming",
+        "IL2026",
+        Justification = "Callers guard member metadata inspection on dynamic code support."
+    )]
+    [UnconditionalSuppressMessage(
+        "AOT",
+        "IL3050",
+        Justification = "Callers guard member metadata inspection on dynamic code support."
+    )]
+    private static object? TryGetNestedContainer(object container, ConfiglueMemberSchema member)
+    {
+        try
+        {
+            if (ConfiglueModelSchemaCatalog.TryGet(container.GetType(), out var modelSchema))
+            {
+                var candidates = modelSchema.Members;
+                for (var candidateIndex = 0; candidateIndex < candidates.Count; candidateIndex++)
+                {
+                    var candidate = candidates[candidateIndex];
+                    if (
+                        string.Equals(candidate.Name, member.Name, StringComparison.Ordinal)
+                        && candidate.GetValue is not null
+                    )
+                    {
+                        return candidate.GetValue(container);
+                    }
+                }
+            }
+
+            return container
+                .GetType()
+                .GetProperty(
+                    member.Name,
+                    BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase
+                )
+                ?.GetValue(container);
+        }
+        catch (Exception ex) when (ex is TargetInvocationException || ex is ArgumentException)
+        {
+            return null;
+        }
     }
 
     [RequiresUnreferencedCode(
