@@ -161,7 +161,7 @@ public sealed class StateSourceSetBuilderTests
         )
         {
             _ = context;
-            return ValueTaskCompat.FromResult(StateReadResult<T>.Success(value, "reader-only"));
+            return ValueTaskCompat.FromResult(StateReadResult<T>.Success(value!, "reader-only"));
         }
     }
 

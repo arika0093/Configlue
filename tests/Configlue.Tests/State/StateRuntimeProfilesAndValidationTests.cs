@@ -51,7 +51,7 @@ public sealed partial class StateRuntimeTests
             sourceSet,
             validateDataAnnotations: true
         );
-        using var serviceProvider = services.BuildServiceProvider();
+        await using var serviceProvider = services.BuildServiceProvider();
         var writable = serviceProvider.GetRequiredService<IWritableState<AppSettings>>();
         ConfiglueValidationException? validationFailure = null;
 
@@ -136,7 +136,7 @@ public sealed partial class StateRuntimeTests
                 ]);
             }
         );
-        using var serviceProvider = services.BuildServiceProvider();
+        await using var serviceProvider = services.BuildServiceProvider();
 
         var defaultOptions = serviceProvider.GetRequiredService<IWritableState<AppSettings>>();
         await defaultOptions.SaveAsync(patch => patch.RetryCount = 12);
@@ -251,7 +251,7 @@ public sealed partial class StateRuntimeTests
             "secondary",
             secondarySources
         );
-        using var serviceProvider = services.BuildServiceProvider();
+        await using var serviceProvider = services.BuildServiceProvider();
         var primary = serviceProvider.GetRequiredKeyedService<IReadOnlyState<AppSettings>>(
             "primary"
         );
@@ -285,7 +285,7 @@ public sealed partial class StateRuntimeTests
                 return new StateSourceSet<AppSettings.Fragment>([new("profile", store)]);
             }
         );
-        using var serviceProvider = services.BuildServiceProvider();
+        await using var serviceProvider = services.BuildServiceProvider();
         var registry = serviceProvider.GetRequiredService<IConfiglueStateRegistry<AppSettings>>();
         var added = new List<string>();
         var removed = new List<string>();
@@ -297,8 +297,8 @@ public sealed partial class StateRuntimeTests
         registry.TryAdd("secondary");
         var primary = await registry.Get("primary").GetValueAsync();
         var secondary = await registry.Get("secondary").GetValueAsync();
-        var removedPrimary = registry.TryRemove("primary");
-        var removedAgain = registry.TryRemove("primary");
+        var removedPrimary = await registry.TryRemoveAsync("primary");
+        var removedAgain = await registry.TryRemoveAsync("primary");
 
         (addResults.Count(static result => result)).ShouldBe(1);
         (factoryCalls).ShouldBe(2);
@@ -331,7 +331,7 @@ public sealed partial class StateRuntimeTests
                 ]);
             }
         );
-        using var serviceProvider = services.BuildServiceProvider();
+        await using var serviceProvider = services.BuildServiceProvider();
         var registry = serviceProvider.GetRequiredService<IConfiglueStateRegistry<AppSettings>>();
         var firstAdded = new TaskCompletionSource(
             TaskCreationOptions.RunContinuationsAsynchronously
@@ -391,7 +391,7 @@ public sealed partial class StateRuntimeTests
             removedNames.Add(name);
         };
 
-        var removeFirst = Task.Run(() => registry.TryRemove("first"));
+        var removeFirst = Task.Run(async () => await registry.TryRemoveAsync("first"));
         await firstRemoved.Task.WaitAsync(TimeSpan.FromSeconds(5));
         var clear = Task.Run(async () => await registry.ClearAsync());
         try
@@ -460,19 +460,19 @@ public sealed partial class StateRuntimeTests
                 ]);
             }
         );
-        using var serviceProvider = services.BuildServiceProvider();
+        await using var serviceProvider = services.BuildServiceProvider();
         var registry = serviceProvider.GetRequiredService<IConfiglueStateRegistry<AppSettings>>();
         registry.TryAdd("clear").ShouldBeTrue();
         registry.StateRemoved += name =>
         {
             if (name == "clear")
             {
-                registry.Clear();
+                _ = registry.ClearAsync();
             }
         };
 
         (
-            await Task.Run(() => registry.TryRemove("clear")).WaitAsync(TimeSpan.FromSeconds(5))
+            await Task.Run(async () => await registry.TryRemoveAsync("clear")).WaitAsync(TimeSpan.FromSeconds(5))
         ).ShouldBeTrue();
 
         var listenerAfterFailureWasCalled = false;
@@ -492,19 +492,19 @@ public sealed partial class StateRuntimeTests
         };
         registry.TryAdd("listener-error").ShouldBeTrue();
         (listenerAfterFailureWasCalled).ShouldBeTrue();
-        registry.TryRemove("listener-error").ShouldBeTrue();
+        (await registry.TryRemoveAsync("listener-error")).ShouldBeTrue();
 
         registry.TryAdd("dispose").ShouldBeTrue();
         registry.StateRemoved += name =>
         {
             if (name == "dispose")
             {
-                registry.Dispose();
+                _ = registry.DisposeAsync();
             }
         };
 
         (
-            await Task.Run(() => registry.TryRemove("dispose")).WaitAsync(TimeSpan.FromSeconds(5))
+            await Task.Run(async () => await registry.TryRemoveAsync("dispose")).WaitAsync(TimeSpan.FromSeconds(5))
         ).ShouldBeTrue();
     }
 }

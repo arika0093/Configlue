@@ -46,7 +46,7 @@ public sealed partial class StateRuntimeTests
             _ => sources,
             StateWritePlan.DefaultTo(SourceId.From("user"))
         );
-        using var serviceProvider = services.BuildServiceProvider();
+        await using var serviceProvider = services.BuildServiceProvider();
         var readOnly = serviceProvider.GetRequiredService<IReadOnlyState<AppSettings>>();
         var writable = serviceProvider.GetRequiredService<IWritableState<AppSettings>>();
 
@@ -96,7 +96,7 @@ public sealed partial class StateRuntimeTests
         services.AddConfiglueState<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([new("default", store, writer: store)])
         );
-        using var serviceProvider = services.BuildServiceProvider();
+        await using var serviceProvider = services.BuildServiceProvider();
 
         var options = serviceProvider.GetRequiredService<IOptions<AppSettings>>();
         var monitor = serviceProvider.GetRequiredService<IOptionsMonitor<AppSettings>>();
@@ -133,7 +133,7 @@ public sealed partial class StateRuntimeTests
                 new("custom", namedStore, writer: namedStore),
             ])
         );
-        using var serviceProvider = services.BuildServiceProvider();
+        await using var serviceProvider = services.BuildServiceProvider();
 
         using var firstScope = serviceProvider.CreateScope();
         var snapshot = firstScope.ServiceProvider.GetRequiredService<
@@ -182,7 +182,7 @@ public sealed partial class StateRuntimeTests
             ]),
             onChangeDebounce: TimeSpan.Zero
         );
-        using var serviceProvider = services.BuildServiceProvider();
+        await using var serviceProvider = services.BuildServiceProvider();
         var monitor = serviceProvider.GetRequiredService<IOptionsMonitor<AppSettings>>();
         var changed = new TaskCompletionSource<int>(
             TaskCreationOptions.RunContinuationsAsynchronously
@@ -230,7 +230,7 @@ public sealed partial class StateRuntimeTests
             },
             onChangeDebounce: TimeSpan.Zero
         );
-        using var serviceProvider = services.BuildServiceProvider();
+        await using var serviceProvider = services.BuildServiceProvider();
         var registry = serviceProvider.GetRequiredService<IConfiglueStateRegistry<AppSettings>>();
         var monitor = serviceProvider.GetRequiredService<IOptionsMonitor<AppSettings>>();
         var changed = new TaskCompletionSource<int>(
@@ -273,7 +273,7 @@ public sealed partial class StateRuntimeTests
             },
             onChangeDebounce: TimeSpan.Zero
         );
-        using var serviceProvider = services.BuildServiceProvider();
+        await using var serviceProvider = services.BuildServiceProvider();
         var registry = serviceProvider.GetRequiredService<IConfiglueStateRegistry<AppSettings>>();
         (registry.TryAdd("runtime")).ShouldBeTrue();
 
@@ -307,7 +307,7 @@ public sealed partial class StateRuntimeTests
             }
         );
 
-        var removal = Task.Run(() => registry.TryRemove("runtime"));
+        var removal = Task.Run(async () => await registry.TryRemoveAsync("runtime"));
         Task<bool>? replacementAdd = null;
         try
         {

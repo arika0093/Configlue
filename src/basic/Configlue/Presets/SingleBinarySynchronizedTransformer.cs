@@ -1,8 +1,8 @@
 namespace Configlue.Source.Presets;
 
-internal sealed class SingleBinarySynchronizedTransformer(IStateByteTransformer transformer)
-    : IStateByteTransformer,
-        IStateByteTransformerRecoveryPolicy
+internal sealed class SingleBinarySynchronizedTransformer(
+    ISynchronousStateByteTransformer transformer
+) : ISynchronousStateByteTransformer, IStateByteTransformerRecoveryPolicy
 {
     private readonly object _gate = new();
 

@@ -107,7 +107,8 @@ public sealed class SerializedStateReader<T> : ISourceReader<T>, ITryResourceIde
                     .ConfigureAwait(false);
                 if (recovered is { } restored)
                 {
-                    return Deserialize(restored);
+                    return await DeserializeAsync(restored, cancellationToken)
+                        .ConfigureAwait(false);
                 }
             }
 
@@ -119,14 +120,14 @@ public sealed class SerializedStateReader<T> : ISourceReader<T>, ITryResourceIde
             || !backupRecovery.AutomaticBackupRecoveryEnabled
         )
         {
-            return Deserialize(result);
+            return await DeserializeAsync(result, cancellationToken).ConfigureAwait(false);
         }
 
         if (result.Status == StateReadStatus.NotFound)
         {
             if (result.Revision is not null)
             {
-                return Deserialize(result);
+                return await DeserializeAsync(result, cancellationToken).ConfigureAwait(false);
             }
 
             var recovered = await TryRecoverAsync(
@@ -137,12 +138,14 @@ public sealed class SerializedStateReader<T> : ISourceReader<T>, ITryResourceIde
                     cancellationToken
                 )
                 .ConfigureAwait(false);
-            return recovered is { } restored ? Deserialize(restored) : Deserialize(result);
+            return recovered is { } restored
+                ? await DeserializeAsync(restored, cancellationToken).ConfigureAwait(false)
+                : await DeserializeAsync(result, cancellationToken).ConfigureAwait(false);
         }
 
         try
         {
-            return Deserialize(result);
+            return await DeserializeAsync(result, cancellationToken).ConfigureAwait(false);
         }
         catch (Exception exception) when (IsRecoverableReadException(exception))
         {
@@ -156,7 +159,7 @@ public sealed class SerializedStateReader<T> : ISourceReader<T>, ITryResourceIde
                 .ConfigureAwait(false);
             if (recovered is { } restored)
             {
-                return Deserialize(restored);
+                return await DeserializeAsync(restored, cancellationToken).ConfigureAwait(false);
             }
 
             throw;
@@ -175,21 +178,21 @@ public sealed class SerializedStateReader<T> : ISourceReader<T>, ITryResourceIde
                 resourceContext,
                 observedRevision,
                 expectedMissing,
-                (candidate, _) =>
+                async (candidate, token) =>
                 {
                     if (candidate.Status != StateReadStatus.Success)
                     {
-                        return new ValueTask<bool>(false);
+                        return false;
                     }
 
                     try
                     {
-                        Deserialize(candidate);
-                        return new ValueTask<bool>(true);
+                        await DeserializeAsync(candidate, token).ConfigureAwait(false);
+                        return true;
                     }
                     catch (Exception exception) when (IsRecoverableReadException(exception))
                     {
-                        return new ValueTask<bool>(false);
+                        return false;
                     }
                 },
                 cancellationToken
@@ -218,7 +221,10 @@ public sealed class SerializedStateReader<T> : ISourceReader<T>, ITryResourceIde
             && recoveryPolicy.IsRecoverableReadException(exception)
         );
 
-    private StateReadResult<T> Deserialize(ResourceReadResult result)
+    private async ValueTask<StateReadResult<T>> DeserializeAsync(
+        ResourceReadResult result,
+        CancellationToken cancellationToken
+    )
     {
         if (result.Status != StateReadStatus.Success)
         {
@@ -230,7 +236,9 @@ public sealed class SerializedStateReader<T> : ISourceReader<T>, ITryResourceIde
             );
         }
 
-        var content = StateByteTransformerPipeline.TransformRead(result.Content, _transformers);
+        var content = await StateByteTransformerPipeline
+            .TransformReadAsync(result.Content, _transformers, cancellationToken)
+            .ConfigureAwait(false);
         var bytes = new ReadOnlySequence<byte>(content);
         return DeserializeContent(in bytes, result.Revision, result.Schema);
     }

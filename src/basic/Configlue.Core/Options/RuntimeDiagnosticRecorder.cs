@@ -203,27 +203,20 @@ internal sealed class RuntimeDiagnosticRecorder : IConfiglueRuntimeDiagnostics
         {
             case ConfiglueDiagnosticEventKind.SourceReadCompleted:
             case ConfiglueDiagnosticEventKind.SourceReadFailed:
-                source = source with
-                {
-                    LastRead = diagnosticEvent,
-                    LastSuccessfulRead =
-                        diagnosticEvent.ReadStatus == StateReadStatus.Success
-                            ? diagnosticEvent.Timestamp
-                            : source.LastSuccessfulRead,
-                };
+                source = source.WithRead(diagnosticEvent);
                 break;
             case ConfiglueDiagnosticEventKind.WatchStarted:
                 _watchCounts.TryGetValue(sourceId, out var count);
                 _watchCounts[sourceId] = count + 1;
-                source = source with { IsWatching = true };
+                source = source.WithWatching(true);
                 break;
             case ConfiglueDiagnosticEventKind.WatchStopped:
                 _watchCounts.TryGetValue(sourceId, out var activeCount);
                 _watchCounts[sourceId] = Math.Max(0, activeCount - 1);
-                source = source with { IsWatching = activeCount > 1 };
+                source = source.WithWatching(activeCount > 1);
                 break;
             case ConfiglueDiagnosticEventKind.WatchSignaled:
-                source = source with { LastWatchSignal = diagnosticEvent.Timestamp };
+                source = source.WithWatchSignal(diagnosticEvent.Timestamp);
                 break;
         }
         _sources[sourceId] = source;
@@ -235,7 +228,7 @@ internal sealed class RuntimeDiagnosticRecorder : IConfiglueRuntimeDiagnostics
         {
             var ids = new HashSet<SourceId>(activeSourceIds);
             foreach (var id in _sources.Keys.ToArray())
-                _sources[id] = _sources[id] with { IsActive = ids.Contains(id) };
+                _sources[id] = _sources[id].WithActive(ids.Contains(id));
         }
     }
 

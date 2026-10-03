@@ -552,7 +552,7 @@ public sealed partial class StateRuntimeTests
             _result = (
                 status switch
                 {
-                    StateReadStatus.Success => StateReadResult<T>.Success(value, Revision),
+                    StateReadStatus.Success => StateReadResult<T>.Success(value!, Revision),
                     StateReadStatus.InvalidPayload => StateReadResult<T>.InvalidPayload(value, Revision),
                     StateReadStatus.Unavailable => StateReadResult<T>.Unavailable(Revision),
                     _ => StateReadResult<T>.NotFound(Revision),
@@ -604,7 +604,7 @@ public sealed partial class StateRuntimeTests
             TaskCompletionSource changed;
             lock (_gate)
             {
-                _result = StateReadResult<T>.Success(value, Revision) with
+                _result = StateReadResult<T>.Success(value!, Revision) with
                 {
                     PhysicalOrigin = physicalOrigin,
                 };

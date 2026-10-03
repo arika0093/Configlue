@@ -36,9 +36,13 @@ public sealed class TransformingResource
 
         if (resource is IResourceWriter writer)
         {
-            Writer = resource is IResourceBatchWriter batchWriter
-                ? new TransformingBatchWriter(this, writer, batchWriter)
-                : new TransformingWriter(this, writer);
+            Writer =
+                resource is IResourceBatchWriter batchWriter
+                && !_transformers.Any(static transformer =>
+                    transformer is IAsyncStateByteTransformer
+                )
+                    ? new TransformingBatchWriter(this, writer, batchWriter)
+                    : new TransformingWriter(this, writer);
         }
         Watcher = resource as ISourceWatcher;
     }
@@ -78,13 +82,13 @@ public sealed class TransformingResource
     )
     {
         var result = await _reader.ReadAsync(context, cancellationToken).ConfigureAwait(false);
-        return result.Status == StateReadStatus.Success
-            ? ResourceReadResult.Success(
-                TransformRead(result.Content),
-                result.Revision,
-                result.Schema
-            )
-            : result;
+        if (result.Status != StateReadStatus.Success)
+            return result;
+        return ResourceReadResult.Success(
+            await TransformReadAsync(result.Content, cancellationToken).ConfigureAwait(false),
+            result.Revision,
+            result.Schema
+        );
     }
 
     /// <inheritdoc />
@@ -127,7 +131,7 @@ public sealed class TransformingResource
                     var decoded =
                         candidate.Status == StateReadStatus.Success
                             ? ResourceReadResult.Success(
-                                TransformRead(candidate.Content),
+                                await TransformReadAsync(candidate.Content, token).ConfigureAwait(false),
                                 candidate.Revision,
                                 candidate.Schema
                             )
@@ -139,18 +143,23 @@ public sealed class TransformingResource
             .ConfigureAwait(false);
         return restored is { } result && result.Status == StateReadStatus.Success
             ? ResourceReadResult.Success(
-                TransformRead(result.Content),
+                await TransformReadAsync(result.Content, cancellationToken).ConfigureAwait(false),
                 result.Revision,
                 result.Schema
             )
             : restored;
     }
 
-    private ReadOnlyMemory<byte> TransformRead(ReadOnlyMemory<byte> content) =>
-        StateByteTransformerPipeline.TransformRead(content, _transformers);
+    private ValueTask<ReadOnlyMemory<byte>> TransformReadAsync(
+        ReadOnlyMemory<byte> content,
+        CancellationToken cancellationToken
+    ) => StateByteTransformerPipeline.TransformReadAsync(content, _transformers, cancellationToken);
 
-    private ReadOnlyMemory<byte> TransformWrite(ReadOnlyMemory<byte> content) =>
-        StateByteTransformerPipeline.TransformWrite(content, _transformers);
+    private ValueTask<ReadOnlyMemory<byte>> TransformWriteAsync(
+        ReadOnlyMemory<byte> content,
+        CancellationToken cancellationToken
+    ) =>
+        StateByteTransformerPipeline.TransformWriteAsync(content, _transformers, cancellationToken);
 
     private class TransformingWriter(TransformingResource owner, IResourceWriter writer)
         : IResourceWriter
@@ -159,16 +168,29 @@ public sealed class TransformingResource
             ConfiglueResourceContext context,
             ResourceWriteRequest request,
             CancellationToken cancellationToken = default
-        ) =>
-            writer.WriteAsync(
-                context,
-                new ResourceWriteRequest(
-                    owner.TransformWrite(request.Content),
-                    Condition: request.Condition,
-                    Schema: request.Schema
-                ),
-                cancellationToken
-            );
+        ) => WriteCoreAsync(context, request, cancellationToken);
+
+        private async ValueTask<StateWriteResult> WriteCoreAsync(
+            ConfiglueResourceContext context,
+            ResourceWriteRequest request,
+            CancellationToken cancellationToken
+        )
+        {
+            var content = await owner
+                .TransformWriteAsync(request.Content, cancellationToken)
+                .ConfigureAwait(false);
+            return await writer
+                .WriteAsync(
+                    context,
+                    new ResourceWriteRequest(
+                        content,
+                        Condition: request.Condition,
+                        Schema: request.Schema
+                    ),
+                    cancellationToken
+                )
+                .ConfigureAwait(false);
+        }
     }
 
     private sealed class TransformingBatchWriter

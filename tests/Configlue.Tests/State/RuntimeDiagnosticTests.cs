@@ -5,6 +5,28 @@ namespace Configlue.Tests;
 public sealed partial class RuntimeDiagnosticTests
 {
     [Test]
+    public void DiagnosticPayloadsExposeObservationWithoutPositionalConstruction()
+    {
+        var eventType = typeof(ConfiglueDiagnosticEvent);
+        eventType.GetConstructors().Where(static constructor => constructor.GetParameters().Length > 0)
+            .ShouldBeEmpty();
+        eventType.GetMethod("Deconstruct").ShouldBeNull();
+        foreach (var property in eventType.GetProperties())
+        {
+            property.SetMethod.ShouldBeNull();
+        }
+
+        var snapshotType = typeof(ConfiglueRuntimeSourceSnapshot);
+        snapshotType.GetConstructors().Where(static constructor => constructor.GetParameters().Length > 0)
+            .ShouldBeEmpty();
+        snapshotType.GetMethod("Deconstruct").ShouldBeNull();
+        foreach (var property in snapshotType.GetProperties())
+        {
+            property.SetMethod.ShouldBeNull();
+        }
+    }
+
+    [Test]
     public async Task ConcurrentResolutions_RetainOnlyABoundedOrderedHistory()
     {
         var store = new InMemoryStateSource<AppSettings.Fragment>(

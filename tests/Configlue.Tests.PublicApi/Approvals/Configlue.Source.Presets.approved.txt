@@ -66,8 +66,8 @@ namespace Configlue.Source.Presets
             where TModel : Configlue.CompilerServices.IConfiglueFacadeModel<TModel> { }
         public Configlue.Source.Presets.SingleBinaryBuilder FileResourceOptions(Configlue.Resources.FileResourceOptions options) { }
         public Configlue.Source.Presets.SingleBinaryBuilder Priority(int priority) { }
-        public Configlue.Source.Presets.SingleBinaryBuilder WithEncryption(Configlue.Transformers.IStateByteTransformer transformer) { }
-        public Configlue.Source.Presets.SingleBinaryBuilder WithEncryption(System.Func<Configlue.Transformers.IStateByteTransformer> transformerFactory) { }
+        public Configlue.Source.Presets.SingleBinaryBuilder WithEncryption(Configlue.Transformers.ISynchronousStateByteTransformer transformer) { }
+        public Configlue.Source.Presets.SingleBinaryBuilder WithEncryption(System.Func<Configlue.Transformers.ISynchronousStateByteTransformer> transformerFactory) { }
         public Configlue.Source.Presets.SingleBinaryBuilder WithHostGlobal(string applicationId, string filename = "state.bin") { }
         public Configlue.Source.Presets.SingleBinaryBuilder WithLocal(string filepath) { }
         public Configlue.Source.Presets.SingleBinaryBuilder WithProfiles(string defaultProfileName = "default") { }

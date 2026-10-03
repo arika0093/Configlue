@@ -25,7 +25,7 @@ internal static class StateByteTransformerPipeline
     {
         foreach (var transformer in transformers)
         {
-            content = transformer.TransformRead(content);
+            content = ((ISynchronousStateByteTransformer)transformer).TransformRead(content);
         }
 
         return content;
@@ -38,9 +38,66 @@ internal static class StateByteTransformerPipeline
     {
         for (var index = transformers.Count - 1; index >= 0; index--)
         {
-            content = transformers[index].TransformWrite(content);
+            content = ((ISynchronousStateByteTransformer)transformers[index]).TransformWrite(
+                content
+            );
         }
 
+        return content;
+    }
+
+    public static ValueTask<ReadOnlyMemory<byte>> TransformReadAsync(
+        ReadOnlyMemory<byte> content,
+        IReadOnlyList<IStateByteTransformer> transformers,
+        CancellationToken cancellationToken
+    ) =>
+        transformers.Any(static transformer => transformer is IAsyncStateByteTransformer)
+            ? TransformReadAsyncCore(content, transformers, cancellationToken)
+            : new ValueTask<ReadOnlyMemory<byte>>(TransformRead(content, transformers));
+
+    private static async ValueTask<ReadOnlyMemory<byte>> TransformReadAsyncCore(
+        ReadOnlyMemory<byte> content,
+        IReadOnlyList<IStateByteTransformer> transformers,
+        CancellationToken cancellationToken
+    )
+    {
+        foreach (var transformer in transformers)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            content = transformer is IAsyncStateByteTransformer asyncTransformer
+                ? await asyncTransformer
+                    .TransformReadAsync(content, cancellationToken)
+                    .ConfigureAwait(false)
+                : ((ISynchronousStateByteTransformer)transformer).TransformRead(content);
+        }
+        return content;
+    }
+
+    public static ValueTask<ReadOnlyMemory<byte>> TransformWriteAsync(
+        ReadOnlyMemory<byte> content,
+        IReadOnlyList<IStateByteTransformer> transformers,
+        CancellationToken cancellationToken
+    ) =>
+        transformers.Any(static transformer => transformer is IAsyncStateByteTransformer)
+            ? TransformWriteAsyncCore(content, transformers, cancellationToken)
+            : new ValueTask<ReadOnlyMemory<byte>>(TransformWrite(content, transformers));
+
+    private static async ValueTask<ReadOnlyMemory<byte>> TransformWriteAsyncCore(
+        ReadOnlyMemory<byte> content,
+        IReadOnlyList<IStateByteTransformer> transformers,
+        CancellationToken cancellationToken
+    )
+    {
+        for (var index = transformers.Count - 1; index >= 0; index--)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var transformer = transformers[index];
+            content = transformer is IAsyncStateByteTransformer asyncTransformer
+                ? await asyncTransformer
+                    .TransformWriteAsync(content, cancellationToken)
+                    .ConfigureAwait(false)
+                : ((ISynchronousStateByteTransformer)transformer).TransformWrite(content);
+        }
         return content;
     }
 }

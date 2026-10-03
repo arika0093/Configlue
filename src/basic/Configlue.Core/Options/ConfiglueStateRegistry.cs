@@ -8,7 +8,7 @@ namespace Configlue;
 /// <typeparam name="TModel">The configuration model.</typeparam>
 /// <typeparam name="TFragment">The model's generated sparse fragment.</typeparam>
 internal sealed class ConfiglueStateRegistry<TModel, TFragment>
-    : IAsyncConfiglueStateRegistry<TModel>,
+    : IConfiglueStateRegistry<TModel>,
         IConfiglueStateRegistryNotificationDeferrer<TModel>
     where TModel : IConfiglueModel<TModel, TFragment>
     where TFragment : class, IConfiglueFragment<TFragment>
@@ -131,11 +131,6 @@ internal sealed class ConfiglueStateRegistry<TModel, TFragment>
     }
 
     /// <inheritdoc />
-    public bool TryRemove(string stateName) =>
-        // Synchronous registry API boundary preserves completed notifications and cleanup; async removal/clear/disposal are preferred.
-        TryRemoveAsync(stateName).AsTask().GetAwaiter().GetResult();
-
-    /// <inheritdoc />
     public async ValueTask<bool> TryRemoveAsync(string stateName)
     {
         ValidateName(stateName);
@@ -197,10 +192,6 @@ internal sealed class ConfiglueStateRegistry<TModel, TFragment>
         }
         return true;
     }
-
-    /// <inheritdoc />
-    // Synchronous registry API boundary preserves completed notifications and cleanup; async removal/clear/disposal are preferred.
-    public void Clear() => ClearAsync().AsTask().GetAwaiter().GetResult();
 
     /// <inheritdoc />
     public async ValueTask ClearAsync()
@@ -297,9 +288,6 @@ internal sealed class ConfiglueStateRegistry<TModel, TFragment>
     }
 
     /// <inheritdoc />
-    // Synchronous registry API boundary preserves completed notifications and cleanup; async removal/clear/disposal are preferred.
-    public void Dispose() => DisposeAsync().AsTask().GetAwaiter().GetResult();
-
     /// <inheritdoc />
     public ValueTask DisposeAsync()
     {

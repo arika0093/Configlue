@@ -108,7 +108,7 @@ public sealed class ResourceIdentityTests
         ) => ValueTaskCompat.FromResult(ResourceReadResult.NotFound());
     }
 
-    private sealed class PassthroughTransformer : IStateByteTransformer
+    private sealed class PassthroughTransformer : ISynchronousStateByteTransformer
     {
         public ReadOnlyMemory<byte> TransformRead(ReadOnlyMemory<byte> source) => source;
 

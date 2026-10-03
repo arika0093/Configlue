@@ -13,7 +13,7 @@ namespace Configlue;
 /// manager. Without that capability, callbacks may run synchronously while the manager is in an
 /// operation, so listeners must not synchronously wait for another manager operation.
 /// </remarks>
-public interface IConfiglueStateRegistry<T> : IDisposable, IAsyncDisposable
+public interface IConfiglueStateRegistry<T> : IAsyncDisposable
 {
     /// <summary>The currently registered state names.</summary>
     IReadOnlyCollection<string> StateNames { get; }
@@ -29,26 +29,16 @@ public interface IConfiglueStateRegistry<T> : IDisposable, IAsyncDisposable
     bool TryAdd(string stateName);
 
     /// <summary>Removes a state and waits for its runtime, watchers, and notification to complete.</summary>
-    bool TryRemove(string stateName);
+    ValueTask<bool> TryRemoveAsync(string stateName);
 
     /// <summary>Removes every state and waits for its runtimes, watchers, and notifications to complete.</summary>
-    void Clear();
+    ValueTask ClearAsync();
 
     /// <summary>Raised after a state is registered.</summary>
     event Action<string, IWritableState<T>>? StateAdded;
 
     /// <summary>Raised after a state is removed.</summary>
     event Action<string>? StateRemoved;
-}
-
-/// <summary>Provides asynchronous cleanup for a state registry when supported.</summary>
-public interface IAsyncConfiglueStateRegistry<T> : IConfiglueStateRegistry<T>
-{
-    /// <summary>Removes a state and waits for its runtime, watchers, and notification to complete.</summary>
-    ValueTask<bool> TryRemoveAsync(string stateName);
-
-    /// <summary>Removes every state and waits for its runtimes, watchers, and notifications to complete.</summary>
-    ValueTask ClearAsync();
 }
 
 /// <summary>Allows a registry to defer notifications while a state-manager operation is in progress.</summary>

@@ -23,7 +23,7 @@ public sealed class ProfiledStateTests
         Directory.CreateDirectory(directory);
         try
         {
-            using (var firstProvider = CreateServiceProvider(filePath))
+            await using (var firstProvider = CreateServiceProvider(filePath))
             {
                 var profiles = firstProvider.GetRequiredService<
                     IConfiglueProfiledState<AppSettings>
@@ -60,7 +60,7 @@ public sealed class ProfiledStateTests
                 ((await profiles.GetActiveValueAsync()).Label).ShouldBe("Dark");
             }
 
-            using (var restartedProvider = CreateServiceProvider(filePath))
+            await using (var restartedProvider = CreateServiceProvider(filePath))
             {
                 var profiles = restartedProvider.GetRequiredService<
                     IConfiglueProfiledState<AppSettings>
@@ -112,7 +112,7 @@ public sealed class ProfiledStateTests
     public async Task ProfileCatalog_ValidatesNamesAndProtectsDefaultProfile()
     {
         using var directory = new TemporaryDirectory();
-        using var serviceProvider = CreateServiceProvider(
+        await using var serviceProvider = CreateServiceProvider(
             Path.Combine(directory.FullPath, "profiles.json")
         );
         var profiles = serviceProvider.GetRequiredService<IConfiglueProfiledState<AppSettings>>();
@@ -265,8 +265,8 @@ public sealed class ProfiledStateTests
     {
         using var directory = new TemporaryDirectory();
         var filePath = Path.Combine(directory.FullPath, "profiles.json");
-        using var firstProvider = CreateServiceProvider(filePath);
-        using var secondProvider = CreateServiceProvider(filePath);
+        await using var firstProvider = CreateServiceProvider(filePath);
+        await using var secondProvider = CreateServiceProvider(filePath);
         var first = firstProvider.GetRequiredService<IConfiglueProfiledState<AppSettings>>();
         var second = secondProvider.GetRequiredService<IConfiglueProfiledState<AppSettings>>();
         await Task.WhenAll(
@@ -292,7 +292,7 @@ public sealed class ProfiledStateTests
             await second.CreateProfileAsync("Second");
         }
 
-        using var restartedProvider = CreateServiceProvider(filePath);
+        await using var restartedProvider = CreateServiceProvider(filePath);
         var restoredNames = await restartedProvider
             .GetRequiredService<IConfiglueProfiledState<AppSettings>>()
             .GetProfileNamesAsync();
@@ -306,8 +306,8 @@ public sealed class ProfiledStateTests
     {
         using var directory = new TemporaryDirectory();
         var path = Path.Combine(directory.FullPath, "profiles.json");
-        using var firstProvider = CreateServiceProvider(path);
-        using var secondProvider = CreateServiceProvider(path);
+        await using var firstProvider = CreateServiceProvider(path);
+        await using var secondProvider = CreateServiceProvider(path);
         var first = firstProvider.GetRequiredService<IConfiglueProfiledState<AppSettings>>();
         var second = secondProvider.GetRequiredService<IConfiglueProfiledState<AppSettings>>();
         await first.GetProfileNamesAsync();
@@ -316,7 +316,7 @@ public sealed class ProfiledStateTests
         // first commit before its initial mutation, without waiting for a file watcher.
         (await second.GetProfileNamesAsync()).ShouldContain("First");
         (await TryCreateProfileAsync(second, "Second")).ShouldBeTrue();
-        using var restarted = CreateServiceProvider(path);
+        await using var restarted = CreateServiceProvider(path);
         (
             await restarted
                 .GetRequiredService<IConfiglueProfiledState<AppSettings>>()
@@ -530,8 +530,8 @@ public sealed class ProfiledStateTests
     {
         using var directory = new TemporaryDirectory();
         var filePath = Path.Combine(directory.FullPath, "profiles.json");
-        using var firstProvider = CreateServiceProvider(filePath);
-        using var secondProvider = CreateServiceProvider(filePath);
+        await using var firstProvider = CreateServiceProvider(filePath);
+        await using var secondProvider = CreateServiceProvider(filePath);
         var first = firstProvider.GetRequiredService<IConfiglueProfiledState<AppSettings>>();
         var second = secondProvider.GetRequiredService<IConfiglueProfiledState<AppSettings>>();
         var secondRegistry = secondProvider.GetRequiredService<
@@ -949,7 +949,7 @@ public sealed class ProfiledStateTests
     private sealed class ThrowingNotificationDeferralRegistry(
         IConfiglueStateRegistry<AppSettings> inner
     )
-        : IAsyncConfiglueStateRegistry<AppSettings>,
+        : IConfiglueStateRegistry<AppSettings>,
             IConfiglueStateRegistryNotificationDeferrer<AppSettings>
     {
         private int _throwOnAcquisition;
@@ -976,16 +976,10 @@ public sealed class ProfiledStateTests
 
         public bool TryAdd(string profileName) => inner.TryAdd(profileName);
 
-        public bool TryRemove(string profileName) => inner.TryRemove(profileName);
-
         public ValueTask<bool> TryRemoveAsync(string profileName) =>
             inner.TryRemoveAsync(profileName);
 
-        public void Clear() => inner.Clear();
-
         public ValueTask ClearAsync() => inner.ClearAsync();
-
-        public void Dispose() => inner.Dispose();
 
         public ValueTask DisposeAsync() => inner.DisposeAsync();
 

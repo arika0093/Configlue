@@ -8,7 +8,7 @@ namespace Configlue.Transformer.AES;
 /// The transformer does not own or derive its key; dispose it when the key is no longer needed.
 /// </remarks>
 public sealed class AesGcmStateByteTransformer
-    : IStateByteTransformer,
+    : ISynchronousStateByteTransformer,
         IStateByteTransformerRecoveryPolicy,
         IDisposable
 {

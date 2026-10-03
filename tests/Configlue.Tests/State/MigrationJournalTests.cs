@@ -32,6 +32,72 @@ public sealed class MigrationJournalTests
     }
 
     [Test]
+    public async Task MigrationAwaitsLeaseReleaseAndReleasesAfterJournalFailure()
+    {
+        var source = new InMemoryStateSource<AppSettings.Fragment>(
+            new AppSettings.Fragment { RetryCount = Optional<int>.Present(12) }
+        );
+        var target = new InMemoryStateSource<AppSettings.Fragment>();
+        await using var runtime = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
+            new StateSourceSet<AppSettings.Fragment>([
+                new("source", source, priority: 100),
+                new("target", target, priority: 0, writer: target),
+            ])
+        );
+        var migration = new StateStorageMigrationDefinition<AppSettings.Fragment>(
+            "migration-await-release",
+            [SourceId.From("source")],
+            [new StateStorageMigrationTarget<AppSettings.Fragment>(SourceId.From("target"), fragment => fragment)]
+        );
+        var journal = new TrackingMigrationJournal
+        {
+            ReleaseGate = new(TaskCreationOptions.RunContinuationsAsynchronously),
+        };
+
+        var migrationTask = runtime.MigrateAsync(migration, journal).AsTask();
+        await journal.ReleaseStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        migrationTask.IsCompleted.ShouldBeFalse();
+        journal.ReleaseGate.TrySetResult();
+        await migrationTask;
+        journal.Released.ShouldBeTrue();
+
+        var failingJournal = new TrackingMigrationJournal
+        {
+            ReadFailure = new IOException("journal read failed"),
+        };
+        await Should.ThrowAsync<IOException>(async () =>
+            await runtime.MigrateAsync(migration, failingJournal)
+        );
+        failingJournal.Released.ShouldBeTrue();
+
+        var cancelingJournal = new TrackingMigrationJournal
+        {
+            ReadFailure = new OperationCanceledException(),
+        };
+        await Should.ThrowAsync<OperationCanceledException>(async () =>
+            await runtime.MigrateAsync(migration, cancelingJournal)
+        );
+        cancelingJournal.Released.ShouldBeTrue();
+
+        var failingWriteJournal = new TrackingMigrationJournal
+        {
+            WriteFailure = new IOException("journal write failed"),
+        };
+        await Should.ThrowAsync<IOException>(async () =>
+            await runtime.MigrateAsync(migration, failingWriteJournal)
+        );
+        failingWriteJournal.Released.ShouldBeTrue();
+
+        var releaseFailureJournal = new TrackingMigrationJournal
+        {
+            ReleaseFailure = new IOException("lease release failed"),
+        };
+        await Should.ThrowAsync<IOException>(async () =>
+            await runtime.MigrateAsync(migration, releaseFailureJournal)
+        );
+    }
+
+    [Test]
     public async Task FileJournalLeaseSerializesSameMigrationAndHonorsCancellation()
     {
         var directory = Path.Combine(
@@ -47,7 +113,7 @@ public sealed class MigrationJournalTests
 
         try
         {
-            using var firstLease = await firstJournal.AcquireMigrationLeaseAsync("migration");
+            await using var firstLease = await firstJournal.AcquireMigrationLeaseAsync("migration");
             await firstJournal.WriteAsync(
                 new StateStorageMigrationProgress(
                     "migration",
@@ -61,8 +127,8 @@ public sealed class MigrationJournalTests
                 await secondJournal.AcquireMigrationLeaseAsync("migration", cancellation.Token)
             );
 
-            firstLease.Dispose();
-            using var secondLease = await secondJournal.AcquireMigrationLeaseAsync("migration");
+            await firstLease.DisposeAsync();
+            await using var secondLease = await secondJournal.AcquireMigrationLeaseAsync("migration");
             var progress = await secondJournal.ReadAsync("migration");
             (progress).ShouldNotBeNull();
             progress!.SourceIds.ShouldBe([SourceId.From("source")]);
@@ -89,7 +155,7 @@ public sealed class MigrationJournalTests
 
         try
         {
-            using (await journal.AcquireMigrationLeaseAsync("interprocess-migration")) { }
+            await using (await journal.AcquireMigrationLeaseAsync("interprocess-migration")) { }
             var lockPath = Directory.EnumerateFiles(lockDirectory, "*.configlue.lock").Single();
 
             using (
@@ -112,7 +178,7 @@ public sealed class MigrationJournalTests
                 );
             }
 
-            using var lease = await journal.AcquireMigrationLeaseAsync("interprocess-migration");
+            await using var lease = await journal.AcquireMigrationLeaseAsync("interprocess-migration");
             (lease).ShouldNotBeNull();
         }
         finally
@@ -129,29 +195,72 @@ public sealed class MigrationJournalTests
 
         public bool Released { get; private set; }
 
+        public TaskCompletionSource ReleaseStarted { get; } = new(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+
+        public TaskCompletionSource? ReleaseGate { get; init; }
+
+        public Exception? ReadFailure { get; init; }
+
+        public Exception? WriteFailure { get; init; }
+
+        public Exception? ReleaseFailure { get; init; }
+
         public ValueTask<StateStorageMigrationProgress?> ReadAsync(
             string migrationId,
             CancellationToken cancellationToken = default
-        ) => ValueTaskCompat.FromResult<StateStorageMigrationProgress?>(null);
+        )
+        {
+            _ = migrationId;
+            cancellationToken.ThrowIfCancellationRequested();
+            return ReadFailure is null
+                ? ValueTaskCompat.FromResult<StateStorageMigrationProgress?>(null)
+                : ValueTask.FromException<StateStorageMigrationProgress?>(ReadFailure);
+        }
 
         public ValueTask WriteAsync(
             StateStorageMigrationProgress progress,
             CancellationToken cancellationToken = default
-        ) => ValueTask.CompletedTask;
+        )
+        {
+            _ = progress;
+            cancellationToken.ThrowIfCancellationRequested();
+            return WriteFailure is null
+                ? ValueTask.CompletedTask
+                : ValueTask.FromException(WriteFailure);
+        }
 
-        public ValueTask<IDisposable> AcquireMigrationLeaseAsync(
+        public ValueTask<IAsyncDisposable> AcquireMigrationLeaseAsync(
             string migrationId,
             CancellationToken cancellationToken = default
         )
         {
             cancellationToken.ThrowIfCancellationRequested();
             Acquired = true;
-            return ValueTaskCompat.FromResult<IDisposable>(new Lease(this));
+            return ValueTaskCompat.FromResult<IAsyncDisposable>(new Lease(this));
         }
 
-        private sealed class Lease(TrackingMigrationJournal owner) : IDisposable
+        private sealed class Lease(TrackingMigrationJournal owner) : IAsyncDisposable
         {
-            public void Dispose() => owner.Released = true;
+            public ValueTask DisposeAsync()
+            {
+                return ReleaseAsync();
+
+                async ValueTask ReleaseAsync()
+                {
+                    owner.ReleaseStarted.TrySetResult();
+                    if (owner.ReleaseGate is { } gate)
+                    {
+                        await gate.Task.ConfigureAwait(false);
+                    }
+                    owner.Released = true;
+                    if (owner.ReleaseFailure is { } failure)
+                    {
+                        throw failure;
+                    }
+                }
+            }
         }
     }
 }

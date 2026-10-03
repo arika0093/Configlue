@@ -610,11 +610,11 @@ public sealed class ConfiglueFacadeTests
         {
             if (name == "reentrant")
             {
-                registry.Clear();
+                _ = registry.ClearAsync();
             }
         };
         (
-            await Task.Run(() => registry.TryRemove("reentrant")).WaitAsync(TimeSpan.FromSeconds(5))
+            await Task.Run(async () => await registry.TryRemoveAsync("reentrant")).WaitAsync(TimeSpan.FromSeconds(5))
         ).ShouldBeTrue();
 
         registry.TryAdd("dispose").ShouldBeTrue();
@@ -733,7 +733,7 @@ public sealed class ConfiglueFacadeTests
                 ]);
             }
         );
-        using var provider = services.BuildServiceProvider();
+        await using var provider = services.BuildServiceProvider();
         IConfiglueStateRegistry<AppSettings> registry = useCoreRegistry
             ? provider.GetRequiredService<IConfiglueStateRegistry<AppSettings>>()
             : CreateFacadeRegistry();

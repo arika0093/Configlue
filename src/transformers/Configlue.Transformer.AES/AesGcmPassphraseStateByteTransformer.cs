@@ -8,7 +8,7 @@ namespace Configlue.Transformer.AES;
 /// stored in the encoded content; dispose the transformer when it is no longer needed.
 /// </remarks>
 public sealed class AesGcmPassphraseStateByteTransformer
-    : IStateByteTransformer,
+    : ISynchronousStateByteTransformer,
         IStateByteTransformerRecoveryPolicy,
         IDisposable
 {

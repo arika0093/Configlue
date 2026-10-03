@@ -11,7 +11,7 @@ namespace Configlue.Transformer.Compression;
 /// decompressed.
 /// </remarks>
 public sealed class CompressionStateByteTransformer
-    : IStateByteTransformer,
+    : ISynchronousStateByteTransformer,
         IStateByteTransformerRecoveryPolicy
 {
     private const int DefaultZstandardLevel = 3;

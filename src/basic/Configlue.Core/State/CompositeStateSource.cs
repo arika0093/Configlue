@@ -276,7 +276,7 @@ public sealed class CompositeStateSource<TFragment>
             combined = combined is null ? fragment : combined.Merge(fragment);
         }
 
-        return StateReadResult<TFragment>.Success(combined, schema: schema) with
+        return StateReadResult<TFragment>.Success(combined!, schema: schema) with
         {
             PhysicalOrigin = GetPhysicalOrigin(successful),
             Revisions = CreateRevisionVector(revisions, nestedRevisions),

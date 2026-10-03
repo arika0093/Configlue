@@ -18,9 +18,9 @@ namespace Configlue.Testing
     public sealed class InMemoryStateSource<T> : Configlue.Sources.ISourceReader<T>, Configlue.Sources.ISourceWatcher, Configlue.Sources.ISourceWriter<T>
     {
         public InMemoryStateSource() { }
-        public InMemoryStateSource(T? initialValue) { }
+        public InMemoryStateSource(T initialValue) { }
         public System.Threading.Tasks.ValueTask<Configlue.State.StateReadResult<T>> ReadAsync(Configlue.Resources.ConfiglueResourceContext context, System.Threading.CancellationToken cancellationToken = default) { }
-        public void Set(T? value) { }
+        public void Set(T value) { }
         public void SetNotFound() { }
         public void SetUnavailable() { }
         public System.Threading.Tasks.ValueTask WaitForChangeAsync(Configlue.Resources.ConfiglueResourceContext context, string? observedRevision, System.Threading.CancellationToken cancellationToken = default) { }

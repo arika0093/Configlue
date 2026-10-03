@@ -11,7 +11,7 @@ namespace Configlue.Transformer.Compression
         public CompressionException(string message) { }
         public CompressionException(string message, System.Exception innerException) { }
     }
-    public sealed class CompressionStateByteTransformer : Configlue.Transformers.IStateByteTransformer, Configlue.Transformers.IStateByteTransformerRecoveryPolicy
+    public sealed class CompressionStateByteTransformer : Configlue.Transformers.IStateByteTransformer, Configlue.Transformers.IStateByteTransformerRecoveryPolicy, Configlue.Transformers.ISynchronousStateByteTransformer
     {
         public CompressionStateByteTransformer(Configlue.Transformer.Compression.CompressionAlgorithm algorithm) { }
         public CompressionStateByteTransformer(Configlue.Transformer.Compression.CompressionAlgorithm algorithm, int compressionLevel) { }

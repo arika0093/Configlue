@@ -74,66 +74,220 @@ public enum ConfiglueDiagnosticEventKind
 }
 
 /// <summary>A structured runtime event that never contains model or fragment values.</summary>
-/// <param name="Sequence">The monotonically increasing sequence within one runtime.</param>
-/// <param name="OperationId">The operation identifier within one runtime.</param>
-/// <param name="ParentOperationId">The enclosing operation, or zero when absent.</param>
-/// <param name="Timestamp">The time the event was recorded.</param>
-/// <param name="Kind">The runtime event kind.</param>
-/// <param name="StateName">The configured state name.</param>
-/// <param name="ModelId">The model schema identifier.</param>
-/// <param name="ModelVersion">The model schema version.</param>
-/// <param name="SourceId">The logical Configlue source registration identifier, when applicable.</param>
-/// <param name="SourceKind">The source reader or writer type, when applicable.</param>
-/// <param name="ReadStatus">The observed read status, when available.</param>
-/// <param name="HasRevision">Whether the operation observed a revision; the revision is not included.</param>
-/// <param name="Duration">Elapsed operation time, or zero for a notification.</param>
-/// <param name="ErrorCategory">The exception type name, never its message or stack trace.</param>
-/// <param name="Canceled">Whether the operation was canceled by its caller.</param>
-/// <param name="EffectiveValueChanged">Whether a reload changed the effective model.</param>
-/// <param name="TraceId">The current distributed trace identifier, when a trace is active.</param>
-public readonly record struct ConfiglueDiagnosticEvent(
-    long Sequence,
-    long OperationId,
-    long ParentOperationId,
-    DateTimeOffset Timestamp,
-    ConfiglueDiagnosticEventKind Kind,
-    string StateName,
-    string ModelId,
-    int ModelVersion,
-    SourceId? SourceId,
-    string? SourceKind,
-    StateReadStatus? ReadStatus,
-    bool HasRevision,
-    TimeSpan Duration,
-    string? ErrorCategory,
-    bool Canceled,
-    bool? EffectiveValueChanged,
-    string? TraceId = null
-);
+/// <remarks>
+/// Runtime-created immutable value snapshot. Equality compares all currently exposed fields; no positional
+/// constructor or deconstruction contract is provided so new diagnostics can be added compatibly.
+/// </remarks>
+public readonly record struct ConfiglueDiagnosticEvent
+{
+    internal ConfiglueDiagnosticEvent(
+        long sequence,
+        long operationId,
+        long parentOperationId,
+        DateTimeOffset timestamp,
+        ConfiglueDiagnosticEventKind kind,
+        string stateName,
+        string modelId,
+        int modelVersion,
+        SourceId? sourceId,
+        string? sourceKind,
+        StateReadStatus? readStatus,
+        bool hasRevision,
+        TimeSpan duration,
+        string? errorCategory,
+        bool canceled,
+        bool? effectiveValueChanged,
+        string? traceId = null
+    )
+    {
+        Sequence = sequence;
+        OperationId = operationId;
+        ParentOperationId = parentOperationId;
+        Timestamp = timestamp;
+        Kind = kind;
+        StateName = stateName;
+        ModelId = modelId;
+        ModelVersion = modelVersion;
+        SourceId = sourceId;
+        SourceKind = sourceKind;
+        ReadStatus = readStatus;
+        HasRevision = hasRevision;
+        Duration = duration;
+        ErrorCategory = errorCategory;
+        Canceled = canceled;
+        EffectiveValueChanged = effectiveValueChanged;
+        TraceId = traceId;
+    }
+
+    /// <summary>The monotonically increasing sequence within one runtime.</summary>
+    public long Sequence { get; }
+
+    /// <summary>The operation identifier within one runtime.</summary>
+    public long OperationId { get; }
+
+    /// <summary>The enclosing operation, or zero when absent.</summary>
+    public long ParentOperationId { get; }
+
+    /// <summary>The time the event was recorded.</summary>
+    public DateTimeOffset Timestamp { get; }
+
+    /// <summary>The runtime event kind.</summary>
+    public ConfiglueDiagnosticEventKind Kind { get; }
+
+    /// <summary>The configured state name.</summary>
+    public string StateName { get; }
+
+    /// <summary>The model schema identifier.</summary>
+    public string ModelId { get; }
+
+    /// <summary>The model schema version.</summary>
+    public int ModelVersion { get; }
+
+    /// <summary>The logical Configlue source registration identifier, when applicable.</summary>
+    public SourceId? SourceId { get; }
+
+    /// <summary>The source reader or writer type, when applicable.</summary>
+    public string? SourceKind { get; }
+
+    /// <summary>The observed read status, when available.</summary>
+    public StateReadStatus? ReadStatus { get; }
+
+    /// <summary>Whether the operation observed a revision; the revision is not included.</summary>
+    public bool HasRevision { get; }
+
+    /// <summary>Elapsed operation time, or zero for a notification.</summary>
+    public TimeSpan Duration { get; }
+
+    /// <summary>The exception type name, never its message or stack trace.</summary>
+    public string? ErrorCategory { get; }
+
+    /// <summary>Whether the operation was canceled by its caller.</summary>
+    public bool Canceled { get; }
+
+    /// <summary>Whether a reload changed the effective model.</summary>
+    public bool? EffectiveValueChanged { get; }
+
+    /// <summary>The current distributed trace identifier, when a trace is active.</summary>
+    public string? TraceId { get; }
+}
 
 /// <summary>The last observed state of a configured source, without performing a source read.</summary>
-/// <param name="Id">The configured source identifier.</param>
-/// <param name="Kind">The configured reader type name.</param>
-/// <param name="IsActive">Whether this source is active in the topology.</param>
-/// <param name="CanRead">Whether this source supports reads.</param>
-/// <param name="CanWrite">Whether this source supports writes.</param>
-/// <param name="CanWatch">Whether this source supports watching.</param>
-/// <param name="IsWatching">Whether a watch wait is currently active.</param>
-/// <param name="LastRead">The last completed or failed physical read.</param>
-/// <param name="LastSuccessfulRead">The last successful read timestamp.</param>
-/// <param name="LastWatchSignal">The last observed watch signal timestamp.</param>
-public readonly record struct ConfiglueRuntimeSourceSnapshot(
-    SourceId Id,
-    string Kind,
-    bool IsActive,
-    bool CanRead,
-    bool CanWrite,
-    bool CanWatch,
-    bool IsWatching,
-    ConfiglueDiagnosticEvent? LastRead,
-    DateTimeOffset? LastSuccessfulRead,
-    DateTimeOffset? LastWatchSignal
-);
+/// <remarks>Runtime-created immutable value snapshot with value equality and no positional deconstruction contract.</remarks>
+public readonly record struct ConfiglueRuntimeSourceSnapshot
+{
+    internal ConfiglueRuntimeSourceSnapshot(
+        SourceId id,
+        string kind,
+        bool isActive,
+        bool canRead,
+        bool canWrite,
+        bool canWatch,
+        bool isWatching,
+        ConfiglueDiagnosticEvent? lastRead,
+        DateTimeOffset? lastSuccessfulRead,
+        DateTimeOffset? lastWatchSignal
+    )
+    {
+        Id = id;
+        Kind = kind;
+        IsActive = isActive;
+        CanRead = canRead;
+        CanWrite = canWrite;
+        CanWatch = canWatch;
+        IsWatching = isWatching;
+        LastRead = lastRead;
+        LastSuccessfulRead = lastSuccessfulRead;
+        LastWatchSignal = lastWatchSignal;
+    }
+
+    /// <summary>The configured source identifier.</summary>
+    public SourceId Id { get; }
+
+    /// <summary>The configured reader type name.</summary>
+    public string Kind { get; }
+
+    /// <summary>Whether this source is active in the topology.</summary>
+    public bool IsActive { get; }
+
+    /// <summary>Whether this source supports reads.</summary>
+    public bool CanRead { get; }
+
+    /// <summary>Whether this source supports writes.</summary>
+    public bool CanWrite { get; }
+
+    /// <summary>Whether this source supports watching.</summary>
+    public bool CanWatch { get; }
+
+    /// <summary>Whether a watch wait is currently active.</summary>
+    public bool IsWatching { get; }
+
+    /// <summary>The last completed or failed physical read.</summary>
+    public ConfiglueDiagnosticEvent? LastRead { get; }
+
+    /// <summary>The last successful read timestamp.</summary>
+    public DateTimeOffset? LastSuccessfulRead { get; }
+
+    /// <summary>The last observed watch signal timestamp.</summary>
+    public DateTimeOffset? LastWatchSignal { get; }
+
+    internal ConfiglueRuntimeSourceSnapshot WithRead(ConfiglueDiagnosticEvent diagnosticEvent) =>
+        new(
+            Id,
+            Kind,
+            IsActive,
+            CanRead,
+            CanWrite,
+            CanWatch,
+            IsWatching,
+            diagnosticEvent,
+            diagnosticEvent.ReadStatus == StateReadStatus.Success
+                ? diagnosticEvent.Timestamp
+                : LastSuccessfulRead,
+            LastWatchSignal
+        );
+
+    internal ConfiglueRuntimeSourceSnapshot WithWatching(bool isWatching) =>
+        new(
+            Id,
+            Kind,
+            IsActive,
+            CanRead,
+            CanWrite,
+            CanWatch,
+            isWatching,
+            LastRead,
+            LastSuccessfulRead,
+            LastWatchSignal
+        );
+
+    internal ConfiglueRuntimeSourceSnapshot WithWatchSignal(DateTimeOffset timestamp) =>
+        new(
+            Id,
+            Kind,
+            IsActive,
+            CanRead,
+            CanWrite,
+            CanWatch,
+            IsWatching,
+            LastRead,
+            LastSuccessfulRead,
+            timestamp
+        );
+
+    internal ConfiglueRuntimeSourceSnapshot WithActive(bool isActive) =>
+        new(
+            Id,
+            Kind,
+            isActive,
+            CanRead,
+            CanWrite,
+            CanWatch,
+            IsWatching,
+            LastRead,
+            LastSuccessfulRead,
+            LastWatchSignal
+        );
+}
 
 /// <summary>An immutable, I/O-free copy of the last observed runtime diagnostics.</summary>
 public sealed class ConfiglueRuntimeDiagnosticSnapshot

@@ -382,7 +382,7 @@ public sealed class CrossResourceMigrationIntegrationTests
         )
         {
             cancellationToken.ThrowIfCancellationRequested();
-            return new ValueTask<StateReadResult<T>>(StateReadResult<T>.Success(retained, "1"));
+            return new ValueTask<StateReadResult<T>>(StateReadResult<T>.Success(retained!, "1"));
         }
 
         public ValueTask<StateWriteResult> WriteAsync(

@@ -76,7 +76,7 @@ public sealed class SingleBinaryBuilder
     }
 
     /// <summary>Encrypts the complete ZIP archive using a caller-owned transformer.</summary>
-    public SingleBinaryBuilder WithEncryption(IStateByteTransformer transformer)
+    public SingleBinaryBuilder WithEncryption(ISynchronousStateByteTransformer transformer)
     {
         EnsureMutable();
         ArgumentNullException.ThrowIfNull(transformer);
@@ -90,7 +90,9 @@ public sealed class SingleBinaryBuilder
     }
 
     /// <summary>Encrypts the complete archive using a newly created owned transformer per source.</summary>
-    public SingleBinaryBuilder WithEncryption(Func<IStateByteTransformer> transformerFactory)
+    public SingleBinaryBuilder WithEncryption(
+        Func<ISynchronousStateByteTransformer> transformerFactory
+    )
     {
         EnsureMutable();
         ArgumentNullException.ThrowIfNull(transformerFactory);

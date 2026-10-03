@@ -17,8 +17,9 @@ public sealed class InMemoryStateSource<T> : ISourceReader<T>, ISourceWriter<T>,
     public InMemoryStateSource() => _status = StateReadStatus.NotFound;
 
     /// <summary>Creates a state store with an initial value.</summary>
-    public InMemoryStateSource(T? initialValue)
+    public InMemoryStateSource(T initialValue)
     {
+        ArgumentNullException.ThrowIfNull(initialValue);
         _value = initialValue;
         _status = StateReadStatus.Success;
         _revision = "1";
@@ -38,7 +39,7 @@ public sealed class InMemoryStateSource<T> : ISourceReader<T>, ISourceWriter<T>,
             return new ValueTask<StateReadResult<T>>(
                 _status switch
                 {
-                    StateReadStatus.Success => StateReadResult<T>.Success(_value, _revision),
+                    StateReadStatus.Success => StateReadResult<T>.Success(_value!, _revision),
                     StateReadStatus.NotFound => StateReadResult<T>.NotFound(_revision),
                     _ => StateReadResult<T>.Unavailable(_revision),
                 }
@@ -104,8 +105,9 @@ public sealed class InMemoryStateSource<T> : ISourceReader<T>, ISourceWriter<T>,
     }
 
     /// <summary>Replaces the current value and notifies watchers.</summary>
-    public void Set(T? value)
+    public void Set(T value)
     {
+        ArgumentNullException.ThrowIfNull(value);
         Signal(() =>
         {
             _value = value;

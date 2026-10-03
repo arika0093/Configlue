@@ -24,7 +24,8 @@ public static class StateStorageMigrationExtensions
         ArgumentNullException.ThrowIfNull(journal);
         cancellationToken.ThrowIfCancellationRequested();
 
-        using var migrationLease = journal is IStateStorageMigrationLeaseProvider leaseProvider
+        await using var migrationLease = journal
+            is IStateStorageMigrationLeaseProvider leaseProvider
             ? await leaseProvider
                 .AcquireMigrationLeaseAsync(definition.Id, cancellationToken)
                 .ConfigureAwait(false)

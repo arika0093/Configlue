@@ -34,7 +34,7 @@ public sealed class FileStateStorageMigrationJournal
     public string DirectoryPath => _directoryPath;
 
     /// <inheritdoc />
-    public async ValueTask<IDisposable> AcquireMigrationLeaseAsync(
+    public async ValueTask<IAsyncDisposable> AcquireMigrationLeaseAsync(
         string migrationId,
         CancellationToken cancellationToken = default
     )
@@ -46,7 +46,19 @@ public sealed class FileStateStorageMigrationJournal
             Path.Combine(_directoryPath, hash + ".lease"),
             _resourceOptions
         );
-        return await resource.AcquireExclusiveLockAsync(cancellationToken).ConfigureAwait(false);
+        var lease = await resource
+            .AcquireExclusiveLockAsync(cancellationToken)
+            .ConfigureAwait(false);
+        return new AsyncMigrationLease(lease);
+    }
+
+    private sealed class AsyncMigrationLease(IDisposable lease) : IAsyncDisposable
+    {
+        public ValueTask DisposeAsync()
+        {
+            lease.Dispose();
+            return ValueTask.CompletedTask;
+        }
     }
 
     /// <inheritdoc />

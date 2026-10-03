@@ -57,51 +57,52 @@ public sealed class SerializedStateWriter<T>
     }
 
     /// <summary>Writes serialized state for one logical subject and source-specific key.</summary>
-    public ValueTask<StateWriteResult> WriteAsync(
+    public async ValueTask<StateWriteResult> WriteAsync(
         ConfiglueResourceContext context,
         StateWriteRequest<T> request,
         CancellationToken cancellationToken = default
     )
     {
         cancellationToken.ThrowIfCancellationRequested();
-        return _resource.WriteAsync(context, CreateResourceRequest(request), cancellationToken);
+        var resourceRequest = await CreateResourceRequestAsync(request, cancellationToken)
+            .ConfigureAwait(false);
+        return await _resource
+            .WriteAsync(context, resourceRequest, cancellationToken)
+            .ConfigureAwait(false);
     }
 
     /// <summary>Prepares a resource batch mutation for one logical subject.</summary>
-    public ValueTask<StateWriteBatchPlan?> TryCreateBatchWriteAsync(
+    public async ValueTask<StateWriteBatchPlan?> TryCreateBatchWriteAsync(
         ConfiglueResourceContext context,
         StateWriteRequest<T> request,
         CancellationToken cancellationToken = default
     )
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var resourceRequest = CreateResourceRequest(request);
+        var resourceRequest = await CreateResourceRequestAsync(request, cancellationToken)
+            .ConfigureAwait(false);
         if (
             _resource is IResourceBatchParticipant participant
             && participant.BatchWriter is { } participantWriter
         )
         {
-            return new ValueTask<StateWriteBatchPlan?>(
-                new StateWriteBatchPlan(
-                    ResourceContextExtensions.GetResourceId(participant, context),
-                    participantWriter,
-                    participant.CreateMutation(context, resourceRequest)
-                )
+            return new StateWriteBatchPlan(
+                ResourceContextExtensions.GetResourceId(participant, context),
+                participantWriter,
+                participant.CreateMutation(context, resourceRequest)
             );
         }
 
         if (_resource is IResourceBatchWriter writer)
         {
-            return new ValueTask<StateWriteBatchPlan?>(
-                new StateWriteBatchPlan(
-                    ResourceContextExtensions.GetResourceId((IResourceIdentity)writer, context),
-                    writer,
-                    ResourceWriteMutation.Replace(resourceRequest, context)
-                )
+            return new StateWriteBatchPlan(
+                ResourceContextExtensions.GetResourceId((IResourceIdentity)writer, context),
+                writer,
+                ResourceWriteMutation.Replace(resourceRequest, context)
             );
         }
 
-        return new ValueTask<StateWriteBatchPlan?>((StateWriteBatchPlan?)null);
+        return null;
     }
 
     private ResourceWriteRequest CreateResourceRequest(StateWriteRequest<T> request)
@@ -129,6 +130,34 @@ public sealed class SerializedStateWriter<T>
             Condition: request.Condition,
             Schema: schema
         )
+        {
+            ContentIsOwned = true,
+        };
+    }
+
+    private async ValueTask<ResourceWriteRequest> CreateResourceRequestAsync(
+        StateWriteRequest<T> request,
+        CancellationToken cancellationToken
+    )
+    {
+        var destination = new ArrayBufferWriter<byte>();
+        var context = _context;
+        if (_typedCodec is { } typedCodec)
+        {
+            typedCodec.Serialize(request.Value, destination, in context);
+        }
+        else
+        {
+            _dynamicCodec!.Serialize(typeof(T), request.Value, destination, in context);
+        }
+
+        var schema =
+            context.Schema
+            ?? (request.Value is IConfiglueFragment fragment ? fragment.Schema.ToMetadata() : null);
+        var content = await StateByteTransformerPipeline
+            .TransformWriteAsync(destination.WrittenMemory, _transformers, cancellationToken)
+            .ConfigureAwait(false);
+        return new ResourceWriteRequest(content, Condition: request.Condition, Schema: schema)
         {
             ContentIsOwned = true,
         };

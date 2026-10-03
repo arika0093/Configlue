@@ -1,3 +1,5 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace Configlue.State;
 
 /// <summary>A value returned from a state reader.</summary>
@@ -8,7 +10,7 @@ public readonly record struct StateReadResult<T>
     /// <summary>The read outcome selected by its factory.</summary>
     public StateReadStatus Status => _status ?? StateReadStatus.NotFound;
 
-    /// <summary>The successful or malformed-payload value; missing and unavailable results carry no value.</summary>
+    /// <summary>The non-null successful value or optional malformed-payload value; missing and unavailable results carry no value.</summary>
     public T? Value { get; }
 
     /// <summary>Gets or initializes the <see cref="Revision"/> value.</summary>
@@ -119,9 +121,9 @@ public readonly record struct StateReadResult<T>
         Revisions = this.Revisions;
     }
 
-    /// <summary>Creates a successful result.</summary>
+    /// <summary>Creates a successful result with a non-null value.</summary>
     public static StateReadResult<T> Success(
-        T? value,
+        [DisallowNull] T value,
         string? revision = null,
         StateSchemaMetadata? schema = null
     ) => new(StateReadStatus.Success, value, revision, Schema: schema);

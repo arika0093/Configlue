@@ -530,7 +530,7 @@ public sealed class BatchWriterCompatibilityTests
         public SubjectKey Key => SubjectKey.From(Id);
     }
 
-    private sealed class PassthroughTransformer : IStateByteTransformer
+    private sealed class PassthroughTransformer : ISynchronousStateByteTransformer
     {
         public ReadOnlyMemory<byte> TransformRead(ReadOnlyMemory<byte> source) => source;
 

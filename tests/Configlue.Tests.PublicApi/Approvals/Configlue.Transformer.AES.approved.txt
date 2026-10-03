@@ -1,7 +1,7 @@
 [assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/arika0093/Configlue")]
 namespace Configlue.Transformer.AES
 {
-    public sealed class AesGcmPassphraseStateByteTransformer : Configlue.Transformers.IStateByteTransformer, Configlue.Transformers.IStateByteTransformerRecoveryPolicy, System.IDisposable
+    public sealed class AesGcmPassphraseStateByteTransformer : Configlue.Transformers.IStateByteTransformer, Configlue.Transformers.IStateByteTransformerRecoveryPolicy, Configlue.Transformers.ISynchronousStateByteTransformer, System.IDisposable
     {
         public AesGcmPassphraseStateByteTransformer(string passphrase) { }
         public void Dispose() { }
@@ -9,7 +9,7 @@ namespace Configlue.Transformer.AES
         public System.ReadOnlyMemory<byte> TransformRead(System.ReadOnlyMemory<byte> source) { }
         public System.ReadOnlyMemory<byte> TransformWrite(System.ReadOnlyMemory<byte> source) { }
     }
-    public sealed class AesGcmStateByteTransformer : Configlue.Transformers.IStateByteTransformer, Configlue.Transformers.IStateByteTransformerRecoveryPolicy, System.IDisposable
+    public sealed class AesGcmStateByteTransformer : Configlue.Transformers.IStateByteTransformer, Configlue.Transformers.IStateByteTransformerRecoveryPolicy, Configlue.Transformers.ISynchronousStateByteTransformer, System.IDisposable
     {
         public AesGcmStateByteTransformer(System.ReadOnlySpan<byte> key) { }
         public void Dispose() { }

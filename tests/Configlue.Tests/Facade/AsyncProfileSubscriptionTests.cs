@@ -302,15 +302,12 @@ public sealed class AsyncProfileSubscriptionTests
 
         public bool TryAdd(string profileName) => false;
 
-        public bool TryRemove(string profileName) => false;
+        public ValueTask<bool> TryRemoveAsync(string profileName) => ValueTask.FromResult(false);
 
-        public void Clear() { }
-
-        public void Dispose() { }
+        public ValueTask ClearAsync() => ValueTask.CompletedTask;
 
         public ValueTask DisposeAsync()
         {
-            Dispose();
             return ValueTask.CompletedTask;
         }
     }

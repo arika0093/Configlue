@@ -178,41 +178,23 @@ namespace Configlue
     }
     public readonly struct ConfiglueDiagnosticEvent : System.IEquatable<Configlue.ConfiglueDiagnosticEvent>
     {
-        public ConfiglueDiagnosticEvent(
-                    long Sequence,
-                    long OperationId,
-                    long ParentOperationId,
-                    System.DateTimeOffset Timestamp,
-                    Configlue.ConfiglueDiagnosticEventKind Kind,
-                    string StateName,
-                    string ModelId,
-                    int ModelVersion,
-                    Configlue.SourceId? SourceId,
-                    string? SourceKind,
-                    Configlue.State.StateReadStatus? ReadStatus,
-                    bool HasRevision,
-                    System.TimeSpan Duration,
-                    string? ErrorCategory,
-                    bool Canceled,
-                    bool? EffectiveValueChanged,
-                    string? TraceId = null) { }
-        public bool Canceled { get; init; }
-        public System.TimeSpan Duration { get; init; }
-        public bool? EffectiveValueChanged { get; init; }
-        public string? ErrorCategory { get; init; }
-        public bool HasRevision { get; init; }
-        public Configlue.ConfiglueDiagnosticEventKind Kind { get; init; }
-        public string ModelId { get; init; }
-        public int ModelVersion { get; init; }
-        public long OperationId { get; init; }
-        public long ParentOperationId { get; init; }
-        public Configlue.State.StateReadStatus? ReadStatus { get; init; }
-        public long Sequence { get; init; }
-        public Configlue.SourceId? SourceId { get; init; }
-        public string? SourceKind { get; init; }
-        public string StateName { get; init; }
-        public System.DateTimeOffset Timestamp { get; init; }
-        public string? TraceId { get; init; }
+        public bool Canceled { get; }
+        public System.TimeSpan Duration { get; }
+        public bool? EffectiveValueChanged { get; }
+        public string? ErrorCategory { get; }
+        public bool HasRevision { get; }
+        public Configlue.ConfiglueDiagnosticEventKind Kind { get; }
+        public string ModelId { get; }
+        public int ModelVersion { get; }
+        public long OperationId { get; }
+        public long ParentOperationId { get; }
+        public Configlue.State.StateReadStatus? ReadStatus { get; }
+        public long Sequence { get; }
+        public Configlue.SourceId? SourceId { get; }
+        public string? SourceKind { get; }
+        public string StateName { get; }
+        public System.DateTimeOffset Timestamp { get; }
+        public string? TraceId { get; }
     }
     public enum ConfiglueDiagnosticEventKind
     {
@@ -274,9 +256,7 @@ namespace Configlue
     }
     public static class ConfiglueInterfaceExtensions
     {
-        public static System.Threading.Tasks.ValueTask ClearAsync<T>(this Configlue.IConfiglueStateRegistry<T> registry) { }
         public static System.IDisposable OnReloadFailed<T>(this Configlue.IConfiglueDiagnostics<T> diagnostics, System.Action<System.Exception> listener) { }
-        public static System.Threading.Tasks.ValueTask<bool> TryRemoveAsync<T>(this Configlue.IConfiglueStateRegistry<T> registry, string stateName) { }
         public static System.Collections.Generic.IReadOnlyList<string> Validate<T>(this Configlue.IConfiglueValidator<T> validator, string? name, T value) { }
     }
     public static class ConfiglueMemberExtensions
@@ -425,17 +405,16 @@ namespace Configlue
     }
     public readonly struct ConfiglueRuntimeSourceSnapshot : System.IEquatable<Configlue.ConfiglueRuntimeSourceSnapshot>
     {
-        public ConfiglueRuntimeSourceSnapshot(Configlue.SourceId Id, string Kind, bool IsActive, bool CanRead, bool CanWrite, bool CanWatch, bool IsWatching, Configlue.ConfiglueDiagnosticEvent? LastRead, System.DateTimeOffset? LastSuccessfulRead, System.DateTimeOffset? LastWatchSignal) { }
-        public bool CanRead { get; init; }
-        public bool CanWatch { get; init; }
-        public bool CanWrite { get; init; }
-        public Configlue.SourceId Id { get; init; }
-        public bool IsActive { get; init; }
-        public bool IsWatching { get; init; }
-        public string Kind { get; init; }
-        public Configlue.ConfiglueDiagnosticEvent? LastRead { get; init; }
-        public System.DateTimeOffset? LastSuccessfulRead { get; init; }
-        public System.DateTimeOffset? LastWatchSignal { get; init; }
+        public bool CanRead { get; }
+        public bool CanWatch { get; }
+        public bool CanWrite { get; }
+        public Configlue.SourceId Id { get; }
+        public bool IsActive { get; }
+        public bool IsWatching { get; }
+        public string Kind { get; }
+        public Configlue.ConfiglueDiagnosticEvent? LastRead { get; }
+        public System.DateTimeOffset? LastSuccessfulRead { get; }
+        public System.DateTimeOffset? LastWatchSignal { get; }
     }
     public sealed class ConfiglueSourceCheckResult
     {
@@ -530,11 +509,6 @@ namespace Configlue
         public static Configlue.FragmentOperation<T> Set(T? value) { }
         public static Configlue.FragmentOperation<T> op_Implicit(T? value) { }
     }
-    public interface IAsyncConfiglueStateRegistry<T> : Configlue.IConfiglueStateRegistry<T>, System.IAsyncDisposable, System.IDisposable
-    {
-        System.Threading.Tasks.ValueTask ClearAsync();
-        System.Threading.Tasks.ValueTask<bool> TryRemoveAsync(string stateName);
-    }
     public interface IConfiglueDeepCloneable<out T>
     {
         T DeepClone();
@@ -628,16 +602,16 @@ namespace Configlue
     {
         Configlue.IConfiglueStateRegistryNotificationDeferral<T> DeferNotifications();
     }
-    public interface IConfiglueStateRegistry<T> : System.IAsyncDisposable, System.IDisposable
+    public interface IConfiglueStateRegistry<T> : System.IAsyncDisposable
     {
         System.Collections.Generic.IReadOnlyCollection<string> StateNames { get; }
         event System.Action<string, Configlue.IWritableState<T>>? StateAdded;
         event System.Action<string>? StateRemoved;
-        void Clear();
+        System.Threading.Tasks.ValueTask ClearAsync();
         Configlue.IWritableState<T> Get(string stateName);
         bool TryAdd(string stateName);
         bool TryGet(string stateName, out Configlue.IWritableState<T>? state);
-        bool TryRemove(string stateName);
+        System.Threading.Tasks.ValueTask<bool> TryRemoveAsync(string stateName);
     }
     public interface IConfiglueStateSnapshotRuntime<T>
     {
@@ -868,7 +842,7 @@ namespace Configlue.Migrations
     }
     public interface IStateStorageMigrationLeaseProvider
     {
-        System.Threading.Tasks.ValueTask<System.IDisposable> AcquireMigrationLeaseAsync(string migrationId, System.Threading.CancellationToken cancellationToken = default);
+        System.Threading.Tasks.ValueTask<System.IAsyncDisposable> AcquireMigrationLeaseAsync(string migrationId, System.Threading.CancellationToken cancellationToken = default);
     }
     public sealed class StateSchemaDispatcher<T>
     {
@@ -1204,7 +1178,7 @@ namespace Configlue.State
         public Configlue.State.StateReadResult<T> FromSource(Configlue.SourceId sourceId, string? physicalOrigin = null) { }
         public static Configlue.State.StateReadResult<T> InvalidPayload(T? value, string? revision = null) { }
         public static Configlue.State.StateReadResult<T> NotFound(string? revision = null) { }
-        public static Configlue.State.StateReadResult<T> Success(T? value, string? revision = null, Configlue.State.StateSchemaMetadata? schema = default) { }
+        public static Configlue.State.StateReadResult<T> Success([System.Diagnostics.CodeAnalysis.DisallowNull] T value, string? revision = null, Configlue.State.StateSchemaMetadata? schema = default) { }
         public static Configlue.State.StateReadResult<T> Unavailable(string? revision = null) { }
     }
     public enum StateReadStatus
@@ -1265,13 +1239,19 @@ namespace Configlue.State
 }
 namespace Configlue.Transformers
 {
-    public interface IStateByteTransformer
+    public interface IAsyncStateByteTransformer : Configlue.Transformers.IStateByteTransformer
     {
-        System.ReadOnlyMemory<byte> TransformRead(System.ReadOnlyMemory<byte> source);
-        System.ReadOnlyMemory<byte> TransformWrite(System.ReadOnlyMemory<byte> source);
+        System.Threading.Tasks.ValueTask<System.ReadOnlyMemory<byte>> TransformReadAsync(System.ReadOnlyMemory<byte> source, System.Threading.CancellationToken cancellationToken = default);
+        System.Threading.Tasks.ValueTask<System.ReadOnlyMemory<byte>> TransformWriteAsync(System.ReadOnlyMemory<byte> source, System.Threading.CancellationToken cancellationToken = default);
     }
+    public interface IStateByteTransformer { }
     public interface IStateByteTransformerRecoveryPolicy
     {
         bool IsRecoverableReadException(System.Exception exception);
+    }
+    public interface ISynchronousStateByteTransformer : Configlue.Transformers.IStateByteTransformer
+    {
+        System.ReadOnlyMemory<byte> TransformRead(System.ReadOnlyMemory<byte> source);
+        System.ReadOnlyMemory<byte> TransformWrite(System.ReadOnlyMemory<byte> source);
     }
 }

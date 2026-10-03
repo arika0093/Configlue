@@ -5,7 +5,7 @@ using Configlue.CompilerServices;
 namespace Configlue;
 
 internal sealed class ConfiglueFacadeStateRegistry<TModel>
-    : IAsyncConfiglueStateRegistry<TModel>,
+    : IConfiglueStateRegistry<TModel>,
         IConfiglueStateRegistryNotificationDeferrer<TModel>
     where TModel : IConfiglueFacadeModel<TModel>
 {
@@ -159,10 +159,6 @@ internal sealed class ConfiglueFacadeStateRegistry<TModel>
         return true;
     }
 
-    public bool TryRemove(string stateName) =>
-        // Synchronous registry API boundary preserves completed notifications and cleanup; async removal/clear/disposal are preferred.
-        TryRemoveAsync(stateName).AsTask().GetAwaiter().GetResult();
-
     public async ValueTask<bool> TryRemoveAsync(string stateName)
     {
         ValidateName(stateName);
@@ -220,9 +216,6 @@ internal sealed class ConfiglueFacadeStateRegistry<TModel>
         }
         return true;
     }
-
-    // Synchronous registry API boundary preserves completed notifications and cleanup; async removal/clear/disposal are preferred.
-    public void Clear() => ClearAsync().AsTask().GetAwaiter().GetResult();
 
     public async ValueTask ClearAsync()
     {
@@ -339,8 +332,6 @@ internal sealed class ConfiglueFacadeStateRegistry<TModel>
     }
 
     // Synchronous registry API boundary preserves completed notifications and cleanup; async removal/clear/disposal are preferred.
-    public void Dispose() => DisposeAsync().AsTask().GetAwaiter().GetResult();
-
     public ValueTask DisposeAsync()
     {
         KeyValuePair<string, Entry>[] removed;

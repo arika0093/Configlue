@@ -16,8 +16,10 @@ public sealed class StateOutcomeContractTests
         default(StateReadResult<string>).Status.ShouldBe(StateReadStatus.NotFound);
         default(StateReadResult<int>).Status.ShouldBe(StateReadStatus.NotFound);
         default(StateReadResult<string>).ShouldBe(StateReadResult<string>.NotFound());
-        Should.Throw<ArgumentNullException>(() => StateReadResult<string>.Success(null));
+        Should.Throw<ArgumentNullException>(() => StateReadResult<string>.Success(null!));
         StateReadResult<int>.Success(0).Status.ShouldBe(StateReadStatus.Success);
+        Should.Throw<ArgumentNullException>(() => StateReadResult<int?>.Success(null!));
+        StateReadResult<int>.Success(default).Value.ShouldBe(0);
         StateReadResult<string>.NotFound("tombstone").Value.ShouldBeNull();
         StateReadResult<string>.Unavailable("unreachable").Value.ShouldBeNull();
         var invalid = StateReadResult<string>.InvalidPayload("invalid value", "revision");
@@ -28,6 +30,19 @@ public sealed class StateOutcomeContractTests
         ((int)StateReadStatus.NotFound).ShouldBe(1);
         typeof(StateReadResult<string>).GetProperty("Status")!.SetMethod.ShouldBeNull();
         typeof(StateReadResult<string>).GetProperty("Value")!.SetMethod.ShouldBeNull();
+    }
+
+    [Test]
+    public async Task InMemorySourceRejectsNullAtTheSetterBoundary()
+    {
+        Should.Throw<ArgumentNullException>(() => new InMemoryStateSource<string>(null!));
+        var source = new InMemoryStateSource<string>("initial");
+        Should.Throw<ArgumentNullException>(() => source.Set(null!));
+        (await source.ReadAsync()).Value.ShouldBe("initial");
+
+        var nullableValueSource = new InMemoryStateSource<int?>(1);
+        Should.Throw<ArgumentNullException>(() => nullableValueSource.Set(null!));
+        (await nullableValueSource.ReadAsync()).Value.ShouldBe(1);
     }
 
     [Test]
