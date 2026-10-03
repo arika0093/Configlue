@@ -125,9 +125,8 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                     ? new Dictionary<SourceId, IConfigluePatch>()
                     {
                         [
-                            fallbackSource is { } fallback
-                                ? fallback.Id
-                                : throw new InvalidOperationException(
+                            fallbackSource?.Id
+                                ?? throw new InvalidOperationException(
                                     "No writable source owns this patch. Configure a root write target or an explicit write plan."
                                 )
                         ] = patch,
@@ -143,9 +142,8 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             patchesBySource = new Dictionary<SourceId, IConfigluePatch>()
             {
                 [
-                    fallbackSource is { } fallback
-                        ? fallback.Id
-                        : throw new InvalidOperationException(
+                    fallbackSource?.Id
+                        ?? throw new InvalidOperationException(
                             "No writable source owns this patch. Configure a root write target or an explicit write plan."
                         )
                 ] = patch,

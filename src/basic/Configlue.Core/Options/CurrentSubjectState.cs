@@ -168,8 +168,8 @@ internal sealed class CurrentSubjectState<TModel>(
 /// </summary>
 internal sealed class SubjectChangeSubscription<TModel> : IDisposable
 {
-    private static readonly TimeSpan InitialRetryDelay = TimeSpan.FromMilliseconds(100);
-    private static readonly TimeSpan MaximumRetryDelay = TimeSpan.FromSeconds(5);
+    private static TimeSpan InitialRetryDelay => SubjectChangeSubscriptionRetryPolicy.InitialDelay;
+    private static TimeSpan MaximumRetryDelay => SubjectChangeSubscriptionRetryPolicy.MaximumDelay;
     private readonly ISubjectState<TModel> _subjectOptions;
     private readonly IConfiglueSubjectAccessor _subjectAccessor;
     private readonly Action<TModel> _listener;
@@ -382,4 +382,10 @@ internal sealed class SubjectChangeSubscription<TModel> : IDisposable
         _cancellation.Dispose();
         _invalidationSignal.Dispose();
     }
+}
+
+internal static class SubjectChangeSubscriptionRetryPolicy
+{
+    public static readonly TimeSpan InitialDelay = TimeSpan.FromMilliseconds(100);
+    public static readonly TimeSpan MaximumDelay = TimeSpan.FromSeconds(5);
 }

@@ -883,6 +883,59 @@ public sealed class GeneratorHostCompatibilityTests
         (ConfiglueGenerator.IsExternalInitSource).ShouldContain("class IsExternalInit");
     }
 
+    private static void AssertUnsupportedRootModel(string declaration)
+    {
+        var source = $$"""
+            using Configlue;
+
+            [ConfiglueModel("unsupported-root")]
+            {{declaration}} Settings
+            {
+                public int Value { get; set; }
+            }
+            """;
+        var options = new CSharpParseOptions(LanguageVersion.Preview);
+        var modelTree = CSharpSyntaxTree.ParseText(source, options);
+        modelTree
+            .GetDiagnostics()
+            .ShouldBeEmpty(BuildDiagnosticMessage(modelTree.GetDiagnostics()));
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(
+            new[] { new ConfiglueGenerator().AsSourceGenerator() },
+            parseOptions: options
+        );
+        driver = driver.RunGenerators(CreateCompilation(modelTree));
+
+        var result = driver.GetRunResult();
+        result.Results.Single().Exception.ShouldBeNull();
+        result.Diagnostics.Select(static diagnostic => diagnostic.Id).ShouldBe(["CFG002"]);
+        result.Results.Single().GeneratedSources.ShouldBeEmpty();
+    }
+
+    private static void AssertSupportedRootModelCompiles(string modelDeclaration)
+    {
+        var source = $$"""
+            using Configlue;
+
+            {{modelDeclaration}}
+            """;
+        var options = new CSharpParseOptions(LanguageVersion.Preview);
+        var modelTree = CSharpSyntaxTree.ParseText(source, options);
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(
+            new[] { new ConfiglueGenerator().AsSourceGenerator() },
+            parseOptions: options
+        );
+        driver = driver.RunGeneratorsAndUpdateCompilation(
+            CreateCompilation(modelTree),
+            out var output,
+            out var diagnostics
+        );
+
+        driver.GetRunResult().Results.Single().Exception.ShouldBeNull();
+        diagnostics.ShouldBeEmpty(BuildDiagnosticMessage(diagnostics));
+        var emit = output.Emit(Stream.Null);
+        emit.Success.ShouldBeTrue(BuildDiagnosticMessage(emit.Diagnostics));
+    }
+
     private static CSharpCompilation CreateCompilation(SyntaxTree syntaxTree)
     {
         return CSharpCompilation.Create(
