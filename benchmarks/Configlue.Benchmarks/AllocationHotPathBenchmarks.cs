@@ -166,7 +166,7 @@ public sealed class SerializedWriterAllocationBenchmarks
 {
     private SerializedStateWriter<OptimizationBenchmarkSettings.Fragment> _writer = null!;
     private ConfiglueResourceContext _context;
-    private StateWriteRequest<OptimizationBenchmarkSettings.Fragment> _request;
+    private StateWriteRequest<OptimizationBenchmarkSettings.Fragment> _request = default!;
 
     [Params(100, 4096, 65536)]
     public int PayloadSize { get; set; }
@@ -202,7 +202,7 @@ public sealed class SerializedWriterAllocationBenchmarks
             throw new InvalidOperationException("The no-op writer did not prepare a batch plan.");
         }
 
-        return await plan.Writer.WriteBatchAsync([plan.Mutation]).ConfigureAwait(false);
+        return await plan.BatchWriter.WriteBatchAsync([plan.Mutation]).ConfigureAwait(false);
     }
 
     private sealed class NoOpResourceWriter : IResourceBatchWriter
