@@ -1,9 +1,11 @@
 using System.Linq.Expressions;
+using System.Security.Claims;
 using Bunit;
 using Configlue;
 using Configlue.Hosting.Blazor;
 using Configlue.Testing;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.AspNetCore.Components.Rendering;
 using Microsoft.Extensions.DependencyInjection;
@@ -405,6 +407,36 @@ public sealed class StateComponentsTests
 
         cut.WaitForAssertion(() => state.Value.Label.ShouldBe("subject-b"));
         state.IsSubjectChanged.ShouldBeFalse();
+    }
+
+    [Test]
+    public void Editor_AuthenticationRegistrationInvalidatesThroughPublicDiHelper()
+    {
+        using var ctx = new BunitContext();
+        var authenticationStateProvider = new TestAuthenticationStateProvider("user-a");
+        ctx.Services.AddSingleton<AuthenticationStateProvider>(authenticationStateProvider);
+        ctx.Services.AddBlazorAuthenticationConfiglueSubjectAccessor<EditorSubject>(
+            (principal, _) =>
+                ValueTaskCompat.FromResult(new EditorSubject(principal.FindFirst("user")!.Value))
+        );
+        var sessions = new SwitchingEditSessions<AppSettings>(() =>
+            CreateUpstreamSession(
+                new AppSettings { Label = "subject-a" },
+                new FakeUpstreamState<AppSettings>(new AppSettings { Label = "subject-a" })
+            )
+        );
+        ctx.Services.AddSingleton<IConfiglueEditSessions<AppSettings>>(sessions);
+        var (cut, state) = RenderEditor(ctx);
+        state.Value.Label.ShouldBe("subject-a");
+
+        sessions.Current = () =>
+            CreateUpstreamSession(
+                new AppSettings { Label = "subject-b" },
+                new FakeUpstreamState<AppSettings>(new AppSettings { Label = "subject-b" })
+            );
+        authenticationStateProvider.SetUser("user-b");
+
+        cut.WaitForAssertion(() => state.Value.Label.ShouldBe("subject-b"));
     }
 
     [Test]
@@ -1211,5 +1243,32 @@ public sealed class StateComponentsTests
         private Action? _dispose = dispose;
 
         public void Dispose() => Interlocked.Exchange(ref _dispose, null)?.Invoke();
+    }
+
+    private sealed record EditorSubject(string UserId) : IConfiglueSubject
+    {
+        public SubjectKey Key => SubjectKey.From(UserId);
+    }
+
+    private sealed class TestAuthenticationStateProvider(string userId)
+        : AuthenticationStateProvider
+    {
+        private AuthenticationState _state = CreateState(userId);
+
+        public override Task<AuthenticationState> GetAuthenticationStateAsync() =>
+            Task.FromResult(_state);
+
+        public void SetUser(string nextUserId)
+        {
+            _state = CreateState(nextUserId);
+            NotifyAuthenticationStateChanged(Task.FromResult(_state));
+        }
+
+        private static AuthenticationState CreateState(string userId) =>
+            new(
+                new ClaimsPrincipal(
+                    new ClaimsIdentity([new Claim("user", userId)], authenticationType: "test")
+                )
+            );
     }
 }

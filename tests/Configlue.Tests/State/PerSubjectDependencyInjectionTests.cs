@@ -329,8 +329,12 @@ public sealed class PerSubjectDependencyInjectionTests
         var accessor = scope.ServiceProvider.GetRequiredService<
             BlazorAuthenticationConfiglueSubjectAccessor<SettingsSubject>
         >();
-        scope.ServiceProvider.GetRequiredService<IConfiglueSubjectAccessor<SettingsSubject>>().ShouldBeSameAs(accessor);
-        var changeSource = scope.ServiceProvider.GetRequiredService<IConfiglueSubjectChangeSource>();
+        var typedAccessor = scope.ServiceProvider.GetRequiredService<
+            IConfiglueSubjectAccessor<SettingsSubject>
+        >();
+        var changeSource =
+            scope.ServiceProvider.GetRequiredService<IConfiglueSubjectChangeSource>();
+        typedAccessor.ShouldBeSameAs(accessor);
         changeSource.ShouldBeSameAs(accessor);
         var invalidated = new TaskCompletionSource(
             TaskCreationOptions.RunContinuationsAsynchronously
@@ -365,6 +369,66 @@ public sealed class PerSubjectDependencyInjectionTests
         notifications.ShouldBe(1);
         scope.Dispose();
         authentication.SetUser("user-c");
+        notifications.ShouldBe(1);
+    }
+
+    [Test]
+    public async Task BlazorSubjectRegistrationsUseTheLastScopedAccessorForInvalidation()
+    {
+        var authenticationStateProvider = new TestAuthenticationStateProvider("user-a");
+        var services = new ServiceCollection();
+        services.AddSingleton<AuthenticationStateProvider>(authenticationStateProvider);
+        services.AddBlazorAuthenticationConfiglueSubjectAccessor<SettingsSubject>(
+            (principal, _) => ValueTaskCompat.FromResult(new SettingsSubject("first", principal.FindFirst("user")!.Value))
+        );
+        services.AddBlazorAuthenticationConfiglueSubjectAccessor<SettingsSubject>(
+            (principal, _) => ValueTaskCompat.FromResult(new SettingsSubject("second", principal.FindFirst("user")!.Value))
+        );
+
+        using var scopedProvider = services.BuildServiceProvider();
+        using var scoped = scopedProvider.CreateScope();
+        var concrete = scoped.ServiceProvider.GetRequiredService<BlazorAuthenticationConfiglueSubjectAccessor<SettingsSubject>>();
+        var typedAccessor = scoped.ServiceProvider.GetRequiredService<IConfiglueSubjectAccessor<SettingsSubject>>();
+        var source = scoped.ServiceProvider.GetRequiredService<IConfiglueSubjectChangeSource>();
+        var notifications = 0;
+        using var subscription = source.OnChange(() => notifications++);
+
+        concrete.ShouldBeSameAs(typedAccessor);
+        concrete.ShouldBeSameAs(source);
+        (await typedAccessor.GetCurrentAsync()).TenantId.ShouldBe("second");
+        authenticationStateProvider.SetUser("user-b");
+        notifications.ShouldBe(1);
+    }
+
+    [Test]
+    public async Task BlazorSubjectRegistrationsAcrossSubjectTypesUseTheLastGlobalInvalidationSource()
+    {
+        var authenticationStateProvider = new TestAuthenticationStateProvider("user-a");
+        var services = new ServiceCollection();
+        services.AddSingleton<AuthenticationStateProvider>(authenticationStateProvider);
+        services.AddBlazorAuthenticationConfiglueSubjectAccessor<SettingsSubject>(
+            (principal, _) => ValueTaskCompat.FromResult(new SettingsSubject("first", principal.FindFirst("user")!.Value))
+        );
+        services.AddBlazorAuthenticationConfiglueSubjectAccessor<RoutedSettingsSubject>(
+            (principal, _) => ValueTaskCompat.FromResult(new RoutedSettingsSubject(principal.FindFirst("user")!.Value, RouteKey.From("second")))
+        );
+
+        using var scopedProvider = services.BuildServiceProvider();
+        using var scoped = scopedProvider.CreateScope();
+        var first = scoped.ServiceProvider.GetRequiredService<BlazorAuthenticationConfiglueSubjectAccessor<SettingsSubject>>();
+        var second = scoped.ServiceProvider.GetRequiredService<BlazorAuthenticationConfiglueSubjectAccessor<RoutedSettingsSubject>>();
+        var source = scoped.ServiceProvider.GetRequiredService<IConfiglueSubjectChangeSource>();
+        var notifications = 0;
+        using var subscription = source.OnChange(() => notifications++);
+
+        first.ShouldNotBeSameAs(source);
+        second.ShouldBeSameAs(source);
+        (await scoped.ServiceProvider.GetRequiredService<IConfiglueSubjectAccessor<SettingsSubject>>().GetCurrentAsync())
+            .ShouldBe(new SettingsSubject("first", "user-a"));
+        (await scoped.ServiceProvider.GetRequiredService<IConfiglueSubjectAccessor<RoutedSettingsSubject>>().GetCurrentAsync())
+            .ShouldBe(new RoutedSettingsSubject("user-a", RouteKey.From("second")));
+
+        authenticationStateProvider.SetUser("user-b");
         notifications.ShouldBe(1);
     }
 
@@ -500,17 +564,15 @@ public sealed class PerSubjectDependencyInjectionTests
         }
     }
 
-    private sealed class SubjectStateStore<T>
-        : ISourceReader<T>,
-            ISourceWriter<T>,
-            ISourceWatcher
+    private sealed class SubjectStateStore<T> : ISourceReader<T>, ISourceWriter<T>, ISourceWatcher
     {
         private readonly ConcurrentDictionary<
             (ResourceKey Key, RouteKey Route),
             InMemoryStateSource<T>
         > _states = new();
 
-        public void Set(SubjectKey key, T value) => Set(ResourceKey.From(key), RouteKey.Default, value);
+        public void Set(SubjectKey key, T value) =>
+            Set(ResourceKey.From(key), RouteKey.Default, value);
 
         public void Set(SubjectKey key, RouteKey route, T value) =>
             Get(ResourceKey.From(key), route).Set(value);
@@ -552,7 +614,8 @@ public sealed class PerSubjectDependencyInjectionTests
             string? observedRevision,
             CancellationToken cancellationToken = default
         ) =>
-            Get(context.ResourceKey, context.Route).WaitForChangeAsync(observedRevision, cancellationToken);
+            Get(context.ResourceKey, context.Route)
+                .WaitForChangeAsync(observedRevision, cancellationToken);
 
         private InMemoryStateSource<T> Get(ResourceKey key, RouteKey route) =>
             _states.GetOrAdd((key, route), static _ => new InMemoryStateSource<T>());
