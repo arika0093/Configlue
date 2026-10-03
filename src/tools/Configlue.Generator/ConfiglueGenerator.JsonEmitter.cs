@@ -122,11 +122,17 @@ public sealed partial class ConfiglueGenerator
                 first = false;
             }
 
-            code.AppendLineAt(5, "else reader.Skip();");
+            code.AppendLineAt(
+                5,
+                "else HandleUnknownFragmentProperty(ref reader, options, propertyName);"
+            );
         }
         else
         {
-            code.AppendLineAt(5, "reader.Skip();");
+            code.AppendLineAt(
+                5,
+                "HandleUnknownFragmentProperty(ref reader, options, propertyName);"
+            );
         }
 
         code.AppendLineAt(4, "}");
@@ -226,6 +232,18 @@ public sealed partial class ConfiglueGenerator
             4,
             "return global::System.String.Equals(actual, expected, options.PropertyNameCaseInsensitive ? global::System.StringComparison.OrdinalIgnoreCase : global::System.StringComparison.Ordinal);"
         );
+        code.AppendLineAt(3, "}");
+        code.AppendLine();
+        code.AppendLineAt(
+            3,
+            "private static void HandleUnknownFragmentProperty(ref global::System.Text.Json.Utf8JsonReader reader, global::System.Text.Json.JsonSerializerOptions options, string? propertyName)"
+        );
+        code.AppendLineAt(3, "{");
+        code.AppendLineAt(
+            4,
+            "if (options.UnmappedMemberHandling == global::System.Text.Json.Serialization.JsonUnmappedMemberHandling.Disallow) { throw new global::System.Text.Json.JsonException(\"The JSON property '\" + propertyName + \"' could not be mapped to fragment '\" + typeof(Fragment) + \"'.\"); }"
+        );
+        code.AppendLineAt(4, "reader.Skip();");
         code.AppendLineAt(3, "}");
         code.AppendLineAt(
             3,
