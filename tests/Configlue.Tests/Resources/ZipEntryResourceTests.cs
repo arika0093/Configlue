@@ -269,6 +269,52 @@ public sealed class ZipEntryResourceTests
         );
     }
 
+    [Test]
+    public async Task CorruptArchiveReadPreservesInvalidPayload()
+    {
+        var archive = new CorruptArchive();
+        var entry = new ZipEntryResource(archive, archive, "settings.json");
+
+        var result = await entry.ReadAsync();
+
+        (result.Status).ShouldBe(StateReadStatus.InvalidPayload);
+        (result.Revision).ShouldBe("r1");
+    }
+
+    [Test]
+    public async Task CorruptArchiveWritesDoNotReplaceArchiveWithNewZip()
+    {
+        var archive = new CorruptArchive();
+        var entry = new ZipEntryResource(archive, archive, "settings.json");
+        var observed = await entry.ReadAsync();
+        (observed.Status).ShouldBe(StateReadStatus.InvalidPayload);
+
+        await Should.ThrowAsync<InvalidDataException>(async () =>
+            await entry.WriteAsync(new ResourceWriteRequest(new byte[] { 1 }))
+        );
+        await Should.ThrowAsync<InvalidDataException>(async () =>
+            await entry.WriteAsync(
+                new ResourceWriteRequest(
+                    new byte[] { 2 },
+                    Condition: RevisionCondition.MustNotExist
+                )
+            )
+        );
+        await Should.ThrowAsync<InvalidDataException>(async () =>
+            await entry.WriteAsync(
+                new ResourceWriteRequest(
+                    new byte[] { 3 },
+                    Condition: RevisionCondition.FromRevision(observed.Revision)
+                )
+            )
+        );
+
+        (archive.WriteCount).ShouldBe(0);
+        var current = await archive.ReadAsync();
+        (current.Status).ShouldBe(StateReadStatus.InvalidPayload);
+        (current.Revision).ShouldBe("r1");
+    }
+
     private static byte[] Encode(
         JsonStateCodec<AppSettings.Fragment> codec,
         AppSettings.Fragment fragment
@@ -296,6 +342,48 @@ public sealed class ZipEntryResourceTests
             return ValueTaskCompat.FromResult(
                 ResourceReadResult.Success(ReadOnlyMemory<byte>.Empty, Revision)
             );
+        }
+    }
+
+    private sealed class CorruptArchive : IResourceReader, IResourceBatchWriter
+    {
+        public int WriteCount { get; private set; }
+
+        public ResourceId GetResourceId(ConfiglueResourceContext context) =>
+            new ResourceId("corrupt-archive");
+
+        public ValueTask<ResourceReadResult> ReadAsync(
+            ConfiglueResourceContext context,
+            CancellationToken cancellationToken = default
+        )
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return ValueTaskCompat.FromResult(ResourceReadResult.InvalidPayload("r1"));
+        }
+
+        public ValueTask<StateWriteResult> WriteAsync(
+            ConfiglueResourceContext context,
+            ResourceWriteRequest request,
+            CancellationToken cancellationToken = default
+        ) => WriteBatchAsync([ResourceWriteMutation.Replace(request, context)], cancellationToken);
+
+        public ValueTask<StateWriteResult> WriteBatchAsync(
+            IReadOnlyList<ResourceWriteMutation> mutations,
+            CancellationToken cancellationToken = default
+        )
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            ResourceWriteMutation.ValidateBatch(mutations);
+            var current = ResourceReadResult.InvalidPayload("r1");
+            foreach (var mutation in mutations)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var content = mutation.Apply(current).ToArray();
+                current = ResourceReadResult.Success(content, "r2");
+            }
+
+            WriteCount++;
+            return ValueTaskCompat.FromResult(new StateWriteResult(current.Revision));
         }
     }
 

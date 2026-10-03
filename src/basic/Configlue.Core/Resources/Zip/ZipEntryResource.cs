@@ -229,15 +229,21 @@ public sealed class ZipEntryResource
         var archiveResult = await _archiveReader
             .ReadAsync(context, cancellationToken)
             .ConfigureAwait(false);
-        if (archiveResult.Status != StateReadStatus.Success)
+        switch (archiveResult.Status)
         {
-            if (archiveResult.Status == StateReadStatus.NotFound)
-            {
+            case StateReadStatus.Success:
+                break;
+            case StateReadStatus.NotFound:
                 StoreSnapshot(context, archiveResult.Revision, MissingEntryFingerprint);
                 return ResourceReadResult.NotFound(archiveResult.Revision);
-            }
-
-            return ResourceReadResult.Unavailable(archiveResult.Revision);
+            case StateReadStatus.Unavailable:
+                return ResourceReadResult.Unavailable(archiveResult.Revision);
+            case StateReadStatus.InvalidPayload:
+                return ResourceReadResult.InvalidPayload(archiveResult.Revision);
+            default:
+                throw new InvalidOperationException(
+                    $"Unknown archive read status '{archiveResult.Status}'."
+                );
         }
 
         using var content = CreateReadOnlyStream(archiveResult.Content);
@@ -367,23 +373,32 @@ public sealed class ZipEntryResource
         byte[] content
     )
     {
-        if (current.Status == StateReadStatus.Unavailable)
+        ZipArchiveMode mode;
+        switch (current.Status)
         {
-            throw new IOException("The ZIP archive resource is unavailable for writing.");
+            case StateReadStatus.Success:
+                mode = ZipArchiveMode.Update;
+                break;
+            case StateReadStatus.NotFound:
+                mode = ZipArchiveMode.Create;
+                break;
+            case StateReadStatus.Unavailable:
+                throw new IOException("The ZIP archive resource is unavailable for writing.");
+            case StateReadStatus.InvalidPayload:
+                throw new InvalidDataException(
+                    "The ZIP archive payload is invalid and cannot be replaced by an entry write."
+                );
+            default:
+                throw new ArgumentOutOfRangeException(nameof(current));
         }
 
         using var archiveContent = new MemoryStream();
-        if (current.Status == StateReadStatus.Success)
+        if (mode == ZipArchiveMode.Update)
         {
             var currentContent = current.Content.ToArray();
             archiveContent.Write(currentContent, 0, currentContent.Length);
             archiveContent.Position = 0;
         }
-
-        var mode =
-            current.Status == StateReadStatus.Success
-                ? ZipArchiveMode.Update
-                : ZipArchiveMode.Create;
         using (var archive = new ZipArchive(archiveContent, mode, leaveOpen: true))
         {
             if (mode == ZipArchiveMode.Update)
@@ -447,13 +462,20 @@ public sealed class ZipEntryResource
 
     private static string GetCurrentEntryFingerprint(ResourceReadResult current, string entryName)
     {
-        if (current.Status == StateReadStatus.Unavailable)
+        switch (current.Status)
         {
-            throw new IOException("The ZIP archive resource is unavailable for writing.");
-        }
-        if (current.Status == StateReadStatus.NotFound)
-        {
-            return MissingEntryFingerprint;
+            case StateReadStatus.Unavailable:
+                throw new IOException("The ZIP archive resource is unavailable for writing.");
+            case StateReadStatus.InvalidPayload:
+                throw new InvalidDataException(
+                    "The ZIP archive payload is invalid and cannot be replaced by an entry write."
+                );
+            case StateReadStatus.NotFound:
+                return MissingEntryFingerprint;
+            case StateReadStatus.Success:
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(current));
         }
 
         using var content = new MemoryStream(current.Content.ToArray(), writable: false);
