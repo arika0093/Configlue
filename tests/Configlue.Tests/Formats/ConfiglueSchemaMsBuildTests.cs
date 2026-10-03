@@ -495,7 +495,7 @@ public sealed class ConfiglueSchemaMsBuildTests
         var outputDirectory = CreateTempDirectory();
         try
         {
-            var modelsAssembly = await BuildTypeLoadFixtureAsync(fixtureRoot);
+            var (modelsAssembly, _) = await BuildTypeLoadFixtureAsync(fixtureRoot);
             var missingDependency = Path.Combine(
                 Path.GetDirectoryName(modelsAssembly)!,
                 "TypeLoadFixture.Base.dll"
@@ -559,7 +559,7 @@ public sealed class ConfiglueSchemaMsBuildTests
         var outputDirectory = CreateTempDirectory();
         try
         {
-            var modelsAssembly = await BuildTypeLoadFixtureAsync(fixtureRoot);
+            var (modelsAssembly, buildLog) = await BuildTypeLoadFixtureAsync(fixtureRoot);
 
             var result = ConfiglueSchemaGenerator.Generate(
                 new ConfiglueSchemaGenerationOptions
@@ -570,13 +570,15 @@ public sealed class ConfiglueSchemaMsBuildTests
                 }
             );
 
-            (result.Succeeded).ShouldBeTrue(
-                string.Join(
-                    " | ",
-                    result.Diagnostics.Select(static diagnostic =>
-                        $"{diagnostic.Code}:{diagnostic.Message}"
-                    )
+            var buildDetails = string.Join(
+                " | ",
+                result.Diagnostics.Select(static diagnostic =>
+                    $"{diagnostic.Code}:{diagnostic.Message}"
                 )
+            );
+
+            (result.Succeeded).ShouldBeTrue(
+                $"Assembly: {modelsAssembly} | Build: {buildLog} | {buildDetails}"
             );
             (
                 result
@@ -592,7 +594,9 @@ public sealed class ConfiglueSchemaMsBuildTests
         }
     }
 
-    private static async Task<string> BuildTypeLoadFixtureAsync(string root)
+    private static async Task<(string ModelsAssembly, string BuildLog)> BuildTypeLoadFixtureAsync(
+        string root
+    )
     {
         var baseDirectory = Path.Combine(root, "base");
         var modelsDirectory = Path.Combine(root, "models");
@@ -666,23 +670,57 @@ public sealed class ConfiglueSchemaMsBuildTests
             """
         );
 
-        await RunDotNetBuildAsync(Path.Combine(modelsDirectory, "Models.csproj"), root);
+        var buildLog = await RunDotNetBuildAsync(
+            Path.Combine(modelsDirectory, "Models.csproj"),
+            root
+        );
 
+        // With UseArtifactsOutput the same assembly name appears multiple times
+        // under the fixture root: the real publish output under bin/ plus
+        // intermediate copies under obj/, obj/.../ref and obj/.../refint. The
+        // intermediate copies are not co-located with their ProjectReference
+        // outputs (TypeLoadFixture.Base.dll), so loading them surfaces CWSC108.
+        // Directory.GetFiles enumeration order differs between NTFS and Unix
+        // filesystems, which is why Windows passed while ubuntu/macos picked the
+        // obj copy. Prefer the bin output deterministically and match the file
+        // name case-insensitively for case-sensitive filesystems.
         var modelsAssembly = Directory
-            .GetFiles(root, "TypeLoadFixture.Models.dll", SearchOption.AllDirectories)
+            .EnumerateFiles(root, "*.dll", SearchOption.AllDirectories)
+            .Where(static path =>
+                string.Equals(
+                    Path.GetFileName(path),
+                    "TypeLoadFixture.Models.dll",
+                    StringComparison.OrdinalIgnoreCase
+                )
+            )
+            .Where(static path => !IsIntermediateOutputPath(path))
             .OrderBy(static path => path.Length)
+            .ThenBy(static path => path, StringComparer.Ordinal)
             .FirstOrDefault();
         if (modelsAssembly is null || !File.Exists(modelsAssembly))
         {
             throw new InvalidOperationException(
-                $"The type-load fixture assembly was not built under: {root}"
+                $"The type-load fixture assembly was not built under: {root} Build: {buildLog}"
             );
         }
 
-        return modelsAssembly;
+        return (modelsAssembly, buildLog);
     }
 
-    private static async Task RunDotNetBuildAsync(string projectPath, string fixtureRoot)
+    private static bool IsIntermediateOutputPath(string path)
+    {
+        var parts = path.Split(
+            [Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar],
+            StringSplitOptions.RemoveEmptyEntries
+        );
+        return parts.Any(static part =>
+            string.Equals(part, "obj", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(part, "ref", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(part, "refint", StringComparison.OrdinalIgnoreCase)
+        );
+    }
+
+    private static async Task<string> RunDotNetBuildAsync(string projectPath, string fixtureRoot)
     {
         // Isolate the inner build from parallel test runs: redirect every built
         // project (including the referenced Configlue.Abstraction) into a unique
@@ -690,12 +728,17 @@ public sealed class ConfiglueSchemaMsBuildTests
         // src/.../bin/Debug (previously raced on Configlue.Abstraction.deps.json
         // with MSB4018 GenerateDepsFile). UseArtifactsOutput gives each project
         // its own bin/obj subdirectory; the inner build itself is serialized.
+        // Cross-platform notes:
+        // - MSBuild accepts '-' as the option prefix on every OS, while '/' is
+        //   a path separator on Unix; use the dash form (-p:, -m:, -nodeReuse:).
+        // - MSBuild normalizes '/' in property values on every OS; pass
+        //   ArtifactsPath with forward slashes and a trailing slash.
         var artifactsRoot = Path.Combine(fixtureRoot, "isolated-artifacts");
 
-        string WithTrailingSeparator(string path) =>
-            path.EndsWith(Path.DirectorySeparatorChar)
-                ? path
-                : path + Path.DirectorySeparatorChar;
+        var artifactsPath = string.Concat(
+            artifactsRoot.Replace('\\', '/').TrimEnd('/'),
+            "/"
+        );
 
         var startInfo = new ProcessStartInfo("dotnet")
         {
@@ -715,11 +758,11 @@ public sealed class ConfiglueSchemaMsBuildTests
         startInfo.ArgumentList.Add("-v");
         startInfo.ArgumentList.Add("q");
         startInfo.ArgumentList.Add("-m:1");
-        startInfo.ArgumentList.Add("/nodeReuse:false");
-        startInfo.ArgumentList.Add("/p:UseArtifactsOutput=true");
-        startInfo.ArgumentList.Add($"/p:ArtifactsPath={WithTrailingSeparator(artifactsRoot)}");
-        startInfo.ArgumentList.Add("/p:BuildInParallel=false");
-        startInfo.ArgumentList.Add("/p:UseSharedCompilation=false");
+        startInfo.ArgumentList.Add("-nodeReuse:false");
+        startInfo.ArgumentList.Add("-p:UseArtifactsOutput=true");
+        startInfo.ArgumentList.Add($"-p:ArtifactsPath={artifactsPath}");
+        startInfo.ArgumentList.Add("-p:BuildInParallel=false");
+        startInfo.ArgumentList.Add("-p:UseSharedCompilation=false");
 
         using var process =
             Process.Start(startInfo)
@@ -728,12 +771,29 @@ public sealed class ConfiglueSchemaMsBuildTests
         var standardError = await process.StandardError.ReadToEndAsync();
         await process.WaitForExitAsync();
 
+        // Always capture the inner build log so Generate failures can surface it
+        // in the test assertion message (dotnet build runs with -v:q, so this is
+        // typically a single line on success).
+        var buildLog =
+            $"exit={process.ExitCode} artifacts={artifactsPath} stdout={standardOutput.Trim()} stderr={standardError.Trim()}";
+
         if (process.ExitCode != 0)
         {
+            throw new InvalidOperationException($"dotnet build failed: {buildLog}");
+        }
+
+        // UseArtifactsOutput requires MSBuild 17.7+/SDK 8+. Older SDKs silently
+        // ignore the unknown property and build into the default bin/ tree,
+        // which would reintroduce the shared-bin race. Verify the redirect took
+        // effect so a silent fallback never passes unnoticed.
+        if (!Directory.Exists(artifactsRoot))
+        {
             throw new InvalidOperationException(
-                $"dotnet build exited with code {process.ExitCode}: {standardOutput} {standardError}"
+                $"dotnet build did not honor ArtifactsPath (UseArtifactsOutput unsupported?): {buildLog}"
             );
         }
+
+        return buildLog;
     }
 
     private static string RepositoryRoot { get; } = FindRepositoryRoot();
