@@ -315,29 +315,29 @@ namespace Configlue
     }
     public sealed class ConfiglueMergeElementProvenance
     {
-        public ConfiglueMergeElementProvenance(int index, System.Collections.Generic.IEnumerable<string> sourceIds) { }
+        public ConfiglueMergeElementProvenance(int index, System.Collections.Generic.IEnumerable<Configlue.SourceId> sourceIds) { }
         public int Index { get; }
-        public System.Collections.Generic.IReadOnlyList<string> SourceIds { get; }
+        public System.Collections.Generic.IReadOnlyList<Configlue.SourceId> SourceIds { get; }
     }
     public static class ConfiglueMergeProvenance
     {
         public static System.Collections.Generic.IReadOnlyList<Configlue.ConfiglueCollectionElementProvenance> ExplainElements(Configlue.ConfiglueMemberSchema member, object? effectiveValue, [System.Runtime.CompilerServices.TupleElementNames(new string[] {
                 "SourceId",
-                "Value"})] System.Collections.Generic.IReadOnlyList<System.ValueTuple<string, object?>> sourceContributions) { }
+                "Value"})] System.Collections.Generic.IReadOnlyList<System.ValueTuple<Configlue.SourceId, object?>> sourceContributions) { }
     }
     public readonly struct ConfiglueMergeSourceValue : System.IEquatable<Configlue.ConfiglueMergeSourceValue>
     {
-        public ConfiglueMergeSourceValue(string SourceId, Configlue.Optional<object?> Value) { }
-        public string SourceId { get; init; }
+        public ConfiglueMergeSourceValue(Configlue.SourceId SourceId, Configlue.Optional<object?> Value) { }
+        public Configlue.SourceId SourceId { get; init; }
         public Configlue.Optional<object?> Value { get; init; }
-        public void Deconstruct(out string SourceId, out Configlue.Optional<object?> Value) { }
+        public void Deconstruct(out Configlue.SourceId SourceId, out Configlue.Optional<object?> Value) { }
     }
     public readonly struct ConfiglueMergeSourceValue<T> : System.IEquatable<Configlue.ConfiglueMergeSourceValue<T>>
     {
-        public ConfiglueMergeSourceValue(string SourceId, Configlue.Optional<T> Value) { }
-        public string SourceId { get; init; }
+        public ConfiglueMergeSourceValue(Configlue.SourceId SourceId, Configlue.Optional<T> Value) { }
+        public Configlue.SourceId SourceId { get; init; }
         public Configlue.Optional<T> Value { get; init; }
-        public void Deconstruct(out string SourceId, out Configlue.Optional<T> Value) { }
+        public void Deconstruct(out Configlue.SourceId SourceId, out Configlue.Optional<T> Value) { }
     }
     public abstract class ConfiglueMergeStrategy<T> : Configlue.IConfiglueMergeStrategy
     {
@@ -345,7 +345,7 @@ namespace Configlue
         public abstract bool AreEqual(T? left, T? right);
         public abstract System.Collections.Generic.IReadOnlyList<Configlue.ConfiglueMergeElementProvenance> ExplainElements(T? effective, System.Collections.Generic.IReadOnlyList<Configlue.ConfiglueMergeSourceValue<T>> sourceValuesLowToHigh);
         public abstract Configlue.Optional<T> Merge(Configlue.Optional<T> lowerPriority, Configlue.Optional<T> higherPriority);
-        public abstract bool TryPlanSourceContribution(System.Collections.Generic.IReadOnlyList<Configlue.ConfiglueMergeSourceValue<T>> sourceValuesLowToHigh, string targetSourceId, T? desiredEffective, out Configlue.Optional<T> targetContribution, out string? reason);
+        public abstract bool TryPlanSourceContribution(System.Collections.Generic.IReadOnlyList<Configlue.ConfiglueMergeSourceValue<T>> sourceValuesLowToHigh, Configlue.SourceId targetSourceId, T? desiredEffective, out Configlue.Optional<T> targetContribution, out string? reason);
         public abstract bool TryRebase(T? editBase, T? desired, T? current, out T? rebased, out string? reason);
     }
     [System.AttributeUsage(System.AttributeTargets.Class | System.AttributeTargets.Struct, Inherited=false)]
@@ -567,7 +567,7 @@ namespace Configlue
         bool AreEqual(object? left, object? right);
         System.Collections.Generic.IReadOnlyList<Configlue.ConfiglueMergeElementProvenance> ExplainElements(object? effective, System.Collections.Generic.IReadOnlyList<Configlue.ConfiglueMergeSourceValue> sourceValuesLowToHigh);
         Configlue.Optional<object?> Merge(Configlue.Optional<object?> lowerPriority, Configlue.Optional<object?> higherPriority);
-        bool TryPlanSourceContribution(System.Collections.Generic.IReadOnlyList<Configlue.ConfiglueMergeSourceValue> sourceValuesLowToHigh, string targetSourceId, object? desiredEffective, out Configlue.Optional<object?> targetContribution, out string? reason);
+        bool TryPlanSourceContribution(System.Collections.Generic.IReadOnlyList<Configlue.ConfiglueMergeSourceValue> sourceValuesLowToHigh, Configlue.SourceId targetSourceId, object? desiredEffective, out Configlue.Optional<object?> targetContribution, out string? reason);
         bool TryRebase(object? editBase, object? desired, object? current, out object? rebased, out string? reason);
     }
     public interface IConfiglueModelPatch<in TModel> : Configlue.IConfigluePatch
@@ -615,10 +615,8 @@ namespace Configlue
         System.Threading.Tasks.ValueTask<Configlue.StateWriteReceipt> ApplyPatchesAsync(System.Collections.Generic.IEnumerable<Configlue.StateSourcePatch> patches, System.Threading.CancellationToken cancellationToken = default);
         System.Threading.Tasks.ValueTask<Configlue.Migrations.StateSourceMigrationResult> MigrateSourceAsync(Configlue.SourceId sourceId, Configlue.SourceId targetId, System.Threading.CancellationToken cancellationToken = default);
         System.Threading.Tasks.ValueTask<Configlue.Migrations.StateSourceMigrationResult> MigrateSourceAsync(Configlue.SourceKey<T> sourceKey, Configlue.SourceKey<T> targetKey, System.Threading.CancellationToken cancellationToken = default);
-        System.Threading.Tasks.ValueTask<Configlue.Migrations.StateSourceMigrationResult> MigrateSourceAsync(string sourceId, string targetId, System.Threading.CancellationToken cancellationToken = default);
         System.Threading.Tasks.ValueTask<Configlue.Migrations.StateStorageMigrationResult> MigrateSourcesToTargetsAsync(System.Collections.Generic.IEnumerable<Configlue.SourceId> sourceIds, System.Collections.Generic.IReadOnlyDictionary<Configlue.SourceId, System.Func<Configlue.IConfiglueFragment, Configlue.IConfiglueFragment>> targetProjections, System.Threading.CancellationToken cancellationToken = default, bool retireSources = false);
         System.Threading.Tasks.ValueTask<Configlue.Migrations.StateStorageMigrationResult> MigrateSourcesToTargetsAsync(System.Collections.Generic.IEnumerable<Configlue.SourceKey<T>> sourceKeys, System.Collections.Generic.IReadOnlyDictionary<Configlue.SourceKey<T>, System.Func<Configlue.IConfiglueFragment, Configlue.IConfiglueFragment>> targetProjections, System.Threading.CancellationToken cancellationToken = default, bool retireSources = false);
-        System.Threading.Tasks.ValueTask<Configlue.Migrations.StateStorageMigrationResult> MigrateSourcesToTargetsAsync(System.Collections.Generic.IEnumerable<string> sourceIds, System.Collections.Generic.IReadOnlyDictionary<string, System.Func<Configlue.IConfiglueFragment, Configlue.IConfiglueFragment>> targetProjections, System.Threading.CancellationToken cancellationToken = default, bool retireSources = false);
     }
     public interface IConfiglueStateRegistryNotificationDeferral<T> : System.IDisposable
     {
@@ -940,7 +938,7 @@ namespace Configlue.Migrations
 }
 namespace Configlue.Resources
 {
-    public struct ConfiglueResourceContext : System.IEquatable<Configlue.Resources.ConfiglueResourceContext>
+    public readonly struct ConfiglueResourceContext : System.IEquatable<Configlue.Resources.ConfiglueResourceContext>
     {
         public ConfiglueResourceContext(Configlue.IConfiglueSubject Subject, Configlue.ResourceKey ResourceKey, Configlue.RouteKey Route) { }
         public ConfiglueResourceContext(string? ModelId, Configlue.IConfiglueSubject Subject, Configlue.ResourceKey ResourceKey, Configlue.RouteKey Route) { }
@@ -949,6 +947,8 @@ namespace Configlue.Resources
         public Configlue.RouteKey Route { get; init; }
         public Configlue.IConfiglueSubject Subject { get; init; }
         public static Configlue.Resources.ConfiglueResourceContext Default { get; }
+        public bool Equals(Configlue.Resources.ConfiglueResourceContext other) { }
+        public override int GetHashCode() { }
     }
     public enum ConfiglueStandardLocation
     {
