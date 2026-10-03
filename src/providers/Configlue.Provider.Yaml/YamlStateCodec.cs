@@ -130,7 +130,7 @@ public sealed class YamlStateCodec
             yaml = $"# yaml-language-server: $schema={schemaReference}{Environment.NewLine}{yaml}";
         }
 
-        var bytes = Encoding.UTF8.GetBytes(yaml);
+        var bytes = (_textEncoding ?? Encoding.UTF8).GetBytes(yaml);
         bytes.CopyTo(destination.GetSpan(bytes.Length));
         destination.Advance(bytes.Length);
     }
