@@ -2,6 +2,7 @@ using System.Collections;
 using System.Collections.Concurrent;
 using System.ComponentModel.DataAnnotations;
 using Configlue.CompilerServices;
+using Configlue.Extensibility;
 using Configlue.Sources;
 using Microsoft.Extensions.Logging;
 
@@ -30,6 +31,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         ResolvedState? resolvedBaseline = null
     )
     {
+        using var preparedPlanOwners = new DisposableBag();
         using var operation = EnterOperation();
         cancellationToken.ThrowIfCancellationRequested();
         if (patchRequests.Length == 0)
@@ -153,6 +155,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                         modelSchema,
                         replacements,
                         writePlans,
+                        preparedPlanOwners,
                         cancellationToken
                     )
                     .ConfigureAwait(false);
@@ -208,6 +211,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                     .ConfigureAwait(false);
                 if (batchPlan is { } prepared)
                 {
+                    preparedPlanOwners.Add(prepared);
                     participantResourceId = prepared.ResourceId;
                     batchWriter = prepared.BatchWriter;
                     mutation = prepared.Mutation;

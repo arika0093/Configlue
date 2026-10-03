@@ -3,7 +3,11 @@ using Configlue.Resources;
 namespace Configlue.State;
 
 /// <summary>A prepared typed source mutation for a batch-capable physical resource.</summary>
-public sealed record StateWriteBatchPlan
+/// <remarks>
+/// Dispose the plan after its batch write completes or when the plan is abandoned. A plan may own
+/// pooled serialized content that remains valid until it is disposed.
+/// </remarks>
+public sealed record StateWriteBatchPlan : IDisposable
 {
     /// <summary>Gets or initializes the <see cref="ResourceId"/> value.</summary>
     public ResourceId ResourceId { get; }
@@ -13,6 +17,10 @@ public sealed record StateWriteBatchPlan
 
     /// <summary>Gets or initializes the <see cref="Mutation"/> value.</summary>
     public ResourceWriteMutation Mutation { get; }
+
+    private IDisposable? _contentOwner;
+
+    internal void SetContentOwner(IDisposable? owner) => _contentOwner = owner;
 
     /// <summary>Initializes a new instance of this record.</summary>
     /// <param name="ResourceId">The initial value for the <see cref="ResourceId"/> property.</param>
@@ -52,4 +60,8 @@ public sealed record StateWriteBatchPlan
         BatchWriter = this.BatchWriter;
         Mutation = this.Mutation;
     }
+
+    /// <summary>Releases resources held by this prepared plan.</summary>
+    public void Dispose() =>
+        System.Threading.Interlocked.Exchange(ref _contentOwner, null)?.Dispose();
 }

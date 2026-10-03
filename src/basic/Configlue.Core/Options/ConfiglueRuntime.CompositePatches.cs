@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Configlue.CompilerServices;
+using Configlue.Extensibility;
 using Configlue.Sources;
 
 namespace Configlue;
@@ -24,6 +25,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             IResourceBatchWriter? BatchWriter,
             ResourceWriteMutation? Mutation
         )> writePlans,
+        DisposableBag preparedPlanOwners,
         CancellationToken cancellationToken
     )
     {
@@ -199,6 +201,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                     .ConfigureAwait(false);
                 if (batchPlan is { } prepared)
                 {
+                    preparedPlanOwners.Add(prepared);
                     componentParticipantResourceId = prepared.ResourceId;
                     componentBatchWriter = prepared.BatchWriter;
                     componentMutation = prepared.Mutation;

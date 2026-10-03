@@ -67,9 +67,16 @@ public sealed class SerializedStateWriter<T>
         cancellationToken.ThrowIfCancellationRequested();
         var resourceRequest = await CreateResourceRequestAsync(request, cancellationToken)
             .ConfigureAwait(false);
-        return await _resource
-            .WriteAsync(context, resourceRequest, cancellationToken)
-            .ConfigureAwait(false);
+        try
+        {
+            return await _resource
+                .WriteAsync(context, resourceRequest, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        finally
+        {
+            resourceRequest.ContentOwner?.Dispose();
+        }
     }
 
     /// <summary>Prepares a resource batch mutation for one logical subject.</summary>
@@ -83,28 +90,41 @@ public sealed class SerializedStateWriter<T>
         cancellationToken.ThrowIfCancellationRequested();
         var resourceRequest = await CreateResourceRequestAsync(request, cancellationToken)
             .ConfigureAwait(false);
-        if (
-            _resource is IResourceBatchParticipant participant
-            && participant.BatchWriter is { } participantWriter
-        )
+        try
         {
-            return new StateWriteBatchPlan(
-                ResourceContextExtensions.GetResourceId(participant, context),
-                participantWriter,
-                participant.CreateMutation(context, resourceRequest)
-            );
-        }
+            if (
+                _resource is IResourceBatchParticipant participant
+                && participant.BatchWriter is { } participantWriter
+            )
+            {
+                var plan = new StateWriteBatchPlan(
+                    ResourceContextExtensions.GetResourceId(participant, context),
+                    participantWriter,
+                    participant.CreateMutation(context, resourceRequest)
+                );
+                plan.SetContentOwner(resourceRequest.ContentOwner);
+                return plan;
+            }
 
-        if (_resource is IResourceBatchWriter writer)
+            if (_resource is IResourceBatchWriter writer)
+            {
+                var plan = new StateWriteBatchPlan(
+                    ResourceContextExtensions.GetResourceId((IResourceIdentity)writer, context),
+                    writer,
+                    ResourceWriteMutation.Replace(resourceRequest, context)
+                );
+                plan.SetContentOwner(resourceRequest.ContentOwner);
+                return plan;
+            }
+
+            resourceRequest.ContentOwner?.Dispose();
+            return null;
+        }
+        catch
         {
-            return new StateWriteBatchPlan(
-                ResourceContextExtensions.GetResourceId((IResourceIdentity)writer, context),
-                writer,
-                ResourceWriteMutation.Replace(resourceRequest, context)
-            );
+            resourceRequest.ContentOwner?.Dispose();
+            throw;
         }
-
-        return null;
     }
 
     private async ValueTask<ResourceWriteRequest> CreateResourceRequestAsync(
@@ -112,26 +132,39 @@ public sealed class SerializedStateWriter<T>
         CancellationToken cancellationToken
     )
     {
-        var destination = new ArrayBufferWriter<byte>();
+        var destination = new PooledBufferWriter();
         var context = _context;
-        if (_typedCodec is { } typedCodec)
+        try
         {
-            typedCodec.Serialize(request.Value, destination, in context);
-        }
-        else
-        {
-            _dynamicCodec!.Serialize(typeof(T), request.Value, destination, in context);
-        }
+            if (_typedCodec is { } typedCodec)
+            {
+                typedCodec.Serialize(request.Value, destination, in context);
+            }
+            else
+            {
+                _dynamicCodec!.Serialize(typeof(T), request.Value, destination, in context);
+            }
 
-        var schema =
-            context.Schema
-            ?? (request.Value is IConfiglueFragment fragment ? fragment.Schema.ToMetadata() : null);
-        var content = await StateByteTransformerPipeline
-            .TransformWriteAsync(destination.WrittenMemory, _transformers, cancellationToken)
-            .ConfigureAwait(false);
-        return new ResourceWriteRequest(content, Condition: request.Condition, Schema: schema)
+            var schema =
+                context.Schema
+                ?? (
+                    request.Value is IConfiglueFragment fragment
+                        ? fragment.Schema.ToMetadata()
+                        : null
+                );
+            var content = await StateByteTransformerPipeline
+                .TransformWriteAsync(destination.WrittenMemory, _transformers, cancellationToken)
+                .ConfigureAwait(false);
+            return new ResourceWriteRequest(content, Condition: request.Condition, Schema: schema)
+            {
+                ContentIsOwned = true,
+                ContentOwner = destination,
+            };
+        }
+        catch
         {
-            ContentIsOwned = true,
-        };
+            destination.Dispose();
+            throw;
+        }
     }
 }

@@ -1227,13 +1227,14 @@ namespace Configlue.State
         public int Version { get; }
         public void Deconstruct(out string? ModelId, out int Version) { }
     }
-    public sealed class StateWriteBatchPlan : System.IEquatable<Configlue.State.StateWriteBatchPlan>
+    public sealed class StateWriteBatchPlan : System.IDisposable, System.IEquatable<Configlue.State.StateWriteBatchPlan>
     {
         public StateWriteBatchPlan(Configlue.Resources.ResourceId ResourceId, Configlue.Resources.IResourceBatchWriter BatchWriter, Configlue.Resources.ResourceWriteMutation Mutation) { }
         public Configlue.Resources.IResourceBatchWriter BatchWriter { get; }
         public Configlue.Resources.ResourceWriteMutation Mutation { get; }
         public Configlue.Resources.ResourceId ResourceId { get; }
         public void Deconstruct(out Configlue.Resources.ResourceId ResourceId, out Configlue.Resources.IResourceBatchWriter BatchWriter, out Configlue.Resources.ResourceWriteMutation Mutation) { }
+        public void Dispose() { }
     }
     public sealed class StateWriteRequest<T> : System.IEquatable<Configlue.State.StateWriteRequest<T>>
     {

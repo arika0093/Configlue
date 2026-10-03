@@ -36,6 +36,7 @@ public sealed class BatchWriteParticipantContractTests
 
         plan.ShouldNotBeNull();
         plan!.ResourceId.ShouldBe(resource.ResourceId);
+        using var ownedPlan = plan;
         await plan.BatchWriter.WriteBatchAsync([plan.Mutation]);
         resource.WriteCount.ShouldBe(1);
         (await projected.Reader.ReadAsync()).Value!.Database!.Value!.Host.Value.ShouldBe(
@@ -56,6 +57,32 @@ public sealed class BatchWriteParticipantContractTests
         Should.Throw<ArgumentException>(() => new StateWriteBatchPlan(default, writer, mutation));
         Should.Throw<ArgumentNullException>(() => new StateWriteBatchPlan(id, null!, mutation));
         Should.Throw<ArgumentNullException>(() => new StateWriteBatchPlan(id, writer, null!));
+    }
+
+    [Test]
+    public void StateWriteBatchPlan_ReleasesContentOwnerExactlyOnce()
+    {
+        var writer = new InMemoryResource();
+        var owner = new CountingOwner();
+        var bytes = new byte[] { 1, 2, 3 };
+        var request = new ResourceWriteRequest(bytes)
+        {
+            ContentIsOwned = true,
+            ContentOwner = owner,
+        };
+        var mutation = ResourceWriteMutation.Replace(request, ConfiglueResourceContext.Default);
+        var returned = mutation.Apply(ResourceReadResult.NotFound());
+
+        System.Runtime.InteropServices.MemoryMarshal.TryGetArray(returned, out var segment)
+            .ShouldBeTrue();
+        ReferenceEquals(segment.Array, bytes).ShouldBeTrue();
+
+        var plan = new StateWriteBatchPlan(writer.ResourceId, writer, mutation);
+        plan.SetContentOwner(owner);
+        plan.Dispose();
+        plan.Dispose();
+
+        owner.DisposeCount.ShouldBe(1);
     }
 
     [Test]
@@ -132,5 +159,12 @@ public sealed class BatchWriteParticipantContractTests
         }
 
         public void Complete() => _completion.TrySetResult();
+    }
+
+    private sealed class CountingOwner : IDisposable
+    {
+        public int DisposeCount { get; private set; }
+
+        public void Dispose() => DisposeCount++;
     }
 }

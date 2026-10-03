@@ -14,6 +14,8 @@ public readonly record struct ResourceWriteRequest
 
     internal bool ContentIsOwned { get; init; }
 
+    internal IDisposable? ContentOwner { get; init; }
+
     /// <summary>Creates a resource write request.</summary>
     public ResourceWriteRequest(
         ReadOnlyMemory<byte> Content,

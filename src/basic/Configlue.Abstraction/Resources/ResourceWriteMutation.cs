@@ -95,7 +95,10 @@ public sealed class ResourceWriteMutation
         ConfiglueResourceContext context
     )
     {
-        var content = request.ContentIsOwned ? request.Content : request.Content.ToArray();
+        var content =
+            request.ContentIsOwned || request.ContentOwner is not null
+                ? request.Content
+                : request.Content.ToArray();
         var mutation = new ResourceWriteMutation(
             request.Condition,
             request.Schema,
