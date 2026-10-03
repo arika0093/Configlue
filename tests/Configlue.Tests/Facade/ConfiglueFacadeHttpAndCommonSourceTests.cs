@@ -363,9 +363,7 @@ public sealed partial class ConfiglueFacadeSourceTests
                         new HttpSourceOptions
                         {
                             EndPoint = "https://settings.example.test/a/",
-                            Codec = StateCodecBinding.Typed(
-                                new JsonStateCodec<AppSettings.Fragment>()
-                            ),
+                            Codec = new JsonStateCodec<AppSettings.Fragment>(),
                         }
                     );
                     sources.FromHttpClientFactory(
@@ -373,9 +371,7 @@ public sealed partial class ConfiglueFacadeSourceTests
                         new HttpSourceOptions
                         {
                             EndPoint = "https://settings.example.test/b/",
-                            Codec = StateCodecBinding.Typed(
-                                new JsonStateCodec<AppSettings.Fragment>()
-                            ),
+                            Codec = new JsonStateCodec<AppSettings.Fragment>(),
                         }
                     );
                 })

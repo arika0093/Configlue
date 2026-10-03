@@ -30,7 +30,7 @@ public sealed class ContextualResourceContractTests
         await writer!.WriteBatchAsync([mutation!]);
         (await source.ReadAsync(first)).Value!.Label.Value.ShouldBe("batch");
         var fixedId = new ResourceId("fixed:override");
-        var fixedSource = SerializedStateSource.FromResource<AppSettings.Fragment>("fixed", resource, codec, resourceId: fixedId);
+        var fixedSource = SerializedStateSource.FromResource<AppSettings.Fragment>("fixed", resource, codec, fixedResourceId: fixedId);
         fixedSource.GetResourceId(first).ShouldBe(fixedId);
         fixedSource.GetResourceId(second).ShouldBe(fixedId);
         StateSourceProjection.Project(fixedSource, static fragment => fragment).GetResourceId(first).ShouldBe(fixedId);
