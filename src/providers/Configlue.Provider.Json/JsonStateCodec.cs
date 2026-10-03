@@ -343,9 +343,40 @@ public sealed class JsonStateCodec<T>
             && !JsonStateCodecOperations.IsMetadataEnvelope(root)
                 ? JsonStateCodecOperations.GetFilteredPayload(payload, _layout, _options)
                 : null;
-        var decoded = value is { } filtered
+        if (_converter is not null)
+        {
+            T? converted;
+            if (value is { } filtered)
+            {
+                var filteredReader = new Utf8JsonReader(
+                    filtered.Span,
+                    JsoncSyntaxTree.ReaderOptions
+                );
+                if (!filteredReader.Read())
+                {
+                    throw new JsonException("The JSON payload is empty.");
+                }
+
+                converted = _converter.Read(ref filteredReader, typeof(T), _options);
+            }
+            else
+            {
+                var payloadBytes = System.Text.Encoding.UTF8.GetBytes(payload.GetRawText());
+                var payloadReader = new Utf8JsonReader(payloadBytes, JsoncSyntaxTree.ReaderOptions);
+                if (!payloadReader.Read())
+                {
+                    throw new JsonException("The JSON payload is empty.");
+                }
+
+                converted = _converter.Read(ref payloadReader, typeof(T), _options);
+            }
+
+            return new StateCodecDecodeResult<T>(converted, schema);
+        }
+
+        var decoded = value is { } filteredPayload
             ? JsonSerializer.Deserialize(
-                filtered.Span,
+                filteredPayload.Span,
                 (JsonTypeInfo<T>)_pipelineOptions.GetTypeInfo(typeof(T))
             )
             : payload.Deserialize((JsonTypeInfo<T>)_pipelineOptions.GetTypeInfo(typeof(T)));

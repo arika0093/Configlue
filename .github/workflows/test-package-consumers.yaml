@@ -127,11 +127,32 @@ jobs:
           echo "CONFIGLUE_PACKAGE_FEED=$(realpath artifacts/packages)" >> "$GITHUB_ENV"
 
       - name: Publish NativeAOT consumer
-        run: >
-          dotnet publish tests/fixtures/consumers/native-aot/NativeAot.Consumer.csproj
-          --configuration Release --runtime linux-x64 --self-contained
-          -p:ConfigluePackageVersion="$CONFIGLUE_PACKAGE_VERSION"
-          -p:RestoreAdditionalProjectSources="$CONFIGLUE_PACKAGE_FEED"
+        shell: bash
+        run: |
+          set -euo pipefail
+          publish_log="$(mktemp)"
+          trap 'rm -f "$publish_log"' EXIT
+          # Keep ILC diagnostics as errors. MessagePack 3.1.10 still reports IL3050 and IL2060
+          # from MessagePack.MessagePackSecurity.ObjectFallbackEqualityComparer.GetHashCode(Object), even
+          # with source-generated POCO formatting and a closed-world leaf resolver. The exact
+          # two diagnostics below are the only upstream allowance; every other diagnostic fails.
+          dotnet publish tests/fixtures/consumers/native-aot/NativeAot.Consumer.csproj \
+            --configuration Release --runtime linux-x64 --self-contained \
+            -p:ConfigluePackageVersion="$CONFIGLUE_PACKAGE_VERSION" \
+            -p:RestoreAdditionalProjectSources="$CONFIGLUE_PACKAGE_FEED" \
+            -p:IlcTreatWarningsAsErrors=true 2>&1 | tee "$publish_log"
+
+          unexpected_diagnostics="$(
+            grep -E 'ILC : .* (warning|error) IL[0-9]{4}:' "$publish_log" \
+              | grep -Ev \
+                'ILC : AOT analysis warning IL3050: MessagePack\.MessagePackSecurity\.ObjectFallbackEqualityComparer\.GetHashCode\(Object\): Using member .*MethodInfo\.MakeGenericMethod|ILC : Trim analysis warning IL2060: MessagePack\.MessagePackSecurity\.ObjectFallbackEqualityComparer\.GetHashCode\(Object\): Call to .*MethodInfo\.MakeGenericMethod' \
+              || true
+          )"
+          if [[ -n "$unexpected_diagnostics" ]]; then
+            echo "Unexpected NativeAOT or trimming diagnostics:" >&2
+            echo "$unexpected_diagnostics" >&2
+            exit 1
+          fi
 
       - name: Run NativeAOT consumer
         run: |

@@ -7,20 +7,16 @@
     <AssemblyName>NativeAot.Consumer</AssemblyName>
     <RootNamespace>NativeAotConsumer</RootNamespace>
     <PublishAot>true</PublishAot>
+    <EnableAotAnalyzer>true</EnableAotAnalyzer>
+    <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+    <EnableSingleFileAnalyzer>true</EnableSingleFileAnalyzer>
+    <IlcTreatWarningsAsErrors>true</IlcTreatWarningsAsErrors>
     <InvariantGlobalization>true</InvariantGlobalization>
     <!--
       Report every trim warning individually instead of the per-assembly IL2104
-      summary so that consumers can fail on new trimming regressions.
-      The generated model still emits an unconditional descriptor registration
-      whose RuntimeHelpers.RunClassConstructor call is diagnosed as IL2059 in
-      Configlue.Core/Configlue.Abstraction. That known library warning is
-      accepted here; the consumer itself uses the trim-safe projection path and
-      does not depend on the reflected registration. MessagePack-CSharp also
-      reports trim/AOT warnings from its unused dynamic resolver fallback even
-      though this consumer supplies generated and handwritten formatters.
+      summary so new trimming regressions fail this supported-consumer gate.
     -->
     <TrimmerSingleWarn>false</TrimmerSingleWarn>
-    <NoWarn>$(NoWarn);IL2059;IL2055;IL2057;IL2060;IL2066;IL2067;IL2070;IL2071;IL2072;IL2075;IL2080;IL2090;IL2091;IL2111;IL3050</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
@@ -45,4 +41,11 @@
       Version="$(ConfigluePackageVersion)"
     />
   </ItemGroup>
+
+  <!-- This narrowly scoped ILC allowance is applied after C# analyzers have run. -->
+  <Target Name="AllowMessagePackFallbackAotDiagnostics" BeforeTargets="WriteIlcRspFileForCompilation">
+    <PropertyGroup>
+      <WarningsNotAsErrors>IL3050;IL2060</WarningsNotAsErrors>
+    </PropertyGroup>
+  </Target>
 </Project>
