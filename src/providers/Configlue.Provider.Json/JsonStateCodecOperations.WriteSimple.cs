@@ -1,3 +1,4 @@
+using System;
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -25,6 +26,28 @@ internal static partial class JsonStateCodecOperations
             (layout?.Layout ?? DocumentLayout.Simple) != DocumentLayout.Simple
             || value is null
             || !schema.IsValid
+        )
+        {
+            return false;
+        }
+
+        // System.Text.Json invokes IJsonOnSerializing/IJsonOnSerialized (mapped to
+        // JsonTypeInfo.OnSerializing/OnSerialized) via JsonSerializer. The fast paths
+        // below bypass JsonSerializer for the root object, so fall back when root
+        // callbacks are configured. The interface check covers cases where the
+        // caller could not supply type metadata (raw payload-writer path).
+        if (value is IJsonOnSerializing || value is IJsonOnSerialized)
+        {
+            return false;
+        }
+
+        var effectiveTypeInfo = typeInfo ?? TryGetTypeInfoForCallbacks(options, declaredType);
+        if (
+            effectiveTypeInfo is not null
+            && (
+                effectiveTypeInfo.OnSerializing is not null
+                || effectiveTypeInfo.OnSerialized is not null
+            )
         )
         {
             return false;
@@ -95,6 +118,21 @@ internal static partial class JsonStateCodecOperations
         if (context.SchemaReferenceBaseUri is not null)
         {
             WriteSchemaReference(writer, in context);
+        }
+    }
+
+    internal static JsonTypeInfo? TryGetTypeInfoForCallbacks(
+        JsonSerializerOptions options,
+        Type declaredType
+    )
+    {
+        try
+        {
+            return options.GetTypeInfo(declaredType);
+        }
+        catch (Exception ex) when (ex is NotSupportedException || ex is InvalidOperationException)
+        {
+            return null;
         }
     }
 }

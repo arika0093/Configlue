@@ -92,7 +92,7 @@ public sealed class JsonStateCodec
         }
 
         var converter = _options.GetConverter(type);
-        var typeInfo = converter is IJsonObjectPayloadWriter ? null : _options.GetTypeInfo(type);
+        var typeInfo = JsonStateCodecOperations.TryGetTypeInfoForCallbacks(_options, type);
         using (var directWriter = new Utf8JsonWriter(destination))
         {
             if (
@@ -702,9 +702,7 @@ public sealed class JsonStateCodec<T>
         var converter =
             (JsonConverter?)_converter ?? _typeInfo?.Converter ?? _options.GetConverter(typeof(T));
         var typeInfo =
-            converter is IJsonObjectPayloadWriter
-                ? null
-                : _typeInfo ?? _options.GetTypeInfo(typeof(T));
+            _typeInfo ?? JsonStateCodecOperations.TryGetTypeInfoForCallbacks(_options, typeof(T));
         using (var directWriter = new Utf8JsonWriter(destination))
         {
             if (
