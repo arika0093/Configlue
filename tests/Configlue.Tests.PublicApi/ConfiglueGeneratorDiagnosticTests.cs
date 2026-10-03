@@ -273,7 +273,8 @@ public sealed partial class ConfiglueGeneratorDiagnosticTests
             References,
             new CSharpCompilationOptions(
                 OutputKind.DynamicallyLinkedLibrary,
-                nullableContextOptions: NullableContextOptions.Enable
+                nullableContextOptions: NullableContextOptions.Enable,
+                allowUnsafe: true
             )
         );
     }

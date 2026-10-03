@@ -678,10 +678,7 @@ internal static class XmlStateCodecOperations
                 {
                     methodName = "Enqueue";
                 }
-                else if (
-                    definition == typeof(Stack<>)
-                    || definition == typeof(ConcurrentStack<>)
-                )
+                else if (definition == typeof(Stack<>) || definition == typeof(ConcurrentStack<>))
                 {
                     methodName = "Push";
                 }

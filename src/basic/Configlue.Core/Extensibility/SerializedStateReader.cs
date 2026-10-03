@@ -24,7 +24,8 @@ public sealed class SerializedStateReader<T> : ISourceReader<T>, ITryResourceIde
         StateSchemaDispatcher<T>? schemaDispatcher = null,
         IEnumerable<IStateByteTransformer>? transformers = null
     )
-        : this(resource, StateCodecBinding.Typed(codec), context, schemaDispatcher, transformers) { }
+        : this(resource, StateCodecBinding.Typed(codec), context, schemaDispatcher, transformers)
+    { }
 
     /// <summary>Creates a serialized state reader from an explicit typed or dynamic codec binding.</summary>
     public SerializedStateReader(

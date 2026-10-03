@@ -199,6 +199,44 @@ public sealed partial class ConfiglueGeneratorDiagnosticTests
     }
 
     [Test]
+    [Arguments("dynamic Value { get; set; }")]
+    [Arguments("int* Value { get; set; }")]
+    [Arguments("delegate*<void> Value { get; set; }")]
+    [Arguments("System.Span<int> Value { get; set; }")]
+    public void UnsupportedMemberTypeShapesProduceConfiglueDiagnostics(string member)
+    {
+        var result = RunGenerator(
+            $$"""
+            using Configlue;
+            [ConfiglueModel("unsupported-member")]
+            public unsafe partial class Settings { public {{member}} }
+            """
+        );
+
+        result.Diagnostics.ShouldContain(d => d.Id == "CFG016");
+        result.GeneratedTrees.ShouldBeEmpty();
+    }
+
+    [Test]
+    public void TupleNullableArrayAndGenericCollectionMembersCompile()
+    {
+        AssertGeneratedCompilation(
+            """
+            using Configlue;
+            using System.Collections.Generic;
+            [ConfiglueModel("supported-member-shapes")]
+            public partial class Settings
+            {
+                public (int Count, string? Label) Pair { get; set; }
+                public string? OptionalName { get; set; }
+                public int[] Values { get; set; } = [];
+                public IReadOnlyList<int> Items { get; set; } = [];
+            }
+            """
+        );
+    }
+
+    [Test]
     public void KeywordChildMemberCompiles()
     {
         AssertGeneratedCompilation(

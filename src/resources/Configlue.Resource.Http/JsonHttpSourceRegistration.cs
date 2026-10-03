@@ -62,7 +62,9 @@ public sealed class JsonHttpSourceOptions
             EndPoint = EndPoint,
             Client = Client,
             ClientFactory = ClientFactory,
-            Codec = StateCodecBinding.Dynamic(new JsonStateCodec(SerializerOptions, DocumentLayout)),
+            Codec = StateCodecBinding.Dynamic(
+                new JsonStateCodec(SerializerOptions, DocumentLayout)
+            ),
             Priority = Priority,
             FallbackCondition = FallbackCondition,
             Writable = Writable,

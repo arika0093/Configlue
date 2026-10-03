@@ -17,7 +17,7 @@ public static class ResourceContextExtensions
         {
             throw new ArgumentNullException(nameof(recovery));
         }
-                context = ConfiglueResourceContext.Normalize(context);
+        context = ConfiglueResourceContext.Normalize(context);
         return recovery is IContextualResourceBackupRecovery contextualRecovery
             ? contextualRecovery.TryRecoverLatestBackupAsync(
                 context,

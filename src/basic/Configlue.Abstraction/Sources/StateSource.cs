@@ -290,7 +290,7 @@ public sealed class StateSource<T>
     /// <summary>Resolves the physical resource identity for one resource operation context.</summary>
     public ResourceId? GetResourceId(ConfiglueResourceContext context)
     {
-context = ConfiglueResourceContext.Normalize(context);
+        context = ConfiglueResourceContext.Normalize(context);
         if (_fixedResourceId is { } configured)
         {
             return configured;
