@@ -20,7 +20,6 @@ public sealed partial class ConfiglueGenerator
         bool hasJsonFragmentRegistry,
         bool hasMessagePackFragmentRegistry,
         bool bclSetSupportsReadOnlySet,
-        bool emitModuleInitializer,
         CancellationToken cancellationToken
     )
     {
@@ -188,10 +187,6 @@ public sealed partial class ConfiglueGenerator
         code.AppendLine("}");
         AppendTypedPatchExtensions(code, modelType, name, model.IsPublic);
         AppendDetailsExtensions(code, modelType, name, model.IsPublic);
-        if (emitModuleInitializer)
-        {
-            AppendModuleInitializer(code, model, cancellationToken);
-        }
         if (hasNamespace)
         {
             code.IndentOffset--;
@@ -199,32 +194,6 @@ public sealed partial class ConfiglueGenerator
         }
 
         return code.ToString();
-    }
-
-    private static void AppendModuleInitializer(
-        IndentedStringBuilder code,
-        ModelInfo model,
-        CancellationToken cancellationToken
-    )
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        var initializerName =
-            "__ConfiglueModelInitializer_"
-            + GetStableTypeHash(model.FullyQualifiedName, cancellationToken);
-        code.AppendLineAt(1, "#if NET5_0_OR_GREATER");
-        code.AppendLineAt(1, "internal static class " + initializerName);
-        code.AppendLineAt(1, "{");
-        code.IndentOffset++;
-        code.AppendLineAt(1, "[global::System.Runtime.CompilerServices.ModuleInitializer]");
-        code.AppendLineAt(
-            1,
-            "internal static void Initialize() => _ = "
-                + model.FullyQualifiedName
-                + ".ConfiglueSchema;"
-        );
-        code.IndentOffset--;
-        code.AppendLineAt(1, "}");
-        code.AppendLineAt(1, "#endif");
     }
 
     private static void AppendStructuralModels(

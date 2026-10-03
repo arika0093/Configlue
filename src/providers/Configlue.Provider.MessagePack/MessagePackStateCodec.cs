@@ -64,58 +64,25 @@ public sealed class MessagePackStateCodec
         MessagePackStateCodecOperations.IsRecoverableReadException(exception);
 }
 
-/// <summary>A typed MessagePack state codec for generated Configlue fragments.</summary>
-/// <remarks>
-/// The generated fragment formatter must be registered before the codec is created. This codec invokes that
-/// formatter directly; it does not fall back to runtime type resolution. Use the non-generic
-/// <see cref="MessagePackStateCodec"/> for ordinary runtime-resolved model types.
-/// </remarks>
-/// <typeparam name="T">The generated fragment type.</typeparam>
+/// <summary>A typed MessagePack state codec with generated-fragment support.</summary>
+/// <typeparam name="T">The state or generated fragment type.</typeparam>
 public sealed class MessagePackStateCodec<T>
     : IStateCodec<T>,
         IStateSchemaMetadataReader,
         IStateCodecRecoveryPolicy
 {
     private readonly MessagePackSerializerOptions _options;
-    private readonly IMessagePackFormatter<T> _formatter;
+    private readonly IMessagePackFormatter<T>? _formatter;
 
     /// <summary>Creates a codec with the supplied MessagePack options.</summary>
     public MessagePackStateCodec(MessagePackSerializerOptions? options = null)
     {
         _options = options ?? MessagePackStateCodecDefaults.Options;
-        _formatter =
-            ConfiglueMessagePackFragmentRegistry.GetOrNull<T>()
-            ?? throw new InvalidOperationException(
-                $"The typed MessagePack state codec requires a registered generated Configlue fragment formatter for '{typeof(T)}'. Use the non-generic MessagePackStateCodec for runtime-resolved types."
-            );
+        _formatter = ConfiglueMessagePackFragmentRegistry.GetOrNull<T>();
     }
 
-    private MessagePackStateCodec(
-        MessagePackSerializerOptions options,
-        IMessagePackFormatter<T> formatter
-    )
-    {
-        _options = options;
-        _formatter = formatter;
-    }
-
-    internal static MessagePackStateCodec<T> CreateGeneratedFragment(
-        MessagePackSerializerOptions options
-    )
-    {
-        ArgumentNullException.ThrowIfNull(options);
-        if (!ConfiglueMessagePackFragmentRegistry.TryGetFormatter<T>(out var formatter))
-        {
-            throw new InvalidOperationException(
-                $"A generated Configlue fragment formatter for '{typeof(T)}' must be registered before creating its typed MessagePack codec."
-            );
-        }
-
-        return new MessagePackStateCodec<T>(options, formatter);
-    }
-
-    /// <summary>Gets the registered generated fragment formatter.</summary>
-    internal IMessagePackFormatter<T> Formatter => _formatter;
+    /// <summary>Gets the generated fragment formatter, if this type is a registered fragment.</summary>
+    internal IMessagePackFormatter<T>? Formatter => _formatter;
 
     /// <inheritdoc />
     public T? Deserialize(in ReadOnlySequence<byte> source, in StateCodecContext context) =>

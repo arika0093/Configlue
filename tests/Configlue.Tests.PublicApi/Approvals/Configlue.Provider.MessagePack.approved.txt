@@ -39,7 +39,6 @@ namespace Configlue.Provider.MessagePack
     }
     public static class MessagePackFileSourceRegistration
     {
-        public static Configlue.Extensibility.ConfiglueSourceRegistration FromGeneratedMessagePackFile(this Configlue.ConfiglueSourceSetBuilder sources, Configlue.Provider.MessagePack.MessagePackFileSourceOptions options, MessagePack.MessagePackSerializerOptions serializerOptions) { }
         public static Configlue.Extensibility.ConfiglueSourceRegistration FromMessagePackFile(this Configlue.ConfiglueSourceSetBuilder sources, Configlue.Provider.MessagePack.MessagePackFileSourceOptions options) { }
         public static void UseMessagePackFile<TModel>(this Configlue.ConfiglueModelBuilder<TModel> model, Configlue.Provider.MessagePack.MessagePackFileSourceOptions options)
             where TModel : Configlue.CompilerServices.IConfiglueFacadeModel<TModel> { }

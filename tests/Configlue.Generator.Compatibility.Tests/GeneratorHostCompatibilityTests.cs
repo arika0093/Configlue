@@ -32,7 +32,7 @@ public sealed class GeneratorHostCompatibilityTests
                 public StringBuilder? Shared { get; set; }
             }
             """;
-        var options = CreateParseOptions(LanguageVersion.CSharp9);
+        var options = new CSharpParseOptions(LanguageVersion.CSharp9);
         var compilation = CreateCompilation(CSharpSyntaxTree.ParseText(source, options));
         IIncrementalGenerator generator = standalone
             ? new SparseFragments.Generator.SparseFragmentsGenerator()
@@ -77,7 +77,7 @@ public sealed class GeneratorHostCompatibilityTests
                 public Settings? Next { get; set; }
             }
             """;
-        var options = CreateParseOptions(LanguageVersion.Latest);
+        var options = new CSharpParseOptions(LanguageVersion.Latest);
         var compilation = CreateCompilation(CSharpSyntaxTree.ParseText(source, options));
         IIncrementalGenerator generator = standalone
             ? new SparseFragments.Generator.SparseFragmentsGenerator()
@@ -117,7 +117,7 @@ public sealed class GeneratorHostCompatibilityTests
                 }
             }
             """;
-        var options = CreateParseOptions(LanguageVersion.CSharp9);
+        var options = new CSharpParseOptions(LanguageVersion.CSharp9);
         var tree = CSharpSyntaxTree.ParseText(source, options);
         var driver = CSharpGeneratorDriver.Create(
             new[] { new SparseFragments.Generator.SparseFragmentsGenerator().AsSourceGenerator() },
@@ -148,7 +148,7 @@ public sealed class GeneratorHostCompatibilityTests
         var optOut = replace ? "[" + merge + "(MergeMode.Replace)]" : string.Empty;
         var source =
             $"using {runtime}; [{attribute}] public partial class Settings {{ {optOut} public Child Child {{ get; set; }} = new(); }} public class Child {{ public int Count {{ get; init; }} = 7; }}";
-        var options = CreateParseOptions(LanguageVersion.Latest);
+        var options = new CSharpParseOptions(LanguageVersion.Latest);
         var compilation = CreateCompilation(CSharpSyntaxTree.ParseText(source, options));
         IIncrementalGenerator generator = standalone
             ? new SparseFragments.Generator.SparseFragmentsGenerator()
@@ -189,7 +189,7 @@ public sealed class GeneratorHostCompatibilityTests
             ? "SparseFragmentModel"
             : "ConfiglueModel(\"unsupported-constructor\")";
         var source = $"using {runtime}; [{attribute}] public partial class Settings {{ {body} }}";
-        var options = CreateParseOptions(LanguageVersion.Latest);
+        var options = new CSharpParseOptions(LanguageVersion.Latest);
         var compilation = CreateCompilation(CSharpSyntaxTree.ParseText(source, options));
         IIncrementalGenerator generator = standalone
             ? new SparseFragments.Generator.SparseFragmentsGenerator()
@@ -216,7 +216,7 @@ public sealed class GeneratorHostCompatibilityTests
             [{{attribute}}]
             public partial class Settings { public required int Value; }
             """;
-        var options = CreateParseOptions(LanguageVersion.Preview);
+        var options = new CSharpParseOptions(LanguageVersion.Preview);
         var compilation = CreateCompilation(CSharpSyntaxTree.ParseText(source, options));
         IIncrementalGenerator generator = standalone
             ? new SparseFragments.Generator.SparseFragmentsGenerator()
@@ -327,7 +327,7 @@ public sealed class GeneratorHostCompatibilityTests
             }
             """;
         // Roslyn 4.3.1 exposes C# 11 required members through its preview parser.
-        var options = CreateParseOptions(
+        var options = new CSharpParseOptions(
             required ? LanguageVersion.Preview : LanguageVersion.Latest
         );
         var compilation = CreateCompilation(CSharpSyntaxTree.ParseText(source, options));
@@ -435,7 +435,7 @@ public sealed class GeneratorHostCompatibilityTests
                     }
                 }
                 """;
-            var options = CreateParseOptions(LanguageVersion.Latest);
+            var options = new CSharpParseOptions(LanguageVersion.Latest);
             var compilation = CreateCompilation(CSharpSyntaxTree.ParseText(source, options));
             IIncrementalGenerator generator = standalone
                 ? new SparseFragments.Generator.SparseFragmentsGenerator()
@@ -497,7 +497,7 @@ public sealed class GeneratorHostCompatibilityTests
                     public {{type}} Value { get; set; }
                 }
                 """;
-            var options = CreateParseOptions(LanguageVersion.CSharp9);
+            var options = new CSharpParseOptions(LanguageVersion.CSharp9);
             var compilation = CreateCompilation(CSharpSyntaxTree.ParseText(source, options));
             IIncrementalGenerator generator = standalone
                 ? new SparseFragments.Generator.SparseFragmentsGenerator()
@@ -531,7 +531,7 @@ public sealed class GeneratorHostCompatibilityTests
             }
             public class Nested { public int Value { get; set; } }
             """;
-        var parseOptions = CreateParseOptions(LanguageVersion.CSharp9);
+        var parseOptions = new CSharpParseOptions(LanguageVersion.CSharp9);
         var tree = CSharpSyntaxTree.ParseText(source, parseOptions);
         var compilation = CreateCompilation(tree);
         GeneratorDriver driver = CSharpGeneratorDriver.Create(
@@ -639,7 +639,7 @@ public sealed class GeneratorHostCompatibilityTests
             }
             {{(namespaced ? "}" : "")}}
             """;
-        var parseOptions = CreateParseOptions(LanguageVersion.CSharp9);
+        var parseOptions = new CSharpParseOptions(LanguageVersion.CSharp9);
         var modelTree = CSharpSyntaxTree.ParseText(source, parseOptions);
         GeneratorDriver driver = CSharpGeneratorDriver.Create(
             new[] { new ConfiglueGenerator().AsSourceGenerator() },
@@ -677,7 +677,7 @@ public sealed class GeneratorHostCompatibilityTests
     [Test]
     public void Generator_EmitsMessagePackSupportOnRoslyn431Host()
     {
-        var parseOptions = CreateParseOptions(LanguageVersion.CSharp9);
+        var parseOptions = new CSharpParseOptions(LanguageVersion.CSharp9);
         var modelTree = CSharpSyntaxTree.ParseText(ModelSource, parseOptions);
         GeneratorDriver driver = CSharpGeneratorDriver.Create(
             new[] { new ConfiglueGenerator().AsSourceGenerator() },
@@ -699,7 +699,7 @@ public sealed class GeneratorHostCompatibilityTests
     [Test]
     public void Generator_RunsOnRoslyn431Host_AndEmitsCSharp9Source()
     {
-        var parseOptions = CreateParseOptions(LanguageVersion.CSharp9);
+        var parseOptions = new CSharpParseOptions(LanguageVersion.CSharp9);
         var modelTree = CSharpSyntaxTree.ParseText(ModelSource, parseOptions);
         var compilation = CreateCompilation(modelTree);
         GeneratorDriver driver = CSharpGeneratorDriver.Create(
@@ -719,7 +719,7 @@ public sealed class GeneratorHostCompatibilityTests
         (errors).ShouldBeEmpty(BuildDiagnosticMessage(errors));
 
         var generatedSource = GetGeneratedSource(outputCompilation, modelTree);
-        (generatedSource).ShouldContain("ModuleInitializer");
+        (generatedSource).ShouldNotContain("ModuleInitializer");
         (generatedSource).ShouldContain("get; init;");
         (generatedSource).ShouldNotContain("class IsExternalInit");
         (generatedSource).ShouldNotContain("Assembly.Load");
@@ -757,7 +757,7 @@ public sealed class GeneratorHostCompatibilityTests
     {
         var tree = CSharpSyntaxTree.ParseText(
             ConfiglueGenerator.IsExternalInitSource,
-            CreateParseOptions(LanguageVersion.CSharp9)
+            new CSharpParseOptions(LanguageVersion.CSharp9)
         );
 
         (tree.GetDiagnostics()).ShouldBeEmpty();
@@ -766,9 +766,6 @@ public sealed class GeneratorHostCompatibilityTests
         );
         (ConfiglueGenerator.IsExternalInitSource).ShouldContain("class IsExternalInit");
     }
-
-    private static CSharpParseOptions CreateParseOptions(LanguageVersion languageVersion) =>
-        new CSharpParseOptions(languageVersion).WithPreprocessorSymbols("NET5_0_OR_GREATER");
 
     private static CSharpCompilation CreateCompilation(SyntaxTree syntaxTree)
     {

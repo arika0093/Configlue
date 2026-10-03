@@ -27,14 +27,14 @@ internal static class MessagePackStateCodecOperations
         T? value,
         StateSchemaMetadata? schema,
         MessagePackSerializerOptions options,
-        IMessagePackFormatter<T> formatter
+        IMessagePackFormatter<T>? formatter
     )
     {
         writer.WriteMapHeader(2);
         writer.Write(MetadataProperty);
         WriteSchema(ref writer, schema);
         writer.Write(PayloadProperty);
-        formatter.Serialize(ref writer, value!, options);
+        WritePayload(ref writer, value, options, formatter);
     }
 
     internal static void WriteEnvelope(
@@ -71,7 +71,7 @@ internal static class MessagePackStateCodecOperations
     internal static T? ReadValue<T>(
         in ReadOnlySequence<byte> source,
         MessagePackSerializerOptions options,
-        IMessagePackFormatter<T> formatter
+        IMessagePackFormatter<T>? formatter
     )
     {
         var reader = new MessagePackReader(source);
@@ -82,7 +82,7 @@ internal static class MessagePackStateCodecOperations
 
         if (!TryReadEnvelopeHeader(reader.CreatePeekReader()))
         {
-            return ReadWithFormatter(ref reader, options, formatter);
+            return ReadPayload(ref reader, options, formatter);
         }
 
         var count = reader.ReadMapHeader();
@@ -93,7 +93,7 @@ internal static class MessagePackStateCodecOperations
             var key = reader.ReadString();
             if (string.Equals(key, PayloadProperty, StringComparison.Ordinal))
             {
-                value = ReadWithFormatter(ref reader, options, formatter);
+                value = ReadPayload(ref reader, options, formatter);
                 found = true;
             }
             else
@@ -155,26 +155,6 @@ internal static class MessagePackStateCodecOperations
         }
 
         return value;
-    }
-
-    private static T? ReadWithFormatter<T>(
-        ref MessagePackReader reader,
-        MessagePackSerializerOptions options,
-        IMessagePackFormatter<T> formatter
-    )
-    {
-        try
-        {
-            return formatter.Deserialize(ref reader, options);
-        }
-        catch (Exception exception)
-            when (exception is EndOfStreamException or InsufficientExecutionStackException)
-        {
-            throw new MessagePackSerializationException(
-                "The MessagePack payload is truncated or exceeds the configured depth limit.",
-                exception
-            );
-        }
     }
 
     internal static StateSchemaMetadata? ReadSchemaMetadata(in ReadOnlySequence<byte> source)

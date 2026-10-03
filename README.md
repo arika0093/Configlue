@@ -257,29 +257,6 @@ var serializerOptions = new MessagePackSerializerOptions(
 
 Pass `serializerOptions` through `MessagePackFileSourceOptions.SerializerOptions` or to `MessagePackStateCodec<T>`. Add an AOT-safe formatter to the fallback for each custom or collection member type your models use; do not rely on `StandardResolver` to provide missing formatters.
 
-MessagePack-CSharp 3.1.10 also contains a reflection-based fallback for collision-resistant hashing of `object` collection keys. NativeAOT reports this dependency even when the configured resolver never handles an object-key collection. The AOT consumer in this repository uses an exact linker substitution to remove that fallback, so an accidental object-key path fails closed instead of relying on runtime generic construction. This does not suppress analyzer warnings; all other AOT and trimming warnings remain errors. Apply the same substitution in an AOT consumer only if its supported data contract excludes object-key collections:
-
-```xml
-<!-- ILLink.Substitutions.xml -->
-<linker>
-  <assembly fullname="MessagePack">
-    <type fullname="MessagePack.MessagePackSecurity/ObjectFallbackEqualityComparer">
-      <method signature="System.Int32 GetHashCode(System.Object)" body="remove" />
-    </type>
-  </assembly>
-</linker>
-```
-
-Pass it to the NativeAOT compiler from the consumer project:
-
-```xml
-<ItemGroup Condition="'$(PublishAot)' == 'true'">
-  <IlcArg Include="--substitution:$(MSBuildProjectDirectory)/ILLink.Substitutions.xml" />
-</ItemGroup>
-```
-
-This substitution targets a MessagePack implementation detail. Recheck the target and its behavior whenever updating MessagePack-CSharp; a package change that removes or renames the method should fail the AOT build until reviewed.
-
 ## Quick Start
 
 The following single-file program uses a normal per-user configuration file without exposing file handling to the application code.

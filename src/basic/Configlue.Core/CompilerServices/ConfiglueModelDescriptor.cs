@@ -10,13 +10,12 @@ public sealed class ConfiglueModelDescriptor<TModel>
 
     static ConfiglueModelDescriptor()
     {
-#if NET5_0_OR_GREATER
-        // Generated module initializers register models before runtime access without reflection.
-#else
+        // The generated model registers its descriptor from its own type initializer.
+        // Running the model's class constructor here keeps registration reflection-free
+        // and AOT-friendly without relying on a module initializer (unsupported by Unity).
         System.Runtime.CompilerServices.RuntimeHelpers.RunClassConstructor(
             typeof(TModel).TypeHandle
         );
-#endif
     }
 
     internal ConfiglueModelDescriptor(

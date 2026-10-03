@@ -352,8 +352,7 @@ public sealed partial class ConfiglueGenerator
             ImmutableArray<PreviousModelInfo> previousModels,
             ImmutableArray<PocoCloneModel> pocoCloneModels,
             ImmutableArray<StructuralModel> structuralModels,
-            ImmutableArray<GeneratorDiagnosticInfo> diagnostics,
-            bool supportsModuleInitializer = false
+            ImmutableArray<GeneratorDiagnosticInfo> diagnostics
         )
         {
             HintName = hintName;
@@ -363,7 +362,6 @@ public sealed partial class ConfiglueGenerator
             PocoCloneModels = pocoCloneModels;
             StructuralModels = structuralModels;
             Diagnostics = diagnostics;
-            EmitModuleInitializer = supportsModuleInitializer;
         }
 
         public string? HintName { get; }
@@ -373,7 +371,6 @@ public sealed partial class ConfiglueGenerator
         public ImmutableArray<PocoCloneModel> PocoCloneModels { get; }
         public ImmutableArray<StructuralModel> StructuralModels { get; }
         public ImmutableArray<GeneratorDiagnosticInfo> Diagnostics { get; }
-        public bool EmitModuleInitializer { get; }
 
         public bool Equals(GenerationAnalysis? other)
         {
@@ -387,7 +384,6 @@ public sealed partial class ConfiglueGenerator
                     && SequenceEqual(PocoCloneModels, other.PocoCloneModels)
                     && SequenceEqual(StructuralModels, other.StructuralModels)
                     && SequenceEqual(Diagnostics, other.Diagnostics)
-                    && EmitModuleInitializer == other.EmitModuleInitializer
                 );
         }
 
@@ -420,7 +416,6 @@ public sealed partial class ConfiglueGenerator
             {
                 hash = unchecked(hash * 31 + diagnostic.GetHashCode());
             }
-            hash = unchecked(hash * 31 + EmitModuleInitializer.GetHashCode());
 
             return hash;
         }
