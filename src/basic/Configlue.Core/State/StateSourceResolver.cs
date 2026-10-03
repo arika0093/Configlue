@@ -1,7 +1,6 @@
 using System.Buffers;
 using System.Collections.Concurrent;
 using System.Diagnostics;
-using System.Runtime.InteropServices;
 using Configlue.Resources;
 using Configlue.Sources;
 using Microsoft.Extensions.Logging;
@@ -124,7 +123,8 @@ public sealed class StateSourceResolver<T> : ISourceReader<T>
         var revisionCount = 0;
         var watchTargets = new StateSourceWatchTarget<T>[_sourceSet.Count];
         var watchTargetCount = 0;
-        List<KeyValuePair<SourceId, StateRevisionVector>>? nestedRevisions = null;
+        KeyValuePair<SourceId, StateRevisionVector>[]? nestedRevisions = null;
+        var nestedRevisionCount = 0;
         try
         {
             for (var index = 0; index < _sourceSet.Count; index++)
@@ -150,10 +150,10 @@ public sealed class StateSourceResolver<T> : ISourceReader<T>
                 revisions[revisionCount++] = new StateRevision(source.Id, result.Revision);
                 if (result.Revisions is { } nestedVector)
                 {
-                    nestedRevisions ??= [];
-                    nestedRevisions.Add(
-                        new KeyValuePair<SourceId, StateRevisionVector>(source.Id, nestedVector)
-                    );
+                    nestedRevisions ??= ArrayPool<
+                        KeyValuePair<SourceId, StateRevisionVector>
+                    >.Shared.Rent(_sourceSet.Count);
+                    nestedRevisions[nestedRevisionCount++] = new(source.Id, nestedVector);
                 }
 
                 if (result.Status == StateReadStatus.Success)
@@ -161,7 +161,8 @@ public sealed class StateSourceResolver<T> : ISourceReader<T>
                     var revisionVector = CreateRevisionVector(
                         revisions,
                         revisionCount,
-                        nestedRevisions
+                        nestedRevisions,
+                        nestedRevisionCount
                     );
                     SetResolution(
                         subject,
@@ -191,7 +192,8 @@ public sealed class StateSourceResolver<T> : ISourceReader<T>
                     var revisionVector = CreateRevisionVector(
                         revisions,
                         revisionCount,
-                        nestedRevisions
+                        nestedRevisions,
+                        nestedRevisionCount
                     );
                     SetResolution(
                         subject,
@@ -208,7 +210,12 @@ public sealed class StateSourceResolver<T> : ISourceReader<T>
                 lastResult = result;
             }
 
-            var finalVector = CreateRevisionVector(revisions, revisionCount, nestedRevisions);
+            var finalVector = CreateRevisionVector(
+                revisions,
+                revisionCount,
+                nestedRevisions,
+                nestedRevisionCount
+            );
             SetResolution(
                 subject,
                 context,
@@ -224,6 +231,13 @@ public sealed class StateSourceResolver<T> : ISourceReader<T>
         {
             Array.Clear(revisions, 0, revisions.Length);
             ArrayPool<StateRevision>.Shared.Return(revisions);
+            if (nestedRevisions is not null)
+            {
+                ArrayPool<KeyValuePair<SourceId, StateRevisionVector>>.Shared.Return(
+                    nestedRevisions,
+                    clearArray: true
+                );
+            }
         }
     }
 
@@ -246,35 +260,7 @@ public sealed class StateSourceResolver<T> : ISourceReader<T>
             result.Status
         );
         var revision = new StateRevision(source.Id, result.Revision);
-        StateRevisionVector revisionVector;
-        if (result.Revisions is { } nestedVector)
-        {
-            var nestedEntry = new KeyValuePair<SourceId, StateRevisionVector>(
-                source.Id,
-                nestedVector
-            );
-#if NETSTANDARD
-            revisionVector = StateRevisionVector.FromSpan(
-                new[] { revision },
-                new[] { nestedEntry }
-            );
-#else
-            revisionVector = StateRevisionVector.FromSpan(
-                MemoryMarshal.CreateReadOnlySpan(ref revision, 1),
-                MemoryMarshal.CreateReadOnlySpan(ref nestedEntry, 1)
-            );
-#endif
-        }
-        else
-        {
-#if NETSTANDARD
-            revisionVector = StateRevisionVector.FromSpan(new[] { revision });
-#else
-            revisionVector = StateRevisionVector.FromSpan(
-                MemoryMarshal.CreateReadOnlySpan(ref revision, 1)
-            );
-#endif
-        }
+        var revisionVector = StateRevisionVector.FromSingle(revision, result.Revisions);
 
         SetResolution(
             subject,
@@ -535,17 +521,14 @@ public sealed class StateSourceResolver<T> : ISourceReader<T>
     private static StateRevisionVector CreateRevisionVector(
         StateRevision[] revisions,
         int revisionCount,
-        List<KeyValuePair<SourceId, StateRevisionVector>>? nestedRevisions
+        KeyValuePair<SourceId, StateRevisionVector>[]? nestedRevisions,
+        int nestedRevisionCount
     ) =>
         nestedRevisions is null
             ? StateRevisionVector.FromSpan(revisions.AsSpan(0, revisionCount))
             : StateRevisionVector.FromSpan(
                 revisions.AsSpan(0, revisionCount),
-#if NETSTANDARD
-                nestedRevisions.ToArray()
-#else
-                System.Runtime.InteropServices.CollectionsMarshal.AsSpan(nestedRevisions)
-#endif
+                nestedRevisions.AsSpan(0, nestedRevisionCount)
             );
 
     private sealed record Resolution
