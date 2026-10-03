@@ -57,17 +57,17 @@ public sealed class SecureStorageResource : IResourceReader, IResourceWriter
             return ResourceReadResult.NotFound();
         var revision = Fingerprint(raw);
         if (raw.Length > EncodedLengthLimit())
-            return new ResourceReadResult(StateReadStatus.InvalidPayload, default, revision);
+            return ResourceReadResult.InvalidPayload(revision);
         try
         {
             var bytes = Convert.FromBase64String(raw);
             return bytes.Length <= _maximumContentBytes
                 ? ResourceReadResult.Success(bytes, revision)
-                : new ResourceReadResult(StateReadStatus.InvalidPayload, default, revision);
+                : ResourceReadResult.InvalidPayload(revision);
         }
         catch (FormatException)
         {
-            return new ResourceReadResult(StateReadStatus.InvalidPayload, default, revision);
+            return ResourceReadResult.InvalidPayload(revision);
         }
     }
 

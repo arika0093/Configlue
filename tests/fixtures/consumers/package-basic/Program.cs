@@ -2,6 +2,12 @@ using Configlue;
 using Configlue.Source.Presets;
 using PackageBasic;
 
+IReadOnlySet<string> frameworkSet = new HashSet<string>(["framework-type"]);
+Require(
+    frameworkSet.Contains("framework-type"),
+    "The framework IReadOnlySet<T> contract is unavailable."
+);
+
 var directory = Path.Combine(
     Path.GetTempPath(),
     "configlue-package-basic-" + Guid.NewGuid().ToString("N")
@@ -44,8 +50,14 @@ try
     )
     {
         var persisted = await context.GetState<SampleSetting>().GetValueAsync();
-        Require(persisted.Name == "Alice", $"Expected persisted name 'Alice', got '{persisted.Name}'.");
-        Require(persisted.RunCount == 1, $"Expected persisted run count 1, got '{persisted.RunCount}'.");
+        Require(
+            persisted.Name == "Alice",
+            $"Expected persisted name 'Alice', got '{persisted.Name}'."
+        );
+        Require(
+            persisted.RunCount == 1,
+            $"Expected persisted run count 1, got '{persisted.RunCount}'."
+        );
     }
 
     Console.WriteLine("CONFIGLUE_PACKAGE_BASIC_PASS");

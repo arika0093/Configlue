@@ -79,10 +79,11 @@ public sealed class TransformingResource
     {
         var result = await _reader.ReadAsync(context, cancellationToken).ConfigureAwait(false);
         return result.Status == StateReadStatus.Success
-            ? result with
-            {
-                Content = TransformRead(result.Content),
-            }
+            ? ResourceReadResult.Success(
+                TransformRead(result.Content),
+                result.Revision,
+                result.Schema
+            )
             : result;
     }
 
@@ -125,10 +126,11 @@ public sealed class TransformingResource
                 {
                     var decoded =
                         candidate.Status == StateReadStatus.Success
-                            ? candidate with
-                            {
-                                Content = TransformRead(candidate.Content),
-                            }
+                            ? ResourceReadResult.Success(
+                                TransformRead(candidate.Content),
+                                candidate.Revision,
+                                candidate.Schema
+                            )
                             : candidate;
                     return await validate(decoded, token).ConfigureAwait(false);
                 },
@@ -136,10 +138,11 @@ public sealed class TransformingResource
             )
             .ConfigureAwait(false);
         return restored is { } result && result.Status == StateReadStatus.Success
-            ? result with
-            {
-                Content = TransformRead(result.Content),
-            }
+            ? ResourceReadResult.Success(
+                TransformRead(result.Content),
+                result.Revision,
+                result.Schema
+            )
             : restored;
     }
 
@@ -221,10 +224,11 @@ public sealed class TransformingResource
                     {
                         var decoded =
                             current.Status == StateReadStatus.Success
-                                ? current with
-                                {
-                                    Content = _owner.TransformRead(current.Content),
-                                }
+                                ? ResourceReadResult.Success(
+                                    _owner.TransformRead(current.Content),
+                                    current.Revision,
+                                    current.Schema
+                                )
                                 : current;
                         return _owner.TransformWrite(mutation.Apply(decoded));
                     },

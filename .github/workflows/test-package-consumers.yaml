@@ -81,10 +81,12 @@ jobs:
       - name: Build standalone consumer without built-in IsExternalInit
         run: |
           set -euo pipefail
-          dotnet build tests/fixtures/consumers/package-sparse-netstandard/PackageSparse.NetStandard.Consumer.csproj \
-            --configuration Release \
-            -p:ConfigluePackageVersion="$CONFIGLUE_PACKAGE_VERSION" \
-            -p:RestoreAdditionalProjectSources="$CONFIGLUE_PACKAGE_FEED"
+          for framework in netstandard2.0 net48; do
+            dotnet build tests/fixtures/consumers/package-sparse-netstandard/PackageSparse.NetStandard.Consumer.csproj \
+              --configuration Release --framework "$framework" \
+              -p:ConfigluePackageVersion="$CONFIGLUE_PACKAGE_VERSION" \
+              -p:RestoreAdditionalProjectSources="$CONFIGLUE_PACKAGE_FEED"
+          done
 
       - name: Upload failure artifacts
         if: failure() || cancelled()

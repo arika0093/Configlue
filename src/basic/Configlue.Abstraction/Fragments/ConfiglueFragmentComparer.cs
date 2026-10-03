@@ -127,7 +127,8 @@ public static class ConfiglueFragmentComparer
                 implemented.IsGenericType
                 && (
                     implemented.GetGenericTypeDefinition() == typeof(ISet<>)
-                    || implemented.GetGenericTypeDefinition() == typeof(IReadOnlySet<>)
+                    || implemented.GetGenericTypeDefinition().FullName
+                        == "System.Collections.Generic.IReadOnlySet`1"
                 )
             );
 }

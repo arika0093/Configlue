@@ -78,13 +78,16 @@ public readonly record struct ConfiglueResourceContext
     public static ConfiglueResourceContext Default { get; } =
         new(DefaultSubject, ResourceKey.Default, RouteKey.Default);
 
-    /// <inheritdoc />
+    /// <summary>
+    /// Determines whether this context identifies the same operation as <paramref name="other"/>.
+    /// Equality uses the ordinal model ID, <see cref="IConfiglueSubject.Key"/>, source-specific resource key,
+    /// and route. Subject object equality and runtime type do not participate.
+    /// </summary>
+    /// <param name="other">The context to compare with this context.</param>
+    /// <returns><see langword="true"/> when the stable identity values match.</returns>
     public bool Equals(ConfiglueResourceContext other) =>
-        ModelId == other.ModelId
-        && EqualityComparer<IConfiglueSubject>.Default.Equals(
-            _subject ?? DefaultSubject,
-            other._subject ?? DefaultSubject
-        )
+        StringComparer.Ordinal.Equals(ModelId, other.ModelId)
+        && (_subject ?? DefaultSubject).Key == (other._subject ?? DefaultSubject).Key
         && ResourceKey == other.ResourceKey
         && Route == other.Route;
 
@@ -92,10 +95,7 @@ public readonly record struct ConfiglueResourceContext
     public override int GetHashCode()
     {
         var hash = ModelId is null ? 0 : StringComparer.Ordinal.GetHashCode(ModelId);
-        hash = unchecked(
-            hash * 31
-            + EqualityComparer<IConfiglueSubject>.Default.GetHashCode(_subject ?? DefaultSubject)
-        );
+        hash = unchecked(hash * 31 + (_subject ?? DefaultSubject).Key.GetHashCode());
         hash = unchecked(hash * 31 + ResourceKey.GetHashCode());
         return unchecked(hash * 31 + Route.GetHashCode());
     }

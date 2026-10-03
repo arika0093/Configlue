@@ -358,7 +358,8 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             member.ValueType.IsGenericType
             && (
                 member.ValueType.GetGenericTypeDefinition() == typeof(ISet<>)
-                || member.ValueType.GetGenericTypeDefinition() == typeof(IReadOnlySet<>)
+                || member.ValueType.GetGenericTypeDefinition().FullName
+                    == "System.Collections.Generic.IReadOnlySet`1"
                 || member.ValueType.GetGenericTypeDefinition() == typeof(HashSet<>)
             );
         var matchesDesired = isSet

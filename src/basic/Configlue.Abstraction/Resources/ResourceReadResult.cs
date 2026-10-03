@@ -3,30 +3,36 @@ namespace Configlue.Resources;
 /// <summary>The bytes and metadata returned by a resource reader.</summary>
 public readonly record struct ResourceReadResult
 {
-    /// <summary>Gets or initializes the <see cref="Status"/> value.</summary>
-    public StateReadStatus Status { get; init; }
+    private readonly StateReadStatus? _status;
 
-    /// <summary>Gets or initializes the <see cref="Content"/> value.</summary>
-    public ReadOnlyMemory<byte> Content { get; init; }
+    /// <summary>The read outcome selected by a factory; the default value is <see cref="StateReadStatus.NotFound"/>.</summary>
+    public StateReadStatus Status => _status ?? StateReadStatus.NotFound;
 
-    /// <summary>Gets or initializes the <see cref="Revision"/> value.</summary>
-    public string? Revision { get; init; }
+    /// <summary>The resource bytes, present only when <see cref="Status"/> is <see cref="StateReadStatus.Success"/>.</summary>
+    public ReadOnlyMemory<byte> Content { get; }
 
-    /// <summary>Gets or initializes the <see cref="Schema"/> value.</summary>
-    public StateSchemaMetadata? Schema { get; init; }
+    /// <summary>The revision associated with the read, when provided by the resource.</summary>
+    public string? Revision { get; }
+
+    /// <summary>The schema metadata associated with a successful read.</summary>
+    public StateSchemaMetadata? Schema { get; }
 
     /// <summary>Initializes a new instance of this record.</summary>
     /// <param name="Status">The initial value for the <see cref="Status"/> property.</param>
     /// <param name="Content">The initial value for the <see cref="Content"/> property.</param>
     /// <param name="Revision">The initial value for the <see cref="Revision"/> property.</param>
     /// <param name="Schema">The initial value for the <see cref="Schema"/> property.</param>
-    public ResourceReadResult(
+    private ResourceReadResult(
         StateReadStatus Status,
         ReadOnlyMemory<byte> Content,
         string? Revision = null,
         StateSchemaMetadata? Schema = null
     )
     {
+        if (!Enum.IsDefined(typeof(StateReadStatus), Status))
+        {
+            throw new ArgumentOutOfRangeException(nameof(Status));
+        }
         if (Schema is { IsValid: false })
         {
             throw new ArgumentException(
@@ -34,8 +40,15 @@ public readonly record struct ResourceReadResult
                 nameof(Schema)
             );
         }
-        this.Status = Status;
-        this.Content = Content;
+        if (Status != StateReadStatus.Success && !Content.IsEmpty)
+        {
+            throw new ArgumentException(
+                "Non-success resource results cannot contain content.",
+                nameof(Content)
+            );
+        }
+        _status = Status == StateReadStatus.NotFound ? null : Status;
+        this.Content = Status == StateReadStatus.Success ? Content : default;
         this.Revision = Revision;
         this.Schema = Schema;
     }
@@ -72,4 +85,8 @@ public readonly record struct ResourceReadResult
     /// <summary>Creates a temporarily unavailable result.</summary>
     public static ResourceReadResult Unavailable(string? revision = null) =>
         new(StateReadStatus.Unavailable, default, revision);
+
+    /// <summary>Creates a result for a resource payload that was present but malformed or undecodable.</summary>
+    public static ResourceReadResult InvalidPayload(string? revision = null) =>
+        new(StateReadStatus.InvalidPayload, default, revision);
 }

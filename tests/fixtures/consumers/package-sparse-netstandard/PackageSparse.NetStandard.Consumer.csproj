@@ -1,14 +1,24 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>netstandard2.0</TargetFramework>
+    <TargetFrameworks>netstandard2.0;net48</TargetFrameworks>
     <ConfiglueNetStandard>true</ConfiglueNetStandard>
     <IsPackable>false</IsPackable>
     <AssemblyName>PackageSparse.NetStandard.Consumer</AssemblyName>
   </PropertyGroup>
   <ItemGroup Condition="'$(ConfigluePackageVersion)' == ''">
     <ProjectReference Include="../../../../src/fragments/SparseFragments/SparseFragments.csproj" />
+    <ProjectReference Include="../../../../src/basic/Configlue/Configlue.csproj" />
   </ItemGroup>
   <ItemGroup Condition="'$(ConfigluePackageVersion)' != ''">
     <PackageReference Include="SparseFragments" Version="$(ConfigluePackageVersion)" />
+    <PackageReference Include="Configlue" Version="$(ConfigluePackageVersion)" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0' or '$(TargetFramework)' == 'net48'">
+    <PackageReference
+      Include="Microsoft.NETFramework.ReferenceAssemblies"
+      Version="1.0.3"
+      PrivateAssets="all"
+      Condition="'$(TargetFramework)' == 'net48'"
+    />
   </ItemGroup>
 </Project>

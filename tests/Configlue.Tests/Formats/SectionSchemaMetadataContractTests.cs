@@ -146,8 +146,14 @@ public sealed class SectionSchemaMetadataContractTests
         };
         var mutations = new[]
         {
-            first.CreateMutation(ConfiglueResourceContext.Default, new ResourceWriteRequest("{}"u8.ToArray())),
-            second.CreateMutation(ConfiglueResourceContext.Default, new ResourceWriteRequest("{}"u8.ToArray())),
+            first.CreateMutation(
+                ConfiglueResourceContext.Default,
+                new ResourceWriteRequest("{}"u8.ToArray())
+            ),
+            second.CreateMutation(
+                ConfiglueResourceContext.Default,
+                new ResourceWriteRequest("{}"u8.ToArray())
+            ),
         };
         await Should.ThrowAsync<NotSupportedException>(async () =>
             await resource.WriteBatchAsync(mutations)
@@ -352,7 +358,23 @@ public sealed class SectionSchemaMetadataContractTests
         public async ValueTask<ResourceReadResult> ReadAsync(
             ConfiglueResourceContext context,
             CancellationToken cancellationToken = default
-        ) => (await _content.ReadAsync(context, cancellationToken)) with { Schema = _schema };
+        )
+        {
+            var result = await _content.ReadAsync(context, cancellationToken);
+            return result.Status == StateReadStatus.Success
+                ? ResourceReadResult.Success(result.Content, result.Revision, _schema)
+                : result.Status switch
+                {
+                    StateReadStatus.NotFound => ResourceReadResult.NotFound(result.Revision),
+                    StateReadStatus.Unavailable => ResourceReadResult.Unavailable(result.Revision),
+                    StateReadStatus.InvalidPayload => ResourceReadResult.InvalidPayload(
+                        result.Revision
+                    ),
+                    _ => throw new InvalidOperationException(
+                        "Unexpected non-success resource status."
+                    ),
+                };
+        }
 
         public async ValueTask<StateWriteResult> WriteAsync(
             ConfiglueResourceContext context,

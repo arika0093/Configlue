@@ -10,8 +10,16 @@
     <Using Remove="Shouldly;Configlue.Codecs;Configlue.Migrations;Configlue.Resources;Configlue.Sources;Configlue.Extensibility;Configlue.State;Configlue.Transformers" />
     <ProjectReference Include="../../../../src/basic/Configlue.Abstraction/Configlue.Abstraction.csproj" />
     <ProjectReference Include="../../../../src/basic/Configlue.Core/Configlue.Core.csproj" />
-    <ProjectReference Include="../../../../src/tools/Configlue.Generator/Configlue.Generator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <ProjectReference
+      Include="../../../../src/tools/Configlue.Generator/Configlue.Generator.csproj"
+      OutputItemType="Analyzer"
+      ReferenceOutputAssembly="false"
+    />
     <ProjectReference Include="../../../../src/fragments/SparseFragments/SparseFragments.csproj" />
-    <ProjectReference Include="../../../../src/fragments/SparseFragments.Generator/SparseFragments.Generator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <ProjectReference
+      Include="../../../../src/fragments/SparseFragments.Generator/SparseFragments.Generator.csproj"
+      OutputItemType="Analyzer"
+      ReferenceOutputAssembly="false"
+    />
   </ItemGroup>
 </Project>

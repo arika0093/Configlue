@@ -200,7 +200,15 @@ public sealed class XmlSectionResource
     {
         if (resource.Status != StateReadStatus.Success)
         {
-            return new ResourceReadResult(resource.Status, default, resource.Revision);
+            return resource.Status switch
+            {
+                StateReadStatus.NotFound => ResourceReadResult.NotFound(resource.Revision),
+                StateReadStatus.Unavailable => ResourceReadResult.Unavailable(resource.Revision),
+                StateReadStatus.InvalidPayload => ResourceReadResult.InvalidPayload(
+                    resource.Revision
+                ),
+                _ => throw new InvalidOperationException("Unexpected non-success resource status."),
+            };
         }
 
         var revision = resource.Revision;

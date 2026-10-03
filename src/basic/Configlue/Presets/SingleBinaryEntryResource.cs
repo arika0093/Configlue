@@ -63,7 +63,9 @@ internal sealed class SingleBinaryEntryResource
         var exposedRevision = entryRevision;
         StoreArchiveRevision(context, entryRevision, result.Revision);
         StoreEntryRevision(context, result.Revision, entryRevision);
-        return result with { Revision = exposedRevision };
+        return result.Status == StateReadStatus.NotFound
+            ? ResourceReadResult.NotFound(exposedRevision)
+            : ResourceReadResult.Success(result.Content, exposedRevision, result.Schema);
     }
 
     public async ValueTask<PipelineResourceReadResult> ReadPipelineAsync(

@@ -1025,12 +1025,12 @@ namespace Configlue.Resources
     }
     public readonly struct ResourceReadResult : System.IEquatable<Configlue.Resources.ResourceReadResult>
     {
-        public ResourceReadResult(Configlue.State.StateReadStatus Status, System.ReadOnlyMemory<byte> Content, string? Revision = null, Configlue.State.StateSchemaMetadata? Schema = default) { }
-        public System.ReadOnlyMemory<byte> Content { get; init; }
-        public string? Revision { get; init; }
-        public Configlue.State.StateSchemaMetadata? Schema { get; init; }
-        public Configlue.State.StateReadStatus Status { get; init; }
+        public System.ReadOnlyMemory<byte> Content { get; }
+        public string? Revision { get; }
+        public Configlue.State.StateSchemaMetadata? Schema { get; }
+        public Configlue.State.StateReadStatus Status { get; }
         public void Deconstruct(out Configlue.State.StateReadStatus Status, out System.ReadOnlyMemory<byte> Content, out string? Revision, out Configlue.State.StateSchemaMetadata? Schema) { }
+        public static Configlue.Resources.ResourceReadResult InvalidPayload(string? revision = null) { }
         public static Configlue.Resources.ResourceReadResult NotFound(string? revision = null) { }
         public static Configlue.Resources.ResourceReadResult Success(System.ReadOnlyMemory<byte> content, string? revision = null, Configlue.State.StateSchemaMetadata? schema = default) { }
         public static Configlue.Resources.ResourceReadResult Unavailable(string? revision = null) { }
