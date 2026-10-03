@@ -587,7 +587,7 @@ internal static class XmlStateCodecOperations
             }
         }
 
-        if (!declaredType.IsAssignableFrom(concreteType))
+        if (!declaredType.IsAssignableFrom(concreteType) && !IsReadOnlySetType(definition))
         {
             throw UnsupportedCollection(declaredType);
         }
@@ -719,6 +719,19 @@ internal static class XmlStateCodecOperations
 
         if (collection is null || !declaredType.IsInstanceOfType(collection))
         {
+            if (IsReadOnlySetType(definition) && collection is IEnumerable sequence)
+            {
+#if NETSTANDARD
+                var view = CreateReadOnlySetProxy(declaredType, elementType, sequence);
+#else
+                var viewType = typeof(ReadOnlySetView<>).MakeGenericType(elementType);
+                var view = Activator.CreateInstance(viewType, [sequence]);
+#endif
+                if (view is not null && declaredType.IsInstanceOfType(view))
+                {
+                    return view;
+                }
+            }
             throw UnsupportedCollection(declaredType);
         }
 
@@ -734,9 +747,41 @@ internal static class XmlStateCodecOperations
         || IsNamedGenericType(type, "System.Collections.Immutable.ImmutableDictionary`2");
 
     private static bool IsSetType(Type type) =>
-        type == typeof(HashSet<>)
-        || type == typeof(ISet<>)
-        || IsNamedGenericType(type, "System.Collections.Generic.IReadOnlySet`1");
+        type == typeof(HashSet<>) || type == typeof(ISet<>) || IsReadOnlySetType(type);
+
+    private static bool IsReadOnlySetType(Type type)
+    {
+#if NETSTANDARD
+        return IsNamedGenericType(type, "System.Collections.Generic.IReadOnlySet`1");
+#else
+        return type == typeof(IReadOnlySet<>);
+#endif
+    }
+
+#if NETSTANDARD
+#pragma warning disable S3011 // This closed generic adapter method is private to the XML codec assembly.
+    private static object CreateReadOnlySetProxy(
+        Type contractType,
+        Type elementType,
+        IEnumerable values
+    ) =>
+        typeof(XmlStateCodecOperations)
+            .GetMethod(
+                nameof(CreateReadOnlySetProxyGeneric),
+                BindingFlags.Static | BindingFlags.NonPublic
+            )!
+            .MakeGenericMethod(contractType, elementType)
+            .Invoke(null, [values])!;
+#pragma warning restore S3011
+
+    private static TContract CreateReadOnlySetProxyGeneric<TContract, TElement>(IEnumerable values)
+        where TContract : class
+    {
+        var proxy = DispatchProxy.Create<TContract, ReadOnlySetView<TElement>>();
+        ((ReadOnlySetView<TElement>)(object)proxy).Initialize(values);
+        return proxy;
+    }
+#endif
 
     private static bool IsSupportedConcreteCollection(Type type, bool isDictionary) =>
         (
@@ -800,6 +845,84 @@ internal static class XmlStateCodecOperations
 
     private static bool IsNamedGenericType(Type type, string name) =>
         type.IsGenericTypeDefinition && type.FullName == name;
+
+#if NETSTANDARD
+    private sealed class ReadOnlySetView<T> : DispatchProxy
+    {
+        private HashSet<T>? _values;
+
+        public void Initialize(IEnumerable values)
+        {
+            _values = new HashSet<T>(values.Cast<T>());
+        }
+
+        protected override object? Invoke(MethodInfo? targetMethod, object?[]? args)
+        {
+            var values =
+                _values
+                ?? throw new InvalidOperationException(
+                    "The read-only set proxy is not initialized."
+                );
+            if (targetMethod is null)
+            {
+                throw new InvalidOperationException("The read-only set member is unavailable.");
+            }
+
+            if (targetMethod.Name == nameof(IEnumerable<T>.GetEnumerator))
+            {
+                return values.GetEnumerator();
+            }
+
+            var parameterTypes = targetMethod
+                .GetParameters()
+                .Select(static parameter => parameter.ParameterType)
+                .ToArray();
+            var implementation = values.GetType().GetMethod(targetMethod.Name, parameterTypes);
+            if (implementation is not null)
+            {
+                return implementation.Invoke(values, args);
+            }
+
+            if (targetMethod.Name == "get_Count")
+            {
+                return values.Count;
+            }
+
+            if (targetMethod.Name == "GetEnumerator")
+            {
+                return ((IEnumerable)values).GetEnumerator();
+            }
+
+            throw new NotSupportedException(
+                $"Read-only set member '{targetMethod.Name}' is unsupported."
+            );
+        }
+    }
+#else
+    private sealed class ReadOnlySetView<T>(IEnumerable<T> values) : IReadOnlySet<T>
+    {
+        private readonly HashSet<T> _values = new(values);
+        public int Count => _values.Count;
+
+        public bool Contains(T item) => _values.Contains(item);
+
+        public bool IsProperSubsetOf(IEnumerable<T> other) => _values.IsProperSubsetOf(other);
+
+        public bool IsProperSupersetOf(IEnumerable<T> other) => _values.IsProperSupersetOf(other);
+
+        public bool IsSubsetOf(IEnumerable<T> other) => _values.IsSubsetOf(other);
+
+        public bool IsSupersetOf(IEnumerable<T> other) => _values.IsSupersetOf(other);
+
+        public bool Overlaps(IEnumerable<T> other) => _values.Overlaps(other);
+
+        public bool SetEquals(IEnumerable<T> other) => _values.SetEquals(other);
+
+        public IEnumerator<T> GetEnumerator() => _values.GetEnumerator();
+
+        IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+    }
+#endif
 
     private static XDocument LoadDocument(byte[] content)
     {
