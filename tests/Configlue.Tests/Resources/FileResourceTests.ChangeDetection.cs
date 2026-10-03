@@ -86,9 +86,9 @@ public sealed partial class FileResourceTests
         await WriteTextWithRetryAsync(path, "one");
         await first.WaitAsync(TimeSpan.FromSeconds(5));
         watcher.EnableRaisingEvents = false;
+        await Task.Delay(150);
         revision = (await resource.ReadAsync()).Revision;
         var second = resource.WaitForChangeAsync(default, revision).AsTask();
-        await Task.Delay(150);
         second.IsCompleted.ShouldBeFalse();
         var timestamp = File.GetLastWriteTimeUtc(path);
         await WriteTextWithRetryAsync(path, "two");
