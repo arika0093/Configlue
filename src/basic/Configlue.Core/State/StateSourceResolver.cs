@@ -121,7 +121,8 @@ public sealed class StateSourceResolver<T> : ISourceReader<T>
         StateReadResult<T> lastResult = default;
         var revisions = new StateRevision[_sourceSet.Count];
         var revisionCount = 0;
-        var watchTargets = new List<StateSourceWatchTarget<T>>(_sourceSet.Count);
+        var watchTargets = new StateSourceWatchTarget<T>[_sourceSet.Count];
+        var watchTargetCount = 0;
         List<KeyValuePair<SourceId, StateRevisionVector>>? nestedRevisions = null;
         for (var index = 0; index < _sourceSet.Count; index++)
         {
@@ -132,8 +133,10 @@ public sealed class StateSourceResolver<T> : ISourceReader<T>
                 await ReadSourceAsync(source, effectiveContext, cancellationToken)
                     .ConfigureAwait(false)
             ).FromSource(source.Id, source.PhysicalOrigin);
-            watchTargets.Add(
-                new StateSourceWatchTarget<T>(source, effectiveContext, result.Revision)
+            watchTargets[watchTargetCount++] = new StateSourceWatchTarget<T>(
+                source,
+                effectiveContext,
+                result.Revision
             );
             _logger?.LogDebug(
                 ReadEvent,
@@ -160,7 +163,11 @@ public sealed class StateSourceResolver<T> : ISourceReader<T>
                 SetResolution(
                     subject,
                     context,
-                    new Resolution(source, revisionVector, watchTargets.ToArray())
+                    new Resolution(
+                        source,
+                        revisionVector,
+                        SnapshotWatchTargets(watchTargets, watchTargetCount)
+                    )
                 );
                 return result with { Revisions = revisionVector };
             }
@@ -184,7 +191,11 @@ public sealed class StateSourceResolver<T> : ISourceReader<T>
                 SetResolution(
                     subject,
                     context,
-                    new Resolution(null, revisionVector, watchTargets.ToArray())
+                    new Resolution(
+                        null,
+                        revisionVector,
+                        SnapshotWatchTargets(watchTargets, watchTargetCount)
+                    )
                 );
                 return result with { Revisions = revisionVector };
             }
@@ -193,7 +204,11 @@ public sealed class StateSourceResolver<T> : ISourceReader<T>
         }
 
         var finalVector = CreateRevisionVector(revisions, revisionCount, nestedRevisions);
-        SetResolution(subject, context, new Resolution(null, finalVector, watchTargets.ToArray()));
+        SetResolution(
+            subject,
+            context,
+            new Resolution(null, finalVector, SnapshotWatchTargets(watchTargets, watchTargetCount))
+        );
         return lastResult with { Revisions = finalVector };
     }
 
@@ -263,6 +278,21 @@ public sealed class StateSourceResolver<T> : ISourceReader<T>
         IConfiglueSubject? subject,
         ConfiglueResourceContext context
     ) => subject is null ? context : source.GetResourceContext(subject);
+
+    private static StateSourceWatchTarget<T>[] SnapshotWatchTargets(
+        StateSourceWatchTarget<T>[] targets,
+        int count
+    )
+    {
+        if (count == targets.Length)
+        {
+            return targets;
+        }
+
+        var snapshot = new StateSourceWatchTarget<T>[count];
+        Array.Copy(targets, snapshot, count);
+        return snapshot;
+    }
 
     private async ValueTask<StateReadResult<T>> ReadSourceAsync(
         StateSource<T> source,

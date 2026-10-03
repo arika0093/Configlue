@@ -495,6 +495,35 @@ public class JsonCodecLayoutBenchmarks
 }
 
 [MemoryDiagnoser]
+public class StateRevisionVectorBenchmarks
+{
+    private StateRevision[] _revisions = [];
+    private SourceId _lookupId;
+
+    [Params(0, 1, 2, 4, 16)]
+    public int SourceCount { get; set; }
+
+    [GlobalSetup]
+    public void Setup()
+    {
+        _revisions = new StateRevision[SourceCount];
+        for (var index = 0; index < _revisions.Length; index++)
+        {
+            var sourceId = SourceId.From($"source-{index}");
+            _revisions[index] = new StateRevision(sourceId, $"revision-{index}");
+            _lookupId = sourceId;
+        }
+    }
+
+    [Benchmark]
+    public bool ConstructAndLookup()
+    {
+        var vector = StateRevisionVector.FromSpan(_revisions);
+        return vector.TryGetRevision(_lookupId, out _);
+    }
+}
+
+[MemoryDiagnoser]
 public class JsonSectionBenchmarks
 {
     private string _directory = null!;

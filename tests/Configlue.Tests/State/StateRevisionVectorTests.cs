@@ -59,6 +59,29 @@ public sealed class StateRevisionVectorTests
     }
 
     [Test]
+    public void FromSpanKeepsSingleEntriesInlineUntilDictionaryViewsAreRequested()
+    {
+        var child = new StateRevisionVector([]);
+        var revision = new StateRevision(SourceId.From("source"), "revision-1");
+        var nested = new KeyValuePair<SourceId, StateRevisionVector>(
+            SourceId.From("composite"),
+            child
+        );
+
+        var vector = StateRevisionVector.FromSpan(
+            System.Runtime.InteropServices.MemoryMarshal.CreateReadOnlySpan(ref revision, 1),
+            System.Runtime.InteropServices.MemoryMarshal.CreateReadOnlySpan(ref nested, 1)
+        );
+
+        vector.TryGetRevision(SourceId.From("source"), out var revisionValue).ShouldBeTrue();
+        revisionValue.ShouldBe("revision-1");
+        vector.TryGetNestedRevisions(SourceId.From("composite"), out var nestedValue).ShouldBeTrue();
+        nestedValue.ShouldBeSameAs(child);
+        vector.Revisions.Single().Key.ShouldBe(SourceId.From("source"));
+        vector.NestedRevisions.Single().Value.ShouldBeSameAs(child);
+    }
+
+    [Test]
     public void FromSpanRejectsDuplicateKeys()
     {
         StateRevision[] duplicateRevisions =
