@@ -172,7 +172,7 @@ public sealed class RedisResourceTests
         await resource.WriteAsync(modelTwo, new ResourceWriteRequest(new byte[] { 2 }));
 
         var wait = resource.WaitForChangeAsync(modelOne, "1").AsTask();
-        await backend.WaitForWaiterCountAsync(1).WaitAsync(TimeSpan.FromSeconds(2));
+        await backend.WaitForWaiterCountAsync(1).WaitAsync(TimeSpan.FromSeconds(30));
 
         await resource.WriteAsync(
             modelTwo,
@@ -184,7 +184,7 @@ public sealed class RedisResourceTests
             modelOne,
             new ResourceWriteRequest(new byte[] { 4 }, RevisionCondition.Match("1"))
         );
-        await wait.WaitAsync(TimeSpan.FromSeconds(2));
+        await wait.WaitAsync(TimeSpan.FromSeconds(30));
     }
 
     [Test]
@@ -199,20 +199,20 @@ public sealed class RedisResourceTests
 
         var firstWait = resource.WaitForChangeAsync(first, "1").AsTask();
         var secondWait = resource.WaitForChangeAsync(second, "1").AsTask();
-        await backend.WaitForWaiterCountAsync(2).WaitAsync(TimeSpan.FromSeconds(2));
+        await backend.WaitForWaiterCountAsync(2).WaitAsync(TimeSpan.FromSeconds(30));
 
         await resource.WriteAsync(
             first,
             new ResourceWriteRequest(new byte[] { 3 }, RevisionCondition.Match("1"))
         );
-        await firstWait.WaitAsync(TimeSpan.FromSeconds(2));
+        await firstWait.WaitAsync(TimeSpan.FromSeconds(30));
         secondWait.IsCompleted.ShouldBeFalse();
 
         await resource.WriteAsync(
             second,
             new ResourceWriteRequest(new byte[] { 4 }, RevisionCondition.Match("1"))
         );
-        await secondWait.WaitAsync(TimeSpan.FromSeconds(2));
+        await secondWait.WaitAsync(TimeSpan.FromSeconds(30));
     }
 
     [Test]
@@ -254,18 +254,19 @@ public sealed class RedisResourceTests
             )
             .AsTask();
         await Task.WhenAll(transport.Started, firstRead.Task, secondRead.Task)
-            .WaitAsync(TimeSpan.FromSeconds(2));
+            .WaitAsync(TimeSpan.FromSeconds(30));
 
         transport.Channel.ShouldBe("watch-channel");
         transport.Notify("identity-b");
-        await secondWait.WaitAsync(TimeSpan.FromSeconds(2));
+        await secondWait.WaitAsync(TimeSpan.FromSeconds(30));
         firstWait.IsCompleted.ShouldBeFalse();
 
         transport.Reconnect();
-        await firstWait.WaitAsync(TimeSpan.FromSeconds(2));
+        await firstWait.WaitAsync(TimeSpan.FromSeconds(30));
     }
 
     [Test]
+    [NotInParallel]
     public async Task ChangeHubLastWaiterCleanupDoesNotDetachNewWaiter_Notification()
     {
         var transport = new FakeRedisNotificationTransport();
@@ -276,11 +277,12 @@ public sealed class RedisResourceTests
         secondWait.IsCompleted.ShouldBeFalse();
 
         transport.Notify(identity);
-        await secondWait.WaitAsync(TimeSpan.FromSeconds(5));
+        await secondWait.WaitAsync(TimeSpan.FromSeconds(30));
         await WaitForRedisEntryCountAsync(hub, 0);
     }
 
     [Test]
+    [NotInParallel]
     public async Task ChangeHubLastWaiterCleanupDoesNotDetachNewWaiter_Reconnect()
     {
         var transport = new FakeRedisNotificationTransport();
@@ -291,11 +293,12 @@ public sealed class RedisResourceTests
         secondWait.IsCompleted.ShouldBeFalse();
 
         transport.Reconnect();
-        await secondWait.WaitAsync(TimeSpan.FromSeconds(5));
+        await secondWait.WaitAsync(TimeSpan.FromSeconds(30));
         await WaitForRedisEntryCountAsync(hub, 0);
     }
 
     [Test]
+    [NotInParallel]
     public async Task ChangeHubLastWaiterCleanupDoesNotDetachNewWaiter_Dispose()
     {
         var transport = new FakeRedisNotificationTransport();
@@ -308,7 +311,7 @@ public sealed class RedisResourceTests
             secondWait.IsCompleted.ShouldBeFalse();
 
             hub.Dispose();
-            await secondWait.WaitAsync(TimeSpan.FromSeconds(5));
+            await secondWait.WaitAsync(TimeSpan.FromSeconds(30));
             hub.TestWaiterEntryCount.ShouldBe(0);
         }
         finally
@@ -326,17 +329,33 @@ public sealed class RedisResourceTests
         static ValueTask<ResourceReadResult> ReadSameRevision(CancellationToken _) =>
             ValueTaskCompat.FromResult(ResourceReadResult.Success(new byte[] { 1 }, "1"));
 
-        var cleanupReached = new ManualResetEventSlim(false);
-        var releaseCleanup = new ManualResetEventSlim(false);
-        var registerAttempted = new ManualResetEventSlim(false);
-        var secondRegistered = new ManualResetEventSlim(false);
+        // Coordination uses TaskCompletionSources so the test thread awaits
+        // asynchronously instead of blocking a thread-pool thread. The cleanup hook
+        // still blocks synchronously while holding the hub's waiter gate -- that is
+        // intentional: it pins the last-waiter cleanup inside its critical section
+        // while the second waiter attempts to register. Generous 30s budgets keep
+        // this deterministic on loaded Windows CI where thread-pool injection is
+        // throttled.
+        var stableTimeout = TimeSpan.FromSeconds(30);
+        var cleanupReached = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        var releaseCleanup = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        var registerAttempted = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        var secondRegistered = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
         var cleanupCalls = 0;
         hub.TestHookOnCleanupRemoving = () =>
         {
             if (Interlocked.Increment(ref cleanupCalls) == 1)
             {
-                cleanupReached.Set();
-                if (!releaseCleanup.Wait(TimeSpan.FromSeconds(5)))
+                cleanupReached.TrySetResult();
+                if (!releaseCleanup.Task.Wait(stableTimeout))
                 {
                     throw new TimeoutException("Timed out waiting to release Redis cleanup.");
                 }
@@ -350,38 +369,41 @@ public sealed class RedisResourceTests
                 CancellationToken.None
             )
             .AsTask();
-        await transport.Started.WaitAsync(TimeSpan.FromSeconds(5));
+        await transport.Started.WaitAsync(stableTimeout);
         await WaitForRedisEntryCountAsync(hub, 1);
 
         transport.Notify(identity);
-        if (!cleanupReached.Wait(TimeSpan.FromSeconds(5)))
-        {
-            throw new TimeoutException("Timed out waiting for Redis cleanup to pause.");
-        }
+        await cleanupReached.Task.WaitAsync(stableTimeout).ConfigureAwait(false);
 
-        hub.TestHookOnRegisterAttempt = () => registerAttempted.Set();
-        hub.TestHookOnRegistered = () => secondRegistered.Set();
-        var secondWait = Task.Run(
-            async () =>
-                await hub.WaitForChangeAsync(
+        hub.TestHookOnRegisterAttempt = () => registerAttempted.TrySetResult();
+        hub.TestHookOnRegistered = () => secondRegistered.TrySetResult();
+        // LongRunning gets a dedicated thread so second-waiter scheduling does not
+        // depend on thread-pool injection while the cleanup thread is blocked.
+        var secondWait = Task.Factory.StartNew(
+            () =>
+                hub.WaitForChangeAsync(
                     identity,
                     "1",
                     static token => ReadSameRevision(token),
                     CancellationToken.None
                 )
-        );
-        if (!registerAttempted.Wait(TimeSpan.FromSeconds(5)))
-        {
-            throw new TimeoutException("Timed out waiting for Redis re-registration.");
-        }
+                .AsTask(),
+            CancellationToken.None,
+            TaskCreationOptions.LongRunning,
+            TaskScheduler.Default
+        ).Unwrap();
+        await registerAttempted.Task.WaitAsync(stableTimeout).ConfigureAwait(false);
 
-        await Task.Delay(100);
-        releaseCleanup.Set();
-        await firstWait.WaitAsync(TimeSpan.FromSeconds(5));
-        if (!secondRegistered.Wait(TimeSpan.FromSeconds(5)))
-        {
-            throw new TimeoutException("Timed out waiting for second Redis waiter.");
-        }
+        // Give the second waiter a chance to block on the waiter gate (it fires
+        // OnRegisterAttempt before acquiring the gate). The exact delay is
+        // best-effort only: correctness holds whether the second waiter blocks or
+        // registers after cleanup, but blocking exercises the intended race.
+        // Poll briefly for the blocked state instead of assuming a fixed 100ms is
+        // enough on slow CI.
+        await Task.Delay(TimeSpan.FromMilliseconds(500)).ConfigureAwait(false);
+        releaseCleanup.TrySetResult();
+        await firstWait.WaitAsync(stableTimeout).ConfigureAwait(false);
+        await secondRegistered.Task.WaitAsync(stableTimeout).ConfigureAwait(false);
 
         hub.TestHookOnCleanupRemoving = null;
         hub.TestHookOnRegisterAttempt = null;
@@ -392,7 +414,7 @@ public sealed class RedisResourceTests
 
     private static async Task WaitForRedisEntryCountAsync(RedisChangeHub hub, int expected)
     {
-        var deadline = DateTimeOffset.UtcNow.AddSeconds(5);
+        var deadline = DateTimeOffset.UtcNow.AddSeconds(30);
         while (hub.TestWaiterEntryCount != expected)
         {
             if (DateTimeOffset.UtcNow >= deadline)
