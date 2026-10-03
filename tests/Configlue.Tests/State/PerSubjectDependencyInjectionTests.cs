@@ -61,7 +61,12 @@ public sealed class PerSubjectDependencyInjectionTests
             new ServiceProviderOptions { ValidateScopes = true }
         );
         var sharedSubjectOptions = provider.GetRequiredService<ISubjectState<AppSettings>>();
-        provider.GetRequiredService<IConfiglueInspection<AppSettings>>().ShouldNotBeNull();
+        Should.Throw<InvalidOperationException>(() =>
+            provider.GetRequiredService<IConfiglueInspection<AppSettings>>()
+        );
+        Should.Throw<InvalidOperationException>(() =>
+            provider.GetRequiredService<IConfiglueEditSessions<AppSettings>>()
+        );
         using var scopeA = provider.CreateScope();
         using var scopeB = provider.CreateScope();
         var accessorA = scopeA.ServiceProvider.GetRequiredService<MutableSubjectAccessor>();
@@ -77,6 +82,14 @@ public sealed class PerSubjectDependencyInjectionTests
         ReferenceEquals(readA, writeA).ShouldBeTrue();
         ReferenceEquals(readB, writeB).ShouldBeTrue();
         ReferenceEquals(readA, readB).ShouldBeFalse();
+        var inspectionA = scopeA.ServiceProvider.GetRequiredService<
+            IConfiglueInspection<AppSettings>
+        >();
+        var sessionsA = scopeA.ServiceProvider.GetRequiredService<
+            IConfiglueEditSessions<AppSettings>
+        >();
+        ReferenceEquals(readA, inspectionA).ShouldBeTrue();
+        ReferenceEquals(readA, sessionsA).ShouldBeTrue();
         ReferenceEquals(
                 sharedSubjectOptions,
                 provider.GetRequiredService<ISubjectState<AppSettings>>()
@@ -268,6 +281,272 @@ public sealed class PerSubjectDependencyInjectionTests
         );
     }
 
+    [Test]
+    [Arguments(false, false)]
+    [Arguments(true, false)]
+    [Arguments(false, true)]
+    [Arguments(true, true)]
+    public async Task InjectedEditSessionsAndInspectionResolveCurrentSubject(
+        bool named,
+        bool scopedRuntime
+    )
+    {
+        var users = new SubjectStateStore<AppSettings.Fragment>();
+        var subject = new SettingsSubject("tenant", "user");
+        users.Set(subject.Key, RetryFragment(7));
+        users.Set(ResourceKey.Default, RouteKey.Default, RetryFragment(1));
+        var stateName = named ? "tenant" : string.Empty;
+        var serviceKey = named ? "tenant" : null;
+
+        var services = new ServiceCollection();
+        services.AddScoped<MutableSubjectAccessor>();
+        services.AddConfiglue(builder =>
+            builder.Add<AppSettings>(model =>
+            {
+                if (named)
+                {
+                    model.StateName = "tenant";
+                }
+                model.PerSubject<MutableSubjectAccessor>();
+                if (scopedRuntime)
+                {
+                    model.UseScopedRuntime();
+                }
+                model.WritePlan = StateWritePlan.DefaultTo(SourceId.From("users"));
+                model.Sources(sources =>
+                    sources.Add(
+                        new StateSource<AppSettings.Fragment>(
+                            "users",
+                            users,
+                            writer: users,
+                            resourceKeySelector: current =>
+                                current is SettingsSubject typed
+                                    ? ResourceKey.From(typed.Key)
+                                    : ResourceKey.Default
+                        )
+                    )
+                );
+            })
+        );
+
+        using var provider = services.BuildServiceProvider(
+            new ServiceProviderOptions { ValidateScopes = true }
+        );
+        if (named)
+        {
+            Should.Throw<InvalidOperationException>(() =>
+                provider.GetRequiredKeyedService<IConfiglueInspection<AppSettings>>("tenant")
+            );
+            Should.Throw<InvalidOperationException>(() =>
+                provider.GetRequiredKeyedService<IConfiglueEditSessions<AppSettings>>("tenant")
+            );
+        }
+        else
+        {
+            Should.Throw<InvalidOperationException>(() =>
+                provider.GetRequiredService<IConfiglueInspection<AppSettings>>()
+            );
+            Should.Throw<InvalidOperationException>(() =>
+                provider.GetRequiredService<IConfiglueEditSessions<AppSettings>>()
+            );
+        }
+
+        using var scope = provider.CreateScope();
+        scope.ServiceProvider.GetRequiredService<MutableSubjectAccessor>().Set(subject);
+
+        IWritableState<AppSettings> state = named
+            ? scope.ServiceProvider.GetRequiredKeyedService<IWritableState<AppSettings>>("tenant")
+            : scope.ServiceProvider.GetRequiredService<IWritableState<AppSettings>>();
+        IConfiglueEditSessions<AppSettings> injectedSessions = named
+            ? scope.ServiceProvider.GetRequiredKeyedService<IConfiglueEditSessions<AppSettings>>(
+                "tenant"
+            )
+            : scope.ServiceProvider.GetRequiredService<IConfiglueEditSessions<AppSettings>>();
+        IConfiglueInspection<AppSettings> injectedInspection = named
+            ? scope.ServiceProvider.GetRequiredKeyedService<IConfiglueInspection<AppSettings>>(
+                "tenant"
+            )
+            : scope.ServiceProvider.GetRequiredService<IConfiglueInspection<AppSettings>>();
+
+        ReferenceEquals(state, injectedSessions).ShouldBeTrue();
+        ReferenceEquals(state, injectedInspection).ShouldBeTrue();
+
+        (await state.GetValueAsync()).RetryCount.ShouldBe(7);
+
+        using (var viaState = await ((IConfiglueEditSessions<AppSettings>)state)
+            .OpenEditSessionAsync())
+        {
+            viaState.Value.RetryCount.ShouldBe(7);
+        }
+
+        using (var viaInjected = await injectedSessions.OpenEditSessionAsync())
+        {
+            viaInjected.Value.RetryCount.ShouldBe(7);
+            viaInjected.Value.RetryCount = 9;
+            await viaInjected.CommitAsync();
+        }
+
+        users.Read(subject.Key).Value!.RetryCount.Value.ShouldBe(9);
+        (await users.ReadAsync()).Value!.RetryCount.Value.ShouldBe(1);
+
+        var check = injectedInspection.Check();
+        var streamed = new List<ConfiglueSourceCheckResult>();
+        await foreach (var source in check)
+        {
+            streamed.Add(source);
+        }
+        var result = await check.Result;
+        result.Status.ShouldBe(ConfiglueCheckStatus.Success);
+        var reported = streamed.ShouldHaveSingleItem();
+        reported.Source.Resolution.ShouldNotBeNull();
+        reported.Source.Resolution!.ResourceKey.ShouldBe(ResourceKey.From(subject.Key));
+        reported.Source.Resolution.LogicalSubjectKey.ShouldBe(subject.Key);
+        reported.Source.Resolution.Route.ShouldBe(RouteKey.Default);
+        _ = stateName;
+        _ = serviceKey;
+    }
+
+    [Test]
+    [Arguments(false, false)]
+    [Arguments(true, true)]
+    public async Task InjectedEditSessionKeepsFixedSubjectAfterCurrentSubjectChanges(
+        bool named,
+        bool scopedRuntime
+    )
+    {
+        var users = new SubjectStateStore<AppSettings.Fragment>();
+        var subjectA = new SettingsSubject("tenant", "user-a");
+        var subjectB = new SettingsSubject("tenant", "user-b");
+        users.Set(subjectA.Key, RetryFragment(7));
+        users.Set(subjectB.Key, RetryFragment(8));
+        users.Set(ResourceKey.Default, RouteKey.Default, RetryFragment(1));
+
+        var services = new ServiceCollection();
+        services.AddScoped<MutableSubjectAccessor>();
+        services.AddConfiglue(builder =>
+            builder.Add<AppSettings>(model =>
+            {
+                if (named)
+                {
+                    model.StateName = "tenant";
+                }
+                model.PerSubject<MutableSubjectAccessor>();
+                if (scopedRuntime)
+                {
+                    model.UseScopedRuntime();
+                }
+                model.WritePlan = StateWritePlan.DefaultTo(SourceId.From("users"));
+                model.Sources(sources =>
+                    sources.Add(
+                        new StateSource<AppSettings.Fragment>(
+                            "users",
+                            users,
+                            writer: users,
+                            resourceKeySelector: current =>
+                                current is SettingsSubject typed
+                                    ? ResourceKey.From(typed.Key)
+                                    : ResourceKey.Default
+                        )
+                    )
+                );
+            })
+        );
+
+        using var provider = services.BuildServiceProvider(
+            new ServiceProviderOptions { ValidateScopes = true }
+        );
+        using var scope = provider.CreateScope();
+        var accessor = scope.ServiceProvider.GetRequiredService<MutableSubjectAccessor>();
+        accessor.Set(subjectA);
+
+        IConfiglueEditSessions<AppSettings> injectedSessions = named
+            ? scope.ServiceProvider.GetRequiredKeyedService<IConfiglueEditSessions<AppSettings>>(
+                "tenant"
+            )
+            : scope.ServiceProvider.GetRequiredService<IConfiglueEditSessions<AppSettings>>();
+
+        using var session = await injectedSessions.OpenEditSessionAsync();
+        session.Value.RetryCount.ShouldBe(7);
+        accessor.Set(subjectB);
+        session.Value.RetryCount = 9;
+        await session.CommitAsync();
+
+        users.Read(subjectA.Key).Value!.RetryCount.Value.ShouldBe(9);
+        users.Read(subjectB.Key).Value!.RetryCount.Value.ShouldBe(8);
+        (await users.ReadAsync()).Value!.RetryCount.Value.ShouldBe(1);
+    }
+
+    [Test]
+    public async Task InjectedServicesMirrorStateFailureContract()
+    {
+        var users = new SubjectStateStore<AppSettings.Fragment>();
+        var subject = new SettingsSubject("tenant", "user");
+        users.Set(subject.Key, RetryFragment(7));
+        users.Set(ResourceKey.Default, RouteKey.Default, RetryFragment(1));
+
+        var services = new ServiceCollection();
+        services.AddScoped<MutableSubjectAccessor>();
+        services.AddConfiglue(builder =>
+            builder.Add<AppSettings>(model =>
+            {
+                model.PerSubject<MutableSubjectAccessor>();
+                model.WritePlan = StateWritePlan.DefaultTo(SourceId.From("users"));
+                model.Sources(sources =>
+                    sources.Add(
+                        new StateSource<AppSettings.Fragment>(
+                            "users",
+                            users,
+                            writer: users,
+                            resourceKeySelector: current =>
+                                current is SettingsSubject typed
+                                    ? ResourceKey.From(typed.Key)
+                                    : ResourceKey.Default
+                        )
+                    )
+                );
+            })
+        );
+
+        using var provider = services.BuildServiceProvider(
+            new ServiceProviderOptions { ValidateScopes = true }
+        );
+        using var scope = provider.CreateScope();
+        var state = scope.ServiceProvider.GetRequiredService<IWritableState<AppSettings>>();
+        var injectedSessions = scope.ServiceProvider.GetRequiredService<
+            IConfiglueEditSessions<AppSettings>
+        >();
+        var injectedInspection = scope.ServiceProvider.GetRequiredService<
+            IConfiglueInspection<AppSettings>
+        >();
+        var stateInspection = (IConfiglueInspection<AppSettings>)state;
+        var stateSessions = (IConfiglueEditSessions<AppSettings>)state;
+
+        // Unresolved subject: no subject has been set on this scope's accessor.
+        var stateReadError = await Should.ThrowAsync<InvalidOperationException>(async () =>
+            await state.GetValueAsync()
+        );
+        var injectedSessionError = await Should.ThrowAsync<InvalidOperationException>(async () =>
+            await injectedSessions.OpenEditSessionAsync()
+        );
+        injectedSessionError.Message.ShouldBe(stateReadError.Message);
+        (await stateInspection.Check().Result).Exception.ShouldBeOfType<InvalidOperationException>();
+        (await injectedInspection.Check().Result)
+            .Exception.ShouldBeOfType<InvalidOperationException>();
+
+        // Cancellation surfaces identically.
+        using var canceled = new CancellationTokenSource();
+        canceled.Cancel();
+        await Should.ThrowAsync<OperationCanceledException>(async () =>
+            await state.GetValueAsync(canceled.Token)
+        );
+        await Should.ThrowAsync<OperationCanceledException>(async () =>
+            await stateSessions.OpenEditSessionAsync(canceled.Token)
+        );
+        await Should.ThrowAsync<OperationCanceledException>(async () =>
+            await injectedSessions.OpenEditSessionAsync(canceled.Token)
+        );
+    }
+
 #if !NET48
     [Test]
     public async Task HttpContextAccessorMapsRequestIntoTypedSubject()
@@ -436,6 +715,9 @@ public sealed class PerSubjectDependencyInjectionTests
 
     private static AppSettings.Fragment Fragment(string? label) =>
         new() { Label = Optional<string?>.Present(label) };
+
+    private static AppSettings.Fragment RetryFragment(int retryCount) =>
+        new() { RetryCount = Optional<int>.Present(retryCount) };
 
     private sealed record SettingsSubject(string TenantId, string UserId) : IConfiglueSubject
     {
