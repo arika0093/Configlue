@@ -1,5 +1,12 @@
 namespace Configlue;
 
+/// <summary>The upstream snapshot resolved for a rebase, with the revisions that produced it.</summary>
+/// <typeparam name="T">The configuration model type.</typeparam>
+internal sealed record SessionUpstreamResolution<T>(
+    StateSnapshot<T> Snapshot,
+    StateRevisionVector? Revisions
+);
+
 /// <summary>A staged configuration edit that can be saved multiple times.</summary>
 /// <typeparam name="T">The configuration model type.</typeparam>
 public sealed class EditSession<T> : IDisposable
@@ -11,7 +18,11 @@ public sealed class EditSession<T> : IDisposable
     private readonly Func<T, T> _clone;
     private readonly Func<T, T, T, T> _rebase;
     private readonly Func<T, T, bool> _hasChanges;
-    private readonly Func<CancellationToken, ValueTask<StateSnapshot<T>>>? _resolveUpstream;
+    private readonly Func<
+        CancellationToken,
+        ValueTask<SessionUpstreamResolution<T>>
+    >? _resolveRebaseUpstream;
+    private readonly Action<SessionUpstreamResolution<T>>? _applyRebaseUpstream;
     private readonly StateSnapshot<T> _sessionStart;
     private readonly T _sessionStartValue;
     private readonly T _defaultValue;
@@ -35,7 +46,8 @@ public sealed class EditSession<T> : IDisposable
             AsCommitSave(save),
             static (_, desired, _) => desired,
             static (left, right) => !Equals(left, right),
-            resolveUpstream: null,
+            resolveRebaseUpstream: null,
+            applyRebaseUpstream: null,
             Clone,
             value,
             hasDefaultValue: false,
@@ -57,7 +69,8 @@ public sealed class EditSession<T> : IDisposable
             AsCommitSave(save),
             static (_, desired, _) => desired,
             static (left, right) => !Equals(left, right),
-            resolveUpstream: null,
+            resolveRebaseUpstream: null,
+            applyRebaseUpstream: null,
             clone,
             defaultValue,
             hasDefaultValue: true,
@@ -92,7 +105,8 @@ public sealed class EditSession<T> : IDisposable
             save,
             rebase,
             hasChanges,
-            resolveUpstream,
+            WrapResolveUpstream(resolveUpstream),
+            applyRebaseUpstream: null,
             clone,
             defaultValue,
             hasDefaultValue: true,
@@ -106,7 +120,7 @@ public sealed class EditSession<T> : IDisposable
         Func<T, CancellationToken, ValueTask<StateCommitResult<T>>> save,
         Func<T, T, T, T> rebase,
         Func<T, T, bool> hasChanges,
-        Func<CancellationToken, ValueTask<StateSnapshot<T>>> resolveUpstream,
+        Func<CancellationToken, ValueTask<SessionUpstreamResolution<T>>> resolveRebaseUpstream,
         Func<T, T> clone,
         T defaultValue,
         IReadOnlyState<T>? upstreamState,
@@ -118,7 +132,36 @@ public sealed class EditSession<T> : IDisposable
             save,
             rebase,
             hasChanges,
-            resolveUpstream,
+            resolveRebaseUpstream,
+            applyRebaseUpstream: null,
+            clone,
+            defaultValue,
+            hasDefaultValue: true,
+            upstreamState,
+            upstreamGeneration
+        ) { }
+
+    internal EditSession(
+        T value,
+        StateSnapshot<T> sessionStart,
+        Func<T, CancellationToken, ValueTask<StateCommitResult<T>>> save,
+        Func<T, T, T, T> rebase,
+        Func<T, T, bool> hasChanges,
+        Func<CancellationToken, ValueTask<SessionUpstreamResolution<T>>>? resolveRebaseUpstream,
+        Action<SessionUpstreamResolution<T>>? applyRebaseUpstream,
+        Func<T, T> clone,
+        T defaultValue,
+        IReadOnlyState<T>? upstreamState,
+        UpstreamGenerationCounter? upstreamGeneration
+    )
+        : this(
+            value,
+            sessionStart,
+            save,
+            rebase,
+            hasChanges,
+            resolveRebaseUpstream,
+            applyRebaseUpstream,
             clone,
             defaultValue,
             hasDefaultValue: true,
@@ -132,7 +175,8 @@ public sealed class EditSession<T> : IDisposable
         Func<T, CancellationToken, ValueTask<StateCommitResult<T>>> save,
         Func<T, T, T, T> rebase,
         Func<T, T, bool> hasChanges,
-        Func<CancellationToken, ValueTask<StateSnapshot<T>>>? resolveUpstream,
+        Func<CancellationToken, ValueTask<SessionUpstreamResolution<T>>>? resolveRebaseUpstream,
+        Action<SessionUpstreamResolution<T>>? applyRebaseUpstream,
         Func<T, T> clone,
         T defaultValue,
         bool hasDefaultValue,
@@ -145,7 +189,8 @@ public sealed class EditSession<T> : IDisposable
         _rebase = rebase ?? throw new ArgumentNullException(nameof(rebase));
         _hasChanges = hasChanges ?? throw new ArgumentNullException(nameof(hasChanges));
         _clone = clone ?? throw new ArgumentNullException(nameof(clone));
-        _resolveUpstream = resolveUpstream;
+        _resolveRebaseUpstream = resolveRebaseUpstream;
+        _applyRebaseUpstream = applyRebaseUpstream;
         _sessionStart = sessionStart;
         _sessionStartValue = _clone(sessionStart.Value);
         _hasSessionStartValue =
@@ -284,28 +329,40 @@ public sealed class EditSession<T> : IDisposable
     public async ValueTask RebaseAsync(CancellationToken cancellationToken = default)
     {
         EnsureEditable();
-        if (_resolveUpstream is null)
+        if (_resolveRebaseUpstream is null)
         {
             throw new InvalidOperationException(
                 "This configure session does not support upstream rebasing."
             );
         }
 
-        var upstream = await _resolveUpstream(cancellationToken).ConfigureAwait(false);
+        var resolved = await _resolveRebaseUpstream(cancellationToken).ConfigureAwait(false);
+        var upstream = resolved.Snapshot;
         T baseline;
+        T draft;
         lock (_upstreamGate)
         {
             baseline = _baseline;
+            draft = Value;
         }
 
-        var rebased = _rebase(baseline, Value, upstream.Value);
+        // May throw (conflict/cancel): neither the public baseline nor the saved
+        // baseline may advance in that case.
+        var rebased = _rebase(baseline, draft, upstream.Value);
+        // Clone before mutating so a clone failure also leaves both baselines unchanged.
+        var rebasedClone = _clone(rebased);
+        var baselineClone = _clone(upstream.Value);
         lock (_upstreamGate)
         {
-            Value = _clone(rebased);
-            _baseline = _clone(upstream.Value);
+            Value = rebasedClone;
+            _baseline = baselineClone;
             _latestUpstream = upstream;
             _hasUpstreamChanges = false;
         }
+
+        // Only after the rebase computation and clones succeeded do we advance the
+        // saved baseline/revisions to the same snapshot.
+        _applyRebaseUpstream?.Invoke(resolved);
     }
 
     /// <summary>Commits the edited value against the latest resolved source state.</summary>
@@ -440,6 +497,23 @@ public sealed class EditSession<T> : IDisposable
 
     private static T Clone(T value) =>
         value is IConfiglueDeepCloneable<T> deepCloneable ? deepCloneable.DeepClone() : value;
+
+    private static Func<
+        CancellationToken,
+        ValueTask<SessionUpstreamResolution<T>>
+    >? WrapResolveUpstream(Func<CancellationToken, ValueTask<StateSnapshot<T>>>? resolveUpstream)
+    {
+        if (resolveUpstream is null)
+        {
+            return null;
+        }
+
+        return async cancellationToken =>
+        {
+            var snapshot = await resolveUpstream(cancellationToken).ConfigureAwait(false);
+            return new SessionUpstreamResolution<T>(snapshot, Revisions: null);
+        };
+    }
 
     private static Func<T, CancellationToken, ValueTask<StateCommitResult<T>>> AsCommitSave(
         Func<T, CancellationToken, ValueTask<StateWriteReceipt>> save

@@ -229,6 +229,38 @@ public sealed class EditSessionSnapshotTests
     }
 
     [Test]
+    public async Task RebaseAsync_FailedRebaseKeepsBaselineSoCommitStillConflicts()
+    {
+        var store = new InMemoryStateSource<AppSettings.Fragment>(
+            new AppSettings.Fragment { RetryCount = Optional<int>.Present(1) }
+        );
+        await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
+            new StateSourceSet<AppSettings.Fragment>([new("user", store, writer: store)])
+        );
+        using var session = await options.OpenEditSessionAsync();
+
+        session.Value.RetryCount = 2;
+        store.Set(new AppSettings.Fragment { RetryCount = Optional<int>.Present(3) });
+
+        await Should.ThrowAsync<StateConflictException>(async () => await session.RebaseAsync());
+        (session.Value.RetryCount).ShouldBe(2);
+
+        // A failed rebase must advance neither the public baseline nor the saved
+        // baseline, so a second rebase still conflicts instead of silently succeeding.
+        await Should.ThrowAsync<StateConflictException>(async () => await session.RebaseAsync());
+        (session.Value.RetryCount).ShouldBe(2);
+
+        // The subsequent commit must still detect the conflict instead of overwriting.
+        await Should.ThrowAsync<StateConflictException>(async () => await session.CommitAsync());
+
+        (session.Value.RetryCount).ShouldBe(2);
+        (session.IsCommitted).ShouldBeFalse();
+        (session.HasLocalChanges).ShouldBeTrue();
+        (session.LatestUpstream!.Value!.RetryCount).ShouldBe(1);
+        ((await store.ReadAsync()).Value!.RetryCount.Value).ShouldBe(3);
+    }
+
+    [Test]
     public async Task RebaseAsync_LastWriteWinsKeepsTheDraftForTheSameMember()
     {
         var store = new SignalingStore<AppSettings.Fragment>(Fragment("start", retryCount: 3));

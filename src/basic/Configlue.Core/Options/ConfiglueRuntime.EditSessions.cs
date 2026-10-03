@@ -165,7 +165,9 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             );
         }
 
-        async ValueTask<StateSnapshot<TModel>> ResolveSessionUpstreamAsync(CancellationToken token)
+        async ValueTask<SessionUpstreamResolution<TModel>> ResolveSessionUpstreamAsync(
+            CancellationToken token
+        )
         {
             using IDisposable? resolveScope = pinnedSubject is null
                 ? null
@@ -180,9 +182,18 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                 );
             }
 
-            baseline = latest.Value;
-            expectedRevisions = latest.Revisions;
-            return new StateSnapshot<TModel>(latest.Value, BuildDetailsSnapshot(latestState));
+            // Read-only: the saved baseline/expectedRevisions advance only after the
+            // session successfully rebases onto this snapshot (see ApplySessionRebase).
+            return new SessionUpstreamResolution<TModel>(
+                new StateSnapshot<TModel>(latest.Value, BuildDetailsSnapshot(latestState)),
+                latest.Revisions
+            );
+        }
+
+        void ApplySessionRebase(SessionUpstreamResolution<TModel> resolved)
+        {
+            baseline = resolved.Snapshot.Value;
+            expectedRevisions = resolved.Revisions;
         }
 
         return new EditSession<TModel>(
@@ -192,6 +203,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             RebaseConfigurationEdit,
             static (value, baselineValue) => !Diff(baselineValue, value).IsEmpty,
             ResolveSessionUpstreamAsync,
+            ApplySessionRebase,
             CloneModel,
             defaultValue,
             upstreamState,
