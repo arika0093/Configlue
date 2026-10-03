@@ -385,11 +385,39 @@ internal static class XmlStateCodecOperations
                     var keyElement =
                         item.Element("key")?.Elements().FirstOrDefault()
                         ?? throw new XmlException("A dictionary entry has no key value.");
-                    var valueElement =
-                        item.Element("value")?.Elements().FirstOrDefault()
+                    var valueWrapper =
+                        item.Element("value")
                         ?? throw new XmlException("A dictionary entry has no value.");
+                    object? dictionaryValue;
+                    if (IsNil(valueWrapper))
+                    {
+                        if (
+                            dictionaryValueType.IsValueType
+                            && Nullable.GetUnderlyingType(dictionaryValueType) is null
+                        )
+                        {
+                            throw new XmlException("Non-nullable dictionary value cannot be null.");
+                        }
+
+                        dictionaryValue = null;
+                    }
+                    else
+                    {
+                        var valueElement =
+                            valueWrapper.Elements().FirstOrDefault()
+                            ?? throw new XmlException("A dictionary entry has no value.");
+                        dictionaryValue = ReadValue(valueElement, dictionaryValueType);
+                        if (
+                            dictionaryValue is null
+                            && dictionaryValueType.IsValueType
+                            && Nullable.GetUnderlyingType(dictionaryValueType) is null
+                        )
+                        {
+                            throw new XmlException("Non-nullable dictionary value cannot be null.");
+                        }
+                    }
+
                     var key = ReadValue(keyElement, keyType);
-                    var dictionaryValue = ReadValue(valueElement, dictionaryValueType);
                     return Activator.CreateInstance(pairType, [key, dictionaryValue]);
                 })
                 .ToArray();
@@ -522,7 +550,16 @@ internal static class XmlStateCodecOperations
             WriteValue(writer, keyType, entryType.GetProperty("Key")!.GetValue(entry)!);
             writer.WriteEndElement();
             writer.WriteStartElement("value");
-            WriteValue(writer, valueType, entryType.GetProperty("Value")!.GetValue(entry)!);
+            var entryValue = entryType.GetProperty("Value")!.GetValue(entry);
+            if (entryValue is null)
+            {
+                writer.WriteAttributeString("xsi", "nil", XsiNamespace, "true");
+            }
+            else
+            {
+                WriteValue(writer, valueType, entryValue);
+            }
+
             writer.WriteEndElement();
             writer.WriteEndElement();
         }

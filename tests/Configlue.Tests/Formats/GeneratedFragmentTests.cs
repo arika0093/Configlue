@@ -3,6 +3,7 @@ using System.Collections.ObjectModel;
 using System.Collections.Immutable;
 using System.ComponentModel.DataAnnotations;
 using System.Text;
+using System.Xml.Linq;
 using Configlue;
 using Configlue.Provider.Json;
 using Configlue.Provider.Xml;
@@ -155,6 +156,24 @@ public partial class XmlCollectionShapesSettings
     public ImmutableList<int> ImmutableListValues { get; set; } = [];
     public ImmutableHashSet<int> ImmutableSetValues { get; set; } = [];
     public ImmutableDictionary<string, int> ImmutableDictionaryValues { get; set; } = ImmutableDictionary<string, int>.Empty;
+}
+
+[ConfiglueModel("xml-null-dictionary", Version = 1)]
+public partial class XmlNullDictionarySettings
+{
+    public Dictionary<string, List<int>?> Values { get; set; } = new();
+
+    public Dictionary<string, int?> NullableInts { get; set; } = new();
+
+    public Dictionary<string, string?> NullableStrings { get; set; } = new();
+
+    public Dictionary<string, Dictionary<string, int>?> Nested { get; set; } = new();
+}
+
+[ConfiglueModel("xml-nonnull-dictionary", Version = 1)]
+public partial class XmlNonNullDictionarySettings
+{
+    public Dictionary<string, int> Values { get; set; } = new();
 }
 
 public sealed class TestReadOnlySet<T>(IEnumerable<T> values) : IReadOnlySet<T>
@@ -818,6 +837,106 @@ public sealed class GeneratedFragmentTests
         decoded.ImmutableListValues.ShouldBe([19, 20]);
         decoded.ImmutableSetValues.ShouldBe(ImmutableHashSet.Create(21, 22));
         decoded.ImmutableDictionaryValues.ShouldBe(ImmutableDictionary<string, int>.Empty.Add("three", 3));
+    }
+
+    [Test]
+    public void XmlCodec_RoundTripsNullDictionaryValuesViaXsiNil()
+    {
+        var model = new XmlNullDictionarySettings
+        {
+            Values = new() { ["null-list"] = null, ["empty-list"] = [], ["values"] = [1, 2] },
+            NullableInts = new() { ["null-int"] = null, ["value"] = 42 },
+            NullableStrings = new() { ["null-string"] = null, ["value"] = "hello" },
+            Nested = new()
+            {
+                ["null-dict"] = null,
+                ["empty-dict"] = new(),
+                ["value"] = new() { ["k"] = 1 },
+            },
+        };
+
+        // Typed codec.
+        var typedCodec = new XmlStateCodec<XmlNullDictionarySettings>();
+        var buffer = new ArrayBufferWriter<byte>();
+        typedCodec.Serialize(model, buffer, default);
+        var payload = buffer.WrittenMemory.ToArray();
+        var xml = Encoding.UTF8.GetString(payload);
+        (xml.Contains("nil")).ShouldBeTrue();
+        var sequence = new ReadOnlySequence<byte>(buffer.WrittenMemory);
+        var decoded = typedCodec.Deserialize(in sequence, default)!;
+        AssertNullDictionaryRoundTrip(decoded);
+
+        // Dynamic codec.
+        var dynamicCodec = new XmlStateCodec();
+        var dynamicBuffer = new ArrayBufferWriter<byte>();
+        dynamicCodec.Serialize(typeof(XmlNullDictionarySettings), model, dynamicBuffer, default);
+        var dynamicSequence = new ReadOnlySequence<byte>(dynamicBuffer.WrittenMemory);
+        var dynamicDecoded =
+            (XmlNullDictionarySettings)
+                dynamicCodec.Deserialize(
+                    typeof(XmlNullDictionarySettings),
+                    in dynamicSequence,
+                    default
+                )!;
+        AssertNullDictionaryRoundTrip(dynamicDecoded);
+
+        // Generated fragment codec.
+        var fragmentCodec = new XmlStateCodec<XmlNullDictionarySettings.Fragment>();
+        var fragmentBuffer = new ArrayBufferWriter<byte>();
+        var fragment = XmlNullDictionarySettings.Fragment.From(model);
+        fragmentCodec.Serialize(fragment, fragmentBuffer, default);
+        var fragmentSequence = new ReadOnlySequence<byte>(fragmentBuffer.WrittenMemory);
+        var decodedFragment = fragmentCodec.Deserialize(in fragmentSequence, default)!;
+        AssertNullDictionaryRoundTrip(decodedFragment.ToModel());
+    }
+
+    [Test]
+    public void XmlCodec_RejectsNilDictionaryValueForNonNullableValueType()
+    {
+        var codec = new XmlStateCodec<XmlNonNullDictionarySettings>();
+        var valid = new XmlNonNullDictionarySettings { Values = new() { ["ok"] = 1 } };
+        var buffer = new ArrayBufferWriter<byte>();
+        codec.Serialize(valid, buffer, default);
+        var document = System.Xml.Linq.XDocument.Parse(
+            Encoding.UTF8.GetString(buffer.WrittenMemory.ToArray())
+        );
+        var valueWrapper = document
+            .Descendants("member")
+            .First(element => (string?)element.Attribute("name") == "Values")
+            .Descendants("item")
+            .Elements("value")
+            .First();
+        valueWrapper.RemoveNodes();
+        valueWrapper.SetAttributeValue(
+            System.Xml.Linq.XName.Get("nil", "http://www.w3.org/2001/XMLSchema-instance"),
+            "true"
+        );
+        var tampered = Encoding.UTF8.GetBytes(
+            (document.Declaration?.ToString() ?? string.Empty) + document.ToString()
+        );
+        var tamperedSequence = new ReadOnlySequence<byte>(tampered);
+
+        Should.Throw<System.Xml.XmlException>(() =>
+            codec.Deserialize(in tamperedSequence, default)
+        );
+    }
+
+    private static void AssertNullDictionaryRoundTrip(XmlNullDictionarySettings decoded)
+    {
+        (decoded.Values.ContainsKey("null-list")).ShouldBeTrue();
+        (decoded.Values["null-list"]).ShouldBeNull();
+        (decoded.Values["empty-list"]).ShouldBe(new List<int>());
+        (decoded.Values["empty-list"] is null).ShouldBeFalse();
+        (decoded.Values["values"]).ShouldBe(new List<int> { 1, 2 });
+        (decoded.NullableInts["null-int"]).ShouldBeNull();
+        (decoded.NullableInts["value"]).ShouldBe(42);
+        (decoded.NullableStrings["null-string"]).ShouldBeNull();
+        (decoded.NullableStrings["value"]).ShouldBe("hello");
+        (decoded.Nested.ContainsKey("null-dict")).ShouldBeTrue();
+        (decoded.Nested["null-dict"]).ShouldBeNull();
+        (decoded.Nested["empty-dict"]).ShouldBe(new Dictionary<string, int>());
+        (decoded.Nested["empty-dict"] is null).ShouldBeFalse();
+        (decoded.Nested["value"]).ShouldBe(new Dictionary<string, int> { ["k"] = 1 });
     }
 
     [Test]
