@@ -187,8 +187,9 @@ public sealed class SerializedStateReader<T> : ISourceReader<T>, ITryResourceIde
 
                     try
                     {
-                        await DeserializeAsync(candidate, token).ConfigureAwait(false);
-                        return true;
+                        var decoded = await DeserializeAsync(candidate, token)
+                            .ConfigureAwait(false);
+                        return decoded.Status == StateReadStatus.Success;
                     }
                     catch (Exception exception) when (IsRecoverableReadException(exception))
                     {
