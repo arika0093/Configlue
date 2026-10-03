@@ -488,6 +488,7 @@ public sealed class ConfiglueSchemaMsBuildTests
     }
 
     [Test]
+    [NotInParallel]
     public async Task Generate_FailsWhenModelDependencyIsMissing()
     {
         var fixtureRoot = CreateTempDirectory();
@@ -551,6 +552,7 @@ public sealed class ConfiglueSchemaMsBuildTests
     }
 
     [Test]
+    [NotInParallel]
     public async Task Generate_SucceedsWhenAllModelDependenciesArePresent()
     {
         var fixtureRoot = CreateTempDirectory();
@@ -664,27 +666,37 @@ public sealed class ConfiglueSchemaMsBuildTests
             """
         );
 
-        await RunDotNetBuildAsync(Path.Combine(modelsDirectory, "Models.csproj"));
+        await RunDotNetBuildAsync(Path.Combine(modelsDirectory, "Models.csproj"), root);
 
-        var modelsAssembly = Path.Combine(
-            modelsDirectory,
-            "bin",
-            "Debug",
-            "net10.0",
-            "TypeLoadFixture.Models.dll"
-        );
-        if (!File.Exists(modelsAssembly))
+        var modelsAssembly = Directory
+            .GetFiles(root, "TypeLoadFixture.Models.dll", SearchOption.AllDirectories)
+            .OrderBy(static path => path.Length)
+            .FirstOrDefault();
+        if (modelsAssembly is null || !File.Exists(modelsAssembly))
         {
             throw new InvalidOperationException(
-                $"The type-load fixture assembly was not built: {modelsAssembly}"
+                $"The type-load fixture assembly was not built under: {root}"
             );
         }
 
         return modelsAssembly;
     }
 
-    private static async Task RunDotNetBuildAsync(string projectPath)
+    private static async Task RunDotNetBuildAsync(string projectPath, string fixtureRoot)
     {
+        // Isolate the inner build from parallel test runs: redirect every built
+        // project (including the referenced Configlue.Abstraction) into a unique
+        // per-fixture artifacts tree so concurrent fixture builds never share
+        // src/.../bin/Debug (previously raced on Configlue.Abstraction.deps.json
+        // with MSB4018 GenerateDepsFile). UseArtifactsOutput gives each project
+        // its own bin/obj subdirectory; the inner build itself is serialized.
+        var artifactsRoot = Path.Combine(fixtureRoot, "isolated-artifacts");
+
+        string WithTrailingSeparator(string path) =>
+            path.EndsWith(Path.DirectorySeparatorChar)
+                ? path
+                : path + Path.DirectorySeparatorChar;
+
         var startInfo = new ProcessStartInfo("dotnet")
         {
             RedirectStandardOutput = true,
@@ -692,6 +704,9 @@ public sealed class ConfiglueSchemaMsBuildTests
             UseShellExecute = false,
             CreateNoWindow = true,
         };
+        startInfo.Environment["DOTNET_CLI_TELEMETRY_OPTOUT"] = "1";
+        startInfo.Environment["DOTNET_NOLOGO"] = "1";
+        startInfo.Environment["MSBUILDDISABLENODEREUSE"] = "1";
         startInfo.ArgumentList.Add("build");
         startInfo.ArgumentList.Add(projectPath);
         startInfo.ArgumentList.Add("-c");
@@ -699,6 +714,12 @@ public sealed class ConfiglueSchemaMsBuildTests
         startInfo.ArgumentList.Add("--nologo");
         startInfo.ArgumentList.Add("-v");
         startInfo.ArgumentList.Add("q");
+        startInfo.ArgumentList.Add("-m:1");
+        startInfo.ArgumentList.Add("/nodeReuse:false");
+        startInfo.ArgumentList.Add("/p:UseArtifactsOutput=true");
+        startInfo.ArgumentList.Add($"/p:ArtifactsPath={WithTrailingSeparator(artifactsRoot)}");
+        startInfo.ArgumentList.Add("/p:BuildInParallel=false");
+        startInfo.ArgumentList.Add("/p:UseSharedCompilation=false");
 
         using var process =
             Process.Start(startInfo)
