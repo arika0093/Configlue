@@ -675,6 +675,122 @@ public sealed class GeneratorHostCompatibilityTests
     }
 
     [Test]
+    public void InternalRootModel_UsesInternalTopLevelExtensionContainers()
+    {
+        const string source = """
+            using Configlue;
+
+            namespace Accessibility.Sample;
+
+            [ConfiglueModel("internal-settings")]
+            internal partial class InternalSettings
+            {
+                public int Value { get; set; }
+            }
+            """;
+        var options = new CSharpParseOptions(LanguageVersion.Preview);
+        var modelTree = CSharpSyntaxTree.ParseText(source, options);
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(
+            new[] { new ConfiglueGenerator().AsSourceGenerator() },
+            parseOptions: options
+        );
+        driver = driver.RunGeneratorsAndUpdateCompilation(
+            CreateCompilation(modelTree),
+            out var output,
+            out var diagnostics
+        );
+
+        driver.GetRunResult().Results.Single().Exception.ShouldBeNull();
+        diagnostics.ShouldBeEmpty(BuildDiagnosticMessage(diagnostics));
+        var emit = output.Emit(Stream.Null);
+        emit.Success.ShouldBeTrue(BuildDiagnosticMessage(emit.Diagnostics));
+
+        var generated = GetGeneratedSource(output, modelTree);
+        generated.ShouldContain("internal static class InternalSettingsPatchOptionsExtensions");
+        generated.ShouldContain("internal static class InternalSettingsDetailsExtensions");
+        generated.ShouldNotContain("public static class InternalSettingsPatchOptionsExtensions");
+        generated.ShouldNotContain("public static class InternalSettingsDetailsExtensions");
+    }
+
+    [Test]
+    public void PublicRootModel_UsesInternalFactoryForInternalPreviousModel()
+    {
+        const string source = """
+            using Configlue;
+
+            namespace Accessibility.Sample;
+
+            [ConfiglueModel("versioned-settings", Version = 2)]
+            [ConfigluePreviousVersion(typeof(PreviousSettings))]
+            public partial class CurrentSettings
+            {
+                public int Value { get; set; }
+            }
+
+            [ConfiglueModel("versioned-settings", Version = 1)]
+            internal partial class PreviousSettings
+            {
+                public int Value { get; set; }
+            }
+            """;
+        var options = new CSharpParseOptions(LanguageVersion.Preview);
+        var modelTree = CSharpSyntaxTree.ParseText(source, options);
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(
+            new[] { new ConfiglueGenerator().AsSourceGenerator() },
+            parseOptions: options
+        );
+        driver = driver.RunGeneratorsAndUpdateCompilation(
+            CreateCompilation(modelTree),
+            out var output,
+            out var diagnostics
+        );
+
+        driver.GetRunResult().Results.Single().Exception.ShouldBeNull();
+        diagnostics.ShouldBeEmpty(BuildDiagnosticMessage(diagnostics));
+        var emit = output.Emit(Stream.Null);
+        emit.Success.ShouldBeTrue(BuildDiagnosticMessage(emit.Diagnostics));
+
+        var generated = GetGeneratedSource(output, modelTree);
+        generated.ShouldContain("internal static Fragment FromPrevious(");
+    }
+
+    [Test]
+    public void RefLikeRootModel_ReportsUnsupportedModelDiagnosticWithoutSource()
+    {
+        AssertUnsupportedRootModel("public ref partial struct");
+    }
+
+    [Test]
+    public void RecordRootModel_GeneratesCompilableSource()
+    {
+        AssertSupportedRootModelCompiles(
+            """
+            [ConfiglueModel("record-settings")]
+            public partial record RecordSettings
+            {
+                public RecordSettings() { }
+                public int Value { get; init; }
+            }
+            """
+        );
+    }
+
+    [Test]
+    public void ReadonlyStructRootModel_GeneratesCompilableSource()
+    {
+        AssertSupportedRootModelCompiles(
+            """
+            [ConfiglueModel("readonly-struct-settings")]
+            public readonly partial struct ReadonlyStructSettings
+            {
+                public ReadonlyStructSettings(int value) => Value = value;
+                public int Value { get; init; }
+            }
+            """
+        );
+    }
+
+    [Test]
     public void Generator_EmitsMessagePackSupportOnRoslyn431Host()
     {
         var parseOptions = new CSharpParseOptions(LanguageVersion.CSharp9);
