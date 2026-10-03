@@ -117,6 +117,7 @@ internal static partial class JsonStateCodecOperations
             if (
                 metadata.ValueKind != JsonValueKind.Object
                 || !metadata.TryGetProperty("version", out var versionElement)
+                || versionElement.ValueKind != JsonValueKind.Number
                 || !versionElement.TryGetInt32(out var version)
                 || version < StateSchemaMetadata.InitialVersion
             )
