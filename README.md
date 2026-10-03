@@ -32,30 +32,12 @@ Consider the well-known applications you use every day.
 * Git can even tell you which scope and file a value came from.
 
 #### [Visual Studio Code](https://code.visualstudio.com/docs/configure/settings)
-* VS Code goes further: default, user, remote, workspace, workspace-folder, language-specific, profile,
-* and policy settings, plus Settings Sync across machines.
+* VS Code goes further: default, user, remote, workspace, workspace-folder, language-specific, profile, and policy settings, plus Settings Sync across machines.
 * Some values are edited by humans in JSON, so editor assistance and schema-aware validation matter too.
 
 #### [Chrome](https://support.google.com/chrome/a/answer/9037717)
 * Chrome adds another dimension: platform, machine-cloud, OS-user, and cloud-user policies,
 * each with its own precedence and management semantics.
-
----
-
-In practice, you may think you never need to go this deep.
-But most systems follow a similar growth path, and end up needing similar things.
-
-So it is time to face the parts that are genuinely painful.
-
-* Which source wins?
-* Which source should receive a write?
-* What if a higher-priority source is read-only?
-* How do you distinguish a missing value from an explicit `null`?
-* How do you preserve comments when humans edit the file?
-* How do you expose a schema?
-* What happens when the schema changes next year?
-* How do you migrate old settings?
-* How do you make writes atomic, retain backups, detect conflicts, and react to external changes?
 
 Now think about implementing all of that yourself. Can you come up with a good way to do it?
 
@@ -72,6 +54,10 @@ await settings.SaveAsync(...);
 
 The important point is that the application should not care *where* or *how* a setting is written.
 All it needs is an API where you simply declare "read this" and "write this".
+
+---
+
+Configlue was designed as a solution to address these problems.
 
 ## Overview
 ### Simple to use
@@ -330,7 +316,7 @@ Of course, as noted in goal 3, you can swap any of it out at any time.
 
 * It glues fragments of configuration into a single setting.
 * It provides the glue code for configuration.
-* In Japanese: *config-ru* (to configure).
+* In Japanese, *config-ru* sounds like a verb meaning "to configure."
 
 ## License
 
