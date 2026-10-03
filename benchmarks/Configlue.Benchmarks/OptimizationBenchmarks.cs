@@ -129,8 +129,8 @@ public class LayeredResolutionFallbackBenchmarks
     [Params(1, 2, 4, 16)]
     public int SourceCount { get; set; }
 
-    [Params(false, true)]
-    public bool DeepFallback { get; set; }
+    [Params("First", "Middle", "Last")]
+    public string SuccessPosition { get; set; } = "First";
 
     [GlobalSetup]
     public void Setup()
@@ -139,8 +139,17 @@ public class LayeredResolutionFallbackBenchmarks
             .Range(0, SourceCount)
             .Select(index =>
             {
+                var successIndex = SuccessPosition switch
+                {
+                    "First" => 0,
+                    "Middle" => SourceCount / 2,
+                    "Last" => SourceCount - 1,
+                    _ => throw new InvalidOperationException(
+                        $"Unknown success position: {SuccessPosition}"
+                    ),
+                };
                 var store =
-                    DeepFallback && index < SourceCount - 1
+                    index != successIndex
                         ? new InMemoryStateSource<OptimizationBenchmarkSettings.Fragment>()
                         : new InMemoryStateSource<OptimizationBenchmarkSettings.Fragment>(
                             new OptimizationBenchmarkSettings.Fragment
