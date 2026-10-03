@@ -277,41 +277,6 @@ dotnet add package Configlue.Hosting.Godot
 
 > TODO
 
-## Goals
-
-### 1. Use it anywhere C# runs
-
-C# is used for CLI tools, services, web applications, desktop UI, mobile applications, and games.
-Configlue keeps its portable core and integrations broadly targetable, including .NET Standard where practical, while host-specific packages contain platform-specific behavior.
-
-### 2. Keep infrastructure out of application code
-
-The application should usually depend on:
-
-```csharp
-IReadOnlyState<T>
-IWritableState<T>
-```
-
-The goal is for everything behind those abstractions to be completely forgettable.
-
-### 3. Composable underneath
-
-Configlue does not require one storage backend, one serialization format, or one source layout.
-
-Files, HTTP, S3, Redis, PostgreSQL, browser storage, environment variables, command-line arguments, JSON, YAML, XML, MessagePack, AES, compression, and custom implementations can be composed according to the application.
-
-Configlue aims to hold no strong opinion about that detailed composition.
-
-### 4. Convenient on top
-
-Most applications still have predictable needs.
-
-For these "common" use cases, Configlue provides presets based on opinionated (and admittedly biased) defaults.
-This removes the need to assemble a pipeline every time, so a simple initial setup is enough.
-
-Of course, as noted in goal 3, you can swap any of it out at any time.
-
 ## Why "Configlue"?
 
 * It glues fragments of configuration into a single setting.
