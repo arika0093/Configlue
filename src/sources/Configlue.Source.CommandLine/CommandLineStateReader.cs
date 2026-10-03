@@ -303,10 +303,9 @@ internal static class CommandLineValueConverter
     {
         ArgumentNullException.ThrowIfNull(targetType);
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
-        var valueType = Nullable.GetUnderlyingType(targetType) ?? targetType;
         if (parsed is null)
         {
-            if (valueType.IsValueType)
+            if (targetType.IsValueType && Nullable.GetUnderlyingType(targetType) is null)
             {
                 throw new FormatException(
                     $"The command-line value for model path '{path}' from '{symbolName}' is null but requires '{targetType}'."
@@ -315,6 +314,8 @@ internal static class CommandLineValueConverter
 
             return null;
         }
+
+        var valueType = Nullable.GetUnderlyingType(targetType) ?? targetType;
 
         if (valueType.IsInstanceOfType(parsed))
         {

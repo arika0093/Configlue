@@ -253,6 +253,253 @@ public sealed class CommandLineSourceTests
         }
     }
 
+    [Test]
+    public async Task NullConverterClearsNullableValueTypes()
+    {
+        var intOption = new Option<string>("--int");
+        var boolOption = new Option<string>("--bool");
+        var kindOption = new Option<string>("--kind");
+        var root = new RootCommand();
+        root.Options.Add(intOption);
+        root.Options.Add(boolOption);
+        root.Options.Add(kindOption);
+        var parseResult = root.Parse(["--int", "clear", "--bool", "clear", "--kind", "clear"]);
+
+        await using var context = ConfiglueApp.CreateContext(builder =>
+        {
+            builder.Add<CliNullable195Settings>(model =>
+                model.Sources(sources =>
+                    sources.FromCommandLine(
+                        new CommandLineSourceOptions
+                        {
+                            Id = "command-line",
+                            ParseResult = parseResult,
+                        },
+                        mappings =>
+                        {
+                            mappings.Map<string, int?>(
+                                intOption,
+                                "IntValue",
+                                static _ => null
+                            );
+                            mappings.Map<string, bool?>(
+                                boolOption,
+                                "BoolValue",
+                                static _ => null
+                            );
+                            mappings.Map<string, CliNullable195Kind?>(
+                                kindOption,
+                                "Kind",
+                                static _ => null
+                            );
+                        }
+                    )
+                )
+            );
+        });
+
+        var value = await context.GetState<CliNullable195Settings>().GetValueAsync();
+        (value.IntValue).ShouldBeNull();
+        (value.BoolValue).ShouldBeNull();
+        (value.Kind).ShouldBeNull();
+    }
+
+    [Test]
+    public async Task NullConverterClearsReferenceType()
+    {
+        var labelOption = new Option<string>("--label");
+        var root = new RootCommand();
+        root.Options.Add(labelOption);
+        var parseResult = root.Parse(["--label", "clear"]);
+
+        await using var context = ConfiglueApp.CreateContext(builder =>
+        {
+            builder.Add<CliNullable195Settings>(model =>
+                model.Sources(sources =>
+                    sources.FromCommandLine(
+                        new CommandLineSourceOptions
+                        {
+                            Id = "command-line",
+                            ParseResult = parseResult,
+                        },
+                        mappings =>
+                            mappings.Map<string, string?>(
+                                labelOption,
+                                "Label",
+                                static _ => null
+                            )
+                    )
+                )
+            );
+        });
+
+        var value = await context.GetState<CliNullable195Settings>().GetValueAsync();
+        (value.Label).ShouldBeNull();
+    }
+
+    [Test]
+    public async Task NullableCollectionElementsAndDictionaryValuesAcceptNull()
+    {
+        var scoresOption = new Option<string>("--scores");
+        var lookupOption = new Option<string>("--lookup");
+        var root = new RootCommand();
+        root.Options.Add(scoresOption);
+        root.Options.Add(lookupOption);
+        var parseResult = root.Parse(["--scores", "x", "--lookup", "y"]);
+
+        await using var context = ConfiglueApp.CreateContext(builder =>
+        {
+            builder.Add<CliNullable195Settings>(model =>
+                model.Sources(sources =>
+                    sources.FromCommandLine(
+                        new CommandLineSourceOptions
+                        {
+                            Id = "command-line",
+                            ParseResult = parseResult,
+                        },
+                        mappings =>
+                        {
+                            mappings.Map<string, List<int?>>(
+                                scoresOption,
+                                "Scores",
+                                static _ => new List<int?> { 1, null, 3 }
+                            );
+                            mappings.Map<string, Dictionary<string, int?>>(
+                                lookupOption,
+                                "Lookup",
+                                static _ => new Dictionary<string, int?>
+                                {
+                                    ["a"] = 1,
+                                    ["b"] = null,
+                                }
+                            );
+                        }
+                    )
+                )
+            );
+        });
+
+        var value = await context.GetState<CliNullable195Settings>().GetValueAsync();
+        (value.Scores).ShouldBe(new int?[] { 1, null, 3 });
+        (value.Lookup!["a"]).ShouldBe(1);
+        (value.Lookup!["b"]).ShouldBeNull();
+        (value.Lookup.ContainsKey("b")).ShouldBeTrue();
+    }
+
+    [Test]
+    public async Task NullConverterClearsNullableCollections()
+    {
+        var scoresOption = new Option<string>("--scores");
+        var lookupOption = new Option<string>("--lookup");
+        var root = new RootCommand();
+        root.Options.Add(scoresOption);
+        root.Options.Add(lookupOption);
+        var parseResult = root.Parse(["--scores", "x", "--lookup", "y"]);
+
+        await using var context = ConfiglueApp.CreateContext(builder =>
+        {
+            builder.Add<CliNullable195Settings>(model =>
+                model.Sources(sources =>
+                    sources.FromCommandLine(
+                        new CommandLineSourceOptions
+                        {
+                            Id = "command-line",
+                            ParseResult = parseResult,
+                        },
+                        mappings =>
+                        {
+                            mappings.Map<string, List<int?>>(
+                                scoresOption,
+                                "Scores",
+                                static _ => null
+                            );
+                            mappings.Map<string, Dictionary<string, int?>>(
+                                lookupOption,
+                                "Lookup",
+                                static _ => null
+                            );
+                        }
+                    )
+                )
+            );
+        });
+
+        var value = await context.GetState<CliNullable195Settings>().GetValueAsync();
+        (value.Scores).ShouldBeNull();
+        (value.Lookup).ShouldBeNull();
+    }
+
+    [Test]
+    public async Task NullConverterForNonNullableValueTypeFails()
+    {
+        var retryOption = new Option<string>("--retry");
+        var root = new RootCommand();
+        root.Options.Add(retryOption);
+        var parseResult = root.Parse(["--retry", "clear"]);
+
+        await using var context = ConfiglueApp.CreateContext(builder =>
+        {
+            builder.Add<CliNullable195Settings>(model =>
+                model.Sources(sources =>
+                    sources.FromCommandLine(
+                        new CommandLineSourceOptions
+                        {
+                            Id = "command-line",
+                            ParseResult = parseResult,
+                        },
+                        mappings =>
+                            mappings.Map<string, string?>(
+                                retryOption,
+                                "RetryCount",
+                                static _ => null
+                            )
+                    )
+                )
+            );
+        });
+
+        var exception = await Should.ThrowAsync<FormatException>(async () =>
+            await context.GetState<CliNullable195Settings>().GetValueAsync()
+        );
+        (exception.Message).ShouldContain("RetryCount");
+    }
+
+    [Test]
+    public async Task UnspecifiedOptionPreservesDefaults()
+    {
+        var intOption = new Option<string>("--int");
+        var root = new RootCommand();
+        root.Options.Add(intOption);
+        var parseResult = root.Parse([]);
+
+        await using var context = ConfiglueApp.CreateContext(builder =>
+        {
+            builder.Add<CliNullable195Settings>(model =>
+                model.Sources(sources =>
+                    sources.FromCommandLine(
+                        new CommandLineSourceOptions
+                        {
+                            Id = "command-line",
+                            ParseResult = parseResult,
+                        },
+                        mappings =>
+                            mappings.Map<string, int?>(
+                                intOption,
+                                "IntValue",
+                                static _ => null
+                            )
+                    )
+                )
+            );
+        });
+
+        var value = await context.GetState<CliNullable195Settings>().GetValueAsync();
+        (value.IntValue).ShouldBe(42);
+        (value.BoolValue).ShouldBe(true);
+        (value.Label).ShouldBe("default");
+        (value.RetryCount).ShouldBe(4);
+    }
+
     private static ConfiglueContext CreateContext(
         ParseResult parseResult,
         Action<CommandLineMappingBuilder> configureMappings
@@ -284,4 +531,31 @@ public sealed class CommandLineSourceTests
                 })
             );
         });
+}
+
+[ConfiglueModel("cli-nullable-195", Version = 1)]
+public partial class CliNullable195Settings
+{
+    public int? IntValue { get; set; } = 42;
+
+    public bool? BoolValue { get; set; } = true;
+
+    public CliNullable195Kind? Kind { get; set; } = CliNullable195Kind.Alpha;
+
+    public string? Label { get; set; } = "default";
+
+    public int RetryCount { get; set; } = 4;
+
+    public List<int?>? Scores { get; set; } = new() { 1, 2 };
+
+    public Dictionary<string, int?>? Lookup { get; set; } = new() { ["base"] = 1 };
+}
+
+public enum CliNullable195Kind
+{
+    None,
+
+    Alpha,
+
+    Beta,
 }
