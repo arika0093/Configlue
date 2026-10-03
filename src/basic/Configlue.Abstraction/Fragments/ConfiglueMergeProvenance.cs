@@ -58,6 +58,16 @@ public static class ConfiglueMergeProvenance
         var mergeStrategy = member.MergeStrategy;
         if (mergeStrategy is not null)
         {
+            if (mergeStrategy is not IConfiglueMergeElementProvenanceProvider provenanceProvider)
+            {
+                return effectiveElements
+                    .Select(
+                        (element, index) =>
+                            new ConfiglueCollectionElementProvenance(index, element, [])
+                    )
+                    .ToArray();
+            }
+
             var sourcePriority = sourceContributions
                 .Select((source, index) => (source.SourceId, index))
                 .ToDictionary(static source => source.SourceId, static source => source.index);
@@ -68,7 +78,12 @@ public static class ConfiglueMergeProvenance
                     Optional<object?>.Present(source.Value)
                 ))
                 .ToArray();
-            foreach (var provenance in mergeStrategy.ExplainElements(effectiveValue, sourceValues))
+            foreach (
+                var provenance in provenanceProvider.ExplainElementsObject(
+                    effectiveValue,
+                    sourceValues
+                )
+            )
             {
                 if (provenance.Index >= effectiveElements.Length)
                 {

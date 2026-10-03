@@ -35,12 +35,27 @@ public sealed class BatchWriteParticipantContractTests
         );
 
         plan.ShouldNotBeNull();
-        plan.Value.ResourceId.ShouldBe(resource.ResourceId);
-        await plan.Value.BatchWriter.WriteBatchAsync([plan.Value.Mutation]);
+        plan!.ResourceId.ShouldBe(resource.ResourceId);
+        await plan.BatchWriter.WriteBatchAsync([plan.Mutation]);
         resource.WriteCount.ShouldBe(1);
         (await projected.Reader.ReadAsync()).Value!.Database!.Value!.Host.Value.ShouldBe(
             "batch.db"
         );
+    }
+
+    [Test]
+    public void StateWriteBatchPlan_RejectsInvalidRequiredMembers()
+    {
+        var writer = new InMemoryResource();
+        var mutation = ResourceWriteMutation.Replace(
+            new ResourceWriteRequest(ReadOnlyMemory<byte>.Empty),
+            ConfiglueResourceContext.Default
+        );
+        var id = writer.ResourceId;
+
+        Should.Throw<ArgumentException>(() => new StateWriteBatchPlan(default, writer, mutation));
+        Should.Throw<ArgumentNullException>(() => new StateWriteBatchPlan(id, null!, mutation));
+        Should.Throw<ArgumentNullException>(() => new StateWriteBatchPlan(id, writer, null!));
     }
 
     [Test]

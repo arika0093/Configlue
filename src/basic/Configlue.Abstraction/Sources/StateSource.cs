@@ -277,6 +277,7 @@ public sealed class StateSource<T>
         CancellationToken cancellationToken = default
     )
     {
+        ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(subject);
         if (Writer is null)
         {
@@ -293,6 +294,7 @@ public sealed class StateSource<T>
         CancellationToken cancellationToken = default
     )
     {
+        ArgumentNullException.ThrowIfNull(request);
         if (Writer is null)
         {
             throw new InvalidOperationException($"State source '{Id}' does not support writes.");

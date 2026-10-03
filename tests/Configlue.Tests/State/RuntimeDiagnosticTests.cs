@@ -24,6 +24,16 @@ public sealed partial class RuntimeDiagnosticTests
         {
             property.SetMethod.ShouldBeNull();
         }
+
+        var runtimeSnapshotType = typeof(ConfiglueRuntimeDiagnosticSnapshot);
+        runtimeSnapshotType.GetConstructors()
+            .Where(static constructor => constructor.GetParameters().Length > 0)
+            .ShouldBeEmpty();
+        runtimeSnapshotType.GetMethod("Deconstruct").ShouldBeNull();
+        foreach (var property in runtimeSnapshotType.GetProperties())
+        {
+            property.SetMethod.ShouldBeNull();
+        }
     }
 
     [Test]

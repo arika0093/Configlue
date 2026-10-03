@@ -293,7 +293,7 @@ public readonly record struct ConfiglueRuntimeSourceSnapshot
 public sealed class ConfiglueRuntimeDiagnosticSnapshot
 {
     /// <summary>Creates a runtime snapshot using already observed diagnostic data.</summary>
-    public ConfiglueRuntimeDiagnosticSnapshot(
+    internal ConfiglueRuntimeDiagnosticSnapshot(
         string stateName,
         string modelId,
         int modelVersion,

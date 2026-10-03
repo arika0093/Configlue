@@ -9,6 +9,7 @@ using RebaseConflict = Configlue.ConfiglueRebaseConflict;
 using ConflictKind = Configlue.ConfiglueRebaseConflictKind;
 using CollectionRebase = Configlue.ConfiglueCollectionRebase;
 using MergeStrategy = Configlue.IConfiglueMergeStrategy;
+using MergeRebaseStrategy = Configlue.IConfiglueMergeRebaseStrategy;
 
 namespace Configlue;
 
@@ -21,6 +22,7 @@ using RebaseConflict = SparseFragments.SparsePatchConflict;
 using ConflictKind = SparseFragments.SparsePatchConflictKind;
 using CollectionRebase = SparseFragments.SparseCollectionRebase;
 using MergeStrategy = SparseFragments.ISparseMergeStrategy;
+using MergeRebaseStrategy = SparseFragments.ISparseMergeStrategy;
 
 namespace SparseFragments;
 
@@ -150,8 +152,28 @@ public static class SparseModelRebase
 
                 if (GetMergeStrategy(member) is { } mergeStrategy)
                 {
+                    if (mergeStrategy is not MergeRebaseStrategy rebaseStrategy)
+                    {
+                        conflicts.Add(
+                            CreateConflict(
+                                path,
+                                ConflictKind.CustomStrategy,
+                                beforeValue,
+                                desiredValue,
+                                currentValue,
+                                "The custom merge strategy does not support edit rebasing."
+                            )
+                        );
+                        changes = changes.WithMember(member.Id, desiredValue);
+                        continue;
+                    }
+
                     if (
-                        mergeStrategy.TryRebase(
+#if CONFIGLUE_FRAGMENT_RUNTIME
+                        rebaseStrategy.TryRebaseObject(
+#else
+                        rebaseStrategy.TryRebase(
+#endif
                             beforeValue,
                             desiredValue,
                             currentValue,

@@ -55,8 +55,8 @@ public sealed class InMemoryStateSource<T> : ISourceReader<T>, ISourceWriter<T>,
     )
     {
         _ = context;
+        ArgumentNullException.ThrowIfNull(request);
         cancellationToken.ThrowIfCancellationRequested();
-        ArgumentNullException.ThrowIfNull(request.Value);
         TaskCompletionSource changed;
         string revision;
         lock (_gate)

@@ -229,6 +229,7 @@ public sealed class PostgreSqlSource<T>
         CancellationToken cancellationToken = default
     )
     {
+        ArgumentNullException.ThrowIfNull(request);
         if (!_writable)
         {
             throw new InvalidOperationException(

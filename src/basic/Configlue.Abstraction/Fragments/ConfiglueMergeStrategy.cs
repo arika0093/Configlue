@@ -86,35 +86,49 @@ public interface IConfiglueMergeStrategy
 
     /// <summary>Compares two member values using the strategy's semantic equality.</summary>
     bool AreEqual(object? left, object? right);
+}
 
+/// <summary>Optional edit-rebase behavior for a custom merge strategy.</summary>
+public interface IConfiglueMergeRebaseStrategy
+{
     /// <summary>Reapplies an edit to a newer value, or returns a reason that it cannot be rebased.</summary>
-    bool TryRebase(
+    bool TryRebaseObject(
         object? editBase,
         object? desired,
         object? current,
         out object? rebased,
         out string? reason
     );
+}
 
+/// <summary>Optional source-local contribution planning for a custom merge strategy.</summary>
+public interface IConfiglueMergeContributionPlanner
+{
     /// <summary>Plans one source's contribution to realize the requested effective value.</summary>
-    bool TryPlanSourceContribution(
+    bool TryPlanSourceContributionObject(
         IReadOnlyList<ConfiglueMergeSourceValue> sourceValuesLowToHigh,
         SourceId targetSourceId,
         object? desiredEffective,
         out Optional<object?> targetContribution,
         out string? reason
     );
+}
 
+/// <summary>Optional element provenance for a custom merge strategy.</summary>
+public interface IConfiglueMergeElementProvenanceProvider
+{
     /// <summary>Maps effective collection elements to their contributing source IDs.</summary>
-    IReadOnlyList<ConfiglueMergeElementProvenance> ExplainElements(
+    IReadOnlyList<ConfiglueMergeElementProvenance> ExplainElementsObject(
         object? effective,
         IReadOnlyList<ConfiglueMergeSourceValue> sourceValuesLowToHigh
     );
 }
 
 /// <summary>
-/// Implements every operation required for a member-specific merge algebra. Source values are ordered from
-/// lowest to highest priority; callers receive a reason when a rebase or source-local edit is not representable.
+/// Implements the required merge and equality algebra for a member. Optional capabilities can be implemented
+/// independently through <see cref="IConfiglueMergeRebaseStrategy"/>,
+/// <see cref="IConfiglueMergeContributionPlanner"/>, and
+/// <see cref="IConfiglueMergeElementProvenanceProvider"/>.
 /// </summary>
 /// <remarks>
 /// Generated models keep one strategy instance and may call it concurrently. Implementations must be stateless or
@@ -130,29 +144,39 @@ public abstract class ConfiglueMergeStrategy<T> : IConfiglueMergeStrategy
     public abstract bool AreEqual(T? left, T? right);
 
     /// <summary>Reapplies an edit based on an earlier value to the current value.</summary>
-    public abstract bool TryRebase(
+    public virtual bool TryRebase(
         T? editBase,
         T? desired,
         T? current,
         out T? rebased,
         out string? reason
-    );
+    )
+    {
+        rebased = default;
+        reason = "This merge strategy does not support edit rebasing.";
+        return false;
+    }
 
     /// <summary>Plans the target source contribution needed to produce a requested effective value.</summary>
-    public abstract bool TryPlanSourceContribution(
+    public virtual bool TryPlanSourceContribution(
         IReadOnlyList<ConfiglueMergeSourceValue<T>> sourceValuesLowToHigh,
         SourceId targetSourceId,
         T? desiredEffective,
         out Optional<T> targetContribution,
         out string? reason
-    );
+    )
+    {
+        targetContribution = default;
+        reason = "This merge strategy does not support source contribution planning.";
+        return false;
+    }
 
     /// <summary>Maps effective collection elements to the source IDs that contributed each element.</summary>
     /// <remarks>Return one entry per effective element. Source IDs must refer to supplied contributions.</remarks>
-    public abstract IReadOnlyList<ConfiglueMergeElementProvenance> ExplainElements(
+    public virtual IReadOnlyList<ConfiglueMergeElementProvenance> ExplainElements(
         T? effective,
         IReadOnlyList<ConfiglueMergeSourceValue<T>> sourceValuesLowToHigh
-    );
+    ) => Array.Empty<ConfiglueMergeElementProvenance>();
 
     Type IConfiglueMergeStrategy.ValueType => typeof(T);
 
@@ -164,7 +188,8 @@ public abstract class ConfiglueMergeStrategy<T> : IConfiglueMergeStrategy
     bool IConfiglueMergeStrategy.AreEqual(object? left, object? right) =>
         AreEqual((T?)left, (T?)right);
 
-    bool IConfiglueMergeStrategy.TryRebase(
+    /// <summary>Untyped adapter used by the optional rebase capability.</summary>
+    public bool TryRebaseObject(
         object? editBase,
         object? desired,
         object? current,
@@ -183,7 +208,8 @@ public abstract class ConfiglueMergeStrategy<T> : IConfiglueMergeStrategy
         return succeeded;
     }
 
-    bool IConfiglueMergeStrategy.TryPlanSourceContribution(
+    /// <summary>Untyped adapter used by the optional contribution planning capability.</summary>
+    public bool TryPlanSourceContributionObject(
         IReadOnlyList<ConfiglueMergeSourceValue> sourceValuesLowToHigh,
         SourceId targetSourceId,
         object? desiredEffective,
@@ -209,7 +235,8 @@ public abstract class ConfiglueMergeStrategy<T> : IConfiglueMergeStrategy
         return succeeded;
     }
 
-    IReadOnlyList<ConfiglueMergeElementProvenance> IConfiglueMergeStrategy.ExplainElements(
+    /// <summary>Untyped adapter used by the optional element provenance capability.</summary>
+    public IReadOnlyList<ConfiglueMergeElementProvenance> ExplainElementsObject(
         object? effective,
         IReadOnlyList<ConfiglueMergeSourceValue> sourceValuesLowToHigh
     )

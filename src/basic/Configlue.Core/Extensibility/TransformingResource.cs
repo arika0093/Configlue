@@ -33,6 +33,17 @@ public sealed class TransformingResource
                 nameof(transformers)
             );
         }
+        var invalid = _transformers.FirstOrDefault(static transformer =>
+            transformer is not ISynchronousStateByteTransformer
+            && transformer is not IAsyncStateByteTransformer
+        );
+        if (invalid is not null)
+        {
+            throw new ArgumentException(
+                $"Transformer type '{invalid.GetType()}' must implement a synchronous or asynchronous transformer capability.",
+                nameof(transformers)
+            );
+        }
 
         if (resource is IResourceWriter writer)
         {

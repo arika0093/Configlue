@@ -113,8 +113,15 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                         strategyValues[index] = new ConfiglueMergeSourceValue(source.Id, value);
                     }
 
+                    if (mergeStrategy is not IConfiglueMergeContributionPlanner planner)
+                    {
+                        throw LogConflict(
+                            $"The custom merge strategy for '{member.Name}' does not support source contribution planning."
+                        );
+                    }
+
                     if (
-                        !mergeStrategy.TryPlanSourceContribution(
+                        !planner.TryPlanSourceContributionObject(
                             strategyValues,
                             targetSourceId,
                             afterValue,

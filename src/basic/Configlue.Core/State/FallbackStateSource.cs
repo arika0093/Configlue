@@ -122,6 +122,7 @@ public sealed class FallbackStateSource<T> : ISourceReader<T>, ISourceWriter<T>,
         CancellationToken cancellationToken = default
     )
     {
+        ArgumentNullException.ThrowIfNull(request);
         context = ConfiglueResourceContext.Normalize(context);
         var current = await _reader.ReadAsync(context, cancellationToken).ConfigureAwait(false);
         return await WriteCoreAsync(context, current, request, cancellationToken)

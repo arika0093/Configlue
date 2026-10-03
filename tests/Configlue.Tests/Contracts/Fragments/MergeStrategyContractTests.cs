@@ -15,8 +15,8 @@ public sealed class MergeStrategyContractTests
         ((IReadOnlyList<string>)merged.Value!).ShouldBe(["base", "shared", "user"]);
         strategy.AreEqual(new[] { "base", "user" }, new[] { "base", "user" }).ShouldBeTrue();
 
-        strategy
-            .TryRebase(
+        ((IConfiglueMergeRebaseStrategy)strategy)
+            .TryRebaseObject(
                 new[] { "base" },
                 new[] { "base", "edit" },
                 new[] { "base", "concurrent" },
@@ -32,8 +32,8 @@ public sealed class MergeStrategyContractTests
             new(SourceId.From("defaults"), Optional<object?>.Present((IReadOnlyList<string>)["base", "shared"])),
             new(SourceId.From("user"), Optional<object?>.Present((IReadOnlyList<string>)["user"])),
         ];
-        strategy
-            .TryPlanSourceContribution(
+        ((IConfiglueMergeContributionPlanner)strategy)
+            .TryPlanSourceContributionObject(
                 sources,
                 SourceId.From("user"),
                 (IReadOnlyList<string>)["base", "shared", "user", "new"],
@@ -48,14 +48,14 @@ public sealed class MergeStrategyContractTests
     [Test]
     public void IConfiglueMergeStrategy_ExplainsSourceProvenanceForEachEffectiveElement()
     {
-        IConfiglueMergeStrategy strategy = new StringSetMergeStrategy();
+        IConfiglueMergeElementProvenanceProvider strategy = new StringSetMergeStrategy();
         ConfiglueMergeSourceValue[] sources =
         [
             new(SourceId.From("defaults"), Optional<object?>.Present((IReadOnlyList<string>)["base", "shared"])),
             new(SourceId.From("user"), Optional<object?>.Present((IReadOnlyList<string>)["shared", "custom"])),
         ];
 
-        var provenance = strategy.ExplainElements(
+        var provenance = strategy.ExplainElementsObject(
             (IReadOnlyList<string>)["base", "shared", "custom"],
             sources
         );
@@ -70,7 +70,91 @@ public sealed class MergeStrategyContractTests
             ]);
     }
 
-    private sealed class StringSetMergeStrategy : ConfiglueMergeStrategy<IReadOnlyList<string>>
+    [Test]
+    public void MergeOnlyStrategyDoesNotAdvertiseOptionalCapabilities()
+    {
+        IConfiglueMergeStrategy strategy = new MergeOnlyStrategy();
+        strategy.Merge(Optional<object?>.Missing, Optional<object?>.Present("value"))
+            .Value.ShouldBe("value");
+        ((object)strategy is IConfiglueMergeRebaseStrategy).ShouldBeFalse();
+        ((object)strategy is IConfiglueMergeContributionPlanner).ShouldBeFalse();
+        ((object)strategy is IConfiglueMergeElementProvenanceProvider).ShouldBeFalse();
+
+        var rebaseOnly = new RebaseOnlyStrategy();
+        ((object)rebaseOnly is IConfiglueMergeRebaseStrategy).ShouldBeTrue();
+        ((object)rebaseOnly is IConfiglueMergeContributionPlanner).ShouldBeFalse();
+        ((object)rebaseOnly is IConfiglueMergeElementProvenanceProvider).ShouldBeFalse();
+
+        var plannerOnly = new PlannerOnlyStrategy();
+        ((object)plannerOnly is IConfiglueMergeRebaseStrategy).ShouldBeFalse();
+        ((object)plannerOnly is IConfiglueMergeContributionPlanner).ShouldBeTrue();
+        ((object)plannerOnly is IConfiglueMergeElementProvenanceProvider).ShouldBeFalse();
+
+        var provenanceOnly = new ProvenanceOnlyStrategy();
+        ((object)provenanceOnly is IConfiglueMergeRebaseStrategy).ShouldBeFalse();
+        ((object)provenanceOnly is IConfiglueMergeContributionPlanner).ShouldBeFalse();
+        ((object)provenanceOnly is IConfiglueMergeElementProvenanceProvider).ShouldBeTrue();
+
+        typeof(IConfiglueMergeStrategy).GetMethods()
+            .Select(static method => method.Name)
+            .ShouldBe(["get_ValueType", "Merge", "AreEqual"]);
+    }
+
+    private class MergeOnlyStrategy : ConfiglueMergeStrategy<string>
+    {
+        public override Optional<string> Merge(Optional<string> lowerPriority, Optional<string> higherPriority) =>
+            higherPriority.IsPresent ? higherPriority : lowerPriority;
+
+        public override bool AreEqual(string? left, string? right) => left == right;
+    }
+
+    private sealed class RebaseOnlyStrategy : MergeOnlyStrategy, IConfiglueMergeRebaseStrategy
+    {
+        public override bool TryRebase(
+            string? editBase,
+            string? desired,
+            string? current,
+            out string? rebased,
+            out string? reason
+        )
+        {
+            rebased = desired;
+            reason = null;
+            return true;
+        }
+    }
+
+    private sealed class PlannerOnlyStrategy : MergeOnlyStrategy, IConfiglueMergeContributionPlanner
+    {
+        public override bool TryPlanSourceContribution(
+            IReadOnlyList<ConfiglueMergeSourceValue<string>> sourceValuesLowToHigh,
+            SourceId targetSourceId,
+            string? desiredEffective,
+            out Optional<string> targetContribution,
+            out string? reason
+        )
+        {
+            targetContribution = Optional<string>.Present(desiredEffective);
+            reason = null;
+            return true;
+        }
+    }
+
+    private sealed class ProvenanceOnlyStrategy
+        : MergeOnlyStrategy,
+            IConfiglueMergeElementProvenanceProvider
+    {
+        public override IReadOnlyList<ConfiglueMergeElementProvenance> ExplainElements(
+            string? effective,
+            IReadOnlyList<ConfiglueMergeSourceValue<string>> sourceValuesLowToHigh
+        ) => [];
+    }
+
+    private sealed class StringSetMergeStrategy
+        : ConfiglueMergeStrategy<IReadOnlyList<string>>,
+            IConfiglueMergeRebaseStrategy,
+            IConfiglueMergeContributionPlanner,
+            IConfiglueMergeElementProvenanceProvider
     {
         public override Optional<IReadOnlyList<string>> Merge(
             Optional<IReadOnlyList<string>> lowerPriority,

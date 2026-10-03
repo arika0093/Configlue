@@ -95,6 +95,16 @@ public sealed class CommonFileSourceBuilder
     {
         EnsureMutable();
         ArgumentNullException.ThrowIfNull(transformer);
+        if (
+            transformer is not ISynchronousStateByteTransformer
+            && transformer is not IAsyncStateByteTransformer
+        )
+        {
+            throw new ArgumentException(
+                $"Transformer type '{transformer.GetType()}' must implement a synchronous or asynchronous transformer capability.",
+                nameof(transformer)
+            );
+        }
         _transformers.Add(transformer);
         return this;
     }

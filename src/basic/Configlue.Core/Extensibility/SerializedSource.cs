@@ -146,10 +146,13 @@ public sealed class SerializedSource<T>
         ConfiglueResourceContext context,
         StateWriteRequest<T> request,
         CancellationToken cancellationToken = default
-    ) =>
-        _writer is null
+    )
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return _writer is null
             ? throw new InvalidOperationException("This serialized source does not support writes.")
             : _writer.WriteAsync(context, request, cancellationToken);
+    }
 
     /// <inheritdoc />
     public ValueTask<StateWriteBatchPlan?> TryCreateBatchWriteAsync(
@@ -158,6 +161,7 @@ public sealed class SerializedSource<T>
         CancellationToken cancellationToken = default
     )
     {
+        ArgumentNullException.ThrowIfNull(request);
         cancellationToken.ThrowIfCancellationRequested();
         if (_writer is IAsyncSourceWriteBatchParticipant<T> participant)
         {
