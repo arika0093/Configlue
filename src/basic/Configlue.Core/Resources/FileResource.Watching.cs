@@ -285,6 +285,13 @@ public sealed partial class FileResource
         {
             return null;
         }
+        catch (UnauthorizedAccessException)
+        {
+            // On Windows a concurrent replace/delete (or AV scan) can surface as
+            // EACCES while the file is briefly locked. Treat it as transiently
+            // unreadable, like a sharing violation, so polling keeps waiting.
+            return null;
+        }
     }
 
     private void OnFileChanged(object sender, FileSystemEventArgs args) => SignalChange();

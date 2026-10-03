@@ -450,6 +450,12 @@ public sealed partial class FileResource
                 PipelineResourceReadResult.Unavailable()
             );
         }
+        catch (UnauthorizedAccessException)
+        {
+            return new ValueTask<PipelineResourceReadResult>(
+                PipelineResourceReadResult.Unavailable()
+            );
+        }
     }
 
     /// <inheritdoc />

@@ -150,13 +150,13 @@ public sealed partial class FileResourceTests
         await Task.Delay(100);
         var temporary = path + ".tmp";
         await WriteTextWithRetryAsync(temporary, "replacement");
-        File.Move(temporary, path, overwrite: true);
+        await MoveWithRetryAsync(temporary, path);
         await replace.WaitAsync(TimeSpan.FromSeconds(15));
         var delete = resource
             .WaitForChangeAsync(default, (await resource.ReadAsync()).Revision)
             .AsTask();
         await Task.Delay(100);
-        File.Delete(path);
+        await DeleteWithRetryAsync(path);
         await delete.WaitAsync(TimeSpan.FromSeconds(15));
     }
 
@@ -230,6 +230,56 @@ public sealed partial class FileResourceTests
                 return;
             }
             catch (IOException) when (attempt < 50)
+            {
+                await Task.Delay(10);
+            }
+            catch (UnauthorizedAccessException) when (attempt < 50)
+            {
+                // On Windows a concurrent polling read or AV scan can hold the
+                // file briefly, surfacing as EACCES instead of a sharing violation.
+                await Task.Delay(10);
+            }
+        }
+    }
+
+    private static async Task MoveWithRetryAsync(string sourcePath, string destinationPath)
+    {
+        for (var attempt = 0; ; attempt++)
+        {
+            try
+            {
+                File.Move(sourcePath, destinationPath, overwrite: true);
+                return;
+            }
+            catch (IOException) when (attempt < 50)
+            {
+                // The polling reader opens the destination with
+                // FileShare.Read | FileShare.Delete and closes it quickly;
+                // File.Move (unlike File.Replace) fails while that read
+                // handle is open, so retry with backoff.
+                await Task.Delay(10);
+            }
+            catch (UnauthorizedAccessException) when (attempt < 50)
+            {
+                await Task.Delay(10);
+            }
+        }
+    }
+
+    private static async Task DeleteWithRetryAsync(string path)
+    {
+        for (var attempt = 0; ; attempt++)
+        {
+            try
+            {
+                File.Delete(path);
+                return;
+            }
+            catch (IOException) when (attempt < 50)
+            {
+                await Task.Delay(10);
+            }
+            catch (UnauthorizedAccessException) when (attempt < 50)
             {
                 await Task.Delay(10);
             }

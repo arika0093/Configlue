@@ -690,10 +690,55 @@ public sealed partial class FileResourceTests
 
     private static void DeleteDirectory(string directory)
     {
-        if (Directory.Exists(directory))
+        // FileSystemWatcher keeps the watched directory handle open on Windows and
+        // releases it asynchronously after Dispose, so cleanup races teardown with
+        // EACCES. Retry with backoff instead of failing the test during cleanup.
+        for (var attempt = 0; ; attempt++)
         {
-            Directory.Delete(directory, recursive: true);
+            try
+            {
+                if (!Directory.Exists(directory))
+                {
+                    return;
+                }
+
+                ClearReadOnlyAttributes(directory);
+                Directory.Delete(directory, recursive: true);
+                return;
+            }
+            catch (IOException) when (attempt < 10)
+            {
+                Thread.Sleep(10 * (attempt + 1));
+            }
+            catch (UnauthorizedAccessException) when (attempt < 10)
+            {
+                Thread.Sleep(10 * (attempt + 1));
+            }
         }
+    }
+
+    private static void ClearReadOnlyAttributes(string directory)
+    {
+        try
+        {
+            foreach (
+                var file in Directory.GetFiles(directory, "*", SearchOption.AllDirectories)
+            )
+            {
+                try
+                {
+                    var attributes = File.GetAttributes(file);
+                    if ((attributes & FileAttributes.ReadOnly) != 0)
+                    {
+                        File.SetAttributes(file, attributes & ~FileAttributes.ReadOnly);
+                    }
+                }
+                catch (IOException) { }
+                catch (UnauthorizedAccessException) { }
+            }
+        }
+        catch (IOException) { }
+        catch (UnauthorizedAccessException) { }
     }
 
     private static void DeleteFileIfExists(string path)

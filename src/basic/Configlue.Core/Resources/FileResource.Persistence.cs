@@ -32,6 +32,11 @@ public sealed partial class FileResource
         {
             return ResourceReadResult.Unavailable();
         }
+        catch (UnauthorizedAccessException)
+        {
+            // Same transient-lock reasoning as the watcher revision probe.
+            return ResourceReadResult.Unavailable();
+        }
     }
 
     /// <inheritdoc />
@@ -387,6 +392,27 @@ public sealed partial class FileResource
 
                 await Task.Delay(retryDelay, cancellationToken).ConfigureAwait(false);
             }
+            catch (UnauthorizedAccessException) when (attempt < _options.RetryCount)
+            {
+                // Windows AV/indexer or a concurrent reader can lock either the
+                // temporary or the destination briefly; retry like a sharing violation.
+                attempt++;
+                var retryDelayFactory = _options.RetryDelayFactory;
+                var retryDelay = _options.RetryDelay;
+                if (retryDelayFactory is not null)
+                {
+                    retryDelay = retryDelayFactory(attempt);
+                }
+
+                if (retryDelay < TimeSpan.Zero)
+                {
+                    throw new InvalidOperationException(
+                        "The retry delay factory returned a negative delay."
+                    );
+                }
+
+                await Task.Delay(retryDelay, cancellationToken).ConfigureAwait(false);
+            }
             finally
             {
                 try
@@ -396,6 +422,10 @@ public sealed partial class FileResource
                 catch (IOException)
                 {
                     // A failed cleanup is harmless; the unique temporary name cannot shadow a later write.
+                }
+                catch (UnauthorizedAccessException)
+                {
+                    // Same as above; the uniquely named temp file cannot collide.
                 }
             }
         }
