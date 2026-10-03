@@ -74,42 +74,50 @@ internal static class MessagePackStateCodecOperations
         IMessagePackFormatter<T>? formatter
     )
     {
-        var reader = new MessagePackReader(source);
-        if (reader.TryReadNil())
+        try
         {
-            return default;
-        }
-
-        if (!TryReadEnvelopeHeader(reader.CreatePeekReader()))
-        {
-            return ReadPayload(ref reader, options, formatter);
-        }
-
-        var count = reader.ReadMapHeader();
-        T? value = default;
-        var found = false;
-        for (var index = 0; index < count; index++)
-        {
-            var key = reader.ReadString();
-            if (string.Equals(key, PayloadProperty, StringComparison.Ordinal))
+            var reader = new MessagePackReader(source);
+            if (reader.TryReadNil())
             {
-                value = ReadPayload(ref reader, options, formatter);
-                found = true;
+                return default;
             }
-            else
+
+            if (!TryReadEnvelopeHeader(reader.CreatePeekReader()))
             {
-                reader.Skip();
+                return ReadPayload(ref reader, options, formatter);
             }
-        }
 
-        if (!found)
+            var count = reader.ReadMapHeader();
+            T? value = default;
+            var found = false;
+            for (var index = 0; index < count; index++)
+            {
+                var key = reader.ReadString();
+                if (string.Equals(key, PayloadProperty, StringComparison.Ordinal))
+                {
+                    value = ReadPayload(ref reader, options, formatter);
+                    found = true;
+                }
+                else
+                {
+                    reader.Skip();
+                }
+            }
+
+            if (!found)
+            {
+                throw new MessagePackSerializationException(
+                    "The Configlue MessagePack envelope has no '$value' entry."
+                );
+            }
+
+            return value;
+        }
+        catch (Exception exception)
+            when (exception is EndOfStreamException or InsufficientExecutionStackException)
         {
-            throw new MessagePackSerializationException(
-                "The Configlue MessagePack envelope has no '$value' entry."
-            );
+            throw AsTruncatedPayload(exception);
         }
-
-        return value;
     }
 
     internal static StateCodecDecodeResult<T> DecodeWithMetadata<T>(
@@ -118,47 +126,58 @@ internal static class MessagePackStateCodecOperations
         IMessagePackFormatter<T>? formatter
     )
     {
-        var reader = new MessagePackReader(source);
-        if (reader.TryReadNil())
+        try
         {
-            return new StateCodecDecodeResult<T>(default, null);
-        }
-
-        if (!TryReadEnvelopeHeader(reader.CreatePeekReader()))
-        {
-            return new StateCodecDecodeResult<T>(ReadPayload(ref reader, options, formatter), null);
-        }
-
-        var count = reader.ReadMapHeader();
-        T? value = default;
-        StateSchemaMetadata? schema = null;
-        var found = false;
-        for (var index = 0; index < count; index++)
-        {
-            var key = reader.ReadString();
-            if (string.Equals(key, MetadataProperty, StringComparison.Ordinal))
+            var reader = new MessagePackReader(source);
+            if (reader.TryReadNil())
             {
-                schema = ReadSchema(ref reader);
+                return new StateCodecDecodeResult<T>(default, null);
             }
-            else if (string.Equals(key, PayloadProperty, StringComparison.Ordinal))
-            {
-                value = ReadPayload(ref reader, options, formatter);
-                found = true;
-            }
-            else
-            {
-                reader.Skip();
-            }
-        }
 
-        if (!found)
+            if (!TryReadEnvelopeHeader(reader.CreatePeekReader()))
+            {
+                return new StateCodecDecodeResult<T>(
+                    ReadPayload(ref reader, options, formatter),
+                    null
+                );
+            }
+
+            var count = reader.ReadMapHeader();
+            T? value = default;
+            StateSchemaMetadata? schema = null;
+            var found = false;
+            for (var index = 0; index < count; index++)
+            {
+                var key = reader.ReadString();
+                if (string.Equals(key, MetadataProperty, StringComparison.Ordinal))
+                {
+                    schema = ReadSchema(ref reader);
+                }
+                else if (string.Equals(key, PayloadProperty, StringComparison.Ordinal))
+                {
+                    value = ReadPayload(ref reader, options, formatter);
+                    found = true;
+                }
+                else
+                {
+                    reader.Skip();
+                }
+            }
+
+            if (!found)
+            {
+                throw new MessagePackSerializationException(
+                    "The Configlue MessagePack envelope has no '$value' entry."
+                );
+            }
+
+            return new StateCodecDecodeResult<T>(value, schema);
+        }
+        catch (Exception exception)
+            when (exception is EndOfStreamException or InsufficientExecutionStackException)
         {
-            throw new MessagePackSerializationException(
-                "The Configlue MessagePack envelope has no '$value' entry."
-            );
+            throw AsTruncatedPayload(exception);
         }
-
-        return new StateCodecDecodeResult<T>(value, schema);
     }
 
     internal static object? ReadDynamicValue(
@@ -168,68 +187,84 @@ internal static class MessagePackStateCodecOperations
     )
     {
         ArgumentNullException.ThrowIfNull(type);
-        var reader = new MessagePackReader(source);
-        if (reader.TryReadNil())
+        try
         {
-            return null;
-        }
-
-        if (!TryReadEnvelopeHeader(reader.CreatePeekReader()))
-        {
-            return MessagePackSerializer.Deserialize(type, ref reader, options);
-        }
-
-        var count = reader.ReadMapHeader();
-        object? value = null;
-        var found = false;
-        for (var index = 0; index < count; index++)
-        {
-            var key = reader.ReadString();
-            if (string.Equals(key, PayloadProperty, StringComparison.Ordinal))
+            var reader = new MessagePackReader(source);
+            if (reader.TryReadNil())
             {
-                value = MessagePackSerializer.Deserialize(type, ref reader, options);
-                found = true;
+                return null;
             }
-            else
+
+            if (!TryReadEnvelopeHeader(reader.CreatePeekReader()))
             {
-                reader.Skip();
+                return ReadDynamicPayload(type, ref reader, options);
             }
-        }
 
-        if (!found)
+            var count = reader.ReadMapHeader();
+            object? value = null;
+            var found = false;
+            for (var index = 0; index < count; index++)
+            {
+                var key = reader.ReadString();
+                if (string.Equals(key, PayloadProperty, StringComparison.Ordinal))
+                {
+                    value = ReadDynamicPayload(type, ref reader, options);
+                    found = true;
+                }
+                else
+                {
+                    reader.Skip();
+                }
+            }
+
+            if (!found)
+            {
+                throw new MessagePackSerializationException(
+                    "The Configlue MessagePack envelope has no '$value' entry."
+                );
+            }
+
+            return value;
+        }
+        catch (Exception exception)
+            when (exception is EndOfStreamException or InsufficientExecutionStackException)
         {
-            throw new MessagePackSerializationException(
-                "The Configlue MessagePack envelope has no '$value' entry."
-            );
+            throw AsTruncatedPayload(exception);
         }
-
-        return value;
     }
 
     internal static StateSchemaMetadata? ReadSchemaMetadata(in ReadOnlySequence<byte> source)
     {
-        var reader = new MessagePackReader(source);
-        if (reader.TryReadNil() || !TryReadEnvelopeHeader(reader.CreatePeekReader()))
+        try
         {
-            return null;
-        }
+            var reader = new MessagePackReader(source);
+            if (reader.TryReadNil() || !TryReadEnvelopeHeader(reader.CreatePeekReader()))
+            {
+                return null;
+            }
 
-        var count = reader.ReadMapHeader();
-        StateSchemaMetadata? schema = null;
-        for (var index = 0; index < count; index++)
+            var count = reader.ReadMapHeader();
+            StateSchemaMetadata? schema = null;
+            for (var index = 0; index < count; index++)
+            {
+                var key = reader.ReadString();
+                if (string.Equals(key, MetadataProperty, StringComparison.Ordinal))
+                {
+                    schema = ReadSchema(ref reader);
+                }
+                else
+                {
+                    reader.Skip();
+                }
+            }
+
+            return schema;
+        }
+        catch (Exception exception)
+            when (exception is EndOfStreamException or InsufficientExecutionStackException)
         {
-            var key = reader.ReadString();
-            if (string.Equals(key, MetadataProperty, StringComparison.Ordinal))
-            {
-                schema = ReadSchema(ref reader);
-            }
-            else
-            {
-                reader.Skip();
-            }
+            throw AsTruncatedPayload(exception);
         }
-
-        return schema;
     }
 
     internal static T? ReadPayload<T>(
@@ -247,12 +282,29 @@ internal static class MessagePackStateCodecOperations
         catch (Exception exception)
             when (exception is EndOfStreamException or InsufficientExecutionStackException)
         {
-            throw new MessagePackSerializationException(
-                "The MessagePack payload is truncated or exceeds the configured depth limit.",
-                exception
-            );
+            throw AsTruncatedPayload(exception);
         }
     }
+
+    internal static object? ReadDynamicPayload(
+        Type type,
+        ref MessagePackReader reader,
+        MessagePackSerializerOptions options
+    )
+    {
+        try
+        {
+            return MessagePackSerializer.Deserialize(type, ref reader, options);
+        }
+        catch (Exception exception)
+            when (exception is EndOfStreamException or InsufficientExecutionStackException)
+        {
+            throw AsTruncatedPayload(exception);
+        }
+    }
+
+    private static MessagePackSerializationException AsTruncatedPayload(Exception inner) =>
+        new("The MessagePack payload is truncated or exceeds the configured depth limit.", inner);
 
     internal static bool IsRecoverableReadException(Exception exception)
     {
