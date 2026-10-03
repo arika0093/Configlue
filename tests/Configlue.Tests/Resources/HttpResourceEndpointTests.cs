@@ -143,13 +143,13 @@ public sealed class HttpResourceEndpointTests
         var japan = new ConfiglueResourceContext(
             "http-settings",
             new EndpointSubject(SubjectKey.From("japan")),
-            SubjectKey.From("japan-resource"),
+            ResourceKey.From("japan-resource"),
             RouteKey.From("asia")
         );
         var europe = new ConfiglueResourceContext(
             "http-settings",
             new EndpointSubject(SubjectKey.From("europe")),
-            SubjectKey.From("europe-resource"),
+            ResourceKey.From("europe-resource"),
             RouteKey.From("eu")
         );
         var resource = new ContextAwareResource();
@@ -417,21 +417,21 @@ public sealed class HttpResourceEndpointTests
         }
     }
 
-    private sealed record EndpointSubject(SubjectKey Key) : IConfiglueSubject;
+    private sealed record EndpointSubject(ResourceKey Key) : IConfiglueSubject;
 
     private sealed class ContextAwareResource : IResourceReader, IResourceWriter
     {
-        private readonly ConcurrentDictionary<(string? ModelId, SubjectKey Key, RouteKey Route), byte[]> _states = new();
+        private readonly ConcurrentDictionary<(string? ModelId, ResourceKey Key, RouteKey Route), byte[]> _states = new();
         private long _revision;
 
         public ConcurrentQueue<ConfiglueResourceContext> ReadContexts { get; } = new();
         public ConcurrentQueue<ConfiglueResourceContext> WriteContexts { get; } = new();
 
         public void Set(ConfiglueResourceContext context, byte[] content) =>
-            _states[(context.ModelId, context.Key, context.Route)] = content;
+            _states[(context.ModelId, context.ResourceKey, context.Route)] = content;
 
         public byte[] Get(ConfiglueResourceContext context) =>
-            _states[(context.ModelId, context.Key, context.Route)];
+            _states[(context.ModelId, context.ResourceKey, context.Route)];
 
         public ValueTask<ResourceReadResult> ReadAsync(
             ConfiglueResourceContext context,
@@ -441,7 +441,7 @@ public sealed class HttpResourceEndpointTests
             cancellationToken.ThrowIfCancellationRequested();
             ReadContexts.Enqueue(context);
             return ValueTask.FromResult(
-                _states.TryGetValue((context.ModelId, context.Key, context.Route), out var content)
+                _states.TryGetValue((context.ModelId, context.ResourceKey, context.Route), out var content)
                     ? ResourceReadResult.Success(content, $"revision:{Interlocked.Read(ref _revision)}")
                     : ResourceReadResult.NotFound()
             );
@@ -455,7 +455,7 @@ public sealed class HttpResourceEndpointTests
         {
             cancellationToken.ThrowIfCancellationRequested();
             WriteContexts.Enqueue(context);
-            _states[(context.ModelId, context.Key, context.Route)] = request.Content.ToArray();
+            _states[(context.ModelId, context.ResourceKey, context.Route)] = request.Content.ToArray();
             return ValueTask.FromResult(new StateWriteResult($"revision:{Interlocked.Increment(ref _revision)}"));
         }
     }
