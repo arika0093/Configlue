@@ -162,7 +162,7 @@ public sealed class RedisIdentityAllocationBenchmarks
 }
 
 [MemoryDiagnoser]
-public sealed class SerializedWriterAllocationBenchmarks
+public class SerializedWriterAllocationBenchmarks
 {
     private SerializedStateWriter<OptimizationBenchmarkSettings.Fragment> _writer = null!;
     private ConfiglueResourceContext _context;
@@ -202,7 +202,14 @@ public sealed class SerializedWriterAllocationBenchmarks
             throw new InvalidOperationException("The no-op writer did not prepare a batch plan.");
         }
 
-        return await plan.BatchWriter.WriteBatchAsync([plan.Mutation]).ConfigureAwait(false);
+        try
+        {
+            return await plan.BatchWriter.WriteBatchAsync([plan.Mutation]).ConfigureAwait(false);
+        }
+        finally
+        {
+            ((object)plan as IDisposable)?.Dispose();
+        }
     }
 
     private sealed class NoOpResourceWriter : IResourceBatchWriter
