@@ -105,36 +105,6 @@ public sealed class SerializedStateWriter<T>
         return null;
     }
 
-    private ResourceWriteRequest CreateResourceRequest(StateWriteRequest<T> request)
-    {
-#if NETSTANDARD
-        var destination = new ArrayBufferWriter<byte>();
-#else
-        var destination = new ArrayBufferWriter<byte>();
-#endif
-        var context = _context;
-        if (_typedCodec is { } typedCodec)
-        {
-            typedCodec.Serialize(request.Value, destination, in context);
-        }
-        else
-        {
-            _dynamicCodec!.Serialize(typeof(T), request.Value, destination, in context);
-        }
-
-        var schema =
-            context.Schema
-            ?? (request.Value is IConfiglueFragment fragment ? fragment.Schema.ToMetadata() : null);
-        return new ResourceWriteRequest(
-            StateByteTransformerPipeline.TransformWrite(destination.WrittenMemory, _transformers),
-            Condition: request.Condition,
-            Schema: schema
-        )
-        {
-            ContentIsOwned = true,
-        };
-    }
-
     private async ValueTask<ResourceWriteRequest> CreateResourceRequestAsync(
         StateWriteRequest<T> request,
         CancellationToken cancellationToken

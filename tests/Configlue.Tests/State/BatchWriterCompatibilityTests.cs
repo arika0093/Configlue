@@ -147,6 +147,7 @@ public sealed class BatchWriterCompatibilityTests
     public async Task CompletedAndAwaitedPreparationsBatchOneCompatibleWriter()
     {
         var resource = new InMemoryResource();
+        var asyncTransformer = new GatedIdentityTransformer();
         var codec = new JsonStateCodec<AppSettings.Fragment>();
         var firstSection = new JsonSectionResource(resource, "App:First");
         var secondSection = new JsonSectionResource(resource, "App:Second");
@@ -159,7 +160,11 @@ public sealed class BatchWriterCompatibilityTests
         var asyncBase = new StateSource<AppSettings.Fragment>(
             "async-base",
             new SerializedStateReader<AppSettings.Fragment>(secondSection, codec),
-            writer: new SerializedStateWriter<AppSettings.Fragment>(secondSection, codec)
+            writer: new SerializedStateWriter<AppSettings.Fragment>(
+                secondSection,
+                codec,
+                transformers: [asyncTransformer]
+            )
         );
         var asyncSource = StateSourceProjection.ProjectWithUpdate<
             AppSettings.Fragment,
@@ -178,7 +183,7 @@ public sealed class BatchWriterCompatibilityTests
         asyncSource.Writer.ShouldBeAssignableTo<
             IAsyncSourceWriteBatchParticipant<AppSettings.Fragment>
         >();
-        var result = await runtime.ApplyPatchesAsync([
+        var apply = runtime.ApplyPatchesAsync([
             new StateSourcePatch(
                 SourceId.From("sync"),
                 new AppSettings.Patch { RetryCount = FragmentOperation<int>.Set(4) }
@@ -188,9 +193,18 @@ public sealed class BatchWriterCompatibilityTests
                 new AppSettings.Patch { Label = FragmentOperation<string?>.Set("async") }
             ),
         ]);
+        await asyncTransformer.WriteEntered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        apply.IsCompleted.ShouldBeFalse();
+        asyncTransformer.ReleaseWrite();
+        var result = await apply;
 
         result.PhysicalWriteCount.ShouldBe(1);
         resource.WriteCount.ShouldBe(1);
+        asyncTransformer.WriteCount.ShouldBe(1);
+
+        var persisted = await asyncBase.Reader.ReadAsync();
+        persisted.Status.ShouldBe(StateReadStatus.Success);
+        persisted.Value!.Label.ShouldBe("async");
     }
 
     [Test]
@@ -535,5 +549,40 @@ public sealed class BatchWriterCompatibilityTests
         public ReadOnlyMemory<byte> TransformRead(ReadOnlyMemory<byte> source) => source;
 
         public ReadOnlyMemory<byte> TransformWrite(ReadOnlyMemory<byte> source) => source;
+    }
+
+    private sealed class GatedIdentityTransformer : IAsyncStateByteTransformer
+    {
+        private readonly TaskCompletionSource _writeGate = new(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+
+        public TaskCompletionSource WriteEntered { get; } = new(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+
+        public int WriteCount { get; private set; }
+
+        public ValueTask<ReadOnlyMemory<byte>> TransformReadAsync(
+            ReadOnlyMemory<byte> source,
+            CancellationToken cancellationToken = default
+        )
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return new ValueTask<ReadOnlyMemory<byte>>(source);
+        }
+
+        public async ValueTask<ReadOnlyMemory<byte>> TransformWriteAsync(
+            ReadOnlyMemory<byte> source,
+            CancellationToken cancellationToken = default
+        )
+        {
+            WriteCount++;
+            WriteEntered.TrySetResult();
+            await _writeGate.Task.WaitAsync(cancellationToken);
+            return source;
+        }
+
+        public void ReleaseWrite() => _writeGate.TrySetResult();
     }
 }
