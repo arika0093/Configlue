@@ -141,7 +141,7 @@ public readonly struct ConfiglueMemberPath : IEquatable<ConfiglueMemberPath>
                 return false;
             }
             var found = false;
-            foreach (var member in fragment.EnumeratePresentMembers())
+            foreach (var member in fragment.EnumeratePresentMembersFast())
             {
                 if (member.Id == MemberIds[index])
                 {

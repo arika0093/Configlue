@@ -108,7 +108,7 @@ namespace Configlue.Provider.Json
             "JsonStateCodec<T> with JsonTypeInfo<T> for trim-safe serialization.")]
         public void Serialize(System.Type type, object? value, System.Buffers.IBufferWriter<byte> destination, in Configlue.Codecs.StateCodecContext context) { }
     }
-    public sealed class JsonStateCodec<T> : Configlue.Codecs.IStateCodecRecoveryPolicy, Configlue.Codecs.IStateCodec<T>, Configlue.Codecs.IStateSchemaMetadataReader, Configlue.State.IPipelineStateCodec<T>
+    public sealed class JsonStateCodec<T> : Configlue.Codecs.IStateCodecRecoveryPolicy, Configlue.Codecs.IStateCodecWithMetadata<T>, Configlue.Codecs.IStateCodec<T>, Configlue.Codecs.IStateSchemaMetadataReader, Configlue.State.IPipelineStateCodec<T>
     {
         [System.Diagnostics.CodeAnalysis.RequiresDynamicCode("Reflection-based JSON serialization may require runtime code generation. Use the " +
             "JsonTypeInfo constructor for NativeAOT.")]
@@ -123,6 +123,7 @@ namespace Configlue.Provider.Json
             "tor sets _typeInfo and never enters the reflection fallback.")]
         public T? Deserialize(in System.Buffers.ReadOnlySequence<byte> source, in Configlue.Codecs.StateCodecContext context) { }
         public System.Threading.Tasks.ValueTask<Configlue.State.StateReadResult<T>> DeserializeAsync(System.IO.Pipelines.PipeReader content, Configlue.Codecs.StateCodecContext context, Configlue.State.StateSchemaMetadata? resourceSchema, System.Threading.CancellationToken cancellationToken = default) { }
+        public Configlue.Codecs.StateCodecDecodeResult<T> DeserializeWithMetadata(in System.Buffers.ReadOnlySequence<byte> source, in Configlue.Codecs.StateCodecContext context) { }
         public bool IsRecoverableReadException(System.Exception exception) { }
         public Configlue.State.StateSchemaMetadata? ReadSchemaMetadata(in System.Buffers.ReadOnlySequence<byte> source) { }
         [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Aot", "IL3050", Justification="The options-based constructor carries this requirement. The JsonTypeInfo construc" +

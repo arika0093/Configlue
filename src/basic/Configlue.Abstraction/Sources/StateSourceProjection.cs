@@ -121,11 +121,15 @@ public static class StateSourceProjection
         }
 
         var member = matches[0];
-        var present = fragment
-            .EnumeratePresentMembers()
-            .Where(candidate => candidate.Id == member.Id)
-            .Select(static candidate => (ConfiglueFragmentMember?)candidate)
-            .FirstOrDefault();
+        ConfiglueFragmentMember? present = null;
+        foreach (var candidate in fragment.EnumeratePresentMembersFast())
+        {
+            if (candidate.Id == member.Id)
+            {
+                present = candidate;
+                break;
+            }
+        }
         if (present is null)
         {
             return GetSubtreeSchema(schema, path, pathIndex, propertyPath).CreateEmptyFragment();

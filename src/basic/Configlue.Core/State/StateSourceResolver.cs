@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
@@ -119,97 +120,111 @@ public sealed class StateSourceResolver<T> : ISourceReader<T>
         }
 
         StateReadResult<T> lastResult = default;
-        var revisions = new StateRevision[_sourceSet.Count];
+        var revisions = ArrayPool<StateRevision>.Shared.Rent(_sourceSet.Count);
         var revisionCount = 0;
         var watchTargets = new StateSourceWatchTarget<T>[_sourceSet.Count];
         var watchTargetCount = 0;
         List<KeyValuePair<SourceId, StateRevisionVector>>? nestedRevisions = null;
-        for (var index = 0; index < _sourceSet.Count; index++)
+        try
         {
-            var source = _sourceSet[index];
-            cancellationToken.ThrowIfCancellationRequested();
-            var effectiveContext = GetEffectiveContext(source, subject, context);
-            var result = (
-                await ReadSourceAsync(source, effectiveContext, cancellationToken)
-                    .ConfigureAwait(false)
-            ).FromSource(source.Id, source.PhysicalOrigin);
-            watchTargets[watchTargetCount++] = new StateSourceWatchTarget<T>(
-                source,
-                effectiveContext,
-                result.Revision
-            );
-            _logger?.LogDebug(
-                ReadEvent,
-                "State source {SourceId} returned {ReadStatus}.",
-                source.Id,
-                result.Status
-            );
-            revisions[revisionCount++] = new StateRevision(source.Id, result.Revision);
-            if (result.Revisions is { } nestedVector)
+            for (var index = 0; index < _sourceSet.Count; index++)
             {
-                nestedRevisions ??= [];
-                nestedRevisions.Add(
-                    new KeyValuePair<SourceId, StateRevisionVector>(source.Id, nestedVector)
+                var source = _sourceSet[index];
+                cancellationToken.ThrowIfCancellationRequested();
+                var effectiveContext = GetEffectiveContext(source, subject, context);
+                var result = (
+                    await ReadSourceAsync(source, effectiveContext, cancellationToken)
+                        .ConfigureAwait(false)
+                ).FromSource(source.Id, source.PhysicalOrigin);
+                watchTargets[watchTargetCount++] = new StateSourceWatchTarget<T>(
+                    source,
+                    effectiveContext,
+                    result.Revision
                 );
+                _logger?.LogDebug(
+                    ReadEvent,
+                    "State source {SourceId} returned {ReadStatus}.",
+                    source.Id,
+                    result.Status
+                );
+                revisions[revisionCount++] = new StateRevision(source.Id, result.Revision);
+                if (result.Revisions is { } nestedVector)
+                {
+                    nestedRevisions ??= [];
+                    nestedRevisions.Add(
+                        new KeyValuePair<SourceId, StateRevisionVector>(source.Id, nestedVector)
+                    );
+                }
+
+                if (result.Status == StateReadStatus.Success)
+                {
+                    var revisionVector = CreateRevisionVector(
+                        revisions,
+                        revisionCount,
+                        nestedRevisions
+                    );
+                    SetResolution(
+                        subject,
+                        context,
+                        new Resolution(
+                            source,
+                            revisionVector,
+                            SnapshotWatchTargets(watchTargets, watchTargetCount)
+                        )
+                    );
+                    return result with { Revisions = revisionVector };
+                }
+
+                var canFallBack = CanFallBack(source.FallbackCondition, result.Status);
+                _logger?.Log(
+                    result.Status == StateReadStatus.Unavailable
+                        ? LogLevel.Warning
+                        : LogLevel.Debug,
+                    FallbackEvent,
+                    "State source {SourceId} returned {ReadStatus}; fallback {FallbackAction}.",
+                    source.Id,
+                    result.Status,
+                    canFallBack ? "continues" : "stops"
+                );
+                if (!canFallBack)
+                {
+                    var revisionVector = CreateRevisionVector(
+                        revisions,
+                        revisionCount,
+                        nestedRevisions
+                    );
+                    SetResolution(
+                        subject,
+                        context,
+                        new Resolution(
+                            null,
+                            revisionVector,
+                            SnapshotWatchTargets(watchTargets, watchTargetCount)
+                        )
+                    );
+                    return result with { Revisions = revisionVector };
+                }
+
+                lastResult = result;
             }
 
-            if (result.Status == StateReadStatus.Success)
-            {
-                var revisionVector = CreateRevisionVector(
-                    revisions,
-                    revisionCount,
-                    nestedRevisions
-                );
-                SetResolution(
-                    subject,
-                    context,
-                    new Resolution(
-                        source,
-                        revisionVector,
-                        SnapshotWatchTargets(watchTargets, watchTargetCount)
-                    )
-                );
-                return result with { Revisions = revisionVector };
-            }
-
-            var canFallBack = CanFallBack(source.FallbackCondition, result.Status);
-            _logger?.Log(
-                result.Status == StateReadStatus.Unavailable ? LogLevel.Warning : LogLevel.Debug,
-                FallbackEvent,
-                "State source {SourceId} returned {ReadStatus}; fallback {FallbackAction}.",
-                source.Id,
-                result.Status,
-                canFallBack ? "continues" : "stops"
+            var finalVector = CreateRevisionVector(revisions, revisionCount, nestedRevisions);
+            SetResolution(
+                subject,
+                context,
+                new Resolution(
+                    null,
+                    finalVector,
+                    SnapshotWatchTargets(watchTargets, watchTargetCount)
+                )
             );
-            if (!canFallBack)
-            {
-                var revisionVector = CreateRevisionVector(
-                    revisions,
-                    revisionCount,
-                    nestedRevisions
-                );
-                SetResolution(
-                    subject,
-                    context,
-                    new Resolution(
-                        null,
-                        revisionVector,
-                        SnapshotWatchTargets(watchTargets, watchTargetCount)
-                    )
-                );
-                return result with { Revisions = revisionVector };
-            }
-
-            lastResult = result;
+            return lastResult with { Revisions = finalVector };
         }
-
-        var finalVector = CreateRevisionVector(revisions, revisionCount, nestedRevisions);
-        SetResolution(
-            subject,
-            context,
-            new Resolution(null, finalVector, SnapshotWatchTargets(watchTargets, watchTargetCount))
-        );
-        return lastResult with { Revisions = finalVector };
+        finally
+        {
+            Array.Clear(revisions, 0, revisions.Length);
+            ArrayPool<StateRevision>.Shared.Return(revisions);
+        }
     }
 
     private async ValueTask<StateReadResult<T>> ReadSingleSourceAsync(

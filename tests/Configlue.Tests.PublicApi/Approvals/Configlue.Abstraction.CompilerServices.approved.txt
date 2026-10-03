@@ -22,6 +22,7 @@ namespace Configlue.CompilerServices
     public static class ConfiglueDynamicFragmentExtensions
     {
         public static System.Collections.Generic.IEnumerable<Configlue.ConfiglueFragmentMember> EnumeratePresentMembers(this Configlue.IConfiglueFragment fragment) { }
+        public static Configlue.CompilerServices.ConfigluePresentMembers EnumeratePresentMembersFast(this Configlue.IConfiglueFragment fragment) { }
         public static Configlue.IConfiglueFragment WithMember(this Configlue.IConfiglueFragment fragment, int memberId, object? value) { }
         public static Configlue.IConfiglueFragment WithoutMember(this Configlue.IConfiglueFragment fragment, int memberId) { }
     }
@@ -72,6 +73,16 @@ namespace Configlue.CompilerServices
         public static Configlue.ConfiglueModelSchema Schema { get; }
         public static void Register(Configlue.ConfiglueModelSchema schema) { }
     }
+    public readonly struct ConfigluePresentMembers
+    {
+        public Configlue.CompilerServices.ConfigluePresentMembers.Enumerator GetEnumerator() { }
+        public struct Enumerator : System.IDisposable
+        {
+            public Configlue.ConfiglueFragmentMember Current { get; }
+            public void Dispose() { }
+            public bool MoveNext() { }
+        }
+    }
     public sealed class ConfiglueReferenceEqualityComparer : System.Collections.Generic.IEqualityComparer<object>
     {
         public static Configlue.CompilerServices.ConfiglueReferenceEqualityComparer Instance { get; }
@@ -102,6 +113,11 @@ namespace Configlue.CompilerServices
     public interface IConfiglueModel<out TSelf, TFragment> : Configlue.CompilerServices.IConfiglueModel, Configlue.IConfiglueDeepCloneable<TSelf>
         where out TSelf : Configlue.CompilerServices.IConfiglueModel<TSelf, TFragment>
         where TFragment :  class, Configlue.IConfiglueFragment<TFragment> { }
+    public interface IConfiglueOrdinalDynamicFragment : Configlue.CompilerServices.IConfiglueDynamicFragment, Configlue.IConfiglueFragment
+    {
+        int PresentMemberCount { get; }
+        Configlue.ConfiglueFragmentMember GetPresentMember(int index);
+    }
     public interface IConfiglueRoutablePatch : Configlue.CompilerServices.IConfiglueDynamicMemberPatch, Configlue.IConfigluePatch
     {
         System.Collections.Generic.IReadOnlyDictionary<Configlue.SourceId, Configlue.IConfigluePatch> Route(Configlue.StateWritePlan writePlan, Configlue.SourceId? fallbackSourceId);

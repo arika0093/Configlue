@@ -23,6 +23,10 @@ namespace Configlue.Codecs
     {
         bool IsRecoverableReadException(System.Exception exception);
     }
+    public interface IStateCodecWithMetadata<T>
+    {
+        Configlue.Codecs.StateCodecDecodeResult<T> DeserializeWithMetadata(in System.Buffers.ReadOnlySequence<byte> source, in Configlue.Codecs.StateCodecContext context);
+    }
     public interface IStateCodec<T>
     {
         T? Deserialize(in System.Buffers.ReadOnlySequence<byte> source, in Configlue.Codecs.StateCodecContext context);
@@ -49,6 +53,12 @@ namespace Configlue.Codecs
         public Configlue.State.StateSchemaMetadata? Schema { get; }
         public string? SchemaReferenceBaseUri { get; }
         public System.IServiceProvider? Services { get; }
+    }
+    public readonly struct StateCodecDecodeResult<T> : System.IEquatable<Configlue.Codecs.StateCodecDecodeResult<T>>
+    {
+        public StateCodecDecodeResult(T? Value, Configlue.State.StateSchemaMetadata? Schema) { }
+        public Configlue.State.StateSchemaMetadata? Schema { get; init; }
+        public T Value { get; init; }
     }
     public static class StateSchemaReference
     {

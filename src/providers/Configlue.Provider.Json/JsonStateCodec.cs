@@ -64,6 +64,32 @@ public sealed class JsonStateCodec
     {
         ArgumentNullException.ThrowIfNull(type);
         ArgumentNullException.ThrowIfNull(destination);
+        var schema =
+            context.Schema
+            ?? (value is IConfiglueFragment fragment ? fragment.Schema.ToMetadata() : null);
+        if (schema is null)
+        {
+            using var directWriter = new Utf8JsonWriter(destination);
+            JsonSerializer.Serialize(directWriter, value, type, _options);
+            directWriter.Flush();
+            return;
+        }
+
+        var envelopeContext = new StateCodecContext(
+            schema.Value,
+            context.Services,
+            context.SchemaReferenceBaseUri
+        );
+        if (JsonStateCodecOperations.UsesEnvelopeLayout(_layout))
+        {
+            using var directWriter = new Utf8JsonWriter(destination);
+            JsonStateCodecOperations.WriteEnvelopeStart(directWriter, in envelopeContext);
+            JsonSerializer.Serialize(directWriter, value, type, _options);
+            directWriter.WriteEndObject();
+            directWriter.Flush();
+            return;
+        }
+
         var raw = new ArrayBufferWriter<byte>();
         using (var writer = new Utf8JsonWriter(raw))
         {
@@ -71,9 +97,6 @@ public sealed class JsonStateCodec
             writer.Flush();
         }
 
-        var schema =
-            context.Schema
-            ?? (value is IConfiglueFragment fragment ? fragment.Schema.ToMetadata() : null);
         var effectiveContext = schema is { } metadata
             ? new StateCodecContext(metadata, context.Services, context.SchemaReferenceBaseUri)
             : context;
@@ -96,6 +119,7 @@ public sealed class JsonStateCodec
 /// <summary>A typed JSON fast path for a state codec.</summary>
 public sealed class JsonStateCodec<T>
     : IStateCodec<T>,
+        IStateCodecWithMetadata<T>,
         IPipelineStateCodec<T>,
         IStateSchemaMetadataReader,
         IStateCodecRecoveryPolicy
@@ -271,6 +295,35 @@ public sealed class JsonStateCodec<T>
         return _typeInfo is null
             ? JsonSerializer.Deserialize<T>(ref reader, _options)
             : JsonSerializer.Deserialize(ref reader, _typeInfo);
+    }
+
+    /// <inheritdoc />
+    public StateCodecDecodeResult<T> DeserializeWithMetadata(
+        in ReadOnlySequence<byte> source,
+        in StateCodecContext context
+    )
+    {
+        var normalizedSource = JsonStateCodecOperations.StripUtf8Bom(in source);
+        using var document = JsonDocument.Parse(normalizedSource, JsoncSyntaxTree.DocumentOptions);
+        var root = document.RootElement;
+        var schema = JsonStateCodecOperations.ReadSchemaMetadataFromElement(
+            root,
+            _layout,
+            _options
+        );
+        var payload = JsonStateCodecOperations.GetPayloadElement(root);
+        var value =
+            payload.ValueKind == JsonValueKind.Object
+            && !JsonStateCodecOperations.IsMetadataEnvelope(root)
+                ? JsonStateCodecOperations.GetFilteredPayload(payload, _layout, _options)
+                : null;
+        var decoded = value is { } filtered
+            ? JsonSerializer.Deserialize(
+                filtered.Span,
+                (JsonTypeInfo<T>)_pipelineOptions.GetTypeInfo(typeof(T))
+            )
+            : payload.Deserialize((JsonTypeInfo<T>)_pipelineOptions.GetTypeInfo(typeof(T)));
+        return new StateCodecDecodeResult<T>(decoded, schema);
     }
 
     /// <inheritdoc />
@@ -594,35 +647,39 @@ public sealed class JsonStateCodec<T>
     public void Serialize(T? value, IBufferWriter<byte> destination, in StateCodecContext context)
     {
         ArgumentNullException.ThrowIfNull(destination);
-        var raw = new ArrayBufferWriter<byte>();
-        using (var writer = new Utf8JsonWriter(raw))
-        {
-            if (_converter is not null)
-            {
-                if (value is null && !_converter.HandleNull)
-                {
-                    writer.WriteNullValue();
-                }
-                else
-                {
-                    _converter.Write(writer, value!, _options);
-                }
-            }
-            else if (_typeInfo is null)
-            {
-                JsonSerializer.Serialize(writer, value, _options);
-            }
-            else
-            {
-                JsonSerializer.Serialize<T>(writer, value!, _typeInfo);
-            }
-
-            writer.Flush();
-        }
-
         var schema =
             context.Schema
             ?? (value is IConfiglueFragment fragment ? fragment.Schema.ToMetadata() : null);
+        if (schema is null)
+        {
+            using var directWriter = new Utf8JsonWriter(destination);
+            WriteValue(directWriter, value);
+            directWriter.Flush();
+            return;
+        }
+
+        var envelopeContext = new StateCodecContext(
+            schema.Value,
+            context.Services,
+            context.SchemaReferenceBaseUri
+        );
+        if (JsonStateCodecOperations.UsesEnvelopeLayout(_layout))
+        {
+            using var directWriter = new Utf8JsonWriter(destination);
+            JsonStateCodecOperations.WriteEnvelopeStart(directWriter, in envelopeContext);
+            WriteValue(directWriter, value);
+            directWriter.WriteEndObject();
+            directWriter.Flush();
+            return;
+        }
+
+        var raw = new ArrayBufferWriter<byte>();
+        using (var writer = new Utf8JsonWriter(raw))
+        {
+            WriteValue(writer, value);
+            writer.Flush();
+        }
+
         var effectiveContext = schema is { } metadata
             ? new StateCodecContext(metadata, context.Services, context.SchemaReferenceBaseUri)
             : context;
@@ -632,6 +689,29 @@ public sealed class JsonStateCodec<T>
             in effectiveContext,
             _layout
         );
+    }
+
+    private void WriteValue(Utf8JsonWriter writer, T? value)
+    {
+        if (_converter is not null)
+        {
+            if (value is null && !_converter.HandleNull)
+            {
+                writer.WriteNullValue();
+            }
+            else
+            {
+                _converter.Write(writer, value!, _options);
+            }
+        }
+        else if (_typeInfo is null)
+        {
+            JsonSerializer.Serialize(writer, value, _options);
+        }
+        else
+        {
+            JsonSerializer.Serialize<T>(writer, value!, _typeInfo);
+        }
     }
 
     /// <inheritdoc />

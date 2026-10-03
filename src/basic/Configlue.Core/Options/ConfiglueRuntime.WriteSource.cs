@@ -12,7 +12,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
 {
     private static bool NeedsSourceOrder(ConfiglueModelSchema schema, IConfiglueFragment changes)
     {
-        foreach (var change in changes.EnumeratePresentMembers())
+        foreach (var change in changes.EnumeratePresentMembersFast())
         {
             if (!TryGetMember(schema, change.Id, out var member))
             {
@@ -55,7 +55,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         StateSource<TFragment>[]? sourceOrder
     )
     {
-        foreach (var change in changes.EnumeratePresentMembers())
+        foreach (var change in changes.EnumeratePresentMembersFast())
         {
             if (!TryGetMember(schema, change.Id, out var member))
             {

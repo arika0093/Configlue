@@ -36,7 +36,7 @@ public sealed class MessagePackStateCodec
         Type type,
         in ReadOnlySequence<byte> source,
         in StateCodecContext context
-    ) => MessagePackStateCodecOperations.ReadValue(type, in source, _options);
+    ) => MessagePackStateCodecOperations.ReadDynamicValue(type, in source, _options);
 
     /// <inheritdoc />
     public void Serialize(
@@ -69,6 +69,7 @@ public sealed class MessagePackStateCodec
 /// <typeparam name="T">The state or generated fragment type.</typeparam>
 public sealed class MessagePackStateCodec<T>
     : IStateCodec<T>,
+        IStateCodecWithMetadata<T>,
         IStateSchemaMetadataReader,
         IStateCodecRecoveryPolicy
 {
@@ -99,6 +100,12 @@ public sealed class MessagePackStateCodec<T>
     /// <inheritdoc />
     public T? Deserialize(in ReadOnlySequence<byte> source, in StateCodecContext context) =>
         MessagePackStateCodecOperations.ReadValue(in source, _options, _formatter);
+
+    /// <inheritdoc />
+    public StateCodecDecodeResult<T> DeserializeWithMetadata(
+        in ReadOnlySequence<byte> source,
+        in StateCodecContext context
+    ) => MessagePackStateCodecOperations.DecodeWithMetadata(in source, _options, _formatter);
 
     /// <inheritdoc />
     public void Serialize(T? value, IBufferWriter<byte> destination, in StateCodecContext context)

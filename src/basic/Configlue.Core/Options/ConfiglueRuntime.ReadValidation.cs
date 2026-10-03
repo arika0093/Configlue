@@ -175,7 +175,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             return fragment;
         }
 
-        foreach (var present in fragment.EnumeratePresentMembers())
+        foreach (var present in fragment.EnumeratePresentMembersFast())
         {
             if (!TryGetMember(schema, present.Id, out var found))
             {
@@ -307,7 +307,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             return;
         }
 
-        foreach (var present in fragment.EnumeratePresentMembers())
+        foreach (var present in fragment.EnumeratePresentMembersFast())
         {
             if (!TryGetMember(schema, present.Id, out var found))
             {

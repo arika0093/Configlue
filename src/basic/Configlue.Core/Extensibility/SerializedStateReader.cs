@@ -299,6 +299,25 @@ public sealed class SerializedStateReader<T> : ISourceReader<T>, ITryResourceIde
         StateSchemaMetadata? resourceSchema
     )
     {
+        if (_schemaDispatcher is null && _typedCodec is IStateCodecWithMetadata<T> singlePassCodec)
+        {
+            var decodeContext = resourceSchema is { } resourceMetadata
+                ? new StateCodecContext(
+                    resourceMetadata,
+                    _context.Services,
+                    _context.SchemaReferenceBaseUri
+                )
+                : _context;
+            var decoded = singlePassCodec.DeserializeWithMetadata(in bytes, in decodeContext);
+            var decodedSchema = resourceSchema ?? decoded.Schema ?? _context.Schema;
+            return decoded.Value is null
+                ? StateReadResult<T>.InvalidPayload(default, revision) with
+                {
+                    Schema = decodedSchema,
+                }
+                : StateReadResult<T>.Success(decoded.Value, revision, decodedSchema);
+        }
+
         var schema =
             resourceSchema
             ?? (

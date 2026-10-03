@@ -82,6 +82,25 @@ public sealed class StateRevisionVectorTests
     }
 
     [Test]
+    public void FromSpanSupportsCompactMultiEntryLookupBeforeViewsAreRequested()
+    {
+        var revisions = new StateRevision[]
+        {
+            new(SourceId.From("first"), "revision-1"),
+            new(SourceId.From("second"), "revision-2"),
+            new(SourceId.From("third"), "revision-3"),
+            new(SourceId.From("fourth"), "revision-4"),
+        };
+
+        var vector = StateRevisionVector.FromSpan(revisions);
+
+        vector.TryGetRevision(SourceId.From("third"), out var revision).ShouldBeTrue();
+        revision.ShouldBe("revision-3");
+        vector.Revisions.Count.ShouldBe(4);
+        vector.Revisions[SourceId.From("fourth")].ShouldBe("revision-4");
+    }
+
+    [Test]
     public void FromSpanRejectsDuplicateKeys()
     {
         StateRevision[] duplicateRevisions =

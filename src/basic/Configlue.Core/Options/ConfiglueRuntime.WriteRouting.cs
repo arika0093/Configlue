@@ -89,7 +89,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
     )
     {
         var paths = new List<string>();
-        foreach (var change in changes.EnumeratePresentMembers())
+        foreach (var change in changes.EnumeratePresentMembersFast())
         {
             if (!TryGetMember(schema, change.Id, out var member))
             {
@@ -119,7 +119,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
     )
     {
         var paths = new List<string>();
-        foreach (var change in changes.EnumeratePresentMembers())
+        foreach (var change in changes.EnumeratePresentMembersFast())
         {
             if (!TryGetMember(schema, change.Id, out var member))
             {
@@ -157,7 +157,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
     )
     {
         var routed = new Dictionary<SourceId, IConfiglueFragment>();
-        foreach (var change in changes.EnumeratePresentMembers())
+        foreach (var change in changes.EnumeratePresentMembersFast())
         {
             if (!TryGetMember(schema, change.Id, out var member))
             {
@@ -225,7 +225,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
     )
     {
         var routed = new Dictionary<SourceId, IConfiglueFragment>();
-        foreach (var change in changes.EnumeratePresentMembers().ToArray())
+        foreach (var change in changes.EnumeratePresentMembersFast())
         {
             if (!TryGetMember(schema, change.Id, out var member))
             {

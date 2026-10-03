@@ -456,9 +456,13 @@ public class SaveRoutingBenchmarks
 public class JsonCodecLayoutBenchmarks
 {
     private JsonStateCodec<OptimizationBenchmarkSettings.Fragment> _codec = null!;
+    private JsonStateCodec<OptimizationBenchmarkSettings> _plainCodec = null!;
     private StateCodecContext _context;
+    private StateCodecContext _plainContext;
     private OptimizationBenchmarkSettings.Fragment _fragment = null!;
+    private OptimizationBenchmarkSettings _plainValue = null!;
     private ArrayBufferWriter<byte> _buffer = null!;
+    private ArrayBufferWriter<byte> _plainBuffer = null!;
     private ReadOnlySequence<byte> _sequence;
 
     [Params(DocumentLayout.Simple, DocumentLayout.Detailed)]
@@ -470,15 +474,27 @@ public class JsonCodecLayoutBenchmarks
         _codec = new JsonStateCodec<OptimizationBenchmarkSettings.Fragment>(
             documentLayout: new DocumentLayoutOptions { Layout = Layout }
         );
+        _plainCodec = new JsonStateCodec<OptimizationBenchmarkSettings>(
+            documentLayout: new DocumentLayoutOptions { Layout = Layout }
+        );
         _context = new StateCodecContext(new StateSchemaMetadata("bench-optimization-settings", 1));
+        _plainContext = default;
         _fragment = new OptimizationBenchmarkSettings.Fragment
         {
             Counter = Optional<int>.Present(10),
             Name = Optional<string>.Present("benchmark"),
             Enabled = Optional<bool>.Present(true),
         };
+        _plainValue = new OptimizationBenchmarkSettings
+        {
+            Counter = 10,
+            Name = "benchmark",
+            Enabled = true,
+        };
         _buffer = new ArrayBufferWriter<byte>();
+        _plainBuffer = new ArrayBufferWriter<byte>();
         _codec.Serialize(_fragment, _buffer, in _context);
+        _plainCodec.Serialize(_plainValue, _plainBuffer, in _plainContext);
         _sequence = new ReadOnlySequence<byte>(_buffer.WrittenMemory.ToArray());
     }
 
@@ -487,6 +503,13 @@ public class JsonCodecLayoutBenchmarks
     {
         _buffer.Clear();
         _codec.Serialize(_fragment, _buffer, in _context);
+    }
+
+    [Benchmark]
+    public void SerializeWithoutSchema()
+    {
+        _plainBuffer.Clear();
+        _plainCodec.Serialize(_plainValue, _plainBuffer, in _plainContext);
     }
 
     [Benchmark]
