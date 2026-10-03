@@ -1,113 +1,165 @@
 # Configlue
 
-**Read and write typed configuration, wherever it lives.**
+*Read and write typed configuration, wherever it lives.*
 
-Configlue is a .NET configuration state library. Application code works with typed state; Configlue handles where that state comes from, how multiple sources are combined, and where updates are persisted.
+*Configlue* is a .NET configuration state library.
+It takes care of the tedious parts of configuration management for you: retrieving data, merging it, monitoring state, and persisting it.
 
-## Do you really need a configuration library?
+## Why Configlue?
+### Do you really need a configuration library?
 
-If all you need is one JSON file, probably not.
+Probably not for simple cases. Something like this is enough:
 
 ```csharp
 var json = File.ReadAllText("settings.json");
 var settings = JsonSerializer.Deserialize<AppSettings>(json);
-
 // ...
-
 File.WriteAllText(
     "settings.json",
     JsonSerializer.Serialize(settings)
 );
 ```
 
-For a small application, that can be enough.
+...until it isn't.
 
-The problem is that configuration rarely stays small.
+### Configuration grows into infrastructure
 
-## Configuration grows into infrastructure
+Consider the well-known applications you use every day.
 
-Consider applications you already use.
+#### [Git](https://git-scm.com/docs/git-config)
+* Git is a CLI tool, yet its configuration already has `system`, `global`, `local`, `worktree`, and command scopes.
+* Reads follow precedence rules. Writes need an explicit target scope.
+* Git can even tell you which scope and file a value came from.
 
-[Git](https://git-scm.com/docs/git-config) is a CLI tool, yet its configuration already has `system`, `global`, `local`, `worktree`, and command scopes. Reads follow precedence rules. Writes need an explicit target scope. Git can even tell you which scope and file a value came from.
+#### [Visual Studio Code](https://code.visualstudio.com/docs/configure/settings)
+* VS Code goes further: default, user, remote, workspace, workspace-folder, language-specific, profile,
+* and policy settings, plus Settings Sync across machines.
+* Some values are edited by humans in JSON, so editor assistance and schema-aware validation matter too.
 
-[Visual Studio Code](https://code.visualstudio.com/docs/configure/settings) goes further. It has default, user, remote, workspace, workspace-folder, language-specific, profile, and policy settings, plus Settings Sync across machines. Some values are edited by humans in JSON, so editor assistance and schema-aware validation matter too.
+#### [Chrome](https://support.google.com/chrome/a/answer/9037717)
+* Chrome adds another dimension: platform, machine-cloud, OS-user, and cloud-user policies,
+* each with its own precedence and management semantics.
 
-Managed [Chrome](https://support.google.com/chrome/a/answer/9037717) adds another dimension: platform, machine-cloud, OS-user, and cloud-user policies, each with its own precedence and management semantics.
+---
 
-Your application may never become Git, VS Code, or Chrome. But configuration systems tend to grow in the same directions.
+In practice, you may think you never need to go this deep.
+But most systems follow a similar growth path, and end up needing similar things.
 
-You start with one file. Then you add per-user settings, project-local overrides, environment variables, command-line switches, remote policy, credentials, profiles, or organization-wide defaults.
+So it is time to face the parts that are genuinely painful.
 
-Then the difficult questions arrive.
+* Which source wins?
+* Which source should receive a write?
+* What if a higher-priority source is read-only?
+* How do you distinguish a missing value from an explicit `null`?
+* How do you preserve comments when humans edit the file?
+* How do you expose a schema?
+* What happens when the schema changes next year?
+* How do you migrate old settings?
+* How do you make writes atomic, retain backups, detect conflicts, and react to external changes?
 
-Which source wins? Which source should receive a write? What if a higher-priority source is read-only? How do you distinguish a missing value from an explicit `null`? How do you preserve comments when humans edit the file? How do you expose a schema? What happens when the schema changes next year? How do you migrate old settings? How do you make writes atomic, retain backups, detect conflicts, and react to external changes?
+Now think about implementing all of that yourself. Can you come up with a good way to do it?
 
-You can implement all of this yourself.
+### The write side lacks an abstraction
 
-Configlue exists so you do not have to.
+For *reading* configuration, a good abstraction already exists: `IOptionsMonitor<T>`.
+It looks simple, but it also covers change detection, so it has most of what you need.
 
-## Reading configuration is solved. Writing is the missing half.
-
-.NET already has an excellent read-side configuration ecosystem.
-
-`IConfiguration` combines configuration providers into a unified view, and `IOptions<T>` gives application code strongly typed access through dependency injection. Microsoft explicitly describes `IConfiguration` as read-only and not designed for programmatic persistence: [Configuration in .NET](https://learn.microsoft.com/dotnet/core/extensions/configuration).
-
-That is a good design for application configuration that is only consumed.
-
-But many applications also *edit* configuration.
-
-A settings screen changes the theme. A CLI command updates a profile. A desktop app saves the last selected device. A game changes graphics settings. An administration UI edits user-specific state.
-
-At that point the application needs an abstraction for this:
+But what about *writing*? In my experience, I have wanted an abstraction like this many times:
 
 ```csharp
 await settings.SaveAsync(...);
 ```
 
-without also knowing whether the update belongs in a JSON file, browser storage, PostgreSQL, a user-scoped file, or another writable source.
+The important point is that the application should not care *where* or *how* a setting is written.
+All it needs is an API where you simply declare "read this" and "write this".
 
-Configlue makes that boundary explicit:
+## Overview
+### Simple to use
 
-```csharp
-IReadOnlyState<AppSettings>
-IWritableState<AppSettings>
-```
-
-Your application says what to read or write. Infrastructure decides how.
-
-## What Configlue gives you
-
-- **Typed read/write state.** Application code consumes `IReadOnlyState<T>` or `IWritableState<T>`, without depending on storage, serialization, or routing details.
-- **Layered configuration with provenance.** Combine user, local, environment, command-line, remote, database, or custom sources while retaining where each value came from and whether it can be edited.
-- **Sparse, correct writes.** Generated patches preserve the difference between missing, default, `null`, set, and unset values instead of rewriting an entire model blindly.
-- **Configuration that can evolve.** Version models, migrate old schemas, split or merge stored shapes, validate values, export JSON Schema, and move data between sources.
-- **Production-grade persistence.** Change notifications, safe writes, backups, conflict handling, comments where supported, encryption, compression, and source-specific write policies are available without leaking into application code.
-- **A broad .NET integration surface.** Use Configlue with plain .NET, dependency injection, Microsoft Options, ASP.NET Core, Blazor, desktop UI frameworks, MAUI, Unity, Godot, R3, NativeAOT, and custom infrastructure.
-
-## The API your application sees
-
-Most application code should look like this:
+Before the feature list, we want you to know whether it is actually simple to use.
+For most use cases, an application should need nothing more than this API:
 
 ```csharp
 var settings = ConfiglueApp.GetState<AppSettings>();
-
+// load
 var current = await settings.GetValueAsync();
-
+// monitor changes
+settings.OnChange(changed => {
+    // ...
+});
+// save (changed only)
 await settings.SaveAsync(patch =>
 {
     patch.Theme = "Dark";
 });
 ```
 
-That is the important part.
+Configlue makes this possible.
 
-The source layout, format, migration rules, write destination, validation, encryption, and hosting integration are configured outside the application logic.
+Of course, more detailed APIs (such as where a value came from, or whether it can be edited) are available when you need them.
 
-## One API, every .NET app
+And the detailed configuration itself only has to happen once, at application startup (or whenever you need it).
 
-Configlue keeps the state API consistent while adapting the hosting and persistence details to the application you are building.
+### What Configlue gives you
 
+- **Typed read/write state.** Application code consumes `IReadOnlyState<T>` or `IWritableState<T>`, without depending on storage, serialization, or routing details.
+- **Layered configuration with provenance.** Combine user, local, environment, command-line, remote, database, or custom sources while retaining where each value came from and whether it can be edited.
+- **Configuration that can evolve.** Version models, migrate old schemas, split or merge stored shapes, validate values, export JSON Schema, and move data between sources.
+- **Production-grade persistence.** Change notifications, safe writes, backups, conflict handling, comments where supported, encryption, compression, and source-specific write policies are available without leaking into application code.
+- **A broad .NET integration surface.** Use Configlue with plain .NET, dependency injection, Microsoft Options, ASP.NET Core, Blazor, desktop UI frameworks, MAUI, Unity, Godot, R3, NativeAOT, and custom infrastructure.
+
+## Quick Start
+
+Save it as `example.cs` and run it with `dotnet run example.cs` (.NET 10 or later).
+
+```csharp
+#!/usr/bin/env dotnet
+#:package Configlue@*
+
+using Configlue;
+using Configlue.Source.Presets;
+
+// 1. Define the settings class
+[ConfiglueModel("sample.settings", Version = 1)]
+public partial class AppSettings
+{
+    public string Name { get; set; } = "World";
+    public string Theme { get; set; } = "System";
+}
+
+// 2. Initialize
+ConfiglueApp.Initialize(config =>
+{
+    config.UseCommonSources(sources =>
+    {
+        sources.WithLocal();
+        sources.Add<AppSettings>();
+    });
+});
+
+// 3. Read
+var settings = ConfiglueApp.GetState<AppSettings>();
+var current = await settings.GetValueAsync();
+Console.WriteLine($"Hello, {current.Name}. Theme: {current.Theme}");
+
+// 4. Save
+await settings.SaveAsync(patch =>
+{
+    patch.Name = "Alice";
+    patch.Theme = "Dark";
+});
+
+await ConfiglueApp.ShutdownAsync();
+```
+
+## Installation
 ### Plain .NET
+
+Install the convenience package:
+
+```bash
+dotnet add package Configlue
+```
 
 For a normal CLI, utility, or desktop process, initialize Configlue once and use the process-wide state API.
 
@@ -120,9 +172,14 @@ ConfiglueApp.Initialize(config =>
 var settings = ConfiglueApp.GetState<AppSettings>();
 ```
 
-Use `ConfiglueApp.CreateContext(...)` when you explicitly need an isolated or lifetime-managed context. The process-wide `Initialize` / `GetState<T>` path is the normal entry point.
+### Generic Host
 
-### Generic Host and ASP.NET Core
+Install the following packages:
+
+```bash
+dotnet add package Configlue
+dotnet add package Configlue.Extensions.DI
+```
 
 Register the same model definitions through dependency injection:
 
@@ -136,15 +193,37 @@ builder.Services.AddConfiglue(config =>
 Then inject only what the application layer needs:
 
 ```csharp
-public sealed class SettingsService(IWritableState<AppSettings> settings)
+public class SettingsService(IWritableState<AppSettings> settings)
 {
     // ...
 }
 ```
 
-ASP.NET Core hosting adds request/subject-aware integration where configuration needs to vary by the current user or tenant.
+### ASP.NET
+
+Install the following packages:
+
+```bash
+dotnet add package Configlue
+dotnet add package Configlue.Hosting.AspNetCore
+```
+
+In addition to the Generic Host features above, you can expose endpoints that read and update user settings over `HTTP`.
+
+```csharp
+builder.MapConfiglueHttpResource(
+    /* TODO */
+);
+```
 
 ### Blazor
+
+Install the following packages:
+
+```bash
+dotnet add package Configlue
+dotnet add package Configlue.Hosting.Blazor
+```
 
 Blazor can use browser storage as a normal Configlue source:
 
@@ -166,169 +245,60 @@ For UI editing, `StateEditor<T>` owns an edit session and exposes a standard Bla
 </StateEditor>
 ```
 
-There is also a read-only `StateReader<T>`, session storage support, and integration with Blazor authentication state for subject-scoped configuration.
+### Windows Applications
 
-### Desktop UI: WPF, Windows Forms, WinUI, Avalonia
-
-The shared `Configlue.Extensions.ComponentModel` package adapts state to `INotifyPropertyChanged`-style UI code:
-
-```csharp
-var reader = new ConfiglueStateReader<AppSettings>(
-    state,
-    dispatcher
-);
-```
-
-The framework-specific hosting packages provide the native dispatcher/lifecycle bridge for WPF, Windows Forms, WinUI, and Avalonia without duplicating the underlying read/edit semantics.
-
-### .NET MAUI
-
-MAUI hosting maps Configlue's standard locations to the application sandbox:
-
-```csharp
-builder.UseMaui();
-```
-
-It also bridges UI dispatch and provides a small-secret resource backed by MAUI SecureStorage for credentials, tokens, API keys, or encryption key material.
-
-### Unity
-
-Unity hosting uses Unity's runtime semantics instead of pretending the player is a normal desktop process:
-
-```csharp
-builder.UseUnity();
-```
-
-User-global configuration maps to `Application.persistentDataPath`, while the portable Configlue packages remain usable for JSON, MessagePack, compression, AES, and R3 composition, including AOT-oriented scenarios.
-
-### Godot
-
-Godot hosting maps writable application state to Godot's user-data location:
-
-```csharp
-builder.UseGodot();
-```
-
-Configlue uses `user://` semantics for writable state and keeps the rest of the configuration pipeline host-independent.
-
-## Install
-
-For the common case, install the convenience package:
+Install the following packages:
 
 ```bash
 dotnet add package Configlue
+dotnet add package Configlue.Hosting.Avalonia
+# Or the following are available:
+#   Configlue.Hosting.WinForm
+#   Configlue.Hosting.WPF
+#   Configlue.Hosting.WinUI
 ```
 
-Add platform, provider, resource, transformer, or integration packages only when you need them. Configlue is intentionally split so applications do not have to depend on every supported backend or host.
+> TODO
 
-## NativeAOT with MessagePack
+### MAUI
 
-Configlue's generated MessagePack formatter handles the sparse fragment envelope and nested generated fragments. It delegates ordinary scalar and collection members to the configured MessagePack resolver. The convenience `ConfiglueMessagePackResolver.Instance` uses MessagePack-CSharp's `StandardResolver`, which can fall back to runtime formatter generation; it is not an AOT guarantee.
+Install the following packages:
 
-With MessagePack-CSharp 3.x, generate formatters for custom leaf POCOs and explicitly provide formatters for collection shapes used by the model. Then wrap that AOT-safe fallback with `ConfiglueMessagePackResolver`:
-
-```csharp
-[MessagePackObject]
-public partial class Endpoint
-{
-    [Key(0)] public string Host { get; set; } = "localhost";
-    [Key(1)] public int Port { get; set; }
-}
-
-[GeneratedMessagePackResolver]
-internal partial class AppMessagePackResolver;
-
-internal sealed class AppAotResolver : IFormatterResolver
-{
-    private static readonly IMessagePackFormatter<List<Endpoint>> Endpoints =
-        new ListFormatter<Endpoint>()!;
-
-    public IMessagePackFormatter<T>? GetFormatter<T>() =>
-        typeof(T) == typeof(List<Endpoint>)
-            ? (IMessagePackFormatter<T>)(object)Endpoints
-            : AppMessagePackResolver.Instance.GetFormatter<T>()
-                ?? BuiltinResolver.Instance.GetFormatter<T>();
-}
-
-var serializerOptions = new MessagePackSerializerOptions(
-    new ConfiglueMessagePackResolver(new AppAotResolver())
-);
+```bash
+dotnet add package Configlue
+dotnet add package Configlue.Hosting.Maui
 ```
 
-Pass `serializerOptions` through `MessagePackFileSourceOptions.SerializerOptions` or to `MessagePackStateCodec<T>`. Add an AOT-safe formatter to the fallback for each custom or collection member type your models use; do not rely on `StandardResolver` to provide missing formatters.
+> TODO
 
-## Quick Start
+### Unity
 
-The following single-file program uses a normal per-user configuration file without exposing file handling to the application code.
+Download the following packages with [NuGetForUnity](https://github.com/GlitchEnzo/NuGetForUnity):
 
-Save it as `example.cs` and run it with `dotnet run example.cs` (.NET 10 or later).
+* Configlue
+* Configlue.Hosting.Unity
 
-```csharp
-#!/usr/bin/env dotnet
-#:package Configlue@*
+> TODO
 
-using Configlue;
-using Configlue.Source.Presets;
+### Godot
 
-ConfiglueApp.Initialize(config =>
-{
-    config.UseCommonSources(sources =>
-    {
-        sources.WithUserGlobal("SampleApp");
-        sources.Add<AppSettings>();
-    });
-});
+Install the following packages:
 
-var settings = ConfiglueApp.GetState<AppSettings>();
-
-var current = await settings.GetValueAsync();
-Console.WriteLine($"Hello, {current.Name}. Theme: {current.Theme}");
-
-await settings.SaveAsync(patch =>
-{
-    patch.Name = "Alice";
-    patch.Theme = "Dark";
-});
-
-await ConfiglueApp.ShutdownAsync();
-
-[ConfiglueModel("sample.settings", Version = 1)]
-public partial class AppSettings
-{
-    public string Name { get; set; } = "World";
-    public string Theme { get; set; } = "System";
-}
+```bash
+dotnet add package Configlue
+dotnet add package Configlue.Hosting.Godot
 ```
 
-The application only reads and writes `AppSettings`. The standard path, document format, sparse update, serialization, and safe persistence behavior stay in the configured infrastructure.
+> TODO
 
-## Designed for both defaults and control
+## Goals
 
-### Use it anywhere C# runs
+### 1. Use it anywhere C# runs
 
-C# is used for CLI tools, services, web applications, desktop UI, mobile applications, and games. Configlue keeps its portable core and integrations broadly targetable, including .NET Standard where practical, while host-specific packages contain platform-specific behavior.
+C# is used for CLI tools, services, web applications, desktop UI, mobile applications, and games.
+Configlue keeps its portable core and integrations broadly targetable, including .NET Standard where practical, while host-specific packages contain platform-specific behavior.
 
-The goal is not to force every runtime into the same assumptions. It is to keep the *application-facing state model* consistent while letting each host define the correct paths, lifecycle, storage, and threading semantics.
-
-### Composable underneath
-
-Configlue does not require one storage backend, one serialization format, or one source layout.
-
-Files, HTTP, S3, Redis, PostgreSQL, browser storage, environment variables, command-line arguments, JSON, YAML, XML, MessagePack, AES, compression, and custom implementations can be composed according to the application.
-
-If the default setup is wrong for your application, replace it.
-
-### Convenient on top
-
-Most applications still have predictable needs.
-
-Configlue provides presets and host integrations for those cases so a normal application does not need to manually assemble every low-level component.
-
-The design principle is:
-
-**Composable at the bottom, convenient at the top.**
-
-### Keep infrastructure out of application code
+### 2. Keep infrastructure out of application code
 
 The application should usually depend on:
 
@@ -337,54 +307,30 @@ IReadOnlyState<T>
 IWritableState<T>
 ```
 
-not on JSON, file paths, S3 clients, Redis connections, browser APIs, or migration implementations.
+The goal is for everything behind those abstractions to be completely forgettable.
 
-That keeps configuration infrastructure behind a stable application boundary and allows the underlying persistence strategy to change without rewriting the code that consumes settings.
+### 3. Composable underneath
 
-## Ecosystem
+Configlue does not require one storage backend, one serialization format, or one source layout.
 
-Configlue is split into focused packages. The exact package set can grow without making the core abstraction larger.
+Files, HTTP, S3, Redis, PostgreSQL, browser storage, environment variables, command-line arguments, JSON, YAML, XML, MessagePack, AES, compression, and custom implementations can be composed according to the application.
 
-| Area | Examples |
-| --- | --- |
-| Core | `Configlue`, `Configlue.Core`, `Configlue.Abstraction`, `Configlue.Testing` |
-| Providers | JSON, YAML, XML, MessagePack |
-| Sources | Environment, CommandLine, PostgreSQL |
-| Resources | HTTP, Redis, S3 |
-| Transformers | AES, Compression |
-| Extensions | DI, Microsoft Options, ComponentModel, R3 |
-| Hosting | ASP.NET Core, Blazor, WPF, Windows Forms, WinUI, Avalonia, MAUI, Unity, Godot |
-| Tooling | Source generator, JSON Schema MSBuild generation |
+Configlue aims to hold no strong opinion about that detailed composition.
 
-The lower-level packages are there when you want control. Most applications can start with `Configlue` and add only the integrations they need.
+### 4. Convenient on top
+
+Most applications still have predictable needs.
+
+For these "common" use cases, Configlue provides presets based on opinionated (and admittedly biased) defaults.
+This removes the need to assemble a pipeline every time, so a simple initial setup is enough.
+
+Of course, as noted in goal 3, you can swap any of it out at any time.
 
 ## Why "Configlue"?
 
-**Configuration + glue = Configlue.**
-
-Configlue glues configuration infrastructure together so the rest of the application does not have to become configuration glue code.
-
-There is also a small Japanese wordplay: **コンフィグる** (*config-ru*) reads naturally as "to config."
-
-### How do JSON/YAML/XML sections relate to the document schema?
-
-A section (`JsonSectionResource`, `YamlSectionResource`, `XmlSectionResource`) is a *logical* view over one shared physical document. Its logical schema belongs to the section payload; writing a section never stamps that schema onto the whole document. This keeps a document that hosts sections for several models from being relabeled by whichever section was written last.
-
-A whole-document (root) resource does forward its logical schema because there the logical and physical schema coincide. To declare the physical container schema from a section, set its `ContainerSchema` property explicitly. Otherwise section writes make no schema claim and existing container metadata is preserved. When several sections are batched into one physical write, at most one distinct non-null container schema may be declared; conflicting schemas are rejected before anything is written.
-
-`SourceKey<TModel>` must be created with `Create()` or `Named(...)`; its zero-initialized value is uninitialized, reports `IsDefault`, and is rejected by APIs that require a source key. `StateSchemaMetadata` also has an invalid zero-initialized value (`Version == 0`). Use `null` when schema metadata is absent; present metadata must have a positive version, which `IsValid` reports.
-
-# Identity and routing terms
-
-Configlue keeps application identity, provider addressing, placement, and physical coordination separate:
-
-- `ModelId` identifies the model or schema.
-- `StateSource.Id` and `SourceId` identify a logical Configlue source registration.
-- `SubjectKey` identifies an application subject.
-- `ResourceKey` identifies the key a particular source/provider uses for that subject; a source may map it independently of `SubjectKey`.
-- `RouteKey` selects an intermediate backend placement such as a region or shard.
-- `ResourceId` identifies the physical coordination domain resolved for one operation.
-- `PhysicalOrigin` is human-readable location metadata for diagnostics. It may be incomplete or non-unique and is not used as a substitute for `ResourceId`.
+* It glues fragments of configuration into a single setting.
+* It provides the glue code for configuration.
+* In Japanese: *config-ru* (to configure).
 
 ## License
 
