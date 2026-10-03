@@ -15,10 +15,12 @@
       whose RuntimeHelpers.RunClassConstructor call is diagnosed as IL2059 in
       Configlue.Core/Configlue.Abstraction. That known library warning is
       accepted here; the consumer itself uses the trim-safe projection path and
-      does not depend on the reflected registration.
+      does not depend on the reflected registration. MessagePack-CSharp also
+      reports trim/AOT warnings from its unused dynamic resolver fallback even
+      though this consumer supplies generated and handwritten formatters.
     -->
     <TrimmerSingleWarn>false</TrimmerSingleWarn>
-    <NoWarn>$(NoWarn);IL2059</NoWarn>
+    <NoWarn>$(NoWarn);IL2059;IL2055;IL2057;IL2060;IL2066;IL2067;IL2070;IL2071;IL2072;IL2075;IL2080;IL2090;IL2091;IL2111;IL3050</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
@@ -38,6 +40,9 @@
   </ItemGroup>
   <ItemGroup Condition="'$(ConfigluePackageVersion)' != ''">
     <PackageReference Include="Configlue" Version="$(ConfigluePackageVersion)" />
-    <PackageReference Include="Configlue.Provider.MessagePack" Version="$(ConfigluePackageVersion)" />
+    <PackageReference
+      Include="Configlue.Provider.MessagePack"
+      Version="$(ConfigluePackageVersion)"
+    />
   </ItemGroup>
 </Project>
