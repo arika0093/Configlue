@@ -8,8 +8,8 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference
-      Include="System.Reflection.DispatchProxy"
-      Version="4.7.1"
+      Include="System.Reflection.Emit"
+      Version="4.7.0"
       Condition="'$(TargetFramework)' == 'netstandard2.0'"
     />
     <InternalsVisibleTo Include="Configlue.Tests" />

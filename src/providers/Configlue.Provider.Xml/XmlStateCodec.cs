@@ -5,6 +5,7 @@ using System.Collections.ObjectModel;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Reflection;
+using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Xml;
@@ -796,27 +797,148 @@ internal static class XmlStateCodecOperations
     }
 
 #if NETSTANDARD
-#pragma warning disable S3011 // This closed generic adapter method is private to the XML codec assembly.
+    // netstandard2.0 has no BCL IReadOnlySet<T> and the net48 test shim declares its own
+    // interface identity, so the contract type is only known at runtime. DispatchProxy
+    // cannot subclass a private/internal proxy base on .NET Framework (TypeBuilder throws
+    // "Access is denied"), so emit a small sealed wrapper that implements the contract
+    // by delegating every member to an inner HashSet<TElement> instead.
+    private static readonly ConcurrentDictionary<
+        (Type ContractType, Type ElementType),
+        Type
+    > ReadOnlySetProxyTypes = new();
+
     private static object CreateReadOnlySetProxy(
         Type contractType,
         Type elementType,
         IEnumerable values
-    ) =>
-        typeof(XmlStateCodecOperations)
-            .GetMethod(
-                nameof(CreateReadOnlySetProxyGeneric),
-                BindingFlags.Static | BindingFlags.NonPublic
-            )!
-            .MakeGenericMethod(contractType, elementType)
-            .Invoke(null, [values])!;
-#pragma warning restore S3011
-
-    private static TContract CreateReadOnlySetProxyGeneric<TContract, TElement>(IEnumerable values)
-        where TContract : class
+    )
     {
-        var proxy = DispatchProxy.Create<TContract, ReadOnlySetView<TElement>>();
-        ((ReadOnlySetView<TElement>)(object)proxy).Initialize(values);
-        return proxy;
+        ArgumentNullException.ThrowIfNull(contractType);
+        ArgumentNullException.ThrowIfNull(elementType);
+        ArgumentNullException.ThrowIfNull(values);
+        var hashSetType = typeof(HashSet<>).MakeGenericType(elementType);
+        var cast = typeof(Enumerable)
+            .GetMethod(nameof(Enumerable.Cast))!
+            .MakeGenericMethod(elementType);
+        var typedValues = cast.Invoke(null, [values]);
+        var hashSet = Activator.CreateInstance(hashSetType, [typedValues])!;
+        var proxyType = ReadOnlySetProxyTypes.GetOrAdd(
+            (contractType, elementType),
+            static key => BuildReadOnlySetProxyType(key.ContractType, key.ElementType)
+        );
+        return Activator.CreateInstance(proxyType, [hashSet])!;
+    }
+
+    private static Type BuildReadOnlySetProxyType(Type contractType, Type elementType)
+    {
+        var interfaces = new List<Type> { contractType };
+        var queue = new Queue<Type>(interfaces);
+        var seen = new HashSet<Type>(interfaces);
+        while (queue.Count > 0)
+        {
+            var current = queue.Dequeue();
+            foreach (var parent in current.GetInterfaces().Where(seen.Add))
+            {
+                interfaces.Add(parent);
+                queue.Enqueue(parent);
+            }
+        }
+
+        var hashSetType = typeof(HashSet<>).MakeGenericType(elementType);
+        var assembly = AssemblyBuilder.DefineDynamicAssembly(
+            new AssemblyName("Configlue.Xml.ReadOnlySetProxies"),
+            AssemblyBuilderAccess.Run
+        );
+        var module = assembly.DefineDynamicModule("Configlue.Xml.ReadOnlySetProxies");
+        var typeBuilder = module.DefineType(
+            $"ReadOnlySetProxy_{elementType.Name}_{Guid.NewGuid():N}",
+            TypeAttributes.Public | TypeAttributes.Sealed | TypeAttributes.BeforeFieldInit,
+            typeof(object),
+            [contractType]
+        );
+        var field = typeBuilder.DefineField(
+            "_values",
+            hashSetType,
+            FieldAttributes.Private | FieldAttributes.InitOnly
+        );
+        var constructor = typeBuilder.DefineConstructor(
+            MethodAttributes.Public,
+            CallingConventions.Standard,
+            [hashSetType]
+        );
+        var ctorIl = constructor.GetILGenerator();
+        ctorIl.Emit(OpCodes.Ldarg_0);
+        ctorIl.Emit(OpCodes.Call, typeof(object).GetConstructor(Type.EmptyTypes)!);
+        ctorIl.Emit(OpCodes.Ldarg_0);
+        ctorIl.Emit(OpCodes.Ldarg_1);
+        ctorIl.Emit(OpCodes.Stfld, field);
+        ctorIl.Emit(OpCodes.Ret);
+
+        var implemented = new HashSet<string>(StringComparer.Ordinal);
+        var methodIndex = 0;
+        foreach (var @interface in interfaces)
+        {
+            foreach (var method in @interface.GetMethods())
+            {
+                // Method.ToString includes the return type, so the generic and
+                // non-generic GetEnumerator overloads stay distinct.
+                var key = @interface.AssemblyQualifiedName + "::" + method;
+                if (!implemented.Add(key))
+                {
+                    continue;
+                }
+
+                var parameters = method
+                    .GetParameters()
+                    .Select(static parameter => parameter.ParameterType)
+                    .ToArray();
+
+                var target = hashSetType.GetMethod(method.Name, parameters);
+                if (target is null)
+                {
+                    throw new InvalidOperationException(
+                        $"Read-only set member '{method.Name}' is unsupported for element type '{elementType}'."
+                    );
+                }
+
+                // Each proxy method gets a unique name: the generic and non-generic
+                // GetEnumerator share a name and signature but differ in return type,
+                // so they cannot share one implementation method.
+                var proxy = typeBuilder.DefineMethod(
+                    "Proxy_" + methodIndex + "_" + method.Name,
+                    MethodAttributes.Public
+                        | MethodAttributes.Virtual
+                        | MethodAttributes.HideBySig
+                        | MethodAttributes.NewSlot
+                        | MethodAttributes.Final,
+                    method.ReturnType,
+                    parameters
+                );
+                methodIndex++;
+                var body = proxy.GetILGenerator();
+                body.Emit(OpCodes.Ldarg_0);
+                body.Emit(OpCodes.Ldfld, field);
+                for (var index = 0; index < parameters.Length; index++)
+                {
+                    body.Emit(OpCodes.Ldarg, index + 1);
+                }
+
+                body.Emit(OpCodes.Callvirt, target);
+                if (target.ReturnType.IsValueType && target.ReturnType != method.ReturnType)
+                {
+                    // HashSet<T>.GetEnumerator returns a struct enumerator while the
+                    // contract expects an interface reference, so box it explicitly.
+                    body.Emit(OpCodes.Box, target.ReturnType);
+                }
+
+                body.Emit(OpCodes.Ret);
+                typeBuilder.DefineMethodOverride(proxy, method);
+            }
+        }
+
+        var created = typeBuilder.CreateTypeInfo();
+        ArgumentNullException.ThrowIfNull(created);
+        return created.AsType();
     }
 #endif
 
@@ -883,65 +1005,7 @@ internal static class XmlStateCodecOperations
     private static bool IsNamedGenericType(Type type, string name) =>
         type.IsGenericTypeDefinition && type.FullName == name;
 
-#if NETSTANDARD
-    // DispatchProxy.Create requires a non-sealed proxy type.
-    [System.Diagnostics.CodeAnalysis.SuppressMessage(
-        "Sonar",
-        "S3260:Classes should not be sealed when used as DispatchProxy targets",
-        Justification = "DispatchProxy.Create requires an unsealed accessible proxy type."
-    )]
-    private class ReadOnlySetView<T> : DispatchProxy
-    {
-        private HashSet<T>? _values;
-
-        public void Initialize(IEnumerable values)
-        {
-            _values = new HashSet<T>(values.Cast<T>());
-        }
-
-        protected override object? Invoke(MethodInfo? targetMethod, object?[]? args)
-        {
-            var values =
-                _values
-                ?? throw new InvalidOperationException(
-                    "The read-only set proxy is not initialized."
-                );
-            if (targetMethod is null)
-            {
-                throw new InvalidOperationException("The read-only set member is unavailable.");
-            }
-
-            if (targetMethod.Name == nameof(IEnumerable<T>.GetEnumerator))
-            {
-                return values.GetEnumerator();
-            }
-
-            var parameterTypes = targetMethod
-                .GetParameters()
-                .Select(static parameter => parameter.ParameterType)
-                .ToArray();
-            var implementation = values.GetType().GetMethod(targetMethod.Name, parameterTypes);
-            if (implementation is not null)
-            {
-                return implementation.Invoke(values, args);
-            }
-
-            if (targetMethod.Name == "get_Count")
-            {
-                return values.Count;
-            }
-
-            if (targetMethod.Name == "GetEnumerator")
-            {
-                return ((IEnumerable)values).GetEnumerator();
-            }
-
-            throw new NotSupportedException(
-                $"Read-only set member '{targetMethod.Name}' is unsupported."
-            );
-        }
-    }
-#else
+#if !NETSTANDARD
     private sealed class ReadOnlySetView<T>(IEnumerable<T> values) : IReadOnlySet<T>
     {
         private readonly HashSet<T> _values = new(values);

@@ -93,11 +93,51 @@ public static class ConfiglueFragmentRegistry<TFragment>
     private static TFragment? _empty;
 
     /// <summary>Gets the generated empty fragment registered for this fragment type.</summary>
-    public static TFragment Empty =>
-        _empty
-        ?? throw new InvalidOperationException(
-            $"Generated fragment '{typeof(TFragment)}' has not been registered."
+    public static TFragment Empty
+    {
+        get
+        {
+            if (_empty is null)
+            {
+                EnsureRegistered();
+            }
+
+            return _empty
+                ?? throw new InvalidOperationException(
+                    $"Generated fragment '{typeof(TFragment)}' has not been registered."
+                );
+        }
+    }
+
+    [UnconditionalSuppressMessage(
+        "Trimming",
+        "IL2059",
+        Justification = "The handle comes from the fragment's declaring model type, a generated model already rooted by this closed generic instantiation. Running its static constructor only triggers generated registration."
+    )]
+    private static void EnsureRegistered()
+    {
+        // Generated fragments are nested inside their models, and the model's type
+        // initializer registers the operations (which in turn registers the fragment).
+        // Mount paths and other fragment-first entry points can run before anything
+        // has touched the model type, so trigger its initializer on demand instead of
+        // depending on test or call ordering.
+        System.Runtime.CompilerServices.RuntimeHelpers.RunClassConstructor(
+            typeof(TFragment).TypeHandle
         );
+        var modelType = typeof(TFragment).DeclaringType;
+        while (modelType is not null && _empty is null)
+        {
+            System.Runtime.CompilerServices.RuntimeHelpers.RunClassConstructor(
+                modelType.TypeHandle
+            );
+            if (_empty is not null)
+            {
+                break;
+            }
+
+            modelType = modelType.DeclaringType;
+        }
+    }
 
     /// <summary>Registers the generated empty fragment.</summary>
     public static void Register(TFragment empty)
