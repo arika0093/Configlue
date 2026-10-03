@@ -1,5 +1,5 @@
-using System.Runtime.CompilerServices;
 using System.Buffers;
+using System.Runtime.CompilerServices;
 
 namespace Configlue.State;
 
