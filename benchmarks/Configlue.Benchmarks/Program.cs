@@ -41,8 +41,11 @@ public class OptionsRuntimeBenchmarks
             new StateSource<BenchmarkSettings.Fragment>(
                 "benchmark",
                 _store,
-                writer: _store,
-                watcher: _store
+                new StateSourceOptions<BenchmarkSettings.Fragment>
+                {
+                    Writer = _store,
+                    Watcher = _store,
+                }
             ),
         ]);
         var services = new ServiceCollection();
@@ -152,8 +155,11 @@ public class StateSourceResolverBenchmarks
                 return new StateSource<BenchmarkSettings.Fragment>(
                     $"layer-{index}",
                     store,
-                    priority: SourceCount - index,
-                    fallbackCondition: StateFallbackCondition.NotFound
+                    new StateSourceOptions<BenchmarkSettings.Fragment>
+                    {
+                        Priority = SourceCount - index,
+                        FallbackCondition = StateFallbackCondition.NotFound,
+                    }
                 );
             })
             .ToArray();

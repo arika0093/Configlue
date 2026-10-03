@@ -8,6 +8,54 @@ namespace Configlue.Tests;
 public sealed class SerializedStateSourceCompositionTests
 {
     [Test]
+    public async Task ReaderOnlyAndWriterOnlyMiddlewarePreserveIndependentCapabilities()
+    {
+        var readOnlyResource = new InMemoryResource();
+        await readOnlyResource.WriteAsync(
+            new ResourceWriteRequest(System.Text.Encoding.UTF8.GetBytes("\"value\""))
+        );
+        var readOnly = SerializedStateSource.FromResource<string>(
+            "reader-only",
+            new ReaderOnlyResource(readOnlyResource),
+            new JsonStateCodec<string>(),
+            middlewares: [new ReaderSuffixMiddleware("-read")]
+        );
+
+        readOnly.Writer.ShouldBeNull();
+        (await readOnly.ReadAsync()).Value.ShouldBe("value-read");
+
+        var writableResource = new InMemoryResource();
+        var writeOnly = SerializedStateSource.FromResource<string>(
+            "writer-only",
+            writableResource,
+            new JsonStateCodec<string>(),
+            middlewares: [new WriterSuffixMiddleware("-write")]
+        );
+
+        writeOnly.Writer.ShouldNotBeNull();
+        await writeOnly.WriteAsync(new StateWriteRequest<string>("value"));
+        (await writeOnly.ReadAsync()).Value.ShouldBe("value-write");
+    }
+
+    [Test]
+    public async Task ReaderMiddlewarePreservesCancellationAndExceptions()
+    {
+        var source = SerializedStateSource.FromResource<string>(
+            "reader-errors",
+            new InMemoryResource(),
+            new JsonStateCodec<string>(),
+            middlewares: [new FailingReaderMiddleware()]
+        );
+
+        await Should.ThrowAsync<OperationCanceledException>(async () =>
+            await source.ReadAsync(cancellationToken: new CancellationToken(canceled: true))
+        );
+        await Should.ThrowAsync<InvalidOperationException>(async () =>
+            await source.ReadAsync()
+        );
+    }
+
+    [Test]
     public async Task FromResource_ComposesOrderedTransformsAndStateMiddleware()
     {
         var resource = new InMemoryResource();
@@ -44,13 +92,51 @@ public sealed class SerializedStateSourceCompositionTests
             Encoding.UTF8.GetBytes(prefix + Encoding.UTF8.GetString(source.Span));
     }
 
-    private sealed class SuffixMiddleware(string suffix) : IStateMiddleware<string>
+    private sealed class SuffixMiddleware(string suffix)
+        : IStateReaderMiddleware<string>, IStateWriterMiddleware<string>
     {
         public ISourceReader<string> WrapReader(ISourceReader<string> next) =>
             new SuffixReader(next, suffix);
 
         public ISourceWriter<string> WrapWriter(ISourceWriter<string> next) =>
             new SuffixWriter(next, suffix);
+    }
+
+    private sealed class ReaderSuffixMiddleware(string suffix) : IStateReaderMiddleware<string>
+    {
+        public ISourceReader<string> WrapReader(ISourceReader<string> next) =>
+            new SuffixReader(next, suffix);
+    }
+
+    private sealed class WriterSuffixMiddleware(string suffix) : IStateWriterMiddleware<string>
+    {
+        public ISourceWriter<string> WrapWriter(ISourceWriter<string> next) =>
+            new SuffixWriter(next, suffix);
+    }
+
+    private sealed class FailingReaderMiddleware : IStateReaderMiddleware<string>
+    {
+        public ISourceReader<string> WrapReader(ISourceReader<string> next) => new FailingReader();
+    }
+
+    private sealed class FailingReader : ISourceReader<string>
+    {
+        public ValueTask<StateReadResult<string>> ReadAsync(
+            ConfiglueResourceContext context,
+            CancellationToken cancellationToken = default
+        )
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            throw new InvalidOperationException("middleware failure");
+        }
+    }
+
+    private sealed class ReaderOnlyResource(IResourceReader inner) : IResourceReader
+    {
+        public ValueTask<ResourceReadResult> ReadAsync(
+            ConfiglueResourceContext context,
+            CancellationToken cancellationToken = default
+        ) => inner.ReadAsync(context, cancellationToken);
     }
 
     private sealed class SuffixReader(ISourceReader<string> next, string suffix)

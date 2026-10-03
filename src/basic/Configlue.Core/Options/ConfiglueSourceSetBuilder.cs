@@ -80,14 +80,18 @@ public class ConfiglueSourceSetBuilder : IConfiglueSourceRegistrationSink
                 var keyedSource = new StateSource<TFragment>(
                     sourceKey.Id,
                     source.Reader,
-                    source.Priority,
-                    source.FallbackCondition,
-                    source.Writer,
-                    source.Watcher,
-                    source.PhysicalOrigin,
-                    source.ConfiguredResourceId,
-                    resourceKeySelector: source.GetResourceKey,
-                    routeSelector: source.GetRouteKey
+                    new StateSourceOptions<TFragment>
+                    {
+                        Priority = source.Priority,
+                        FallbackCondition = source.FallbackCondition,
+                        Writer = source.Writer,
+                        DisableWriteCapability = source.Writer is null,
+                        Watcher = source.Watcher,
+                        PhysicalOrigin = source.PhysicalOrigin,
+                        FixedResourceId = source.ConfiguredResourceId,
+                        ResourceKeySelector = source.GetResourceKey,
+                        RouteSelector = source.GetRouteKey,
+                    }
                 );
                 source.CopyRoutingMetadataTo(keyedSource);
                 return keyedSource;

@@ -129,20 +129,26 @@ public static class XmlFileSourceRegistration
                 ? new StateSource<TFragment>(
                     id,
                     serialized,
-                    options.Priority,
-                    options.FallbackCondition,
-                    physicalOrigin: file.Path,
-                    fixedResourceId: fixedResourceId,
-                    explicitOnly: options.ExplicitOnly
+                    new StateSourceOptions<TFragment>
+                    {
+                        Priority = options.Priority,
+                        FallbackCondition = options.FallbackCondition,
+                        PhysicalOrigin = file.Path,
+                        FixedResourceId = fixedResourceId,
+                        ExplicitOnly = options.ExplicitOnly,
+                    }
                 )
                 : new StateSource<TFragment>(
                     XmlFileSourceSelector.CreateSourceId(file.Path, options.SectionPath),
                     serialized,
-                    options.Priority,
-                    options.FallbackCondition,
-                    physicalOrigin: file.Path,
-                    fixedResourceId: fixedResourceId,
-                    explicitOnly: options.ExplicitOnly
+                    new StateSourceOptions<TFragment>
+                    {
+                        Priority = options.Priority,
+                        FallbackCondition = options.FallbackCondition,
+                        PhysicalOrigin = file.Path,
+                        FixedResourceId = fixedResourceId,
+                        ExplicitOnly = options.ExplicitOnly,
+                    }
                 );
         }
     }

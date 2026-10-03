@@ -71,16 +71,22 @@ public static class EnvironmentFacadeSourceRegistration
                 ? new StateSource<TFragment>(
                     id,
                     reader,
-                    options.Priority,
-                    options.FallbackCondition,
-                    physicalOrigin: physicalOrigin
+                    new StateSourceOptions<TFragment>
+                    {
+                        Priority = options.Priority,
+                        FallbackCondition = options.FallbackCondition,
+                        PhysicalOrigin = physicalOrigin,
+                    }
                 )
                 : new StateSource<TFragment>(
                     reader,
-                    options.Priority,
-                    options.FallbackCondition,
-                    physicalOrigin: physicalOrigin,
-                    logicalDescriptor: "environment-prefix"
+                    new StateSourceOptions<TFragment>
+                    {
+                        Priority = options.Priority,
+                        FallbackCondition = options.FallbackCondition,
+                        PhysicalOrigin = physicalOrigin,
+                        LogicalDescriptor = "environment-prefix",
+                    }
                 );
         }
     }

@@ -34,9 +34,13 @@ public static class EnvironmentStateSource
         return new StateSource<TFragment>(
             id,
             reader,
-            priority,
-            fallbackCondition,
-            physicalOrigin: $"environment:{EnvironmentStateReader<TFragment>.NormalizePrefix(prefix)}"
+            new StateSourceOptions<TFragment>
+            {
+                Priority = priority,
+                FallbackCondition = fallbackCondition,
+                PhysicalOrigin =
+                    $"environment:{EnvironmentStateReader<TFragment>.NormalizePrefix(prefix)}",
+            }
         );
     }
 }

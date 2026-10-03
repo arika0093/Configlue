@@ -179,20 +179,26 @@ public static class YamlFileSourceRegistration
                 ? new StateSource<TFragment>(
                     id,
                     serialized,
-                    options.Priority,
-                    options.FallbackCondition,
-                    physicalOrigin: file.Path,
-                    fixedResourceId: fixedResourceId,
-                    explicitOnly: options.ExplicitOnly
+                    new StateSourceOptions<TFragment>
+                    {
+                        Priority = options.Priority,
+                        FallbackCondition = options.FallbackCondition,
+                        PhysicalOrigin = file.Path,
+                        FixedResourceId = fixedResourceId,
+                        ExplicitOnly = options.ExplicitOnly,
+                    }
                 )
                 : new StateSource<TFragment>(
                     YamlFileSourceSelector.CreateSourceId(file.Path, options.SectionPath),
                     serialized,
-                    options.Priority,
-                    options.FallbackCondition,
-                    physicalOrigin: file.Path,
-                    fixedResourceId: fixedResourceId,
-                    explicitOnly: options.ExplicitOnly
+                    new StateSourceOptions<TFragment>
+                    {
+                        Priority = options.Priority,
+                        FallbackCondition = options.FallbackCondition,
+                        PhysicalOrigin = file.Path,
+                        FixedResourceId = fixedResourceId,
+                        ExplicitOnly = options.ExplicitOnly,
+                    }
                 );
         }
     }

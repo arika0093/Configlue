@@ -165,9 +165,6 @@ public sealed class PostgreSqlSource<T>
     internal int CachedBackendCount => _testBackendCache?.Count ?? _backendCache?.Count ?? 0;
 
     /// <inheritdoc />
-    public bool CanWrite => _writable;
-
-    /// <inheritdoc />
     public ISourceWriter<T>? Writer => _writable ? this : null;
 
     /// <inheritdoc />

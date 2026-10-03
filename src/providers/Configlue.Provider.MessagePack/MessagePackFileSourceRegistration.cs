@@ -31,13 +31,12 @@ public sealed class MessagePackFileSourceOptions
     /// <summary>Whether to watch the file for changes.</summary>
     public bool WatchChanges { get; init; } = true;
 
-    /// <summary>MessagePack resolver, security, and compression options.</summary>
+    /// <summary>MessagePack resolver, security, and compression options for the runtime-resolved source.</summary>
     /// <remarks>
     /// The generated Configlue formatter covers the fragment envelope and delegates scalar and collection
-    /// member types to this resolver. The default resolver can use runtime reflection. For NativeAOT with
-    /// MessagePack-CSharp 3.x, configure a <c>[GeneratedMessagePackResolver]</c> for custom POCO members and
-    /// compose it with explicit formatters for collection shapes and built-in types; wrap that fallback in
-    /// <see cref="ConfiglueMessagePackResolver"/> so generated Configlue fragments are also resolved.
+    /// member types to this resolver. The default resolver can use runtime reflection. For NativeAOT, use
+    /// <see cref="MessagePackFileSourceRegistration.FromGeneratedMessagePackFile"/> with explicit options
+    /// and a closed-world resolver.
     /// </remarks>
     public MessagePackSerializerOptions? SerializerOptions { get; init; }
 
@@ -78,6 +77,33 @@ public static class MessagePackFileSourceRegistration
 
         return ((IConfiglueSourceRegistrationSink)sources).Add(
             new MessagePackFileSourceDefinition(options)
+        );
+    }
+
+    /// <summary>Adds a MessagePack file source using an explicit generated-fragment codec path.</summary>
+    /// <remarks>
+    /// This overload requires a generated fragment formatter and non-null serializer options. It avoids
+    /// the runtime-resolved defaults used by <see cref="FromMessagePackFile(ConfiglueSourceSetBuilder, MessagePackFileSourceOptions)"/>.
+    /// </remarks>
+    public static ConfiglueSourceRegistration FromGeneratedMessagePackFile(
+        this ConfiglueSourceSetBuilder sources,
+        MessagePackFileSourceOptions options,
+        MessagePackSerializerOptions serializerOptions
+    )
+    {
+        ArgumentNullException.ThrowIfNull(sources);
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(serializerOptions);
+        ArgumentException.ThrowIfNullOrWhiteSpace(options.Path);
+        if (options.SectionPath is not null)
+        {
+            throw new NotSupportedException(
+                "MessagePack file sources do not support document sections."
+            );
+        }
+
+        return ((IConfiglueSourceRegistrationSink)sources).Add(
+            new GeneratedMessagePackFileSourceDefinition(options, serializerOptions)
         );
     }
 
@@ -133,62 +159,97 @@ public static class MessagePackFileSourceRegistration
             where TFragment : class, IConfiglueFragment<TFragment>
         {
             return context.Complete(
-                CreateSourceCore<TFragment>(context.ModelSchema, context.HostPaths, context.Own)
+                CreateSourceCore(
+                    options,
+                    context.ModelSchema,
+                    context.HostPaths,
+                    context.Own,
+                    new MessagePackStateCodec<TFragment>(options.SerializerOptions)
+                )
             );
         }
+    }
 
-        private StateSource<TFragment> CreateSourceCore<TFragment>(
-            ConfiglueModelSchema modelSchema,
-            IConfiglueHostPaths hostPaths,
-            Action<object> ownResource
+    private sealed class GeneratedMessagePackFileSourceDefinition(
+        MessagePackFileSourceOptions options,
+        MessagePackSerializerOptions serializerOptions
+    ) : IConfiglueSourceDefinition
+    {
+        public ConfiglueSourceCreation<TFragment> Create<TFragment>(
+            ConfiglueSourceCreationContext context
         )
             where TFragment : class, IConfiglueFragment<TFragment>
         {
-            var file = new FileResource(
-                options.Path,
-                modelSchema.ToMetadata(),
-                options.ResourceOptions,
-                options.FixedResourceId,
-                hostPaths
-            );
-            ownResource(file);
-
-            IResourceReader resource = file;
-            IResourceWriter? writer = options.ReadOnly ? null : file;
-            if (options.Transformers is { Count: > 0 })
-            {
-                var transformed = new TransformingResource(file, options.Transformers);
-                resource = transformed;
-                writer = options.ReadOnly ? null : transformed.Writer;
-            }
-
-            var codec = new MessagePackStateCodec<TFragment>(options.SerializerOptions);
-            var serialized = new SerializedSource<TFragment>(
-                resource,
-                codec,
-                writer: writer,
-                watcher: options.WatchChanges ? file : null
-            );
-            var fixedResourceId = options.FixedResourceId;
-            return options.Id is { } id
-                ? new StateSource<TFragment>(
-                    id,
-                    serialized,
-                    options.Priority,
-                    options.FallbackCondition,
-                    physicalOrigin: file.Path,
-                    fixedResourceId: fixedResourceId,
-                    explicitOnly: options.ExplicitOnly
+            return context.Complete(
+                CreateSourceCore(
+                    options,
+                    context.ModelSchema,
+                    context.HostPaths,
+                    context.Own,
+                    MessagePackStateCodec<TFragment>.CreateGeneratedFragment(serializerOptions)
                 )
-                : new StateSource<TFragment>(
-                    CreateSourceId(options.Path),
-                    serialized,
-                    options.Priority,
-                    options.FallbackCondition,
-                    physicalOrigin: file.Path,
-                    fixedResourceId: fixedResourceId,
-                    explicitOnly: options.ExplicitOnly
-                );
+            );
         }
+    }
+
+    private static StateSource<TFragment> CreateSourceCore<TFragment>(
+        MessagePackFileSourceOptions options,
+        ConfiglueModelSchema modelSchema,
+        IConfiglueHostPaths hostPaths,
+        Action<object> ownResource,
+        IStateCodec<TFragment> codec
+    )
+        where TFragment : class, IConfiglueFragment<TFragment>
+    {
+        var file = new FileResource(
+            options.Path,
+            modelSchema.ToMetadata(),
+            options.ResourceOptions,
+            options.FixedResourceId,
+            hostPaths
+        );
+        ownResource(file);
+
+        IResourceReader resource = file;
+        IResourceWriter? writer = options.ReadOnly ? null : file;
+        if (options.Transformers is { Count: > 0 })
+        {
+            var transformed = new TransformingResource(file, options.Transformers);
+            resource = transformed;
+            writer = options.ReadOnly ? null : transformed.Writer;
+        }
+
+        var serialized = new SerializedSource<TFragment>(
+            resource,
+            codec,
+            writer: writer,
+            watcher: options.WatchChanges ? file : null
+        );
+        var fixedResourceId = options.FixedResourceId;
+        return options.Id is { } id
+            ? new StateSource<TFragment>(
+                id,
+                serialized,
+                new StateSourceOptions<TFragment>
+                {
+                    Priority = options.Priority,
+                    FallbackCondition = options.FallbackCondition,
+                    PhysicalOrigin = file.Path,
+                    FixedResourceId = fixedResourceId,
+                    ExplicitOnly = options.ExplicitOnly,
+                }
+            )
+            : new StateSource<TFragment>(
+                CreateSourceId(options.Path),
+                serialized,
+                new StateSourceOptions<TFragment>
+                {
+                    Priority = options.Priority,
+                    FallbackCondition = options.FallbackCondition,
+                    PhysicalOrigin = file.Path,
+                    FixedResourceId = fixedResourceId,
+                    ExplicitOnly = options.ExplicitOnly,
+                }
+            );
     }
 }

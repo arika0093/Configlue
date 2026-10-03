@@ -92,7 +92,10 @@ public class FilePersistenceBenchmarks
                 new StateSource<PersistenceBenchmarkSettings.Fragment>(
                     "benchmark",
                     inMemoryStore,
-                    writer: inMemoryStore
+                    new StateSourceOptions<PersistenceBenchmarkSettings.Fragment>
+                    {
+                        Writer = inMemoryStore,
+                    }
                 ),
             ])
         );
@@ -210,7 +213,10 @@ public class LayeredResolutionBenchmarks
                 return new StateSource<BenchmarkSettings.Fragment>(
                     $"layer-{index}",
                     store,
-                    priority: SourceCount - index
+                    new StateSourceOptions<BenchmarkSettings.Fragment>
+                    {
+                        Priority = SourceCount - index,
+                    }
                 );
             })
             .ToArray();

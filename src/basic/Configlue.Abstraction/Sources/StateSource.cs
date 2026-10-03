@@ -11,13 +11,68 @@ public sealed class StateSource<T>
     private readonly ResourceId? _fixedResourceId;
 
     /// <summary>Creates a source with an automatically generated opaque logical identity.</summary>
-    /// <remarks>
-    /// Supply <paramref name="logicalDescriptor"/> to distinguish multiple logical registrations of
-    /// the same reader. Without a descriptor this source receives a registration-scoped identifier.
-    /// Physical origins and resolved resource identities are not logical source identifiers.
-    /// </remarks>
-    /// <summary>Creates a source from one capability-supplying object and nominal source identity.</summary>
-    public StateSource(
+    public StateSource(ISourceReader<T> reader, StateSourceOptions<T>? options = null)
+        : this(
+            SourceId.From(StateSourceIdentity.Create(reader, options?.LogicalDescriptor)),
+            reader,
+            options ?? new StateSourceOptions<T>()
+        ) { }
+
+    /// <summary>Creates a source with an explicit logical identity.</summary>
+    public StateSource(string id, ISourceReader<T> reader, StateSourceOptions<T> options)
+        : this(SourceId.From(id), reader, options) { }
+
+    /// <summary>Creates a source with an explicit logical identity.</summary>
+    public StateSource(SourceId id, ISourceReader<T> reader, StateSourceOptions<T> options)
+    {
+        if (id.IsDefault)
+        {
+            throw new ArgumentException(
+                "A source identifier must not be the default SourceId.",
+                nameof(id)
+            );
+        }
+        ArgumentNullException.ThrowIfNull(reader);
+        ArgumentNullException.ThrowIfNull(options);
+        if (
+            (
+                options.FallbackCondition
+                & ~(
+                    StateFallbackCondition.NotFoundOrUnavailable
+                    | StateFallbackCondition.InvalidPayload
+                )
+            ) != 0
+        )
+        {
+            throw new ArgumentOutOfRangeException(nameof(options));
+        }
+        if (options.FixedResourceId is { IsDefault: true })
+        {
+            throw new ArgumentException(
+                "A configured resource identity must not be the default ResourceId.",
+                nameof(options)
+            );
+        }
+
+        var capabilities = reader as ISourceCapabilities<T>;
+        Id = id;
+        Reader = reader;
+        Priority = options.Priority;
+        FallbackCondition = options.FallbackCondition;
+        Writer = options.DisableWriteCapability ? null : options.Writer ?? capabilities?.Writer;
+        Watcher = options.Watcher ?? capabilities?.Watcher;
+        PhysicalOrigin = options.PhysicalOrigin;
+        _fixedResourceId = options.FixedResourceId;
+        ExplicitOnly = options.ExplicitOnly;
+        RuntimeLifetime = options.RuntimeLifetime;
+        ModelId = options.ModelId;
+        _resourceKeySelector =
+            options.ResourceKeySelector ?? (static subject => ResourceKey.From(subject.Key));
+        RouteSelector = options.RouteSelector ?? (static _ => RouteKey.Default);
+    }
+
+    // Kept internal for in-assembly construction paths while callers move to StateSourceOptions<T>.
+    internal StateSource(
         ISourceReader<T> reader,
         int priority = 0,
         StateFallbackCondition fallbackCondition = StateFallbackCondition.NotFound,
@@ -33,58 +88,31 @@ public sealed class StateSource<T>
         Func<IConfiglueSubject, RouteKey>? routeSelector = null
     )
         : this(
-            SourceId.From(StateSourceIdentity.Create(reader, logicalDescriptor)),
             reader,
-            priority,
-            fallbackCondition,
-            writer,
-            watcher,
-            physicalOrigin,
-            fixedResourceId,
-            explicitOnly,
-            resourceKeySelector,
-            runtimeLifetime,
-            modelId,
-            routeSelector
+            new StateSourceOptions<T>
+            {
+                Priority = priority,
+                FallbackCondition = fallbackCondition,
+                Writer = writer,
+                Watcher = watcher,
+                PhysicalOrigin = physicalOrigin,
+                FixedResourceId = fixedResourceId,
+                LogicalDescriptor = logicalDescriptor,
+                ExplicitOnly = explicitOnly,
+                ResourceKeySelector = resourceKeySelector,
+                RuntimeLifetime = runtimeLifetime,
+                ModelId = modelId,
+                RouteSelector = routeSelector,
+            }
         ) { }
 
-    /// <summary>Creates a source from one object that supplies its read, write, and watch capabilities.</summary>
-    public StateSource(
-        ISourceCapabilities<T> source,
-        int priority = 0,
-        StateFallbackCondition fallbackCondition = StateFallbackCondition.NotFound,
-        string? physicalOrigin = null,
-        ResourceId? fixedResourceId = null,
-        string? logicalDescriptor = null,
-        bool explicitOnly = false,
-        Func<IConfiglueSubject, ResourceKey>? resourceKeySelector = null,
-        RuntimeLifetimeRequirement runtimeLifetime = RuntimeLifetimeRequirement.Shared,
-        string? modelId = null,
-        Func<IConfiglueSubject, RouteKey>? routeSelector = null
-    )
-        : this(
-            (ISourceReader<T>)source,
-            priority,
-            fallbackCondition,
-            source.Writer,
-            source.Watcher,
-            physicalOrigin,
-            fixedResourceId,
-            logicalDescriptor,
-            explicitOnly,
-            resourceKeySelector,
-            runtimeLifetime,
-            modelId,
-            routeSelector
-        ) { }
-
-    /// <summary>Creates a source from one capability-supplying object with an explicit logical identity.</summary>
-    /// <remarks>The string overload is a registration/configuration boundary; Core stores a <see cref="SourceId"/>.</remarks>
-    public StateSource(
+    internal StateSource(
         string id,
-        ISourceCapabilities<T> source,
+        ISourceReader<T> reader,
         int priority = 0,
         StateFallbackCondition fallbackCondition = StateFallbackCondition.NotFound,
+        ISourceWriter<T>? writer = null,
+        ISourceWatcher? watcher = null,
         string? physicalOrigin = null,
         ResourceId? fixedResourceId = null,
         bool explicitOnly = false,
@@ -95,24 +123,30 @@ public sealed class StateSource<T>
     )
         : this(
             SourceId.From(id),
-            source,
-            priority,
-            fallbackCondition,
-            physicalOrigin,
-            fixedResourceId,
-            explicitOnly,
-            resourceKeySelector,
-            runtimeLifetime,
-            modelId,
-            routeSelector
+            reader,
+            new StateSourceOptions<T>
+            {
+                Priority = priority,
+                FallbackCondition = fallbackCondition,
+                Writer = writer,
+                Watcher = watcher,
+                PhysicalOrigin = physicalOrigin,
+                FixedResourceId = fixedResourceId,
+                ExplicitOnly = explicitOnly,
+                ResourceKeySelector = resourceKeySelector,
+                RuntimeLifetime = runtimeLifetime,
+                ModelId = modelId,
+                RouteSelector = routeSelector,
+            }
         ) { }
 
-    /// <summary>Creates a source from one capability-supplying object and nominal source identity.</summary>
-    public StateSource(
+    internal StateSource(
         SourceId id,
-        ISourceCapabilities<T> source,
+        ISourceReader<T> reader,
         int priority = 0,
         StateFallbackCondition fallbackCondition = StateFallbackCondition.NotFound,
+        ISourceWriter<T>? writer = null,
+        ISourceWatcher? watcher = null,
         string? physicalOrigin = null,
         ResourceId? fixedResourceId = null,
         bool explicitOnly = false,
@@ -123,113 +157,22 @@ public sealed class StateSource<T>
     )
         : this(
             id,
-            (ISourceReader<T>)source,
-            priority,
-            fallbackCondition,
-            source.Writer,
-            source.Watcher,
-            physicalOrigin,
-            fixedResourceId,
-            explicitOnly,
-            resourceKeySelector,
-            runtimeLifetime,
-            modelId,
-            routeSelector
-        ) { }
-
-    /// <summary>Creates a source with at least a reader.</summary>
-    /// <remarks>The string overload is a registration/configuration boundary; Core stores a <see cref="SourceId"/>.</remarks>
-    public StateSource(
-        string id,
-        ISourceReader<T> reader,
-        int priority = 0,
-        StateFallbackCondition fallbackCondition = StateFallbackCondition.NotFound,
-        ISourceWriter<T>? writer = null,
-        ISourceWatcher? watcher = null,
-        string? physicalOrigin = null,
-        ResourceId? fixedResourceId = null,
-        bool explicitOnly = false,
-        Func<IConfiglueSubject, ResourceKey>? resourceKeySelector = null,
-        RuntimeLifetimeRequirement runtimeLifetime = RuntimeLifetimeRequirement.Shared,
-        string? modelId = null,
-        Func<IConfiglueSubject, RouteKey>? routeSelector = null
-    )
-        : this(
-            SourceId.From(id),
             reader,
-            priority,
-            fallbackCondition,
-            writer,
-            watcher,
-            physicalOrigin,
-            fixedResourceId,
-            explicitOnly,
-            resourceKeySelector,
-            runtimeLifetime,
-            modelId,
-            routeSelector
+            new StateSourceOptions<T>
+            {
+                Priority = priority,
+                FallbackCondition = fallbackCondition,
+                Writer = writer,
+                Watcher = watcher,
+                PhysicalOrigin = physicalOrigin,
+                FixedResourceId = fixedResourceId,
+                ExplicitOnly = explicitOnly,
+                ResourceKeySelector = resourceKeySelector,
+                RuntimeLifetime = runtimeLifetime,
+                ModelId = modelId,
+                RouteSelector = routeSelector,
+            }
         ) { }
-
-    /// <summary>Creates a source with a reader and nominal source identity.</summary>
-    public StateSource(
-        SourceId id,
-        ISourceReader<T> reader,
-        int priority = 0,
-        StateFallbackCondition fallbackCondition = StateFallbackCondition.NotFound,
-        ISourceWriter<T>? writer = null,
-        ISourceWatcher? watcher = null,
-        string? physicalOrigin = null,
-        ResourceId? fixedResourceId = null,
-        bool explicitOnly = false,
-        Func<IConfiglueSubject, ResourceKey>? resourceKeySelector = null,
-        RuntimeLifetimeRequirement runtimeLifetime = RuntimeLifetimeRequirement.Shared,
-        string? modelId = null,
-        Func<IConfiglueSubject, RouteKey>? routeSelector = null
-    )
-    {
-        if (id.IsDefault)
-        {
-            throw new ArgumentException(
-                "A source identifier must not be the default SourceId.",
-                nameof(id)
-            );
-        }
-        ArgumentNullException.ThrowIfNull(reader);
-        if (
-            (
-                fallbackCondition
-                & ~(
-                    StateFallbackCondition.NotFoundOrUnavailable
-                    | StateFallbackCondition.InvalidPayload
-                )
-            ) != 0
-        )
-        {
-            throw new ArgumentOutOfRangeException(nameof(fallbackCondition));
-        }
-        if (fixedResourceId is { IsDefault: true })
-        {
-            throw new ArgumentException(
-                "A configured resource identity must not be the default ResourceId.",
-                nameof(fixedResourceId)
-            );
-        }
-
-        Id = id;
-        Reader = reader;
-        Priority = priority;
-        FallbackCondition = fallbackCondition;
-        Writer = writer;
-        Watcher = watcher;
-        PhysicalOrigin = physicalOrigin;
-        _fixedResourceId = fixedResourceId;
-        ExplicitOnly = explicitOnly;
-        RuntimeLifetime = runtimeLifetime;
-        ModelId = modelId;
-        _resourceKeySelector =
-            resourceKeySelector ?? (static subject => ResourceKey.From(subject.Key));
-        RouteSelector = routeSelector ?? (static _ => RouteKey.Default);
-    }
 
     /// <summary>The identifier of this logical source registration, independent of physical resource identity.</summary>
     public SourceId Id { get; }
@@ -414,21 +357,7 @@ public sealed class StateSource<T>
             _ownedPropertyPaths.Length == 0
                 ? [propertyPath]
                 : _ownedPropertyPaths.Select(path => $"{propertyPath}.{path}").ToArray();
-        var clone = new StateSource<T>(
-            Id,
-            Reader,
-            Priority,
-            FallbackCondition,
-            Writer,
-            Watcher,
-            PhysicalOrigin,
-            _fixedResourceId,
-            ExplicitOnly,
-            _resourceKeySelector,
-            RuntimeLifetime,
-            ModelId,
-            RouteSelector
-        )
+        var clone = new StateSource<T>(Id, Reader, CreateOptions())
         {
             _ownedPropertyPaths = ownedPaths,
         };
@@ -442,21 +371,7 @@ public sealed class StateSource<T>
             return this;
         }
 
-        return new StateSource<T>(
-            Id,
-            Reader,
-            Priority,
-            FallbackCondition,
-            Writer,
-            Watcher,
-            PhysicalOrigin,
-            _fixedResourceId,
-            ExplicitOnly,
-            _resourceKeySelector,
-            RuntimeLifetime,
-            modelId,
-            RouteSelector
-        )
+        return new StateSource<T>(Id, Reader, CreateOptions(modelId: modelId, replaceModelId: true))
         {
             _ownedPropertyPaths = [.. _ownedPropertyPaths],
         };
@@ -470,19 +385,30 @@ public sealed class StateSource<T>
         return new StateSource<T>(
             Id,
             Reader,
-            Priority,
-            FallbackCondition,
-            Writer,
-            Watcher,
-            PhysicalOrigin,
-            _fixedResourceId,
-            ExplicitOnly,
-            resourceKeySelector,
-            RuntimeLifetime,
-            ModelId,
-            RouteSelector
+            CreateOptions(resourceKeySelector: resourceKeySelector)
         );
     }
+
+    private StateSourceOptions<T> CreateOptions(
+        string? modelId = null,
+        Func<IConfiglueSubject, ResourceKey>? resourceKeySelector = null,
+        bool replaceModelId = false
+    ) =>
+        new()
+        {
+            Priority = Priority,
+            FallbackCondition = FallbackCondition,
+            Writer = Writer,
+            DisableWriteCapability = Writer is null,
+            Watcher = Watcher,
+            PhysicalOrigin = PhysicalOrigin,
+            FixedResourceId = _fixedResourceId,
+            ExplicitOnly = ExplicitOnly,
+            ResourceKeySelector = resourceKeySelector ?? _resourceKeySelector,
+            RuntimeLifetime = RuntimeLifetime,
+            ModelId = replaceModelId ? modelId : ModelId,
+            RouteSelector = RouteSelector,
+        };
 
     internal void CopyRoutingMetadataTo<TTarget>(
         StateSource<TTarget> target,

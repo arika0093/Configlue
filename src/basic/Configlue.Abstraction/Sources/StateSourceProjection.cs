@@ -286,14 +286,17 @@ public static class StateSourceProjection
         var projected = new StateSource<TTarget>(
             source.Id,
             reader,
-            source.Priority,
-            source.FallbackCondition,
-            writer,
-            source.Watcher,
-            source.PhysicalOrigin,
-            source.ConfiguredResourceId,
-            resourceKeySelector: source.GetResourceKey,
-            routeSelector: source.GetRouteKey
+            new StateSourceOptions<TTarget>
+            {
+                Priority = source.Priority,
+                FallbackCondition = source.FallbackCondition,
+                Writer = writer,
+                Watcher = source.Watcher,
+                PhysicalOrigin = source.PhysicalOrigin,
+                FixedResourceId = source.ConfiguredResourceId,
+                ResourceKeySelector = source.GetResourceKey,
+                RouteSelector = source.GetRouteKey,
+            }
         );
         source.CopyRoutingMetadataTo(projected);
         return projected;
@@ -434,15 +437,8 @@ public static class StateSourceProjection
         Func<TTarget, TSource>? toSource,
         Func<TTarget?, TTarget, TSource?, TSource>? updateSource,
         StateSchemaMigrationChain<TSource>? migrationChain
-    )
-        : ISourceWriter<TTarget>,
-            ISourceWriteBatchParticipant<TTarget>,
-            IAsyncSourceWriteBatchParticipant<TTarget>
+    ) : ISourceWriter<TTarget>, IAsyncSourceWriteBatchParticipant<TTarget>
     {
-        public bool CanPrepareBatchWrite =>
-            source is ISourceWriteBatchParticipant<TSource>
-            || source is IAsyncSourceWriteBatchParticipant<TSource> { CanPrepareBatchWrite: true };
-
         public async ValueTask<StateWriteResult> WriteAsync(
             ConfiglueResourceContext context,
             StateWriteRequest<TTarget> request,
@@ -466,49 +462,14 @@ public static class StateSourceProjection
                 .ConfigureAwait(false);
         }
 
-        public bool TryCreateBatchWrite(
-            ConfiglueResourceContext context,
-            StateWriteRequest<TTarget> request,
-            out ResourceId resourceId,
-            out IResourceBatchWriter? batchWriter,
-            out ResourceWriteMutation? mutation
-        )
-        {
-            if (updateSource is not null)
-            {
-                resourceId = default;
-                batchWriter = null;
-                mutation = null;
-                return false;
-            }
-
-            if (source is ISourceWriteBatchParticipant<TSource> participant)
-            {
-                return participant.TryCreateBatchWrite(
-                    context,
-                    new StateWriteRequest<TSource>(
-                        toSource!(request.Value),
-                        Condition: request.Condition
-                    ),
-                    out resourceId,
-                    out batchWriter,
-                    out mutation
-                );
-            }
-
-            resourceId = default;
-            batchWriter = null;
-            mutation = null;
-            return false;
-        }
-
         public async ValueTask<StateWriteBatchPlan?> TryCreateBatchWriteAsync(
             ConfiglueResourceContext context,
             StateWriteRequest<TTarget> request,
             CancellationToken cancellationToken = default
         )
         {
-            if (!CanPrepareBatchWrite)
+            cancellationToken.ThrowIfCancellationRequested();
+            if (source is not IAsyncSourceWriteBatchParticipant<TSource> asyncParticipant)
             {
                 return null;
             }
@@ -525,30 +486,9 @@ public static class StateSourceProjection
                 mapped,
                 Condition: request.Condition
             );
-            if (source is IAsyncSourceWriteBatchParticipant<TSource> asyncParticipant)
-            {
-                return await asyncParticipant
-                    .TryCreateBatchWriteAsync(context, sourceRequest, cancellationToken)
-                    .ConfigureAwait(false);
-            }
-
-            if (
-                source is ISourceWriteBatchParticipant<TSource> participant
-                && participant.TryCreateBatchWrite(
-                    context,
-                    sourceRequest,
-                    out var resourceId,
-                    out var batchWriter,
-                    out var mutation
-                )
-                && batchWriter is not null
-                && mutation is not null
-            )
-            {
-                return new StateWriteBatchPlan(resourceId, batchWriter, mutation);
-            }
-
-            return null;
+            return await asyncParticipant
+                .TryCreateBatchWriteAsync(context, sourceRequest, cancellationToken)
+                .ConfigureAwait(false);
         }
 
         private async ValueTask<TSource> UpdateSourceAsync(

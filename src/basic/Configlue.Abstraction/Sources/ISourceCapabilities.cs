@@ -10,9 +10,6 @@ namespace Configlue.Sources;
 /// </remarks>
 public interface ISourceCapabilities<T> : ISourceReader<T>
 {
-    /// <summary>Whether this source exposes a writer.</summary>
-    bool CanWrite { get; }
-
     /// <summary>The optional writer supplied by this source.</summary>
     ISourceWriter<T>? Writer { get; }
 

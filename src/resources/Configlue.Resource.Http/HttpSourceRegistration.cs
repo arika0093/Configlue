@@ -140,24 +140,30 @@ public static class HttpSourceRegistration
                 ? new StateSource<TFragment>(
                     id,
                     serialized,
-                    options.Priority,
-                    options.FallbackCondition,
-                    physicalOrigin: endpoint.AbsoluteUri,
-                    fixedResourceId: options.FixedResourceId
+                    new StateSourceOptions<TFragment>
+                    {
+                        Priority = options.Priority,
+                        FallbackCondition = options.FallbackCondition,
+                        PhysicalOrigin = endpoint.AbsoluteUri,
+                        FixedResourceId = options.FixedResourceId,
+                    }
                 )
                 : new StateSource<TFragment>(
                     serialized,
-                    options.Priority,
-                    options.FallbackCondition,
-                    physicalOrigin: endpoint.AbsoluteUri,
-                    logicalDescriptor: string.Join(
-                        "\n",
-                        options.EndPoint,
-                        options.ResourceOptions?.GetPath ?? "get",
-                        options.ResourceOptions?.UpdatePath ?? "update",
-                        options.ResourceOptions?.EndpointRootSelector?.Method.ToString()
-                    ),
-                    fixedResourceId: options.FixedResourceId
+                    new StateSourceOptions<TFragment>
+                    {
+                        Priority = options.Priority,
+                        FallbackCondition = options.FallbackCondition,
+                        PhysicalOrigin = endpoint.AbsoluteUri,
+                        FixedResourceId = options.FixedResourceId,
+                        LogicalDescriptor = string.Join(
+                            "\n",
+                            options.EndPoint,
+                            options.ResourceOptions?.GetPath ?? "get",
+                            options.ResourceOptions?.UpdatePath ?? "update",
+                            options.ResourceOptions?.EndpointRootSelector?.Method.ToString()
+                        ),
+                    }
                 );
         }
     }

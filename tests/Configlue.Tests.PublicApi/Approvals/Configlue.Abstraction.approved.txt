@@ -1062,12 +1062,10 @@ namespace Configlue.Sources
 {
     public interface IAsyncSourceWriteBatchParticipant<T>
     {
-        bool CanPrepareBatchWrite { get; }
         System.Threading.Tasks.ValueTask<Configlue.State.StateWriteBatchPlan?> TryCreateBatchWriteAsync(Configlue.Resources.ConfiglueResourceContext context, Configlue.State.StateWriteRequest<T> request, System.Threading.CancellationToken cancellationToken = default);
     }
     public interface ISourceCapabilities<T> : Configlue.Sources.ISourceReader<T>
     {
-        bool CanWrite { get; }
         Configlue.Sources.ISourceWatcher? Watcher { get; }
         Configlue.Sources.ISourceWriter<T>? Writer { get; }
     }
@@ -1078,10 +1076,6 @@ namespace Configlue.Sources
     public interface ISourceWatcher
     {
         System.Threading.Tasks.ValueTask WaitForChangeAsync(Configlue.Resources.ConfiglueResourceContext context, string? observedRevision, System.Threading.CancellationToken cancellationToken = default);
-    }
-    public interface ISourceWriteBatchParticipant<T>
-    {
-        bool TryCreateBatchWrite(Configlue.Resources.ConfiglueResourceContext context, Configlue.State.StateWriteRequest<T> request, out Configlue.Resources.ResourceId resourceId, out Configlue.Resources.IResourceBatchWriter? batchWriter, out Configlue.Resources.ResourceWriteMutation? mutation);
     }
     public interface ISourceWriter<T>
     {
@@ -1106,6 +1100,23 @@ namespace Configlue.Sources
         NotFoundOrUnavailable = 3,
         InvalidPayload = 4,
     }
+    public sealed class StateSourceOptions<T>
+    {
+        public StateSourceOptions() { }
+        public bool DisableWriteCapability { get; init; }
+        public bool ExplicitOnly { get; init; }
+        public Configlue.Sources.StateFallbackCondition FallbackCondition { get; init; }
+        public Configlue.Resources.ResourceId? FixedResourceId { get; init; }
+        public string? LogicalDescriptor { get; init; }
+        public string? ModelId { get; init; }
+        public string? PhysicalOrigin { get; init; }
+        public int Priority { get; init; }
+        public System.Func<Configlue.IConfiglueSubject, Configlue.ResourceKey>? ResourceKeySelector { get; init; }
+        public System.Func<Configlue.IConfiglueSubject, Configlue.RouteKey>? RouteSelector { get; init; }
+        public Configlue.Sources.RuntimeLifetimeRequirement RuntimeLifetime { get; init; }
+        public Configlue.Sources.ISourceWatcher? Watcher { get; init; }
+        public Configlue.Sources.ISourceWriter<T>? Writer { get; init; }
+    }
     public static class StateSourceProjection
     {
         public static Configlue.Sources.StateSource<TTarget> Mount<TSource, TTarget>(Configlue.Sources.StateSource<TSource> source, string propertyPath, Configlue.State.StateSchemaMetadata? projectedSchema = default)
@@ -1127,12 +1138,9 @@ namespace Configlue.Sources
     }
     public sealed class StateSource<T>
     {
-        public StateSource(Configlue.SourceId id, Configlue.Sources.ISourceCapabilities<T> source, int priority = 0, Configlue.Sources.StateFallbackCondition fallbackCondition = 1, string? physicalOrigin = null, Configlue.Resources.ResourceId? fixedResourceId = default, bool explicitOnly = false, System.Func<Configlue.IConfiglueSubject, Configlue.ResourceKey>? resourceKeySelector = null, Configlue.Sources.RuntimeLifetimeRequirement runtimeLifetime = 0, string? modelId = null, System.Func<Configlue.IConfiglueSubject, Configlue.RouteKey>? routeSelector = null) { }
-        public StateSource(Configlue.Sources.ISourceCapabilities<T> source, int priority = 0, Configlue.Sources.StateFallbackCondition fallbackCondition = 1, string? physicalOrigin = null, Configlue.Resources.ResourceId? fixedResourceId = default, string? logicalDescriptor = null, bool explicitOnly = false, System.Func<Configlue.IConfiglueSubject, Configlue.ResourceKey>? resourceKeySelector = null, Configlue.Sources.RuntimeLifetimeRequirement runtimeLifetime = 0, string? modelId = null, System.Func<Configlue.IConfiglueSubject, Configlue.RouteKey>? routeSelector = null) { }
-        public StateSource(string id, Configlue.Sources.ISourceCapabilities<T> source, int priority = 0, Configlue.Sources.StateFallbackCondition fallbackCondition = 1, string? physicalOrigin = null, Configlue.Resources.ResourceId? fixedResourceId = default, bool explicitOnly = false, System.Func<Configlue.IConfiglueSubject, Configlue.ResourceKey>? resourceKeySelector = null, Configlue.Sources.RuntimeLifetimeRequirement runtimeLifetime = 0, string? modelId = null, System.Func<Configlue.IConfiglueSubject, Configlue.RouteKey>? routeSelector = null) { }
-        public StateSource(Configlue.SourceId id, Configlue.Sources.ISourceReader<T> reader, int priority = 0, Configlue.Sources.StateFallbackCondition fallbackCondition = 1, Configlue.Sources.ISourceWriter<T>? writer = null, Configlue.Sources.ISourceWatcher? watcher = null, string? physicalOrigin = null, Configlue.Resources.ResourceId? fixedResourceId = default, bool explicitOnly = false, System.Func<Configlue.IConfiglueSubject, Configlue.ResourceKey>? resourceKeySelector = null, Configlue.Sources.RuntimeLifetimeRequirement runtimeLifetime = 0, string? modelId = null, System.Func<Configlue.IConfiglueSubject, Configlue.RouteKey>? routeSelector = null) { }
-        public StateSource(Configlue.Sources.ISourceReader<T> reader, int priority = 0, Configlue.Sources.StateFallbackCondition fallbackCondition = 1, Configlue.Sources.ISourceWriter<T>? writer = null, Configlue.Sources.ISourceWatcher? watcher = null, string? physicalOrigin = null, Configlue.Resources.ResourceId? fixedResourceId = default, string? logicalDescriptor = null, bool explicitOnly = false, System.Func<Configlue.IConfiglueSubject, Configlue.ResourceKey>? resourceKeySelector = null, Configlue.Sources.RuntimeLifetimeRequirement runtimeLifetime = 0, string? modelId = null, System.Func<Configlue.IConfiglueSubject, Configlue.RouteKey>? routeSelector = null) { }
-        public StateSource(string id, Configlue.Sources.ISourceReader<T> reader, int priority = 0, Configlue.Sources.StateFallbackCondition fallbackCondition = 1, Configlue.Sources.ISourceWriter<T>? writer = null, Configlue.Sources.ISourceWatcher? watcher = null, string? physicalOrigin = null, Configlue.Resources.ResourceId? fixedResourceId = default, bool explicitOnly = false, System.Func<Configlue.IConfiglueSubject, Configlue.ResourceKey>? resourceKeySelector = null, Configlue.Sources.RuntimeLifetimeRequirement runtimeLifetime = 0, string? modelId = null, System.Func<Configlue.IConfiglueSubject, Configlue.RouteKey>? routeSelector = null) { }
+        public StateSource(Configlue.Sources.ISourceReader<T> reader, Configlue.Sources.StateSourceOptions<T>? options = null) { }
+        public StateSource(Configlue.SourceId id, Configlue.Sources.ISourceReader<T> reader, Configlue.Sources.StateSourceOptions<T> options) { }
+        public StateSource(string id, Configlue.Sources.ISourceReader<T> reader, Configlue.Sources.StateSourceOptions<T> options) { }
         public bool ExplicitOnly { get; }
         public Configlue.Sources.StateFallbackCondition FallbackCondition { get; }
         public Configlue.Resources.ResourceId? FixedResourceId { get; }
@@ -1159,9 +1167,12 @@ namespace Configlue.Sources
 }
 namespace Configlue.State
 {
-    public interface IStateMiddleware<T>
+    public interface IStateReaderMiddleware<T>
     {
         Configlue.Sources.ISourceReader<T> WrapReader(Configlue.Sources.ISourceReader<T> next);
+    }
+    public interface IStateWriterMiddleware<T>
+    {
         Configlue.Sources.ISourceWriter<T> WrapWriter(Configlue.Sources.ISourceWriter<T> next);
     }
     public readonly struct RevisionCondition : System.IEquatable<Configlue.State.RevisionCondition>

@@ -92,10 +92,14 @@ public sealed class CompositeStateSource<TFragment>
         new(
             id,
             this,
-            priority,
-            fallbackCondition,
-            writer: HasWriteRoutes ? this : null,
-            watcher: this
+            new StateSourceOptions<TFragment>
+            {
+                Priority = priority,
+                FallbackCondition = fallbackCondition,
+                Writer = HasWriteRoutes ? this : null,
+                DisableWriteCapability = !HasWriteRoutes,
+                Watcher = this,
+            }
         );
 
     internal bool HasWriteRoutes =>

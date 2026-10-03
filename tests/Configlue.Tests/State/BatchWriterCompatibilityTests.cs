@@ -144,7 +144,7 @@ public sealed class BatchWriterCompatibilityTests
     }
 
     [Test]
-    public async Task MixedSyncAndAsyncParticipantsBatchOneCompatibleWriter()
+    public async Task CompletedAndAwaitedPreparationsBatchOneCompatibleWriter()
     {
         var resource = new InMemoryResource();
         var codec = new JsonStateCodec<AppSettings.Fragment>();

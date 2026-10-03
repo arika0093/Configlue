@@ -22,13 +22,16 @@ public sealed class StateSourceSetBuilder<T>
         ArgumentNullException.ThrowIfNull(reader);
         var source = new StateSource<T>(
             reader,
-            priority,
-            fallbackCondition,
-            reader as ISourceWriter<T>,
-            reader as ISourceWatcher,
-            physicalOrigin,
-            fixedResourceId,
-            logicalDescriptor
+            new StateSourceOptions<T>
+            {
+                Priority = priority,
+                FallbackCondition = fallbackCondition,
+                Writer = (reader as ISourceCapabilities<T>)?.Writer ?? reader as ISourceWriter<T>,
+                Watcher = (reader as ISourceCapabilities<T>)?.Watcher ?? reader as ISourceWatcher,
+                PhysicalOrigin = physicalOrigin,
+                FixedResourceId = fixedResourceId,
+                LogicalDescriptor = logicalDescriptor,
+            }
         );
         return Add(source.Id, reader, priority, fallbackCondition, physicalOrigin, fixedResourceId);
     }
@@ -72,13 +75,14 @@ public sealed class StateSourceSetBuilder<T>
         ValidateFallbackCondition(fallbackCondition);
         AddId(id);
 
+        var capabilities = reader as ISourceCapabilities<T>;
         var sourceBuilder = new StateSourceBuilder<T>(
             id,
             reader,
             priority,
             fallbackCondition,
-            reader as ISourceWriter<T>,
-            reader as ISourceWatcher,
+            capabilities?.Writer ?? reader as ISourceWriter<T>,
+            capabilities?.Watcher ?? reader as ISourceWatcher,
             physicalOrigin,
             fixedResourceId
         );
@@ -234,14 +238,18 @@ public sealed class StateSourceBuilder<T>
         new(
             _id,
             _reader,
-            _priority,
-            _fallbackCondition,
-            _writer,
-            _watcher,
-            _physicalOrigin,
-            _fixedResourceId,
-            resourceKeySelector: _resourceKeySelector,
-            runtimeLifetime: _runtimeLifetime,
-            routeSelector: _routeSelector
+            new StateSourceOptions<T>
+            {
+                Priority = _priority,
+                FallbackCondition = _fallbackCondition,
+                Writer = _writer,
+                DisableWriteCapability = _writer is null,
+                Watcher = _watcher,
+                PhysicalOrigin = _physicalOrigin,
+                FixedResourceId = _fixedResourceId,
+                ResourceKeySelector = _resourceKeySelector,
+                RuntimeLifetime = _runtimeLifetime,
+                RouteSelector = _routeSelector,
+            }
         );
 }

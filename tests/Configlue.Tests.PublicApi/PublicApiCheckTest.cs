@@ -149,6 +149,10 @@ public sealed class PublicApiCheckTest
     public void Abstraction() => PublicApiCheck.Check<ConfiglueModelAttribute>();
 
     [Test]
+    public void StateSourceKeepsItsPublicConstructorSurfaceSmall() =>
+        typeof(Configlue.Sources.StateSource<>).GetConstructors().Length.ShouldBe(3);
+
+    [Test]
     public void StandaloneFragments() =>
         PublicApiCheck.Check<SparseFragments.SparseFragmentModelAttribute>();
 

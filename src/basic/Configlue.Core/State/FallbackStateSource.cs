@@ -81,11 +81,19 @@ public sealed class FallbackStateSource<T> : ISourceReader<T>, ISourceWriter<T>,
         new(
             id,
             this,
-            priority,
-            fallbackCondition,
-            _candidates.Sources.Any(static source => source.Writer is not null) ? this : null,
-            this,
-            physicalOrigin
+            new StateSourceOptions<T>
+            {
+                Priority = priority,
+                FallbackCondition = fallbackCondition,
+                Writer = _candidates.Sources.Any(static source => source.Writer is not null)
+                    ? this
+                    : null,
+                DisableWriteCapability = !_candidates.Sources.Any(static source =>
+                    source.Writer is not null
+                ),
+                Watcher = this,
+                PhysicalOrigin = physicalOrigin,
+            }
         );
 
     /// <inheritdoc />

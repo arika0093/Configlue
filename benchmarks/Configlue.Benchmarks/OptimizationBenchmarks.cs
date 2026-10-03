@@ -84,7 +84,11 @@ public class ReadValidationBenchmarks
             }
         );
         var sourceSet = new StateSourceSet<OptimizationBenchmarkSettings.Fragment>([
-            new StateSource<OptimizationBenchmarkSettings.Fragment>("benchmark", store),
+            new StateSource<OptimizationBenchmarkSettings.Fragment>(
+                "benchmark",
+                store,
+                new StateSourceOptions<OptimizationBenchmarkSettings.Fragment>()
+            ),
         ]);
         _context = BenchmarkContextFactory.Create<
             OptimizationBenchmarkSettings,
@@ -149,8 +153,11 @@ public class LayeredResolutionFallbackBenchmarks
                 return new StateSource<OptimizationBenchmarkSettings.Fragment>(
                     $"layer-{index}",
                     store,
-                    priority: SourceCount - index,
-                    fallbackCondition: StateFallbackCondition.NotFound
+                    new StateSourceOptions<OptimizationBenchmarkSettings.Fragment>
+                    {
+                        Priority = SourceCount - index,
+                        FallbackCondition = StateFallbackCondition.NotFound,
+                    }
                 );
             })
             .ToArray();
@@ -234,7 +241,11 @@ public class NestedModelReadBenchmarks
             OptimizationRootSettings.Fragment
         >(
             new StateSourceSet<OptimizationRootSettings.Fragment>([
-                new StateSource<OptimizationRootSettings.Fragment>("nested", store),
+                new StateSource<OptimizationRootSettings.Fragment>(
+                    "nested",
+                    store,
+                    new StateSourceOptions<OptimizationRootSettings.Fragment>()
+                ),
             ])
         );
         _options = _context.GetState<OptimizationRootSettings>();
@@ -304,7 +315,10 @@ public class CollectionMergeBenchmarks
                 return new StateSource<AppendCollectionSettings.Fragment>(
                     $"append-{index}",
                     store,
-                    priority: SourceCount - index
+                    new StateSourceOptions<AppendCollectionSettings.Fragment>
+                    {
+                        Priority = SourceCount - index,
+                    }
                 );
             })
             .ToArray();
@@ -326,7 +340,10 @@ public class CollectionMergeBenchmarks
                 return new StateSource<SetUnionCollectionSettings.Fragment>(
                     $"union-{index}",
                     store,
-                    priority: SourceCount - index
+                    new StateSourceOptions<SetUnionCollectionSettings.Fragment>
+                    {
+                        Priority = SourceCount - index,
+                    }
                 );
             })
             .ToArray();
@@ -363,7 +380,10 @@ public class SaveRoutingBenchmarks
                 new StateSource<SaveRoutingBenchmarkSettings.Fragment>(
                     "single",
                     singleStore,
-                    writer: singleStore
+                    new StateSourceOptions<SaveRoutingBenchmarkSettings.Fragment>
+                    {
+                        Writer = singleStore,
+                    }
                 ),
             ])
         );
@@ -387,14 +407,20 @@ public class SaveRoutingBenchmarks
                 new StateSource<SaveRoutingBenchmarkSettings.Fragment>(
                     "left",
                     left,
-                    priority: 100,
-                    writer: left
+                    new StateSourceOptions<SaveRoutingBenchmarkSettings.Fragment>
+                    {
+                        Priority = 100,
+                        Writer = left,
+                    }
                 ),
                 new StateSource<SaveRoutingBenchmarkSettings.Fragment>(
                     "right",
                     right,
-                    priority: 50,
-                    writer: right
+                    new StateSourceOptions<SaveRoutingBenchmarkSettings.Fragment>
+                    {
+                        Priority = 50,
+                        Writer = right,
+                    }
                 ),
             ])
         );
@@ -516,8 +542,11 @@ public class JsonSectionBenchmarks
                 new StateSource<OptimizationBenchmarkSettings.Fragment>(
                     "section",
                     _reader,
-                    writer: writer,
-                    watcher: section
+                    new StateSourceOptions<OptimizationBenchmarkSettings.Fragment>
+                    {
+                        Writer = writer,
+                        Watcher = section,
+                    }
                 ),
             ])
         );

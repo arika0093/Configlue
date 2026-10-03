@@ -1,13 +1,14 @@
 using System.Buffers;
 using Configlue.Codecs;
 using Configlue.Sources;
+using Configlue.State;
 
 namespace Configlue.Extensibility;
 
 /// <summary>Writes a typed state value by composing a codec and a resource.</summary>
 public sealed class SerializedStateWriter<T>
     : ISourceWriter<T>,
-        ISourceWriteBatchParticipant<T>,
+        IAsyncSourceWriteBatchParticipant<T>,
         ITryResourceIdentity
 {
     private readonly IResourceWriter _resource;
@@ -67,41 +68,40 @@ public sealed class SerializedStateWriter<T>
     }
 
     /// <summary>Prepares a resource batch mutation for one logical subject.</summary>
-    public bool TryCreateBatchWrite(
+    public ValueTask<StateWriteBatchPlan?> TryCreateBatchWriteAsync(
         ConfiglueResourceContext context,
         StateWriteRequest<T> request,
-        out ResourceId resourceId,
-        out IResourceBatchWriter? batchWriter,
-        out ResourceWriteMutation? mutation
+        CancellationToken cancellationToken = default
     )
     {
+        cancellationToken.ThrowIfCancellationRequested();
         var resourceRequest = CreateResourceRequest(request);
         if (
             _resource is IResourceBatchParticipant participant
             && participant.BatchWriter is { } participantWriter
         )
         {
-            resourceId = ResourceContextExtensions.GetResourceId(participant, context);
-            batchWriter = participantWriter;
-            mutation = participant.CreateMutation(context, resourceRequest);
-            return true;
+            return new ValueTask<StateWriteBatchPlan?>(
+                new StateWriteBatchPlan(
+                    ResourceContextExtensions.GetResourceId(participant, context),
+                    participantWriter,
+                    participant.CreateMutation(context, resourceRequest)
+                )
+            );
         }
 
         if (_resource is IResourceBatchWriter writer)
         {
-            resourceId = ResourceContextExtensions.GetResourceId(
-                (IResourceIdentity)writer,
-                context
+            return new ValueTask<StateWriteBatchPlan?>(
+                new StateWriteBatchPlan(
+                    ResourceContextExtensions.GetResourceId((IResourceIdentity)writer, context),
+                    writer,
+                    ResourceWriteMutation.Replace(resourceRequest, context)
+                )
             );
-            batchWriter = writer;
-            mutation = ResourceWriteMutation.Replace(resourceRequest, context);
-            return true;
         }
 
-        resourceId = default;
-        batchWriter = null;
-        mutation = null;
-        return false;
+        return new ValueTask<StateWriteBatchPlan?>((StateWriteBatchPlan?)null);
     }
 
     private ResourceWriteRequest CreateResourceRequest(StateWriteRequest<T> request)

@@ -12,7 +12,7 @@ namespace Configlue.Extensibility;
 /// </summary>
 public sealed class SerializedSource<T>
     : ISourceWatcher,
-        ISourceWriteBatchParticipant<T>,
+        IAsyncSourceWriteBatchParticipant<T>,
         ISourceCapabilities<T>,
         ITryResourceIdentity
 {
@@ -41,7 +41,7 @@ public sealed class SerializedSource<T>
         IEnumerable<IStateByteTransformer>? transformers = null,
         IResourceWriter? writer = null,
         ISourceWatcher? watcher = null,
-        IEnumerable<IStateMiddleware<T>>? middlewares = null
+        IEnumerable<object>? middlewares = null
     )
         : this(
             resource,
@@ -66,7 +66,7 @@ public sealed class SerializedSource<T>
         IEnumerable<IStateByteTransformer>? transformers = null,
         IResourceWriter? writer = null,
         ISourceWatcher? watcher = null,
-        IEnumerable<IStateMiddleware<T>>? middlewares = null
+        IEnumerable<object>? middlewares = null
     )
     {
         ArgumentNullException.ThrowIfNull(resource);
@@ -92,15 +92,21 @@ public sealed class SerializedSource<T>
             : new SerializedStateWriter<T>(resourceWriter, codec, context, transformers);
         for (var index = middlewarePipeline.Length - 1; index >= 0; index--)
         {
-            reader =
-                middlewarePipeline[index].WrapReader(reader)
-                ?? throw new InvalidOperationException(
-                    "A middleware returned a null state reader."
-                );
-            if (stateWriter is not null)
+            if (middlewarePipeline[index] is IStateReaderMiddleware<T> readerMiddleware)
+            {
+                reader =
+                    readerMiddleware.WrapReader(reader)
+                    ?? throw new InvalidOperationException(
+                        "A middleware returned a null state reader."
+                    );
+            }
+            if (
+                stateWriter is not null
+                && middlewarePipeline[index] is IStateWriterMiddleware<T> writerMiddleware
+            )
             {
                 stateWriter =
-                    middlewarePipeline[index].WrapWriter(stateWriter)
+                    writerMiddleware.WrapWriter(stateWriter)
                     ?? throw new InvalidOperationException(
                         "A middleware returned a null state writer."
                     );
@@ -112,8 +118,6 @@ public sealed class SerializedSource<T>
     }
 
     /// <inheritdoc />
-    public bool CanWrite => _writer is not null;
-
     /// <inheritdoc />
     public ISourceWriter<T>? Writer => _writer;
 
@@ -148,29 +152,19 @@ public sealed class SerializedSource<T>
             : _writer.WriteAsync(context, request, cancellationToken);
 
     /// <inheritdoc />
-    public bool TryCreateBatchWrite(
+    public ValueTask<StateWriteBatchPlan?> TryCreateBatchWriteAsync(
         ConfiglueResourceContext context,
         StateWriteRequest<T> request,
-        out ResourceId resourceId,
-        out IResourceBatchWriter? batchWriter,
-        out ResourceWriteMutation? mutation
+        CancellationToken cancellationToken = default
     )
     {
-        if (_writer is ISourceWriteBatchParticipant<T> participant)
+        cancellationToken.ThrowIfCancellationRequested();
+        if (_writer is IAsyncSourceWriteBatchParticipant<T> participant)
         {
-            return participant.TryCreateBatchWrite(
-                context,
-                request,
-                out resourceId,
-                out batchWriter,
-                out mutation
-            );
+            return participant.TryCreateBatchWriteAsync(context, request, cancellationToken);
         }
 
-        resourceId = default;
-        batchWriter = null;
-        mutation = null;
-        return false;
+        return new ValueTask<StateWriteBatchPlan?>((StateWriteBatchPlan?)null);
     }
 
     /// <inheritdoc />

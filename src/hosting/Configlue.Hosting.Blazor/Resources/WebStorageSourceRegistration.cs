@@ -172,17 +172,23 @@ public static class WebStorageSourceRegistration
                     ? new StateSource<TFragment>(
                         id,
                         serialized,
-                        options.Priority,
-                        options.FallbackCondition,
-                        physicalOrigin: physicalOrigin,
-                        runtimeLifetime: RuntimeLifetimeRequirement.Scoped
+                        new StateSourceOptions<TFragment>
+                        {
+                            Priority = options.Priority,
+                            FallbackCondition = options.FallbackCondition,
+                            PhysicalOrigin = physicalOrigin,
+                            RuntimeLifetime = RuntimeLifetimeRequirement.Scoped,
+                        }
                     )
                     : new StateSource<TFragment>(
                         serialized,
-                        options.Priority,
-                        options.FallbackCondition,
-                        physicalOrigin: physicalOrigin,
-                        runtimeLifetime: RuntimeLifetimeRequirement.Scoped
+                        new StateSourceOptions<TFragment>
+                        {
+                            Priority = options.Priority,
+                            FallbackCondition = options.FallbackCondition,
+                            PhysicalOrigin = physicalOrigin,
+                            RuntimeLifetime = RuntimeLifetimeRequirement.Scoped,
+                        }
                     )
             );
         }

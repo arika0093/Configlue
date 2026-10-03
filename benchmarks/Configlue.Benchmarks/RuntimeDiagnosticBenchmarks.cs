@@ -28,8 +28,11 @@ public class RuntimeDiagnosticBenchmarks
                         new() { Counter = 10 }
                     )
                     : new InMemoryStateSource<OptimizationBenchmarkSettings.Fragment>(),
-                priority: SourceCount - index,
-                fallbackCondition: StateFallbackCondition.NotFound
+                new StateSourceOptions<OptimizationBenchmarkSettings.Fragment>
+                {
+                    Priority = SourceCount - index,
+                    FallbackCondition = StateFallbackCondition.NotFound,
+                }
             ))
             .ToArray();
         _context = BenchmarkContextFactory.Create<

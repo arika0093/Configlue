@@ -71,7 +71,8 @@ public sealed class StatePipelineTests
         Should.Throw<ArgumentException>(() => new AesGcmPassphraseStateByteTransformer(""));
     }
 
-    private sealed class SuffixMiddleware(string suffix) : IStateMiddleware<string>
+    private sealed class SuffixMiddleware(string suffix)
+        : IStateReaderMiddleware<string>, IStateWriterMiddleware<string>
     {
         public ISourceReader<string> WrapReader(ISourceReader<string> next) =>
             new SuffixReader(next, suffix);

@@ -117,25 +117,31 @@ public static class S3ObjectSourceRegistration
                 ? new StateSource<TFragment>(
                     id,
                     serialized,
-                    options.Priority,
-                    options.FallbackCondition,
-                    physicalOrigin: physicalOrigin,
-                    fixedResourceId: options.ResourceOptions?.FixedResourceId
+                    new StateSourceOptions<TFragment>
+                    {
+                        Priority = options.Priority,
+                        FallbackCondition = options.FallbackCondition,
+                        PhysicalOrigin = physicalOrigin,
+                        FixedResourceId = options.ResourceOptions?.FixedResourceId,
+                    }
                 )
                 : new StateSource<TFragment>(
                     serialized,
-                    options.Priority,
-                    options.FallbackCondition,
-                    physicalOrigin: physicalOrigin,
-                    logicalDescriptor: string.Join(
-                        "\n",
-                        options.BucketName,
-                        options.Key,
-                        options.ResourceOptions?.BucketNameSelector?.Method.ToString(),
-                        options.ResourceOptions?.KeySelector?.Method.ToString(),
-                        options.ResourceOptions?.ClientSelector?.Method.ToString()
-                    ),
-                    fixedResourceId: options.ResourceOptions?.FixedResourceId
+                    new StateSourceOptions<TFragment>
+                    {
+                        Priority = options.Priority,
+                        FallbackCondition = options.FallbackCondition,
+                        PhysicalOrigin = physicalOrigin,
+                        FixedResourceId = options.ResourceOptions?.FixedResourceId,
+                        LogicalDescriptor = string.Join(
+                            "\n",
+                            options.BucketName,
+                            options.Key,
+                            options.ResourceOptions?.BucketNameSelector?.Method.ToString(),
+                            options.ResourceOptions?.KeySelector?.Method.ToString(),
+                            options.ResourceOptions?.ClientSelector?.Method.ToString()
+                        ),
+                    }
                 );
         }
     }

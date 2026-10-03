@@ -33,7 +33,6 @@ namespace Configlue.Source.PostgreSql
     {
         public PostgreSqlSource(Npgsql.NpgsqlDataSource dataSource, string resourceNamespace, Configlue.Provider.Json.JsonStateValueSerializer<T> serializer, Configlue.Source.PostgreSql.PostgreSqlTableOptions? tableOptions = null, bool writable = true) { }
         public PostgreSqlSource(System.Func<Configlue.RouteKey, Npgsql.NpgsqlDataSource> dataSourceResolver, string resourceNamespace, Configlue.Provider.Json.JsonStateValueSerializer<T> serializer, Configlue.Source.PostgreSql.PostgreSqlTableOptions? tableOptions = null, bool writable = true) { }
-        public bool CanWrite { get; }
         public string ResourceNamespace { get; }
         public Configlue.Sources.ISourceWatcher? Watcher { get; }
         public Configlue.Sources.ISourceWriter<T>? Writer { get; }

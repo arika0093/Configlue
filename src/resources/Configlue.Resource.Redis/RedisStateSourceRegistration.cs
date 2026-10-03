@@ -141,25 +141,31 @@ public static class RedisStateSourceRegistration
                 ? new StateSource<TFragment>(
                     id,
                     serialized,
-                    options.Priority,
-                    options.FallbackCondition,
-                    physicalOrigin: physicalOrigin,
-                    fixedResourceId: options.ResourceOptions?.FixedResourceId
+                    new StateSourceOptions<TFragment>
+                    {
+                        Priority = options.Priority,
+                        FallbackCondition = options.FallbackCondition,
+                        PhysicalOrigin = physicalOrigin,
+                        FixedResourceId = options.ResourceOptions?.FixedResourceId,
+                    }
                 )
                 : new StateSource<TFragment>(
                     serialized,
-                    options.Priority,
-                    options.FallbackCondition,
-                    physicalOrigin: physicalOrigin,
-                    logicalDescriptor: string.Join(
-                        "\n",
-                        options.ResourceNamespace,
-                        options.ResourceOptions?.KeyPrefix,
-                        options.ResourceOptions?.KeyPrefixSelector?.Method.ToString(),
-                        options.ResourceOptions?.Database.ToString(),
-                        options.ResourceOptions?.DatabaseSelector?.Method.ToString()
-                    ),
-                    fixedResourceId: options.ResourceOptions?.FixedResourceId
+                    new StateSourceOptions<TFragment>
+                    {
+                        Priority = options.Priority,
+                        FallbackCondition = options.FallbackCondition,
+                        PhysicalOrigin = physicalOrigin,
+                        FixedResourceId = options.ResourceOptions?.FixedResourceId,
+                        LogicalDescriptor = string.Join(
+                            "\n",
+                            options.ResourceNamespace,
+                            options.ResourceOptions?.KeyPrefix,
+                            options.ResourceOptions?.KeyPrefixSelector?.Method.ToString(),
+                            options.ResourceOptions?.Database.ToString(),
+                            options.ResourceOptions?.DatabaseSelector?.Method.ToString()
+                        ),
+                    }
                 );
             return context.Complete(source);
         }

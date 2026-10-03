@@ -23,7 +23,7 @@ public static class SerializedStateSource
         ResourceId? fixedResourceId = null,
         StateSchemaDispatcher<T>? schemaDispatcher = null,
         IEnumerable<IStateByteTransformer>? transformers = null,
-        IEnumerable<IStateMiddleware<T>>? middlewares = null
+        IEnumerable<object>? middlewares = null
     ) =>
         FromResource(
             id,
@@ -72,7 +72,7 @@ public static class SerializedStateSource
         ResourceId? fixedResourceId = null,
         StateSchemaDispatcher<T>? schemaDispatcher = null,
         IEnumerable<IStateByteTransformer>? transformers = null,
-        IEnumerable<IStateMiddleware<T>>? middlewares = null
+        IEnumerable<object>? middlewares = null
     )
     {
         ArgumentNullException.ThrowIfNull(resource);
@@ -91,12 +91,16 @@ public static class SerializedStateSource
         return new StateSource<T>(
             SourceId.From(id),
             serialized,
-            priority,
-            fallbackCondition,
-            serialized.Writer,
-            serialized.Watcher,
-            physicalOrigin,
-            fixedResourceId
+            new StateSourceOptions<T>
+            {
+                Priority = priority,
+                FallbackCondition = fallbackCondition,
+                Writer = serialized.Writer,
+                DisableWriteCapability = serialized.Writer is null,
+                Watcher = serialized.Watcher,
+                PhysicalOrigin = physicalOrigin,
+                FixedResourceId = fixedResourceId,
+            }
         );
     }
 }

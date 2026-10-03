@@ -123,15 +123,21 @@ public sealed class ConfiglueSourceRegistration
         var configured = new StateSource<TFragment>(
             _name is { } name ? SourceId.From(name) : source.Id,
             source.Reader,
-            _priority ?? source.Priority,
-            _fallbackCondition ?? source.FallbackCondition,
-            _readOnly == true ? null : source.Writer,
-            source.Watcher,
-            source.PhysicalOrigin,
-            source.ConfiguredResourceId,
-            _explicitOnly ?? source.ExplicitOnly,
-            source.GetResourceKey,
-            _runtimeLifetime ?? source.RuntimeLifetime
+            new StateSourceOptions<TFragment>
+            {
+                Priority = _priority ?? source.Priority,
+                FallbackCondition = _fallbackCondition ?? source.FallbackCondition,
+                Writer = _readOnly == true ? null : source.Writer,
+                DisableWriteCapability = _readOnly == true || source.Writer is null,
+                Watcher = source.Watcher,
+                PhysicalOrigin = source.PhysicalOrigin,
+                FixedResourceId = source.ConfiguredResourceId,
+                ExplicitOnly = _explicitOnly ?? source.ExplicitOnly,
+                ResourceKeySelector = source.GetResourceKey,
+                RuntimeLifetime = _runtimeLifetime ?? source.RuntimeLifetime,
+                ModelId = source.ModelId,
+                RouteSelector = source.GetRouteKey,
+            }
         );
         source.CopyRoutingMetadataTo(configured, _explicitOnly);
         return configured;

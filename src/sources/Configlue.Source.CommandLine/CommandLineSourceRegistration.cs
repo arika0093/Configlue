@@ -402,9 +402,12 @@ public static class CommandLineSourceRegistration
             return new StateSource<TFragment>(
                 options.Id,
                 reader,
-                options.Priority,
-                options.FallbackCondition,
-                physicalOrigin: "command-line:parse-result"
+                new StateSourceOptions<TFragment>
+                {
+                    Priority = options.Priority,
+                    FallbackCondition = options.FallbackCondition,
+                    PhysicalOrigin = "command-line:parse-result",
+                }
             );
         }
 

@@ -149,7 +149,8 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         _modelDefaultsFragment = ToFragment(FromFragment(EmptyFragment));
         _modelDefaultsSource = new StateSource<TFragment>(
             $"__configlue_model_defaults:{Guid.NewGuid():N}",
-            new ModelDefaultsReader(_modelDefaultsFragment)
+            new ModelDefaultsReader(_modelDefaultsFragment),
+            new StateSourceOptions<TFragment>()
         );
         (_writePlan, _defaultWriteSourceIsInferred) = ResolveWriteOwnership(
             _activeSources,

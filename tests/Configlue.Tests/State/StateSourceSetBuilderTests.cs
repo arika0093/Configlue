@@ -7,6 +7,20 @@ namespace Configlue.Tests;
 public sealed class StateSourceSetBuilderTests
 {
     [Test]
+    public void BuilderDetectsWriterAndWatcherExposedAsSeparateCapabilityFacets()
+    {
+        var writer = new InMemoryStateSource<AppSettings.Fragment>();
+        var watcher = new InMemoryStateSource<AppSettings.Fragment>();
+        var reader = new ReaderWithCapabilities(writer, watcher);
+        var builder = new StateSourceSetBuilder<AppSettings.Fragment>();
+        builder.Add("faceted", reader);
+        var source = builder.Build().Sources.Single();
+
+        source.Writer.ShouldBeSameAs(writer);
+        source.Watcher.ShouldBeSameAs(watcher);
+    }
+
+    [Test]
     public async Task Builder_DetectsAndOverridesSourceCapabilities()
     {
         var autoDetected = new InMemoryStateSource<AppSettings.Fragment>();
@@ -149,6 +163,20 @@ public sealed class StateSourceSetBuilderTests
             _ = context;
             return ValueTaskCompat.FromResult(StateReadResult<T>.Success(value, "reader-only"));
         }
+    }
+
+    private sealed class ReaderWithCapabilities(
+        ISourceWriter<AppSettings.Fragment> writer,
+        ISourceWatcher watcher
+    ) : ISourceCapabilities<AppSettings.Fragment>
+    {
+        public ISourceWriter<AppSettings.Fragment>? Writer { get; } = writer;
+        public ISourceWatcher? Watcher { get; } = watcher;
+
+        public ValueTask<StateReadResult<AppSettings.Fragment>> ReadAsync(
+            ConfiglueResourceContext context,
+            CancellationToken cancellationToken = default
+        ) => ValueTask.FromResult(StateReadResult<AppSettings.Fragment>.NotFound());
     }
 }
 

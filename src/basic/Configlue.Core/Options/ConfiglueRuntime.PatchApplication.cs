@@ -201,12 +201,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             IResourceBatchWriter? batchWriter = null;
             ResourceWriteMutation? mutation = null;
             ResourceId? participantResourceId = null;
-            if (
-                source.Writer is IAsyncSourceWriteBatchParticipant<TFragment>
-                {
-                    CanPrepareBatchWrite: true,
-                } asyncParticipant
-            )
+            if (source.Writer is IAsyncSourceWriteBatchParticipant<TFragment> asyncParticipant)
             {
                 var batchPlan = await asyncParticipant
                     .TryCreateBatchWriteAsync(resourceContext, request, cancellationToken)
@@ -218,20 +213,6 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                     mutation = prepared.Mutation;
                 }
             }
-            else if (
-                source.Writer is ISourceWriteBatchParticipant<TFragment> participant
-                && participant.TryCreateBatchWrite(
-                    resourceContext,
-                    request,
-                    out var synchronousResourceId,
-                    out batchWriter,
-                    out mutation
-                )
-            )
-            {
-                participantResourceId = synchronousResourceId;
-            }
-
             if (participantResourceId is { } resolvedResourceId)
             {
                 if (

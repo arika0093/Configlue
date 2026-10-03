@@ -319,11 +319,14 @@ public static class JsonFileSourceRegistration
             return new StateSource<TFragment>(
                 sourceId,
                 serialized,
-                priority,
-                fallbackCondition,
-                physicalOrigin: file.Path,
-                fixedResourceId: fixedResourceId,
-                explicitOnly: explicitOnly
+                new StateSourceOptions<TFragment>
+                {
+                    Priority = priority,
+                    FallbackCondition = fallbackCondition,
+                    PhysicalOrigin = file.Path,
+                    FixedResourceId = fixedResourceId,
+                    ExplicitOnly = explicitOnly,
+                }
             );
         }
 
