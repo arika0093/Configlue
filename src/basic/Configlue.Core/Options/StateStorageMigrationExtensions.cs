@@ -39,6 +39,36 @@ public static class StateStorageMigrationExtensions
             ValidateProgress(definition, savedProgress);
             if (savedProgress.SourcesRetired)
             {
+                // The journal completed, but retirement only applied to the state
+                // instance that ran it. Reapply retirement to this instance so a
+                // restart does not revive old sources and hide target changes.
+                // MigrateSourcesToTargetsAsync re-verifies target content, source
+                // revisions, and the effective-model invariant before retiring,
+                // and is idempotent when sources are already retired here.
+                if (definition.RetireSources)
+                {
+                    var reapplyProjections = definition.Targets.ToDictionary(
+                        static target => target.TargetSourceId,
+                        static target =>
+                            (Func<IConfiglueFragment, IConfiglueFragment>)(
+                                fragment =>
+                                    fragment is TFragment typed
+                                        ? target.Project(typed)
+                                        : throw new InvalidOperationException(
+                                            $"Migration source fragment '{fragment.GetType()}' is incompatible with '{typeof(TFragment)}'."
+                                        )
+                            )
+                    );
+                    await sources
+                        .MigrateSourcesToTargetsAsync(
+                            definition.SourceIds,
+                            reapplyProjections,
+                            cancellationToken,
+                            retireSources: true
+                        )
+                        .ConfigureAwait(false);
+                }
+
                 return savedProgress;
             }
         }

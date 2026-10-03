@@ -187,6 +187,157 @@ public sealed class MigrationJournalTests
         }
     }
 
+    [Test]
+    public async Task CompletedJournalReappliesRetirementOnSecondCall()
+    {
+        var source = new InMemoryStateSource<AppSettings.Fragment>(
+            new AppSettings.Fragment { RetryCount = Optional<int>.Present(12) }
+        );
+        var target = new InMemoryStateSource<AppSettings.Fragment>();
+        await using var runtime = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
+            new StateSourceSet<AppSettings.Fragment>([
+                new("source", source, priority: 100),
+                new("target", target, priority: 0, writer: target),
+            ]),
+            defaultWritePlan: StateWritePlan.DefaultTo(SourceId.From("target"))
+        );
+        var migration = new StateStorageMigrationDefinition<AppSettings.Fragment>(
+            "retire-reapply-same-state",
+            [SourceId.From("source")],
+            [new StateStorageMigrationTarget<AppSettings.Fragment>(SourceId.From("target"), fragment => fragment)],
+            retireSources: true
+        );
+        var journal = new InMemoryMigrationJournal();
+
+        var first = await runtime.MigrateAsync(migration, journal);
+        (first.SourcesRetired).ShouldBeTrue();
+        ((await target.ReadAsync()).Value!.RetryCount.Value).ShouldBe(12);
+        var firstRead = await runtime.ReadAsync();
+        (firstRead.Value!.RetryCount).ShouldBe(12);
+        (firstRead.Revisions!.TryGetRevision(SourceId.From("source"), out _)).ShouldBeFalse();
+
+        var second = await runtime.MigrateAsync(migration, journal);
+        (second.SourcesRetired).ShouldBeTrue();
+        ((await target.ReadAsync()).Value!.RetryCount.Value).ShouldBe(12);
+        var secondRead = await runtime.ReadAsync();
+        (secondRead.Value!.RetryCount).ShouldBe(12);
+        (secondRead.Revisions!.TryGetRevision(SourceId.From("source"), out _)).ShouldBeFalse();
+
+        await runtime.SaveAsync(settings => settings.RetryCount = 13);
+        ((await target.ReadAsync()).Value!.RetryCount.Value).ShouldBe(13);
+        ((await source.ReadAsync()).Value!.RetryCount.Value).ShouldBe(12);
+        ((await runtime.ReadAsync()).Value!.RetryCount).ShouldBe(13);
+    }
+
+    [Test]
+    public async Task CompletedJournalRetiresSourcesOnRecreatedState()
+    {
+        var source = new InMemoryStateSource<AppSettings.Fragment>(
+            new AppSettings.Fragment { RetryCount = Optional<int>.Present(12) }
+        );
+        var target = new InMemoryStateSource<AppSettings.Fragment>();
+        var journal = new InMemoryMigrationJournal();
+        var migration = new StateStorageMigrationDefinition<AppSettings.Fragment>(
+            "retire-reapply-restart",
+            [SourceId.From("source")],
+            [new StateStorageMigrationTarget<AppSettings.Fragment>(SourceId.From("target"), fragment => fragment)],
+            retireSources: true
+        );
+
+        await using (var firstState = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
+            new StateSourceSet<AppSettings.Fragment>([
+                new("source", source, priority: 100),
+                new("target", target, priority: 0, writer: target),
+            ]),
+            defaultWritePlan: StateWritePlan.DefaultTo(SourceId.From("target"))
+        ))
+        {
+            var first = await firstState.MigrateAsync(migration, journal);
+            (first.SourcesRetired).ShouldBeTrue();
+            ((await target.ReadAsync()).Value!.RetryCount.Value).ShouldBe(12);
+        }
+
+        await using var secondState = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
+            new StateSourceSet<AppSettings.Fragment>([
+                new("source", source, priority: 100),
+                new("target", target, priority: 0, writer: target),
+            ]),
+            defaultWritePlan: StateWritePlan.DefaultTo(SourceId.From("target"))
+        );
+
+        var before = await secondState.ReadAsync();
+        (before.Revisions!.TryGetRevision(SourceId.From("source"), out _)).ShouldBeTrue();
+
+        var second = await secondState.MigrateAsync(migration, journal);
+        (second.SourcesRetired).ShouldBeTrue();
+
+        var after = await secondState.ReadAsync();
+        (after.Revisions!.TryGetRevision(SourceId.From("source"), out _)).ShouldBeFalse();
+        (after.Value!.RetryCount).ShouldBe(12);
+        ((await target.ReadAsync()).Value!.RetryCount.Value).ShouldBe(12);
+    }
+
+    [Test]
+    public async Task CompletedJournalRejectsMismatchedDefinition()
+    {
+        var source = new InMemoryStateSource<AppSettings.Fragment>(
+            new AppSettings.Fragment { RetryCount = Optional<int>.Present(12) }
+        );
+        var target = new InMemoryStateSource<AppSettings.Fragment>();
+        await using var runtime = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
+            new StateSourceSet<AppSettings.Fragment>([
+                new("source", source, priority: 100),
+                new("target", target, priority: 0, writer: target),
+            ])
+        );
+        var completed = new StateStorageMigrationDefinition<AppSettings.Fragment>(
+            "retire-reapply-mismatch",
+            [SourceId.From("source")],
+            [new StateStorageMigrationTarget<AppSettings.Fragment>(SourceId.From("target"), fragment => fragment)],
+            retireSources: true
+        );
+        var journal = new InMemoryMigrationJournal();
+
+        var progress = await runtime.MigrateAsync(completed, journal);
+        (progress.SourcesRetired).ShouldBeTrue();
+
+        var mismatched = new StateStorageMigrationDefinition<AppSettings.Fragment>(
+            "retire-reapply-mismatch",
+            [SourceId.From("other")],
+            [new StateStorageMigrationTarget<AppSettings.Fragment>(SourceId.From("target"), fragment => fragment)],
+            retireSources: true
+        );
+        await Should.ThrowAsync<InvalidOperationException>(async () =>
+            await runtime.MigrateAsync(mismatched, journal)
+        );
+    }
+
+    private sealed class InMemoryMigrationJournal : IStateStorageMigrationJournal
+    {
+        private readonly Dictionary<string, StateStorageMigrationProgress> _stored = new();
+
+        public ValueTask<StateStorageMigrationProgress?> ReadAsync(
+            string migrationId,
+            CancellationToken cancellationToken = default
+        )
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            _stored.TryGetValue(migrationId, out var progress);
+            return ValueTaskCompat.FromResult<StateStorageMigrationProgress?>(progress);
+        }
+
+        public ValueTask WriteAsync(
+            StateStorageMigrationProgress progress,
+            CancellationToken cancellationToken = default
+        )
+        {
+            ArgumentNullException.ThrowIfNull(progress);
+            cancellationToken.ThrowIfCancellationRequested();
+            _stored[progress.MigrationId] = progress;
+            return ValueTask.CompletedTask;
+        }
+    }
+
     private sealed class TrackingMigrationJournal
         : IStateStorageMigrationJournal,
             IStateStorageMigrationLeaseProvider
