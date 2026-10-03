@@ -1,6 +1,6 @@
+using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Http.Headers;
-using System.Collections.Concurrent;
 using System.Security.Claims;
 using System.Text;
 using System.Text.Encodings.Web;
@@ -155,41 +155,48 @@ public sealed class HttpResourceEndpointTests
         var resource = new ContextAwareResource();
         resource.Set(japan, Encoding.UTF8.GetBytes("japan-before"));
         resource.Set(europe, Encoding.UTF8.GetBytes("europe-before"));
-        var trustedContexts = new Dictionary<string, ConfiglueResourceContext>(StringComparer.Ordinal)
+        var trustedContexts = new Dictionary<string, ConfiglueResourceContext>(
+            StringComparer.Ordinal
+        )
         {
             ["japan"] = japan,
             ["europe"] = europe,
         };
-        await using var app = await StartAppAsync(endpoints =>
-            endpoints.MapConfiglueHttpResource(
-                "/config/{region}",
-                resource,
-                resource,
-                new HttpResourceEndpointOptions
-                {
-                    ResourceContextResolver = (httpContext, cancellationToken) =>
+        await using var app = await StartAppAsync(
+            endpoints =>
+                endpoints.MapConfiglueHttpResource(
+                    "/config/{region}",
+                    resource,
+                    resource,
+                    new HttpResourceEndpointOptions
                     {
-                        cancellationToken.ThrowIfCancellationRequested();
-                        var authenticatedSubject = httpContext.User.FindFirst("sub")?.Value;
-                        return ValueTask.FromResult(trustedContexts[authenticatedSubject!]);
-                    },
-                }
-            ),
+                        ResourceContextResolver = (httpContext, cancellationToken) =>
+                        {
+                            cancellationToken.ThrowIfCancellationRequested();
+                            var authenticatedSubject = httpContext.User.FindFirst("sub")?.Value;
+                            return ValueTask.FromResult(trustedContexts[authenticatedSubject!]);
+                        },
+                    }
+                ),
             configureApplication: application =>
-                application.Use(async (httpContext, next) =>
-                {
-                    var region = httpContext.Request.RouteValues["region"]?.ToString();
-                    var subject = region switch
+                application.Use(
+                    async (httpContext, next) =>
                     {
-                        "jp" => "japan",
-                        "eu" => "europe",
-                        _ => throw new InvalidOperationException("The route is not authorized."),
-                    };
-                    httpContext.User = new ClaimsPrincipal(
-                        new ClaimsIdentity([new Claim("sub", subject)], "trusted-test")
-                    );
-                    await next();
-                })
+                        var region = httpContext.Request.RouteValues["region"]?.ToString();
+                        var subject = region switch
+                        {
+                            "jp" => "japan",
+                            "eu" => "europe",
+                            _ => throw new InvalidOperationException(
+                                "The route is not authorized."
+                            ),
+                        };
+                        httpContext.User = new ClaimsPrincipal(
+                            new ClaimsIdentity([new Claim("sub", subject)], "trusted-test")
+                        );
+                        await next();
+                    }
+                )
         );
         using var httpClient = app.GetTestClient();
 
@@ -200,7 +207,10 @@ public sealed class HttpResourceEndpointTests
         (await europeRead.Content.ReadAsStringAsync()).ShouldBe("europe-before");
         resource.ReadContexts.Last().ShouldBe(europe);
 
-        using var update = new HttpRequestMessage(HttpMethod.Put, "http://localhost/config/jp/update")
+        using var update = new HttpRequestMessage(
+            HttpMethod.Put,
+            "http://localhost/config/jp/update"
+        )
         {
             Content = new ByteArrayContent(Encoding.UTF8.GetBytes("japan-after")),
         };
@@ -421,7 +431,10 @@ public sealed class HttpResourceEndpointTests
 
     private sealed class ContextAwareResource : IResourceReader, IResourceWriter
     {
-        private readonly ConcurrentDictionary<(string? ModelId, ResourceKey Key, RouteKey Route), byte[]> _states = new();
+        private readonly ConcurrentDictionary<
+            (string? ModelId, ResourceKey Key, RouteKey Route),
+            byte[]
+        > _states = new();
         private long _revision;
 
         public ConcurrentQueue<ConfiglueResourceContext> ReadContexts { get; } = new();
@@ -441,8 +454,14 @@ public sealed class HttpResourceEndpointTests
             cancellationToken.ThrowIfCancellationRequested();
             ReadContexts.Enqueue(context);
             return ValueTask.FromResult(
-                _states.TryGetValue((context.ModelId, context.ResourceKey, context.Route), out var content)
-                    ? ResourceReadResult.Success(content, $"revision:{Interlocked.Read(ref _revision)}")
+                _states.TryGetValue(
+                    (context.ModelId, context.ResourceKey, context.Route),
+                    out var content
+                )
+                    ? ResourceReadResult.Success(
+                        content,
+                        $"revision:{Interlocked.Read(ref _revision)}"
+                    )
                     : ResourceReadResult.NotFound()
             );
         }
@@ -455,8 +474,11 @@ public sealed class HttpResourceEndpointTests
         {
             cancellationToken.ThrowIfCancellationRequested();
             WriteContexts.Enqueue(context);
-            _states[(context.ModelId, context.ResourceKey, context.Route)] = request.Content.ToArray();
-            return ValueTask.FromResult(new StateWriteResult($"revision:{Interlocked.Increment(ref _revision)}"));
+            _states[(context.ModelId, context.ResourceKey, context.Route)] =
+                request.Content.ToArray();
+            return ValueTask.FromResult(
+                new StateWriteResult($"revision:{Interlocked.Increment(ref _revision)}")
+            );
         }
     }
 
@@ -500,4 +522,3 @@ public sealed class HttpResourceEndpointTests
         }
     }
 }
-
