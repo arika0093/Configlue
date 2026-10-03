@@ -1,7 +1,14 @@
+using System.Runtime.CompilerServices;
+
 namespace Configlue.State;
 
 internal static class StateByteTransformerPipeline
 {
+    private static readonly ConditionalWeakTable<
+        IReadOnlyList<IStateByteTransformer>,
+        AsyncCapability
+    > AsyncCapabilities = new();
+
     public static IStateByteTransformer[] Create(IEnumerable<IStateByteTransformer>? transformers)
     {
         if (transformers is null)
@@ -27,7 +34,34 @@ internal static class StateByteTransformerPipeline
             );
         }
 
+        _ = AsyncCapabilities.GetValue(
+            items,
+            static values => new AsyncCapability(HasAsyncSlow(values))
+        );
         return items;
+    }
+
+    public static bool HasAsync(IReadOnlyList<IStateByteTransformer> transformers) =>
+        AsyncCapabilities
+            .GetValue(transformers, static values => new AsyncCapability(HasAsyncSlow(values)))
+            .ContainsAsync;
+
+    private static bool HasAsyncSlow(IReadOnlyList<IStateByteTransformer> transformers)
+    {
+        for (var index = 0; index < transformers.Count; index++)
+        {
+            if (transformers[index] is IAsyncStateByteTransformer)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private sealed class AsyncCapability(bool hasAsync)
+    {
+        public bool ContainsAsync { get; } = hasAsync;
     }
 
     public static ReadOnlyMemory<byte> TransformRead(
@@ -63,7 +97,7 @@ internal static class StateByteTransformerPipeline
         IReadOnlyList<IStateByteTransformer> transformers,
         CancellationToken cancellationToken
     ) =>
-        transformers.Any(static transformer => transformer is IAsyncStateByteTransformer)
+        HasAsync(transformers)
             ? TransformReadAsyncCore(content, transformers, cancellationToken)
             : new ValueTask<ReadOnlyMemory<byte>>(TransformRead(content, transformers));
 
@@ -90,7 +124,7 @@ internal static class StateByteTransformerPipeline
         IReadOnlyList<IStateByteTransformer> transformers,
         CancellationToken cancellationToken
     ) =>
-        transformers.Any(static transformer => transformer is IAsyncStateByteTransformer)
+        HasAsync(transformers)
             ? TransformWriteAsyncCore(content, transformers, cancellationToken)
             : new ValueTask<ReadOnlyMemory<byte>>(TransformWrite(content, transformers));
 
