@@ -630,7 +630,7 @@ namespace Configlue
         event System.Action<string>? StateRemoved;
         System.Threading.Tasks.ValueTask ClearAsync();
         Configlue.IWritableState<T> Get(string stateName);
-        bool TryAdd(string stateName);
+        System.Threading.Tasks.ValueTask<bool> TryAddAsync(string stateName);
         bool TryGet(string stateName, out Configlue.IWritableState<T>? state);
         System.Threading.Tasks.ValueTask<bool> TryRemoveAsync(string stateName);
     }
