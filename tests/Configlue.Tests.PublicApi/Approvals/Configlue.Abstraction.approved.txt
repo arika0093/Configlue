@@ -23,6 +23,10 @@ namespace Configlue.Codecs
     {
         bool IsRecoverableReadException(System.Exception exception);
     }
+    public interface IStateCodecWithMetadata<T>
+    {
+        Configlue.Codecs.StateCodecDecodeResult<T> DeserializeWithMetadata(in System.Buffers.ReadOnlySequence<byte> source, in Configlue.Codecs.StateCodecContext context);
+    }
     public interface IStateCodec<T>
     {
         T? Deserialize(in System.Buffers.ReadOnlySequence<byte> source, in Configlue.Codecs.StateCodecContext context);
@@ -49,6 +53,12 @@ namespace Configlue.Codecs
         public Configlue.State.StateSchemaMetadata? Schema { get; }
         public string? SchemaReferenceBaseUri { get; }
         public System.IServiceProvider? Services { get; }
+    }
+    public readonly struct StateCodecDecodeResult<T> : System.IEquatable<Configlue.Codecs.StateCodecDecodeResult<T>>
+    {
+        public StateCodecDecodeResult(T? Value, Configlue.State.StateSchemaMetadata? Schema) { }
+        public Configlue.State.StateSchemaMetadata? Schema { get; init; }
+        public T Value { get; init; }
     }
     public static class StateSchemaReference
     {
@@ -1214,6 +1224,7 @@ namespace Configlue.State
         public System.Collections.Generic.IReadOnlyDictionary<Configlue.SourceId, string?> Revisions { get; }
         public bool TryGetNestedRevisions(Configlue.SourceId sourceId, out Configlue.State.StateRevisionVector? revisions) { }
         public bool TryGetRevision(Configlue.SourceId sourceId, out string? revision) { }
+        public static Configlue.State.StateRevisionVector FromSingle(Configlue.State.StateRevision revision, Configlue.State.StateRevisionVector? nestedRevision = null) { }
         public static Configlue.State.StateRevisionVector FromSpan(System.ReadOnlySpan<Configlue.State.StateRevision> revisions, System.ReadOnlySpan<System.Collections.Generic.KeyValuePair<Configlue.SourceId, Configlue.State.StateRevisionVector>> nestedRevisions = default) { }
     }
     [System.Text.Json.Serialization.JsonConverter(typeof(Configlue.State.StateSchemaMetadataJsonConverter))]
@@ -1256,6 +1267,11 @@ namespace Configlue.Transformers
     {
         System.Threading.Tasks.ValueTask<System.ReadOnlyMemory<byte>> TransformReadAsync(System.ReadOnlyMemory<byte> source, System.Threading.CancellationToken cancellationToken = default);
         System.Threading.Tasks.ValueTask<System.ReadOnlyMemory<byte>> TransformWriteAsync(System.ReadOnlyMemory<byte> source, System.Threading.CancellationToken cancellationToken = default);
+    }
+    public interface IDestinationStateByteTransformer : Configlue.Transformers.IStateByteTransformer, Configlue.Transformers.ISynchronousStateByteTransformer
+    {
+        void TransformRead(System.ReadOnlySpan<byte> source, System.Buffers.IBufferWriter<byte> destination);
+        void TransformWrite(System.ReadOnlySpan<byte> source, System.Buffers.IBufferWriter<byte> destination);
     }
     public interface IStateByteTransformer { }
     public interface IStateByteTransformerRecoveryPolicy

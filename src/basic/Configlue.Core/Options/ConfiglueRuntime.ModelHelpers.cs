@@ -38,7 +38,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         {
             var found = false;
             object? currentValue = null;
-            foreach (var member in current.EnumeratePresentMembers())
+            foreach (var member in current.EnumeratePresentMembersFast())
             {
                 if (!string.Equals(member.Name, path[index], StringComparison.Ordinal))
                 {
@@ -149,7 +149,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         public IConfigluePatch SelectMembers(ReadOnlySpan<int> memberIds)
         {
             var selected = EmptyFragment;
-            foreach (var member in changes.EnumeratePresentMembers())
+            foreach (var member in changes.EnumeratePresentMembersFast())
             {
                 for (var index = 0; index < memberIds.Length; index++)
                 {

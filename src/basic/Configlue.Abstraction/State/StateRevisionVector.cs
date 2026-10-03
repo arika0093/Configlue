@@ -45,8 +45,16 @@ public sealed class StateRevisionVector
 
     private const int SmallDictionaryThreshold = 4;
 
-    private readonly IReadOnlyDictionary<SourceId, string?> _revisions;
-    private readonly IReadOnlyDictionary<SourceId, StateRevisionVector> _nestedRevisions;
+    private IReadOnlyDictionary<SourceId, string?>? _revisions;
+    private IReadOnlyDictionary<SourceId, StateRevisionVector>? _nestedRevisions;
+    private readonly bool _hasSingleRevision;
+    private readonly SourceId _singleRevisionSource;
+    private readonly string? _singleRevision;
+    private readonly bool _hasSingleNestedRevision;
+    private readonly SourceId _singleNestedRevisionSource;
+    private readonly StateRevisionVector? _singleNestedRevision;
+    private readonly KeyValuePair<SourceId, string?>[]? _smallRevisions;
+    private readonly KeyValuePair<SourceId, StateRevisionVector>[]? _smallNestedRevisions;
 
     /// <summary>Creates a revision vector from the participating sources.</summary>
     public StateRevisionVector(IEnumerable<StateRevision> revisions)
@@ -62,16 +70,112 @@ public sealed class StateRevisionVector
     {
         ArgumentNullException.ThrowIfNull(revisions);
         ArgumentNullException.ThrowIfNull(nestedRevisions);
-        _revisions = CreateRevisionMap(revisions);
-        _nestedRevisions = CreateNestedRevisionMap(nestedRevisions);
+        var revisionData = CreateRevisionMapData(revisions);
+        var nestedRevisionData = CreateNestedRevisionMapData(nestedRevisions);
+        _revisions = revisionData.Map;
+        _nestedRevisions = nestedRevisionData.Map;
+        _hasSingleRevision = revisionData.HasSingle;
+        _singleRevisionSource = revisionData.SourceId;
+        _singleRevision = revisionData.Revision;
+        _hasSingleNestedRevision = nestedRevisionData.HasSingle;
+        _singleNestedRevisionSource = nestedRevisionData.SourceId;
+        _singleNestedRevision = nestedRevisionData.Revision;
     }
 
     /// <summary>Creates a revision vector from spans without requiring collection enumerators.</summary>
     public static StateRevisionVector FromSpan(
         ReadOnlySpan<StateRevision> revisions,
         ReadOnlySpan<KeyValuePair<SourceId, StateRevisionVector>> nestedRevisions = default
-    ) =>
-        new(CreateRevisionMapFromSpan(revisions), CreateNestedRevisionMapFromSpan(nestedRevisions));
+    )
+    {
+        if (
+            revisions.Length <= SmallDictionaryThreshold
+            && nestedRevisions.Length <= SmallDictionaryThreshold
+        )
+        {
+            var hasRevision = !revisions.IsEmpty;
+            var singleRevision = hasRevision ? revisions[0] : default;
+            if (hasRevision)
+            {
+                ValidateSourceId(singleRevision.SourceId);
+            }
+
+            var hasNestedRevision = !nestedRevisions.IsEmpty;
+            var singleNestedRevision = hasNestedRevision ? nestedRevisions[0] : default;
+            if (hasNestedRevision)
+            {
+                ValidateSourceId(singleNestedRevision.Key);
+                ArgumentNullException.ThrowIfNull(singleNestedRevision.Value);
+            }
+
+            if (revisions.Length <= 1 && nestedRevisions.Length <= 1)
+            {
+                return new StateRevisionVector(
+                    hasRevision ? null : EmptyRevisions,
+                    hasNestedRevision ? null : EmptyNestedRevisions,
+                    hasRevision,
+                    singleRevision.SourceId,
+                    singleRevision.Revision,
+                    hasNestedRevision,
+                    singleNestedRevision.Key,
+                    singleNestedRevision.Value
+                );
+            }
+
+            var revisionEntries = CreateRevisionEntriesFromSpan(revisions);
+            var nestedEntries = CreateNestedRevisionEntriesFromSpan(nestedRevisions);
+            var hasSingleRevision = hasRevision && revisions.Length == 1;
+            var hasSingleNestedRevision = hasNestedRevision && nestedRevisions.Length == 1;
+            IReadOnlyDictionary<SourceId, string?>? revisionMap = null;
+            if (!hasSingleRevision && revisionEntries is null)
+            {
+                revisionMap = EmptyRevisions;
+            }
+
+            IReadOnlyDictionary<SourceId, StateRevisionVector>? nestedRevisionMap = null;
+            if (!hasSingleNestedRevision && nestedEntries is null)
+            {
+                nestedRevisionMap = EmptyNestedRevisions;
+            }
+
+            return new StateRevisionVector(
+                revisionMap,
+                nestedRevisionMap,
+                hasSingleRevision,
+                singleRevision.SourceId,
+                singleRevision.Revision,
+                hasSingleNestedRevision,
+                singleNestedRevision.Key,
+                singleNestedRevision.Value,
+                revisionEntries,
+                nestedEntries
+            );
+        }
+
+        return new StateRevisionVector(
+            CreateRevisionMapFromSpan(revisions),
+            CreateNestedRevisionMapFromSpan(nestedRevisions)
+        );
+    }
+
+    /// <summary>Creates a revision vector for one source without allocating a temporary collection.</summary>
+    public static StateRevisionVector FromSingle(
+        StateRevision revision,
+        StateRevisionVector? nestedRevision = null
+    )
+    {
+        ValidateSourceId(revision.SourceId);
+        return new StateRevisionVector(
+            null,
+            nestedRevision is null ? EmptyNestedRevisions : null,
+            true,
+            revision.SourceId,
+            revision.Revision,
+            nestedRevision is not null,
+            revision.SourceId,
+            nestedRevision
+        );
+    }
 
     private StateRevisionVector(
         IReadOnlyDictionary<SourceId, string?> revisions,
@@ -80,6 +184,97 @@ public sealed class StateRevisionVector
     {
         _revisions = revisions;
         _nestedRevisions = nestedRevisions;
+    }
+
+    private StateRevisionVector(
+        IReadOnlyDictionary<SourceId, string?>? revisions,
+        IReadOnlyDictionary<SourceId, StateRevisionVector>? nestedRevisions,
+        bool hasSingleRevision,
+        SourceId singleRevisionSource,
+        string? singleRevision,
+        bool hasSingleNestedRevision,
+        SourceId singleNestedRevisionSource,
+        StateRevisionVector? singleNestedRevision,
+        KeyValuePair<SourceId, string?>[]? smallRevisions = null,
+        KeyValuePair<SourceId, StateRevisionVector>[]? smallNestedRevisions = null
+    )
+    {
+        _revisions = revisions;
+        _nestedRevisions = nestedRevisions;
+        _hasSingleRevision = hasSingleRevision;
+        _singleRevisionSource = singleRevisionSource;
+        _singleRevision = singleRevision;
+        _hasSingleNestedRevision = hasSingleNestedRevision;
+        _singleNestedRevisionSource = singleNestedRevisionSource;
+        _singleNestedRevision = singleNestedRevision;
+        _smallRevisions = smallRevisions;
+        _smallNestedRevisions = smallNestedRevisions;
+    }
+
+    private static KeyValuePair<SourceId, string?>[]? CreateRevisionEntriesFromSpan(
+        ReadOnlySpan<StateRevision> revisions
+    )
+    {
+        if (revisions.IsEmpty || revisions.Length == 1)
+        {
+            return null;
+        }
+
+        var entries = new KeyValuePair<SourceId, string?>[revisions.Length];
+        for (var index = 0; index < revisions.Length; index++)
+        {
+            var item = revisions[index];
+            ValidateSourceId(item.SourceId);
+            for (var previous = 0; previous < index; previous++)
+            {
+                if (entries[previous].Key == item.SourceId)
+                {
+                    throw new ArgumentException(
+                        $"Source '{item.SourceId}' occurs more than once in the revision vector.",
+                        nameof(revisions)
+                    );
+                }
+            }
+
+            entries[index] = new KeyValuePair<SourceId, string?>(item.SourceId, item.Revision);
+        }
+
+        return entries;
+    }
+
+    private static KeyValuePair<
+        SourceId,
+        StateRevisionVector
+    >[]? CreateNestedRevisionEntriesFromSpan(
+        ReadOnlySpan<KeyValuePair<SourceId, StateRevisionVector>> revisions
+    )
+    {
+        if (revisions.IsEmpty || revisions.Length == 1)
+        {
+            return null;
+        }
+
+        var entries = new KeyValuePair<SourceId, StateRevisionVector>[revisions.Length];
+        for (var index = 0; index < revisions.Length; index++)
+        {
+            var item = revisions[index];
+            ValidateSourceId(item.Key);
+            ArgumentNullException.ThrowIfNull(item.Value);
+            for (var previous = 0; previous < index; previous++)
+            {
+                if (entries[previous].Key == item.Key)
+                {
+                    throw new ArgumentException(
+                        $"Source '{item.Key}' occurs more than once in the nested revision vectors.",
+                        nameof(revisions)
+                    );
+                }
+            }
+
+            entries[index] = item;
+        }
+
+        return entries;
     }
 
     private static IReadOnlyDictionary<SourceId, string?> CreateRevisionMapFromSpan(
@@ -213,21 +408,24 @@ public sealed class StateRevisionVector
         return new ReadOnlyDictionary<SourceId, StateRevisionVector>(values);
     }
 
-    private static IReadOnlyDictionary<SourceId, string?> CreateRevisionMap(
-        IEnumerable<StateRevision> revisions
-    )
+    private static (
+        IReadOnlyDictionary<SourceId, string?>? Map,
+        bool HasSingle,
+        SourceId SourceId,
+        string? Revision
+    ) CreateRevisionMapData(IEnumerable<StateRevision> revisions)
     {
         using var enumerator = revisions.GetEnumerator();
         if (!enumerator.MoveNext())
         {
-            return EmptyRevisions;
+            return (EmptyRevisions, false, default, null);
         }
 
         var first = enumerator.Current;
         ValidateSourceId(first.SourceId);
         if (!enumerator.MoveNext())
         {
-            return new SingleEntryReadOnlyDictionary<string?>(first.SourceId, first.Revision);
+            return (null, true, first.SourceId, first.Revision);
         }
 
         var values = new Dictionary<SourceId, string?>();
@@ -245,17 +443,22 @@ public sealed class StateRevisionVector
             }
         } while (enumerator.MoveNext());
 
-        return new ReadOnlyDictionary<SourceId, string?>(values);
+        return (new ReadOnlyDictionary<SourceId, string?>(values), false, default, null);
     }
 
-    private static IReadOnlyDictionary<SourceId, StateRevisionVector> CreateNestedRevisionMap(
+    private static (
+        IReadOnlyDictionary<SourceId, StateRevisionVector>? Map,
+        bool HasSingle,
+        SourceId SourceId,
+        StateRevisionVector? Revision
+    ) CreateNestedRevisionMapData(
         IEnumerable<KeyValuePair<SourceId, StateRevisionVector>> nestedRevisions
     )
     {
         using var enumerator = nestedRevisions.GetEnumerator();
         if (!enumerator.MoveNext())
         {
-            return EmptyNestedRevisions;
+            return (EmptyNestedRevisions, false, default, null);
         }
 
         var first = enumerator.Current;
@@ -263,7 +466,7 @@ public sealed class StateRevisionVector
         ArgumentNullException.ThrowIfNull(first.Value);
         if (!enumerator.MoveNext())
         {
-            return new SingleEntryReadOnlyDictionary<StateRevisionVector>(first.Key, first.Value);
+            return (null, true, first.Key, first.Value);
         }
 
         var values = new Dictionary<SourceId, StateRevisionVector>() { [first.Key] = first.Value };
@@ -281,7 +484,12 @@ public sealed class StateRevisionVector
             }
         } while (enumerator.MoveNext());
 
-        return new ReadOnlyDictionary<SourceId, StateRevisionVector>(values);
+        return (
+            new ReadOnlyDictionary<SourceId, StateRevisionVector>(values),
+            false,
+            default,
+            null
+        );
     }
 
     private static void ValidateSourceId(SourceId sourceId)
@@ -293,21 +501,115 @@ public sealed class StateRevisionVector
     }
 
     /// <summary>Direct revisions captured by the most recent source resolution.</summary>
-    public IReadOnlyDictionary<SourceId, string?> Revisions => _revisions;
+    public IReadOnlyDictionary<SourceId, string?> Revisions
+    {
+        get
+        {
+            var revisions = _revisions;
+            if (revisions is not null)
+            {
+                return revisions;
+            }
+
+            revisions = _smallRevisions is { } entries
+                ? new SmallReadOnlyDictionary<string?>(entries)
+                : new SingleEntryReadOnlyDictionary<string?>(
+                    _singleRevisionSource,
+                    _singleRevision
+                );
+            return Interlocked.CompareExchange(ref _revisions, revisions, null) ?? revisions;
+        }
+    }
 
     /// <summary>
     /// Nested resolution vectors returned by logical sources, keyed by the outer source identifier. These
     /// preserve composite-source identity separately from direct revisions used for write concurrency.
     /// </summary>
-    public IReadOnlyDictionary<SourceId, StateRevisionVector> NestedRevisions => _nestedRevisions;
+    public IReadOnlyDictionary<SourceId, StateRevisionVector> NestedRevisions
+    {
+        get
+        {
+            var revisions = _nestedRevisions;
+            if (revisions is not null)
+            {
+                return revisions;
+            }
+
+            revisions = _smallNestedRevisions is { } entries
+                ? new SmallReadOnlyDictionary<StateRevisionVector>(entries)
+                : new SingleEntryReadOnlyDictionary<StateRevisionVector>(
+                    _singleNestedRevisionSource,
+                    _singleNestedRevision!
+                );
+            return Interlocked.CompareExchange(ref _nestedRevisions, revisions, null) ?? revisions;
+        }
+    }
 
     /// <summary>Gets whether a source participated in the resolution and its revision, which may be null.</summary>
-    public bool TryGetRevision(SourceId sourceId, out string? revision) =>
-        _revisions.TryGetValue(sourceId, out revision);
+    public bool TryGetRevision(SourceId sourceId, out string? revision)
+    {
+        if (_hasSingleRevision)
+        {
+            if (sourceId == _singleRevisionSource)
+            {
+                revision = _singleRevision;
+                return true;
+            }
+
+            revision = default;
+            return false;
+        }
+
+        if (_smallRevisions is { } entries)
+        {
+            for (var index = 0; index < entries.Length; index++)
+            {
+                if (entries[index].Key == sourceId)
+                {
+                    revision = entries[index].Value;
+                    return true;
+                }
+            }
+
+            revision = default;
+            return false;
+        }
+
+        return (_revisions ?? EmptyRevisions).TryGetValue(sourceId, out revision);
+    }
 
     /// <summary>Gets the nested revision vector for a logical source.</summary>
-    public bool TryGetNestedRevisions(SourceId sourceId, out StateRevisionVector? revisions) =>
-        _nestedRevisions.TryGetValue(sourceId, out revisions);
+    public bool TryGetNestedRevisions(SourceId sourceId, out StateRevisionVector? revisions)
+    {
+        if (_hasSingleNestedRevision)
+        {
+            if (sourceId == _singleNestedRevisionSource)
+            {
+                revisions = _singleNestedRevision;
+                return true;
+            }
+
+            revisions = null;
+            return false;
+        }
+
+        if (_smallNestedRevisions is { } entries)
+        {
+            for (var index = 0; index < entries.Length; index++)
+            {
+                if (entries[index].Key == sourceId)
+                {
+                    revisions = entries[index].Value;
+                    return true;
+                }
+            }
+
+            revisions = null;
+            return false;
+        }
+
+        return (_nestedRevisions ?? EmptyNestedRevisions).TryGetValue(sourceId, out revisions);
+    }
 
     private sealed class SingleEntryReadOnlyDictionary<TValue>(SourceId key, TValue storedValue)
         : IReadOnlyDictionary<SourceId, TValue>

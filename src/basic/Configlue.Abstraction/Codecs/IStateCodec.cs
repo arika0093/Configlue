@@ -26,3 +26,16 @@ public interface IStateCodec<T>
     /// <summary>Serializes a value into the destination buffer.</summary>
     void Serialize(T? value, IBufferWriter<byte> destination, in StateCodecContext context);
 }
+
+/// <summary>A decoded state value and schema metadata discovered in the same payload pass.</summary>
+public readonly record struct StateCodecDecodeResult<T>(T? Value, StateSchemaMetadata? Schema);
+
+/// <summary>Optional single-pass decode capability for codecs with embedded schema metadata.</summary>
+public interface IStateCodecWithMetadata<T>
+{
+    /// <summary>Decodes the value and embedded schema metadata without independently parsing the payload twice.</summary>
+    StateCodecDecodeResult<T> DeserializeWithMetadata(
+        in ReadOnlySequence<byte> source,
+        in StateCodecContext context
+    );
+}

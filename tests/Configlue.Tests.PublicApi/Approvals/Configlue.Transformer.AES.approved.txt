@@ -1,21 +1,25 @@
 [assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/arika0093/Configlue")]
 namespace Configlue.Transformer.AES
 {
-    public sealed class AesGcmPassphraseStateByteTransformer : Configlue.Transformers.IStateByteTransformer, Configlue.Transformers.IStateByteTransformerRecoveryPolicy, Configlue.Transformers.ISynchronousStateByteTransformer, System.IDisposable
+    public sealed class AesGcmPassphraseStateByteTransformer : Configlue.Transformers.IDestinationStateByteTransformer, Configlue.Transformers.IStateByteTransformer, Configlue.Transformers.IStateByteTransformerRecoveryPolicy, Configlue.Transformers.ISynchronousStateByteTransformer, System.IDisposable
     {
         public AesGcmPassphraseStateByteTransformer(string passphrase) { }
         public void Dispose() { }
         public bool IsRecoverableReadException(System.Exception exception) { }
         public System.ReadOnlyMemory<byte> TransformRead(System.ReadOnlyMemory<byte> source) { }
+        public void TransformRead(System.ReadOnlySpan<byte> source, System.Buffers.IBufferWriter<byte> destination) { }
         public System.ReadOnlyMemory<byte> TransformWrite(System.ReadOnlyMemory<byte> source) { }
+        public void TransformWrite(System.ReadOnlySpan<byte> source, System.Buffers.IBufferWriter<byte> destination) { }
     }
-    public sealed class AesGcmStateByteTransformer : Configlue.Transformers.IStateByteTransformer, Configlue.Transformers.IStateByteTransformerRecoveryPolicy, Configlue.Transformers.ISynchronousStateByteTransformer, System.IDisposable
+    public sealed class AesGcmStateByteTransformer : Configlue.Transformers.IDestinationStateByteTransformer, Configlue.Transformers.IStateByteTransformer, Configlue.Transformers.IStateByteTransformerRecoveryPolicy, Configlue.Transformers.ISynchronousStateByteTransformer, System.IDisposable
     {
         public AesGcmStateByteTransformer(System.ReadOnlySpan<byte> key) { }
         public void Dispose() { }
         public bool IsRecoverableReadException(System.Exception exception) { }
         public System.ReadOnlyMemory<byte> TransformRead(System.ReadOnlyMemory<byte> source) { }
+        public void TransformRead(System.ReadOnlySpan<byte> source, System.Buffers.IBufferWriter<byte> destination) { }
         public System.ReadOnlyMemory<byte> TransformWrite(System.ReadOnlyMemory<byte> source) { }
+        public void TransformWrite(System.ReadOnlySpan<byte> source, System.Buffers.IBufferWriter<byte> destination) { }
     }
     public static class SingleBinaryAesExtensions
     {

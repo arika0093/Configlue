@@ -59,6 +59,61 @@ public sealed class StateRevisionVectorTests
     }
 
     [Test]
+    public void FromSpanKeepsSingleEntriesInlineUntilDictionaryViewsAreRequested()
+    {
+        var child = new StateRevisionVector([]);
+        var revision = new StateRevision(SourceId.From("source"), "revision-1");
+        var nested = new KeyValuePair<SourceId, StateRevisionVector>(
+            SourceId.From("composite"),
+            child
+        );
+
+        var vector = StateRevisionVector.FromSpan(
+            System.Runtime.InteropServices.MemoryMarshal.CreateReadOnlySpan(ref revision, 1),
+            System.Runtime.InteropServices.MemoryMarshal.CreateReadOnlySpan(ref nested, 1)
+        );
+
+        vector.TryGetRevision(SourceId.From("source"), out var revisionValue).ShouldBeTrue();
+        revisionValue.ShouldBe("revision-1");
+        vector.TryGetNestedRevisions(SourceId.From("composite"), out var nestedValue).ShouldBeTrue();
+        nestedValue.ShouldBeSameAs(child);
+        vector.Revisions.Single().Key.ShouldBe(SourceId.From("source"));
+        vector.NestedRevisions.Single().Value.ShouldBeSameAs(child);
+    }
+
+    [Test]
+    public void FromSingleBuildsARevisionVectorWithoutScratchCollections()
+    {
+        var child = new StateRevisionVector([]);
+        var source = SourceId.From("single");
+        var vector = StateRevisionVector.FromSingle(new StateRevision(source, "r1"), child);
+
+        vector.TryGetRevision(source, out var revision).ShouldBeTrue();
+        revision.ShouldBe("r1");
+        vector.TryGetNestedRevisions(source, out var nested).ShouldBeTrue();
+        nested.ShouldBeSameAs(child);
+    }
+
+    [Test]
+    public void FromSpanSupportsCompactMultiEntryLookupBeforeViewsAreRequested()
+    {
+        var revisions = new StateRevision[]
+        {
+            new(SourceId.From("first"), "revision-1"),
+            new(SourceId.From("second"), "revision-2"),
+            new(SourceId.From("third"), "revision-3"),
+            new(SourceId.From("fourth"), "revision-4"),
+        };
+
+        var vector = StateRevisionVector.FromSpan(revisions);
+
+        vector.TryGetRevision(SourceId.From("third"), out var revision).ShouldBeTrue();
+        revision.ShouldBe("revision-3");
+        vector.Revisions.Count.ShouldBe(4);
+        vector.Revisions[SourceId.From("fourth")].ShouldBe("revision-4");
+    }
+
+    [Test]
     public void FromSpanRejectsDuplicateKeys()
     {
         StateRevision[] duplicateRevisions =

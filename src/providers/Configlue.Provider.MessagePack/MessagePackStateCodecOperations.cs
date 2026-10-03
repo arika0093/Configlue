@@ -112,7 +112,56 @@ internal static class MessagePackStateCodecOperations
         return value;
     }
 
-    internal static object? ReadValue(
+    internal static StateCodecDecodeResult<T> DecodeWithMetadata<T>(
+        in ReadOnlySequence<byte> source,
+        MessagePackSerializerOptions options,
+        IMessagePackFormatter<T>? formatter
+    )
+    {
+        var reader = new MessagePackReader(source);
+        if (reader.TryReadNil())
+        {
+            return new StateCodecDecodeResult<T>(default, null);
+        }
+
+        if (!TryReadEnvelopeHeader(reader.CreatePeekReader()))
+        {
+            return new StateCodecDecodeResult<T>(ReadPayload(ref reader, options, formatter), null);
+        }
+
+        var count = reader.ReadMapHeader();
+        T? value = default;
+        StateSchemaMetadata? schema = null;
+        var found = false;
+        for (var index = 0; index < count; index++)
+        {
+            var key = reader.ReadString();
+            if (string.Equals(key, MetadataProperty, StringComparison.Ordinal))
+            {
+                schema = ReadSchema(ref reader);
+            }
+            else if (string.Equals(key, PayloadProperty, StringComparison.Ordinal))
+            {
+                value = ReadPayload(ref reader, options, formatter);
+                found = true;
+            }
+            else
+            {
+                reader.Skip();
+            }
+        }
+
+        if (!found)
+        {
+            throw new MessagePackSerializationException(
+                "The Configlue MessagePack envelope has no '$value' entry."
+            );
+        }
+
+        return new StateCodecDecodeResult<T>(value, schema);
+    }
+
+    internal static object? ReadDynamicValue(
         Type type,
         in ReadOnlySequence<byte> source,
         MessagePackSerializerOptions options

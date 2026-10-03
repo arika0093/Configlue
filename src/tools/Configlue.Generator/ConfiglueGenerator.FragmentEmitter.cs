@@ -39,7 +39,7 @@ public sealed partial class ConfiglueGenerator
                         "[global::System.Text.Json.Serialization.JsonConverter(typeof(FragmentJsonConverter))]"
                     )
                 : null,
-            "global::Configlue.CompilerServices.IConfiglueDynamicFragment"
+            "global::Configlue.CompilerServices.IConfiglueOrdinalDynamicFragment"
         );
         if (hasJsonFragmentRegistry)
         {
@@ -179,6 +179,53 @@ public sealed partial class ConfiglueGenerator
             2,
             "public global::Configlue.ConfiglueModelSchema Schema => FragmentSchema;"
         );
+        code.AppendLineAt(
+            2,
+            "int global::Configlue.CompilerServices.IConfiglueOrdinalDynamicFragment.PresentMemberCount"
+        );
+        code.AppendLineAt(2, "{");
+        code.AppendLineAt(3, "get");
+        code.AppendLineAt(3, "{");
+        code.AppendLineAt(4, "var count = 0;");
+        foreach (var member in members)
+        {
+            var name = EscapeIdentifier(member.Property.Name);
+            code.AppendIndent(4).Append("if (").Append(name).AppendLine(".IsPresent) count++;");
+        }
+
+        code.AppendLineAt(4, "return count;");
+        code.AppendLineAt(3, "}");
+        code.AppendLineAt(2, "}");
+        code.AppendLineAt(
+            2,
+            "global::Configlue.ConfiglueFragmentMember global::Configlue.CompilerServices.IConfiglueOrdinalDynamicFragment.GetPresentMember(int index)"
+        );
+        code.AppendLineAt(2, "{");
+        foreach (var member in members)
+        {
+            var name = EscapeIdentifier(member.Property.Name);
+            code.AppendIndent(3).Append("if (").Append(name).AppendLine(".IsPresent)");
+            code.AppendLineAt(3, "{");
+            code.AppendLineAt(4, "if (index == 0)");
+            code.AppendLineAt(4, "{");
+            code.AppendIndent(5)
+                .Append("return new(")
+                .Append(member.Id)
+                .Append(", ")
+                .Append(SymbolDisplay.FormatLiteral(member.Property.Name, true))
+                .Append(", ")
+                .Append(name)
+                .AppendLine(".Value);");
+            code.AppendLineAt(4, "}");
+            code.AppendLineAt(4, "index--;");
+            code.AppendLineAt(3, "}");
+        }
+
+        code.AppendLineAt(
+            3,
+            "throw new global::System.ArgumentOutOfRangeException(nameof(index));"
+        );
+        code.AppendLineAt(2, "}");
         code.AppendLineAt(
             2,
             "global::System.Collections.Generic.IEnumerable<global::Configlue.ConfiglueFragmentMember> global::Configlue.CompilerServices.IConfiglueDynamicFragment.EnumeratePresentMembers()"

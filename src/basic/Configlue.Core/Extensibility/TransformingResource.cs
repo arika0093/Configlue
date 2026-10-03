@@ -254,28 +254,12 @@ public sealed class TransformingResource
         {
             ArgumentNullException.ThrowIfNull(mutations);
             var transformedMutations = new ResourceWriteMutation[mutations.Count];
+            var transformRead = _owner.TransformRead;
+            var transformWrite = _owner.TransformWrite;
             for (var index = 0; index < mutations.Count; index++)
             {
-                var mutation = mutations[index];
-                transformedMutations[index] = new ResourceWriteMutation(
-                    mutation.Condition,
-                    mutation.Schema,
-                    current =>
-                    {
-                        var decoded =
-                            current.Status == StateReadStatus.Success
-                                ? ResourceReadResult.Success(
-                                    _owner.TransformRead(current.Content),
-                                    current.Revision,
-                                    current.Schema
-                                )
-                                : current;
-                        return _owner.TransformWrite(mutation.Apply(decoded));
-                    },
-                    scope: mutation.Scope,
-                    canCompose: mutation.CanCompose,
-                    context: mutation.Context
-                );
+                transformedMutations[index] = mutations[index]
+                    .WithTransforms(transformRead, transformWrite);
             }
 
             return _batchWriter.WriteBatchAsync(transformedMutations, cancellationToken);

@@ -15,6 +15,33 @@ internal static partial class JsonStateCodecOperations
     private const string SchemaProperty = "$schema";
     private const string DefaultVersionProperty = "$version";
 
+    internal static bool UsesEnvelopeLayout(DocumentLayoutOptions? layout) =>
+        (layout?.Layout ?? DocumentLayout.Simple) == DocumentLayout.Detailed;
+
+    internal static void WriteEnvelopeStart(Utf8JsonWriter writer, in StateCodecContext context)
+    {
+        if (context.Schema is not { } schema || !schema.IsValid)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(context),
+                "An envelope requires valid schema metadata."
+            );
+        }
+
+        writer.WriteStartObject();
+        WriteSchemaReference(writer, in context);
+        writer.WritePropertyName(MetadataProperty);
+        writer.WriteStartObject();
+        if (schema.ModelId is not null)
+        {
+            writer.WriteString("id", schema.ModelId);
+        }
+
+        writer.WriteNumber("version", schema.Version);
+        writer.WriteEndObject();
+        writer.WritePropertyName(PayloadProperty);
+    }
+
     [UnconditionalSuppressMessage(
         "Trimming",
         "IL2026",
@@ -185,7 +212,7 @@ internal static partial class JsonStateCodecOperations
         writer.Flush();
     }
 
-    private static void WriteSchemaReference(Utf8JsonWriter writer, in StateCodecContext context)
+    internal static void WriteSchemaReference(Utf8JsonWriter writer, in StateCodecContext context)
     {
         if (context.SchemaReferenceBaseUri is not { } schemaReferenceBaseUri)
         {
@@ -241,7 +268,7 @@ internal static partial class JsonStateCodecOperations
         return false;
     }
 
-    private static ReadOnlySequence<byte> StripUtf8Bom(in ReadOnlySequence<byte> source)
+    internal static ReadOnlySequence<byte> StripUtf8Bom(in ReadOnlySequence<byte> source)
     {
         if (source.Length < 3)
         {

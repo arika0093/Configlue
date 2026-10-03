@@ -3,8 +3,11 @@ namespace Configlue.Resources;
 /// <summary>A deferred change to physical resource content used by a single-resource batch write.</summary>
 public sealed class ResourceWriteMutation
 {
-    private readonly Func<ResourceReadResult, ReadOnlyMemory<byte>> _apply;
+    private readonly Func<ResourceReadResult, ReadOnlyMemory<byte>>? _apply;
     private readonly ReadOnlyMemory<byte>? _ownedReplacementContent;
+    private readonly ResourceWriteMutation? _innerMutation;
+    private readonly Func<ReadOnlyMemory<byte>, ReadOnlyMemory<byte>>? _transformRead;
+    private readonly Func<ReadOnlyMemory<byte>, ReadOnlyMemory<byte>>? _transformWrite;
 
     /// <summary>Creates a resource mutation.</summary>
     public ResourceWriteMutation(
@@ -53,6 +56,23 @@ public sealed class ResourceWriteMutation
         Context = context;
     }
 
+    private ResourceWriteMutation(
+        ResourceWriteMutation innerMutation,
+        Func<ReadOnlyMemory<byte>, ReadOnlyMemory<byte>> transformRead,
+        Func<ReadOnlyMemory<byte>, ReadOnlyMemory<byte>> transformWrite
+    )
+    {
+        _innerMutation = innerMutation;
+        _transformRead = transformRead;
+        _transformWrite = transformWrite;
+        Condition = innerMutation.Condition;
+        Schema = innerMutation.Schema;
+        Scope = innerMutation.Scope;
+        CanCompose = innerMutation.CanCompose;
+        Context = innerMutation.Context;
+        HasStableContent = innerMutation.HasStableContent;
+    }
+
     /// <summary>The explicit concurrency precondition for this mutation.</summary>
     public RevisionCondition Condition { get; }
 
@@ -75,7 +95,33 @@ public sealed class ResourceWriteMutation
     internal bool HasStableContent { get; private set; }
 
     /// <summary>Applies the mutation to the current physical resource content.</summary>
-    public ReadOnlyMemory<byte> Apply(ResourceReadResult current) => _apply(current);
+    public ReadOnlyMemory<byte> Apply(ResourceReadResult current)
+    {
+        if (_ownedReplacementContent is { } replacement)
+        {
+            return replacement;
+        }
+
+        if (_innerMutation is { } inner)
+        {
+            var transformed =
+                current.Status == StateReadStatus.Success
+                    ? ResourceReadResult.Success(
+                        _transformRead!(current.Content),
+                        current.Revision,
+                        current.Schema
+                    )
+                    : current;
+            return _transformWrite!(inner.Apply(transformed));
+        }
+
+        return _apply!(current);
+    }
+
+    internal ResourceWriteMutation WithTransforms(
+        Func<ReadOnlyMemory<byte>, ReadOnlyMemory<byte>> transformRead,
+        Func<ReadOnlyMemory<byte>, ReadOnlyMemory<byte>> transformWrite
+    ) => new(this, transformRead, transformWrite);
 
     internal bool TryGetOwnedReplacementContent(out ReadOnlyMemory<byte> content)
     {
@@ -102,7 +148,7 @@ public sealed class ResourceWriteMutation
         var mutation = new ResourceWriteMutation(
             request.Condition,
             request.Schema,
-            _ => content,
+            static _ => default,
             scope: null,
             canCompose: false,
             ownedReplacementContent: content,
@@ -113,19 +159,29 @@ public sealed class ResourceWriteMutation
     }
 
     /// <summary>Returns this mutation with the logical subject and key for its resource operation.</summary>
-    public ResourceWriteMutation WithContext(ConfiglueResourceContext context) =>
-        new(
+    public ResourceWriteMutation WithContext(ConfiglueResourceContext context)
+    {
+        if (_innerMutation is { } inner)
+        {
+            return new ResourceWriteMutation(
+                inner.WithContext(context),
+                _transformRead!,
+                _transformWrite!
+            );
+        }
+
+        var result = new ResourceWriteMutation(
             Condition,
             Schema,
-            _apply,
+            _apply ?? (static _ => default),
             Scope,
             CanCompose,
             _ownedReplacementContent,
             NormalizeContext(context)
-        )
-        {
-            HasStableContent = HasStableContent,
-        };
+        );
+        result.HasStableContent = HasStableContent;
+        return result;
+    }
 
     private static ConfiglueResourceContext NormalizeContext(ConfiglueResourceContext context) =>
         ConfiglueResourceContext.Normalize(context);
