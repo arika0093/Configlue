@@ -1,3 +1,4 @@
+[assembly: System.Reflection.AssemblyMetadata("IsTrimmable", "True")]
 [assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/arika0093/Configlue")]
 namespace Configlue.Provider.MessagePack
 {
@@ -56,7 +57,9 @@ namespace Configlue.Provider.MessagePack
     }
     public sealed class MessagePackStateCodec<T> : Configlue.Codecs.IStateCodecRecoveryPolicy, Configlue.Codecs.IStateCodec<T>, Configlue.Codecs.IStateSchemaMetadataReader
     {
-        public MessagePackStateCodec(MessagePack.MessagePackSerializerOptions? options = null) { }
+        [System.Diagnostics.CodeAnalysis.RequiresDynamicCode("The default resolver may generate formatters through runtime reflection.")]
+        public MessagePackStateCodec() { }
+        public MessagePackStateCodec(MessagePack.MessagePackSerializerOptions options) { }
         public T? Deserialize(in System.Buffers.ReadOnlySequence<byte> source, in Configlue.Codecs.StateCodecContext context) { }
         public bool IsRecoverableReadException(System.Exception exception) { }
         public Configlue.State.StateSchemaMetadata? ReadSchemaMetadata(in System.Buffers.ReadOnlySequence<byte> source) { }
@@ -64,7 +67,9 @@ namespace Configlue.Provider.MessagePack
     }
     public sealed class MessagePackStateValueSerializer<T>
     {
-        public MessagePackStateValueSerializer(MessagePack.MessagePackSerializerOptions? options = null) { }
+        [System.Diagnostics.CodeAnalysis.RequiresDynamicCode("The default resolver may generate formatters through runtime reflection.")]
+        public MessagePackStateValueSerializer() { }
+        public MessagePackStateValueSerializer(MessagePack.MessagePackSerializerOptions options) { }
         public T? Deserialize(in System.Buffers.ReadOnlySequence<byte> source) { }
         public void Serialize(T? value, System.Buffers.IBufferWriter<byte> destination) { }
     }

@@ -1,5 +1,5 @@
-using System.Text.Json;
 using System.Buffers;
+using System.Text.Json;
 using Configlue;
 using Configlue.Extensibility;
 using Configlue.Provider.Json;
@@ -7,10 +7,10 @@ using Configlue.Provider.MessagePack;
 using Configlue.Resources;
 using Configlue.Sources;
 using Configlue.State;
-using NativeAotConsumer;
 using MessagePack;
 using MessagePack.Formatters;
 using MessagePack.Resolvers;
+using NativeAotConsumer;
 
 var directory = Path.Combine(
     Path.GetTempPath(),
@@ -50,7 +50,9 @@ try
     var writer =
         settingsSource.Writer
         ?? throw new InvalidOperationException("The settings source is read-only.");
-    await writer.WriteAsync(ConfiglueResourceContext.Default, new StateWriteRequest<SampleAotSetting.Fragment>(SampleAotSetting.Fragment.From(current))
+    await writer.WriteAsync(
+        ConfiglueResourceContext.Default,
+        new StateWriteRequest<SampleAotSetting.Fragment>(SampleAotSetting.Fragment.From(current))
     );
 
     var updatedRead = await settingsSource.Reader.ReadAsync(ConfiglueResourceContext.Default);
@@ -116,12 +118,12 @@ static async Task RunGeneratedFragmentFacade(string settingsPath)
             StringComparison.Ordinal
         );
     }
-    Require(missingResolverWasRejected, "The JSON facade accepted missing source-generated metadata.");
+    Require(
+        missingResolverWasRejected,
+        "The JSON facade accepted missing source-generated metadata."
+    );
 
-    var options = new JsonSerializerOptions
-    {
-        TypeInfoResolver = SampleAotJsonContext.Default,
-    };
+    var options = new JsonSerializerOptions { TypeInfoResolver = SampleAotJsonContext.Default };
     await using var context = ConfiglueApp.CreateContext(builder =>
         builder.Add<SampleAotSetting>(model =>
             model.Sources(sources =>
@@ -171,10 +173,7 @@ static async Task RunGeneratedFragmentMessagePack(string settingsPath)
         "The generated MessagePack resolver did not round-trip the custom POCO."
     );
     var listRoundTrip = MessagePackSerializer.Deserialize<List<SampleAotPoco>>(
-        MessagePackSerializer.Serialize(
-            new List<SampleAotPoco> { directPoco },
-            serializerOptions
-        ),
+        MessagePackSerializer.Serialize(new List<SampleAotPoco> { directPoco }, serializerOptions),
         serializerOptions
     );
     Require(
@@ -198,7 +197,8 @@ static async Task RunGeneratedFragmentMessagePack(string settingsPath)
         new ReadOnlySequence<byte>(fragmentBuffer.WrittenMemory),
         default
     );
-    var fragmentRoundTrip = fragment?.ToModel()
+    var fragmentRoundTrip =
+        fragment?.ToModel()
         ?? throw new InvalidOperationException("The generated MessagePack fragment was null.");
     Require(
         fragmentRoundTrip.Endpoint is { Name: "primary", Value: 31 },
@@ -211,20 +211,23 @@ static async Task RunGeneratedFragmentMessagePack(string settingsPath)
         "The generated fragment lost the custom POCO collection member."
     );
 
-    await using (var context = ConfiglueApp.CreateContext(builder =>
-        builder.Add<SampleAotSetting>(model =>
-            model.Sources(sources =>
-                sources.FromMessagePackFile(
-                    new MessagePackFileSourceOptions
-                    {
-                        Path = settingsPath,
-                        WatchChanges = false,
-                        SerializerOptions = serializerOptions,
-                    }
+    await using (
+        var context = ConfiglueApp.CreateContext(builder =>
+            builder.Add<SampleAotSetting>(model =>
+                model.Sources(sources =>
+                    sources.FromGeneratedMessagePackFile(
+                        new MessagePackFileSourceOptions
+                        {
+                            Path = settingsPath,
+                            WatchChanges = false,
+                            SerializerOptions = serializerOptions,
+                        },
+                        serializerOptions
+                    )
                 )
             )
         )
-    ))
+    )
     {
         var state = context.GetState<SampleAotSetting>();
         _ = await state.GetValueAsync();
@@ -244,13 +247,14 @@ static async Task RunGeneratedFragmentMessagePack(string settingsPath)
     await using var rereadContext = ConfiglueApp.CreateContext(builder =>
         builder.Add<SampleAotSetting>(model =>
             model.Sources(sources =>
-                sources.FromMessagePackFile(
+                sources.FromGeneratedMessagePackFile(
                     new MessagePackFileSourceOptions
                     {
                         Path = settingsPath,
                         WatchChanges = false,
                         SerializerOptions = serializerOptions,
-                    }
+                    },
+                    serializerOptions
                 )
             )
         )
@@ -268,12 +272,45 @@ internal sealed class NativeAotMessagePackResolver : IFormatterResolver
         new ListFormatter<SampleAotPoco>()!;
     private static readonly IMessagePackFormatter<List<int>> NumberCollectionFormatter =
         new ListFormatter<int>()!;
+    private static readonly IMessagePackFormatter<string?> StringValueFormatter =
+        new AotStringFormatter();
+    private static readonly IMessagePackFormatter<int> IntegerValueFormatter =
+        new AotInt32Formatter();
 
     public IMessagePackFormatter<T>? GetFormatter<T>() =>
         typeof(T) == typeof(List<SampleAotPoco>)
             ? (IMessagePackFormatter<T>)(object)PocoCollectionFormatter
-            : typeof(T) == typeof(List<int>)
-                ? (IMessagePackFormatter<T>)(object)NumberCollectionFormatter
-                : SampleMessagePackResolver.Instance.GetFormatter<T>()
-                    ?? BuiltinResolver.Instance.GetFormatter<T>();
+        : typeof(T) == typeof(List<int>)
+            ? (IMessagePackFormatter<T>)(object)NumberCollectionFormatter
+        : typeof(T) == typeof(string) ? (IMessagePackFormatter<T>)(object)StringValueFormatter
+        : typeof(T) == typeof(int) ? (IMessagePackFormatter<T>)(object)IntegerValueFormatter
+        : SampleMessagePackResolver.Instance.GetFormatter<T>();
+
+    internal sealed class AotStringFormatter : IMessagePackFormatter<string?>
+    {
+        public string? Deserialize(
+            ref MessagePackReader reader,
+            MessagePackSerializerOptions options
+        ) => reader.ReadString()!;
+
+        public void Serialize(
+            ref MessagePackWriter writer,
+            string? value,
+            MessagePackSerializerOptions options
+        ) => writer.Write(value);
+    }
+
+    internal sealed class AotInt32Formatter : IMessagePackFormatter<int>
+    {
+        public int Deserialize(
+            ref MessagePackReader reader,
+            MessagePackSerializerOptions options
+        ) => reader.ReadInt32();
+
+        public void Serialize(
+            ref MessagePackWriter writer,
+            int value,
+            MessagePackSerializerOptions options
+        ) => writer.Write(value);
+    }
 }

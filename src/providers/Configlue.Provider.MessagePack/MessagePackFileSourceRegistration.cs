@@ -158,13 +158,16 @@ public static class MessagePackFileSourceRegistration
         )
             where TFragment : class, IConfiglueFragment<TFragment>
         {
+            var codec = options.SerializerOptions is { } serializerOptions
+                ? new MessagePackStateCodec<TFragment>(serializerOptions)
+                : new MessagePackStateCodec<TFragment>();
             return context.Complete(
                 CreateSourceCore(
                     options,
                     context.ModelSchema,
                     context.HostPaths,
                     context.Own,
-                    new MessagePackStateCodec<TFragment>(options.SerializerOptions)
+                    codec
                 )
             );
         }

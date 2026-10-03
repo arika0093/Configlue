@@ -4,6 +4,7 @@
     <AssemblyName>Configlue.Provider.MessagePack</AssemblyName>
     <RootNamespace>Configlue.Provider.MessagePack</RootNamespace>
     <IsPackable>true</IsPackable>
+    <IsTrimmable Condition="'$(TargetFramework)' == 'net10.0'">true</IsTrimmable>
     <PackageDescription>MessagePack codec and resource integration for Configlue.</PackageDescription>
   </PropertyGroup>
   <ItemGroup>

@@ -79,43 +79,54 @@ public sealed partial class FileResource
         {
             using (linkedCancellation)
             {
-                if (
-                    !string.Equals(
-                        await GetCurrentRevisionAsync(linkedCancellation.Token)
-                            .ConfigureAwait(false),
-                        observedRevision,
-                        StringComparison.Ordinal
-                    )
-                )
-                {
-                    return;
-                }
-
-                if (!hasWatcher)
-                {
-                    await PollUntilChangedAsync(observedRevision, linkedCancellation.Token)
-                        .ConfigureAwait(false);
-                    return;
-                }
-
-                var watcherTask = waitTask.WaitAsync(linkedCancellation.Token);
-                var pollingTask = PollUntilChangedAsync(observedRevision, linkedCancellation.Token);
-                var completed = await Task.WhenAny(watcherTask, pollingTask).ConfigureAwait(false);
-#if NETSTANDARD
-                linkedCancellation.Cancel();
-#else
-                await linkedCancellation.CancelAsync().ConfigureAwait(false);
-#endif
                 try
                 {
-                    await completed.ConfigureAwait(false);
-                }
-                finally
-                {
-                    await ObserveCancellationAsync(
-                            completed == watcherTask ? pollingTask : watcherTask
+                    if (
+                        !string.Equals(
+                            await GetCurrentRevisionAsync(linkedCancellation.Token)
+                                .ConfigureAwait(false),
+                            observedRevision,
+                            StringComparison.Ordinal
                         )
+                    )
+                    {
+                        return;
+                    }
+
+                    if (!hasWatcher)
+                    {
+                        await PollUntilChangedAsync(observedRevision, linkedCancellation.Token)
+                            .ConfigureAwait(false);
+                        return;
+                    }
+
+                    var watcherTask = waitTask.WaitAsync(linkedCancellation.Token);
+                    var pollingTask = PollUntilChangedAsync(
+                        observedRevision,
+                        linkedCancellation.Token
+                    );
+                    var completed = await Task.WhenAny(watcherTask, pollingTask)
                         .ConfigureAwait(false);
+#if NETSTANDARD
+                    linkedCancellation.Cancel();
+#else
+                    await linkedCancellation.CancelAsync().ConfigureAwait(false);
+#endif
+                    try
+                    {
+                        await completed.ConfigureAwait(false);
+                    }
+                    finally
+                    {
+                        await ObserveCancellationAsync(
+                                completed == watcherTask ? pollingTask : watcherTask
+                            )
+                            .ConfigureAwait(false);
+                    }
+                }
+                catch (ObjectDisposedException) when (linkedCancellation.IsCancellationRequested)
+                {
+                    throw new OperationCanceledException(linkedCancellation.Token);
                 }
             }
         }

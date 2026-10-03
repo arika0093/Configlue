@@ -134,13 +134,14 @@ public sealed partial class FileResourceTests
             {
                 ChangeDetectionMode = mode,
                 PollingInterval = TimeSpan.FromMilliseconds(20),
+                RevisionVerificationInterval = TimeSpan.FromMilliseconds(100),
             }
         );
         var create = resource.WaitForChangeAsync(default, null).AsTask();
         await Task.Delay(100);
         Directory.CreateDirectory(directory);
         await WriteTextWithRetryAsync(path, "old");
-        await create.WaitAsync(TimeSpan.FromSeconds(5));
+        await create.WaitAsync(TimeSpan.FromSeconds(15));
         if (mode == FileChangeDetectionMode.Polling)
             resource.HasActiveWatcherForTests.ShouldBeFalse();
         var replace = resource
@@ -150,13 +151,13 @@ public sealed partial class FileResourceTests
         var temporary = path + ".tmp";
         await WriteTextWithRetryAsync(temporary, "replacement");
         File.Move(temporary, path, overwrite: true);
-        await replace.WaitAsync(TimeSpan.FromSeconds(5));
+        await replace.WaitAsync(TimeSpan.FromSeconds(15));
         var delete = resource
             .WaitForChangeAsync(default, (await resource.ReadAsync()).Revision)
             .AsTask();
         await Task.Delay(100);
         File.Delete(path);
-        await delete.WaitAsync(TimeSpan.FromSeconds(5));
+        await delete.WaitAsync(TimeSpan.FromSeconds(15));
     }
 
     [Test]

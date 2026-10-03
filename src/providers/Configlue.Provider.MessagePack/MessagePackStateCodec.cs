@@ -1,4 +1,5 @@
 using System.Buffers;
+using System.Diagnostics.CodeAnalysis;
 using MessagePack;
 using MessagePack.Formatters;
 
@@ -74,10 +75,21 @@ public sealed class MessagePackStateCodec<T>
     private readonly MessagePackSerializerOptions _options;
     private readonly IMessagePackFormatter<T>? _formatter;
 
-    /// <summary>Creates a codec with the supplied MessagePack options.</summary>
-    public MessagePackStateCodec(MessagePackSerializerOptions? options = null)
+    /// <summary>Creates a codec with the default MessagePack options.</summary>
+    [RequiresDynamicCode(
+        "The default resolver may generate formatters through runtime reflection."
+    )]
+    public MessagePackStateCodec()
     {
-        _options = options ?? MessagePackStateCodecDefaults.Options;
+        _options = MessagePackStateCodecDefaults.Options;
+        _formatter = ConfiglueMessagePackFragmentRegistry.GetOrNull<T>();
+    }
+
+    /// <summary>Creates a codec with the supplied MessagePack options.</summary>
+    public MessagePackStateCodec(MessagePackSerializerOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        _options = options;
         _formatter = ConfiglueMessagePackFragmentRegistry.GetOrNull<T>();
     }
 
