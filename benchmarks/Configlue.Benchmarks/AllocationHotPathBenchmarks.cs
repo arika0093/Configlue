@@ -2,6 +2,8 @@ using System.Buffers;
 using BenchmarkDotNet.Attributes;
 using Configlue;
 using Configlue.Codecs;
+using Configlue.Extensibility;
+using Configlue.Provider.Json;
 using Configlue.Provider.MessagePack;
 using Configlue.Resource.Redis;
 using Configlue.Resources;
@@ -157,4 +159,71 @@ public sealed class RedisIdentityAllocationBenchmarks
     [Benchmark]
     public ResourceId CreateResourceIdentity() =>
         _resource.GetResourceId(ConfiglueResourceContext.Default);
+}
+
+[MemoryDiagnoser]
+public sealed class SerializedWriterAllocationBenchmarks
+{
+    private SerializedStateWriter<OptimizationBenchmarkSettings.Fragment> _writer = null!;
+    private ConfiglueResourceContext _context;
+    private StateWriteRequest<OptimizationBenchmarkSettings.Fragment> _request;
+
+    [Params(100, 4096, 65536)]
+    public int PayloadSize { get; set; }
+
+    [GlobalSetup]
+    public void Setup()
+    {
+        _writer = new SerializedStateWriter<OptimizationBenchmarkSettings.Fragment>(
+            new NoOpResourceWriter(),
+            new JsonStateCodec<OptimizationBenchmarkSettings.Fragment>()
+        );
+        _context = ConfiglueResourceContext.Default;
+        _request = new StateWriteRequest<OptimizationBenchmarkSettings.Fragment>(
+            new OptimizationBenchmarkSettings.Fragment
+            {
+                Counter = Optional<int>.Present(1),
+                Name = Optional<string>.Present(new string('x', PayloadSize)),
+                Enabled = Optional<bool>.Present(true),
+            }
+        );
+    }
+
+    [Benchmark]
+    public ValueTask<StateWriteResult> NormalWriteAsync() =>
+        _writer.WriteAsync(_context, _request);
+
+    [Benchmark]
+    public async ValueTask<StateWriteResult> BatchWriteAsync()
+    {
+        var plan = await _writer.TryCreateBatchWriteAsync(_context, _request).ConfigureAwait(false);
+        if (plan is null)
+        {
+            throw new InvalidOperationException("The no-op writer did not prepare a batch plan.");
+        }
+
+        return await plan.Writer.WriteBatchAsync([plan.Mutation]).ConfigureAwait(false);
+    }
+
+    private sealed class NoOpResourceWriter : IResourceBatchWriter
+    {
+        private static readonly ResourceId Identity = new("benchmark:no-op");
+
+        public ResourceId GetResourceId(ConfiglueResourceContext context)
+        {
+            _ = context;
+            return Identity;
+        }
+
+        public ValueTask<StateWriteResult> WriteAsync(
+            ConfiglueResourceContext context,
+            ResourceWriteRequest request,
+            CancellationToken cancellationToken = default
+        ) => ValueTask.FromResult(new StateWriteResult("1"));
+
+        public ValueTask<StateWriteResult> WriteBatchAsync(
+            IReadOnlyList<ResourceWriteMutation> mutations,
+            CancellationToken cancellationToken = default
+        ) => ValueTask.FromResult(new StateWriteResult("1"));
+    }
 }

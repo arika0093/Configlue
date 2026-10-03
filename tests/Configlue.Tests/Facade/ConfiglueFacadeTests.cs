@@ -543,19 +543,27 @@ public sealed class ConfiglueFacadeTests
             added.Add(name);
         };
 
-        var firstAdd = Task.Run(() => registry.TryAdd("first"));
+        var firstAdd = Task.Factory.StartNew(
+            () => registry.TryAdd("first"),
+            CancellationToken.None,
+            TaskCreationOptions.LongRunning,
+            TaskScheduler.Default
+        );
         await firstAdded.Task.WaitAsync(TimeSpan.FromSeconds(5));
-        var secondAdd = Task.Run(() => registry.TryAdd("second"));
+        var secondAdd = Task.Factory.StartNew(
+            () => registry.TryAdd("second"),
+            CancellationToken.None,
+            TaskCreationOptions.LongRunning,
+            TaskScheduler.Default
+        );
         try
         {
-            (
-                await Task.Run(() =>
-                    SpinWait.SpinUntil(
-                        () => registry.TryGet("second", out _),
-                        TimeSpan.FromSeconds(5)
-                    )
-                )
-            ).ShouldBeTrue();
+            var visibilityDeadline = DateTime.UtcNow + TimeSpan.FromSeconds(5);
+            while (!registry.TryGet("second", out _) && DateTime.UtcNow < visibilityDeadline)
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(10));
+            }
+            registry.TryGet("second", out _).ShouldBeTrue();
             await Task.Delay(TimeSpan.FromMilliseconds(50));
             (secondAdd.IsCompleted).ShouldBeFalse();
         }
@@ -614,7 +622,8 @@ public sealed class ConfiglueFacadeTests
             }
         };
         (
-            await Task.Run(async () => await registry.TryRemoveAsync("reentrant")).WaitAsync(TimeSpan.FromSeconds(5))
+            await Task.Run(async () => await registry.TryRemoveAsync("reentrant"))
+                .WaitAsync(TimeSpan.FromSeconds(5))
         ).ShouldBeTrue();
 
         registry.TryAdd("dispose").ShouldBeTrue();

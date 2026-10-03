@@ -15,7 +15,13 @@ public sealed partial class WatcherLifecycleTests
         var runtime = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
                 new("legacy", legacyStore, priority: 100, watcher: legacyWatcher),
-                new("current", currentStore, priority: 0, writer: currentStore, watcher: currentWatcher),
+                new(
+                    "current",
+                    currentStore,
+                    priority: 0,
+                    writer: currentStore,
+                    watcher: currentWatcher
+                ),
             ]),
             onChangeDebounce: TimeSpan.Zero
         );
@@ -118,18 +124,20 @@ public sealed partial class WatcherLifecycleTests
     {
         var subjectState = new RetryOnceSubjectState(failFirstBind: false);
         var accessor = new RetryOnceSubjectAccessor();
+        var startedAt = System.Diagnostics.Stopwatch.GetTimestamp();
         var received = new TaskCompletionSource<AppSettings>(
             TaskCreationOptions.RunContinuationsAsynchronously
         );
-        using var subscription = new CurrentSubjectState<AppSettings>(subjectState, accessor).OnChange(
-            value => received.TrySetResult(value)
-        );
+        using var subscription = new CurrentSubjectState<AppSettings>(
+            subjectState,
+            accessor
+        ).OnChange(value => received.TrySetResult(value));
 
         await accessor.FirstFailure.Task.WaitAsync(TimeSpan.FromSeconds(5));
-        await Task.Delay(TimeSpan.FromMilliseconds(50));
-        accessor.CallCount.ShouldBe(1);
-
         await subjectState.Subscribed.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        System
+            .Diagnostics.Stopwatch.GetElapsedTime(startedAt)
+            .ShouldBeGreaterThanOrEqualTo(SubjectChangeSubscriptionRetryPolicy.InitialDelay);
         accessor.CallCount.ShouldBe(2);
         subjectState.Raise(new AppSettings());
         (await received.Task.WaitAsync(TimeSpan.FromSeconds(5))).ShouldNotBeNull();
@@ -164,15 +172,17 @@ public sealed partial class WatcherLifecycleTests
         var received = new TaskCompletionSource<string?>(
             TaskCreationOptions.RunContinuationsAsynchronously
         );
-        var subscription = subjectState.ForSubject(new TestSubject()).OnChange(value =>
-        {
-            if (value.Label == "one")
+        var subscription = subjectState
+            .ForSubject(new TestSubject())
+            .OnChange(value =>
             {
-                throw new InvalidOperationException("The listener failed.");
-            }
+                if (value.Label == "one")
+                {
+                    throw new InvalidOperationException("The listener failed.");
+                }
 
-            received.TrySetResult(value.Label);
-        });
+                received.TrySetResult(value.Label);
+            });
 
         await watcher.WaitUntilWaitingAsync().WaitAsync(TimeSpan.FromSeconds(5));
         store.Set(Fragment("one"));
@@ -261,9 +271,8 @@ public sealed partial class WatcherLifecycleTests
     {
         private int _subscriptions;
 
-        public TaskCompletionSource SecondSubscription { get; } = new(
-            TaskCreationOptions.RunContinuationsAsynchronously
-        );
+        public TaskCompletionSource SecondSubscription { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public IWritableState<AppSettings> ForSubject(IConfiglueSubject subject) =>
             new FakeWritableState(this);
@@ -289,7 +298,9 @@ public sealed partial class WatcherLifecycleTests
                 return new NoopDisposable();
             }
 
-            public ValueTask<AppSettings> GetValueAsync(CancellationToken cancellationToken = default)
+            public ValueTask<AppSettings> GetValueAsync(
+                CancellationToken cancellationToken = default
+            )
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 return ValueTaskCompat.FromResult(new AppSettings());
@@ -381,9 +392,8 @@ public sealed partial class WatcherLifecycleTests
     {
         private int _callCount;
 
-        public TaskCompletionSource FirstFailure { get; } = new(
-            TaskCreationOptions.RunContinuationsAsynchronously
-        );
+        public TaskCompletionSource FirstFailure { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public int CallCount => Volatile.Read(ref _callCount);
 
@@ -410,13 +420,11 @@ public sealed partial class WatcherLifecycleTests
 
         public RetryOnceSubjectState(bool failFirstBind = true) => _failFirstBind = failFirstBind;
 
-        public TaskCompletionSource FirstFailure { get; } = new(
-            TaskCreationOptions.RunContinuationsAsynchronously
-        );
+        public TaskCompletionSource FirstFailure { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        public TaskCompletionSource Subscribed { get; } = new(
-            TaskCreationOptions.RunContinuationsAsynchronously
-        );
+        public TaskCompletionSource Subscribed { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public int AttemptCount => Volatile.Read(ref _attemptCount);
 

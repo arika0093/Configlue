@@ -57,11 +57,6 @@ public sealed partial class FileResource
                 return;
             }
 
-            if (_options.ChangeDetectionMode == FileChangeDetectionMode.Hybrid)
-            {
-                EnsureFileWatcher();
-            }
-
             Task waitTask;
             bool hasWatcher;
             lock (_watchGate)
@@ -70,6 +65,15 @@ public sealed partial class FileResource
                 {
                     throw new OperationCanceledException(cancellationToken);
                 }
+
+                if (_options.ChangeDetectionMode == FileChangeDetectionMode.Hybrid)
+                {
+                    // Keep watcher creation and signal capture atomic with respect to watcher
+                    // callbacks. Otherwise an event can replace _changed after creation but
+                    // before this waiter captures it, leaving the waiter on the new signal.
+                    EnsureFileWatcher();
+                }
+
                 waitTask = _changed.Task;
                 hasWatcher = _fileWatcher is not null;
             }
