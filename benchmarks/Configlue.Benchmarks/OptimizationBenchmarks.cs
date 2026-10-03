@@ -126,11 +126,11 @@ public class LayeredResolutionFallbackBenchmarks
     private ConfiglueContext _context = null!;
     private IWritableState<OptimizationBenchmarkSettings> _options = null!;
 
-    [Params(1, 4, 16)]
+    [Params(1, 2, 4, 16)]
     public int SourceCount { get; set; }
 
     [Params(false, true)]
-    public bool TopSourceNotFound { get; set; }
+    public bool DeepFallback { get; set; }
 
     [GlobalSetup]
     public void Setup()
@@ -140,7 +140,7 @@ public class LayeredResolutionFallbackBenchmarks
             .Select(index =>
             {
                 var store =
-                    TopSourceNotFound && index == 0
+                    DeepFallback && index < SourceCount - 1
                         ? new InMemoryStateSource<OptimizationBenchmarkSettings.Fragment>()
                         : new InMemoryStateSource<OptimizationBenchmarkSettings.Fragment>(
                             new OptimizationBenchmarkSettings.Fragment

@@ -41,6 +41,8 @@ internal sealed class RedisStateBackend : IRedisStateBackend
 
     private readonly IConnectionMultiplexer _multiplexer;
     private readonly RedisChangeHubLease _changeHub;
+    private readonly ConcurrentBag<RedisValue[]> _writeArgumentBuffers = new();
+    private readonly ConcurrentBag<RedisKey[]> _writeKeyBuffers = new();
 
     public RedisStateBackend(IConnectionMultiplexer multiplexer, RedisResourceOptions options)
     {
@@ -101,11 +103,7 @@ internal sealed class RedisStateBackend : IRedisStateBackend
             schema = new StateSchemaMetadata(modelId, schemaVersion);
         }
 
-        var content =
-            (byte[]?)values[0]
-            ?? throw new InvalidDataException(
-                $"The Redis row '{address.Key}' has no payload field."
-            );
+        ReadOnlyMemory<byte> content = values[0];
         return ResourceReadResult.Success(content, revision, schema);
     }
 
@@ -149,22 +147,39 @@ internal sealed class RedisStateBackend : IRedisStateBackend
         }
 
         var schema = request.Schema;
-        RedisValue[] arguments =
-        [
-            mode,
-            expectedRevision,
-            request.Content.ToArray(),
-            DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
-            address.NotificationChannel,
-            address.NotificationIdentity,
-            schema is null ? "0" : "1",
-            schema?.ModelId ?? string.Empty,
-            schema?.Version.ToString(CultureInfo.InvariantCulture) ?? string.Empty,
-        ];
-        var result = await GetDatabase(address.Database)
-            .ScriptEvaluateAsync(WriteScript, [address.Key], arguments)
-            .ConfigureAwait(false);
-        var revision = (long)result;
+        if (!_writeArgumentBuffers.TryTake(out var arguments))
+        {
+            arguments = new RedisValue[9];
+        }
+        if (!_writeKeyBuffers.TryTake(out var keys))
+        {
+            keys = new RedisKey[1];
+        }
+        long revision;
+        try
+        {
+            keys[0] = address.Key;
+            arguments[0] = mode;
+            arguments[1] = expectedRevision;
+            arguments[2] = request.Content;
+            arguments[3] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            arguments[4] = address.NotificationChannel;
+            arguments[5] = address.NotificationIdentity;
+            arguments[6] = schema is null ? "0" : "1";
+            arguments[7] = schema?.ModelId ?? string.Empty;
+            arguments[8] = schema?.Version.ToString(CultureInfo.InvariantCulture) ?? string.Empty;
+            var result = await GetDatabase(address.Database)
+                .ScriptEvaluateAsync(WriteScript, keys, arguments)
+                .ConfigureAwait(false);
+            revision = (long)result;
+        }
+        finally
+        {
+            Array.Clear(arguments, 0, arguments.Length);
+            Array.Clear(keys, 0, keys.Length);
+            _writeArgumentBuffers.Add(arguments);
+            _writeKeyBuffers.Add(keys);
+        }
         if (revision <= 0)
         {
             throw CreateConflict(address);

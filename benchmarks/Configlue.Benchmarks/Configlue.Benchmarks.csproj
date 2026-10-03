@@ -15,6 +15,10 @@
     <ProjectReference Include="../../src/extensions/Configlue.Extensions.MSOptions/Configlue.Extensions.MSOptions.csproj" />
     <ProjectReference Include="../../src/providers/Configlue.Provider.Yaml/Configlue.Provider.Yaml.csproj" />
     <ProjectReference Include="../../src/providers/Configlue.Provider.Xml/Configlue.Provider.Xml.csproj" />
+    <ProjectReference Include="../../src/providers/Configlue.Provider.MessagePack/Configlue.Provider.MessagePack.csproj" />
+    <ProjectReference Include="../../src/resources/Configlue.Resource.Redis/Configlue.Resource.Redis.csproj" />
+    <ProjectReference Include="../../src/transformers/Configlue.Transformer.AES/Configlue.Transformer.AES.csproj" />
+    <ProjectReference Include="../../src/transformers/Configlue.Transformer.Compression/Configlue.Transformer.Compression.csproj" />
     <ProjectReference Include="../../src/sources/Configlue.Source.CommandLine/Configlue.Source.CommandLine.csproj" />
     <ProjectReference Include="../../src/sources/Configlue.Source.Environment/Configlue.Source.Environment.csproj" />
     <ProjectReference Include="../../src/basic/Configlue.Testing/Configlue.Testing.csproj" />

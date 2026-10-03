@@ -219,6 +219,7 @@ public sealed class PipelineResourceReadResult : IAsyncDisposable
         private readonly XxHash3? _revisionHasher;
         private readonly IncrementalHash? _fingerprintHasher;
         private readonly Action<string>? _fingerprintCompleted;
+        private byte[]? _fingerprintBuffer;
         private bool _completed;
         private string? _revision;
 
@@ -233,6 +234,10 @@ public sealed class PipelineResourceReadResult : IAsyncDisposable
             _fingerprintHasher = fingerprintCompleted is null
                 ? null
                 : IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+            if (_fingerprintHasher is not null)
+            {
+                _fingerprintBuffer = ArrayPool<byte>.Shared.Rent(81920);
+            }
             _fingerprintCompleted = fingerprintCompleted;
         }
 
@@ -294,7 +299,19 @@ public sealed class PipelineResourceReadResult : IAsyncDisposable
             {
                 _revisionHasher?.Append(content);
 #if NETSTANDARD
-                _fingerprintHasher?.AppendData(content.ToArray());
+                if (_fingerprintHasher is not null)
+                {
+                    var buffer = _fingerprintBuffer!;
+                    if (content.Length > buffer.Length)
+                    {
+                        ArrayPool<byte>.Shared.Return(buffer, clearArray: true);
+                        buffer = ArrayPool<byte>.Shared.Rent(content.Length);
+                        _fingerprintBuffer = buffer;
+                    }
+
+                    content.CopyTo(buffer);
+                    _fingerprintHasher.AppendData(buffer, 0, content.Length);
+                }
 #else
                 _fingerprintHasher?.AppendData(content);
 #endif
@@ -316,8 +333,10 @@ public sealed class PipelineResourceReadResult : IAsyncDisposable
 
             if (_fingerprintHasher is not null)
             {
-                _fingerprintCompleted!(Convert.ToHexString(_fingerprintHasher.GetHashAndReset()));
+                var fingerprint = Convert.ToHexString(_fingerprintHasher.GetHashAndReset());
                 _fingerprintHasher.Dispose();
+                ReturnFingerprintBuffer();
+                _fingerprintCompleted!(fingerprint);
             }
         }
 
@@ -336,6 +355,7 @@ public sealed class PipelineResourceReadResult : IAsyncDisposable
             if (disposing)
             {
                 _fingerprintHasher?.Dispose();
+                ReturnFingerprintBuffer();
                 _source.Dispose();
             }
 
@@ -346,6 +366,7 @@ public sealed class PipelineResourceReadResult : IAsyncDisposable
         public ValueTask DisposeAsync()
         {
             _fingerprintHasher?.Dispose();
+            ReturnFingerprintBuffer();
             _source.Dispose();
             return default;
         }
@@ -353,10 +374,21 @@ public sealed class PipelineResourceReadResult : IAsyncDisposable
         public override async ValueTask DisposeAsync()
         {
             _fingerprintHasher?.Dispose();
+            ReturnFingerprintBuffer();
             await _source.DisposeAsync().ConfigureAwait(false);
             GC.SuppressFinalize(this);
         }
 #endif
+
+        private void ReturnFingerprintBuffer()
+        {
+            var buffer = _fingerprintBuffer;
+            _fingerprintBuffer = null;
+            if (buffer is not null)
+            {
+                ArrayPool<byte>.Shared.Return(buffer, clearArray: true);
+            }
+        }
     }
 }
 

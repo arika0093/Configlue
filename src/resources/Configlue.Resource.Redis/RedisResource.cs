@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+using System.Buffers;
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
@@ -326,19 +326,90 @@ internal interface IRedisStateBackend : IDisposable
 
 internal static class RedisIdentityHash
 {
-    public static string Create(params string[] values)
+    public static string Create(string first, string second, string third) =>
+        CreateCore(first, second, third, null, null, null, 3);
+
+    public static string Create(
+        string first,
+        string second,
+        string third,
+        string fourth,
+        string fifth
+    ) => CreateCore(first, second, third, fourth, fifth, null, 5);
+
+    public static string Create(
+        string first,
+        string second,
+        string third,
+        string fourth,
+        string fifth,
+        string sixth
+    ) => CreateCore(first, second, third, fourth, fifth, sixth, 6);
+
+    private static string CreateCore(
+        string first,
+        string second,
+        string third,
+        string? fourth,
+        string? fifth,
+        string? sixth,
+        int count
+    )
     {
         using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
-        Span<byte> length = stackalloc byte[sizeof(int)];
-        foreach (var value in values)
+        var maximumLength = Math.Max(
+            Math.Max(
+                Encoding.UTF8.GetMaxByteCount(first.Length),
+                Encoding.UTF8.GetMaxByteCount(second.Length)
+            ),
+            Encoding.UTF8.GetMaxByteCount(third.Length)
+        );
+        if (fourth is not null)
         {
-            var bytes = Encoding.UTF8.GetBytes(value);
-            BinaryPrimitives.WriteInt32BigEndian(length, bytes.Length);
-            hash.AppendData(length.ToArray());
-            hash.AppendData(bytes);
+            maximumLength = Math.Max(maximumLength, Encoding.UTF8.GetMaxByteCount(fourth.Length));
+        }
+        if (fifth is not null)
+        {
+            maximumLength = Math.Max(maximumLength, Encoding.UTF8.GetMaxByteCount(fifth.Length));
+        }
+        if (sixth is not null)
+        {
+            maximumLength = Math.Max(maximumLength, Encoding.UTF8.GetMaxByteCount(sixth.Length));
         }
 
-        return Convert.ToHexString(hash.GetHashAndReset()).ToLowerInvariant();
+        var buffer = ArrayPool<byte>.Shared.Rent(checked(maximumLength + sizeof(int)));
+        try
+        {
+            Append(hash, buffer, first);
+            Append(hash, buffer, second);
+            Append(hash, buffer, third);
+            if (count >= 5)
+            {
+                Append(hash, buffer, fourth!);
+                Append(hash, buffer, fifth!);
+            }
+            if (count == 6)
+            {
+                Append(hash, buffer, sixth!);
+            }
+
+            return Convert.ToHexString(hash.GetHashAndReset()).ToLowerInvariant();
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(buffer, clearArray: true);
+        }
+    }
+
+    private static void Append(IncrementalHash hash, byte[] buffer, string value)
+    {
+        var byteCount = Encoding.UTF8.GetBytes(value, 0, value.Length, buffer, sizeof(int));
+        buffer[0] = (byte)(byteCount >> 24);
+        buffer[1] = (byte)(byteCount >> 16);
+        buffer[2] = (byte)(byteCount >> 8);
+        buffer[3] = (byte)byteCount;
+        hash.AppendData(buffer, 0, sizeof(int));
+        hash.AppendData(buffer, sizeof(int), byteCount);
     }
 }
 

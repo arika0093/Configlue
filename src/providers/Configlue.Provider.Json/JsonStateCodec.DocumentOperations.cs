@@ -248,7 +248,16 @@ internal static partial class JsonStateCodecOperations
             return source;
         }
 
-        var prefix = source.Slice(0, 3).ToArray();
+        var firstSpan = source.First.Span;
+        if (firstSpan.Length >= 3)
+        {
+            return firstSpan[0] == 0xEF && firstSpan[1] == 0xBB && firstSpan[2] == 0xBF
+                ? source.Slice(3)
+                : source;
+        }
+
+        Span<byte> prefix = stackalloc byte[3];
+        source.Slice(0, 3).CopyTo(prefix);
         if (prefix[0] != 0xEF || prefix[1] != 0xBB || prefix[2] != 0xBF)
         {
             return source;
