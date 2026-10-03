@@ -209,6 +209,51 @@ public sealed partial class ConfiglueGeneratorDiagnosticTests
         (GetGeneratedSource(changedOutput)).ShouldContain("\"new_value\"");
     }
 
+    [Test]
+    public void AddingUnrelatedModelDoesNotRegenerateExistingModelOutput()
+    {
+        const string source = """
+            using Configlue;
+            namespace Sample;
+            [ConfiglueModel("existing")]
+            public partial class Existing { public int Value { get; set; } }
+            """;
+        var parseOptions = new CSharpParseOptions(LanguageVersion.Preview);
+        var syntaxTree = CSharpSyntaxTree.ParseText(source, parseOptions);
+        var compilation = CreateCompilation(syntaxTree);
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(
+            [new ConfiglueGenerator().AsSourceGenerator()],
+            parseOptions: parseOptions,
+            driverOptions: new GeneratorDriverOptions(
+                IncrementalGeneratorOutputKind.None,
+                trackIncrementalGeneratorSteps: true
+            )
+        );
+
+        driver = driver.RunGenerators(compilation);
+
+        var unrelatedTree = CSharpSyntaxTree.ParseText(
+            """
+            using Configlue;
+            namespace Sample;
+            [ConfiglueModel("unrelated")]
+            public partial class Unrelated { public string Name { get; set; } = ""; }
+            """,
+            parseOptions
+        );
+        var changed = driver
+            .RunGenerators(compilation.AddSyntaxTrees(unrelatedTree))
+            .GetRunResult();
+        var reasons = changed
+            .Results.Single()
+            .TrackedSteps["ConfiglueGenerator.Output"]
+            .SelectMany(static step => step.Outputs)
+            .Select(static output => output.Reason);
+
+        reasons.ShouldContain(IncrementalStepRunReason.Cached);
+        reasons.ShouldNotContain(IncrementalStepRunReason.Modified);
+    }
+
     private static GeneratorDriverRunResult RunGenerator(string source)
     {
         var syntaxTree = CSharpSyntaxTree.ParseText(

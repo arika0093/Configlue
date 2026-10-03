@@ -158,6 +158,47 @@ public sealed partial class ConfiglueGeneratorDiagnosticTests
     }
 
     [Test]
+    public void DuplicateSchemaIdentityReportsBothConflictingModels()
+    {
+        var result = RunGenerator(
+            """
+            using Configlue;
+            [ConfiglueModel("same-schema")]
+            public partial class First { public int Value { get; set; } }
+            [ConfiglueModel("same-schema")]
+            public partial class Second { public int Value { get; set; } }
+            """
+        );
+
+        var diagnostics = result
+            .Diagnostics.Where(diagnostic => diagnostic.Id == "CFG014")
+            .ToArray();
+        diagnostics.Length.ShouldBe(2);
+        diagnostics
+            .Select(diagnostic => diagnostic.Location.SourceSpan.Start)
+            .Distinct()
+            .Count()
+            .ShouldBe(2);
+    }
+
+    [Test]
+    public void DistinctVersionsMayShareSchemaIdentity()
+    {
+        var result = RunGenerator(
+            """
+            using Configlue;
+            [ConfiglueModel("versioned-schema", Version = 1)]
+            public partial class First { public int Value { get; set; } }
+            [ConfiglueModel("versioned-schema", Version = 2)]
+            public partial class Second { public int Value { get; set; } }
+            """
+        );
+
+        result.Diagnostics.ShouldNotContain(diagnostic => diagnostic.Id == "CFG014");
+        result.GeneratedTrees.Length.ShouldBe(2);
+    }
+
+    [Test]
     public void KeywordChildMemberCompiles()
     {
         AssertGeneratedCompilation(
