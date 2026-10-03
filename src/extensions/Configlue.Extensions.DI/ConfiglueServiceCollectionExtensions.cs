@@ -514,7 +514,7 @@ public static class ConfiglueServiceCollectionExtensions
         private void AddScopedStateServices<TModel>(ConfiglueModelRegistration<TModel> registration)
             where TModel : IConfiglueFacadeModel<TModel>
         {
-            services.AddScoped(provider =>
+            ConfiglueScopedRuntime<TModel> CreateHolder(IServiceProvider provider)
             {
                 var resources = new List<object>();
                 var resourceSet = new HashSet<object>(ReferenceIdentityComparer.Instance);
@@ -541,7 +541,30 @@ public static class ConfiglueServiceCollectionExtensions
                             hostPaths
                         );
                 return new ConfiglueScopedRuntime<TModel>(runtime, resources);
-            });
+            }
+
+            Func<IServiceProvider, IWritableState<TModel>> getHolderRuntime =
+                registration.StateName.Length == 0
+                    ? provider =>
+                        provider.GetRequiredService<ConfiglueScopedRuntime<TModel>>().Runtime
+                    : provider =>
+                        provider
+                            .GetRequiredKeyedService<ConfiglueScopedRuntime<TModel>>(
+                                registration.StateName
+                            )
+                            .Runtime;
+
+            if (registration.StateName.Length == 0)
+            {
+                services.AddScoped(CreateHolder);
+            }
+            else
+            {
+                services.AddKeyedScoped<ConfiglueScopedRuntime<TModel>>(
+                    registration.StateName,
+                    (provider, _) => CreateHolder(provider)
+                );
+            }
 
             if (registration.IsPerSubject)
             {
@@ -549,8 +572,7 @@ public static class ConfiglueServiceCollectionExtensions
                 if (registration.StateName.Length == 0)
                 {
                     services.AddScoped(provider => new CurrentSubjectState<TModel>(
-                        (ISubjectState<TModel>)
-                            provider.GetRequiredService<ConfiglueScopedRuntime<TModel>>().Runtime,
+                        (ISubjectState<TModel>)getHolderRuntime(provider),
                         (IConfiglueSubjectAccessor)provider.GetRequiredService(subjectAccessorType)
                     ));
                     services.AddScoped<IReadOnlyState<TModel>>(provider =>
@@ -559,9 +581,7 @@ public static class ConfiglueServiceCollectionExtensions
                     services.AddScoped<IWritableState<TModel>>(provider =>
                         provider.GetRequiredService<CurrentSubjectState<TModel>>()
                     );
-                    AddScopedRuntimeFacades(provider =>
-                        provider.GetRequiredService<ConfiglueScopedRuntime<TModel>>().Runtime
-                    );
+                    AddScopedRuntimeFacades(getHolderRuntime);
                     services.AddScoped<IConfiglueInspection<TModel>>(provider =>
                         provider.GetRequiredService<CurrentSubjectState<TModel>>()
                     );
@@ -572,10 +592,7 @@ public static class ConfiglueServiceCollectionExtensions
                         registration.StateName,
                         (provider, _) =>
                             new CurrentSubjectState<TModel>(
-                                (ISubjectState<TModel>)
-                                    provider
-                                        .GetRequiredService<ConfiglueScopedRuntime<TModel>>()
-                                        .Runtime,
+                                (ISubjectState<TModel>)getHolderRuntime(provider),
                                 (IConfiglueSubjectAccessor)
                                     provider.GetRequiredService(subjectAccessorType)
                             )
@@ -592,8 +609,7 @@ public static class ConfiglueServiceCollectionExtensions
                     );
                     AddKeyedScopedRuntimeFacades(
                         registration.StateName,
-                        (provider, _) =>
-                            provider.GetRequiredService<ConfiglueScopedRuntime<TModel>>().Runtime
+                        (provider, _) => getHolderRuntime(provider)
                     );
                     services.AddKeyedScoped<IConfiglueInspection<TModel>>(
                         registration.StateName,
@@ -606,32 +622,23 @@ public static class ConfiglueServiceCollectionExtensions
             }
             else if (registration.StateName.Length == 0)
             {
-                services.AddScoped<IReadOnlyState<TModel>>(provider =>
-                    provider.GetRequiredService<ConfiglueScopedRuntime<TModel>>().Runtime
-                );
-                services.AddScoped<IWritableState<TModel>>(provider =>
-                    provider.GetRequiredService<ConfiglueScopedRuntime<TModel>>().Runtime
-                );
-                AddScopedRuntimeFacades(provider =>
-                    provider.GetRequiredService<ConfiglueScopedRuntime<TModel>>().Runtime
-                );
+                services.AddScoped<IReadOnlyState<TModel>>(provider => getHolderRuntime(provider));
+                services.AddScoped<IWritableState<TModel>>(provider => getHolderRuntime(provider));
+                AddScopedRuntimeFacades(getHolderRuntime);
             }
             else
             {
                 services.AddKeyedScoped<IReadOnlyState<TModel>>(
                     registration.StateName,
-                    (provider, _) =>
-                        provider.GetRequiredService<ConfiglueScopedRuntime<TModel>>().Runtime
+                    (provider, _) => getHolderRuntime(provider)
                 );
                 services.AddKeyedScoped<IWritableState<TModel>>(
                     registration.StateName,
-                    (provider, _) =>
-                        provider.GetRequiredService<ConfiglueScopedRuntime<TModel>>().Runtime
+                    (provider, _) => getHolderRuntime(provider)
                 );
                 AddKeyedScopedRuntimeFacades(
                     registration.StateName,
-                    (provider, _) =>
-                        provider.GetRequiredService<ConfiglueScopedRuntime<TModel>>().Runtime
+                    (provider, _) => getHolderRuntime(provider)
                 );
             }
         }

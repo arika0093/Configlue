@@ -209,6 +209,71 @@ public sealed partial class RuntimeLifetimeTests
         runtime.WatcherOperationCount.ShouldBe(0);
     }
 
+    private sealed record NamedScopedTestSubject(string TenantId, string UserId) : IConfiglueSubject
+    {
+        public SubjectKey Key => SubjectKey.FromSegments(TenantId, UserId);
+    }
+
+    private sealed class NamedScopedTestSubjectAccessor
+        : IConfiglueSubjectAccessor<NamedScopedTestSubject>
+    {
+        private NamedScopedTestSubject? _subject;
+
+        public async ValueTask<NamedScopedTestSubject> GetCurrentAsync(
+            CancellationToken cancellationToken = default
+        )
+        {
+            await Task.Yield();
+            cancellationToken.ThrowIfCancellationRequested();
+            return _subject
+                ?? throw new InvalidOperationException("A test subject has not been selected.");
+        }
+
+        public async ValueTask<IConfiglueSubject> GetCurrentSubjectAsync(
+            CancellationToken cancellationToken = default
+        ) => await GetCurrentAsync(cancellationToken).ConfigureAwait(false);
+
+        public void Set(NamedScopedTestSubject subject) => _subject = subject;
+    }
+
+    private sealed class NamedScopedTrackingResource : IDisposable
+    {
+        private int _disposeCount;
+
+        public int DisposeCount => Volatile.Read(ref _disposeCount);
+
+        public void Dispose() => Interlocked.Increment(ref _disposeCount);
+    }
+
+    private sealed class NamedScopedTrackingSourceDefinition(
+        string sourceId,
+        InMemoryStateSource<AppSettings.Fragment> store,
+        List<NamedScopedTrackingResource> created
+    ) : IConfiglueSourceDefinition
+    {
+        public ConfiglueSourceCreation<TFragment> Create<TFragment>(
+            ConfiglueSourceCreationContext context
+        )
+            where TFragment : class, IConfiglueFragment<TFragment>
+        {
+            ArgumentNullException.ThrowIfNull(context);
+            var resource = new NamedScopedTrackingResource();
+            lock (created)
+            {
+                created.Add(resource);
+            }
+
+            context.Own(resource);
+            var source = new StateSource<TFragment>(
+                sourceId,
+                (ISourceReader<TFragment>)(object)store,
+                writer: (ISourceWriter<TFragment>)(object)store,
+                watcher: (ISourceWatcher)(object)store
+            );
+            return context.Complete(source);
+        }
+    }
+
     private sealed record LifetimeSubject : IConfiglueSubject
     {
         public SubjectKey Key => SubjectKey.From("runtime-lifetime");
@@ -375,6 +440,389 @@ public sealed partial class RuntimeLifetimeTests
         runtimeA.Values.ShouldContainKey("circuit-ui");
         runtimeB.Values.ShouldContainKey("circuit-ui");
         runtimeA.Values["circuit-ui"].ShouldNotBe(runtimeB.Values["circuit-ui"]);
+    }
+
+    [Test]
+    public async Task NamedScopedStatesResolveDistinctRuntimesPerStateName()
+    {
+        var firstStore = new InMemoryStateSource<AppSettings.Fragment>(
+            new AppSettings.Fragment { RetryCount = Optional<int>.Present(1) }
+        );
+        var secondStore = new InMemoryStateSource<AppSettings.Fragment>(
+            new AppSettings.Fragment { RetryCount = Optional<int>.Present(2) }
+        );
+        var services = new ServiceCollection();
+        services.AddConfiglue(builder =>
+        {
+            builder.Add<AppSettings>(model =>
+            {
+                model.StateName = "first";
+                model.UseScopedRuntime();
+                model.Sources(sources =>
+                    sources.Add(
+                        new StateSource<AppSettings.Fragment>(
+                            "first-store",
+                            firstStore,
+                            writer: firstStore
+                        )
+                    )
+                );
+            });
+            builder.Add<AppSettings>(model =>
+            {
+                model.StateName = "second";
+                model.UseScopedRuntime();
+                model.Sources(sources =>
+                    sources.Add(
+                        new StateSource<AppSettings.Fragment>(
+                            "second-store",
+                            secondStore,
+                            writer: secondStore
+                        )
+                    )
+                );
+            });
+        });
+        using var provider = services.BuildServiceProvider(
+            new ServiceProviderOptions { ValidateScopes = true }
+        );
+        using var scope = provider.CreateScope();
+
+        var first = scope.ServiceProvider.GetRequiredKeyedService<IWritableState<AppSettings>>(
+            "first"
+        );
+        var second = scope.ServiceProvider.GetRequiredKeyedService<IWritableState<AppSettings>>(
+            "second"
+        );
+
+        (await first.GetValueAsync()).RetryCount.ShouldBe(1);
+        (await second.GetValueAsync()).RetryCount.ShouldBe(2);
+        ReferenceEquals(first, second).ShouldBeFalse();
+
+        ReferenceEquals(
+                first,
+                scope.ServiceProvider.GetRequiredKeyedService<IWritableState<AppSettings>>("first")
+            )
+            .ShouldBeTrue();
+        ReferenceEquals(
+                first,
+                scope.ServiceProvider.GetRequiredKeyedService<IReadOnlyState<AppSettings>>("first")
+            )
+            .ShouldBeTrue();
+
+        ReferenceEquals(
+                first,
+                scope.ServiceProvider.GetRequiredKeyedService<ISubjectState<AppSettings>>("first")
+            )
+            .ShouldBeTrue();
+        ReferenceEquals(
+                first,
+                scope.ServiceProvider.GetRequiredKeyedService<IConfiglueInspection<AppSettings>>(
+                    "first"
+                )
+            )
+            .ShouldBeTrue();
+        ReferenceEquals(
+                first,
+                scope.ServiceProvider.GetRequiredKeyedService<IConfiglueEditSessions<AppSettings>>(
+                    "first"
+                )
+            )
+            .ShouldBeTrue();
+        ReferenceEquals(
+                first,
+                scope.ServiceProvider.GetRequiredKeyedService<IConfiglueDiagnostics<AppSettings>>(
+                    "first"
+                )
+            )
+            .ShouldBeTrue();
+        ReferenceEquals(
+                first,
+                scope.ServiceProvider.GetRequiredKeyedService<IConfiglueSources<AppSettings>>(
+                    "first"
+                )
+            )
+            .ShouldBeTrue();
+
+        var firstDiagnostics = scope.ServiceProvider.GetRequiredKeyedService<
+            IConfiglueDiagnostics<AppSettings>
+        >("first");
+        var secondDiagnostics = scope.ServiceProvider.GetRequiredKeyedService<
+            IConfiglueDiagnostics<AppSettings>
+        >("second");
+        firstDiagnostics.GetDiagnostics().StateName.ShouldBe("first");
+        secondDiagnostics.GetDiagnostics().StateName.ShouldBe("second");
+        firstDiagnostics
+            .GetDiagnostics()
+            .Sources.Select(static source => source.Id)
+            .ShouldBe([SourceId.From("first-store")]);
+        secondDiagnostics
+            .GetDiagnostics()
+            .Sources.Select(static source => source.Id)
+            .ShouldBe([SourceId.From("second-store")]);
+        firstDiagnostics
+            .GetDiagnostics()
+            .DefaultWriteSourceId.ShouldBe(SourceId.From("first-store"));
+        secondDiagnostics
+            .GetDiagnostics()
+            .DefaultWriteSourceId.ShouldBe(SourceId.From("second-store"));
+
+        await first.SaveAsync(patch => patch.RetryCount = 11);
+        (await first.GetValueAsync()).RetryCount.ShouldBe(11);
+        (await second.GetValueAsync()).RetryCount.ShouldBe(2);
+        (await firstStore.ReadAsync()).Value!.RetryCount.Value.ShouldBe(11);
+        (await secondStore.ReadAsync()).Value!.RetryCount.Value.ShouldBe(2);
+
+        await second.SaveAsync(patch => patch.RetryCount = 22);
+        (await first.GetValueAsync()).RetryCount.ShouldBe(11);
+        (await second.GetValueAsync()).RetryCount.ShouldBe(22);
+        (await firstStore.ReadAsync()).Value!.RetryCount.Value.ShouldBe(11);
+        (await secondStore.ReadAsync()).Value!.RetryCount.Value.ShouldBe(22);
+
+        using var otherScope = provider.CreateScope();
+        var firstInOtherScope = otherScope.ServiceProvider.GetRequiredKeyedService<
+            IWritableState<AppSettings>
+        >("first");
+        ReferenceEquals(first, firstInOtherScope).ShouldBeFalse();
+        (await firstInOtherScope.GetValueAsync()).RetryCount.ShouldBe(11);
+    }
+
+    [Test]
+    public async Task DefaultAndNamedScopedStatesAreIsolated()
+    {
+        var defaultStore = new InMemoryStateSource<AppSettings.Fragment>(
+            new AppSettings.Fragment { RetryCount = Optional<int>.Present(1) }
+        );
+        var namedStore = new InMemoryStateSource<AppSettings.Fragment>(
+            new AppSettings.Fragment { RetryCount = Optional<int>.Present(2) }
+        );
+        var services = new ServiceCollection();
+        services.AddConfiglue(builder =>
+        {
+            builder.Add<AppSettings>(model =>
+            {
+                model.UseScopedRuntime();
+                model.Sources(sources =>
+                    sources.Add(
+                        new StateSource<AppSettings.Fragment>(
+                            "default-store",
+                            defaultStore,
+                            writer: defaultStore
+                        )
+                    )
+                );
+            });
+            builder.Add<AppSettings>(model =>
+            {
+                model.StateName = "named";
+                model.UseScopedRuntime();
+                model.Sources(sources =>
+                    sources.Add(
+                        new StateSource<AppSettings.Fragment>(
+                            "named-store",
+                            namedStore,
+                            writer: namedStore
+                        )
+                    )
+                );
+            });
+        });
+        using var provider = services.BuildServiceProvider(
+            new ServiceProviderOptions { ValidateScopes = true }
+        );
+        using var scope = provider.CreateScope();
+
+        var defaultState = scope.ServiceProvider.GetRequiredService<IWritableState<AppSettings>>();
+        var namedState = scope.ServiceProvider.GetRequiredKeyedService<IWritableState<AppSettings>>(
+            "named"
+        );
+
+        (await defaultState.GetValueAsync()).RetryCount.ShouldBe(1);
+        (await namedState.GetValueAsync()).RetryCount.ShouldBe(2);
+        ReferenceEquals(defaultState, namedState).ShouldBeFalse();
+
+        scope
+            .ServiceProvider.GetRequiredService<IConfiglueDiagnostics<AppSettings>>()
+            .GetDiagnostics()
+            .StateName.ShouldBe(string.Empty);
+        scope
+            .ServiceProvider.GetRequiredKeyedService<IConfiglueDiagnostics<AppSettings>>("named")
+            .GetDiagnostics()
+            .StateName.ShouldBe("named");
+
+        await defaultState.SaveAsync(patch => patch.RetryCount = 11);
+        (await defaultState.GetValueAsync()).RetryCount.ShouldBe(11);
+        (await namedState.GetValueAsync()).RetryCount.ShouldBe(2);
+        (await namedStore.ReadAsync()).Value!.RetryCount.Value.ShouldBe(2);
+
+        using var otherScope = provider.CreateScope();
+        ReferenceEquals(
+                defaultState,
+                otherScope.ServiceProvider.GetRequiredService<IWritableState<AppSettings>>()
+            )
+            .ShouldBeFalse();
+    }
+
+    [Test]
+    public async Task NamedPerSubjectScopedStatesResolveDistinctRuntimes()
+    {
+        var firstUsers = new InMemoryStateSource<AppSettings.Fragment>(
+            new AppSettings.Fragment { RetryCount = Optional<int>.Present(1) }
+        );
+        var secondUsers = new InMemoryStateSource<AppSettings.Fragment>(
+            new AppSettings.Fragment { RetryCount = Optional<int>.Present(2) }
+        );
+        var services = new ServiceCollection();
+        services.AddScoped<NamedScopedTestSubjectAccessor>();
+        services.AddConfiglue(builder =>
+        {
+            builder.Add<AppSettings>(model =>
+            {
+                model.StateName = "first";
+                model.PerSubject<NamedScopedTestSubjectAccessor>();
+                model.UseScopedRuntime();
+                model.Sources(sources =>
+                    sources.Add(
+                        new StateSource<AppSettings.Fragment>(
+                            "first-users",
+                            firstUsers,
+                            writer: firstUsers,
+                            watcher: firstUsers
+                        )
+                    )
+                );
+            });
+            builder.Add<AppSettings>(model =>
+            {
+                model.StateName = "second";
+                model.PerSubject<NamedScopedTestSubjectAccessor>();
+                model.UseScopedRuntime();
+                model.Sources(sources =>
+                    sources.Add(
+                        new StateSource<AppSettings.Fragment>(
+                            "second-users",
+                            secondUsers,
+                            writer: secondUsers,
+                            watcher: secondUsers
+                        )
+                    )
+                );
+            });
+        });
+        using var provider = services.BuildServiceProvider(
+            new ServiceProviderOptions { ValidateScopes = true }
+        );
+        using var scope = provider.CreateScope();
+        var subject = new NamedScopedTestSubject("tenant", "user");
+        scope.ServiceProvider.GetRequiredService<NamedScopedTestSubjectAccessor>().Set(subject);
+
+        var first = scope.ServiceProvider.GetRequiredKeyedService<IWritableState<AppSettings>>(
+            "first"
+        );
+        var second = scope.ServiceProvider.GetRequiredKeyedService<IWritableState<AppSettings>>(
+            "second"
+        );
+
+        (await first.GetValueAsync()).RetryCount.ShouldBe(1);
+        (await second.GetValueAsync()).RetryCount.ShouldBe(2);
+        ReferenceEquals(first, second).ShouldBeFalse();
+        ReferenceEquals(
+                first,
+                scope.ServiceProvider.GetRequiredKeyedService<IReadOnlyState<AppSettings>>("first")
+            )
+            .ShouldBeTrue();
+
+        scope
+            .ServiceProvider.GetRequiredKeyedService<IConfiglueDiagnostics<AppSettings>>("first")
+            .GetDiagnostics()
+            .StateName.ShouldBe("first");
+        scope
+            .ServiceProvider.GetRequiredKeyedService<IConfiglueDiagnostics<AppSettings>>("second")
+            .GetDiagnostics()
+            .StateName.ShouldBe("second");
+
+        var firstDetails = await first.GetDetailsAsync();
+        firstDetails.RetryCount.Source?.Resolution?.LogicalSubjectKey.ShouldBe(subject.Key);
+
+        await first.SaveAsync(patch => patch.RetryCount = 11);
+        (await first.GetValueAsync()).RetryCount.ShouldBe(11);
+        (await second.GetValueAsync()).RetryCount.ShouldBe(2);
+
+        using var otherScope = provider.CreateScope();
+        otherScope
+            .ServiceProvider.GetRequiredService<NamedScopedTestSubjectAccessor>()
+            .Set(subject);
+        var firstInOtherScope = otherScope.ServiceProvider.GetRequiredKeyedService<
+            IWritableState<AppSettings>
+        >("first");
+        ReferenceEquals(first, firstInOtherScope).ShouldBeFalse();
+    }
+
+    [Test]
+    public async Task NamedScopedRuntimesDisposeOwnedResourcesPerStateName()
+    {
+        var firstStore = new InMemoryStateSource<AppSettings.Fragment>(
+            new AppSettings.Fragment { RetryCount = Optional<int>.Present(1) }
+        );
+        var secondStore = new InMemoryStateSource<AppSettings.Fragment>(
+            new AppSettings.Fragment { RetryCount = Optional<int>.Present(2) }
+        );
+        var createdResources = new List<NamedScopedTrackingResource>();
+        var services = new ServiceCollection();
+        services.AddConfiglue(builder =>
+        {
+            builder.Add<AppSettings>(model =>
+            {
+                model.StateName = "first";
+                model.UseScopedRuntime();
+                model.Sources(sources =>
+                    ((IConfiglueSourceRegistrationSink)sources).Add(
+                        new NamedScopedTrackingSourceDefinition(
+                            "first-store",
+                            firstStore,
+                            createdResources
+                        )
+                    )
+                );
+            });
+            builder.Add<AppSettings>(model =>
+            {
+                model.StateName = "second";
+                model.UseScopedRuntime();
+                model.Sources(sources =>
+                    ((IConfiglueSourceRegistrationSink)sources).Add(
+                        new NamedScopedTrackingSourceDefinition(
+                            "second-store",
+                            secondStore,
+                            createdResources
+                        )
+                    )
+                );
+            });
+        });
+        using var provider = services.BuildServiceProvider(
+            new ServiceProviderOptions { ValidateScopes = true }
+        );
+        var scope = provider.CreateScope();
+        (
+            await scope
+                .ServiceProvider.GetRequiredKeyedService<IWritableState<AppSettings>>("first")
+                .GetValueAsync()
+        ).RetryCount.ShouldBe(1);
+        (
+            await scope
+                .ServiceProvider.GetRequiredKeyedService<IWritableState<AppSettings>>("second")
+                .GetValueAsync()
+        ).RetryCount.ShouldBe(2);
+
+        createdResources.Count.ShouldBe(2);
+        scope.Dispose();
+
+        createdResources.Count.ShouldBe(2);
+        foreach (var resource in createdResources)
+        {
+            resource.DisposeCount.ShouldBe(1);
+        }
     }
 
     [Test]
