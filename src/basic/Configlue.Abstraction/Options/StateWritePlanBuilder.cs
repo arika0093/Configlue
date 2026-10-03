@@ -77,6 +77,11 @@ public sealed class StateWritePlanBuilder<TModel>
             : plan;
     }
 
+    [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage(
+        "Trimming",
+        "IL2059",
+        Justification = "The handle comes from typeof(TModel), a generated model already rooted by this closed generic instantiation. Running its static constructor only triggers generated registration."
+    )]
     private static void EnsureModelRegistered() =>
         System.Runtime.CompilerServices.RuntimeHelpers.RunClassConstructor(
             typeof(TModel).TypeHandle

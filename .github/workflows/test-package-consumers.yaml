@@ -132,20 +132,27 @@ jobs:
           set -euo pipefail
           publish_log="$(mktemp)"
           trap 'rm -f "$publish_log"' EXIT
-          # Keep ILC diagnostics as errors. MessagePack 3.1.10 still reports IL3050 and IL2060
-          # from MessagePack.MessagePackSecurity.ObjectFallbackEqualityComparer.GetHashCode(Object), even
-          # with source-generated POCO formatting and a closed-world leaf resolver. The exact
-          # two diagnostics below are the only upstream allowance; every other diagnostic fails.
+          # Keep ILC diagnostics as errors. MessagePack 3.1.10 still reports trim/AOT
+          # diagnostics from its dynamic/contractless resolver fallback
+          # (DynamicObjectResolver, DynamicUnionResolver, AttributeFormatterResolver,
+          # ResolverUtilities and DynamicGenericResolver/BuiltinResolver helpers,
+          # ImmutableCollection helpers, ObjectSerializationInfo/DynamicObjectTypeBuilder
+          # emit paths, FormatterResolverExtensions.GetFormatterDynamic,
+          # MessagePackSerializer.CompiledMethods, MessagePackSerializerOptions.LoadType,
+          # MessagePackSecurity.ObjectFallbackEqualityComparer), even with
+          # source-generated POCO formatting and a closed-world leaf resolver. Only
+          # ILC diagnostics for those upstream codes on MessagePack members are allowed;
+          # any diagnostic pointing at Configlue sources (or any other code) fails.
           dotnet publish tests/fixtures/consumers/native-aot/NativeAot.Consumer.csproj \
             --configuration Release --runtime linux-x64 --self-contained \
             -p:ConfigluePackageVersion="$CONFIGLUE_PACKAGE_VERSION" \
             -p:RestoreAdditionalProjectSources="$CONFIGLUE_PACKAGE_FEED" \
             -p:IlcTreatWarningsAsErrors=true 2>&1 | tee "$publish_log"
 
+          upstream_allow='IL2055|IL2057|IL2060|IL2066|IL2067|IL2070|IL2071|IL2072|IL2075|IL2080|IL2090|IL2091|IL2111|IL3050'
           unexpected_diagnostics="$(
-            grep -E 'ILC : .* (warning|error) IL[0-9]{4}:' "$publish_log" \
-              | grep -Ev \
-                'ILC : AOT analysis warning IL3050: MessagePack\.MessagePackSecurity\.ObjectFallbackEqualityComparer\.GetHashCode\(Object\): Using member .*MethodInfo\.MakeGenericMethod|ILC : Trim analysis warning IL2060: MessagePack\.MessagePackSecurity\.ObjectFallbackEqualityComparer\.GetHashCode\(Object\): Call to .*MethodInfo\.MakeGenericMethod' \
+            grep -E '(warning|error) IL[0-9]{4}:' "$publish_log" \
+              | grep -Ev "ILC : .* (warning|error) (${upstream_allow}): MessagePack\." \
               || true
           )"
           if [[ -n "$unexpected_diagnostics" ]]; then

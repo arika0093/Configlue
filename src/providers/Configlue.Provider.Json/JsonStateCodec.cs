@@ -775,6 +775,12 @@ public sealed class JsonStateCodec<T>
         );
     }
 
+    [RequiresUnreferencedCode(
+        "Reflection-based JSON serialization may require types that trimming removes. Use the JsonTypeInfo constructor for trim-safe serialization."
+    )]
+    [RequiresDynamicCode(
+        "Reflection-based JSON serialization may require runtime code generation. Use the JsonTypeInfo constructor for NativeAOT."
+    )]
     private void WriteValue(Utf8JsonWriter writer, T? value)
     {
         if (_converter is not null)

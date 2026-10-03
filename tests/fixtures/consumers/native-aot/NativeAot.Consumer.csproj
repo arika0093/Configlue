@@ -42,10 +42,21 @@
     />
   </ItemGroup>
 
-  <!-- This narrowly scoped ILC allowance is applied after C# analyzers have run. -->
+  <!--
+    This narrowly scoped ILC allowance covers only upstream MessagePack 3.1.10
+    diagnostics. Its dynamic/contractless resolver fallback (DynamicObjectResolver,
+    DynamicUnionResolver, AttributeFormatterResolver, DynamicGenericResolver and
+    BuiltinResolver helpers, ImmutableCollection helpers, ObjectSerializationInfo and
+    DynamicObjectTypeBuilder emit paths, FormatterResolverExtensions.GetFormatterDynamic,
+    MessagePackSerializer.CompiledMethods, MessagePackSerializerOptions.LoadType, and
+    MessagePackSecurity.ObjectFallbackEqualityComparer) stays reachable through
+    IFormatterResolver dispatch even for closed-world consumers. This consumer uses only
+    generated formatters plus explicit leaf formatters and never invokes those fallbacks
+    at runtime. Configlue's own codes (IL2026, IL2059) intentionally remain errors.
+  -->
   <Target Name="AllowMessagePackFallbackAotDiagnostics" BeforeTargets="WriteIlcRspFileForCompilation">
     <PropertyGroup>
-      <WarningsNotAsErrors>IL3050;IL2060</WarningsNotAsErrors>
+      <WarningsNotAsErrors>IL3050;IL2060;IL2055;IL2057;IL2066;IL2067;IL2070;IL2071;IL2072;IL2075;IL2080;IL2090;IL2091;IL2111</WarningsNotAsErrors>
     </PropertyGroup>
   </Target>
 </Project>

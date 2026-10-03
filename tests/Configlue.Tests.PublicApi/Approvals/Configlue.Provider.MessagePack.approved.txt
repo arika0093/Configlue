@@ -4,6 +4,9 @@ namespace Configlue.Provider.MessagePack
 {
     public static class ConfiglueMessagePackFragmentRegistry
     {
+        [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2059", Justification="The handle comes from the declaring model of a generated fragment type already ro" +
+            "oted by this call. Running its static constructor only triggers generated regist" +
+            "ration.")]
         public static MessagePack.Formatters.IMessagePackFormatter<T>? GetOrNull<T>() { }
         public static void Register(System.Type fragmentType, object formatter) { }
         public static bool TryGetFormatter<T>([System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out MessagePack.Formatters.IMessagePackFormatter<T>? formatter) { }

@@ -1,3 +1,5 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace Configlue.CompilerServices;
 
 /// <summary>Generated, statically typed operations for one model and fragment pair.</summary>
@@ -8,6 +10,11 @@ public sealed class ConfiglueModelOperations<TModel, TFragment>
 {
     private static ConfiglueModelOperations<TModel, TFragment>? _current;
 
+    [UnconditionalSuppressMessage(
+        "Trimming",
+        "IL2059",
+        Justification = "The handle comes from typeof(TModel), a generated model already rooted by this closed generic instantiation. Running its static constructor only triggers generated registration."
+    )]
     static ConfiglueModelOperations()
     {
         // Generated operations are registered from the model's own type initializer.

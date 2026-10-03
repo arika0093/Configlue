@@ -50,6 +50,11 @@ public static class ConfiglueMessagePackFragmentRegistry
     /// Gets the registered formatter for a type, initializing generated model registration on first use.
     /// </summary>
     /// <returns>The generated formatter, or <see langword="null"/> when the type is not a generated fragment.</returns>
+    [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage(
+        "Trimming",
+        "IL2059",
+        Justification = "The handle comes from the declaring model of a generated fragment type already rooted by this call. Running its static constructor only triggers generated registration."
+    )]
     public static IMessagePackFormatter<T>? GetOrNull<T>()
     {
         if (TryGetFormatter<T>(out var formatter))

@@ -1,3 +1,5 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace Configlue.CompilerServices;
 
 /// <summary>A closed generated model registration, consumed by Core without reflection.</summary>
@@ -8,6 +10,11 @@ public sealed class ConfiglueModelDescriptor<TModel>
 {
     private static ConfiglueModelDescriptor<TModel>? _current;
 
+    [UnconditionalSuppressMessage(
+        "Trimming",
+        "IL2059",
+        Justification = "The handle comes from typeof(TModel), a generated model already rooted by this closed generic instantiation. Running its static constructor only triggers generated registration."
+    )]
     static ConfiglueModelDescriptor()
     {
         // The generated model registers its descriptor from its own type initializer.
