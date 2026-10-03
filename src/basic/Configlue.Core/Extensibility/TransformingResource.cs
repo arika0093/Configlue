@@ -131,7 +131,8 @@ public sealed class TransformingResource
                     var decoded =
                         candidate.Status == StateReadStatus.Success
                             ? ResourceReadResult.Success(
-                                await TransformReadAsync(candidate.Content, token).ConfigureAwait(false),
+                                await TransformReadAsync(candidate.Content, token)
+                                    .ConfigureAwait(false),
                                 candidate.Revision,
                                 candidate.Schema
                             )
@@ -160,6 +161,12 @@ public sealed class TransformingResource
         CancellationToken cancellationToken
     ) =>
         StateByteTransformerPipeline.TransformWriteAsync(content, _transformers, cancellationToken);
+
+    private ReadOnlyMemory<byte> TransformRead(ReadOnlyMemory<byte> content) =>
+        StateByteTransformerPipeline.TransformRead(content, _transformers);
+
+    private ReadOnlyMemory<byte> TransformWrite(ReadOnlyMemory<byte> content) =>
+        StateByteTransformerPipeline.TransformWrite(content, _transformers);
 
     private class TransformingWriter(TransformingResource owner, IResourceWriter writer)
         : IResourceWriter
