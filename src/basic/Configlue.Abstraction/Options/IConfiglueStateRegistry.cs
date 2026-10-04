@@ -1,8 +1,18 @@
 namespace Configlue;
 
-/// <summary>Manages named states that can be added and removed at runtime.</summary>
+/// <summary>Manages dynamic named state instances for one model at runtime.</summary>
 /// <typeparam name="T">The configuration model type.</typeparam>
 /// <remarks>
+/// <para>
+/// Each named state instance is addressed by <c>(TModel, StateName)</c> and owns an independent
+/// runtime. The registry is a materialization cache, not a persistence mechanism: removing a
+/// state unloads its runtime, while persisted profile membership is owned by
+/// <see cref="ConfiglueProfileCatalog"/> and exposed through <see cref="IConfiglueProfiledState{TModel}"/>.
+/// </para>
+/// <para>
+/// Subjects never select state instances. A subject scopes operations inside one state instance
+/// and affects provider addressing; see <see cref="ISubjectState{T}"/>.
+/// </para>
 /// Notifications are delivered in state-transition order. Built-in registries wait for callbacks
 /// associated with an operation's transitions before that operation completes. Calls made
 /// reentrantly from a callback, or while notifications are deferred, may complete before their
@@ -15,29 +25,29 @@ namespace Configlue;
 /// </remarks>
 public interface IConfiglueStateRegistry<T> : IAsyncDisposable
 {
-    /// <summary>The currently registered state names.</summary>
+    /// <summary>The registered state names (state-instance identities).</summary>
     IReadOnlyCollection<string> StateNames { get; }
 
-    /// <summary>Gets a registered state or throws when the name is unknown.</summary>
+    /// <summary>Gets a registered state instance or throws when the name is unknown.</summary>
     IWritableState<T> Get(string stateName);
 
-    /// <summary>Tries to retrieve a registered state.</summary>
+    /// <summary>Tries to retrieve a registered state instance.</summary>
     bool TryGet(string stateName, out IWritableState<T>? state);
 
-    /// <summary>Creates and registers a state if its name is not already in use.</summary>
+    /// <summary>Creates and registers a state instance if its name is not already in use.</summary>
     /// <remarks>Waits asynchronously for its add notification unless called reentrantly or while notifications are deferred.</remarks>
     ValueTask<bool> TryAddAsync(string stateName);
 
-    /// <summary>Removes a state and waits for its runtime, watchers, and notification to complete.</summary>
+    /// <summary>Removes a state instance and waits for its runtime, watchers, and notification to complete.</summary>
     ValueTask<bool> TryRemoveAsync(string stateName);
 
-    /// <summary>Removes every state and waits for its runtimes, watchers, and notifications to complete.</summary>
+    /// <summary>Removes every state instance and waits for its runtimes, watchers, and notifications to complete.</summary>
     ValueTask ClearAsync();
 
-    /// <summary>Raised after a state is registered.</summary>
+    /// <summary>Raised after a state instance is registered.</summary>
     event Action<string, IWritableState<T>>? StateAdded;
 
-    /// <summary>Raised after a state is removed.</summary>
+    /// <summary>Raised after a state instance is removed.</summary>
     event Action<string>? StateRemoved;
 }
 

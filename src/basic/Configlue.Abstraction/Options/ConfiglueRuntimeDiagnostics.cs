@@ -97,7 +97,8 @@ public readonly record struct ConfiglueDiagnosticEvent
         string? errorCategory,
         bool canceled,
         bool? effectiveValueChanged,
-        string? traceId = null
+        string? traceId = null,
+        SubjectKey subjectKey = default
     )
     {
         Sequence = sequence;
@@ -117,6 +118,7 @@ public readonly record struct ConfiglueDiagnosticEvent
         Canceled = canceled;
         EffectiveValueChanged = effectiveValueChanged;
         TraceId = traceId;
+        SubjectKey = subjectKey;
     }
 
     /// <summary>The monotonically increasing sequence within one runtime.</summary>
@@ -134,8 +136,12 @@ public readonly record struct ConfiglueDiagnosticEvent
     /// <summary>The runtime event kind.</summary>
     public ConfiglueDiagnosticEventKind Kind { get; }
 
-    /// <summary>The configured state name.</summary>
+    /// <summary>The state-name identity of the state instance that recorded this event.</summary>
     public string StateName { get; }
+
+    /// <summary>The subject scope of the operation, or the default key for server-wide operations.</summary>
+    /// <remarks>Subject identity is reported separately from source and physical resource identity.</remarks>
+    public SubjectKey SubjectKey { get; }
 
     /// <summary>The model schema identifier.</summary>
     public string ModelId { get; }
@@ -317,7 +323,8 @@ public sealed class ConfiglueRuntimeDiagnosticSnapshot
         LastMigration = lastMigration;
     }
 
-    /// <summary>The configured state name.</summary>
+    /// <summary>The state-name identity of the state instance described by this snapshot.</summary>
+    /// <remarks>Subject identity is per-operation and is reported by events, details resolutions, and write receipts.</remarks>
     public string StateName { get; }
 
     /// <summary>The generated schema identifier.</summary>

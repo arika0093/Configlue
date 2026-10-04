@@ -4,13 +4,14 @@ using Microsoft.Extensions.Logging;
 
 namespace Configlue;
 
-// Only configured sources are retained. Subject/route/resource identities and values are never stored.
+// Only configured sources are retained. Values are never stored; per-operation subject keys are recorded on events.
 internal sealed class RuntimeDiagnosticRecorder : IConfiglueRuntimeDiagnostics
 {
     private readonly object _gate = new();
     private readonly string _stateName;
     private readonly string _modelId;
     private readonly int _modelVersion;
+    private readonly Func<SubjectKey>? _subjectKeyProvider;
     private readonly ConfiglueRuntimeDiagnosticOptions _options;
     private readonly ILogger? _logger;
     private readonly bool _configEnabled;
@@ -34,13 +35,15 @@ internal sealed class RuntimeDiagnosticRecorder : IConfiglueRuntimeDiagnostics
         int modelVersion,
         ConfiglueRuntimeDiagnosticOptions options,
         IEnumerable<ConfiglueRuntimeSourceSnapshot> sources,
-        ILogger? logger = null
+        ILogger? logger = null,
+        Func<SubjectKey>? subjectKeyProvider = null
     )
     {
         options.Validate();
         _stateName = stateName;
         _modelId = modelId;
         _modelVersion = modelVersion;
+        _subjectKeyProvider = subjectKeyProvider;
         _options = options;
         _logger = logger;
         _history = new ConfiglueDiagnosticEvent[options.EventHistoryCapacity];
@@ -182,6 +185,8 @@ internal sealed class RuntimeDiagnosticRecorder : IConfiglueRuntimeDiagnostics
 
     // Enabled implementation separated from the always-disabled fast path above so the
     // disabled case returns before any event construction, locking, or observer dispatch.
+    // The subject scope is sampled at record time so subject-scoped operations on one state
+    // instance report their own subject while sharing the instance's state-name identity.
     private void RecordCore(
         ConfiglueDiagnosticEventKind kind,
         long operationId = 0,
@@ -196,6 +201,7 @@ internal sealed class RuntimeDiagnosticRecorder : IConfiglueRuntimeDiagnostics
     )
     {
         ConfiglueDiagnosticEvent diagnosticEvent;
+        var subjectKey = _subjectKeyProvider?.Invoke() ?? default;
         lock (_gate)
         {
             var sourceKind =
@@ -219,7 +225,8 @@ internal sealed class RuntimeDiagnosticRecorder : IConfiglueRuntimeDiagnostics
                 errorCategory,
                 canceled,
                 effectiveValueChanged,
-                Activity.Current?.TraceId.ToString()
+                Activity.Current?.TraceId.ToString(),
+                subjectKey
             );
             if (_options.TrackSnapshot)
                 UpdateSnapshot(diagnosticEvent);

@@ -203,6 +203,7 @@ namespace Configlue
         public Configlue.SourceId? SourceId { get; }
         public string? SourceKind { get; }
         public string StateName { get; }
+        public Configlue.SubjectKey SubjectKey { get; }
         public System.DateTimeOffset Timestamp { get; }
         public string? TraceId { get; }
     }
@@ -811,10 +812,12 @@ namespace Configlue
     }
     public sealed class StateWriteReceipt
     {
-        public StateWriteReceipt(System.Collections.Generic.IEnumerable<Configlue.StateSourceWriteResult> sources, int physicalWriteCount) { }
+        public StateWriteReceipt(System.Collections.Generic.IEnumerable<Configlue.StateSourceWriteResult> sources, int physicalWriteCount, string stateName = "", Configlue.SubjectKey subjectKey = default) { }
         public int PhysicalWriteCount { get; }
         public string? Revision { get; }
         public System.Collections.Generic.IReadOnlyList<Configlue.StateSourceWriteResult> Sources { get; }
+        public string StateName { get; }
+        public Configlue.SubjectKey SubjectKey { get; }
         public static Configlue.StateWriteReceipt Empty { get; }
     }
     public readonly struct SubjectKey : System.IEquatable<Configlue.SubjectKey>

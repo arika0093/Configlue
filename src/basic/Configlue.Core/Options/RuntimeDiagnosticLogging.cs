@@ -47,21 +47,22 @@ internal static class RuntimeDiagnosticLogging
     private readonly struct LogState(ConfiglueDiagnosticEvent diagnosticEvent)
         : IReadOnlyList<KeyValuePair<string, object?>>
     {
-        public int Count => 11;
+        public int Count => 12;
         public KeyValuePair<string, object?> this[int index] =>
             index switch
             {
                 0 => new("EventKind", diagnosticEvent.Kind.ToString()),
                 1 => new("StateName", diagnosticEvent.StateName),
-                2 => new("ModelId", diagnosticEvent.ModelId),
-                3 => new("OperationId", diagnosticEvent.OperationId),
-                4 => new("ParentOperationId", diagnosticEvent.ParentOperationId),
-                5 => new("SourceId", diagnosticEvent.SourceId),
-                6 => new("SourceKind", diagnosticEvent.SourceKind),
-                7 => new("Result", ConfiglueTelemetry.Result(diagnosticEvent)),
-                8 => new("DurationMilliseconds", diagnosticEvent.Duration.TotalMilliseconds),
-                9 => new("ErrorCategory", diagnosticEvent.ErrorCategory),
-                10 => new("TraceId", diagnosticEvent.TraceId),
+                2 => new("SubjectKey", diagnosticEvent.SubjectKey.Value),
+                3 => new("ModelId", diagnosticEvent.ModelId),
+                4 => new("OperationId", diagnosticEvent.OperationId),
+                5 => new("ParentOperationId", diagnosticEvent.ParentOperationId),
+                6 => new("SourceId", diagnosticEvent.SourceId),
+                7 => new("SourceKind", diagnosticEvent.SourceKind),
+                8 => new("Result", ConfiglueTelemetry.Result(diagnosticEvent)),
+                9 => new("DurationMilliseconds", diagnosticEvent.Duration.TotalMilliseconds),
+                10 => new("ErrorCategory", diagnosticEvent.ErrorCategory),
+                11 => new("TraceId", diagnosticEvent.TraceId),
                 _ => throw new ArgumentOutOfRangeException(nameof(index)),
             };
 
@@ -74,6 +75,6 @@ internal static class RuntimeDiagnosticLogging
         IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 
         public override string ToString() =>
-            $"{diagnosticEvent.Kind}: model {diagnosticEvent.ModelId}, state {diagnosticEvent.StateName}, source {diagnosticEvent.SourceId}, result {ConfiglueTelemetry.Result(diagnosticEvent)}, duration {diagnosticEvent.Duration.TotalMilliseconds:F3} ms.";
+            $"{diagnosticEvent.Kind}: model {diagnosticEvent.ModelId}, state {diagnosticEvent.StateName}, subject {diagnosticEvent.SubjectKey}, source {diagnosticEvent.SourceId}, result {ConfiglueTelemetry.Result(diagnosticEvent)}, duration {diagnosticEvent.Duration.TotalMilliseconds:F3} ms.";
     }
 }

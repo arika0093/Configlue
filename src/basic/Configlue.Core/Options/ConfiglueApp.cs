@@ -39,9 +39,27 @@ public static class ConfiglueApp
         return builder.CreateContext();
     }
 
-    /// <summary>Gets state from the initialized process-wide context.</summary>
+    /// <summary>Gets a state instance from the initialized process-wide context.</summary>
+    /// <remarks>
+    /// A state instance is addressed by <c>(TModel, StateName)</c>. The default (unnamed) instance
+    /// uses <c>stateName: null</c> and is all single-settings applications need.
+    /// </remarks>
     public static IWritableState<TModel> GetState<TModel>(string? stateName = null) =>
         GetDefaultContext().GetState<TModel>(stateName);
+
+    /// <summary>Gets the subject-scoping entry point for one state instance.</summary>
+    /// <remarks>Subjects scope operations inside the addressed state instance; they never select another instance.</remarks>
+    public static ISubjectState<TModel> GetSubjectState<TModel>(string? stateName = null) =>
+        GetDefaultContext().GetSubjectState<TModel>(stateName);
+
+    /// <summary>Gets the runtime registry for dynamic named state instances.</summary>
+    public static IConfiglueStateRegistry<TModel> GetStateRegistry<TModel>() =>
+        GetDefaultContext().GetStateRegistry<TModel>();
+
+    /// <summary>Gets the persisted profile manager for a configured model.</summary>
+    /// <remarks>A profile is a catalog-managed named state instance plus active selection.</remarks>
+    public static IConfiglueProfiledState<TModel> GetProfiledState<TModel>() =>
+        GetDefaultContext().GetProfiledState<TModel>();
 
     /// <summary>Reads resolved state and generated provenance details.</summary>
     public static IConfiglueInspection<TModel> GetInspection<TModel>(string? stateName = null) =>

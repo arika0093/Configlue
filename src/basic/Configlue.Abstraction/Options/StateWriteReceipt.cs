@@ -36,6 +36,7 @@ public readonly record struct StateSourceWriteResult
 }
 
 /// <summary>The complete logical source outcomes and physical write count of an application write.</summary>
+/// <remarks>State-name identity and subject scope are reported separately from source and physical resource identity.</remarks>
 public sealed class StateWriteReceipt
 {
     /// <summary>An operation that performed no writes.</summary>
@@ -45,7 +46,12 @@ public sealed class StateWriteReceipt
     public string? Revision => Sources.Count == 1 ? Sources[0].Revision : null;
 
     /// <summary>Creates an application write receipt.</summary>
-    public StateWriteReceipt(IEnumerable<StateSourceWriteResult> sources, int physicalWriteCount)
+    public StateWriteReceipt(
+        IEnumerable<StateSourceWriteResult> sources,
+        int physicalWriteCount,
+        string stateName = "",
+        SubjectKey subjectKey = default
+    )
     {
         ArgumentNullException.ThrowIfNull(sources);
         if (physicalWriteCount < 0)
@@ -76,6 +82,8 @@ public sealed class StateWriteReceipt
 
         Sources = Array.AsReadOnly(sourceResults);
         PhysicalWriteCount = physicalWriteCount;
+        StateName = stateName ?? string.Empty;
+        SubjectKey = subjectKey;
     }
 
     /// <summary>The result for each patched source.</summary>
@@ -83,4 +91,10 @@ public sealed class StateWriteReceipt
 
     /// <summary>The number of physical resource writes performed.</summary>
     public int PhysicalWriteCount { get; }
+
+    /// <summary>The state-name identity of the state instance that performed the write.</summary>
+    public string StateName { get; }
+
+    /// <summary>The subject scope of the write, or <see cref="SubjectKey.Default"/> for server-wide writes.</summary>
+    public SubjectKey SubjectKey { get; }
 }

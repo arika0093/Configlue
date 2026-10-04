@@ -31,7 +31,14 @@ public sealed class ConfiglueContext : IDisposable, IAsyncDisposable
         _ownedResources = ownedResources;
     }
 
-    /// <summary>Gets the writable state for a model and optional named instance.</summary>
+    /// <summary>Gets the writable state instance for a model and optional state name.</summary>
+    /// <remarks>
+    /// A state instance is addressed by <c>(TModel, StateName)</c>. The default (unnamed) instance
+    /// uses <c>stateName: null</c>. Single-settings applications only need this default instance.
+    /// Use a subject (<see cref="GetSubjectState{TModel}"/>) to scope operations inside an instance,
+    /// a registry (<see cref="GetStateRegistry{TModel}"/>) for dynamic named instances, and
+    /// <see cref="GetProfiledState{TModel}"/> when named instances are persisted and catalog-managed.
+    /// </remarks>
     public IWritableState<TModel> GetState<TModel>(string? stateName = null)
     {
         ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
@@ -57,7 +64,8 @@ public sealed class ConfiglueContext : IDisposable, IAsyncDisposable
     public IConfiglueInspection<TModel> GetInspection<TModel>(string? stateName = null) =>
         (IConfiglueInspection<TModel>)GetState<TModel>(stateName);
 
-    /// <summary>Gets the explicit arbitrary-subject entry point for a model.</summary>
+    /// <summary>Gets the subject-scoping entry point for one state instance.</summary>
+    /// <remarks>Subjects scope operations inside the addressed state instance; they never select another instance.</remarks>
     public ISubjectState<TModel> GetSubjectState<TModel>(string? stateName = null) =>
         GetState<TModel>(stateName) as ISubjectState<TModel>
         ?? throw new InvalidOperationException(
@@ -79,7 +87,8 @@ public sealed class ConfiglueContext : IDisposable, IAsyncDisposable
     internal IConfiglueRuntimeState<TModel> GetRuntimeState<TModel>(string? stateName = null) =>
         (IConfiglueRuntimeState<TModel>)GetState<TModel>(stateName);
 
-    /// <summary>Gets the runtime registry for dynamic named states.</summary>
+    /// <summary>Gets the runtime registry for dynamic named state instances.</summary>
+    /// <remarks>The registry is a materialization cache for <c>(TModel, StateName)</c> instances. Persisted profile membership is managed through <see cref="GetProfiledState{TModel}"/>.</remarks>
     public IConfiglueStateRegistry<TModel> GetStateRegistry<TModel>()
     {
         ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
@@ -91,6 +100,7 @@ public sealed class ConfiglueContext : IDisposable, IAsyncDisposable
     }
 
     /// <summary>Gets the persisted profile manager for a configured model.</summary>
+    /// <remarks>A profile is a catalog-managed named state instance plus active selection. Its logical identity is <c>(TModel, StateName)</c>, shared with fixed and dynamic state instances.</remarks>
     public IConfiglueProfiledState<TModel> GetProfiledState<TModel>()
     {
         ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);

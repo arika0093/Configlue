@@ -137,7 +137,8 @@ public sealed class ConfiglueModelBuilder<TModel>
     private RuntimeLifetimeRequirement? _runtimeLifetime;
     private bool _sealed;
 
-    /// <summary>The name used by state instances and profiles. The default is the unnamed instance.</summary>
+    /// <summary>The state-name identity for this state instance. The default is the unnamed (default) instance.</summary>
+    /// <remarks>A state instance is addressed by <c>(TModel, StateName)</c>. Use additional names only for independently addressed instances of the same model.</remarks>
     public string StateName
     {
         get => _stateName;
@@ -179,7 +180,8 @@ public sealed class ConfiglueModelBuilder<TModel>
         _writePlan = builder.Build();
     }
 
-    /// <summary>Enables runtime registration of named instances for this model.</summary>
+    /// <summary>Enables runtime registration of dynamic named state instances for this model.</summary>
+    /// <remarks>The registry is a materialization cache for <c>(TModel, StateName)</c> instances. Enable profiles when those instances must be persisted and catalog-managed.</remarks>
     public bool EnableDynamicStates
     {
         get => _enableDynamicStates;
@@ -297,7 +299,8 @@ public sealed class ConfiglueModelBuilder<TModel>
     /// <summary>Resolves the current subject from a scoped dependency-injection accessor.</summary>
     /// <remarks>
     /// The accessor type must be registered with the application's service provider. State
-    /// interfaces injected into a scope become scoped views; the underlying runtime remains shared.
+    /// interfaces injected into a scope become subject-scoped views; the underlying state instance
+    /// remains shared. Subjects scope operations inside one instance and never select another instance.
     /// </remarks>
     public void PerSubject<TAccessor>()
         where TAccessor : class, IConfiglueSubjectAccessor
@@ -346,6 +349,7 @@ public sealed class ConfiglueModelBuilder<TModel>
     }
 
     /// <summary>Enables a persisted profile catalog backed by a writable state source.</summary>
+    /// <remarks>A profile is a catalog-managed named state instance plus active selection. Enabling profiles implies dynamic named states.</remarks>
     public void EnableProfiles(
         StateSource<ConfiglueProfileCatalog> catalogSource,
         string defaultProfileName = "default"

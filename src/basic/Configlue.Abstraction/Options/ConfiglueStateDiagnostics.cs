@@ -43,7 +43,8 @@ public sealed class ConfiglueStateDiagnostics
         _propertyRoutes = routes.ToArray();
     }
 
-    /// <summary>The named state represented by this snapshot.</summary>
+    /// <summary>The state-name identity of the state instance represented by this snapshot.</summary>
+    /// <remarks>This snapshot describes one <c>(TModel, StateName)</c> instance and is subject-independent. Per-operation subject identity is reported separately by events, details resolutions, and write receipts.</remarks>
     public string StateName { get; }
 
     /// <summary>Configured sources in read-priority order, including sources retired from this runtime.</summary>

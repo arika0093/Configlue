@@ -10,9 +10,9 @@ namespace Configlue;
 /// </remarks>
 public sealed class ConfiglueProfileCatalog
 {
-    /// <summary>The names of the available profiles, in logical state-name order.</summary>
+    /// <summary>The catalog-managed named state names, in logical state-name order.</summary>
     public List<string> ProfileNames { get; set; } = [];
 
-    /// <summary>The currently selected profile name.</summary>
+    /// <summary>The currently selected (active) profile state name.</summary>
     public string? ActiveProfileName { get; set; }
 }

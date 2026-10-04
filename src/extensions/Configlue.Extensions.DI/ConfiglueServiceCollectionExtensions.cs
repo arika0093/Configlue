@@ -149,7 +149,8 @@ public static class ConfiglueServiceCollectionExtensions
         );
     }
 
-    /// <summary>Registers a named profile using a dependency-injection-aware source builder.</summary>
+    /// <summary>Registers one named state instance using a dependency-injection-aware source builder.</summary>
+    /// <remarks>The keyed service key is the state name. Persisted profiles are a separate catalog-managed concept; see <see cref="IConfiglueProfiledState{TModel}"/>.</remarks>
     public static IServiceCollection AddConfiglueState<TModel, TFragment>(
         this IServiceCollection services,
         object serviceKey,
@@ -181,7 +182,8 @@ public static class ConfiglueServiceCollectionExtensions
         );
     }
 
-    /// <summary>Registers a named configuration profile as keyed dependency-injection services.</summary>
+    /// <summary>Registers one named state instance as keyed dependency-injection services.</summary>
+    /// <remarks>The <paramref name="serviceKey"/> is the state-name identity for <c>(TModel, StateName)</c>. Use <see cref="IConfiglueProfiledState{TModel}"/> when the named state must be persisted and catalog-managed.</remarks>
     public static IServiceCollection AddConfiglueState<TModel, TFragment>(
         this IServiceCollection services,
         object serviceKey,
@@ -249,15 +251,16 @@ public static class ConfiglueServiceCollectionExtensions
             (provider, key) =>
                 provider.GetRequiredKeyedService<ConfiglueRuntime<TModel, TFragment>>(key)
         );
-        if (serviceKey is string profileName && profileName != ConfiglueDefaultNames.DefaultState)
+        if (serviceKey is string stateName && stateName != ConfiglueDefaultNames.DefaultState)
         {
-            services.AddSingleton(new ConfiglueNamedStateProfile<TModel>(profileName));
+            services.AddSingleton(new ConfiglueNamedState<TModel>(stateName));
         }
 
         return services;
     }
 
-    /// <summary>Registers a named profile backed by an already-created state-source set.</summary>
+    /// <summary>Registers one named state instance backed by an already-created state-source set.</summary>
+    /// <remarks>The keyed service key is the state name.</remarks>
     public static IServiceCollection AddConfiglueState<TModel, TFragment>(
         this IServiceCollection services,
         object serviceKey,
@@ -283,7 +286,7 @@ public static class ConfiglueServiceCollectionExtensions
         );
     }
 
-    /// <summary>Registers a runtime-managed registry that can add and remove named profiles.</summary>
+    /// <summary>Registers a runtime-managed registry that can add and remove named state instances.</summary>
     public static IServiceCollection AddConfiglueStateRegistry<TModel, TFragment>(
         this IServiceCollection services,
         Func<IServiceProvider, string, StateSourceSet<TFragment>> sourceSetFactory,
@@ -301,14 +304,14 @@ public static class ConfiglueServiceCollectionExtensions
 
         services.AddSingleton<IConfiglueStateRegistry<TModel>>(
             provider => new ConfiglueStateRegistry<TModel, TFragment>(
-                profileName => new ConfiglueRuntime<TModel, TFragment>(
-                    sourceSetFactory(provider, profileName),
+                stateName => new ConfiglueRuntime<TModel, TFragment>(
+                    sourceSetFactory(provider, stateName),
                     writePlan,
                     provider.GetServices<IStateSchemaMigration<TFragment>>(),
                     provider.GetServices<IConfiglueValidator<TModel>>(),
                     validateDataAnnotations,
                     onChangeDebounce,
-                    stateName: profileName,
+                    stateName: stateName,
                     readValidationMode: readValidationMode,
                     writeConflictResolution: writeConflictResolution
                 )
@@ -372,9 +375,7 @@ public static class ConfiglueServiceCollectionExtensions
             {
                 if (typeof(TModel).IsClass)
                 {
-                    services.AddSingleton(
-                        new ConfiglueNamedStateProfile<TModel>(registration.StateName)
-                    );
+                    services.AddSingleton(new ConfiglueNamedState<TModel>(registration.StateName));
                 }
 
                 if (registration.IsPerSubject)

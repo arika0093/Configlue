@@ -48,7 +48,7 @@ public static class ConfiglueMicrosoftOptionsServiceCollectionExtensions
                     CreateAdapter(
                         monitorAdapterType,
                         GetRequiredService(provider, resolverType),
-                        provider.GetServices<ConfiglueNamedStateProfile<TModel>>()
+                        provider.GetServices<ConfiglueNamedState<TModel>>()
                     )
             );
         }

@@ -102,8 +102,8 @@ internal sealed class ConfiglueMicrosoftOptionsMonitor<TModel>
     where TModel : class
 {
     private readonly ConfiglueMicrosoftOptionsResolver<TModel> _resolver;
-    private readonly string[] _namedProfileNames;
-    private readonly HashSet<string> _namedProfileNameSet;
+    private readonly string[] _namedStateNames;
+    private readonly HashSet<string> _namedStateNameSet;
     private readonly IConfiglueStateRegistry<TModel>? _registry;
     private readonly object _cacheGate = new();
     private readonly Dictionary<string, MonitorCacheEntry> _namedCache = new(
@@ -114,7 +114,7 @@ internal sealed class ConfiglueMicrosoftOptionsMonitor<TModel>
 
     public ConfiglueMicrosoftOptionsMonitor(
         ConfiglueMicrosoftOptionsResolver<TModel> resolver,
-        IEnumerable<ConfiglueNamedStateProfile<TModel>> namedProfiles
+        IEnumerable<ConfiglueNamedState<TModel>> namedStates
     )
     {
         _resolver = resolver;
@@ -124,17 +124,17 @@ internal sealed class ConfiglueMicrosoftOptionsMonitor<TModel>
             _registry.StateRemoved += OnStateRemoved;
         }
 
-        _namedProfileNames = namedProfiles
-            .Select(profile =>
-                profile.ModelType == typeof(TModel)
-                    ? profile.Name
+        _namedStateNames = namedStates
+            .Select(state =>
+                state.ModelType == typeof(TModel)
+                    ? state.Name
                     : throw new InvalidOperationException(
-                        $"Named profile '{profile.Name}' belongs to '{profile.ModelType}', not '{typeof(TModel)}'."
+                        $"Named state '{state.Name}' belongs to '{state.ModelType}', not '{typeof(TModel)}'."
                     )
             )
             .Distinct(StringComparer.Ordinal)
             .ToArray();
-        _namedProfileNameSet = new HashSet<string>(_namedProfileNames, StringComparer.Ordinal);
+        _namedStateNameSet = new HashSet<string>(_namedStateNames, StringComparer.Ordinal);
     }
 
     public TModel CurrentValue => GetDefaultCache().Value;
@@ -206,7 +206,7 @@ internal sealed class ConfiglueMicrosoftOptionsMonitor<TModel>
 
     private MonitorCacheEntry GetNamedCache(string name, IReadOnlyState<TModel> options)
     {
-        var isRegistryProfile = false;
+        var isRegistryState = false;
         lock (_cacheGate)
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
@@ -215,9 +215,9 @@ internal sealed class ConfiglueMicrosoftOptionsMonitor<TModel>
                 if (_registry.TryGet(name, out var registered) && registered is not null)
                 {
                     options = registered;
-                    isRegistryProfile = true;
+                    isRegistryState = true;
                 }
-                else if (!_namedProfileNameSet.Contains(name))
+                else if (!_namedStateNameSet.Contains(name))
                 {
                     throw new KeyNotFoundException(
                         $"No Configlue state named '{name}' is registered."
@@ -236,7 +236,7 @@ internal sealed class ConfiglueMicrosoftOptionsMonitor<TModel>
                 cached.Dispose();
             }
 
-            var created = new MonitorCacheEntry(options, allowCache: !isRegistryProfile);
+            var created = new MonitorCacheEntry(options, allowCache: !isRegistryState);
             _namedCache.Add(name, created);
             return created;
         }
@@ -342,7 +342,7 @@ internal sealed class ConfiglueMicrosoftOptionsMonitor<TModel>
         var subscription = new ChangeSubscription(
             _resolver,
             listener,
-            _namedProfileNames,
+            _namedStateNames,
             EnsureCacheEntry
         );
         subscription.Start();
@@ -357,10 +357,10 @@ internal sealed class ConfiglueMicrosoftOptionsMonitor<TModel>
         }
         catch (KeyNotFoundException)
         {
-            // A registry-only setup can expose named profiles without a default profile.
+            // A registry-only setup can expose named states without a default state.
         }
 
-        foreach (var name in _namedProfileNames)
+        foreach (var name in _namedStateNames)
         {
             try
             {
@@ -407,16 +407,16 @@ internal sealed class ConfiglueMicrosoftOptionsMonitor<TModel>
         private readonly Action<TModel, string?> _listener;
         private readonly Action<string, IReadOnlyState<TModel>> _ensureCacheEntry;
         private readonly object _gate = new();
-        private readonly Dictionary<string, ProfileSubscription> _subscriptions = new(
+        private readonly Dictionary<string, StateSubscription> _subscriptions = new(
             StringComparer.Ordinal
         );
-        private readonly Dictionary<string, object> _profileOperationTokens = new(
+        private readonly Dictionary<string, object> _stateOperationTokens = new(
             StringComparer.Ordinal
         );
         private readonly IConfiglueStateRegistry<TModel>? _registry;
         private bool _disposed;
 
-        private sealed class ProfileSubscription(IReadOnlyState<TModel> options)
+        private sealed class StateSubscription(IReadOnlyState<TModel> options)
         {
             public IReadOnlyState<TModel> Options { get; } = options;
 
@@ -426,7 +426,7 @@ internal sealed class ConfiglueMicrosoftOptionsMonitor<TModel>
         public ChangeSubscription(
             ConfiglueMicrosoftOptionsResolver<TModel> resolver,
             Action<TModel, string?> listener,
-            IEnumerable<string> namedProfileNames,
+            IEnumerable<string> namedStateNames,
             Action<string, IReadOnlyState<TModel>> ensureCacheEntry
         )
         {
@@ -434,10 +434,10 @@ internal sealed class ConfiglueMicrosoftOptionsMonitor<TModel>
             _listener = listener;
             _ensureCacheEntry = ensureCacheEntry;
             _registry = resolver.Registry;
-            NamedProfileNames = namedProfileNames.ToArray();
+            NamedStateNames = namedStateNames.ToArray();
         }
 
-        private string[] NamedProfileNames { get; }
+        private string[] NamedStateNames { get; }
 
         public void Start()
         {
@@ -447,10 +447,10 @@ internal sealed class ConfiglueMicrosoftOptionsMonitor<TModel>
             }
             catch (KeyNotFoundException)
             {
-                // A registry-only setup can expose named profiles without a default profile.
+                // A registry-only setup can expose named states without a default state.
             }
 
-            foreach (var name in NamedProfileNames)
+            foreach (var name in NamedStateNames)
             {
                 Subscribe(name, _resolver.Resolve(name));
             }
@@ -467,7 +467,7 @@ internal sealed class ConfiglueMicrosoftOptionsMonitor<TModel>
                         && options is not null
                     )
                     {
-                        Subscribe(name, options, registryProfile: true);
+                        Subscribe(name, options, registryState: true);
                     }
                 }
             }
@@ -489,7 +489,7 @@ internal sealed class ConfiglueMicrosoftOptionsMonitor<TModel>
                     .OfType<IDisposable>()
                     .ToArray();
                 _subscriptions.Clear();
-                _profileOperationTokens.Clear();
+                _stateOperationTokens.Clear();
             }
 
             if (_registry is not null)
@@ -508,33 +508,33 @@ internal sealed class ConfiglueMicrosoftOptionsMonitor<TModel>
         {
             if (name != Options.DefaultName)
             {
-                Subscribe(name, options, registryProfile: true);
+                Subscribe(name, options, registryState: true);
             }
         }
 
         private void OnStateRemoved(string name)
         {
-            var operationToken = BeginProfileOperation(name);
+            var operationToken = BeginStateOperation(name);
             if (operationToken is null)
             {
                 return;
             }
 
-            if (TryGetRegisteredProfile(name, out var current) && current is not null)
+            if (TryGetRegisteredState(name, out var current) && current is not null)
             {
-                BindProfile(name, current, operationToken);
+                BindState(name, current, operationToken);
                 return;
             }
 
             IDisposable? subscription = null;
             lock (_gate)
             {
-                if (!IsCurrentProfileOperation(name, operationToken))
+                if (!IsCurrentStateOperation(name, operationToken))
                 {
                     return;
                 }
 
-                _profileOperationTokens.Remove(name);
+                _stateOperationTokens.Remove(name);
                 if (_subscriptions.TryGetValue(name, out var removed))
                 {
                     _subscriptions.Remove(name);
@@ -548,36 +548,36 @@ internal sealed class ConfiglueMicrosoftOptionsMonitor<TModel>
         private void Subscribe(
             string name,
             IReadOnlyState<TModel> options,
-            bool registryProfile = false
+            bool registryState = false
         )
         {
-            var operationToken = BeginProfileOperation(name);
+            var operationToken = BeginStateOperation(name);
             if (operationToken is null)
             {
                 return;
             }
 
-            if (registryProfile)
+            if (registryState)
             {
-                if (!TryGetRegisteredProfile(name, out var current) || current is null)
+                if (!TryGetRegisteredState(name, out var current) || current is null)
                 {
-                    CancelProfileOperation(name, operationToken);
+                    CancelStateOperation(name, operationToken);
                     return;
                 }
 
                 options = current;
             }
 
-            BindProfile(name, options, operationToken);
+            BindState(name, options, operationToken);
         }
 
-        private void BindProfile(string name, IReadOnlyState<TModel> options, object operationToken)
+        private void BindState(string name, IReadOnlyState<TModel> options, object operationToken)
         {
-            ProfileSubscription entry;
+            StateSubscription entry;
             IDisposable? previousSubscription = null;
             lock (_gate)
             {
-                if (!IsCurrentProfileOperation(name, operationToken))
+                if (!IsCurrentStateOperation(name, operationToken))
                 {
                     return;
                 }
@@ -586,7 +586,7 @@ internal sealed class ConfiglueMicrosoftOptionsMonitor<TModel>
                 {
                     if (ReferenceEquals(existing.Options, options))
                     {
-                        _profileOperationTokens.Remove(name);
+                        _stateOperationTokens.Remove(name);
                         return;
                     }
 
@@ -594,9 +594,9 @@ internal sealed class ConfiglueMicrosoftOptionsMonitor<TModel>
                     previousSubscription = existing.ChangeSubscription;
                 }
 
-                entry = new ProfileSubscription(options);
+                entry = new StateSubscription(options);
                 _subscriptions.Add(name, entry);
-                _profileOperationTokens.Remove(name);
+                _stateOperationTokens.Remove(name);
             }
 
             previousSubscription?.Dispose();
@@ -645,7 +645,7 @@ internal sealed class ConfiglueMicrosoftOptionsMonitor<TModel>
             }
         }
 
-        private object? BeginProfileOperation(string name)
+        private object? BeginStateOperation(string name)
         {
             lock (_gate)
             {
@@ -655,28 +655,28 @@ internal sealed class ConfiglueMicrosoftOptionsMonitor<TModel>
                 }
 
                 var operationToken = new object();
-                _profileOperationTokens[name] = operationToken;
+                _stateOperationTokens[name] = operationToken;
                 return operationToken;
             }
         }
 
-        private void CancelProfileOperation(string name, object operationToken)
+        private void CancelStateOperation(string name, object operationToken)
         {
             lock (_gate)
             {
-                if (IsCurrentProfileOperation(name, operationToken))
+                if (IsCurrentStateOperation(name, operationToken))
                 {
-                    _profileOperationTokens.Remove(name);
+                    _stateOperationTokens.Remove(name);
                 }
             }
         }
 
-        private bool IsCurrentProfileOperation(string name, object operationToken) =>
+        private bool IsCurrentStateOperation(string name, object operationToken) =>
             !_disposed
-            && _profileOperationTokens.TryGetValue(name, out var current)
+            && _stateOperationTokens.TryGetValue(name, out var current)
             && ReferenceEquals(current, operationToken);
 
-        private bool TryGetRegisteredProfile(string name, out IWritableState<TModel>? options)
+        private bool TryGetRegisteredState(string name, out IWritableState<TModel>? options)
         {
             options = null;
             if (_registry is null)

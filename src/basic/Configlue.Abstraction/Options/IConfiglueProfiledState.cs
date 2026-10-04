@@ -1,12 +1,12 @@
 namespace Configlue;
 
 /// <summary>
-/// Manages Configlue profiles as persisted, catalog-managed named states.
+/// Manages Configlue profiles as persisted, catalog-managed named state instances.
 /// </summary>
 /// <typeparam name="TModel">The generated configuration model.</typeparam>
 /// <remarks>
 /// <para>
-/// A profile is a named state whose membership and active selection are persisted in a
+/// A profile is a named state instance whose membership and active selection are persisted in a
 /// <see cref="ConfiglueProfileCatalog"/>. Its logical identity is <c>(TModel, StateName)</c> and it
 /// shares one logical state-name namespace with fixed states and dynamic named states. A profile
 /// therefore cannot be created when a fixed state with the same <c>(TModel, StateName)</c>
@@ -40,13 +40,13 @@ public interface IConfiglueProfiledState<TModel>
     /// <summary>Gets the name of the active profile.</summary>
     ValueTask<string> GetActiveProfileNameAsync(CancellationToken cancellationToken = default);
 
-    /// <summary>Gets a writable profile by name, materializing its runtime from the catalog when necessary.</summary>
+    /// <summary>Gets a writable profile state instance by name, materializing its runtime from the catalog when necessary.</summary>
     ValueTask<IWritableState<TModel>> GetProfileAsync(
         string profileName,
         CancellationToken cancellationToken = default
     );
 
-    /// <summary>Gets the writable state for the active profile.</summary>
+    /// <summary>Gets the writable state instance for the active profile.</summary>
     ValueTask<IWritableState<TModel>> GetActiveProfileAsync(
         CancellationToken cancellationToken = default
     );

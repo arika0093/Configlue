@@ -249,9 +249,14 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             physicalWriteCount++;
         }
 
-        return new StateWriteReceipt(results.Values, physicalWriteCount);
+        return new StateWriteReceipt(
+            results.Values,
+            physicalWriteCount,
+            _stateName,
+            _subjectContext.Value?.Key ?? default
+        );
 
-        static StateMultiWriteException CreatePartialWriteException(
+        StateMultiWriteException CreatePartialWriteException(
             Exception exception,
             List<PendingSourceWrite> failedGroup,
             IEnumerable<List<PendingSourceWrite>> remainingGroups,
@@ -261,7 +266,12 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         {
             var failedPlan = failedGroup[0];
             return new StateMultiWriteException(
-                new StateWriteReceipt(completed, completedPhysicalWrites),
+                new StateWriteReceipt(
+                    completed,
+                    completedPhysicalWrites,
+                    _stateName,
+                    _subjectContext.Value?.Key ?? default
+                ),
                 failedPlan.ResourceId,
                 failedGroup.Select(static plan => plan.Source.Id),
                 remainingGroups.SelectMany(static group => group.Select(plan => plan.Source.Id)),

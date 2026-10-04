@@ -213,7 +213,8 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                 null,
                 null
             )),
-            logger
+            logger,
+            subjectKeyProvider: () => _subjectContext.Value?.Key ?? default
         );
     }
 

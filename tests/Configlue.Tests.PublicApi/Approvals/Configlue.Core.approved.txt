@@ -7,8 +7,11 @@ namespace Configlue
         public static Configlue.IConfiglueDiagnostics<TModel> GetDiagnostics<TModel>(string? stateName = null) { }
         public static Configlue.IConfiglueEditSessions<TModel> GetEditSessions<TModel>(string? stateName = null) { }
         public static Configlue.IConfiglueInspection<TModel> GetInspection<TModel>(string? stateName = null) { }
+        public static Configlue.IConfiglueProfiledState<TModel> GetProfiledState<TModel>() { }
         public static Configlue.IConfiglueSources<TModel> GetSources<TModel>(string? stateName = null) { }
         public static Configlue.IWritableState<TModel> GetState<TModel>(string? stateName = null) { }
+        public static Configlue.IConfiglueStateRegistry<TModel> GetStateRegistry<TModel>() { }
+        public static Configlue.ISubjectState<TModel> GetSubjectState<TModel>(string? stateName = null) { }
         public static void Initialize(System.Action<Configlue.ConfiglueBuilder> configure) { }
         public static System.Threading.Tasks.ValueTask ShutdownAsync() { }
     }
@@ -65,9 +68,9 @@ namespace Configlue
         public void UseSharedRuntime() { }
         public void Writes(System.Action<Configlue.StateWritePlanBuilder<TModel>> configure) { }
     }
-    public sealed class ConfiglueNamedStateProfile<TModel> : System.IEquatable<Configlue.ConfiglueNamedStateProfile<TModel>>
+    public sealed class ConfiglueNamedState<TModel> : System.IEquatable<Configlue.ConfiglueNamedState<TModel>>
     {
-        public ConfiglueNamedStateProfile(string Name) { }
+        public ConfiglueNamedState(string Name) { }
         public System.Type ModelType { get; }
         public string Name { get; init; }
     }

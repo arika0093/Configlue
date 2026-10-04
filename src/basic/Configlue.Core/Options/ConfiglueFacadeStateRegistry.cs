@@ -633,7 +633,7 @@ internal sealed class ConfiglueFacadeStateRegistry<TModel>
             }
             catch (Exception exception)
             {
-                Trace.TraceError("Configlue profile-added listener failed: {0}", exception);
+                Trace.TraceError("Configlue state-added listener failed: {0}", exception);
             }
         }
     }
@@ -652,7 +652,7 @@ internal sealed class ConfiglueFacadeStateRegistry<TModel>
             }
             catch (Exception exception)
             {
-                Trace.TraceError("Configlue profile-removed listener failed: {0}", exception);
+                Trace.TraceError("Configlue state-removed listener failed: {0}", exception);
             }
         }
     }

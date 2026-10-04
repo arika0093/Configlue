@@ -117,7 +117,7 @@ internal sealed class ConfiglueStateRegistry<TModel, TFragment>
 
             state =
                 _factory(stateName)
-                ?? throw new InvalidOperationException("The profile factory returned null.");
+                ?? throw new InvalidOperationException("The state factory returned null.");
             _states.Add(stateName, state);
             notification = new Notification(state, () => NotifyAdded(stateName, state));
             _notifications.Enqueue(notification);
@@ -520,7 +520,7 @@ internal sealed class ConfiglueStateRegistry<TModel, TFragment>
             }
             catch (Exception exception)
             {
-                Trace.TraceError("Configlue profile-added listener failed: {0}", exception);
+                Trace.TraceError("Configlue state-added listener failed: {0}", exception);
             }
         }
     }
@@ -541,7 +541,7 @@ internal sealed class ConfiglueStateRegistry<TModel, TFragment>
             }
             catch (Exception exception)
             {
-                Trace.TraceError("Configlue profile-removed listener failed: {0}", exception);
+                Trace.TraceError("Configlue state-removed listener failed: {0}", exception);
             }
         }
     }
