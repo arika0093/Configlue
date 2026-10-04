@@ -5,6 +5,34 @@ namespace Configlue.Tests;
 public sealed class ConfiglueResourceContextIdentityTests
 {
     [Test]
+    public void SameSubjectReferenceDoesNotRebuildItsLogicalKey()
+    {
+        var subject = new CountingSubject();
+        var context = new ConfiglueResourceContext(subject, ResourceKey.Default, RouteKey.Default);
+        context.Equals(context).ShouldBeTrue();
+        context.Equals(context with { Route = RouteKey.From("other") }).ShouldBeFalse();
+        subject.Reads.ShouldBe(0);
+
+        var equivalent = new CountingSubject();
+        context.Equals(new(equivalent, ResourceKey.Default, RouteKey.Default)).ShouldBeTrue();
+        subject.Reads.ShouldBe(1);
+        equivalent.Reads.ShouldBe(1);
+    }
+
+    private sealed class CountingSubject : IConfiglueSubject
+    {
+        public int Reads { get; private set; }
+        public SubjectKey Key
+        {
+            get
+            {
+                Reads++;
+                return SubjectKey.From("subject");
+            }
+        }
+    }
+
+    [Test]
     public void EqualityUsesStableModelSubjectKeyResourceKeyAndRouteTuple()
     {
         var first = new ConfiglueResourceContext(

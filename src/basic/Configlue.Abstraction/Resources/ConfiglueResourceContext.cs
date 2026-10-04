@@ -89,7 +89,10 @@ public readonly record struct ConfiglueResourceContext
     /// <returns><see langword="true"/> when the stable identity values match.</returns>
     public bool Equals(ConfiglueResourceContext other) =>
         StringComparer.Ordinal.Equals(ModelId, other.ModelId)
-        && (_subject ?? DefaultSubject).Key == (other._subject ?? DefaultSubject).Key
+        && (
+            ReferenceEquals(_subject ?? DefaultSubject, other._subject ?? DefaultSubject)
+            || (_subject ?? DefaultSubject).Key == (other._subject ?? DefaultSubject).Key
+        )
         && ResourceKey == other.ResourceKey
         && Route == other.Route;
 

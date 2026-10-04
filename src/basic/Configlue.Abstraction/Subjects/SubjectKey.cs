@@ -22,7 +22,11 @@ public readonly record struct SubjectKey
     public string Value => _value ?? string.Empty;
 
     /// <summary>Creates a key from one opaque segment.</summary>
-    public static SubjectKey From(string segment) => FromSegments(segment);
+    public static SubjectKey From(string segment)
+    {
+        var encoded = EncodeSegment(segment);
+        return new SubjectKey(string.Concat("subject:", encoded.Length.ToString(), ":", encoded));
+    }
 
     /// <summary>Creates a key by encoding each segment independently.</summary>
     public static SubjectKey FromSegments(params string[] segments)
@@ -36,17 +40,22 @@ public readonly record struct SubjectKey
         var builder = new StringBuilder("subject:");
         foreach (var segment in segments)
         {
-            ArgumentException.ThrowIfNullOrWhiteSpace(segment);
-            var canonicalSegment = segment.Normalize(NormalizationForm.FormC);
-            var encoded = Convert
-                .ToBase64String(StrictUtf8.GetBytes(canonicalSegment))
-                .TrimEnd('=')
-                .Replace('+', '-')
-                .Replace('/', '_');
+            var encoded = EncodeSegment(segment);
             builder.Append(encoded.Length).Append(':').Append(encoded);
         }
 
         return new SubjectKey(builder.ToString());
+    }
+
+    private static string EncodeSegment(string segment)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(segment);
+        var canonicalSegment = segment.Normalize(NormalizationForm.FormC);
+        return Convert
+            .ToBase64String(StrictUtf8.GetBytes(canonicalSegment))
+            .TrimEnd('=')
+            .Replace('+', '-')
+            .Replace('/', '_');
     }
 
     /// <inheritdoc />

@@ -51,6 +51,23 @@ Every source is still read on every operation. Only the immutable resolution, re
 
 Eight new semantic cases cover fresh values, all-source reads, changed/nested/removed revisions, nested metadata from missing sources, failover, status changes, and retained watch immutability. Three exact allocation budgets cover stable reads.
 
+## Round 3: subject identity
+
+Reports are retained in `artifacts/perf-round3/before` and `after`. Resolver before values are round 2 after values (same code and inputs).
+
+| Path | Before mean | After mean | Before allocation | After allocation |
+| --- | ---: | ---: | ---: | ---: |
+| Single-segment subject key | 68.10 ns | 45.747 ns | 536 B | 288 B |
+| Same-subject context equality | 142.88 ns | 0.325 ns | 1,072 B | 0 B |
+| Equivalent distinct-subject context equality | 138.20 ns | 94.840 ns | 1,072 B | 576 B |
+| Subject resolver, 1 source | 620.3 ns | 429.7 ns | 2,704 B | 888 B |
+| Subject resolver, 4 sources | 1,495.4 ns | 827.7 ns | 7,600 B | 1,824 B |
+| Subject resolver, 16 sources | 5,226.0 ns | 2,363.2 ns | 27,185 B | 5,568 B |
+
+Single-segment key construction avoids the params array and StringBuilder; canonical normalization, strict UTF-8, base64url encoding, length prefix, and validation are retained. Context equality short-circuits identical subject references, including canonical default subjects; distinct subject instances/types still compare their logical keys. Hashing is unchanged. Equality still checks model, resource, and route fields. The near-zero same-context timing is a trivial comparison at the harness floor. Multiple-segment construction allocation is unchanged at 760 B; its mean changes from 175.70 to 194.66 ns with overlapping wide ShortRun intervals, so no timing improvement is claimed there.
+
+Tests cover all base64 padding lengths, separators, composed/decomposed Unicode, Japanese/emoji, URL substitutions, a large key, invalid/null/whitespace/surrogate input, key getter counts, and existing cross-type/hash identity behavior. Release net10.0 passes 1,666 tests, zero failures, 17 external-service skips. Abstraction builds net10.0/netstandard2.0/netstandard2.1 with zero warnings/errors. Formatting and whitespace checks pass.
+
 ## Remaining audit
 
 These are outstanding, not claims of saturation:
@@ -63,4 +80,4 @@ These are outstanding, not claims of saturation:
 - Sources and codecs: audit environment, command line, JSON/JSONC sections, YAML, XML, MessagePack, and schema metadata decode.
 - Resources and transformers: audit file reads/writes, stream fingerprinting, S3 streaming, Redis identities/reads/writes, AES, compression, mixed transformer pipelines, and large payloads. Separate storage/network/OS-cache variability from managed hot-path costs.
 - Final audit: establish coverage with actual report/test evidence, identify remaining costs as necessary work or unresolved candidates, integrate the verified changes with current main, and rerun relevant checks. Keep the goal active while any candidate or material coverage gap remains.
-`nRound 2 final verification: Release net10.0 passes 1,653 tests, zero failures, 17 external-service skips. Core builds all three target frameworks with zero warnings/errors. Formatting and whitespace checks pass.
+Round 2 final verification: Release net10.0 passes 1,653 tests, zero failures, 17 external-service skips. Core builds all three target frameworks with zero warnings/errors. Formatting and whitespace checks pass.
