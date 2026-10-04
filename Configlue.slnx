@@ -27,6 +27,7 @@
   <Folder Name="/src/resources/">
     <Project Path="src/resources/Configlue.Resource.Redis/Configlue.Resource.Redis.csproj" />
     <Project Path="src/resources/Configlue.Resource.S3/Configlue.Resource.S3.csproj" />
+    <Project Path="src/resources/Configlue.Resource.Vault/Configlue.Resource.Vault.csproj" />
   </Folder>
   <Folder Name="/src/sources/">
     <Project Path="src/sources/Configlue.Source.CommandLine/Configlue.Source.CommandLine.csproj" />

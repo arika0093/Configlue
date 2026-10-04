@@ -7,6 +7,7 @@ using Configlue.Generator;
 using Configlue.Hosting.Blazor;
 using Configlue.Resource.Redis;
 using Configlue.Resource.S3;
+using Configlue.Resource.Vault;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 
@@ -24,6 +25,7 @@ public sealed class TypedCodecApiTests
             using Configlue.Hosting.Blazor;
             using Configlue.Resource.Redis;
             using Configlue.Resource.S3;
+            using Configlue.Resource.Vault;
             using Configlue.Resources;
 
             public static class InvalidCodecUse
@@ -35,6 +37,7 @@ public sealed class TypedCodecApiTests
                     _ = SerializedStateSource.FromResource<string>("settings", resource, arbitrary);
                     _ = new RedisStateSourceOptions { ResourceNamespace = "settings", Codec = arbitrary };
                     _ = new S3ObjectSourceOptions { BucketName = "bucket", Key = "settings", Codec = arbitrary };
+                    _ = new VaultKvSourceOptions { Mount = "secret", Path = "settings", Codec = arbitrary };
                     _ = new WebStorageSourceOptions { Key = "settings", Codec = arbitrary };
                     return arbitrary;
                 }
@@ -122,6 +125,7 @@ public sealed class TypedCodecApiTests
         AddReference(builder, seen, typeof(SerializedSource<>).Assembly);
         AddReference(builder, seen, typeof(RedisStateSourceOptions).Assembly);
         AddReference(builder, seen, typeof(S3ObjectSourceOptions).Assembly);
+        AddReference(builder, seen, typeof(VaultKvSourceOptions).Assembly);
         AddReference(builder, seen, typeof(WebStorageSourceOptions).Assembly);
         var trustedPlatformAssemblies =
             (string?)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES") ?? string.Empty;

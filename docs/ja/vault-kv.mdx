@@ -1,0 +1,79 @@
+---
+title: Vault KV シークレット
+description: HashiCorp Vault KV シークレットを、バージョン対応の読み取りと check-and-set 書き込みを備えた通常の Configlue ソースとして使います。
+---
+
+1 つの Vault KV シークレットが 1 つのシリアライズ済み Configlue ペイロードに対応します。
+通常のコーデックパイプライン（JSON、MessagePack、XML、YAML）がシークレットのバイト列と
+型付き state を相互変換するため、ネストしたメンバー、sparse/missing/null セマンティクス、
+レイヤリングはファイルや S3 ソースと同様に動作します。
+
+```csharp
+sources.FromVaultKv(new VaultKvSourceOptions
+{
+    Mount = "secret",
+    Path = "config/app",
+    Client = vaultKvClient, // 外部所有。認証はクライアント側で保持する
+    Codec = StateCodecBinding.Typed(new JsonStateCodec<AppSettings.Fragment>()),
+});
+```
+
+## KV v1 と v2
+
+- **KV v2**（既定）ではシークレットのバージョンが Configlue のリビジョンになります。
+  書き込みはベースラインバージョンを受け取り check-and-set を行い、古いバージョンは
+  新しいシークレットを上書きせず、通常の `StateConflictException` になります。
+- **KV v1** にはバージョンがありません。読み取りはコンテンツハッシュをリビジョンとして
+  報告し、条件付き書き込みは新しい読み取り結果と照合します（非アトミックであることに注意）。
+  `ResourceOptions = new VaultKvResourceOptions { KvVersion = VaultKvEngine.V1 }` で選択します。
+
+存在しない・削除された・破棄されたシークレットはすべて「見つからない」として読み取られるため、
+既定のフォールバック条件では優先度の低いソースが試行されます。Vault には複数パス間の
+トランザクションがないため、複数の Vault パスにまたがるコミットは Configlue の
+通常の部分書き込みセマンティクスのままです。
+
+## 変更検知
+
+Vault KV にはストリーミング watch がありません。ソースはシークレットのメタデータ（v2）
+またはコンテンツ（v1）をポーリングし、メタデータで十分な場合はペイロードを再取得しません。
+`PollingInterval`（最小 1 秒、既定 5 秒）で間隔を調整し、`EnableWatch = false` で無効化できます。
+
+## 認証
+
+プロバイダーはログインを行いません。資格情報を保持するトランスポートを備えた
+`IVaultKvClient`（またはそれを解決する `ClientFactory`）を注入してください。
+たとえば `X-Vault-Token` ヘッダーを付与する `HttpClient` ラッパーなどです。
+トークン、AppRole、Kubernetes 認証、クラウド認証、カスタム更新はいずれも
+プロバイダーの外側で扱います。
+
+シークレット値とトークンが例外・診断・来歴（`vault:{mount}/{path}` とバージョンのみ）・
+`ToString()` に現れることはありません。
+
+## 最小権限ポリシー
+
+読み取り専用では対象パスのメタデータと読み取りが必要です。
+
+```hcl
+path "secret/metadata/config/app" {
+  capabilities = ["read"]
+}
+path "secret/data/config/app" {
+  capabilities = ["read"]
+}
+```
+
+書き込みありではデータパスへの `update` が追加で必要です（check-and-set は
+プロバイダーが期待バージョンを渡すことで強制されます。Vault 側に専用の
+ケイパビリティはありません）。
+
+```hcl
+path "secret/metadata/config/app" {
+  capabilities = ["read"]
+}
+path "secret/data/config/app" {
+  capabilities = ["read", "update"]
+}
+```
+
+各ポリシーはソースが扱うマウントとパスに限定し、短命な資格情報と明示的な
+`max_ttl` を推奨します。

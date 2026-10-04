@@ -1,0 +1,89 @@
+[assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/arika0093/Configlue")]
+namespace Configlue.Resource.Vault
+{
+    public interface IVaultKvClient
+    {
+        System.Threading.Tasks.Task<Configlue.Resource.Vault.VaultKvSecretMetadata?> ReadMetadataAsync(string mount, string path, System.Threading.CancellationToken cancellationToken);
+        System.Threading.Tasks.Task<Configlue.Resource.Vault.VaultKvSecret?> ReadSecretAsync(string mount, string path, long? version, System.Threading.CancellationToken cancellationToken);
+        System.Threading.Tasks.Task<long?> WriteSecretAsync(string mount, string path, System.ReadOnlyMemory<byte> content, long? expectedVersion, bool requireMissing, System.Threading.CancellationToken cancellationToken);
+    }
+    public sealed class VaultKvConflictException : Configlue.Resource.Vault.VaultKvException
+    {
+        public VaultKvConflictException(string message) { }
+        public VaultKvConflictException(string message, System.Exception innerException) { }
+    }
+    public enum VaultKvEngine
+    {
+        V1 = 1,
+        V2 = 2,
+    }
+    public class VaultKvException : System.Exception
+    {
+        public VaultKvException(string message) { }
+        public VaultKvException(string message, System.Exception innerException) { }
+    }
+    public static class VaultKvPath
+    {
+        public static void ValidateMount(string mount) { }
+        public static void ValidatePath(string path) { }
+    }
+    public sealed class VaultKvResource : Configlue.Resources.IResourceIdentity, Configlue.Resources.IResourceReader, Configlue.Resources.IResourceWriter, Configlue.Sources.ISourceWatcher, System.IDisposable
+    {
+        public VaultKvResource(Configlue.Resource.Vault.IVaultKvClient client, string mount, string path, Configlue.Resource.Vault.VaultKvResourceOptions? options = null) { }
+        public string Mount { get; }
+        public string Path { get; }
+        public void Dispose() { }
+        public Configlue.Resources.ResourceId GetResourceId(Configlue.Resources.ConfiglueResourceContext context) { }
+        public System.Threading.Tasks.ValueTask<Configlue.Resources.ResourceReadResult> ReadAsync(Configlue.Resources.ConfiglueResourceContext context, System.Threading.CancellationToken cancellationToken = default) { }
+        public override string ToString() { }
+        public System.Threading.Tasks.ValueTask WaitForChangeAsync(Configlue.Resources.ConfiglueResourceContext context, string? observedRevision, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Configlue.State.StateWriteResult> WriteAsync(Configlue.Resources.ConfiglueResourceContext context, Configlue.Resources.ResourceWriteRequest request, System.Threading.CancellationToken cancellationToken = default) { }
+    }
+    public sealed class VaultKvResourceOptions
+    {
+        public VaultKvResourceOptions() { }
+        public System.Func<Configlue.Resources.ConfiglueResourceContext, Configlue.Resource.Vault.IVaultKvClient>? ClientSelector { get; init; }
+        public Configlue.Resources.ResourceId? FixedResourceId { get; init; }
+        public Configlue.Resource.Vault.VaultKvEngine KvVersion { get; init; }
+        public System.Func<Configlue.Resources.ConfiglueResourceContext, string>? MountSelector { get; init; }
+        public System.Func<Configlue.Resources.ConfiglueResourceContext, string>? PathSelector { get; init; }
+        public System.TimeSpan PollingInterval { get; init; }
+        public static System.TimeSpan MinimumPollingInterval { get; }
+    }
+    public sealed class VaultKvSecret : System.IEquatable<Configlue.Resource.Vault.VaultKvSecret>
+    {
+        public VaultKvSecret(System.ReadOnlyMemory<byte> content, long? version) { }
+        public System.ReadOnlyMemory<byte> Content { get; init; }
+        public long? Version { get; init; }
+    }
+    public sealed class VaultKvSecretMetadata : System.IEquatable<Configlue.Resource.Vault.VaultKvSecretMetadata>
+    {
+        public VaultKvSecretMetadata(long? version) { }
+        public long? Version { get; init; }
+    }
+    public sealed class VaultKvSourceOptions
+    {
+        public VaultKvSourceOptions() { }
+        public Configlue.Resource.Vault.IVaultKvClient? Client { get; init; }
+        public System.Func<System.IServiceProvider?, Configlue.Resource.Vault.IVaultKvClient>? ClientFactory { get; init; }
+        public required Configlue.Codecs.StateCodecBinding Codec { get; init; }
+        public Configlue.Codecs.StateCodecContext CodecContext { get; init; }
+        public bool EnableWatch { get; init; }
+        public Configlue.Sources.StateFallbackCondition FallbackCondition { get; init; }
+        public string? Id { get; init; }
+        public required string Mount { get; init; }
+        public required string Path { get; init; }
+        public int Priority { get; init; }
+        public Configlue.Resource.Vault.VaultKvResourceOptions? ResourceOptions { get; init; }
+        public bool Writable { get; init; }
+    }
+    public static class VaultKvSourceRegistration
+    {
+        public static Configlue.Extensibility.ConfiglueSourceRegistration FromVaultKv(this Configlue.ConfiglueSourceSetBuilder sources, Configlue.Resource.Vault.VaultKvSourceOptions options) { }
+    }
+    public sealed class VaultKvTransientException : Configlue.Resource.Vault.VaultKvException
+    {
+        public VaultKvTransientException(string message) { }
+        public VaultKvTransientException(string message, System.Exception innerException) { }
+    }
+}

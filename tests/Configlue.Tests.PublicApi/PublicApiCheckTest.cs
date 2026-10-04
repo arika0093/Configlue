@@ -16,6 +16,7 @@ using Configlue.Provider.Yaml;
 using Configlue.Source.Http;
 using Configlue.Resource.Redis;
 using Configlue.Resource.S3;
+using Configlue.Resource.Vault;
 using Configlue.Resource.Zip;
 using Configlue.Source.CommandLine;
 using Configlue.Source.Environment;
@@ -325,6 +326,9 @@ public sealed class PublicApiCheckTest
 
     [Test]
     public void Redis() => PublicApiCheck.Check<RedisStateSourceOptions>();
+
+    [Test]
+    public void Vault() => PublicApiCheck.Check<VaultKvSourceOptions>();
 
     [Test]
     public void Testing() => PublicApiCheck.Check<InMemoryResource>();

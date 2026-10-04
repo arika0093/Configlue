@@ -35,6 +35,7 @@
     <ProjectReference Include="../../src/sources/Configlue.Source.PostgreSql/Configlue.Source.PostgreSql.csproj" />
     <ProjectReference Include="../../src/sources/Configlue.Source.PostgreSql.Migrations/Configlue.Source.PostgreSql.Migrations.csproj" />
     <ProjectReference Include="../../src/resources/Configlue.Resource.Redis/Configlue.Resource.Redis.csproj" />
+    <ProjectReference Include="../../src/resources/Configlue.Resource.Vault/Configlue.Resource.Vault.csproj" />
     <ProjectReference Include="../../src/basic/Configlue.Testing/Configlue.Testing.csproj" />
     <ProjectReference Include="../../src/transformers/Configlue.Transformer.AES/Configlue.Transformer.AES.csproj" />
     <ProjectReference Include="../../src/transformers/Configlue.Transformer.Compression/Configlue.Transformer.Compression.csproj" />
