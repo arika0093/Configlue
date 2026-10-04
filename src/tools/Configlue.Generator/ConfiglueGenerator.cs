@@ -15,6 +15,7 @@ namespace Configlue.Generator;
 public sealed partial class ConfiglueGenerator : IIncrementalGenerator
 {
     private const string ModelAttributeName = "Configlue.ConfiglueModelAttribute";
+    private const string SecretValueAttributeName = "Configlue.SecretValueAttribute";
     private const string PreviousVersionAttributeName =
         "Configlue.ConfigluePreviousVersionAttribute";
     private const string MergeAttributeName = "Configlue.ConfiglueMergeAttribute";

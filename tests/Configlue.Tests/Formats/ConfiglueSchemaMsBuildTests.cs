@@ -49,7 +49,11 @@ public sealed class ConfiglueSchemaMsBuildTests
             result
                 .Documents.Select(static document => document.FileName)
                 .OrderBy(static name => name)
-                .ShouldBe(["fixture.second.v1.json", "fixture.settings.v3.json"]);
+                .ShouldBe([
+                    "fixture.second.v1.json",
+                    "fixture.secret.v1.json",
+                    "fixture.settings.v3.json",
+                ]);
 
             var settings = JsonNode.Parse(
                 result.Documents.Single(document => document.ModelId == "fixture.settings").Content
@@ -69,6 +73,40 @@ public sealed class ConfiglueSchemaMsBuildTests
                     .Select(static node => node!.GetValue<string>())
                     .ToArray()
             ).ShouldBe(["$version"]);
+        }
+        finally
+        {
+            DeleteDirectory(projectDirectory);
+            DeleteDirectory(outputDirectory);
+        }
+    }
+
+    [Test]
+    public async Task Generate_MarksSecretMembersWithVendorExtension()
+    {
+        var projectDirectory = CreateTempDirectory();
+        var outputDirectory = CreateTempDirectory();
+        try
+        {
+            var result = ConfiglueSchemaGenerator.Generate(
+                new ConfiglueSchemaGenerationOptions
+                {
+                    AssemblyPath = FixtureAssemblyPath,
+                    ProjectDirectory = projectDirectory,
+                    OutputPath = outputDirectory,
+                }
+            );
+
+            (result.Succeeded).ShouldBeTrue();
+            var settings = JsonNode.Parse(
+                result.Documents.Single(document => document.ModelId == "fixture.secret").Content
+            )!;
+            var properties = settings["properties"]!;
+            (properties["ApiKey"]!["x-configlue-secret"]!.GetValue<bool>()).ShouldBeTrue();
+            (properties["Host"]!["x-configlue-secret"]).ShouldBeNull();
+            (properties["ApiKey"]!["writeOnly"]).ShouldBeNull();
+            (properties["Credentials"]!["x-configlue-secret"]!.GetValue<bool>()).ShouldBeTrue();
+            (properties["Tokens"]!["x-configlue-secret"]!.GetValue<bool>()).ShouldBeTrue();
         }
         finally
         {
@@ -342,9 +380,7 @@ public sealed class ConfiglueSchemaMsBuildTests
             var results = await Task.WhenAll(
                 Enumerable
                     .Range(0, 8)
-                    .Select(_ =>
-                        Task.Run(() => ConfiglueSchemaGenerator.Generate(options))
-                    )
+                    .Select(_ => Task.Run(() => ConfiglueSchemaGenerator.Generate(options)))
             );
 
             (results.All(static result => result.Succeeded)).ShouldBeTrue(
@@ -391,14 +427,11 @@ public sealed class ConfiglueSchemaMsBuildTests
         using var lockDocument = JsonDocument.Parse(
             File.ReadAllText(Path.Combine(toolingDirectory, "packages.lock.json"))
         );
-        var locked = lockDocument
-            .RootElement.GetProperty("dependencies")
-            .GetProperty("net10.0");
+        var locked = lockDocument.RootElement.GetProperty("dependencies").GetProperty("net10.0");
 
         var propertyValues = new Dictionary<string, string>(StringComparer.Ordinal);
         foreach (
-            var property in root
-                .Descendants()
+            var property in root.Descendants()
                 .Where(static element => element.Parent?.Name.LocalName == "PropertyGroup")
         )
         {
@@ -410,8 +443,7 @@ public sealed class ConfiglueSchemaMsBuildTests
                 ? propertyValues[value[2..^1]]
                 : value;
 
-        var approved = root
-            .Descendants("ConfiglueJsonSchemaApprovedDependency")
+        var approved = root.Descendants("ConfiglueJsonSchemaApprovedDependency")
             .ToDictionary(
                 static item => item.Attribute("Include")!.Value,
                 item => Expand(item.Attribute("Version")!.Value)
@@ -432,7 +464,11 @@ public sealed class ConfiglueSchemaMsBuildTests
         var directory = CreateTempDirectory();
         try
         {
-            var firstFramework = WriteMsBuildHarness(directory, "netstandard2.0", extraProperties: null);
+            var firstFramework = WriteMsBuildHarness(
+                directory,
+                "netstandard2.0",
+                extraProperties: null
+            );
             var secondFramework = WriteMsBuildHarness(directory, "net10.0", extraProperties: null);
 
             var results = await Task.WhenAll(
@@ -515,7 +551,9 @@ public sealed class ConfiglueSchemaMsBuildTests
             );
 
             (result.Succeeded).ShouldBeFalse();
-            (result.Diagnostics.Any(static diagnostic => diagnostic.Code == "CWSC108")).ShouldBeTrue(
+            (
+                result.Diagnostics.Any(static diagnostic => diagnostic.Code == "CWSC108")
+            ).ShouldBeTrue(
                 string.Join(
                     " | ",
                     result.Diagnostics.Select(static diagnostic =>
@@ -735,10 +773,7 @@ public sealed class ConfiglueSchemaMsBuildTests
         //   ArtifactsPath with forward slashes and a trailing slash.
         var artifactsRoot = Path.Combine(fixtureRoot, "isolated-artifacts");
 
-        var artifactsPath = string.Concat(
-            artifactsRoot.Replace('\\', '/').TrimEnd('/'),
-            "/"
-        );
+        var artifactsPath = string.Concat(artifactsRoot.Replace('\\', '/').TrimEnd('/'), "/");
 
         var startInfo = new ProcessStartInfo("dotnet")
         {
@@ -836,8 +871,14 @@ public sealed class ConfiglueSchemaMsBuildTests
                 <TargetFramework>{targetFramework}</TargetFramework>
                 {extraProperties}
               </PropertyGroup>
-              <Import Project="{Path.Combine(buildDirectory, "Configlue.JsonSchema.MSBuild.props")}" />
-              <Import Project="{Path.Combine(buildDirectory, "Configlue.JsonSchema.MSBuild.targets")}" />
+              <Import Project="{Path.Combine(
+                buildDirectory,
+                "Configlue.JsonSchema.MSBuild.props"
+            )}" />
+              <Import Project="{Path.Combine(
+                buildDirectory,
+                "Configlue.JsonSchema.MSBuild.targets"
+            )}" />
             </Project>
             """;
         var path = Path.Combine(directory, $"harness-{Guid.NewGuid():N}.proj");

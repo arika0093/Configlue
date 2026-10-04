@@ -5,7 +5,7 @@ namespace Configlue;
 /// <summary>A resolved leaf value with provenance and editability metadata.</summary>
 /// <remarks>Advanced diagnostics vocabulary.</remarks>
 /// <typeparam name="T">The member value type.</typeparam>
-[DebuggerDisplay("{Value}")]
+[DebuggerDisplay("{DebuggerDisplay,nq}")]
 [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public sealed class ConfigValueDetails<T>
 {
@@ -14,7 +14,8 @@ public sealed class ConfigValueDetails<T>
         T? value,
         ConfiglueEditability editability,
         ConfigSourceDetails? source,
-        IReadOnlyList<ConfigSourceValueDetails<T?>> sources
+        IReadOnlyList<ConfigSourceValueDetails<T?>> sources,
+        bool isSecret = false
     )
     {
         ArgumentNullException.ThrowIfNull(sources);
@@ -22,6 +23,7 @@ public sealed class ConfigValueDetails<T>
         Editability = editability;
         Source = source;
         Sources = sources;
+        IsSecret = isSecret;
     }
 
     /// <summary>The effective resolved value.</summary>
@@ -39,6 +41,15 @@ public sealed class ConfigValueDetails<T>
     /// <summary>Per-source value states, ordered from highest to lowest priority.</summary>
     public IReadOnlyList<ConfigSourceValueDetails<T?>> Sources { get; }
 
+    /// <summary>
+    /// Whether this value belongs to a sensitive member subtree.
+    /// Generic display surfaces redact the value when true; typed <see cref="Value"/>
+    /// access still returns the real value.
+    /// </summary>
+    public bool IsSecret { get; }
+
+    private string DebuggerDisplay => ToString();
+
     /// <summary>Reads the effective value naturally.</summary>
     public static implicit operator T?(ConfigValueDetails<T> details)
     {
@@ -47,5 +58,5 @@ public sealed class ConfigValueDetails<T>
     }
 
     /// <inheritdoc />
-    public override string ToString() => Value?.ToString() ?? string.Empty;
+    public override string ToString() => ConfiglueSecrets.FormatValue(Value, IsSecret);
 }

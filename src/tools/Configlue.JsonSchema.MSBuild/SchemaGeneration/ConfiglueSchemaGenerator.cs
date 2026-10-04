@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Reflection;
 using System.Runtime.Loader;
 using System.Text.Json;
@@ -463,6 +464,8 @@ public static class ConfiglueSchemaGenerator
                 $"The generated schema for '{model.Type.FullName}' was not a JSON object."
             );
 
+        ApplySecretExtensions(payload, model.Type);
+
         var schemaId = schemaBaseUri is null
             ? fileName
             : new Uri(new Uri(schemaBaseUri, UriKind.Absolute), fileName).AbsoluteUri;
@@ -665,6 +668,307 @@ public static class ConfiglueSchemaGenerator
 
     private static string Normalize(string value) =>
         value.Replace("\r\n", "\n", StringComparison.Ordinal);
+
+    private const string SecretValueAttributeName = "Configlue.SecretValueAttribute";
+    private const string JsonPropertyNameAttributeName =
+        "System.Text.Json.Serialization.JsonPropertyNameAttribute";
+
+    /// <summary>
+    /// Marks secret members with the Configlue vendor extension (<c>x-configlue-secret</c>).
+    /// Standard <c>writeOnly</c> is never used for this purpose; its semantics differ.
+    /// A marked object member implies its whole subtree is sensitive, and a marked
+    /// collection member implies its elements are sensitive.
+    /// </summary>
+    internal static void ApplySecretExtensions(JsonObject payload, Type modelType)
+    {
+        ArgumentNullException.ThrowIfNull(payload);
+        ArgumentNullException.ThrowIfNull(modelType);
+        ApplySecretExtensionsCore(payload, modelType, new HashSet<Type>());
+    }
+
+    private static void ApplySecretExtensionsCore(
+        JsonObject schema,
+        Type modelType,
+        HashSet<Type> visited
+    )
+    {
+        if (!visited.Add(modelType))
+        {
+            return;
+        }
+
+        var properties = schema["properties"] as JsonObject;
+        if (properties is null)
+        {
+            return;
+        }
+
+        foreach (var member in GetSecretMembers(modelType))
+        {
+            var key = FindPropertyKey(properties, member.JsonName);
+            if (key is null)
+            {
+                continue;
+            }
+
+            if (member.IsSecret && properties[key] is JsonObject memberSchema)
+            {
+                memberSchema[Configlue.ConfiglueSecrets.JsonSchemaExtensionName] = true;
+            }
+
+            var memberType = UnwrapMemberType(member.MemberType);
+            if (memberType is null || IsScalarType(memberType))
+            {
+                continue;
+            }
+
+            if (
+                properties[key] is JsonObject propertySchema
+                && TryResolveTargetSchema(schema, propertySchema, memberType, out var target)
+                && target is not null
+            )
+            {
+                ApplySecretExtensionsCore(target, memberType, visited);
+            }
+            else if (
+                TryGetElementType(memberType, out var elementType)
+                && elementType is not null
+                && properties[key] is JsonObject collectionSchema
+                && TryResolveTargetSchema(
+                    schema,
+                    collectionSchema,
+                    elementType,
+                    out var elementTarget
+                )
+                && elementTarget is not null
+                && !IsScalarType(elementType)
+            )
+            {
+                ApplySecretExtensionsCore(elementTarget, elementType, visited);
+            }
+        }
+    }
+
+    private sealed record SecretMemberInfo(string JsonName, Type MemberType, bool IsSecret);
+
+    private static List<SecretMemberInfo> GetSecretMembers(Type modelType)
+    {
+        var result = new List<SecretMemberInfo>();
+        foreach (
+            var property in modelType.GetProperties(BindingFlags.Public | BindingFlags.Instance)
+        )
+        {
+            if (property.GetIndexParameters().Length > 0)
+            {
+                continue;
+            }
+
+            result.Add(
+                new SecretMemberInfo(
+                    GetJsonName(property),
+                    property.PropertyType,
+                    HasSecretAttribute(property.CustomAttributes)
+                )
+            );
+        }
+
+        foreach (var field in modelType.GetFields(BindingFlags.Public | BindingFlags.Instance))
+        {
+            result.Add(
+                new SecretMemberInfo(
+                    GetJsonName(field),
+                    field.FieldType,
+                    HasSecretAttribute(field.CustomAttributes)
+                )
+            );
+        }
+
+        return result;
+    }
+
+    private static bool HasSecretAttribute(
+        IEnumerable<System.Reflection.CustomAttributeData> attributes
+    )
+    {
+        return attributes.Any(attribute =>
+            string.Equals(
+                attribute.AttributeType.FullName,
+                SecretValueAttributeName,
+                StringComparison.Ordinal
+            )
+        );
+    }
+
+    private static string GetJsonName(System.Reflection.MemberInfo member)
+    {
+        foreach (var attribute in member.CustomAttributes)
+        {
+            if (
+                string.Equals(
+                    attribute.AttributeType.FullName,
+                    JsonPropertyNameAttributeName,
+                    StringComparison.Ordinal
+                )
+                && attribute.ConstructorArguments.Count == 1
+                && attribute.ConstructorArguments[0].Value is string name
+                && !string.IsNullOrEmpty(name)
+            )
+            {
+                return name;
+            }
+        }
+
+        return member.Name;
+    }
+
+    private static string? FindPropertyKey(JsonObject properties, string jsonName)
+    {
+        if (properties.ContainsKey(jsonName))
+        {
+            return jsonName;
+        }
+
+        return properties
+            .FirstOrDefault(entry =>
+                string.Equals(entry.Key, jsonName, StringComparison.OrdinalIgnoreCase)
+            )
+            .Key;
+    }
+
+    private static bool TryResolveTargetSchema(
+        JsonObject root,
+        JsonObject propertySchema,
+        Type memberType,
+        out JsonObject? target
+    )
+    {
+        target = null;
+        if (
+            propertySchema["$ref"] is JsonValue reference
+            && reference.TryGetValue<string>(out var pointer)
+            && !string.IsNullOrEmpty(pointer)
+        )
+        {
+            target = ResolvePointer(root, pointer);
+            return target is not null;
+        }
+
+        if (propertySchema["properties"] is JsonObject)
+        {
+            target = propertySchema;
+            return true;
+        }
+
+        if (propertySchema["items"] is JsonObject items)
+        {
+            if (
+                items["$ref"] is JsonValue itemReference
+                && itemReference.TryGetValue<string>(out var itemPointer)
+                && !string.IsNullOrEmpty(itemPointer)
+            )
+            {
+                target = ResolvePointer(root, itemPointer);
+                return target is not null;
+            }
+
+            if (items["properties"] is JsonObject)
+            {
+                target = items;
+                return true;
+            }
+        }
+
+        if (propertySchema["$defs"] is JsonObject || propertySchema["definitions"] is JsonObject)
+        {
+            target = propertySchema;
+            return true;
+        }
+
+        // Unwrap the member type: collections resolve through items, objects inline.
+        if (TryGetElementType(memberType, out var elementType) && elementType is not null)
+        {
+            return TryResolveTargetSchema(root, propertySchema, elementType, out target);
+        }
+
+        return false;
+    }
+
+    private static JsonObject? ResolvePointer(JsonObject root, string pointer)
+    {
+        // Local pointers such as "#/$defs/NestedFixture".
+        if (!pointer.StartsWith("#/", StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        JsonNode? current = root;
+        foreach (var segment in pointer[2..].Split('/'))
+        {
+            var name = segment
+                .Replace("~1", "/", StringComparison.Ordinal)
+                .Replace("~0", "~", StringComparison.Ordinal);
+            current = (current as JsonObject)?[name];
+            if (current is null)
+            {
+                return null;
+            }
+        }
+
+        return current as JsonObject;
+    }
+
+    private static Type? UnwrapMemberType(Type type)
+    {
+        var current = Nullable.GetUnderlyingType(type) ?? type;
+        if (TryGetElementType(current, out var elementType))
+        {
+            return elementType;
+        }
+
+        return current;
+    }
+
+    private static bool TryGetElementType(Type type, out Type? elementType)
+    {
+        elementType = null;
+        if (type.IsArray)
+        {
+            elementType = type.GetElementType();
+            return elementType is not null;
+        }
+
+        if (!type.IsGenericType)
+        {
+            return false;
+        }
+
+        foreach (var candidate in type.GetInterfaces().Prepend(type))
+        {
+            if (
+                candidate.IsGenericType
+                && candidate.GetGenericTypeDefinition() == typeof(IEnumerable<>)
+            )
+            {
+                elementType = candidate.GetGenericArguments()[0];
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool IsScalarType(Type type)
+    {
+        var current = Nullable.GetUnderlyingType(type) ?? type;
+        return current.IsPrimitive
+            || current.IsEnum
+            || current == typeof(string)
+            || current == typeof(decimal)
+            || current == typeof(DateTime)
+            || current == typeof(DateTimeOffset)
+            || current == typeof(Guid)
+            || current == typeof(Uri);
+    }
 
     private sealed record ConfiglueModelInfo(Type Type, string Id, int Version);
 

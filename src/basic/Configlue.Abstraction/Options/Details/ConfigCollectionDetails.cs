@@ -5,7 +5,7 @@ namespace Configlue;
 /// <summary>One effective collection element with its source provenance.</summary>
 /// <remarks>Advanced diagnostics vocabulary.</remarks>
 /// <typeparam name="T">The element type.</typeparam>
-[DebuggerDisplay("{Value}")]
+[DebuggerDisplay("{DebuggerDisplay,nq}")]
 [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public sealed class ConfigCollectionElementDetails<T>
 {
@@ -13,7 +13,8 @@ public sealed class ConfigCollectionElementDetails<T>
     public ConfigCollectionElementDetails(
         int index,
         T? value,
-        IReadOnlyList<ConfigSourceValueDetails<T?>> contributions
+        IReadOnlyList<ConfigSourceValueDetails<T?>> contributions,
+        bool isSecret = false
     )
     {
         ArgumentOutOfRangeException.ThrowIfNegative(index);
@@ -21,6 +22,7 @@ public sealed class ConfigCollectionElementDetails<T>
         Index = index;
         Value = value;
         Contributions = contributions;
+        IsSecret = isSecret;
     }
 
     /// <summary>The element index in the effective collection.</summary>
@@ -32,8 +34,17 @@ public sealed class ConfigCollectionElementDetails<T>
     /// <summary>Source contributions to this element, ordered from highest to lowest priority.</summary>
     public IReadOnlyList<ConfigSourceValueDetails<T?>> Contributions { get; }
 
+    /// <summary>
+    /// Whether this element belongs to a sensitive collection subtree.
+    /// Generic display surfaces redact the value when true; typed <see cref="Value"/>
+    /// access still returns the real value.
+    /// </summary>
+    public bool IsSecret { get; }
+
+    private string DebuggerDisplay => ToString();
+
     /// <inheritdoc />
-    public override string ToString() => Value?.ToString() ?? string.Empty;
+    public override string ToString() => ConfiglueSecrets.FormatValue(Value, IsSecret);
 }
 
 /// <summary>A resolved collection value with provenance and per-element details.</summary>
@@ -49,7 +60,8 @@ public sealed class ConfigCollectionDetails<T>
         ConfiglueEditability editability,
         ConfigSourceDetails? source,
         IReadOnlyList<ConfigSourceValueDetails<IReadOnlyList<T>?>> sources,
-        IReadOnlyList<ConfigCollectionElementDetails<T>> elements
+        IReadOnlyList<ConfigCollectionElementDetails<T>> elements,
+        bool isSecret = false
     )
     {
         ArgumentNullException.ThrowIfNull(value);
@@ -60,6 +72,7 @@ public sealed class ConfigCollectionDetails<T>
         Source = source;
         Sources = sources;
         Elements = elements;
+        IsSecret = isSecret;
     }
 
     /// <summary>The effective resolved collection.</summary>
@@ -79,6 +92,13 @@ public sealed class ConfigCollectionDetails<T>
 
     /// <summary>Per-element provenance following the effective enumeration order.</summary>
     public IReadOnlyList<ConfigCollectionElementDetails<T>> Elements { get; }
+
+    /// <summary>
+    /// Whether this collection belongs to a sensitive member subtree.
+    /// Element values are treated as sensitive when true; typed <see cref="Value"/>
+    /// access still returns the real values. Collection counts remain visible.
+    /// </summary>
+    public bool IsSecret { get; }
 
     /// <inheritdoc />
     public override string ToString() => $"Count = {Value.Count}";

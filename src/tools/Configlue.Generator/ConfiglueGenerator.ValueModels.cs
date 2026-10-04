@@ -116,7 +116,8 @@ public sealed partial class ConfiglueGenerator
             string? childSchemaType = null,
             string? childDetailsType = null,
             bool childIsStructural = false,
-            bool childIsReferenceType = true
+            bool childIsReferenceType = true,
+            bool isSecret = false
         )
         {
             Id = id;
@@ -131,6 +132,7 @@ public sealed partial class ConfiglueGenerator
             ChildDetailsType = childDetailsType;
             ChildIsStructural = childIsStructural;
             ChildIsReferenceType = childIsReferenceType;
+            IsSecret = isSecret;
         }
 
         public int Id { get; init; }
@@ -145,6 +147,7 @@ public sealed partial class ConfiglueGenerator
         public string? ChildDetailsType { get; init; }
         public bool ChildIsStructural { get; init; }
         public bool ChildIsReferenceType { get; init; }
+        public bool IsSecret { get; init; }
     }
 
     private readonly record struct ModelInfo
@@ -522,7 +525,8 @@ public sealed partial class ConfiglueGenerator
             childSchemaType,
             childDetailsType,
             childIsStructural,
-            childIsReferenceType
+            childIsReferenceType,
+            HasSecretValueAttribute(member.Property, cancellationToken)
         );
     }
 

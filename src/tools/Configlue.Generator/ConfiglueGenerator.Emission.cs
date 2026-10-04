@@ -505,16 +505,44 @@ public sealed partial class ConfiglueGenerator
                 .Append(", static () => default(")
                 .Append(member.Property.Type.Name)
                 .Append("))");
-            if (member.Collection.Kind == CollectionKind.Set)
-                code.Append(" { ContainsElement = static (values, element) => ((")
-                    .Append(member.Property.Type.Name)
-                    .Append(")values).Contains((")
-                    .Append(TypeName(member.Collection.ElementType))
-                    .Append(")element!) }");
+            AppendMemberSchemaInitializer(code, member);
             code.AppendLine(",");
         }
 
         code.AppendLineAt(1, "}, static () => Fragment.Empty);");
+    }
+
+    private static void AppendMemberSchemaInitializer(
+        IndentedStringBuilder code,
+        MemberModel member
+    )
+    {
+        var isSet = member.Collection.Kind == CollectionKind.Set;
+        if (!member.IsSecret && !isSet)
+        {
+            return;
+        }
+
+        code.Append(" { ");
+        if (member.IsSecret)
+        {
+            code.Append("IsSecret = true");
+            if (isSet)
+            {
+                code.Append(", ");
+            }
+        }
+
+        if (isSet)
+        {
+            code.Append("ContainsElement = static (values, element) => ((")
+                .Append(member.Property.Type.Name)
+                .Append(")values).Contains((")
+                .Append(TypeName(member.Collection.ElementType))
+                .Append(")element!)");
+        }
+
+        code.Append(" }");
     }
 
     private static string CollectionValueFactory(MemberModel member)
@@ -591,12 +619,7 @@ public sealed partial class ConfiglueGenerator
                         : "Fragment.__configlue_merge_strategy_" + member.Id
                 );
             code.Append(", static () => default(").Append(member.Property.Type.Name).Append("))");
-            if (member.Collection.Kind == CollectionKind.Set)
-                code.Append(" { ContainsElement = static (values, element) => ((")
-                    .Append(member.Property.Type.Name)
-                    .Append(")values).Contains((")
-                    .Append(TypeName(member.Collection.ElementType))
-                    .Append(")element!) }");
+            AppendMemberSchemaInitializer(code, member);
             code.AppendLine(",");
         }
 

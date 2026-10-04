@@ -71,21 +71,23 @@ namespace Configlue
     [System.Diagnostics.DebuggerDisplay("Count = {Value.Count}")]
     public sealed class ConfigCollectionDetails<T>
     {
-        public ConfigCollectionDetails(System.Collections.Generic.IReadOnlyList<T> value, Configlue.ConfiglueEditability editability, Configlue.ConfigSourceDetails? source, System.Collections.Generic.IReadOnlyList<Configlue.ConfigSourceValueDetails<System.Collections.Generic.IReadOnlyList<T>?>> sources, System.Collections.Generic.IReadOnlyList<Configlue.ConfigCollectionElementDetails<T>> elements) { }
+        public ConfigCollectionDetails(System.Collections.Generic.IReadOnlyList<T> value, Configlue.ConfiglueEditability editability, Configlue.ConfigSourceDetails? source, System.Collections.Generic.IReadOnlyList<Configlue.ConfigSourceValueDetails<System.Collections.Generic.IReadOnlyList<T>?>> sources, System.Collections.Generic.IReadOnlyList<Configlue.ConfigCollectionElementDetails<T>> elements, bool isSecret = false) { }
         public Configlue.ConfiglueEditability Editability { get; }
         public System.Collections.Generic.IReadOnlyList<Configlue.ConfigCollectionElementDetails<T>> Elements { get; }
         public bool IsEditable { get; }
+        public bool IsSecret { get; }
         public Configlue.ConfigSourceDetails? Source { get; }
         public System.Collections.Generic.IReadOnlyList<Configlue.ConfigSourceValueDetails<System.Collections.Generic.IReadOnlyList<T>?>> Sources { get; }
         public System.Collections.Generic.IReadOnlyList<T> Value { get; }
         public override string ToString() { }
     }
-    [System.Diagnostics.DebuggerDisplay("{Value}")]
+    [System.Diagnostics.DebuggerDisplay("{DebuggerDisplay,nq}")]
     public sealed class ConfigCollectionElementDetails<T>
     {
-        public ConfigCollectionElementDetails(int index, T? value, System.Collections.Generic.IReadOnlyList<Configlue.ConfigSourceValueDetails<T?>> contributions) { }
+        public ConfigCollectionElementDetails(int index, T? value, System.Collections.Generic.IReadOnlyList<Configlue.ConfigSourceValueDetails<T?>> contributions, bool isSecret = false) { }
         public System.Collections.Generic.IReadOnlyList<Configlue.ConfigSourceValueDetails<T?>> Contributions { get; }
         public int Index { get; }
+        public bool IsSecret { get; }
         public T Value { get; }
         public override string ToString() { }
     }
@@ -113,8 +115,9 @@ namespace Configlue
     }
     public sealed class ConfigSourceValueDetails<T>
     {
-        public ConfigSourceValueDetails(Configlue.ConfigSourceDetails source, Configlue.ConfigSourceValueState state, T? value) { }
+        public ConfigSourceValueDetails(Configlue.ConfigSourceDetails source, Configlue.ConfigSourceValueState state, T? value, bool isSecret = false) { }
         public bool IsPresent { get; }
+        public bool IsSecret { get; }
         public bool IsShadowed { get; init; }
         public Configlue.ConfigSourceDetails Source { get; }
         public Configlue.ConfigSourceValueState State { get; }
@@ -128,12 +131,13 @@ namespace Configlue
         Unavailable = 2,
         Invalid = 3,
     }
-    [System.Diagnostics.DebuggerDisplay("{Value}")]
+    [System.Diagnostics.DebuggerDisplay("{DebuggerDisplay,nq}")]
     public sealed class ConfigValueDetails<T>
     {
-        public ConfigValueDetails(T? value, Configlue.ConfiglueEditability editability, Configlue.ConfigSourceDetails? source, System.Collections.Generic.IReadOnlyList<Configlue.ConfigSourceValueDetails<T?>> sources) { }
+        public ConfigValueDetails(T? value, Configlue.ConfiglueEditability editability, Configlue.ConfigSourceDetails? source, System.Collections.Generic.IReadOnlyList<Configlue.ConfigSourceValueDetails<T?>> sources, bool isSecret = false) { }
         public Configlue.ConfiglueEditability Editability { get; }
         public bool IsEditable { get; }
+        public bool IsSecret { get; }
         public Configlue.ConfigSourceDetails? Source { get; }
         public System.Collections.Generic.IReadOnlyList<Configlue.ConfigSourceValueDetails<T?>> Sources { get; }
         public T Value { get; }
@@ -278,7 +282,7 @@ namespace Configlue
     }
     public readonly struct ConfiglueMemberSchema : System.IEquatable<Configlue.ConfiglueMemberSchema>
     {
-        public ConfiglueMemberSchema(int Id, string Name, System.Type ValueType, Configlue.MergeMode MergeMode, System.Func<object, object?>? GetValue = null, System.Func<Configlue.ConfiglueModelSchema>? NestedSchemaFactory = null, System.Func<System.Collections.Generic.IEnumerable<object?>, object?>? CollectionValueFactory = null, string? EnvironmentVariableName = null, Configlue.IConfiglueMergeStrategy? MergeStrategy = null, System.Func<object?>? DefaultValueFactory = null) { }
+        public ConfiglueMemberSchema(int Id, string Name, System.Type ValueType, Configlue.MergeMode MergeMode, System.Func<object, object?>? GetValue = null, System.Func<Configlue.ConfiglueModelSchema>? NestedSchemaFactory = null, System.Func<System.Collections.Generic.IEnumerable<object?>, object?>? CollectionValueFactory = null, string? EnvironmentVariableName = null, Configlue.IConfiglueMergeStrategy? MergeStrategy = null, System.Func<object?>? DefaultValueFactory = null, bool isSecret = false) { }
         public System.Func<System.Collections.Generic.IEnumerable<object?>, object?>? CollectionValueFactory { get; init; }
         public System.Func<object, object?, bool>? ContainsElement { get; init; }
         public System.Func<object?>? DefaultValueFactory { get; init; }
@@ -286,12 +290,14 @@ namespace Configlue
         public System.Func<object, object?>? GetValue { get; init; }
         public int Id { get; init; }
         public bool IsDefault { get; }
+        public bool IsSecret { get; init; }
         public Configlue.MergeMode MergeMode { get; init; }
         public Configlue.IConfiglueMergeStrategy? MergeStrategy { get; init; }
         public string Name { get; init; }
         public System.Func<Configlue.ConfiglueModelSchema>? NestedSchemaFactory { get; init; }
         public System.Type ValueType { get; init; }
         public void Deconstruct(out int Id, out string Name, out System.Type ValueType, out Configlue.MergeMode MergeMode, out System.Func<object, object?>? GetValue, out System.Func<Configlue.ConfiglueModelSchema>? NestedSchemaFactory, out System.Func<System.Collections.Generic.IEnumerable<object?>, object?>? CollectionValueFactory, out string? EnvironmentVariableName, out Configlue.IConfiglueMergeStrategy? MergeStrategy) { }
+        public void Deconstruct(out int Id, out string Name, out System.Type ValueType, out Configlue.MergeMode MergeMode, out System.Func<object, object?>? GetValue, out System.Func<Configlue.ConfiglueModelSchema>? NestedSchemaFactory, out System.Func<System.Collections.Generic.IEnumerable<object?>, object?>? CollectionValueFactory, out string? EnvironmentVariableName, out Configlue.IConfiglueMergeStrategy? MergeStrategy, out bool IsSecret) { }
     }
     [System.AttributeUsage(System.AttributeTargets.Property, Inherited=true)]
     public sealed class ConfiglueMergeAttribute : System.Attribute
@@ -426,6 +432,16 @@ namespace Configlue
         public Configlue.ConfiglueDiagnosticEvent? LastRead { get; }
         public System.DateTimeOffset? LastSuccessfulRead { get; }
         public System.DateTimeOffset? LastWatchSignal { get; }
+    }
+    public static class ConfiglueSecrets
+    {
+        public const string JsonSchemaExtensionName = "x-configlue-secret";
+        public const string RedactedText = "********";
+        public static string FormatContribution(object? value, bool isSecret, bool isPresent) { }
+        public static string FormatValue(object? value, bool isSecret) { }
+        public static bool IsSensitive(Configlue.CompilerServices.ConfiglueMemberPath path) { }
+        public static bool IsSensitive(Configlue.ConfiglueMemberSchema member) { }
+        public static string RedactMessage(string message, object? secretValue, bool isSecret) { }
     }
     public sealed class ConfiglueSourceCheckResult
     {
@@ -725,6 +741,11 @@ namespace Configlue
         public static Configlue.RouteKey Default { get; }
         public override string ToString() { }
         public static Configlue.RouteKey From(string value) { }
+    }
+    [System.AttributeUsage(System.AttributeTargets.Property | System.AttributeTargets.Field, AllowMultiple=false, Inherited=true)]
+    public sealed class SecretValueAttribute : System.Attribute
+    {
+        public SecretValueAttribute() { }
     }
     public readonly struct SourceId : System.IEquatable<Configlue.SourceId>
     {

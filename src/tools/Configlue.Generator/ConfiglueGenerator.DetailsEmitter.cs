@@ -184,6 +184,7 @@ public sealed partial class ConfiglueGenerator
         );
         code.AppendLineAt(1, "{");
         code.AppendLineAt(2, "var fullPath = prefix.Append(memberId);");
+        code.AppendLineAt(2, "var isSecret = fullPath.IsSecret();");
         code.AppendLineAt(
             2,
             "var values = new global::Configlue.ConfigSourceValueDetails<T?>[snapshot.Sources.Count];"
@@ -209,12 +210,12 @@ public sealed partial class ConfiglueGenerator
         code.AppendLineAt(3, "}");
         code.AppendLineAt(
             3,
-            "values[index] = new global::Configlue.ConfigSourceValueDetails<T?>(snapshot.Sources[index], state, present ? (T?)raw : default) { IsShadowed = isShadowed };"
+            "values[index] = new global::Configlue.ConfigSourceValueDetails<T?>(snapshot.Sources[index], state, present ? (T?)raw : default, isSecret) { IsShadowed = isShadowed };"
         );
         code.AppendLineAt(2, "}");
         code.AppendLineAt(
             2,
-            "return new global::Configlue.ConfigValueDetails<T>(effective, snapshot.Editability(fullPath), effectiveSource, values);"
+            "return new global::Configlue.ConfigValueDetails<T>(effective, snapshot.Editability(fullPath), effectiveSource, values, isSecret);"
         );
         code.AppendLineAt(1, "}");
     }
@@ -244,6 +245,7 @@ public sealed partial class ConfiglueGenerator
         );
         code.AppendLineAt(1, "{");
         code.AppendLineAt(2, "var fullPath = prefix.Append(memberId);");
+        code.AppendLineAt(2, "var isSecret = fullPath.IsSecret();");
         code.AppendLineAt(
             2,
             "var values = new global::Configlue.ConfigSourceValueDetails<global::System.Collections.Generic.IReadOnlyList<E>?>[snapshot.Sources.Count];"
@@ -277,7 +279,7 @@ public sealed partial class ConfiglueGenerator
         code.AppendLineAt(3, "}");
         code.AppendLineAt(
             3,
-            "values[index] = new global::Configlue.ConfigSourceValueDetails<global::System.Collections.Generic.IReadOnlyList<E>?>(snapshot.Sources[index], state, list) { IsShadowed = isShadowed };"
+            "values[index] = new global::Configlue.ConfigSourceValueDetails<global::System.Collections.Generic.IReadOnlyList<E>?>(snapshot.Sources[index], state, list, isSecret) { IsShadowed = isShadowed };"
         );
         code.AppendLineAt(2, "}");
         code.AppendLineAt(2, "if (!replaceSemantics)");
@@ -293,11 +295,11 @@ public sealed partial class ConfiglueGenerator
         code.AppendLineAt(2, "}");
         code.AppendLineAt(
             2,
-            "var elements = global::System.Linq.Enumerable.ToArray(global::System.Linq.Enumerable.Select(elementData, element => new global::Configlue.ConfigCollectionElementDetails<E>(element.Index, (E?)element.Value, global::System.Linq.Enumerable.ToArray(global::System.Linq.Enumerable.Select(element.SourceIndices, sourceIndex => new global::Configlue.ConfigSourceValueDetails<E?>(snapshot.Sources[sourceIndex], global::Configlue.ConfigSourceValueState.Present, (E?)element.Value))))));"
+            "var elements = global::System.Linq.Enumerable.ToArray(global::System.Linq.Enumerable.Select(elementData, element => new global::Configlue.ConfigCollectionElementDetails<E>(element.Index, (E?)element.Value, global::System.Linq.Enumerable.ToArray(global::System.Linq.Enumerable.Select(element.SourceIndices, sourceIndex => new global::Configlue.ConfigSourceValueDetails<E?>(snapshot.Sources[sourceIndex], global::Configlue.ConfigSourceValueState.Present, (E?)element.Value, isSecret))), isSecret)));"
         );
         code.AppendLineAt(
             2,
-            "return new global::Configlue.ConfigCollectionDetails<E>(effective, snapshot.Editability(fullPath), effectiveSource, values, elements);"
+            "return new global::Configlue.ConfigCollectionDetails<E>(effective, snapshot.Editability(fullPath), effectiveSource, values, elements, isSecret);"
         );
         code.AppendLineAt(1, "}");
     }

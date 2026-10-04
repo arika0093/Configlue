@@ -45,6 +45,7 @@ internal sealed class RuntimeValidationPipeline<TModel, TFragment>
         CollectValidationFailures(value, failures);
         if (failures.Count > 0)
         {
+            SanitizeFailures(failures, value);
             _diagnostics.Record(
                 ConfiglueDiagnosticEventKind.ValidationFailed,
                 errorCategory: typeof(ConfiglueValidationException).FullName
@@ -135,6 +136,7 @@ internal sealed class RuntimeValidationPipeline<TModel, TFragment>
             return;
         }
 
+        SanitizeFailures(failures, contributionModel);
         throw new ConfiglueValidationException(
             _stateName,
             typeof(TModel),
@@ -282,6 +284,7 @@ internal sealed class RuntimeValidationPipeline<TModel, TFragment>
             failures = failures.Distinct(StringComparer.Ordinal).ToList();
         }
 
+        SanitizeFailures(failures, model);
         throw new ConfiglueValidationException(_stateName, typeof(TModel), failures);
     }
 
@@ -387,7 +390,9 @@ internal sealed class RuntimeValidationPipeline<TModel, TFragment>
                 )
             )
             {
-                failures.Add($"{path}: {message}");
+                failures.Add(
+                    $"{path}: {ConfiglueSecrets.RedactMessage(message, present.Value, found.IsSecret)}"
+                );
                 invalidMemberIds?.Add(found.Id);
             }
         }
@@ -415,6 +420,97 @@ internal sealed class RuntimeValidationPipeline<TModel, TFragment>
 
         message = string.Empty;
         return false;
+    }
+
+    private static void SanitizeFailures(List<string> failures, TModel value)
+    {
+        var secrets = new List<string>();
+        CollectSecretPlaintexts(RuntimeModel<TModel, TFragment>.Schema, value, secrets);
+        if (secrets.Count == 0)
+        {
+            return;
+        }
+
+        for (var index = 0; index < failures.Count; index++)
+        {
+            var sanitized = failures[index];
+            for (var secretIndex = 0; secretIndex < secrets.Count; secretIndex++)
+            {
+                var secret = secrets[secretIndex];
+                if (sanitized.IndexOf(secret, StringComparison.Ordinal) >= 0)
+                {
+                    sanitized = sanitized.Replace(secret, ConfiglueSecrets.RedactedText);
+                }
+            }
+
+            failures[index] = sanitized;
+        }
+    }
+
+    private static void CollectSecretPlaintexts(
+        ConfiglueModelSchema schema,
+        object? container,
+        List<string> secrets
+    )
+    {
+        if (container is null)
+        {
+            return;
+        }
+
+        foreach (var member in schema.Members)
+        {
+            object? memberValue;
+            try
+            {
+                memberValue = member.GetValue?.Invoke(container);
+            }
+            catch (Exception ex) when (ex is ArgumentException || ex is InvalidOperationException)
+            {
+                continue;
+            }
+
+            if (memberValue is null)
+            {
+                continue;
+            }
+
+            if (member.IsSecret)
+            {
+                switch (memberValue)
+                {
+                    case string text when text.Length > 0:
+                        secrets.Add(text);
+                        break;
+                    case System.Collections.IEnumerable sequence when memberValue is not string:
+                        foreach (var element in sequence)
+                        {
+                            if (element?.ToString() is { Length: > 0 } elementText)
+                            {
+                                secrets.Add(elementText);
+                            }
+                        }
+
+                        break;
+                    default:
+                        if (memberValue.ToString() is { Length: > 0 } scalar)
+                        {
+                            secrets.Add(scalar);
+                        }
+
+                        break;
+                }
+            }
+
+            if (
+                member.NestedSchemaFactory?.Invoke() is { } nestedSchema
+                && memberValue is not string
+                && memberValue is not System.Collections.IEnumerable
+            )
+            {
+                CollectSecretPlaintexts(nestedSchema, memberValue, secrets);
+            }
+        }
     }
 
     [RequiresUnreferencedCode(

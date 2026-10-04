@@ -43,6 +43,7 @@ namespace Configlue.CompilerServices
         public override int GetHashCode() { }
         public object? GetModelValue(object model, out Configlue.ConfiglueMemberSchema leaf) { }
         public bool IsPrefixOf(Configlue.CompilerServices.ConfiglueMemberPath other) { }
+        public bool IsSecret() { }
         public Configlue.ConfiglueMemberSchema ResolveMember() { }
         public override string ToString() { }
         public bool TryGetFragmentValue(Configlue.IConfiglueFragment? fragment, out object? value) { }

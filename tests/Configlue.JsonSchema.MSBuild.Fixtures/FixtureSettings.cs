@@ -35,3 +35,25 @@ public sealed class NestedFixture
     [StringLength(10, MinimumLength = 2)]
     public string Code { get; set; } = "";
 }
+
+[ConfiglueModel("fixture.secret")]
+public partial class SecretFixtureSettings
+{
+    public string Host { get; set; } = "localhost";
+
+    [SecretValue]
+    public string ApiKey { get; set; } = "";
+
+    [SecretValue]
+    public NestedSecretFixture Credentials { get; set; } = new();
+
+    [SecretValue]
+    public List<string> Tokens { get; set; } = [];
+}
+
+public sealed class NestedSecretFixture
+{
+    public string Username { get; set; } = "";
+
+    public string Password { get; set; } = "";
+}

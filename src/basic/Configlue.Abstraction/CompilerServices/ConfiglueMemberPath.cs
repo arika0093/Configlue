@@ -131,6 +131,38 @@ public readonly struct ConfiglueMemberPath : IEquatable<ConfiglueMemberPath>
         return member;
     }
 
+    /// <summary>
+    /// Whether this path resolves through a member marked with <c>SecretValue</c>.
+    /// </summary>
+    /// <remarks>
+    /// Returns true when the leaf or any ancestor member carries secret metadata, so nested
+    /// subtrees and collection elements inherit sensitivity. Uses only generated schema
+    /// metadata without reflection.
+    /// </remarks>
+    public bool IsSecret()
+    {
+        var schema = RootSchema;
+        for (var index = 0; index < Length; index++)
+        {
+            var member = FindMember(schema, MemberIds[index]);
+            if (member.IsSecret)
+            {
+                return true;
+            }
+
+            if (index < Length - 1)
+            {
+                schema =
+                    member.NestedSchemaFactory?.Invoke()
+                    ?? throw new InvalidOperationException(
+                        "A generated path traverses a non-nested member."
+                    );
+            }
+        }
+
+        return false;
+    }
+
     /// <summary>Reads a sparse contribution by generated member IDs.</summary>
     public bool TryGetFragmentValue(IConfiglueFragment? fragment, out object? value)
     {

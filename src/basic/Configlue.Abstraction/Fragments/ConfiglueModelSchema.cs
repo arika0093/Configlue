@@ -62,6 +62,17 @@ public readonly record struct ConfiglueMemberSchema
     /// <summary>Tests element membership using the declared collection's comparer semantics.</summary>
     public Func<object, object?, bool>? ContainsElement { get; init; }
 
+    /// <summary>
+    /// Whether this member holds sensitive data marked with <see cref="SecretValueAttribute"/>.
+    /// </summary>
+    /// <remarks>
+    /// Emitted by the source generator without runtime reflection. Generic diagnostics and
+    /// tooling treat the member's subtree (nested members and collection elements) as sensitive
+    /// when this flag is set on any ancestor. Defaults to false so models without secret
+    /// metadata pay no meaningful cost.
+    /// </remarks>
+    public bool IsSecret { get; init; }
+
     /// <summary>Initializes a new instance of this record.</summary>
     /// <param name="Id">The initial value for the <see cref="Id"/> property.</param>
     /// <param name="Name">The initial value for the <see cref="Name"/> property.</param>
@@ -73,6 +84,7 @@ public readonly record struct ConfiglueMemberSchema
     /// <param name="EnvironmentVariableName">The initial value for the <see cref="EnvironmentVariableName"/> property.</param>
     /// <param name="MergeStrategy">The initial value for the <see cref="MergeStrategy"/> property.</param>
     /// <param name="DefaultValueFactory">The generated factory for the member's default.</param>
+    /// <param name="isSecret">Whether the member holds sensitive data.</param>
     public ConfiglueMemberSchema(
         int Id,
         string Name,
@@ -83,7 +95,8 @@ public readonly record struct ConfiglueMemberSchema
         Func<IEnumerable<object?>, object?>? CollectionValueFactory = null,
         string? EnvironmentVariableName = null,
         IConfiglueMergeStrategy? MergeStrategy = null,
-        Func<object?>? DefaultValueFactory = null
+        Func<object?>? DefaultValueFactory = null,
+        bool isSecret = false
     )
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(Name);
@@ -102,6 +115,7 @@ public readonly record struct ConfiglueMemberSchema
         this.EnvironmentVariableName = EnvironmentVariableName;
         this.MergeStrategy = MergeStrategy;
         this.DefaultValueFactory = DefaultValueFactory;
+        this.IsSecret = isSecret;
     }
 
     /// <summary>Deconstructs this record into its property values.</summary>
@@ -135,6 +149,42 @@ public readonly record struct ConfiglueMemberSchema
         CollectionValueFactory = this.CollectionValueFactory;
         EnvironmentVariableName = this.EnvironmentVariableName;
         MergeStrategy = this.MergeStrategy;
+    }
+
+    /// <summary>Deconstructs this record into its property values, including sensitivity.</summary>
+    /// <param name="Id">Receives the current <see cref="Id"/> value.</param>
+    /// <param name="Name">Receives the current <see cref="Name"/> value.</param>
+    /// <param name="ValueType">Receives the current <see cref="ValueType"/> value.</param>
+    /// <param name="MergeMode">Receives the current <see cref="MergeMode"/> value.</param>
+    /// <param name="GetValue">Receives the current <see cref="GetValue"/> value.</param>
+    /// <param name="NestedSchemaFactory">Receives the current <see cref="NestedSchemaFactory"/> value.</param>
+    /// <param name="CollectionValueFactory">Receives the current <see cref="CollectionValueFactory"/> value.</param>
+    /// <param name="EnvironmentVariableName">Receives the current <see cref="EnvironmentVariableName"/> value.</param>
+    /// <param name="MergeStrategy">Receives the current <see cref="MergeStrategy"/> value.</param>
+    /// <param name="IsSecret">Receives the current <see cref="IsSecret"/> value.</param>
+    public void Deconstruct(
+        out int Id,
+        out string Name,
+        out Type ValueType,
+        out MergeMode MergeMode,
+        out Func<object, object?>? GetValue,
+        out Func<ConfiglueModelSchema>? NestedSchemaFactory,
+        out Func<IEnumerable<object?>, object?>? CollectionValueFactory,
+        out string? EnvironmentVariableName,
+        out IConfiglueMergeStrategy? MergeStrategy,
+        out bool IsSecret
+    )
+    {
+        Id = this.Id;
+        Name = this.Name;
+        ValueType = this.ValueType;
+        MergeMode = this.MergeMode;
+        GetValue = this.GetValue;
+        NestedSchemaFactory = this.NestedSchemaFactory;
+        CollectionValueFactory = this.CollectionValueFactory;
+        EnvironmentVariableName = this.EnvironmentVariableName;
+        MergeStrategy = this.MergeStrategy;
+        IsSecret = this.IsSecret;
     }
 }
 

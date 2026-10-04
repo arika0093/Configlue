@@ -219,6 +219,23 @@ public sealed partial class ConfiglueGenerator
         return null;
     }
 
+    private static bool HasSecretValueAttribute(
+        IPropertySymbol property,
+        CancellationToken cancellationToken
+    )
+    {
+        foreach (var attribute in property.GetAttributes())
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (attribute.AttributeClass?.ToDisplayString() == SecretValueAttributeName)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private static int GetModelVersion(INamedTypeSymbol model, CancellationToken cancellationToken)
     {
         foreach (var attribute in model.GetAttributes())

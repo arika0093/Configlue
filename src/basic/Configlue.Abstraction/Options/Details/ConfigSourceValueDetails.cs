@@ -28,13 +28,15 @@ public sealed class ConfigSourceValueDetails<T>
     public ConfigSourceValueDetails(
         ConfigSourceDetails source,
         ConfigSourceValueState state,
-        T? value
+        T? value,
+        bool isSecret = false
     )
     {
         ArgumentNullException.ThrowIfNull(source);
         Source = source;
         State = state;
         Value = value;
+        IsSecret = isSecret;
     }
 
     /// <summary>The source this entry describes.</summary>
@@ -52,6 +54,14 @@ public sealed class ConfigSourceValueDetails<T>
     /// <summary>The contributed value when present.</summary>
     public T? Value { get; }
 
+    /// <summary>
+    /// Whether this contribution belongs to a sensitive member subtree.
+    /// Generic display surfaces redact the value when true; typed <see cref="Value"/>
+    /// access still returns the real value.
+    /// </summary>
+    public bool IsSecret { get; }
+
     /// <inheritdoc />
-    public override string ToString() => $"{Source.DisplayName}: {State} = {Value}";
+    public override string ToString() =>
+        $"{Source.DisplayName}: {State} = {ConfiglueSecrets.FormatContribution(Value, IsSecret, IsPresent)}";
 }
