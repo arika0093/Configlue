@@ -5,8 +5,8 @@
 # Consumer coverage in test-package-consumers.yaml is intentionally narrow:
 # package-basic exercises only the Configlue facade (net8.0/net10.0
 # restore/build/run), package-sparse exercises only SparseFragments (plus a
-# netstandard2.0/net48 build), and the native-aot jobs exercise only Configlue
-# plus the MessagePack provider. These positive runs prove that required facade
+# netstandard2.0/net48 build), and the supported native-aot job exercises only
+# Configlue plus the MessagePack provider. These positive runs prove that required facade
 # dependencies resolve, but they cannot detect extra opt-in dependencies, a
 # netstandard2.0-only compat package leaking into the netstandard2.1 group,
 # SparseFragments independence beyond its own restore, or DevTools/Blazor

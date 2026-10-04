@@ -14,18 +14,6 @@
     <ConfiglueNetStandard Condition="'$(ConfiglueNetStandard20)' == 'true' or '$(TargetFramework)' == 'netstandard2.1'"
       >true</ConfiglueNetStandard>
   </PropertyGroup>
-  <PropertyGroup Condition="'$(ConfiglueNativeAot)' == 'true' and '$(TargetFramework)' == 'net10.0'">
-    <PublishAot>true</PublishAot>
-    <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
-    <EnableAotAnalyzer>false</EnableAotAnalyzer>
-    <EnableTrimAnalyzer>false</EnableTrimAnalyzer>
-    <EnableSingleFileAnalyzer>false</EnableSingleFileAnalyzer>
-    <IlcTreatWarningsAsErrors>false</IlcTreatWarningsAsErrors>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(ConfiglueNativeAot)' == 'true' and '$(TargetFramework)' == 'net10.0'">
-    <!-- The native binary runs only JsonAot tests; the test harness has reflection-based cases. -->
-    <NoWarn>$(NoWarn);IL2026;IL2070;IL2104;IL3000;IL3050;IL3053</NoWarn>
-  </PropertyGroup>
   <ItemGroup>
     <PackageReference
       Include="TUnit"

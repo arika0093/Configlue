@@ -1,7 +1,7 @@
 name: Packed package consumers
 
 # Tier 2 / main + release gate with a packaging-surface PR filter (#273).
-# Pack + consumer + NativeAOT-probe verification is expensive, so on pull
+# Pack + consumer + NativeAOT verification is expensive, so on pull
 # requests it runs only when packaging inputs, consumer fixtures, or this
 # workflow change. Main pushes, release.yaml and manual dispatch always
 # run it.
@@ -174,6 +174,13 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+  # Single supported NativeAOT contract (#275): a representative application
+  # published from packed NuGet packages. It exercises the supported generated
+  # JSON path and the supported closed-world MessagePack path, fails on any
+  # Configlue trim/AOT diagnostic via assert-supported-aot-diagnostics.sh, and
+  # executes the resulting native binary. This is the only NativeAOT publish in
+  # CI; the former broad diagnostic consumer and the gate mutation probes were
+  # removed as duplicate/observational verification.
   native-aot-supported:
     timeout-minutes: 30
     runs-on: ubuntu-latest
@@ -244,93 +251,6 @@ jobs:
             exit 1
           fi
 
-      - name: Prove RequiresDynamicCode fails the gate
-        shell: bash
-        run: |
-          set -euo pipefail
-          consumer_dir="tests/fixtures/consumers/native-aot-supported"
-          probe_file="$consumer_dir/RdcProbe.regression.cs"
-          # Inject a RequiresDynamicCode call into the supported consumer. The
-          # gate must reject it; a passing gate means the gate is blind.
-          cat > "$probe_file" <<'EOF'
-          using System.Diagnostics.CodeAnalysis;
-          using System.Runtime.CompilerServices;
-
-          internal static class RdcProbeRegression
-          {
-              [ModuleInitializer]
-              public static void Init() => Touch();
-
-              [RequiresDynamicCode("Regression probe: intentional dynamic-code injection.")]
-              public static void Touch() { }
-          }
-          EOF
-          probe_log="$(mktemp)"
-          trap 'rm -f "$probe_file" "$probe_log"' EXIT
-          # The probe publish is expected to fail (build-time analyzers reject
-          # the injection) or to log IL3050; either way the gate script must
-          # reject the log. A passing gate means the tripwire is blind.
-          if dotnet publish "$consumer_dir/NativeAot.Supported.Consumer.csproj" \
-            --configuration Release --runtime linux-x64 --self-contained \
-            -p:ConfigluePackageVersion="$CONFIGLUE_PACKAGE_VERSION" \
-            -p:RestoreAdditionalProjectSources="$CONFIGLUE_PACKAGE_FEED" \
-            -p:IlcTreatWarningsAsErrors=false > "$probe_log" 2>&1; then
-            echo "The probe publish succeeded; checking the gate still rejects its diagnostics." >&2
-          fi
-          if ! grep -qE '(warning|error) IL3050:' "$probe_log"; then
-            echo "The probe publish logged no IL3050 diagnostic:" >&2
-            cat "$probe_log" >&2
-            exit 1
-          fi
-          if bash ./.github/workflows/scripts/assert-supported-aot-diagnostics.sh "$probe_log"; then
-            echo "The gate accepted injected RequiresDynamicCode; it should have failed." >&2
-            exit 1
-          fi
-          echo "RequiresDynamicCode injection was rejected as expected."
-
-      - name: Prove dynamic MessagePack API fails the gate
-        shell: bash
-        run: |
-          set -euo pipefail
-          consumer_dir="tests/fixtures/consumers/native-aot-supported"
-          probe_file="$consumer_dir/RdcMessagePackProbe.regression.cs"
-          # Inject a dynamic-code MessagePack call (the reflection-capable
-          # parameterless codec constructor) into the supported MessagePack path.
-          # The gate must reject it just like the JSON-path probe above.
-          cat > "$probe_file" <<'EOF'
-          using System.Runtime.CompilerServices;
-          using Configlue.Provider.MessagePack;
-          using NativeAotSupportedConsumer;
-
-          internal static class RdcMessagePackProbeRegression
-          {
-              [ModuleInitializer]
-              public static void Init()
-              {
-                  _ = new MessagePackStateCodec<SampleAotSetting.Fragment>();
-              }
-          }
-          EOF
-          probe_log="$(mktemp)"
-          trap 'rm -f "$probe_file" "$probe_log"' EXIT
-          if dotnet publish "$consumer_dir/NativeAot.Supported.Consumer.csproj" \
-            --configuration Release --runtime linux-x64 --self-contained \
-            -p:ConfigluePackageVersion="$CONFIGLUE_PACKAGE_VERSION" \
-            -p:RestoreAdditionalProjectSources="$CONFIGLUE_PACKAGE_FEED" \
-            -p:IlcTreatWarningsAsErrors=false > "$probe_log" 2>&1; then
-            echo "The probe publish succeeded; checking the gate still rejects its diagnostics." >&2
-          fi
-          if ! grep -qE '(warning|error) IL3050:' "$probe_log"; then
-            echo "The probe publish logged no IL3050 diagnostic:" >&2
-            cat "$probe_log" >&2
-            exit 1
-          fi
-          if bash ./.github/workflows/scripts/assert-supported-aot-diagnostics.sh "$probe_log"; then
-            echo "The gate accepted the dynamic MessagePack API; it should have failed." >&2
-            exit 1
-          fi
-          echo "Dynamic MessagePack API injection was rejected as expected."
-
       - name: Upload failure artifacts
         if: failure() || cancelled()
         uses: actions/upload-artifact@v7
@@ -339,100 +259,5 @@ jobs:
           path: |
             artifacts/packages/*.nupkg
             tests/fixtures/consumers/native-aot-supported/**/*.binlog
-          if-no-files-found: ignore
-          retention-days: 7
-
-  native-aot:
-    timeout-minutes: 30
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-
-      - name: Set up .NET
-        uses: actions/setup-dotnet@v6
-        with:
-          dotnet-version: 10.0.x
-
-      - name: Cache NuGet packages
-        uses: actions/cache@v4
-        with:
-          path: ~/.nuget/packages
-          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/*.props', '**/*.targets', 'global.json') }}
-          restore-keys: |
-            ${{ runner.os }}-nuget-
-
-      - name: Pack Configlue packages
-        run: dotnet pack Configlue.slnx --configuration Release --output artifacts/packages
-
-      - name: Resolve local feed and package version
-        shell: bash
-        run: |
-          set -euo pipefail
-          package="$(ls artifacts/packages/SparseFragments.*.nupkg | head -n 1)"
-          version="$(basename "$package" | sed -E 's/^SparseFragments\.(.+)\.nupkg$/\1/')"
-          echo "CONFIGLUE_PACKAGE_VERSION=$version" >> "$GITHUB_ENV"
-          echo "CONFIGLUE_PACKAGE_FEED=$(realpath artifacts/packages)" >> "$GITHUB_ENV"
-
-      - name: Publish NativeAOT consumer
-        shell: bash
-        run: |
-          set -euo pipefail
-          publish_log="$(mktemp)"
-          trap 'rm -f "$publish_log"' EXIT
-          # Diagnostic broad consumer (#208): keeps executing the generated
-          # MessagePack fragment path (custom POCO / generic collections through
-          # an explicit closed-world resolver) under NativeAOT. MessagePack 3.1.11
-          # still reports trim/AOT diagnostics from its dynamic/contractless
-          # resolver fallback
-          # (DynamicObjectResolver, DynamicUnionResolver, AttributeFormatterResolver,
-          # ResolverUtilities and DynamicGenericResolver/BuiltinResolver helpers,
-          # ImmutableCollection helpers, ObjectSerializationInfo/DynamicObjectTypeBuilder
-          # emit paths, FormatterResolverExtensions.GetFormatterDynamic,
-          # MessagePackSerializer.CompiledMethods, MessagePackSerializerOptions.LoadType,
-          # MessagePackSecurity.ObjectFallbackEqualityComparer), even with
-          # source-generated POCO formatting and a closed-world leaf resolver. Only
-          # ILC diagnostics for those upstream codes on MessagePack members are allowed;
-          # any diagnostic pointing at Configlue sources (or any other code) fails.
-          # The warning-clean release gate is the native-aot-supported job above,
-          # which carries no allowlist at all.
-          dotnet publish tests/fixtures/consumers/native-aot/NativeAot.Consumer.csproj \
-            --configuration Release --runtime linux-x64 --self-contained \
-            -p:ConfigluePackageVersion="$CONFIGLUE_PACKAGE_VERSION" \
-            -p:RestoreAdditionalProjectSources="$CONFIGLUE_PACKAGE_FEED" \
-            -p:IlcTreatWarningsAsErrors=true 2>&1 | tee "$publish_log"
-
-          upstream_allow='IL2055|IL2057|IL2060|IL2066|IL2067|IL2070|IL2071|IL2072|IL2075|IL2080|IL2090|IL2091|IL2111|IL3050'
-          unexpected_diagnostics="$(
-            grep -E '(warning|error) IL[0-9]{4}:' "$publish_log" \
-              | grep -Ev "ILC : .* (warning|error) (${upstream_allow}): MessagePack\." \
-              || true
-          )"
-          if [[ -n "$unexpected_diagnostics" ]]; then
-            echo "Unexpected NativeAOT or trimming diagnostics:" >&2
-            echo "$unexpected_diagnostics" >&2
-            exit 1
-          fi
-
-      - name: Run NativeAOT consumer
-        run: |
-          set -euo pipefail
-          output="$(tests/fixtures/consumers/native-aot/bin/Release/net10.0/linux-x64/publish/NativeAot.Consumer)"
-          echo "$output"
-          if [[ "$output" != *"CONFIGLUE_NATIVE_AOT_PASS"* ]]; then
-            echo "The NativeAOT consumer did not reach its success marker." >&2
-            exit 1
-          fi
-
-      - name: Upload failure artifacts
-        if: failure() || cancelled()
-        uses: actions/upload-artifact@v7
-        with:
-          name: native-aot-results
-          path: |
-            artifacts/packages/*.nupkg
-            tests/fixtures/consumers/native-aot/**/*.binlog
           if-no-files-found: ignore
           retention-days: 7
