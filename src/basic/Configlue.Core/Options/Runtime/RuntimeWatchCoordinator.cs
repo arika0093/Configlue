@@ -476,11 +476,7 @@ internal sealed class RuntimeWatchCoordinator<TModel, TFragment>
         }
 
         var activeSourceIds = _topology.GetActiveSourceIds(activeSources);
-        if (
-            revisions.Revisions.Keys.Any(revisionSourceId =>
-                !activeSourceIds.Contains(revisionSourceId)
-            )
-        )
+        if (!revisions.ContainsOnlySources(activeSourceIds))
         {
             return;
         }
@@ -790,11 +786,7 @@ internal sealed class RuntimeWatchCoordinator<TModel, TFragment>
         }
 
         var activeSourceIds = _topology.GetActiveSourceIds(activeSources);
-        if (
-            revisions.Revisions.Keys.Any(revisionSourceId =>
-                !activeSourceIds.Contains(revisionSourceId)
-            )
-        )
+        if (!revisions.ContainsOnlySources(activeSourceIds))
         {
             return;
         }

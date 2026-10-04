@@ -582,6 +582,55 @@ public sealed class StateRevisionVector
         return (_revisions ?? EmptyRevisions).TryGetValue(sourceId, out revision);
     }
 
+    /// <summary>Checks that all direct revision sources remain active; nested sources are independent.</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+        "Major Code Smell",
+        "S3267",
+        Justification = "Direct array/set loops avoid LINQ closures and enumerator allocations in watcher membership checks."
+    )]
+    internal bool ContainsOnlySources(HashSet<SourceId> activeSourceIds)
+    {
+        if (_hasSingleRevision)
+        {
+            return activeSourceIds.Contains(_singleRevisionSource);
+        }
+        if (_smallRevisions is { } entries)
+        {
+            foreach (var entry in entries)
+            {
+                if (!activeSourceIds.Contains(entry.Key))
+                    return false;
+            }
+            return true;
+        }
+
+        var revisions = _revisions ?? EmptyRevisions;
+        // Inverting the lookup avoids boxing a dictionary enumerator. Active source
+        // sets from the runtime use the same default identity comparer as revisions.
+        // Preserve ordinary set membership if a caller supplies a custom comparer.
+        if (!ReferenceEquals(activeSourceIds.Comparer, EqualityComparer<SourceId>.Default))
+        {
+            foreach (var sourceId in revisions.Keys)
+            {
+                if (!activeSourceIds.Contains(sourceId))
+                    return false;
+            }
+            return true;
+        }
+
+        var remaining = revisions.Count;
+        if (remaining == 0)
+            return true;
+        if (remaining > activeSourceIds.Count)
+            return false;
+        foreach (var sourceId in activeSourceIds)
+        {
+            if (revisions.ContainsKey(sourceId) && --remaining == 0)
+                return true;
+        }
+        return false;
+    }
+
     /// <summary>Gets the nested revision vector for a logical source.</summary>
     public bool TryGetNestedRevisions(SourceId sourceId, out StateRevisionVector? revisions)
     {

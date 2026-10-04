@@ -99,6 +99,24 @@ A ConditionalWeakTable keyed by immutable JsonTypeInfo retains eligible sorted p
 
 Three new tests verify repeated cached writes with changed values and ShouldSerialize outcomes, mutable property order/name/eligibility changes, and repeated fallback for frozen ineligible metadata. Existing JSON callback, converter, AOT metadata, and layout tests pass. Release net10.0 passes 1,674 tests, zero failures, 17 external-service skips. The JSON provider builds all three target frameworks with zero warnings/errors. Formatting/whitespace checks pass. Six existing layout benchmarks also executed successfully; their candidate-only reports establish coverage, not before/after performance claims.
 
+## Round 6: watcher revision membership
+
+Reports are retained in `artifacts/perf-round6/before` and `after`. A new benchmark reproduces the two watcher guards, with 0/1/4/16 direct revisions, an extra active source, and either complete or retired-source membership. The candidate calls the new internal helper used by both production guards.
+
+| Revisions / retired source | Before mean | After mean | Before allocation | After allocation |
+| --- | ---: | ---: | ---: | ---: |
+| 0 / false | 5.315 ns | 1.427 ns | 64 B | 0 B |
+| 1 / false | 14.937 ns | 7.035 ns | 104 B | 0 B |
+| 4 / false | 36.099 ns | 24.521 ns | 120 B | 0 B |
+| 16 / false | 180.513 ns | 112.169 ns | 104 B | 0 B |
+| 16 / true | 137.989 ns | 115.040 ns | 104 B | 0 B |
+
+All eight candidate combinations allocate zero bytes. The 16/false baseline has a wide interval and a 161.923 ns median, so the mean should not be treated as a precise speedup. Single/small vectors check their internal source IDs directly, without materializing public dictionary views. Larger vectors count matching active IDs through struct HashSet enumeration, preserving subset rather than equality semantics. A compatibility fallback retains custom-set-comparer semantics. Nested revisions do not participate in this direct-source guard. A local S3267 suppression documents why LINQ would reintroduce closures/enumerator allocation.
+
+Twelve new cases cover both span and enumerable vector layouts, null revisions, extra/missing/cleared active sets, custom comparers, nested-only vectors, first-use and repeated zero-allocation budgets. The full Release net10.0 suite passes 1,686 tests, zero failures, 17 external-service skips. Core builds all three target frameworks with zero warnings/errors. Formatting and whitespace checks pass.
+
+The same run additionally measures all ten existing runtime diagnostic regression cases. Disabled/1 and Disabled/4 are 840.0/1,030.8 ns; observed modes range from 1,252.5 to 2,811.3 ns. Allocation is unchanged by diagnostic mode at approximately 2.2/2.28 KB for this annotated model. Diagnostic events/source snapshots are value types; replacing their constructors would not address those allocations. These are coverage/baseline measurements for further runtime investigation, not before/after diagnostic improvements.
+
 ## Integrated checkpoint
 
 All five verified rounds have been committed and cherry-picked into local main, preserving unrelated CI and timer-test fixes. Integrated main at `f1728ab3` passes the full Release net10.0 suite: 1,674 passed, zero failed, 17 skipped external-service tests. Its log is retained in the main worktree's ignored `artifacts/perf-integrated/tests.log`. No remote push has been performed. The working tree is clean after the audit documentation commit. The optimization goal remains active; the following coverage gaps are still outstanding.
