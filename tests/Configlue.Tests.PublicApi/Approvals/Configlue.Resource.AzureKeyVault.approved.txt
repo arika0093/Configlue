@@ -1,0 +1,131 @@
+[assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/arika0093/Configlue")]
+namespace Configlue.Resource.AzureKeyVault
+{
+    public static class KeyVaultClients
+    {
+        public static Azure.Security.KeyVault.Secrets.SecretClient CreateSecretClient(System.Uri vaultUri, Azure.Core.TokenCredential? credential = null) { }
+        public static string GetPhysicalOrigin(System.Uri vaultUri) { }
+    }
+    public class KeyVaultSecretException : System.Exception
+    {
+        public KeyVaultSecretException(string message) { }
+        public KeyVaultSecretException(string message, System.Exception innerException) { }
+    }
+    public sealed class KeyVaultSecretMapping : System.IEquatable<Configlue.Resource.AzureKeyVault.KeyVaultSecretMapping>
+    {
+        public KeyVaultSecretMapping(string propertyPath, string secretName, string? version = null) { }
+        public string PropertyPath { get; init; }
+        public string SecretName { get; init; }
+        public string? Version { get; init; }
+        public override string ToString() { }
+    }
+    public sealed class KeyVaultSecretMetadata : System.IEquatable<Configlue.Resource.AzureKeyVault.KeyVaultSecretMetadata>
+    {
+        public KeyVaultSecretMetadata(string name, string? version, bool enabled, System.DateTimeOffset? createdOn = default, System.DateTimeOffset? updatedOn = default) { }
+        public System.DateTimeOffset? CreatedOn { get; init; }
+        public bool Enabled { get; init; }
+        public string Name { get; init; }
+        public System.DateTimeOffset? UpdatedOn { get; init; }
+        public string? Version { get; init; }
+        public override string ToString() { }
+    }
+    public static class KeyVaultSecretName
+    {
+        public const int MaxLength = 127;
+        public static bool IsValid(string? secretName) { }
+        public static string ToConventionSecretName(string propertyPath, string? prefix = null) { }
+        public static string Validate(string? secretName, string paramName = "secretName") { }
+    }
+    public sealed class KeyVaultSecretNotFoundException : Configlue.Resource.AzureKeyVault.KeyVaultSecretException
+    {
+        public KeyVaultSecretNotFoundException(string message) { }
+        public KeyVaultSecretNotFoundException(string message, System.Exception innerException) { }
+    }
+    public sealed class KeyVaultSecretResource : Configlue.Resources.IResourceIdentity, Configlue.Resources.IResourceReader, Configlue.Resources.IResourceWriter, Configlue.State.IPipelineResourceReader, System.IDisposable
+    {
+        public KeyVaultSecretResource(Azure.Security.KeyVault.Secrets.SecretClient client, System.Uri vaultUri, string secretName, string? secretVersion = null, Configlue.Resource.AzureKeyVault.KeyVaultSecretResourceOptions? options = null) { }
+        public bool IsFixedVersion { get; }
+        public bool IsPipelineReadPreferred { get; }
+        public string SecretName { get; }
+        public string? SecretVersion { get; }
+        public void Dispose() { }
+        public Configlue.Resources.ResourceId GetResourceId(Configlue.Resources.ConfiglueResourceContext context) { }
+        public System.Threading.Tasks.ValueTask<Configlue.Resources.ResourceReadResult> ReadAsync(Configlue.Resources.ConfiglueResourceContext context, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Configlue.Resources.PipelineResourceReadResult> ReadPipelineAsync(Configlue.Resources.ConfiglueResourceContext context, System.Threading.CancellationToken cancellationToken = default) { }
+        public override string ToString() { }
+        public System.Threading.Tasks.ValueTask<Configlue.State.StateWriteResult> WriteAsync(Configlue.Resources.ConfiglueResourceContext context, Configlue.Resources.ResourceWriteRequest request, System.Threading.CancellationToken cancellationToken = default) { }
+    }
+    public sealed class KeyVaultSecretResourceOptions
+    {
+        public KeyVaultSecretResourceOptions() { }
+        public Configlue.Resources.ResourceId? FixedResourceId { get; init; }
+        public System.Func<Configlue.Resources.ConfiglueResourceContext, string>? SecretNameSelector { get; init; }
+        public System.Func<Configlue.Resources.ConfiglueResourceContext, string?>? SecretVersionSelector { get; init; }
+    }
+    public sealed class KeyVaultSecretResult : System.IEquatable<Configlue.Resource.AzureKeyVault.KeyVaultSecretResult>
+    {
+        public KeyVaultSecretResult(string value, Configlue.Resource.AzureKeyVault.KeyVaultSecretMetadata metadata) { }
+        public Configlue.Resource.AzureKeyVault.KeyVaultSecretMetadata Metadata { get; init; }
+        public string Value { get; init; }
+        public override string ToString() { }
+    }
+    public sealed class KeyVaultSecretSourceOptions
+    {
+        public KeyVaultSecretSourceOptions() { }
+        public Azure.Security.KeyVault.Secrets.SecretClient? Client { get; init; }
+        public System.Func<System.IServiceProvider?, Azure.Security.KeyVault.Secrets.SecretClient>? ClientFactory { get; init; }
+        public required Configlue.Codecs.StateCodecBinding Codec { get; init; }
+        public Configlue.Codecs.StateCodecContext CodecContext { get; init; }
+        public Azure.Core.TokenCredential? Credential { get; init; }
+        public Configlue.Sources.StateFallbackCondition FallbackCondition { get; init; }
+        public string? Id { get; init; }
+        public System.TimeSpan? PollInterval { get; init; }
+        public int Priority { get; init; }
+        public Configlue.Resource.AzureKeyVault.KeyVaultSecretResourceOptions? ResourceOptions { get; init; }
+        public required string SecretName { get; init; }
+        public string? SecretVersion { get; init; }
+        public required System.Uri VaultUri { get; init; }
+        public bool Writable { get; init; }
+    }
+    public sealed class KeyVaultSecretUnavailableException : Configlue.Resource.AzureKeyVault.KeyVaultSecretException
+    {
+        public KeyVaultSecretUnavailableException(string message) { }
+        public KeyVaultSecretUnavailableException(string message, System.Exception innerException) { }
+    }
+    public sealed class KeyVaultSecretsOptions
+    {
+        public KeyVaultSecretsOptions() { }
+        public Azure.Security.KeyVault.Secrets.SecretClient? Client { get; init; }
+        public System.Func<System.IServiceProvider?, Azure.Security.KeyVault.Secrets.SecretClient>? ClientFactory { get; init; }
+        public string? ConventionPrefix { get; init; }
+        public Azure.Core.TokenCredential? Credential { get; init; }
+        public bool EnableConventionMapping { get; init; }
+        public Configlue.Sources.StateFallbackCondition FallbackCondition { get; init; }
+        public Configlue.Resources.ResourceId? FixedResourceId { get; init; }
+        public string? FixedVersion { get; init; }
+        public string? Id { get; init; }
+        public System.Text.Json.JsonSerializerOptions? JsonSerializerOptions { get; init; }
+        public System.Collections.Generic.IReadOnlyList<Configlue.Resource.AzureKeyVault.KeyVaultSecretMapping> Mappings { get; init; }
+        public System.TimeSpan? PollInterval { get; init; }
+        public int Priority { get; init; }
+        public System.Func<string, System.Type, object?>? ValueParser { get; init; }
+        public required System.Uri VaultUri { get; init; }
+        public bool Writable { get; init; }
+    }
+    public sealed class KeyVaultSecretsState<TFragment> : Configlue.Sources.ISourceCapabilities<TFragment>, Configlue.Sources.ISourceReader<TFragment>, Configlue.Sources.ISourceWatcher, Configlue.Sources.ISourceWriter<TFragment>, System.IDisposable
+        where TFragment :  class, Configlue.IConfiglueFragment<TFragment>
+    {
+        public Configlue.Sources.ISourceWatcher? Watcher { get; }
+        public Configlue.Sources.ISourceWriter<TFragment>? Writer { get; }
+        public void Dispose() { }
+        public System.Threading.Tasks.ValueTask<Configlue.State.StateReadResult<TFragment>> ReadAsync(Configlue.Resources.ConfiglueResourceContext context, System.Threading.CancellationToken cancellationToken = default) { }
+        public override string ToString() { }
+        public System.Threading.Tasks.ValueTask WaitForChangeAsync(Configlue.Resources.ConfiglueResourceContext context, string? observedRevision, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Configlue.State.StateWriteResult> WriteAsync(Configlue.Resources.ConfiglueResourceContext context, Configlue.State.StateWriteRequest<TFragment> request, System.Threading.CancellationToken cancellationToken = default) { }
+    }
+    public static class KeyVaultSourceRegistration
+    {
+        public static Configlue.Extensibility.ConfiglueSourceRegistration FromKeyVaultSecret(this Configlue.ConfiglueSourceSetBuilder sources, Configlue.Resource.AzureKeyVault.KeyVaultSecretSourceOptions options) { }
+        public static Configlue.Extensibility.ConfiglueSourceRegistration FromKeyVaultSecrets(this Configlue.ConfiglueSourceSetBuilder sources, Configlue.Resource.AzureKeyVault.KeyVaultSecretsOptions options) { }
+    }
+}

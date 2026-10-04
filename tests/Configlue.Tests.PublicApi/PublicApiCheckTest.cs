@@ -14,6 +14,7 @@ using Configlue.Provider.MessagePack;
 using Configlue.Provider.Xml;
 using Configlue.Provider.Yaml;
 using Configlue.Resource.AzureBlob;
+using Configlue.Resource.AzureKeyVault;
 using Configlue.Resource.Etcd;
 using Configlue.Resource.Gcs;
 using Configlue.Resource.GoogleSecretManager;
@@ -340,6 +341,9 @@ public sealed class PublicApiCheckTest
 
     [Test]
     public void AzureBlob() => PublicApiCheck.Check<AzureBlobSourceOptions>();
+
+    [Test]
+    public void AzureKeyVault() => PublicApiCheck.Check<KeyVaultSecretSourceOptions>();
 
     [Test]
     public void Gcs() => PublicApiCheck.Check<GcsObjectSourceOptions>();

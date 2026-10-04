@@ -593,6 +593,25 @@ public sealed class ConsulKvSourceTests
         registration.ShouldNotBeNull();
     }
 
+    [Test]
+    public async Task HttpClientBaseAddressFallbackReadsSingleKey()
+    {
+        var payload = """[{"Key":"config/greeting","Value":"aGVsbG8=","ModifyIndex":42,"CreateIndex":40}]""";
+        var handler = new SingleResponseHandler(payload, consulIndex: 42);
+        using var httpClient = new HttpClient(handler)
+        {
+            BaseAddress = new Uri("http://127.0.0.1:8500"),
+        };
+        var resource = new ConsulKvResource(httpClient, "config/greeting");
+
+        var read = await resource.ReadAsync();
+
+        read.Status.ShouldBe(StateReadStatus.Success);
+        Encoding.UTF8.GetString(read.Content.ToArray()).ShouldBe("hello");
+        handler.LastRequestUri.ShouldNotBeNull();
+        handler.LastRequestUri!.AbsoluteUri.ShouldStartWith("http://127.0.0.1:8500/v1/kv/");
+    }
+
     private static ConsulKvSource<AppSettings.Fragment> CreatePrefixSource(
         FakeConsulKvClient client,
         string prefix,
@@ -1016,5 +1035,25 @@ public sealed class ConsulKvSourceTests
         }
 
         private sealed record StoredEntry(byte[] Value, ulong ModifyIndex, ulong CreateIndex);
+    }
+
+    private sealed class SingleResponseHandler(string payload, ulong consulIndex)
+        : HttpMessageHandler
+    {
+        public Uri? LastRequestUri { get; private set; }
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken
+        )
+        {
+            LastRequestUri = request.RequestUri;
+            var response = new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(payload, Encoding.UTF8, "application/json"),
+            };
+            response.Headers.Add("X-Consul-Index", consulIndex.ToString(CultureInfo.InvariantCulture));
+            return Task.FromResult(response);
+        }
     }
 }
