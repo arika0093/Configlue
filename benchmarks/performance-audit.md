@@ -85,12 +85,24 @@ Reports are retained in `artifacts/perf-round4/before` and `after`. Resolver bef
 
 `Enum.IsDefined(Type, object)` boxed every read status. Both typed-state and byte-resource results now validate with explicit enum patterns, preserving rejection of undefined statuses and all schema/value/content checks across all target frameworks. The tiny factory timings are at the harness floor and can benefit from constant folding; the meaningful evidence is zero allocation and the full resolver measurements. The four-source mean does not improve. One deterministic budget exercises all eight public factories, retaining the final payload/status. Four invalid-status tests cover negative, first out-of-range, and integer extremes, retaining the exception parameter name. Release net10.0 passes 1,671 tests, zero failures, 17 external-service skips. Abstraction builds all three target frameworks with zero warnings/errors; formatting/whitespace checks pass.
 
+## Round 5: immutable JSON property plans
+
+The new `JsonSimpleObjectWriteBenchmarks` exercises a plain four-property object with schema metadata, explicit/tied property ordering, and a collection property. Its baseline is the round 4 after report (before this JSON change), retained in `artifacts/perf-round4/after`; candidate reports are in `artifacts/perf-round5/after`.
+
+| Path | Before mean | After mean | Before allocation | After allocation |
+| --- | ---: | ---: | ---: | ---: |
+| Plain schema-bearing Simple object write | 334.7 ns | 255.9 ns | 528 B | 184 B |
+
+A ConditionalWeakTable keyed by immutable JsonTypeInfo retains eligible sorted property arrays and ineligible plans. Both metadata and serializer options must be read-only. Mutable metadata is inspected and sorted each time. Values, getters, and ShouldSerialize predicates still run on every write. Serializer-option eligibility, callbacks, generated converter payload writers, polymorphism, custom converters, extension data, reference handling, number handling, and default ignore rules retain their existing fallback paths. Stable sorting retains original metadata order for ties; property names are written with the existing writer/options behavior. Weak keys avoid globally retaining transient metadata/options.
+
+Three new tests verify repeated cached writes with changed values and ShouldSerialize outcomes, mutable property order/name/eligibility changes, and repeated fallback for frozen ineligible metadata. Existing JSON callback, converter, AOT metadata, and layout tests pass. Release net10.0 passes 1,674 tests, zero failures, 17 external-service skips. The JSON provider builds all three target frameworks with zero warnings/errors. Formatting/whitespace checks pass. Six existing layout benchmarks also executed successfully; their candidate-only reports establish coverage, not before/after performance claims.
+
 ## Remaining audit
 
 These are outstanding, not claims of saturation:
 
 - Resolver: unchanged revision/watch snapshots now reuse immutable state. Audit changed-revision and cold costs, subject key construction and context equality, and reader allocations. Preserve fresh source reads, failover, immutable escaped snapshots, and subject residency/eviction semantics.
-- JSON: plain schema-bearing object serialization still sorts and checks properties every call. Measure this path separately from generated-fragment serialization; cache only immutable metadata and preserve callbacks, polymorphism, converters, ordering, and all serializer options.
+- JSON: immutable plain schema-bearing object metadata is now cached. Continue auditing envelope/section reads and fallback serialization allocations, including mutable metadata and cold setup costs. Preserve callbacks, polymorphism, converters, ordering, and all serializer options.
 - Runtime reads, validation, diagnostics, and watch notification: sample disabled, snapshot, history, listener, and telemetry modes; check for internal use of materializing public revision views.
 - Generated fragments: audit merge, collection merge, clone/diff/equality, sparse routing, nested paths, and member lookup against existing benchmarks and tests.
 - Write paths: audit routed saves, batch plans, composite edits, serialized writes, and file backup/locking overhead.

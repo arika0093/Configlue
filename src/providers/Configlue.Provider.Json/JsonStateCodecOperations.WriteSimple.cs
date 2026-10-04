@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics.CodeAnalysis;
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
@@ -8,6 +9,11 @@ namespace Configlue.Provider.Json;
 
 internal static partial class JsonStateCodecOperations
 {
+    private static readonly ConditionalWeakTable<
+        JsonTypeInfo,
+        SimpleObjectProperties
+    > SimpleProperties = new();
+
     [RequiresUnreferencedCode("Serialization may require reflected property metadata.")]
     [RequiresDynamicCode("Serialization may require runtime-generated JSON metadata.")]
     internal static bool TryWriteSimpleObjectPayload(
@@ -72,18 +78,27 @@ internal static partial class JsonStateCodecOperations
             || options.IgnoreReadOnlyProperties
             || options.IgnoreReadOnlyFields
             || options.NumberHandling != JsonNumberHandling.Strict
-            || typeInfo.Properties.Any(static property =>
-                property.CustomConverter is not null
-                || property.IsExtensionData
-                || property.NumberHandling is not null
-            )
         )
         {
             return false;
         }
 
+        // Only immutable metadata can retain a sorted plan. A caller-provided mutable
+        // JsonTypeInfo must be inspected again on each write, including eligibility.
+        var properties =
+            typeInfo.IsReadOnly && options.IsReadOnly
+                ? SimpleProperties.GetValue(
+                    typeInfo,
+                    static info => CreateSimpleObjectProperties(info)
+                )
+                : CreateSimpleObjectProperties(typeInfo);
+        if (properties.Ordered is null)
+        {
+            return false;
+        }
+
         WriteSimpleObjectStart(writer, schema, in context, layout);
-        foreach (var property in typeInfo.Properties.OrderBy(static property => property.Order))
+        foreach (var property in properties.Ordered)
         {
             if (property.Get is null)
             {
@@ -104,6 +119,27 @@ internal static partial class JsonStateCodecOperations
         }
         writer.WriteEndObject();
         return true;
+    }
+
+    private static SimpleObjectProperties CreateSimpleObjectProperties(JsonTypeInfo typeInfo)
+    {
+        foreach (var property in typeInfo.Properties)
+        {
+            if (
+                property.CustomConverter is not null
+                || property.IsExtensionData
+                || property.NumberHandling is not null
+            )
+            {
+                return new(null);
+            }
+        }
+        return new(typeInfo.Properties.OrderBy(static property => property.Order).ToArray());
+    }
+
+    private sealed class SimpleObjectProperties(JsonPropertyInfo[]? ordered)
+    {
+        public JsonPropertyInfo[]? Ordered { get; } = ordered;
     }
 
     private static void WriteSimpleObjectStart(
