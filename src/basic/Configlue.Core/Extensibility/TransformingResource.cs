@@ -216,7 +216,6 @@ public sealed class TransformingResource
     private sealed class TransformingBatchWriter
         : TransformingWriter,
             IResourceBatchWriter,
-            IResourceBatchCompatibility,
             ITryResourceIdentity
     {
         private readonly TransformingResource _owner;
@@ -239,16 +238,6 @@ public sealed class TransformingResource
         public bool TryGetResourceId(ConfiglueResourceContext context, out ResourceId resourceId) =>
             _owner.TryGetResourceId(context, out resourceId);
 
-        public object? GetBatchCompatibilityToken(ConfiglueResourceContext context)
-        {
-            var underlying = _batchWriter is IResourceBatchCompatibility compatibility
-                ? compatibility.GetBatchCompatibilityToken(context)
-                : _batchWriter;
-            return underlying is null
-                ? null
-                : new BatchCompatibilityToken(underlying, _owner._transformers);
-        }
-
         public ValueTask<StateWriteResult> WriteBatchAsync(
             IReadOnlyList<ResourceWriteMutation> mutations,
             CancellationToken cancellationToken = default
@@ -265,56 +254,6 @@ public sealed class TransformingResource
             }
 
             return _batchWriter.WriteBatchAsync(transformedMutations, cancellationToken);
-        }
-
-        private sealed class BatchCompatibilityToken : IEquatable<BatchCompatibilityToken>
-        {
-            private readonly object _underlying;
-            private readonly IStateByteTransformer[] _transformers;
-
-            public BatchCompatibilityToken(object underlying, IStateByteTransformer[] transformers)
-            {
-                _underlying = underlying;
-                _transformers = transformers;
-            }
-
-            public bool Equals(BatchCompatibilityToken? other)
-            {
-                if (
-                    other is null
-                    || !Equals(_underlying, other._underlying)
-                    || _transformers.Length != other._transformers.Length
-                )
-                {
-                    return false;
-                }
-
-                for (var index = 0; index < _transformers.Length; index++)
-                {
-                    if (!ReferenceEquals(_transformers[index], other._transformers[index]))
-                    {
-                        return false;
-                    }
-                }
-
-                return true;
-            }
-
-            public override bool Equals(object? obj) => Equals(obj as BatchCompatibilityToken);
-
-            public override int GetHashCode()
-            {
-                unchecked
-                {
-                    var hash = _underlying.GetHashCode();
-                    for (var index = 0; index < _transformers.Length; index++)
-                    {
-                        hash = (hash * 397) ^ _transformers[index].GetHashCode();
-                    }
-
-                    return hash;
-                }
-            }
         }
     }
 }

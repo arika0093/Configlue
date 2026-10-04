@@ -931,17 +931,11 @@ internal sealed class RuntimeWriteCoordinator<TModel, TFragment>
                 for (var planIndex = 1; planIndex < group.Count; planIndex++)
                 {
                     var plan = group[planIndex];
-                    if (
-                        !ResourceBatchCompatibility.AreCompatible(
-                            canonicalWriter,
-                            plan.BatchWriter!,
-                            plan.Mutation!.Context
-                        )
-                    )
+                    if (!ReferenceEquals(canonicalWriter, plan.BatchWriter!))
                     {
                         var sourceIds = string.Join("', '", group.Select(static p => p.Source.Id));
                         throw new NotSupportedException(
-                            $"Sources '{sourceIds}' share ResourceId '{plan.ResourceId}' but expose batch writers that are not interchangeable for the operation contributed by '{plan.Source.Id}'. A writer must be the same object or opt in to an equal {nameof(IResourceBatchCompatibility)} token in that operation's context."
+                            $"Sources '{sourceIds}' share ResourceId '{plan.ResourceId}' but expose distinct batch writer objects. Share one canonical batch writer for the physical resource so the batch executes atomically through a single writer."
                         );
                     }
                 }

@@ -3,9 +3,7 @@ using System.Text.Json;
 
 namespace Configlue.Source.Consul;
 
-internal sealed class ConsulKvBatchWriter<TFragment>
-    : IResourceBatchWriter,
-        IResourceBatchCompatibility
+internal sealed class ConsulKvBatchWriter<TFragment> : IResourceBatchWriter
     where TFragment : class, IConfiglueFragment<TFragment>
 {
     private readonly ConsulKvSource<TFragment> _source;
@@ -18,9 +16,6 @@ internal sealed class ConsulKvBatchWriter<TFragment>
 
     public ResourceId GetResourceId(ConfiglueResourceContext context) =>
         _source.GetResourceId(context);
-
-    public object? GetBatchCompatibilityToken(ConfiglueResourceContext context) =>
-        _source.GetBatchCompatibilityToken(context);
 
     public ValueTask<StateWriteResult> WriteAsync(
         ConfiglueResourceContext context,

@@ -305,9 +305,7 @@ public sealed class EtcdSourceTests
         secondPlan.ShouldNotBeNull();
         firstPlan!.ResourceId.ShouldBe(secondPlan!.ResourceId);
         var writer = firstPlan.BatchWriter;
-        ResourceBatchCompatibility
-            .AreCompatible(writer, secondPlan.BatchWriter, firstContext)
-            .ShouldBeTrue();
+        ReferenceEquals(writer, secondPlan.BatchWriter).ShouldBeTrue();
         var batchResult = await writer.WriteBatchAsync(
             [firstPlan.Mutation, secondPlan.Mutation]
         );

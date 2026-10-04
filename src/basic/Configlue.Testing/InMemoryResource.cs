@@ -8,8 +8,7 @@ public sealed class InMemoryResource
     : IResourceReader,
         IPipelineResourceReader,
         ISourceWatcher,
-        IResourceBatchWriter,
-        IResourceBatchCompatibility
+        IResourceBatchWriter
 {
     private readonly object _gate = new();
     private byte[]? _content;
@@ -26,14 +25,6 @@ public sealed class InMemoryResource
 
     /// <inheritdoc />
     public ResourceId GetResourceId(ConfiglueResourceContext context)
-    {
-        _ = context;
-        return ResourceId;
-    }
-
-    /// <inheritdoc />
-    /// <remarks>The unique in-memory identity is the entire physical batch domain.</remarks>
-    public object? GetBatchCompatibilityToken(ConfiglueResourceContext context)
     {
         _ = context;
         return ResourceId;

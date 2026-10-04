@@ -98,7 +98,7 @@ namespace Configlue.Provider.Json
 }
 namespace Configlue.Resources
 {
-    public sealed class FileResource : Configlue.Resources.IResourceBackupRecovery, Configlue.Resources.IResourceBatchCompatibility, Configlue.Resources.IResourceBatchWriter, Configlue.Resources.IResourceIdentity, Configlue.Resources.IResourceReader, Configlue.Resources.IResourceWriter, Configlue.Sources.ISourceWatcher, Configlue.State.IPipelineResourceReader, System.IDisposable
+    public sealed class FileResource : Configlue.Resources.IResourceBackupRecovery, Configlue.Resources.IResourceBatchWriter, Configlue.Resources.IResourceIdentity, Configlue.Resources.IResourceReader, Configlue.Resources.IResourceWriter, Configlue.Sources.ISourceWatcher, Configlue.State.IPipelineResourceReader, System.IDisposable
     {
         public FileResource(string path, Configlue.Resources.FileResourceOptions? options = null, Configlue.Resources.ResourceId? fixedResourceId = default) { }
         public FileResource(string path, Configlue.Resources.FileResourceOptions? options, Configlue.Resources.ResourceId? fixedResourceId, Configlue.Resources.IConfiglueHostPaths hostPaths) { }
@@ -110,7 +110,6 @@ namespace Configlue.Resources
         public Configlue.Resources.ResourceId ResourceId { get; }
         public System.Threading.Tasks.ValueTask<System.IDisposable> AcquireExclusiveLockAsync(System.Threading.CancellationToken cancellationToken) { }
         public void Dispose() { }
-        public object? GetBatchCompatibilityToken(Configlue.Resources.ConfiglueResourceContext context) { }
         public Configlue.Resources.ResourceId GetResourceId(Configlue.Resources.ConfiglueResourceContext context) { }
         public System.Threading.Tasks.ValueTask<Configlue.Resources.ResourceReadResult> ReadAsync(Configlue.Resources.ConfiglueResourceContext context, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask<Configlue.Resources.PipelineResourceReadResult> ReadPipelineAsync(Configlue.Resources.ConfiglueResourceContext context, System.Threading.CancellationToken cancellationToken = default) { }

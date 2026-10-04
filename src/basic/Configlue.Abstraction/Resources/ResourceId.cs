@@ -4,7 +4,8 @@ namespace Configlue.Resources;
 /// <remarks>
 /// A <see cref="ResourceId"/> describes the physical coordination and atomicity domain used to group
 /// writes. It does not imply that every batch writer reporting the same identity is interchangeable;
-/// callers that combine writers must additionally satisfy <see cref="IResourceBatchCompatibility"/>.
+/// writers sharing one identity are combined only when they are the same batch-writer object.
+/// Distinct writer instances for one identity are rejected before any physical write.
 /// The default value has no identity and is only valid as the output of an unsuccessful
 /// <see cref="ITryResourceIdentity.TryGetResourceId(ConfiglueResourceContext, out ResourceId)"/> call.
 /// Provider SPI vocabulary: ordinary application code never manipulates this type.

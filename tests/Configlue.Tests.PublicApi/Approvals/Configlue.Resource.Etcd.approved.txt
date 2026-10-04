@@ -79,12 +79,11 @@ namespace Configlue.Resource.Etcd
         public long HeaderRevision { get; }
         public System.Collections.Generic.IReadOnlyList<Configlue.Resource.Etcd.EtcdKeyValue> Kvs { get; }
     }
-    public sealed class EtcdResource : Configlue.Resources.IResourceBatchCompatibility, Configlue.Resources.IResourceBatchWriter, Configlue.Resources.IResourceIdentity, Configlue.Resources.IResourceReader, Configlue.Resources.IResourceWriter, Configlue.Sources.ISourceWatcher, System.IDisposable
+    public sealed class EtcdResource : Configlue.Resources.IResourceBatchWriter, Configlue.Resources.IResourceIdentity, Configlue.Resources.IResourceReader, Configlue.Resources.IResourceWriter, Configlue.Sources.ISourceWatcher, System.IDisposable
     {
         public EtcdResource(Configlue.Resource.Etcd.IEtcdClient client, Configlue.Resource.Etcd.EtcdResourceOptions? options = null) { }
         public EtcdResource(System.Func<Configlue.RouteKey, Configlue.Resource.Etcd.IEtcdClient> clientResolver, Configlue.Resource.Etcd.EtcdResourceOptions? options = null) { }
         public void Dispose() { }
-        public object? GetBatchCompatibilityToken(Configlue.Resources.ConfiglueResourceContext context) { }
         public Configlue.Resources.ResourceId GetResourceId(Configlue.Resources.ConfiglueResourceContext context) { }
         public System.Threading.Tasks.ValueTask<Configlue.Resources.ResourceReadResult> ReadAsync(Configlue.Resources.ConfiglueResourceContext context, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask WaitForChangeAsync(Configlue.Resources.ConfiglueResourceContext context, string? observedRevision, System.Threading.CancellationToken cancellationToken = default) { }

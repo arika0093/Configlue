@@ -5,7 +5,7 @@ namespace Configlue.Resource.Etcd;
 /// subject-level mutations from <see cref="EtcdSource{TFragment}"/> into a single etcd
 /// transaction through the normal <see cref="IResourceBatchWriter"/> capability model.
 /// </summary>
-internal sealed class EtcdPrefixBatchWriter : IResourceBatchWriter, IResourceBatchCompatibility
+internal sealed class EtcdPrefixBatchWriter : IResourceBatchWriter
 {
     private readonly Func<RouteKey, IEtcdClient> _clientResolver;
     private readonly EtcdResourceOptions _options;
@@ -41,12 +41,6 @@ internal sealed class EtcdPrefixBatchWriter : IResourceBatchWriter, IResourceBat
                 )
         );
     }
-
-    public object? GetBatchCompatibilityToken(ConfiglueResourceContext context) =>
-        "etcd-batch:"
-        + ResolvePrefix(context)
-        + "|endpoints:"
-        + string.Join(",", _options.Endpoints);
 
     public ValueTask<StateWriteResult> WriteAsync(
         ConfiglueResourceContext context,

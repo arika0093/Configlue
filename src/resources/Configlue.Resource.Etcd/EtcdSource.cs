@@ -28,6 +28,7 @@ public sealed class EtcdSource<TFragment>
     private readonly EtcdMemberMapper _mapper;
     private readonly bool _writable;
     private readonly bool _routeAwareIdentity;
+    private readonly EtcdPrefixBatchWriter _batchWriter;
     private readonly EtcdWatchShutdown _watchShutdown = new();
     private int _disposed;
 
@@ -49,6 +50,7 @@ public sealed class EtcdSource<TFragment>
         _clientResolver = _ => client;
         _writable = true;
         _routeAwareIdentity = false;
+        _batchWriter = new EtcdPrefixBatchWriter(_clientResolver, _options, _routeAwareIdentity);
     }
 
     /// <summary>Creates a source that uses one shared caller-owned etcd client.</summary>
@@ -71,6 +73,7 @@ public sealed class EtcdSource<TFragment>
         _clientResolver = _ => client;
         _writable = writable;
         _routeAwareIdentity = false;
+        _batchWriter = new EtcdPrefixBatchWriter(_clientResolver, _options, _routeAwareIdentity);
     }
 
     /// <summary>Creates a source that resolves a shared caller-owned etcd client per route.</summary>
@@ -123,6 +126,7 @@ public sealed class EtcdSource<TFragment>
         };
         _writable = writable;
         _routeAwareIdentity = true;
+        _batchWriter = new EtcdPrefixBatchWriter(_clientResolver, _options, _routeAwareIdentity);
     }
 
     private EtcdSource(
@@ -140,6 +144,7 @@ public sealed class EtcdSource<TFragment>
         _clientResolver = clientResolver;
         _writable = writable;
         _routeAwareIdentity = routeAwareIdentity;
+        _batchWriter = new EtcdPrefixBatchWriter(_clientResolver, _options, _routeAwareIdentity);
     }
 
     /// <summary>The generated model schema backing member mapping.</summary>
@@ -267,7 +272,6 @@ public sealed class EtcdSource<TFragment>
         var address = ResolveAddress(context);
         var assignments = _mapper.FlattenFragment(fragment);
         var payload = EtcdBatchPayload.FromAssignments(address.AddressBase, assignments);
-        var writer = new EtcdPrefixBatchWriter(_clientResolver, _options, _routeAwareIdentity);
         var scope =
             "etcd/"
             + ResolvePrefix(context)
@@ -282,7 +286,7 @@ public sealed class EtcdSource<TFragment>
             context
         );
         return new ValueTask<StateWriteBatchPlan?>(
-            new StateWriteBatchPlan(GetResourceId(context), writer, mutation)
+            new StateWriteBatchPlan(GetResourceId(context), _batchWriter, mutation)
         );
     }
 

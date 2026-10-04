@@ -20,7 +20,6 @@ public sealed class ConsulKvSource<TFragment>
         ISourceWatcher,
         IResourceIdentity,
         IAsyncSourceWriteBatchParticipant<TFragment>,
-        IResourceBatchCompatibility,
         IDisposable
     where TFragment : class, IConfiglueFragment<TFragment>
 {
@@ -154,17 +153,6 @@ public sealed class ConsulKvSource<TFragment>
                     partition,
                     context.ModelId ?? string.Empty
                 )
-        );
-    }
-
-    /// <inheritdoc />
-    public object? GetBatchCompatibilityToken(ConfiglueResourceContext context)
-    {
-        return string.Join(
-            "\n",
-            ResolveDatacenter(context) ?? string.Empty,
-            ResolveNamespace(context) ?? string.Empty,
-            ResolvePartition(context) ?? string.Empty
         );
     }
 

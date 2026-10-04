@@ -358,9 +358,6 @@ public sealed class ConsulKvSourceTests
         planA.ShouldNotBeNull();
         planB.ShouldNotBeNull();
         planA!.ResourceId.ShouldBe(planB!.ResourceId);
-        ResourceBatchCompatibility
-            .AreCompatible(planA.BatchWriter, planB.BatchWriter, planB.Mutation.Context)
-            .ShouldBeTrue();
         ResourceWriteMutation.ValidateBatch([planA.Mutation, planB.Mutation]);
 
         var beforeTxn = client.TxnCalls;

@@ -13,7 +13,6 @@ namespace Configlue.Resource.Etcd;
 public sealed class EtcdResource
     : IResourceReader,
         IResourceBatchWriter,
-        IResourceBatchCompatibility,
         ISourceWatcher,
         IDisposable
 {
@@ -81,16 +80,6 @@ public sealed class EtcdResource
 
         var address = ResolveAddress(context);
         return new ResourceId("etcd:" + CreateIdentityHash(address.Key));
-    }
-
-    /// <inheritdoc />
-    public object? GetBatchCompatibilityToken(ConfiglueResourceContext context)
-    {
-        _ = context;
-        var prefix = _options.KeyPrefixSelector is null
-            ? EtcdKeyEncoding.NormalizePrefix(_options.KeyPrefix)
-            : "selector";
-        return "etcd:" + prefix + "|endpoints:" + string.Join(",", _options.Endpoints);
     }
 
     /// <inheritdoc />

@@ -110,7 +110,7 @@ namespace Configlue.Source.Consul
         public static Configlue.Extensibility.ConfiglueSourceRegistration FromConsul(this Configlue.ConfiglueSourceSetBuilder sources, Configlue.Source.Consul.ConsulKvPrefixSourceOptions options) { }
         public static Configlue.Extensibility.ConfiglueSourceRegistration FromConsulObject(this Configlue.ConfiglueSourceSetBuilder sources, Configlue.Source.Consul.ConsulKvObjectSourceOptions options) { }
     }
-    public sealed class ConsulKvSource<TFragment> : Configlue.Resources.IResourceBatchCompatibility, Configlue.Resources.IResourceIdentity, Configlue.Sources.IAsyncSourceWriteBatchParticipant<TFragment>, Configlue.Sources.ISourceCapabilities<TFragment>, Configlue.Sources.ISourceReader<TFragment>, Configlue.Sources.ISourceWatcher, Configlue.Sources.ISourceWriter<TFragment>, System.IDisposable
+    public sealed class ConsulKvSource<TFragment> : Configlue.Resources.IResourceIdentity, Configlue.Sources.IAsyncSourceWriteBatchParticipant<TFragment>, Configlue.Sources.ISourceCapabilities<TFragment>, Configlue.Sources.ISourceReader<TFragment>, Configlue.Sources.ISourceWatcher, Configlue.Sources.ISourceWriter<TFragment>, System.IDisposable
         where TFragment :  class, Configlue.IConfiglueFragment<TFragment>
     {
         public ConsulKvSource(System.Func<Configlue.RouteKey, System.Net.Http.HttpClient> clientResolver, Configlue.ConfiglueModelSchema schema, string prefix, Configlue.Source.Consul.ConsulKvPrefixOptions? options = null, bool writable = true) { }
@@ -118,7 +118,6 @@ namespace Configlue.Source.Consul
         public Configlue.Sources.ISourceWatcher? Watcher { get; }
         public Configlue.Sources.ISourceWriter<TFragment>? Writer { get; }
         public void Dispose() { }
-        public object? GetBatchCompatibilityToken(Configlue.Resources.ConfiglueResourceContext context) { }
         public Configlue.Resources.ResourceId GetResourceId(Configlue.Resources.ConfiglueResourceContext context) { }
         public System.Threading.Tasks.ValueTask<Configlue.State.StateReadResult<TFragment>> ReadAsync(Configlue.Resources.ConfiglueResourceContext context, System.Threading.CancellationToken cancellationToken = default) { }
         public override string ToString() { }
