@@ -83,6 +83,7 @@
     <ProjectReference Include="../../src/resources/Configlue.Resource.S3/Configlue.Resource.S3.csproj" />
     <ProjectReference Include="../../src/resources/Configlue.Resource.Etcd/Configlue.Resource.Etcd.csproj" />
     <ProjectReference Include="../../src/resources/Configlue.Resource.AzureKeyVault/Configlue.Resource.AzureKeyVault.csproj" />
+    <ProjectReference Include="../../src/resources/Configlue.Resource.SecretsManager/Configlue.Resource.SecretsManager.csproj" />
     <ProjectReference Include="../../src/sources/Configlue.Source.Http/Configlue.Source.Http.csproj" />
     <ProjectReference Include="../../src/sources/Configlue.Source.Consul/Configlue.Source.Consul.csproj" />
     <ProjectReference Include="../../src/sources/Configlue.Source.Ssm/Configlue.Source.Ssm.csproj" />
