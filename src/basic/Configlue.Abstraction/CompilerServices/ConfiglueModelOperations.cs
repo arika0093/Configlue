@@ -15,7 +15,7 @@ public sealed class ConfiglueModelOperations<TModel, TFragment>
         "IL2059",
         Justification = "The handle comes from typeof(TModel), a generated model already rooted by this closed generic instantiation. Running its static constructor only triggers generated registration."
     )]
-    static ConfiglueModelOperations()
+    private static void EnsureRegistered()
     {
         // Generated operations are registered from the model's own type initializer.
         // Running the model's class constructor here makes first use of the operations
@@ -47,11 +47,26 @@ public sealed class ConfiglueModelOperations<TModel, TFragment>
     }
 
     /// <summary>Gets the model operations registered by generated code.</summary>
-    public static ConfiglueModelOperations<TModel, TFragment> Current =>
-        _current
-        ?? throw new InvalidOperationException(
-            $"Generated operations for model '{typeof(TModel)}' have not been registered."
-        );
+    public static ConfiglueModelOperations<TModel, TFragment> Current
+    {
+        get
+        {
+            var current = Volatile.Read(ref _current);
+            if (current is not null)
+            {
+                return current;
+            }
+
+            // Initialize from the getter rather than a registry type initializer.
+            // Registration can then enter this type while another thread waits for
+            // the model initializer, without a circular class-initialization lock.
+            EnsureRegistered();
+            return Volatile.Read(ref _current)
+                ?? throw new InvalidOperationException(
+                    $"Generated operations for model '{typeof(TModel)}' have not been registered."
+                );
+        }
+    }
 
     /// <summary>The generated model schema.</summary>
     public ConfiglueModelSchema Schema { get; }

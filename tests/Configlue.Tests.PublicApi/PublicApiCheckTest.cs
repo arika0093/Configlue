@@ -13,19 +13,19 @@ using Configlue.Provider.Json;
 using Configlue.Provider.MessagePack;
 using Configlue.Provider.Xml;
 using Configlue.Provider.Yaml;
-using Configlue.Source.Http;
 using Configlue.Resource.AzureBlob;
-using Configlue.Resource.Redis;
 using Configlue.Resource.Etcd;
-using Configlue.Resource.S3;
-using Configlue.Resource.Vault;
+using Configlue.Resource.Gcs;
 using Configlue.Resource.GoogleSecretManager;
 using Configlue.Resource.Kubernetes;
-using Configlue.Resource.Gcs;
+using Configlue.Resource.Redis;
+using Configlue.Resource.S3;
+using Configlue.Resource.Vault;
 using Configlue.Resource.Zip;
 using Configlue.Source.CommandLine;
 using Configlue.Source.Consul;
 using Configlue.Source.Environment;
+using Configlue.Source.Http;
 using Configlue.Source.PostgreSql;
 using Configlue.Source.PostgreSql.Migrations;
 using Configlue.Source.Presets;
@@ -112,7 +112,7 @@ public static class PublicApiCheck
         var approvedApi = File.ReadAllText(
             Path.Combine(AppContext.BaseDirectory, "Approvals", $"{assemblyName}.approved.txt")
         );
-        publicApi.ShouldBe(approvedApi);
+        publicApi.ReplaceLineEndings("\n").ShouldBe(approvedApi.ReplaceLineEndings("\n"));
     }
 
     private static string FormatFacadeModelStaticMemberModifiers(Assembly assembly)
@@ -337,8 +337,10 @@ public sealed class PublicApiCheckTest
     [Test]
     public void AwsAppConfig() =>
         PublicApiCheck.Check<Configlue.Resource.AwsAppConfig.AwsAppConfigSourceOptions>();
+
     [Test]
     public void AzureBlob() => PublicApiCheck.Check<AzureBlobSourceOptions>();
+
     [Test]
     public void Gcs() => PublicApiCheck.Check<GcsObjectSourceOptions>();
 
@@ -356,11 +358,13 @@ public sealed class PublicApiCheckTest
 
     [Test]
     public void Consul() => PublicApiCheck.Check<ConsulKvPrefixSourceOptions>();
+
     [Test]
     public void Etcd() => PublicApiCheck.Check<EtcdStateSourceOptions>();
+
     [Test]
-    public void GoogleSecretManager() =>
-        PublicApiCheck.Check<GoogleSecretManagerSourceOptions>();
+    public void GoogleSecretManager() => PublicApiCheck.Check<GoogleSecretManagerSourceOptions>();
+
     [Test]
     public void Kubernetes() => PublicApiCheck.Check<KubernetesSourceOptions>();
 

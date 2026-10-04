@@ -15,7 +15,7 @@ public sealed class ConfiglueModelDescriptor<TModel>
         "IL2059",
         Justification = "The handle comes from typeof(TModel), a generated model already rooted by this closed generic instantiation. Running its static constructor only triggers generated registration."
     )]
-    static ConfiglueModelDescriptor()
+    private static void EnsureRegistered()
     {
         // The generated model registers its descriptor from its own type initializer.
         // Running the model's class constructor here keeps registration reflection-free
@@ -65,11 +65,26 @@ public sealed class ConfiglueModelDescriptor<TModel>
     public Func<object, object> FromFragmentBoxed { get; }
 
     /// <summary>Gets the descriptor registered by generated model code.</summary>
-    public static ConfiglueModelDescriptor<TModel> Current =>
-        _current
-        ?? throw new InvalidOperationException(
-            $"Generated runtime descriptor for model '{typeof(TModel)}' has not been registered."
-        );
+    public static ConfiglueModelDescriptor<TModel> Current
+    {
+        get
+        {
+            var current = Volatile.Read(ref _current);
+            if (current is not null)
+            {
+                return current;
+            }
+
+            // Initialize from the getter rather than a registry type initializer.
+            // Registration can then enter this type while another thread waits for
+            // the model initializer, without a circular class-initialization lock.
+            EnsureRegistered();
+            return Volatile.Read(ref _current)
+                ?? throw new InvalidOperationException(
+                    $"Generated runtime descriptor for model '{typeof(TModel)}' has not been registered."
+                );
+        }
+    }
 
     /// <summary>Registers the generated runtime descriptor for its model.</summary>
     public static void Register(ConfiglueModelDescriptor<TModel> descriptor)
