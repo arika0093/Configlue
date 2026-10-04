@@ -15,5 +15,6 @@
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Configlue.Tests" />
+    <InternalsVisibleTo Include="Configlue.Benchmarks" />
   </ItemGroup>
 </Project>
