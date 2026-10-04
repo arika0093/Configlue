@@ -18,6 +18,11 @@ arbitrary custom set implementations use the default comparer.
 
 From the repository root on Windows:
 
+> Note: this consumer is build-only in CI (never executed there).
+> The `net48` / `netstandard2.0` runtime executions below are manual-only
+> ad-hoc verification on Windows and are unverified in CI
+> (see `docs/compat-matrix.md` §5). Verified runtime stays on `net10.0`.
+
 ```powershell
 dotnet build tests/fixtures/consumers/set-clones/SetClones.Consumer.csproj -c Release -p:TargetFramework= -p:CSharpier_Bypass=true
 dotnet tests/fixtures/consumers/set-clones/bin/Release/net10.0/SetClones.Consumer.dll

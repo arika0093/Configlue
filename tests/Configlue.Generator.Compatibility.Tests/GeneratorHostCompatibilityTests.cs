@@ -150,6 +150,45 @@ public sealed class GeneratorHostCompatibilityTests
     }
 
     [Test]
+    public void RequiredMember_IsUnderstoodOnRoslyn431Host()
+    {
+        // Minimal 4.3.1-host proof for RoslynSymbolCompat.IsRequired
+        // (see docs/compat-matrix.md §2-§3): the 4.3.1-built generator must
+        // understand a required member authored on a modern SDK without a
+        // newer host. Roslyn 4.3.1 exposes C# 11 required members through its
+        // preview parser, so Preview here is still the old host.
+        const string source = """
+            using Configlue;
+            [ConfiglueModel("required-host-proof")]
+            public partial class RequiredHostSettings
+            {
+                public required int Identity { get; init; }
+                public string Name { get; set; } = string.Empty;
+            }
+            """;
+        var parseOptions = new CSharpParseOptions(LanguageVersion.Preview);
+        var modelTree = CSharpSyntaxTree.ParseText(source, parseOptions);
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(
+            new[] { new ConfiglueGenerator().AsSourceGenerator() },
+            parseOptions: parseOptions
+        );
+        driver = driver.RunGeneratorsAndUpdateCompilation(
+            CreateCompilation(modelTree),
+            out var output,
+            out var diagnostics
+        );
+        var exception = driver.GetRunResult().Results.Single().Exception;
+        exception.ShouldBeNull(exception?.ToString());
+        diagnostics
+            .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
+            .ShouldBeEmpty(BuildDiagnosticMessage(diagnostics));
+        var generatedSource = GetGeneratedSource(output, modelTree);
+        generatedSource.ShouldContain("Identity");
+        var emit = output.Emit(Stream.Null);
+        emit.Success.ShouldBeTrue(BuildDiagnosticMessage(emit.Diagnostics));
+    }
+
+    [Test]
     public void ShouldEmitIsExternalInit_WhenCompilationLacksMarker()
     {
         var empty = CSharpCompilation.Create("ConfiglueGeneratorNoMarkerCompatibility");
