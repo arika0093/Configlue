@@ -1,5 +1,12 @@
 name: NativeAOT tests
 
+# NativeAOT single entry point (#273). Invoked only through the Tier 2
+# main/release gate (test-strict.yaml, itself called by release.yaml) plus
+# scheduled/manual runs below — never directly on pull requests and never
+# through both quick and strict paths. (The packed-package NativeAOT
+# consumer probes in test-package-consumers.yaml cover a different surface:
+# published NuGet packages rather than this in-repo test project.)
+
 on:
   workflow_call:
     inputs:
@@ -8,6 +15,9 @@ on:
         type: string
         required: false
         default: ''
+  schedule:
+    # Weekly cadence independent of main/release pushes.
+    - cron: '0 4 * * 1'
   workflow_dispatch:
 
 permissions:

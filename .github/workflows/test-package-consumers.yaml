@@ -1,5 +1,11 @@
 name: Packed package consumers
 
+# Tier 2 / main + release gate with a packaging-surface PR filter (#273).
+# Pack + consumer + NativeAOT-probe verification is expensive, so on pull
+# requests it runs only when packaging inputs, consumer fixtures, or this
+# workflow change. Main pushes, release.yaml and manual dispatch always
+# run it.
+
 on:
   workflow_call:
     inputs:
@@ -11,6 +17,16 @@ on:
   push:
     branches: [main]
   pull_request:
+    paths:
+      - 'version.json'
+      - 'Configlue*.slnx'
+      - 'global.json'
+      - '**/*.csproj'
+      - '**/*.props'
+      - '**/*.targets'
+      - 'tests/fixtures/consumers/**'
+      - '.github/workflows/test-package-consumers.yaml'
+      - '.github/workflows/scripts/verify-*.sh'
   workflow_dispatch:
 
 permissions:

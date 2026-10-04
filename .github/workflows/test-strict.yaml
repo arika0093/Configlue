@@ -1,10 +1,16 @@
 name: Strict tests
 
+# Tier 2 / main + release gate (#273). Runs on main pushes, release.yaml and
+# manual dispatch only — NOT on every pull request. The PR fast gate is
+# test.yaml (single OS, unit suite once). This gate owns the three-OS
+# solution matrix, observational coverage, Windows host tests, packed asset
+# verification, and the nested Godot smoke + NativeAOT checks (each invoked
+# through this single entry point, never duplicated on PRs).
+
 on:
   workflow_call:
   push:
     branches: [main]
-  pull_request:
   workflow_dispatch:
 
 permissions:

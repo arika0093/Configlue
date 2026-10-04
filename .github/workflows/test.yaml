@@ -1,5 +1,15 @@
 name: Quick tests
 
+# CI tiers (#273):
+# - Tier 1 / PR fast gate: this workflow. Single primary OS (ubuntu-latest)
+#   runs the full unit suite once; the multi-OS matrix, observational
+#   coverage, integration, native-host and stress checks live in Tier 2/3.
+# - Tier 2 / main + release gate: test-strict.yaml (3-OS matrix, coverage,
+#   Windows host tests, nested Godot/NativeAOT) plus integration, Unity,
+#   Godot and packed-consumer workflows, all wired into release.yaml.
+# - Tier 3 / scheduled + manual: test-stress.yaml (weekly schedule) and
+#   workflow_dispatch entry points.
+
 on:
   workflow_call:
   push:
@@ -17,11 +27,9 @@ concurrency:
 jobs:
   quick-test:
     timeout-minutes: 30
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
+    # Single primary OS for the PR fast gate. The full three-OS matrix runs
+    # in the Tier 2 main/release gate (test-strict.yaml on main + release).
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
@@ -61,7 +69,7 @@ jobs:
         if: failure() || cancelled()
         uses: actions/upload-artifact@v7
         with:
-          name: quick-test-results-${{ matrix.os }}
+          name: quick-test-results-ubuntu
           path: |
             TestResults/**/*.trx
             TestResults/**/*.xml

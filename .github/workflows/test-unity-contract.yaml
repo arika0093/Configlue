@@ -1,5 +1,11 @@
 name: Unity adapter contract tests
 
+# Tier 2 / main + release gate with a narrow PR filter (#273). Runs on main
+# pushes, release.yaml and manual dispatch; on pull requests only when Unity
+# hosting sources, Unity tests, or this workflow change. The three-OS
+# matrix is kept because these are platform-native host checks, but it no
+# longer runs on unrelated PRs.
+
 on:
   workflow_call:
     inputs:
@@ -11,6 +17,10 @@ on:
   push:
     branches: [main]
   pull_request:
+    paths:
+      - 'src/hosting/Configlue.Hosting.Unity/**'
+      - 'tests/Configlue.Hosting.Unity.Tests/**'
+      - '.github/workflows/test-unity-contract.yaml'
   workflow_dispatch:
 
 permissions:
