@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <AssemblyName>SparseFragments.JsonPatch</AssemblyName>
+    <RootNamespace>SparseFragments.JsonPatch</RootNamespace>
+    <IsPackable>true</IsPackable>
+    <PackageDescription>RFC 6902 JSON Patch interoperability for SparseFragments generated models.</PackageDescription>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>preview</LangVersion>
+    <!-- S1075: '/' is the RFC 6901-mandated pointer delimiter, not a hardcoded file path. -->
+    <NoWarn>$(NoWarn);S1075;S3267;S1172</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="System.Text.Json" Version="10.0.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../SparseFragments/SparseFragments.csproj" />
+  </ItemGroup>
+</Project>

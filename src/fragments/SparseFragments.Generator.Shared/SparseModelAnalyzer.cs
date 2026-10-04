@@ -1088,12 +1088,20 @@ internal static class SparseModelAnalyzer
         CancellationToken cancellationToken
     )
     {
+        var jsonPropertyName = SparseJsonNaming.GetJsonPropertyName(
+            member.Property,
+            cancellationToken,
+            out var hasExplicitJsonPropertyName
+        );
         var property = new SparsePropertyModel(
             member.Property.Name,
             CreateTypeModel(member.Property.Type, config, cancellationToken),
             member.Property.SetMethod?.IsInitOnly == true,
             RoslynSymbolCompat.IsRequired(member.Property),
-            member.Property.SetMethod is null
+            member.Property.SetMethod is null,
+            jsonPropertyName,
+            hasExplicitJsonPropertyName,
+            SparseJsonNaming.GetJsonIgnoreCondition(member.Property, cancellationToken)
         );
         SparseTypeModel? childModel = null;
         string? childFragmentType = null;

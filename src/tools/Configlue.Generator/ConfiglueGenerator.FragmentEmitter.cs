@@ -20,6 +20,7 @@ public sealed partial class ConfiglueGenerator
         bool usesPocoCloning,
         bool hasJsonFragmentRegistry,
         bool hasMessagePackFragmentRegistry,
+        bool hasJsonPatch,
         bool portableSetView = false,
         bool isRootModel = true,
         SparseFragments.Generator.Shared.ModelConstructorBinding? constructor = null
@@ -99,7 +100,7 @@ public sealed partial class ConfiglueGenerator
         AppendPreviousMappings(code, previousModels);
         code.AppendLineAt(1, "}");
         AppendBuilder(code, members);
-        AppendPatch(code, modelType, members);
+        AppendPatch(code, modelType, members, hasJsonPatch, isRootModel);
     }
 
     private static void AppendPreviousMappings(

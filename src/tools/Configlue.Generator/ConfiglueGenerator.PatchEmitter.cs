@@ -22,7 +22,9 @@ public sealed partial class ConfiglueGenerator
     private static void AppendPatch(
         IndentedStringBuilder code,
         string modelType,
-        ImmutableArray<MemberModel> members
+        ImmutableArray<MemberModel> members,
+        bool hasJsonPatch = false,
+        bool isRootModel = true
     )
     {
         var wholePatch = "global::Configlue.IConfiglueModelPatch<" + modelType + ">";
@@ -357,6 +359,38 @@ public sealed partial class ConfiglueGenerator
         code.AppendLineAt(3, "return selected;");
         code.AppendLineAt(2, "}");
         AppendPatchRouting(code, members);
+        if (hasJsonPatch)
+        {
+            var sparseMembers = members.Select(ToSparseMember).ToImmutableArray();
+            SparseFragments.Generator.Shared.SparseJsonPatchEmitter.AppendConfiglueJsonBetween(
+                code,
+                sparseMembers,
+                static sparse => "__configlue_member_" + sparse.Property.Name,
+                static sparse =>
+                    sparse.ChildModel is null
+                        ? sparse.Property.Type.Name
+                        : sparse.ChildFragmentType + "?",
+                static sparse =>
+                    sparse.ChildFragmentType!.Substring(
+                        0,
+                        sparse.ChildFragmentType.Length - "Fragment".Length
+                    ) + "Patch.__ConfiglueJsonBetween"
+            );
+            if (isRootModel)
+            {
+                SparseFragments.Generator.Shared.SparseJsonPatchEmitter.AppendFragmentJsonHelpers(
+                    code,
+                    "global::SparseFragments",
+                    "global::Configlue.Optional"
+                );
+                SparseFragments.Generator.Shared.SparseJsonPatchEmitter.AppendConfiglueFromJsonPatch(
+                    code
+                );
+                SparseFragments.Generator.Shared.SparseJsonPatchEmitter.AppendConfiglueToJsonPatch(
+                    code
+                );
+            }
+        }
         code.AppendLineAt(1, "}");
     }
 

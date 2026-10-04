@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>SparseFragments.JsonPatch.Tests</RootNamespace>
+    <AssemblyName>SparseFragments.JsonPatch.Tests</AssemblyName>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/fragments/SparseFragments/SparseFragments.csproj" />
+    <ProjectReference Include="../../src/fragments/SparseFragments.JsonPatch/SparseFragments.JsonPatch.csproj" />
+    <ProjectReference
+      Include="../../src/fragments/SparseFragments.Generator/SparseFragments.Generator.csproj"
+      OutputItemType="Analyzer"
+      ReferenceOutputAssembly="false"
+    />
+    <ProjectReference Include="../../src/basic/Configlue/Configlue.csproj" />
+    <ProjectReference
+      Include="../../src/tools/Configlue.Generator/Configlue.Generator.csproj"
+      OutputItemType="Analyzer"
+      ReferenceOutputAssembly="false"
+    />
+    <ProjectReference Include="../../src/providers/Configlue.Provider.Json/Configlue.Provider.Json.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <Using Include="SparseFragments.JsonPatch" />
+  </ItemGroup>
+</Project>

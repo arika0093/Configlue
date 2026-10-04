@@ -97,6 +97,15 @@ public sealed class SparseFragmentsGenerator : IIncrementalGenerator
         true
     );
 
+    private static readonly DiagnosticDescriptor GeneratedNameCollision = new(
+        SparseDiagnosticIds.GeneratedNameCollision,
+        "Member conflicts with generated JSON Patch API",
+        "Member '{0}' conflicts with a name reserved by the generated JSON Patch API",
+        "SparseFragments",
+        DiagnosticSeverity.Error,
+        true
+    );
+
     private static readonly DiagnosticDescriptor UnsupportedRequired = new(
         SparseDiagnosticIds.UnsupportedRequired,
         "Required member cannot be constructed",
@@ -128,11 +137,27 @@ public sealed class SparseFragmentsGenerator : IIncrementalGenerator
             )
             .WithComparer(EqualityComparer<bool>.Default)
             .WithTrackingName("SparseFragmentsGenerator.BclSetSupport");
+        var hasJsonPatch = context
+            .CompilationProvider.Select(
+                static (compilation, _) =>
+                    compilation.GetTypeByMetadataName("SparseFragments.JsonPatch.SparseJsonPatch")
+                        is not null
+                    || compilation.ReferencedAssemblyNames.Any(static name =>
+                        string.Equals(
+                            name.Name,
+                            "SparseFragments.JsonPatch",
+                            StringComparison.Ordinal
+                        )
+                    )
+            )
+            .WithComparer(EqualityComparer<bool>.Default)
+            .WithTrackingName("SparseFragmentsGenerator.JsonPatch");
         var generated = analyzed
             .Combine(bclSetSupport)
+            .Combine(hasJsonPatch)
             .Select(
                 static (input, cancellationToken) =>
-                    Render(input.Left, input.Right, cancellationToken)
+                    Render(input.Left.Left, input.Left.Right, input.Right, cancellationToken)
             )
             .WithTrackingName("SparseFragmentsGenerator.Output");
 
@@ -215,6 +240,7 @@ public sealed class SparseFragmentsGenerator : IIncrementalGenerator
     private static SparseGenerationResult Render(
         SparseGenerationAnalysis analysis,
         bool bclHashSetImplementsReadOnlySet,
+        bool hasJsonPatch,
         CancellationToken cancellationToken
     )
     {
@@ -224,6 +250,29 @@ public sealed class SparseFragmentsGenerator : IIncrementalGenerator
             return new SparseGenerationResult(null, null, analysis.Diagnostics);
         }
 
+        if (
+            hasJsonPatch
+            && analysis.Members.Any(static member =>
+                member.Property.Name is "JsonConverter" or "FragmentJsonConverter"
+            )
+        )
+        {
+            var colliding = analysis.Members.First(member =>
+                member.Property.Name is "JsonConverter" or "FragmentJsonConverter"
+            );
+            return new SparseGenerationResult(
+                null,
+                null,
+                analysis.Diagnostics.Add(
+                    new SparseGeneratorDiagnostic(
+                        SparseDiagnosticIds.GeneratedNameCollision,
+                        null,
+                        colliding.Property.Name
+                    )
+                )
+            );
+        }
+
         var model = analysis.Model.Value;
         var source = SparseFragmentEmitter.BuildSource(
             model,
@@ -231,6 +280,7 @@ public sealed class SparseFragmentsGenerator : IIncrementalGenerator
             analysis.PocoCloneModels,
             analysis.StructuralModels,
             bclHashSetImplementsReadOnlySet,
+            hasJsonPatch,
             cancellationToken
         );
         return new SparseGenerationResult(model.HintName, source, analysis.Diagnostics);
@@ -247,6 +297,7 @@ public sealed class SparseFragmentsGenerator : IIncrementalGenerator
             SparseDiagnosticIds.UnsupportedRequired => UnsupportedRequired,
             SparseDiagnosticIds.UnsupportedStructural => UnsupportedStructural,
             SparseDiagnosticIds.UnsupportedClone => UnsupportedClone,
+            SparseDiagnosticIds.GeneratedNameCollision => GeneratedNameCollision,
             _ => throw new global::System.ArgumentOutOfRangeException(nameof(id), id, null),
         };
 }

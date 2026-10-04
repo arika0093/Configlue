@@ -50,6 +50,19 @@ internal static class SparseNaming
         return prefix.ToString();
     }
 
+    public static string JsonPatchApiPrefix(IEnumerable<string> memberNames)
+    {
+        var names = new HashSet<string>(memberNames);
+        var prefix = new StringBuilder();
+        while (
+            new[] { "FromJsonPatch", "ToJsonPatch" }.Any(name =>
+                names.Contains(prefix.ToString() + name)
+            )
+        )
+            prefix.Append("Sparse");
+        return prefix.ToString();
+    }
+
     public static string Sanitize(string identifier, CancellationToken cancellationToken)
     {
         var builder = new StringBuilder(identifier.Length);

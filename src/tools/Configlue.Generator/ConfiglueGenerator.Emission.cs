@@ -19,11 +19,15 @@ public sealed partial class ConfiglueGenerator
         ImmutableArray<StructuralModel> structuralModels,
         bool hasJsonFragmentRegistry,
         bool hasMessagePackFragmentRegistry,
+        bool hasJsonPatch,
         bool bclSetSupportsReadOnlySet,
         CancellationToken cancellationToken
     )
     {
         cancellationToken.ThrowIfCancellationRequested();
+        // The JSON Patch bridge reuses the generated fragment JSON converter as its canonical
+        // representation, so the converter is emitted when either JSON provider is referenced.
+        var emitJsonConverter = hasJsonFragmentRegistry || hasJsonPatch;
         var modelType = model.ModelTypeName;
         var portableSetView =
             SparseFragments.Generator.Shared.SparseFragmentCoreEmitter.RequiresPortableSetView(
@@ -157,8 +161,9 @@ public sealed partial class ConfiglueGenerator
             previousModels,
             !model.IsStruct,
             !pocoCloneModels.IsEmpty,
-            hasJsonFragmentRegistry,
+            emitJsonConverter,
             hasMessagePackFragmentRegistry,
+            hasJsonPatch,
             portableSetView: portableSetView,
             constructor: model.Constructor
         );
@@ -172,8 +177,9 @@ public sealed partial class ConfiglueGenerator
             code,
             structuralModels,
             !pocoCloneModels.IsEmpty,
-            hasJsonFragmentRegistry,
+            emitJsonConverter,
             hasMessagePackFragmentRegistry,
+            hasJsonPatch,
             portableSetView
         );
         AppendFacadeRuntimeBridge(
@@ -202,6 +208,7 @@ public sealed partial class ConfiglueGenerator
         bool usesPocoCloning,
         bool hasJsonFragmentRegistry,
         bool hasMessagePackFragmentRegistry,
+        bool hasJsonPatch,
         bool portableSetView
     )
     {
@@ -245,6 +252,7 @@ public sealed partial class ConfiglueGenerator
                 usesPocoCloning,
                 hasJsonFragmentRegistry,
                 hasMessagePackFragmentRegistry,
+                hasJsonPatch,
                 portableSetView: portableSetView,
                 isRootModel: false,
                 constructor: structuralModel.Constructor

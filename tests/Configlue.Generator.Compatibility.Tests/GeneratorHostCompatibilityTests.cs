@@ -883,6 +883,54 @@ public sealed class GeneratorHostCompatibilityTests
         (ConfiglueGenerator.IsExternalInitSource).ShouldContain("class IsExternalInit");
     }
 
+    [Test]
+    public void StandaloneJsonConverterCollisionReportsSpf009()
+    {
+        const string source = """
+            using SparseFragments;
+            [SparseFragmentModel]
+            public partial class CollisionSettings
+            {
+                public string? JsonConverter { get; set; }
+            }
+            """;
+        var options = new CSharpParseOptions(LanguageVersion.Latest);
+        var compilation = CreateCompilation(CSharpSyntaxTree.ParseText(source, options));
+        IIncrementalGenerator generator = new SparseFragments.Generator.SparseFragmentsGenerator();
+        var result = CSharpGeneratorDriver
+            .Create([generator.AsSourceGenerator()], parseOptions: options)
+            .RunGenerators(compilation)
+            .GetRunResult();
+        result.Results.Single().Exception.ShouldBeNull();
+        var diagnostic = result.Diagnostics.Single(d => d.Id == "SPF009");
+        diagnostic.Severity.ShouldBe(DiagnosticSeverity.Error);
+        diagnostic.GetMessage().ShouldContain("JsonConverter");
+    }
+
+    [Test]
+    public void ConfiglueFromJsonPatchCollisionReportsCfg013()
+    {
+        const string source = """
+            using Configlue;
+            [ConfiglueModel("jsonpatch-collision-member", Version = 1)]
+            public partial class CollisionModel
+            {
+                public string? FromJsonPatch { get; set; }
+            }
+            """;
+        var options = new CSharpParseOptions(LanguageVersion.Latest);
+        var compilation = CreateCompilation(CSharpSyntaxTree.ParseText(source, options));
+        IIncrementalGenerator generator = new ConfiglueGenerator();
+        var result = CSharpGeneratorDriver
+            .Create([generator.AsSourceGenerator()], parseOptions: options)
+            .RunGenerators(compilation)
+            .GetRunResult();
+        result.Results.Single().Exception.ShouldBeNull();
+        var diagnostic = result.Diagnostics.Single(d => d.Id == "CFG013");
+        diagnostic.Severity.ShouldBe(DiagnosticSeverity.Error);
+        diagnostic.GetMessage().ShouldContain("FromJsonPatch");
+    }
+
     private static void AssertUnsupportedRootModel(string declaration)
     {
         var source = $$"""

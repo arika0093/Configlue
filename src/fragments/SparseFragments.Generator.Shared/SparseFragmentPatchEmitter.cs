@@ -93,13 +93,18 @@ internal static class SparseFragmentPatchEmitter
     public static void AppendPatch(
         SharedIndentedBuilder code,
         string modelType,
-        ImmutableArray<SparseMemberModel> members
+        ImmutableArray<SparseMemberModel> members,
+        bool hasJsonPatch = false,
+        string jsonPrefix = ""
     )
     {
         var contract = Contract(modelType, "Fragment");
         var operation = Runtime + "FragmentOperation";
         var kind = Runtime + "FragmentOperationKind";
         var optional = Runtime + "Optional<Fragment?>";
+        var patchPrefix = SparseNaming.PatchApiPrefix(
+            members.Select(static member => member.Property.Name)
+        );
         code.AppendLineAt(1, "public sealed class Patch : " + contract);
         code.AppendLineAt(1, "{");
         AppendPatchMembers(code, members, Runtime, Field);
@@ -277,6 +282,31 @@ internal static class SparseFragmentPatchEmitter
         );
         AppendPatchAlgebra(code, modelType, members);
         AppendPatchRebase(code, modelType, members);
+        if (hasJsonPatch)
+        {
+            SparseJsonPatchEmitter.AppendFragmentJsonHelpers(
+                code,
+                "global::SparseFragments",
+                Runtime + "Optional"
+            );
+            SparseJsonPatchEmitter.AppendFromJsonPatch(
+                code,
+                modelType,
+                "global::SparseFragments",
+                Runtime + "Optional",
+                patchPrefix,
+                jsonPrefix
+            );
+            SparseJsonPatchEmitter.AppendToJsonPatch(
+                code,
+                modelType,
+                "global::SparseFragments",
+                Runtime + "Optional",
+                contract,
+                patchPrefix,
+                jsonPrefix
+            );
+        }
         code.AppendLineAt(1, "}");
     }
 

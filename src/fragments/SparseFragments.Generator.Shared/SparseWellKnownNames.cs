@@ -19,8 +19,7 @@ internal static class SparseWellKnownNames
     public const string ReadOnlySetTypeDefinition = "System.Collections.Generic.IReadOnlySet<T>";
 
     public const string FragmentTypeName = "Fragment";
-    public const string HintNameSuffix = ".SparseFragments.g.cs";
-    public const string StructuralHostPrefix = "__SparseStructural_";
+    public const string HintNameSuffix = ".SparseFragments.g.cs";    public const string StructuralHostPrefix = "__SparseStructural_";
     public const string CloneHelperPrefix = "__Clone_";
     public const string MergeStrategyFieldPrefix = "__sparse_merge_strategy_";
 }
@@ -35,4 +34,5 @@ internal static class SparseDiagnosticIds
     public const string UnsupportedRequired = "SPF006";
     public const string UnsupportedStructural = "SPF007";
     public const string UnsupportedClone = "SPF008";
+    public const string GeneratedNameCollision = "SPF009";
 }

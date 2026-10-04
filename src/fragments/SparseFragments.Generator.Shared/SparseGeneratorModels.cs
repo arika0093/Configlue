@@ -21,8 +21,18 @@ internal readonly record struct SparsePropertyModel(
     SparseTypeModel Type,
     bool IsInitOnly = false,
     bool IsRequired = false,
-    bool IsReadOnly = false
-);
+    bool IsReadOnly = false,
+    string? JsonPropertyName = null,
+    bool HasExplicitJsonPropertyName = false,
+    int JsonIgnoreCondition = 0
+)
+{
+    public bool IsJsonIgnored => JsonIgnoreCondition == 1;
+
+    public bool IsJsonIgnoreWhenWritingNull => JsonIgnoreCondition == 3;
+
+    public bool IsJsonIgnoreWhenWritingDefault => JsonIgnoreCondition == 2;
+}
 
 internal readonly record struct SparseCollectionInfo(
     SparseCollectionKind Kind,
