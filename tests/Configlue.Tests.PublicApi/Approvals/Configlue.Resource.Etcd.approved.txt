@@ -1,0 +1,203 @@
+[assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/arika0093/Configlue")]
+namespace Configlue.Resource.Etcd
+{
+    public sealed class EtcdAuthOptions
+    {
+        public EtcdAuthOptions() { }
+        public System.Func<string>? PasswordProvider { get; init; }
+        public System.Func<string>? TokenProvider { get; init; }
+        public string? Username { get; init; }
+        public override string ToString() { }
+    }
+    public sealed class EtcdCompactedException : Configlue.Resource.Etcd.EtcdException
+    {
+        public EtcdCompactedException(long compactRevision) { }
+        public long CompactRevision { get; }
+    }
+    public sealed class EtcdCompare : System.IEquatable<Configlue.Resource.Etcd.EtcdCompare>
+    {
+        public EtcdCompare(string Key, Configlue.Resource.Etcd.EtcdCompareKind Kind, long ExpectedModRevision) { }
+        public long ExpectedModRevision { get; init; }
+        public string Key { get; }
+        public Configlue.Resource.Etcd.EtcdCompareKind Kind { get; init; }
+    }
+    public enum EtcdCompareKind
+    {
+        ModRevisionEqual = 0,
+        KeyNotExists = 1,
+    }
+    public sealed class EtcdDelete : Configlue.Resource.Etcd.EtcdWrite, System.IEquatable<Configlue.Resource.Etcd.EtcdDelete>
+    {
+        public EtcdDelete(string Key) { }
+    }
+    public class EtcdException : System.Exception
+    {
+        public EtcdException(string message) { }
+        public EtcdException(string message, System.Exception innerException) { }
+    }
+    public static class EtcdKeyEncoding
+    {
+        public static string BuildKey(string prefix, string memberSuffix) { }
+        public static string BuildKey(string prefix, string subjectPart, string memberSuffix) { }
+        public static string[] DecodeMemberSuffix(string memberSuffix) { }
+        public static string EncodeMemberSuffix(System.Collections.Generic.IReadOnlyList<string> memberNames) { }
+        public static string EscapeSegment(string segment) { }
+        public static string NormalizePrefix(string prefix) { }
+        public static bool TrySplitMemberSuffix(string prefix, string key, out string memberSuffix) { }
+        public static string UnescapeSegment(string segment) { }
+    }
+    public sealed class EtcdKeyValue : System.IEquatable<Configlue.Resource.Etcd.EtcdKeyValue>
+    {
+        public EtcdKeyValue(string key, System.ReadOnlyMemory<byte> value, long modRevision, long createRevision) { }
+        public long CreateRevision { get; }
+        public string Key { get; }
+        public long ModRevision { get; }
+        public System.ReadOnlyMemory<byte> Value { get; }
+    }
+    public sealed class EtcdObjectSourceOptions
+    {
+        public EtcdObjectSourceOptions() { }
+        public Configlue.Resource.Etcd.IEtcdClient? Client { get; init; }
+        public System.Func<System.IServiceProvider?, Configlue.Resource.Etcd.IEtcdClient>? ClientFactory { get; init; }
+        public System.Func<System.IServiceProvider?, Configlue.RouteKey, Configlue.Resource.Etcd.IEtcdClient>? ClientResolver { get; init; }
+        public required Configlue.Codecs.StateCodecBinding Codec { get; init; }
+        public Configlue.Codecs.StateCodecContext CodecContext { get; init; }
+        public Configlue.Sources.StateFallbackCondition FallbackCondition { get; init; }
+        public string? Id { get; init; }
+        public int Priority { get; init; }
+        public Configlue.Resource.Etcd.EtcdResourceOptions? ResourceOptions { get; init; }
+        public bool Writable { get; init; }
+    }
+    public sealed class EtcdPut : Configlue.Resource.Etcd.EtcdWrite, System.IEquatable<Configlue.Resource.Etcd.EtcdPut>
+    {
+        public EtcdPut(string Key, System.ReadOnlyMemory<byte> Value) { }
+        public System.ReadOnlyMemory<byte> Value { get; init; }
+    }
+    public sealed class EtcdRangeResponse : System.IEquatable<Configlue.Resource.Etcd.EtcdRangeResponse>
+    {
+        public EtcdRangeResponse(System.Collections.Generic.IReadOnlyList<Configlue.Resource.Etcd.EtcdKeyValue> Kvs, long HeaderRevision) { }
+        public long HeaderRevision { get; }
+        public System.Collections.Generic.IReadOnlyList<Configlue.Resource.Etcd.EtcdKeyValue> Kvs { get; }
+    }
+    public sealed class EtcdResource : Configlue.Resources.IResourceBatchCompatibility, Configlue.Resources.IResourceBatchWriter, Configlue.Resources.IResourceIdentity, Configlue.Resources.IResourceReader, Configlue.Resources.IResourceWriter, Configlue.Sources.ISourceWatcher, System.IDisposable
+    {
+        public EtcdResource(Configlue.Resource.Etcd.IEtcdClient client, Configlue.Resource.Etcd.EtcdResourceOptions? options = null) { }
+        public EtcdResource(System.Func<Configlue.RouteKey, Configlue.Resource.Etcd.IEtcdClient> clientResolver, Configlue.Resource.Etcd.EtcdResourceOptions? options = null) { }
+        public void Dispose() { }
+        public object? GetBatchCompatibilityToken(Configlue.Resources.ConfiglueResourceContext context) { }
+        public Configlue.Resources.ResourceId GetResourceId(Configlue.Resources.ConfiglueResourceContext context) { }
+        public System.Threading.Tasks.ValueTask<Configlue.Resources.ResourceReadResult> ReadAsync(Configlue.Resources.ConfiglueResourceContext context, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask WaitForChangeAsync(Configlue.Resources.ConfiglueResourceContext context, string? observedRevision, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Configlue.State.StateWriteResult> WriteAsync(Configlue.Resources.ConfiglueResourceContext context, Configlue.Resources.ResourceWriteRequest request, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Configlue.State.StateWriteResult> WriteBatchAsync(System.Collections.Generic.IReadOnlyList<Configlue.Resources.ResourceWriteMutation> mutations, System.Threading.CancellationToken cancellationToken = default) { }
+    }
+    public sealed class EtcdResourceOptions
+    {
+        public EtcdResourceOptions() { }
+        public Configlue.Resource.Etcd.EtcdAuthOptions? Auth { get; init; }
+        public System.Collections.Generic.IReadOnlyList<string> Endpoints { get; init; }
+        public Configlue.Resources.ResourceId? FixedResourceId { get; init; }
+        public string KeyPrefix { get; init; }
+        public System.Func<Configlue.Resources.ConfiglueResourceContext, string>? KeyPrefixSelector { get; init; }
+        public int MaxReconnectAttempts { get; init; }
+        public System.TimeSpan ReconnectDelay { get; init; }
+        public Configlue.Resource.Etcd.EtcdTlsOptions? Tls { get; init; }
+    }
+    public static class EtcdRevisionCodec
+    {
+        public static string Encode(long headerRevision, System.Collections.Generic.IReadOnlyDictionary<string, long> keyRevisions) { }
+        public static bool TryDecode(string? revision, out long headerRevision, out System.Collections.Generic.Dictionary<string, long> keyRevisions) { }
+    }
+    public static class EtcdSourceRegistration
+    {
+        public static Configlue.Extensibility.ConfiglueSourceRegistration FromEtcd(this Configlue.ConfiglueSourceSetBuilder sources, Configlue.Resource.Etcd.EtcdStateSourceOptions options) { }
+        public static Configlue.Extensibility.ConfiglueSourceRegistration FromEtcdObject(this Configlue.ConfiglueSourceSetBuilder sources, Configlue.Resource.Etcd.EtcdObjectSourceOptions options) { }
+    }
+    public sealed class EtcdSource<TFragment> : Configlue.Resources.IResourceIdentity, Configlue.Sources.IAsyncSourceWriteBatchParticipant<TFragment>, Configlue.Sources.ISourceCapabilities<TFragment>, Configlue.Sources.ISourceReader<TFragment>, Configlue.Sources.ISourceWatcher, Configlue.Sources.ISourceWriter<TFragment>, System.IDisposable
+        where TFragment :  class, Configlue.IConfiglueFragment<TFragment>
+    {
+        public EtcdSource(Configlue.ConfiglueModelSchema schema, Configlue.Resource.Etcd.IEtcdClient client, Configlue.Resource.Etcd.EtcdResourceOptions? options = null) { }
+        public EtcdSource(Configlue.ConfiglueModelSchema schema, Configlue.Resource.Etcd.IEtcdClient client, Configlue.Resource.Etcd.EtcdResourceOptions? options, bool writable) { }
+        public EtcdSource(Configlue.ConfiglueModelSchema schema, System.Func<Configlue.RouteKey, Configlue.Resource.Etcd.IEtcdClient> clientResolver, Configlue.Resource.Etcd.EtcdResourceOptions? options = null, bool writable = true) { }
+        public Configlue.ConfiglueModelSchema Schema { get; }
+        public Configlue.Sources.ISourceWatcher? Watcher { get; }
+        public Configlue.Sources.ISourceWriter<TFragment>? Writer { get; }
+        public void Dispose() { }
+        public Configlue.Resources.ResourceId GetResourceId(Configlue.Resources.ConfiglueResourceContext context) { }
+        public System.Threading.Tasks.ValueTask<Configlue.State.StateReadResult<TFragment>> ReadAsync(Configlue.Resources.ConfiglueResourceContext context, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Configlue.State.StateWriteBatchPlan?> TryCreateBatchWriteAsync(Configlue.Resources.ConfiglueResourceContext context, Configlue.State.StateWriteRequest<TFragment> request, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask WaitForChangeAsync(Configlue.Resources.ConfiglueResourceContext context, string? observedRevision, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Configlue.State.StateWriteResult> WriteAsync(Configlue.Resources.ConfiglueResourceContext context, Configlue.State.StateWriteRequest<TFragment> request, System.Threading.CancellationToken cancellationToken = default) { }
+    }
+    public sealed class EtcdStateSourceOptions
+    {
+        public EtcdStateSourceOptions() { }
+        public Configlue.Resource.Etcd.IEtcdClient? Client { get; init; }
+        public System.Func<System.IServiceProvider?, Configlue.Resource.Etcd.IEtcdClient>? ClientFactory { get; init; }
+        public System.Func<System.IServiceProvider?, Configlue.RouteKey, Configlue.Resource.Etcd.IEtcdClient>? ClientResolver { get; init; }
+        public Configlue.Sources.StateFallbackCondition FallbackCondition { get; init; }
+        public string? Id { get; init; }
+        public int Priority { get; init; }
+        public Configlue.Resource.Etcd.EtcdResourceOptions? ResourceOptions { get; init; }
+        public bool Writable { get; init; }
+    }
+    public sealed class EtcdTlsOptions
+    {
+        public EtcdTlsOptions() { }
+        public string? CaCertificatePath { get; init; }
+        public string? CaCertificatePem { get; init; }
+        public string? ClientCertificatePath { get; init; }
+        public string? ClientCertificatePem { get; init; }
+        public string? ClientKeyPath { get; init; }
+        public string? ClientKeyPem { get; init; }
+        public bool InsecureSkipVerify { get; init; }
+        public string? TargetNameOverride { get; init; }
+        public override string ToString() { }
+    }
+    public sealed class EtcdTransientException : Configlue.Resource.Etcd.EtcdException
+    {
+        public EtcdTransientException(string message) { }
+        public EtcdTransientException(string message, System.Exception innerException) { }
+    }
+    public sealed class EtcdTxnResponse : System.IEquatable<Configlue.Resource.Etcd.EtcdTxnResponse>
+    {
+        public EtcdTxnResponse(bool Succeeded, long HeaderRevision) { }
+        public long HeaderRevision { get; }
+        public bool Succeeded { get; init; }
+    }
+    public sealed class EtcdWatchEvent : System.IEquatable<Configlue.Resource.Etcd.EtcdWatchEvent>
+    {
+        public EtcdWatchEvent(Configlue.Resource.Etcd.EtcdWatchEventKind Kind, string Key, System.ReadOnlyMemory<byte> Value, long ModRevision) { }
+        public string Key { get; init; }
+        public Configlue.Resource.Etcd.EtcdWatchEventKind Kind { get; init; }
+        public long ModRevision { get; init; }
+        public System.ReadOnlyMemory<byte> Value { get; init; }
+    }
+    public enum EtcdWatchEventKind
+    {
+        Put = 0,
+        Delete = 1,
+    }
+    public sealed class EtcdWatchResponse : System.IEquatable<Configlue.Resource.Etcd.EtcdWatchResponse>
+    {
+        public EtcdWatchResponse(System.Collections.Generic.IReadOnlyList<Configlue.Resource.Etcd.EtcdWatchEvent> Events, long HeaderRevision, bool IsProgressNotification) { }
+        public System.Collections.Generic.IReadOnlyList<Configlue.Resource.Etcd.EtcdWatchEvent> Events { get; }
+        public long HeaderRevision { get; init; }
+        public bool IsProgressNotification { get; init; }
+    }
+    public abstract class EtcdWrite : System.IEquatable<Configlue.Resource.Etcd.EtcdWrite>
+    {
+        protected EtcdWrite(string Key) { }
+        public string Key { get; }
+    }
+    public interface IEtcdClient : Configlue.Resource.Etcd.IEtcdKvClient, Configlue.Resource.Etcd.IEtcdWatcherClient, System.IDisposable { }
+    public interface IEtcdKvClient
+    {
+        System.Threading.Tasks.ValueTask<Configlue.Resource.Etcd.EtcdRangeResponse> GetPrefixAsync(string prefix, long? revision = default, System.Threading.CancellationToken cancellationToken = default);
+        System.Threading.Tasks.ValueTask<Configlue.Resource.Etcd.EtcdTxnResponse> TransactAsync(System.Collections.Generic.IReadOnlyList<Configlue.Resource.Etcd.EtcdCompare> compares, System.Collections.Generic.IReadOnlyList<Configlue.Resource.Etcd.EtcdWrite> writes, System.Threading.CancellationToken cancellationToken = default);
+    }
+    public interface IEtcdWatcherClient
+    {
+        System.Threading.Tasks.Task WatchPrefixAsync(string prefix, long? startRevision, System.Func<Configlue.Resource.Etcd.EtcdWatchResponse, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<bool>> onResponse, System.Threading.CancellationToken cancellationToken = default);
+    }
+}

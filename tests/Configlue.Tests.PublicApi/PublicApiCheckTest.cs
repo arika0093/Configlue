@@ -14,6 +14,7 @@ using Configlue.Provider.MessagePack;
 using Configlue.Provider.Xml;
 using Configlue.Provider.Yaml;
 using Configlue.Resource.Redis;
+using Configlue.Resource.Etcd;
 using Configlue.Resource.S3;
 using Configlue.Resource.Vault;
 using Configlue.Resource.Zip;
@@ -333,6 +334,7 @@ public sealed class PublicApiCheckTest
 
     [Test]
     public void Consul() => PublicApiCheck.Check<ConsulKvPrefixSourceOptions>();
+    public void Etcd() => PublicApiCheck.Check<EtcdStateSourceOptions>();
 
     [Test]
     public void Testing() => PublicApiCheck.Check<InMemoryResource>();

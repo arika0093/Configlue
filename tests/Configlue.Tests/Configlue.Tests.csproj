@@ -81,6 +81,7 @@
     <ProjectReference Include="../../src/sources/Configlue.Source.Environment/Configlue.Source.Environment.csproj" />
     <ProjectReference Include="../../src/sources/Configlue.Source.CommandLine/Configlue.Source.CommandLine.csproj" />
     <ProjectReference Include="../../src/resources/Configlue.Resource.S3/Configlue.Resource.S3.csproj" />
+    <ProjectReference Include="../../src/resources/Configlue.Resource.Etcd/Configlue.Resource.Etcd.csproj" />
     <ProjectReference Include="../../src/sources/Configlue.Source.Http/Configlue.Source.Http.csproj" />
     <ProjectReference Include="../../src/sources/Configlue.Source.Consul/Configlue.Source.Consul.csproj" />
     <ProjectReference Include="../../src/resources/Configlue.Resource.Redis/Configlue.Resource.Redis.csproj" />
