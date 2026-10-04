@@ -713,14 +713,26 @@ internal static class YamlDocumentEditor
                 }
                 else if (character == '"')
                 {
-                    doubleQuoted = true;
+                    if (YamlFlowScanning.IsQuoteStart(source, position))
+                    {
+                        doubleQuoted = true;
+                    }
                 }
                 else if (character == '\'')
                 {
-                    singleQuoted = true;
+                    if (YamlFlowScanning.IsQuoteStart(source, position))
+                    {
+                        singleQuoted = true;
+                    }
                 }
                 else if (character == '#')
                 {
+                    if (!YamlFlowScanning.IsCommentStart(source, position))
+                    {
+                        position++;
+                        continue;
+                    }
+
                     while (position < end && source[position] is not '\r' and not '\n')
                     {
                         position++;
@@ -847,22 +859,42 @@ internal static class YamlDocumentEditor
             var index = 0;
             while (index < line.Length)
             {
-                if (doubleQuoted && line[index] == '\\')
+                var character = line[index];
+                if (doubleQuoted)
                 {
-                    index++;
-                    index++;
-                    continue;
-                }
+                    if (character == '\\')
+                    {
+                        index += 2;
+                        continue;
+                    }
 
-                if (!doubleQuoted && line[index] == '\'')
-                {
-                    singleQuoted = !singleQuoted;
+                    if (character == '"')
+                    {
+                        doubleQuoted = false;
+                    }
                 }
-                else if (!singleQuoted && line[index] == '"')
+                else if (singleQuoted)
                 {
-                    doubleQuoted = !doubleQuoted;
+                    if (character == '\'' && index + 1 < line.Length && line[index + 1] == '\'')
+                    {
+                        index += 2;
+                        continue;
+                    }
+
+                    if (character == '\'')
+                    {
+                        singleQuoted = false;
+                    }
                 }
-                else if (!singleQuoted && !doubleQuoted && line[index] == '#')
+                else if (character == '"' && YamlFlowScanning.IsQuoteStart(line, index))
+                {
+                    doubleQuoted = true;
+                }
+                else if (character == '\'' && YamlFlowScanning.IsQuoteStart(line, index))
+                {
+                    singleQuoted = true;
+                }
+                else if (character == '#' && YamlFlowScanning.IsCommentStart(line, index))
                 {
                     return index;
                 }

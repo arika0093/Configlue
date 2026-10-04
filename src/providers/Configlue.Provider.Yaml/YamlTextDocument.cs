@@ -247,14 +247,26 @@ internal sealed class YamlTextDocument
             }
             else if (character == '"')
             {
-                doubleQuoted = true;
+                if (YamlFlowScanning.IsQuoteStart(source, position))
+                {
+                    doubleQuoted = true;
+                }
             }
             else if (character == '\'')
             {
-                singleQuoted = true;
+                if (YamlFlowScanning.IsQuoteStart(source, position))
+                {
+                    singleQuoted = true;
+                }
             }
             else if (character == '#')
             {
+                if (!YamlFlowScanning.IsCommentStart(source, position))
+                {
+                    position++;
+                    continue;
+                }
+
                 while (position < source.Length && source[position] is not '\r' and not '\n')
                 {
                     position++;
