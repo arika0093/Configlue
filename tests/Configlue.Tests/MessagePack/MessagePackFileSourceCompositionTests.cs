@@ -168,7 +168,6 @@ public sealed class MessagePackFileSourceCompositionTests
                                 ResourceOptions = new FileResourceOptions
                                 {
                                     CreateBackup = false,
-                                    BackupMaxCount = 0,
                                 },
                             }
                         )

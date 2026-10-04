@@ -1,32 +1,22 @@
-using System.Diagnostics;
-using System.Runtime.InteropServices;
 using Configlue.Codecs;
 using Configlue.Sources;
 using Configlue.State;
 
 namespace Configlue.Resources;
 
-/// <summary>A local file resource with atomic replacement, revision checks, backups, and change notifications.</summary>
+/// <summary>A local file resource with crash-safe replacement, optimistic revision checks, a single backup, and change notifications.</summary>
 /// <remarks>
+/// <para>Reliability contract for ordinary local settings:</para>
+/// <list type="bullet">
+/// <item>Writes are crash-safe where the platform supports it: new content is written to a temporary file in the destination directory, flushed to disk, and then atomically published over the target. Readers that already opened the previous file keep their snapshot.</item>
+/// <item>Concurrent writers use optimistic concurrency: every read carries a content revision, and a write with a revision condition fails with <see cref="StateConflictException"/> when the file changed after it was read. Same-path writes are additionally serialized within the process; across processes the last revision-checked writer wins.</item>
+/// <item>At most one previous-value backup is kept when <see cref="FileResourceOptions.CreateBackup"/> is set: <c>&lt;name&gt;.bak</c> beside the file, or under <see cref="FileResourceOptions.BackupDirectory"/> when configured. Backups are never restored automatically; use <see cref="RestoreLatestBackupAsync"/> to restore one explicitly.</item>
+/// <item>Change notifications use a filesystem watcher when one can be created and fall back to polling otherwise. While watching, the content revision is re-verified on every <see cref="FileResourceOptions.PollingInterval"/> tick so missed filesystem events still surface.</item>
+/// </list>
 /// <para>
-/// Writes to the same normalized path are serialized both within the process, by a reference-counted
-/// semaphore that is removed once the last owner or waiter leaves, and across processes, by a zero-byte
-/// sidecar lock file opened with exclusive sharing.
-/// </para>
-/// <para>
-/// The sidecar file is intentionally persistent: it is created on first use and never deleted. Deleting
-/// it on release would let a second process recreate the same path as a different file while an earlier
-/// holder is still using it, bypassing the lock, so the marker is left in place. There is at most one
-/// sidecar per target path, so it does not grow with the number of writes. By default the sidecar lives
-/// under <see cref="ConfiglueStandardPaths.GetSharedLockDirectory"/> instead of beside the target file;
-/// set <see cref="FileResourceOptions.LockDirectory"/> to <c>/</c> to restore the legacy co-located
-/// <c>.&lt;filename&gt;.configlue.lock</c> behavior.
-/// </para>
-/// <para>
-/// Cross-process lock contention waits until <see cref="FileResourceOptions.LockAcquireTimeout"/> elapses
-/// or the operation's cancellation token is signaled; it is not limited by the transient-I/O retry
-/// settings. The default timeout waits indefinitely so a healthy same-path writer is never failed
-/// spuriously.
+/// Policies beyond this contract — multi-generation backup rotation, historical backup discovery,
+/// automatic backup recovery, and cross-process lock files — are intentionally not part of the
+/// default file path.
 /// </para>
 /// </remarks>
 /// <remarks>Advanced resource: ordinary application code uses provider file-source helpers instead of
@@ -37,7 +27,6 @@ public sealed partial class FileResource
         IPipelineResourceReader,
         ISourceWatcher,
         IResourceBatchWriter,
-        IResourceBackupRecovery,
         IDisposable
 {
     private static readonly object ProcessLockGate = new();
@@ -48,16 +37,12 @@ public sealed partial class FileResource
     private readonly string _path;
     private readonly string _directory;
     private readonly string _fileName;
-    private readonly string _backupFileName;
-    private readonly string _lockPath;
-    private readonly string _backupDirectory;
-    private readonly string[] _previousBackupDirectories;
+    private readonly string _backupPath;
     private readonly FileResourceOptions _options;
-    private readonly IConfiglueHostPaths _hostPaths;
 
     /// <summary>Creates a file resource at the supplied path.</summary>
     /// <param name="path">The path of the file resource.</param>
-    /// <param name="options">The retry and backup settings.</param>
+    /// <param name="options">The retry, backup, and change-detection settings.</param>
     /// <param name="fixedResourceId">An optional stable physical identity for the resource.</param>
     public FileResource(
         string path,
@@ -66,7 +51,8 @@ public sealed partial class FileResource
     )
         : this(path, options, fixedResourceId, null, null) { }
 
-    /// <summary>Creates a file resource using the supplied host profile for default backups.</summary>
+    /// <summary>Creates a file resource using the supplied host profile.</summary>
+    /// <remarks>Retained for compatibility; host-specific placement no longer affects the single backup location.</remarks>
     public FileResource(
         string path,
         FileResourceOptions? options,
@@ -77,8 +63,8 @@ public sealed partial class FileResource
 
     /// <summary>Creates a model-backed file resource at the supplied path.</summary>
     /// <param name="path">The path of the file resource.</param>
-    /// <param name="backupSchema">The model identity used to organize persistent backups by model and version.</param>
-    /// <param name="options">The retry and backup settings.</param>
+    /// <param name="backupSchema">The model identity. Retained for compatibility; it no longer affects the single backup location.</param>
+    /// <param name="options">The retry, backup, and change-detection settings.</param>
     /// <param name="fixedResourceId">An optional stable physical identity for the resource.</param>
     public FileResource(
         string path,
@@ -88,7 +74,8 @@ public sealed partial class FileResource
     )
         : this(path, options, fixedResourceId, backupSchema, null) { }
 
-    /// <summary>Creates a model-backed file resource using host-specific default backups.</summary>
+    /// <summary>Creates a model-backed file resource using host-specific defaults.</summary>
+    /// <remarks>Retained for compatibility; model and host placement no longer affect the single backup location.</remarks>
     public FileResource(
         string path,
         StateSchemaMetadata backupSchema,
@@ -107,6 +94,10 @@ public sealed partial class FileResource
     )
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        // The model and host arguments are accepted for compatibility only; the simplified
+        // backup contract always resolves a single backup from the options below.
+        _ = backupSchema;
+        _ = hostPaths;
         _path = System.IO.Path.GetFullPath(path);
         var identityPath = OperatingSystem.IsWindows() ? _path.ToUpperInvariant() : _path;
         ResourceId = fixedResourceId ?? new ResourceId($"file:{identityPath}");
@@ -132,188 +123,6 @@ public sealed partial class FileResource
             );
         }
 
-        if (_options.RevisionVerificationInterval <= TimeSpan.Zero)
-        {
-            throw new ArgumentOutOfRangeException(
-                nameof(options),
-                "RevisionVerificationInterval must be greater than zero."
-            );
-        }
-
-        _hostPaths = hostPaths ?? ConfiglueHostPathProfile.Default;
-        var backupDirectory = _options.BackupDirectory;
-        var previousBackupDirectories = new List<string>();
-        var usesPersistentBackupDirectory = false;
-        if (backupDirectory is not null)
-        {
-            ArgumentException.ThrowIfNullOrWhiteSpace(backupDirectory);
-            if (string.Equals(backupDirectory, "/", StringComparison.Ordinal))
-            {
-                _backupDirectory = _directory;
-            }
-            else if (System.IO.Path.IsPathRooted(backupDirectory))
-            {
-                _backupDirectory = System.IO.Path.GetFullPath(backupDirectory);
-            }
-            else
-            {
-                _backupDirectory = System.IO.Path.GetFullPath(
-                    System.IO.Path.Combine(_directory, backupDirectory)
-                );
-            }
-            if (
-                !System.IO.Path.IsPathRooted(backupDirectory)
-                && !string.Equals(backupDirectory, "/", StringComparison.Ordinal)
-            )
-            {
-                previousBackupDirectories.Add(System.IO.Path.GetFullPath(backupDirectory));
-            }
-        }
-        else
-        {
-            var configuredMode = _options.BackupDirectoryMode;
-            var mode = configuredMode.GetValueOrDefault();
-            if (configuredMode is null)
-            {
-                mode =
-                    backupSchema is not null
-                    || _options.BackupRootDirectory is not null
-                    || !string.Equals(
-                        _options.BackupDirectoryName,
-                        "configlue-backups",
-                        StringComparison.Ordinal
-                    )
-                    || !_options.IncludeModelVersionInBackupDirectory
-                        ? FileBackupDirectoryMode.PersistentUserDirectory
-                        : FileBackupDirectoryMode.ResourceDirectory;
-            }
-
-            if (!Enum.IsDefined(mode))
-            {
-                throw new ArgumentOutOfRangeException(
-                    nameof(options),
-                    "BackupDirectoryMode is not a valid value."
-                );
-            }
-
-            if (mode == FileBackupDirectoryMode.ResourceDirectory)
-            {
-                var resourceBackupName = OperatingSystem.IsWindows() ? "backup" : ".backup";
-                _backupDirectory = System.IO.Path.GetFullPath(
-                    System.IO.Path.Combine(_directory, resourceBackupName)
-                );
-                previousBackupDirectories.Add(_directory);
-            }
-            else
-            {
-                usesPersistentBackupDirectory = true;
-                ArgumentException.ThrowIfNullOrWhiteSpace(_options.BackupDirectoryName);
-                if (
-                    _options.BackupDirectoryName is "." or ".."
-                    || _options.BackupDirectoryName.IndexOfAny([
-                        '/',
-                        '\\',
-                        ':',
-                        '*',
-                        '?',
-                        '"',
-                        '<',
-                        '>',
-                        '|',
-                        '\0',
-                    ]) >= 0
-                    || System.IO.Path.IsPathRooted(_options.BackupDirectoryName)
-                )
-                {
-                    throw new ArgumentException(
-                        "BackupDirectoryName must be a single directory name.",
-                        nameof(options)
-                    );
-                }
-
-                var backupRoot = _options.BackupRootDirectory;
-                if (backupRoot is not null)
-                {
-                    ArgumentException.ThrowIfNullOrWhiteSpace(backupRoot);
-                }
-
-                string fullBackupRoot;
-                if (backupRoot is null)
-                {
-                    fullBackupRoot = ConfiglueStandardPaths.ResolveDirectory(
-                        _hostPaths,
-                        ConfiglueStandardLocation.BackupRoot
-                    );
-                }
-                else if (System.IO.Path.IsPathRooted(backupRoot))
-                {
-                    fullBackupRoot = System.IO.Path.GetFullPath(backupRoot);
-                }
-                else
-                {
-                    fullBackupRoot = System.IO.Path.GetFullPath(
-                        System.IO.Path.Combine(_directory, backupRoot)
-                    );
-                }
-                var resolvedBackupDirectory = System.IO.Path.Combine(
-                    fullBackupRoot,
-                    _options.BackupDirectoryName
-                );
-                if (_options.IncludeModelVersionInBackupDirectory)
-                {
-                    if (backupSchema is not { } schema || schema.ModelId is null)
-                    {
-                        throw new ArgumentException(
-                            "A model ID and version are required for model-version backup directories.",
-                            nameof(backupSchema)
-                        );
-                    }
-
-                    var modelVersionDirectory = System.IO.Path.GetFileNameWithoutExtension(
-                        StateSchemaReference.GetFileName(schema.ModelId, schema.Version)
-                    );
-                    resolvedBackupDirectory = System.IO.Path.Combine(
-                        resolvedBackupDirectory,
-                        modelVersionDirectory
-                    );
-                }
-
-                _backupDirectory = System.IO.Path.GetFullPath(resolvedBackupDirectory);
-                var legacyBackupName = OperatingSystem.IsWindows() ? "backup" : ".backup";
-                previousBackupDirectories.Add(
-                    System.IO.Path.GetFullPath(System.IO.Path.Combine(_directory, legacyBackupName))
-                );
-                previousBackupDirectories.Add(_directory);
-            }
-        }
-        _previousBackupDirectories = previousBackupDirectories
-            .Where(directory =>
-                !string.Equals(
-                    directory,
-                    _backupDirectory,
-                    OperatingSystem.IsWindows()
-                        ? StringComparison.OrdinalIgnoreCase
-                        : StringComparison.Ordinal
-                )
-            )
-            .Distinct(
-                OperatingSystem.IsWindows()
-                    ? StringComparer.OrdinalIgnoreCase
-                    : StringComparer.Ordinal
-            )
-            .ToArray();
-        _backupFileName = usesPersistentBackupDirectory
-            ? _fileName + "." + ConfiglueHashing.GetXxHash3Hex(identityPath)
-            : _fileName;
-
-        if (_options.BackupMaxCount < 0)
-        {
-            throw new ArgumentOutOfRangeException(
-                nameof(options),
-                "BackupMaxCount cannot be negative."
-            );
-        }
-
         if (_options.RetryCount < 0)
         {
             throw new ArgumentOutOfRangeException(
@@ -330,53 +139,20 @@ public sealed partial class FileResource
             );
         }
 
-        if (
-            _options.LockAcquireTimeout.HasValue
-            && _options.LockAcquireTimeout.Value < TimeSpan.Zero
-        )
-        {
-            throw new ArgumentOutOfRangeException(
-                nameof(options),
-                "LockAcquireTimeout cannot be negative."
-            );
-        }
-
-        if (_options.LockAcquireRetryDelay < TimeSpan.Zero)
-        {
-            throw new ArgumentOutOfRangeException(
-                nameof(options),
-                "LockAcquireRetryDelay cannot be negative."
-            );
-        }
-
         ArgumentException.ThrowIfNullOrWhiteSpace(_options.BackupExtension);
-        var lockDirectory = _options.LockDirectory;
-        if (lockDirectory is not null)
-        {
-            ArgumentException.ThrowIfNullOrWhiteSpace(lockDirectory);
-        }
-
-        _lockPath = ResolveLockPath(_path, _directory, _fileName, lockDirectory);
+        _backupPath = ResolveBackupPath(
+            _directory,
+            _fileName,
+            _options.BackupDirectory,
+            _options.BackupExtension
+        );
     }
 
     /// <summary>The normalized file path.</summary>
     public string Path => _path;
 
-    /// <summary>The resolved persistent lock sidecar path. Exposed for tests.</summary>
-    internal string LockPathForTests => _lockPath;
-
-    /// <summary>Resolves the persistent lock sidecar path for a resource file.</summary>
-    internal static string ResolveLockPathForTests(
-        string resourcePath,
-        string? lockDirectory = null
-    )
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(resourcePath);
-        var fullPath = System.IO.Path.GetFullPath(resourcePath);
-        var directory = System.IO.Path.GetDirectoryName(fullPath)!;
-        var fileName = System.IO.Path.GetFileName(fullPath);
-        return ResolveLockPath(fullPath, directory, fileName, lockDirectory);
-    }
+    /// <summary>The resolved single-backup path. Exposed for tests.</summary>
+    internal string BackupPathForTests => _backupPath;
 
     /// <inheritdoc />
     public ResourceId ResourceId { get; }
@@ -449,8 +225,27 @@ public sealed partial class FileResource
         }
     }
 
-    /// <inheritdoc />
-    public bool AutomaticBackupRecoveryEnabled => _options.AutomaticBackupRecovery;
+    private static string ResolveBackupPath(
+        string directory,
+        string fileName,
+        string? backupDirectory,
+        string backupExtension
+    )
+    {
+        if (
+            backupDirectory is null
+            || string.Equals(backupDirectory, "/", StringComparison.Ordinal)
+        )
+        {
+            return System.IO.Path.Combine(directory, fileName + backupExtension);
+        }
+
+        ArgumentException.ThrowIfNullOrWhiteSpace(backupDirectory);
+        var target = System.IO.Path.IsPathRooted(backupDirectory)
+            ? System.IO.Path.GetFullPath(backupDirectory)
+            : System.IO.Path.GetFullPath(System.IO.Path.Combine(directory, backupDirectory));
+        return System.IO.Path.Combine(target, fileName + backupExtension);
+    }
 
     private static string GetRevision(ReadOnlySpan<byte> content) =>
         ConfiglueHashing.GetXxHash3Hex(content);

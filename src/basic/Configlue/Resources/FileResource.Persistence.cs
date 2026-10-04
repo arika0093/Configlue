@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Runtime.InteropServices;
 using Configlue.Codecs;
 using Configlue.State;
@@ -63,48 +62,34 @@ public sealed partial class FileResource
         ResourceWriteMutation.ValidateBatch(mutations);
         Directory.CreateDirectory(_directory);
 
-        var processLock = await AcquireProcessLockAsync(_path, cancellationToken)
+        using var processLock = await AcquireProcessLockAsync(_path, cancellationToken)
             .ConfigureAwait(false);
-        try
+        var checkRevision = mutations.Any(static mutation => !mutation.Condition.IsNone);
+        var canSkipRead =
+            !checkRevision
+            && !_options.CreateBackup
+            && mutations.Count == 1
+            && mutations[0].TryGetOwnedReplacementContent(out _);
+        var previousContent = canSkipRead
+            ? null
+            : await TryReadForWriteAsync(cancellationToken).ConfigureAwait(false);
+        var currentRevision = previousContent is null ? null : GetRevision(previousContent);
+        if (!mutations[0].Condition.IsSatisfiedBy(currentRevision, previousContent is not null))
         {
-#if NETSTANDARD
-            using var interprocessLock = await AcquireInterprocessLockAsync(cancellationToken)
-                .ConfigureAwait(false);
-#else
-            await using var interprocessLock = await AcquireInterprocessLockAsync(cancellationToken)
-                .ConfigureAwait(false);
-#endif
-            var checkRevision = mutations.Any(static mutation => !mutation.Condition.IsNone);
-            var canSkipRead =
-                !checkRevision
-                && !(_options.CreateBackup && _options.BackupMaxCount > 0)
-                && mutations.Count == 1
-                && mutations[0].TryGetOwnedReplacementContent(out _);
-            var previousContent = canSkipRead
-                ? null
-                : await TryReadForWriteAsync(cancellationToken).ConfigureAwait(false);
-            var currentRevision = previousContent is null ? null : GetRevision(previousContent);
-            if (!mutations[0].Condition.IsSatisfiedBy(currentRevision, previousContent is not null))
-            {
-                throw new StateConflictException(
-                    $"The file resource '{_path}' changed after it was read."
-                );
-            }
-
-            var content = ApplyMutations(mutations, previousContent, currentRevision);
-            cancellationToken.ThrowIfCancellationRequested();
-            if (_options.CreateBackup && _options.BackupMaxCount > 0 && previousContent is not null)
-            {
-                await CreateBackupAsync(previousContent, cancellationToken).ConfigureAwait(false);
-            }
-
-            await WriteAtomicAsync(_path, content, cancellationToken).ConfigureAwait(false);
-            return new StateWriteResult(GetRevision(content.Span));
+            throw new StateConflictException(
+                $"The file resource '{_path}' changed after it was read."
+            );
         }
-        finally
+
+        var content = ApplyMutations(mutations, previousContent, currentRevision);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (_options.CreateBackup && previousContent is not null)
         {
-            processLock.Dispose();
+            await CreateBackupAsync(previousContent, cancellationToken).ConfigureAwait(false);
         }
+
+        await WriteAtomicAsync(_path, content, cancellationToken).ConfigureAwait(false);
+        return new StateWriteResult(GetRevision(content.Span));
     }
 
     private static ReadOnlyMemory<byte> ApplyMutations(
@@ -146,9 +131,9 @@ public sealed partial class FileResource
         return content;
     }
 
-    /// <summary>Restores the latest backup without creating another backup generation.</summary>
-    /// <remarks>Advanced recovery primitive; ordinary recovery runs automatically when enabled.</remarks>
-    /// <exception cref="FileNotFoundException">No latest backup exists.</exception>
+    /// <summary>Restores the single backup without creating another backup.</summary>
+    /// <remarks>Advanced recovery primitive; backups are never restored automatically.</remarks>
+    /// <exception cref="FileNotFoundException">No backup exists.</exception>
     [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
     public async ValueTask<StateWriteResult> RestoreLatestBackupAsync(
         CancellationToken cancellationToken = default
@@ -156,105 +141,21 @@ public sealed partial class FileResource
     {
         cancellationToken.ThrowIfCancellationRequested();
         Directory.CreateDirectory(_directory);
-        var processLock = await AcquireProcessLockAsync(_path, cancellationToken)
+        using var processLock = await AcquireProcessLockAsync(_path, cancellationToken)
             .ConfigureAwait(false);
-        try
+        var backupPath = GetLatestBackupPath();
+        if (backupPath is null)
         {
-#if NETSTANDARD
-            using var interprocessLock = await AcquireInterprocessLockAsync(cancellationToken)
-                .ConfigureAwait(false);
-#else
-            await using var interprocessLock = await AcquireInterprocessLockAsync(cancellationToken)
-                .ConfigureAwait(false);
-#endif
-            var backupPath = GetLatestBackupPath();
-            if (backupPath is null)
-            {
-                throw new FileNotFoundException(
-                    "No backup exists for this file resource.",
-                    GetBackupPath(0)
-                );
-            }
-
-            var content = await File.ReadAllBytesAsync(backupPath, cancellationToken)
-                .ConfigureAwait(false);
-            await WriteAtomicAsync(_path, content, cancellationToken).ConfigureAwait(false);
-            return new StateWriteResult(GetRevision(content));
+            throw new FileNotFoundException(
+                "No backup exists for this file resource.",
+                _backupPath
+            );
         }
-        finally
-        {
-            processLock.Dispose();
-        }
-    }
 
-    /// <inheritdoc />
-    public async ValueTask<ResourceReadResult?> TryRecoverLatestBackupAsync(
-        string? expectedRevision,
-        bool expectedMissing,
-        Func<ResourceReadResult, CancellationToken, ValueTask<bool>> validate,
-        CancellationToken cancellationToken = default
-    )
-    {
-        ArgumentNullException.ThrowIfNull(validate);
-        cancellationToken.ThrowIfCancellationRequested();
-        Directory.CreateDirectory(_directory);
-        var processLock = await AcquireProcessLockAsync(_path, cancellationToken)
+        var content = await File.ReadAllBytesAsync(backupPath, cancellationToken)
             .ConfigureAwait(false);
-        try
-        {
-#if NETSTANDARD
-            using var interprocessLock = await AcquireInterprocessLockAsync(cancellationToken)
-                .ConfigureAwait(false);
-#else
-            await using var interprocessLock = await AcquireInterprocessLockAsync(cancellationToken)
-                .ConfigureAwait(false);
-#endif
-            var current = await TryReadForWriteAsync(cancellationToken).ConfigureAwait(false);
-            var currentRevision = current is null ? null : GetRevision(current);
-            if (
-                expectedMissing != (current is null)
-                || !string.Equals(expectedRevision, currentRevision, StringComparison.Ordinal)
-            )
-            {
-                throw new StateConflictException(
-                    $"The file resource '{_path}' changed while backup recovery was being prepared."
-                );
-            }
-
-            var backupPath = GetLatestBackupPath();
-            if (backupPath is null)
-            {
-                return null;
-            }
-
-            byte[] backup;
-            try
-            {
-                backup = await File.ReadAllBytesAsync(backupPath, cancellationToken)
-                    .ConfigureAwait(false);
-            }
-            catch (FileNotFoundException)
-            {
-                return null;
-            }
-            catch (DirectoryNotFoundException)
-            {
-                return null;
-            }
-
-            var backupResult = ResourceReadResult.Success(backup, GetRevision(backup));
-            if (!await validate(backupResult, cancellationToken).ConfigureAwait(false))
-            {
-                return null;
-            }
-
-            await WriteAtomicAsync(_path, backup, cancellationToken).ConfigureAwait(false);
-            return backupResult;
-        }
-        finally
-        {
-            processLock.Dispose();
-        }
+        await WriteAtomicAsync(_path, content, cancellationToken).ConfigureAwait(false);
+        return new StateWriteResult(GetRevision(content));
     }
 
     private async ValueTask<byte[]?> TryReadForWriteAsync(CancellationToken cancellationToken)
@@ -333,9 +234,11 @@ public sealed partial class FileResource
             // ReplaceFile supports open readers with delete sharing on Windows. It also
             // avoids the copy/delete overwrite polyfill used by .NET Standard consumers.
             File.Replace(sourcePath, destinationPath, destinationBackupFileName: null);
-            return;
         }
-        File.Move(sourcePath, destinationPath);
+        else
+        {
+            File.Move(sourcePath, destinationPath);
+        }
     }
 
     private async ValueTask WriteAtomicAsync(
@@ -373,47 +276,19 @@ public sealed partial class FileResource
                 }
 
                 MoveReplacing(temporaryPath, destinationPath);
-                return;
+                break;
             }
             catch (IOException) when (attempt < _options.RetryCount)
             {
                 attempt++;
-                var retryDelayFactory = _options.RetryDelayFactory;
-                var retryDelay = _options.RetryDelay;
-                if (retryDelayFactory is not null)
-                {
-                    retryDelay = retryDelayFactory(attempt);
-                }
-
-                if (retryDelay < TimeSpan.Zero)
-                {
-                    throw new InvalidOperationException(
-                        "The retry delay factory returned a negative delay."
-                    );
-                }
-
-                await Task.Delay(retryDelay, cancellationToken).ConfigureAwait(false);
+                await Task.Delay(_options.RetryDelay, cancellationToken).ConfigureAwait(false);
             }
             catch (UnauthorizedAccessException) when (attempt < _options.RetryCount)
             {
                 // Windows AV/indexer or a concurrent reader can lock either the
                 // temporary or the destination briefly; retry like a sharing violation.
                 attempt++;
-                var retryDelayFactory = _options.RetryDelayFactory;
-                var retryDelay = _options.RetryDelay;
-                if (retryDelayFactory is not null)
-                {
-                    retryDelay = retryDelayFactory(attempt);
-                }
-
-                if (retryDelay < TimeSpan.Zero)
-                {
-                    throw new InvalidOperationException(
-                        "The retry delay factory returned a negative delay."
-                    );
-                }
-
-                await Task.Delay(retryDelay, cancellationToken).ConfigureAwait(false);
+                await Task.Delay(_options.RetryDelay, cancellationToken).ConfigureAwait(false);
             }
             finally
             {

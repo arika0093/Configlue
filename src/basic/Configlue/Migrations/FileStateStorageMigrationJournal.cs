@@ -26,8 +26,7 @@ public sealed class FileStateStorageMigrationJournal
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(directoryPath);
         _directoryPath = Path.GetFullPath(directoryPath);
-        _resourceOptions =
-            resourceOptions ?? new FileResourceOptions { CreateBackup = false, BackupMaxCount = 0 };
+        _resourceOptions = resourceOptions ?? new FileResourceOptions { CreateBackup = false };
     }
 
     /// <summary>The normalized directory containing migration progress files.</summary>

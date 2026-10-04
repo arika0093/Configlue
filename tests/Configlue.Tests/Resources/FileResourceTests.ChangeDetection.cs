@@ -76,8 +76,7 @@ public sealed partial class FileResourceTests
             path,
             new FileResourceOptions
             {
-                PollingInterval = TimeSpan.FromSeconds(10),
-                RevisionVerificationInterval = TimeSpan.FromMilliseconds(100),
+                PollingInterval = TimeSpan.FromMilliseconds(100),
             }
         );
         var revision = (await resource.ReadAsync()).Revision;
@@ -136,7 +135,6 @@ public sealed partial class FileResourceTests
             {
                 ChangeDetectionMode = mode,
                 PollingInterval = TimeSpan.FromMilliseconds(20),
-                RevisionVerificationInterval = TimeSpan.FromMilliseconds(100),
             }
         );
         var create = resource.WaitForChangeAsync(default, null).AsTask();
@@ -171,7 +169,6 @@ public sealed partial class FileResourceTests
                 new FileResourceOptions { PollingInterval = TimeSpan.Zero },
                 new FileResourceOptions { PollingInterval = TimeSpan.FromMilliseconds(-1) },
                 new FileResourceOptions { PollingInterval = TimeSpan.MaxValue },
-                new FileResourceOptions { RevisionVerificationInterval = TimeSpan.Zero },
                 new FileResourceOptions { ChangeDetectionMode = (FileChangeDetectionMode)123 },
             }
         )

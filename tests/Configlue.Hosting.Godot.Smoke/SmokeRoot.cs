@@ -50,10 +50,7 @@ public partial class SmokeRoot : G.Node
             );
             Directory.CreateDirectory(temporaryDirectory);
             using var resource = new FileResource(
-                Path.Combine(temporaryDirectory, "settings.json"),
-                new FileResourceOptions { LockDirectory = temporaryDirectory },
-                null,
-                builder.HostPaths
+                Path.Combine(temporaryDirectory, "settings.json")
             );
             var serialized = new SerializedSource<SmokeSettings.Fragment>(
                 resource,

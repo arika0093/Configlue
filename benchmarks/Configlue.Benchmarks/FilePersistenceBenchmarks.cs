@@ -66,7 +66,7 @@ public class FilePersistenceBenchmarks
         var configluePathWithoutBackup = Path.Combine(_directory, "configlue-no-backup.json");
         _resourceWithoutBackup = new FileResource(
             configluePathWithoutBackup,
-            new FileResourceOptions { CreateBackup = false, BackupMaxCount = 0 }
+            new FileResourceOptions { CreateBackup = false }
         );
         _configlueWithoutBackupContext = CreateConfiglueContext(
             configluePathWithoutBackup,
@@ -248,7 +248,7 @@ public class FileResourceReadBenchmarks
         File.WriteAllBytes(path, new byte[ContentSize]);
         _resource = new FileResource(
             path,
-            new FileResourceOptions { CreateBackup = false, BackupMaxCount = 0 }
+            new FileResourceOptions { CreateBackup = false }
         );
     }
 
@@ -291,7 +291,7 @@ public class SerializedFileReadBenchmarks
         );
         _resource = new FileResource(
             path,
-            new FileResourceOptions { CreateBackup = false, BackupMaxCount = 0 }
+            new FileResourceOptions { CreateBackup = false }
         );
         _reader = new SerializedStateReader<SerializedReadBenchmarkSettings.Fragment>(
             _resource,
@@ -355,8 +355,6 @@ public class FileResourceWriteBenchmarks
             new FileResourceOptions
             {
                 CreateBackup = false,
-                BackupMaxCount = 0,
-                LockDirectory = "/",
             }
         );
     }

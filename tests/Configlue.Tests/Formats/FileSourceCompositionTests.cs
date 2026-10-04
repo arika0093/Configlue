@@ -441,9 +441,7 @@ public sealed class FileSourceCompositionTests
             path,
             new AppSettings.Fragment { RetryCount = Optional<int>.Present(21) }
         );
-        var lockDirectory = Path.Combine(directory.FullPath, "locks");
         var fixedResourceId = new ResourceId("file-composition:fixed");
-
         await using var context = ConfiglueApp.CreateContext(builder =>
         {
             builder.Add<AppSettings>(model =>
@@ -458,8 +456,6 @@ public sealed class FileSourceCompositionTests
                                 ResourceOptions = new FileResourceOptions
                                 {
                                     CreateBackup = false,
-                                    BackupMaxCount = 0,
-                                    LockDirectory = lockDirectory,
                                 },
                             }
                         )
@@ -480,7 +476,6 @@ public sealed class FileSourceCompositionTests
             .GetFiles(directory.FullPath, "*", SearchOption.TopDirectoryOnly)
             .Single()
             .ShouldBe(path);
-        Directory.EnumerateFileSystemEntries(lockDirectory).Any().ShouldBeTrue();
 
         await using var readOnly = ConfiglueApp.CreateContext(builder =>
         {

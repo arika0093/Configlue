@@ -136,34 +136,6 @@ public sealed class SerializedSourceCompositionTests
         await Should.ThrowAsync<OperationCanceledException>(async () => await write);
     }
 
-    [Test]
-    public async Task AsyncTransformParticipatesInValidatedBackupRecovery()
-    {
-        var directory = Path.Combine(Path.GetTempPath(), "Configlue.Tests", Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(directory);
-        try
-        {
-            var path = Path.Combine(directory, "state.json");
-            using var resource = new FileResource(
-                path,
-                new FileResourceOptions { AutomaticBackupRecovery = true }
-            );
-            var source = new StateSource<string>("async-recovery", new SerializedSource<string>(resource, new JsonStateCodec<string>(), transformers: [new RecoverableAsyncPrefixTransformer("async:")], writer: (IResourceReader)resource as IResourceWriter, watcher: (IResourceReader)resource as ISourceWatcher), new StateSourceOptions<string>());
-            await source.Writer!.WriteAsync(new StateWriteRequest<string>("backup"));
-            await source.Writer!.WriteAsync(new StateWriteRequest<string>("current"));
-            await File.WriteAllTextAsync(path, "bad-transform-payload");
-
-            var recovered = await source.Reader.ReadAsync();
-
-            recovered.Status.ShouldBe(StateReadStatus.Success);
-            recovered.Value.ShouldBe("backup");
-        }
-        finally
-        {
-            Directory.Delete(directory, recursive: true);
-        }
-    }
-
     private sealed class AsyncPrefixTransformer(string prefix, string name, List<string> order)
         : IAsyncStateByteTransformer
     {
@@ -190,39 +162,6 @@ public sealed class SerializedSourceCompositionTests
             order.Add($"write:{name}");
             return Encoding.UTF8.GetBytes(prefix + Encoding.UTF8.GetString(source.Span));
         }
-    }
-
-    private sealed class RecoverableAsyncPrefixTransformer(string prefix)
-        : IAsyncStateByteTransformer,
-            IStateByteTransformerRecoveryPolicy
-    {
-        public async ValueTask<ReadOnlyMemory<byte>> TransformReadAsync(
-            ReadOnlyMemory<byte> source,
-            CancellationToken cancellationToken = default
-        )
-        {
-            await Task.Yield();
-            cancellationToken.ThrowIfCancellationRequested();
-            var text = Encoding.UTF8.GetString(source.Span);
-            if (!text.StartsWith(prefix, StringComparison.Ordinal))
-            {
-                throw new InvalidDataException("The async transform prefix is missing.");
-            }
-            return Encoding.UTF8.GetBytes(text[prefix.Length..]);
-        }
-
-        public async ValueTask<ReadOnlyMemory<byte>> TransformWriteAsync(
-            ReadOnlyMemory<byte> source,
-            CancellationToken cancellationToken = default
-        )
-        {
-            await Task.Yield();
-            cancellationToken.ThrowIfCancellationRequested();
-            return Encoding.UTF8.GetBytes(prefix + Encoding.UTF8.GetString(source.Span));
-        }
-
-        public bool IsRecoverableReadException(Exception exception) =>
-            exception is InvalidDataException;
     }
 
     private sealed class BlockingAsyncTransformer : IAsyncStateByteTransformer

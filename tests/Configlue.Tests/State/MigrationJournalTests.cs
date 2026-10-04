@@ -105,10 +105,8 @@ public sealed class MigrationJournalTests
             "Configlue.Tests",
             Guid.NewGuid().ToString("N")
         );
-        var lockDirectory = Path.Combine(directory, "locks");
-        var options = new FileResourceOptions { LockDirectory = lockDirectory };
-        var firstJournal = new FileStateStorageMigrationJournal(directory, options);
-        var secondJournal = new FileStateStorageMigrationJournal(directory, options);
+        var firstJournal = new FileStateStorageMigrationJournal(directory);
+        var secondJournal = new FileStateStorageMigrationJournal(directory);
         Directory.CreateDirectory(directory);
 
         try
@@ -133,53 +131,6 @@ public sealed class MigrationJournalTests
             (progress).ShouldNotBeNull();
             progress!.SourceIds.ShouldBe([SourceId.From("source")]);
             progress.TargetSourceIds.ShouldBe([SourceId.From("target")]);
-        }
-        finally
-        {
-            Directory.Delete(directory, recursive: true);
-        }
-    }
-
-    [Test]
-    public async Task FileJournalLeaseWaitsForInterprocessLockAndHonorsCancellation()
-    {
-        var directory = Path.Combine(
-            Path.GetTempPath(),
-            "Configlue.Tests",
-            Guid.NewGuid().ToString("N")
-        );
-        var lockDirectory = Path.Combine(directory, "locks");
-        var options = new FileResourceOptions { LockDirectory = lockDirectory };
-        var journal = new FileStateStorageMigrationJournal(directory, options);
-        Directory.CreateDirectory(directory);
-
-        try
-        {
-            await using (await journal.AcquireMigrationLeaseAsync("interprocess-migration")) { }
-            var lockPath = Directory.EnumerateFiles(lockDirectory, "*.configlue.lock").Single();
-
-            using (
-                new FileStream(
-                    lockPath,
-                    FileMode.OpenOrCreate,
-                    FileAccess.ReadWrite,
-                    FileShare.None
-                )
-            )
-            {
-                using var cancellation = new CancellationTokenSource(
-                    TimeSpan.FromMilliseconds(100)
-                );
-                await Should.ThrowAsync<OperationCanceledException>(async () =>
-                    await journal.AcquireMigrationLeaseAsync(
-                        "interprocess-migration",
-                        cancellation.Token
-                    )
-                );
-            }
-
-            await using var lease = await journal.AcquireMigrationLeaseAsync("interprocess-migration");
-            (lease).ShouldNotBeNull();
         }
         finally
         {

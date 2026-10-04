@@ -167,11 +167,6 @@ namespace Configlue.Resources
         public static string GetStandardSaveDirectory(string applicationId) { }
         public static string ResolveDirectory(Configlue.Resources.IConfiglueHostPaths hostPaths, Configlue.Resources.ConfiglueStandardLocation location, string applicationId = "") { }
     }
-    public enum FileBackupDirectoryMode
-    {
-        PersistentUserDirectory = 0,
-        ResourceDirectory = 1,
-    }
     public enum FileChangeDetectionMode
     {
         Hybrid = 0,
@@ -180,24 +175,13 @@ namespace Configlue.Resources
     public sealed class FileResourceOptions
     {
         public FileResourceOptions() { }
-        public bool AutomaticBackupRecovery { get; init; }
         public string? BackupDirectory { get; init; }
-        public Configlue.Resources.FileBackupDirectoryMode? BackupDirectoryMode { get; init; }
-        public string BackupDirectoryName { get; init; }
         public string BackupExtension { get; init; }
-        public int BackupMaxCount { get; init; }
-        public string? BackupRootDirectory { get; init; }
         public Configlue.Resources.FileChangeDetectionMode ChangeDetectionMode { get; init; }
         public bool CreateBackup { get; init; }
-        public bool IncludeModelVersionInBackupDirectory { get; init; }
-        public System.TimeSpan LockAcquireRetryDelay { get; init; }
-        public System.TimeSpan? LockAcquireTimeout { get; init; }
-        public string? LockDirectory { get; init; }
         public System.TimeSpan PollingInterval { get; init; }
         public int RetryCount { get; init; }
         public System.TimeSpan RetryDelay { get; init; }
-        public System.Func<int, System.TimeSpan>? RetryDelayFactory { get; init; }
-        public System.TimeSpan RevisionVerificationInterval { get; init; }
     }
     public sealed class PipelineResourceReadResult : System.IAsyncDisposable
     {

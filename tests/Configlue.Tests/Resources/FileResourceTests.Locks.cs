@@ -1,8 +1,4 @@
-using System.Buffers;
 using System.Text;
-using System.Text.Json;
-using Configlue.Provider.Json;
-using Configlue.Testing;
 
 namespace Configlue.Tests;
 
@@ -31,103 +27,6 @@ public sealed partial class FileResourceTests
         finally
         {
             DeleteDirectory(directory);
-        }
-    }
-
-    [Test]
-    public async Task FileResource_KeepsTheSidecarLockFilePersistent()
-    {
-        var directory = CreateTemporaryDirectory();
-        var path = System.IO.Path.Combine(directory, "settings.json");
-        var lockPath = FileResource.ResolveLockPathForTests(path);
-        try
-        {
-            using var resource = new FileResource(path);
-            lockPath = resource.LockPathForTests;
-            await resource.WriteAsync(
-                new ResourceWriteRequest(Encoding.UTF8.GetBytes("{\"value\":1}"))
-            );
-            File.Exists(lockPath).ShouldBeTrue();
-            await resource.WriteAsync(
-                new ResourceWriteRequest(Encoding.UTF8.GetBytes("{\"value\":2}"))
-            );
-            File.Exists(lockPath).ShouldBeTrue();
-        }
-        finally
-        {
-            DeleteDirectory(directory);
-            DeleteFileIfExists(lockPath);
-        }
-    }
-
-    [Test]
-    public void FileResource_PlacesTheSidecarLockOutsideTheResourceDirectoryByDefault()
-    {
-        var directory = CreateTemporaryDirectory();
-        var path = System.IO.Path.Combine(directory, "settings.json");
-        try
-        {
-            using var resource = new FileResource(path);
-            var lockPath = resource.LockPathForTests;
-            lockPath.ShouldStartWith(
-                ConfiglueStandardPaths.GetSharedLockDirectory()
-                    + System.IO.Path.DirectorySeparatorChar
-            );
-            System.IO.Path.GetDirectoryName(lockPath).ShouldNotBe(directory);
-            File.Exists(System.IO.Path.Combine(directory, ".settings.json.configlue.lock"))
-                .ShouldBeFalse();
-        }
-        finally
-        {
-            DeleteDirectory(directory);
-            DeleteFileIfExists(FileResource.ResolveLockPathForTests(path));
-        }
-    }
-
-    [Test]
-    public void FileResource_SupportsLegacyCoLocatedLocksWithSlashDirectory()
-    {
-        var directory = CreateTemporaryDirectory();
-        var path = System.IO.Path.Combine(directory, "settings.json");
-        try
-        {
-            using var resource = new FileResource(
-                path,
-                new FileResourceOptions { LockDirectory = "/" }
-            );
-            resource.LockPathForTests.ShouldBe(
-                System.IO.Path.Combine(directory, ".settings.json.configlue.lock")
-            );
-        }
-        finally
-        {
-            DeleteDirectory(directory);
-        }
-    }
-
-    [Test]
-    public void FileResource_HonorsCustomLockDirectories()
-    {
-        var directory = CreateTemporaryDirectory();
-        var customDirectory = CreateTemporaryDirectory();
-        var path = System.IO.Path.Combine(directory, "settings.json");
-        try
-        {
-            using var resource = new FileResource(
-                path,
-                new FileResourceOptions { LockDirectory = customDirectory }
-            );
-            resource.LockPathForTests.ShouldStartWith(
-                System.IO.Path.GetFullPath(customDirectory) + System.IO.Path.DirectorySeparatorChar
-            );
-            FileResource
-                .ResolveLockPathForTests(path, customDirectory)
-                .ShouldBe(resource.LockPathForTests);
-        }
-        finally
-        {
-            DeleteDirectory(directory);
-            DeleteDirectory(customDirectory);
         }
     }
 
@@ -169,124 +68,23 @@ public sealed partial class FileResourceTests
     public async Task FileResource_WritesToDifferentPathsDoNotBlockEachOther()
     {
         var directory = CreateTemporaryDirectory();
-        var targetPath = System.IO.Path.Combine(directory, "b.json");
-        var otherLockPath = FileResource.ResolveLockPathForTests(
-            System.IO.Path.Combine(directory, "a.json")
-        );
         try
         {
             Directory.CreateDirectory(directory);
-            Directory.CreateDirectory(System.IO.Path.GetDirectoryName(otherLockPath)!);
-            using (
-                var _ = new FileStream(
-                    otherLockPath,
-                    FileMode.OpenOrCreate,
-                    FileAccess.ReadWrite,
-                    FileShare.None
-                )
-            )
-            {
-                using var resource = new FileResource(
-                    targetPath,
-                    new FileResourceOptions { LockAcquireTimeout = TimeSpan.FromSeconds(10) }
-                );
-                await resource.WriteAsync(
-                    new ResourceWriteRequest(Encoding.UTF8.GetBytes("{\"value\":2}"))
-                );
-            }
+            using var first = new FileResource(System.IO.Path.Combine(directory, "a.json"));
+            using var second = new FileResource(System.IO.Path.Combine(directory, "b.json"));
 
-            File.Exists(targetPath).ShouldBeTrue();
+            await Task.WhenAll(
+                first.WriteAsync(new ResourceWriteRequest(Encoding.UTF8.GetBytes("{\"value\":1}"))).AsTask(),
+                second.WriteAsync(new ResourceWriteRequest(Encoding.UTF8.GetBytes("{\"value\":2}"))).AsTask()
+            );
+
+            File.Exists(System.IO.Path.Combine(directory, "a.json")).ShouldBeTrue();
+            File.Exists(System.IO.Path.Combine(directory, "b.json")).ShouldBeTrue();
         }
         finally
         {
             DeleteDirectory(directory);
-            DeleteFileIfExists(otherLockPath);
-            DeleteFileIfExists(FileResource.ResolveLockPathForTests(targetPath));
-        }
-    }
-
-    [Test]
-    public async Task FileResource_HonorsCancellationWhileWaitingForTheLock()
-    {
-        var directory = CreateTemporaryDirectory();
-        var path = System.IO.Path.Combine(directory, "settings.json");
-        var lockPath = FileResource.ResolveLockPathForTests(path);
-        try
-        {
-            Directory.CreateDirectory(directory);
-            Directory.CreateDirectory(System.IO.Path.GetDirectoryName(lockPath)!);
-            using (
-                var _ = new FileStream(
-                    lockPath,
-                    FileMode.OpenOrCreate,
-                    FileAccess.ReadWrite,
-                    FileShare.None
-                )
-            )
-            {
-                using var resource = new FileResource(
-                    path,
-                    new FileResourceOptions { LockAcquireTimeout = TimeSpan.FromSeconds(30) }
-                );
-                using var cancellation = new CancellationTokenSource();
-                var write = resource
-                    .WriteAsync(
-                        new ResourceWriteRequest(Encoding.UTF8.GetBytes("{}")),
-                        cancellation.Token
-                    )
-                    .AsTask();
-                await Task.Delay(TimeSpan.FromMilliseconds(100));
-                cancellation.Cancel();
-
-                await Should.ThrowAsync<OperationCanceledException>(async () => await write);
-            }
-        }
-        finally
-        {
-            DeleteDirectory(directory);
-            DeleteFileIfExists(lockPath);
-        }
-    }
-
-    [Test]
-    public async Task FileResource_FailsWhenTheLockAcquireTimeoutExpires()
-    {
-        var directory = CreateTemporaryDirectory();
-        var path = System.IO.Path.Combine(directory, "settings.json");
-        var lockPath = FileResource.ResolveLockPathForTests(path);
-        try
-        {
-            Directory.CreateDirectory(directory);
-            Directory.CreateDirectory(System.IO.Path.GetDirectoryName(lockPath)!);
-            using (
-                var _ = new FileStream(
-                    lockPath,
-                    FileMode.OpenOrCreate,
-                    FileAccess.ReadWrite,
-                    FileShare.None
-                )
-            )
-            {
-                using var resource = new FileResource(
-                    path,
-                    new FileResourceOptions
-                    {
-                        LockAcquireTimeout = TimeSpan.FromMilliseconds(150),
-                        LockAcquireRetryDelay = TimeSpan.FromMilliseconds(10),
-                    }
-                );
-
-                await Should.ThrowAsync<IOException>(async () =>
-                    await resource.WriteAsync(
-                        new ResourceWriteRequest(Encoding.UTF8.GetBytes("{}"))
-                    )
-                );
-            }
-        }
-        finally
-        {
-            DeleteDirectory(directory);
-            DeleteFileIfExists(lockPath);
         }
     }
 

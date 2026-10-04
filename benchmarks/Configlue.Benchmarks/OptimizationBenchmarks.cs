@@ -707,9 +707,6 @@ public class FileBackupBenchmarks
     private IWritableState<OptimizationBenchmarkSettings> _options = null!;
     private int _counter;
 
-    [Params(1, 3, 10)]
-    public int BackupMaxCount { get; set; }
-
     [GlobalSetup]
     public async Task SetupAsync()
     {
@@ -721,9 +718,6 @@ public class FileBackupBenchmarks
             new FileResourceOptions
             {
                 CreateBackup = true,
-                BackupMaxCount = BackupMaxCount,
-                BackupDirectory = "/",
-                LockDirectory = "/",
             }
         );
         var source = new StateSource<OptimizationBenchmarkSettings.Fragment>("backup", new SerializedSource<OptimizationBenchmarkSettings.Fragment>(_resource, new JsonStateCodec<OptimizationBenchmarkSettings.Fragment>(), writer: (IResourceReader)_resource as IResourceWriter, watcher: (IResourceReader)_resource as ISourceWatcher), new StateSourceOptions<OptimizationBenchmarkSettings.Fragment> { PhysicalOrigin = path });
