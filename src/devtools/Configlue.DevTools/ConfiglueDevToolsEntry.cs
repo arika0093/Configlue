@@ -146,7 +146,6 @@ internal sealed class ConfiglueDevToolsEntry<TModel> : IConfiglueDevToolsEntry
         var diagnostics = (IConfiglueDiagnostics<TModel>)_state;
         var topology = diagnostics.GetDiagnostics();
         var runtime = diagnostics.GetRuntimeSnapshot();
-        var recent = diagnostics.GetRecentEvents();
         var payload = new
         {
             state = new
@@ -159,7 +158,7 @@ internal sealed class ConfiglueDevToolsEntry<TModel> : IConfiglueDevToolsEntry
                 lastReload = DescribeEvent(runtime.LastReload),
                 lastWrite = DescribeEvent(runtime.LastWrite),
                 lastMigration = DescribeEvent(runtime.LastMigration),
-                validation = DescribeValidation(recent, runtime.LastResolution),
+                validation = DescribeValidation(runtime.LastResolution),
             },
             defaultWriteSourceId = topology.DefaultWriteSourceId?.ToString(),
             defaultWriteSourceIsInferred = topology.DefaultWriteSourceIsInferred,
@@ -184,20 +183,38 @@ internal sealed class ConfiglueDevToolsEntry<TModel> : IConfiglueDevToolsEntry
     {
         _ = cancellationToken;
         var diagnostics = (IConfiglueDiagnostics<TModel>)_state;
-        var recent = diagnostics.GetRecentEvents();
-        const int maxEvents = 50;
-        var window =
-            recent.Count <= maxEvents ? recent : recent.Skip(recent.Count - maxEvents).ToArray();
+        var runtime = diagnostics.GetRuntimeSnapshot();
+        // Compact snapshot-derived timeline: the last observed outcome per operation area
+        // plus per-source last reads, newest first. Detailed timelines belong to ILogger
+        // sinks and ActivitySource/Meter listeners; Core retains no event history.
+        var candidates = new List<ConfiglueDiagnosticEvent>();
+        foreach (
+            var outcome in new[]
+            {
+                runtime.LastResolution,
+                runtime.LastReload,
+                runtime.LastWrite,
+                runtime.LastMigration,
+            }
+        )
+        {
+            if (outcome is { } observed)
+                candidates.Add(observed);
+        }
+        foreach (var source in runtime.Sources)
+        {
+            if (source.LastRead is { } lastRead)
+                candidates.Add(lastRead);
+        }
+        var window = candidates.OrderByDescending(static item => item.Timestamp).Take(50).ToArray();
         var payload = new
         {
-            maxBound = maxEvents,
-            totalRetained = recent.Count,
-            returned = window.Count,
-            historyEnabledNote = "Empty when EventHistoryCapacity is zero (default).",
+            source = "snapshot",
+            returned = window.Length,
+            historyNote = "Snapshot-derived outcomes only; Core retains no event history. Subscribe to ILogger or Configlue ActivitySource/Meter for timelines.",
             events = window
                 .Select(static item => new
                 {
-                    sequence = item.Sequence,
                     timestamp = item.Timestamp,
                     kind = item.Kind.ToString(),
                     stateName = item.StateName,
@@ -206,6 +223,7 @@ internal sealed class ConfiglueDevToolsEntry<TModel> : IConfiglueDevToolsEntry
                     sourceKind = item.SourceKind,
                     readStatus = item.ReadStatus?.ToString(),
                     hasRevision = item.HasRevision,
+                    durationMilliseconds = item.Duration.TotalMilliseconds,
                     errorCategory = item.ErrorCategory,
                     canceled = item.Canceled,
                     effectiveValueChanged = item.EffectiveValueChanged,
@@ -384,27 +402,15 @@ internal sealed class ConfiglueDevToolsEntry<TModel> : IConfiglueDevToolsEntry
                 canceled = item.Value.Canceled,
             };
 
-    private static object DescribeValidation(
-        IReadOnlyList<ConfiglueDiagnosticEvent> recent,
-        ConfiglueDiagnosticEvent? lastResolution
-    )
+    private static object DescribeValidation(ConfiglueDiagnosticEvent? lastResolution)
     {
-        ConfiglueDiagnosticEvent? lastFailure = null;
-        foreach (var item in recent)
-        {
-            if (item.Kind == ConfiglueDiagnosticEventKind.ValidationFailed)
-            {
-                lastFailure = item;
-            }
-        }
-
-        if (lastFailure is not null)
+        if (lastResolution?.ErrorCategory?.Contains("Validation", StringComparison.Ordinal) == true)
         {
             return new
             {
                 status = "Failed",
-                lastFailureTimestamp = (DateTimeOffset?)lastFailure.Value.Timestamp,
-                lastFailureError = lastFailure.Value.ErrorCategory,
+                lastFailureTimestamp = (DateTimeOffset?)lastResolution.Value.Timestamp,
+                lastFailureError = lastResolution.Value.ErrorCategory,
             };
         }
 

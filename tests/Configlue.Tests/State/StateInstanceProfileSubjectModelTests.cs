@@ -3,6 +3,7 @@ using Configlue;
 using Configlue.Resources;
 using Configlue.Sources;
 using Configlue.Testing;
+using Microsoft.Extensions.Logging;
 
 namespace Configlue.Tests;
 
@@ -114,7 +115,15 @@ public sealed class StateInstanceProfileSubjectModelTests
     public async Task ProfilesAreNamedStateIdentitiesSurvivingUnloadAndRematerialization()
     {
         var catalogStore = new InMemoryStateSource<ConfiglueProfileCatalog>();
-        var catalog = new StateSource<ConfiglueProfileCatalog>("catalog", catalogStore, new StateSourceOptions<ConfiglueProfileCatalog> { Writer = catalogStore, Watcher = catalogStore });
+        var catalog = new StateSource<ConfiglueProfileCatalog>(
+            "catalog",
+            catalogStore,
+            new StateSourceOptions<ConfiglueProfileCatalog>
+            {
+                Writer = catalogStore,
+                Watcher = catalogStore,
+            }
+        );
         // One backing store per state name simulates persisted per-profile data.
         var backingStores = new Dictionary<string, InMemoryStateSource<AppSettings.Fragment>>(
             StringComparer.Ordinal
@@ -129,7 +138,11 @@ public sealed class StateInstanceProfileSubjectModelTests
                 backingStores[stateName] = store;
             }
 
-            return new StateSource<AppSettings.Fragment>("profile-source-" + stateName, store, new StateSourceOptions<AppSettings.Fragment> { Writer = store, Watcher = store });
+            return new StateSource<AppSettings.Fragment>(
+                "profile-source-" + stateName,
+                store,
+                new StateSourceOptions<AppSettings.Fragment> { Writer = store, Watcher = store }
+            );
         }
 
         await using var context = ConfiglueApp.CreateContext(builder =>
@@ -169,7 +182,15 @@ public sealed class StateInstanceProfileSubjectModelTests
     public async Task ProfilePlusSubjectCompositionIsDeterministic()
     {
         var catalogStore = new InMemoryStateSource<ConfiglueProfileCatalog>();
-        var catalog = new StateSource<ConfiglueProfileCatalog>("catalog", catalogStore, new StateSourceOptions<ConfiglueProfileCatalog> { Writer = catalogStore, Watcher = catalogStore });
+        var catalog = new StateSource<ConfiglueProfileCatalog>(
+            "catalog",
+            catalogStore,
+            new StateSourceOptions<ConfiglueProfileCatalog>
+            {
+                Writer = catalogStore,
+                Watcher = catalogStore,
+            }
+        );
         var store = new SubjectKeyedStore();
         await using var context = ConfiglueApp.CreateContext(builder =>
         {
@@ -237,11 +258,12 @@ public sealed class StateInstanceProfileSubjectModelTests
         builder
             .Add("data", store)
             .ResourceKeyBy<ModelSubject>(subject => ResourceKey.From("tenant-" + subject.Tenant));
+        var subjectLog = new SubjectCapturingLogger();
         await using var runtime = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             builder.Build(),
             onChangeDebounce: TimeSpan.Zero,
             stateName: "game",
-            diagnostics: new ConfiglueRuntimeDiagnosticOptions { EventHistoryCapacity = 64 }
+            logger: subjectLog
         );
         ISubjectState<AppSettings> subjects = runtime;
         IConfiglueDiagnostics<AppSettings> diagnostics = runtime;
@@ -266,23 +288,60 @@ public sealed class StateInstanceProfileSubjectModelTests
         serverReceipt.StateName.ShouldBe("game");
         serverReceipt.SubjectKey.ShouldBe(SubjectKey.Default);
 
-        var events = diagnostics.GetRecentEvents();
-        events.ShouldNotBeEmpty();
-        foreach (var diagnosticEvent in events)
-        {
-            diagnosticEvent.StateName.ShouldBe("game");
-        }
+        // The compact snapshot reports the last operation; the per-operation subject scope
+        // is observed through standard ILogger fields without retaining values.
+        var snapshot = diagnostics.GetRuntimeSnapshot();
+        snapshot.StateName.ShouldBe("game");
+        snapshot.LastWrite!.Value.StateName.ShouldBe("game");
+        snapshot.LastWrite!.Value.SubjectKey.ShouldBe(SubjectKey.Default);
+        subjectLog.Subjects.ShouldContain(alice.Key.Value);
+        subjectLog.Subjects.ShouldContain(SubjectKey.Default.Value);
+        subjectLog.States.ShouldAllBe(static state => state == "game");
+    }
 
-        var subjectKeys = events.Select(static diagnosticEvent => diagnosticEvent.SubjectKey);
-        subjectKeys.ShouldContain(alice.Key);
-        subjectKeys.ShouldContain(SubjectKey.Default);
-        diagnostics.GetRuntimeSnapshot().StateName.ShouldBe("game");
+    private sealed class SubjectCapturingLogger : ILogger
+    {
+        internal List<string> Subjects { get; } = [];
+        internal List<string?> States { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state)
+            where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter
+        )
+        {
+            if (state is not IEnumerable<KeyValuePair<string, object?>> fields)
+                return;
+            string? stateName = null;
+            string? subject = null;
+            foreach (var field in fields)
+            {
+                if (field.Key == "StateName")
+                    stateName = field.Value as string;
+                if (field.Key == "SubjectKey")
+                    subject = field.Value as string;
+            }
+            States.Add(stateName);
+            if (subject is not null)
+                Subjects.Add(subject);
+        }
     }
 
     private static StateSource<AppSettings.Fragment> CreateSource(string id, string label)
     {
         var store = new InMemoryStateSource<AppSettings.Fragment>(Fragment(label));
-        return new StateSource<AppSettings.Fragment>(id, store, new StateSourceOptions<AppSettings.Fragment> { Writer = store, Watcher = store });
+        return new StateSource<AppSettings.Fragment>(
+            id,
+            store,
+            new StateSourceOptions<AppSettings.Fragment> { Writer = store, Watcher = store }
+        );
     }
 
     private static AppSettings.Fragment Fragment(string? label) =>

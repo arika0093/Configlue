@@ -10,7 +10,7 @@ public class RuntimeDiagnosticBenchmarks
     private ConfiglueContext _context = null!;
     private IReadOnlyState<OptimizationBenchmarkSettings> _state = null!;
 
-    [Params("Disabled", "Snapshot", "History")]
+    [Params("Disabled", "Snapshot")]
     public string Mode { get; set; } = "Disabled";
 
     [Params(1, 4)]
@@ -44,10 +44,6 @@ public class RuntimeDiagnosticBenchmarks
                 model.Diagnostics = Mode switch
                 {
                     "Disabled" => ConfiglueRuntimeDiagnosticOptions.Disabled,
-                    "History" => new ConfiglueRuntimeDiagnosticOptions
-                    {
-                        EventHistoryCapacity = 64,
-                    },
                     _ => ConfiglueRuntimeDiagnosticOptions.Default,
                 }
         );

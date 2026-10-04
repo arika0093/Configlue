@@ -5,6 +5,8 @@ using Microsoft.Extensions.Logging;
 namespace Configlue;
 
 // Only configured sources are retained. Values are never stored; per-operation subject keys are recorded on events.
+// External observability uses ILogger + ActivitySource/Meter. The compact DevTools snapshot is the only
+// retained state; there is no public event bus and no retained history.
 internal sealed class RuntimeDiagnosticRecorder : IConfiglueRuntimeDiagnostics
 {
     private readonly object _gate = new();
@@ -14,16 +16,9 @@ internal sealed class RuntimeDiagnosticRecorder : IConfiglueRuntimeDiagnostics
     private readonly Func<SubjectKey>? _subjectKeyProvider;
     private readonly ConfiglueRuntimeDiagnosticOptions _options;
     private readonly ILogger? _logger;
-    private readonly bool _configEnabled;
     private readonly bool _hasLogger;
-    private readonly ConfiglueDiagnosticEvent[] _history;
     private readonly Dictionary<SourceId, ConfiglueRuntimeSourceSnapshot> _sources;
     private readonly Dictionary<SourceId, int> _watchCounts = new();
-    private Action<ConfiglueDiagnosticEvent>[] _listeners = [];
-    private long _sequence;
-    private long _nextOperationId;
-    private int _historyCount;
-    private int _historyNext;
     private ConfiglueDiagnosticEvent? _lastResolution;
     private ConfiglueDiagnosticEvent? _lastReload;
     private ConfiglueDiagnosticEvent? _lastWrite;
@@ -46,28 +41,30 @@ internal sealed class RuntimeDiagnosticRecorder : IConfiglueRuntimeDiagnostics
         _subjectKeyProvider = subjectKeyProvider;
         _options = options;
         _logger = logger;
-        _history = new ConfiglueDiagnosticEvent[options.EventHistoryCapacity];
-        _sources = sources.ToDictionary(static source => source.Id);
-        // Immutable configuration evaluated once. TrackSnapshot and history capacity never
-        // change after construction, and logger presence is fixed. Only explicit listener
-        // subscriptions and Activity/Meter listeners can change dynamically and must be
-        // re-evaluated per operation.
-        _configEnabled = options.TrackSnapshot || _history.Length != 0;
         _hasLogger = logger is not null;
+        _sources = sources.ToDictionary(static source => source.Id);
     }
 
-    // Fast path for the fully-disabled case: one cached static branch plus only the
-    // truly-dynamic checks (explicit listeners, Activity/Meter listeners). Logger checks
-    // are hoisted behind _hasLogger so the common logger-less path performs no virtual
-    // calls (issue #276 keeps this shape: every resolve/read/migration probes it, and
-    // the DiagnosticOperation.Id == 0 branch keeps disabled diagnostics free of async
-    // state machines and event construction).
+    // Fast path for the fully-disabled case: only the truly-dynamic checks run per
+    // operation (snapshot flag is immutable, logger presence is cached in _hasLogger,
+    // telemetry listeners are dynamic). No Stopwatch/Activity work when nothing can
+    // observe the outcome (issue #276 keeps this shape; issue #278 limits it to the
+    // snapshot-only surface with DiagnosticOperation.IsActive keeping disabled
+    // diagnostics free of async state machines and event construction).
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private bool IsEnabled(ConfiglueDiagnosticEventKind kind)
+    private bool IsOperationEnabled()
     {
-        if (_configEnabled)
+        if (_options.TrackSnapshot)
             return true;
-        if (Volatile.Read(ref _listeners).Length != 0)
+        if (_hasLogger)
+            return true;
+        return ConfiglueTelemetry.HasObservers();
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private bool IsOutcomeEnabled(ConfiglueDiagnosticEventKind kind)
+    {
+        if (_options.TrackSnapshot)
             return true;
         if (ConfiglueTelemetry.IsEnabled(kind))
             return true;
@@ -83,6 +80,8 @@ internal sealed class RuntimeDiagnosticRecorder : IConfiglueRuntimeDiagnostics
         // maintenance hazard: any mapping change silently dropped events here. This
         // path runs only when a logger is attached (rare next to the logger-less
         // default), so up to three extra IsEnabled probes are negligible.
+        // Kept from #276 while #278 shrinks the event/history surface: do not
+        // reintroduce a per-kind RuntimeDiagnosticLogging.IsEnabled probe here.
         return _logger!.IsEnabled(LogLevel.Trace)
             || _logger.IsEnabled(LogLevel.Debug)
             || _logger.IsEnabled(LogLevel.Warning)
@@ -90,28 +89,24 @@ internal sealed class RuntimeDiagnosticRecorder : IConfiglueRuntimeDiagnostics
     }
 
     internal DiagnosticOperation Start(
-        ConfiglueDiagnosticEventKind kind,
-        SourceId? sourceId = null,
-        long parentOperationId = 0
+        ConfiglueDiagnosticOperation operation,
+        SourceId? sourceId = null
     )
     {
-        if (!IsEnabled(kind))
+        if (!IsOperationEnabled() && !ConfiglueTelemetry.Activities.HasListeners())
             return default;
-        var operationId = Interlocked.Increment(ref _nextOperationId);
         var started = Stopwatch.GetTimestamp();
         Activity? activity = null;
-        if (
-            ConfiglueTelemetry.Activities.HasListeners()
-            && ConfiglueTelemetry.ActivityName(kind) is { } activityName
-        )
+        if (ConfiglueTelemetry.Activities.HasListeners())
         {
-            activity = ConfiglueTelemetry.Activities.StartActivity(activityName);
+            activity = ConfiglueTelemetry.Activities.StartActivity(
+                ConfiglueTelemetry.ActivityName(operation)
+            );
             if (activity?.IsAllDataRequested == true)
             {
                 activity.SetTag("configlue.state", _stateName);
                 activity.SetTag("configlue.model.id", _modelId);
                 activity.SetTag("configlue.model.version", _modelVersion);
-                activity.SetTag("configlue.operation.id", operationId);
                 if (sourceId is { } sourceKey)
                 {
                     activity.SetTag("configlue.source.id", sourceKey.Value);
@@ -123,21 +118,11 @@ internal sealed class RuntimeDiagnosticRecorder : IConfiglueRuntimeDiagnostics
                 }
             }
         }
-        RecordCore(kind, operationId, parentOperationId, sourceId);
-        return new DiagnosticOperation(
-            this,
-            operationId,
-            parentOperationId,
-            sourceId,
-            started,
-            activity
-        );
+        return new DiagnosticOperation(this, sourceId, started, activity);
     }
 
     internal void Record(
         ConfiglueDiagnosticEventKind kind,
-        long operationId = 0,
-        long parentOperationId = 0,
         SourceId? sourceId = null,
         StateReadStatus? readStatus = null,
         bool hasRevision = false,
@@ -147,12 +132,10 @@ internal sealed class RuntimeDiagnosticRecorder : IConfiglueRuntimeDiagnostics
         bool? effectiveValueChanged = null
     )
     {
-        if (!IsEnabled(kind))
+        if (!IsOutcomeEnabled(kind))
             return;
         RecordCore(
             kind,
-            operationId,
-            parentOperationId,
             sourceId,
             readStatus,
             hasRevision,
@@ -163,14 +146,10 @@ internal sealed class RuntimeDiagnosticRecorder : IConfiglueRuntimeDiagnostics
         );
     }
 
-    // Enabled implementation separated from the always-disabled fast path above so the
-    // disabled case returns before any event construction, locking, or observer dispatch.
     // The subject scope is sampled at record time so subject-scoped operations on one state
     // instance report their own subject while sharing the instance's state-name identity.
     private void RecordCore(
         ConfiglueDiagnosticEventKind kind,
-        long operationId = 0,
-        long parentOperationId = 0,
         SourceId? sourceId = null,
         StateReadStatus? readStatus = null,
         bool hasRevision = false,
@@ -189,9 +168,6 @@ internal sealed class RuntimeDiagnosticRecorder : IConfiglueRuntimeDiagnostics
                     ? source.Kind
                     : null;
             diagnosticEvent = new ConfiglueDiagnosticEvent(
-                ++_sequence,
-                operationId,
-                parentOperationId,
                 DateTimeOffset.UtcNow,
                 kind,
                 _stateName,
@@ -205,33 +181,14 @@ internal sealed class RuntimeDiagnosticRecorder : IConfiglueRuntimeDiagnostics
                 errorCategory,
                 canceled,
                 effectiveValueChanged,
-                Activity.Current?.TraceId.ToString(),
                 subjectKey
             );
             if (_options.TrackSnapshot)
                 UpdateSnapshot(diagnosticEvent);
-            if (_history.Length != 0)
-            {
-                _history[_historyNext] = diagnosticEvent;
-                _historyNext = (_historyNext + 1) % _history.Length;
-                _historyCount = Math.Min(_historyCount + 1, _history.Length);
-            }
         }
 
         ConfiglueTelemetry.Record(diagnosticEvent);
         RuntimeDiagnosticLogging.Log(_logger, diagnosticEvent);
-
-        foreach (var listener in Volatile.Read(ref _listeners))
-        {
-            try
-            {
-                listener(diagnosticEvent);
-            }
-            catch (Exception)
-            {
-                // Observers cannot turn a successful source operation into a failure.
-            }
-        }
     }
 
     private void UpdateSnapshot(ConfiglueDiagnosticEvent diagnosticEvent)
@@ -267,21 +224,43 @@ internal sealed class RuntimeDiagnosticRecorder : IConfiglueRuntimeDiagnostics
             case ConfiglueDiagnosticEventKind.SourceReadFailed:
                 source = source.WithRead(diagnosticEvent);
                 break;
-            case ConfiglueDiagnosticEventKind.WatchStarted:
-                _watchCounts.TryGetValue(sourceId, out var count);
-                _watchCounts[sourceId] = count + 1;
-                source = source.WithWatching(true);
-                break;
-            case ConfiglueDiagnosticEventKind.WatchStopped:
-                _watchCounts.TryGetValue(sourceId, out var activeCount);
-                _watchCounts[sourceId] = Math.Max(0, activeCount - 1);
-                source = source.WithWatching(activeCount > 1);
-                break;
-            case ConfiglueDiagnosticEventKind.WatchSignaled:
-                source = source.WithWatchSignal(diagnosticEvent.Timestamp);
-                break;
         }
         _sources[sourceId] = source;
+    }
+
+    internal void NoteWatchStarted(SourceId sourceId)
+    {
+        lock (_gate)
+        {
+            if (!_sources.TryGetValue(sourceId, out var source))
+                return;
+            _watchCounts.TryGetValue(sourceId, out var count);
+            _watchCounts[sourceId] = count + 1;
+            _sources[sourceId] = source.WithWatching(true);
+        }
+    }
+
+    internal void NoteWatchStopped(SourceId sourceId)
+    {
+        lock (_gate)
+        {
+            if (!_sources.TryGetValue(sourceId, out var source))
+                return;
+            _watchCounts.TryGetValue(sourceId, out var activeCount);
+            _watchCounts[sourceId] = Math.Max(0, activeCount - 1);
+            _sources[sourceId] = source.WithWatching(activeCount > 1);
+        }
+    }
+
+    internal void NoteWatchSignaled(SourceId sourceId)
+    {
+        var timestamp = DateTimeOffset.UtcNow;
+        lock (_gate)
+        {
+            if (!_sources.TryGetValue(sourceId, out var source))
+                return;
+            _sources[sourceId] = source.WithWatchSignal(timestamp);
+        }
     }
 
     internal void SetActiveSources(IEnumerable<SourceId> activeSourceIds)
@@ -311,76 +290,14 @@ internal sealed class RuntimeDiagnosticRecorder : IConfiglueRuntimeDiagnostics
         }
     }
 
-    public IReadOnlyList<ConfiglueDiagnosticEvent> GetRecentEvents()
-    {
-        lock (_gate)
-        {
-            var copy = new ConfiglueDiagnosticEvent[_historyCount];
-            var first =
-                (_historyNext - _historyCount + _history.Length) % Math.Max(1, _history.Length);
-            for (var index = 0; index < copy.Length; index++)
-                copy[index] = _history[(first + index) % _history.Length];
-            return Array.AsReadOnly(copy);
-        }
-    }
-
-    public IDisposable OnDiagnosticEvent(Action<ConfiglueDiagnosticEvent> listener)
-    {
-        ArgumentNullException.ThrowIfNull(listener);
-        lock (_gate)
-            Volatile.Write(ref _listeners, [.. _listeners, listener]);
-        return new Subscription(this, listener);
-    }
-
-    internal void ClearListeners()
-    {
-        lock (_gate)
-            Volatile.Write(ref _listeners, []);
-    }
-
-    private sealed class Subscription(
-        RuntimeDiagnosticRecorder owner,
-        Action<ConfiglueDiagnosticEvent> listener
-    ) : IDisposable
-    {
-        private RuntimeDiagnosticRecorder? _owner = owner;
-
-        public void Dispose()
-        {
-            var recorder = Interlocked.Exchange(ref _owner, null);
-            if (recorder is null)
-                return;
-            lock (recorder._gate)
-            {
-                var index = Array.IndexOf(recorder._listeners, listener);
-                if (index < 0)
-                    return;
-                var listeners = new Action<ConfiglueDiagnosticEvent>[
-                    recorder._listeners.Length - 1
-                ];
-                Array.Copy(recorder._listeners, 0, listeners, 0, index);
-                Array.Copy(
-                    recorder._listeners,
-                    index + 1,
-                    listeners,
-                    index,
-                    listeners.Length - index
-                );
-                Volatile.Write(ref recorder._listeners, listeners);
-            }
-        }
-    }
-
     internal readonly struct DiagnosticOperation(
-        RuntimeDiagnosticRecorder owner,
-        long operationId,
-        long parentOperationId,
+        RuntimeDiagnosticRecorder? owner,
         SourceId? sourceId,
         long started,
         Activity? activity
     )
     {
-        internal long Id { get; } = operationId;
+        internal bool IsActive => owner is not null;
 
         internal void Complete(
             ConfiglueDiagnosticEventKind kind,
@@ -389,10 +306,15 @@ internal sealed class RuntimeDiagnosticRecorder : IConfiglueRuntimeDiagnostics
             bool? effectiveValueChanged = null
         )
         {
-            owner?.Record(
+            if (owner is null)
+                return;
+            if (!owner.IsOutcomeEnabled(kind))
+            {
+                activity?.Dispose();
+                return;
+            }
+            owner.RecordCore(
                 kind,
-                Id,
-                parentOperationId,
                 sourceId,
                 status,
                 hasRevision,
@@ -420,10 +342,15 @@ internal sealed class RuntimeDiagnosticRecorder : IConfiglueRuntimeDiagnostics
             bool canceled = false
         )
         {
-            owner?.Record(
+            if (owner is null)
+                return;
+            if (!owner.IsOutcomeEnabled(kind))
+            {
+                activity?.Dispose();
+                return;
+            }
+            owner.RecordCore(
                 kind,
-                Id,
-                parentOperationId,
                 sourceId,
                 duration: Elapsed(),
                 errorCategory: exception.GetType().FullName,

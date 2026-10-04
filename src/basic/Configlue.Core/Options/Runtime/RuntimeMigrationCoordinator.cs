@@ -113,10 +113,7 @@ internal sealed class RuntimeMigrationCoordinator<TModel, TFragment>
         CancellationToken cancellationToken = default
     )
     {
-        var diagnostic = _diagnostics.Start(
-            ConfiglueDiagnosticEventKind.MigrationStarted,
-            sourceId
-        );
+        var diagnostic = _diagnostics.Start(ConfiglueDiagnosticOperation.Migrate, sourceId);
         try
         {
             var result = await MigrateSourceImplementationAsync(
@@ -450,7 +447,7 @@ internal sealed class RuntimeMigrationCoordinator<TModel, TFragment>
 
         cancellationToken.ThrowIfCancellationRequested();
         var diagnostic = _diagnostics.Start(
-            ConfiglueDiagnosticEventKind.MigrationStarted,
+            ConfiglueDiagnosticOperation.Migrate,
             canonicalTargetId
         );
         try
@@ -635,7 +632,7 @@ internal sealed class RuntimeMigrationCoordinator<TModel, TFragment>
         bool retireSources = false
     )
     {
-        var diagnostic = _diagnostics.Start(ConfiglueDiagnosticEventKind.MigrationStarted);
+        var diagnostic = _diagnostics.Start(ConfiglueDiagnosticOperation.Migrate);
         try
         {
             var result = await MigrateSourcesImplementationAsync(

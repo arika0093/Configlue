@@ -242,17 +242,6 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         _diagnostics.GetRuntimeSnapshot();
 
     /// <inheritdoc />
-    public IReadOnlyList<ConfiglueDiagnosticEvent> GetRecentEvents() =>
-        _diagnostics.GetRecentEvents();
-
-    /// <inheritdoc />
-    public IDisposable OnDiagnosticEvent(Action<ConfiglueDiagnosticEvent> listener)
-    {
-        ArgumentNullException.ThrowIfNull(listener);
-        return _lifetime.Register(() => _diagnostics.OnDiagnosticEvent(listener));
-    }
-
-    /// <inheritdoc />
     public ConfiglueStateDiagnostics GetDiagnostics() => _inspection.GetDiagnostics();
 
     /// <inheritdoc />
@@ -413,7 +402,6 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         }
 
         _watches.ShutdownForDispose();
-        _diagnostics.ClearListeners();
     }
 
     /// <inheritdoc />
@@ -425,7 +413,6 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         }
 
         var (watchTask, watcherTasks) = _watches.ShutdownForDispose();
-        _diagnostics.ClearListeners();
 
         List<Exception>? errors = null;
         if (watchTask is not null)

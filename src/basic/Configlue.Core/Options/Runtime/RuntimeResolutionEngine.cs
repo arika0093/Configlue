@@ -79,16 +79,11 @@ internal sealed partial class RuntimeResolutionEngine<TModel, TFragment>
     internal ValueTask<StateReadResult<TFragment>> ReadSourceAsync(
         StateSource<TFragment> source,
         ConfiglueResourceContext? context,
-        CancellationToken cancellationToken,
-        long parentOperationId = 0
+        CancellationToken cancellationToken
     )
     {
-        var diagnostic = _diagnostics.Start(
-            ConfiglueDiagnosticEventKind.SourceReadStarted,
-            source.Id,
-            parentOperationId
-        );
-        return diagnostic.Id == 0
+        var diagnostic = _diagnostics.Start(ConfiglueDiagnosticOperation.SourceRead, source.Id);
+        return !diagnostic.IsActive
             ? source.ReadAsync(
                 context ?? RuntimeModel<TModel, TFragment>.DefaultResourceContext,
                 cancellationToken
@@ -151,15 +146,10 @@ internal sealed partial class RuntimeResolutionEngine<TModel, TFragment>
         TFragment value,
         StateSchemaMetadata sourceSchema,
         CancellationToken cancellationToken,
-        SourceId? sourceId = null,
-        long parentOperationId = 0
+        SourceId? sourceId = null
     )
     {
-        var diagnostic = _diagnostics.Start(
-            ConfiglueDiagnosticEventKind.MigrationStarted,
-            sourceId,
-            parentOperationId
-        );
+        var diagnostic = _diagnostics.Start(ConfiglueDiagnosticOperation.Migrate, sourceId);
         try
         {
             var result = await _migrationChain
@@ -180,12 +170,10 @@ internal sealed partial class RuntimeResolutionEngine<TModel, TFragment>
     }
 
     internal async ValueTask<StateReadResult<TModel>> ReadPublicValueAsync(
-        CancellationToken cancellationToken,
-        long parentOperationId = 0
+        CancellationToken cancellationToken
     )
     {
-        var result = await ReadModelAsync(null, cancellationToken, parentOperationId)
-            .ConfigureAwait(false);
+        var result = await ReadModelAsync(null, cancellationToken).ConfigureAwait(false);
         return result.Status == StateReadStatus.Success && result.Value is not null
             ? result.WithValue(_cloner.Clone(result.Value))
             : result;
@@ -195,24 +183,14 @@ internal sealed partial class RuntimeResolutionEngine<TModel, TFragment>
     // GetValueAsync, generated GetDetailsAsync, and Check instead.
     internal async ValueTask<StateReadResult<TModel>> ReadModelAsync(
         IReadOnlyDictionary<SourceId, StateReadResult<TFragment>>? replacements,
-        CancellationToken cancellationToken,
-        long parentOperationId = 0
-    ) =>
-        (
-            await ResolveAsync(
-                    replacements,
-                    cancellationToken,
-                    parentOperationId: parentOperationId
-                )
-                .ConfigureAwait(false)
-        ).Result;
+        CancellationToken cancellationToken
+    ) => (await ResolveAsync(replacements, cancellationToken).ConfigureAwait(false)).Result;
 
     internal ValueTask<ResolvedState<TModel, TFragment>> ResolveAsync(
         IReadOnlyDictionary<SourceId, StateReadResult<TFragment>>? replacements,
         CancellationToken cancellationToken,
         bool captureContributions = false,
-        Action<ResolvedSourceProbe<TFragment>>? observeSource = null,
-        long parentOperationId = 0
+        Action<ResolvedSourceProbe<TFragment>>? observeSource = null
     )
     {
         if (replacements is not null)
@@ -224,11 +202,8 @@ internal sealed partial class RuntimeResolutionEngine<TModel, TFragment>
                 observeSource
             );
         }
-        var diagnostic = _diagnostics.Start(
-            ConfiglueDiagnosticEventKind.ResolveStarted,
-            parentOperationId: parentOperationId
-        );
-        return diagnostic.Id == 0
+        var diagnostic = _diagnostics.Start(ConfiglueDiagnosticOperation.Resolve);
+        return !diagnostic.IsActive
             ? ResolveImplementationAsync(
                 null,
                 cancellationToken,
@@ -256,8 +231,7 @@ internal sealed partial class RuntimeResolutionEngine<TModel, TFragment>
                     null,
                     cancellationToken,
                     captureContributions,
-                    observeSource,
-                    diagnostic.Id
+                    observeSource
                 )
                 .ConfigureAwait(false);
             diagnostic.Complete(
@@ -273,7 +247,6 @@ internal sealed partial class RuntimeResolutionEngine<TModel, TFragment>
             {
                 _diagnostics.Record(
                     ConfiglueDiagnosticEventKind.ValidationFailed,
-                    diagnostic.Id,
                     errorCategory: exception.GetType().FullName
                 );
             }
@@ -290,8 +263,7 @@ internal sealed partial class RuntimeResolutionEngine<TModel, TFragment>
         IReadOnlyDictionary<SourceId, StateReadResult<TFragment>>? replacements,
         CancellationToken cancellationToken,
         bool captureContributions = false,
-        Action<ResolvedSourceProbe<TFragment>>? observeSource = null,
-        long operationId = 0
+        Action<ResolvedSourceProbe<TFragment>>? observeSource = null
     )
     {
         using var operation = _lifetime.EnterOperation();
@@ -351,8 +323,7 @@ internal sealed partial class RuntimeResolutionEngine<TModel, TFragment>
                     sourceResult = await ReadSourceAsync(
                             source,
                             resourceContext,
-                            cancellationToken,
-                            operationId
+                            cancellationToken
                         )
                         .ConfigureAwait(false);
                 }
@@ -413,8 +384,7 @@ internal sealed partial class RuntimeResolutionEngine<TModel, TFragment>
                             fragment,
                             sourceSchema,
                             cancellationToken,
-                            source.Id,
-                            operationId
+                            source.Id
                         )
                         .ConfigureAwait(false);
                 }
@@ -490,7 +460,6 @@ internal sealed partial class RuntimeResolutionEngine<TModel, TFragment>
             {
                 _diagnostics.Record(
                     ConfiglueDiagnosticEventKind.SourceFallback,
-                    operationId,
                     sourceId: source.Id,
                     readStatus: result.Status
                 );

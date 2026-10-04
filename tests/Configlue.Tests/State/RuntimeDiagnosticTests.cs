@@ -8,7 +8,9 @@ public sealed partial class RuntimeDiagnosticTests
     public void DiagnosticPayloadsExposeObservationWithoutPositionalConstruction()
     {
         var eventType = typeof(ConfiglueDiagnosticEvent);
-        eventType.GetConstructors().Where(static constructor => constructor.GetParameters().Length > 0)
+        eventType
+            .GetConstructors()
+            .Where(static constructor => constructor.GetParameters().Length > 0)
             .ShouldBeEmpty();
         eventType.GetMethod("Deconstruct").ShouldBeNull();
         foreach (var property in eventType.GetProperties())
@@ -17,7 +19,9 @@ public sealed partial class RuntimeDiagnosticTests
         }
 
         var snapshotType = typeof(ConfiglueRuntimeSourceSnapshot);
-        snapshotType.GetConstructors().Where(static constructor => constructor.GetParameters().Length > 0)
+        snapshotType
+            .GetConstructors()
+            .Where(static constructor => constructor.GetParameters().Length > 0)
             .ShouldBeEmpty();
         snapshotType.GetMethod("Deconstruct").ShouldBeNull();
         foreach (var property in snapshotType.GetProperties())
@@ -26,7 +30,8 @@ public sealed partial class RuntimeDiagnosticTests
         }
 
         var runtimeSnapshotType = typeof(ConfiglueRuntimeDiagnosticSnapshot);
-        runtimeSnapshotType.GetConstructors()
+        runtimeSnapshotType
+            .GetConstructors()
             .Where(static constructor => constructor.GetParameters().Length > 0)
             .ShouldBeEmpty();
         runtimeSnapshotType.GetMethod("Deconstruct").ShouldBeNull();
@@ -34,24 +39,6 @@ public sealed partial class RuntimeDiagnosticTests
         {
             property.SetMethod.ShouldBeNull();
         }
-    }
-
-    [Test]
-    public async Task ConcurrentResolutions_RetainOnlyABoundedOrderedHistory()
-    {
-        var store = new InMemoryStateSource<AppSettings.Fragment>(
-            new AppSettings.Fragment { RetryCount = 3 }
-        );
-        await using var runtime = CreateRuntime([new StateSource<AppSettings.Fragment>("store", store, new StateSourceOptions<AppSettings.Fragment>())], capacity: 17);
-        await Task.WhenAll(
-            Enumerable.Range(0, 32).Select(_ => Task.Run(async () => await runtime.GetValueAsync()))
-        );
-        var history = runtime.GetRecentEvents();
-        history.Count.ShouldBe(17);
-        history
-            .Select(static item => item.Sequence)
-            .ShouldBe(Enumerable.Range(112, 17).Select(static sequence => (long)sequence));
-        runtime.GetRuntimeSnapshot().Sources.Count.ShouldBe(1);
     }
 
     [Test]
@@ -64,72 +51,73 @@ public sealed partial class RuntimeDiagnosticTests
             builder.Add<AppSettings>(model =>
             {
                 model.EnableDynamicStates = true;
-                model.Diagnostics = new ConfiglueRuntimeDiagnosticOptions
-                {
-                    EventHistoryCapacity = 8,
-                };
                 model.ConfigureSources(registration =>
-                    registration.Sources.Add(new StateSource<AppSettings.Fragment>("store", store, new StateSourceOptions<AppSettings.Fragment>()))
+                    registration.Sources.Add(
+                        new StateSource<AppSettings.Fragment>(
+                            "store",
+                            store,
+                            new StateSourceOptions<AppSettings.Fragment>()
+                        )
+                    )
                 );
             })
         );
         await context.GetState<AppSettings>().GetValueAsync();
-        context.GetDiagnostics<AppSettings>().GetRecentEvents().Count.ShouldBe(4);
+        context.GetDiagnostics<AppSettings>().GetRuntimeSnapshot().LastResolution.ShouldNotBeNull();
         (await context.GetStateRegistry<AppSettings>().TryAddAsync("alternate")).ShouldBeTrue();
         await context.GetState<AppSettings>("alternate").GetValueAsync();
         var alternate = context.GetDiagnostics<AppSettings>("alternate");
         alternate.GetRuntimeSnapshot().StateName.ShouldBe("alternate");
-        alternate.GetRecentEvents().Count.ShouldBe(4);
-        context.GetDiagnostics<AppSettings>().GetRecentEvents().Count.ShouldBe(4);
+        alternate.GetRuntimeSnapshot().LastResolution.ShouldNotBeNull();
+        context.GetDiagnostics<AppSettings>().GetRuntimeSnapshot().StateName.ShouldBe(string.Empty);
     }
 
     [Test]
-    public async Task Resolution_RecordsOrderedEvents_Fallback_AndParentOperations()
+    public async Task Resolution_RecordsOutcomeSnapshot_WithFallback()
     {
         var empty = new InMemoryStateSource<AppSettings.Fragment>();
         var loaded = new InMemoryStateSource<AppSettings.Fragment>(
             new AppSettings.Fragment { Label = "secret-value" }
         );
-        await using var runtime = CreateRuntime(
-            [
-                new StateSource<AppSettings.Fragment>("missing", empty, new StateSourceOptions<AppSettings.Fragment> { Priority = 100 }),
-                new StateSource<AppSettings.Fragment>("loaded", loaded, new StateSourceOptions<AppSettings.Fragment> { PhysicalOrigin = "secret-path", FixedResourceId = new ResourceId("secret-resource") }),
-            ],
-            capacity: 32
-        );
+        await using var runtime = CreateRuntime([
+            new StateSource<AppSettings.Fragment>(
+                "missing",
+                empty,
+                new StateSourceOptions<AppSettings.Fragment> { Priority = 100 }
+            ),
+            new StateSource<AppSettings.Fragment>(
+                "loaded",
+                loaded,
+                new StateSourceOptions<AppSettings.Fragment>
+                {
+                    PhysicalOrigin = "secret-path",
+                    FixedResourceId = new ResourceId("secret-resource"),
+                }
+            ),
+        ]);
         IConfiglueDiagnostics<AppSettings> diagnostics = runtime;
         diagnostics.GetRuntimeSnapshot().LastResolution.ShouldBeNull();
 
         (await runtime.GetValueAsync()).Label.ShouldBe("secret-value");
 
-        var events = diagnostics.GetRecentEvents();
-        events
-            .Select(static item => item.Kind)
-            .ShouldBe(
-                new[]
-                {
-                    ConfiglueDiagnosticEventKind.ResolveStarted,
-                    ConfiglueDiagnosticEventKind.SourceReadStarted,
-                    ConfiglueDiagnosticEventKind.SourceReadCompleted,
-                    ConfiglueDiagnosticEventKind.SourceFallback,
-                    ConfiglueDiagnosticEventKind.SourceReadStarted,
-                    ConfiglueDiagnosticEventKind.SourceReadCompleted,
-                    ConfiglueDiagnosticEventKind.ResolveCompleted,
-                }
-            );
-        events
-            .Select(static item => item.Sequence)
-            .ShouldBe(Enumerable.Range(1, 7).Select(static number => (long)number));
-        events[1].ParentOperationId.ShouldBe(events[0].OperationId);
-        events[2].OperationId.ShouldBe(events[1].OperationId);
-        events[^1].OperationId.ShouldBe(events[0].OperationId);
-        events[2].ReadStatus.ShouldBe(StateReadStatus.NotFound);
         var snapshot = diagnostics.GetRuntimeSnapshot();
-        snapshot.LastResolution!.Value.ReadStatus.ShouldBe(StateReadStatus.Success);
+        var resolution = snapshot.LastResolution!.Value;
+        resolution.Kind.ShouldBe(ConfiglueDiagnosticEventKind.ResolveCompleted);
+        resolution.ReadStatus.ShouldBe(StateReadStatus.Success);
+        resolution.Duration.ShouldBeGreaterThanOrEqualTo(TimeSpan.Zero);
         snapshot
             .Sources.Single(static source => source.Id == SourceId.From("loaded"))
             .LastSuccessfulRead.ShouldNotBeNull();
-        string.Join("\n", events).ShouldNotContain("secret-");
+        snapshot
+            .Sources.Single(static source => source.Id == SourceId.From("missing"))
+            .LastRead!.Value.ReadStatus.ShouldBe(StateReadStatus.NotFound);
+        string.Join(
+                "\n",
+                snapshot
+                    .Sources.Select(static source => source.LastRead)
+                    .Append(snapshot.LastResolution)
+            )
+            .ShouldNotContain("secret-");
         System.Text.Json.JsonSerializer.Serialize(snapshot).ShouldNotContain("secret-");
     }
 
@@ -137,9 +125,14 @@ public sealed partial class RuntimeDiagnosticTests
     public async Task Snapshot_IsIoFree_AndAvailableWhileAReadIsBlocked()
     {
         var reader = new ProbeReader();
-        await using var runtime = CreateRuntime([new StateSource<AppSettings.Fragment>("remote", reader, new StateSourceOptions<AppSettings.Fragment>())]);
+        await using var runtime = CreateRuntime([
+            new StateSource<AppSettings.Fragment>(
+                "remote",
+                reader,
+                new StateSourceOptions<AppSettings.Fragment>()
+            ),
+        ]);
         runtime.GetRuntimeSnapshot().LastResolution.ShouldBeNull();
-        runtime.GetRecentEvents().ShouldBeEmpty();
         reader.ReadCount.ShouldBe(0);
         var read = runtime.GetValueAsync().AsTask();
         await reader.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
@@ -159,118 +152,89 @@ public sealed partial class RuntimeDiagnosticTests
         observed.LastResolution.ShouldNotBeNull();
         reader.ReadCount.ShouldBe(1);
         (await runtime.GetValueAsync()).ShouldNotBeNull();
-        observed.LastResolution!.Value.Sequence.ShouldBeLessThan(
-            runtime.GetRuntimeSnapshot().LastResolution!.Value.Sequence
-        );
-        observed
+        runtime
+            .GetRuntimeSnapshot()
+            .LastResolution!.Value.Timestamp.ShouldBeGreaterThanOrEqualTo(
+                observed.LastResolution!.Value.Timestamp
+            );
+        runtime
+            .GetRuntimeSnapshot()
             .Sources.Single()
-            .LastRead!.Value.Sequence.ShouldBeLessThan(
-                runtime.GetRuntimeSnapshot().Sources.Single().LastRead!.Value.Sequence
+            .LastRead!.Value.Timestamp.ShouldBeGreaterThanOrEqualTo(
+                observed.Sources.Single().LastRead!.Value.Timestamp
             );
     }
 
     [Test]
-    public async Task History_IsBounded_Immutable_AndCanBeDisabled()
-    {
-        var store = new InMemoryStateSource<AppSettings.Fragment>(
-            new AppSettings.Fragment { RetryCount = 3 }
-        );
-        await using var runtime = CreateRuntime([new StateSource<AppSettings.Fragment>("store", store, new StateSourceOptions<AppSettings.Fragment>())], capacity: 3);
-        await runtime.GetValueAsync();
-        var first = runtime.GetRecentEvents();
-        first.Count.ShouldBe(3);
-        for (var index = 0; index < 20; index++)
-            await runtime.GetValueAsync();
-        var latest = runtime.GetRecentEvents();
-        latest.Count.ShouldBe(3);
-        first[^1].Sequence.ShouldBe(4);
-        latest[^1].Sequence.ShouldBe(84);
-        latest.Select(static item => item.Sequence).ShouldBe(new long[] { 82, 83, 84 });
-
-        await using var noHistory = CreateRuntime([new StateSource<AppSettings.Fragment>("store", store, new StateSourceOptions<AppSettings.Fragment>())]);
-        await noHistory.GetValueAsync();
-        noHistory.GetRecentEvents().ShouldBeEmpty();
-        noHistory.GetRuntimeSnapshot().LastResolution.ShouldNotBeNull();
-    }
-
-    [Test]
-    public async Task Listeners_WorkWithTrackingDisabled_AndCannotBreakOperations()
+    public async Task Snapshot_CanBeDisabled()
     {
         var store = new InMemoryStateSource<AppSettings.Fragment>(
             new AppSettings.Fragment { RetryCount = 3 }
         );
         await using var runtime = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
-            new StateSourceSet<AppSettings.Fragment>([new StateSource<AppSettings.Fragment>("store", store, new StateSourceOptions<AppSettings.Fragment>())]),
+            new StateSourceSet<AppSettings.Fragment>([
+                new StateSource<AppSettings.Fragment>(
+                    "store",
+                    store,
+                    new StateSourceOptions<AppSettings.Fragment>()
+                ),
+            ]),
             diagnostics: ConfiglueRuntimeDiagnosticOptions.Disabled
         );
-        var received = new List<ConfiglueDiagnosticEvent>();
-        using var failing = runtime.OnDiagnosticEvent(_ =>
-            throw new InvalidOperationException("listener-secret")
-        );
-        var subscription = runtime.OnDiagnosticEvent(received.Add);
         (await runtime.GetValueAsync()).RetryCount.ShouldBe(3);
-        received.Count.ShouldBe(4);
         runtime.GetRuntimeSnapshot().LastResolution.ShouldBeNull();
-        runtime.GetRecentEvents().ShouldBeEmpty();
-        subscription.Dispose();
-        subscription.Dispose();
-        await runtime.GetValueAsync();
-        received.Count.ShouldBe(4);
+        runtime.GetRuntimeSnapshot().Sources.Single().LastRead.ShouldBeNull();
     }
 
     [Test]
     public async Task Failures_PreserveOriginalExceptions_AndDoNotRetainMessages()
     {
         var exception = new InvalidOperationException("credential=secret-password");
-        await using var runtime = CreateRuntime(
-            [new StateSource<AppSettings.Fragment>("bad", new ThrowingReader(exception), new StateSourceOptions<AppSettings.Fragment>())],
-            capacity: 16
-        );
+        await using var runtime = CreateRuntime([
+            new StateSource<AppSettings.Fragment>(
+                "bad",
+                new ThrowingReader(exception),
+                new StateSourceOptions<AppSettings.Fragment>()
+            ),
+        ]);
         var thrown = await Should.ThrowAsync<InvalidOperationException>(async () =>
             await runtime.GetValueAsync()
         );
         ReferenceEquals(thrown, exception).ShouldBeTrue();
-        var events = runtime.GetRecentEvents();
-        events
-            .Select(static item => item.Kind)
-            .ShouldBe(
-                new[]
-                {
-                    ConfiglueDiagnosticEventKind.ResolveStarted,
-                    ConfiglueDiagnosticEventKind.SourceReadStarted,
-                    ConfiglueDiagnosticEventKind.SourceReadFailed,
-                    ConfiglueDiagnosticEventKind.ResolveFailed,
-                }
-            );
-        events[^1].ErrorCategory.ShouldBe(typeof(InvalidOperationException).FullName);
-        string.Join("\n", events).ShouldNotContain("secret-password");
-        runtime
-            .GetRuntimeSnapshot()
+        var snapshot = runtime.GetRuntimeSnapshot();
+        var last = snapshot.LastResolution!.Value;
+        last.Kind.ShouldBe(ConfiglueDiagnosticEventKind.ResolveFailed);
+        last.ErrorCategory.ShouldBe(typeof(InvalidOperationException).FullName);
+        snapshot
+            .Sources.Single()
+            .LastRead!.Value.Kind.ShouldBe(ConfiglueDiagnosticEventKind.SourceReadFailed);
+        snapshot
             .Sources.Single()
             .LastRead!.Value.ErrorCategory.ShouldBe(typeof(InvalidOperationException).FullName);
+        string.Join("\n", new[] { last, snapshot.Sources.Single().LastRead!.Value })
+            .ShouldNotContain("secret-password");
     }
 
     [Test]
     public async Task CallerCancellation_IsDistinguishedFromReadFailures()
     {
         var reader = new ProbeReader();
-        await using var runtime = CreateRuntime([new StateSource<AppSettings.Fragment>("remote", reader, new StateSourceOptions<AppSettings.Fragment>())], capacity: 16);
+        await using var runtime = CreateRuntime([
+            new StateSource<AppSettings.Fragment>(
+                "remote",
+                reader,
+                new StateSourceOptions<AppSettings.Fragment>()
+            ),
+        ]);
         using var cancellation = new CancellationTokenSource();
         var read = runtime.GetValueAsync(cancellation.Token).AsTask();
         await reader.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
         cancellation.Cancel();
         await Should.ThrowAsync<OperationCanceledException>(async () => await read);
-        runtime.GetRecentEvents()[^1].Canceled.ShouldBeTrue();
-        runtime.GetRuntimeSnapshot().Sources.Single().LastRead!.Value.Canceled.ShouldBeTrue();
+        var last = runtime.GetRuntimeSnapshot().Sources.Single().LastRead!.Value;
+        last.Canceled.ShouldBeTrue();
+        runtime.GetRuntimeSnapshot().LastResolution!.Value.Canceled.ShouldBeTrue();
     }
-
-    [Test]
-    [Arguments(-1)]
-    [Arguments(4097)]
-    public void InvalidHistoryCapacity_IsRejected(int capacity) =>
-        Should.Throw<InvalidOperationException>(() =>
-            CreateRuntime([new StateSource<AppSettings.Fragment>("store", new InMemoryStateSource<AppSettings.Fragment>(), new StateSourceOptions<AppSettings.Fragment>())], capacity)
-        );
 
     [Test]
     public async Task InvalidEffectiveValues_EmitValueFreeValidationEvents()
@@ -278,25 +242,28 @@ public sealed partial class RuntimeDiagnosticTests
         var store = new InMemoryStateSource<AppSettings.Fragment>(
             new AppSettings.Fragment { RetryCount = 101, Label = "validation-secret" }
         );
-        await using var runtime = CreateRuntime([new StateSource<AppSettings.Fragment>("store", store, new StateSourceOptions<AppSettings.Fragment>())], capacity: 16);
+        await using var runtime = CreateRuntime([
+            new StateSource<AppSettings.Fragment>(
+                "store",
+                store,
+                new StateSourceOptions<AppSettings.Fragment>()
+            ),
+        ]);
         await Should.ThrowAsync<ConfiglueValidationException>(async () =>
             await runtime.GetValueAsync()
         );
-        runtime
-            .GetRecentEvents()
-            .Select(static item => item.Kind)
-            .ShouldContain(ConfiglueDiagnosticEventKind.ValidationFailed);
-        string.Join("\n", runtime.GetRecentEvents()).ShouldNotContain("validation-secret");
+        var last = runtime.GetRuntimeSnapshot().LastResolution!.Value;
+        last.Kind.ShouldBe(ConfiglueDiagnosticEventKind.ResolveFailed);
+        last.ErrorCategory.ShouldBe(typeof(ConfiglueValidationException).FullName);
+        string.Join("\n", new[] { last }).ShouldNotContain("validation-secret");
+        System
+            .Text.Json.JsonSerializer.Serialize(runtime.GetRuntimeSnapshot())
+            .ShouldNotContain("validation-secret");
     }
 
     private static ConfiglueRuntime<AppSettings, AppSettings.Fragment> CreateRuntime(
-        StateSource<AppSettings.Fragment>[] sources,
-        int capacity = 0
-    ) =>
-        new(
-            new StateSourceSet<AppSettings.Fragment>(sources),
-            diagnostics: new ConfiglueRuntimeDiagnosticOptions { EventHistoryCapacity = capacity }
-        );
+        StateSource<AppSettings.Fragment>[] sources
+    ) => new(new StateSourceSet<AppSettings.Fragment>(sources));
 
     private sealed class ProbeReader : ISourceReader<AppSettings.Fragment>
     {

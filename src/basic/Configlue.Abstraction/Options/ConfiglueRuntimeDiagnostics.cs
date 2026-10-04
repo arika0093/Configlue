@@ -1,21 +1,21 @@
 namespace Configlue;
 
 /// <summary>The runtime operation represented by a value-free diagnostic event.</summary>
-/// <remarks>Advanced observability vocabulary.</remarks>
+/// <remarks>
+/// Only terminal outcomes and value-free notifications are public. Operation starts,
+/// watch lifecycle, and correlation are covered by <c>ILogger</c>,
+/// <c>ConfiglueTelemetry.ActivitySourceName</c>, and <c>ConfiglueTelemetry.MeterName</c>;
+/// the compact <see cref="ConfiglueRuntimeDiagnosticSnapshot"/> covers DevTools status.
+/// Advanced observability vocabulary.
+/// </remarks>
 [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public enum ConfiglueDiagnosticEventKind
 {
-    /// <summary>A resolution began.</summary>
-    ResolveStarted,
-
     /// <summary>A resolution finished.</summary>
     ResolveCompleted,
 
     /// <summary>A resolution failed.</summary>
     ResolveFailed,
-
-    /// <summary>A source read began.</summary>
-    SourceReadStarted,
 
     /// <summary>A source read finished.</summary>
     SourceReadCompleted,
@@ -26,18 +26,6 @@ public enum ConfiglueDiagnosticEventKind
     /// <summary>Resolution continued after an unsuccessful source read.</summary>
     SourceFallback,
 
-    /// <summary>A source watch began.</summary>
-    WatchStarted,
-
-    /// <summary>A source watch stopped.</summary>
-    WatchStopped,
-
-    /// <summary>A source reported a change.</summary>
-    WatchSignaled,
-
-    /// <summary>A reload began.</summary>
-    ReloadStarted,
-
     /// <summary>A reload finished.</summary>
     ReloadCompleted,
 
@@ -46,9 +34,6 @@ public enum ConfiglueDiagnosticEventKind
 
     /// <summary>The effective value changed, without including that value.</summary>
     EffectiveValueChanged,
-
-    /// <summary>A physical write began.</summary>
-    WriteStarted,
 
     /// <summary>A physical write finished.</summary>
     WriteCompleted,
@@ -61,9 +46,6 @@ public enum ConfiglueDiagnosticEventKind
 
     /// <summary>Validation rejected a configuration contribution or effective model.</summary>
     ValidationFailed,
-
-    /// <summary>A schema migration began.</summary>
-    MigrationStarted,
 
     /// <summary>A schema migration finished.</summary>
     MigrationCompleted,
@@ -79,15 +61,13 @@ public enum ConfiglueDiagnosticEventKind
 /// <remarks>
 /// Runtime-created immutable value snapshot. Equality compares all currently exposed fields; no positional
 /// constructor or deconstruction contract is provided so new diagnostics can be added compatibly.
-/// Advanced observability vocabulary.
+/// Operation correlation and tracing use <c>System.Diagnostics.Activity.Current</c> instead of
+/// event identifiers. Advanced observability vocabulary.
 /// </remarks>
 [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public readonly record struct ConfiglueDiagnosticEvent
 {
     internal ConfiglueDiagnosticEvent(
-        long sequence,
-        long operationId,
-        long parentOperationId,
         DateTimeOffset timestamp,
         ConfiglueDiagnosticEventKind kind,
         string stateName,
@@ -101,13 +81,9 @@ public readonly record struct ConfiglueDiagnosticEvent
         string? errorCategory,
         bool canceled,
         bool? effectiveValueChanged,
-        string? traceId = null,
         SubjectKey subjectKey = default
     )
     {
-        Sequence = sequence;
-        OperationId = operationId;
-        ParentOperationId = parentOperationId;
         Timestamp = timestamp;
         Kind = kind;
         StateName = stateName;
@@ -121,18 +97,8 @@ public readonly record struct ConfiglueDiagnosticEvent
         ErrorCategory = errorCategory;
         Canceled = canceled;
         EffectiveValueChanged = effectiveValueChanged;
-        TraceId = traceId;
         SubjectKey = subjectKey;
     }
-
-    /// <summary>The monotonically increasing sequence within one runtime.</summary>
-    public long Sequence { get; }
-
-    /// <summary>The operation identifier within one runtime.</summary>
-    public long OperationId { get; }
-
-    /// <summary>The enclosing operation, or zero when absent.</summary>
-    public long ParentOperationId { get; }
 
     /// <summary>The time the event was recorded.</summary>
     public DateTimeOffset Timestamp { get; }
@@ -176,9 +142,6 @@ public readonly record struct ConfiglueDiagnosticEvent
 
     /// <summary>Whether a reload changed the effective model.</summary>
     public bool? EffectiveValueChanged { get; }
-
-    /// <summary>The current distributed trace identifier, when a trace is active.</summary>
-    public string? TraceId { get; }
 }
 
 /// <summary>The last observed state of a configured source, without performing a source read.</summary>
@@ -302,7 +265,12 @@ public readonly record struct ConfiglueRuntimeSourceSnapshot
 }
 
 /// <summary>An immutable, I/O-free copy of the last observed runtime diagnostics.</summary>
-/// <remarks>Advanced observability vocabulary.</remarks>
+/// <remarks>
+/// Compact DevTools status: the last observed outcomes per operation area plus per-source
+/// last-read/watch state. Detailed timelines belong to <c>ILogger</c> sinks and
+/// <c>System.Diagnostics</c> listeners, not to this snapshot.
+/// Advanced observability vocabulary.
+/// </remarks>
 [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public sealed class ConfiglueRuntimeDiagnosticSnapshot
 {
@@ -358,19 +326,17 @@ public sealed class ConfiglueRuntimeDiagnosticSnapshot
 }
 
 /// <summary>Provides cached runtime diagnostics independently of a model's value API.</summary>
-/// <remarks>Advanced observability SPI.</remarks>
+/// <remarks>
+/// Compact DevTools status surface. External observability uses <c>ILogger</c> plus
+/// <c>System.Diagnostics.ActivitySource</c>/<c>Meter</c> (<c>ConfiglueTelemetry</c>);
+/// this interface only exposes the cached snapshot, never an event bus or history.
+/// Advanced observability SPI.
+/// </remarks>
 [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public interface IConfiglueRuntimeDiagnostics
 {
     /// <summary>Copies already observed data without reading, reloading, or locking a backend.</summary>
     ConfiglueRuntimeDiagnosticSnapshot GetRuntimeSnapshot();
-
-    /// <summary>Returns the retained event history in ascending sequence order.</summary>
-    IReadOnlyList<ConfiglueDiagnosticEvent> GetRecentEvents();
-
-    /// <summary>Subscribes to future events without starting reads or watchers.</summary>
-    /// <remarks>Callbacks may run concurrently. Keep callbacks fast; callback failures are isolated from runtime operations.</remarks>
-    IDisposable OnDiagnosticEvent(Action<ConfiglueDiagnosticEvent> listener);
 }
 
 /// <summary>Accesses optional runtime diagnostics through the existing typed diagnostics service.</summary>
@@ -382,17 +348,6 @@ public static class ConfiglueRuntimeDiagnosticExtensions
     public static ConfiglueRuntimeDiagnosticSnapshot GetRuntimeSnapshot<T>(
         this IConfiglueDiagnostics<T> diagnostics
     ) => GetProvider(diagnostics).GetRuntimeSnapshot();
-
-    /// <summary>Gets the bounded history retained by a runtime.</summary>
-    public static IReadOnlyList<ConfiglueDiagnosticEvent> GetRecentEvents<T>(
-        this IConfiglueDiagnostics<T> diagnostics
-    ) => GetProvider(diagnostics).GetRecentEvents();
-
-    /// <summary>Subscribes to future runtime events without initiating configuration I/O.</summary>
-    public static IDisposable OnDiagnosticEvent<T>(
-        this IConfiglueDiagnostics<T> diagnostics,
-        Action<ConfiglueDiagnosticEvent> listener
-    ) => GetProvider(diagnostics).OnDiagnosticEvent(listener);
 
     private static IConfiglueRuntimeDiagnostics GetProvider<T>(IConfiglueDiagnostics<T> diagnostics)
     {

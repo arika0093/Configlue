@@ -173,13 +173,17 @@ public sealed class SecretValueRedactionTests
             SecretBasicSettings.Fragment
         >(
             new StateSourceSet<SecretBasicSettings.Fragment>([
-                new StateSource<SecretBasicSettings.Fragment>("local", new InMemoryStateSource<SecretBasicSettings.Fragment>(
+                new StateSource<SecretBasicSettings.Fragment>(
+                    "local",
+                    new InMemoryStateSource<SecretBasicSettings.Fragment>(
                         new SecretBasicSettings.Fragment
                         {
                             Host = Optional<string>.Present("db.local"),
                             Password = Optional<string>.Present("s3cr3t-value"),
                         }
-                    ), new StateSourceOptions<SecretBasicSettings.Fragment>()),
+                    ),
+                    new StateSourceOptions<SecretBasicSettings.Fragment>()
+                ),
             ])
         );
 
@@ -204,12 +208,16 @@ public sealed class SecretValueRedactionTests
             SecretBasicSettings.Fragment
         >(
             new StateSourceSet<SecretBasicSettings.Fragment>([
-                new StateSource<SecretBasicSettings.Fragment>("local", new InMemoryStateSource<SecretBasicSettings.Fragment>(
+                new StateSource<SecretBasicSettings.Fragment>(
+                    "local",
+                    new InMemoryStateSource<SecretBasicSettings.Fragment>(
                         new SecretBasicSettings.Fragment
                         {
                             Password = Optional<string>.Present("s3cr3t-value"),
                         }
-                    ), new StateSourceOptions<SecretBasicSettings.Fragment>()),
+                    ),
+                    new StateSourceOptions<SecretBasicSettings.Fragment>()
+                ),
             ])
         );
 
@@ -231,12 +239,16 @@ public sealed class SecretValueRedactionTests
             SecretNestedSettings.Fragment
         >(
             new StateSourceSet<SecretNestedSettings.Fragment>([
-                new StateSource<SecretNestedSettings.Fragment>("local", new InMemoryStateSource<SecretNestedSettings.Fragment>(
+                new StateSource<SecretNestedSettings.Fragment>(
+                    "local",
+                    new InMemoryStateSource<SecretNestedSettings.Fragment>(
                         new SecretNestedSettings.Fragment
                         {
                             Name = Optional<string>.Present("primary"),
                         }
-                    ), new StateSourceOptions<SecretNestedSettings.Fragment>()),
+                    ),
+                    new StateSourceOptions<SecretNestedSettings.Fragment>()
+                ),
             ])
         );
 
@@ -259,13 +271,17 @@ public sealed class SecretValueRedactionTests
             SecretCollectionSettings.Fragment
         >(
             new StateSourceSet<SecretCollectionSettings.Fragment>([
-                new StateSource<SecretCollectionSettings.Fragment>("local", new InMemoryStateSource<SecretCollectionSettings.Fragment>(
+                new StateSource<SecretCollectionSettings.Fragment>(
+                    "local",
+                    new InMemoryStateSource<SecretCollectionSettings.Fragment>(
                         new SecretCollectionSettings.Fragment
                         {
                             Tokens = Optional<IReadOnlyList<string>>.Present(["token-a"]),
                             Tags = Optional<IReadOnlyList<string>>.Present(["tag-a"]),
                         }
-                    ), new StateSourceOptions<SecretCollectionSettings.Fragment>()),
+                    ),
+                    new StateSourceOptions<SecretCollectionSettings.Fragment>()
+                ),
             ])
         );
 
@@ -335,12 +351,16 @@ public sealed class SecretValueRedactionTests
             SecretValidationSettings.Fragment
         >(
             new StateSourceSet<SecretValidationSettings.Fragment>([
-                new StateSource<SecretValidationSettings.Fragment>("local", new InMemoryStateSource<SecretValidationSettings.Fragment>(
+                new StateSource<SecretValidationSettings.Fragment>(
+                    "local",
+                    new InMemoryStateSource<SecretValidationSettings.Fragment>(
                         new SecretValidationSettings.Fragment
                         {
                             Password = Optional<string>.Present("s3cr3t-value"),
                         }
-                    ), new StateSourceOptions<SecretValidationSettings.Fragment>()),
+                    ),
+                    new StateSourceOptions<SecretValidationSettings.Fragment>()
+                ),
             ])
         );
 
@@ -360,23 +380,40 @@ public sealed class SecretValueRedactionTests
             SecretBasicSettings.Fragment
         >(
             new StateSourceSet<SecretBasicSettings.Fragment>([
-                new StateSource<SecretBasicSettings.Fragment>("local", new InMemoryStateSource<SecretBasicSettings.Fragment>(
+                new StateSource<SecretBasicSettings.Fragment>(
+                    "local",
+                    new InMemoryStateSource<SecretBasicSettings.Fragment>(
                         new SecretBasicSettings.Fragment
                         {
                             Password = Optional<string>.Present("s3cr3t-value"),
                         }
-                    ), new StateSourceOptions<SecretBasicSettings.Fragment>()),
+                    ),
+                    new StateSourceOptions<SecretBasicSettings.Fragment>()
+                ),
             ])
         );
 
         _ = await options.GetValueAsync();
-        var events = options.GetRecentEvents();
-        foreach (var diagnosticEvent in events)
+        var snapshot = options.GetRuntimeSnapshot();
+        var outcomes = new[]
+        {
+            snapshot.LastResolution,
+            snapshot.LastReload,
+            snapshot.LastWrite,
+            snapshot.LastMigration,
+        }
+            .Where(static outcome => outcome is not null)
+            .Cast<ConfiglueDiagnosticEvent>()
+            .Concat(
+                snapshot.Sources.SelectMany(static source =>
+                    source.LastRead is { } lastRead ? new[] { lastRead } : []
+                )
+            );
+        foreach (var diagnosticEvent in outcomes)
         {
             (diagnosticEvent.ToString()!.Contains("s3cr3t-value")).ShouldBeFalse();
         }
 
-        var snapshot = options.GetRuntimeSnapshot();
         (snapshot.ToString()!.Contains("s3cr3t-value")).ShouldBeFalse();
     }
 

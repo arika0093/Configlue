@@ -289,7 +289,7 @@ internal sealed class RuntimeWriteCoordinator<TModel, TFragment>
         CancellationToken cancellationToken
     )
     {
-        var diagnostic = _diagnostics.Start(ConfiglueDiagnosticEventKind.WriteStarted, source.Id);
+        var diagnostic = _diagnostics.Start(ConfiglueDiagnosticOperation.Write, source.Id);
         try
         {
             var context = GetResourceContext(source);
@@ -324,7 +324,7 @@ internal sealed class RuntimeWriteCoordinator<TModel, TFragment>
         CancellationToken cancellationToken
     )
     {
-        var diagnostic = _diagnostics.Start(ConfiglueDiagnosticEventKind.WriteStarted, sourceId);
+        var diagnostic = _diagnostics.Start(ConfiglueDiagnosticOperation.Write, sourceId);
         try
         {
             var result = await writer

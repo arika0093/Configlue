@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using Configlue.Sources;
 using Configlue.Testing;
+using Microsoft.Extensions.Logging;
 
 namespace Configlue.Tests;
 
@@ -16,10 +17,17 @@ public sealed partial class StateRuntimeTests
         );
         var watcher = new ManualWatcher();
         var timeProvider = new ObservableTimeProvider();
+        var reloads = new ReloadCountingLogger();
         await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
-            new StateSourceSet<AppSettings.Fragment>([new StateSource<AppSettings.Fragment>("user", store, new StateSourceOptions<AppSettings.Fragment> { Watcher = watcher })]),
+            new StateSourceSet<AppSettings.Fragment>([
+                new StateSource<AppSettings.Fragment>(
+                    "user",
+                    store,
+                    new StateSourceOptions<AppSettings.Fragment> { Watcher = watcher }
+                ),
+            ]),
             onChangeDebounce: TimeSpan.FromMilliseconds(150),
-            diagnostics: new ConfiglueRuntimeDiagnosticOptions { EventHistoryCapacity = 64 },
+            logger: reloads,
             timeProvider: timeProvider
         );
         var notifications = new ConcurrentQueue<int>();
@@ -49,7 +57,7 @@ public sealed partial class StateRuntimeTests
         (await notified.Task.WaitAsync(TimeSpan.FromSeconds(5))).ShouldBe(4);
         await watcher.WaitUntilWaitingAsync().WaitAsync(TimeSpan.FromSeconds(5));
         notifications.ToArray().ShouldBe([4]);
-        AssertReloadCount(options, 1);
+        AssertReloadCount(reloads, 1);
     }
 
     [Test]
@@ -60,10 +68,17 @@ public sealed partial class StateRuntimeTests
         );
         var watcher = new ManualWatcher();
         var timeProvider = new ObservableTimeProvider();
+        var reloads = new ReloadCountingLogger();
         await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
-            new StateSourceSet<AppSettings.Fragment>([new StateSource<AppSettings.Fragment>("user", store, new StateSourceOptions<AppSettings.Fragment> { Watcher = watcher })]),
+            new StateSourceSet<AppSettings.Fragment>([
+                new StateSource<AppSettings.Fragment>(
+                    "user",
+                    store,
+                    new StateSourceOptions<AppSettings.Fragment> { Watcher = watcher }
+                ),
+            ]),
             onChangeDebounce: TimeSpan.FromMilliseconds(150),
-            diagnostics: new ConfiglueRuntimeDiagnosticOptions { EventHistoryCapacity = 64 },
+            logger: reloads,
             timeProvider: timeProvider
         );
         var notifications = new ConcurrentQueue<int>();
@@ -92,7 +107,7 @@ public sealed partial class StateRuntimeTests
         (await notified.Task.WaitAsync(TimeSpan.FromSeconds(5))).ShouldBe(5);
         await watcher.WaitUntilWaitingAsync().WaitAsync(TimeSpan.FromSeconds(5));
         notifications.ToArray().ShouldBe([5]);
-        AssertReloadCount(options, 1);
+        AssertReloadCount(reloads, 1);
     }
 
     [Test]
@@ -103,10 +118,17 @@ public sealed partial class StateRuntimeTests
         );
         var watcher = new ManualWatcher();
         var timeProvider = new ObservableTimeProvider();
+        var reloads = new ReloadCountingLogger();
         await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
-            new StateSourceSet<AppSettings.Fragment>([new StateSource<AppSettings.Fragment>("user", store, new StateSourceOptions<AppSettings.Fragment> { Watcher = watcher })]),
+            new StateSourceSet<AppSettings.Fragment>([
+                new StateSource<AppSettings.Fragment>(
+                    "user",
+                    store,
+                    new StateSourceOptions<AppSettings.Fragment> { Watcher = watcher }
+                ),
+            ]),
             onChangeDebounce: TimeSpan.FromMilliseconds(150),
-            diagnostics: new ConfiglueRuntimeDiagnosticOptions { EventHistoryCapacity = 64 },
+            logger: reloads,
             timeProvider: timeProvider
         );
         var notifications = new ConcurrentQueue<int>();
@@ -147,7 +169,7 @@ public sealed partial class StateRuntimeTests
         (await second.Task.WaitAsync(TimeSpan.FromSeconds(5))).ShouldBe(5);
         await watcher.WaitUntilWaitingAsync().WaitAsync(TimeSpan.FromSeconds(5));
         notifications.ToArray().ShouldBe([4, 5]);
-        AssertReloadCount(options, 2);
+        AssertReloadCount(reloads, 2);
     }
 
     [Test]
@@ -158,10 +180,17 @@ public sealed partial class StateRuntimeTests
         );
         var watcher = new ManualWatcher();
         var timeProvider = new ObservableTimeProvider();
+        var reloads = new ReloadCountingLogger();
         var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
-            new StateSourceSet<AppSettings.Fragment>([new StateSource<AppSettings.Fragment>("user", store, new StateSourceOptions<AppSettings.Fragment> { Watcher = watcher })]),
+            new StateSourceSet<AppSettings.Fragment>([
+                new StateSource<AppSettings.Fragment>(
+                    "user",
+                    store,
+                    new StateSourceOptions<AppSettings.Fragment> { Watcher = watcher }
+                ),
+            ]),
             onChangeDebounce: TimeSpan.FromMilliseconds(150),
-            diagnostics: new ConfiglueRuntimeDiagnosticOptions { EventHistoryCapacity = 64 },
+            logger: reloads,
             timeProvider: timeProvider
         );
         var notifications = new ConcurrentQueue<int>();
@@ -177,7 +206,7 @@ public sealed partial class StateRuntimeTests
         timeProvider.Advance(TimeSpan.FromMilliseconds(150));
 
         notifications.ShouldBeEmpty();
-        AssertReloadCount(options, 0);
+        AssertReloadCount(reloads, 0);
     }
 
     [Test]
@@ -192,13 +221,31 @@ public sealed partial class StateRuntimeTests
         var legacyWatcher = new ManualWatcher();
         var currentWatcher = new ManualWatcher();
         var timeProvider = new ObservableTimeProvider();
+        var reloads = new ReloadCountingLogger();
         await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
-                new StateSource<AppSettings.Fragment>("legacy", legacy, new StateSourceOptions<AppSettings.Fragment> { Priority = 100, Watcher = legacyWatcher }),
-                new StateSource<AppSettings.Fragment>("current", current, new StateSourceOptions<AppSettings.Fragment> { Priority = 0, Writer = current, Watcher = currentWatcher }),
+                new StateSource<AppSettings.Fragment>(
+                    "legacy",
+                    legacy,
+                    new StateSourceOptions<AppSettings.Fragment>
+                    {
+                        Priority = 100,
+                        Watcher = legacyWatcher,
+                    }
+                ),
+                new StateSource<AppSettings.Fragment>(
+                    "current",
+                    current,
+                    new StateSourceOptions<AppSettings.Fragment>
+                    {
+                        Priority = 0,
+                        Writer = current,
+                        Watcher = currentWatcher,
+                    }
+                ),
             ]),
             onChangeDebounce: TimeSpan.FromMilliseconds(150),
-            diagnostics: new ConfiglueRuntimeDiagnosticOptions { EventHistoryCapacity = 64 },
+            logger: reloads,
             timeProvider: timeProvider
         );
         var reloaded = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -225,19 +272,41 @@ public sealed partial class StateRuntimeTests
         await reloaded.Task.WaitAsync(TimeSpan.FromSeconds(5));
     }
 
-    private static void AssertReloadCount(
-        ConfiglueRuntime<AppSettings, AppSettings.Fragment> options,
-        int expected
-    )
+    private static void AssertReloadCount(ReloadCountingLogger reloads, int expected)
     {
-        options
-            .GetRecentEvents()
-            .Count(static item => item.Kind == ConfiglueDiagnosticEventKind.ReloadStarted)
-            .ShouldBe(expected);
-        options
-            .GetRecentEvents()
-            .Count(static item => item.Kind == ConfiglueDiagnosticEventKind.ReloadCompleted)
-            .ShouldBe(expected);
+        reloads.CompletedReloads.ShouldBe(expected);
+    }
+
+    private sealed class ReloadCountingLogger : ILogger
+    {
+        private int _completedReloads;
+
+        internal int CompletedReloads => Volatile.Read(ref _completedReloads);
+
+        public IDisposable? BeginScope<TState>(TState state)
+            where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter
+        )
+        {
+            if (
+                state is IEnumerable<KeyValuePair<string, object?>> fields
+                && fields.Any(static field =>
+                    field.Key == "EventKind"
+                    && Equals(field.Value, nameof(ConfiglueDiagnosticEventKind.ReloadCompleted))
+                )
+            )
+            {
+                Interlocked.Increment(ref _completedReloads);
+            }
+        }
     }
 
     private sealed class DebounceSubject : IConfiglueSubject

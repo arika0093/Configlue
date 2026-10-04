@@ -48,49 +48,50 @@ public static class ConfiglueTelemetry
     private static readonly Counter<long> MigrationFailures = Metrics.CreateCounter<long>(
         "configlue.migration.failures"
     );
-    private static readonly Counter<long> WatchSignals = Metrics.CreateCounter<long>(
-        "configlue.watch.signals"
-    );
+
+    internal static bool HasObservers() =>
+        Activities.HasListeners()
+        || ResolveDuration.Enabled
+        || ReadDuration.Enabled
+        || WriteDuration.Enabled
+        || ReloadDuration.Enabled
+        || MigrationDuration.Enabled
+        || ReloadFailures.Enabled
+        || WriteConflicts.Enabled
+        || Migrations.Enabled
+        || MigrationFailures.Enabled;
 
     internal static bool IsEnabled(ConfiglueDiagnosticEventKind kind) =>
         Activities.HasListeners()
         || kind switch
         {
-            ConfiglueDiagnosticEventKind.ResolveStarted
-            or ConfiglueDiagnosticEventKind.ResolveCompleted
+            ConfiglueDiagnosticEventKind.ResolveCompleted
             or ConfiglueDiagnosticEventKind.ResolveFailed => ResolveDuration.Enabled,
-            ConfiglueDiagnosticEventKind.SourceReadStarted
-            or ConfiglueDiagnosticEventKind.SourceReadCompleted
+            ConfiglueDiagnosticEventKind.SourceReadCompleted
             or ConfiglueDiagnosticEventKind.SourceReadFailed => ReadDuration.Enabled,
-            ConfiglueDiagnosticEventKind.WriteStarted
-            or ConfiglueDiagnosticEventKind.WriteCompleted
+            ConfiglueDiagnosticEventKind.WriteCompleted
             or ConfiglueDiagnosticEventKind.WriteFailed
             or ConfiglueDiagnosticEventKind.WriteConflict => WriteDuration.Enabled
                 || WriteConflicts.Enabled,
-            ConfiglueDiagnosticEventKind.ReloadStarted
-            or ConfiglueDiagnosticEventKind.ReloadCompleted
+            ConfiglueDiagnosticEventKind.ReloadCompleted
             or ConfiglueDiagnosticEventKind.ReloadFailed => ReloadDuration.Enabled
                 || ReloadFailures.Enabled,
-            ConfiglueDiagnosticEventKind.MigrationStarted
-            or ConfiglueDiagnosticEventKind.MigrationCompleted
+            ConfiglueDiagnosticEventKind.MigrationCompleted
             or ConfiglueDiagnosticEventKind.MigrationFailed => MigrationDuration.Enabled
                 || Migrations.Enabled
                 || MigrationFailures.Enabled,
-            ConfiglueDiagnosticEventKind.WatchStarted
-            or ConfiglueDiagnosticEventKind.WatchStopped
-            or ConfiglueDiagnosticEventKind.WatchSignaled => WatchSignals.Enabled,
             _ => false,
         };
 
-    internal static string? ActivityName(ConfiglueDiagnosticEventKind kind) =>
-        kind switch
+    internal static string ActivityName(ConfiglueDiagnosticOperation operation) =>
+        operation switch
         {
-            ConfiglueDiagnosticEventKind.ResolveStarted => "configlue.resolve",
-            ConfiglueDiagnosticEventKind.SourceReadStarted => "configlue.source.read",
-            ConfiglueDiagnosticEventKind.WriteStarted => "configlue.source.write",
-            ConfiglueDiagnosticEventKind.ReloadStarted => "configlue.reload",
-            ConfiglueDiagnosticEventKind.MigrationStarted => "configlue.migrate",
-            _ => null,
+            ConfiglueDiagnosticOperation.Resolve => "configlue.resolve",
+            ConfiglueDiagnosticOperation.SourceRead => "configlue.source.read",
+            ConfiglueDiagnosticOperation.Write => "configlue.source.write",
+            ConfiglueDiagnosticOperation.Reload => "configlue.reload",
+            ConfiglueDiagnosticOperation.Migrate => "configlue.migrate",
+            _ => "configlue.operation",
         };
 
     internal static void Record(in ConfiglueDiagnosticEvent diagnosticEvent)
@@ -118,7 +119,6 @@ public static class ConfiglueTelemetry
             ConfiglueDiagnosticEventKind.MigrationCompleted => Migrations,
             ConfiglueDiagnosticEventKind.MigrationFailed when !diagnosticEvent.Canceled =>
                 MigrationFailures,
-            ConfiglueDiagnosticEventKind.WatchSignaled => WatchSignals,
             _ => null,
         };
         if (!(histogram?.Enabled ?? false) && !(counter?.Enabled ?? false))
@@ -128,7 +128,7 @@ public static class ConfiglueTelemetry
         var tags = new TagList { { "configlue.result", Result(diagnosticEvent) } };
         if (diagnosticEvent.SourceKind is not null)
             tags.Add("configlue.source.kind", diagnosticEvent.SourceKind);
-        if (diagnosticEvent.OperationId != 0 && (histogram?.Enabled ?? false))
+        if (histogram?.Enabled ?? false)
             histogram.Record(diagnosticEvent.Duration.TotalSeconds, tags);
         if (counter?.Enabled ?? false)
             counter.Add(1, tags);
@@ -160,4 +160,19 @@ public static class ConfiglueTelemetry
             _ => "success",
         };
     }
+}
+
+/// <summary>The runtime operation tracked for tracing/metrics. Internal only.</summary>
+/// <remarks>
+/// Public diagnostics expose only terminal outcomes (<see cref="ConfiglueDiagnosticEventKind"/>);
+/// operation starts never leave this assembly and are observed through
+/// <c>System.Diagnostics.ActivitySource</c>.
+/// </remarks>
+internal enum ConfiglueDiagnosticOperation
+{
+    Resolve,
+    SourceRead,
+    Write,
+    Reload,
+    Migrate,
 }

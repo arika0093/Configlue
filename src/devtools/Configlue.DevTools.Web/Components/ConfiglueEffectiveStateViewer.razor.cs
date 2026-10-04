@@ -31,7 +31,6 @@ public sealed partial class ConfiglueEffectiveStateViewer<TModel> : ComponentBas
 {
     private StandaloneCodeEditor? _editor;
     private IDisposable? _subscription;
-    private IDisposable? _diagnosticSubscription;
     private ConfiglueModelSchema? _schema;
     private ConfiglueViewerSchemaSetup? _schemaSetup;
     private ConfiglueViewerDocument? _document;
@@ -96,16 +95,10 @@ public sealed partial class ConfiglueEffectiveStateViewer<TModel> : ComponentBas
 
         _schema = schema;
         _schemaSetup = ConfiglueDevToolsViewerProjection.BuildSchemaSetup(schema, ViewerOptions);
+        // Effective-value changes drive refreshes through OnChange. Shadowed reloads leave
+        // the value (and therefore decorations) unchanged, so no refresh is needed; detailed
+        // timelines are available through ILogger and ActivitySource/Meter listeners.
         _subscription = State.OnChange(OnStateChanged);
-        if (
-            Services.GetService<IConfiglueDiagnostics<TModel>>()
-            is IConfiglueRuntimeDiagnostics runtimeDiagnostics
-        )
-        {
-            // Shadowed/status-only reloads leave the effective value unchanged, so
-            // OnChange stays silent; diagnostics events still refresh decorations.
-            _diagnosticSubscription = runtimeDiagnostics.OnDiagnosticEvent(OnDiagnosticEvent);
-        }
 
         await LoadAsync(Interlocked.Increment(ref _generation)).ConfigureAwait(true);
     }
@@ -131,8 +124,6 @@ public sealed partial class ConfiglueEffectiveStateViewer<TModel> : ComponentBas
 
         _subscription?.Dispose();
         _subscription = null;
-        _diagnosticSubscription?.Dispose();
-        _diagnosticSubscription = null;
         Interlocked.Increment(ref _generation);
         ClearBrowserDocument();
         GC.SuppressFinalize(this);
@@ -171,18 +162,6 @@ public sealed partial class ConfiglueEffectiveStateViewer<TModel> : ComponentBas
     private void OnStateChanged(TModel value)
     {
         _ = value;
-        if (Volatile.Read(ref _disposed) != 0)
-        {
-            return;
-        }
-
-        var generation = Interlocked.Increment(ref _generation);
-        _ = InvokeAsync(() => LoadAsync(generation));
-    }
-
-    private void OnDiagnosticEvent(ConfiglueDiagnosticEvent diagnosticEvent)
-    {
-        _ = diagnosticEvent;
         if (Volatile.Read(ref _disposed) != 0)
         {
             return;

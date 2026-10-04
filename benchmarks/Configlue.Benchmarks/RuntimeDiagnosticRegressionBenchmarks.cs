@@ -7,16 +7,16 @@ using Configlue.Testing;
 
 /// <summary>
 /// Explicit regression comparison for issue #223: disabled fast path versus
-/// snapshot, history, explicit-listener, and telemetry-observed reads.
+/// snapshot and telemetry-observed reads.
 /// <see cref="RuntimeDiagnosticBenchmarks"/> is left untouched; this class adds the
-/// listener/telemetry modes and treats <c>Disabled</c> as the internal baseline.
+/// telemetry mode and treats <c>Disabled</c> as the internal baseline.
 /// The pre-diagnostics reference (1 source ~756 ns, 4 sources ~991 ns, see
 /// <c>benchmarks/runtime-diagnostics-results.md</c>) is a historic record from before
 /// runtime diagnostics existed and cannot be reproduced on this commit without
 /// checking out the old sources, so <c>Disabled</c> doubles as the in-tree baseline:
 /// after the fast-path change it should sit at or near that historic floor with no
 /// additional allocation. Activity-listener tracing shares the same enablement gate
-/// (<c>ConfiglueTelemetry.IsEnabled</c> via <c>ActivitySource.HasListeners</c>) and is
+/// (<c>ConfiglueTelemetry.HasObservers</c> via <c>ActivitySource.HasListeners</c>) and is
 /// covered by <c>RuntimeDiagnosticTests.Tracing_*</c>; the <c>Telemetry</c> mode below
 /// exercises the metrics side with a <see cref="MeterListener"/>.
 /// </summary>
@@ -25,10 +25,9 @@ public class RuntimeDiagnosticRegressionBenchmarks
 {
     private ConfiglueContext _context = null!;
     private IReadOnlyState<OptimizationBenchmarkSettings> _state = null!;
-    private IDisposable? _diagnosticSubscription;
     private MeterListener? _meterListener;
 
-    [Params("Disabled", "Snapshot", "History", "Listener", "Telemetry")]
+    [Params("Disabled", "Snapshot", "Telemetry")]
     public string Mode { get; set; } = "Disabled";
 
     [Params(1, 4)]
@@ -53,8 +52,8 @@ public class RuntimeDiagnosticRegressionBenchmarks
                 }
             ))
             .ToArray();
-        // Listener and Telemetry modes build on fully-disabled options so the measured
-        // cost is exactly the dynamic-observer path; snapshot/history stay off.
+        // Telemetry mode builds on fully-disabled options so the measured
+        // cost is exactly the dynamic-observer path; snapshot stays off.
         _context = BenchmarkContextFactory.Create<
             OptimizationBenchmarkSettings,
             OptimizationBenchmarkSettings.Fragment
@@ -64,21 +63,10 @@ public class RuntimeDiagnosticRegressionBenchmarks
                 model.Diagnostics = Mode switch
                 {
                     "Snapshot" => ConfiglueRuntimeDiagnosticOptions.Default,
-                    "History" => new ConfiglueRuntimeDiagnosticOptions
-                    {
-                        EventHistoryCapacity = 64,
-                    },
                     _ => ConfiglueRuntimeDiagnosticOptions.Disabled,
                 }
         );
         _state = _context.GetState<OptimizationBenchmarkSettings>();
-
-        if (Mode == "Listener")
-        {
-            _diagnosticSubscription = _context
-                .GetDiagnostics<OptimizationBenchmarkSettings>()
-                .OnDiagnosticEvent(static _ => { });
-        }
 
         if (Mode == "Telemetry")
         {
@@ -103,8 +91,6 @@ public class RuntimeDiagnosticRegressionBenchmarks
     [GlobalCleanup]
     public async ValueTask CleanupAsync()
     {
-        _diagnosticSubscription?.Dispose();
-        _diagnosticSubscription = null;
         _meterListener?.Dispose();
         _meterListener = null;
         await _context.DisposeAsync();

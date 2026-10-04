@@ -259,12 +259,11 @@ public sealed class DevToolsDiagnosticsStatsTests
     }
 
     [Test]
-    public async Task RecentEventsAreBounded()
+    public async Task RecentEventsAreSnapshotDerivedAndBounded()
     {
         var builder = new ConfiglueBuilder();
         builder.Add<DevToolsDemoSettings>(model =>
         {
-            model.Diagnostics = new ConfiglueRuntimeDiagnosticOptions { EventHistoryCapacity = 64 };
             model.Sources(sources =>
                 sources.Add(
                     DevToolsFixtures.MemorySource(
@@ -285,16 +284,17 @@ public sealed class DevToolsDiagnosticsStatsTests
         registry.TryGet("devtools-demo", string.Empty, out var entry).ShouldBeTrue();
 
         var events = JsonDocument.Parse(await entry!.GetEventsJsonAsync(CancellationToken.None));
-        events.RootElement.GetProperty("maxBound").GetInt32().ShouldBe(50);
+        events.RootElement.GetProperty("source").GetString().ShouldBe("snapshot");
         var returned = events.RootElement.GetProperty("returned").GetInt32();
         returned.ShouldBeLessThanOrEqualTo(50);
+        returned.ShouldBeGreaterThan(0);
         var items = events.RootElement.GetProperty("events");
         items.GetArrayLength().ShouldBe(returned);
-        var sequences = items
+        var timestamps = items
             .EnumerateArray()
-            .Select(static item => item.GetProperty("sequence").GetInt64())
+            .Select(static item => item.GetProperty("timestamp").GetDateTimeOffset())
             .ToArray();
-        sequences.ShouldBe(sequences.OrderBy(static value => value).ToArray());
+        timestamps.ShouldBe(timestamps.OrderByDescending(static value => value).ToArray());
         foreach (var item in items.EnumerateArray())
         {
             item.TryGetProperty("kind", out _).ShouldBeTrue();
@@ -303,7 +303,7 @@ public sealed class DevToolsDiagnosticsStatsTests
     }
 
     [Test]
-    public async Task EventsAreEmptyWhenHistoryDisabled()
+    public async Task EventsAreEmptyBeforeAnyOperation()
     {
         await using var context = DevToolsFixtures.CreateDemoContext();
         var registry = new ConfiglueDevToolsRegistry();
@@ -311,6 +311,7 @@ public sealed class DevToolsDiagnosticsStatsTests
         registry.TryGet("devtools-demo", string.Empty, out var entry).ShouldBeTrue();
 
         var events = JsonDocument.Parse(await entry!.GetEventsJsonAsync(CancellationToken.None));
+        events.RootElement.GetProperty("source").GetString().ShouldBe("snapshot");
         events.RootElement.GetProperty("returned").GetInt32().ShouldBe(0);
     }
 

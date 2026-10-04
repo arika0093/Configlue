@@ -353,11 +353,11 @@ internal sealed class RuntimeWatchCoordinator<TModel, TFragment>
         CancellationToken cancellationToken
     )
     {
-        var diagnostic = _diagnostics.Start(ConfiglueDiagnosticEventKind.ReloadStarted);
+        var diagnostic = _diagnostics.Start(ConfiglueDiagnosticOperation.Reload);
         try
         {
             var result = await _engine
-                .ReadPublicValueAsync(cancellationToken, diagnostic.Id)
+                .ReadPublicValueAsync(cancellationToken)
                 .ConfigureAwait(false);
             var changed =
                 result.Status == StateReadStatus.Success
@@ -371,7 +371,6 @@ internal sealed class RuntimeWatchCoordinator<TModel, TFragment>
             {
                 _diagnostics.Record(
                     ConfiglueDiagnosticEventKind.EffectiveValueChanged,
-                    diagnostic.Id,
                     effectiveValueChanged: true
                 );
             }
@@ -411,39 +410,17 @@ internal sealed class RuntimeWatchCoordinator<TModel, TFragment>
         CancellationToken cancellationToken
     )
     {
-        var diagnostic = _diagnostics.Start(ConfiglueDiagnosticEventKind.WatchStarted, source.Id);
-        Exception? failure = null;
+        _diagnostics.NoteWatchStarted(source.Id);
         try
         {
             await source
                 .WaitForChangeAsync(GetResourceContext(source), revision, cancellationToken)
                 .ConfigureAwait(false);
-            _diagnostics.Record(
-                ConfiglueDiagnosticEventKind.WatchSignaled,
-                diagnostic.Id,
-                sourceId: source.Id
-            );
-        }
-        catch (Exception exception)
-        {
-            failure = exception;
-            throw;
+            _diagnostics.NoteWatchSignaled(source.Id);
         }
         finally
         {
-            if (failure is null)
-            {
-                diagnostic.Complete(ConfiglueDiagnosticEventKind.WatchStopped);
-            }
-            else
-            {
-                diagnostic.Fail(
-                    ConfiglueDiagnosticEventKind.WatchStopped,
-                    failure,
-                    failure is OperationCanceledException
-                        && cancellationToken.IsCancellationRequested
-                );
-            }
+            _diagnostics.NoteWatchStopped(source.Id);
         }
     }
 

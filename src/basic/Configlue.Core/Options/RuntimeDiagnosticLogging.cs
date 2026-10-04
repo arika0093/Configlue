@@ -24,13 +24,6 @@ internal static class RuntimeDiagnosticLogging
                 ConfiglueDiagnosticEventKind.SourceFallback
                     when diagnosticEvent.ReadStatus == StateReadStatus.Unavailable =>
                     LogLevel.Warning,
-                ConfiglueDiagnosticEventKind.ResolveStarted
-                or ConfiglueDiagnosticEventKind.SourceReadStarted
-                or ConfiglueDiagnosticEventKind.WriteStarted
-                or ConfiglueDiagnosticEventKind.ReloadStarted
-                or ConfiglueDiagnosticEventKind.MigrationStarted
-                or ConfiglueDiagnosticEventKind.WatchStarted
-                or ConfiglueDiagnosticEventKind.WatchStopped => LogLevel.Trace,
                 _ => LogLevel.Debug,
             };
         if (!logger.IsEnabled(level))
@@ -44,10 +37,32 @@ internal static class RuntimeDiagnosticLogging
         );
     }
 
+    internal static bool IsEnabled(ILogger? logger, ConfiglueDiagnosticEventKind kind)
+    {
+        if (logger is null)
+            return false;
+        var level = kind switch
+        {
+            ConfiglueDiagnosticEventKind.WriteConflict
+            or ConfiglueDiagnosticEventKind.ValidationFailed => LogLevel.Warning,
+            ConfiglueDiagnosticEventKind.ResolveFailed
+            or ConfiglueDiagnosticEventKind.SourceReadFailed
+            or ConfiglueDiagnosticEventKind.WriteFailed
+            or ConfiglueDiagnosticEventKind.ReloadFailed
+            or ConfiglueDiagnosticEventKind.MigrationFailed
+            or ConfiglueDiagnosticEventKind.ObserverFailed => LogLevel.Error,
+            ConfiglueDiagnosticEventKind.SourceFallback => LogLevel.Debug,
+            _ => LogLevel.Debug,
+        };
+        if (kind == ConfiglueDiagnosticEventKind.SourceFallback)
+            return logger.IsEnabled(LogLevel.Debug) || logger.IsEnabled(LogLevel.Warning);
+        return logger.IsEnabled(level);
+    }
+
     private readonly struct LogState(ConfiglueDiagnosticEvent diagnosticEvent)
         : IReadOnlyList<KeyValuePair<string, object?>>
     {
-        public int Count => 12;
+        public int Count => 9;
         public KeyValuePair<string, object?> this[int index] =>
             index switch
             {
@@ -55,14 +70,11 @@ internal static class RuntimeDiagnosticLogging
                 1 => new("StateName", diagnosticEvent.StateName),
                 2 => new("SubjectKey", diagnosticEvent.SubjectKey.Value),
                 3 => new("ModelId", diagnosticEvent.ModelId),
-                4 => new("OperationId", diagnosticEvent.OperationId),
-                5 => new("ParentOperationId", diagnosticEvent.ParentOperationId),
-                6 => new("SourceId", diagnosticEvent.SourceId),
-                7 => new("SourceKind", diagnosticEvent.SourceKind),
-                8 => new("Result", ConfiglueTelemetry.Result(diagnosticEvent)),
-                9 => new("DurationMilliseconds", diagnosticEvent.Duration.TotalMilliseconds),
-                10 => new("ErrorCategory", diagnosticEvent.ErrorCategory),
-                11 => new("TraceId", diagnosticEvent.TraceId),
+                4 => new("SourceId", diagnosticEvent.SourceId),
+                5 => new("SourceKind", diagnosticEvent.SourceKind),
+                6 => new("Result", ConfiglueTelemetry.Result(diagnosticEvent)),
+                7 => new("DurationMilliseconds", diagnosticEvent.Duration.TotalMilliseconds),
+                8 => new("ErrorCategory", diagnosticEvent.ErrorCategory),
                 _ => throw new ArgumentOutOfRangeException(nameof(index)),
             };
 

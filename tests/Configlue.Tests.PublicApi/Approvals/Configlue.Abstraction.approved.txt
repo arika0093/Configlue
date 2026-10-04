@@ -202,42 +202,30 @@ namespace Configlue
         public Configlue.ConfiglueDiagnosticEventKind Kind { get; }
         public string ModelId { get; }
         public int ModelVersion { get; }
-        public long OperationId { get; }
-        public long ParentOperationId { get; }
         public Configlue.State.StateReadStatus? ReadStatus { get; }
-        public long Sequence { get; }
         public Configlue.SourceId? SourceId { get; }
         public string? SourceKind { get; }
         public string StateName { get; }
         public Configlue.SubjectKey SubjectKey { get; }
         public System.DateTimeOffset Timestamp { get; }
-        public string? TraceId { get; }
     }
     public enum ConfiglueDiagnosticEventKind
     {
-        ResolveStarted = 0,
-        ResolveCompleted = 1,
-        ResolveFailed = 2,
-        SourceReadStarted = 3,
-        SourceReadCompleted = 4,
-        SourceReadFailed = 5,
-        SourceFallback = 6,
-        WatchStarted = 7,
-        WatchStopped = 8,
-        WatchSignaled = 9,
-        ReloadStarted = 10,
-        ReloadCompleted = 11,
-        ReloadFailed = 12,
-        EffectiveValueChanged = 13,
-        WriteStarted = 14,
-        WriteCompleted = 15,
-        WriteConflict = 16,
-        WriteFailed = 17,
-        ValidationFailed = 18,
-        MigrationStarted = 19,
-        MigrationCompleted = 20,
-        MigrationFailed = 21,
-        ObserverFailed = 22,
+        ResolveCompleted = 0,
+        ResolveFailed = 1,
+        SourceReadCompleted = 2,
+        SourceReadFailed = 3,
+        SourceFallback = 4,
+        ReloadCompleted = 5,
+        ReloadFailed = 6,
+        EffectiveValueChanged = 7,
+        WriteCompleted = 8,
+        WriteConflict = 9,
+        WriteFailed = 10,
+        ValidationFailed = 11,
+        MigrationCompleted = 12,
+        MigrationFailed = 13,
+        ObserverFailed = 14,
     }
     public enum ConfiglueEditability
     {
@@ -407,9 +395,7 @@ namespace Configlue
     }
     public static class ConfiglueRuntimeDiagnosticExtensions
     {
-        public static System.Collections.Generic.IReadOnlyList<Configlue.ConfiglueDiagnosticEvent> GetRecentEvents<T>(this Configlue.IConfiglueDiagnostics<T> diagnostics) { }
         public static Configlue.ConfiglueRuntimeDiagnosticSnapshot GetRuntimeSnapshot<T>(this Configlue.IConfiglueDiagnostics<T> diagnostics) { }
-        public static System.IDisposable OnDiagnosticEvent<T>(this Configlue.IConfiglueDiagnostics<T> diagnostics, System.Action<Configlue.ConfiglueDiagnosticEvent> listener) { }
     }
     public sealed class ConfiglueRuntimeDiagnosticSnapshot
     {
@@ -617,9 +603,7 @@ namespace Configlue
     }
     public interface IConfiglueRuntimeDiagnostics
     {
-        System.Collections.Generic.IReadOnlyList<Configlue.ConfiglueDiagnosticEvent> GetRecentEvents();
         Configlue.ConfiglueRuntimeDiagnosticSnapshot GetRuntimeSnapshot();
-        System.IDisposable OnDiagnosticEvent(System.Action<Configlue.ConfiglueDiagnosticEvent> listener);
     }
     public interface IConfiglueSources<T>
     {

@@ -28,20 +28,17 @@ public sealed partial class RuntimeDiagnosticTests
         var store = new InMemoryStateSource<AppSettings.Fragment>(
             new AppSettings.Fragment { Label = "private-value" }
         );
-        await using var runtime = CreateRuntime(
-            [
-                new StateSource<AppSettings.Fragment>(
-                    "store",
-                    store,
-                    new StateSourceOptions<AppSettings.Fragment>
-                    {
-                        PhysicalOrigin = "private-path",
-                        FixedResourceId = new ResourceId("private-resource"),
-                    }
-                ),
-            ],
-            capacity: 8
-        );
+        await using var runtime = CreateRuntime([
+            new StateSource<AppSettings.Fragment>(
+                "store",
+                store,
+                new StateSourceOptions<AppSettings.Fragment>
+                {
+                    PhysicalOrigin = "private-path",
+                    FixedResourceId = new ResourceId("private-resource"),
+                }
+            ),
+        ]);
         await runtime.GetValueAsync();
         var spans = completed.ToArray();
         spans.Length.ShouldBe(2);
@@ -51,7 +48,8 @@ public sealed partial class RuntimeDiagnosticTests
         resolve.ParentSpanId.ShouldBe(root.SpanId);
         read.GetTagItem("configlue.source.id").ShouldBe("store");
         read.GetTagItem("configlue.read.status").ShouldBe("Success");
-        runtime.GetRecentEvents().ShouldAllBe(item => item.TraceId == root.TraceId.ToString());
+        // Correlation flows through Activity.Current; value-free events carry no trace identifiers.
+        runtime.GetRuntimeSnapshot().LastResolution.ShouldNotBeNull();
         var tags = string.Join("\n", spans.SelectMany(static span => span.TagObjects));
         tags.ShouldNotContain("private-value");
         tags.ShouldNotContain("private-path");
@@ -93,7 +91,13 @@ public sealed partial class RuntimeDiagnosticTests
             new AppSettings.Fragment { RetryCount = 3 }
         );
         await using var runtime = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
-            new StateSourceSet<AppSettings.Fragment>([new StateSource<AppSettings.Fragment>("unbounded-source-id", store, new StateSourceOptions<AppSettings.Fragment>())]),
+            new StateSourceSet<AppSettings.Fragment>([
+                new StateSource<AppSettings.Fragment>(
+                    "unbounded-source-id",
+                    store,
+                    new StateSourceOptions<AppSettings.Fragment>()
+                ),
+            ]),
             diagnostics: ConfiglueRuntimeDiagnosticOptions.Disabled
         );
         await runtime.GetValueAsync();
@@ -126,7 +130,15 @@ public sealed partial class RuntimeDiagnosticTests
         var reader = new ThrowingReader(exception);
         await using var runtime = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
-                new StateSource<AppSettings.Fragment>("remote", reader, new StateSourceOptions<AppSettings.Fragment> { PhysicalOrigin = "private-path", FixedResourceId = new ResourceId("private-resource") }),
+                new StateSource<AppSettings.Fragment>(
+                    "remote",
+                    reader,
+                    new StateSourceOptions<AppSettings.Fragment>
+                    {
+                        PhysicalOrigin = "private-path",
+                        FixedResourceId = new ResourceId("private-resource"),
+                    }
+                ),
             ]),
             logger: logger,
             diagnostics: ConfiglueRuntimeDiagnosticOptions.Disabled

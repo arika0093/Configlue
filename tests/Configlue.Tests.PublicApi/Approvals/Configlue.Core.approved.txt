@@ -78,7 +78,6 @@ namespace Configlue
     public sealed class ConfiglueRuntimeDiagnosticOptions : System.IEquatable<Configlue.ConfiglueRuntimeDiagnosticOptions>
     {
         public ConfiglueRuntimeDiagnosticOptions() { }
-        public int EventHistoryCapacity { get; init; }
         public bool TrackSnapshot { get; init; }
         public static Configlue.ConfiglueRuntimeDiagnosticOptions Default { get; }
         public static Configlue.ConfiglueRuntimeDiagnosticOptions Disabled { get; }
