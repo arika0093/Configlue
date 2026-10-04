@@ -108,7 +108,10 @@ public sealed class AllocationBudgetTests
 
         // A per-entry ToArray/ToDictionary materialization (issue #221) would add
         // ~500 entries worth of allocations here; native TryGetValue lookup stays flat.
-        (largeAllocated - smallAllocated).ShouldBeLessThanOrEqualTo(8 * 1024);
+        // The budget is deliberately coarse (per #214): allocator alignment and
+        // per-call fixed costs vary by platform (e.g. arm64), while a materialization
+        // regression would exceed it by an order of magnitude.
+        (largeAllocated - smallAllocated).ShouldBeLessThanOrEqualTo(16 * 1024);
     }
 
     private static Dictionary<string, string> CreateLookup(int count) =>

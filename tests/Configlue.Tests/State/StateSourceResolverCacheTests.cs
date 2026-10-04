@@ -13,7 +13,10 @@ public sealed class StateSourceResolverCacheTests
         var source = CreateSource();
         var resolver = CreateResolver(source, TimeSpan.FromMilliseconds(40));
 
-        const int subjectCount = 64;
+        // Keep the seeding loop well inside the idle window even on loaded
+        // runners; otherwise mid-loop sweeps evict early subjects and the count
+        // below flakes. Eviction breadth is covered by ManySubjects below.
+        const int subjectCount = 16;
         for (var index = 0; index < subjectCount; index++)
         {
             var result = await resolver.ReadAsync(Context(source, index));

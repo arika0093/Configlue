@@ -115,7 +115,9 @@ public sealed partial class FileResourceTests
         await Task.Delay(150);
         // Same content makes polling unable to detect this notification.
         await WriteTextWithRetryAsync(path, "old");
-        await wait.WaitAsync(TimeSpan.FromSeconds(5));
+        // File-system events can lag on loaded runners; 15s still proves the
+        // event path well before the 30s polling interval above.
+        await wait.WaitAsync(TimeSpan.FromSeconds(15));
     }
 
     [Test]

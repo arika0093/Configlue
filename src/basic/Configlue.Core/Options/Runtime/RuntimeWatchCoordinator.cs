@@ -108,9 +108,9 @@ internal sealed class RuntimeWatchCoordinator<TModel, TFragment>
         Volatile.Write(ref _seedBaseline, new BaselineSeed(result.Revisions, _subjects.CurrentKey));
     }
 
-    private bool TryTakeSeedBaseline(out StateRevisionVector revisions)
+    private bool TryPeekSeedBaseline(out StateRevisionVector revisions)
     {
-        var seed = Interlocked.Exchange(ref _seedBaseline, null);
+        var seed = Volatile.Read(ref _seedBaseline);
         if (
             seed is not null
             && seed.Subject.Equals(_subjects.CurrentKey)
@@ -124,6 +124,8 @@ internal sealed class RuntimeWatchCoordinator<TModel, TFragment>
         revisions = null!;
         return false;
     }
+
+    private void ClearSeedBaseline() => Volatile.Write(ref _seedBaseline, null);
 
     internal IDisposable OnChange(Action<TModel> listener)
     {
@@ -243,8 +245,10 @@ internal sealed class RuntimeWatchCoordinator<TModel, TFragment>
                 {
                     // Prefer a baseline seeded by the most recent read: it predates
                     // loop startup, so an external change racing the first resolution
-                    // is still observed instead of being adopted silently.
-                    if (TryTakeSeedBaseline(out var seedRevisions))
+                    // is still observed instead of being adopted silently. The seed is
+                    // only peeked here so a transient first-cycle failure retries with
+                    // the same baseline instead of falling back to a post-change read.
+                    if (TryPeekSeedBaseline(out var seedRevisions))
                     {
                         waitRevisions = seedRevisions;
                     }
@@ -312,6 +316,11 @@ internal sealed class RuntimeWatchCoordinator<TModel, TFragment>
                     previousEffective = current.Value!;
                     hasEffective = true;
                 }
+
+                // The startup seed served its purpose (or was never needed); never
+                // reuse a stale baseline on a later cycle. Seeds survive failures
+                // above because this line only runs after a completed cycle.
+                ClearSeedBaseline();
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
