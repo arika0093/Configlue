@@ -88,7 +88,7 @@ public sealed partial class ConfiglueGenerator
         FragmentCore.AppendApplyChanges(code, coreMembers);
         FragmentCore.AppendDiff(code, modelType, coreMembers, modelIsReferenceType);
         FragmentCore.AppendFragmentClone(code, coreMembers, usesPocoCloning);
-        AppendPatchSupport(code, members);
+        AppendPatchSupport(code);
         if (hasJsonFragmentRegistry)
         {
             AppendJsonConverter(code, members);
@@ -312,10 +312,7 @@ public sealed partial class ConfiglueGenerator
         code.AppendLine();
     }
 
-    private static void AppendPatchSupport(
-        IndentedStringBuilder code,
-        ImmutableArray<MemberModel> members
-    )
+    private static void AppendPatchSupport(IndentedStringBuilder code)
     {
         code.CancellationToken.ThrowIfCancellationRequested();
         code.AppendLineAt(
@@ -325,31 +322,7 @@ public sealed partial class ConfiglueGenerator
         code.AppendLineAt(2, "public Fragment Apply(Patch patch)");
         code.AppendLineAt(2, "{");
         AppendNullGuard(code, 3, "patch");
-        code.AppendLineAt(3, "return new Fragment");
-        code.AppendLineAt(3, "{");
-        foreach (var member in members)
-        {
-            var name = EscapeIdentifier(member.Property.Name);
-            code.AppendIndent(4).Append(name).Append(" = ");
-            if (member.ChildModel is null)
-            {
-                code.Append("patch.")
-                    .Append(name)
-                    .Append(".Apply(this.")
-                    .Append(name)
-                    .AppendLine("),");
-            }
-            else
-            {
-                code.Append("patch.")
-                    .Append(name)
-                    .Append(".ApplyNested(this.")
-                    .Append(name)
-                    .AppendLine("),");
-            }
-        }
-
-        code.AppendLineAt(3, "};");
+        code.AppendLineAt(3, "return patch.ApplyMembers(this);");
         code.AppendLineAt(2, "}");
         code.AppendLine();
         code.AppendLineAt(

@@ -467,17 +467,16 @@ internal static class SparseJsonPatchEmitter
     }
 
     /// <summary>Emits Patch.FromJsonPatch overloads against the generated semantic patch.</summary>
+    /// <remarks>Single bridge for both generators; pass the product Between helper as <paramref name="betweenCall"/>.</remarks>
     public static void AppendFromJsonPatch(
         SharedIndentedBuilder code,
-        string modelType,
         string runtime,
         string optional,
-        string patchPrefix,
-        string jsonPrefix
+        string jsonPrefix,
+        string betweenCall
     )
     {
         var baselineType = optional + "<Fragment?>";
-        var between = patchPrefix + "Between";
         var fromJsonPatch = jsonPrefix + "FromJsonPatch";
         code.AppendLineAt(
             2,
@@ -522,7 +521,7 @@ internal static class SparseJsonPatchEmitter
                 + optional
                 + "<Fragment?>.Present(__DeserializeFragmentNode(applied.Node, effective)); }"
         );
-        code.AppendLineAt(3, "return " + between + "(baseline, result);");
+        code.AppendLineAt(3, "return " + betweenCall + "(baseline, result);");
         code.AppendLineAt(2, "}");
         code.AppendLineAt(
             2,
@@ -551,14 +550,13 @@ internal static class SparseJsonPatchEmitter
     }
 
     /// <summary>Emits Patch.ToJsonPatch overloads exporting a semantically equivalent document.</summary>
+    /// <remarks>Single bridge for both generators; pass the product apply expression as <paramref name="applyExpression"/>.</remarks>
     public static void AppendToJsonPatch(
         SharedIndentedBuilder code,
-        string modelType,
         string runtime,
         string optional,
-        string contract,
-        string patchPrefix,
-        string jsonPrefix
+        string jsonPrefix,
+        string applyExpression
     )
     {
         var baselineType = optional + "<Fragment?>";
@@ -577,7 +575,7 @@ internal static class SparseJsonPatchEmitter
         );
         code.AppendLineAt(2, "{");
         code.AppendLineAt(3, "var effective = __EffectiveOptions(options);");
-        code.AppendLineAt(3, "var result = ((" + contract + ")this).Apply(baseline);");
+        code.AppendLineAt(3, "var result = " + applyExpression + ";");
         code.AppendLineAt(
             3,
             "var beforeNode = __SerializeFragmentToNode(baseline, effective, out var beforeIsAbsent);"
@@ -723,134 +721,6 @@ internal static class SparseJsonPatchEmitter
         }
 
         code.AppendLineAt(3, "return patch;");
-        code.AppendLineAt(2, "}");
-    }
-
-    /// <summary>Emits Configlue Patch.FromJsonPatch overloads reusing the fragment JSON converter.</summary>
-    public static void AppendConfiglueFromJsonPatch(SharedIndentedBuilder code)
-    {
-        var optional = "global::Configlue.Optional";
-        var runtime = "global::SparseFragments";
-        code.AppendLineAt(
-            2,
-            "/// <summary>Imports an RFC 6902 JSON Patch document relative to a sparse baseline.</summary>"
-        );
-        code.AppendLineAt(
-            2,
-            "public static Patch FromJsonPatch("
-                + optional
-                + "<Fragment?> baseline, System.ReadOnlyMemory<byte> jsonPatch, global::System.Text.Json.JsonSerializerOptions? options = null)"
-        );
-        code.AppendLineAt(2, "{");
-        code.AppendLineAt(3, "var effective = __EffectiveOptions(options);");
-        code.AppendLineAt(
-            3,
-            "var baselineNode = __SerializeFragmentToNode(baseline, effective, out var baselineIsAbsent);"
-        );
-        code.AppendLineAt(
-            3,
-            "var document = " + runtime + ".JsonPatch.SparseJsonPatch.Parse(jsonPatch);"
-        );
-        code.AppendLineAt(
-            3,
-            "var applied = "
-                + runtime
-                + ".JsonPatch.JsonPatchEngine.Apply(baselineNode, baselineIsAbsent, document, __PropertyNameComparison(effective));"
-        );
-        code.AppendLineAt(3, optional + "<Fragment?> result;");
-        code.AppendLineAt(
-            3,
-            "if (applied.IsAbsent) { result = " + optional + "<Fragment?>.Missing; }"
-        );
-        code.AppendLineAt(
-            3,
-            "else if (applied.Node is null) { result = " + optional + "<Fragment?>.Present(null); }"
-        );
-        code.AppendLineAt(
-            3,
-            "else { result = "
-                + optional
-                + "<Fragment?>.Present(__DeserializeFragmentNode(applied.Node, effective)); }"
-        );
-        code.AppendLineAt(3, "return __ConfiglueJsonBetween(baseline, result);");
-        code.AppendLineAt(2, "}");
-        code.AppendLineAt(
-            2,
-            "/// <summary>Imports an RFC 6902 JSON Patch document relative to a present baseline.</summary>"
-        );
-        code.AppendLineAt(
-            2,
-            "public static Patch FromJsonPatch(Fragment baseline, System.ReadOnlyMemory<byte> jsonPatch, global::System.Text.Json.JsonSerializerOptions? options = null)"
-        );
-        code.AppendLineAt(2, "{");
-        code.AppendLineAt(
-            3,
-            "if (baseline is null) throw new global::System.ArgumentNullException(nameof(baseline));"
-        );
-        code.AppendLineAt(
-            3,
-            "return FromJsonPatch("
-                + optional
-                + "<Fragment?>.Present(baseline), jsonPatch, options);"
-        );
-        code.AppendLineAt(2, "}");
-    }
-
-    /// <summary>Emits Configlue Patch.ToJsonPatch overloads over the routed semantic patch.</summary>
-    /// <remarks>JSON Patch interop is an adapter over the semantic patch, not a replacement for routing.</remarks>
-    public static void AppendConfiglueToJsonPatch(SharedIndentedBuilder code)
-    {
-        var optional = "global::Configlue.Optional";
-        var runtime = "global::SparseFragments";
-        code.AppendLineAt(
-            2,
-            "/// <summary>Exports a semantically equivalent RFC 6902 JSON Patch document.</summary>"
-        );
-        code.AppendLineAt(
-            2,
-            "public System.ReadOnlyMemory<byte> ToJsonPatch("
-                + optional
-                + "<Fragment?> baseline, global::System.Text.Json.JsonSerializerOptions? options = null)"
-        );
-        code.AppendLineAt(2, "{");
-        code.AppendLineAt(3, "var effective = __EffectiveOptions(options);");
-        code.AppendLineAt(3, "var result = ApplyNested(baseline);");
-        code.AppendLineAt(
-            3,
-            "var beforeNode = __SerializeFragmentToNode(baseline, effective, out var beforeIsAbsent);"
-        );
-        code.AppendLineAt(
-            3,
-            "var afterNode = __SerializeFragmentToNode(result, effective, out var afterIsAbsent);"
-        );
-        code.AppendLineAt(
-            3,
-            "var document = "
-                + runtime
-                + ".JsonPatch.JsonPatchEngine.Diff(beforeNode, beforeIsAbsent, afterNode, afterIsAbsent);"
-        );
-        code.AppendLineAt(
-            3,
-            "return " + runtime + ".JsonPatch.JsonPatchEngine.Serialize(document);"
-        );
-        code.AppendLineAt(2, "}");
-        code.AppendLineAt(
-            2,
-            "/// <summary>Exports a semantically equivalent RFC 6902 JSON Patch document.</summary>"
-        );
-        code.AppendLineAt(
-            2,
-            "public System.ReadOnlyMemory<byte> ToJsonPatch(Fragment baseline, global::System.Text.Json.JsonSerializerOptions? options = null)"
-        );
-        code.AppendLineAt(2, "{");
-        code.AppendLineAt(
-            3,
-            "if (baseline is null) throw new global::System.ArgumentNullException(nameof(baseline));"
-        );
-        code.AppendLineAt(
-            3,
-            "return ToJsonPatch(" + optional + "<Fragment?>.Present(baseline), options);"
-        );
         code.AppendLineAt(2, "}");
     }
 }

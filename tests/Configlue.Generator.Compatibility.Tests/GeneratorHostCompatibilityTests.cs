@@ -474,6 +474,155 @@ public sealed class GeneratorHostCompatibilityTests
     }
 
     [Test]
+    public void SharedPatchOperationsHaveRuntimeParity()
+    {
+        // #258: patch core (whole, ctor, empty, apply, members) is shared; verify identical
+        // semantics across standalone and Configlue models, including collision-safe names.
+        string? previousResult = null;
+        foreach (var standalone in new[] { false, true })
+        {
+            var runtime = standalone ? "SparseFragments" : "Configlue";
+            var modelAttribute = standalone
+                ? "SparseFragmentModel"
+                : "ConfiglueModel(\"patch-parity\")";
+            var childAttribute = standalone
+                ? "SparseFragmentModel"
+                : "ConfiglueModel(\"patch-parity-child\")";
+            var collisionAttribute = standalone
+                ? "SparseFragmentModel"
+                : "ConfiglueModel(\"patch-parity-collision\")";
+            var wholeInterface = standalone
+                ? "ISparseModelPatch<PatchSettings, PatchSettings.Fragment>"
+                : "IConfiglueModelPatch<PatchSettings>";
+            var childWholeInterface = standalone
+                ? "ISparseModelPatch<PatchChild, PatchChild.Fragment>"
+                : "IConfiglueModelPatch<PatchChild>";
+            var applyWhole = standalone
+                ? "whole.Apply"
+                : "((PatchSettings.Patch)whole).ApplyNested";
+            var cloneExpr = standalone
+                ? "patch.Compose(new PatchSettings.Patch())"
+                : "patch.ClonePatch()";
+            var collisionInterface = standalone
+                ? "ISparseModelPatch<CollisionSettings, CollisionSettings.Fragment>"
+                : "IConfiglueModelPatch<CollisionSettings>";
+            var source = $$"""
+                using System;
+                using {{runtime}};
+                [{{modelAttribute}}]
+                public partial class PatchSettings
+                {
+                    public int Count { get; set; } = 3;
+                    public string? Label { get; set; } = "default";
+                    public PatchChild? Nested { get; set; } = new PatchChild();
+                }
+                [{{childAttribute}}]
+                public partial class PatchChild
+                {
+                    public string Host { get; set; } = "localhost";
+                    public int Port { get; set; } = 80;
+                }
+                [{{collisionAttribute}}]
+                public partial class CollisionSettings
+                {
+                    public int Set { get; set; } = 1;
+                    public int Unset { get; set; } = 2;
+                }
+                public static class Probe
+                {
+                    public static string Run()
+                    {
+                        // set/unset/unchanged + explicit null + empty
+                        var empty = new PatchSettings.Patch();
+                        if (!empty.IsEmpty) throw new Exception("empty");
+                        if (!(({{wholeInterface}})empty).IsEmpty) throw new Exception("empty iface");
+                        var patch = new PatchSettings.Patch { Count = 7 };
+                        if (patch.IsEmpty) throw new Exception("set empty");
+                        var nullPatch = new PatchSettings.Patch { Label = (string?)null };
+                        var unsetPatch = new PatchSettings.Patch();
+                        unsetPatch.Label = global::{{runtime}}.FragmentOperation<string?>.Unset;
+                        // nested set/null/unset
+                        var nested = new PatchSettings.Patch();
+                        nested.Nested.Host = "example";
+                        var nestedNull = new PatchSettings.Patch();
+                        (({{childWholeInterface}})nestedNull.Nested).SetNull();
+                        var nestedUnset = new PatchSettings.Patch();
+                        (({{childWholeInterface}})nestedUnset.Nested).Unset();
+                        // whole operations
+                        {{wholeInterface}} whole = new PatchSettings.Patch();
+                        whole.Set(new PatchSettings { Count = 11 });
+                        var wholeApplied = {{applyWhole}}(global::{{runtime}}.Optional<PatchSettings.Fragment?>.Present(new PatchSettings.Fragment()));
+                        if (wholeApplied.Value!.Count.Value != 11) throw new Exception("whole set");
+                        whole.SetNull();
+                        var nulled = {{applyWhole}}(global::{{runtime}}.Optional<PatchSettings.Fragment?>.Present(new PatchSettings.Fragment()));
+                        if (!nulled.IsPresent || nulled.Value is not null) throw new Exception("whole null");
+                        whole.Unset();
+                        var removed = {{applyWhole}}(nulled);
+                        if (removed.IsPresent) throw new Exception("whole unset");
+                        // fragment->patch construction + apply round-trip
+                        var basis = PatchSettings.Fragment.From(new PatchSettings { Count = 5, Label = "a" });
+                        var roundtrip = basis.Apply(basis.ToPatch());
+                        if (roundtrip.Count.Value != 5 || roundtrip.Label.Value != "a") throw new Exception("roundtrip");
+                        // clone preserves operations
+                        var cloned = {{cloneExpr}};
+                        var clonedApplied = new PatchSettings.Fragment().Apply(cloned);
+                        if (clonedApplied.Count.Value != 7) throw new Exception("clone");
+                        // collisions: member names remain usable, whole ops via interface
+                        var collision = new CollisionSettings.Patch { Set = 9, Unset = 10 };
+                        var collisionFragment = new CollisionSettings.Fragment().Apply(collision);
+                        if (collisionFragment.Set.Value != 9) throw new Exception("collision set");
+                        {{collisionInterface}} cwhole = new CollisionSettings.Patch();
+                        if (!cwhole.IsEmpty) throw new Exception("collision empty");
+                        cwhole.Set(new CollisionSettings { Set = 4 });
+                        return string.Join("|",
+                            patch.Count.Value,
+                            patch.Count.Kind == global::{{runtime}}.FragmentOperationKind.Set,
+                            nullPatch.Label.Kind == global::{{runtime}}.FragmentOperationKind.Set && nullPatch.Label.Value is null,
+                            unsetPatch.Label.Kind == global::{{runtime}}.FragmentOperationKind.Unset,
+                            nested.Nested.Host.Value,
+                            collisionFragment.Unset.Value);
+                    }
+                }
+                """;
+            var options = new CSharpParseOptions(LanguageVersion.Latest);
+            var compilation = CreateCompilation(CSharpSyntaxTree.ParseText(source, options));
+            IIncrementalGenerator generator = standalone
+                ? new SparseFragments.Generator.SparseFragmentsGenerator()
+                : new ConfiglueGenerator();
+            CSharpGeneratorDriver
+                .Create(new[] { generator.AsSourceGenerator() }, parseOptions: options)
+                .RunGeneratorsAndUpdateCompilation(
+                    compilation,
+                    out var output,
+                    out var diagnostics
+                );
+            diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error).ShouldBeEmpty();
+            using var stream = new MemoryStream();
+            var emission = output.Emit(stream);
+            emission.Success.ShouldBeTrue(BuildDiagnosticMessage(emission.Diagnostics));
+            var context = new System.Runtime.Loader.AssemblyLoadContext(
+                Guid.NewGuid().ToString(),
+                isCollectible: true
+            );
+            try
+            {
+                stream.Position = 0;
+                var assembly = context.LoadFromStream(stream);
+                var result = (string)
+                    assembly.GetType("Probe")!.GetMethod("Run")!.Invoke(null, null)!;
+                result.ShouldBe("7|True|True|True|example|10");
+                if (previousResult is not null)
+                    result.ShouldBe(previousResult);
+                previousResult = result;
+            }
+            finally
+            {
+                context.Unload();
+            }
+        }
+    }
+
+    [Test]
     [Arguments("ISet<string>", "Append", false)]
     [Arguments("HashSet<string>", "Append", false)]
     [Arguments("ISet<string>", "SetUnion", true)]

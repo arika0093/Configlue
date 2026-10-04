@@ -90,6 +90,195 @@ internal static class SparseFragmentPatchEmitter
         }
     }
 
+    /// <summary>Small dialect for shared patch-core emission (whole, empty, ctor, apply).</summary>
+    /// <remarks>
+    /// Only genuinely-shared algebra lives here: runtime names plus field/contract hooks.
+    /// Routing, replacement, and facade contracts stay in the product generators.
+    /// </remarks>
+    internal readonly record struct SparsePatchDialect(
+        string RuntimeNamespace,
+        string WholeFieldName,
+        string MembersEmptyName,
+        Func<SparseMemberModel, string> MemberField,
+        Func<SparseMemberModel, string> NestedContract,
+        string NestedApplyMethod,
+        bool CastNestedApply
+    );
+
+    internal static SparsePatchDialect StandaloneDialect() =>
+        new(Runtime, "__sparse_whole", "__SparseMembersEmpty", Field, ChildContract, "Apply", true);
+
+    private static string Operation(SparsePatchDialect dialect) =>
+        dialect.RuntimeNamespace + "FragmentOperation";
+
+    private static string Kind(SparsePatchDialect dialect) =>
+        dialect.RuntimeNamespace + "FragmentOperationKind";
+
+    private static string OptionalFragment(SparsePatchDialect dialect) =>
+        dialect.RuntimeNamespace + "Optional<Fragment?>";
+
+    private static string MembersEmptyExpression(
+        ImmutableArray<SparseMemberModel> members,
+        SparsePatchDialect dialect
+    )
+    {
+        if (members.IsEmpty)
+            return "true";
+        return string.Join(
+            " && ",
+            members.Select(member =>
+                member.ChildModel is null
+                    ? dialect.MemberField(member) + ".Kind == " + Kind(dialect) + ".Unchanged"
+                    : "("
+                        + dialect.MemberField(member)
+                        + " is null || (("
+                        + dialect.NestedContract(member)
+                        + ")"
+                        + dialect.MemberField(member)
+                        + ").IsEmpty)"
+            )
+        );
+    }
+
+    /// <summary>Emits whole-operation field, empty helpers, Set/Unset, and implicit conversion.</summary>
+    public static void AppendPatchWholeOperations(
+        SharedIndentedBuilder code,
+        string modelType,
+        string contract,
+        string emptyContract,
+        ImmutableArray<SparseMemberModel> members,
+        SparsePatchDialect dialect
+    )
+    {
+        var operation = Operation(dialect);
+        var kind = Kind(dialect);
+        code.AppendLineAt(2, "private " + operation + "<Fragment?> " + dialect.WholeFieldName + ";");
+        code.AppendLineAt(
+            2,
+            "private bool " + dialect.MembersEmptyName + " => " + MembersEmptyExpression(members, dialect) + ";"
+        );
+        code.AppendLineAt(
+            2,
+            "bool " + emptyContract + ".IsEmpty => " + dialect.WholeFieldName + ".Kind == " + kind + ".Unchanged && " + dialect.MembersEmptyName + ";"
+        );
+        code.AppendLineAt(
+            2,
+            "void " + contract + ".Set(" + modelType + " value) => " + dialect.WholeFieldName + " = " + operation + "<Fragment?>.Set(Fragment.From(value));"
+        );
+        code.AppendLineAt(
+            2,
+            "void " + contract + ".SetNull() => " + dialect.WholeFieldName + " = " + operation + "<Fragment?>.Set(null);"
+        );
+        code.AppendLineAt(2, "void " + contract + ".Unset() => " + dialect.WholeFieldName + " = " + operation + "<Fragment?>.Unset;");
+        foreach (var method in new[] { "Set", "SetNull", "Unset", "IsEmpty" })
+        {
+            if (members.Any(member => member.Property.Name == method))
+                continue;
+            var parameter = method == "Set" ? modelType + " value" : "";
+            var argument = method == "Set" ? "value" : "";
+            var declaration =
+                method == "IsEmpty"
+                    ? "public bool IsEmpty => ((" + emptyContract + ")this).IsEmpty;"
+                    : "public void " + method + "(" + parameter + ") => ((" + contract + ")this)." + method + "(" + argument + ");";
+            code.AppendLineAt(2, declaration);
+        }
+
+        code.AppendLineAt(
+            2,
+            "public static implicit operator Patch(" + operation + "<Fragment?> operation) => new Patch { " + dialect.WholeFieldName + " = operation };"
+        );
+    }
+
+    /// <summary>Emits Patch() and Patch(Fragment) construction from present members.</summary>
+    public static void AppendPatchConstructor(
+        SharedIndentedBuilder code,
+        ImmutableArray<SparseMemberModel> members,
+        SparsePatchDialect dialect
+    )
+    {
+        var operation = Operation(dialect);
+        code.AppendLineAt(2, "public Patch() { }");
+        code.AppendLineAt(2, "public Patch(Fragment fragment)");
+        code.AppendLineAt(2, "{");
+        code.AppendLineAt(3, "if (fragment is null) throw new global::System.ArgumentNullException(nameof(fragment));");
+        foreach (var member in members)
+        {
+            var name = SparseNaming.EscapeIdentifier(member.Property.Name);
+            var field = dialect.MemberField(member);
+            if (member.ChildModel is null)
+                code.AppendLineAt(
+                    3,
+                    field + " = fragment." + name + ".IsPresent ? " + operation + "<" + ValueType(member) + ">.Set(fragment." + name + ".Value) : default;"
+                );
+            else
+            {
+                code.AppendLineAt(3, "if (fragment." + name + ".IsPresent)");
+                code.AppendLineAt(3, "{");
+                code.AppendLineAt(
+                    4,
+                    field + " = fragment." + name + ".Value is null ? new " + ChildPatch(member) + "() : new " + ChildPatch(member) + "(fragment." + name + ".Value);"
+                );
+                code.AppendLineAt(
+                    4,
+                    "if (fragment." + name + ".Value is null) ((" + dialect.NestedContract(member) + ")" + field + ").SetNull();"
+                );
+                code.AppendLineAt(3, "}");
+            }
+        }
+        code.AppendLineAt(2, "}");
+    }
+
+    /// <summary>Emits per-member ApplyMembers used by both Optional apply paths.</summary>
+    public static void AppendPatchApplyMembers(
+        SharedIndentedBuilder code,
+        ImmutableArray<SparseMemberModel> members,
+        SparsePatchDialect dialect
+    )
+    {
+        code.AppendLineAt(2, "internal Fragment ApplyMembers(Fragment current) => new Fragment");
+        code.AppendLineAt(2, "{");
+        foreach (var member in members)
+        {
+            var name = SparseNaming.EscapeIdentifier(member.Property.Name);
+            var field = dialect.MemberField(member);
+            string expression;
+            if (member.ChildModel is null)
+            {
+                expression = field + ".Apply(current." + name + ")";
+            }
+            else if (dialect.CastNestedApply)
+            {
+                expression =
+                    field + " is null ? current." + name + " : ((" + dialect.NestedContract(member) + ")" + field + ")." + dialect.NestedApplyMethod + "(current." + name + ")";
+            }
+            else
+            {
+                expression =
+                    field + " is null ? current." + name + " : " + field + "." + dialect.NestedApplyMethod + "(current." + name + ")";
+            }
+            code.AppendLineAt(3, name + " = " + expression + ",");
+        }
+        code.AppendLineAt(2, "};");
+    }
+
+    /// <summary>Emits the Optional apply path; standalone uses explicit contract, Configlue uses internal ApplyNested.</summary>
+    public static void AppendPatchOptionalApply(
+        SharedIndentedBuilder code,
+        ImmutableArray<SparseMemberModel> members,
+        SparsePatchDialect dialect,
+        string methodDeclaration
+    )
+    {
+        var optional = OptionalFragment(dialect);
+        code.AppendLineAt(2, methodDeclaration);
+        code.AppendLineAt(2, "{");
+        code.AppendLineAt(3, "current = " + dialect.WholeFieldName + ".Apply(current);");
+        code.AppendLineAt(3, "if (" + dialect.MembersEmptyName + ") return current;");
+        code.AppendLineAt(3, "var basis = current.IsPresent && current.Value is not null ? current.Value : new Fragment();");
+        code.AppendLineAt(3, "return " + optional + ".Present(ApplyMembers(basis));");
+        code.AppendLineAt(2, "}");
+    }
+
     public static void AppendPatch(
         SharedIndentedBuilder code,
         string modelType,
@@ -99,8 +288,6 @@ internal static class SparseFragmentPatchEmitter
     )
     {
         var contract = Contract(modelType, "Fragment");
-        var operation = Runtime + "FragmentOperation";
-        var kind = Runtime + "FragmentOperationKind";
         var optional = Runtime + "Optional<Fragment?>";
         var patchPrefix = SparseNaming.PatchApiPrefix(
             members.Select(static member => member.Property.Name)
@@ -108,178 +295,16 @@ internal static class SparseFragmentPatchEmitter
         code.AppendLineAt(1, "public sealed class Patch : " + contract);
         code.AppendLineAt(1, "{");
         AppendPatchMembers(code, members, Runtime, Field);
-
-        var memberEmpty = members.IsEmpty
-            ? "true"
-            : string.Join(
-                " && ",
-                members.Select(member =>
-                    member.ChildModel is null
-                        ? Field(member) + ".Kind == " + kind + ".Unchanged"
-                        : "("
-                            + Field(member)
-                            + " is null || (("
-                            + ChildContract(member)
-                            + ")"
-                            + Field(member)
-                            + ").IsEmpty)"
-                )
-            );
-        code.AppendLineAt(2, "private " + operation + "<Fragment?> __sparse_whole;");
-        code.AppendLineAt(2, "private bool __SparseMembersEmpty => " + memberEmpty + ";");
-        code.AppendLineAt(
-            2,
-            "bool "
-                + contract
-                + ".IsEmpty => __sparse_whole.Kind == "
-                + kind
-                + ".Unchanged && __SparseMembersEmpty;"
+        var dialect = StandaloneDialect();
+        AppendPatchWholeOperations(code, modelType, contract, contract, members, dialect);
+        AppendPatchConstructor(code, members, dialect);
+        AppendPatchOptionalApply(
+            code,
+            members,
+            dialect,
+            optional + " " + contract + ".Apply(" + optional + " current)"
         );
-        code.AppendLineAt(
-            2,
-            "void "
-                + contract
-                + ".Set("
-                + modelType
-                + " value) => __sparse_whole = "
-                + operation
-                + "<Fragment?>.Set(Fragment.From(value));"
-        );
-        code.AppendLineAt(
-            2,
-            "void "
-                + contract
-                + ".SetNull() => __sparse_whole = "
-                + operation
-                + "<Fragment?>.Set(null);"
-        );
-        code.AppendLineAt(
-            2,
-            "void " + contract + ".Unset() => __sparse_whole = " + operation + "<Fragment?>.Unset;"
-        );
-        foreach (var method in new[] { "Set", "SetNull", "Unset", "IsEmpty" })
-        {
-            if (members.Any(member => member.Property.Name == method))
-                continue;
-            var parameter = method == "Set" ? modelType + " value" : "";
-            var argument = method == "Set" ? "value" : "";
-            var declaration =
-                method == "IsEmpty"
-                    ? "public bool IsEmpty => ((" + contract + ")this).IsEmpty;"
-                    : "public void "
-                        + method
-                        + "("
-                        + parameter
-                        + ") => (("
-                        + contract
-                        + ")this)."
-                        + method
-                        + "("
-                        + argument
-                        + ");";
-            code.AppendLineAt(2, declaration);
-        }
-
-        code.AppendLineAt(2, "public Patch() { }");
-        code.AppendLineAt(2, "public Patch(Fragment fragment)");
-        code.AppendLineAt(2, "{");
-        code.AppendLineAt(
-            3,
-            "if (fragment is null) throw new global::System.ArgumentNullException(nameof(fragment));"
-        );
-        foreach (var member in members)
-        {
-            var name = SparseNaming.EscapeIdentifier(member.Property.Name);
-            var field = Field(member);
-            if (member.ChildModel is null)
-                code.AppendLineAt(
-                    3,
-                    field
-                        + " = fragment."
-                        + name
-                        + ".IsPresent ? "
-                        + operation
-                        + "<"
-                        + ValueType(member)
-                        + ">.Set(fragment."
-                        + name
-                        + ".Value) : default;"
-                );
-            else
-            {
-                code.AppendLineAt(3, "if (fragment." + name + ".IsPresent)");
-                code.AppendLineAt(3, "{");
-                code.AppendLineAt(
-                    4,
-                    field
-                        + " = fragment."
-                        + name
-                        + ".Value is null ? new "
-                        + ChildPatch(member)
-                        + "() : new "
-                        + ChildPatch(member)
-                        + "(fragment."
-                        + name
-                        + ".Value);"
-                );
-                code.AppendLineAt(
-                    4,
-                    "if (fragment."
-                        + name
-                        + ".Value is null) (("
-                        + ChildContract(member)
-                        + ")"
-                        + field
-                        + ").SetNull();"
-                );
-                code.AppendLineAt(3, "}");
-            }
-        }
-        code.AppendLineAt(2, "}");
-        code.AppendLineAt(2, optional + " " + contract + ".Apply(" + optional + " current)");
-        code.AppendLineAt(2, "{");
-        code.AppendLineAt(3, "current = __sparse_whole.Apply(current);");
-        code.AppendLineAt(3, "if (__SparseMembersEmpty) return current;");
-        code.AppendLineAt(
-            3,
-            "var basis = current.IsPresent && current.Value is not null ? current.Value : new Fragment();"
-        );
-        code.AppendLineAt(3, "return " + optional + ".Present(ApplyMembers(basis));");
-        code.AppendLineAt(2, "}");
-        code.AppendLineAt(2, "internal Fragment ApplyMembers(Fragment current) => new Fragment");
-        code.AppendLineAt(2, "{");
-        foreach (var member in members)
-        {
-            var name = SparseNaming.EscapeIdentifier(member.Property.Name);
-            var field = Field(member);
-            code.AppendLineAt(
-                3,
-                name
-                    + " = "
-                    + (
-                        member.ChildModel is null
-                            ? field + ".Apply(current." + name + ")"
-                            : field
-                                + " is null ? current."
-                                + name
-                                + " : (("
-                                + ChildContract(member)
-                                + ")"
-                                + field
-                                + ").Apply(current."
-                                + name
-                                + ")"
-                    )
-                    + ","
-            );
-        }
-        code.AppendLineAt(2, "};");
-        code.AppendLineAt(
-            2,
-            "public static implicit operator Patch("
-                + operation
-                + "<Fragment?> operation) => new Patch { __sparse_whole = operation };"
-        );
+        AppendPatchApplyMembers(code, members, dialect);
         AppendPatchAlgebra(code, modelType, members);
         AppendPatchRebase(code, modelType, members);
         if (hasJsonPatch)
@@ -291,20 +316,17 @@ internal static class SparseFragmentPatchEmitter
             );
             SparseJsonPatchEmitter.AppendFromJsonPatch(
                 code,
-                modelType,
                 "global::SparseFragments",
                 Runtime + "Optional",
-                patchPrefix,
-                jsonPrefix
+                jsonPrefix,
+                patchPrefix + "Between"
             );
             SparseJsonPatchEmitter.AppendToJsonPatch(
                 code,
-                modelType,
                 "global::SparseFragments",
                 Runtime + "Optional",
-                contract,
-                patchPrefix,
-                jsonPrefix
+                jsonPrefix,
+                "((" + contract + ")this).Apply(baseline)"
             );
         }
         code.AppendLineAt(1, "}");

@@ -609,6 +609,7 @@ public sealed partial class ConfiglueGenerator
                 or "ToReadOnly"
                 or "MapStatus"
                 or "ApplyNested"
+                or "ApplyMembers"
                 or "ClonePatch"
                 or "WithUnspecifiedMembersUnset"
                 or "SelectMembers"

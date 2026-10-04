@@ -49,165 +49,44 @@ public sealed partial class ConfiglueGenerator
             "global::Configlue.",
             static member => "__configlue_member_" + member.Property.Name
         );
-
-        code.AppendLineAt(
-            2,
-            "private global::Configlue.FragmentOperation<Fragment?> __configlue_whole_operation;"
-        );
-        code.AppendLineAt(
-            2,
-            "void "
-                + wholePatch
-                + ".Set("
-                + modelType
-                + " value) => __configlue_whole_operation = global::Configlue.FragmentOperation<Fragment?>.Set(Fragment.From(value));"
-        );
-        code.AppendLineAt(
-            2,
-            "void "
-                + wholePatch
-                + ".SetNull() => __configlue_whole_operation = global::Configlue.FragmentOperation<Fragment?>.Set(null);"
-        );
-        code.AppendLineAt(
-            2,
-            "void "
-                + wholePatch
-                + ".Unset() => __configlue_whole_operation = global::Configlue.FragmentOperation<Fragment?>.Unset;"
-        );
-        if (!members.Any(static member => member.Property.Name == "Set"))
-            code.AppendLineAt(
-                2,
-                "public void Set(" + modelType + " value) => ((" + wholePatch + ")this).Set(value);"
+        var sparseMembers = members.Select(ToSparseMember).ToImmutableArray();
+        var patchDialect =
+            new SparseFragments.Generator.Shared.SparseFragmentPatchEmitter.SparsePatchDialect(
+                "global::Configlue.",
+                "__configlue_whole_operation",
+                "__configlue_members_empty",
+                static member => "__configlue_member_" + member.Property.Name,
+                static member =>
+                    "global::Configlue.IConfiglueModelPatch<"
+                    + member.ChildModel!.Value.NonNullableName
+                    + ">",
+                "ApplyNested",
+                false
             );
-        if (!members.Any(static member => member.Property.Name == "SetNull"))
-            code.AppendLineAt(2, "public void SetNull() => ((" + wholePatch + ")this).SetNull();");
-        if (!members.Any(static member => member.Property.Name == "Unset"))
-            code.AppendLineAt(2, "public void Unset() => ((" + wholePatch + ")this).Unset();");
-        code.AppendLineAt(
-            2,
-            "public static implicit operator Patch(global::Configlue.FragmentOperation<Fragment?> operation)"
+        SparseFragments.Generator.Shared.SparseFragmentPatchEmitter.AppendPatchWholeOperations(
+            code,
+            modelType,
+            wholePatch,
+            "global::Configlue.IConfigluePatch",
+            sparseMembers,
+            patchDialect
         );
-        code.AppendLineAt(2, "{");
-        code.AppendLineAt(3, "var patch = new Patch();");
-        code.AppendLineAt(
-            3,
-            "if (operation.Kind == global::Configlue.FragmentOperationKind.Unset) { patch.__configlue_whole_operation = global::Configlue.FragmentOperation<Fragment?>.Unset; }"
+        SparseFragments.Generator.Shared.SparseFragmentPatchEmitter.AppendPatchConstructor(
+            code,
+            sparseMembers,
+            patchDialect
         );
-        code.AppendLineAt(
-            3,
-            "else if (operation.Kind == global::Configlue.FragmentOperationKind.Set)"
+        SparseFragments.Generator.Shared.SparseFragmentPatchEmitter.AppendPatchApplyMembers(
+            code,
+            sparseMembers,
+            patchDialect
         );
-        code.AppendLineAt(3, "{");
-        code.AppendLineAt(
-            4,
-            "patch.__configlue_whole_operation = global::Configlue.FragmentOperation<Fragment?>.Set(operation.Value);"
-        );
-        code.AppendLineAt(3, "}");
-        code.AppendLineAt(3, "return patch;");
-        code.AppendLineAt(2, "}");
-        code.AppendLineAt(2, "public Patch() { }");
-        code.AppendLineAt(2, "public Patch(Fragment fragment)");
-        code.AppendLineAt(2, "{");
-        foreach (var member in members)
-        {
-            var name = EscapeIdentifier(member.Property.Name);
-            if (member.ChildModel is null)
-            {
-                code.AppendIndent(3)
-                    .Append(name)
-                    .Append(" = fragment.")
-                    .Append(name)
-                    .Append(".IsPresent ? global::Configlue.FragmentOperation<")
-                    .Append(FragmentValueType(member))
-                    .Append(">.Set(fragment.")
-                    .Append(name)
-                    .AppendLine(".Value) : default;");
-            }
-            else
-            {
-                var nestedPatchType = NestedPatchType(member);
-                code.AppendIndent(3).Append("if (fragment.").Append(name).AppendLine(".IsPresent)");
-                code.AppendLineAt(3, "{");
-                code.AppendIndent(4)
-                    .Append("var nested = new ")
-                    .Append(nestedPatchType)
-                    .AppendLine("();");
-                code.AppendIndent(4)
-                    .Append("if (fragment.")
-                    .Append(name)
-                    .AppendLine(
-                        ".Value is null) ((global::Configlue.IConfiglueModelPatch<"
-                            + member.ChildModel.Value.NonNullableName
-                            + ">)nested).SetNull();"
-                    );
-                code.AppendIndent(4)
-                    .Append("else nested = new ")
-                    .Append(nestedPatchType)
-                    .Append("(fragment.")
-                    .Append(name)
-                    .AppendLine(".Value);");
-                code.AppendIndent(4).Append(MemberBackingField(member)).AppendLine(" = nested;");
-                code.AppendLineAt(3, "}");
-            }
-        }
-
-        code.AppendLineAt(2, "}");
-        code.AppendLineAt(2, "public bool IsEmpty =>");
-        code.AppendIndent(3)
-            .Append(
-                "__configlue_whole_operation.Kind == global::Configlue.FragmentOperationKind.Unchanged && "
-            )
-            .Append(
-                members.Length == 0
-                    ? "true"
-                    : JoinMemberExpressions(
-                        members,
-                        static member =>
-                            member.ChildModel is null
-                                ? EscapeIdentifier(member.Property.Name)
-                                    + ".Kind == global::Configlue.FragmentOperationKind.Unchanged"
-                                : "("
-                                    + MemberBackingField(member)
-                                    + " is null || "
-                                    + MemberBackingField(member)
-                                    + ".IsEmpty)",
-                        code.CancellationToken
-                    )
-            )
-            .AppendLine(";");
-        code.AppendLineAt(
-            2,
+        SparseFragments.Generator.Shared.SparseFragmentPatchEmitter.AppendPatchOptionalApply(
+            code,
+            sparseMembers,
+            patchDialect,
             "internal global::Configlue.Optional<Fragment?> ApplyNested(global::Configlue.Optional<Fragment?> current)"
         );
-        code.AppendLineAt(2, "{");
-        code.AppendLineAt(
-            3,
-            "if (__configlue_whole_operation.Kind == global::Configlue.FragmentOperationKind.Unset) { current = global::Configlue.Optional<Fragment?>.Missing; }"
-        );
-        code.AppendLineAt(
-            3,
-            "else if (__configlue_whole_operation.Kind == global::Configlue.FragmentOperationKind.Set) { current = global::Configlue.Optional<Fragment?>.Present(__configlue_whole_operation.Value); }"
-        );
-        if (members.Length == 0)
-        {
-            code.AppendLineAt(3, "return current;");
-        }
-        else
-        {
-            code.AppendLineAt(
-                3,
-                "if (" + NestedOperationsEmptyExpression(members) + ") { return current; }"
-            );
-            code.AppendLineAt(
-                3,
-                "var basis = current.IsPresent && current.Value is not null ? current.Value : new Fragment();"
-            );
-            code.AppendLineAt(
-                3,
-                "return global::Configlue.Optional<Fragment?>.Present(basis.Apply(this));"
-            );
-        }
-        code.AppendLineAt(2, "}");
         code.AppendLineAt(2, "internal Patch ClonePatch()");
         code.AppendLineAt(2, "{");
         code.AppendLineAt(
@@ -361,7 +240,6 @@ public sealed partial class ConfiglueGenerator
         AppendPatchRouting(code, members);
         if (hasJsonPatch)
         {
-            var sparseMembers = members.Select(ToSparseMember).ToImmutableArray();
             SparseFragments.Generator.Shared.SparseJsonPatchEmitter.AppendConfiglueJsonBetween(
                 code,
                 sparseMembers,
@@ -378,16 +256,29 @@ public sealed partial class ConfiglueGenerator
             );
             if (isRootModel)
             {
+                var jsonPrefix = SparseFragments.Generator.Shared.SparseNaming.JsonPatchApiPrefix(
+                    members.Select(static member => member.Property.Name)
+                );
                 SparseFragments.Generator.Shared.SparseJsonPatchEmitter.AppendFragmentJsonHelpers(
                     code,
                     "global::SparseFragments",
                     "global::Configlue.Optional"
                 );
-                SparseFragments.Generator.Shared.SparseJsonPatchEmitter.AppendConfiglueFromJsonPatch(
-                    code
+                // Single shared bridge: Configlue differs only in Between helper and apply expression.
+                // JSON Patch interop stays an adapter over the semantic patch, not routing.
+                SparseFragments.Generator.Shared.SparseJsonPatchEmitter.AppendFromJsonPatch(
+                    code,
+                    "global::SparseFragments",
+                    "global::Configlue.Optional",
+                    jsonPrefix,
+                    "__ConfiglueJsonBetween"
                 );
-                SparseFragments.Generator.Shared.SparseJsonPatchEmitter.AppendConfiglueToJsonPatch(
-                    code
+                SparseFragments.Generator.Shared.SparseJsonPatchEmitter.AppendToJsonPatch(
+                    code,
+                    "global::SparseFragments",
+                    "global::Configlue.Optional",
+                    jsonPrefix,
+                    "ApplyNested(baseline)"
                 );
             }
         }
