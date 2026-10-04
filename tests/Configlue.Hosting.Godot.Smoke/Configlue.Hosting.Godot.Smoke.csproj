@@ -23,10 +23,7 @@
     <PackageReference Include="Configlue" Version="$(ConfigluePackageVersion)" />
     <PackageReference Include="Configlue.Hosting.Godot" Version="$(ConfigluePackageVersion)" />
     <PackageReference Include="Configlue.Provider.Json" Version="$(ConfigluePackageVersion)" />
-    <PackageReference
-      Include="Configlue.Generator"
-      Version="$(ConfigluePackageVersion)"
-      PrivateAssets="all"
-    />
+    <!-- No explicit Configlue.Generator reference: the Configlue package already
+         applies its bundled analyzer, and a second reference would run generation twice. -->
   </ItemGroup>
 </Project>
