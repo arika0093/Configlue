@@ -23,12 +23,14 @@ internal static class DocumentSemanticEditPlan
         var fragment = schema.CreateEmptyFragment();
         foreach (var member in schema.Members)
         {
+            // Generated schemas always carry a DefaultValueFactory (emitted as
+            // `static () => default(TMember)`), so no reflection-based fallback is
+            // needed here. Hand-built schemas without a factory observe null, exactly
+            // like reference-type members without defaults.
             object? value = null;
             if (member.NestedSchemaFactory is null)
             {
                 value = member.DefaultValueFactory?.Invoke();
-                if (value is null && member.ValueType.IsValueType)
-                    value = Activator.CreateInstance(member.ValueType);
             }
             fragment = fragment.WithMember(member.Id, value);
         }
