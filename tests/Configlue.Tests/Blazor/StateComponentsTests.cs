@@ -139,6 +139,22 @@ public sealed class StateComponentsTests
     }
 
     [Test]
+    public void Reader_Dispose_UnsubscribesFromState()
+    {
+        using var ctx = new BunitContext();
+        var state = new ControllableSnapshotState<AppSettings>(
+            new StateSnapshot<AppSettings>(new AppSettings { Label = "good" }, null)
+        );
+        ctx.Services.AddSingleton<IReadOnlyState<AppSettings>>(state);
+        var (cut, _) = RenderReader(ctx);
+        state.ListenerCount.ShouldBe(1);
+
+        ((IDisposable)cut.Instance).Dispose();
+
+        state.ListenerCount.ShouldBe(0);
+    }
+
+    [Test]
     public void Editor_InitialLoad_ExposesSessionAndDetails()
     {
         using var ctx = new BunitContext();

@@ -6,9 +6,9 @@ namespace Configlue.Tests;
 
 public sealed class PostgreSqlSourceCacheLifecycleTests
 {
-    // Generic disposal/materialization/eviction/concurrency semantics are owned by
-    // core ResidencyCacheLeaseDisposeTests. This suite keeps the one case that is
-    // provider-specific: route-to-connection resolution shares a single backend.
+    // Generic disposal/materialization semantics are owned by core
+    // ResidencyCacheLeaseDisposeTests. This suite keeps provider-specific wiring:
+    // route-to-connection sharing plus eviction/concurrency through the provider cache.
     [Test]
     public async Task ManyRoutesResolvingToOneConnectionRetainOneEntry()
     {
@@ -38,6 +38,90 @@ public sealed class PostgreSqlSourceCacheLifecycleTests
         source.Dispose();
         backend.DisposeCount.ShouldBe(1);
         connection.DisposeCount.ShouldBe(0);
+    }
+
+    [Test]
+    public async Task ManyPhysicalConnectionsAreEvictedToCapacity()
+    {
+        var created = new ConcurrentQueue<TrackingPostgreSqlStateBackend>();
+        var connections = new ConcurrentDictionary<RouteKey, object>();
+        using var source = CreateSource(
+            route => connections.GetOrAdd(route, static _ => new object()),
+            _ =>
+            {
+                var backend = new TrackingPostgreSqlStateBackend();
+                created.Enqueue(backend);
+                return backend;
+            },
+            new PostgreSqlTableOptions { BackendCacheCapacity = 2 }
+        );
+
+        foreach (var index in Enumerable.Range(0, 3))
+        {
+            await source.WriteAsync(
+                CreateContext($"tenant-{index}", RouteKey.From($"region-{index}")),
+                new StateWriteRequest<string>("1")
+            );
+        }
+
+        created.Count.ShouldBe(3);
+        created.Count(static backend => backend.DisposeCount == 1).ShouldBe(1);
+        source.CachedBackendCount.ShouldBe(2);
+
+        source.TrimBackendCache();
+        source.Dispose();
+        created.ShouldAllBe(static backend => backend.DisposeCount == 1);
+        source.CachedBackendCount.ShouldBe(0);
+    }
+
+    [Test]
+    public async Task ConcurrentAccessDuringEvictionAndDisposalIsSafe()
+    {
+        var created = new ConcurrentQueue<TrackingPostgreSqlStateBackend>();
+        var source = CreateSource(
+            _ => new object(),
+            _ =>
+            {
+                var backend = new TrackingPostgreSqlStateBackend();
+                created.Enqueue(backend);
+                return backend;
+            },
+            new PostgreSqlTableOptions
+            {
+                BackendCacheCapacity = 4,
+                BackendCacheIdleTimeout = TimeSpan.Zero,
+            }
+        );
+
+        var workers = Enumerable
+            .Range(0, 24)
+            .Select(worker =>
+                Task.Run(async () =>
+                {
+                    for (var index = 0; index < 40; index++)
+                    {
+                        await source.WriteAsync(
+                            CreateContext($"t{worker}", RouteKey.From($"r-{worker}-{index}")),
+                            new StateWriteRequest<string>("1")
+                        );
+                    }
+                })
+            )
+            .ToArray();
+        var trimmer = Task.Run(() =>
+        {
+            for (var index = 0; index < 200; index++)
+            {
+                source.TrimBackendCache();
+            }
+        });
+
+        await Task.WhenAll(workers.Append(trimmer));
+        source.Dispose();
+
+        source.CachedBackendCount.ShouldBe(0);
+        created.ShouldNotBeEmpty();
+        created.ShouldAllBe(static backend => backend.DisposeCount == 1);
     }
 
     private static PostgreSqlSource<string> CreateSource(

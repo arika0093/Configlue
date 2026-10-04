@@ -6,9 +6,9 @@ namespace Configlue.Tests;
 
 public sealed class RedisResourceCacheLifecycleTests
 {
-    // Generic disposal/materialization/eviction/concurrency semantics are owned by
-    // core ResidencyCacheLeaseDisposeTests. This suite keeps the one case that is
-    // provider-specific: route-to-connection resolution shares a single backend.
+    // Generic disposal/materialization semantics are owned by core
+    // ResidencyCacheLeaseDisposeTests. This suite keeps provider-specific wiring:
+    // route-to-connection sharing plus eviction/concurrency through the provider cache.
     [Test]
     public async Task ManyRoutesResolvingToOneConnectionRetainOneEntry()
     {
@@ -38,6 +38,90 @@ public sealed class RedisResourceCacheLifecycleTests
         resource.Dispose();
         backend.DisposeCount.ShouldBe(1);
         connection.DisposeCount.ShouldBe(0);
+    }
+
+    [Test]
+    public async Task ManyPhysicalConnectionsAreEvictedToCapacity()
+    {
+        var created = new ConcurrentQueue<TrackingRedisStateBackend>();
+        var connections = new ConcurrentDictionary<RouteKey, object>();
+        using var resource = CreateResource(
+            route => connections.GetOrAdd(route, static _ => new object()),
+            _ =>
+            {
+                var backend = new TrackingRedisStateBackend();
+                created.Enqueue(backend);
+                return backend;
+            },
+            new RedisResourceOptions { BackendCacheCapacity = 2 }
+        );
+
+        foreach (var index in Enumerable.Range(0, 3))
+        {
+            await resource.WriteAsync(
+                CreateContext($"tenant-{index}", RouteKey.From($"route-{index}")),
+                new ResourceWriteRequest(new byte[] { 1 })
+            );
+        }
+
+        created.Count.ShouldBe(3);
+        created.Count(static backend => backend.DisposeCount == 1).ShouldBe(1);
+        resource.CachedBackendCount.ShouldBe(2);
+
+        resource.TrimBackendCache();
+        resource.Dispose();
+        created.ShouldAllBe(static backend => backend.DisposeCount == 1);
+        resource.CachedBackendCount.ShouldBe(0);
+    }
+
+    [Test]
+    public async Task ConcurrentAccessDuringEvictionAndDisposalIsSafe()
+    {
+        var created = new ConcurrentQueue<TrackingRedisStateBackend>();
+        var resource = CreateResource(
+            _ => new object(),
+            _ =>
+            {
+                var backend = new TrackingRedisStateBackend();
+                created.Enqueue(backend);
+                return backend;
+            },
+            new RedisResourceOptions
+            {
+                BackendCacheCapacity = 4,
+                BackendCacheIdleTimeout = TimeSpan.Zero,
+            }
+        );
+
+        var workers = Enumerable
+            .Range(0, 24)
+            .Select(worker =>
+                Task.Run(async () =>
+                {
+                    for (var index = 0; index < 40; index++)
+                    {
+                        await resource.WriteAsync(
+                            CreateContext($"t{worker}", RouteKey.From($"r-{worker}-{index}")),
+                            new ResourceWriteRequest(new byte[] { 1 })
+                        );
+                    }
+                })
+            )
+            .ToArray();
+        var trimmer = Task.Run(() =>
+        {
+            for (var index = 0; index < 200; index++)
+            {
+                resource.TrimBackendCache();
+            }
+        });
+
+        await Task.WhenAll(workers.Append(trimmer));
+        resource.Dispose();
+
+        resource.CachedBackendCount.ShouldBe(0);
+        created.ShouldNotBeEmpty();
+        created.ShouldAllBe(static backend => backend.DisposeCount == 1);
     }
 
     private static RedisResource CreateResource(
