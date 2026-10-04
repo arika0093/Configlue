@@ -1,0 +1,22 @@
+[assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/arika0093/Configlue")]
+namespace Configlue.DevTools
+{
+    public sealed class ConfiglueDevToolsRegistry
+    {
+        public ConfiglueDevToolsRegistry() { }
+        public System.Collections.Generic.IReadOnlyList<Configlue.DevTools.ConfiglueDevToolsStateInfo> States { get; }
+        public Configlue.DevTools.ConfiglueDevToolsRegistry Add<TModel>(Configlue.IWritableState<TModel> state, string? stateName = null)
+            where TModel : Configlue.CompilerServices.IConfiglueFacadeModel<TModel> { }
+        public Configlue.DevTools.ConfiglueDevToolsRegistry AddRegistry<TModel>(Configlue.IConfiglueStateRegistry<TModel> registry)
+            where TModel : Configlue.CompilerServices.IConfiglueFacadeModel<TModel> { }
+    }
+    public sealed class ConfiglueDevToolsStateInfo : System.IEquatable<Configlue.DevTools.ConfiglueDevToolsStateInfo>
+    {
+        public ConfiglueDevToolsStateInfo(string ModelId, int ModelVersion, string StateName, string DisplayName, string ModelType) { }
+        public string DisplayName { get; init; }
+        public string ModelId { get; init; }
+        public string ModelType { get; init; }
+        public int ModelVersion { get; init; }
+        public string StateName { get; init; }
+    }
+}

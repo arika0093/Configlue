@@ -1,0 +1,31 @@
+[assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/arika0093/Configlue")]
+namespace Configlue
+{
+    public static class ConfiglueDevToolsServiceCollectionExtensions
+    {
+        public static Microsoft.Extensions.DependencyInjection.IServiceCollection AddConfiglueDevToolsWeb(this Microsoft.Extensions.DependencyInjection.IServiceCollection services, Configlue.DevTools.ConfiglueDevToolsRegistry registry, System.Action<Configlue.DevTools.Web.ConfiglueDevToolsWebOptions>? configure = null) { }
+    }
+}
+namespace Configlue.DevTools.Web
+{
+    public sealed class ConfiglueDevToolsWebHost : System.IAsyncDisposable, System.IDisposable
+    {
+        public bool AutoOpenBrowser { get; }
+        public bool IsRunning { get; }
+        public string LaunchUrl { get; }
+        public string SessionToken { get; }
+        public string Url { get; }
+        public void Dispose() { }
+        public System.Threading.Tasks.ValueTask DisposeAsync() { }
+        public System.Threading.Tasks.Task StartAsync(System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.Task StopAsync() { }
+        public static Configlue.DevTools.Web.ConfiglueDevToolsWebHost Create(Configlue.DevTools.ConfiglueDevToolsRegistry registry, Configlue.DevTools.Web.ConfiglueDevToolsWebOptions? options = null) { }
+    }
+    public sealed class ConfiglueDevToolsWebOptions
+    {
+        public ConfiglueDevToolsWebOptions() { }
+        public bool AutoOpenBrowser { get; set; }
+        public int Port { get; set; }
+        public string? SessionToken { get; set; }
+    }
+}

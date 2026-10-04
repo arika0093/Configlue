@@ -358,6 +358,16 @@ public sealed class PublicApiCheckTest
     public void Testing() => PublicApiCheck.Check<InMemoryResource>();
 
     [Test]
+    public void DevTools() =>
+        PublicApiCheck.CheckAssembly(typeof(Configlue.DevTools.ConfiglueDevToolsRegistry).Assembly);
+
+    [Test]
+    public void DevToolsWeb() =>
+        PublicApiCheck.CheckAssembly(
+            typeof(Configlue.DevTools.Web.ConfiglueDevToolsWebHost).Assembly
+        );
+
+    [Test]
     public void AesTransformer() => PublicApiCheck.Check<AesGcmStateByteTransformer>();
 
     [Test]

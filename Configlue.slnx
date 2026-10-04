@@ -60,8 +60,13 @@
     <Project Path="src/fragments/SparseFragments.JsonPatch/SparseFragments.JsonPatch.csproj" />
     <Project Path="src/fragments/SparseFragments.Generator/SparseFragments.Generator.csproj" />
   </Folder>
+  <Folder Name="/src/devtools/">
+    <Project Path="src/devtools/Configlue.DevTools/Configlue.DevTools.csproj" />
+    <Project Path="src/devtools/Configlue.DevTools.Web/Configlue.DevTools.Web.csproj" />
+  </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Configlue.Tests/Configlue.Tests.csproj" />
+    <Project Path="tests/Configlue.DevTools.Tests/Configlue.DevTools.Tests.csproj" />
     <Project Path="tests/Configlue.Hosting.Unity.Tests/Configlue.Hosting.Unity.Tests.csproj" />
     <Project Path="tests/Configlue.Hosting.Godot.Smoke/Configlue.Hosting.Godot.Smoke.csproj" />
     <Project Path="tests/Configlue.Tests.PublicApi/Configlue.Tests.PublicApi.csproj" />

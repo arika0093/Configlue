@@ -44,6 +44,8 @@
     <ProjectReference Include="../../src/resources/Configlue.Resource.Etcd/Configlue.Resource.Etcd.csproj" />
     <ProjectReference Include="../../src/resources/Configlue.Resource.GoogleSecretManager/Configlue.Resource.GoogleSecretManager.csproj" />
     <ProjectReference Include="../../src/basic/Configlue.Testing/Configlue.Testing.csproj" />
+    <ProjectReference Include="../../src/devtools/Configlue.DevTools/Configlue.DevTools.csproj" />
+    <ProjectReference Include="../../src/devtools/Configlue.DevTools.Web/Configlue.DevTools.Web.csproj" />
     <ProjectReference Include="../../src/transformers/Configlue.Transformer.AES/Configlue.Transformer.AES.csproj" />
     <ProjectReference Include="../../src/transformers/Configlue.Transformer.Compression/Configlue.Transformer.Compression.csproj" />
     <ProjectReference Include="../../src/tools/Configlue.Generator/Configlue.Generator.csproj" />

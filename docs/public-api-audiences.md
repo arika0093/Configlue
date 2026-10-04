@@ -110,7 +110,6 @@ with buffering/lifetime requirements, and unnecessary for the canonical
 | `IConfiglueSourceRegistrationSink`, `ConfiglueSourceRegistration`, `ConfiglueSourceSetBuilderMountExtensions` | provider (registration port) | I/C |
 
 ## `Configlue.CompilerServices` (both assemblies)
-
 Generated ABI. CLR-public because generated code lives in consumer assemblies;
 `Never` hides it from hand-written IntelliSense. The `Advanced` subgroup is the
 hand-writable dynamic tooling surface (codecs, routing, diagnostics).
@@ -119,6 +118,24 @@ hand-writable dynamic tooling surface (codecs, routing, diagnostics).
 | --- | --- |
 | `ConfiglueModelOperations<TModel, TFragment>`, `ConfiglueFragmentRegistry<TFragment>`, `ConfiglueModelSchemaRegistry<TModel>`, `ConfiglueModelSchemaCatalog`, `ConfiglueModelDescriptor<TModel>` (Core), `ConfiglueRuntime` (Core), `IConfiglueFacadeModel<TSelf>` (Core), `IConfiglueModel`, `IConfiglueModel<TSelf, TFragment>`, `ConfiglueReferenceEqualityComparer`, `ConfiglueWriteRouting`, `ConfiglueMemberPath`, `ConfiglueDetailsSnapshot`, `ConfigCollectionElementData`, `IConfiglueDetailsRuntime`, `ConfigluePresentMembers.Enumerator` | `Never` |
 | `IConfiglueDynamicFragment`, `IConfiglueOrdinalDynamicFragment`, `IConfiglueDynamicMemberPatch`, `IConfiglueRoutablePatch`, `ConfiglueDynamicFragmentExtensions`, `ConfigluePresentMembers`, `ConfiglueFragmentMember` (in `Configlue`) | `Advanced` |
+
+## `Configlue.DevTools` / `Configlue.DevTools.Web` (`#246`)
+
+Development-only, optional packages outside production graphs. They introduce
+no new namespaces into `Configlue.Abstraction` or `Configlue.Core`, so
+`ApiAudienceOwnershipTests` stays green; the new namespaces are dev-only by
+construction:
+
+| Namespace | Audience |
+| --- | --- |
+| `Configlue.DevTools` | development-only (live-state projections, JSON canonical form) |
+| `Configlue.DevTools.Web` | development-only (loopback host; DI extension lives in `Configlue` for discoverability) |
+
+Rules: no new public inspection API (reuse `GetDetailsAsync` transport,
+diagnostics snapshots/events, `Check()`, edit sessions, schema metadata,
+registries), `#244` redaction enforced in serialized payloads, and PublicApi
+approvals pin the small surface (`Configlue.DevTools.approved.txt`,
+`Configlue.DevTools.Web.approved.txt`).
 
 ## What changed for `#228`
 
