@@ -1943,18 +1943,7 @@ internal sealed class RuntimeWriteCoordinator<TModel, TFragment>
                 );
             }
 
-            var currentComponentRevisions =
-                componentCurrent.Revisions
-                ?? new StateRevisionVector([
-                    new StateRevision(component.Id, componentCurrent.Revision),
-                ]);
-            if (!RuntimeState.HaveSameRevisions(nestedBaseline, currentComponentRevisions))
-            {
-                throw RuntimeState.NewConflict(
-                    _diagnostics,
-                    $"Component source '{component.Id}' changed while the patch batch was being prepared."
-                );
-            }
+            ValidateCompositeComponentBaseline(nestedBaseline, component, componentCurrent);
 
             var componentFragment = componentCurrent.Status switch
             {
@@ -2102,6 +2091,60 @@ internal sealed class RuntimeWriteCoordinator<TModel, TFragment>
             }
         );
         return;
+    }
+
+    private void ValidateCompositeComponentBaseline(
+        StateRevisionVector nestedBaseline,
+        StateSource<TFragment> component,
+        StateReadResult<TFragment> componentCurrent
+    )
+    {
+        if (!nestedBaseline.TryGetRevision(component.Id, out var expectedRevision))
+        {
+            throw RuntimeState.NewConflict(
+                _diagnostics,
+                $"Component source '{component.Id}' changed while the patch batch was being prepared."
+            );
+        }
+
+        var hasExpectedNested =
+            nestedBaseline.TryGetNestedRevisions(component.Id, out var expectedNested)
+            && expectedNested is not null;
+        var currentNested = componentCurrent.Revisions;
+        if (hasExpectedNested != (currentNested is not null))
+        {
+            throw RuntimeState.NewConflict(
+                _diagnostics,
+                $"Component source '{component.Id}' changed while the patch batch was being prepared."
+            );
+        }
+
+        if (currentNested is not null)
+        {
+            if (
+                !string.Equals(
+                    expectedRevision,
+                    componentCurrent.Revision,
+                    StringComparison.Ordinal
+                ) || !RuntimeState.HaveSameRevisions(expectedNested, currentNested)
+            )
+            {
+                throw RuntimeState.NewConflict(
+                    _diagnostics,
+                    $"Component source '{component.Id}' changed while the patch batch was being prepared."
+                );
+            }
+
+            return;
+        }
+
+        if (!string.Equals(expectedRevision, componentCurrent.Revision, StringComparison.Ordinal))
+        {
+            throw RuntimeState.NewConflict(
+                _diagnostics,
+                $"Component source '{component.Id}' changed while the patch batch was being prepared."
+            );
+        }
     }
 
     internal async ValueTask<StateWritePreview> PreviewWriteAsync(

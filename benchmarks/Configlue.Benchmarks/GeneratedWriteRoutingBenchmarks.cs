@@ -166,22 +166,30 @@ public class GeneratedWriteRoutingBenchmarks
         );
         _routedState = _routedContext.GetState<GeneratedWriteRoutingSettings>();
 
-        var compositeStore = new InMemoryStateSource<GeneratedWriteRoutingSettings.Fragment>(
-            CreateFullSeed()
+        var leftCompositeStore = new InMemoryStateSource<GeneratedWriteRoutingSettings.Fragment>(
+            CreateLeftSeed()
         );
-        // NOTE: a single composite component mirrors the existing composite write tests.
-        // Routing still partitions the generated patch per member route and
-        // PrepareCompositePatchAsync still generates the component patch; a second
-        // component would only add an unrelated revision-baseline failure (see README).
+        var rightCompositeStore = new InMemoryStateSource<GeneratedWriteRoutingSettings.Fragment>(
+            CreateRightSeed()
+        );
         var composite = new CompositeStateSource<GeneratedWriteRoutingSettings.Fragment>(
             new StateSourceSet<GeneratedWriteRoutingSettings.Fragment>([
                 new StateSource<GeneratedWriteRoutingSettings.Fragment>(
-                    "child",
-                    compositeStore,
+                    "left",
+                    leftCompositeStore,
                     new StateSourceOptions<GeneratedWriteRoutingSettings.Fragment>
                     {
-                        Writer = compositeStore,
-                        Watcher = compositeStore,
+                        Writer = leftCompositeStore,
+                        Watcher = leftCompositeStore,
+                    }
+                ),
+                new StateSource<GeneratedWriteRoutingSettings.Fragment>(
+                    "right",
+                    rightCompositeStore,
+                    new StateSourceOptions<GeneratedWriteRoutingSettings.Fragment>
+                    {
+                        Writer = rightCompositeStore,
+                        Watcher = rightCompositeStore,
                     }
                 ),
             ]),
@@ -218,7 +226,7 @@ public class GeneratedWriteRoutingBenchmarks
         await _routedState.SaveAsync(_patch).ConfigureAwait(false);
     }
 
-    [Benchmark(Description = "Composite routed save with in-memory store")]
+    [Benchmark(Description = "Composite routed save with in-memory stores")]
     public async Task SaveCompositeAsync()
     {
         await _compositeState.SaveAsync(_patch).ConfigureAwait(false);
@@ -229,12 +237,12 @@ public class GeneratedWriteRoutingBenchmarks
         var routes = new Dictionary<string, SourceId>(StringComparer.Ordinal);
         foreach (var name in LeftMemberNames)
         {
-            routes[name] = SourceId.From("child");
+            routes[name] = SourceId.From("left");
         }
 
         foreach (var name in RightMemberNames)
         {
-            routes[name] = SourceId.From("child");
+            routes[name] = SourceId.From("right");
         }
 
         return new StateWritePlan(null, routes);
@@ -375,37 +383,6 @@ public class GeneratedWriteRoutingBenchmarks
                 new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)
             ),
             Timeout = Optional<TimeSpan>.Present(TimeSpan.FromSeconds(10)),
-            Name = Optional<string>.Present("seed"),
-        };
-
-    private static GeneratedWriteRoutingSettings.Fragment CreateFullSeed() =>
-        new()
-        {
-            IntCounter = Optional<int>.Present(1),
-            BoolFlag = Optional<bool>.Present(false),
-            LongValue = Optional<long>.Present(42L),
-            DoubleRatio = Optional<double>.Present(0.25),
-            Level = Optional<GeneratedWriteRoutingLevel>.Present(
-                GeneratedWriteRoutingLevel.Information
-            ),
-            Day = Optional<DayOfWeek>.Present(DayOfWeek.Monday),
-            NullableInt = Optional<int?>.Present(3),
-            NullableBool = Optional<bool?>.Present(true),
-            NullableLevel = Optional<GeneratedWriteRoutingLevel?>.Present(
-                GeneratedWriteRoutingLevel.Debug
-            ),
-            RequestId = Optional<Guid>.Present(new Guid("00000000-1111-2222-3333-444444444444")),
-            NullableRequestId = Optional<Guid?>.Present(
-                new Guid("55555555-6666-7777-8888-999999999999")
-            ),
-            Timestamp = Optional<DateTime>.Present(
-                new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)
-            ),
-            NullableTimestamp = Optional<DateTime?>.Present(
-                new DateTime(2025, 12, 31, 0, 0, 0, DateTimeKind.Utc)
-            ),
-            Timeout = Optional<TimeSpan>.Present(TimeSpan.FromSeconds(10)),
-            NullableTimeout = Optional<TimeSpan?>.Present(TimeSpan.FromMinutes(1)),
             Name = Optional<string>.Present("seed"),
         };
 }

@@ -32,9 +32,9 @@ routing paths (plain `Merge`/`ToModel` is intentionally not measured here):
 
 - `RoutePatch`: generated `IConfiglueRoutablePatch.Route` partition, no I/O.
 - `SaveRoutedAsync`: `IWritableState.SaveAsync` through a two-source routed plan.
-- `SaveCompositeAsync`: `IWritableState.SaveAsync` through a `CompositeStateSource`
-  (single `child` component, mirroring the existing composite write tests) so the
-  composite component-patch path runs.
+- `SaveCompositeAsync`: `IWritableState.SaveAsync` through a two-component
+  `CompositeStateSource` (`left`/`right` members split across components) so the
+  composite component-patch path runs on the production multi-component topology.
 
 ```shell
 dotnet run -c Release --project benchmarks/Configlue.Benchmarks -- --filter '*GeneratedWriteRoutingBenchmarks*'
@@ -54,13 +54,6 @@ generated `Route`/`EnumeratePresentMembersFast` path, or box value-type members 
 compare the `Allocated` column: the reverted run allocates an iterator, a materialized
 array, and one box per value-type member on top of the baseline. Restore the generated
 path afterwards.
-
-Known limitation: the composite benchmark uses a single component because saving a patch
-through a two-component `CompositeStateSource` currently fails in
-`PrepareCompositePatchAsync` with `Component source ... changed while the patch batch was
-being prepared` (the composite nested revision vector holds one entry per component while
-the per-component re-read yields one entry, so `HaveSameRevisions` never matches). That
-is unrelated to #170/#211 routing allocations and is left for a separate follow-up.
 
 `NestedWriteRoutingBenchmarks220.cs` (issue #220) extends the #211 1/4/16-member
 coverage with nested routed paths. It uses a root model with two nested objects
