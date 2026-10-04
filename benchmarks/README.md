@@ -1,5 +1,7 @@
 # Benchmarks
 
+The ongoing measurement and optimization audit is recorded in [performance-audit.md](performance-audit.md), including same-machine results, validation, and outstanding coverage.
+
 Run every benchmark in Release mode:
 
 ```shell

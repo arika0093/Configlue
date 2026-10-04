@@ -25,8 +25,6 @@ namespace Configlue.State;
 /// </remarks>
 internal sealed class StateSourceResolver<T> : ISourceReader<T>
 {
-    private static readonly EventId ReadEvent = new(1050, "ResolverSourceRead");
-    private static readonly EventId FallbackEvent = new(1051, "ResolverSourceFallback");
     private static readonly EventId SubjectCacheEvictionEvent = new(
         1052,
         "ResolverSubjectCacheEviction"
@@ -167,12 +165,10 @@ internal sealed class StateSourceResolver<T> : ISourceReader<T>
                 }
 
                 watchTargetCount++;
-                _logger?.LogDebug(
-                    ReadEvent,
-                    "State source {SourceId} returned {ReadStatus}.",
-                    source.Id,
-                    result.Status
-                );
+                if (_logger is { } readLogger)
+                {
+                    ResolverLogging.Read(readLogger, source.Id, result.Status, null);
+                }
                 revisions[revisionCount++] = new StateRevision(source.Id, result.Revision);
                 if (result.Revisions is { } nestedVector)
                 {
@@ -206,16 +202,10 @@ internal sealed class StateSourceResolver<T> : ISourceReader<T>
                 }
 
                 var canFallBack = CanFallBack(source.FallbackCondition, result.Status);
-                _logger?.Log(
-                    result.Status == StateReadStatus.Unavailable
-                        ? LogLevel.Warning
-                        : LogLevel.Debug,
-                    FallbackEvent,
-                    "State source {SourceId} returned {ReadStatus}; fallback {FallbackAction}.",
-                    source.Id,
-                    result.Status,
-                    canFallBack ? "continues" : "stops"
-                );
+                if (_logger is { } fallbackLogger)
+                {
+                    ResolverLogging.Fallback(fallbackLogger, source.Id, result.Status, canFallBack);
+                }
                 if (!canFallBack)
                 {
                     var revisionVector = CreateRevisionVector(
@@ -290,12 +280,10 @@ internal sealed class StateSourceResolver<T> : ISourceReader<T>
         var result = (
             await ReadSourceAsync(source, effectiveContext, cancellationToken).ConfigureAwait(false)
         ).FromSource(source.Id, source.PhysicalOrigin);
-        _logger?.LogDebug(
-            ReadEvent,
-            "State source {SourceId} returned {ReadStatus}.",
-            source.Id,
-            result.Status
-        );
+        if (_logger is { } logger)
+        {
+            ResolverLogging.Read(logger, source.Id, result.Status, null);
+        }
         var revision = new StateRevision(source.Id, result.Revision);
         var revisionVector = StateRevisionVector.FromSingle(revision, result.Revisions);
 
@@ -473,7 +461,10 @@ internal sealed class StateSourceResolver<T> : ISourceReader<T>
         CancellationToken cancellationToken
     )
     {
-        _logger?.LogTrace(ReadEvent, "Reading state source {SourceId}.", source.Id);
+        if (_logger is { } logger)
+        {
+            ResolverLogging.ReadStarted(logger, source.Id, null);
+        }
         try
         {
             return await source.ReadAsync(context, cancellationToken).ConfigureAwait(false);
@@ -486,12 +477,15 @@ internal sealed class StateSourceResolver<T> : ISourceReader<T>
 #pragma warning disable S2139
         catch (Exception exception)
         {
-            _logger?.LogError(
-                ReadEvent,
-                "Reading state source {SourceId} failed ({ErrorCategory}).",
-                source.Id,
-                exception.GetType().FullName
-            );
+            if (_logger is { } errorLogger && errorLogger.IsEnabled(LogLevel.Error))
+            {
+                ResolverLogging.ReadFailed(
+                    errorLogger,
+                    source.Id,
+                    exception.GetType().FullName,
+                    null
+                );
+            }
             throw;
         }
 #pragma warning restore S2139

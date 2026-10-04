@@ -41,6 +41,18 @@ internal sealed class RuntimeValidationPipeline<TModel, TFragment>
 
     internal void Validate(TModel value)
     {
+        if (
+            _validators.Length == 0
+            && (
+                !_validateDataAnnotations
+                || !ConfiglueRuntimeCapabilities.IsDynamicCodeSupported
+                || !HasValidationMetadata(value.GetType())
+            )
+        )
+        {
+            return;
+        }
+
         var failures = new List<string>();
         CollectValidationFailures(value, failures);
         if (failures.Count > 0)
@@ -110,6 +122,11 @@ internal sealed class RuntimeValidationPipeline<TModel, TFragment>
         TFragment defaultsFragment
     )
     {
+        if (_validators.Length == 0 && !_validateDataAnnotations)
+        {
+            return;
+        }
+
         var failures = new List<string>();
         var contributionModel = RuntimeModel<TModel, TFragment>.FromFragment(
             defaultsFragment.Merge(fragment)
@@ -137,12 +154,19 @@ internal sealed class RuntimeValidationPipeline<TModel, TFragment>
         }
 
         SanitizeFailures(failures, contributionModel);
-        throw new ConfiglueValidationException(
+        throw CreateContributionValidationException(source, failures);
+    }
+
+    // Isolate the capturing failure formatter so successful validation never allocates its closure.
+    private ConfiglueValidationException CreateContributionValidationException(
+        StateSource<TFragment> source,
+        List<string> failures
+    ) =>
+        new(
             _stateName,
             typeof(TModel),
             failures.Select(failure => $"Source '{source.Id}': {failure}")
         );
-    }
 
     internal IConfiglueFragment PruneInvalidMembers(
         StateSource<TFragment> source,
@@ -150,6 +174,15 @@ internal sealed class RuntimeValidationPipeline<TModel, TFragment>
         TFragment defaultsFragment
     )
     {
+        if (
+            !_validateDataAnnotations
+            || !ConfiglueRuntimeCapabilities.IsDynamicCodeSupported
+            || !HasMemberValidationMetadata(fragment.Schema)
+        )
+        {
+            return fragment;
+        }
+
         var failures = new List<string>();
         object? container = null;
         if (
@@ -289,10 +322,15 @@ internal sealed class RuntimeValidationPipeline<TModel, TFragment>
     }
 
     private static bool HasMemberValidationMetadata(ConfiglueModelSchema schema) =>
-        RuntimeValidationCaches.MemberValidationMetadata.GetOrAdd(
+        RuntimeValidationCaches.MemberValidationMetadata.TryGetValue(
             schema.ModelType,
-            _ => HasMemberValidationMetadata(schema, [])
-        );
+            out var cached
+        )
+            ? cached
+            : RuntimeValidationCaches.MemberValidationMetadata.GetOrAdd(
+                schema.ModelType,
+                HasMemberValidationMetadata(schema, [])
+            );
 
     [UnconditionalSuppressMessage(
         "Trimming",
@@ -656,7 +694,10 @@ internal static class ConfiglueMemberValidationAttributeCache
         Type modelType,
         ConfiglueModelSchema schema,
         Func<ConfiglueModelSchema, IReadOnlyDictionary<int, ValidationAttribute[]>> factory
-    ) => ById.GetOrAdd(modelType, _ => factory(schema));
+    ) =>
+        ById.TryGetValue(modelType, out var cached)
+            ? cached
+            : ById.GetOrAdd(modelType, factory(schema));
 }
 
 internal static class ConfiglueRuntimeCapabilities
