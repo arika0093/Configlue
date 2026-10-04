@@ -371,6 +371,8 @@ public sealed class ConfiglueDevToolsWebHost : IAsyncDisposable, IDisposable
             string.Equals(path, "/api/state", StringComparison.Ordinal)
             || string.Equals(path, "/api/schema", StringComparison.Ordinal)
             || string.Equals(path, "/api/diagnostics", StringComparison.Ordinal)
+            || string.Equals(path, "/api/stats", StringComparison.Ordinal)
+            || string.Equals(path, "/api/events", StringComparison.Ordinal)
             || string.Equals(path, "/api/check", StringComparison.Ordinal)
             || string.Equals(path, "/api/viewer", StringComparison.Ordinal)
             || string.Equals(path, "/api/viewer-schema", StringComparison.Ordinal)
@@ -605,6 +607,55 @@ public sealed class ConfiglueDevToolsWebHost : IAsyncDisposable, IDisposable
                     return;
                 }
 
+                if (string.Equals(path, "/api/stats", StringComparison.Ordinal))
+                {
+                    if (!string.Equals(request.Method, "GET", StringComparison.OrdinalIgnoreCase))
+                    {
+                        await WriteMethodNotAllowedAsync(stream, cancellationToken)
+                            .ConfigureAwait(false);
+                        return;
+                    }
+
+                    // Value/provenance statistics from the current details snapshot.
+                    // Same resolution read as GetDetailsAsync(); never runs Check().
+                    var stats = await entry
+                        .GetStatsJsonAsync(cancellationToken)
+                        .ConfigureAwait(false);
+                    await WriteResponseAsync(
+                            stream,
+                            200,
+                            "application/json; charset=utf-8",
+                            stats,
+                            cancellationToken
+                        )
+                        .ConfigureAwait(false);
+                    return;
+                }
+
+                if (string.Equals(path, "/api/events", StringComparison.Ordinal))
+                {
+                    if (!string.Equals(request.Method, "GET", StringComparison.OrdinalIgnoreCase))
+                    {
+                        await WriteMethodNotAllowedAsync(stream, cancellationToken)
+                            .ConfigureAwait(false);
+                        return;
+                    }
+
+                    // Bounded cached timeline; no source reads and never runs Check().
+                    var events = await entry
+                        .GetEventsJsonAsync(cancellationToken)
+                        .ConfigureAwait(false);
+                    await WriteResponseAsync(
+                            stream,
+                            200,
+                            "application/json; charset=utf-8",
+                            events,
+                            cancellationToken
+                        )
+                        .ConfigureAwait(false);
+                    return;
+                }
+
                 // /api/save — the only mutating endpoint. Semantic edit-session save only.
                 if (!string.Equals(request.Method, "POST", StringComparison.OrdinalIgnoreCase))
                 {
@@ -725,6 +776,10 @@ public sealed class ConfiglueDevToolsWebHost : IAsyncDisposable, IDisposable
             <div class="row tabs"><button id="tabState">State JSON</button><button id="tabDiagnostics">Diagnostics</button><button id="tabSchema">Schema</button></div>
             <div class="row"><textarea id="editor" spellcheck="false" placeholder="State JSON appears here. Plain fallback view; the BlazorMonaco effective-state viewer (ConfiglueEffectiveStateViewer) is available for Blazor Server UI."></textarea></div>
             <div class="row"><button id="save">Save (edit session)</button> <button id="discard">Discard</button> <button id="check">Run check</button> <span id="status"></span></div>
+            <div class="row tabs"><button id="tabState">State JSON</button><button id="tabDiagnostics">Diagnostics</button><button id="tabStats">Statistics</button><button id="tabEvents">Recent activity</button><button id="tabSchema">Schema</button></div>
+            <div class="row"><small>Cached diagnostics/statistics never run an active check. Checks are explicit (may do remote I/O). Refresh by re-clicking a tab; there is no polling.</small></div>
+            <div class="row"><textarea id="editor" spellcheck="false" placeholder="State JSON appears here. Plain textarea for now; Monaco is a follow-up."></textarea></div>
+            <div class="row"><button id="save">Save (edit session)</button> <button id="discard">Discard</button> <button id="check">Run check (explicit)</button> <span id="status"></span></div>
             <div class="row"><pre id="output"></pre></div>
             <script>
             """
@@ -765,7 +820,17 @@ public sealed class ConfiglueDevToolsWebHost : IAsyncDisposable, IDisposable
             async function showDiagnostics() {
               const c = current();
               const res = await fetch('/api/diagnostics?model=' + encodeURIComponent(c.model) + '&name=' + encodeURIComponent(c.name) + '&token=' + encodeURIComponent(token), { headers: headers() });
-              output.textContent = await res.text();
+              output.textContent = 'Cached status (no active check) ' + new Date().toISOString() + '\n' + await res.text();
+            }
+            async function showStats() {
+              const c = current();
+              const res = await fetch('/api/stats?model=' + encodeURIComponent(c.model) + '&name=' + encodeURIComponent(c.name) + '&token=' + encodeURIComponent(token), { headers: headers() });
+              output.textContent = 'Value/provenance statistics (leaf = scalar or one whole collection; no values) ' + new Date().toISOString() + '\n' + await res.text();
+            }
+            async function showEvents() {
+              const c = current();
+              const res = await fetch('/api/events?model=' + encodeURIComponent(c.model) + '&name=' + encodeURIComponent(c.name) + '&token=' + encodeURIComponent(token), { headers: headers() });
+              output.textContent = 'Recent activity, bounded to 50 (empty when history disabled) ' + new Date().toISOString() + '\n' + await res.text();
             }
             async function showSchema() {
               const c = current();
@@ -775,12 +840,14 @@ public sealed class ConfiglueDevToolsWebHost : IAsyncDisposable, IDisposable
             document.getElementById('discard').onclick = loadState;
             document.getElementById('tabState').onclick = loadState;
             document.getElementById('tabDiagnostics').onclick = showDiagnostics;
+            document.getElementById('tabStats').onclick = showStats;
+            document.getElementById('tabEvents').onclick = showEvents;
             document.getElementById('tabSchema').onclick = showSchema;
             statesEl.onchange = loadState;
             document.getElementById('check').onclick = async () => {
               const c = current();
               const res = await fetch('/api/check?model=' + encodeURIComponent(c.model) + '&name=' + encodeURIComponent(c.name) + '&token=' + encodeURIComponent(token), { method: 'POST', headers: headers() });
-              output.textContent = await res.text();
+              output.textContent = 'Last active check (explicit, may do I/O) ' + new Date().toISOString() + '\n' + await res.text();
             };
             document.getElementById('save').onclick = async () => {
               const c = current();

@@ -20,7 +20,24 @@ internal interface IConfiglueDevToolsEntry
 
     string GetSchemaJson();
 
+    /// <summary>
+    /// Returns cached topology + runtime snapshots without source reads or checks.
+    /// Never triggers <c>Check()</c>; safe to call on tab open.
+    /// </summary>
     ValueTask<string> GetDiagnosticsJsonAsync(CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Returns value/provenance statistics from one details snapshot.
+    /// Performs the same resolution read as <c>GetDetailsAsync()</c> but never
+    /// triggers <c>Check()</c>. Counts only; never emits values.
+    /// </summary>
+    ValueTask<string> GetStatsJsonAsync(CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Returns the bounded recent-event timeline from cached history.
+    /// No source reads and never triggers <c>Check()</c>.
+    /// </summary>
+    ValueTask<string> GetEventsJsonAsync(CancellationToken cancellationToken);
 
     ValueTask<string> RunCheckAsync(CancellationToken cancellationToken);
 
@@ -111,39 +128,71 @@ internal sealed class ConfiglueDevToolsEntry<TModel> : IConfiglueDevToolsEntry
         var diagnostics = (IConfiglueDiagnostics<TModel>)_state;
         var topology = diagnostics.GetDiagnostics();
         var runtime = diagnostics.GetRuntimeSnapshot();
+        var recent = diagnostics.GetRecentEvents();
         var payload = new
         {
-            stateName = topology.StateName,
-            modelId = runtime.ModelId,
-            modelVersion = runtime.ModelVersion,
+            state = new
+            {
+                modelId = runtime.ModelId,
+                modelVersion = runtime.ModelVersion,
+                stateName = topology.StateName,
+                subject = DescribeSubject(runtime.LastResolution?.SubjectKey),
+                lastResolution = DescribeEvent(runtime.LastResolution),
+                lastReload = DescribeEvent(runtime.LastReload),
+                lastWrite = DescribeEvent(runtime.LastWrite),
+                lastMigration = DescribeEvent(runtime.LastMigration),
+                validation = DescribeValidation(recent, runtime.LastResolution),
+            },
             defaultWriteSourceId = topology.DefaultWriteSourceId?.ToString(),
             defaultWriteSourceIsInferred = topology.DefaultWriteSourceIsInferred,
-            sources = topology.Sources.Select(static source => new
-            {
-                id = source.Id.ToString(),
-                priority = source.Priority,
-                canRead = source.CanRead,
-                canWrite = source.CanWrite,
-                canWatch = source.CanWatch,
-                isActive = source.IsActive,
-                physicalOrigin = source.PhysicalOrigin,
-            }),
-            runtimeSources = runtime.Sources.Select(static source => new
-            {
-                id = source.Id.ToString(),
-                kind = source.Kind,
-                isActive = source.IsActive,
-                canRead = source.CanRead,
-                canWrite = source.CanWrite,
-                canWatch = source.CanWatch,
-                isWatching = source.IsWatching,
-                lastSuccessfulRead = source.LastSuccessfulRead,
-                lastWatchSignal = source.LastWatchSignal,
-            }),
-            lastResolution = runtime.LastResolution?.Kind.ToString(),
-            lastReload = runtime.LastReload?.Kind.ToString(),
-            lastWrite = runtime.LastWrite?.Kind.ToString(),
-            lastMigration = runtime.LastMigration?.Kind.ToString(),
+            sources = DescribeSources(topology, runtime),
+            cachedNote = "Cached status only; no active Check() was run.",
+        };
+        return new ValueTask<string>(
+            JsonSerializer.Serialize(payload, ConfiglueDevToolsJson.Options)
+        );
+    }
+
+    public async ValueTask<string> GetStatsJsonAsync(CancellationToken cancellationToken)
+    {
+        var runtime = (IConfiglueDetailsRuntime)_state;
+        var snapshot = await runtime
+            .GetDetailsSnapshotAsync(cancellationToken)
+            .ConfigureAwait(false);
+        return ConfiglueDevToolsStats.ComputeStatsJson(snapshot);
+    }
+
+    public ValueTask<string> GetEventsJsonAsync(CancellationToken cancellationToken)
+    {
+        _ = cancellationToken;
+        var diagnostics = (IConfiglueDiagnostics<TModel>)_state;
+        var recent = diagnostics.GetRecentEvents();
+        const int maxEvents = 50;
+        var window =
+            recent.Count <= maxEvents ? recent : recent.Skip(recent.Count - maxEvents).ToArray();
+        var payload = new
+        {
+            maxBound = maxEvents,
+            totalRetained = recent.Count,
+            returned = window.Count,
+            historyEnabledNote = "Empty when EventHistoryCapacity is zero (default).",
+            events = window
+                .Select(static item => new
+                {
+                    sequence = item.Sequence,
+                    timestamp = item.Timestamp,
+                    kind = item.Kind.ToString(),
+                    stateName = item.StateName,
+                    subject = DescribeSubject(item.SubjectKey),
+                    sourceId = item.SourceId?.ToString(),
+                    sourceKind = item.SourceKind,
+                    readStatus = item.ReadStatus?.ToString(),
+                    hasRevision = item.HasRevision,
+                    errorCategory = item.ErrorCategory,
+                    canceled = item.Canceled,
+                    effectiveValueChanged = item.EffectiveValueChanged,
+                })
+                .ToArray(),
         };
         return new ValueTask<string>(
             JsonSerializer.Serialize(payload, ConfiglueDevToolsJson.Options)
@@ -299,6 +348,101 @@ internal sealed class ConfiglueDevToolsEntry<TModel> : IConfiglueDevToolsEntry
                 _viewerHashes.Remove(oldest);
             }
         }
+    private static string DescribeSubject(SubjectKey? key) =>
+        key is null || key.Value.IsDefault ? "default" : key.Value.Value;
+
+    private static object? DescribeEvent(ConfiglueDiagnosticEvent? item) =>
+        item is null
+            ? null
+            : new
+            {
+                kind = item.Value.Kind.ToString(),
+                timestamp = item.Value.Timestamp,
+                readStatus = item.Value.ReadStatus?.ToString(),
+                hasRevision = item.Value.HasRevision,
+                errorCategory = item.Value.ErrorCategory,
+                canceled = item.Value.Canceled,
+            };
+
+    private static object DescribeValidation(
+        IReadOnlyList<ConfiglueDiagnosticEvent> recent,
+        ConfiglueDiagnosticEvent? lastResolution
+    )
+    {
+        ConfiglueDiagnosticEvent? lastFailure = null;
+        foreach (var item in recent)
+        {
+            if (item.Kind == ConfiglueDiagnosticEventKind.ValidationFailed)
+            {
+                lastFailure = item;
+            }
+        }
+
+        if (lastFailure is not null)
+        {
+            return new
+            {
+                status = "Failed",
+                lastFailureTimestamp = (DateTimeOffset?)lastFailure.Value.Timestamp,
+                lastFailureError = lastFailure.Value.ErrorCategory,
+            };
+        }
+
+        return new
+        {
+            status = lastResolution is not null ? "Ok" : "Unknown",
+            lastFailureTimestamp = (DateTimeOffset?)null,
+            lastFailureError = (string?)null,
+        };
+    }
+
+    private static object[] DescribeSources(
+        ConfiglueStateDiagnostics topology,
+        ConfiglueRuntimeDiagnosticSnapshot runtime
+    )
+    {
+        var runtimeById = new Dictionary<string, ConfiglueRuntimeSourceSnapshot>(
+            StringComparer.Ordinal
+        );
+        foreach (var source in runtime.Sources)
+        {
+            runtimeById[source.Id.ToString()] = source;
+        }
+
+        var rows = new List<object>(topology.Sources.Count);
+        var order = 0;
+        foreach (var source in topology.Sources)
+        {
+            runtimeById.TryGetValue(source.Id.ToString(), out var observed);
+            var hasObserved = runtimeById.ContainsKey(source.Id.ToString());
+            rows.Add(
+                new
+                {
+                    id = source.Id.ToString(),
+                    order,
+                    priority = source.Priority,
+                    canRead = source.CanRead,
+                    canWrite = source.CanWrite,
+                    canWatch = source.CanWatch,
+                    isActive = source.IsActive,
+                    physicalOrigin = source.PhysicalOrigin,
+                    kind = hasObserved ? observed.Kind : (string?)null,
+                    isWatching = hasObserved && observed.IsWatching,
+                    lastSuccessfulRead = hasObserved
+                        ? observed.LastSuccessfulRead
+                        : (DateTimeOffset?)null,
+                    lastWatchSignal = hasObserved
+                        ? observed.LastWatchSignal
+                        : (DateTimeOffset?)null,
+                    lastRead = hasObserved ? DescribeEvent(observed.LastRead) : null,
+                    revisionPresent = hasObserved && (observed.LastRead?.HasRevision == true),
+                    lastError = hasObserved ? observed.LastRead?.ErrorCategory : null,
+                }
+            );
+            order++;
+        }
+
+        return rows.ToArray();
     }
 }
 
@@ -344,6 +488,12 @@ internal sealed class ConfiglueDevToolsRegistryEntry<TModel> : IConfiglueDevTool
 
     public ValueTask<string> GetDiagnosticsJsonAsync(CancellationToken cancellationToken) =>
         Bound().GetDiagnosticsJsonAsync(cancellationToken);
+
+    public ValueTask<string> GetStatsJsonAsync(CancellationToken cancellationToken) =>
+        Bound().GetStatsJsonAsync(cancellationToken);
+
+    public ValueTask<string> GetEventsJsonAsync(CancellationToken cancellationToken) =>
+        Bound().GetEventsJsonAsync(cancellationToken);
 
     public ValueTask<string> RunCheckAsync(CancellationToken cancellationToken) =>
         Bound().RunCheckAsync(cancellationToken);

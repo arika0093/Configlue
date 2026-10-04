@@ -160,6 +160,37 @@ The browser surface has two layers:
 
 There is intentionally no form framework, theme/plugin system, per-type editor
 framework, production operator console, or source administration UI.
+The first UI is deliberately small: a state/model selector, a plain
+`<textarea>` JSON editor (Monaco arrives in a follow-up; no Monaco dependency
+today), a diagnostics/statistics tab, schema view, check runner,
+save/discard, and a development-tooling banner. There is intentionally no
+form framework, theme/plugin system, per-type editor framework, production
+operator console, or source administration UI.
+
+### Diagnostics / statistics tab (secondary)
+
+The tab summarizes existing runtime data only; it introduces no new
+inspection model or instrumentation:
+
+- State: model id/version, state name, active subject where safe
+  (opaque key, `default` for server-wide), last resolution/reload/write,
+  and validation status from cached events.
+- Sources: per-source kind/display name, priority/order, read/write/watch
+  capabilities, cached read status, watcher state, revision presence
+  (never values), last error category, plus an explicit **Run check**
+  action. Active checks never run on tab open.
+- Value/provenance statistics from the current details snapshot:
+  leaf counts (a leaf is one scalar member or one whole collection;
+  nested objects expand and are never counted), per-source effective
+  ownership, editable vs read-only vs shadowed vs no-target, secret
+  counts without values, shadowed contributions (model defaults excluded),
+  and missing/unavailable/invalid tallies.
+- Recent activity: a bounded table (last 50) from `#65` events when
+  enabled; empty when `EventHistoryCapacity` is zero. No polling;
+  refresh by re-clicking a tab, which re-reads cached snapshots.
+
+Secret values and sensitive metadata stay redacted per `#244`;
+the tab counts secrets but never reveals values.
 
 ## Compatibility
 
@@ -180,4 +211,9 @@ nesting/collections/nulls/naming, range mapping, source annotation, shadowed
 hover, read-only markers, schema setup, runtime markers, redaction, watch
 updates, no source-syntax leak, and no full-document traffic for
 decoration-only updates.
+Diagnostics/statistics assertions additionally cover ownership/editability/
+secret/shadowed counts, topology rendering, explicit checks only, no source
+reads from cached diagnostics/events endpoints, bounded recent events,
+refresh after writes, and redaction across diagnostics/stats/events/check
+payloads.
 Fakes only; no real browser is required.
