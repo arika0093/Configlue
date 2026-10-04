@@ -13,7 +13,7 @@ using Configlue.Provider.Json;
 using Configlue.Provider.MessagePack;
 using Configlue.Provider.Xml;
 using Configlue.Provider.Yaml;
-using Configlue.Resource.Http;
+using Configlue.Source.Http;
 using Configlue.Resource.Redis;
 using Configlue.Resource.S3;
 using Configlue.Resource.Zip;
@@ -302,7 +302,7 @@ public sealed class PublicApiCheckTest
         );
 
     [Test]
-    public void Http() => PublicApiCheck.Check<HttpResourceReader>();
+    public void HttpState() => PublicApiCheck.Check<HttpStateSourceOptions>();
 
     [Test]
     public void AspNetCoreHost() =>

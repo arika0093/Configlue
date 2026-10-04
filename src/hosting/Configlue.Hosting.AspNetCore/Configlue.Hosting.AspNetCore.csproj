@@ -4,12 +4,12 @@
     <AssemblyName>Configlue.Hosting.AspNetCore</AssemblyName>
     <RootNamespace>Configlue.Hosting.AspNetCore</RootNamespace>
     <IsPackable>true</IsPackable>
-    <PackageDescription>ASP.NET Core host integration for Configlue: per-subject state from the current request and HTTP resource endpoints.</PackageDescription>
+    <PackageDescription>ASP.NET Core host integration for Configlue: per-subject state from the current request and typed State HTTP endpoints.</PackageDescription>
   </PropertyGroup>
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <ProjectReference Include="../../basic/Configlue.Core/Configlue.Core.csproj" />
     <ProjectReference Include="../../extensions/Configlue.Extensions.DI/Configlue.Extensions.DI.csproj" />
-    <ProjectReference Include="../../resources/Configlue.Resource.Http/Configlue.Resource.Http.csproj" />
+    <ProjectReference Include="../../providers/Configlue.Provider.Json/Configlue.Provider.Json.csproj" />
   </ItemGroup>
 </Project>

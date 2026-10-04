@@ -33,7 +33,7 @@ declare -A portable_package_assets=(
     [Configlue.Provider.Yaml]="netstandard2.0 netstandard2.1 net10.0"
     [Configlue.Source.Environment]="netstandard2.0 netstandard2.1 net10.0"
     [Configlue.Source.CommandLine]="netstandard2.0 netstandard2.1 net10.0"
-    [Configlue.Resource.Http]="netstandard2.0 netstandard2.1 net10.0"
+    [Configlue.Source.Http]="netstandard2.0 netstandard2.1 net10.0"
     [Configlue.Resource.Redis]="netstandard2.0 netstandard2.1 net10.0"
     [Configlue.Resource.S3]="netstandard2.0 netstandard2.1 net10.0"
 )

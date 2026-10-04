@@ -1182,9 +1182,10 @@ namespace Configlue.State
         public static Configlue.State.RevisionCondition FromRevision(string? revision) { }
         public static Configlue.State.RevisionCondition Match(string revision) { }
     }
-    public sealed class StateConflictException : System.Exception
+    public class StateConflictException : System.Exception
     {
         public StateConflictException(string message) { }
+        protected StateConflictException(string message, System.Exception innerException) { }
     }
     public readonly struct StateReadResult<T> : System.IEquatable<Configlue.State.StateReadResult<T>>
     {

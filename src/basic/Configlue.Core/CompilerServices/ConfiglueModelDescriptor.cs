@@ -38,16 +38,31 @@ public sealed class ConfiglueModelDescriptor<TModel>
             StateSource<ConfiglueProfileCatalog>,
             string,
             IConfiglueProfiledState<TModel>
-        > createProfiles
+        > createProfiles,
+        Type fragmentType,
+        Func<object, object> toFragmentBoxed,
+        Func<object, object> fromFragmentBoxed
     )
     {
         Schema = schema;
         CreateRuntime = createRuntime;
         CreateProfiles = createProfiles;
+        FragmentType = fragmentType;
+        ToFragmentBoxed = toFragmentBoxed;
+        FromFragmentBoxed = fromFragmentBoxed;
     }
 
     /// <summary>Generated model schema.</summary>
     public ConfiglueModelSchema Schema { get; }
+
+    /// <summary>The generated fragment CLR type for this model.</summary>
+    public Type FragmentType { get; }
+
+    /// <summary>Converts a boxed model value to its boxed complete fragment.</summary>
+    public Func<object, object> ToFragmentBoxed { get; }
+
+    /// <summary>Converts a boxed complete fragment to its boxed model value.</summary>
+    public Func<object, object> FromFragmentBoxed { get; }
 
     /// <summary>Gets the descriptor registered by generated model code.</summary>
     public static ConfiglueModelDescriptor<TModel> Current =>
@@ -99,6 +114,9 @@ public static class ConfiglueRuntime
         ArgumentNullException.ThrowIfNull(operations);
         ConfiglueModelOperations<TModel, TFragment>.Register(operations);
         var schema = operations.Schema;
+        Func<object, object> toFragmentBoxed = model => operations.ToFragment((TModel)model);
+        Func<object, object> fromFragmentBoxed = fragment =>
+            operations.FromFragment((TFragment)fragment);
         return new ConfiglueModelDescriptor<TModel>(
             schema,
             (configuration, services, ownResource) =>
@@ -117,7 +135,10 @@ public static class ConfiglueRuntime
                     configuration.Diagnostics
                 ),
             static (registry, catalog, name) =>
-                new ConfiglueProfiledState<TModel, TFragment>(registry, catalog, name)
+                new ConfiglueProfiledState<TModel, TFragment>(registry, catalog, name),
+            typeof(TFragment),
+            toFragmentBoxed,
+            fromFragmentBoxed
         );
     }
 }

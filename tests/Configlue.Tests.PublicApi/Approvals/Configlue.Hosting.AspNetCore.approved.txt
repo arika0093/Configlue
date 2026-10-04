@@ -1,6 +1,23 @@
 [assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/arika0093/Configlue")]
 namespace Configlue.Hosting.AspNetCore
 {
+    public sealed class ConfiglueStateEndpointOptions
+    {
+        public ConfiglueStateEndpointOptions() { }
+        public string EventsPath { get; init; }
+        public bool MapEvents { get; init; }
+        public bool MapRead { get; init; }
+        public bool MapWrite { get; init; }
+        public long? MaximumRequestBodySize { get; init; }
+        public string ReadPath { get; init; }
+        public System.Text.Json.JsonSerializerOptions? SerializerOptions { get; init; }
+        public string WritePath { get; init; }
+    }
+    public static class ConfiglueStateEndpointRouteBuilderExtensions
+    {
+        public static Microsoft.AspNetCore.Routing.RouteGroupBuilder MapConfiglueState<TModel>(this Microsoft.AspNetCore.Routing.IEndpointRouteBuilder endpoints, string pattern, Configlue.Hosting.AspNetCore.ConfiglueStateEndpointOptions? options = null)
+            where TModel : Configlue.CompilerServices.IConfiglueFacadeModel<TModel> { }
+    }
     public static class HttpContextConfiglueSubjectAccessorServiceCollectionExtensions
     {
         public static Microsoft.Extensions.DependencyInjection.IServiceCollection AddHttpContextConfiglueSubjectAccessor<TSubject>(this Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Func<Microsoft.AspNetCore.Http.HttpContext, TSubject> resolveSubject)
@@ -21,19 +38,5 @@ namespace Configlue.Hosting.AspNetCore
             where TSubject : Configlue.IConfiglueSubject { }
         public static Configlue.ConfiglueSubjectRegistrationBuilder<TSubject> FromHttpContext<TSubject>(this Configlue.ConfiglueSubjectRegistrationBuilder<TSubject> builder, System.Func<Microsoft.AspNetCore.Http.HttpContext, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<TSubject>> resolveSubject)
             where TSubject : Configlue.IConfiglueSubject { }
-    }
-    public sealed class HttpResourceEndpointOptions
-    {
-        public HttpResourceEndpointOptions() { }
-        public string ContentType { get; init; }
-        public string GetPath { get; init; }
-        public long? MaximumRequestBodySize { get; init; }
-        public bool RequireAuthorization { get; init; }
-        public System.Func<Microsoft.AspNetCore.Http.HttpContext, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<Configlue.Resources.ConfiglueResourceContext>>? ResourceContextResolver { get; init; }
-        public string UpdatePath { get; init; }
-    }
-    public static class HttpResourceEndpointRouteBuilderExtensions
-    {
-        public static Microsoft.AspNetCore.Routing.RouteGroupBuilder MapConfiglueHttpResource(this Microsoft.AspNetCore.Routing.IEndpointRouteBuilder endpoints, string routeRoot, Configlue.Resources.IResourceReader reader, Configlue.Resources.IResourceWriter? writer = null, Configlue.Hosting.AspNetCore.HttpResourceEndpointOptions? options = null) { }
     }
 }

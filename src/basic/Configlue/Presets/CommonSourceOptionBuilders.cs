@@ -1,7 +1,7 @@
 using System.Text.Json;
 using Configlue.Provider.Json;
-using Configlue.Resource.Http;
 using Configlue.Source.Environment;
+using Configlue.Source.Http;
 
 namespace Configlue.Source.Presets;
 
@@ -92,9 +92,7 @@ public sealed class CommonHttpSourceBuilder
     private readonly Func<IServiceProvider?, HttpClient>? _clientFactory;
     private readonly string _id;
     private JsonSerializerOptions? _serializerOptions;
-    private HttpResourceOptions? _resourceOptions;
     private StateFallbackCondition _fallbackCondition = StateFallbackCondition.NotFound;
-    private readonly List<IStateByteTransformer> _transformers = [];
 
     internal CommonHttpSourceBuilder(
         CommonSourceBuilder.SourceDeclaration declaration,
@@ -134,31 +132,11 @@ public sealed class CommonHttpSourceBuilder
         return this;
     }
 
-    /// <summary>Sets HTTP resource paths and polling behavior.</summary>
-    public CommonHttpSourceBuilder ResourceOptions(HttpResourceOptions options)
-    {
-        _declaration.EnsureMutable();
-        ArgumentNullException.ThrowIfNull(options);
-        _resourceOptions = options;
-        UpdateRegistration();
-        return this;
-    }
-
     /// <summary>Sets which HTTP read statuses allow lower-priority sources to be tried.</summary>
     public CommonHttpSourceBuilder FallbackCondition(StateFallbackCondition fallbackCondition)
     {
         _declaration.EnsureMutable();
         _fallbackCondition = fallbackCondition;
-        UpdateRegistration();
-        return this;
-    }
-
-    /// <summary>Adds a byte transformer to this HTTP source.</summary>
-    public CommonHttpSourceBuilder Transformer(IStateByteTransformer transformer)
-    {
-        _declaration.EnsureMutable();
-        ArgumentNullException.ThrowIfNull(transformer);
-        _transformers.Add(transformer);
         UpdateRegistration();
         return this;
     }
@@ -174,8 +152,8 @@ public sealed class CommonHttpSourceBuilder
     private void UpdateRegistration()
     {
         _declaration.Register = (sources, priority, _) =>
-            sources.FromJsonHttp(
-                new JsonHttpSourceOptions
+            sources.FromHttpState(
+                new HttpStateSourceOptions
                 {
                     Id = _id,
                     EndPoint = _endpoint,
@@ -184,9 +162,7 @@ public sealed class CommonHttpSourceBuilder
                     Priority = priority,
                     FallbackCondition = _fallbackCondition,
                     Writable = false,
-                    ResourceOptions = _resourceOptions,
                     SerializerOptions = _serializerOptions,
-                    Transformers = _transformers.ToArray(),
                 }
             );
     }

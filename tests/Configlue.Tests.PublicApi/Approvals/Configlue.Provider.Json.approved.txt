@@ -12,6 +12,19 @@ namespace Configlue.Migrations
 }
 namespace Configlue.Provider.Json
 {
+    public static class ConfiglueFragmentJson
+    {
+        [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Aot", "IL3050", Justification="The reflection resolver is created only when reflection-based serialization is en" +
+            "abled. NativeAOT applications must supply a source-generated resolver, which byp" +
+            "asses this branch.")]
+        [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2026", Justification="The reflection resolver is created only when reflection-based serialization is en" +
+            "abled. NativeAOT applications must supply a source-generated resolver, which byp" +
+            "asses this branch.")]
+        public static System.Text.Json.JsonSerializerOptions CreateOptions(System.Text.Json.JsonSerializerOptions? options = null) { }
+        public static object Deserialize(System.Type fragmentType, System.ReadOnlyMemory<byte> json, System.Text.Json.JsonSerializerOptions? options = null) { }
+        public static object Deserialize(System.Type fragmentType, System.ReadOnlySpan<byte> json, System.Text.Json.JsonSerializerOptions? options = null) { }
+        public static byte[] SerializeToCanonicalBytes(object fragment, System.Type fragmentType, System.Text.Json.JsonSerializerOptions? options = null) { }
+    }
     public static class ConfiglueJsonFragmentRegistry<TFragment>
         where TFragment :  class, Configlue.IConfiglueFragment<TFragment>
     {

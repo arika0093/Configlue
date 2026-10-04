@@ -16,9 +16,7 @@ namespace Configlue.Source.Presets
     {
         public Configlue.Source.Presets.CommonHttpSourceBuilder FallbackCondition(Configlue.Sources.StateFallbackCondition fallbackCondition) { }
         public Configlue.Source.Presets.CommonHttpSourceBuilder Priority(int priority) { }
-        public Configlue.Source.Presets.CommonHttpSourceBuilder ResourceOptions(Configlue.Resource.Http.HttpResourceOptions options) { }
         public Configlue.Source.Presets.CommonHttpSourceBuilder SerializerOptions(System.Text.Json.JsonSerializerOptions options) { }
-        public Configlue.Source.Presets.CommonHttpSourceBuilder Transformer(Configlue.Transformers.IStateByteTransformer transformer) { }
     }
     public static class CommonSource
     {

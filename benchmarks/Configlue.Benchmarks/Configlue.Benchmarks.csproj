@@ -17,7 +17,6 @@
     <ProjectReference Include="../../src/providers/Configlue.Provider.Xml/Configlue.Provider.Xml.csproj" />
     <ProjectReference Include="../../src/providers/Configlue.Provider.MessagePack/Configlue.Provider.MessagePack.csproj" />
     <ProjectReference Include="../../src/providers/Configlue.Provider.Json/Configlue.Provider.Json.csproj" />
-    <ProjectReference Include="../../src/resources/Configlue.Resource.Http/Configlue.Resource.Http.csproj" />
     <ProjectReference Include="../../src/resources/Configlue.Resource.S3/Configlue.Resource.S3.csproj" />
     <ProjectReference Include="../../src/resources/Configlue.Resource.Redis/Configlue.Resource.Redis.csproj" />
     <ProjectReference Include="../../src/transformers/Configlue.Transformer.AES/Configlue.Transformer.AES.csproj" />

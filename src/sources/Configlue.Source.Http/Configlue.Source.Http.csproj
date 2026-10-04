@@ -1,10 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFrameworks>netstandard2.0;netstandard2.1;net10.0</TargetFrameworks>
-    <AssemblyName>Configlue.Resource.Http</AssemblyName>
-    <RootNamespace>Configlue.Resource.Http</RootNamespace>
+    <AssemblyName>Configlue.Source.Http</AssemblyName>
+    <RootNamespace>Configlue.Source.Http</RootNamespace>
     <IsPackable>true</IsPackable>
-    <PackageDescription>HTTP resources and named IHttpClientFactory source support for Configlue.</PackageDescription>
+    <PackageDescription>Typed State HTTP source for Configlue: read, write, and SSE-backed watching over the Configlue State protocol.</PackageDescription>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../../basic/Configlue.Abstraction/Configlue.Abstraction.csproj" />
@@ -15,5 +15,8 @@
       Version="10.0.12"
     />
     <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.12" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(ConfiglueNetStandard)' == 'true'">
+    <PackageReference Include="System.Text.Json" Version="10.0.0" />
   </ItemGroup>
 </Project>

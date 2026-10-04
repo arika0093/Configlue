@@ -1,0 +1,82 @@
+[assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/arika0093/Configlue")]
+namespace Configlue.Source.Http
+{
+    public class HttpStateException : System.Exception
+    {
+        public HttpStateException(string message) { }
+        public HttpStateException(string message, System.Exception innerException) { }
+    }
+    public sealed class HttpStateForbiddenException : Configlue.Source.Http.HttpStateException
+    {
+        public HttpStateForbiddenException(string message) { }
+    }
+    public sealed class HttpStateReader<TFragment> : Configlue.Resources.IResourceIdentity, Configlue.Sources.ISourceCapabilities<TFragment>, Configlue.Sources.ISourceReader<TFragment>, Configlue.Sources.ISourceWatcher, Configlue.Sources.ISourceWriter<TFragment>
+        where TFragment :  class, Configlue.IConfiglueFragment<TFragment>
+    {
+        public HttpStateReader(System.Net.Http.HttpClient httpClient, System.Uri endpoint, System.Uri eventsEndpoint, System.Text.Json.JsonSerializerOptions? serializerOptions = null, System.TimeSpan? requestTimeout = default, System.TimeSpan? reconnectInitialDelay = default, System.TimeSpan? reconnectMaxDelay = default, bool writable = false, bool watchEnabled = true) { }
+        public System.Uri Endpoint { get; }
+        public System.Uri EventsEndpoint { get; }
+        public Configlue.Sources.ISourceWatcher? Watcher { get; }
+        public Configlue.Sources.ISourceWriter<TFragment>? Writer { get; }
+        public Configlue.Resources.ResourceId GetResourceId(Configlue.Resources.ConfiglueResourceContext context) { }
+        public System.Threading.Tasks.ValueTask<Configlue.State.StateReadResult<TFragment>> ReadAsync(Configlue.Resources.ConfiglueResourceContext context, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask WaitForChangeAsync(Configlue.Resources.ConfiglueResourceContext context, string? observedRevision, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Configlue.State.StateWriteResult> WriteAsync(Configlue.Resources.ConfiglueResourceContext context, Configlue.State.StateWriteRequest<TFragment> request, System.Threading.CancellationToken cancellationToken = default) { }
+    }
+    public sealed class HttpStateRequestException : Configlue.Source.Http.HttpStateException
+    {
+        public HttpStateRequestException(string message) { }
+    }
+    public sealed class HttpStateSourceOptions
+    {
+        public HttpStateSourceOptions() { }
+        public System.Net.Http.HttpClient? Client { get; set; }
+        public System.Func<System.IServiceProvider?, System.Net.Http.HttpClient>? ClientFactory { get; set; }
+        public required string EndPoint { get; set; }
+        public string? EventsEndPoint { get; set; }
+        public Configlue.Sources.StateFallbackCondition FallbackCondition { get; set; }
+        public string? Id { get; set; }
+        public int Priority { get; set; }
+        public System.TimeSpan ReconnectInitialDelay { get; set; }
+        public System.TimeSpan ReconnectMaxDelay { get; set; }
+        public System.TimeSpan RequestTimeout { get; set; }
+        public System.Text.Json.JsonSerializerOptions? SerializerOptions { get; set; }
+        public bool WatchChanges { get; set; }
+        public bool Writable { get; set; }
+    }
+    public static class HttpStateSourceRegistration
+    {
+        public static Configlue.Extensibility.ConfiglueSourceRegistration FromHttpState(this Configlue.ConfiglueSourceSetBuilder sources, Configlue.Source.Http.HttpStateSourceOptions options) { }
+        public static void FromHttpStateClientFactory(this Configlue.ConfiglueSourceSetBuilder sources, string clientName, Configlue.Source.Http.HttpStateSourceOptions options) { }
+        public static void UseHttpState<TModel>(this Configlue.ConfiglueModelBuilder<TModel> model, Configlue.Source.Http.HttpStateSourceOptions options, System.Action<Configlue.Source.Http.HttpStateSourceOptions>? configure = null)
+            where TModel : Configlue.CompilerServices.IConfiglueFacadeModel<TModel> { }
+        public static void UseHttpState<TModel>(this Configlue.ConfiglueModelBuilder<TModel> model, string endpoint, System.Action<Configlue.Source.Http.HttpStateSourceOptions>? configure = null)
+            where TModel : Configlue.CompilerServices.IConfiglueFacadeModel<TModel> { }
+        public static void UseHttpStateClientFactory<TModel>(this Configlue.ConfiglueModelBuilder<TModel> model, string clientName, Configlue.Source.Http.HttpStateSourceOptions options, System.Action<Configlue.Source.Http.HttpStateSourceOptions>? configure = null)
+            where TModel : Configlue.CompilerServices.IConfiglueFacadeModel<TModel> { }
+    }
+    public sealed class HttpStateStaleException : Configlue.State.StateConflictException
+    {
+        public HttpStateStaleException(string message) { }
+    }
+    public sealed class HttpStateUnauthorizedException : Configlue.Source.Http.HttpStateException
+    {
+        public HttpStateUnauthorizedException(string message) { }
+    }
+    public sealed class HttpStateUnavailableException : Configlue.Source.Http.HttpStateException
+    {
+        public HttpStateUnavailableException(string message) { }
+        public HttpStateUnavailableException(string message, System.Exception innerException) { }
+    }
+    public class HttpStateValidationException : Configlue.Source.Http.HttpStateException
+    {
+        public HttpStateValidationException(string message) { }
+        public HttpStateValidationException(string message, System.Collections.Generic.IReadOnlyList<string> failures) { }
+        public System.Collections.Generic.IReadOnlyList<string>? Failures { get; }
+    }
+    public sealed class HttpStateWriteConflictException : Configlue.State.StateConflictException
+    {
+        public HttpStateWriteConflictException(string message) { }
+        public HttpStateWriteConflictException(string message, System.Exception innerException) { }
+    }
+}

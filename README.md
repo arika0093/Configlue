@@ -194,12 +194,19 @@ dotnet add package Configlue
 dotnet add package Configlue.Hosting.AspNetCore
 ```
 
-In addition to the Generic Host features above, you can expose endpoints that read and update user settings over `HTTP`.
+In addition to the Generic Host features above, you can expose the typed effective state over `HTTP`.
 
 ```csharp
-builder.MapConfiglueHttpResource(
-    /* TODO */
-);
+app.MapConfiglueState<AppSettings>("/api/settings");
+```
+
+Clients consume it as a normal Configlue source:
+
+```csharp
+config.Add<AppSettings>(model =>
+    model.UseHttpState(
+        "https://example.com/api/settings",
+        options => options.Writable = true));
 ```
 
 ### Blazor

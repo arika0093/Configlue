@@ -8,7 +8,6 @@ using Configlue.Extensions.MSOptions;
 using Configlue.Provider.Json;
 using Configlue.Provider.Xml;
 using Configlue.Provider.Yaml;
-using Configlue.Resource.Http;
 using Configlue.Source.CommandLine;
 using Configlue.Testing;
 using Microsoft.Extensions.DependencyInjection;

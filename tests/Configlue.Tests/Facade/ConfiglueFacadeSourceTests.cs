@@ -1,15 +1,12 @@
 using System.Buffers;
 using System.CommandLine;
-using System.Net;
 using System.Text;
 using System.Text.Json.Nodes;
 using System.Xml.Linq;
-using Configlue.Codecs;
 using Configlue.Extensions.MSOptions;
 using Configlue.Provider.Json;
 using Configlue.Provider.Xml;
 using Configlue.Provider.Yaml;
-using Configlue.Resource.Http;
 using Configlue.Source.CommandLine;
 using Configlue.Testing;
 using Microsoft.Extensions.DependencyInjection;
@@ -270,44 +267,6 @@ public sealed partial class ConfiglueFacadeSourceTests
         registry.TryGet("failure", out _).ShouldBeFalse();
     }
 
-    private static async Task<ResourceId?> WriteHttpPatchAndGetResourceIdAsync(
-        string endpoint,
-        ResourceId? resourceId
-    )
-    {
-        using var client = new HttpClient(new NoContentHttpHandler());
-        await using var context = ConfiglueApp.CreateContext(builder =>
-        {
-            builder.Add<AppSettings>(model =>
-                model.Sources(sources =>
-                    sources.FromHttp(
-                        new HttpSourceOptions
-                        {
-                            Id = "http-settings",
-                            EndPoint = endpoint,
-                            Client = client,
-                            Codec = StateCodecBinding.Typed(new JsonStateCodec<AppSettings.Fragment>()),
-                            Writable = true,
-                            WatchChanges = false,
-                            FixedResourceId = resourceId,
-                        }
-                    )
-                )
-            );
-        });
-
-        var result = await (
-            (IConfiglueRuntimeState<AppSettings>)context.GetState<AppSettings>()
-        ).ApplyPatchesAsync([
-            new StateSourcePatch(
-                SourceId.From("http-settings"),
-                new AppSettings.Patch { RetryCount = FragmentOperation<int>.Set(2) }
-            ),
-        ]);
-        (result.PhysicalWriteCount).ShouldBe(1);
-        return result.Sources.Single().ResourceId;
-    }
-
     private static async Task WriteFragmentAsync(string path, AppSettings.Fragment fragment)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
@@ -409,72 +368,6 @@ public sealed partial class ConfiglueFacadeSourceTests
             ownResource(resource);
             var store = new InMemoryStateSource<TFragment>();
             return new StateSource<TFragment>("owned-probe", store, writer: store, watcher: store);
-        }
-    }
-
-    private sealed class NoContentHttpHandler : HttpMessageHandler
-    {
-        protected override Task<HttpResponseMessage> SendAsync(
-            HttpRequestMessage request,
-            CancellationToken cancellationToken
-        ) =>
-            Task.FromResult(
-                request.Method == HttpMethod.Get
-                    ? new HttpResponseMessage(HttpStatusCode.NotFound)
-                    : new HttpResponseMessage(HttpStatusCode.NoContent)
-            );
-    }
-
-    private sealed class RecordingHttpHandler(byte[] content) : HttpMessageHandler
-    {
-        public List<HttpMethod> RequestMethods { get; } = [];
-
-        public bool IsDisposed { get; private set; }
-
-        protected override Task<HttpResponseMessage> SendAsync(
-            HttpRequestMessage request,
-            CancellationToken cancellationToken
-        )
-        {
-            RequestMethods.Add(request.Method);
-            return Task.FromResult(
-                request.Method == HttpMethod.Get
-                    ? new HttpResponseMessage(HttpStatusCode.OK)
-                    {
-                        Content = new ByteArrayContent(content),
-                    }
-                    : new HttpResponseMessage(HttpStatusCode.NoContent)
-            );
-        }
-
-        protected override void Dispose(bool disposing)
-        {
-            IsDisposed = true;
-            base.Dispose(disposing);
-        }
-    }
-
-    private sealed class HttpResponseHandler(
-        System.Collections.Concurrent.ConcurrentBag<Uri> requestedUris,
-        byte[] content
-    ) : HttpMessageHandler
-    {
-        protected override Task<HttpResponseMessage> SendAsync(
-            HttpRequestMessage request,
-            CancellationToken cancellationToken
-        )
-        {
-            if (request.RequestUri is { } requestUri)
-            {
-                requestedUris.Add(requestUri);
-            }
-
-            var response = new HttpResponseMessage(HttpStatusCode.OK)
-            {
-                Content = new ByteArrayContent(content),
-            };
-            response.Headers.ETag = new System.Net.Http.Headers.EntityTagHeaderValue("\"v1\"");
-            return Task.FromResult(response);
         }
     }
 }

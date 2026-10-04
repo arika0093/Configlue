@@ -5,7 +5,6 @@ using Configlue.Codecs;
 using Configlue.Extensibility;
 using Configlue.Generator;
 using Configlue.Hosting.Blazor;
-using Configlue.Resource.Http;
 using Configlue.Resource.Redis;
 using Configlue.Resource.S3;
 using Microsoft.CodeAnalysis;
@@ -23,7 +22,6 @@ public sealed class TypedCodecApiTests
             using Configlue.Codecs;
             using Configlue.Extensibility;
             using Configlue.Hosting.Blazor;
-            using Configlue.Resource.Http;
             using Configlue.Resource.Redis;
             using Configlue.Resource.S3;
             using Configlue.Resources;
@@ -35,7 +33,6 @@ public sealed class TypedCodecApiTests
                     var arbitrary = new object();
                     _ = new SerializedSource<string>(resource, arbitrary);
                     _ = SerializedStateSource.FromResource<string>("settings", resource, arbitrary);
-                    _ = new HttpSourceOptions { EndPoint = "https://example.test", Codec = arbitrary };
                     _ = new RedisStateSourceOptions { ResourceNamespace = "settings", Codec = arbitrary };
                     _ = new S3ObjectSourceOptions { BucketName = "bucket", Key = "settings", Codec = arbitrary };
                     _ = new WebStorageSourceOptions { Key = "settings", Codec = arbitrary };
@@ -52,7 +49,7 @@ public sealed class TypedCodecApiTests
         diagnostics
             .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
             .Count(static diagnostic => diagnostic.Id is "CS0029" or "CS0266")
-            .ShouldBeGreaterThanOrEqualTo(4);
+            .ShouldBeGreaterThanOrEqualTo(3);
     }
 
     [Test]
@@ -123,7 +120,6 @@ public sealed class TypedCodecApiTests
         AddReference(builder, seen, typeof(object).Assembly);
         AddReference(builder, seen, typeof(ConfiglueModelAttribute).Assembly);
         AddReference(builder, seen, typeof(SerializedSource<>).Assembly);
-        AddReference(builder, seen, typeof(HttpSourceOptions).Assembly);
         AddReference(builder, seen, typeof(RedisStateSourceOptions).Assembly);
         AddReference(builder, seen, typeof(S3ObjectSourceOptions).Assembly);
         AddReference(builder, seen, typeof(WebStorageSourceOptions).Assembly);
