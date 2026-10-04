@@ -1,6 +1,8 @@
 namespace Configlue;
 
 /// <summary>Convenience helpers for advanced Configlue state operations.</summary>
+/// <remarks>Advanced application API for explicit per-source operations and edit sessions.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public static class ConfiglueStateExtensions
 {
     /// <summary>Gets a handle that saves patches to one source.</summary>

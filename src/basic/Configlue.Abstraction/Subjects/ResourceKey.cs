@@ -3,6 +3,8 @@ using System.Text;
 namespace Configlue;
 
 /// <summary>A canonical, source-specific key that a provider uses to address one resource operation.</summary>
+/// <remarks>Provider SPI vocabulary: ordinary application code never manipulates this type.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public readonly record struct ResourceKey
 {
     private readonly string? _value;

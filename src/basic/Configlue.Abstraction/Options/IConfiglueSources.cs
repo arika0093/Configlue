@@ -1,7 +1,9 @@
 namespace Configlue;
 
 /// <summary>Administers source-local writes and source migrations.</summary>
+/// <remarks>Advanced application API for explicit per-source operations.</remarks>
 /// <typeparam name="T">The configuration model.</typeparam>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public interface IConfiglueSources<T>
 {
     /// <summary>

@@ -10,6 +10,7 @@ namespace Configlue.Resources;
 /// A null resolved schema makes no metadata claim; preserve existing container metadata when
 /// the resource stores it. Conflicting schema declarations must be rejected before writing.
 /// </remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public interface IResourceBatchWriter : IResourceWriter, IResourceIdentity
 {
     /// <summary>Applies the mutations in order and persists the resulting resource once.</summary>
@@ -20,6 +21,8 @@ public interface IResourceBatchWriter : IResourceWriter, IResourceIdentity
 }
 
 /// <summary>Prepares a logical resource view update for its underlying batch-capable physical resource.</summary>
+/// <remarks>Advanced provider SPI for batch-capable resources.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public interface IResourceBatchParticipant
 {
     /// <summary>The physical writer that can combine this update with other disjoint mutations.</summary>

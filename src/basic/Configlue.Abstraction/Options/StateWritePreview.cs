@@ -4,7 +4,9 @@ namespace Configlue;
 /// <remarks>
 /// Computed without mutating any source or resource. A preview is advisory: concurrent changes
 /// between the preview and the subsequent commit can still conflict or reroute the write.
+/// Advanced application API for atomic transports.
 /// </remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public sealed class StateWritePreview
 {
     /// <summary>A preview for a desired model that requires no physical writes.</summary>

@@ -1,6 +1,8 @@
 namespace Configlue.Codecs;
 
 /// <summary>The persisted document structure used by the JSON and YAML state codecs.</summary>
+/// <remarks>Provider codec option.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public enum DocumentLayout
 {
     /// <summary>Stores the schema version inline, such as <c>{ "$version": 1, ... }</c>. No model ID is stored.</summary>
@@ -11,6 +13,8 @@ public enum DocumentLayout
 }
 
 /// <summary>Customizes the persisted document structure for the JSON and YAML state codecs.</summary>
+/// <remarks>Provider codec option.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public sealed class DocumentLayoutOptions
 {
     /// <summary>The layout used when writing documents. Reads accept both layouts.</summary>

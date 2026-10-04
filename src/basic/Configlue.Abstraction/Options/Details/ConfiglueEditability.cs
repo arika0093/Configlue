@@ -1,6 +1,8 @@
 namespace Configlue;
 
 /// <summary>Whether the effective value of a configuration member can be changed through the normal logical save path.</summary>
+/// <remarks>Advanced diagnostics vocabulary.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public enum ConfiglueEditability
 {
     /// <summary>The effective value can currently be changed through the normal logical save path.</summary>

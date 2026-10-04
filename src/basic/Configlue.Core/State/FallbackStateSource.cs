@@ -16,6 +16,8 @@ namespace Configlue.State;
 /// <see cref="StateReadResult{T}.SourceId"/>; selection is context-specific and is not exposed through a
 /// context-free property.
 /// </remarks>
+/// <remarks>Advanced composition SPI: first-available selection over candidate representations.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public sealed class FallbackStateSource<T> : ISourceReader<T>, ISourceWriter<T>, ISourceWatcher
 {
     private readonly StateSourceSet<T> _candidates;
@@ -72,6 +74,7 @@ public sealed class FallbackStateSource<T> : ISourceReader<T>, ISourceWriter<T>,
     /// Creates one logical source for a state source set. The logical source keeps the candidate set as an
     /// alternative representation group rather than merging every candidate as an independent contribution.
     /// </summary>
+    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
     public StateSource<T> CreateSource(
         string id,
         int priority = 0,

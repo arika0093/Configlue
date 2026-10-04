@@ -1,7 +1,9 @@
 namespace Configlue.Resources;
 
 /// <summary>Provides model, application subject, source-specific resource key, and placement route for one operation.</summary>
-/// <remarks>The zero-initialized value is the canonical default context; populated context fields require an explicit subject.</remarks>
+/// <remarks>The zero-initialized value is the canonical default context; populated context fields require an explicit subject.
+/// Provider SPI: flows from the runtime into resource/source implementations. Application code never constructs it.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public readonly record struct ConfiglueResourceContext
 {
     private readonly IConfiglueSubject? _subject;

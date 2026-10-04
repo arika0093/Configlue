@@ -19,7 +19,9 @@ namespace Configlue;
 /// Once ownership selects a source, a write that cannot realize the requested edit because of
 /// higher-priority or read-only contributions fails as a conflict instead of silently choosing
 /// another persistence target.
+/// Advanced vocabulary for explicit write-ownership configuration.
 /// </remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public sealed class StateWritePlanBuilder<TModel>
 {
     private readonly Dictionary<string, SourceId> _routes = new(StringComparer.Ordinal);

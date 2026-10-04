@@ -3,7 +3,9 @@ using System.Buffers;
 namespace Configlue.Migrations;
 
 /// <summary>Decodes historical state fragments and converts them to one current state type.</summary>
+/// <remarks>Advanced provider SPI for schema evolution.</remarks>
 /// <typeparam name="T">The current state value type.</typeparam>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public sealed class StateSchemaDispatcher<T>
 {
     private readonly Dictionary<StateSchemaMetadata, IStateSchemaDispatchEntry<T>> _entries = [];

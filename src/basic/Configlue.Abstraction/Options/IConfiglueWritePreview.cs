@@ -5,7 +5,9 @@ namespace Configlue;
 /// <remarks>
 /// Used by transports with atomicity requirements (such as RFC 5789 PATCH) to reject
 /// multi-resource write plans before the first physical write.
+/// Advanced application API for atomic transports.
 /// </remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public interface IConfiglueWritePreview<T>
 {
     /// <summary>

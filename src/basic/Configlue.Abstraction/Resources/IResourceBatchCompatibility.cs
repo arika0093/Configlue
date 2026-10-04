@@ -30,6 +30,7 @@ namespace Configlue.Resources;
 /// when every mutation contributes the same writer object.
 /// </para>
 /// </remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public interface IResourceBatchCompatibility
 {
     /// <summary>
@@ -43,6 +44,9 @@ public interface IResourceBatchCompatibility
 }
 
 /// <summary>Compares batch writers for compatibility using the <see cref="IResourceBatchCompatibility"/> contract.</summary>
+/// <remarks>Runtime helper: the write pipeline calls this when grouping mutations. Provider authors
+/// implement <see cref="IResourceBatchCompatibility"/> instead of calling this helper.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public static class ResourceBatchCompatibility
 {
     /// <summary>

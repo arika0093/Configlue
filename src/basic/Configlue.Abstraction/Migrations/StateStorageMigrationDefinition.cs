@@ -1,6 +1,8 @@
 namespace Configlue.Migrations;
 
 /// <summary>Declares a retryable migration from selected sources into projected targets.</summary>
+/// <remarks>Advanced application API for storage evolution.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public sealed class StateStorageMigrationDefinition<TFragment>
     where TFragment : class, IConfiglueFragment<TFragment>
 {

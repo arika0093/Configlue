@@ -1,6 +1,8 @@
 namespace Configlue;
 
 /// <summary>Reports the final state-level outcome of one check operation.</summary>
+/// <remarks>Advanced application API for operational checks.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public sealed class ConfiglueCheckResult
 {
     private ConfiglueCheckResult(

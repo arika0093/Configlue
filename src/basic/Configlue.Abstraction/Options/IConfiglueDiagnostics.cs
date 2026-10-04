@@ -1,9 +1,11 @@
 namespace Configlue;
 
 /// <summary>Reports source topology and background reload failures.</summary>
+/// <remarks>Advanced observability service.</remarks>
 /// <typeparam name="T">The configuration model.</typeparam>
 // The model parameter identifies the diagnostics service in typed and keyed DI registrations.
 #pragma warning disable S2326
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public interface IConfiglueDiagnostics<T>
 {
     /// <summary>Subscribes to failures while the background watcher reads changed state.</summary>
@@ -13,6 +15,8 @@ public interface IConfiglueDiagnostics<T>
 }
 
 /// <summary>Provides reload-failure notifications when supported by a diagnostics implementation.</summary>
+/// <remarks>Advanced observability service.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public interface IConfiglueReloadFailureDiagnostics<T> : IConfiglueDiagnostics<T>
 {
     /// <summary>Subscribes to failures while the background watcher reads changed state.</summary>

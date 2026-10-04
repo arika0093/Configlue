@@ -1,6 +1,8 @@
 namespace Configlue.Migrations;
 
 /// <summary>Durable progress for one declared storage migration.</summary>
+/// <remarks>Advanced application API for storage evolution.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public sealed class StateStorageMigrationProgress
 {
     /// <summary>Creates a progress snapshot for a migration definition.</summary>

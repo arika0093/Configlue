@@ -1,0 +1,99 @@
+---
+title: Writing a custom provider
+description: Implement a typed Source, or a Resource plus Codec plus optional Transformer, and register it with the Configlue runtime.
+---
+
+This page is for provider authors. Ordinary application code never needs
+`Resource`, `Codec`, `Transformer`, `ResourceContext`, `RouteKey`, or
+`ResourceId`: it reads `IReadOnlyState<T>`, writes `IWritableState<T>`, and
+registers providers through high-level helpers such as `sources.JsonFile(...)`.
+Enter this page only when you are building a new backend.
+
+## The two supported paths
+
+```text
+Typed Source:    IConfiglueSourceDefinition -> StateSource<T> -> registration -> runtime
+Serialized path: Resource + Codec (+ Transformers) -> SerializedSource<T> -> StateSource<T> -> registration -> runtime
+```
+
+- **Typed Source.** Implement `IConfiglueSourceDefinition`. The runtime calls
+  `Create<TFragment>` with a `ConfiglueSourceCreationContext` (model schema,
+  services, host paths). Build a `StateSource<TFragment>` from your
+  `ISourceReader<TFragment>` (plus optional `ISourceWriter<TFragment>` /
+  `ISourceWatcher`, either directly or via `ISourceCapabilities<TFragment>`),
+  and return `context.Complete(source)`. Use this path when your backend has no
+  byte-serialized document (for example a live API or computed source).
+- **Serialized path (recommended for stored bytes).** Implement
+  `IResourceReader` (plus `IResourceWriter` when writable, `ISourceWatcher`
+  when observable, `IResourceIdentity` / `ITryResourceIdentity` when the
+  backend has a stable physical identity). Implement `IStateCodec<T>` for your
+  format, add `IStateByteTransformer` values for encryption or compression, and
+  compose them with the canonical entry point:
+
+```csharp
+var serialized = new SerializedSource<MyFragment>(
+    resource,
+    codec,
+    transformers: [new MyTransformer()],
+    writer: resource as IResourceWriter,
+    watcher: resource as ISourceWatcher);
+
+var source = new StateSource<MyFragment>(
+    serialized,
+    new StateSourceOptions<MyFragment> { Priority = 100 });
+
+return context.Complete(source);
+```
+
+The reader and writer are always built together from the one resource: never
+construct separate serialized reader/writer objects for the same backing store.
+Provider options expose `StateCodecBinding` so applications keep passing codecs
+without touching composition types.
+
+## Registration
+
+Register the definition; the runtime materializes it per model:
+
+```csharp
+model.ConfigureSources(ctx =>
+{
+    ctx.Sources.Add(new MySourceDefinition())
+        .Named("mine")
+        .Priority(100);
+});
+```
+
+Routing (`ResourceKeySelector`, `RouteSelector`, `RuntimeLifetime`) travels with
+`StateSourceOptions<T>` and `ConfiglueSourceRegistration`. Per-operation
+subjects, keys, routes, and the physical `ResourceId` flow into your
+implementation through `ConfiglueResourceContext`; application code never
+constructs that context.
+
+## Optional capabilities
+
+These are opt-in and documented on each contract; a provider works fully
+without them:
+
+- Batching: `IResourceBatchWriter` + `IResourceBatchParticipant`
+  (`ResourceWriteMutation.ValidateBatch` / `ResolveBatchSchema` guard your
+  `WriteBatchAsync`), or `IAsyncSourceWriteBatchParticipant<T>` at the source
+  level. Writers combine only when they are the same object or agree on an
+  `IResourceBatchCompatibility` token.
+- Pipelines: `IPipelineResourceReader` (produce with `PipelineResourceReader`
+  helpers) and `IPipelineStateCodec<T>` avoid buffering large payloads. The
+  result owns its pipe; consume without completing it.
+- Single-pass metadata: `IStateCodecWithMetadata<T>` avoids parsing twice when
+  the payload already carries schema metadata.
+- Destination buffers: `IDestinationStateByteTransformer` writes into
+  caller-provided pooled storage. Retain neither the source span nor the
+  destination.
+- Custom merge: derive member algebras from `ConfiglueMergeStrategy<T>` and add
+  `IStateMergeStrategy` capabilities only when needed.
+
+## What stays stable
+
+`Configlue` and provider fluent namespaces are application-facing;
+`Configlue.Extensibility` and the low-level `Sources` / `Resources` / `State` /
+`Codecs` / `Transformers` / `Migrations` namespaces are provider SPI;
+`Configlue.CompilerServices` is generated ABI. The full audience table lives in
+`docs/public-api-audiences.md`.

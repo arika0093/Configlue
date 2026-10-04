@@ -3,6 +3,8 @@ using Configlue.Resources;
 namespace Configlue;
 
 /// <summary>Describes the resolved logical subject, provider key, route, and physical resource for one details read.</summary>
+/// <remarks>Advanced diagnostics vocabulary exposing provider routing identities.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public sealed class ConfigSourceResolutionDetails
 {
     /// <summary>Creates resolution metadata for one source read.</summary>

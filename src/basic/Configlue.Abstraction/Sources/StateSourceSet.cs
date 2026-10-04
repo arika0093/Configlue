@@ -1,6 +1,8 @@
 namespace Configlue.Sources;
 
 /// <summary>An immutable priority-ordered set of logical state sources.</summary>
+/// <remarks>Provider/advanced composition SPI.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public sealed class StateSourceSet<T>
 {
     private readonly StateSource<T>[] _sources;

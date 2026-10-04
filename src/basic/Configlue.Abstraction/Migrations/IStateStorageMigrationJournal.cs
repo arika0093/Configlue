@@ -1,6 +1,8 @@
 namespace Configlue.Migrations;
 
 /// <summary>Persists migration progress so an application can resume after a process restart.</summary>
+/// <remarks>Advanced application SPI for storage evolution.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public interface IStateStorageMigrationJournal
 {
     /// <summary>Loads the last durable progress snapshot for a migration ID.</summary>

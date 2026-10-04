@@ -7,8 +7,10 @@ namespace Configlue.State;
 /// <remarks>
 /// The zero-initialized value is invalid. Absence is represented by <see langword="null"/>;
 /// consumers should reject present values whose <see cref="IsValid"/> property is false.
+/// Provider SPI vocabulary for payload schema identity.
 /// </remarks>
 [JsonConverter(typeof(StateSchemaMetadataJsonConverter))]
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public readonly record struct StateSchemaMetadata
 {
     /// <summary>Gets or initializes the <see cref="ModelId"/> value.</summary>

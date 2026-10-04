@@ -7,7 +7,9 @@ namespace Configlue;
 /// The catalog is the source of truth for which named states are profiles and which one is active.
 /// Profile logical identity is <c>(TModel, StateName)</c> and profile names share the same logical
 /// state-name namespace as fixed and dynamic named states.
+/// Advanced application API for profiled state.
 /// </remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public sealed class ConfiglueProfileCatalog
 {
     /// <summary>The catalog-managed named state names, in logical state-name order.</summary>

@@ -1,6 +1,8 @@
 namespace Configlue.Codecs;
 
 /// <summary>Builds references to versioned JSON Schema files.</summary>
+/// <remarks>Provider tooling helper.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public static class StateSchemaReference
 {
     /// <summary>Gets the generated schema file name for a model identity and version.</summary>

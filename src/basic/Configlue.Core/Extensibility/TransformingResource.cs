@@ -3,6 +3,8 @@ using Configlue.Sources;
 namespace Configlue.Extensibility;
 
 /// <summary>Applies byte transformers around a resource before provider-specific document processing.</summary>
+/// <remarks>Provider SPI composition helper: wraps one resource with transformers.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public sealed class TransformingResource
     : IResourceReader,
         ITryResourceIdentity,

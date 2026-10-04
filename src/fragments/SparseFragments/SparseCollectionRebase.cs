@@ -1,3 +1,5 @@
+using System.ComponentModel;
+
 #if CONFIGLUE_FRAGMENT_RUNTIME
 namespace Configlue;
 
@@ -7,6 +9,8 @@ namespace SparseFragments;
 #endif
 
 /// <summary>Domain-neutral collection rebase rules shared by generated append and set-union members.</summary>
+/// <remarks>Generated-code plumbing: referenced by emitted code, not hand-written callers.</remarks>
+[EditorBrowsable(EditorBrowsableState.Never)]
 #if CONFIGLUE_FRAGMENT_RUNTIME
 public static class ConfiglueCollectionRebase
 #else

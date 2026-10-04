@@ -3,11 +3,13 @@ using System.Buffers;
 namespace Configlue.Transformers;
 
 /// <summary>Common marker for a state byte transformer.</summary>
-/// <remarks>Implement <see cref="ISynchronousStateByteTransformer"/> or <see cref="IAsyncStateByteTransformer"/>.</remarks>
+/// <remarks>Provider SPI: implement <see cref="ISynchronousStateByteTransformer"/> or <see cref="IAsyncStateByteTransformer"/>.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public interface IStateByteTransformer { }
 
 /// <summary>Transforms serialized state bytes synchronously between a resource and a state codec.</summary>
-/// <remarks>Read transforms run in registration order; write transforms run in reverse order.</remarks>
+/// <remarks>Provider SPI. Read transforms run in registration order; write transforms run in reverse order.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public interface ISynchronousStateByteTransformer : IStateByteTransformer
 {
     /// <summary>Transforms bytes read from the resource into bytes for the state codec.</summary>
@@ -31,6 +33,7 @@ public interface ISynchronousStateByteTransformer : IStateByteTransformer
 /// dispose the destination.
 /// </para>
 /// </remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public interface IDestinationStateByteTransformer : ISynchronousStateByteTransformer
 {
     /// <summary>Transforms resource bytes into caller-provided output storage.</summary>

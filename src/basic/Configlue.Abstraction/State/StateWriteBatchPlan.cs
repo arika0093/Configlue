@@ -6,7 +6,9 @@ namespace Configlue.State;
 /// <remarks>
 /// Dispose the plan after its batch write completes or when the plan is abandoned. A plan may own
 /// pooled serialized content that remains valid until it is disposed.
+/// Advanced provider SPI: produced by batch participants, consumed by the runtime.
 /// </remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public sealed record StateWriteBatchPlan : IDisposable
 {
     /// <summary>Gets or initializes the <see cref="ResourceId"/> value.</summary>

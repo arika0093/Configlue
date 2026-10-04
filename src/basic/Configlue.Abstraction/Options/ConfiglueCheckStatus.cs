@@ -1,6 +1,8 @@
 namespace Configlue;
 
 /// <summary>Describes the outcome of a state check or of checking one state source.</summary>
+/// <remarks>Advanced application API for operational checks.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public enum ConfiglueCheckStatus
 {
     /// <summary>The value was resolved, or the source contributed to the resolution.</summary>

@@ -1,6 +1,8 @@
 namespace Configlue;
 
 /// <summary>Reports the outcome of checking one state source during a check operation.</summary>
+/// <remarks>Advanced application API for operational checks.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public sealed class ConfiglueSourceCheckResult
 {
     /// <summary>Creates a source check result.</summary>

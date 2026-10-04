@@ -1,6 +1,8 @@
 namespace Configlue;
 
 /// <summary>A generated patch explicitly assigned to one logical state source.</summary>
+/// <remarks>Advanced vocabulary for explicit per-source writes.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public sealed record StateSourcePatch
 {
     /// <summary>Creates a source-local patch request.</summary>

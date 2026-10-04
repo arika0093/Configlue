@@ -1,6 +1,8 @@
 namespace Configlue;
 
 /// <summary>The contribution state of one source for one configuration member.</summary>
+/// <remarks>Advanced diagnostics vocabulary.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public enum ConfigSourceValueState
 {
     /// <summary>The source contributes a present value.</summary>
@@ -17,7 +19,9 @@ public enum ConfigSourceValueState
 }
 
 /// <summary>One source's value state for one configuration member.</summary>
+/// <remarks>Advanced diagnostics vocabulary.</remarks>
 /// <typeparam name="T">The member value type.</typeparam>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public sealed class ConfigSourceValueDetails<T>
 {
     /// <summary>Creates a per-source member snapshot.</summary>

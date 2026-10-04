@@ -1,7 +1,9 @@
 namespace Configlue;
 
 /// <summary>The outcome of committing an edit session, including the effective state the commit established.</summary>
+/// <remarks>Advanced application API for draft editing.</remarks>
 /// <typeparam name="T">The configuration model type.</typeparam>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public sealed class StateCommitResult<T>
 {
     /// <summary>Creates a commit result.</summary>

@@ -1,6 +1,8 @@
 namespace Configlue.Codecs;
 
 /// <summary>Options and metadata supplied to a codec operation.</summary>
+/// <remarks>Provider SPI: flows from the runtime into codec implementations.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public readonly struct StateCodecContext
 {
     /// <summary>Creates a codec context.</summary>

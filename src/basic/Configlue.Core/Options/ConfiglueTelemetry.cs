@@ -4,6 +4,8 @@ using System.Diagnostics.Metrics;
 namespace Configlue;
 
 /// <summary>Identifies Configlue's SDK-independent distributed tracing and metrics instrumentation.</summary>
+/// <remarks>Advanced observability identifiers.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public static class ConfiglueTelemetry
 {
     /// <summary>The ActivitySource name to subscribe to or register with a tracing SDK.</summary>

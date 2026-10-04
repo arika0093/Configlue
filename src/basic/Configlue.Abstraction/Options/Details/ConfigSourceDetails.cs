@@ -1,6 +1,8 @@
 namespace Configlue;
 
 /// <summary>How a source is identified and displayed in configuration details.</summary>
+/// <remarks>Advanced diagnostics vocabulary.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public sealed class ConfigSourceDetails
 {
     /// <summary>Creates source display metadata.</summary>

@@ -1,6 +1,8 @@
 namespace Configlue.Resources;
 
 /// <summary>A standard application-data location supplied by the active host.</summary>
+/// <remarks>Advanced host-integration API.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public enum ConfiglueStandardLocation
 {
     /// <summary>Application data shared across users of the host when supported.</summary>
@@ -17,6 +19,8 @@ public enum ConfiglueStandardLocation
 }
 
 /// <summary>Resolves standard storage locations using the active host's conventions.</summary>
+/// <remarks>Advanced host-integration SPI.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public interface IConfiglueHostPaths
 {
     /// <summary>Resolves a location, returning false when the host does not support it.</summary>

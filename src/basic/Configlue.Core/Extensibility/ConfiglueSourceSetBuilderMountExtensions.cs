@@ -4,6 +4,8 @@ using Configlue.CompilerServices;
 namespace Configlue.Extensibility;
 
 /// <summary>Mounts source-specific generated fragments into a root model's nested member.</summary>
+/// <remarks>Advanced composition SPI for mounted subtree sources.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public static class ConfiglueSourceSetBuilderMountExtensions
 {
     /// <summary>Adds a nested source using a generated model member selector.</summary>

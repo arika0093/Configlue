@@ -16,6 +16,8 @@ namespace Configlue.State;
 /// complete the pipe. Revisions may be finalized while the content is consumed.
 /// </para>
 /// </remarks>
+/// <remarks>Advanced performance SPI; class-level hiding keeps it out of ordinary completion.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public interface IPipelineResourceReader
 {
     /// <summary>Whether the pipeline path is preferred over the existing memory-based read.</summary>

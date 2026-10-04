@@ -1,6 +1,8 @@
 namespace Configlue;
 
 /// <summary>The result of writing one source-local patch; composite writes identify physical component sources.</summary>
+/// <remarks>Advanced vocabulary: exposes logical source and physical resource identities.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public readonly record struct StateSourceWriteResult
 {
     /// <summary>Gets or initializes the logical source registration identifier, not a physical resource identity.</summary>
@@ -36,7 +38,9 @@ public readonly record struct StateSourceWriteResult
 }
 
 /// <summary>The complete logical source outcomes and physical write count of an application write.</summary>
-/// <remarks>State-name identity and subject scope are reported separately from source and physical resource identity.</remarks>
+/// <remarks>State-name identity and subject scope are reported separately from source and physical resource identity.
+/// Advanced vocabulary: exposes logical source and physical resource identities.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public sealed class StateWriteReceipt
 {
     /// <summary>An operation that performed no writes.</summary>

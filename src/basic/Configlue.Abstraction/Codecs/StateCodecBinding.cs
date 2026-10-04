@@ -10,6 +10,7 @@ namespace Configlue.Codecs;
 /// options expose it so ordinary application code keeps passing codecs without touching
 /// composition types.
 /// </remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public sealed class StateCodecBinding
 {
     private readonly object _codec;

@@ -1,6 +1,7 @@
 namespace Configlue;
 
 /// <summary>Resolves one consistent state snapshot, including generated details, without a second read.</summary>
+/// <remarks>Advanced application API: prefer <c>GetSnapshotAsync</c> on states unless details are needed.</remarks>
 /// <typeparam name="T">The configuration model type.</typeparam>
 [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
 public interface IConfiglueStateSnapshotRuntime<T>
@@ -10,7 +11,9 @@ public interface IConfiglueStateSnapshotRuntime<T>
 }
 
 /// <summary>One resolved effective value together with the details transport that produced it.</summary>
+/// <remarks>Advanced application API for snapshot reads.</remarks>
 /// <typeparam name="T">The configuration model type.</typeparam>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public sealed class StateSnapshot<T>
 {
     /// <summary>Creates a resolved snapshot.</summary>
@@ -31,6 +34,8 @@ public sealed class StateSnapshot<T>
 }
 
 /// <summary>Convenience helpers for reading resolved state snapshots.</summary>
+/// <remarks>Advanced application API for snapshot reads.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public static class ConfiglueStateSnapshotExtensions
 {
     /// <summary>Resolves one consistent snapshot for a state view.</summary>

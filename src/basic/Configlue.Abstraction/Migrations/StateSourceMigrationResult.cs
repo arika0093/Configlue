@@ -1,6 +1,8 @@
 namespace Configlue.Migrations;
 
 /// <summary>The revisions observed and written during a source-to-source migration.</summary>
+/// <remarks>Advanced migration result.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public readonly record struct StateSourceMigrationResult
 {
     /// <summary>Gets or initializes the <see cref="SourceId"/> value.</summary>

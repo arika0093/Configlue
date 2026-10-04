@@ -56,6 +56,8 @@ public readonly struct ConfigluePresentMembers
     public Enumerator GetEnumerator() => new(_ordinal, _fallback);
 
     /// <summary>Enumerator for present members.</summary>
+    /// <remarks>Generated-code plumbing; hand-written code uses foreach.</remarks>
+    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
     public struct Enumerator : IDisposable
     {
         private readonly IConfiglueOrdinalDynamicFragment? _ordinal;

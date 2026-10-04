@@ -3,6 +3,10 @@ using Configlue.Resources;
 namespace Configlue.Sources;
 
 /// <summary>A logical source and its optional read, write, and watch capabilities.</summary>
+/// <remarks>Provider SPI: construct sources through provider registration helpers or
+/// the canonical serialized source composition; ordinary application code works with
+/// <c>IReadOnlyState{T}</c> / <c>IWritableState{T}</c> and never manipulates this type directly.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public sealed class StateSource<T>
 {
     private string[] _ownedPropertyPaths = [];

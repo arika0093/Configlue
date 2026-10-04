@@ -1,6 +1,8 @@
 namespace Configlue.Migrations;
 
 /// <summary>Declares one projected target in a storage migration.</summary>
+/// <remarks>Advanced application API for storage evolution.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public sealed class StateStorageMigrationTarget<TFragment>
     where TFragment : class, IConfiglueFragment<TFragment>
 {

@@ -7,6 +7,7 @@ namespace Configlue.Transformers;
 /// Synchronous-only transformers continue to use <see cref="IStateByteTransformer"/> without an
 /// asynchronous state machine. The caller owns transformer instances.
 /// </remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public interface IAsyncStateByteTransformer : IStateByteTransformer
 {
     /// <summary>Transforms bytes read from the resource into bytes for the state codec.</summary>

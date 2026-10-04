@@ -1,9 +1,11 @@
 namespace Configlue;
 
 /// <summary>Actively checks whether the configured state can currently be resolved.</summary>
+/// <remarks>Advanced application API for operational checks.</remarks>
 /// <typeparam name="T">The configuration model.</typeparam>
 // The model parameter identifies the check service in typed and keyed DI registrations.
 #pragma warning disable S2326
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public interface IConfiglueInspection<T>
 {
     /// <summary>

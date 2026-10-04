@@ -10,7 +10,9 @@ namespace Configlue;
 /// one specific source. Ordinary editing should use natural C# on the model type itself; a presence
 /// proxy is not the everyday editing surface and does not make generated members behave exactly
 /// like the model type (for example, an implicit conversion cannot dispatch an instance method).
+/// Advanced vocabulary for schema migration and source-local edits.
 /// </remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public static class ConfiglueMemberExtensions
 {
     /// <summary>Removes this member from the source contribution without changing other members.</summary>

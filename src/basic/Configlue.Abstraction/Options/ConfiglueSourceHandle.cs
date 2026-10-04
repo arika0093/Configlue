@@ -1,7 +1,9 @@
 namespace Configlue;
 
 /// <summary>Writes a generated patch to one selected logical source.</summary>
+/// <remarks>Advanced application API for explicit per-source writes.</remarks>
 /// <typeparam name="TModel">The configuration model type.</typeparam>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public sealed class ConfiglueSourceHandle<TModel>
 {
     private readonly IConfiglueSources<TModel> _sources;

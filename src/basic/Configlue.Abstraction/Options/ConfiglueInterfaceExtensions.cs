@@ -1,6 +1,8 @@
 namespace Configlue;
 
 /// <summary>Convenience helpers for optional interface capabilities.</summary>
+/// <remarks>Advanced helpers for validation and diagnostics capabilities.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public static class ConfiglueInterfaceExtensions
 {
     /// <summary>Returns validation failures for the named state.</summary>

@@ -1,6 +1,8 @@
 namespace Configlue.Resources;
 
 /// <summary>The bytes and metadata returned by a resource reader.</summary>
+/// <remarks>Provider SPI: returned by resource implementations to the runtime.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public readonly record struct ResourceReadResult
 {
     private readonly StateReadStatus? _status;

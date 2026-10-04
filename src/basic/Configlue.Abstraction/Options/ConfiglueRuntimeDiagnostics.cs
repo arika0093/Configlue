@@ -1,6 +1,8 @@
 namespace Configlue;
 
 /// <summary>The runtime operation represented by a value-free diagnostic event.</summary>
+/// <remarks>Advanced observability vocabulary.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public enum ConfiglueDiagnosticEventKind
 {
     /// <summary>A resolution began.</summary>
@@ -77,7 +79,9 @@ public enum ConfiglueDiagnosticEventKind
 /// <remarks>
 /// Runtime-created immutable value snapshot. Equality compares all currently exposed fields; no positional
 /// constructor or deconstruction contract is provided so new diagnostics can be added compatibly.
+/// Advanced observability vocabulary.
 /// </remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public readonly record struct ConfiglueDiagnosticEvent
 {
     internal ConfiglueDiagnosticEvent(
@@ -178,7 +182,9 @@ public readonly record struct ConfiglueDiagnosticEvent
 }
 
 /// <summary>The last observed state of a configured source, without performing a source read.</summary>
-/// <remarks>Runtime-created immutable value snapshot with value equality and no positional deconstruction contract.</remarks>
+/// <remarks>Runtime-created immutable value snapshot with value equality and no positional deconstruction contract.
+/// Advanced observability vocabulary.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public readonly record struct ConfiglueRuntimeSourceSnapshot
 {
     internal ConfiglueRuntimeSourceSnapshot(
@@ -296,6 +302,8 @@ public readonly record struct ConfiglueRuntimeSourceSnapshot
 }
 
 /// <summary>An immutable, I/O-free copy of the last observed runtime diagnostics.</summary>
+/// <remarks>Advanced observability vocabulary.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public sealed class ConfiglueRuntimeDiagnosticSnapshot
 {
     /// <summary>Creates a runtime snapshot using already observed diagnostic data.</summary>
@@ -350,6 +358,8 @@ public sealed class ConfiglueRuntimeDiagnosticSnapshot
 }
 
 /// <summary>Provides cached runtime diagnostics independently of a model's value API.</summary>
+/// <remarks>Advanced observability SPI.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public interface IConfiglueRuntimeDiagnostics
 {
     /// <summary>Copies already observed data without reading, reloading, or locking a backend.</summary>
@@ -364,6 +374,8 @@ public interface IConfiglueRuntimeDiagnostics
 }
 
 /// <summary>Accesses optional runtime diagnostics through the existing typed diagnostics service.</summary>
+/// <remarks>Advanced observability helpers.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public static class ConfiglueRuntimeDiagnosticExtensions
 {
     /// <summary>Gets a cached snapshot without causing configuration I/O.</summary>

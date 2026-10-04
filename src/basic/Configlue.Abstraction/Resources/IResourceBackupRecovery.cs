@@ -1,6 +1,8 @@
 namespace Configlue.Resources;
 
 /// <summary>Provides opt-in recovery of a resource from a validated backup.</summary>
+/// <remarks>Advanced provider SPI.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public interface IResourceBackupRecovery
 {
     /// <summary>Whether automatic backup recovery is enabled for this resource.</summary>
@@ -16,6 +18,8 @@ public interface IResourceBackupRecovery
 }
 
 /// <summary>Recovers a subject-specific resource from a validated backup.</summary>
+/// <remarks>Advanced provider SPI.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public interface IContextualResourceBackupRecovery : IResourceBackupRecovery
 {
     /// <summary>Recovers a subject-specific resource from a validated backup.</summary>

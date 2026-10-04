@@ -1,6 +1,8 @@
 namespace Configlue.Resources;
 
 /// <summary>Context-aware resource operations with portable fallback behavior.</summary>
+/// <remarks>Provider/runtime plumbing: normalizes operation contexts and forwards optional capabilities.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public static class ResourceContextExtensions
 {
     /// <summary>Recovers a subject-specific resource from a validated backup.</summary>
@@ -98,6 +100,9 @@ public static class ResourceContextExtensions
     }
 
     /// <summary>Tries to resolve an identity exposed by either the required or optional identity contract.</summary>
+    /// <remarks>Runtime/provider plumbing for duck-typed identity forwarding. Hidden from ordinary completion
+    /// because the extension applies to every object.</remarks>
+    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
     public static bool TryGetResourceId(
         this object? resource,
         ConfiglueResourceContext context,

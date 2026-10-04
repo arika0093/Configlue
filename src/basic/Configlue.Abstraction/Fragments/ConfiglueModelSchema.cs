@@ -1,7 +1,9 @@
 namespace Configlue;
 
 /// <summary>Describes one generated model member.</summary>
-/// <remarks>The default value is uninitialized; its name and value type expose safe sentinel values.</remarks>
+/// <remarks>The default value is uninitialized; its name and value type expose safe sentinel values.
+/// Advanced vocabulary: describes generated model metadata.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public readonly record struct ConfiglueMemberSchema
 {
     private readonly string? _name;
@@ -137,6 +139,8 @@ public readonly record struct ConfiglueMemberSchema
 }
 
 /// <summary>Generated metadata for a model and its persisted schema.</summary>
+/// <remarks>Advanced vocabulary: describes generated model metadata.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public sealed class ConfiglueModelSchema
 {
     private readonly Func<IConfiglueFragment>? _emptyFragmentFactory;

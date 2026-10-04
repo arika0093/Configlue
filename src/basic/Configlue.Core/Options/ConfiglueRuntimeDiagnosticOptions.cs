@@ -1,6 +1,8 @@
 namespace Configlue;
 
 /// <summary>Controls cached runtime observations and bounded diagnostic history.</summary>
+/// <remarks>Advanced observability option.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public sealed record ConfiglueRuntimeDiagnosticOptions
 {
     /// <summary>Default options: cached observations enabled, event retention disabled.</summary>

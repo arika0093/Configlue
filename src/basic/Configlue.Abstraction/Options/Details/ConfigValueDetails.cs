@@ -3,8 +3,10 @@ using System.Diagnostics;
 namespace Configlue;
 
 /// <summary>A resolved leaf value with provenance and editability metadata.</summary>
+/// <remarks>Advanced diagnostics vocabulary.</remarks>
 /// <typeparam name="T">The member value type.</typeparam>
 [DebuggerDisplay("{Value}")]
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public sealed class ConfigValueDetails<T>
 {
     /// <summary>Creates leaf details.</summary>

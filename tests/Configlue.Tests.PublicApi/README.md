@@ -15,6 +15,18 @@ The namespace a type lives in records its intended audience:
 - `Configlue.CompilerServices` — generated compiler/runtime ABI. These types remain CLR-public
   across assembly boundaries but are marked `EditorBrowsableState.Never` and are snapshotted
   separately.
+- Low-level `Configlue.Sources` / `Configlue.Resources` / `Configlue.State` / `Configlue.Codecs` /
+  `Configlue.Transformers` / `Configlue.Migrations` — provider and advanced composition SPI.
+  These types are marked `EditorBrowsableState.Advanced` (or `Never` where generated code is the
+  only caller) so ordinary IntelliSense and docs stay plumbing-free.
+
+The full per-type audience table lives in `docs/public-api-audiences.md`. Every public type in
+`Configlue.Abstraction` and `Configlue.Core` must have an entry there.
+
+`ApiAudienceOwnershipTests` enforces the ownership model mechanically: exported namespaces stay
+closed per assembly, and every `CompilerServices`, `Extensibility`, and low-level SPI type must
+carry `EditorBrowsable` hiding. A pull request that adds a public type without hiding, or in a
+new namespace, fails here by design.
 
 When a public API change is intentional, regenerate the snapshots from the repository root with:
 

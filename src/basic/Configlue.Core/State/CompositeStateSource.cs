@@ -16,6 +16,8 @@ namespace Configlue.State;
 /// its captured targets until all component watchers have drained; idle entries are evicted during later cache
 /// access without allocating a cleanup task per subject.
 /// </remarks>
+/// <remarks>Advanced composition SPI: combines component sources as one logical source.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public sealed class CompositeStateSource<TFragment>
     : ISourceReader<TFragment>,
         ISourceWriter<TFragment>,
@@ -91,6 +93,7 @@ public sealed class CompositeStateSource<TFragment>
     public IReadOnlyList<StateSource<TFragment>> Components => _components.Sources;
 
     /// <summary>Creates one logical source backed by this composition.</summary>
+    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
     public StateSource<TFragment> CreateSource(
         string id,
         int priority = 0,

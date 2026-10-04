@@ -231,7 +231,6 @@ namespace Configlue.Resources
     }
     public static class PipelineResourceReader
     {
-        public static System.IO.Pipelines.Pipe CreatePipe() { }
         public static System.Threading.Tasks.ValueTask<Configlue.Resources.PipelineResourceReadResult> FromMemoryAsync(Configlue.Resources.ResourceReadResult result, System.Threading.CancellationToken cancellationToken = default) { }
         public static Configlue.Resources.PipelineResourceReadResult FromStream(System.IO.Stream source, string? revision = null, Configlue.State.StateSchemaMetadata? schema = default, bool computeXxHash3Revision = false, System.IDisposable? owner = null, System.Action<System.Buffers.ReadOnlySequence<byte>>? contentReadCompleted = null, System.Action<string>? contentFingerprintCompleted = null) { }
     }

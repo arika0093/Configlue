@@ -6,6 +6,7 @@ namespace Configlue.Sources;
 /// effective-model validation: failures raised by DataAnnotations or <see cref="Configlue.IConfiglueValidator{T}"/>
 /// are handled solely by <see cref="Configlue.ReadValidationMode"/> and never cause fallback.
 /// </remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 [Flags]
 public enum StateFallbackCondition
 {

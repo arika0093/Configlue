@@ -1,6 +1,8 @@
 namespace Configlue.Migrations;
 
 /// <summary>The result of preparing one target in a retryable storage migration.</summary>
+/// <remarks>Advanced migration result.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public readonly record struct StateStorageMigrationTargetResult
 {
     /// <summary>Gets or initializes the <see cref="TargetId"/> value.</summary>
@@ -53,6 +55,8 @@ public readonly record struct StateStorageMigrationTargetResult
 }
 
 /// <summary>The per-source revisions and per-target outcomes of a storage migration run.</summary>
+/// <remarks>Advanced migration result.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public sealed class StateStorageMigrationResult
 {
     /// <summary>Creates a storage migration result with immutable result collections.</summary>

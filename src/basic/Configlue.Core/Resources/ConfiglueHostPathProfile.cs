@@ -1,6 +1,8 @@
 namespace Configlue.Resources;
 
 /// <summary>Combines a host path resolver with per-location overrides.</summary>
+/// <remarks>Advanced host-integration API.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public sealed class ConfiglueHostPathProfile : IConfiglueHostPaths
 {
     private readonly IConfiglueHostPaths? _fallback;

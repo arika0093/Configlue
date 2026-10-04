@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 namespace Configlue;
 
 /// <summary>Executes one check and exposes both its per-source stream and its final result.</summary>
+/// <remarks>Advanced application API for operational checks.</remarks>
 /// <remarks>
 /// One operation represents a single check execution shared by the source stream and <see cref="Result"/>.
 /// The underlying sources are read exactly once. The source stream may be enumerated at most once;
@@ -13,6 +14,7 @@ namespace Configlue;
 /// start a second read. Abandoning enumeration early still lets <see cref="Result"/> complete.
 /// Cancellation surfaces as cancellation rather than as an ordinary result.
 /// </remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public sealed class ConfiglueCheckOperation : IAsyncEnumerable<ConfiglueSourceCheckResult>
 {
     private readonly ConfiglueCheckRunner _runner;

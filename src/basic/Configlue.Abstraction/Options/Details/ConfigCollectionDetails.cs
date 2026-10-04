@@ -3,8 +3,10 @@ using System.Diagnostics;
 namespace Configlue;
 
 /// <summary>One effective collection element with its source provenance.</summary>
+/// <remarks>Advanced diagnostics vocabulary.</remarks>
 /// <typeparam name="T">The element type.</typeparam>
 [DebuggerDisplay("{Value}")]
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public sealed class ConfigCollectionElementDetails<T>
 {
     /// <summary>Creates element details.</summary>
@@ -35,8 +37,10 @@ public sealed class ConfigCollectionElementDetails<T>
 }
 
 /// <summary>A resolved collection value with provenance and per-element details.</summary>
+/// <remarks>Advanced diagnostics vocabulary.</remarks>
 /// <typeparam name="T">The element type.</typeparam>
 [DebuggerDisplay("Count = {Value.Count}")]
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public sealed class ConfigCollectionDetails<T>
 {
     /// <summary>Creates collection details.</summary>

@@ -1,6 +1,8 @@
 namespace Configlue.Resources;
 
 /// <summary>A deferred change to physical resource content used by a single-resource batch write.</summary>
+/// <remarks>Advanced provider SPI: constructed by batch participants, consumed by batch writers and the runtime.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public sealed class ResourceWriteMutation
 {
     private readonly Func<ResourceReadResult, ReadOnlyMemory<byte>>? _apply;

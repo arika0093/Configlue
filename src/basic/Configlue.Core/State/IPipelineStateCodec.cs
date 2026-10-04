@@ -11,7 +11,9 @@ namespace Configlue.State;
 /// the implementation must consume or drain the supplied reader without completing the pipe, and
 /// must observe the cancellation token passed to the decode method.
 /// </remarks>
+/// <remarks>Advanced performance SPI; class-level hiding keeps it out of ordinary completion.</remarks>
 /// <typeparam name="T">The state value type.</typeparam>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public interface IPipelineStateCodec<T>
 {
     /// <summary>Whether this decoding path should be used instead of sequence-based decoding.</summary>

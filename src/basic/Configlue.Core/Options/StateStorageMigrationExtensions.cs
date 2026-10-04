@@ -3,6 +3,8 @@ using Configlue.CompilerServices;
 namespace Configlue;
 
 /// <summary>Runs declarative, journaled storage migrations.</summary>
+/// <remarks>Advanced application API for storage evolution.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public static class StateStorageMigrationExtensions
 {
     /// <summary>

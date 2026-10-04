@@ -10,6 +10,7 @@ namespace Configlue.Sources;
 /// <see cref="Scoped"/> so its runtime is created and disposed with the dependency-injection scope
 /// instead of becoming a captive dependency.
 /// </remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public enum RuntimeLifetimeRequirement
 {
     /// <summary>The source can be shared; the runtime may be a singleton.</summary>
@@ -23,6 +24,8 @@ public enum RuntimeLifetimeRequirement
 }
 
 /// <summary>Combines runtime lifetime requirements for a complete source topology.</summary>
+/// <remarks>Advanced composition helper.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public static class RuntimeLifetimeRequirementExtensions
 {
     /// <summary>

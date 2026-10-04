@@ -1,7 +1,9 @@
 namespace Configlue;
 
 /// <summary>Identifies one logical Configlue source registration in Core and runtime contracts.</summary>
-/// <remarks>The default value is invalid; create IDs explicitly at string boundaries.</remarks>
+/// <remarks>The default value is invalid; create IDs explicitly at string boundaries.
+/// Advanced vocabulary: ordinary application code addresses state, not source IDs.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public readonly record struct SourceId
 {
     private readonly string? _value;

@@ -1,6 +1,8 @@
 namespace Configlue.State;
 
 /// <summary>The state value to persist with an explicit revision precondition.</summary>
+/// <remarks>Provider SPI: flows from the runtime into source implementations.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public sealed record StateWriteRequest<T>
 {
     /// <summary>The value to persist.</summary>

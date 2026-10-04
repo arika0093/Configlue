@@ -20,6 +20,8 @@ namespace Configlue;
 /// runtime, but leaves the backing configuration data available for later materialization.
 /// </para>
 /// </remarks>
+/// <remarks>Advanced application API for profiled state.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public interface IConfiglueProfiledState<TModel>
 {
     /// <summary>The configured profile name that cannot be removed.</summary>

@@ -177,6 +177,8 @@ public sealed class StateWritePlan
     }
 
     /// <summary>Resolves a compiled generated member path to its configured owner.</summary>
+    /// <remarks>Generated-code plumbing: hand-written code uses the property-path overloads.</remarks>
+    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
     public SourceId ResolveSourceId(ConfiglueMemberPath path) =>
         ResolveSourceIdOrNull(path)
         ?? throw new InvalidOperationException(
@@ -184,6 +186,8 @@ public sealed class StateWritePlan
         );
 
     /// <summary>Resolves a compiled generated member path to its owner or the supplied fallback.</summary>
+    /// <remarks>Generated-code plumbing: hand-written code uses the property-path overloads.</remarks>
+    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
     public SourceId ResolveSourceId(ConfiglueMemberPath path, SourceId fallbackSourceId)
     {
         if (fallbackSourceId.IsDefault)
@@ -223,6 +227,8 @@ public sealed class StateWritePlan
     }
 
     /// <summary>Resolves a compiled generated member path to its most specific owner.</summary>
+    /// <remarks>Generated-code plumbing: hand-written code uses the property-path overloads.</remarks>
+    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
     public SourceId? ResolveSourceIdOrNull(
         ConfiglueMemberPath path,
         SourceId? fallbackSourceId = null
@@ -262,6 +268,8 @@ public sealed class StateWritePlan
     }
 
     /// <summary>Whether a configured generated member path exists beneath the supplied path.</summary>
+    /// <remarks>Generated-code plumbing: hand-written code uses the property-path overloads.</remarks>
+    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
     public bool HasRouteBelow(ConfiglueMemberPath path)
     {
         EnsureCompiledPath(path);

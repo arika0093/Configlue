@@ -6,6 +6,8 @@ using System.Security.Cryptography;
 namespace Configlue.Resources;
 
 /// <summary>A resource result whose successful content is held in a disposable pipeline.</summary>
+/// <remarks>Advanced performance SPI result: produced by pipeline readers, consumed by the serialized pipeline.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public sealed class PipelineResourceReadResult : IAsyncDisposable
 {
     private readonly PipeReader? _content;
@@ -397,6 +399,8 @@ public sealed class PipelineResourceReadResult : IAsyncDisposable
 }
 
 /// <summary>Helpers for producing pipeline-backed resource results.</summary>
+/// <remarks>Advanced provider SPI helpers for <see cref="State.IPipelineResourceReader"/> implementations.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public static class PipelineResourceReader
 {
     private static readonly PipeOptions PipeOptions = new(
@@ -407,7 +411,9 @@ public static class PipelineResourceReader
     );
 
     /// <summary>Creates a pipeline configured to retain the complete resource until its reader consumes it.</summary>
-    public static Pipe CreatePipe() => new(PipeOptions);
+    /// <remarks>Reserved for runtime-internal pipeline assembly; providers use
+    /// <see cref="FromStream"/> or <see cref="FromMemoryAsync"/> instead.</remarks>
+    internal static Pipe CreatePipe() => new(PipeOptions);
 
     /// <summary>Wraps an existing in-memory resource result in a pipeline-backed reader.</summary>
     public static ValueTask<PipelineResourceReadResult> FromMemoryAsync(

@@ -8,7 +8,9 @@ internal sealed record SessionUpstreamResolution<T>(
 );
 
 /// <summary>A staged configuration edit that can be saved multiple times.</summary>
+/// <remarks>Advanced application API for draft editing.</remarks>
 /// <typeparam name="T">The configuration model type.</typeparam>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public sealed class EditSession<T> : IDisposable
 {
     private const int OperationState = 1;

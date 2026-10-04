@@ -3,7 +3,10 @@ using Configlue.Sources;
 namespace Configlue;
 
 /// <summary>Builds a state-source set from services registered in dependency injection.</summary>
+/// <remarks>Low-level composition port: provider authors and advanced composition use this builder;
+/// ordinary application code uses model-level registration helpers.</remarks>
 /// <typeparam name="T">The generated sparse state fragment.</typeparam>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public sealed class StateSourceSetBuilder<T>
 {
     private readonly List<Func<StateSource<T>>> _sourceFactories = [];
@@ -132,7 +135,9 @@ public sealed class StateSourceSetBuilder<T>
 }
 
 /// <summary>Configures the optional capabilities of one state source.</summary>
+/// <remarks>Low-level composition port for provider authors and advanced composition.</remarks>
 /// <typeparam name="T">The generated sparse state fragment.</typeparam>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public sealed class StateSourceBuilder<T>
 {
     private ISourceWriter<T>? _writer;

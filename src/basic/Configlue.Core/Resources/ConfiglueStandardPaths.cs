@@ -1,6 +1,8 @@
 namespace Configlue.Resources;
 
 /// <summary>Returns platform-standard directories for per-user application data.</summary>
+/// <remarks>Advanced host-integration API.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public static class ConfiglueStandardPaths
 {
     /// <summary>Resolves a standard location through a host profile and canonicalizes the result.</summary>

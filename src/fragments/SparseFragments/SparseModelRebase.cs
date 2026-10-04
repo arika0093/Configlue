@@ -1,4 +1,5 @@
 using System.Collections;
+using System.ComponentModel;
 #if CONFIGLUE_FRAGMENT_RUNTIME
 using Configlue.CompilerServices;
 using ModelSchema = Configlue.ConfiglueModelSchema;
@@ -32,6 +33,8 @@ namespace SparseFragments;
 /// Domain-neutral three-way rebase of a model edit. The algorithm depends only on generated schema metadata
 /// and source-local fragments; callers translate the structured conflicts into their own error model.
 /// </summary>
+/// <remarks>Generated-code plumbing: referenced by emitted code, not hand-written callers.</remarks>
+[EditorBrowsable(EditorBrowsableState.Never)]
 #if CONFIGLUE_FRAGMENT_RUNTIME
 public static class ConfiglueFragmentRebase
 #else

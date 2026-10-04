@@ -5,7 +5,9 @@ namespace Configlue;
 /// A named state instance is addressed by <c>(TModel, StateName)</c>. This marker carries that
 /// state-name identity for keyed-DI registrations; it is not a persisted profile. Persisted,
 /// catalog-managed named states are exposed through <see cref="IConfiglueProfiledState{TModel}"/>.
+/// Advanced application API for dynamic named states.
 /// </remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public sealed record ConfiglueNamedState<TModel>
 {
     /// <summary>The registered state name.</summary>

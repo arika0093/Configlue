@@ -1,8 +1,10 @@
 namespace Configlue;
 
 /// <summary>A source identity associated with one configuration model type.</summary>
-/// <remarks>The default value is uninitialized and is rejected where a source key is required.</remarks>
+/// <remarks>The default value is uninitialized and is rejected where a source key is required.
+/// Advanced vocabulary: only explicit per-source addressing needs this type.</remarks>
 /// <typeparam name="TModel">The configuration model type.</typeparam>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public readonly record struct SourceKey<TModel>
 {
     private readonly SourceId _id;

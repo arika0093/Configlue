@@ -9,6 +9,8 @@ public sealed partial class FileResource
     private static readonly Stack<ProcessLockEntry> ProcessLockPool = new();
 
     /// <summary>Acquires the exclusive lock for this file resource.</summary>
+    /// <remarks>Advanced lock primitive for custom journals and migration stores.</remarks>
+    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
     public async ValueTask<IDisposable> AcquireExclusiveLockAsync(
         CancellationToken cancellationToken
     )

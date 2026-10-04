@@ -1,7 +1,9 @@
 namespace Configlue;
 
 /// <summary>Identifies an intermediate backend or placement route for resource operations.</summary>
-/// <remarks>A route selects placement such as a region or shard; it does not identify a physical resource or its coordination domain.</remarks>
+/// <remarks>A route selects placement such as a region or shard; it does not identify a physical resource or its coordination domain.
+/// Provider SPI vocabulary: ordinary application code never manipulates this type.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public readonly record struct RouteKey
 {
     private readonly string? _value;

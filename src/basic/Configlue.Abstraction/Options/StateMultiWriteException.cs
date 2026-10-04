@@ -1,7 +1,9 @@
 namespace Configlue;
 
 /// <summary>A multi-source write failed after one or more physical writes had completed.</summary>
-/// <remarks>Source IDs in this exception identify logical Configlue source registrations, not physical resources.</remarks>
+/// <remarks>Source IDs in this exception identify logical Configlue source registrations, not physical resources.
+/// Advanced vocabulary.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public sealed class StateMultiWriteException : Exception
 {
     /// <summary>Creates a partial write failure with completed and pending source identities.</summary>

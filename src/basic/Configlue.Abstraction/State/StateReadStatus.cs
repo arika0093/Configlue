@@ -5,7 +5,9 @@ namespace Configlue.State;
 /// <see cref="InvalidPayload"/> is a source-local outcome: the source could be reached but returned a malformed
 /// or undecodable payload. It is unrelated to effective-model validation, which is governed solely by
 /// <see cref="Configlue.ReadValidationMode"/> and never produces a read status.
+/// Provider SPI result vocabulary.
 /// </remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public enum StateReadStatus
 {
     /// <summary>The source returned a value.</summary>

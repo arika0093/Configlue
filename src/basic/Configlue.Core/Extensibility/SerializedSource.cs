@@ -30,6 +30,9 @@ namespace Configlue.Extensibility;
 /// provider never constructs separate serialized reader/writer objects for the same backing store.
 /// </para>
 /// </remarks>
+/// <remarks>Provider SPI: the canonical Resource+Codec composition entry point. Hidden from ordinary
+/// completion; application code uses provider registration helpers.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public sealed class SerializedSource<T>
     : ISourceWatcher,
         IAsyncSourceWriteBatchParticipant<T>,

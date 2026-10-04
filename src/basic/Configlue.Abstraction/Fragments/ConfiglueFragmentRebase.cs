@@ -3,6 +3,8 @@ using System.Collections;
 namespace Configlue;
 
 /// <summary>The reason a configuration edit could not be reconciled with a concurrent change.</summary>
+/// <remarks>Advanced vocabulary: edit-session rebase outcomes.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public enum ConfiglueRebaseConflictKind
 {
     /// <summary>A scalar member was changed concurrently.</summary>
@@ -22,6 +24,8 @@ public enum ConfiglueRebaseConflictKind
 }
 
 /// <summary>Structured information about one configuration rebase conflict.</summary>
+/// <remarks>Advanced vocabulary: edit-session rebase outcomes.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public sealed class ConfiglueRebaseConflict
 {
     /// <summary>Initializes a new conflict.</summary>
@@ -72,6 +76,8 @@ public sealed class ConfiglueRebaseConflict
 }
 
 /// <summary>The result of rebasing a configuration edit onto a newer model.</summary>
+/// <remarks>Advanced vocabulary: edit-session rebase outcomes.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public sealed class ConfiglueRebaseResult
 {
     /// <summary>Initializes a rebase result.</summary>

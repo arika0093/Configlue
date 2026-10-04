@@ -1,7 +1,9 @@
 namespace Configlue.Migrations;
 
 /// <summary>Migrates one persisted state schema revision to another.</summary>
+/// <remarks>Advanced provider SPI for schema evolution.</remarks>
 /// <typeparam name="T">The state value type.</typeparam>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public interface IStateSchemaMigration<T>
 {
     /// <summary>The schema carried by the input state.</summary>

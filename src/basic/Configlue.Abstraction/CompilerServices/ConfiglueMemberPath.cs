@@ -1,7 +1,8 @@
 namespace Configlue.CompilerServices;
 
 /// <summary>An immutable generated member-ID sequence qualified by its root schema.</summary>
-[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
+/// <remarks>Generated-code plumbing: hand-written code uses property-path strings instead.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
 public readonly struct ConfiglueMemberPath : IEquatable<ConfiglueMemberPath>
 {
     private readonly ConfiglueModelSchema? _root;

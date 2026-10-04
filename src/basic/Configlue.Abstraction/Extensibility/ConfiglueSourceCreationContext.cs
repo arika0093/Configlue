@@ -1,6 +1,8 @@
 namespace Configlue.Extensibility;
 
 /// <summary>Context supplied to a provider when its source is materialized.</summary>
+/// <remarks>Provider SPI.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public sealed class ConfiglueSourceCreationContext
 {
     private readonly List<object> _resources = [];
@@ -53,7 +55,9 @@ public sealed class ConfiglueSourceCreationContext
 }
 
 /// <summary>A provider-created source and the resources created for its context lifetime.</summary>
+/// <remarks>Provider SPI.</remarks>
 /// <typeparam name="T">The generated fragment type.</typeparam>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public sealed class ConfiglueSourceCreation<T>
 {
     /// <summary>Creates a result. Omitted resources are borrowed from the application.</summary>

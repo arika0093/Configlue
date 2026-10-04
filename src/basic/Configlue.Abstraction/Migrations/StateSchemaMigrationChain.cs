@@ -1,7 +1,9 @@
 namespace Configlue.Migrations;
 
 /// <summary>Applies a validated sequence of migrations to one target schema.</summary>
+/// <remarks>Advanced schema-evolution helper.</remarks>
 /// <typeparam name="T">The state or source-contract type being migrated.</typeparam>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public sealed class StateSchemaMigrationChain<T>
 {
     private readonly Dictionary<StateSchemaMetadata, IStateSchemaMigration<T>> _migrations;

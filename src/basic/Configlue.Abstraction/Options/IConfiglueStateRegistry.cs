@@ -22,7 +22,9 @@ namespace Configlue;
 /// <see cref="IConfiglueStateRegistryNotificationDeferrer{T}"/> when its listeners reenter that
 /// manager. Without that capability, callbacks may run synchronously while the manager is in an
 /// operation, so listeners must not synchronously wait for another manager operation.
+/// Advanced application API for dynamic named states.
 /// </remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public interface IConfiglueStateRegistry<T> : IAsyncDisposable
 {
     /// <summary>The registered state names (state-instance identities).</summary>
@@ -59,7 +61,9 @@ public interface IConfiglueStateRegistry<T> : IAsyncDisposable
 /// gate, allowing queued callbacks to query the manager without deadlocking. Implementations
 /// should preserve FIFO order and support nested scopes; notifications resume when the last scope
 /// is disposed.
+/// Advanced SPI for custom registry implementations.
 /// </remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public interface IConfiglueStateRegistryNotificationDeferrer<T>
 {
     /// <summary>Defers queued registry notifications until the returned scope is disposed.</summary>
@@ -68,7 +72,9 @@ public interface IConfiglueStateRegistryNotificationDeferrer<T>
 
 /// <summary>A scope that defers registry notifications and can cancel notifications for a runtime.</summary>
 /// <typeparam name="T">The configuration model type.</typeparam>
-/// <remarks>Disposal releases one deferral scope. Cancellation applies to queued events for the exact runtime instance.</remarks>
+/// <remarks>Disposal releases one deferral scope. Cancellation applies to queued events for the exact runtime instance.
+/// Advanced SPI for custom registry implementations.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public interface IConfiglueStateRegistryNotificationDeferral<T> : IDisposable
 {
     /// <summary>Cancels queued notifications associated with this exact runtime instance.</summary>

@@ -3,7 +3,9 @@ using Configlue.CompilerServices;
 namespace Configlue;
 
 /// <summary>Runtime source registration inputs for a named generated model.</summary>
+/// <remarks>Provider SPI: the callback argument of source configuration.</remarks>
 /// <typeparam name="TModel">The generated model.</typeparam>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public sealed class ConfiglueSourceRegistrationContext<TModel>
     where TModel : IConfiglueFacadeModel<TModel>
 {

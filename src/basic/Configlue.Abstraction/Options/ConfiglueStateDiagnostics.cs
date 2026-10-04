@@ -3,6 +3,8 @@ using System.Collections.ObjectModel;
 namespace Configlue;
 
 /// <summary>An immutable snapshot of the sources and write routing for one state runtime.</summary>
+/// <remarks>Advanced diagnostics vocabulary.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public sealed class ConfiglueStateDiagnostics
 {
     private readonly KeyValuePair<string, SourceId>[] _propertyRoutes;
@@ -83,6 +85,8 @@ public sealed class ConfiglueStateDiagnostics
 }
 
 /// <summary>Describes one configured source in a state runtime.</summary>
+/// <remarks>Advanced diagnostics vocabulary.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public sealed class ConfiglueSourceDiagnostics
 {
     /// <summary>Creates source diagnostics.</summary>

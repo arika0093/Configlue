@@ -1,6 +1,8 @@
 namespace Configlue.Resources;
 
 /// <summary>Controls retry and backup behavior for a file-backed resource.</summary>
+/// <remarks>Advanced resource option.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public sealed class FileResourceOptions
 {
     /// <summary>Controls how file changes are detected while a caller is waiting.</summary>

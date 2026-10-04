@@ -4,6 +4,8 @@ using System.Collections.ObjectModel;
 namespace Configlue.State;
 
 /// <summary>A backend revision associated with one logical source identifier.</summary>
+/// <remarks>Advanced revision vocabulary.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public readonly record struct StateRevision
 {
     /// <summary>Gets or initializes the <see cref="SourceId"/> value.</summary>
@@ -32,6 +34,8 @@ public readonly record struct StateRevision
 }
 
 /// <summary>Direct and nested revisions observed during one state resolution.</summary>
+/// <remarks>Advanced revision vocabulary.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public sealed class StateRevisionVector
 {
     private static readonly IReadOnlyDictionary<SourceId, string?> EmptyRevisions =

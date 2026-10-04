@@ -1,6 +1,8 @@
 namespace Configlue.State;
 
 /// <summary>An explicit optimistic concurrency precondition for a write.</summary>
+/// <remarks>Provider SPI vocabulary.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public readonly record struct RevisionCondition
 {
     private readonly byte _kind;

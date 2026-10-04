@@ -1,4 +1,5 @@
 using System.Collections;
+using System.ComponentModel;
 
 #if CONFIGLUE_FRAGMENT_RUNTIME
 namespace Configlue;
@@ -9,6 +10,8 @@ namespace SparseFragments;
 #endif
 
 /// <summary>Default semantic equality used by generated sparse fragments.</summary>
+/// <remarks>Generated-code plumbing: referenced by emitted code, not hand-written callers.</remarks>
+[EditorBrowsable(EditorBrowsableState.Never)]
 #if CONFIGLUE_FRAGMENT_RUNTIME
 public static class ConfiglueValueComparer
 #else

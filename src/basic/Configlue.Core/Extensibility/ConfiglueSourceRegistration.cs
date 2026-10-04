@@ -1,6 +1,8 @@
 namespace Configlue.Extensibility;
 
 /// <summary>Applies common routing and capability settings to a registered provider source.</summary>
+/// <remarks>Provider SPI: returned by the registration sink.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public sealed class ConfiglueSourceRegistration
 {
     private readonly Action _ensureMutable;

@@ -3,6 +3,8 @@ using Configlue.CompilerServices;
 namespace Configlue.Sources;
 
 /// <summary>Projects a source-specific state contract into a logical model fragment.</summary>
+/// <remarks>Advanced composition SPI used by provider mount helpers.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public static class StateSourceProjection
 {
     /// <summary>
@@ -214,6 +216,7 @@ public static class StateSourceProjection
     /// <param name="projectedSchema">Optional schema metadata for the projected target value.</param>
     /// <param name="sourceMigrations">Optional migrations to apply to the source value before projection.</param>
     /// <param name="sourceSchema">The target schema for source migrations.</param>
+    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
     public static StateSource<TTarget> Project<TSource, TTarget>(
         StateSource<TSource> source,
         Func<TSource, TTarget> toTarget,
@@ -240,6 +243,7 @@ public static class StateSourceProjection
     /// <param name="projectedSchema">Optional schema metadata for the projected target value.</param>
     /// <param name="sourceMigrations">Optional migrations to apply to the source value before projection.</param>
     /// <param name="sourceSchema">The target schema for source migrations.</param>
+    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
     public static StateSource<TTarget> ProjectWithUpdate<TSource, TTarget>(
         StateSource<TSource> source,
         Func<TSource, TTarget> toTarget,

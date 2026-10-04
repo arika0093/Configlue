@@ -7,7 +7,9 @@ namespace Configlue.Resources;
 /// callers that combine writers must additionally satisfy <see cref="IResourceBatchCompatibility"/>.
 /// The default value has no identity and is only valid as the output of an unsuccessful
 /// <see cref="ITryResourceIdentity.TryGetResourceId(ConfiglueResourceContext, out ResourceId)"/> call.
+/// Provider SPI vocabulary: ordinary application code never manipulates this type.
 /// </remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public readonly record struct ResourceId
 {
     private readonly string? _value;
@@ -38,6 +40,8 @@ public readonly record struct ResourceId
 }
 
 /// <summary>Exposes the physical identity shared by resources and their logical views.</summary>
+/// <remarks>Provider SPI: implemented by resource authors.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public interface IResourceIdentity
 {
     /// <summary>Gets the identity used for one resource operation.</summary>
@@ -45,6 +49,8 @@ public interface IResourceIdentity
 }
 
 /// <summary>Optionally forwards a physical identity when one is available for an operation context.</summary>
+/// <remarks>Provider SPI: implemented by resource authors.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public interface ITryResourceIdentity
 {
     /// <summary>Tries to get the physical identity used for an operation context.</summary>

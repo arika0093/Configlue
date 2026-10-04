@@ -5,6 +5,9 @@ using Configlue.Resources;
 namespace Configlue;
 
 /// <summary>Collects typed state sources without requiring a Fragment type argument on the model API.</summary>
+/// <remarks>Advanced composition surface: ordinary application code registers provider helpers
+/// (for example <c>sources.JsonFile(...)</c>) instead of hand-built <c>StateSource{T}</c> values.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public class ConfiglueSourceSetBuilder : IConfiglueSourceRegistrationSink
 {
     private readonly List<IConfiglueSourceRegistration> _sources = [];

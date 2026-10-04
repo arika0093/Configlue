@@ -1,6 +1,8 @@
 namespace Configlue.State;
 
 /// <summary>The result of writing state.</summary>
+/// <remarks>Provider SPI result.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public readonly record struct StateWriteResult
 {
     /// <summary>Gets or initializes the <see cref="Revision"/> value.</summary>

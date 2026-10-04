@@ -147,7 +147,9 @@ public sealed partial class FileResource
     }
 
     /// <summary>Restores the latest backup without creating another backup generation.</summary>
+    /// <remarks>Advanced recovery primitive; ordinary recovery runs automatically when enabled.</remarks>
     /// <exception cref="FileNotFoundException">No latest backup exists.</exception>
+    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
     public async ValueTask<StateWriteResult> RestoreLatestBackupAsync(
         CancellationToken cancellationToken = default
     )

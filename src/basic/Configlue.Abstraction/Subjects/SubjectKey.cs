@@ -3,6 +3,8 @@ using System.Text;
 namespace Configlue;
 
 /// <summary>A canonical, opaque key identifying one subject's logical state.</summary>
+/// <remarks>Advanced vocabulary: ordinary application code works with subject objects, not keys.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public readonly record struct SubjectKey
 {
     private static readonly UTF8Encoding StrictUtf8 = new(false, true);

@@ -7,6 +7,8 @@ namespace Configlue.Extensibility;
 /// composition code uses this port to register generated-model sources and provider source definitions
 /// without widening the application-facing builder surface.
 /// </remarks>
+/// <remarks>Provider SPI registration port.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public interface IConfiglueSourceRegistrationSink
 {
     /// <summary>Adds a provider-defined source using the generated model's fragment type.</summary>

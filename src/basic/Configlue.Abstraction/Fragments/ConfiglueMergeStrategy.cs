@@ -57,6 +57,8 @@ public readonly record struct ConfiglueMergeSourceValue<T>
 }
 
 /// <summary>Identifies the sources that contributed an effective collection element.</summary>
+/// <remarks>Advanced merge SPI result.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public sealed class ConfiglueMergeElementProvenance
 {
     /// <summary>Creates element provenance.</summary>
@@ -76,6 +78,8 @@ public sealed class ConfiglueMergeElementProvenance
 }
 
 /// <summary>Untyped operations used by generated metadata and the runtime.</summary>
+/// <remarks>Advanced merge SPI: custom strategies implement <see cref="ConfiglueMergeStrategy{T}"/> instead.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public interface IConfiglueMergeStrategy
 {
     /// <summary>The member value type handled by this strategy.</summary>
@@ -89,6 +93,8 @@ public interface IConfiglueMergeStrategy
 }
 
 /// <summary>Optional edit-rebase behavior for a custom merge strategy.</summary>
+/// <remarks>Advanced merge SPI.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public interface IConfiglueMergeRebaseStrategy
 {
     /// <summary>Reapplies an edit to a newer value, or returns a reason that it cannot be rebased.</summary>
@@ -102,6 +108,8 @@ public interface IConfiglueMergeRebaseStrategy
 }
 
 /// <summary>Optional source-local contribution planning for a custom merge strategy.</summary>
+/// <remarks>Advanced merge SPI.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public interface IConfiglueMergeContributionPlanner
 {
     /// <summary>Plans one source's contribution to realize the requested effective value.</summary>
@@ -115,6 +123,8 @@ public interface IConfiglueMergeContributionPlanner
 }
 
 /// <summary>Optional element provenance for a custom merge strategy.</summary>
+/// <remarks>Advanced merge SPI.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public interface IConfiglueMergeElementProvenanceProvider
 {
     /// <summary>Maps effective collection elements to their contributing source IDs.</summary>
@@ -133,8 +143,10 @@ public interface IConfiglueMergeElementProvenanceProvider
 /// <remarks>
 /// Generated models keep one strategy instance and may call it concurrently. Implementations must be stateless or
 /// thread-safe.
+/// Advanced merge SPI: derive custom member algebras from this class.
 /// </remarks>
 /// <typeparam name="T">The model member type.</typeparam>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public abstract class ConfiglueMergeStrategy<T> : IConfiglueMergeStrategy
 {
     /// <summary>Merges two presence-aware member values.</summary>

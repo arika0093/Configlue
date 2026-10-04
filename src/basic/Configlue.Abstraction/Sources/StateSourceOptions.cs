@@ -3,6 +3,8 @@ using Configlue.Resources;
 namespace Configlue.Sources;
 
 /// <summary>Optional routing and capability settings for a logical state source.</summary>
+/// <remarks>Provider SPI: consumed by <see cref="StateSource{T}"/> construction.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public sealed class StateSourceOptions<T>
 {
     /// <summary>Higher values are read first.</summary>

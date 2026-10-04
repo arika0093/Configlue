@@ -3,6 +3,8 @@ using System.Diagnostics.CodeAnalysis;
 namespace Configlue.State;
 
 /// <summary>A value returned from a state reader.</summary>
+/// <remarks>Provider SPI result: returned by source implementations to the runtime.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public readonly record struct StateReadResult<T>
 {
     private readonly StateReadStatus? _status;

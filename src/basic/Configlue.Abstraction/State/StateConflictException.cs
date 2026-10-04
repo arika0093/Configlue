@@ -1,6 +1,8 @@
 namespace Configlue.State;
 
 /// <summary>Raised when a conditional state write targets a stale backend revision.</summary>
+/// <remarks>Surfaces to advanced write-conflict handling.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public class StateConflictException : Exception
 {
     /// <summary>Creates a state conflict exception.</summary>

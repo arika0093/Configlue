@@ -1,6 +1,8 @@
 namespace Configlue;
 
 /// <summary>Implemented by source-generated models that support deep cloning.</summary>
+/// <remarks>Advanced cloning contract implemented by generated code.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public interface IConfiglueDeepCloneable<out T>
 {
     /// <summary>

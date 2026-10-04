@@ -1,6 +1,8 @@
 namespace Configlue.Resources;
 
 /// <summary>The resource content to persist with an explicit revision precondition.</summary>
+/// <remarks>Provider SPI: flows from the runtime into resource implementations.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public readonly record struct ResourceWriteRequest
 {
     /// <summary>The content to persist.</summary>

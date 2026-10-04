@@ -3,6 +3,8 @@ using System.Collections;
 namespace Configlue;
 
 /// <summary>Identifies the source contributions that supplied one effective collection element.</summary>
+/// <remarks>Advanced merge SPI result.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public sealed class ConfiglueCollectionElementProvenance
 {
     /// <summary>Initializes element provenance.</summary>
@@ -36,6 +38,9 @@ public sealed class ConfiglueCollectionElementProvenance
 /// Product-neutral per-element provenance for a merged collection member. Host source identities are supplied only to
 /// resolve custom strategy provenance back to their contribution positions.
 /// </summary>
+/// <remarks>Runtime helper consumed by details; custom strategies expose provenance through
+/// <see cref="IConfiglueMergeElementProvenanceProvider"/> instead of calling this type.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public static class ConfiglueMergeProvenance
 {
     /// <summary>Maps effective collection elements to their contributing source positions.</summary>

@@ -29,6 +29,9 @@ namespace Configlue.Resources;
 /// spuriously.
 /// </para>
 /// </remarks>
+/// <remarks>Advanced resource: ordinary application code uses provider file-source helpers instead of
+/// constructing this type directly.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public sealed partial class FileResource
     : IResourceReader,
         IPipelineResourceReader,

@@ -9,6 +9,8 @@ namespace Configlue;
 /// <see cref="ResourceId"/>. Different subjects share one state definition but can resolve
 /// different provider keys and routes.
 /// </remarks>
+/// <remarks>Advanced application API for subject-scoped state.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public interface ISubjectState<T>
 {
     /// <summary>Gets a writable view that scopes operations on this state instance to <paramref name="subject"/>.</summary>

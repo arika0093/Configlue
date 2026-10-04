@@ -9,6 +9,7 @@ namespace Configlue.Extensibility;
 /// override the declaration when registering the definition through the source registration
 /// options.
 /// </remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public interface IConfiglueRuntimeLifetimeSource
 {
     /// <summary>The dependency-injection lifetime required by this definition.</summary>
