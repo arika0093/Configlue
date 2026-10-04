@@ -449,7 +449,7 @@ public sealed class WebStorageWatcherTests
                         ? owner.Local
                         : owner.Session;
                     area.TryGetValue((string)args![0]!, out var value);
-                    return ValueTask.FromResult((TValue)(object?)value!);
+                    return ValueTaskCompat.FromResult((TValue)(object?)value!);
                 }
 
                 if (identifier.EndsWith(".setItem", StringComparison.Ordinal))
@@ -462,7 +462,7 @@ public sealed class WebStorageWatcherTests
                         ? owner.Local
                         : owner.Session;
                     area[(string)args![0]!] = (string)args[1]!;
-                    return ValueTask.FromResult(default(TValue)!);
+                    return ValueTaskCompat.FromResult(default(TValue)!);
                 }
 
                 throw new NotSupportedException(identifier);
@@ -488,7 +488,7 @@ public sealed class WebStorageWatcherTests
                         DotNetObjectReference<WebStorageChangeReceiver>
                     )args[1]!;
                     // Called through InvokeVoidAsync: the module reference expects no payload.
-                    return ValueTask.FromResult(default(TValue)!);
+                    return ValueTaskCompat.FromResult(default(TValue)!);
                 }
 
                 if (
@@ -498,7 +498,7 @@ public sealed class WebStorageWatcherTests
                     owner.UnsubscribeCount++;
                     owner._receivers.Remove((string)args![0]!);
 
-                    return ValueTask.FromResult(default(TValue)!);
+                    return ValueTaskCompat.FromResult(default(TValue)!);
                 }
 
                 if (string.Equals(identifier, "mutate", StringComparison.Ordinal))

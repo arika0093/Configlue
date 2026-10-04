@@ -871,12 +871,12 @@ public sealed class StateHttpTransportTests
             var key = context.Subject?.Key.ToString() ?? "";
             if (_values.TryGetValue(key, out var fragment))
             {
-                return ValueTask.FromResult(
+                return ValueTaskCompat.FromResult(
                     StateReadResult<AppSettings.Fragment>.Success(fragment, key)
                 );
             }
 
-            return ValueTask.FromResult(StateReadResult<AppSettings.Fragment>.NotFound(key));
+            return ValueTaskCompat.FromResult(StateReadResult<AppSettings.Fragment>.NotFound(key));
         }
 
         public ValueTask<StateWriteResult> WriteAsync(
@@ -894,7 +894,7 @@ public sealed class StateHttpTransportTests
                 signal.TrySetResult();
             }
 
-            return ValueTask.FromResult(new StateWriteResult(key));
+            return ValueTaskCompat.FromResult(new StateWriteResult(key));
         }
 
         public async ValueTask WaitForChangeAsync(
@@ -927,7 +927,7 @@ public sealed class StateHttpTransportTests
         public ValueTask<StateReadResult<AppSettings.Fragment>> ReadAsync(
             ConfiglueResourceContext context,
             CancellationToken cancellationToken = default
-        ) => ValueTask.FromResult(StateReadResult<AppSettings.Fragment>.NotFound());
+        ) => ValueTaskCompat.FromResult(StateReadResult<AppSettings.Fragment>.NotFound());
 
         public ValueTask<StateWriteResult> WriteAsync(
             ConfiglueResourceContext context,

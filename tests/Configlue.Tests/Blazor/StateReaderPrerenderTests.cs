@@ -182,7 +182,7 @@ public sealed class StateReaderPrerenderTests
         ctx.Services.AddSingleton<IPrerenderSnapshotStore>(store);
         var session = new EditSession<AppSettings>(
             new AppSettings { Label = "draft" },
-            (_, _) => ValueTask.FromResult(StateWriteReceipt.Empty)
+            (_, _) => ValueTaskCompat.FromResult(StateWriteReceipt.Empty)
         );
         ctx.Services.AddSingleton<IConfiglueEditSessions<AppSettings>>(
             new StaticEditSessions<AppSettings>(session)
@@ -292,7 +292,7 @@ public sealed class StateReaderPrerenderTests
     {
         public ValueTask<EditSession<T>> OpenEditSessionAsync(
             CancellationToken cancellationToken = default
-        ) => ValueTask.FromResult(session);
+        ) => ValueTaskCompat.FromResult(session);
 
         public ValueTask<EditSession<T>> OpenEditSessionAsync(
             StateWritePlan writePlan,
@@ -300,7 +300,7 @@ public sealed class StateReaderPrerenderTests
         )
         {
             ArgumentNullException.ThrowIfNull(writePlan);
-            return ValueTask.FromResult(session);
+            return ValueTaskCompat.FromResult(session);
         }
     }
 

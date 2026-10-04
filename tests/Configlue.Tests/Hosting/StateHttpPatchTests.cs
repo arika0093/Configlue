@@ -1057,12 +1057,12 @@ public sealed class StateHttpPatchTests
             var key = context.Subject?.Key.ToString() ?? "";
             if (_values.TryGetValue(key, out var fragment))
             {
-                return ValueTask.FromResult(
+                return ValueTaskCompat.FromResult(
                     StateReadResult<AppSettings.Fragment>.Success(fragment, key)
                 );
             }
 
-            return ValueTask.FromResult(StateReadResult<AppSettings.Fragment>.NotFound(key));
+            return ValueTaskCompat.FromResult(StateReadResult<AppSettings.Fragment>.NotFound(key));
         }
 
         public ValueTask<StateWriteResult> WriteAsync(
@@ -1080,7 +1080,7 @@ public sealed class StateHttpPatchTests
                 signal.TrySetResult();
             }
 
-            return ValueTask.FromResult(new StateWriteResult(key));
+            return ValueTaskCompat.FromResult(new StateWriteResult(key));
         }
 
         public async ValueTask WaitForChangeAsync(

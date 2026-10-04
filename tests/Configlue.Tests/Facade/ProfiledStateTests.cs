@@ -1164,7 +1164,7 @@ public sealed class ProfiledStateTests
 
         public ValueTask<bool> TryAddAsync(string profileName) =>
             _blocked.Contains(profileName)
-                ? ValueTask.FromResult(false)
+                ? new ValueTask<bool>(false)
                 : inner.TryAddAsync(profileName);
 
         public ValueTask<bool> TryRemoveAsync(string profileName) =>
