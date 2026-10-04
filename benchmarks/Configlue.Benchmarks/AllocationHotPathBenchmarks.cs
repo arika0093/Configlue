@@ -325,12 +325,109 @@ public sealed class MessagePackCodecAllocationBenchmarks
     public AllocationMessagePackSettings.Fragment? Deserialize() =>
         _codec.Deserialize(in _serialized, in _context);
 
-    [Benchmark]
-    public StateSchemaMetadata? ReadMetadataAndDecodeValue()
+    [Benchmark(Baseline = true)]
+    public StateSchemaMetadata? SplitMetadataThenDeserialize()
     {
         var schema = _codec.ReadSchemaMetadata(in _serialized);
         _ = _codec.Deserialize(in _serialized, in _context);
         return schema;
+    }
+
+    [Benchmark]
+    public StateCodecDecodeResult<AllocationMessagePackSettings.Fragment> DeserializeWithMetadataSinglePass() =>
+        _codec.DeserializeWithMetadata(in _serialized, in _context);
+}
+
+[MemoryDiagnoser]
+public sealed class JsonCodecMetadataBenchmarks
+{
+    private JsonStateCodec<OptimizationBenchmarkSettings.Fragment> _codec = null!;
+    private OptimizationBenchmarkSettings.Fragment _value = null!;
+    private StateCodecContext _context;
+    private ReadOnlySequence<byte> _serialized;
+
+    [Params(DocumentLayout.Simple, DocumentLayout.Detailed)]
+    public DocumentLayout Layout { get; set; }
+
+    [GlobalSetup]
+    public void Setup()
+    {
+        _codec = new JsonStateCodec<OptimizationBenchmarkSettings.Fragment>(
+            documentLayout: new DocumentLayoutOptions { Layout = Layout }
+        );
+        _value = new OptimizationBenchmarkSettings.Fragment
+        {
+            Counter = Optional<int>.Present(10),
+            Name = Optional<string>.Present("allocation benchmark"),
+            Enabled = Optional<bool>.Present(true),
+        };
+        _context = new StateCodecContext(
+            new StateSchemaMetadata("bench-optimization-settings", 1)
+        );
+        var buffer = new ArrayBufferWriter<byte>();
+        _codec.Serialize(_value, buffer, in _context);
+        _serialized = new ReadOnlySequence<byte>(buffer.WrittenMemory.ToArray());
+        _ = _codec.Deserialize(in _serialized, in _context);
+        _ = _codec.ReadSchemaMetadata(in _serialized);
+        _ = _codec.DeserializeWithMetadata(in _serialized, in _context);
+    }
+
+    [Benchmark(Baseline = true)]
+    public StateSchemaMetadata? SplitMetadataThenDeserialize()
+    {
+        var schema = _codec.ReadSchemaMetadata(in _serialized);
+        _ = _codec.Deserialize(in _serialized, in _context);
+        return schema;
+    }
+
+    [Benchmark]
+    public StateCodecDecodeResult<OptimizationBenchmarkSettings.Fragment> DeserializeWithMetadataSinglePass() =>
+        _codec.DeserializeWithMetadata(in _serialized, in _context);
+}
+
+[MemoryDiagnoser]
+public sealed class MetadataSinglePassReaderBenchmarks
+{
+    private SerializedStateReader<AllocationMessagePackSettings.Fragment> _reader = null!;
+    private byte[] _payload = null!;
+
+    [GlobalSetup]
+    public async Task SetupAsync()
+    {
+        var codec = new MessagePackStateCodec<AllocationMessagePackSettings.Fragment>();
+        var value = new AllocationMessagePackSettings.Fragment
+        {
+            Counter = Optional<int>.Present(42),
+            Name = Optional<string>.Present("allocation benchmark"),
+        };
+        var context = new StateCodecContext(
+            new StateSchemaMetadata("bench-allocation-messagepack", 1)
+        );
+        var buffer = new ArrayBufferWriter<byte>();
+        codec.Serialize(value, buffer, in context);
+        _payload = buffer.WrittenMemory.ToArray();
+        _reader = new SerializedStateReader<AllocationMessagePackSettings.Fragment>(
+            new FixedBytesResource(_payload),
+            codec
+        );
+        _ = await _reader.ReadAsync(ConfiglueResourceContext.Default).ConfigureAwait(false);
+    }
+
+    [Benchmark]
+    public ValueTask<StateReadResult<AllocationMessagePackSettings.Fragment>> ReadSinglePassAsync() =>
+        _reader.ReadAsync(ConfiglueResourceContext.Default);
+
+    private sealed class FixedBytesResource(byte[] payload) : IResourceReader
+    {
+        public ValueTask<ResourceReadResult> ReadAsync(
+            ConfiglueResourceContext context,
+            CancellationToken cancellationToken = default
+        )
+        {
+            _ = context;
+            _ = cancellationToken;
+            return new ValueTask<ResourceReadResult>(ResourceReadResult.Success(payload));
+        }
     }
 }
 
