@@ -2,6 +2,9 @@ name: Strict tests
 
 on:
   workflow_call:
+  push:
+    branches: [main]
+  pull_request:
   workflow_dispatch:
 
 permissions:
@@ -136,115 +139,7 @@ jobs:
           --configuration Release --output artifacts
 
   native-godot:
-    timeout-minutes: 20
-    runs-on: windows-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-
-      - name: Set up .NET
-        uses: actions/setup-dotnet@v6
-        with:
-          dotnet-version: |
-            8.0.x
-            10.0.x
-
-      - name: Cache NuGet packages
-        uses: actions/cache@v4
-        with:
-          path: ~/.nuget/packages
-          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/*.props', '**/*.targets', 'global.json') }}
-          restore-keys: |
-            ${{ runner.os }}-nuget-
-
-      - name: Pack consumer dependencies
-        run: dotnet pack Configlue.slnx --configuration Release --output artifacts/packages
-
-      - name: Build the packed Godot consumer
-        shell: pwsh
-        run: |
-          $package = Get-ChildItem artifacts/packages -Filter 'Configlue.Hosting.Godot.*.nupkg' | Select-Object -First 1
-          $version = [regex]::Match($package.Name, '^Configlue\.Hosting\.Godot\.(.+)\.nupkg$').Groups[1].Value
-          if (!$version) { throw 'Godot hosting package was not produced.' }
-          $feed = (Resolve-Path artifacts/packages).Path
-          dotnet build tests/Configlue.Hosting.Godot.Smoke/Configlue.Hosting.Godot.Smoke.csproj -p:ConfigluePackageVersion=$version -p:RestoreAdditionalProjectSources=$feed
-          if ($LASTEXITCODE -ne 0) { throw 'Packed Godot consumer build failed.' }
-
-      - name: Cache Godot engine
-        uses: actions/cache@v4
-        with:
-          path: artifacts/engines/godot
-          key: godot-4.7.2-stable-mono-win64
-
-      - name: Run native Godot smoke
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-          New-Item -ItemType Directory -Force artifacts/engines | Out-Null
-          if (-not (Test-Path artifacts/engines/godot)) {
-            Invoke-WebRequest 'https://github.com/godotengine/godot-builds/releases/download/4.7.2-stable/Godot_v4.7.2-stable_mono_win64.zip' -OutFile artifacts/engines/godot.zip
-            Expand-Archive artifacts/engines/godot.zip artifacts/engines/godot
-            Remove-Item artifacts/engines/godot.zip -Force
-          }
-          $engine = (Get-ChildItem artifacts/engines/godot -Recurse -Filter '*console.exe' | Select-Object -First 1).FullName
-          & $engine --headless --path tests/Configlue.Hosting.Godot.Smoke --editor --import --quit
-          if ($LASTEXITCODE -ne 0) { throw 'Godot import failed.' }
-          $output = & $engine --headless --path tests/Configlue.Hosting.Godot.Smoke --quit-after 1200 --max-fps 60 2>&1
-          $output | Tee-Object -FilePath artifacts/godot-smoke.log | Write-Output
-          if ($LASTEXITCODE -ne 0 -or ($output -join "`n") -notmatch 'CONFIGLUE_GODOT_SMOKE_PASS') { throw 'Native Godot smoke failed or timed out.' }
-
-      - name: Upload failure diagnostics
-        if: failure() || cancelled()
-        uses: actions/upload-artifact@v7
-        with:
-          name: native-godot-results
-          path: artifacts/godot-smoke.log
-          if-no-files-found: ignore
-          retention-days: 7
+    uses: ./.github/workflows/test-godot-smoke.yaml
 
   native-aot:
-    timeout-minutes: 30
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-
-      - name: Set up .NET
-        uses: actions/setup-dotnet@v6
-        with:
-          dotnet-version: 10.0.x
-
-      - name: Cache NuGet packages
-        uses: actions/cache@v4
-        with:
-          path: ~/.nuget/packages
-          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/*.props', '**/*.targets', 'global.json') }}
-          restore-keys: |
-            ${{ runner.os }}-nuget-
-
-      - name: Publish NativeAOT tests
-        run: >
-          dotnet publish tests/Configlue.Tests/Configlue.Tests.csproj
-          --configuration Release
-          --framework net10.0
-          --runtime linux-x64
-          --self-contained true
-          -p:ConfiglueNativeAot=true
-
-      - name: Run NativeAOT JSON test
-        run: >
-          tests/Configlue.Tests/bin/Release/net10.0/linux-x64/publish/Configlue.Tests
-          --treenode-filter '/*/*/*/*JsonAot*'
-          --timeout 5m
-          --progress off
-
-      - name: Run NativeAOT MessagePack test
-        run: >
-          tests/Configlue.Tests/bin/Release/net10.0/linux-x64/publish/Configlue.Tests
-          --treenode-filter '/*/*/*/*MessagePackAot*'
-          --timeout 5m
-          --progress off
+    uses: ./.github/workflows/test-nativeaot.yaml
