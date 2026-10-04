@@ -87,15 +87,92 @@ public sealed class SparseFragmentSchema
         ArgumentNullException.ThrowIfNull(modelType);
         ArgumentNullException.ThrowIfNull(members);
         _modelType = modelType;
-        _members = Array.AsReadOnly(members.ToArray());
+        var memberArray = members.ToArray();
+        _members = Array.AsReadOnly(memberArray);
+        HasOrdinalMemberIds = CheckOrdinalMemberIds(memberArray);
         _emptyFragmentFactory = emptyFragmentFactory;
+    }
+
+    private static bool CheckOrdinalMemberIds(SparseFragmentMemberSchema[] members)
+    {
+        for (var index = 0; index < members.Length; index++)
+        {
+            if (members[index].Id != index)
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /// <summary>The ordinary model type.</summary>
     public Type ModelType => _modelType;
 
     /// <summary>The member schemas ordered by schema-local ordinal.</summary>
+    /// <remarks>
+    /// Generated schemas assign zero-based contiguous ordinals matching this order, so
+    /// <c>Members[id].Id == id</c> holds for every generated member ID. Hand-built schemas should
+    /// preserve that layout for O(1) lookup; <see cref="TryGetMember"/> still resolves members
+    /// correctly when they do not.
+    /// </remarks>
     public IReadOnlyList<SparseFragmentMemberSchema> Members => _members;
+
+    /// <summary>
+    /// Whether generated member IDs are zero-based contiguous ordinals matching
+    /// <see cref="Members"/> order, enabling O(1) indexed lookup.
+    /// </summary>
+    public bool HasOrdinalMemberIds { get; }
+
+    /// <summary>Resolves a generated member ID to its schema metadata in O(1) for ordinal schemas.</summary>
+    /// <param name="memberId">The schema-local generated member ID.</param>
+    /// <param name="member">Receives the member metadata when the ID is known.</param>
+    /// <returns>Whether the schema contains the generated member ID.</returns>
+    /// <remarks>
+    /// Ordinal schemas take the indexed fast path. Non-ordinal schemas fall back to a linear scan
+    /// so hand-built metadata keeps working; prefer ordinal layout in hot paths.
+    /// </remarks>
+    public bool TryGetMember(int memberId, out SparseFragmentMemberSchema member)
+    {
+        var members = _members;
+        if ((uint)memberId < (uint)members.Count)
+        {
+            var candidate = members[memberId];
+            if (candidate.Id == memberId)
+            {
+                member = candidate;
+                return true;
+            }
+        }
+
+        for (var index = 0; index < members.Count; index++)
+        {
+            if (members[index].Id == memberId)
+            {
+                member = members[index];
+                return true;
+            }
+        }
+
+        member = default;
+        return false;
+    }
+
+    /// <summary>Resolves a generated member ID to its schema metadata in O(1) for ordinal schemas.</summary>
+    /// <param name="memberId">The schema-local generated member ID.</param>
+    /// <returns>The member metadata.</returns>
+    /// <exception cref="ArgumentException">The schema has no generated member with the ID.</exception>
+    public SparseFragmentMemberSchema GetMember(int memberId)
+    {
+        if (TryGetMember(memberId, out var member))
+        {
+            return member;
+        }
+
+        throw new ArgumentException(
+            $"Schema '{_modelType}' has no generated member with ID {memberId}."
+        );
+    }
 
     /// <summary>Creates an empty fragment instance.</summary>
     public ISparseFragment CreateEmptyFragment() =>

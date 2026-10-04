@@ -353,12 +353,15 @@ namespace Configlue
     public sealed class ConfiglueModelSchema
     {
         public ConfiglueModelSchema(System.Type modelType, string id, int version, System.Collections.Generic.IEnumerable<Configlue.ConfiglueMemberSchema> members, System.Func<Configlue.IConfiglueFragment>? emptyFragmentFactory = null) { }
+        public bool HasOrdinalMemberIds { get; }
         public string Id { get; }
         public System.Collections.Generic.IReadOnlyList<Configlue.ConfiglueMemberSchema> Members { get; }
         public System.Type ModelType { get; }
         public int Version { get; }
         public Configlue.IConfiglueFragment CreateEmptyFragment() { }
+        public Configlue.ConfiglueMemberSchema GetMember(int memberId) { }
         public Configlue.State.StateSchemaMetadata ToMetadata() { }
+        public bool TryGetMember(int memberId, out Configlue.ConfiglueMemberSchema member) { }
     }
     [System.AttributeUsage(System.AttributeTargets.Class | System.AttributeTargets.Struct, AllowMultiple=true, Inherited=false)]
     public sealed class ConfigluePreviousVersionAttribute : System.Attribute

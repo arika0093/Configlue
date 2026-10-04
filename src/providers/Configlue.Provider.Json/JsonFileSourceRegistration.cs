@@ -337,12 +337,25 @@ public static class JsonFileSourceRegistration
             string propertyPath
         )
         {
-            var matches = schema
-                .Members.Where(member =>
-                    string.Equals(member.Name, path[index], StringComparison.OrdinalIgnoreCase)
-                )
-                .ToArray();
-            if (matches.Length != 1)
+            ConfiglueMemberSchema? match = null;
+            foreach (var candidate in schema.Members)
+            {
+                if (!string.Equals(candidate.Name, path[index], StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                if (match is not null)
+                {
+                    throw new ArgumentException(
+                        $"Mount path '{propertyPath}' has an unknown or ambiguous member '{path[index]}' in model '{schema.ModelType}'.",
+                        nameof(propertyPath)
+                    );
+                }
+
+                match = candidate;
+            }
+            if (match is null)
             {
                 throw new ArgumentException(
                     $"Mount path '{propertyPath}' has an unknown or ambiguous member '{path[index]}' in model '{schema.ModelType}'.",
@@ -350,11 +363,11 @@ public static class JsonFileSourceRegistration
                 );
             }
 
-            var nested = matches[0].NestedSchemaFactory?.Invoke();
+            var nested = match.Value.NestedSchemaFactory?.Invoke();
             if (nested is null)
             {
                 throw new ArgumentException(
-                    $"Mount path '{propertyPath}' continues through non-nested member '{matches[0].Name}'.",
+                    $"Mount path '{propertyPath}' continues through non-nested member '{match.Value.Name}'.",
                     nameof(propertyPath)
                 );
             }

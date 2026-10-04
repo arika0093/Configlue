@@ -17,21 +17,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         ConfiglueModelSchema schema,
         int memberId,
         out ConfiglueMemberSchema member
-    )
-    {
-        var members = schema.Members;
-        for (var index = 0; index < members.Count; index++)
-        {
-            if (members[index].Id == memberId)
-            {
-                member = members[index];
-                return true;
-            }
-        }
-
-        member = default;
-        return false;
-    }
+    ) => schema.TryGetMember(memberId, out member);
 
     private void Validate(TModel value)
     {

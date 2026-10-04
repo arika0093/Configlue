@@ -171,7 +171,21 @@ public sealed class ConfiglueModelSchema
         }
 
         Members = Array.AsReadOnly(memberArray);
+        HasOrdinalMemberIds = CheckOrdinalMemberIds(memberArray);
         _emptyFragmentFactory = emptyFragmentFactory;
+    }
+
+    private static bool CheckOrdinalMemberIds(ConfiglueMemberSchema[] members)
+    {
+        for (var index = 0; index < members.Length; index++)
+        {
+            if (members[index].Id != index)
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /// <summary>The CLR model type.</summary>
@@ -188,8 +202,66 @@ public sealed class ConfiglueModelSchema
     /// Member IDs are local to this model type, schema ID, and version. They may change when members
     /// are added, removed, or renamed in another schema version; do not persist them or compare them
     /// across versions.
+    /// Generated schemas assign zero-based contiguous ordinals matching this order, so
+    /// <c>Members[id].Id == id</c> holds for every generated member ID. Hand-built schemas should
+    /// preserve that layout for O(1) lookup; <see cref="TryGetMember"/> still resolves members
+    /// correctly when they do not.
     /// </remarks>
     public IReadOnlyList<ConfiglueMemberSchema> Members { get; }
+
+    /// <summary>
+    /// Whether generated member IDs are zero-based contiguous ordinals matching
+    /// <see cref="Members"/> order, enabling O(1) indexed lookup.
+    /// </summary>
+    public bool HasOrdinalMemberIds { get; }
+
+    /// <summary>Resolves a generated member ID to its schema metadata in O(1) for ordinal schemas.</summary>
+    /// <param name="memberId">The schema-local generated member ID.</param>
+    /// <param name="member">Receives the member metadata when the ID is known.</param>
+    /// <returns>Whether the schema contains the generated member ID.</returns>
+    /// <remarks>
+    /// Ordinal schemas take the indexed fast path. Non-ordinal schemas fall back to a linear scan
+    /// so hand-built metadata keeps working; prefer ordinal layout in hot paths.
+    /// </remarks>
+    public bool TryGetMember(int memberId, out ConfiglueMemberSchema member)
+    {
+        var members = Members;
+        if ((uint)memberId < (uint)members.Count)
+        {
+            var candidate = members[memberId];
+            if (candidate.Id == memberId)
+            {
+                member = candidate;
+                return true;
+            }
+        }
+
+        for (var index = 0; index < members.Count; index++)
+        {
+            if (members[index].Id == memberId)
+            {
+                member = members[index];
+                return true;
+            }
+        }
+
+        member = default;
+        return false;
+    }
+
+    /// <summary>Resolves a generated member ID to its schema metadata in O(1) for ordinal schemas.</summary>
+    /// <param name="memberId">The schema-local generated member ID.</param>
+    /// <returns>The member metadata.</returns>
+    /// <exception cref="ArgumentException">The schema has no generated member with the ID.</exception>
+    public ConfiglueMemberSchema GetMember(int memberId)
+    {
+        if (TryGetMember(memberId, out var member))
+        {
+            return member;
+        }
+
+        throw new ArgumentException($"Schema '{Id}' has no generated member with ID {memberId}.");
+    }
 
     /// <summary>Creates an empty generated fragment for this model schema.</summary>
     public IConfiglueFragment CreateEmptyFragment() =>

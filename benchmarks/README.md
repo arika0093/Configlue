@@ -78,6 +78,17 @@ paths with `MemoryDiagnoser` (allocated bytes plus throughput):
 
 ```shell
 dotnet run -c Release --project benchmarks/Configlue.Benchmarks -- --filter '*NestedWriteRoutingBenchmarks220*'
+`MemberLookupBenchmarks.cs` (issue #222) measures generated member-ID lookup scaling
+with 4/16/64/128-member models: centralized `TryGetMember` over all IDs,
+`ConfiglueMemberPath` leaf resolution over all IDs, and full-fragment XML/YAML
+serialization. `SparseMemberLookupCodecBenchmarks` serializes sparse fragments with
+4/16/64/128 present members on the fixed 128-member model. All groups use
+`MemoryDiagnoser`. A return to per-member linear scans shows up as quadratic growth in
+`Mean` across `MemberCount` (or with `PresentCount` at fixed schema size) instead of
+linear growth, and as nonzero `Allocated` on the lookup benchmarks.
+
+```shell
+dotnet run -c Release --project benchmarks/Configlue.Benchmarks -- --filter '*MemberLookup*'
 ```
 
 A fast smoke check that the group sets up and runs (numbers are not publishable):
@@ -94,6 +105,9 @@ lookups via `ConfiglueMemberPath.FromNames` per member), re-run the filter above
 same machine, and compare the `Allocated` column: the reverted run allocates one joined
 string per member per nesting level plus one split/name-lookup pass per resolution on
 top of the baseline. Restore the generated-ID path afterwards.
+
+dotnet run -c Release --project benchmarks/Configlue.Benchmarks -- --filter '*MemberLookup*' --job dry
+```
 
 Before an allocation optimization, capture its relevant group at the parent revision and again at the candidate revision on the same machine and runtime. Keep the BenchmarkDotNet reports with the review notes; do not treat numbers from different machines or runtime versions as a regression threshold. For a focused comparison:
 

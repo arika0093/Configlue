@@ -224,9 +224,10 @@ internal static class XmlStateCodecOperations
     {
         writer.WriteStartElement(elementName);
         WriteSchemaAttributes(writer, schema);
+        var memberSchema = fragment.Schema;
         foreach (var present in fragment.EnumeratePresentMembers())
         {
-            var member = fragment.Schema.Members.First(item => item.Id == present.Id);
+            var member = memberSchema.GetMember(present.Id);
             writer.WriteStartElement(MemberName);
             writer.WriteAttributeString(
                 "id",
@@ -304,6 +305,7 @@ internal static class XmlStateCodecOperations
                 $"Generated fragment '{fragmentType}' returned a null Empty value."
             );
         var seenIds = new HashSet<int>();
+        var memberSchema = fragment.Schema;
 
         foreach (var memberElement in element.Elements(MemberName))
         {
@@ -325,8 +327,7 @@ internal static class XmlStateCodecOperations
                 throw new XmlException($"Duplicate Configlue XML member id '{id}'.");
             }
 
-            var member = fragment.Schema.Members.FirstOrDefault(candidate => candidate.Id == id);
-            if (member.Name is null)
+            if (!memberSchema.TryGetMember(id, out var member))
             {
                 continue;
             }

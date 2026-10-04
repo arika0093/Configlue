@@ -150,9 +150,12 @@ namespace SparseFragments
     public sealed class SparseFragmentSchema
     {
         public SparseFragmentSchema(System.Type modelType, System.Collections.Generic.IEnumerable<SparseFragments.SparseFragmentMemberSchema> members, System.Func<SparseFragments.ISparseFragment>? emptyFragmentFactory = null) { }
+        public bool HasOrdinalMemberIds { get; }
         public System.Collections.Generic.IReadOnlyList<SparseFragments.SparseFragmentMemberSchema> Members { get; }
         public System.Type ModelType { get; }
         public SparseFragments.ISparseFragment CreateEmptyFragment() { }
+        public SparseFragments.SparseFragmentMemberSchema GetMember(int memberId) { }
+        public bool TryGetMember(int memberId, out SparseFragments.SparseFragmentMemberSchema member) { }
     }
     [System.AttributeUsage(System.AttributeTargets.Property, Inherited=true)]
     public sealed class SparseMergeAttribute : System.Attribute

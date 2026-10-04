@@ -81,7 +81,7 @@ internal sealed class FragmentYamlConverterFactory(
         var result = new Dictionary<string, object?>(StringComparer.Ordinal);
         foreach (var present in fragment.EnumeratePresentMembers())
         {
-            var member = schema.Members.First(candidate => candidate.Id == present.Id);
+            var member = schema.GetMember(present.Id);
             var name = namingPolicy?.ConvertName(member.Name) ?? member.Name;
             result.Add(name, ConvertValue(present.Value, member, namingPolicy));
         }

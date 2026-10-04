@@ -107,12 +107,25 @@ public static class StateSourceProjection
         string propertyPath
     )
     {
-        var matches = schema
-            .Members.Where(member =>
-                string.Equals(member.Name, path[pathIndex], StringComparison.OrdinalIgnoreCase)
-            )
-            .ToArray();
-        if (matches.Length != 1)
+        ConfiglueMemberSchema? match = null;
+        foreach (var candidate in schema.Members)
+        {
+            if (!string.Equals(candidate.Name, path[pathIndex], StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (match is not null)
+            {
+                throw new ArgumentException(
+                    $"Mount path '{propertyPath}' has an unknown or ambiguous member '{path[pathIndex]}' in model '{schema.ModelType}'.",
+                    nameof(propertyPath)
+                );
+            }
+
+            match = candidate;
+        }
+        if (match is null)
         {
             throw new ArgumentException(
                 $"Mount path '{propertyPath}' has an unknown or ambiguous member '{path[pathIndex]}' in model '{schema.ModelType}'.",
@@ -120,7 +133,7 @@ public static class StateSourceProjection
             );
         }
 
-        var member = matches[0];
+        var member = match.Value;
         ConfiglueFragmentMember? present = null;
         foreach (var candidate in fragment.EnumeratePresentMembersFast())
         {

@@ -189,17 +189,8 @@ public readonly struct ConfiglueMemberPath : IEquatable<ConfiglueMemberPath>
         return value;
     }
 
-    private static ConfiglueMemberSchema FindMember(ConfiglueModelSchema schema, int id)
-    {
-        foreach (var member in schema.Members)
-        {
-            if (member.Id == id)
-            {
-                return member;
-            }
-        }
-        throw new ArgumentException($"Schema '{schema.Id}' has no generated member with ID {id}.");
-    }
+    private static ConfiglueMemberSchema FindMember(ConfiglueModelSchema schema, int id) =>
+        schema.GetMember(id);
 
     /// <summary>Formats names only for diagnostics; identity comparisons always use IDs.</summary>
     public override string ToString()

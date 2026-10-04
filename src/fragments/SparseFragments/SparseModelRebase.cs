@@ -337,20 +337,8 @@ public static class SparseModelRebase
         return null;
     }
 
-    private static bool TryGetMember(ModelSchema schema, int memberId, out MemberSchema member)
-    {
-        foreach (var candidate in schema.Members)
-        {
-            if (candidate.Id == memberId)
-            {
-                member = candidate;
-                return true;
-            }
-        }
-
-        member = default;
-        return false;
-    }
+    private static bool TryGetMember(ModelSchema schema, int memberId, out MemberSchema member) =>
+        schema.TryGetMember(memberId, out member);
 
     private static bool IsSetCollectionType(Type valueType)
     {
