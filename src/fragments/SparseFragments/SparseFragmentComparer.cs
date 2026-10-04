@@ -23,50 +23,43 @@ public static class SparseFragmentComparer
             return false;
         }
 
-        var leftMembers = ToMap(left);
-        var rightMembers = ToMap(right);
-        if (leftMembers.Count != rightMembers.Count)
+        if (left.GetType() != right.GetType())
         {
             return false;
         }
 
-        foreach (var pair in leftMembers)
+        // Generated fragments enumerate present members in declaration order, so members
+        // can be compared pairwise without materializing lookup dictionaries.
+        using var leftMembers = left.EnumeratePresentMembers().GetEnumerator();
+        using var rightMembers = right.EnumeratePresentMembers().GetEnumerator();
+        while (true)
         {
-            if (!rightMembers.TryGetValue(pair.Key, out var other))
+            var leftMoved = leftMembers.MoveNext();
+            var rightMoved = rightMembers.MoveNext();
+            if (leftMoved != rightMoved)
             {
                 return false;
             }
 
-            if (pair.Value is ISparseFragment leftFragment)
+            if (!leftMoved)
             {
-                if (
-                    other is not ISparseFragment rightFragment
-                    || !AreEqual(leftFragment, rightFragment)
+                return true;
+            }
+
+            if (leftMembers.Current.Id != rightMembers.Current.Id)
+            {
+                return false;
+            }
+
+            if (
+                !FragmentComparisonPrimitives.AreValuesEqual(
+                    leftMembers.Current.Value,
+                    rightMembers.Current.Value
                 )
-                {
-                    return false;
-                }
-
-                continue;
-            }
-
-            if (!SparseValueComparer.AreEqual(pair.Value, other))
+            )
             {
                 return false;
             }
         }
-
-        return true;
-    }
-
-    private static Dictionary<int, object?> ToMap(ISparseFragment fragment)
-    {
-        var map = new Dictionary<int, object?>();
-        foreach (var member in fragment.EnumeratePresentMembers())
-        {
-            map[member.Id] = member.Value;
-        }
-
-        return map;
     }
 }

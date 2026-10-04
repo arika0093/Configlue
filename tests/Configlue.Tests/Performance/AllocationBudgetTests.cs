@@ -5,6 +5,17 @@ using Configlue.Provider.Json;
 
 namespace Configlue.Tests;
 
+/// <summary>Reference-only fragment used by the fragment equality allocation budgets.</summary>
+[ConfiglueModel("fragment-equality-budget")]
+public partial class FragmentEqualityBudgetSettings
+{
+    /// <summary>Gets or sets the fragment equality budget name.</summary>
+    public string Name { get; set; } = "default";
+
+    /// <summary>Gets or sets the fragment equality budget label.</summary>
+    public string Label { get; set; } = "label";
+}
+
 /// <summary>
 /// Deterministic allocation budgets for the hot paths optimized in issues
 /// #164-#176. These are coarse invariants measured with
@@ -16,6 +27,92 @@ namespace Configlue.Tests;
 /// </summary>
 public sealed class AllocationBudgetTests
 {
+    [Test]
+    public void FragmentEquality_ReferenceMembers_AllocatesNothing()
+    {
+        var left = new FragmentEqualityBudgetSettings.Fragment
+        {
+            Name = Optional<string>.Present("root"),
+            Label = Optional<string>.Present("label"),
+        };
+        var right = new FragmentEqualityBudgetSettings.Fragment
+        {
+            Name = Optional<string>.Present("root"),
+            Label = Optional<string>.Present("label"),
+        };
+
+        var equal = false;
+        var allocated = Measure(() =>
+        {
+            equal = ConfiglueFragmentComparer.AreEqual(left, right);
+        });
+
+        equal.ShouldBeTrue();
+        allocated.ShouldBe(0);
+    }
+
+    [Test]
+    public void SequenceEquality_StreamsWithoutAllocating()
+    {
+        var left = Enumerable.Range(0, 64).Select(static index => $"item-{index}").ToList();
+        var right = Enumerable.Range(0, 64).Select(static index => $"item-{index}").ToList();
+
+        var equal = false;
+        var allocated = Measure(() =>
+        {
+            equal = ConfiglueValueComparer.AreEqual(left, right);
+        });
+
+        equal.ShouldBeTrue();
+        allocated.ShouldBe(0);
+    }
+
+    [Test]
+    public void SetEquality_UsesNativeSemanticsWithoutAllocating()
+    {
+        var left = Enumerable.Range(0, 64).Select(static index => $"item-{index}").ToHashSet();
+        var right = Enumerable
+            .Range(0, 64)
+            .Select(static index => $"item-{63 - index}")
+            .ToHashSet();
+
+        var equal = false;
+        var allocated = Measure(() =>
+        {
+            equal = ConfiglueValueComparer.AreEqual(left, right);
+        });
+
+        equal.ShouldBeTrue();
+        allocated.ShouldBe(0);
+    }
+
+    [Test]
+    public void DictionaryEquality_DoesNotMaterializeEntries()
+    {
+        var smallLeft = CreateLookup(8);
+        var smallRight = CreateLookup(8);
+        var largeLeft = CreateLookup(512);
+        var largeRight = CreateLookup(512);
+
+        var equal = false;
+        var smallAllocated = Measure(() =>
+        {
+            equal = ConfiglueValueComparer.AreEqual(smallLeft, smallRight);
+        });
+        equal.ShouldBeTrue();
+        var largeAllocated = Measure(() =>
+        {
+            equal = ConfiglueValueComparer.AreEqual(largeLeft, largeRight);
+        });
+        equal.ShouldBeTrue();
+
+        // A per-entry ToArray/ToDictionary materialization (issue #221) would add
+        // ~500 entries worth of allocations here; native TryGetValue lookup stays flat.
+        (largeAllocated - smallAllocated).ShouldBeLessThanOrEqualTo(8 * 1024);
+    }
+
+    private static Dictionary<string, string> CreateLookup(int count) =>
+        Enumerable.Range(0, count).ToDictionary(static index => $"key-{index}", static index => $"value-{index}");
     [Test]
     public void StripUtf8Bom_SingleSegmentPrefix_AllocatesNothing()
     {

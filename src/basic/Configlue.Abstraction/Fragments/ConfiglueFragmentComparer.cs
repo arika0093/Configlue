@@ -1,4 +1,3 @@
-using System.Collections;
 using Configlue.CompilerServices;
 
 namespace Configlue;
@@ -11,7 +10,7 @@ public static class ConfiglueFragmentComparer
         where TFragment : class, IConfiglueFragment<TFragment> =>
         AreEqual((IConfiglueFragment?)left, right);
 
-    private static bool AreEqual(IConfiglueFragment? left, IConfiglueFragment? right)
+    internal static bool AreEqual(IConfiglueFragment? left, IConfiglueFragment? right)
     {
         if (ReferenceEquals(left, right))
         {
@@ -29,87 +28,40 @@ public static class ConfiglueFragmentComparer
             return false;
         }
 
-        var leftMembers = left.EnumeratePresentMembers().ToDictionary(static member => member.Id);
-        var rightMembers = right.EnumeratePresentMembers().ToDictionary(static member => member.Id);
-        return leftMembers.Count == rightMembers.Count
-            && leftMembers.All(pair =>
-                rightMembers.TryGetValue(pair.Key, out var rightMember)
-                && ValuesEqual(pair.Value.Value, rightMember.Value)
-            );
-    }
-
-    private static bool ValuesEqual(object? left, object? right)
-    {
-        if (ReferenceEquals(left, right))
-        {
-            return true;
-        }
-
-        if (left is null || right is null)
-        {
-            return false;
-        }
-
-        if (left is IConfiglueFragment leftFragment && right is IConfiglueFragment rightFragment)
-        {
-            return AreEqual(leftFragment, rightFragment);
-        }
-
-        if (left is IDictionary leftDictionary && right is IDictionary rightDictionary)
-        {
-            if (leftDictionary.Count != rightDictionary.Count)
-            {
-                return false;
-            }
-
-            foreach (DictionaryEntry entry in leftDictionary)
-            {
-                if (
-                    !rightDictionary.Contains(entry.Key)
-                    || !ValuesEqual(entry.Value, rightDictionary[entry.Key])
-                )
-                {
-                    return false;
-                }
-            }
-
-            return true;
-        }
-
         if (
-            left is IEnumerable leftItems
-            && right is IEnumerable rightItems
-            && left is not string
-            && right is not string
+            left is IConfiglueOrdinalDynamicFragment leftOrdinal
+            && right is IConfiglueOrdinalDynamicFragment rightOrdinal
         )
         {
-            var leftValues = leftItems.Cast<object?>().ToArray();
-            var rightValues = rightItems.Cast<object?>().ToArray();
-            if (leftValues.Length != rightValues.Length)
+            var count = leftOrdinal.PresentMemberCount;
+            if (count != rightOrdinal.PresentMemberCount)
             {
                 return false;
             }
 
-            if (IsSet(left.GetType()) && IsSet(right.GetType()))
+            for (var index = 0; index < count; index++)
             {
-                var remaining = rightValues.ToList();
-                foreach (var value in leftValues)
+                var leftMember = leftOrdinal.GetPresentMember(index);
+                var rightMember = rightOrdinal.GetPresentMember(index);
+                if (leftMember.Id != rightMember.Id)
                 {
-                    var match = remaining.FindIndex(candidate => ValuesEqual(value, candidate));
-                    if (match < 0)
+                    // Generated fragments enumerate present members in declaration order,
+                    // so same-type fragments disagreeing at one position are unequal.
+                    // Fall back to order-independent matching only for mixed runtimes.
+                    if (left.GetType() == right.GetType())
                     {
                         return false;
                     }
 
-                    remaining.RemoveAt(match);
+                    return MembersEqualSlow(left, right);
                 }
 
-                return true;
-            }
-
-            for (var index = 0; index < leftValues.Length; index++)
-            {
-                if (!ValuesEqual(leftValues[index], rightValues[index]))
+                if (
+                    !FragmentComparisonPrimitives.AreValuesEqual(
+                        leftMember.Value,
+                        rightMember.Value
+                    )
+                )
                 {
                     return false;
                 }
@@ -118,17 +70,31 @@ public static class ConfiglueFragmentComparer
             return true;
         }
 
-        return Equals(left, right);
+        return MembersEqualSlow(left, right);
     }
 
-    private static bool IsSet(Type type) =>
-        type.GetInterfaces()
-            .Any(static implemented =>
-                implemented.IsGenericType
-                && (
-                    implemented.GetGenericTypeDefinition() == typeof(ISet<>)
-                    || implemented.GetGenericTypeDefinition().FullName
-                        == "System.Collections.Generic.IReadOnlySet`1"
-                )
-            );
+    private static bool MembersEqualSlow(IConfiglueFragment left, IConfiglueFragment right)
+    {
+        var leftMembers = new Dictionary<int, object?>();
+        foreach (var member in left.EnumeratePresentMembersFast())
+        {
+            leftMembers[member.Id] = member.Value;
+        }
+
+        foreach (var member in right.EnumeratePresentMembersFast())
+        {
+            if (!leftMembers.TryGetValue(member.Id, out var leftValue))
+            {
+                return false;
+            }
+
+            leftMembers.Remove(member.Id);
+            if (!FragmentComparisonPrimitives.AreValuesEqual(leftValue, member.Value))
+            {
+                return false;
+            }
+        }
+
+        return leftMembers.Count == 0;
+    }
 }

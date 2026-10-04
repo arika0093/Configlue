@@ -16,57 +16,8 @@ public static class SparseValueComparer
 #endif
 {
     /// <summary>Compares two values, treating ordinary sequences element-wise.</summary>
-    public static bool AreEqual(object? left, object? right)
-    {
-        if (ReferenceEquals(left, right))
-        {
-            return true;
-        }
-
-        if (left is null || right is null)
-        {
-            return false;
-        }
-
-        if (left is string || right is string)
-        {
-            return Equals(left, right);
-        }
-
-        if (left is IEnumerable leftItems && right is IEnumerable rightItems)
-        {
-            var leftEnumerator = leftItems.GetEnumerator();
-            IEnumerator? rightEnumerator = null;
-            try
-            {
-                rightEnumerator = rightItems.GetEnumerator();
-                while (true)
-                {
-                    var leftMoved = leftEnumerator.MoveNext();
-                    var rightMoved = rightEnumerator.MoveNext();
-                    if (leftMoved != rightMoved)
-                        return false;
-                    if (!leftMoved)
-                        return true;
-                    if (!AreEqual(leftEnumerator.Current, rightEnumerator.Current))
-                        return false;
-                }
-            }
-            finally
-            {
-                try
-                {
-                    (rightEnumerator as IDisposable)?.Dispose();
-                }
-                finally
-                {
-                    (leftEnumerator as IDisposable)?.Dispose();
-                }
-            }
-        }
-
-        return Equals(left, right);
-    }
+    public static bool AreEqual(object? left, object? right) =>
+        FragmentComparisonPrimitives.AreValuesEqual(left, right);
 
     /// <summary>Compares two typed values using the default sparse semantics.</summary>
     public static bool AreEqual<T>(T? left, T? right)
@@ -116,19 +67,58 @@ public static class SparseValueComparer
             return false;
         }
 
-        var rightEntries = right.ToArray();
-        if (left is IReadOnlyDictionary<TKey, TValue> readOnlyDictionary)
+        if (
+            left is IReadOnlyDictionary<TKey, TValue> readOnlyDictionary
+            && right is ICollection<KeyValuePair<TKey, TValue>> rightSized
+            && readOnlyDictionary.Count == rightSized.Count
+        )
         {
-            return DictionaryEquals(readOnlyDictionary, rightEntries);
+            foreach (var pair in right)
+            {
+                if (
+                    !readOnlyDictionary.TryGetValue(pair.Key, out var value)
+                    || !AreEqual(value, pair.Value)
+                )
+                {
+                    return false;
+                }
+            }
+
+            return true;
         }
 
-        if (left is IDictionary<TKey, TValue> dictionary)
+        if (
+            left is IDictionary<TKey, TValue> dictionary
+            && right is ICollection<KeyValuePair<TKey, TValue>> rightEntries
+            && dictionary.Count == rightEntries.Count
+        )
         {
-            return DictionaryEquals(dictionary, rightEntries);
+            foreach (var pair in right)
+            {
+                if (
+                    !dictionary.TryGetValue(pair.Key, out var value) || !AreEqual(value, pair.Value)
+                )
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        var rightMaterialized = right.ToArray();
+        if (left is IReadOnlyDictionary<TKey, TValue> readOnlyLeft)
+        {
+            return DictionaryEquals(readOnlyLeft, rightMaterialized);
+        }
+
+        if (left is IDictionary<TKey, TValue> dictionaryLeft)
+        {
+            return DictionaryEquals(dictionaryLeft, rightMaterialized);
         }
 
         var leftEntries = left.ToArray();
-        return PairSequenceEquals(leftEntries, rightEntries);
+        return PairSequenceEquals(leftEntries, rightMaterialized);
     }
 
     private static bool DictionaryEquals<TKey, TValue>(

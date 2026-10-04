@@ -19,6 +19,10 @@
       Link="Fragments/ConfiglueValueComparer.cs"
     />
     <Compile
+      Include="../../fragments/SparseFragments/FragmentComparisonPrimitives.cs"
+      Link="Fragments/ConfiglueComparisonPrimitives.cs"
+    />
+    <Compile
       Include="../../fragments/SparseFragments/SparseCollectionMerger.cs"
       Link="Fragments/ConfiglueCollectionMerger.cs"
     />
