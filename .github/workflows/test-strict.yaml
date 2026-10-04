@@ -2,6 +2,7 @@ name: Strict tests
 
 on:
   workflow_call:
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -26,6 +27,14 @@ jobs:
           dotnet-version: |
             8.0.x
             10.0.x
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/*.props', '**/*.targets', 'global.json') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
 
       - name: Restore .NET tools
         if: matrix.os == 'ubuntu-latest'
@@ -142,6 +151,14 @@ jobs:
             8.0.x
             10.0.x
 
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/*.props', '**/*.targets', 'global.json') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
       - name: Pack consumer dependencies
         run: dotnet pack Configlue.slnx --configuration Release --output artifacts/packages
 
@@ -155,13 +172,22 @@ jobs:
           dotnet build tests/Configlue.Hosting.Godot.Smoke/Configlue.Hosting.Godot.Smoke.csproj -p:ConfigluePackageVersion=$version -p:RestoreAdditionalProjectSources=$feed
           if ($LASTEXITCODE -ne 0) { throw 'Packed Godot consumer build failed.' }
 
+      - name: Cache Godot engine
+        uses: actions/cache@v4
+        with:
+          path: artifacts/engines/godot
+          key: godot-4.7.2-stable-mono-win64
+
       - name: Run native Godot smoke
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
           New-Item -ItemType Directory -Force artifacts/engines | Out-Null
-          Invoke-WebRequest 'https://github.com/godotengine/godot-builds/releases/download/4.7.2-stable/Godot_v4.7.2-stable_mono_win64.zip' -OutFile artifacts/engines/godot.zip
-          Expand-Archive artifacts/engines/godot.zip artifacts/engines/godot
+          if (-not (Test-Path artifacts/engines/godot)) {
+            Invoke-WebRequest 'https://github.com/godotengine/godot-builds/releases/download/4.7.2-stable/Godot_v4.7.2-stable_mono_win64.zip' -OutFile artifacts/engines/godot.zip
+            Expand-Archive artifacts/engines/godot.zip artifacts/engines/godot
+            Remove-Item artifacts/engines/godot.zip -Force
+          }
           $engine = (Get-ChildItem artifacts/engines/godot -Recurse -Filter '*console.exe' | Select-Object -First 1).FullName
           & $engine --headless --path tests/Configlue.Hosting.Godot.Smoke --editor --import --quit
           if ($LASTEXITCODE -ne 0) { throw 'Godot import failed.' }
@@ -191,6 +217,14 @@ jobs:
         uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 10.0.x
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/*.props', '**/*.targets', 'global.json') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
 
       - name: Publish NativeAOT tests
         run: >

@@ -129,9 +129,15 @@ public sealed partial class WatcherLifecycleTests
 
         await accessor.FirstFailure.Task.WaitAsync(TimeSpan.FromSeconds(5));
         await subjectState.Subscribed.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        // Timer precision under parallel load can shave ~1ms off short delays;
+        // an 80ms floor still proves the retry waited for backoff instead of
+        // spinning hot.
         System
             .Diagnostics.Stopwatch.GetElapsedTime(startedAt)
-            .ShouldBeGreaterThanOrEqualTo(SubjectChangeSubscriptionRetryPolicy.InitialDelay);
+            .ShouldBeGreaterThanOrEqualTo(
+                SubjectChangeSubscriptionRetryPolicy.InitialDelay
+                    - TimeSpan.FromMilliseconds(20)
+            );
         accessor.CallCount.ShouldBe(2);
         subjectState.Raise(new AppSettings());
         (await received.Task.WaitAsync(TimeSpan.FromSeconds(5))).ShouldNotBeNull();

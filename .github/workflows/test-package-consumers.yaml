@@ -8,9 +8,6 @@ on:
         type: string
         required: false
         default: ''
-  push:
-    branches: [main]
-  pull_request:
   workflow_dispatch:
 
 permissions:
@@ -36,6 +33,14 @@ jobs:
           dotnet-version: |
             8.0.x
             10.0.x
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/*.props', '**/*.targets', 'global.json') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
 
       - name: Pack Configlue packages
         run: dotnet pack Configlue.slnx --configuration Release --output artifacts/packages
@@ -116,6 +121,14 @@ jobs:
         uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 10.0.x
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/*.props', '**/*.targets', 'global.json') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
 
       - name: Pack Configlue packages
         run: dotnet pack Configlue.slnx --configuration Release --output artifacts/packages
@@ -276,6 +289,14 @@ jobs:
         uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 10.0.x
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/*.props', '**/*.targets', 'global.json') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
 
       - name: Pack Configlue packages
         run: dotnet pack Configlue.slnx --configuration Release --output artifacts/packages

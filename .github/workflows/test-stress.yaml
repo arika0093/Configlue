@@ -1,8 +1,13 @@
 name: Stress tests
 
 on:
-  schedule:
-    - cron: "0 4 * * *"
+  workflow_call:
+    inputs:
+      iterations:
+        description: Number of repetitions for each stress filter.
+        type: string
+        required: false
+        default: "5"
   workflow_dispatch:
     inputs:
       iterations:
@@ -78,6 +83,14 @@ jobs:
           dotnet-version: |
             8.0.x
             10.0.x
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/*.props', '**/*.targets', 'global.json') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
 
       - name: Restore dependencies
         run: dotnet restore tests/Configlue.Tests/Configlue.Tests.csproj

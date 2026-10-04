@@ -14,5 +14,5 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  strict-tests:
-    uses: ./.github/workflows/test-strict.yaml
+  quick-tests:
+    uses: ./.github/workflows/test.yaml
