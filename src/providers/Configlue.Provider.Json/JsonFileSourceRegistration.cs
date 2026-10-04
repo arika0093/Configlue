@@ -177,8 +177,8 @@ public static class JsonFileSourceRegistration
                 return CreateSource<TFragment>(modelSchema, hostPaths, ownResource);
             }
 
-            var path = options.MountPath.Split(new[] { '.' }, StringSplitOptions.None);
-            var subtreeSchema = GetNestedSchema(modelSchema, path, 0, options.MountPath);
+            var mountPath = ConfiglueMemberPath.FromNames(modelSchema, options.MountPath);
+            var subtreeSchema = GetNestedSchema(modelSchema, mountPath, options.MountPath);
             var fragmentType = subtreeSchema.CreateEmptyFragment().GetType();
             var method = typeof(JsonFileSourceDefinition)
                 .GetMethod(
@@ -191,7 +191,7 @@ public static class JsonFileSourceRegistration
                 return (StateSource<TFragment>)
                     method.Invoke(
                         this,
-                        [modelSchema, subtreeSchema, path, ownResource, hostPaths]
+                        [modelSchema, subtreeSchema, mountPath, ownResource, hostPaths]
                     )!;
             }
             catch (TargetInvocationException exception) when (exception.InnerException is not null)
@@ -204,7 +204,7 @@ public static class JsonFileSourceRegistration
         public StateSource<TRootFragment> CreateMountedSource<TRootFragment, TSubtreeFragment>(
             ConfiglueModelSchema rootSchema,
             ConfiglueModelSchema subtreeSchema,
-            string[] path,
+            ConfiglueMemberPath mountPath,
             Action<object> ownResource,
             IConfiglueHostPaths hostPaths
         )
@@ -214,7 +214,7 @@ public static class JsonFileSourceRegistration
             var source = CreateSource<TSubtreeFragment>(subtreeSchema, hostPaths, ownResource);
             return StateSourceProjection.Mount<TSubtreeFragment, TRootFragment>(
                 source,
-                string.Join(".", path),
+                mountPath.ToString(),
                 rootSchema.ToMetadata()
             );
         }
@@ -308,49 +308,23 @@ public static class JsonFileSourceRegistration
 
         private static ConfiglueModelSchema GetNestedSchema(
             ConfiglueModelSchema schema,
-            IReadOnlyList<string> path,
-            int index,
+            ConfiglueMemberPath mountPath,
             string propertyPath
         )
         {
-            ConfiglueMemberSchema? match = null;
-            foreach (var candidate in schema.Members)
+            var current = schema;
+            foreach (var memberId in mountPath.MemberIds)
             {
-                if (!string.Equals(candidate.Name, path[index], StringComparison.OrdinalIgnoreCase))
-                {
-                    continue;
-                }
-
-                if (match is not null)
-                {
-                    throw new ArgumentException(
-                        $"Mount path '{propertyPath}' has an unknown or ambiguous member '{path[index]}' in model '{schema.ModelType}'.",
+                var member = current.GetMember(memberId);
+                current =
+                    member.NestedSchemaFactory?.Invoke()
+                    ?? throw new ArgumentException(
+                        $"Mount path '{propertyPath}' continues through non-nested member '{member.Name}'.",
                         nameof(propertyPath)
                     );
-                }
-
-                match = candidate;
-            }
-            if (match is null)
-            {
-                throw new ArgumentException(
-                    $"Mount path '{propertyPath}' has an unknown or ambiguous member '{path[index]}' in model '{schema.ModelType}'.",
-                    nameof(propertyPath)
-                );
             }
 
-            var nested = match.Value.NestedSchemaFactory?.Invoke();
-            if (nested is null)
-            {
-                throw new ArgumentException(
-                    $"Mount path '{propertyPath}' continues through non-nested member '{match.Value.Name}'.",
-                    nameof(propertyPath)
-                );
-            }
-
-            return index == path.Count - 1
-                ? nested
-                : GetNestedSchema(nested, path, index + 1, propertyPath);
+            return current;
         }
     }
 }
@@ -397,7 +371,11 @@ public sealed class JsonFileRegistration<TModel>
             throw new InvalidOperationException("A JSON file source can be mounted only once.");
         }
 
-        _options.MountPath = GetPropertyPath(subtreeSelector);
+        _options.MountPath = ConfiglueMemberSelector.GetPropertyPath(
+            subtreeSelector,
+            "mounted subtree selector",
+            nameof(subtreeSelector)
+        );
         return this;
     }
 
@@ -456,48 +434,6 @@ public sealed class JsonFileRegistration<TModel>
     {
         _registration.ExplicitOnly(explicitOnly);
         return this;
-    }
-
-    private static string GetPropertyPath<TSubtreeModel>(
-        Expression<Func<TModel, TSubtreeModel?>> selector
-    )
-    {
-        Expression expression = selector.Body;
-        while (
-            expression
-                is UnaryExpression
-                {
-                    NodeType: ExpressionType.Convert or ExpressionType.ConvertChecked,
-                } conversion
-        )
-        {
-            expression = conversion.Operand;
-        }
-
-        var segments = new Stack<string>();
-        while (expression is MemberExpression memberExpression)
-        {
-            if (memberExpression.Member.MemberType != MemberTypes.Property)
-            {
-                throw new ArgumentException(
-                    "A mounted subtree selector must use generated model properties.",
-                    nameof(selector)
-                );
-            }
-
-            segments.Push(memberExpression.Member.Name);
-            expression = memberExpression.Expression!;
-        }
-
-        if (expression != selector.Parameters[0] || segments.Count == 0)
-        {
-            throw new ArgumentException(
-                "A mounted subtree selector must be a property path from its model parameter.",
-                nameof(selector)
-            );
-        }
-
-        return string.Join(".", segments);
     }
 
     private void EnsureMutable()

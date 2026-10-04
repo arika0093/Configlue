@@ -45,34 +45,80 @@ public readonly struct ConfiglueMemberPath : IEquatable<ConfiglueMemberPath>
     public static ConfiglueMemberPath FromNames(ConfiglueModelSchema schema, string propertyPath)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(propertyPath);
-        var current = schema;
-        var names = propertyPath.Split('.');
-        var ids = new int[names.Length];
-        for (var index = 0; index < names.Length; index++)
+        return FromMemberNames(schema, propertyPath.Split('.'), nameof(propertyPath));
+    }
+
+    /// <summary>
+    /// Binds already-parsed member names to generated member IDs without a string round-trip.
+    /// </summary>
+    /// <remarks>
+    /// The single name-to-identity binding used by typed member selectors and by
+    /// <see cref="FromNames"/>. Matching is ordinal on generated member names; unknown
+    /// and ambiguous members fail with one consistent diagnostic shape.
+    /// </remarks>
+    internal static ConfiglueMemberPath FromMemberNames(
+        ConfiglueModelSchema schema,
+        IReadOnlyList<string> names,
+        string? paramName = null
+    )
+    {
+        ArgumentNullException.ThrowIfNull(schema);
+        ArgumentNullException.ThrowIfNull(names);
+        paramName ??= "propertyPath";
+        if (names.Count == 0)
         {
+            throw new ArgumentException(
+                "A property path must contain at least one member.",
+                paramName
+            );
+        }
+
+        var diagnosticPath = string.Join(".", names);
+        var current = schema;
+        var ids = new int[names.Count];
+        for (var index = 0; index < names.Count; index++)
+        {
+            var name = names[index];
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                throw new ArgumentException(
+                    $"Property path '{diagnosticPath}' contains an empty member name.",
+                    paramName
+                );
+            }
+
             ConfiglueMemberSchema? found = null;
             foreach (var member in current.Members)
             {
-                if (string.Equals(member.Name, names[index], StringComparison.Ordinal))
+                if (!string.Equals(member.Name, name, StringComparison.Ordinal))
                 {
-                    found = member;
-                    break;
+                    continue;
                 }
+
+                if (found is not null)
+                {
+                    throw new ArgumentException(
+                        $"Property path '{diagnosticPath}' has an ambiguous member '{name}' in '{current.Id}'.",
+                        paramName
+                    );
+                }
+
+                found = member;
             }
             var selected =
                 found
                 ?? throw new ArgumentException(
-                    $"Property path '{propertyPath}' contains unknown member '{names[index]}' in '{current.Id}'.",
-                    nameof(propertyPath)
+                    $"Property path '{diagnosticPath}' contains unknown member '{name}' in '{current.Id}'.",
+                    paramName
                 );
             ids[index] = selected.Id;
-            if (index < names.Length - 1)
+            if (index < names.Count - 1)
             {
                 current =
                     selected.NestedSchemaFactory?.Invoke()
                     ?? throw new ArgumentException(
-                        $"Property path '{propertyPath}' continues through non-nested member '{selected.Name}'.",
-                        nameof(propertyPath)
+                        $"Property path '{diagnosticPath}' continues through non-nested member '{selected.Name}'.",
+                        paramName
                     );
             }
         }

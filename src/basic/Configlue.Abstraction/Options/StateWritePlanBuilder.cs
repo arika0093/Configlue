@@ -1,5 +1,4 @@
 using System.Linq.Expressions;
-using System.Reflection;
 using Configlue.CompilerServices;
 
 namespace Configlue;
@@ -51,11 +50,16 @@ public sealed class StateWritePlanBuilder<TModel>
             throw new ArgumentException("The source key is uninitialized.", nameof(source));
         }
 
-        var path = GetPropertyPath(property);
+        var names = ConfiglueMemberSelector.GetMemberNames(
+            property,
+            "write route",
+            nameof(property)
+        );
+        var path = string.Join(".", names);
         EnsureModelRegistered();
         if (ConfiglueModelSchemaCatalog.TryGet(typeof(TModel), out var schema))
         {
-            _ = ConfiglueMemberPath.FromNames(schema, path);
+            _ = ConfiglueMemberPath.FromMemberNames(schema, names, nameof(property));
         }
 
         if (!_routes.TryAdd(path, source.Id))
@@ -88,44 +92,4 @@ public sealed class StateWritePlanBuilder<TModel>
         System.Runtime.CompilerServices.RuntimeHelpers.RunClassConstructor(
             typeof(TModel).TypeHandle
         );
-
-    private static string GetPropertyPath<TValue>(Expression<Func<TModel, TValue>> selector)
-    {
-        Expression expression = selector.Body;
-        while (
-            expression
-                is UnaryExpression
-                {
-                    NodeType: ExpressionType.Convert or ExpressionType.ConvertChecked
-                } conversion
-        )
-        {
-            expression = conversion.Operand;
-        }
-
-        var members = new Stack<string>();
-        while (expression is MemberExpression memberExpression)
-        {
-            if (memberExpression.Member is not PropertyInfo)
-            {
-                throw new ArgumentException(
-                    "A write route must select model properties.",
-                    nameof(selector)
-                );
-            }
-
-            members.Push(memberExpression.Member.Name);
-            expression = memberExpression.Expression!;
-        }
-
-        if (expression != selector.Parameters[0] || members.Count == 0)
-        {
-            throw new ArgumentException(
-                "A write route must be a direct or nested model property selector.",
-                nameof(selector)
-            );
-        }
-
-        return string.Join(".", members);
-    }
 }

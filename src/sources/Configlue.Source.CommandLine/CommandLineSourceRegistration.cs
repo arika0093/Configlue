@@ -4,10 +4,10 @@ using System.CommandLine.Parsing;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Linq.Expressions;
-using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
 using Configlue;
+using Configlue.CompilerServices;
 
 namespace Configlue.Source.CommandLine;
 
@@ -52,7 +52,14 @@ public sealed class CommandLineMappingBuilder
     {
         ArgumentNullException.ThrowIfNull(option);
         ArgumentNullException.ThrowIfNull(property);
-        Map(option, GetPropertyPath(property));
+        Map(
+            option,
+            ConfiglueMemberSelector.GetPropertyPath(
+                property,
+                "command-line mapping",
+                nameof(property)
+            )
+        );
     }
 
     /// <summary>Maps an option to a dotted model property path with a value conversion.</summary>
@@ -81,7 +88,15 @@ public sealed class CommandLineMappingBuilder
         ArgumentNullException.ThrowIfNull(option);
         ArgumentNullException.ThrowIfNull(property);
         ArgumentNullException.ThrowIfNull(convert);
-        Map(option, GetPropertyPath(property), convert);
+        Map(
+            option,
+            ConfiglueMemberSelector.GetPropertyPath(
+                property,
+                "command-line mapping",
+                nameof(property)
+            ),
+            convert
+        );
     }
 
     /// <summary>Maps an argument to a dotted model property path.</summary>
@@ -99,7 +114,14 @@ public sealed class CommandLineMappingBuilder
     {
         ArgumentNullException.ThrowIfNull(argument);
         ArgumentNullException.ThrowIfNull(property);
-        Map(argument, GetPropertyPath(property));
+        Map(
+            argument,
+            ConfiglueMemberSelector.GetPropertyPath(
+                property,
+                "command-line mapping",
+                nameof(property)
+            )
+        );
     }
 
     /// <summary>Maps an argument to a dotted model property path with a value conversion.</summary>
@@ -128,7 +150,15 @@ public sealed class CommandLineMappingBuilder
         ArgumentNullException.ThrowIfNull(argument);
         ArgumentNullException.ThrowIfNull(property);
         ArgumentNullException.ThrowIfNull(convert);
-        Map(argument, GetPropertyPath(property), convert);
+        Map(
+            argument,
+            ConfiglueMemberSelector.GetPropertyPath(
+                property,
+                "command-line mapping",
+                nameof(property)
+            ),
+            convert
+        );
     }
 
     internal IReadOnlyList<Mapping> Mappings => _mappings;
@@ -213,46 +243,6 @@ public sealed class CommandLineMappingBuilder
                 exception
             );
         }
-    }
-
-    private static string GetPropertyPath<TModel, TValue>(Expression<Func<TModel, TValue>> selector)
-    {
-        Expression expression = selector.Body;
-        while (
-            expression
-                is UnaryExpression
-                {
-                    NodeType: ExpressionType.Convert or ExpressionType.ConvertChecked
-                } conversion
-        )
-        {
-            expression = conversion.Operand;
-        }
-
-        var members = new Stack<string>();
-        while (expression is MemberExpression memberExpression)
-        {
-            if (memberExpression.Member is not PropertyInfo)
-            {
-                throw new ArgumentException(
-                    "A command-line mapping must select model properties.",
-                    nameof(selector)
-                );
-            }
-
-            members.Push(memberExpression.Member.Name);
-            expression = memberExpression.Expression!;
-        }
-
-        if (expression != selector.Parameters[0] || members.Count == 0)
-        {
-            throw new ArgumentException(
-                "A command-line mapping must be a direct or nested model property selector.",
-                nameof(selector)
-            );
-        }
-
-        return string.Join(".", members);
     }
 
     private void Add(Symbol symbol, string path, Func<ParseResult, MappingValue?> resolve)

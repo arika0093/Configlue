@@ -22,7 +22,11 @@ public static class ConfiglueSourceSetBuilderMountExtensions
     {
         ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(subtreeSelector);
-        var propertyPath = GetPropertyPath(subtreeSelector);
+        var propertyPath = ConfiglueMemberSelector.GetPropertyPath(
+            subtreeSelector,
+            "mounted subtree selector",
+            nameof(subtreeSelector)
+        );
         AddMounted<TRootFragment, TSubtreeFragment>(sources, _ => source, propertyPath);
     }
 
@@ -41,7 +45,11 @@ public static class ConfiglueSourceSetBuilderMountExtensions
         ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(subtreeSelector);
         ArgumentNullException.ThrowIfNull(toSource);
-        var propertyPath = GetPropertyPath(subtreeSelector);
+        var propertyPath = ConfiglueMemberSelector.GetPropertyPath(
+            subtreeSelector,
+            "mounted subtree selector",
+            nameof(subtreeSelector)
+        );
         AddMounted<TRootFragment, TSubtreeFragment>(sources, _ => source, propertyPath, toSource);
     }
 
@@ -59,7 +67,11 @@ public static class ConfiglueSourceSetBuilderMountExtensions
     {
         ArgumentNullException.ThrowIfNull(sourceFactory);
         ArgumentNullException.ThrowIfNull(subtreeSelector);
-        var propertyPath = GetPropertyPath(subtreeSelector);
+        var propertyPath = ConfiglueMemberSelector.GetPropertyPath(
+            subtreeSelector,
+            "mounted subtree selector",
+            nameof(subtreeSelector)
+        );
         AddMounted<TRootFragment, TSubtreeFragment>(sources, sourceFactory, propertyPath);
     }
 
@@ -78,7 +90,11 @@ public static class ConfiglueSourceSetBuilderMountExtensions
         ArgumentNullException.ThrowIfNull(sourceFactory);
         ArgumentNullException.ThrowIfNull(subtreeSelector);
         ArgumentNullException.ThrowIfNull(toSource);
-        var propertyPath = GetPropertyPath(subtreeSelector);
+        var propertyPath = ConfiglueMemberSelector.GetPropertyPath(
+            subtreeSelector,
+            "mounted subtree selector",
+            nameof(subtreeSelector)
+        );
         AddMounted<TRootFragment, TSubtreeFragment>(sources, sourceFactory, propertyPath, toSource);
     }
 
@@ -203,47 +219,5 @@ public static class ConfiglueSourceSetBuilderMountExtensions
                 );
             return (StateSource<TFragment>)(object)mounted;
         }
-    }
-
-    private static string GetPropertyPath<TModel, TSubtreeModel>(
-        Expression<Func<TModel, TSubtreeModel?>> selector
-    )
-    {
-        Expression expression = selector.Body;
-        while (
-            expression
-                is UnaryExpression
-                {
-                    NodeType: ExpressionType.Convert or ExpressionType.ConvertChecked,
-                } conversion
-        )
-        {
-            expression = conversion.Operand;
-        }
-
-        var segments = new Stack<string>();
-        while (expression is MemberExpression memberExpression)
-        {
-            if (memberExpression.Member.MemberType != System.Reflection.MemberTypes.Property)
-            {
-                throw new ArgumentException(
-                    "A mounted subtree selector must use generated model properties.",
-                    nameof(selector)
-                );
-            }
-
-            segments.Push(memberExpression.Member.Name);
-            expression = memberExpression.Expression!;
-        }
-
-        if (expression != selector.Parameters[0] || segments.Count == 0)
-        {
-            throw new ArgumentException(
-                "A mounted subtree selector must be a property path from its model parameter.",
-                nameof(selector)
-            );
-        }
-
-        return string.Join(".", segments);
     }
 }
