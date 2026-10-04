@@ -21,6 +21,7 @@ using Configlue.Resource.S3;
 using Configlue.Resource.Vault;
 using Configlue.Resource.GoogleSecretManager;
 using Configlue.Resource.Kubernetes;
+using Configlue.Resource.Gcs;
 using Configlue.Resource.Zip;
 using Configlue.Source.CommandLine;
 using Configlue.Source.Consul;
@@ -328,6 +329,7 @@ public sealed class PublicApiCheckTest
     public void AwsAppConfig() =>
         PublicApiCheck.Check<Configlue.Resource.AwsAppConfig.AwsAppConfigSourceOptions>();
     public void AzureBlob() => PublicApiCheck.Check<AzureBlobSourceOptions>();
+    public void Gcs() => PublicApiCheck.Check<GcsObjectSourceOptions>();
 
     [Test]
     public void PostgreSql() => PublicApiCheck.Check<PostgreSqlSourceOptions>();

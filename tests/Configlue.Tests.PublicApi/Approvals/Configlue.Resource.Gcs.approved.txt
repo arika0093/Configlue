@@ -1,0 +1,71 @@
+[assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/arika0093/Configlue")]
+namespace Configlue.Resource.Gcs
+{
+    public sealed class GcsObjectConflictException : System.Exception
+    {
+        public GcsObjectConflictException(string bucketName, string objectName, System.Exception? innerException = null) { }
+        public string BucketName { get; }
+        public string ObjectName { get; }
+    }
+    public sealed class GcsObjectMetadata : System.IEquatable<Configlue.Resource.Gcs.GcsObjectMetadata>
+    {
+        public GcsObjectMetadata(long? Generation, long? Metageneration, string? ETag, System.DateTimeOffset? Updated, string? ContentType, long? Size) { }
+        public string? ContentType { get; init; }
+        public string? ETag { get; init; }
+        public long? Generation { get; init; }
+        public long? Metageneration { get; init; }
+        public long? Size { get; init; }
+        public System.DateTimeOffset? Updated { get; init; }
+    }
+    public sealed class GcsObjectMissingException : System.Exception
+    {
+        public GcsObjectMissingException(string bucketName, string objectName, System.Exception? innerException = null) { }
+        public string BucketName { get; }
+        public string ObjectName { get; }
+    }
+    public sealed class GcsObjectResource : Configlue.Resources.IResourceIdentity, Configlue.Resources.IResourceReader, Configlue.Resources.IResourceWriter, Configlue.Sources.ISourceWatcher, Configlue.State.IPipelineResourceReader, System.IDisposable
+    {
+        public GcsObjectResource(Google.Cloud.Storage.V1.StorageClient client, string bucketName, string objectName, Configlue.Resource.Gcs.GcsObjectResourceOptions? options = null) { }
+        public string BucketName { get; }
+        public bool IsPipelineReadPreferred { get; }
+        public string ObjectName { get; }
+        public void Dispose() { }
+        public Configlue.Resources.ResourceId GetResourceId(Configlue.Resources.ConfiglueResourceContext context) { }
+        public System.Threading.Tasks.ValueTask<Configlue.Resources.ResourceReadResult> ReadAsync(Configlue.Resources.ConfiglueResourceContext context, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Configlue.Resources.PipelineResourceReadResult> ReadPipelineAsync(Configlue.Resources.ConfiglueResourceContext context, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask WaitForChangeAsync(Configlue.Resources.ConfiglueResourceContext context, string? observedRevision, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Configlue.State.StateWriteResult> WriteAsync(Configlue.Resources.ConfiglueResourceContext context, Configlue.Resources.ResourceWriteRequest request, System.Threading.CancellationToken cancellationToken = default) { }
+        public static Configlue.Resource.Gcs.GcsObjectResource CreateWithApplicationDefaultCredentials(string bucketName, string objectName, Configlue.Resource.Gcs.GcsObjectResourceOptions? options = null) { }
+    }
+    public sealed class GcsObjectResourceOptions
+    {
+        public GcsObjectResourceOptions() { }
+        public System.Func<Configlue.Resources.ConfiglueResourceContext, string>? BucketNameSelector { get; init; }
+        public System.Func<Configlue.Resources.ConfiglueResourceContext, Google.Cloud.Storage.V1.StorageClient>? ClientSelector { get; init; }
+        public string? ContentType { get; init; }
+        public System.Func<Configlue.Resources.ConfiglueResourceContext, string?>? ContentTypeSelector { get; init; }
+        public Configlue.Resources.ResourceId? FixedResourceId { get; init; }
+        public System.Func<Configlue.Resources.ConfiglueResourceContext, string>? ObjectNameSelector { get; init; }
+        public System.TimeSpan PollInterval { get; init; }
+        public bool PreserveContentTypeOnOverwrite { get; init; }
+    }
+    public sealed class GcsObjectSourceOptions
+    {
+        public GcsObjectSourceOptions() { }
+        public required string BucketName { get; init; }
+        public Google.Cloud.Storage.V1.StorageClient? Client { get; init; }
+        public System.Func<System.IServiceProvider?, Google.Cloud.Storage.V1.StorageClient>? ClientFactory { get; init; }
+        public required Configlue.Codecs.StateCodecBinding Codec { get; init; }
+        public Configlue.Codecs.StateCodecContext CodecContext { get; init; }
+        public Configlue.Sources.StateFallbackCondition FallbackCondition { get; init; }
+        public string? Id { get; init; }
+        public required string ObjectName { get; init; }
+        public int Priority { get; init; }
+        public Configlue.Resource.Gcs.GcsObjectResourceOptions? ResourceOptions { get; init; }
+        public bool Writable { get; init; }
+    }
+    public static class GcsObjectSourceRegistration
+    {
+        public static Configlue.Extensibility.ConfiglueSourceRegistration FromGcsObject(this Configlue.ConfiglueSourceSetBuilder sources, Configlue.Resource.Gcs.GcsObjectSourceOptions options) { }
+    }
+}
