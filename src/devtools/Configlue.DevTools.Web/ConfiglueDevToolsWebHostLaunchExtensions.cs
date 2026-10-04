@@ -39,6 +39,28 @@ public static class ConfiglueDevToolsWebHostLaunchExtensions
 
     /// <summary>
     /// Opens a running host URL in the system browser. Returns <c>false</c> without
+    /// launching when the host is not running.
+    /// </summary>
+    /// <remarks>
+    /// DevTools-owned default launcher (<c>SystemBrowserLauncher</c>); no
+    /// host-specific wrapper is required for ordinary desktop/web hosts.
+    /// </remarks>
+    public static Task<bool> OpenBrowserAsync(
+        this ConfiglueDevToolsWebHost host,
+        CancellationToken cancellationToken = default
+    )
+    {
+        ArgumentNullException.ThrowIfNull(host);
+        if (!host.IsRunning || string.IsNullOrWhiteSpace(host.LaunchUrl))
+        {
+            return Task.FromResult(false);
+        }
+
+        return ConfiglueDevTools.OpenBrowserAsync(host.LaunchUrl, cancellationToken);
+    }
+
+    /// <summary>
+    /// Opens a running host URL in the system browser. Returns <c>false</c> without
     /// invoking the launcher when the host is not running.
     /// </summary>
     public static Task<bool> OpenBrowserAsync(

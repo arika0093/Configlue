@@ -94,6 +94,28 @@ public static class ConfiglueDevTools
     }
 
     /// <summary>
+    /// Opens the active session URL in the system browser. Returns <c>false</c>
+    /// without launching when disabled or when no URL is published.
+    /// </summary>
+    /// <remarks>
+    /// DevTools-owned default launcher (<see cref="SystemBrowserLauncher"/>); no
+    /// host-specific wrapper is required for ordinary desktop/web hosts.
+    /// </remarks>
+    public static Task<bool> OpenBrowserAsync(CancellationToken cancellationToken = default) =>
+        OpenBrowserAsync(new SystemBrowserLauncher(), cancellationToken);
+
+    /// <summary>
+    /// Opens an explicit launch URL in the system browser. Returns <c>false</c>
+    /// without launching when the URL is empty. Explicit URLs bypass the global
+    /// <see cref="IsEnabled"/> flag because passing a URL is itself explicit opt-in.
+    /// </summary>
+    /// <exception cref="ArgumentException">The non-empty URL is not a loopback HTTP URL.</exception>
+    public static Task<bool> OpenBrowserAsync(
+        string? launchUrl,
+        CancellationToken cancellationToken = default
+    ) => OpenBrowserAsync(launchUrl, new SystemBrowserLauncher(), cancellationToken);
+
+    /// <summary>
     /// Opens the active session URL when enabled. Returns <c>false</c> without
     /// invoking the launcher when disabled or when no URL is published.
     /// </summary>

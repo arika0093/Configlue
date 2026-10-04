@@ -63,6 +63,8 @@
   <Folder Name="/src/devtools/">
     <Project Path="src/devtools/Configlue.DevTools/Configlue.DevTools.csproj" />
     <Project Path="src/devtools/Configlue.DevTools.Web/Configlue.DevTools.Web.csproj" />
+    <Project Path="src/devtools/Configlue.DevTools.Maui/Configlue.DevTools.Maui.csproj" />
+    <Project Path="src/devtools/Configlue.DevTools.Godot/Configlue.DevTools.Godot.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Configlue.Tests/Configlue.Tests.csproj" />

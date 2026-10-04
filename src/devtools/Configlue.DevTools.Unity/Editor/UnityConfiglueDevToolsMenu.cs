@@ -3,7 +3,7 @@ using Configlue.DevTools;
 using UnityEditor;
 using UnityEngine;
 
-namespace Configlue.Hosting.Unity;
+namespace Configlue.DevTools.Unity;
 
 /// <summary>
 /// Editor-only menu for opening the active Configlue DevTools session in the system browser.

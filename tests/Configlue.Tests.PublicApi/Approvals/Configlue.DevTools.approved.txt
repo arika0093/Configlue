@@ -8,8 +8,10 @@ namespace Configlue.DevTools
         public static void Clear() { }
         public static void Disable() { }
         public static void Enable(string launchUrl) { }
+        public static System.Threading.Tasks.Task<bool> OpenBrowserAsync(System.Threading.CancellationToken cancellationToken = default) { }
         public static System.Threading.Tasks.Task<bool> OpenBrowserAsync(Configlue.DevTools.IConfiglueDevToolsBrowserLauncher launcher, System.Threading.CancellationToken cancellationToken = default) { }
         public static System.Threading.Tasks.Task<bool> OpenBrowserAsync(System.Func<string, System.Threading.CancellationToken, System.Threading.Tasks.Task> openAsync, System.Threading.CancellationToken cancellationToken = default) { }
+        public static System.Threading.Tasks.Task<bool> OpenBrowserAsync(string? launchUrl, System.Threading.CancellationToken cancellationToken = default) { }
         public static System.Threading.Tasks.Task<bool> OpenBrowserAsync(string? launchUrl, Configlue.DevTools.IConfiglueDevToolsBrowserLauncher launcher, System.Threading.CancellationToken cancellationToken = default) { }
         public static System.Threading.Tasks.Task<bool> OpenBrowserAsync(string? launchUrl, System.Func<string, System.Threading.CancellationToken, System.Threading.Tasks.Task> openAsync, System.Threading.CancellationToken cancellationToken = default) { }
     }
@@ -274,5 +276,10 @@ namespace Configlue.DevTools
     public interface IConfiglueDevToolsBrowserLauncher
     {
         System.Threading.Tasks.Task OpenAsync(string url, System.Threading.CancellationToken cancellationToken = default);
+    }
+    public sealed class SystemBrowserLauncher : Configlue.DevTools.IConfiglueDevToolsBrowserLauncher
+    {
+        public SystemBrowserLauncher() { }
+        public System.Threading.Tasks.Task OpenAsync(string url, System.Threading.CancellationToken cancellationToken = default) { }
     }
 }

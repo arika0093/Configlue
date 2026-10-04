@@ -50,6 +50,7 @@ declare -A portable_package_assets=(
     [Configlue.Resource.AzureBlob]="netstandard2.0 netstandard2.1 net10.0"
     [Configlue.Resource.Gcs]="netstandard2.0 netstandard2.1 net10.0"
     [Configlue.DevTools]="netstandard2.0 netstandard2.1 net10.0"
+    [Configlue.DevTools.Maui]="netstandard2.0 netstandard2.1 net10.0"
 )
 
 # Package-specific higher floors.
@@ -63,6 +64,7 @@ declare -A floored_package_assets=(
     [Configlue.Source.PostgreSql]="net8.0 net10.0"
     [Configlue.Source.PostgreSql.Migrations]="net8.0 net10.0"
     [Configlue.DevTools.Web]="net10.0"
+    [Configlue.DevTools.Godot]="net8.0 net10.0"
 )
 
 expected_package_ids=(
@@ -183,6 +185,24 @@ for package_file in "${package_files[@]}"; do
     for asset in "${asset_list[@]}"; do
         require_entry "lib/${asset}/${package_id}.dll"
     done
+
+    # #264 package boundary: ordinary Hosting packages must not pull DevTools
+    # into production graphs, and only Configlue.DevTools.Web may carry
+    # Blazor/Monaco assets.
+    case "${package_id}" in
+        Configlue.Hosting.*)
+            if grep -Eq '<dependency[^>]*id="Configlue\.DevTools' <<<"${nuspec}"; then
+                echo "Package '${package_id}' must not depend on Configlue.DevTools* (#264)." >&2
+                exit 1
+            fi
+            ;;
+    esac
+    if [[ "${package_id}" != "Configlue.DevTools.Web" ]]; then
+        if grep -Eq '<dependency[^>]*id="BlazorMonaco"' <<<"${nuspec}"; then
+            echo "Package '${package_id}' must not depend on BlazorMonaco (#264)." >&2
+            exit 1
+        fi
+    fi
 
     if [[ "${package_id}" == "Configlue" ]]; then
         require_entry 'analyzers/dotnet/cs/Configlue.Generator.dll'

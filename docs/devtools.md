@@ -254,13 +254,29 @@ secret flow, upstream handling, and explicit-check-only diagnostics.
 Fakes only; no real browser is required. (Browser-level Monaco behavior is
 tracked in the Monaco follow-up issue.)
 
-## Browser-launch hooks (`#250`)
+## Browser launch (`#250`, `#264`)
 
-Thin, optional helpers open the **same** shared browser UI from each host.
-The pattern is always:
+DevTools is an explicitly-installed feature. A normal application references
+only its runtime integration and adds a DevTools package when the developer
+chooses tooling — tooling is never silently included:
 
 ```text
-host action/menu/debug hook -> ensure/get DevTools session URL -> open system browser
+Configlue.Hosting.Wpf      # normal runtime integration
+
++ Configlue.DevTools.Web   # only when the developer chooses DevTools
+```
+
+ Ordinary hosting packages (`Wpf`, `WinForms`, `WinUI`, `Avalonia`, `Maui`,
+`AspNetCore`, `Blazor`, `Unity`, `Godot`) never depend on
+`Configlue.DevTools*`. The dependency points the other way: DevTools and the
+opt-in `Configlue.DevTools.*` launchers may depend on the platform
+integration they need.
+
+Thin, DevTools-owned helpers open the **same** shared browser UI. The pattern
+is always:
+
+```text
+explicit opt-in -> ensure/get DevTools session URL -> open system browser
 ```
 
 No WebView2/BlazorWebView/embedded controls, no BlazorMonaco assets in hosting
@@ -274,7 +290,10 @@ public application host). Every application request still requires the
 per-host session token; launch URLs carry the token verbatim and are never
 logged.
 
-### Plain .NET / ASP.NET Core / Blazor
+### Plain .NET / ASP.NET Core / Blazor / WPF / WinForms / WinUI / Avalonia
+
+No host-specific wrapper exists for these hosts: the generic system-browser
+launcher owned by `Configlue.DevTools` is enough.
 
 ```csharp
 #if DEBUG
@@ -282,38 +301,57 @@ var registry = new ConfiglueDevToolsRegistry();
 registry.Add(context.GetState<AppSettings>());
 await using var devtools = ConfiglueDevToolsWebHost.Create(registry);
 await devtools.StartAsync();
-ConfiglueDevTools.Enable(devtools.LaunchUrl);
-await AspNetCoreConfiglueDevTools.OpenBrowserAsync();
-// Blazor apps use BlazorConfiglueDevTools the same way; there is no second UI.
+devtools.PublishAsCurrentSession();
+await devtools.OpenBrowserAsync(); // or: await ConfiglueDevTools.OpenBrowserAsync();
+// Blazor apps use the same shared UI; there is no second Blazor component.
 #endif
 ```
 
-### WPF / WinForms / WinUI / Avalonia / MAUI
+### MAUI (opt-in tooling package)
+
+Mobile targets have no desktop shell, so the MAUI launcher API is genuinely
+required. It lives in the explicitly-installed `Configlue.DevTools.Maui`
+package; the normal `Configlue.Hosting.Maui` package stays free of tooling:
 
 ```csharp
 #if DEBUG
 ConfiglueDevTools.Enable(devtools.LaunchUrl);
-await WpfConfiglueDevTools.OpenBrowserAsync(); // WinForms/WinUI/Avalonia/MAUI equivalents
+await MauiConfiglueDevTools.OpenBrowserAsync(); // Configlue.DevTools.Maui
 #endif
 ```
 
-### Unity (Editor only)
+Without the package, the same effect is one caller-supplied function:
+
+```csharp
+await ConfiglueDevTools.OpenBrowserAsync(
+    (url, _) => Launcher.Default.OpenAsync(new Uri(url)));
+```
+
+### Unity (opt-in tooling package, editor menu stays editor-only)
+
+Runtime/play-mode launching and the editor menu live in the
+explicitly-installed `Configlue.DevTools.Unity` package:
 
 ```csharp
 // Runtime/play mode:
 ConfiglueDevTools.Enable(launchUrlFromEditorHost);
-await UnityConfiglueDevTools.OpenBrowserAsync();
+await UnityConfiglueDevTools.OpenBrowserAsync(); // Configlue.DevTools.Unity
 ```
 
 Editor menu `Tools > Configlue > Open DevTools` opens the active session.
-Menu code is `#if UNITY_EDITOR` only and never ships in player builds.
+Menu code is `#if UNITY_EDITOR` only and never ships in player builds; the
+normal `Configlue.Hosting.Unity` package has no DevTools dependency.
 
-### Godot (editor only)
+### Godot (opt-in tooling package, editor plugin stays editor-only)
+
+Runtime launching and the editor plugin live in the explicitly-installed
+`Configlue.DevTools.Godot` package:
 
 ```csharp
 ConfiglueDevTools.Enable(launchUrlFromDevHost);
-await GodotConfiglueDevTools.OpenBrowserAsync(); // uses OS.ShellOpen
+await GodotConfiglueDevTools.OpenBrowserAsync(); // Configlue.DevTools.Godot
 ```
 
 The `ConfiglueDevToolsEditorPlugin` tool menu (`#if TOOLS` only) opens the
-active session and is excluded from exported games.
+active session and is excluded from exported games; the normal
+`Configlue.Hosting.Godot` package has no DevTools dependency.

@@ -1,5 +1,5 @@
 using Configlue.DevTools;
-using Configlue.Hosting.Unity;
+using Configlue.DevTools.Unity;
 using UnityEngine;
 
 namespace Configlue.Tests;

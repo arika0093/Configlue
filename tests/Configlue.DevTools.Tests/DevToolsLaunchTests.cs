@@ -208,12 +208,53 @@ public sealed class DevToolsLaunchTests
     }
 
     [Test]
-    public async Task AspNetCoreHelperInvokesLauncherAndRespectsDisabled()
+    public async Task SystemBrowserLauncherIsTheDevToolsOwnedDefault()
+    {
+        Reset();
+        new SystemBrowserLauncher().ShouldBeAssignableTo<IConfiglueDevToolsBrowserLauncher>();
+
+        // Disabled or empty sessions never reach the OS shell, so these paths
+        // assert the safe behavior without launching a real browser.
+        var launcher = new FakeLauncher();
+        ConfiglueDevTools.IsEnabled.ShouldBeFalse();
+        (await ConfiglueDevTools.OpenBrowserAsync(launcher)).ShouldBeFalse();
+
+        (await ConfiglueDevTools.OpenBrowserAsync()).ShouldBeFalse();
+        (await ConfiglueDevTools.OpenBrowserAsync((string?)null)).ShouldBeFalse();
+        (await ConfiglueDevTools.OpenBrowserAsync(string.Empty)).ShouldBeFalse();
+        await Should.ThrowAsync<ArgumentException>(async () =>
+            await ConfiglueDevTools.OpenBrowserAsync("http://example.com/?token=x")
+        );
+        Reset();
+    }
+
+    [Test]
+    public async Task WebHostSystemBrowserOverloadDoesNotLaunchWhenStopped()
+    {
+        Reset();
+        await using var context = DevToolsFixtures.CreateDemoContext();
+        var registry = new ConfiglueDevToolsRegistry();
+        registry.Add(context.GetState<DevToolsDemoSettings>());
+        var host = ConfiglueDevToolsWebHost.Create(registry);
+        try
+        {
+            (await host.OpenBrowserAsync()).ShouldBeFalse();
+            host.IsRunning.ShouldBeFalse();
+        }
+        finally
+        {
+            host.Dispose();
+            Reset();
+        }
+    }
+
+    [Test]
+    public async Task MauiOptInHelperInvokesLauncherAndRespectsDisabled()
     {
         Reset();
         var launcher = new FakeLauncher();
         (
-            await global::Configlue.Hosting.AspNetCore.AspNetCoreConfiglueDevTools.OpenBrowserAsync(
+            await global::Configlue.DevTools.Maui.MauiConfiglueDevTools.OpenBrowserAsync(
                 launcher
             )
         ).ShouldBeFalse();
@@ -221,7 +262,7 @@ public sealed class DevToolsLaunchTests
 
         ConfiglueDevTools.Enable(LoopbackUrl);
         (
-            await global::Configlue.Hosting.AspNetCore.AspNetCoreConfiglueDevTools.OpenBrowserAsync(
+            await global::Configlue.DevTools.Maui.MauiConfiglueDevTools.OpenBrowserAsync(
                 launcher
             )
         ).ShouldBeTrue();
@@ -229,7 +270,7 @@ public sealed class DevToolsLaunchTests
 
         var explicitLauncher = new FakeLauncher();
         (
-            await global::Configlue.Hosting.AspNetCore.AspNetCoreConfiglueDevTools.OpenBrowserAsync(
+            await global::Configlue.DevTools.Maui.MauiConfiglueDevTools.OpenBrowserAsync(
                 LoopbackUrl2,
                 explicitLauncher
             )
@@ -239,43 +280,15 @@ public sealed class DevToolsLaunchTests
     }
 
     [Test]
-    public async Task BlazorHelperReusesSharedSession()
+    public async Task GodotOptInHelperInvokesLauncher()
     {
         Reset();
         ConfiglueDevTools.Enable(LoopbackUrl);
         var launcher = new FakeLauncher();
         (
-            await global::Configlue.Hosting.Blazor.BlazorConfiglueDevTools.OpenBrowserAsync(
+            await global::Configlue.DevTools.Godot.GodotConfiglueDevTools.OpenBrowserAsync(
                 launcher
             )
-        ).ShouldBeTrue();
-        launcher.Urls[0].ShouldBe(LoopbackUrl);
-        Reset();
-    }
-
-    [Test]
-    public async Task AvaloniaHelperInvokesLauncher()
-    {
-        Reset();
-        ConfiglueDevTools.Enable(LoopbackUrl);
-        var launcher = new FakeLauncher();
-        (
-            await global::Configlue.Hosting.Avalonia.AvaloniaConfiglueDevTools.OpenBrowserAsync(
-                launcher
-            )
-        ).ShouldBeTrue();
-        launcher.Urls[0].ShouldBe(LoopbackUrl);
-        Reset();
-    }
-
-    [Test]
-    public async Task GodotHelperInvokesLauncher()
-    {
-        Reset();
-        ConfiglueDevTools.Enable(LoopbackUrl);
-        var launcher = new FakeLauncher();
-        (
-            await global::Configlue.Hosting.Godot.GodotConfiglueDevTools.OpenBrowserAsync(launcher)
         ).ShouldBeTrue();
         launcher.Urls[0].ShouldBe(LoopbackUrl);
         Reset();
@@ -284,8 +297,8 @@ public sealed class DevToolsLaunchTests
     [Test]
     public void UnityMenuRemainsEditorOnly()
     {
-        var menu = ReadHostingSource(
-            "Configlue.Hosting.Unity",
+        var menu = ReadDevToolsSource(
+            "Configlue.DevTools.Unity",
             "Editor/UnityConfiglueDevToolsMenu.cs"
         );
         menu.ShouldContain("#if UNITY_EDITOR");
@@ -298,7 +311,10 @@ public sealed class DevToolsLaunchTests
     [Test]
     public void UnityRuntimeHelperUsesPlatformLauncher()
     {
-        var runtime = ReadHostingSource("Configlue.Hosting.Unity", "UnityConfiglueDevTools.cs");
+        var runtime = ReadDevToolsSource(
+            "Configlue.DevTools.Unity",
+            "UnityConfiglueDevTools.cs"
+        );
         runtime.ShouldContain("Application.OpenURL");
         runtime.ShouldContain("IConfiglueDevToolsBrowserLauncher");
         runtime.ShouldNotContain("WebView");
@@ -308,14 +324,82 @@ public sealed class DevToolsLaunchTests
     [Test]
     public void GodotEditorPluginRemainsEditorOnly()
     {
-        var plugin = ReadHostingSource(
-            "Configlue.Hosting.Godot",
+        var plugin = ReadDevToolsSource(
+            "Configlue.DevTools.Godot",
             "ConfiglueDevToolsEditorPlugin.cs"
         );
         plugin.ShouldContain("#if TOOLS");
         plugin.ShouldContain("AddToolMenuItem");
         plugin.ShouldContain("OS.ShellOpen");
         plugin.ShouldNotContain("WebView");
+    }
+
+    [Test]
+    public void GodotRuntimeHelperUsesPlatformLauncher()
+    {
+        var runtime = ReadDevToolsSource(
+            "Configlue.DevTools.Godot",
+            "GodotConfiglueDevTools.cs"
+        );
+        runtime.ShouldContain("OS.ShellOpen");
+        runtime.ShouldContain("IConfiglueDevToolsBrowserLauncher");
+        runtime.ShouldNotContain("WebView");
+    }
+
+    [Test]
+    public void HostingPackagesDoNotDependOnDevTools()
+    {
+        foreach (
+            var package in new[]
+            {
+                "Configlue.Hosting.AspNetCore",
+                "Configlue.Hosting.Blazor",
+                "Configlue.Hosting.Avalonia",
+                "Configlue.Hosting.Maui",
+                "Configlue.Hosting.Godot",
+                "Configlue.Hosting.Unity",
+                "Configlue.Hosting.Wpf",
+                "Configlue.Hosting.WinForms",
+                "Configlue.Hosting.WinUI",
+            }
+        )
+        {
+            var directory = FindHostingDirectory(package);
+            var project = File.ReadAllText(
+                Directory.GetFiles(directory, "*.csproj", SearchOption.TopDirectoryOnly)[0]
+            );
+            project.ShouldNotContain("Configlue.DevTools");
+            foreach (var file in Directory.GetFiles(directory, "*.cs", SearchOption.AllDirectories))
+            {
+                var text = File.ReadAllText(file);
+                text.ShouldNotContain("Configlue.DevTools");
+            }
+        }
+    }
+
+    [Test]
+    public void DevToolsPlatformLaunchersStayInOptInPackages()
+    {
+        foreach (
+            var package in new[] { "Configlue.DevTools.Maui", "Configlue.DevTools.Godot" }
+        )
+        {
+            var directory = FindDevToolsDirectory(package);
+            var project = File.ReadAllText(
+                Directory.GetFiles(directory, "*.csproj", SearchOption.TopDirectoryOnly)[0]
+            );
+            project.ShouldContain("Configlue.DevTools.csproj");
+        }
+
+        var maui = ReadDevToolsSource("Configlue.DevTools.Maui", "MauiConfiglueDevTools.cs");
+        maui.ShouldContain("Launcher.Default.OpenAsync");
+        maui.ShouldContain("IConfiglueDevToolsBrowserLauncher");
+
+        var unity = ReadDevToolsSource(
+            "Configlue.DevTools.Unity",
+            "UnityConfiglueDevTools.cs"
+        );
+        unity.ShouldContain("Application.OpenURL");
     }
 
     [Test]
@@ -371,25 +455,31 @@ public sealed class DevToolsLaunchTests
         }
     }
 
-    private static string ReadHostingSource(string package, string relativePath)
+    private static string ReadDevToolsSource(string package, string relativePath)
     {
-        var directory = FindHostingDirectory(package);
+        var directory = FindDevToolsDirectory(package);
         var file = Path.Combine(directory, relativePath);
         return File.ReadAllText(file);
     }
 
-    private static string FindHostingDirectory(string package)
+    private static string FindHostingDirectory(string package) =>
+        FindPackageDirectory(package, "hosting");
+
+    private static string FindDevToolsDirectory(string package) =>
+        FindPackageDirectory(package, "devtools");
+
+    private static string FindPackageDirectory(string package, string area)
     {
         var current = new DirectoryInfo(AppContext.BaseDirectory);
         while (current is not null)
         {
-            var candidate = Path.Combine(current.FullName, "src", "hosting", package);
+            var candidate = Path.Combine(current.FullName, "src", area, package);
             if (Directory.Exists(candidate))
             {
                 return candidate;
             }
 
-            candidate = Path.Combine(current.FullName, "hosting", package);
+            candidate = Path.Combine(current.FullName, area, package);
             if (Directory.Exists(candidate))
             {
                 return candidate;
@@ -399,7 +489,7 @@ public sealed class DevToolsLaunchTests
         }
 
         throw new DirectoryNotFoundException(
-            $"Hosting package directory '{package}' was not found."
+            $"Package directory '{package}' was not found."
         );
     }
 }

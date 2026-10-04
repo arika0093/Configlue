@@ -71,6 +71,7 @@ namespace Configlue.DevTools.Web
     }
     public static class ConfiglueDevToolsWebHostLaunchExtensions
     {
+        public static System.Threading.Tasks.Task<bool> OpenBrowserAsync(this Configlue.DevTools.Web.ConfiglueDevToolsWebHost host, System.Threading.CancellationToken cancellationToken = default) { }
         public static System.Threading.Tasks.Task<bool> OpenBrowserAsync(this Configlue.DevTools.Web.ConfiglueDevToolsWebHost host, Configlue.DevTools.IConfiglueDevToolsBrowserLauncher launcher, System.Threading.CancellationToken cancellationToken = default) { }
         public static System.Threading.Tasks.Task<bool> OpenBrowserAsync(this Configlue.DevTools.Web.ConfiglueDevToolsWebHost host, System.Func<string, System.Threading.CancellationToken, System.Threading.Tasks.Task> openAsync, System.Threading.CancellationToken cancellationToken = default) { }
         public static void PublishAsCurrentSession(this Configlue.DevTools.Web.ConfiglueDevToolsWebHost host) { }

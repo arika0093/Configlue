@@ -2,12 +2,24 @@ using System.Diagnostics;
 using Configlue.DevTools;
 using Microsoft.Maui.ApplicationModel;
 
-namespace Configlue.Hosting.Maui;
+namespace Configlue.DevTools.Maui;
 
 /// <summary>
 /// Development-only browser-launch hook for MAUI applications (dev menus or startup code).
 /// </summary>
-/// <remarks>Opens the shared browser DevTools UI in the system browser. No embedded browser control is required.</remarks>
+/// <remarks>
+/// <para>
+/// Explicitly-installed tooling only: the normal <c>Configlue.Hosting.Maui</c>
+/// package never references this package. Opens the shared browser DevTools UI
+/// with the MAUI platform <c>Launcher</c> API, which is required on mobile
+/// targets where a desktop shell process is unavailable. No embedded browser
+/// control is required.
+/// </para>
+/// <para>
+/// Publish the active loopback session URL via <c>ConfiglueDevTools.Enable</c>
+/// before opening.
+/// </para>
+/// </remarks>
 public static class MauiConfiglueDevTools
 {
     /// <summary>Opens the active session URL with the platform browser launcher.</summary>

@@ -2,4 +2,7 @@
   <Folder Name="/src/hosting/">
     <Project Path="src/hosting/Configlue.Hosting.Unity/Configlue.Hosting.Unity.csproj" />
   </Folder>
+  <Folder Name="/src/devtools/">
+    <Project Path="src/devtools/Configlue.DevTools.Unity/Configlue.DevTools.Unity.csproj" />
+  </Folder>
 </Solution>

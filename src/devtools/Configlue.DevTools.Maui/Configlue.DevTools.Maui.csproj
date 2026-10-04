@@ -2,10 +2,10 @@
   <PropertyGroup>
     <TargetFrameworks>netstandard2.0;netstandard2.1;net10.0</TargetFrameworks>
     <IsPackable>true</IsPackable>
-    <PackageDescription>MAUI app-data paths, main-thread dispatch, and small-secret SecureStorage resources for Configlue.</PackageDescription>
+    <PackageDescription>Development-only MAUI browser-launch hook for the shared Configlue DevTools browser UI. Optional; never reference from production graphs.</PackageDescription>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.Maui.Essentials" Version="10.0.110" />
-    <ProjectReference Include="../../extensions/Configlue.Extensions.ComponentModel/Configlue.Extensions.ComponentModel.csproj" />
+    <ProjectReference Include="../Configlue.DevTools/Configlue.DevTools.csproj" />
   </ItemGroup>
 </Project>

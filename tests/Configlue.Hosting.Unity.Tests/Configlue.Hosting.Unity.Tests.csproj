@@ -9,7 +9,7 @@
     <ProjectReference Include="../../src/devtools/Configlue.DevTools/Configlue.DevTools.csproj" />
     <ProjectReference Include="../../src/extensions/Configlue.Extensions.ComponentModel/Configlue.Extensions.ComponentModel.csproj" />
     <Compile Include="../../src/hosting/Configlue.Hosting.Unity/UnityConfiglueDispatcher.cs" />
-    <Compile Include="../../src/hosting/Configlue.Hosting.Unity/UnityConfiglueDevTools.cs" />
     <Compile Include="../../src/hosting/Configlue.Hosting.Unity/UnityHostPaths.cs" />
+    <Compile Include="../../src/devtools/Configlue.DevTools.Unity/UnityConfiglueDevTools.cs" />
   </ItemGroup>
 </Project>

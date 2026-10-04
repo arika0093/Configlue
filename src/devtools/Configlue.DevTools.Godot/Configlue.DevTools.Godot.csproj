@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
+    <IsPackable>true</IsPackable>
+    <PackageDescription>Development-only Godot browser-launch hook and editor plugin for the shared Configlue DevTools browser UI. Optional; never reference from production graphs or exported games.</PackageDescription>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="GodotSharp" Version="4.7.2" />
+    <ProjectReference Include="../Configlue.DevTools/Configlue.DevTools.csproj" />
+  </ItemGroup>
+</Project>

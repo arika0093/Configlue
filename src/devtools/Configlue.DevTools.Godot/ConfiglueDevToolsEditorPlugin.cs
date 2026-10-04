@@ -1,7 +1,7 @@
 #if TOOLS
 using Configlue.DevTools;
 
-namespace Configlue.Hosting.Godot;
+namespace Configlue.DevTools.Godot;
 
 /// <summary>
 /// Editor-only plugin hook for opening the active Configlue DevTools session.

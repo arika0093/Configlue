@@ -378,6 +378,18 @@ public sealed class PublicApiCheckTest
         );
 
     [Test]
+    public void DevToolsMaui() =>
+        PublicApiCheck.CheckAssembly(
+            typeof(Configlue.DevTools.Maui.MauiConfiglueDevTools).Assembly
+        );
+
+    [Test]
+    public void DevToolsGodot() =>
+        PublicApiCheck.CheckAssembly(
+            typeof(Configlue.DevTools.Godot.GodotConfiglueDevTools).Assembly
+        );
+
+    [Test]
     public void AesTransformer() => PublicApiCheck.Check<AesGcmStateByteTransformer>();
 
     [Test]

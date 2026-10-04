@@ -2,10 +2,10 @@
   <PropertyGroup>
     <TargetFramework>netstandard2.1</TargetFramework>
     <IsPackable>true</IsPackable>
-    <PackageDescription>Unity 6 persistent-data paths and lifecycle-aware main-thread dispatch for Configlue.</PackageDescription>
+    <PackageDescription>Development-only Unity browser-launch hook and editor menu for the shared Configlue DevTools browser UI. Optional; never reference from production graphs or player builds.</PackageDescription>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="../../extensions/Configlue.Extensions.ComponentModel/Configlue.Extensions.ComponentModel.csproj" />
+    <ProjectReference Include="../Configlue.DevTools/Configlue.DevTools.csproj" />
     <Reference Include="UnityEngine.CoreModule">
       <HintPath>$(UnityEditorManagedPath)/UnityEngine/UnityEngine.CoreModule.dll</HintPath>
       <Private>false</Private>
